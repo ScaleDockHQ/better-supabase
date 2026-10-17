@@ -30,15 +30,18 @@ export function highlight(text: string, paint: Paint): string {
   if (paint === plain) {
     return text;
   }
+
   return text
     .split("\n")
     .map((line) => {
       for (const [pattern, format] of VERBS) {
         const verb = pattern.exec(line)?.[0];
+
         if (verb) {
           return `${paint(format, verb)}${line.slice(verb.length)}`;
         }
       }
+
       return line;
     })
     .join("\n");

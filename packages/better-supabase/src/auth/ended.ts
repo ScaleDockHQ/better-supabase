@@ -36,13 +36,16 @@ function accessTokenOf(
   options: SessionStatusOptions,
 ): string | undefined {
   const bearer = extractCredentials(request).token;
+
   if (bearer) {
     return bearer;
   }
+
   const session = readSession(
     parseCookies(request.headers.get("cookie")),
     options.cookieName ?? sessionCookieName(options.url),
   );
+
   return session?.access_token;
 }
 
@@ -52,14 +55,19 @@ export async function sessionStatus(
 ): Promise<SessionStatus> {
   const token =
     typeof input === "string" ? input : accessTokenOf(input, options);
+
   if (!token) {
     return "unknown";
   }
+
   const exp = decodeJwtPayload(token)?.["exp"];
+
   if (typeof exp === "number" && exp * 1000 <= (options.now ?? Date.now)()) {
     return "unknown";
   }
+
   const doFetch = options.fetch ?? fetch;
+
   try {
     const response = await doFetch(`${options.url}/auth/v1/user`, {
       headers: {
@@ -68,15 +76,19 @@ export async function sessionStatus(
       },
       signal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
     });
+
     if (response.status === 401 || response.status === 403) {
       // SAFETY: the Auth server responds with a JSON object, and the field is checked before use.
       const body = (await response.json().catch(() => null)) as Record<
         string,
         unknown
       > | null;
+
       return body?.["error_code"] === "user_banned" ? "banned" : "ended";
     }
+
     await response.body?.cancel();
+
     return response.ok ? "active" : "unknown";
   } catch {
     return "unknown";
@@ -94,14 +106,18 @@ export function clearSessionCookies<R extends Response>(
     null,
     options.cookie,
   );
+
   if (writes.length === 0) {
     return response;
   }
+
   for (const write of writes) {
     response.headers.append("set-cookie", serializeCookie(write));
   }
+
   for (const [key, value] of Object.entries(AUTH_CACHE_HEADERS)) {
     response.headers.set(key, value);
   }
+
   return response;
 }

@@ -40,6 +40,7 @@ import {
 // Node resolves solid-js to its server build, where effects never run.
 vi.mock("solid-js", () => {
   const browserBuild = "../../node_modules/solid-js/dist/solid.js";
+
   return import(browserBuild);
 });
 
@@ -60,23 +61,30 @@ function mount<T>(
   let dispose = (): void => undefined;
   createRoot((stop) => {
     dispose = stop;
+
     if (!client) {
       result = setup();
+
       return;
     }
+
     const element = BetterSupabaseProvider({
       client,
       ...extra,
       get children() {
         result = setup();
+
         return null;
       },
     });
+
     const rendered: unknown = element;
+
     if (typeof rendered === "function") {
       rendered();
     }
   });
+
   // SAFETY: the provider renders its children synchronously.
   return { result: result as T, dispose };
 }
@@ -90,11 +98,13 @@ describe("BetterSupabaseProvider", () => {
     const { browser, setAuth, listeners } = fakeBrowser(signedIn(USER));
     const { queryClient } = cachedClient(["bs", "customers"]);
     const reset = vi.spyOn(queryClient, "resetQueries");
+
     const view = mount(
       browser,
       () => ({ auth: useAuth(), supabase: useSupabase() }),
       { queryClient },
     );
+
     await flush();
     expect(view.result.auth().user?.id).toBe(USER);
     expect(view.result.supabase).toBe(browser.supabase);
@@ -111,10 +121,12 @@ describe("BetterSupabaseProvider", () => {
     );
     const { browser } = fakeBrowser(SIGNED_OUT);
     const bindings = createBindings<typeof browser>();
+
     const view = mount(browser, () => ({
       db: bindings.useDb(),
       queries: bindings.useQueries(),
     }));
+
     expect(view.result.db).toBe(browser.db);
     expect(view.result.queries).toBe(browser.queries);
     view.dispose();
@@ -123,17 +135,21 @@ describe("BetterSupabaseProvider", () => {
   it("reads the session prop", () => {
     const { browser } = fakeBrowser(SIGNED_OUT);
     const session = { user: { id: USER } } as unknown as AuthSession;
+
     const view = mount(
       browser,
       () => ({ session: useSession(), support: useSupportSession() }),
       { session: () => session },
     );
+
     expect(view.result.session()).toBe(session);
     expect(view.result.support()).toBeUndefined();
     view.dispose();
+
     const loading = mount(browser, () => useSupportSession(), {
       session: () => undefined,
     });
+
     expect(loading.result()).toBeUndefined();
     expect(() => mount(browser, () => useSession())).toThrow(
       /needs <BetterSupabaseProvider session/,
@@ -149,6 +165,7 @@ describe("useBroadcast", () => {
     const cache = cachedClient(["bs", "customers"]);
     const [roomId, setRoomId] = createSignal<string | null>("r1");
     const created = vi.fn();
+
     const view = mount(
       browser,
       () =>
@@ -156,6 +173,7 @@ describe("useBroadcast", () => {
           room,
           () => {
             const id = roomId();
+
             return id ? { roomId: id } : null;
           },
           { created },
@@ -163,6 +181,7 @@ describe("useBroadcast", () => {
         ),
       { queryClient: cache.queryClient },
     );
+
     await flush();
     expect(client.channel).not.toHaveBeenCalled();
     setAuth(signedIn(USER));
@@ -183,11 +202,13 @@ describe("useBroadcast", () => {
 
   it("follows a plain client's auth state without the provider", async () => {
     const { client, emitAuth } = fakeBrowser(LOADING);
+
     const view = mount(null, () =>
       useBroadcast(room, { roomId: "r" }, undefined, {
         client: client as never,
       }),
     );
+
     await flush();
     emitAuth({ user: { id: USER }, access_token: "x" });
     expect(client.channel).toHaveBeenCalledOnce();
@@ -214,6 +235,7 @@ describe("useLiveQuery", () => {
     const { browser, client, emit, setAuth } = fakeBrowser(LOADING);
     const cache = cachedClient(["bs", "customers"], ["bs", "organizations"]);
     const [current, setCurrent] = createSignal<typeof spec | null>(spec);
+
     const view = mount(
       browser,
       () => useLiveQuery(current, { debounceMs: 1 }),
@@ -221,6 +243,7 @@ describe("useLiveQuery", () => {
         queryClient: cache.queryClient,
       },
     );
+
     await flush();
     setAuth(signedIn(USER, { app_metadata: { tenant_id: "org-1" } }));
     expect(client.channel.mock.calls.map(([topic]) => topic)).toEqual([
@@ -250,6 +273,7 @@ describe("useLiveCount", () => {
       AsyncResult.ok(4),
       AsyncResult.err(dbError("network", "offline")),
     ];
+
     const run = vi.fn(() => answers.shift() ?? AsyncResult.ok(0));
     const { browser, emit } = fakeBrowser(signedIn(USER), { $run: run });
     const counted = mount(browser, () => useLiveCount(spec, { debounceMs: 1 }));
@@ -266,6 +290,7 @@ describe("useLiveCount", () => {
     const seeded = mount(browser, () =>
       useLiveCount({ spec, count: 3 }, { debounceMs: 1 }),
     );
+
     await flush();
     expect(seeded.result.count).toBe(3);
     seeded.dispose();
@@ -278,21 +303,25 @@ describe("usePresence", () => {
     const { topic, joins } = fakePresenceTopic();
     const [roomId, setRoomId] = createSignal<string | null>("r1");
     const [name, setName] = createSignal<string | null>("Ada");
+
     const view = mount(browser, () =>
       usePresence(
         topic,
         () => {
           const id = roomId();
+
           return id ? { roomId: id } : null;
         },
         {
           state: () => {
             const current = name();
+
             return current === null ? null : { name: current };
           },
         },
       ),
     );
+
     await flush();
     expect(joins).toHaveLength(0);
     expect(await view.result.track({ name: "x" })).toMatchObject({
@@ -333,12 +362,14 @@ describe("usePresence", () => {
 describe("useAction", () => {
   it("tracks pending inputs, data and errors", async () => {
     let fail = false;
+
     const action = vi.fn(
       async (input: { id: number }): Promise<ActionResultOf<number>> =>
         fail
           ? { ok: false, data: null, error: dbError("conflict", "taken") }
           : { ok: true, data: input.id * 2, error: null },
     );
+
     const view = mount(null, () => useAction(action));
     const pending = view.result.run({ id: 2 });
     expect(view.result.pending).toBe(true);

@@ -1,6 +1,7 @@
 import type { CommandSearchState, UseCommandSearchOptions } from "./index.ts";
 
 export type { CommandSearchState, UseCommandSearchOptions } from "./index.ts";
+
 export {
   groupHits,
   type CommandSearchGroup,

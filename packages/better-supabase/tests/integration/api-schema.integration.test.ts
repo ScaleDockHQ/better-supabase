@@ -11,6 +11,7 @@ describe.skipIf(!live)("api wrappers", () => {
 
   it("keep anon out under default privileges that grant every function", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const schema = `bs_api_${crypto.randomUUID().slice(0, 8)}`;
       await s.rows(
@@ -23,6 +24,7 @@ describe.skipIf(!live)("api wrappers", () => {
           modules.map((name) => [name, { api: { schema } }]),
         ),
       });
+
       const rows = await s.rows<{
         name: string;
         wrapper_anon: boolean;
@@ -43,10 +45,12 @@ describe.skipIf(!live)("api wrappers", () => {
          order by w.proname`,
         [schema],
       );
+
       expect(rows.length).toBeGreaterThan(10);
       expect(rows.filter((row) => !row.wrapper_anon).length).toBeGreaterThan(
         10,
       );
+
       for (const row of rows) {
         expect({ name: row.name, anon: row.wrapper_anon }).toEqual({
           name: row.name,
@@ -60,6 +64,7 @@ describe.skipIf(!live)("api wrappers", () => {
           authenticated: row.source_authenticated,
         });
       }
+
       await s.asRole("anon");
       expect(
         await s.hint(`${schema}.list_incoming_webhooks(gen_random_uuid())`),

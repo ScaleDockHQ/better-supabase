@@ -102,13 +102,17 @@ export async function handle<
 ): Promise<Response> {
   const expose = options.expose ?? defaultExpose();
   const instance = options.instance ?? new URL(request.url).pathname;
+
   const ctx = await server.context(request, {
     ...options.context,
     refresh: refreshFor(options.refresh, request) ?? false,
   });
+
   const denied = guard(ctx.auth, options.allow, options.aal, options.scopes);
+
   try {
     let response: Response;
+
     try {
       response = denied
         ? problemResponse(denied, { instance, expose })
@@ -121,6 +125,7 @@ export async function handle<
       options.rethrow?.(cause);
       response = unexpectedResponse(cause, { instance, expose });
     }
+
     return ctx.apply(response);
   } finally {
     // Also when `rethrow` throws control flow after a write.
@@ -146,5 +151,6 @@ export async function resolveToken<C, P>(
   const { auth } = await server.resolve(bearerRequest(token), {
     cookies: false,
   });
+
   return auth;
 }

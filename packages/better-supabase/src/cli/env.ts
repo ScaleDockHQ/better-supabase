@@ -31,15 +31,18 @@ export function configEnvironment(
   if (flag !== undefined && flag !== "") {
     return flag;
   }
+
   if (env.BETTER_SUPABASE_ENV !== undefined) {
     return env.BETTER_SUPABASE_ENV;
   }
+
   return env.CI !== undefined && env.CI !== "false" && env.CI !== "0"
     ? "ci"
     : undefined;
 }
 
 const optionalString = v.optional(v.string());
+
 const optionalUrl = v.optional(
   v.pipe(v.string(), v.url("must be a URL, e.g. postgresql://user@host/db")),
 );
@@ -67,6 +70,7 @@ export function parseEnv(
         (issue) =>
           `${issue.path?.map((key) => String(typeof key === "object" ? key.key : key)).join(".") ?? "env"}: ${issue.message}`,
       );
+
       throw new CliError(
         "env_invalid",
         `Invalid environment variable:\n${lines.map((line) => `  ${line}`).join("\n")}`,

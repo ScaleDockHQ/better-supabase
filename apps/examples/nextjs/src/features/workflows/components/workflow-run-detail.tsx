@@ -37,9 +37,11 @@ export function WorkflowRunDetail({
 }) {
   const { run: id } = use(params);
   const { run, refresh } = useWorkflowRun(id, { schema: "api" });
+
   if (run === undefined) {
     return <WorkflowRunDetailSkeleton />;
   }
+
   return <RunCard run={run} onChange={refresh} />;
 }
 
@@ -53,6 +55,7 @@ function RunCard({
   const t = useExtracted("workflows");
   const format = useFormatter();
   const errorMessage = useErrorMessage();
+
   const handlers = {
     onSuccess: () => {
       void onChange();
@@ -61,9 +64,11 @@ function RunCard({
       toast.error(errorMessage(error));
     },
   };
+
   const cancel = useAction(cancelRun, handlers);
   const decide = useAction(decideApproval, handlers);
   const finished = isFinished(run.status);
+
   const time = (instant: { epochMilliseconds: number } | undefined) =>
     instant === undefined
       ? "–"
@@ -71,11 +76,13 @@ function RunCard({
           dateStyle: "medium",
           timeStyle: "medium",
         });
+
   const steps = [
     [t("Created"), run.createdAt],
     [t("Started"), run.startedAt],
     [t("Finished"), run.completedAt],
   ] as const;
+
   return (
     <Card>
       <CardHeader>

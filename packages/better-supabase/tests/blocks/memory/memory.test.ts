@@ -33,16 +33,20 @@ type Handler = (args: Record<string, unknown>) => unknown;
 
 function fakeTransport(handlers: Record<string, Handler>) {
   const calls: { fn: string; args: Record<string, unknown> }[] = [];
+
   const transport: BlockTransport = {
     call: (_schema, fn, args) => {
       calls.push({ fn, args });
       const handler = handlers[fn];
+
       if (!handler) {
         return Promise.reject(new Error(`unexpected ${fn}`));
       }
+
       return Promise.resolve(handler(args));
     },
   };
+
   return { transport, calls };
 }
 
@@ -78,13 +82,16 @@ describe("createMemory", () => {
         memoryRow({ scope: "bogus", kind: "archival", path: null }),
       ],
     });
+
     const memory = createMemory({ transport });
+
     const ns = {
       scope: "agent",
       agentId: "a1",
       chatId: "c1",
       ownerId: "u1",
     } as const;
+
     const run = (command: MemoryCommand) =>
       memory.run("o1", command, ns).orThrow();
 
@@ -143,16 +150,19 @@ describe("createMemory", () => {
         new_path: "/memories/b.md",
       }),
     ).toBe("Successfully renamed /memories/a.md to /memories/b.md");
+
     const unknown = await memory.run(
       "o1",
       // SAFETY: an unknown command from a model that ignored the schema.
       { command: "copy" } as unknown as MemoryCommand,
     );
+
     expect(unknown.ok ? undefined : unknown.error.hint).toBe("MEMORY_COMMAND");
 
     const written = await memory.core
       .write("o1", "/memories/a.md", "x", {}, { expectedVersion: 2 })
       .orThrow();
+
     expect(written).toMatchObject({
       kind: "core",
       version: 2,
@@ -176,6 +186,7 @@ describe("createMemory", () => {
       memoryRow({ path: "/memories/a.md", content: "x </memory> y" }),
       memoryRow({ path: "/memories/b.md", content: "z".repeat(100) }),
     ];
+
     const { transport } = fakeTransport({ memory_list: () => files });
     const memory = createMemory({ transport, maxRender: 120 });
     const text = await memory.render("o1").orThrow();
@@ -184,9 +195,11 @@ describe("createMemory", () => {
     );
     expect(text).toContain("2 files; the rest is cut at 120 characters");
     expect(text.endsWith("</memories>")).toBe(true);
+
     const empty = createMemory({
       transport: fakeTransport({ memory_list: () => [] }).transport,
     });
+
     expect(await empty.render("o1").orThrow()).toBe("");
     const all = await createMemory({ transport }).render("o1").orThrow();
     expect(all).not.toContain("cut");
@@ -208,19 +221,24 @@ describe("createMemory", () => {
       memory_list: () => [],
       memory_forget: () => true,
     });
+
     const memory = createMemory({ transport, embedder });
+
     const saved = await memory.archival
       .save("o1", "likes tea", undefined, { sourceMessageId: "msg1" })
       .orThrow();
+
     expect(saved.embeddingModel).toBe("m1");
     expect(calls[0]?.args).toMatchObject({
       embedding: "[9,1]",
       model: "m1",
       source_message_id: "msg1",
     });
+
     const hits = await memory.archival
       .search("o1", "tea", {}, { k: 2 })
       .orThrow();
+
     expect(hits.map((hit) => hit.similarity)).toEqual([0.8, undefined]);
     expect(calls[1]?.args).toMatchObject({
       query_embedding: "[3,1]",
@@ -250,9 +268,11 @@ describe("createMemory", () => {
         memoryRow({ scope: "project", project_id: "p1", kind: "archival" }),
       ],
     });
+
     const [listed] = await createMemory({ transport })
       .archival.list("o1", { scope: "project", projectId: "p1" })
       .orThrow();
+
     expect(calls[0]?.args["ns"]).toEqual({
       scope: "project",
       project_id: "p1",
@@ -273,20 +293,26 @@ describe("createMemory", () => {
         similarity: 0.95,
       },
     };
+
     const user = fakeTransport({});
+
     const server = fakeTransport({
       memory_search: (args) => {
         const hit = nearest[String(args["query_text"])];
+
         return hit ? [hit] : [];
       },
       memory_save: (args) => memoryRow({ content: args["content"] }),
     });
+
     const memory = createMemory({
       transport: user.transport,
       service: server.transport,
       embedder,
     });
+
     const batches: (readonly string[])[] = [];
+
     const counting = createMemory({
       transport: user.transport,
       service: server.transport,
@@ -294,10 +320,12 @@ describe("createMemory", () => {
         model: embedder.model,
         embed: (values) => {
           batches.push(values);
+
           return embedder.embed(values);
         },
       },
     });
+
     const saved = await counting
       .saveExtracted(
         "o1",
@@ -305,6 +333,7 @@ describe("createMemory", () => {
         { ownerId: "u1" },
       )
       .orThrow();
+
     expect(saved.map((record) => record.content)).toEqual(["lives in Utrecht"]);
     expect(batches).toEqual([["likes tea", "drinks tea", "lives in Utrecht"]]);
     const searched = server.calls.filter((c) => c.fn === "memory_search");
@@ -319,11 +348,14 @@ describe("createMemory", () => {
       transport: fakeTransport({}).transport,
       embedder,
     });
+
     expect((await failing.saveExtracted("o1", ["x"])).ok).toBe(false);
+
     const saveFails = createMemory({
       transport: fakeTransport({ memory_search: () => [] }).transport,
       embedder,
     });
+
     expect((await saveFails.saveExtracted("o1", ["x"])).ok).toBe(false);
   });
 
@@ -334,6 +366,7 @@ describe("createMemory", () => {
         { chat_id: "c1", message_id: "m1", similarity: 0.7 },
       ],
     });
+
     const memory = createMemory({ transport, embedder });
     expect(
       await memory.recall
@@ -366,6 +399,7 @@ describe("createMemory", () => {
     });
 
     const bare = createMemory({ transport });
+
     for (const result of [
       await bare.recall.index({
         organizationId: "o1",
@@ -391,6 +425,7 @@ describe("createMemory", () => {
       ],
       set_memory_embeddings: () => 1,
     });
+
     const memory = createMemory({ transport, service: transport, embedder });
     expect(await memory.embedPending({ batch: 10 }).orThrow()).toBe(1);
     expect(calls.map((c) => c.fn)).toEqual([
@@ -412,30 +447,37 @@ describe("createMemory", () => {
         .transport,
       embedder,
     });
+
     expect(await none.embedPending().orThrow()).toBe(0);
+
     const short = createMemory({
       transport: fakeTransport({
         pending_memory_embeddings: () => [{ id: "m1", content: "a" }],
       }).transport,
       embedder: { model: "m1", embed: () => Promise.resolve([]) },
     });
+
     const shortResult = await short.embedPending();
     expect(shortResult.ok ? undefined : shortResult.error.hint).toBe(
       "EMBEDDING_INVALID",
     );
+
     const broken = createMemory({
       transport: fakeTransport({
         pending_memory_embeddings: () => [{ id: "m1", content: "a" }],
       }).transport,
       embedder: { model: "m1", embed: () => Promise.reject(new Error("down")) },
     });
+
     expect((await broken.embedPending()).ok).toBe(false);
+
     const unstored = createMemory({
       transport: fakeTransport({
         pending_memory_embeddings: () => [{ id: "m1", content: "a" }],
       }).transport,
       embedder,
     });
+
     expect((await unstored.embedPending()).ok).toBe(false);
     const aborted = new AbortController();
     aborted.abort();

@@ -109,6 +109,7 @@ export interface ResourcePlan<Ref = string> {
 }
 
 const ACTION_NAME = /^[A-Za-z][A-Za-z0-9_]*$/u;
+
 const RESERVED: ReadonlySet<string> = new Set([
   "list",
   "get",
@@ -128,15 +129,19 @@ function planAction<Ref>(
       `${table}.actions.${name}: use a name of letters, digits and "_" that is not an operation`,
     );
   }
+
   if (!action.path.startsWith("/") || action.path === "/") {
     throw new TypeError(
       `${table}.actions.${name}: the path must start with "/" and name a segment, e.g. "/{id}/send"`,
     );
   }
+
   const segments = action.path.slice(1).split("/");
   const params: string[] = [];
+
   for (const segment of segments) {
     const match = /^\{(\w+)\}$/u.exec(segment);
+
     if (match) {
       params.push(match[1]!);
     } else if (segment === "" || /[{}]/u.test(segment)) {
@@ -145,11 +150,13 @@ function planAction<Ref>(
       );
     }
   }
+
   if (params.some((param) => param !== keyParam)) {
     throw new TypeError(
       `${table}.actions.${name}: the only path parameter is the key ${keyParam ? `"{${keyParam}}"` : "(this table has none)"}`,
     );
   }
+
   return { ...action, name, params, segments };
 }
 
@@ -164,32 +171,41 @@ export function planResource<Ref = string>(
   authorizer?: AnyAuthorizer,
 ): ResourcePlan<Ref> {
   const meta = schema.tables[table];
+
   if (!meta) {
     throw new TypeError(`Unknown table "${table}"`);
   }
+
   const operations: readonly ResourceOperation[] =
     description.operations ??
     (meta.kind === "view"
       ? ["list", "get"]
       : ["list", "get", "create", "update", "delete"]);
+
   const keyParam =
     meta.primaryKey.length === 1 ? meta.primaryKey[0] : undefined;
+
   const pagination = description.list
     ? (description.list.pagination ?? "offset")
     : (description.pagination ?? "offset");
+
   const actions = Object.entries(description.actions ?? {}).map(
     ([name, action]) => planAction(table, name, action, keyParam),
   );
+
   const permissions: Record<string, Ref> = {};
+
   if (description.permissions === true) {
     if (!authorizer?.forOperation) {
       throw new TypeError(
         `${table}: permissions: true needs an authorizer with forOperation()`,
       );
     }
+
     for (const operation of operations) {
       // SAFETY: forOperation returns the authorizer's own reference type, Ref.
       const ref = authorizer.forOperation(table, operation) as Ref | undefined;
+
       if (ref !== undefined) {
         permissions[operation] = ref;
       }
@@ -201,11 +217,13 @@ export function planResource<Ref = string>(
       }
     }
   }
+
   for (const action of actions) {
     if (action.permission !== undefined) {
       permissions[action.name] = action.permission;
     }
   }
+
   return {
     table,
     meta,
@@ -232,26 +250,36 @@ export function matchAction<Ref>(
   | "method"
   | undefined {
   let wrongMethod = false;
+
   for (const action of plan.actions) {
     if (action.segments.length !== segments.length) {
       continue;
     }
+
     const params: Record<string, string> = {};
+
     const fits = action.segments.every((segment, index) => {
       const value = segments[index]!;
+
       if (segment.startsWith("{")) {
         params[segment.slice(1, -1)] = value;
+
         return value !== "";
       }
+
       return segment === value;
     });
+
     if (!fits) {
       continue;
     }
+
     if (action.method === method) {
       return { action, params };
     }
+
     wrongMethod = true;
   }
+
   return wrongMethod ? "method" : undefined;
 }

@@ -88,28 +88,37 @@ export function defineBuckets<const B extends BucketMap>(
   buckets: B,
 ): Buckets<B> {
   const byId = new Map<string, B[keyof B]>();
+
   for (const [name, bucket] of Object.entries(buckets)) {
     const existing = byId.get(bucket.id);
+
     if (existing !== undefined) {
       throw new TypeError(
         `defineBuckets: "${name}" reuses the bucket id "${bucket.id}"`,
       );
     }
+
     // SAFETY: the value comes from the entries of B.
     byId.set(bucket.id, bucket as B[keyof B]);
   }
+
   const lookup = (id: string): Result<B[keyof B]> => {
     const bucket = byId.get(id);
+
     return bucket === undefined
       ? err(dbError("invalid_input", `Bucket "${id}" is not registered`))
       : ok(bucket);
   };
+
   const resolve = (ref: StoredRef): Result<ResolvedRef<B>> => {
     const found = lookup(ref.bucket);
+
     if (!found.ok) {
       return found;
     }
+
     const bucket = found.data;
+
     if (bucket.match(ref.path) === null) {
       return err(
         dbError(
@@ -119,9 +128,11 @@ export function defineBuckets<const B extends BucketMap>(
         ),
       );
     }
+
     // SAFETY: match accepted the path for this bucket above.
     return ok({ bucket, path: ref.path as StoragePath<BucketIdOf<B>> });
   };
+
   return {
     buckets,
     // SAFETY: the map keys are the ids of B's buckets.
@@ -133,15 +144,20 @@ export function defineBuckets<const B extends BucketMap>(
     resolve,
     connectStored(client, ref, options) {
       const resolved = resolve(ref);
+
       if (!resolved.ok) {
         return resolved;
       }
+
       const { bucket } = resolved.data;
+
       const storage: BucketClient<string, BucketIdOf<B>> = bucket.connect(
         client,
         options,
       );
+
       const path = storage.path(ref.path);
+
       return path.ok ? ok({ bucket, storage, path: path.data }) : path;
     },
   };

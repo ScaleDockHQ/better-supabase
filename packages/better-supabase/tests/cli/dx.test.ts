@@ -50,6 +50,7 @@ async function project(
     JSON.stringify({ name: "app", dependencies }),
   );
   await writeFile(join(dir, "pnpm-lock.yaml"), "");
+
   for (const [path, contents] of Object.entries(extra)) {
     await mkdir(dirname(join(dir, path)), { recursive: true });
     await writeFile(join(dir, path), contents);
@@ -65,6 +66,7 @@ describe("init and add", () => {
     const init = await run(["init", "--cwd", dir]);
     expect(init.code).toBe(0);
     expect(init.stdout).toContain("Found next, tanstack-query.");
+
     for (const path of [
       "better-supabase.config.ts",
       "src/lib/supabase/index.ts",
@@ -79,6 +81,7 @@ describe("init and add", () => {
         exists: true,
       });
     }
+
     expect(
       await readFile(join(dir, "src/lib/supabase/index.ts"), "utf-8"),
     ).toContain("from './generated'");
@@ -165,6 +168,7 @@ describe("init and add", () => {
       '{"output": "src/db/generated.ts"}',
     );
     await rm(join(dir, "apps/web/better-supabase.config.ts"));
+
     const again = await run([
       "init",
       "--package",
@@ -173,6 +177,7 @@ describe("init and add", () => {
       "--cwd",
       dir,
     ]);
+
     expect(again.code).toBe(0);
     expect(
       await readFile(join(dir, "apps/web/src/lib/supabase/index.ts"), "utf-8"),
@@ -186,6 +191,7 @@ describe("init and add", () => {
       "--cwd",
       dir,
     ]);
+
     expect(here.code).toBe(0);
     expect(here.stdout).toContain("Would write better-supabase.config.ts");
   });
@@ -242,6 +248,7 @@ describe("init and add", () => {
 
   it("adds integrations with their dependencies", async () => {
     await project({ hono: "4" });
+
     const add = await run([
       "add",
       "--framework",
@@ -250,6 +257,7 @@ describe("init and add", () => {
       dir,
       "--dry-run",
     ]);
+
     expect(add.code).toBe(0);
     expect(add.stdout).toContain("Would write supabase/functions/mcp/index.ts");
     expect(add.stdout).toContain("Would write router.ts");
@@ -277,6 +285,7 @@ describe("init and add", () => {
   it("prints command help", async () => {
     const help = await run(["add", "--help"]);
     expect(help.stdout).toContain("USAGE better-supabase add [OPTIONS]");
+
     for (const name of INTEGRATIONS) {
       expect(help.stdout).toContain(name);
     }
@@ -287,6 +296,7 @@ describe("templates", () => {
   it("typecheck against the library", async () => {
     const root = join(packageRoot, "tmp", `templates-${process.pid}`);
     await rm(root, { recursive: true, force: true });
+
     const context: TemplateContext = {
       srcDir: "src",
       generated: "src/lib/supabase/generated.ts",
@@ -294,6 +304,7 @@ describe("templates", () => {
       frameworks: ["next", "tanstack-query", "hono", "orpc"],
       version: "0.0.0",
     };
+
     const files = [
       ...baseFiles(context, "camel").filter(
         (file) =>
@@ -301,6 +312,7 @@ describe("templates", () => {
       ),
       ...INTEGRATIONS.flatMap((name) => TEMPLATES[name].files(context)),
     ];
+
     const generated = (
       await readFile(
         join(packageRoot, "tests/fixtures/generated-camel.ts"),
@@ -309,6 +321,7 @@ describe("templates", () => {
     )
       .replaceAll('"../../src/index.ts"', '"better-supabase"')
       .replace("./generated-camel.meta.js", "./generated.meta.js");
+
     const metaFiles = await Promise.all(
       ["generated-camel.meta.js", "generated-camel.meta.d.ts"].map(
         async (name) => ({
@@ -319,10 +332,12 @@ describe("templates", () => {
         }),
       ),
     );
+
     const databaseTypes = await readFile(
       join(packageRoot, "tests/fixtures/database.types.ts"),
       "utf-8",
     );
+
     try {
       for (const file of [
         ...files,
@@ -380,7 +395,9 @@ describe("templates", () => {
         await mkdir(dirname(join(root, file.path)), { recursive: true });
         await writeFile(join(root, file.path), file.contents);
       }
+
       const tsc = join(packageRoot, "node_modules/.bin/tsc");
+
       const result = await promisify(execFile)(
         tsc,
         ["--noEmit", "-p", join(root, "tsconfig.json")],
@@ -391,9 +408,11 @@ describe("templates", () => {
         () => ({ code: 0, output: "" }),
         (error: unknown) => {
           const failure = error as { code?: number; stdout?: string };
+
           return { code: failure.code ?? 1, output: failure.stdout ?? "" };
         },
       );
+
       expect(result.output).toBe("");
       expect(result.code).toBe(0);
     } finally {
@@ -447,6 +466,7 @@ describe("env", () => {
       `#!/bin/sh\necho 'Starting...'\necho '${JSON.stringify({ ...status, PUBLISHABLE_KEY: undefined, ANON_KEY: "eyJlegacy" })}'\n`,
     );
     await chmod(bin, 0o755);
+
     const result = await run(
       ["env", "--print", "--prefix", "VITE_", "--cwd", dir],
       {
@@ -454,6 +474,7 @@ describe("env", () => {
         io: { stdout: () => {}, stderr: () => {} },
       },
     );
+
     expect(result.code).toBe(0);
     expect(result.stdout).toContain("VITE_SUPABASE_PUBLISHABLE_KEY=eyJlegacy");
   });
@@ -466,19 +487,23 @@ describe("env", () => {
       `#!/bin/sh\nif [ "$2" = "-o" ]; then echo 'The legacy -o/--output flag is not supported here' >&2; exit 1; fi\necho '${JSON.stringify(status)}'\n`,
     );
     await chmod(bin, 0o755);
+
     const result = await run(["env", "--print", "--cwd", dir], {
       env: { SUPABASE_BIN: bin },
       io: { stdout: () => {}, stderr: () => {} },
     });
+
     expect(result.code).toBe(0);
     expect(result.stdout).toContain("SUPABASE_URL=http://127.0.0.1:54321");
   });
 
   it("rejects a --from file without status JSON", async () => {
     await project({}, { "status.txt": "Stopped\n" });
+
     const result = await run(["env", "--from", "status.txt", "--cwd", dir], {
       io: { stdout: () => {}, stderr: () => {} },
     });
+
     expect(result.code).toBe(1);
     expect(result.stderr).toContain(
       "status.txt holds no supabase status JSON.",
@@ -490,10 +515,12 @@ describe("env", () => {
     const bin = join(dir, "fake-supabase");
     await writeFile(bin, "#!/bin/sh\nexit 2\n");
     await chmod(bin, 0o755);
+
     const result = await run(["env", "--print", "--cwd", dir], {
       env: { SUPABASE_BIN: bin },
       io: { stdout: () => {}, stderr: () => {} },
     });
+
     expect(result.code).toBe(1);
     expect(result.stderr).toContain("supabase status failed (2)");
   });
@@ -515,6 +542,7 @@ describe("keys", () => {
     expect((await stat(path)).mode & 0o777).toBe(0o600);
     const [key] = JSON.parse(await readFile(path, "utf-8")) as JsonWebKey[];
     expect(first.stdout).not.toContain(key!.d!);
+
     const imported = await crypto.subtle.importKey(
       "jwk",
       key!,
@@ -522,11 +550,13 @@ describe("keys", () => {
       false,
       ["sign"],
     );
+
     const signature = await crypto.subtle.sign(
       { name: "ECDSA", hash: "SHA-256" },
       imported,
       new Uint8Array([1]),
     );
+
     expect(signature.byteLength).toBe(64);
 
     expect((await run(["keys", "--cwd", dir])).code).toBe(1);
@@ -580,10 +610,12 @@ export const chrome = defineReadSet(betterSupabase, 'chrome', { params: { organi
     );
     const added = await run(["sql", "add", "read-sets", "--cwd", dir]);
     expect(added.stderr).toBe("");
+
     const path = join(
       dir,
       "supabase/schemas/900_better_supabase_14_read_sets.sql",
     );
+
     const sql = await readFile(path, "utf-8");
     expect(sql).toContain(
       "create or replace function public.rs_chrome(p jsonb)",
@@ -623,10 +655,12 @@ export const seed = defineSeed(defineSupabase(schema), {
     expect(result.stdout).toContain(
       'sql_paths = ["./seed.sql", "./seeds/000_better_supabase.sql"]',
     );
+
     const sql = await readFile(
       join(dir, "supabase/seeds/000_better_supabase.sql"),
       "utf-8",
     );
+
     expect(sql.indexOf('"organizations"')).toBeLessThan(
       sql.indexOf('"customers"'),
     );
@@ -653,6 +687,7 @@ describe("openapi emit", () => {
         "bad.mjs": "export default { nope: true };\n",
       },
     );
+
     const emit = await run([
       "openapi",
       "emit",
@@ -661,6 +696,7 @@ describe("openapi emit", () => {
       "--cwd",
       dir,
     ]);
+
     expect(emit.stdout).toContain("Wrote openapi.json");
     expect(
       JSON.parse(await readFile(join(dir, "openapi.json"), "utf-8")),
@@ -708,6 +744,7 @@ describe("skills", () => {
       "better-supabase-auth",
       "better-supabase-testing",
     ]);
+
     for (const skill of skills) {
       expect(skill.contents).toMatch(
         new RegExp(
@@ -740,6 +777,7 @@ describe("skills", () => {
     expect(
       (await run(["skills", "install", "--check", "--cwd", dir])).code,
     ).toBe(1);
+
     const agents = await run([
       "skills",
       "install",
@@ -748,6 +786,7 @@ describe("skills", () => {
       "--cwd",
       dir,
     ]);
+
     expect(agents.stdout).toContain(
       ".agents/skills/better-supabase-api/SKILL.md",
     );
@@ -827,6 +866,7 @@ describe("flags from the config", () => {
     expect((await run(["add", "--cwd", dir])).stdout).toBe(
       "Every integration in the config is set up: mcp.\n",
     );
+
     const orpc = await run([
       "add",
       "--framework",
@@ -835,6 +875,7 @@ describe("flags from the config", () => {
       "--cwd",
       dir,
     ]);
+
     expect(orpc.stdout).toContain("  integrations: ['mcp', 'orpc']");
   });
 });

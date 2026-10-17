@@ -8,6 +8,7 @@ export function mutableResponse(response: Response): Response {
   try {
     response.headers.append("x-bs-probe", "1");
     response.headers.delete("x-bs-probe");
+
     return response;
   } catch {
     return new NextResponse(response.body, {
@@ -37,6 +38,7 @@ export function overrideRequestHeaders(
 ): void {
   const listed = response.headers.get(OVERRIDE);
   const current = new Headers();
+
   if (listed === null) {
     for (const [name, value] of request.headers) {
       current.set(name, value);
@@ -44,20 +46,25 @@ export function overrideRequestHeaders(
   } else {
     for (const name of listed.split(",")) {
       const value = response.headers.get(`${REQUEST_PREFIX}${name.trim()}`);
+
       if (name.trim() && value !== null) {
         current.set(name.trim(), value);
       }
     }
   }
+
   for (const [name, value] of Object.entries(set)) {
     current.set(name, value);
   }
+
   for (const name of [...response.headers.keys()]) {
     if (name.startsWith(REQUEST_PREFIX)) {
       response.headers.delete(name);
     }
   }
+
   response.headers.set(OVERRIDE, [...current.keys()].join(","));
+
   for (const [name, value] of current) {
     response.headers.set(`${REQUEST_PREFIX}${name}`, value);
   }

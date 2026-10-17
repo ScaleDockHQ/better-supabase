@@ -6,14 +6,17 @@ function transport(
   results: Record<string, (args: Record<string, unknown>) => unknown>,
 ) {
   const calls: [string, Record<string, unknown>][] = [];
+
   return {
     calls,
     call(_schema: string, fn: string, args: Record<string, unknown>) {
       calls.push([fn, args]);
       const result = results[fn];
+
       if (!result) {
         return Promise.reject(new Error(`unexpected ${fn}`));
       }
+
       return Promise.resolve(result(args));
     },
   };
@@ -53,19 +56,24 @@ describe("hiring block", () => {
       }),
       apply_to_job: () => APPLICATION,
     });
+
     const hiring = createHiring({ transport: t });
+
     const job = await hiring
       .saveJob("o", { title: "Engineer", status: "open" })
       .orThrow();
+
     expect(job).toMatchObject({
       status: "open",
       location: "Utrecht",
       hiringManagerId: "u2",
     });
     expect(job.openedAt).toBeDefined();
+
     const application = await hiring
       .apply("j1", { id: "p1" }, { source: "referral" })
       .orThrow();
+
     expect(application).toMatchObject({
       candidate: { type: "person", id: "p1" },
       state: "rejected",
@@ -87,6 +95,7 @@ describe("hiring block", () => {
       notes: null,
       submitted_at: "2026-10-16T09:00:00Z",
     };
+
     const interview = {
       id: "i1",
       kind: "technical",
@@ -95,6 +104,7 @@ describe("hiring block", () => {
       location: null,
       interviewer_user_ids: ["u3"],
     };
+
     const t = transport({
       close_application: () => ({
         ...APPLICATION,
@@ -111,6 +121,7 @@ describe("hiring block", () => {
         averageRating: "3.50",
       }),
     });
+
     const hiring = createHiring({ transport: t });
     expect((await hiring.hire("a1").orThrow()).hiredAt).toBeDefined();
     await hiring.reject("a1", "Late").orThrow();
@@ -152,6 +163,7 @@ describe("hiring block", () => {
       kind: null,
       location: null,
     });
+
     const empty = createHiring({
       transport: transport({
         application_detail: () => ({
@@ -162,6 +174,7 @@ describe("hiring block", () => {
         }),
       }),
     });
+
     expect((await empty.detail("a1").orThrow()).averageRating).toBeUndefined();
   });
 });

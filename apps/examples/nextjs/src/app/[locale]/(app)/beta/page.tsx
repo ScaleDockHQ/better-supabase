@@ -11,6 +11,7 @@ export const instant = true;
 
 export default function BetaPage() {
   const t = useExtracted("beta");
+
   return (
     <>
       <PageHeader

@@ -16,6 +16,7 @@ const price = (cents: number) =>
  */
 export function PlanPicker() {
   const organizationId = tenantOf(useAuth());
+
   const { plans, current, pending, error, choose } = usePlanPicker({
     load: () =>
       organizationId
@@ -26,14 +27,17 @@ export function PlanPicker() {
       await WebBrowser.openBrowserAsync(url);
     },
   });
+
   if (plans === undefined) {
     return <ActivityIndicator />;
   }
+
   return (
     <View style={{ gap: 8 }}>
       <Text style={{ fontSize: 17, fontWeight: "600" }}>Plans</Text>
       {plans.map((plan) => {
         const active = plan.key === current;
+
         return (
           <Pressable
             key={plan.key}

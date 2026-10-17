@@ -17,6 +17,7 @@ const schema = JSON.parse(
     "utf-8",
   ),
 ) as Record<string, unknown>;
+
 const ajv = new Ajv2020({ strict: true, allErrors: true });
 const jsonSchema = ajv.compile(schema);
 
@@ -107,11 +108,13 @@ describe("AI message v1", () => {
       string,
       { properties?: { type?: { const?: string } } }
     >;
+
     const types = Object.values(defs).flatMap((def) =>
       def.properties?.type?.const === undefined
         ? []
         : [def.properties.type.const],
     );
+
     expect(types.toSorted()).toEqual([...AI_MESSAGE_PART_TYPES].toSorted());
   });
 
@@ -142,6 +145,7 @@ describe("AI message v1", () => {
         { type: "data", name: "x" },
       ]),
     );
+
     expect(
       result.ok || result.error.kind !== "validation"
         ? undefined

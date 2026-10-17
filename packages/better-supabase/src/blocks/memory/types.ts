@@ -12,6 +12,7 @@ export type MemoryScope =
   | "chat"
   | "project"
   | "organization";
+
 export type MemoryKind = "core" | "archival";
 
 /**

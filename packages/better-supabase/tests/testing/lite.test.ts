@@ -53,25 +53,32 @@ describe.each(["sqlite-postgres", "pglite"] as const)(
         schemas: [CONTACTS],
         seed: SEED,
       });
+
       const alice = await stack.asUser(betterSupabase, { sub: ALICE });
+
       const rows = await alice.db.contacts
         .findMany({ select: ["email"], orderBy: { email: "asc" } })
         .orThrow();
+
       expect(rows.map((row) => row.email)).toEqual([
         "a1@acme.test",
         "a2@acme.test",
       ]);
+
       const denied = await alice.db.contacts.create({
         organizationId: BOB,
         email: "x@globex.test",
       });
+
       expect(denied.error?.kind).toBe("forbidden");
 
       const { data: anon } = await stack.supabase.from("contacts").select("id");
       expect(anon).toEqual([]);
+
       const { count } = await stack.admin
         .from("contacts")
         .select("id", { count: "exact", head: true });
+
       expect(count).toBe(3);
     });
 
@@ -81,29 +88,35 @@ describe.each(["sqlite-postgres", "pglite"] as const)(
         schemas: [CONTACTS],
         seed: SEED,
       });
+
       const server = createServer(betterSupabase, {
         env: stack.env,
         backend: "lite",
         liteDriver: driver,
         fetch: stack.fetch,
       });
+
       const token = await signTestJwt(stack.jwtSecret, { sub: BOB });
+
       const ctx = await server.context(
         new Request("https://api.test/", {
           headers: { authorization: `Bearer ${token}` },
         }),
       );
+
       expect(ctx.auth.kind).toBe("user");
       expect(await ctx.db.contacts.count().orThrow()).toBe(1);
 
       const forged = await signTestJwt("not-the-lite-secret-0123456789abcdef", {
         sub: BOB,
       });
+
       const rejected = await server.context(
         new Request("https://api.test/", {
           headers: { authorization: `Bearer ${forged}` },
         }),
       );
+
       expect(rejected.auth.kind).toBe("invalid");
     });
   },
@@ -113,20 +126,25 @@ describe("rpc on Supabase Lite", BOOT, () => {
   it("returns unsupported on SQLite without a request", async () => {
     await using stack = await liteStack({ schemas: [CONTACTS] });
     let requests = 0;
+
     const server = createServer(betterSupabase, {
       env: stack.env,
       backend: "lite",
       fetch: (input, init) => {
         requests += 1;
+
         return stack.fetch(input, init);
       },
     });
+
     const token = await signTestJwt(stack.jwtSecret, { sub: ALICE });
+
     const ctx = await server.context(
       new Request("https://api.test/", {
         headers: { authorization: `Bearer ${token}` },
       }),
     );
+
     const result = await ctx.db.$rpc("customer_note_counts", {});
     expect(result.error).toMatchObject({
       kind: "unsupported",
@@ -143,6 +161,7 @@ describe("rpc on Supabase Lite", BOOT, () => {
       schemas: [CONTACTS, COUNT_FUNCTION],
       seed: SEED,
     });
+
     const { data, error } = await stack.admin.rpc("contact_count");
     expect(error).toBeNull();
     expect(Number(data)).toBe(3);

@@ -14,7 +14,9 @@ export async function CustomerList() {
     getCustomers(),
     getExtracted("customers"),
   ]);
+
   const writer = can(session, "customers.write");
+
   return (
     <div className="space-y-4">
       <CustomerTable

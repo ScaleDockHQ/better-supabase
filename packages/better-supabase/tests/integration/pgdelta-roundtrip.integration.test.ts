@@ -24,13 +24,17 @@ const SUPABASE = resolve(
   import.meta.dirname,
   "../../../../node_modules/.bin/supabase",
 );
+
 const DB_PORT = 56_422;
+
 // The round trip uses its own Docker stack on fixed ports, whatever engine the shell selects.
 const ENV = { ...process.env, SUPABASE_EXPERIMENTAL_STACK: "0" };
+
 // read-sets and vector-search render nothing without app config; pgtap is a test file.
 const NAMES = Object.keys(SQL_MODULES).filter(
   (name) => !["pgtap", "read-sets", "vector-search"].includes(name),
 );
+
 /** Knowledge and memory require vector-search, which registers itself. */
 const INSTALLED = [...NAMES, "vector-search"].toSorted();
 
@@ -46,9 +50,11 @@ const supabase = (cwd: string, args: string[]) => {
     encoding: "utf-8",
     maxBuffer: 64 * 1024 * 1024,
   });
+
   if (run.status !== 0) {
     throw new Error(`supabase ${args.join(" ")}:\n${run.stdout}${run.stderr}`);
   }
+
   return run.stdout;
 };
 
@@ -67,6 +73,7 @@ const portFree = (port: number) =>
 
 const startWhenPortFree = async (cwd: string) => {
   const deadline = Date.now() + 120_000;
+
   for (;;) {
     if (await portFree(DB_PORT)) {
       const run = spawnSync(SUPABASE, ["db", "start"], {
@@ -74,22 +81,28 @@ const startWhenPortFree = async (cwd: string) => {
         env: ENV,
         encoding: "utf-8",
       });
+
       if (run.status === 0) {
         return;
       }
+
       const output = `${run.stdout}${run.stderr}`;
+
       if (!/address already in use|port is already allocated/i.test(output)) {
         throw new Error(`supabase db start:\n${output}`);
       }
+
       spawnSync(SUPABASE, ["stop", "--no-backup"], {
         cwd,
         env: ENV,
         stdio: "ignore",
       });
     }
+
     if (Date.now() > deadline) {
       throw new Error(`Port ${String(DB_PORT)} stayed in use`);
     }
+
     await sleep(1000);
   }
 };
@@ -128,6 +141,7 @@ declarative_schema_path = "./schemas"
       if (root === "") {
         return;
       }
+
       spawnSync(SUPABASE, ["stop", "--no-backup"], {
         cwd: root,
         env: ENV,
@@ -159,38 +173,51 @@ declarative_schema_path = "./schemas"
       const migrations = (
         await readdir(join(root, "supabase/migrations"))
       ).toSorted();
+
       expect(migrations).toHaveLength(3);
       expect(migrations[0]).toMatch(/_better_supabase_extensions\.sql$/);
       expect(migrations[2]).toMatch(/_better_supabase_module_data\.sql$/);
+
       const schema = await readFile(
         join(root, "supabase/migrations", migrations[1]!),
         "utf-8",
       );
+
       expect(schema).not.toMatch(/^insert into/im);
 
       await startWhenPortFree(root);
+
       const client = new Client({
         connectionString: `postgresql://postgres:postgres@127.0.0.1:${String(DB_PORT)}/postgres`,
       });
+
       await client.connect();
+
       try {
         const { rows: modules } = await client.query<{ name: string }>(
           "select name from better_supabase.modules order by name",
         );
+
         expect(modules.map((row) => row.name)).toEqual(INSTALLED);
+
         const { rows: slugs } = await client.query<{ n: number }>(
           "select count(*)::int as n from better_supabase.reserved_slugs",
         );
+
         expect(slugs[0]!.n).toBeGreaterThan(0);
+
         const { rows: settings } = await client.query<{ setconfig: string[] }>(
           "select s.setconfig from pg_catalog.pg_db_role_setting s join pg_catalog.pg_roles r on r.oid = s.setrole where r.rolname = 'authenticator'",
         );
+
         expect(settings.flatMap((row) => row.setconfig)).toContain(
           "pgrst.db_pre_request=better_supabase.check_request",
         );
+
         const { rows: triggers } = await client.query<{ tgname: string }>(
           "select tgname from pg_catalog.pg_trigger where tgrelid = 'auth.users'::regclass and not tgisinternal order by 1",
         );
+
         expect(triggers.map((row) => row.tgname)).toEqual([
           "bs_identity_email",
           "bs_profile_email",

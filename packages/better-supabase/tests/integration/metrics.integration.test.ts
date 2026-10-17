@@ -23,6 +23,7 @@ const orders = defineMetric({
   tz: "Europe/Amsterdam",
   rollup: ["hour", "day"],
 });
+
 const revenue = defineMetric({
   key: "revenue",
   table: "metrics_it.orders",
@@ -31,6 +32,7 @@ const revenue = defineMetric({
   dimensions: ["channel"],
   rollup: false,
 });
+
 const basket = defineMetric({
   key: "basket",
   table: "metrics_it.orders",
@@ -38,6 +40,7 @@ const basket = defineMetric({
   timeColumn: "placed_at",
   where: { channel: "web" },
 });
+
 const apiCalls = defineMetric({
   key: "api_calls",
   table: "better_supabase.usage_events",
@@ -75,6 +78,7 @@ describe.skipIf(!live)("metrics", () => {
 
   it("rolls up, reads series and totals, and checks the permission", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.client.query(TABLES);
       await s.install(["organizations", "usage", "metrics"], layout);
@@ -98,9 +102,11 @@ describe.skipIf(!live)("metrics", () => {
           ($1, 'seats', 'k2', 7, '2026-03-02 10:00+00')`,
         [tenant],
       );
+
       const rolled = await s.value<number>(
         "better_supabase.metrics_rollup(null, '2026-03-01', '2026-03-05')",
       );
+
       expect(rolled).toBeGreaterThan(0);
       expect(
         await s.value<number>(
@@ -234,10 +240,12 @@ describe.skipIf(!live)("metrics", () => {
         transport: sqlTransport(s.sql),
         metrics: [orders, revenue, basket, apiCalls],
       });
+
       const range = {
         from: Temporal.Instant.from("2026-03-03T23:00:00Z"),
         until: Temporal.Instant.from("2026-03-05T23:00:00Z"),
       };
+
       const compared = await metrics
         .series("orders", range, {
           organizationId: tenant,
@@ -245,6 +253,7 @@ describe.skipIf(!live)("metrics", () => {
           filter: { channel: "web" },
         })
         .orThrow();
+
       expect(compared.points.map((p) => p.value)).toEqual([1, 0]);
       expect(compared.previous?.map((p) => p.value)).toEqual([2, 0]);
       expect(toChartData(compared)).toEqual([

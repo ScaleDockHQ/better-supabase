@@ -27,11 +27,13 @@ describe("work-items module", () => {
     const all = body("work-items");
     expect(all).toContain('references "better_supabase"."projects"');
     expect(all).toContain("save_iteration");
+
     const bare = body("work-items", {
       modules: {
         "work-items": { tables: { projects: null, iterations: null } },
       },
     });
+
     expect(bare).not.toContain("save_project");
     expect(bare).not.toContain('references "better_supabase"."projects"');
   });

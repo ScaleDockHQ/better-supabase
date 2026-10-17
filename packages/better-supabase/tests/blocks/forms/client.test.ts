@@ -10,15 +10,18 @@ const form = { definition: SIGNUP, schema: formSchema(SIGNUP) };
 
 function mount(options: Partial<QuestionnaireOptions> = {}) {
   const onSubmit = vi.fn();
+
   const controller = createQuestionnaireController({
     form,
     onSubmit,
     ...options,
   });
+
   const render = () => ({
     ...controller.getSnapshot(),
     ...controller.actions,
   });
+
   return { render, onSubmit };
 }
 
@@ -62,6 +65,7 @@ describe("createQuestionnaireController", () => {
         company: "hidden",
       },
     });
+
     const view = render();
     expect(await view.submit()).toBe(true);
     expect(onSubmit).toHaveBeenCalledWith({
@@ -91,6 +95,7 @@ describe("createQuestionnaireController", () => {
     const { render } = mount({
       form: { definition: SIGNUP, schema: { type: "array" } },
     });
+
     expect(await render().submit()).toBe(false);
     expect(render().issues).toEqual({ "": ["must be array"] });
   });
@@ -100,6 +105,7 @@ describe("createQuestionnaireController", () => {
       initialAnswers: { name: "Ada", email: "ada@example.com" },
       onSubmit: () => Promise.reject(new Error("down")),
     });
+
     await expect(render().submit()).rejects.toThrow("down");
     expect(render().submitting).toBe(false);
   });

@@ -44,6 +44,7 @@ export interface ProblemDetails {
 /** The `type` prefix of kinds that mean more than their HTTP status. */
 export const PROBLEM_TYPE_BASE = "https://bettersupabase.com/problems/";
 export const PROBLEM_CONTENT_TYPE = "application/problem+json";
+
 /** RFC 9457 section 4.2.1: a problem that means only its HTTP status. */
 const PROBLEM_TYPE_BLANK = "about:blank";
 
@@ -98,9 +99,11 @@ export function problemType(
   status: number = statusOf(kind),
 ): { readonly type: string; readonly title: string } {
   const phrase = GENERIC[kind];
+
   if (phrase !== undefined && status === statusOf(kind)) {
     return { type: PROBLEM_TYPE_BLANK, title: phrase };
   }
+
   return {
     type: `${PROBLEM_TYPE_BASE}${kind.replaceAll("_", "-")}`,
     title: TITLES[kind],
@@ -155,57 +158,75 @@ export function toProblem(
     status: error.status,
     kind: error.kind,
   };
+
   if (!INTERNAL.has(error.kind) || options.expose) {
     problem["detail"] = error.message;
   }
+
   if (options.instance) {
     problem["instance"] = options.instance;
   }
+
   if (error.code) {
     problem["code"] = error.code;
   }
+
   if (error.hint) {
     problem["hint"] = error.hint;
   }
+
   if ("constraint" in error && error.constraint) {
     problem["constraint"] = error.constraint;
   }
+
   if ("columns" in error) {
     problem["columns"] = error.columns;
   }
+
   if ("column" in error && error.column) {
     problem["column"] = error.column;
   }
+
   if ("issues" in error) {
     problem["issues"] = error.issues;
   }
+
   if ("required" in error) {
     problem["required"] = error.required;
   }
+
   if ("scopes" in error) {
     problem["scopes"] = error.scopes;
   }
+
   if ("permission" in error) {
     problem["permission"] = error.permission;
   }
+
   if ("permissions" in error) {
     problem["permissions"] = error.permissions;
   }
+
   if ("approval" in error) {
     problem["approval"] = error.approval;
   }
+
   if ("retryAfter" in error) {
     problem["retryAfter"] = error.retryAfter;
   }
+
   if ("meter" in error) {
     problem["meter"] = error.meter;
   }
+
   if ("limit" in error) {
     problem["limit"] = error.limit;
   }
+
   if ("maxAffected" in error) {
     problem["maxAffected"] = error.maxAffected;
   }
+
   // SAFETY: the fields were copied from a DbError, whose shape matches ProblemDetails.
   // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the fields were copied from a DbError, whose shape matches ProblemDetails.
   return problem as unknown as ProblemDetails;
@@ -222,11 +243,14 @@ export function problemResponse(
   const headers = new Headers(options.headers);
   headers.set("content-type", PROBLEM_CONTENT_TYPE);
   const realm = (options.realm ?? "supabase").replaceAll('"', "");
+
   if (error.status === 401 && !headers.has("www-authenticate")) {
     const params =
       error.code === "MISSING_CREDENTIALS" ? "" : ', error="invalid_token"';
+
     headers.set("www-authenticate", `Bearer realm="${realm}"${params}`);
   }
+
   if (
     "scopes" in error &&
     error.code === "INSUFFICIENT_SCOPE" &&
@@ -238,11 +262,14 @@ export function problemResponse(
       `Bearer realm="${realm}", error="insufficient_scope", scope="${scope}"`,
     );
   }
+
   if ("retryAfter" in error && !headers.has("retry-after")) {
     headers.set("retry-after", String(error.retryAfter));
   }
+
   const problem = toProblem(error, options);
   const body = options.format ? options.format(problem, error) : problem;
+
   return Response.json(body, {
     status: error.status,
     headers,
@@ -253,8 +280,10 @@ export function isProblem(value: unknown): value is ProblemDetails {
   if (typeof value !== "object" || value === null) {
     return false;
   }
+
   // SAFETY: value is a non-null object here, and every field is checked below.
   const problem = value as Record<string, unknown>;
+
   return (
     typeof problem["type"] === "string" &&
     typeof problem["status"] === "number" &&
@@ -270,6 +299,7 @@ function isKind(value: unknown): value is DbErrorKind {
 export function fromProblem(problem: ProblemDetails): DbError {
   const kind = isKind(problem.kind) ? problem.kind : "unexpected";
   const extra: Record<string, unknown> = { status: problem.status };
+
   for (const key of [
     "code",
     "hint",
@@ -290,10 +320,13 @@ export function fromProblem(problem: ProblemDetails): DbError {
       extra[key] = problem[key];
     }
   }
+
   extra["issues"] = problem.issues ?? [];
+
   if (kind !== "validation") {
     delete extra["issues"];
   }
+
   // SAFETY: extra holds the extension fields of the problem, which are optional
   // on every DbError kind.
   return dbError(

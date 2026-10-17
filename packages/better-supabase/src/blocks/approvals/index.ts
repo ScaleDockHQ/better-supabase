@@ -11,12 +11,17 @@ export {
   type ApprovalStep,
   createApprovals,
 } from "./approvals.ts";
+
 export {
   dbTransport,
   rpcTransport,
   sqlTransport,
 } from "../../core/block-transport.ts";
+
 export type { BlockTransport } from "../../core/block-transport.ts";
+
 export { approvalsBlock } from "./manifest.ts";
+
 export { approvalsEvents } from "./events.ts";
+
 export type { ApprovalsEvents } from "./events.ts";

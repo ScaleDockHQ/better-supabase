@@ -6,14 +6,17 @@ function transport(
   results: Record<string, (args: Record<string, unknown>) => unknown>,
 ) {
   const calls: [string, Record<string, unknown>][] = [];
+
   return {
     calls,
     call(_schema: string, fn: string, args: Record<string, unknown>) {
       calls.push([fn, args]);
       const result = results[fn];
+
       if (!result) {
         return Promise.reject(new Error(`unexpected ${fn}`));
       }
+
       return Promise.resolve(result(args));
     },
   };
@@ -80,9 +83,11 @@ const ROW = {
 describe("invoices block", () => {
   it("reads balances, payments and the deposit share", async () => {
     const t = transport({ issue_invoice: () => ROW });
+
     const invoice = await createInvoices({ transport: t })
       .issue("i1", Temporal.PlainDate.from("2026-10-15"))
       .orThrow();
+
     expect(t.calls[0]?.[1]).toEqual({ invoice: "i1", issued_on: "2026-10-15" });
     expect(invoice).toMatchObject({
       number: 1n,
@@ -106,10 +111,13 @@ describe("invoices block", () => {
       deposit_bps: null,
       payments: [],
     };
+
     const t = transport({ create_invoice: () => draft });
+
     const invoice = await createInvoices({ transport: t })
       .create("o", { title: "October" })
       .orThrow();
+
     expect(invoice.number).toBeUndefined();
     expect(invoice.identifier).toBeUndefined();
     expect(t.calls[0]?.[1]).toEqual({
@@ -148,6 +156,7 @@ describe("invoices block", () => {
         total: "1",
       }),
     });
+
     const invoices = createInvoices({ transport: t });
     await invoices
       .recordPayment("i1", {
@@ -209,12 +218,14 @@ describe("invoices block, defaults", () => {
         },
       ],
     };
+
     const t = transport({
       issue_invoice: () => paid,
       credit_invoice: () => paid,
       record_invoice_payment: () => paid,
       invoice_aging: () => ({ currency: "EUR", overdueCount: null }),
     });
+
     const invoices = createInvoices({ transport: t });
     const invoice = await invoices.issue("i1").orThrow();
     expect(invoice).toMatchObject({

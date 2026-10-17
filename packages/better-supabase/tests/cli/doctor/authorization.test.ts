@@ -34,11 +34,14 @@ function withAuthz(names: readonly string[]): Snapshot {
   const copy = structuredClone(toCatalog(base)) as {
     -readonly [K in keyof Catalog]: Catalog[K];
   };
+
   copy.schemas = [...copy.schemas, "authz"];
   const functions = copy.functions as CatalogFunction[];
+
   for (const name of names) {
     functions.push({ ...functions[0]!, schema: "authz", name });
   }
+
   return fromCatalog(copy);
 }
 
@@ -97,6 +100,7 @@ describe("providerBucketKeys", () => {
       },
       public: { path: "{...rest}", policy: "public" },
     } as const;
+
     const config = (model?: "provider") =>
       resolveConfig(
         {
@@ -106,6 +110,7 @@ describe("providerBucketKeys", () => {
         },
         "/project",
       );
+
     expect(providerBucketKeys(config())).toEqual([
       {
         bucket: "docs",
@@ -149,6 +154,7 @@ describe("BS214", () => {
 
   it("warns when a bucket's copied templates drift from the provider", async () => {
     const keys = { read: "documents.read", write: "documents.read" };
+
     const policy = (sql: NonNullable<AccessBucketPolicy["sql"]>) => ({
       authorization: stubProvider,
       buckets: {
@@ -158,6 +164,7 @@ describe("BS214", () => {
         },
       },
     });
+
     expect(
       await findings(
         "BS214",
@@ -257,6 +264,7 @@ describe("BS214", () => {
         ].join("\n"),
       },
     ];
+
     expect(
       await findings("BS214", { authorization: stubProvider }, { sqlFiles }),
     ).toEqual([
@@ -323,6 +331,7 @@ describe("BS408", () => {
       withProvider({
         tokenHook: { ...stubProvider.tokenHook, registeredClaims },
       });
+
     const snapshot = withAuthz(ALL);
     expect(
       await findings(
@@ -512,6 +521,7 @@ describe("BS409", () => {
         user: { table: "authz.users", id: "id", disabledAt: "disabled_at" },
       },
     });
+
     expect(
       await findings("BS409", {
         authorization: provider,
@@ -543,6 +553,7 @@ describe("BS411", () => {
     ...(provider ? { authorization: provider } : {}),
     blocks: { access: { model: "provider" }, ...modules },
   });
+
   const snapshot = withAuthz(ALL);
 
   it("passes when the provider and the database back the model", async () => {
@@ -635,12 +646,15 @@ describe("BS411", () => {
       canAssignFor: __,
       ...functions
     } = stubProvider.functions;
+
     const partial = withProvider({ functions });
+
     const result = await findings(
       "BS411",
       config(partial, { invitations: {}, comments: {} }),
       { snapshot },
     );
+
     expect(result).toContainEqual({
       severity: "warning",
       target: "authorization.functions.idsWithFor",
@@ -687,6 +701,7 @@ describe("BS414", () => {
     const copy = structuredClone(toCatalog(base)) as {
       -readonly [K in keyof Catalog]: Catalog[K];
     };
+
     const [first] = copy.tables;
     copy.tables = [
       {
@@ -713,6 +728,7 @@ describe("BS414", () => {
       },
       ...copy.tables.slice(1),
     ];
+
     return fromCatalog(copy);
   };
 
@@ -725,6 +741,7 @@ describe("BS414", () => {
       },
       { snapshot: withContractPolicy() },
     );
+
     expect(result).toHaveLength(1);
     expect(result[0]!.severity).toBe("warning");
     expect(result[0]!.message).toMatch(
@@ -735,6 +752,7 @@ describe("BS414", () => {
 
   it("stays quiet under the provider model, without a provider or without access", async () => {
     const snapshot = withContractPolicy();
+
     for (const config of [
       { authorization: stubProvider, blocks: ["tenant", "access"] },
       { blocks: { access: { model: "roles" as const } } },
@@ -750,10 +768,13 @@ describe("BS334", () => {
     const copy = structuredClone(toCatalog(base)) as {
       -readonly [K in keyof Catalog]: Catalog[K];
     };
+
     const index = copy.tables.findIndex(
       (table) => table.schema !== "better_supabase",
     );
+
     const first = copy.tables[index];
+
     const policy = (name: string, using: string) => ({
       name,
       command: "select" as const,
@@ -762,6 +783,7 @@ describe("BS334", () => {
       using,
       check: null,
     });
+
     copy.tables = [
       {
         ...first!,
@@ -783,6 +805,7 @@ describe("BS334", () => {
       },
       ...copy.tables.filter((_, i) => i !== index),
     ];
+
     return fromCatalog(copy);
   };
 
@@ -792,6 +815,7 @@ describe("BS334", () => {
       { blocks: ["tenant", "access"] },
       { snapshot: withRolePolicies() },
     );
+
     expect(result).toHaveLength(1);
     expect(result[0]!.severity).toBe("info");
     expect(result[0]!.message).toMatch(
@@ -817,6 +841,7 @@ describe("BS415", () => {
         canApprove: "authz.can_approve({tool}, {tenant}::text)",
       },
     };
+
     const result = await findings("BS415", { authorization: provider });
     expect(result).toEqual([
       expect.objectContaining({

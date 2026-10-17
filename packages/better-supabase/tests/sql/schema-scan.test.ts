@@ -26,6 +26,7 @@ create policy internal on private.secrets for select to authenticated using (tru
       ],
       ["public"],
     );
+
     expect(grants).toEqual([
       { table: "public.Plans", role: "anon", privileges: ["select"] },
       { table: "public.Plans", role: "authenticated", privileges: ["select"] },
@@ -59,6 +60,7 @@ describe("declaredTableColumns", () => {
       ],
       ["public"],
     );
+
     expect([...columns.get("public.organizations")!].sort()).toEqual([
       "id",
       "name",
@@ -138,6 +140,7 @@ create policy notes_write on public.notes for update to authenticated using (tru
 drop policy "notes_read" on notes;`,
       },
     ];
+
     expect(declaredTables(files, ["public"])).toEqual(["public.notes"]);
     expect(policyGrants(files, ["public"])).toEqual([
       { table: "public.notes", role: "authenticated", privileges: ["update"] },

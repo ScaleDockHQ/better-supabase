@@ -295,18 +295,23 @@ function tables(ctx: ModuleContext, names: OrdersNames): string {
   const catalog = ctx.of("catalog");
   const variant = columns(catalog, "variants");
   const t = (name: string): string => ctx.table(name);
+
   const tenantRead = (table: string): string =>
     `${ctx.col(table, "tenant")} in (select ${ctx.scope.ids(names.read)})`;
+
   const policy = (
     table: string,
     using: string,
   ): string => `drop policy if exists ${ctx.tableName(table).name}_read on ${t(table)};
 create policy ${ctx.tableName(table).name}_read on ${t(table)} for select to authenticated
 using (${using});`;
+
   const ofOrder = (table: string): string => {
     const o = columns(ctx, "orders");
+
     return `${tenantRead(table)} or exists (select 1 from ${t("orders")} o where o.${o("id")} = ${ctx.col(table, "order")} and o.${o("customer")} = (select auth.uid()))`;
   };
+
   const c = columns(ctx, "carts");
   const cl = columns(ctx, "cartLines");
   const sr = columns(ctx, "shippingRates");
@@ -318,16 +323,21 @@ using (${using});`;
   const r = columns(ctx, "returns");
   const rl = columns(ctx, "returnLines");
   const rf = columns(ctx, "refunds");
+
   const currency = (column: string): string =>
     `${column} char(3) not null check (${column} ~ '^[A-Z]{3}$')`;
+
   const amount = (column: string, nullable = false): string =>
     `${column} bigint ${nullable ? "" : "not null default 0 "}check (${column} >= 0)`;
+
   const variants = `${catalog.table("variants")} (${variant("id")})`;
   const order = `${t("orders")} (${o("id")}) on delete cascade`;
+
   const priceList =
     catalog.hasTable("priceLists") && catalog.has("prices", "priceList")
       ? ` references ${catalog.table("priceLists")} (${catalog.col("priceLists", "id")}) on delete set null`
       : "";
+
   return `
 create table if not exists ${t("shippingRates")} (
   ${sr("id")} uuid primary key default gen_random_uuid(),
@@ -565,8 +575,10 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   paymentWindow(ctx);
   const names = namesOf(ctx);
+
   return `${schemaPreamble(ctx)}
 -- Carts on any signed-in user (anonymous sign-ins included), checkout into
 -- orders with numbers, payments, fulfillments, returns and refunds.

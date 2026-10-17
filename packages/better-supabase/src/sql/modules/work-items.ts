@@ -131,16 +131,20 @@ function tables(ctx: ModuleContext, n: WorkItemNames): string {
   if (!ctx.manages) {
     return "";
   }
+
   const { t, c } = n;
   const w = (column: string): string => c("items", column);
   const a = (column: string): string => c("assignees", column);
+
   const read = (
     table: string,
   ): string => `drop policy if exists ${ctx.tableName(table).name}_read on ${t(table)};
 create policy ${ctx.tableName(table).name}_read on ${t(table)} for select to authenticated
 using (${ctx.scope.check(c(table, "tenant"), n.read)});`;
+
   const p = (column: string): string => c("projects", column);
   const i = (column: string): string => c("iterations", column);
+
   const projects = ctx.hasTable("projects")
     ? `
 create table if not exists ${t("projects")} (
@@ -162,6 +166,7 @@ ${lockTable(t("projects"), { read: true })}
 ${read("projects")}
 `
     : "";
+
   const iterations = ctx.hasTable("iterations")
     ? `
 create table if not exists ${t("iterations")} (
@@ -179,6 +184,7 @@ ${lockTable(t("iterations"), { read: true })}
 ${read("iterations")}
 `
     : "";
+
   return `${projects}${iterations}
 create table if not exists ${t("items")} (
   ${w("id")} uuid primary key default gen_random_uuid(),
@@ -241,14 +247,18 @@ ${read("assignees")}
 function guard(ctx: ModuleContext, n: WorkItemNames): string {
   const { t, c } = n;
   const w = (column: string): string => c("items", column);
+
   const payload = (extra: string): string =>
     `jsonb_build_object('organizationId', new.${w("tenant")}, 'workItemId', new.${w("id")}, 'subjectType', 'work_item', 'subjectId', new.${w("id")}::text, 'title', new.${w("title")}${extra})`;
+
   const subject = `'work-items/' || new.${w("id")}::text`;
   const tenant = `new.${w("tenant")}::text`;
   const closed = `new.${w("state")} in ('completed', 'canceled')`;
+
   const dates = [w("startAt"), w("endAt"), w("dueAt")]
     .map((column) => `new.${column} is distinct from old.${column}`)
     .join(" or ");
+
   return `
 create or replace function better_supabase.bs_work_item_guard()
 returns trigger
@@ -311,13 +321,16 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const keys = moduleOperations("work-items");
   const maxAssignees = ctx.number("maxAssignees", 0);
+
   if (!Number.isInteger(maxAssignees) || maxAssignees < 0) {
     throw new TypeError(
       "blocks.work-items.options.maxAssignees must be 0 (no limit) or a positive integer",
     );
   }
+
   const n: WorkItemNames = {
     fn: (name) => ctx.fn(name),
     t: (table) => ctx.table(table),
@@ -330,6 +343,7 @@ function build(ctx: ModuleContext): string {
     service: "(auth.role() = 'service_role')",
     extras: ctx.extraColumns("items", ["fields"]),
   };
+
   return `${schemaPreamble(ctx)}
 -- Work items on pipelines: issues and tasks with an identifier, a parent,
 -- assignees, a priority, dates, projects and iterations.

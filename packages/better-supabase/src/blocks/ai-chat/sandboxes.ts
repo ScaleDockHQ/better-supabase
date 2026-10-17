@@ -134,25 +134,31 @@ export function aiSandboxes(call: BlockCall, service: BlockCall): AiSandboxes {
     idle(stopOptions).andThen((claimed) =>
       Result.from(async () => {
         let stopped = 0;
+
         for (const sandbox of claimed) {
           let error: string | undefined;
+
           try {
             await stop(sandbox);
           } catch (cause) {
             error = errorText(cause);
           }
+
           const finished = await finishStop(
             sandbox.id,
             error === undefined,
             error,
           );
+
           if (!finished.ok) {
             return finished;
           }
+
           if (error === undefined) {
             stopped += 1;
           }
         }
+
         return ok(stopped);
       }),
     );

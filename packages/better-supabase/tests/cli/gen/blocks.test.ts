@@ -22,6 +22,7 @@ describe("blocks.generated.ts", () => {
       },
       "/project",
     );
+
     const entries = blockConfigEntries(config);
     expect(entries["attachments"]).toEqual({
       schema: "better_supabase",
@@ -60,6 +61,7 @@ describe("blocks.generated.ts", () => {
       },
       "/project",
     );
+
     const entries = blockConfigEntries(config);
     expect(entries["organizations"]?.naming).toEqual({ tenant: "workspace" });
     expect(entries["tags"]?.naming).toEqual({
@@ -67,9 +69,11 @@ describe("blocks.generated.ts", () => {
       functions: { create_tag: "make_tag" },
     });
     expect(entries["access"]?.naming).toEqual({ tenant: "workspace" });
+
     const plain = blockConfigEntries(
       resolveConfig({ blocks: ["tags"] }, "/project"),
     );
+
     expect(plain["tags"]).not.toHaveProperty("naming");
   });
 
@@ -77,6 +81,7 @@ describe("blocks.generated.ts", () => {
     const entries = blockConfigEntries(
       resolveConfig({ sql: { scope: "user" }, blocks: ["tags"] }, "/project"),
     );
+
     expect(Object.keys(entries)).toContain("tags");
     expect(Object.keys(entries)).not.toContain("tenant");
   });
@@ -86,6 +91,7 @@ describe("blocks.generated.ts", () => {
       { output: "app/lib/db/generated.ts", blocks: ["tenant", "attachments"] },
       "/project",
     );
+
     const file = emitBlockConfig(config, { runtimeImport: "better-supabase" });
     expect(file?.path).toBe("app/lib/db/blocks.generated.ts");
     expect(blockConfigPath(config)).toBe("app/lib/db/blocks.generated.ts");

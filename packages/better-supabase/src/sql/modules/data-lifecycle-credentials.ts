@@ -35,27 +35,33 @@ interface CredentialColumn {
 
 function credentialColumns(ctx: ModuleContext): readonly CredentialColumn[] {
   const list: CredentialColumn[] = [];
+
   for (const of of ctx.installedModules.map((module) => ctx.of(module))) {
     for (const [logical, spec] of Object.entries(of.names.tables)) {
       const lifecycle = spec.lifecycle;
+
       if (lifecycle?.credentials === undefined || !of.hasTable(logical)) {
         continue;
       }
+
       const user =
         lifecycle.credentialSubject === "user" &&
         lifecycle.user !== undefined &&
         of.has(logical, lifecycle.user)
           ? of.col(logical, lifecycle.user).replaceAll('"', "")
           : undefined;
+
       if (lifecycle.credentialSubject === "user" && user === undefined) {
         throw new TypeError(
           `${of.module}.${logical}: credentialSubject "user" needs a lifecycle user column`,
         );
       }
+
       for (const column of lifecycle.credentials) {
         if (!of.has(logical, column)) {
           continue;
         }
+
         list.push({
           name: `${of.tableName(logical).schema}.${of.tableName(logical).name}`,
           table: of.table(logical),
@@ -65,6 +71,7 @@ function credentialColumns(ctx: ModuleContext): readonly CredentialColumn[] {
       }
     }
   }
+
   return list;
 }
 
@@ -79,6 +86,7 @@ export function credentialsSql(ctx: ModuleContext): string {
   const cd = (logical: string): string => ctx.col("deletions", logical);
   const fn = (name: string): string => ctx.fn(name);
   const credentials = credentialColumns(ctx);
+
   const credentialsBody =
     credentials.length === 0
       ? "select null::text, null::text, null::text, null::text where false"
@@ -88,10 +96,12 @@ export function credentialsSql(ctx: ModuleContext): string {
               `(${sqlString(entry.name)}, ${sqlString(entry.table)}, ${sqlString(entry.column)}, ${entry.user === undefined ? "null::text" : sqlString(entry.user)})`,
           )
           .join(",\n    ")}\n  ) as c(name, tbl, col, user_col)`;
+
   const inTenant = `not (${refOutsideTenant("r.ref", "$1")})`.replaceAll(
     "'",
     "''",
   );
+
   return `-- The credential_ref columns of module tables: display name, quoted table,
 -- column and the user column a ref is revoked for (null for the app).
 drop function if exists ${fn("data_lifecycle_credentials")}();

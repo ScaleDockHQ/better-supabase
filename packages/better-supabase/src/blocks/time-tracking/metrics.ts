@@ -65,11 +65,15 @@ export function timeEntryMetricTime(
   if (!event.type.includes("time_entry.") || !isRecord(event.data)) {
     return undefined;
   }
+
   const startedAt = event.data["startedAt"];
+
   if (typeof startedAt !== "string") {
     return undefined;
   }
+
   const previous = event.data["previousStartedAt"];
+
   return typeof previous === "string" && previous !== startedAt
     ? [startedAt, previous]
     : startedAt;

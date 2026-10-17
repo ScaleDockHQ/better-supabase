@@ -35,7 +35,9 @@ function source(fingerprint: () => string | undefined): IntrospectionSource {
         if (!sql.includes("as fingerprint")) {
           throw new Error(`unexpected ${sql}`);
         }
+
         const value = fingerprint();
+
         return { rows: value === undefined ? [] : [{ fingerprint: value }] };
       },
     },
@@ -45,10 +47,12 @@ function source(fingerprint: () => string | undefined): IntrospectionSource {
 /** A `read` that returns the next name each call and counts the calls. */
 function reader(...names: string[]) {
   let calls = 0;
+
   return {
     read: () => {
       const name = names[Math.min(calls, names.length - 1)]!;
       calls += 1;
+
       return Promise.resolve(snapshot(name));
     },
     calls: () => calls,
@@ -56,9 +60,11 @@ function reader(...names: string[]) {
 }
 
 let root: string;
+
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), "bs-cache-"));
 });
+
 afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
@@ -129,13 +135,16 @@ describe("cachedIntrospect", () => {
     await cachedIntrospect(root, db, [], read);
     const files = await readdir(join(root, CACHE_DIR));
     expect(files).toEqual([expect.stringMatching(/^snapshot-\w+\.json$/)]);
+
     const entry = JSON.parse(
       await readFile(join(root, CACHE_DIR, files[0]!), "utf-8"),
     ) as { key: string };
+
     const key = (typegen: string) =>
       createHash("sha256")
         .update(JSON.stringify([VERSION, typegen, db.describe, [], "a"]))
         .digest("hex");
+
     expect(entry.key).toBe(key(TYPEGEN_VERSION));
     expect(entry.key).not.toBe(key("0.0.0"));
   });
@@ -144,10 +153,13 @@ describe("cachedIntrospect", () => {
 describe("cachedDatabaseTypes", () => {
   it("reuses the output for the same inputs and renders again for others", async () => {
     let calls = 0;
+
     const produce = () => {
       calls += 1;
+
       return Promise.resolve(`types ${calls}`);
     };
+
     expect(await cachedDatabaseTypes(root, ["a"], produce)).toBe("types 1");
     expect(await cachedDatabaseTypes(root, ["a"], produce)).toBe("types 1");
     expect(await cachedDatabaseTypes(root, ["b"], produce)).toBe("types 2");

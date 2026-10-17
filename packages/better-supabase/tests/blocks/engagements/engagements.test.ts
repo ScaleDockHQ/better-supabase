@@ -6,14 +6,17 @@ function transport(
   results: Record<string, (args: Record<string, unknown>) => unknown>,
 ) {
   const calls: [string, Record<string, unknown>][] = [];
+
   return {
     calls,
     call(_schema: string, fn: string, args: Record<string, unknown>) {
       calls.push([fn, args]);
       const result = results[fn];
+
       if (!result) {
         return Promise.reject(new Error(`unexpected ${fn}`));
       }
+
       return Promise.resolve(result(args));
     },
   };
@@ -42,11 +45,13 @@ describe("engagements block", () => {
   it("logs with instants as ISO text and reads the row", async () => {
     const t = transport({ log_engagement: () => ROW });
     const due = Temporal.Instant.from("2026-10-16T09:00:00Z");
+
     const engagement = await createEngagements({ transport: t })
       .log("o", { type: "task", title: "Send proposal", dueAt: due }, [
         { type: "deal", id: "d1" },
       ])
       .orThrow();
+
     expect(t.calls[0]).toEqual([
       "log_engagement",
       {
@@ -89,6 +94,7 @@ describe("engagements block", () => {
       next_engagement: () => null,
       open_engagements: () => [ROW],
     });
+
     const engagements = createEngagements({ transport: t });
     expect(
       (await engagements.complete("e1", { outcome: "sent" }).orThrow()).doneAt,
@@ -139,11 +145,14 @@ describe("engagements block, optional fields", () => {
       external_ref: "msg-1",
       overdue: true,
     };
+
     const t = transport({
       complete_engagement: () => full,
       next_engagement: () => full,
     });
+
     const logged: unknown[] = [];
+
     const engagements = createEngagements({
       transport: t,
       logger: {
@@ -154,6 +163,7 @@ describe("engagements block, optional fields", () => {
       },
       hooks: { next: { after: () => undefined } },
     });
+
     const done = await engagements.complete("e1", { done: false }).orThrow();
     expect(done).toMatchObject({
       body: "Notes",
@@ -178,6 +188,7 @@ describe("engagements block, optional fields", () => {
       open_engagements: () => [],
       update_engagement: () => ROW,
     });
+
     const engagements = createEngagements({ transport: t });
     const at = Temporal.Instant.from("2026-10-14T00:00:00Z");
     await engagements.of({ type: "deal", id: "d1" }, { before: at }).orThrow();

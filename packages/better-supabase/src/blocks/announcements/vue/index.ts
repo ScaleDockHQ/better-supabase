@@ -13,7 +13,9 @@ import {
 import { createAnnouncementsController } from "../client.ts";
 
 export type { BlockOptions } from "../../block-env.ts";
+
 export type { VueController } from "../../vue-controller.ts";
+
 export type {
   AnnouncementsActions,
   AnnouncementsControllerOptions,

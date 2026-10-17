@@ -11,6 +11,7 @@ import { localSigningKey } from "../../src/testing/local-key.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const USER = "11111111-1111-4111-8111-111111111111";
+
 const env = {
   url: "http://127.0.0.1:54321",
   publishableKey: "sb_publishable_test",
@@ -23,7 +24,9 @@ async function signingKey(): Promise<SigningJwk> {
     true,
     ["sign", "verify"],
   );
+
   const jwk = await crypto.subtle.exportKey("jwk", pair.privateKey);
+
   return { ...jwk, kid: "local-test", alg: "ES256", use: "sig" };
 }
 
@@ -39,6 +42,7 @@ async function project(key: SigningJwk): Promise<string> {
     join(root, "supabase", "keys", "local.json"),
     JSON.stringify([key]),
   );
+
   return root;
 }
 
@@ -47,12 +51,14 @@ describe("local ES256 signing", () => {
     const key = await signingKey();
     const { d: _private, key_ops: _ops, ...publicKey } = key;
     const token = await signTestJwtWithKey(key, { sub: USER, tenant_id: "o1" });
+
     const { auth } = await resolveAuth(
       new Request("https://api.test/", {
         headers: { authorization: `Bearer ${token}` },
       }),
       { env, jwks: { keys: [publicKey] } },
     );
+
     expect(auth).toMatchObject({
       kind: "user",
       user: { id: USER },
@@ -65,6 +71,7 @@ describe("local ES256 signing", () => {
     const root = await project(key);
     const cwd = process.cwd();
     process.chdir(join(root, "supabase"));
+
     try {
       expect((await localSigningKey()).kid).toBe("local-test");
     } finally {
@@ -84,11 +91,13 @@ describe("asUser", () => {
 
   it("signs ES256 by default", async () => {
     const key = await signingKey();
+
     const user = await asUser(
       betterSupabase,
       { sub: USER },
       { publishableKey: "sb_publishable_test", signingKey: key },
     );
+
     const header: unknown = JSON.parse(atob(user.token.split(".")[0] ?? ""));
     expect(header).toMatchObject({ alg: "ES256", kid: "local-test" });
   });

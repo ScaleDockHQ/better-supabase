@@ -16,6 +16,7 @@ function recorder(
   results: (fn: string, args: Record<string, unknown>) => unknown,
 ) {
   const calls: { fn: string; args: Record<string, unknown> }[] = [];
+
   return {
     calls,
     transport: {
@@ -23,6 +24,7 @@ function recorder(
         // SAFETY: the client passes named arguments as an object.
         const named = args as Record<string, unknown>;
         calls.push({ fn, args: named });
+
         return Promise.resolve(results(fn, named));
       },
     },
@@ -30,6 +32,7 @@ function recorder(
 }
 
 const at = (iso: string) => Temporal.Instant.from(iso);
+
 const range = {
   from: at("2026-10-02T00:00:00Z"),
   until: at("2026-10-04T00:00:00Z"),
@@ -58,10 +61,12 @@ describe("metrics block", () => {
           ]
         : [{ bucket: "2026-09-30T00:00:00Z", value: 1, count: 1 }],
     );
+
     const metrics = createMetrics({ transport, metrics: [orders] });
     expectTypeOf<
       Parameters<typeof metrics.series>[0]
     >().toEqualTypeOf<"orders">();
+
     const series = await metrics
       .series("orders", range, {
         organizationId: "org",
@@ -71,6 +76,7 @@ describe("metrics block", () => {
         compare: "previous",
       })
       .orThrow();
+
     expect(series.points).toEqual([
       {
         bucket: at("2026-10-02T00:00:00Z"),
@@ -94,6 +100,7 @@ describe("metrics block", () => {
     const plain = await metrics
       .series("orders", range, { organizationId: "org" })
       .orThrow();
+
     expect(plain.previous).toBeUndefined();
     expect(calls[2]?.args).toMatchObject({
       p_grain: "day",
@@ -123,6 +130,7 @@ describe("metrics block", () => {
         ? { value: "60", count: 4 }
         : { value: 40, count: 2 },
     );
+
     const metrics = createMetrics({ transport });
     expect(
       await metrics
@@ -171,6 +179,7 @@ describe("metrics block", () => {
         tz: "UTC",
       },
     ]);
+
     const metrics = createMetrics({ transport });
     expect(await metrics.definitions().orThrow()).toEqual([
       {
@@ -197,10 +206,12 @@ describe("metrics block", () => {
   it("rolls up through the service transport, also from the job", async () => {
     const member = recorder(() => 0);
     const service = recorder(() => 7);
+
     const metrics = createMetrics({
       transport: member.transport,
       service: service.transport,
     });
+
     expect(await metrics.rollup().orThrow()).toBe(7);
     await metrics.job(
       {
@@ -241,6 +252,7 @@ describe("metricsSink", () => {
 
   it("rolls up each metric once per day its events fall on", async () => {
     const requests: unknown[] = [];
+
     const sink = metricsSink(
       {
         rollup: (request) => {
@@ -249,6 +261,7 @@ describe("metricsSink", () => {
             since: request?.since?.toString(),
             until: request?.until?.toString(),
           });
+
           return AsyncResult.ok(1);
         },
       },
@@ -259,6 +272,7 @@ describe("metricsSink", () => {
         },
       },
     );
+
     await sink.send([
       event("dev.better-supabase.order.placed", "2026-10-02T10:00:00Z"),
       event("dev.better-supabase.order.placed", "2026-10-01T09:00:00Z"),
@@ -295,10 +309,12 @@ describe("metricsSink", () => {
 
   it("rolls up every time an event returns, skipping the days between", async () => {
     const requests: unknown[] = [];
+
     const sink = metricsSink(
       {
         rollup: (request) => {
           requests.push(request?.since?.toString());
+
           return AsyncResult.ok(1);
         },
       },
@@ -307,6 +323,7 @@ describe("metricsSink", () => {
         time: () => ["2026-09-01T10:00:00Z", "2026-10-02T10:00:00Z"],
       },
     );
+
     await sink.send([event("dev.better-supabase.entry.moved")]);
     expect(requests).toEqual(["2026-09-01T10:00:00Z", "2026-10-02T10:00:00Z"]);
   });

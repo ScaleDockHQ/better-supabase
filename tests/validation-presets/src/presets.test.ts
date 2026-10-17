@@ -16,6 +16,7 @@ const live = await reachable();
 
 const wiringFile = (name: string): URL =>
   new URL(`wiring/${name}.generated.ts`, import.meta.url);
+
 const blockConfigFile = (name: string): URL =>
   new URL(`wiring/${name}.blocks.generated.ts`, import.meta.url);
 
@@ -35,6 +36,7 @@ describe("named presets", () => {
     const rendered = new Set(
       presetFiles(name, { tests: true }).map((file) => file.module),
     );
+
     const config = defineConfig({ preset: name });
     expect([...rendered].toSorted()).toEqual(
       Object.keys(config.blocks ?? {}).toSorted(),
@@ -50,12 +52,15 @@ describe("named presets", () => {
       resolvePreset(namedPreset(name)),
       `./${name}.blocks.generated.ts`,
     );
+
     const blockConfig =
       emitBlockConfig(resolveConfig({ preset: name }, "/"))?.contents ?? "";
+
     if (process.env["UPDATE_WIRING"] === "1") {
       await writeFile(wiringFile(name), source);
       await writeFile(blockConfigFile(name), blockConfig);
     }
+
     expect(await readFile(wiringFile(name), "utf-8")).toBe(source);
     expect(await readFile(blockConfigFile(name), "utf-8")).toBe(blockConfig);
   });
@@ -71,10 +76,12 @@ describe.skipIf(!live)("installing a named preset", () => {
       const sql = presetFiles(name)
         .map((file) => file.contents)
         .join("\n\n");
+
       await installAndRollBack(pool, sql, async (client) => {
         const { rows } = await client.query<{ installed: boolean }>(
           "select to_regnamespace('better_supabase') is not null as installed",
         );
+
         expect(rows[0]?.installed).toBe(true);
       });
     },

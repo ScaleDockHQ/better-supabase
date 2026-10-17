@@ -17,16 +17,19 @@ export async function printModule(
 ): Promise<CommandResult> {
   const [name] = names;
   const module = name ? SQL_MODULES[name] : undefined;
+
   if (!module) {
     return {
       code: 2,
       error: `Name one module: ${Object.keys(SQL_MODULES).join(", ")}`,
     };
   }
+
   const body = moduleBody(
     module.name,
     await layout(config, args, [module.name]),
   );
+
   if (body === undefined) {
     return {
       code: 0,
@@ -43,5 +46,6 @@ export async function printModule(
         .join("\n")}`,
     };
   }
+
   return { code: 0, output: body };
 }

@@ -33,6 +33,7 @@ export function useOnboarding<Id extends string, Scope extends ChecklistScope>(
 ): OnboardingState<Id> {
   const { supabase, auth } = useBlockEnv();
   const { organizationId, schema } = options;
+
   return useController(
     () =>
       createOnboardingController<Id, Scope>({

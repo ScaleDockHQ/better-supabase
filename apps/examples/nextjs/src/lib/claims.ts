@@ -1,6 +1,7 @@
 import * as v from "valibot";
 
 export const Role = v.picklist(["owner", "admin", "member"]);
+
 /** Plan features the app sells (public.plan_features). */
 export const Entitlement = v.picklist(["exports", "sso", "audit", "seats"]);
 
@@ -31,6 +32,7 @@ const Memberships = v.fallback(
       v.transform((entries) =>
         entries.flatMap((entry) => {
           const parsed = v.safeParse(Membership, entry);
+
           return parsed.success ? [parsed.output] : [];
         }),
       ),
@@ -80,6 +82,9 @@ export const Profile = v.looseObject({
 });
 
 export type Claims = v.InferOutput<typeof Claims>;
+
 export type Profile = v.InferOutput<typeof Profile>;
+
 export type Role = v.InferOutput<typeof Role>;
+
 export type Entitlement = v.InferOutput<typeof Entitlement>;

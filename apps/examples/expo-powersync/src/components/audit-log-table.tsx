@@ -48,12 +48,15 @@ function Chips({
 export function AuditLogTable() {
   const { entries, filters, hasMore, loading, error, setFilters, loadMore } =
     useAuditLog({ organizationId: tenantOf(useAuth()), schema: API_SCHEMA });
+
   const distinct = (values: readonly (string | undefined)[]) =>
     [...new Set(values.filter((value) => value !== undefined))].toSorted();
+
   const actors = distinct([
     ...(entries ?? []).map((entry) => entry.actorId),
     filters.actorId,
   ]);
+
   const actions = distinct([
     ...(entries ?? []).map((entry) => entry.eventType),
     filters.eventType,

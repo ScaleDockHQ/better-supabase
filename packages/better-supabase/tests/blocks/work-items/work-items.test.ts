@@ -9,14 +9,17 @@ function transport(
   results: Record<string, (args: Record<string, unknown>) => unknown>,
 ) {
   const calls: [string, Record<string, unknown>][] = [];
+
   return {
     calls,
     call(_schema: string, fn: string, args: Record<string, unknown>) {
       calls.push([fn, args]);
       const result = results[fn];
+
       if (!result) {
         return Promise.reject(new Error(`unexpected ${fn}`));
       }
+
       return Promise.resolve(result(args));
     },
   };
@@ -58,6 +61,7 @@ const ROW = {
 describe("work-items block", () => {
   it("creates with instants as ISO text and reads every field", async () => {
     const t = transport({ create_work_item: () => ROW });
+
     const item = await createWorkItems({ transport: t })
       .create(
         "o",
@@ -68,6 +72,7 @@ describe("work-items block", () => {
         ["u1"],
       )
       .orThrow();
+
     expect(t.calls[0]?.[1]).toEqual({
       tenant: "o",
       attrs: { title: "Payment API", startAt: "2026-10-20T09:00:00Z" },
@@ -95,7 +100,9 @@ describe("work-items block", () => {
       assignees: null,
       customer_id: undefined,
     };
+
     const t = transport({ list_work_items: () => [sparse] });
+
     const [item] = await createWorkItems({ transport: t })
       .list("o", {
         teamId: "t1",
@@ -106,6 +113,7 @@ describe("work-items block", () => {
         limit: 5,
       })
       .orThrow();
+
     expect(item?.closeReason).toBeUndefined();
     expect(item?.assigneeIds).toEqual([]);
     expect(t.calls[0]?.[1]).toEqual({
@@ -149,7 +157,9 @@ describe("work-items block", () => {
         },
       ],
     });
+
     const items = createWorkItems({ transport: t });
+
     const result = await items
       .update([
         {
@@ -159,6 +169,7 @@ describe("work-items block", () => {
         },
       ])
       .orThrow();
+
     expect(result.rejected[0]?.hint).toBe("WORK_ITEM_LOCKED");
     expect(t.calls[0]?.[1]).toEqual({
       changes: [
@@ -194,7 +205,9 @@ describe("work-items block", () => {
         ends_on: "2026-11-01",
       }),
     });
+
     const items = createWorkItems({ transport: t });
+
     const project = await items
       .saveProject("o", {
         key: "PAY",
@@ -202,11 +215,14 @@ describe("work-items block", () => {
         startOn: Temporal.PlainDate.from("2026-10-01"),
       })
       .orThrow();
+
     expect(project).toMatchObject({ key: "PAY", progress: 50 });
     expect(project.startOn?.toString()).toBe("2026-10-01");
+
     const sprint = await items
       .saveIteration("o", { id: "i1", name: "Sprint 1" })
       .orThrow();
+
     expect(sprint.endsOn.toString()).toBe("2026-11-01");
     expect(t.calls[0]?.[1]).toEqual({
       tenant: "o",
@@ -251,6 +267,7 @@ describe("work-items block, sparse rows and options", () => {
       assignees: "u1",
       archived_at: "2026-10-14T09:00:00Z",
     };
+
     const t = transport({
       create_work_item: () => sparse,
       work_item_tree: () => [
@@ -286,6 +303,7 @@ describe("work-items block, sparse rows and options", () => {
         ends_on: null,
       }),
     });
+
     const items = createWorkItems({
       transport: t,
       logger: {
@@ -296,6 +314,7 @@ describe("work-items block, sparse rows and options", () => {
       },
       hooks: { tree: { after: () => undefined } },
     });
+
     const item = await items.create("o", { title: "x" }).orThrow();
     expect(item).toMatchObject({
       number: 3n,
@@ -314,9 +333,11 @@ describe("work-items block, sparse rows and options", () => {
       progress: 0,
     });
     expect(node?.dueAt).toBeDefined();
+
     const project = await items
       .saveProject("o", { id: "p1", startOn: null })
       .orThrow();
+
     expect(project).toMatchObject({ ownerId: "u1", status: "planned" });
     expect(project.startOn).toBeUndefined();
     const sprint = await items.saveIteration("o", { name: "Sprint" }).orThrow();

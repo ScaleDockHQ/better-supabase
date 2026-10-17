@@ -17,11 +17,13 @@ const withOptions = (options: Record<string, unknown>): Layout => ({
 describe("forms module", () => {
   it("keeps forms, versions and submissions and checks answers with pg_jsonschema", () => {
     const sql = sqlOf(["forms"]);
+
     for (const table of ["forms", "form_versions", "form_submissions"]) {
       expect(sql).toContain(
         `create table if not exists "better_supabase"."${table}"`,
       );
     }
+
     expect(sql).toContain("extensions.jsonschema_validation_errors(");
     expect(sql).toContain("hint = 'JSON_SCHEMA_INVALID'");
     expect(sql).toContain("FORM_DEFINITION_INVALID");
@@ -72,6 +74,7 @@ describe("forms module", () => {
         },
       },
     });
+
     expect(sql).toContain(`from "app"."field_defs" d`);
     expect(sql).not.toContain("to_regclass");
   });
@@ -83,6 +86,7 @@ describe("forms module", () => {
         handlers: { contact: "app.lead_from_submission", demo: "make_lead" },
       }),
     );
+
     expect(sql).toContain(`"app"."lead_from_submission"(v_row.`);
     expect(sql).toContain(`public."make_lead"(v_row.`);
     expect(sql).toContain("when 'contact' then");
@@ -139,6 +143,7 @@ describe("forms module", () => {
         },
       },
     });
+
     expect(sql).not.toMatch(
       /create table if not exists "?(app|better_supabase)"?\."?(surveys|form)/,
     );

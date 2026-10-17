@@ -92,6 +92,7 @@ export async function runAdopt(
   deps: AdoptDeps,
 ): Promise<CommandResult> {
   const block = args.block;
+
   if (block === undefined) {
     return {
       code: 2,
@@ -99,12 +100,15 @@ export async function runAdopt(
         "Name the block to adopt, e.g. `better-supabase adopt teams --from public.teams`.",
     };
   }
+
   const proposal = proposeAdoption(block, await deps.tables(), {
     from: list(args.from),
     blocks: config.blocks,
     schemas: adoptSchemas(config),
   });
+
   const lines = [`Adopting ${block}:`, ...describeProposal(proposal)];
+
   const data = {
     block,
     entry: proposal.entry,
@@ -112,6 +116,7 @@ export async function runAdopt(
     errors: proposal.errors,
     warnings: proposal.warnings,
   };
+
   if (proposal.errors.length > 0) {
     return {
       code: 1,
@@ -120,22 +125,27 @@ export async function runAdopt(
       data: { ...data, written: false },
     };
   }
+
   const file = deps.configFile;
+
   if (file === undefined) {
     lines.push(
       "",
       `No config file: add this to blocks yourself.`,
       `${block}: ${JSON.stringify(proposal.entry, null, 2)}`,
     );
+
     return {
       code: 0,
       output: lines.join("\n"),
       data: { ...data, written: false },
     };
   }
+
   const source = await readFile(file, "utf-8");
   const edit = withAdoptedBlock(file, source, proposal);
   const shown = display(config.root, file);
+
   if (!edit.ok) {
     return {
       code: 1,
@@ -144,10 +154,13 @@ export async function runAdopt(
       data: { ...data, written: false },
     };
   }
+
   const paint = deps.paint ?? plain;
+
   if (edit.text !== source) {
     lines.push("", fileDiff(shown, source, edit.text, paint));
   }
+
   if (args["dry-run"] === true || edit.text === source) {
     lines.push(
       "",
@@ -155,17 +168,20 @@ export async function runAdopt(
         ? `${shown} already holds this mapping.`
         : "Dry run: nothing written. Run without --dry-run to write it.",
     );
+
     return {
       code: 0,
       output: lines.join("\n"),
       data: { ...data, written: false },
     };
   }
+
   await writeFile(file, edit.text);
   lines.push(
     "",
     `Updated ${shown}. Run \`better-supabase sql sync\` to write the block's module over these tables.`,
   );
+
   return {
     code: 0,
     output: lines.join("\n"),
@@ -186,6 +202,7 @@ export const adoptCommand: AnyCommand = defineCliCommand({
       ...(await sourceArgs(args, io)),
       ...(signal ? { signal } : {}),
     });
+
     return runAdopt(config, args, {
       paint: painter(io.color),
       tables: () => withSpinner(io.prompts, "Reading the schema", tables),

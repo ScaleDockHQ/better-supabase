@@ -62,16 +62,22 @@ function missingScopes(
   if (required.length === 0) {
     return [];
   }
+
   const outcome = actorOf(auth.claims);
+
   if (!outcome.ok) {
     return [];
   }
+
   const delegation = delegationOf(auth.claims);
   const kind = outcome.actor?.kind;
+
   if (kind !== "oauth-client" && !(kind === "agent" && delegation)) {
     return [];
   }
+
   const granted = new Set(delegation?.scopes);
+
   return required.filter((scope) => !granted.has(scope));
 }
 
@@ -83,6 +89,7 @@ function missingKeyScopes(
   if (granted.includes("*")) {
     return [];
   }
+
   return required.filter((scope) => !granted.includes(scope));
 }
 
@@ -96,19 +103,25 @@ export function guard(
   if (auth.kind === "invalid") {
     return auth.error;
   }
+
   const anonymous = auth.kind === "user" && isAnonymousUser(auth.claims);
+
   if (anonymous ? allow.includes("anonymous") : allow.includes(auth.kind)) {
     const denied = checkAal(auth, aal);
+
     if (denied) {
       return denied;
     }
+
     if (auth.kind !== "user" && auth.kind !== "apiKey") {
       return undefined;
     }
+
     const missing =
       auth.kind === "apiKey"
         ? missingKeyScopes(auth.scopes, scopes)
         : missingScopes(auth, scopes);
+
     return missing.length > 0
       ? dbError("forbidden", `The token lacks the scope ${missing.join(" ")}`, {
           code: "INSUFFICIENT_SCOPE",
@@ -116,11 +129,13 @@ export function guard(
         })
       : undefined;
   }
+
   if (anonymous) {
     return dbError("forbidden", "Sign up to continue", {
       code: "ANONYMOUS_USER",
     });
   }
+
   return auth.kind === "anon"
     ? dbError("unauthorized", "Sign in to continue", {
         code: "MISSING_CREDENTIALS",
@@ -153,21 +168,26 @@ export type Settled =
 export async function settle(run: () => unknown): Promise<Settled> {
   try {
     const value: unknown = await run();
+
     if (!isResult(value)) {
       return { ok: true, data: value };
     }
+
     if (value.ok) {
       return { ok: true, data: value.data };
     }
+
     return {
       ok: false,
       error: isDbError(value.error) ? value.error : toDbError(value.error),
     };
   } catch (cause) {
     const thrown = dbErrorOf(cause);
+
     if (thrown) {
       return { ok: false, error: thrown };
     }
+
     throw cause;
   }
 }
@@ -185,15 +205,19 @@ export async function respond(
   options: RespondOptions = {},
 ): Promise<Response> {
   const settled = await settle(run);
+
   if (!settled.ok) {
     return problemResponse(settled.error, options);
   }
+
   if (settled.data instanceof Response) {
     return settled.data;
   }
+
   if (settled.data === undefined) {
     return new Response(null, { status: 204 });
   }
+
   return jsonResponse(settled.data, { status: options.status ?? 200 });
 }
 

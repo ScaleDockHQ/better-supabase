@@ -22,7 +22,9 @@ export function delegationSql(
     ...layout.delegationScopes,
     ...ctx.modules.access?.scopes,
   };
+
   const entries = Object.entries(scopes);
+
   const body =
     entries.length === 0
       ? "array[scope]"
@@ -30,6 +32,7 @@ export function delegationSql(
     ${entries.map(([scope, keys]) => `when ${sqlString(scope)} then array[${keys.map(sqlString).join(", ")}]::text[]`).join("\n    ")}
     else array[scope]
   end`;
+
   return `
 -- The permission keys an OAuth scope grants a delegated token
 -- (authorization.delegation.scopes, blocks.access.scopes). A scope

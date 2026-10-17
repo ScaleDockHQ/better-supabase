@@ -46,11 +46,13 @@ const TOPIC_PREFIX = /^[a-z][a-z0-9_-]{0,30}$/;
 
 function topicPrefix(ctx: ModuleContext): string {
   const prefix = ctx.text("topic", "stream");
+
   if (!TOPIC_PREFIX.test(prefix)) {
     throw new TypeError(
       "blocks.streams.options.topic must be a lowercase name of at most 31 characters",
     );
   }
+
   return prefix;
 }
 
@@ -58,6 +60,7 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const id = ctx.idType;
   const fn = (name: string): string => ctx.fn(name);
   const s = ctx.table("streams");
@@ -65,15 +68,20 @@ function build(ctx: ModuleContext): string {
   const cs = (column: string): string => ctx.col("streams", column);
   const cc = (column: string): string => ctx.col("chunks", column);
   const prefix = topicPrefix(ctx);
+
   const topic = (stream: string): string =>
     `${sqlString(`${prefix}:`)} || ${stream}`;
+
   const receive = ctx.trigger("streams_receive");
+
   const wake = (stream: string, event: string): string => `
   if v_wake and to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then
     perform realtime.send('{}'::jsonb, ${sqlString(event)}, ${topic(stream)}, true);
   end if;`;
+
   const service = `revoke execute on function %s from public, anon, authenticated;
 grant execute on function %s to service_role;`;
+
   const serviceOnly = (signature: string): string =>
     service.replaceAll("%s", signature);
 

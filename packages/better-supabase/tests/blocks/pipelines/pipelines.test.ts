@@ -6,15 +6,18 @@ function transport(
   results: Record<string, (args: Record<string, unknown>) => unknown>,
 ) {
   const calls: [string, Record<string, unknown>][] = [];
+
   return {
     calls,
     call(schema: string, fn: string, args: Record<string, unknown>) {
       expect(schema).toBe("better_supabase");
       calls.push([fn, args]);
       const result = results[fn];
+
       if (!result) {
         return Promise.reject(new Error(`unexpected ${fn}`));
       }
+
       return Promise.resolve(result(args));
     },
   };
@@ -34,6 +37,7 @@ const STAGE = {
   rotting_after_days: 14,
   wip_limit: null,
 };
+
 const PIPELINE = {
   id: "p1",
   tenant_id: "o",
@@ -50,6 +54,7 @@ describe("pipelines block", () => {
     const t = transport({
       list_pipelines: () => [{ ...PIPELINE, stages: [STAGE] }],
     });
+
     const pipelines = createPipelines({ transport: t });
     const [pipeline] = await pipelines.list("o", "deal").orThrow();
     expect(pipeline).toEqual({
@@ -86,6 +91,7 @@ describe("pipelines block", () => {
       save_pipeline: () => PIPELINE,
       save_pipeline_stage: () => STAGE,
     });
+
     const pipelines = createPipelines({ transport: t });
     expect(
       (
@@ -147,9 +153,11 @@ describe("pipelines block", () => {
         },
       ],
     });
+
     const [column] = await createPipelines({ transport: t })
       .board("deal", "p1", { owner: "u1" })
       .orThrow();
+
     expect(column).toMatchObject({
       count: 3,
       overLimit: true,
@@ -185,6 +193,7 @@ describe("pipelines block", () => {
         },
       ],
     });
+
     const pipelines = createPipelines({ transport: t });
     const since = Temporal.Instant.from("2026-10-01T00:00:00Z");
     const until = Temporal.Instant.from("2026-11-01T00:00:00Z");
@@ -210,6 +219,7 @@ describe("pipelines block", () => {
       archive_pipeline: () => true,
       archive_pipeline_stage: () => false,
     });
+
     const pipelines = createPipelines({ transport: t });
     expect(
       await pipelines
@@ -241,10 +251,12 @@ describe("pipelines block", () => {
   it("runs hooks around a method", async () => {
     const seen: string[] = [];
     const t = transport({ archive_pipeline: () => true });
+
     const pipelines = createPipelines({
       transport: t,
       hooks: { archive: { before: ([id]) => void seen.push(`before ${id}`) } },
     });
+
     await pipelines.archive("p1").orThrow();
     expect(seen).toEqual(["before p1"]);
   });
@@ -286,6 +298,7 @@ describe("pipelines block, optional fields", () => {
         ],
       }),
     });
+
     const pipelines = createPipelines({
       transport: t,
       logger: {
@@ -296,6 +309,7 @@ describe("pipelines block, optional fields", () => {
       },
       hooks: { board: { after: () => undefined } },
     });
+
     expect(
       await pipelines
         .saveStage("p1", {

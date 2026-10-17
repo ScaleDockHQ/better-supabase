@@ -40,6 +40,7 @@ export type UsageMeterController = Controller<
 
 function readingOf(status: UsageStatus): MeterReading {
   const limit = status.unlimited ? undefined : status.limit;
+
   return {
     ...status,
     fraction:
@@ -57,10 +58,12 @@ export function createUsageMeterController(
   options: UsageMeterControllerOptions,
 ): UsageMeterController {
   const { client, organizationId, meters } = options;
+
   const pick = (all: readonly UsageStatus[]): readonly UsageStatus[] =>
     meters === undefined
       ? all
       : meters.flatMap((meter) => all.filter((each) => each.meter === meter));
+
   return defineController<UsageMeterSnapshot, UsageMeterActions>(
     { meters: undefined, error: undefined },
     (state) => {
@@ -68,17 +71,21 @@ export function createUsageMeterController(
         if (organizationId === null) {
           return;
         }
+
         const run = state.run();
         const result = await client.overview(organizationId);
+
         if (run !== state.run()) {
           return;
         }
+
         state.set(
           result.ok
             ? { meters: pick(result.data).map(readingOf), error: undefined }
             : { error: result.error },
         );
       };
+
       return {
         actions: { refresh },
         start: () =>
@@ -86,6 +93,7 @@ export function createUsageMeterController(
             ? undefined
             : whileSignedIn(options.auth, () => {
                 void refresh();
+
                 return;
               }),
       };

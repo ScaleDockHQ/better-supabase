@@ -124,6 +124,7 @@ const object = (value: unknown): Readonly<Record<string, unknown>> =>
 
 function runOf(value: unknown): AiRun {
   const row = recordOf(value, "ai_run");
+
   return {
     id: textOf(row["id"]),
     chatId: textOf(row["chat_id"]),
@@ -147,6 +148,7 @@ function runOf(value: unknown): AiRun {
 
 function stepOf(value: unknown): AiRunStep {
   const row = recordOf(value, "ai_run_step");
+
   return {
     id: textOf(row["id"]),
     runId: textOf(row["run_id"]),
@@ -168,11 +170,13 @@ export function aiRunLookups(
   options: Pick<AiChatOptions, "transport" | "service" | "schema" | "mappers">,
 ): AiRuns {
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const service = blockCall(
     options.service ?? options.transport,
     options.schema,
     options.mappers,
   );
+
   return {
     get: (runId) => call("get_ai_run", { run: runId }, runOf),
     list: (query = {}) =>
@@ -284,6 +288,7 @@ export interface AiHarnessSessions {
 
 function harnessOf(value: unknown): AiHarnessSession {
   const row = recordOf(value, "ai_harness_session");
+
   return {
     chatId: textOf(row["chat_id"]),
     harnessId: textOf(row["harness_id"]),
@@ -324,12 +329,15 @@ export function createHarnessSessions(
   options: AiChatOptions,
 ): AiHarnessSessions {
   applyTemporal(options);
+
   const service = blockCall(
     options.service ?? options.transport,
     options.schema,
     options.mappers,
   );
+
   const isTrue = (value: unknown): boolean => value === true;
+
   return {
     load: (chatId, harnessId) =>
       service(

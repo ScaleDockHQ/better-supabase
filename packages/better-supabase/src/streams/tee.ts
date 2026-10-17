@@ -44,6 +44,7 @@ export function teeToStore(
   options: TeeToStoreOptions = {},
 ): TeedStream {
   const [live, copy] = source.tee();
+
   return {
     stream: live,
     persisted: AsyncResult.from(() => persist(store, id, copy, options)),
@@ -71,17 +72,21 @@ async function persist(
   options: TeeToStoreOptions,
 ): Promise<Result<number>> {
   const { flushMs = 100, flushBytes = 4096, onCancel } = options;
+
   const opened = await store.open(id, {
     ...(options.owner === undefined ? {} : { owner: options.owner }),
     ...(options.tenant === undefined ? {} : { tenant: options.tenant }),
     ...(options.kind === undefined ? {} : { kind: options.kind }),
     ...(options.ttl === undefined ? {} : { ttl: options.ttl }),
   });
+
   if (!opened.ok) {
     // A tee branch's cancel settles only once the live branch is cancelled too.
     void copy.cancel().catch(() => undefined);
+
     return opened;
   }
+
   let next = 0;
   let buffer: string[] = [];
   let bytes = 0;
@@ -94,10 +99,13 @@ async function persist(
     if (timer !== undefined) {
       clearTimeout(timer);
     }
+
     timer = undefined;
+
     if (buffer.length === 0) {
       return writing;
     }
+
     const batch = buffer;
     const from = next;
     buffer = [];
@@ -107,34 +115,44 @@ async function persist(
       if (failure) {
         return;
       }
+
       const appended = await store.append(id, from, batch);
+
       if (!appended.ok) {
         failure = appended.error;
+
         return;
       }
+
       if (appended.data.cancelled && !cancelled) {
         cancelled = true;
         onCancel?.();
       }
     });
+
     return writing;
   };
 
   const reader = copy.getReader();
   let sourceError: unknown;
+
   try {
     for (;;) {
       const { done, value } = await reader.read();
+
       if (done) {
         break;
       }
+
       buffer.push(value);
       bytes += value.length;
+
       if (bytes >= flushBytes) {
         void flush();
       } else {
         timer ??= setTimeout(() => void flush(), flushMs);
       }
+
       if (failure) {
         break;
       }
@@ -144,15 +162,21 @@ async function persist(
   } finally {
     reader.releaseLock();
   }
+
   await flush();
+
   if (failure) {
     void copy.cancel().catch(() => undefined);
+
     return err(failure);
   }
+
   const closed = await store.close(id);
+
   if (!closed.ok) {
     return closed;
   }
+
   return sourceError === undefined ? ok(next) : err(toDbError(sourceError));
 }
 
@@ -173,6 +197,7 @@ export function resumeFromStore(
   options: ResumeFromStoreOptions = {},
 ): AsyncResult<ReadableStream<string> | undefined> {
   const from = options.fromIdx ?? 0;
+
   return store
     .status(id)
     .map((status) =>

@@ -25,6 +25,7 @@ export function useBlockController<O, S, A>(
   const controller = create(
     withEnv(options, usesEnv ? () => blockEnv(useContext().client) : undefined),
   );
+
   // The object form, because a setter treats a function value as an
   // updater; the server build of `from` ignores the initial value.
   const state = from<S>(
@@ -38,13 +39,16 @@ export function useBlockController<O, S, A>(
           });
           next(controller.getSnapshot());
         });
+
         return () => stop?.();
       },
     },
     controller.getSnapshot(),
   );
+
   onCleanup(() => {
     controller.dispose();
   });
+
   return { state, actions: controller.actions, controller };
 }

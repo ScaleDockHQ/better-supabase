@@ -23,19 +23,25 @@ function anySignal(signals: readonly AbortSignal[]): {
   if (typeof AbortSignal.any === "function") {
     return { signal: AbortSignal.any([...signals]), detach: () => {} };
   }
+
   const controller = new AbortController();
+
   const abort = (): void => {
     controller.abort();
   };
+
   for (const signal of signals) {
     if (signal.aborted) {
       abort();
+
       return { signal: controller.signal, detach: () => {} };
     }
   }
+
   for (const signal of signals) {
     signal.addEventListener("abort", abort);
   }
+
   return {
     signal: controller.signal,
     detach: () => {
@@ -62,13 +68,17 @@ export function deadline(
   if (timeoutMs === undefined) {
     return NO_DEADLINE(signal);
   }
+
   const timer = new AbortController();
+
   const handle = setTimeout(() => {
     timer.abort();
   }, timeoutMs);
+
   const combined = signal
     ? anySignal([signal, timer.signal])
     : { signal: timer.signal, detach: () => {} };
+
   return {
     signal: combined.signal,
     timedOut: () => timer.signal.aborted && !(signal?.aborted ?? false),
@@ -95,9 +105,11 @@ export function invalidTuning(tuning: {
   if (tuning.timeout !== undefined && !isTimeout(tuning.timeout)) {
     return `"timeout" must be a positive number of milliseconds, got ${String(tuning.timeout)}`;
   }
+
   if (tuning.retry !== undefined && typeof tuning.retry !== "boolean") {
     return `"retry" must be a boolean, got ${String(tuning.retry)}`;
   }
+
   return undefined;
 }
 
@@ -107,13 +119,17 @@ export function tuningOf(
 ): RequestTuning | { readonly invalid: string } {
   const timeout = args?.["timeout"];
   const retry = args?.["retry"];
+
   if (timeout === undefined && retry === undefined) {
     return NO_TUNING;
   }
+
   const invalid = invalidTuning({ timeout, retry });
+
   if (invalid) {
     return { invalid };
   }
+
   return {
     ...(isTimeout(timeout) ? { timeout } : {}),
     ...(typeof retry === "boolean" ? { retry } : {}),

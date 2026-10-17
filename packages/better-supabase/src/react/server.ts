@@ -32,12 +32,17 @@ export {
   useLiveQuery,
   useSupabase,
 } from "./index.ts";
+
 // Kept external by tsdown so it stays a `'use client'` module: a Server
 // Component layout can render it and pass the session promise across.
 export { SessionProvider } from "./session.js";
+
 export { fieldErrorsOf } from "../bindings/field-errors.ts";
+
 export { escapeLike } from "../ir/escape-like.ts";
+
 export { tenantOf } from "../auth/tenant.ts";
+
 export type {
   ActionForm,
   ActionHandle,
@@ -46,6 +51,7 @@ export type {
   UseActionFormOptions,
   UseActionOptions,
 } from "./index.ts";
+
 export type {
   BetterHooks,
   BetterSupabaseProviderProps,
@@ -57,7 +63,9 @@ export type {
   LiveQueryHookOptions,
   ProfileOf,
 } from "./index.ts";
+
 export type { SessionProviderProps } from "./session.ts";
+
 export type {
   AuthHookOptions,
   DebouncedSearch,
@@ -75,11 +83,17 @@ export type {
   UploadTarget,
   UseUploadOptions,
 } from "./index.ts";
+
 export type { AuthSession } from "../auth/view.ts";
+
 export type { SupportView } from "../auth/support-view.ts";
+
 export { supportOf } from "../auth/support-view.ts";
+
 export type { Impersonator } from "../auth/impersonation.ts";
+
 export type { MembershipClaim } from "../auth/entitlements.ts";
+
 export type { LiveCountSeed } from "../realtime/live.ts";
 
 function clientOnly(name: string): () => never {
@@ -135,6 +149,7 @@ export const useSignedUrl: typeof clientUseSignedUrl =
 
 /** The `react-server` build of `useUpload`: upload from a Client Component. */
 export const useUpload: typeof clientUseUpload = clientOnly("useUpload");
+
 /**
  * The `react-server` build of `createHooks`: importing a module that creates
  * hooks is safe on the server, calling a hook there throws.

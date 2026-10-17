@@ -48,11 +48,14 @@ export interface MeterTelemetryOptions {
 /** The `org:` tag of `providerOptions.gateway.tags`, then `runtimeContext.organizationId`. */
 export function tenantOfEvent(event: TelemetryStart): string | undefined {
   const options = event.providerOptions;
+
   const gateway =
     isRecord(options) && isRecord(options["gateway"])
       ? options["gateway"]
       : undefined;
+
   const tags = gateway?.["tags"];
+
   if (Array.isArray(tags)) {
     for (const tag of tags) {
       if (typeof tag === "string" && tag.startsWith("org:") && tag.length > 4) {
@@ -60,8 +63,10 @@ export function tenantOfEvent(event: TelemetryStart): string | undefined {
       }
     }
   }
+
   const context = event.runtimeContext;
   const id = isRecord(context) ? context["organizationId"] : undefined;
+
   return typeof id === "string" && id.length > 0 ? id : undefined;
 }
 
@@ -92,13 +97,16 @@ export function meterTelemetry(options: MeterTelemetryOptions): Telemetry {
   ): Promise<void> => {
     const tenant = tenants.get(callId);
     const kept = entries.filter((entry) => (entry.quantity ?? 0) > 0);
+
     if (tenant === undefined || kept.length === 0) {
       return;
     }
+
     const saved = await options.usage.recordMany(tenant, kept, {
       idempotencyKey: `ai-call:${key}`,
       source,
     });
+
     if (!saved.ok) {
       options.onError?.(saved.error);
     }
@@ -107,6 +115,7 @@ export function meterTelemetry(options: MeterTelemetryOptions): Telemetry {
   return {
     onStart: (event) => {
       const tenant = tenantOf(event);
+
       if (tenant !== undefined) {
         tenants.set(event.callId, tenant);
       }
@@ -114,6 +123,7 @@ export function meterTelemetry(options: MeterTelemetryOptions): Telemetry {
     onLanguageModelCallEnd: (event) => {
       const step = calls.get(event.callId) ?? 0;
       calls.set(event.callId, step + 1);
+
       return record(event.callId, `${event.callId}:${step}`, [
         {
           meter: meters.input ?? "ai.input_tokens",
@@ -192,6 +202,7 @@ export function spendReconciliation(
   options: SpendReconciliationOptions,
 ): JobHandler<{ readonly day?: string } | undefined> {
   const meter = options.meter ?? "ai.gateway_cost";
+
   return async (payload) => {
     const day =
       payload?.day ??
@@ -200,6 +211,7 @@ export function spendReconciliation(
         .subtract({ days: 1 })
         .toPlainDate()
         .toString();
+
     const report = await options.gateway.getSpendReport({
       startDate: day,
       endDate: day,
@@ -208,11 +220,14 @@ export function spendReconciliation(
         ? {}
         : { credentialType: options.credentialType }),
     });
+
     const tenants: SpendReconciliation["tenants"][number][] = [];
+
     for (const row of report.results) {
       if (typeof row.tag !== "string" || !row.tag.startsWith("org:")) {
         continue;
       }
+
       const organizationId = row.tag.slice(4);
       const costMicroUsd = Math.round(Math.max(0, row.totalCost) * 1_000_000);
       tenants.push({
@@ -220,9 +235,11 @@ export function spendReconciliation(
         costMicroUsd,
         requests: count(row.requestCount),
       });
+
       if (costMicroUsd === 0) {
         continue;
       }
+
       await options.usage
         .recordMany(organizationId, [{ meter, quantity: costMicroUsd }], {
           idempotencyKey: `ai-spend:${day}:${organizationId}`,
@@ -230,6 +247,7 @@ export function spendReconciliation(
         })
         .orThrow();
     }
+
     return { day, tenants } satisfies SpendReconciliation;
   };
 }

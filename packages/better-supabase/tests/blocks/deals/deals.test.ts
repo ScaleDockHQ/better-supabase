@@ -6,14 +6,17 @@ function transport(
   results: Record<string, (args: Record<string, unknown>) => unknown>,
 ) {
   const calls: [string, Record<string, unknown>][] = [];
+
   return {
     calls,
     call(_schema: string, fn: string, args: Record<string, unknown>) {
       calls.push([fn, args]);
       const result = results[fn];
+
       if (!result) {
         return Promise.reject(new Error(`unexpected ${fn}`));
       }
+
       return Promise.resolve(result(args));
     },
   };
@@ -74,6 +77,7 @@ const ROW = {
 describe("deals block", () => {
   it("creates with dates, bigints and contacts as the database reads them", async () => {
     const t = transport({ create_deal: () => ROW });
+
     const deal = await createDeals({ transport: t })
       .create(
         "o",
@@ -86,6 +90,7 @@ describe("deals block", () => {
         [{ type: "person", id: "p1", primary: true }],
       )
       .orThrow();
+
     expect(t.calls[0]?.[1]).toEqual({
       tenant: "o",
       attrs: {
@@ -132,11 +137,13 @@ describe("deals block", () => {
       members: null,
       region: undefined,
     };
+
     const deal = await createDeals({
       transport: transport({ reopen_deal: () => sparse }),
     })
       .reopen("d1")
       .orThrow();
+
     expect(deal.company).toBeUndefined();
     expect(deal.forecast).toBeUndefined();
     expect(deal.flags).toEqual([]);
@@ -158,6 +165,7 @@ describe("deals block", () => {
         ],
       }),
     });
+
     const result = await createDeals({ transport: t })
       .update([
         {
@@ -168,6 +176,7 @@ describe("deals block", () => {
         { dealId: "d1", field: "amount", value: 5n },
       ])
       .orThrow();
+
     expect(t.calls[0]?.[1]).toEqual({
       changes: [
         { dealId: "d1", field: "closeOn", value: "2026-12-01" },
@@ -195,6 +204,7 @@ describe("deals block", () => {
       archive_deal: () => true,
       delete_deal: () => true,
     });
+
     const deals = createDeals({ transport: t });
     await deals.win("d1").orThrow();
     await deals.lose("d1", "Budget").orThrow();
@@ -229,6 +239,7 @@ describe("deals block", () => {
       omit: "6",
       later: "7",
     };
+
     const t = transport({
       deal_forecast: () => ({
         ...sums,
@@ -254,7 +265,9 @@ describe("deals block", () => {
         },
       ],
     });
+
     const deals = createDeals({ transport: t });
+
     const forecast = await deals
       .forecast("o", {
         since: Temporal.PlainDate.from("2026-10-01"),
@@ -263,6 +276,7 @@ describe("deals block", () => {
         target: 10n,
       })
       .orThrow();
+
     expect(forecast).toMatchObject({
       won: 1n,
       later: 7n,
@@ -280,6 +294,7 @@ describe("deals block", () => {
       target: "10",
       owner: null,
     });
+
     const empty = createDeals({
       transport: transport({
         deal_forecast: () => ({
@@ -292,6 +307,7 @@ describe("deals block", () => {
         }),
       }),
     });
+
     expect(
       (
         await empty
@@ -334,7 +350,9 @@ describe("deals block, options and sparse reads", () => {
       expected_close_on: null,
       archived_at: "2026-10-14T00:00:00Z",
     };
+
     const seen: string[] = [];
+
     const t = transport({
       create_deal: () => sparse,
       deal_health: () => [
@@ -350,6 +368,7 @@ describe("deals block, options and sparse reads", () => {
         },
       ],
     });
+
     const deals = createDeals({
       transport: t,
       logger: {
@@ -360,12 +379,14 @@ describe("deals block, options and sparse reads", () => {
       },
       hooks: { create: { before: () => void seen.push("before") } },
     });
+
     const deal = await deals
       .create("o", {
         name: "x",
         closeOn: Temporal.PlainDate.from("2026-12-01"),
       })
       .orThrow();
+
     expect(deal).toMatchObject({
       number: 7n,
       amount: 0n,

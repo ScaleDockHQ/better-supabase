@@ -143,8 +143,10 @@ function lowerScheme(
     case "openIdConnect": {
       return omitUndefined({ ...scheme });
     }
+
     case "oauth2": {
       const { metadataUrl, ...rest } = scheme;
+
       return omitUndefined({
         ...rest,
         [features.native32
@@ -152,11 +154,14 @@ function lowerScheme(
           : `${features.prefix}oauth2MetadataUrl`]: metadataUrl,
       });
     }
+
     case "profile": {
       return features.is33 ? omitUndefined({ ...scheme }) : undefined;
     }
+
     default: {
       const unknown: never = scheme;
+
       return unknown;
     }
   }
@@ -211,29 +216,38 @@ function pathItem(
             isPlainObject(parameter) && parameter["in"] === "path",
         )
       : [];
+
   const first = operations[0];
   const shared = first ? pathParameters(first.operation) : [];
+
   const hoist =
     shared.length > 0 &&
     operations.every(({ operation }) =>
       sameJson(pathParameters(operation), shared),
     );
+
   const firstSecurity = first?.operation["security"];
+
   const hoistSecurity =
     features.is33 &&
     firstSecurity !== undefined &&
     operations.every(({ operation }) =>
       sameJson(operation["security"], firstSecurity),
     );
+
   const item: Json = {};
+
   if (hoist) {
     item["parameters"] = shared;
   }
+
   if (hoistSecurity) {
     item["security"] = firstSecurity;
   }
+
   for (const { method, operation } of operations) {
     const out: Json = { ...operation };
+
     if (hoist) {
       const rest = Array.isArray(out["parameters"])
         ? out["parameters"].filter(
@@ -241,17 +255,21 @@ function pathItem(
               !isPlainObject(parameter) || parameter["in"] !== "path",
           )
         : [];
+
       if (rest.length > 0) {
         out["parameters"] = rest;
       } else {
         delete out["parameters"];
       }
     }
+
     if (hoistSecurity) {
       delete out["security"];
     }
+
     item[method] = out;
   }
+
   return item;
 }
 
@@ -320,6 +338,7 @@ function lowerOpenApi(
   ctx: LowerContext,
 ): AnyOpenApiDocument {
   const is33 = version === "3.3-preview";
+
   const dropped = new Set(
     is33
       ? []
@@ -327,6 +346,7 @@ function lowerOpenApi(
           .filter(([, scheme]) => scheme.type === "profile")
           .map(([name]) => name),
   );
+
   const features: Features = {
     version,
     native32: version === "3.2" || is33,
@@ -335,6 +355,7 @@ function lowerOpenApi(
     prefix: model.extensionPrefix,
     dropped,
   };
+
   for (const name of dropped) {
     ctx.report({
       code: "preview-only",
@@ -346,6 +367,7 @@ function lowerOpenApi(
 
   const grouped = new Map<string, { method: string; operation: Json }[]>();
   const placed: ModelOperation[] = [];
+
   for (const operation of model.operations) {
     if (operation.method === "query" && !features.native32) {
       ctx.report({
@@ -356,6 +378,7 @@ function lowerOpenApi(
       });
       continue;
     }
+
     const list = grouped.get(operation.path) ?? [];
     list.push({
       method: operation.method,
@@ -364,18 +387,23 @@ function lowerOpenApi(
     grouped.set(operation.path, list);
     placed.push(operation);
   }
+
   const paths: Json = {};
+
   for (const [path, operations] of grouped) {
     paths[path] = pathItem(operations, features);
   }
 
   const securitySchemes: Json = {};
+
   for (const [name, scheme] of Object.entries(model.securitySchemes)) {
     const lowered = lowerScheme(scheme, features);
+
     if (lowered) {
       securitySchemes[name] = lowered;
     }
   }
+
   const components: Json = {
     schemas: structuredClone(model.schemas),
     responses: Object.fromEntries(
@@ -386,6 +414,7 @@ function lowerOpenApi(
     ),
     securitySchemes,
   };
+
   if (is33 && model.securityProfileRequirements) {
     components["securityProfileRequirements"] = structuredClone(
       model.securityProfileRequirements,
@@ -393,6 +422,7 @@ function lowerOpenApi(
   }
 
   let webhooks: Json | undefined;
+
   if (model.webhooks.length > 0) {
     if (features.is30) {
       ctx.report({
@@ -452,23 +482,29 @@ function lowerOpenApi(
       });
     });
   });
+
   for (const operation of placed) {
     if (!operation.extend) {
       continue;
     }
+
     const patch: JsonObject = {
       paths: { [operation.path]: { [operation.method]: operation.extend } },
     };
+
     document = mergeJson(document, patch);
   }
+
   if (features.is30) {
     document = lowerDocumentSchemas30(document);
   }
+
   if (!isOpenApiDocument(document)) {
     throw new TypeError(
       "better-supabase/openapi: a fragment removed a required document field",
     );
   }
+
   return document;
 }
 
@@ -490,12 +526,16 @@ function resolves(document: unknown, ref: string): boolean {
   if (!ref.startsWith("#")) {
     return true;
   }
+
   let node: unknown = document;
+
   for (const raw of ref.slice(2).split("/")) {
     if (raw === "" && ref === "#") {
       break;
     }
+
     const key = raw.replaceAll("~1", "/").replaceAll("~0", "~");
+
     if (Array.isArray(node)) {
       node = node[Number(key)];
     } else if (isPlainObject(node)) {
@@ -503,10 +543,12 @@ function resolves(document: unknown, ref: string): boolean {
     } else {
       return false;
     }
+
     if (node === undefined) {
       return false;
     }
   }
+
   return true;
 }
 
@@ -531,7 +573,9 @@ function keysAt(value: unknown, key: string): string[] {
   if (!isPlainObject(value)) {
     return [];
   }
+
   const child = value[key];
+
   return isPlainObject(child) ? Object.keys(child) : [];
 }
 
@@ -540,15 +584,19 @@ function lintOpenApi(document: AnyOpenApiDocument): SpecDiagnostic[] {
   const ids = new Map<string, string>();
   const components: unknown = document.components;
   const schemes = new Set(keysAt(components, "securitySchemes"));
+
   const checkSecurity = (requirements: unknown, pointer: string) => {
     if (!Array.isArray(requirements)) {
       return;
     }
+
     const list: unknown[] = requirements;
+
     for (const requirement of list) {
       if (!isPlainObject(requirement)) {
         continue;
       }
+
       for (const name of Object.keys(requirement)) {
         if (!schemes.has(name)) {
           diagnostics.push({
@@ -561,30 +609,40 @@ function lintOpenApi(document: AnyOpenApiDocument): SpecDiagnostic[] {
       }
     }
   };
+
   checkSecurity(document.security, "/security");
   const paths: unknown = document.paths;
+
   for (const [path, item] of Object.entries(
     isPlainObject(paths) ? paths : {},
   )) {
     if (!isPlainObject(item)) {
       continue;
     }
+
     const base = `/paths/${pointerToken(path)}`;
+
     const templated = new Set(
       [...path.matchAll(PATH_PARAM)].map((match) => match[1] ?? ""),
     );
+
     const shared: unknown[] = Array.isArray(item["parameters"])
       ? item["parameters"]
       : [];
+
     checkSecurity(item["security"], `${base}/security`);
+
     for (const [method, operation] of Object.entries(item)) {
       if (!METHODS.has(method) || !isPlainObject(operation)) {
         continue;
       }
+
       const pointer = `${base}/${method}`;
       const id = operation["operationId"];
+
       if (typeof id === "string") {
         const seen = ids.get(id);
+
         if (seen) {
           diagnostics.push({
             code: "operation-id-duplicate",
@@ -596,17 +654,23 @@ function lintOpenApi(document: AnyOpenApiDocument): SpecDiagnostic[] {
           ids.set(id, pointer);
         }
       }
+
       checkSecurity(operation["security"], `${pointer}/security`);
+
       const own: unknown[] = Array.isArray(operation["parameters"])
         ? operation["parameters"]
         : [];
+
       const declared = new Set<string>();
+
       for (const parameter of [...shared, ...own]) {
         if (!isPlainObject(parameter) || parameter["in"] !== "path") {
           continue;
         }
+
         const name = String(parameter["name"]);
         declared.add(name);
+
         if (!templated.has(name)) {
           diagnostics.push({
             code: "path-param-unknown",
@@ -616,6 +680,7 @@ function lintOpenApi(document: AnyOpenApiDocument): SpecDiagnostic[] {
           });
         }
       }
+
       for (const name of templated) {
         if (!declared.has(name)) {
           diagnostics.push({
@@ -628,8 +693,10 @@ function lintOpenApi(document: AnyOpenApiDocument): SpecDiagnostic[] {
       }
     }
   }
+
   const refs: [string, string][] = [];
   collectRefs(document, "", refs);
+
   for (const [pointer, ref] of refs) {
     if (!resolves(document, ref)) {
       diagnostics.push({
@@ -640,6 +707,7 @@ function lintOpenApi(document: AnyOpenApiDocument): SpecDiagnostic[] {
       });
     }
   }
+
   return diagnostics;
 }
 

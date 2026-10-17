@@ -46,9 +46,11 @@ export async function cachedIntrospect(
   const fingerprint = await catalogFingerprint(source.queryable).catch(
     () => undefined,
   );
+
   if (fingerprint === undefined) {
     return read();
   }
+
   const key = sha256(
     JSON.stringify([
       VERSION,
@@ -58,20 +60,25 @@ export async function cachedIntrospect(
       fingerprint,
     ]),
   );
+
   const file = resolve(
     root,
     CACHE_DIR,
     `snapshot-${sha256(source.describe).slice(0, 16)}.json`,
   );
+
   const cached: unknown = await readFile(file, "utf-8")
     .then((text): unknown => JSON.parse(text))
     .catch(() => undefined);
+
   if (isEntry(cached) && cached.key === key) {
     return cached.snapshot;
   }
+
   const snapshot = await read();
   const entry: CacheEntry = { key, snapshot };
   await writeAtomic(file, JSON.stringify(entry)).catch(() => undefined);
+
   return snapshot;
 }
 
@@ -88,9 +95,11 @@ export async function cachedDatabaseTypes(
 ): Promise<string> {
   const key = sha256(JSON.stringify([VERSION, TYPEGEN_VERSION, inputs]));
   const file = resolve(root, CACHE_DIR, "database-types.json");
+
   const cached: unknown = await readFile(file, "utf-8")
     .then((text): unknown => JSON.parse(text))
     .catch(() => undefined);
+
   if (
     typeof cached === "object" &&
     cached !== null &&
@@ -101,10 +110,12 @@ export async function cachedDatabaseTypes(
   ) {
     return cached.contents;
   }
+
   const contents = await produce();
   await writeAtomic(file, JSON.stringify({ key, contents })).catch(
     () => undefined,
   );
+
   return contents;
 }
 
@@ -115,6 +126,7 @@ export async function writeAtomic(
 ): Promise<void> {
   await mkdir(dirname(file), { recursive: true });
   const temporary = `${file}.${process.pid}-${crypto.randomUUID()}.tmp`;
+
   try {
     await writeFile(temporary, contents);
     await rename(temporary, file);

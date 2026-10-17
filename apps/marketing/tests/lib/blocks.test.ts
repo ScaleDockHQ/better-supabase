@@ -22,6 +22,7 @@ describe("blocks catalog", () => {
     const params = blockStaticParams().map((param) => param.name);
     expect(params).toEqual(blocks.map((block) => block.name));
     expect(new Set(params).size).toBe(params.length);
+
     for (const name of params) {
       expect(getBlock(name)?.name).toBe(name);
       expect(blockPath(name)).toBe(`/blocks/${name}`);
@@ -30,14 +31,18 @@ describe("blocks catalog", () => {
 
   test("every block has a known category and links to blocks that exist", () => {
     expect(blocks.length).toBeGreaterThan(0);
+
     for (const block of blocks) {
       expect(blockCategories).toContain(block.category);
+
       const linked = [...block.requires, ...block.integrates].filter(
         (name) => name !== "*",
       );
+
       for (const name of linked) {
         expect(getBlock(name), `${block.name}: ${name}`).toBeDefined();
       }
+
       expect(block.docs).toMatch(/^\/docs\//);
     }
   });
@@ -51,15 +56,18 @@ describe("blocks catalog", () => {
   test("the config snippet lists the dependencies before the block", () => {
     const comments = getBlock("comments");
     expect(comments).toBeDefined();
+
     if (!comments) {
       return;
     }
+
     const snippet = configSnippet(comments, [
       "updated-at",
       "tenant",
       "access",
       "comments",
     ]);
+
     expect(snippet).toContain('"updated-at": {},');
     expect(snippet.indexOf("access: {}")).toBeLessThan(
       snippet.indexOf('comments: { mode: "managed" }'),

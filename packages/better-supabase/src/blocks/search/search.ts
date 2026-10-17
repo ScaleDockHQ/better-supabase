@@ -132,6 +132,7 @@ const vectorText = (values: readonly number[]): string => {
   if (!values.every(Number.isFinite)) {
     throw new TypeError("an embedding holds finite numbers only");
   }
+
   return `[${values.join(",")}]`;
 };
 
@@ -174,11 +175,13 @@ function pendingOf(row: Record<string, unknown>): PendingEmbedding {
  */
 export function createSearch(options: SearchOptions): Search {
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const service = blockCall(
     options.service ?? options.transport,
     options.schema,
     options.mappers,
   );
+
   const list =
     (fn: "search_recents" | "search_favorites") =>
     (list: SearchListOptions = {}) =>
@@ -187,10 +190,12 @@ export function createSearch(options: SearchOptions): Search {
         { max_results: list.limit ?? 10, types: list.types ?? null },
         (value) => recordsOf(value, fn).map(userItemOf),
       );
+
   const pendingEmbeddings: Search["pendingEmbeddings"] = (limit = 100) =>
     service("search_pending_embeddings", { max_results: limit }, (value) =>
       recordsOf(value, "search_pending_embeddings").map(pendingOf),
     );
+
   const setEmbedding: Search["setEmbedding"] = (entry, embedding) =>
     vectorArg(embedding).andThen((vector) =>
       service(
@@ -204,6 +209,7 @@ export function createSearch(options: SearchOptions): Search {
         (value) => value === true,
       ),
     );
+
   const client: Search = {
     search: (q, query = {}) =>
       (query.embedding === undefined || query.embedding === null
@@ -260,22 +266,28 @@ export function createSearch(options: SearchOptions): Search {
           if (pending.length === 0) {
             return 0;
           }
+
           const vectors = await embed(pending.map((item) => item.text));
+
           if (vectors.length !== pending.length) {
             throw new TypeError(
               `embed returned ${String(vectors.length)} vectors for ${String(pending.length)} texts`,
             );
           }
+
           let stored = 0;
+
           for (const [index, item] of pending.entries()) {
             if (await setEmbedding(item, vectors[index]!).orThrow()) {
               stored += 1;
             }
           }
+
           return stored;
         }),
       ),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "search",
     ...(options.logger ? { logger: options.logger } : {}),

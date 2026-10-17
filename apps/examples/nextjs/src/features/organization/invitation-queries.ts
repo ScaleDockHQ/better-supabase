@@ -23,13 +23,17 @@ export async function getInvitationPreview(
 ): Promise<InvitationSummary | null> {
   "use cache: private";
   const { supabase } = await bs.cached();
+
   const preview = await blocks(supabase)
     .organizations.previewInvitation(token)
     .orThrow();
+
   if (!preview) {
     return null;
   }
+
   const name = preview.organization?.["name"];
+
   return {
     status: preview.status,
     email: preview.email,

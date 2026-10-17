@@ -77,6 +77,7 @@ describe.skipIf(!live)("approvals", () => {
 
   it("walks a request through its steps and runs the gated transition", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.client.query(TABLES);
       const owner = await s.user("owner");
@@ -84,19 +85,23 @@ describe.skipIf(!live)("approvals", () => {
       const finance = await s.user("finance");
       const deputy = await s.user("deputy");
       await s.install(MODULES, layoutFor(finance.id));
+
       const tenant = await s.organization(owner, {
         member: requester,
         admin: finance,
         viewer: deputy,
       });
+
       const approvals = createApprovals({ transport: sqlTransport(s.sql) });
       await s.service();
+
       const invoice = (
         await s.rows<{ id: string }>(
           "insert into approvals_it.invoices (organization_id) values ($1) returning id",
           [tenant],
         )
       )[0]!.id;
+
       const status = () =>
         s.value<string>(
           "(select status from approvals_it.invoices where id = $1)",
@@ -113,6 +118,7 @@ describe.skipIf(!live)("approvals", () => {
           [invoice],
         ),
       ).toBe("STATE_APPROVAL_REQUIRED");
+
       const request = await approvals
         .request({
           organizationId: tenant,
@@ -122,6 +128,7 @@ describe.skipIf(!live)("approvals", () => {
           reason: "Q3",
         })
         .orThrow();
+
       expect(request).toMatchObject({ status: "pending", step: 0 });
       expect(
         await approvals
@@ -198,10 +205,12 @@ describe.skipIf(!live)("approvals", () => {
       ]);
 
       await s.service();
+
       const events = await s.rows<{ type: string }>(
         "select type from better_supabase.outbox_events where organization_id = $1 and type like 'approval.%' order by created_at, type",
         [tenant],
       );
+
       expect(new Set(events.map((event) => event.type))).toEqual(
         new Set([
           "approval.requested",
@@ -224,6 +233,7 @@ describe.skipIf(!live)("approvals", () => {
 
   it("rejects, cancels, expires and reminds", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.client.query(TABLES);
       const owner = await s.user("owner");
@@ -232,10 +242,12 @@ describe.skipIf(!live)("approvals", () => {
       const tenant = await s.organization(owner, { member: requester });
       const approvals = createApprovals({ transport: sqlTransport(s.sql) });
       await s.service();
+
       const [a, b, c] = await s.rows<{ id: string }>(
         "insert into approvals_it.invoices (organization_id) select $1 from generate_series(1, 3) returning id",
         [tenant],
       );
+
       const ask = (subjectId: string) =>
         approvals
           .request({

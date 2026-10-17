@@ -105,9 +105,11 @@ function childrenOf(value: unknown, where: string): readonly Child[] {
   if (value === undefined) {
     return [];
   }
+
   if (!Array.isArray(value)) {
     throw new TypeError(`${where} must be a list of { type, column }`);
   }
+
   return value.map((entry: unknown) => {
     if (
       !isChildInput(entry) ||
@@ -116,6 +118,7 @@ function childrenOf(value: unknown, where: string): readonly Child[] {
     ) {
       throw new TypeError(`${where} must be a list of { type, column }`);
     }
+
     return { type: entry.type, column: entry.column };
   });
 }
@@ -123,6 +126,7 @@ function childrenOf(value: unknown, where: string): readonly Child[] {
 function trashable(ctx: ModuleContext): readonly Trashable[] {
   const where = "blocks.trash.options.subjects";
   const explicit = ctx.option("subjects") !== undefined;
+
   const list = subjectsOption(ctx, [
     "deletedAt",
     "title",
@@ -131,24 +135,31 @@ function trashable(ctx: ModuleContext): readonly Trashable[] {
   ]).flatMap(([type, subject]): Trashable[] => {
     const extra = subject.extra;
     const deletedAt = extra["deletedAt"];
+
     if (deletedAt === undefined && !explicit) {
       return [];
     }
+
     if (!isColumn(deletedAt)) {
       throw new TypeError(
         `${where}.${type}.deletedAt must name the timestamptz column that marks a trashed row`,
       );
     }
+
     const title = extra["title"];
+
     if (title !== undefined && !isColumn(title)) {
       throw new TypeError(`${where}.${type}.title must be a column name`);
     }
+
     const unique = extra["unique"] ?? [];
+
     if (!isColumnList(unique)) {
       throw new TypeError(
         `${where}.${type}.unique must be a list of column names`,
       );
     }
+
     return [
       {
         type,
@@ -160,7 +171,9 @@ function trashable(ctx: ModuleContext): readonly Trashable[] {
       },
     ];
   });
+
   const types = new Set(list.map((entry) => entry.type));
+
   for (const entry of list) {
     for (const child of entry.children) {
       if (!types.has(child.type)) {
@@ -170,6 +183,7 @@ function trashable(ctx: ModuleContext): readonly Trashable[] {
       }
     }
   }
+
   return list;
 }
 
@@ -187,6 +201,7 @@ function trashCase(list: readonly Trashable[], unsupported: string): string {
   if (list.length === 0) {
     return unsupported;
   }
+
   return `case trash_cascade.subject_type
 ${list
   .map(
@@ -208,14 +223,17 @@ ${list
 
 function childrenCase(list: readonly Trashable[], cascade: string): string {
   const byType = new Map(list.map((entry) => [entry.type, entry]));
+
   const whens = list
     .filter((entry) => entry.children.length > 0)
     .map((entry) => {
       const loops = entry.children.flatMap((child) => {
         const target = byType.get(child.type);
+
         if (target === undefined) {
           return [];
         }
+
         return `      for v_child in
         select c.${sqlIdent(target.subject.id ?? "id")}::text from ${qualifiedTable(target.subject.table)} c
         where c.${sqlIdent(child.column)}::text = trash_cascade.subject_id
@@ -225,12 +243,15 @@ function childrenCase(list: readonly Trashable[], cascade: string): string {
         v_count := v_count + ${cascade}(trash_cascade.tenant, ${sqlString(child.type)}, v_child, trash_cascade.batch, trash_cascade.depth + 1, trash_cascade.actor);
       end loop;`;
       });
+
       return `    when ${sqlString(entry.type)} then
 ${loops.join("\n")}`;
     });
+
   if (whens.length === 0) {
     return "";
   }
+
   return `case trash_cascade.subject_type
 ${whens.join("\n")}
     else null;
@@ -241,11 +262,13 @@ function untrashCase(list: readonly Trashable[]): string {
   if (list.length === 0) {
     return "null;";
   }
+
   return `case v_item.subject_type
 ${list
   .map((entry) => {
     const table = qualifiedTable(entry.subject.table);
     const id = sqlIdent(entry.subject.id ?? "id");
+
     const conflict =
       entry.unique.length === 0
         ? ""
@@ -260,6 +283,7 @@ ${list
       ) then
         ${fail("TRASH_RESTORE_CONFLICT", `another ${entry.type} already uses this ${entry.unique.join(", ")}`, "23505")}
       end if;`;
+
     return `    when ${sqlString(entry.type)} then${conflict}
       update ${table} s set ${sqlIdent(entry.deletedAt)} = null
         where ${subjectIdMatches(entry.subject, "v_item.subject_id")};`;
@@ -273,6 +297,7 @@ function purgeCase(list: readonly Trashable[]): string {
   if (list.length === 0) {
     return "null;";
   }
+
   return `case v_item.subject_type
 ${list
   .map(
@@ -289,6 +314,7 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const items = ctx.table("items");
   const c = (column: string): string => ctx.col("items", column);
   const read = ctx.permission("read", OPERATIONS["trash.read"]);
@@ -298,13 +324,16 @@ function build(ctx: ModuleContext): string {
   const list = trashable(ctx);
   const subjects = list.map((entry) => [entry.type, entry.subject] as const);
   const retention = ctx.number("retentionDays", 30);
+
   if (!Number.isInteger(retention) || retention < 0) {
     throw new TypeError(
       "blocks.trash.options.retentionDays must be a whole number of days, or 0 to keep trash until it is purged",
     );
   }
+
   const fn = (name: string): string => ctx.fn(name);
   const cascade = fn("trash_cascade");
+
   const record = (event: string, id: string, item: string): string =>
     ctx.record({
       type: event,
@@ -318,10 +347,12 @@ function build(ctx: ModuleContext): string {
         summary: `${sqlString(event.replace("subject.", ""))} || ' ' || ${item}.${c("subjectType")} || ' ' || ${item}.${c("subjectId")}`,
       },
     });
+
   const notFound = fail("TRASH_NOT_FOUND", "trash item not found", "P0002");
   // The root item's extra columns, such as a reason: trash() sets them, list_trash returns them.
   const extras = ctx.extraColumns("items", ["fields", "batchId", "count"]);
   const extra = extraFieldsArg(extras);
+
   const tables = ctx.manages
     ? `create table if not exists ${items} (
   ${c("id")} uuid primary key default gen_random_uuid(),
@@ -344,7 +375,9 @@ create policy "trash_items_read" on ${items} for select to authenticated
   using (${ctx.scope.check(c("tenant"), read)});
 `
     : "";
+
   const children = childrenCase(list, cascade);
+
   return `${schemaPreamble(ctx)}
 ${tables}
 -- Marks one subject row trashed, records it, then trashes the rows the
@@ -587,6 +620,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   const extra = extraFieldsArg(
     ctx.extraColumns("items", ["fields", "batchId", "count"]),
   ).contract;
+
   return [
     {
       name: "trash",

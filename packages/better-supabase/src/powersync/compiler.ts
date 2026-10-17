@@ -83,6 +83,7 @@ export async function checkSqlite<
   options: CheckSqliteOptions = {},
 ): Promise<Result<undefined> | readonly DbError[]> {
   const failures = new Map<string, DbError>();
+
   const probe: Executor = {
     name: "sqlite-check",
     execute(op): Promise<Result<ExecuteResult>> {
@@ -90,35 +91,47 @@ export async function checkSqlite<
         compileSqlite(op, options);
       } catch (cause) {
         const failure = toDbError(cause);
+
         if (!failures.has(failure.message)) {
           failures.set(failure.message, failure);
         }
+
         return Promise.resolve(err(failure));
       }
+
       return Promise.resolve(ok({ rows: [], count: 0 }));
     },
   };
+
   const facets: Record<string, readonly string[]> = {};
+
   for (const facet of list.facets) {
     facets[facet.key] = [facet.values?.[0] ?? "x"];
   }
+
   // SAFETY: the keys come from list.facets, which is keyed by the facet keys Fa.
   const query = {
     ...list.defaults,
     q: "x",
     facets,
   } as ListQuery<S, Fa>;
+
   const db = betterSupabase.connect(probe);
   await list.run(db, query);
+
   // An operation stops compiling at its first unsupported feature, so a
   // search term would hide the features the rest of the list needs.
   if (options.all) {
     await list.run(db, list.defaults);
   }
+
   const found = [...failures.values()];
+
   if (options.all) {
     return found;
   }
+
   const [first] = found;
+
   return first ? err(first) : ok(undefined);
 }

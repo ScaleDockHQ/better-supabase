@@ -184,11 +184,13 @@ describe("RFC 6902 JSON Patch", () => {
     ],
   ])("refuses %s", (_name, doc, operation) => {
     let caught: unknown;
+
     try {
       applyPatch(doc, [operation]);
     } catch (error) {
       caught = error;
     }
+
     expect(caught).toBeInstanceOf(JsonPatchError);
     expect((caught as JsonPatchError).index).toBe(0);
   });

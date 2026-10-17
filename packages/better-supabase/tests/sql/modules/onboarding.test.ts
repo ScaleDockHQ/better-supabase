@@ -22,6 +22,7 @@ const team = defineChecklist({
     { id: "billing" },
   ],
 });
+
 const profile = defineChecklist({
   id: "profile",
   scope: "user",
@@ -45,6 +46,7 @@ describe("onboarding module", () => {
     const sql = sqlOf(["outbox", "onboarding"], {
       checklists: [team, profile],
     });
+
     expect(sql).toContain(
       "values ('team', 'invite', 'organization'), ('team', 'billing', 'organization'), ('profile', 'avatar', 'user')",
     );
@@ -100,6 +102,7 @@ describe("onboarding module", () => {
     const files = renderModules(["onboarding"], {
       modules: { onboarding: { mode: "custom" } },
     });
+
     expect(
       files.some((file) =>
         file.contents.includes(

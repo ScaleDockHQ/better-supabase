@@ -34,6 +34,7 @@ describe("memory module", () => {
 
   it("implements the memory tool commands with version checks", () => {
     const sql = body();
+
     for (const name of [
       "memory_view",
       "memory_create",
@@ -44,6 +45,7 @@ describe("memory module", () => {
     ]) {
       expect(sql).toContain(`function "better_supabase"."${name}"(`);
     }
+
     expect(sql).toContain("MEMORY_CONFLICT");
     expect(sql).toContain("MEMORY_AMBIGUOUS");
     expect(sql).toContain("MEMORY_NO_MATCH");
@@ -77,12 +79,15 @@ describe("memory module", () => {
 
   it("puts hnsw.iterative_scan back after a vector search", () => {
     const sql = body();
+
     for (const name of ["memory_search", "recall_ai_messages"]) {
       const start = sql.indexOf(`function "better_supabase"."${name}"(`);
+
       const fn = sql.slice(
         start,
         sql.indexOf("$$;", sql.indexOf("as $$", start)),
       );
+
       expect(fn).toContain("volatile");
       expect(fn).not.toMatch(/^stable$/m);
       expect(fn).toContain(
@@ -93,6 +98,7 @@ describe("memory module", () => {
 
   it("keeps embedding writes to the service role", () => {
     const sql = body();
+
     for (const name of [
       "set_memory_embedding",
       "set_memory_embeddings",

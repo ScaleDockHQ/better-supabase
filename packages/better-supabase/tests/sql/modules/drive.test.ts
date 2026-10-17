@@ -59,17 +59,21 @@ describe("drive module", () => {
     const names = resolveModules(["drive", "comments"]).map(
       (module) => module.name,
     );
+
     expect(names.indexOf("drive")).toBeLessThan(names.indexOf("comments"));
     expect(names.indexOf("drive-files")).toBeGreaterThan(
       names.indexOf("attachments"),
     );
     const drive = SQL_MODULES["drive"];
     const comments = SQL_MODULES["comments"];
+
     if (drive === undefined || comments === undefined) {
       throw new Error("missing");
     }
+
     const number = (path: string): number =>
       Number(/_(\d+)_[a-z_]+\.sql$/.exec(path)?.[1]);
+
     expect(number(modulePath(drive, {}))).toBe(
       number(modulePath(comments, {})) - 1,
     );
@@ -98,6 +102,7 @@ describe("drive module", () => {
     const alone = sqlOf(["drive"], "drive-files");
     expect(alone).not.toContain("version_insert");
     expect(alone).not.toContain("trash_cascade");
+
     const layout: Layout = {
       subjects: {
         drive_node: {
@@ -110,11 +115,13 @@ describe("drive module", () => {
         },
       },
     };
+
     const full = sqlOf(
       ["drive", "versions", "trash", "share-links", "teams"],
       "drive-files",
       layout,
     );
+
     expect(full).toContain("version_insert");
     expect(full).toContain("trash_cascade");
     expect(full).toContain("trash_restore_batch");
@@ -124,6 +131,7 @@ describe("drive module", () => {
     const names = resolveModules(["drive"], ADOPTED).map(
       (module) => module.name,
     );
+
     expect(names).not.toContain("attachments");
     const core = sqlOf(["drive"], "drive", ADOPTED);
     expect(core).not.toContain(`create table if not exists "public"`);
@@ -156,6 +164,7 @@ describe("drive module", () => {
       (options: Record<string, unknown>): (() => string) =>
       () =>
         sqlOf(["drive"], "drive", withOptions(options));
+
     expect(fails({ roles: [] })).toThrow(/options\.roles/);
     expect(fails({ roles: ["viewer", "viewer"] })).toThrow(/options\.roles/);
     expect(fails({ roles: ["Viewer"] })).toThrow(/options\.roles/);
@@ -174,9 +183,11 @@ describe("drive module", () => {
 
   it("installs neither part in custom mode", () => {
     const custom: Layout = { modules: { drive: { mode: "custom" } } };
+
     const names = resolveModules(["drive"], custom).map(
       (module) => module.name,
     );
+
     expect(names).not.toContain("drive-files");
     expect(names).not.toContain("attachments");
     expect(
@@ -190,22 +201,27 @@ describe("drive module", () => {
     const core = customContracts(["drive"], {
       modules: { drive: { mode: "custom" } },
     });
+
     expect(core.map((entry) => entry.module)).toEqual(["drive"]);
     expect(core[0]?.functions.map((fn) => fn.name)).toContain("drive_share");
+
     const files = customContracts(["drive"], {
       modules: { "drive-files": { mode: "custom" } },
     });
+
     expect(
       files
         .find((entry) => entry.module === "drive-files")
         ?.functions.map((fn) => fn.name),
     ).toEqual(["drive_create_file", "drive_commit"]);
+
     const noAttachment = customContracts(["drive"], {
       modules: {
         drive: { mode: "adopt", columns: { nodes: { attachment: null } } },
         "drive-files": { mode: "custom" },
       },
     });
+
     expect(noAttachment.map((entry) => entry.functions)).toEqual([[]]);
   });
 
@@ -213,10 +229,13 @@ describe("drive module", () => {
     const user = adoptedTables(ADOPTED.modules ?? {}).find(
       (table) => table.logical === "grants",
     );
+
     expect(user?.columns).toMatchObject({ user: "user_id", team: "team_id" });
+
     const typed = adoptedTables({
       drive: { mode: "adopt", columns: { grants: { user: null, team: null } } },
     }).find((table) => table.logical === "grants");
+
     expect(typed?.columns).toHaveProperty("principalType");
     expect(typed?.columns).not.toHaveProperty("user");
   });
@@ -227,6 +246,7 @@ describe("drive module", () => {
       "drive",
       withOptions({ extraColumns: { project_id: "uuid" } }),
     );
+
     expect(core).toContain(`'fields'`);
     expect(core).toContain(
       `coalesce(v_fields."project_id", v_parent."project_id")`,

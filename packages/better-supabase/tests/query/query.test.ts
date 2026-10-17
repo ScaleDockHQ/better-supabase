@@ -31,12 +31,15 @@ describe("createQueries", () => {
     const { client, last } = capturingClient(() => ({
       body: [{ id: "c1", name: "Acme" }],
     }));
+
     const q = createQueries(betterSupabase, betterSupabase.connect(client));
+
     const options = q.customers.findMany({
       select: ["id", "name"],
       where: { status: "active" },
       include: { notes: { select: ["id"] } },
     });
+
     expect(options.queryKey).toEqual([
       "bs",
       "customers",
@@ -82,6 +85,7 @@ describe("createQueries", () => {
       status: 403,
       body: { code: "42501", message: "denied" },
     }));
+
     const q = createQueries(betterSupabase, betterSupabase.connect(client));
     await expect(
       new QueryClient().query(q.customers.count()),
@@ -93,6 +97,7 @@ describe("createQueries", () => {
       betterSupabase,
       betterSupabase.connect(capturingClient().client),
     );
+
     expect(q.customers.findById(skipToken).queryFn).toBe(skipToken);
     expect(q.customers.findMany(skipToken).queryKey).toEqual([
       "bs",
@@ -106,15 +111,18 @@ describe("createQueries", () => {
     const { client, last } = capturingClient(() => ({ body: [] }));
     const q = createQueries(betterSupabase, betterSupabase.connect(client));
     const where = { id: { in: [9_007_199_254_740_993n] } };
+
     const options = [
       q.notes.findMany({ where } as never),
       q.notes.infinite({ where, size: 5 } as never),
       q.notes.infinitePages({ where, size: 5 } as never),
       q.$rpc("lookup" as never, { id: 9_007_199_254_740_993n } as never),
     ];
+
     for (const option of options) {
       expect(() => hashKey(option.queryKey)).not.toThrow();
     }
+
     expect(options[0]?.queryKey).toEqual([
       "bs",
       "notes",
@@ -139,6 +147,7 @@ describe("createQueries", () => {
         staleTime: 30_000,
       },
     );
+
     expect(q.customers.count().staleTime).toBe(30_000);
     expect(q.customers.infinite({ size: 5 }).staleTime).toBe(30_000);
   });
@@ -150,12 +159,15 @@ describe("createQueries", () => {
         { id: "b", name: "B" },
       ],
     }));
+
     const q = createQueries(betterSupabase, betterSupabase.connect(client));
+
     const options = q.customers.infinite({
       select: ["id", "name"],
       size: 1,
       orderBy: { name: "asc" },
     });
+
     const data = await new QueryClient().infiniteQuery(options);
     expect(data.pages[0]).toMatchObject({
       items: [{ id: "a", name: "A" }],
@@ -171,12 +183,15 @@ describe("createQueries", () => {
     const { client, requests } = capturingClient(() => ({
       body: [{ id: "a" }, { id: "b" }, { id: "c" }],
     }));
+
     const q = createQueries(betterSupabase, betterSupabase.connect(client));
+
     const options = q.customers.infinitePages({
       select: ["id"],
       size: 2,
       page: 2,
     });
+
     expect(options.initialPageParam).toBe(2);
     const data = await new QueryClient().infiniteQuery(options);
     expect(requests[0]!.params.get("offset")).toBe("2");
@@ -202,6 +217,7 @@ describe("createQueries", () => {
     const { client } = capturingClient(() => ({
       body: [{ id: "c1", name: "New" }],
     }));
+
     const db = betterSupabase.connect(client);
     const q = createQueries(betterSupabase, () => db);
     const queryClient = new QueryClient();
@@ -250,21 +266,27 @@ describe("createQueries", () => {
 
   it("builds rpc query and mutation options", async () => {
     const calls: string[] = [];
+
     const executor: Executor = {
       name: "rpc",
       execute: () => Promise.resolve(ok({ rows: [], count: null })),
       rpc: (name) => {
         calls.push(name);
+
         return Promise.resolve(ok(42));
       },
     };
+
     const withRpc = betterSupabase.defineRpc("archive_customer" as never, {
       invalidates: ["customers"],
     });
+
     const q = createQueries(withRpc, withRpc.connect(executor));
+
     const rpc = q.$rpc("customer_stats" as never, undefined, {
       tables: ["customers"],
     });
+
     expect(rpc.queryKey).toEqual(["bs", "$rpc", "customer_stats", {}]);
     expect(rpc.meta.bsTables).toEqual(["customers"]);
     const queryClient = new QueryClient();
@@ -286,12 +308,15 @@ describe("query helpers", () => {
       betterSupabase,
       betterSupabase.connect(capturingClient().client),
     );
+
     const pages = q.customers.infinitePages({ size: 2 }, { maxPages: 3 });
     expect(pages.maxPages).toBe(3);
+
     const page = (number: number) => ({
       items: [],
       page: { number, size: 2, total: null, pages: null, hasMore: true },
     });
+
     expect(pages.getPreviousPageParam?.(page(1))).toBeUndefined();
     expect(pages.getPreviousPageParam?.(page(4))).toBe(3);
     expect(q.customers.infinite({ size: 2 }, { maxPages: 2 }).maxPages).toBe(2);
@@ -302,6 +327,7 @@ describe("query helpers", () => {
     const { client } = capturingClient(() => ({
       body: [{ id: "c1", name: "Acme" }],
     }));
+
     const q = createQueries(betterSupabase, betterSupabase.connect(client));
     const queryClient = new QueryClient();
     const create = q.customers.create();
@@ -343,7 +369,9 @@ describe("query helpers", () => {
   it("rewrites, rolls back and refetches cached lists optimistically", async () => {
     const queryClient = new QueryClient();
     const context = { client: queryClient };
+
     type Row = { id: string; name: string };
+
     const list = { queryKey: ["bs", "customers", "findMany", {}] as never };
     queryClient.setQueryData<Row[]>(list.queryKey, [
       { id: "a", name: "A" },
@@ -356,6 +384,7 @@ describe("query helpers", () => {
       (input) => ({ id: "tmp", ...input }),
       { position: "start" },
     );
+
     const created = await create.onMutate({ name: "C" }, context);
     expect(data()?.map((row) => row.id)).toEqual(["tmp", "a", "b"]);
     create.onError(new Error("x"), { name: "C" }, created, context);
@@ -374,6 +403,7 @@ describe("query helpers", () => {
     const empty = {
       queryKey: ["bs", "notes", "findMany"] as never,
     };
+
     const rewrite = optimistic<Row[], string>([empty], (rows) => rows);
     const snapshot = await rewrite.onMutate("x", context);
     expect(queryClient.getQueryData<Row[]>(empty.queryKey)).toBeUndefined();

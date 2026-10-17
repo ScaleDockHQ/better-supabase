@@ -49,6 +49,7 @@ export function testDeliveryTransport(
       url: "https://example.test/unsubscribe",
     }),
   });
+
   return conform(`DeliveryTransport "${transport.provider}"`, [
     [
       "has apiVersion 1",
@@ -80,9 +81,11 @@ export function testDeliveryTransport(
       "sends a message without mutating it and returns a valid receipt",
       async () => {
         const receipt = await transport.send(message, { idempotencyKey: KEY });
+
         if (receipt === undefined) {
           return;
         }
+
         expect(
           receipt.providerMessageId === undefined ||
             typeof receipt.providerMessageId === "string",
@@ -96,6 +99,7 @@ export function testDeliveryTransport(
         const all = await options.received!();
         const found = all.find((entry) => entry.idempotencyKey === KEY);
         expect(found, `no message arrived with idempotency key ${KEY}`);
+
         for (const [name, value] of Object.entries(message.headers)) {
           expect(
             found.headers[name] === value,

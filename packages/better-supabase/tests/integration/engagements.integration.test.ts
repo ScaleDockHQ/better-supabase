@@ -15,6 +15,7 @@ import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 const live = await reachable();
 
 const layout: ModuleLayout = { subjects: { ...partiesSubjects() } };
+
 const MODULES = [
   "organizations",
   "outbox",
@@ -33,6 +34,7 @@ describe.skipIf(!live)("engagements", () => {
 
   it("logs calls and tasks on records and finds the next step", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const owner = await s.user("owner");
       const rep = await s.user("rep");
@@ -63,6 +65,7 @@ describe.skipIf(!live)("engagements", () => {
           [company, person],
         )
         .orThrow();
+
       expect(call.subjects).toEqual([company, person]);
       expect(call.ownerId).toBe(rep.id);
 
@@ -73,6 +76,7 @@ describe.skipIf(!live)("engagements", () => {
           company,
         ])
         .orThrow();
+
       const followUp = await engagements
         .log(
           org,
@@ -80,6 +84,7 @@ describe.skipIf(!live)("engagements", () => {
           [company],
         )
         .orThrow();
+
       expect((await engagements.next(company).orThrow())?.id).toBe(followUp.id);
       expect(await engagements.next(person).orThrow()).toBeUndefined();
 
@@ -110,9 +115,11 @@ describe.skipIf(!live)("engagements", () => {
       ).toBe("ENGAGEMENT_SUBJECT_FORBIDDEN");
 
       await s.as(owner);
+
       const done = await engagements
         .complete(followUp.id, { outcome: "held" })
         .orThrow();
+
       expect(done.doneAt).toBeDefined();
       expect((await engagements.open(org).orThrow()).length).toBe(0);
       await s.as(rep);
@@ -124,6 +131,7 @@ describe.skipIf(!live)("engagements", () => {
         "(select count(*)::int from better_supabase.notification_recipients r join better_supabase.notification_events e on e.id = r.event_id where e.type = 'engagement.assigned' and r.user_id = $1)",
         [owner.id],
       );
+
       expect(assigned).toBe(1);
 
       await s.as(stranger);

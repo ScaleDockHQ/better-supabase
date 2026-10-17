@@ -45,11 +45,13 @@ export function fakeRuntime(
   approval: unknown,
 ): GraphRuntime & { readonly log: string[] } {
   const log: string[] = [];
+
   return {
     log,
     runKey: "run-1",
     step: async (call: GraphStepCall) => {
       log.push(`step ${call.node} ${call.step} ${JSON.stringify(call.config)}`);
+
       return call.step === "crm.lookup" ? { plan } : undefined;
     },
     sleep: async (ms) => {
@@ -57,6 +59,7 @@ export function fakeRuntime(
     },
     approval: async (token, node) => {
       log.push(`approval ${token} ${node}`);
+
       return approval;
     },
   };

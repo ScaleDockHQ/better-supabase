@@ -4,11 +4,13 @@ import { createRank } from "../../../src/blocks/rank/index.ts";
 
 function recorder(result: unknown) {
   const calls: { fn: string; args: unknown }[] = [];
+
   return {
     calls,
     transport: {
       call(_schema: string, fn: string, args: unknown) {
         calls.push({ fn, args });
+
         return Promise.resolve(result);
       },
     },
@@ -52,10 +54,12 @@ describe("rank block", () => {
   it("rebalances through the service transport, also from the job", async () => {
     const member = recorder(0);
     const service = recorder(3);
+
     const rank = createRank({
       transport: member.transport,
       service: service.transport,
     });
+
     expect(await rank.rebalance("deal", "org", "won").orThrow()).toBe(3);
     await rank.job(
       { subjectType: "note", tenant: null, group: null },

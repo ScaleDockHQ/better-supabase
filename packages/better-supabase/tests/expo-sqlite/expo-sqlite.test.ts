@@ -26,6 +26,7 @@ function fakeExpo(
   { exclusive = true }: { exclusive?: boolean } = {},
 ) {
   const listeners = new Set<(event: DatabaseChangeEventLike) => void>();
+
   const context: ExpoSqliteContextLike = {
     getAllAsync<T>(source: string, params: unknown[]): Promise<T[]> {
       try {
@@ -41,20 +42,25 @@ function fakeExpo(
         const result = sqlite
           .prepare(source)
           .run(...(params as SQLInputValue[]));
+
         const table = WRITES.exec(source)?.[1];
+
         if (table) {
           for (const listener of listeners) {
             listener({ tableName: table, databaseFilePath: "/app.db" });
           }
         }
+
         return Promise.resolve(result);
       } catch (cause) {
         return Promise.reject(cause);
       }
     },
   };
+
   const transaction = async (task: () => Promise<void>): Promise<void> => {
     sqlite.exec("begin");
+
     try {
       await task();
       sqlite.exec("commit");
@@ -63,6 +69,7 @@ function fakeExpo(
       throw cause;
     }
   };
+
   const db: ExpoSqliteDatabaseLike = {
     ...context,
     databasePath: "/app.db",
@@ -75,25 +82,30 @@ function fakeExpo(
         }
       : {}),
   };
+
   const addDatabaseChangeListener = (
     listener: (event: DatabaseChangeEventLike) => void,
   ) => {
     listeners.add(listener);
+
     return {
       remove: () => {
         listeners.delete(listener);
       },
     };
   };
+
   return { db, addDatabaseChangeListener, listeners };
 }
 
 function setup(options: { exclusive?: boolean } = {}) {
   const { sqlite } = createSqlite(betterSupabase.meta);
   const expo = fakeExpo(sqlite, options);
+
   const executor = expoSqliteExecutor(expo.db, {
     addDatabaseChangeListener: expo.addDatabaseChangeListener,
   });
+
   return {
     ...expo,
     sqlite,
@@ -106,6 +118,7 @@ describe("expoSqliteExecutor", () => {
   it("conforms to the executor contract", () => {
     const { executor } = setup();
     expect(executor.name).toBe("expo-sqlite");
+
     return testExecutor(executor, {
       betterSupabase,
       table: "tags",
@@ -115,24 +128,31 @@ describe("expoSqliteExecutor", () => {
 
   it("writes and reads rows in the PostgREST shape on web transactions", async () => {
     const { client } = setup({ exclusive: false });
+
     const customer = await client.customers
       .create({ organizationId: ORG, name: "Acme", metadata: { tier: "pro" } })
       .orThrow();
+
     expect(customer.id).toMatch(/^[0-9a-f-]{36}$/);
     expect(customer.metadata).toEqual({ tier: "pro" });
+
     const found = await client.customers
       .findMany({ where: { name: "Acme" }, select: ["id", "name"] })
       .orThrow();
+
     expect(found).toEqual([{ id: customer.id, name: "Acme" }]);
   });
 
   it("makes a UUID in SQLite without crypto.randomUUID", async () => {
     vi.stubGlobal("crypto", undefined);
+
     try {
       const { client } = setup();
+
       const tag = await client.tags
         .create({ organizationId: ORG, name: "no-crypto" })
         .orThrow();
+
       expect(tag.id).toMatch(
         /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
       );
@@ -144,10 +164,12 @@ describe("expoSqliteExecutor", () => {
   it("rolls a failed write back", async () => {
     const { client } = setup();
     await client.tags.create({ organizationId: ORG, name: "dup" }).orThrow();
+
     const again = await client.tags.create({
       organizationId: ORG,
       name: "dup",
     });
+
     expect(again).toMatchObject({ ok: false, error: { kind: "conflict" } });
   });
 });
@@ -155,10 +177,12 @@ describe("expoSqliteExecutor", () => {
 describe("expoSqliteDatabase", () => {
   it("reruns a watched query after a change to its tables, batched", async () => {
     vi.useFakeTimers();
+
     try {
       const { client, addDatabaseChangeListener, db, listeners } = setup();
       const database = expoSqliteDatabase(db, { addDatabaseChangeListener });
       const results: number[] = [];
+
       const stop = watch(
         database,
         () => client.tags.count({ where: { organizationId: ORG } }),
@@ -171,6 +195,7 @@ describe("expoSqliteDatabase", () => {
           },
         },
       );
+
       await vi.advanceTimersByTimeAsync(0);
       expect(results).toEqual([0]);
       await client.tags.create({ organizationId: ORG, name: "a" }).orThrow();
@@ -192,12 +217,15 @@ describe("expoSqliteDatabase", () => {
     const database = expoSqliteDatabase(db, { addDatabaseChangeListener });
     const onChange = vi.fn();
     vi.useFakeTimers();
+
     try {
       const controller = new AbortController();
       database.onChange!({ onChange }, { signal: controller.signal });
+
       for (const listener of listeners) {
         listener({ tableName: "tags", databaseFilePath: "/other.db" });
       }
+
       vi.advanceTimersByTime(50);
       expect(onChange).not.toHaveBeenCalled();
       controller.abort();

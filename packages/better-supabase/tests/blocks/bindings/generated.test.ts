@@ -10,10 +10,13 @@ import { readBlocks } from "./render.ts";
 // Node resolves these to their server builds, where effects never run.
 vi.mock("svelte", () => {
   const clientBuild = "../../../node_modules/svelte/src/index-client.js";
+
   return import(clientBuild);
 });
+
 vi.mock("solid-js", () => {
   const browserBuild = "../../../node_modules/solid-js/dist/solid.js";
+
   return import(browserBuild);
 });
 
@@ -32,6 +35,7 @@ const stub: unknown = new Proxy(() => {}, {
 const options = (): object => {
   const env = { ...fakeEnv(), auth: fakeAuth(SIGNED_OUT) };
   const known = new Map<PropertyKey, unknown>(Object.entries(env));
+
   return new Proxy(env, {
     get: (_target, key) => (known.has(key) ? known.get(key) : stub),
   });
@@ -48,6 +52,7 @@ const MOUNT = {
   vue: (hook: Hook) => {
     const scope = effectScope();
     const bound = scope.run(() => hook(options()))!;
+
     return {
       bound,
       unmount: () => {
@@ -57,12 +62,15 @@ const MOUNT = {
   },
   svelte: (hook: Hook) => {
     let bound: Bound | undefined;
+
     const stop = $.effect_root(() => {
       $.push({}, true);
       bound = hook(options());
       $.pop();
     });
+
     $.flush();
+
     return { bound: bound!, unmount: stop };
   },
   solid: (hook: Hook) => {
@@ -72,6 +80,7 @@ const MOUNT = {
       unmount = dispose;
       bound = hook(options());
     });
+
     return { bound: bound!, unmount };
   },
 };
@@ -87,6 +96,7 @@ describe.each(Object.entries(MOUNT))(
         const entry: Record<string, unknown> = await import(
           `../../../src/blocks/${block.block}/${framework}/index.ts`
         );
+
         for (const { hook } of block.controllers) {
           const use = entry[hook];
           expect({ hook, type: typeof use }).toEqual({

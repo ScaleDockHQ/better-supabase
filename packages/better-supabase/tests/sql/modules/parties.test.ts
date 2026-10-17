@@ -40,6 +40,7 @@ describe("parties module", () => {
     const sql = sqlOf({ personLifecycles: ["new", "known"] }, [
       "notifications",
     ]);
+
     expect(sql).toContain("'{new,known}'::text[]");
     expect(sql).toContain("notification_subscriptions");
   });
@@ -60,6 +61,7 @@ describe("parties module, custom mode", () => {
       .filter((file) => file.module === "parties")
       .map((file) => file.contents)
       .join("");
+
     expect(sql).not.toContain("save_company");
   });
 });

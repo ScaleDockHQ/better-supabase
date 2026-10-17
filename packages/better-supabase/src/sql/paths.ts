@@ -7,15 +7,19 @@ import { ORDER, checkModules, resolveModules } from "./registry.ts";
 export function modulePath(module: SqlModule, layout: ModuleLayout): string {
   const dir = (layout.dir ?? CONFIG_DEFAULTS.sql.dir).replace(/\/$/, "");
   const prefix = layout.prefix ?? CONFIG_DEFAULTS.sql.prefix;
+
   const testsDir = (layout.testsDir ?? CONFIG_DEFAULTS.sql.testsDir).replace(
     /\/$/,
     "",
   );
+
   const slug = module.name.replaceAll("-", "_");
+
   const position =
     module.before === undefined
       ? ORDER.indexOf(module.name) + 1
       : ORDER.indexOf(module.before);
+
   return module.target === "test"
     ? `${testsDir}/000_better_supabase_${slug}.test.sql`
     : `${dir}/${prefix}_${String(position).padStart(2, "0")}_${slug}.sql`;
@@ -32,6 +36,7 @@ export function moduleFilePaths(
   checkModules(layout.modules);
   const modules = resolveModules(names, layout);
   const installed = modules.map((module) => module.name);
+
   return new Map(
     modules
       .filter(
@@ -60,5 +65,6 @@ export function moduleDataPath(
   const inside = bare(dir) === schemas || bare(dir).startsWith(`${schemas}/`);
   const base = inside ? `${dir.startsWith("./") ? "./" : ""}${schemas}` : dir;
   const parent = base.lastIndexOf("/");
+
   return `${parent === -1 ? "" : base.slice(0, parent + 1)}better-supabase-data${file}`;
 }

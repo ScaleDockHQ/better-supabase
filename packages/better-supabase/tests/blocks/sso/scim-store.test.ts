@@ -26,15 +26,18 @@ function pushDownStore() {
   const saves: ScimSaveInput[] = [];
   const queries: ScimListQuery[] = [];
   let next = 0;
+
   const store: ScimStore = {
     apiVersion: 1,
     list: async (_type, _tenant, query) => {
       queries.push(query);
+
       const all = [...rows.values()].filter((row) =>
         query.filter
           ? matchesScimFilter({ ...row.resource, id: row.id }, query.filter)
           : true,
       );
+
       return ok({
         resources: all.slice(
           query.startIndex - 1,
@@ -47,13 +50,17 @@ function pushDownStore() {
     save: async (_type, _tenant, input) => {
       saves.push(input);
       const existing = input.id === undefined ? undefined : rows.get(input.id);
+
       if (input.id !== undefined && existing === undefined) {
         return err(dbError("not_found", "No such user"));
       }
+
       if (existing && input.version !== existing.version) {
         return err(dbError("stale", "Changed"));
       }
+
       const id = input.id ?? `user-${++next}`;
+
       const row: ScimStoredResource = {
         id,
         resource: input.resource,
@@ -61,11 +68,14 @@ function pushDownStore() {
         created: existing?.created ?? at,
         lastModified: at,
       };
+
       rows.set(id, row);
+
       return ok(row);
     },
     delete: async (_type, _tenant, id) => ok(rows.delete(id)),
   };
+
   return { store, rows, saves, queries };
 }
 
@@ -103,6 +113,7 @@ describe("scimHandler with a store", () => {
   it("hands the raw resource, extensions included, to the store", async () => {
     const { store, saves } = pushDownStore();
     const handler = scimHandler({ store, keys, basePath: "/scim/v2" });
+
     const response = await handler(
       request("POST", "/Users", {
         schemas: ["urn:ietf:params:scim:schemas:core:2.0:User", ENTERPRISE],
@@ -110,6 +121,7 @@ describe("scimHandler with a store", () => {
         [ENTERPRISE]: { department: "Engineering" },
       }),
     );
+
     expect(response.status).toBe(201);
     expect(saves[0]?.resource[ENTERPRISE]).toEqual({
       department: "Engineering",
@@ -133,6 +145,7 @@ describe("scimHandler with a store", () => {
   it("trusts a store's own filter and paging", async () => {
     const { store, queries } = pushDownStore();
     const handler = scimHandler({ store, keys, basePath: "/scim/v2" });
+
     for (const name of ["a@acme.test", "b@acme.test", "c@acme.test"]) {
       await handler(
         request("POST", "/Users", {
@@ -141,9 +154,11 @@ describe("scimHandler with a store", () => {
         }),
       );
     }
+
     const response = await handler(
       request("GET", '/Users?filter=userName sw "a"&startIndex=1&count=1'),
     );
+
     const body = (await response.json()) as Record<string, unknown>;
     expect(queries.at(-1)?.filter).toBeDefined();
     expect(queries.at(-1)).toMatchObject({ startIndex: 1, count: 1 });
@@ -159,6 +174,7 @@ describe("scimHandler with a store", () => {
         userName: "ada@acme.test",
       }),
     );
+
     const stale = await handler(
       request(
         "PUT",
@@ -170,6 +186,7 @@ describe("scimHandler with a store", () => {
         { "if-match": 'W/"7"' },
       ),
     );
+
     expect(stale.status).toBe(412);
     expect((await handler(request("GET", "/Users/nobody"))).status).toBe(404);
   });
@@ -177,6 +194,7 @@ describe("scimHandler with a store", () => {
   it("logs each write with its status and request id, never failing on the log", async () => {
     const { store } = pushDownStore();
     const entries: ScimSyncEntry[] = [];
+
     const handler = scimHandler({
       store,
       keys,
@@ -189,6 +207,7 @@ describe("scimHandler with a store", () => {
         },
       },
     });
+
     const created = await handler(
       request(
         "POST",
@@ -200,6 +219,7 @@ describe("scimHandler with a store", () => {
         { "x-request-id": "req-1" },
       ),
     );
+
     expect(created.status).toBe(201);
     await handler(request("GET", "/Users/user-1"));
     const missing = await handler(request("DELETE", "/Users/nobody"));
@@ -230,12 +250,15 @@ describe("scimHandler with a store", () => {
 describe("sqlScimStore and sqlScimSyncLog", () => {
   it("skip the database for ids that are not UUIDs", async () => {
     const calls: string[] = [];
+
     const store = sqlScimStore({
       call: async (_schema, fn) => {
         calls.push(fn);
+
         return null;
       },
     });
+
     expect(await store.get("User", "org-a", "nope")).toEqual(ok(undefined));
     expect(await store.delete("Group", "org-a", "nope")).toEqual(ok(false));
     expect(calls).toEqual([]);
@@ -243,12 +266,15 @@ describe("sqlScimStore and sqlScimSyncLog", () => {
 
   it("writes the log through scim_log_sync", async () => {
     const calls: unknown[] = [];
+
     const log = sqlScimSyncLog({
       call: async (schema, fn, args) => {
         calls.push([schema, fn, args]);
+
         return null;
       },
     });
+
     await log.record({
       tenant: "org-a",
       operation: "patch",
@@ -282,6 +308,7 @@ describe("scimHandler errors", () => {
 
   function failingStore(kind: "not_found" | "stale" | "unexpected") {
     const { store } = pushDownStore();
+
     return {
       ...store,
       save: async () => err(dbError(kind, "Store says no")),
@@ -298,9 +325,11 @@ describe("scimHandler errors", () => {
       keys,
       basePath: "/scim/v2",
     });
+
     const response = await handler(
       request("POST", "/Users", { schemas: USER, userName: "ada@acme.test" }),
     );
+
     expect(response.status).toBe(status);
   });
 
@@ -334,6 +363,7 @@ describe("scimHandler errors", () => {
     await handler(
       request("POST", "/Users", { schemas: USER, userName: "ada@acme.test" }),
     );
+
     const stale = await handler(
       request(
         "PATCH",
@@ -345,6 +375,7 @@ describe("scimHandler errors", () => {
         { "if-match": 'W/"9"' },
       ),
     );
+
     expect(stale.status).toBe(412);
     expect((await handler(request("GET", "/Users/.search"))).status).toBe(405);
     expect((await handler(request("PATCH", "/Users"))).status).toBe(405);

@@ -52,10 +52,12 @@ describe("seed", () => {
     await write("supabase/seed.mjs", SEED);
     const db = fakeSql();
     const open = fakeConnect(db.pg);
+
     const result = await seed(
       ["--entry", "supabase/seed.mjs", "--out", "db/seed.sql", "--apply"],
       open,
     );
+
     expect(result).toEqual({
       code: 0,
       output:
@@ -76,9 +78,11 @@ describe("seed", () => {
 
   it("rolls back and closes when a statement fails", async () => {
     await write("supabase/seed.mjs", SEED);
+
     const db = fakeSql([
       ["insert into b", { throws: pgError("23505", "duplicate key") }],
     ]);
+
     const open = fakeConnect(db.pg);
     await expect(
       seed(["--entry", "supabase/seed.mjs", "--apply"], open),

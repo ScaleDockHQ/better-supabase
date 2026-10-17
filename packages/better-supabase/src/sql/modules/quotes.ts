@@ -92,8 +92,10 @@ function tables(ctx: ModuleContext, n: QuoteNames): string {
   if (!ctx.manages) {
     return "";
   }
+
   const { t, c } = n;
   const q = (column: string): string => c("quotes", column);
+
   return `
 create table if not exists ${t("quotes")} (
   ${q("id")} uuid primary key default gen_random_uuid(),
@@ -143,13 +145,16 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const keys = moduleOperations("quotes");
   const validDays = ctx.number("validDays", 30);
+
   if (!Number.isInteger(validDays) || validDays < 1) {
     throw new TypeError(
       "blocks.quotes.options.validDays must be a positive integer",
     );
   }
+
   const n: QuoteNames = {
     fn: (name) => ctx.fn(name),
     t: (table) => ctx.table(table),
@@ -165,6 +170,7 @@ function build(ctx: ModuleContext): string {
     // The keys a quote read returns next to its columns.
     extras: ctx.extraColumns("quotes", ["lines", "token", "fields"]),
   };
+
   return `${schemaPreamble(ctx)}
 -- Quotes: line items and totals, a revision chain, sending with a public
 -- link the customer accepts, rejects or asks changes through, and expiry.

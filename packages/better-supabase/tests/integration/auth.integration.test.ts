@@ -31,12 +31,15 @@ import { stackDbUrl, stackUrl } from "./stack-env.ts";
 
 const url = stackUrl();
 const dbUrl = stackDbUrl();
+
 const publishableKey =
   process.env["SUPABASE_PUBLISHABLE_KEY"] ??
   "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";
+
 const secretKey =
   process.env["SUPABASE_SECRET_KEY"] ??
   "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
+
 const ACME = "00000000-0000-4000-8000-000000000001";
 
 async function reachable(): Promise<boolean> {
@@ -45,6 +48,7 @@ async function reachable(): Promise<boolean> {
       headers: { apikey: publishableKey },
       signal: AbortSignal.timeout(1000),
     });
+
     return response.ok;
   } catch {
     return false;
@@ -60,9 +64,11 @@ describe.skipIf(!live)("auth against the local stack", () => {
     SUPABASE_SECRET_KEY: secretKey,
     SUPABASE_DB_URL: dbUrl,
   }).env!;
+
   const admin = createClient(url, secretKey, {
     auth: { persistSession: false },
   });
+
   const email = `auth-${crypto.randomUUID()}@example.com`;
   const password = "correct horse battery staple";
   let userId: string;
@@ -76,9 +82,11 @@ describe.skipIf(!live)("auth against the local stack", () => {
       email_confirm: true,
       app_metadata: { tenant_id: ACME },
     });
+
     if (error) {
       throw error;
     }
+
     userId = created.user.id;
     postgres = createPostgres({ connectionString: dbUrl, max: 2 });
   });
@@ -92,6 +100,7 @@ describe.skipIf(!live)("auth against the local stack", () => {
 
   async function signInCookies(): Promise<CookieRecord[]> {
     let jar: CookieRecord[] = [];
+
     const client = createServerClient(url, publishableKey, {
       cookies: {
         getAll: () => jar,
@@ -100,13 +109,16 @@ describe.skipIf(!live)("auth against the local stack", () => {
         },
       },
     });
+
     const { error: signInError } = await client.auth.signInWithPassword({
       email,
       password,
     });
+
     if (signInError) {
       throw signInError;
     }
+
     return jar;
   }
 
@@ -115,6 +127,7 @@ describe.skipIf(!live)("auth against the local stack", () => {
     cookies: { name: string; value: string; options: { maxAge?: number } }[],
   ): CookieRecord[] {
     const next = new Map(jar.map((cookie) => [cookie.name, cookie.value]));
+
     for (const cookie of cookies) {
       if (cookie.options.maxAge === 0 || cookie.value === "") {
         next.delete(cookie.name);
@@ -122,6 +135,7 @@ describe.skipIf(!live)("auth against the local stack", () => {
         next.set(cookie.name, cookie.value);
       }
     }
+
     return [...next].map(([cookieName, value]) => ({
       name: cookieName,
       value,
@@ -140,9 +154,11 @@ describe.skipIf(!live)("auth against the local stack", () => {
   it("reads sessions written by @supabase/ssr and verifies them against the JWKS", async () => {
     const cookies = await signInCookies();
     expect(readSession(cookies, name)?.user).toMatchObject({ email });
+
     const { auth, cookies: writes } = await resolveAuth(toRequest(cookies), {
       env,
     });
+
     expect(auth).toMatchObject({
       kind: "user",
       source: "cookie",
@@ -154,17 +170,21 @@ describe.skipIf(!live)("auth against the local stack", () => {
   it("refreshes an expiring session with the real refresh token", async () => {
     const cookies = await signInCookies();
     const session = readSession(cookies, name)!;
+
     const expiring = writeSession(cookies, name, {
       ...session,
       expires_at: Math.floor(Date.now() / 1000) + 5,
     });
+
     const jar = expiring
       .map(({ name: cookieName, value }) => ({ name: cookieName, value }))
       .filter((cookie) => cookie.value);
+
     const resolution = await resolveAuth(toRequest(jar), {
       env,
       refresh: true,
     });
+
     expect(resolution.auth).toMatchObject({
       kind: "user",
       user: { id: userId },
@@ -180,12 +200,15 @@ describe.skipIf(!live)("auth against the local stack", () => {
     const cookies = await signInCookies();
     const ctx = await server.context(toRequest(cookies));
     expect(ctx.auth.kind).toBe("user");
+
     const viaRest = await ctx.db.customers
       .findMany({ select: ["name"], orderBy: { name: "asc" } })
       .orThrow();
+
     const viaSql = await ctx
       .sql!.customers.findMany({ select: ["name"], orderBy: { name: "asc" } })
       .orThrow();
+
     expect(viaSql).toEqual(viaRest);
     expect(viaRest.length).toBeGreaterThan(0);
 
@@ -193,11 +216,14 @@ describe.skipIf(!live)("auth against the local stack", () => {
       .actingAs(userId, { tenant_id: ACME })
       .customers.count()
       .orThrow();
+
     expect(acting).toBe(viaRest.length);
+
     const all = await server
       .admin({ tenant: ACME })
       .customers.count({ allTenants: true })
       .orThrow();
+
     expect(all).toBeGreaterThanOrEqual(acting);
   });
 
@@ -212,6 +238,7 @@ describe.skipIf(!live)("auth against the local stack", () => {
     const elsewhere = await server
       .forContext({ actor, tenant: crypto.randomUUID() })
       .orThrow();
+
     expect(await elsewhere.customers.count().orThrow()).toBe(0);
     expect(own).toBeGreaterThan(0);
     expect(await server.admin().customers.count().orThrow()).toBeGreaterThan(0);
@@ -229,6 +256,7 @@ describe.skipIf(!live)("auth against the local stack", () => {
       "select better_supabase.audit('public.customers')",
     );
     let id: string | undefined;
+
     try {
       const row = await server
         .actingAs(
@@ -241,7 +269,9 @@ describe.skipIf(!live)("auth against the local stack", () => {
           { select: ["id"] },
         )
         .orThrow();
+
       id = row.id;
+
       const log = await postgres.admin.queryRaw<{
         actor_id: string;
         impersonated_by: string;
@@ -251,6 +281,7 @@ describe.skipIf(!live)("auth against the local stack", () => {
          where table_name = 'public.customers' and record_id = $1`,
         [id],
       );
+
       expect(log).toEqual([
         {
           actor_id: userId,
@@ -262,6 +293,7 @@ describe.skipIf(!live)("auth against the local stack", () => {
       await postgres.admin.queryRaw(
         "select better_supabase.unaudit('public.customers')",
       );
+
       if (id) {
         await postgres.admin.queryRaw("delete from customers where id = $1", [
           id,
@@ -273,15 +305,19 @@ describe.skipIf(!live)("auth against the local stack", () => {
 
   it("follows the session in the browser client", async () => {
     const betterSupabase = defineSupabase(schema).use(tenant());
+
     const browser = createBetterClient(betterSupabase, {
       client: createClient(url, publishableKey, {
         auth: { persistSession: false },
       }),
     });
+
     const seen: string[] = [];
+
     const stop = browser.auth.subscribe(() =>
       seen.push(browser.auth.current().status),
     );
+
     await browser.supabase.auth.signInWithPassword({ email, password });
     await vi.waitFor(() => {
       expect(browser.auth.current().status).toBe("signed-in");
@@ -293,9 +329,11 @@ describe.skipIf(!live)("auth against the local stack", () => {
     });
 
     const queryClient = new QueryClient();
+
     const customers = await queryClient.query(
       browser.queries.customers.findMany({ select: ["name"] }),
     );
+
     expect(customers.length).toBeGreaterThan(0);
 
     await browser.supabase.auth.signOut();
@@ -309,15 +347,18 @@ describe.skipIf(!live)("auth against the local stack", () => {
 
   it("plugs into @supabase/server pipelines as ctx.db and ctx.sql", async () => {
     const betterSupabase = defineSupabase(schema);
+
     const { data: signIn } = await createClient(url, publishableKey, {
       auth: { persistSession: false },
     }).auth.signInWithPassword({ email, password });
+
     const serverEnv = {
       url,
       publishableKeys: { default: publishableKey },
       secretKeys: { default: secretKey },
       jwks: env.jwksUrl,
     };
+
     const handler = pipeline(
       [
         withSupabase({ auth: "user", env: serverEnv }),
@@ -328,9 +369,11 @@ describe.skipIf(!live)("auth against the local stack", () => {
       async (_req, ctx) => {
         const rest = await ctx.db.customers.count().orThrow();
         const sql = await ctx.sql.customers.count().orThrow();
+
         return Response.json({ rest, sql, actor: ctx.db.$context.actor });
       },
     );
+
     const response = await handler(
       new Request("http://api.test/", {
         headers: {
@@ -339,11 +382,13 @@ describe.skipIf(!live)("auth against the local stack", () => {
         },
       }),
     );
+
     const body = (await response.json()) as {
       rest: number;
       sql: number;
       actor: unknown;
     };
+
     expect(response.status).toBe(200);
     expect(body.rest).toBe(body.sql);
     expect(body.actor).toMatchObject({ id: userId, kind: "user" });
@@ -353,30 +398,37 @@ describe.skipIf(!live)("auth against the local stack", () => {
     const client = createClient(url, publishableKey, {
       auth: { persistSession: false },
     });
+
     const { data, error } = await client.auth.signInWithPassword({
       email,
       password,
     });
+
     if (error) {
       throw error;
     }
+
     const token = data.session.access_token;
+
     const auth = await resolveAuth(
       new Request("https://app.test/", {
         headers: { authorization: `Bearer ${token}` },
       }),
       { env },
     );
+
     expect(auth.auth.kind).toBe("user");
     expect(await checkSession(postgres.admin, auth.auth)).toBeUndefined();
 
     await client.auth.signOut({ scope: "global" });
+
     const after = await resolveAuth(
       new Request("https://app.test/", {
         headers: { authorization: `Bearer ${token}` },
       }),
       { env },
     );
+
     expect(after.auth.kind).toBe("user");
     expect(await checkSession(postgres.admin, after.auth)).toMatchObject({
       code: "SESSION_REVOKED",

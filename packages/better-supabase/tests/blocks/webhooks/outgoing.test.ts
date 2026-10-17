@@ -60,31 +60,41 @@ function fakeBlock(
 ) {
   const calls: Call[] = [];
   let batches = [claimed];
+
   const transport: BlockTransport = {
     async call(schema, fn, args) {
       calls.push({ schema, fn, args });
+
       if (fn === "claim_webhook_deliveries") {
         const [next = [], ...rest] = batches;
         batches = rest;
+
         return next;
       }
+
       if (fn === "webhook_secrets") {
         return [SECRET];
       }
+
       if (fn === "complete_webhook_delivery") {
         return results[fn]?.(args) ?? "completed";
       }
+
       const result = results[fn];
+
       if (!result) {
         throw new Error(`unexpected ${fn}`);
       }
+
       return result(args);
     },
   };
+
   const outcomes = () =>
     calls
       .filter((call) => call.fn === "complete_webhook_delivery")
       .map((call) => call.args["outcome"] as Record<string, unknown>);
+
   return {
     transport,
     calls,
@@ -97,18 +107,22 @@ function fakeHttp(
   respond: (request: WebhookRequest) => WebhookResponse | Error,
 ) {
   const sent: WebhookRequest[] = [];
+
   const http: WebhookTransport = {
     apiVersion: 1,
     name: "fake",
     async send(request) {
       sent.push(request);
       const response = respond(request);
+
       if (response instanceof Error) {
         throw response;
       }
+
       return response;
     },
   };
+
   return { http, sent };
 }
 
@@ -133,12 +147,14 @@ function setup(
   events.on("block", (event) =>
     seen.push({ type: event.type, data: event.data }),
   );
+
   const webhooks = createWebhooks({
     transport: block.transport,
     http,
     events,
     ...options,
   });
+
   return { ...block, sent, seen, webhooks };
 }
 
@@ -197,31 +213,39 @@ describe("createWebhooks: deliver", () => {
 
   it("waits at least half the step, and at least a second, before a retry", async () => {
     const random = vi.spyOn(Math, "random").mockReturnValue(0);
+
     try {
       const { webhooks, calls } = setup(
         [row(), row({ id: "del-2", attempt: 3 })],
         () => ({ status: 503, body: "" }),
       );
+
       const before = Date.now();
       await webhooks.deliver();
+
       const waits = ["del-1", "del-2"].map(
         (id) =>
           (Date.parse(String(outcomeOf(calls, id)!["retry_at"])) - before) /
           1000,
       );
+
       expect(waits[0]).toBeGreaterThanOrEqual(1.5);
       expect(waits[0]).toBeLessThan(4);
       expect(waits[1]).toBeGreaterThanOrEqual(899);
       expect(waits[1]).toBeLessThan(902);
       random.mockReturnValue(0.999999);
+
       const { webhooks: later, calls: laterCalls } = setup([row()], () => ({
         status: 503,
         body: "",
       }));
+
       const start = Date.now();
       await later.deliver();
+
       const wait =
         Date.parse(String(outcomeOf(laterCalls, "del-1")!["retry_at"])) - start;
+
       expect(wait).toBeGreaterThanOrEqual(4000);
       expect(wait).toBeLessThan(6000);
     } finally {
@@ -237,14 +261,17 @@ describe("createWebhooks: deliver", () => {
           ? { status: 410, body: "gone" }
           : { status: 503, body: "x".repeat(3000) },
     );
+
     const before = Date.now();
     expect(await webhooks.deliver()).toMatchObject({
       retrying: 1,
       dead: 2,
     });
+
     const [retry, last, gone] = ["del-1", "del-2", "del-3"].map((id) =>
       outcomeOf(calls, id),
     );
+
     expect(retry).toMatchObject({
       status: "retrying",
       attempt: 1,
@@ -281,6 +308,7 @@ describe("createWebhooks: deliver", () => {
             ? new UrlCheckError("Could not check endpoint URL: a.test")
             : new WebhookPolicyError("Endpoint URL is not allowed"),
     );
+
     expect(await webhooks.deliver()).toMatchObject({
       retrying: 2,
       dead: 1,
@@ -312,6 +340,7 @@ describe("createWebhooks: deliver", () => {
         },
       },
     );
+
     await webhooks.deliver();
     expect(outcomes()[0]).toMatchObject({ status: "retrying", attempt: 2 });
   });
@@ -325,10 +354,12 @@ describe("createWebhooks: deliver", () => {
           if (delivery.id === "del-2") {
             throw new Error("tenant suspended");
           }
+
           return false;
         },
       },
     );
+
     expect(await webhooks.deliver()).toMatchObject({ canceled: 2 });
     expect(sent).toHaveLength(0);
     expect(outcomes()).toHaveLength(2);
@@ -359,6 +390,7 @@ describe("createWebhooks: deliver", () => {
         secrets: { apiVersion: 1, secrets: async () => ["a", "b"] },
       },
     );
+
     await webhooks.deliver();
     expect(JSON.parse(sent[0]!.body).data).toEqual({
       kind: "invoice.paid",
@@ -377,6 +409,7 @@ describe("createWebhooks: deliver", () => {
     const empty = setup([row()], ok, {
       secrets: { apiVersion: 1, secrets: async () => [] },
     });
+
     expect(await empty.webhooks.deliver()).toMatchObject({ dead: 1 });
     expect(empty.outcomes()[0]).toMatchObject({
       error: "The endpoint has no signing secret",
@@ -387,6 +420,7 @@ describe("createWebhooks: deliver", () => {
         throw new Error("bad payload");
       },
     });
+
     expect(await broken.webhooks.deliver()).toMatchObject({ retrying: 1 });
     expect(broken.sent).toHaveLength(0);
   });
@@ -406,6 +440,7 @@ describe("createWebhooks: deliver", () => {
         sign: () => ({ "webhook-signature": "v1a,sig" }),
       },
     });
+
     expect(await signed.webhooks.deliver()).toMatchObject({
       succeeded: 1,
       dead: 1,
@@ -423,11 +458,14 @@ describe("createWebhooks: deliver", () => {
         retryAfter: request.headers["webhook-id"] === "del-1" ? 600 : 999_999,
       }),
     );
+
     const before = Date.now();
     await webhooks.deliver();
+
     const [short, long] = ["del-1", "del-2"].map(
       (id) => Date.parse(String(outcomeOf(calls, id)?.["retry_at"])) - before,
     );
+
     expect(short).toBeGreaterThanOrEqual(599_000);
     expect(short).toBeLessThan(602_000);
     expect(long).toBeLessThan(86_402_000);
@@ -441,6 +479,7 @@ describe("createWebhooks: deliver", () => {
       {},
       { complete_webhook_delivery: () => "stale" },
     );
+
     expect(await webhooks.deliver()).toMatchObject({ succeeded: 0 });
     expect(seen).toEqual([]);
   });
@@ -448,11 +487,13 @@ describe("createWebhooks: deliver", () => {
   it("sends a batch with at most concurrency requests in flight", async () => {
     let inFlight = 0;
     let peak = 0;
+
     const block = fakeBlock(
       Array.from({ length: 7 }, (_, index) =>
         row({ id: `del-${String(index)}` }),
       ),
     );
+
     const webhooks = createWebhooks({
       transport: block.transport,
       http: {
@@ -465,10 +506,12 @@ describe("createWebhooks: deliver", () => {
             setTimeout(resolve, 5);
           });
           inFlight -= 1;
+
           return { status: 200, body: "" };
         },
       },
     });
+
     expect(await webhooks.deliver({ concurrency: 3 })).toMatchObject({
       succeeded: 7,
     });
@@ -484,6 +527,7 @@ describe("createWebhooks: deliver", () => {
         complete_webhook_delivery: () => "disabled",
       },
     );
+
     expect(await webhooks.deliver()).toMatchObject({
       dead: 1,
       disabled: 1,
@@ -517,6 +561,7 @@ describe("createWebhooks: deliver", () => {
       "junk" as unknown as Record<string, unknown>,
       row({ payload: null, attempt: null, created_at: null }),
     ]);
+
     expect(await webhooks.deliver()).toMatchObject({ succeeded: 1 });
     expect(JSON.parse(sent[0]!.body).data).toEqual({});
   });
@@ -540,12 +585,15 @@ describe("createWebhooks: CloudEvents", () => {
           delivery.id === "del-1" ? TRACE : "not-a-trace",
       },
     );
+
     await webhooks.deliver();
+
     const [first, second] = ["del-1", "del-2"].map((id) =>
       JSON.parse(
         sent.find((request) => request.headers["webhook-id"] === id)!.body,
       ),
     );
+
     expect(first).toMatchObject({
       source: "https://app.example.com/webhooks",
       type: "com.example.invoice.paid",
@@ -578,6 +626,7 @@ describe("createWebhooks: CloudEvents", () => {
     const { webhooks, sent, outcomes } = setup([row()], ok, {
       dataschema: () => "schemas/x.json",
     });
+
     expect(await webhooks.deliver()).toMatchObject({ retrying: 1 });
     expect(sent).toHaveLength(0);
     expect(outcomes()[0]!["error"]).toContain("must be an absolute URI");
@@ -592,13 +641,16 @@ describe("createWebhooks: CloudEvents", () => {
       ],
       ok,
     );
+
     expect(await webhooks.deliver()).toMatchObject({ succeeded: 3 });
     expect(sent).toHaveLength(2);
+
     const batch = sent.find(
       (request) =>
         request.headers["content-type"] ===
         "application/cloudevents-batch+json",
     )!;
+
     const events = JSON.parse(batch.body);
     expect(events.map((event: { id: string }) => event.id)).toEqual([
       "del-1",
@@ -612,6 +664,7 @@ describe("createWebhooks: CloudEvents", () => {
       [row({ id: "del-2", batch: true }), row({ batch: true })],
       ok,
     );
+
     await again.webhooks.deliver();
     expect(again.sent[0]!.headers["webhook-id"]).toBe(
       batch.headers["webhook-id"],
@@ -623,6 +676,7 @@ describe("createWebhooks: CloudEvents", () => {
       [row({ batch: true }), row({ id: "del-2", batch: true, attempt: 8 })],
       () => ({ status: 503, body: "" }),
     );
+
     expect(await webhooks.deliver()).toMatchObject({ retrying: 1, dead: 1 });
     expect(
       outcomes()
@@ -635,10 +689,13 @@ describe("createWebhooks: CloudEvents", () => {
 describe("createWebhooks: subscribers", () => {
   it("cancels deliveries whose endpoint owner the policy leaves out, once per event", async () => {
     const calls: [SubscriberEvent, readonly Subscriber[]][] = [];
+
     const policy: SubscriberPolicy = (event, subscribers) => {
       calls.push([event, subscribers]);
+
       return subscribers.filter((subscriber) => subscriber.principal !== "bob");
     };
+
     const { webhooks, sent, outcomes } = setup(
       [
         row({ owner: "alice", subject: "invoices/7" }),
@@ -658,6 +715,7 @@ describe("createWebhooks: subscribers", () => {
       ok,
       { subscribers: policy },
     );
+
     expect(await webhooks.deliver()).toMatchObject({
       succeeded: 2,
       canceled: 1,
@@ -691,6 +749,7 @@ describe("createWebhooks: subscribers", () => {
 
   it("checks each delivery against its own stored subject", async () => {
     const subjects: (string | null | undefined)[] = [];
+
     const { webhooks } = setup(
       [
         row({ owner: "alice", subject: "subjects/invoice/7" }),
@@ -706,12 +765,14 @@ describe("createWebhooks: subscribers", () => {
       {
         subscribers: (event, subscribers) => {
           subjects.push(event.subject);
+
           return subscribers.filter(
             (subscriber) => subscriber.principal === "sp-1",
           );
         },
       },
     );
+
     expect(await webhooks.deliver()).toMatchObject({
       succeeded: 1,
       canceled: 1,
@@ -725,6 +786,7 @@ describe("createWebhooks: subscribers", () => {
     const alice = "00000000-0000-4000-8000-00000000000a";
     const bob = "00000000-0000-4000-8000-00000000000b";
     const asked: unknown[] = [];
+
     const { webhooks, sent } = setup(
       [
         row({ owner: alice, subject: "subjects/invoice/7" }),
@@ -747,10 +809,12 @@ describe("createWebhooks: subscribers", () => {
         subject_types: () => ["invoice"],
         can_subject_for: (args) => {
           asked.push(args);
+
           return args["member"] === alice;
         },
       },
     );
+
     expect(await webhooks.deliver()).toMatchObject({
       succeeded: 2,
       canceled: 1,
@@ -770,6 +834,7 @@ describe("createWebhooks: subscribers", () => {
 
   it("reads the policy from authorization.delivery and passes the payload actor", async () => {
     const seen: unknown[] = [];
+
     const { webhooks, sent } = setup(
       [row({ event_id: null, payload: { actorId: "u-1" } })],
       ok,
@@ -778,12 +843,14 @@ describe("createWebhooks: subscribers", () => {
           delivery: {
             subscribers: (event, subscribers) => {
               seen.push(event.actorId);
+
               return subscribers;
             },
           },
         },
       },
     );
+
     expect(await webhooks.deliver()).toMatchObject({ succeeded: 1 });
     expect(seen).toEqual(["u-1"]);
     expect(sent).toHaveLength(1);
@@ -795,6 +862,7 @@ describe("createWebhooks: subscribers", () => {
         throw new Error("provider down");
       },
     });
+
     expect(await thrown.webhooks.deliver()).toMatchObject({
       retrying: 1,
       dead: 1,
@@ -808,6 +876,7 @@ describe("createWebhooks: subscribers", () => {
       subscribers: (_event, subscribers) =>
         subscribers.map((subscriber) => ({ ...subscriber })),
     });
+
     expect(await copied.webhooks.deliver()).toMatchObject({ canceled: 1 });
   });
 });
@@ -825,6 +894,7 @@ describe("createWebhooks: management", () => {
         rotate_webhook_secret: () => "whsec_new",
       },
     );
+
     expect(
       await webhooks
         .publish({
@@ -895,11 +965,13 @@ describe("createWebhooks: management", () => {
         },
       },
     );
+
     const dispatched = await webhooks.dispatch({
       endpointId: "d",
       type: "t",
       data: {},
     });
+
     expect(dispatched.ok).toBe(false);
     expect(!dispatched.ok && dispatched.error.message).toBe(
       "Endpoint is disabled",
@@ -911,6 +983,7 @@ describe("createWebhooks: management", () => {
     const { webhooks } = setup([], ok, {
       secrets: { apiVersion: 1, secrets: async () => [] },
     });
+
     const result = await webhooks.rotateSecret("dest-1");
     expect(!result.ok && result.error.message).toBe(
       "The secret store can't rotate secrets",
@@ -924,6 +997,7 @@ describe("createWebhooks: management", () => {
       {},
       { publish_webhook_event: () => 1 },
     );
+
     await webhooks.sink().send([
       {
         specversion: "1.0",
@@ -955,12 +1029,14 @@ describe("createWebhooks: management", () => {
       {},
       { publish_webhook_event: () => 1 },
     );
+
     const event = (type: string) => ({
       specversion: "1.0" as const,
       id: type,
       source: "/crm",
       type,
     });
+
     await webhooks
       .sink()
       .send([
@@ -996,15 +1072,18 @@ describe("createWebhooks: deliverRoute", () => {
     expect(denied.headers.get("content-type")).toContain(
       "application/problem+json",
     );
+
     const response = await route(
       new Request(url, { headers: { authorization: "Bearer cron-secret" } }),
     );
+
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ succeeded: 1 });
   });
 
   it("reports a failing run as a problem", async () => {
     const failures: unknown[] = [];
+
     const webhooks = createWebhooks({
       transport: {
         call: async () => {
@@ -1013,16 +1092,19 @@ describe("createWebhooks: deliverRoute", () => {
       },
       http: fakeHttp(ok).http,
     });
+
     const route = webhooks.deliverRoute({
       secret: "s",
       onError: (error) => failures.push(error),
     });
+
     const response = await route(
       new Request("https://app.example.com/cron", {
         method: "POST",
         headers: { authorization: "Bearer s" },
       }),
     );
+
     expect(response.status).toBe(500);
     expect(failures).toHaveLength(1);
   });
@@ -1032,23 +1114,29 @@ describe("sqlSecretStore", () => {
   it("reads and rotates through the block functions and passes the conformance kit", async () => {
     let secrets: string[] = ["whsec_first"];
     const calls: Call[] = [];
+
     const store = sqlSecretStore(
       {
         async call(schema, fn, args) {
           calls.push({ schema, fn, args });
+
           if (fn === "webhook_secrets") {
             return [...secrets, 42];
           }
+
           const next = `whsec_${String(secrets.length)}`;
           secrets = [next, ...secrets];
+
           return next;
         },
       },
       { schema: "hooks" },
     );
+
     const report = await testWebhookSecretStore(store, {
       endpointId: "dest-1",
     });
+
     expect(report.checks.every((check) => check.ok)).toBe(true);
     expect(calls[0]).toEqual({
       schema: "hooks",
@@ -1073,6 +1161,7 @@ describe("sqlSecretStore", () => {
           rotate: async () => {
             count += 1;
             current = `whsec_${String(count)}`;
+
             return current;
           },
         },
@@ -1114,12 +1203,14 @@ describe("createWebhooks: encoders and credentials", () => {
     }),
     revoke: () => AsyncResult.ok(false),
   });
+
   const token = credentials(() =>
     AsyncResult.ok({
       token: "hec-1",
       headers: { authorization: "Bearer hec-1" },
     }),
   );
+
   const ref = { provider: "test", name: "hec", tenant: "org-1" };
 
   it("writes the endpoint's format with its credential, unsigned", async () => {
@@ -1128,6 +1219,7 @@ describe("createWebhooks: encoders and credentials", () => {
       () => ({ status: 200, body: '{"text":"Success","code":0}' }),
       { credentials: token },
     );
+
     expect(await run.webhooks.deliver()).toMatchObject({ succeeded: 1 });
     const [request] = run.sent;
     expect(request!.headers["authorization"]).toBe("Splunk hec-1");
@@ -1150,13 +1242,16 @@ describe("createWebhooks: encoders and credentials", () => {
           : ok(),
       { credentials: token },
     );
+
     expect(await run.webhooks.deliver()).toMatchObject({
       succeeded: 1,
       retrying: 1,
     });
+
     const signed = run.sent.find(
       (request) => !request.body.includes("sourcetype"),
     );
+
     expect(signed!.headers["authorization"]).toBe("Bearer hec-1");
     expect(signed!.headers["webhook-signature"]).toMatch(/^v1,/);
     expect(outcomeOf(run.calls, "del-2")).toMatchObject({
@@ -1177,6 +1272,7 @@ describe("createWebhooks: encoders and credentials", () => {
       ok,
       { credentials: token },
     );
+
     expect(await foreign.webhooks.deliver()).toMatchObject({ dead: 1 });
     expect(foreign.outcomes()[0]!["error"]).toMatch(/outside tenant "org-1"/);
 
@@ -1190,6 +1286,7 @@ describe("createWebhooks: encoders and credentials", () => {
       ok,
       { credentials: token },
     );
+
     expect(await appLevel.webhooks.deliver()).toMatchObject({ dead: 1 });
 
     const missing = setup([row({ credential_ref: ref })]);
@@ -1207,6 +1304,7 @@ describe("createWebhooks: encoders and credentials", () => {
         AsyncResult.err(dbError("not_found", "No credential stored")),
       ),
     });
+
     expect(await gone.webhooks.deliver()).toMatchObject({ dead: 1 });
     expect(gone.outcomes()[0]).toMatchObject({ error: "No credential stored" });
 
@@ -1215,6 +1313,7 @@ describe("createWebhooks: encoders and credentials", () => {
         AsyncResult.err(dbError("network", "Vault is down")),
       ),
     });
+
     expect(await down.webhooks.deliver()).toMatchObject({ retrying: 1 });
   });
 
@@ -1236,6 +1335,7 @@ describe("createWebhooks: encoders and credentials", () => {
         ],
       },
     );
+
     expect(await run.webhooks.deliver()).toMatchObject({ succeeded: 1 });
     expect(run.sent[0]).toMatchObject({
       body: "del-1",

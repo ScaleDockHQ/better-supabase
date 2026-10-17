@@ -11,9 +11,11 @@ const SPECIFIER = /(?:\bfrom\s+|\bimport\(\s*)"(\.[^"]+)"/g;
 const files = (dir: string): string[] =>
   readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const path = join(dir, entry.name);
+
     if (entry.isDirectory()) {
       return files(path);
     }
+
     return entry.name.endsWith(".ts") ? [path] : [];
   });
 
@@ -33,13 +35,16 @@ describe("the CLI's library imports", () => {
       [...readFileSync(file, "utf-8").matchAll(SPECIFIER)].flatMap(
         ([, specifier]) => {
           const target = resolve(dirname(file), specifier!);
+
           if (target.startsWith(`${CLI}/`) || entries.has(target)) {
             return [];
           }
+
           return [`${relative(SRC, file)} imports ${relative(SRC, target)}`];
         },
       ),
     );
+
     expect(offenders).toEqual([]);
   });
 });

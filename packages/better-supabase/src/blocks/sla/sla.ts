@@ -27,7 +27,9 @@ import {
 } from "../shared.ts";
 
 export type SlaMetric = "first_response" | "next_response" | "resolution";
+
 export type SlaState = "running" | "paused" | "met" | "breached";
+
 /** What happened on a record, moving its clocks. */
 export type SlaEvent =
   | "responded"
@@ -41,6 +43,7 @@ const METRICS: readonly SlaMetric[] = [
   "next_response",
   "resolution",
 ];
+
 const STATES: readonly SlaState[] = ["running", "paused", "met", "breached"];
 
 /** A policy. `F` types the extra columns the `fields` schema describes. */
@@ -139,6 +142,7 @@ const minutes = (value: unknown): number | undefined =>
 
 function policyOf(value: unknown): SlaPolicy {
   const row = recordOf(value, "sla policy");
+
   return compact<SlaPolicy>({
     id: textOf(row["id"]),
     subjectType: textOf(row["subject_type"]),
@@ -155,6 +159,7 @@ function policyOf(value: unknown): SlaPolicy {
 
 function clockOf(value: unknown): SlaClock {
   const row = recordOf(value, "sla clock");
+
   return compact<SlaClock>({
     id: textOf(row["id"]),
     subjectType: textOf(row["subject_type"]),
@@ -182,15 +187,19 @@ export function createSla<S extends StandardSchemaV1 | undefined = undefined>(
   options: SlaOptions<S>,
 ): Sla<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const fields: BlockFields<F> = blockFields(
     options.fields,
     "sla policy fields",
   );
+
   const client: Sla<F> = {
     savePolicy: (organizationId, policy) => {
       const { id, fields: extra, ...attrs } = policy;
+
       return fields.args(extra).andThen((checked) =>
         call(
           "save_sla_policy",
@@ -234,6 +243,7 @@ export function createSla<S extends StandardSchemaV1 | undefined = undefined>(
         (value) => requiredInstant(value, "sla_due_at"),
       ),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "sla",
     ...(options.logger ? { logger: options.logger } : {}),

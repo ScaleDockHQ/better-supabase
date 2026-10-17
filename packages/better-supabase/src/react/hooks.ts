@@ -83,16 +83,19 @@ export function BetterSupabaseProvider(
   );
 
   const value = useMemo(() => ({ client, queryClient }), [client, queryClient]);
+
   return createElement(ClientContext.Provider, { value }, props.children);
 }
 
 function useClientContext(): ContextValue {
   const value = useContext(ClientContext);
+
   if (!value) {
     throw new Error(
       "better-supabase: wrap your app in <BetterSupabaseProvider client={bs}>",
     );
   }
+
   return value;
 }
 
@@ -103,6 +106,7 @@ function useClient(): ClientLike {
 /** The session state for UI: `loading`, `signed-out` or `signed-in` with the user and claims. */
 export function useAuth(): AuthSnapshot {
   const client = useClient();
+
   return useSyncExternalStore(
     client.auth.subscribe,
     client.auth.current,
@@ -137,11 +141,13 @@ export function createHooks<B extends ClientLike>(): BetterHooks<B> {
     useDb() {
       const client = useClient();
       useAuth();
+
       return client.db;
     },
     useQueries() {
       const client = useClient();
       useAuth();
+
       return client.queries;
     },
     useSupabase,
@@ -166,16 +172,20 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
 ): SubscriptionStatus {
   const context = useContext(ClientContext);
   const supabase = options?.client ?? context?.client.supabase;
+
   if (!supabase) {
     throw new Error(
       "better-supabase: useBroadcast needs <BetterSupabaseProvider client={bs}> or { client: supabase }",
     );
   }
+
   const queryClient = options?.queryClient ?? context?.queryClient;
+
   const auth = useBroadcastAuth(
     options?.client === undefined ? context?.client : undefined,
     supabase,
   );
+
   const [status, setStatus] = useState<SubscriptionStatus>("closed");
   const latest = useRef({ handlers, options });
   // oxlint-disable-next-line react/refs -- latest-ref pattern; the react peer range predates useEffectEvent.
@@ -183,6 +193,7 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
   const name = values ? topic.topic(values) : null;
   const userId = auth.userId;
   const self = options?.self;
+
   if (options?.invalidate && !queryClient) {
     throw new Error(
       "better-supabase: useBroadcast({ invalidate }) needs <BetterSupabaseProvider queryClient={...}> or { queryClient }",
@@ -193,6 +204,7 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
     if (!name || auth.status === "loading") {
       return;
     }
+
     return startBroadcast({
       supabase,
       topic,
@@ -222,24 +234,29 @@ export function useBroadcastAuth(
     client?.auth.current ?? (() => LOADING),
     () => LOADING,
   );
+
   const [plain, setPlain] = useState<{
     readonly status: AuthSnapshot["status"];
     readonly userId: string | null;
   }>({ status: "loading", userId: null });
+
   useEffect(() => {
     if (client) {
       return;
     }
+
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       setPlain({
         status: session ? "signed-in" : "signed-out",
         userId: session ? sessionUserId(session) : null,
       });
     });
+
     return () => {
       data.subscription.unsubscribe();
     };
   }, [client, supabase]);
+
   return client
     ? { status: snapshot.status, userId: snapshot.user?.id ?? null }
     : plain;
@@ -254,11 +271,14 @@ function useHeldSpec<S extends QuerySpec>(
 ): { readonly key: string | null; readonly spec: S | null } {
   const key = spec ? specKey(spec) : null;
   const [held, setHeld] = useState({ key, spec: spec ?? null });
+
   if (held.key === key) {
     return held;
   }
+
   const next = { key, spec: spec ?? null };
   setHeld(next);
+
   return next;
 }
 
@@ -280,11 +300,13 @@ export function useLiveQuery(
   const { client, queryClient } = useClientContext();
   const auth = useAuth();
   const [status, setStatus] = useState<SubscriptionStatus>("closed");
+
   if (spec && !queryClient) {
     throw new Error(
       "better-supabase: useLiveQuery needs <BetterSupabaseProvider queryClient={...}>",
     );
   }
+
   const held = useHeldSpec(spec);
   const joined = useRef<string | null>(null);
   const key = liveKey(client, held.spec, auth, options);
@@ -296,10 +318,12 @@ export function useLiveQuery(
     if (key === null || !held.spec || !queryClient) {
       return;
     }
+
     // A rejoin with the same spec (an <Activity> shown again) missed the
     // changes made while it was hidden.
     const resumed = joined.current === held.key;
     joined.current = held.key;
+
     return startLiveQuery({
       client,
       queryClient,
@@ -355,11 +379,13 @@ export function useLiveCount(
     if (key === null || !held.spec || held.key === null) {
       return;
     }
+
     const specKey = held.key;
     // A rejoin with the same spec (an <Activity> shown again) counts again
     // once joined: changes made while it was hidden were missed.
     const previous = joined.current?.key === specKey ? joined.current : null;
     joined.current = { key: specKey, at: previous?.at ?? seedAt ?? 0 };
+
     return startLiveCount({
       client,
       spec: held.spec,
@@ -371,9 +397,11 @@ export function useLiveCount(
       onState: (update) => {
         const next = update(stateRef.current);
         stateRef.current = next;
+
         if (next.error === undefined && joined.current?.key === specKey) {
           joined.current = { key: specKey, at: next.at };
         }
+
         setState(next);
       },
       onStatus: setStatus,
@@ -382,5 +410,6 @@ export function useLiveCount(
   }, [client, held.spec, held.key, key, hasInitial, seedAt]);
 
   const shown = shownCount(state, held.key, parsed);
+
   return { count: shown.count, status, error: shown.error };
 }

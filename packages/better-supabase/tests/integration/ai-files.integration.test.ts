@@ -43,6 +43,7 @@ describe.skipIf(!live)("ai-files module", () => {
 
   it("accepts only the reserved upload and shows files to their owner and the chat", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "outbox", "ai-chat", "ai-files"], {
         modules: {
@@ -64,18 +65,22 @@ describe.skipIf(!live)("ai-files module", () => {
       const files = createAiFiles({ transport: sqlTransport(s.sql), storage });
 
       await s.asRole(member);
+
       const chat = await s.value<{ id: string }>(
         "better_supabase.create_ai_chat($1, $2)",
         [tenant, { title: "Pictures" }],
       );
+
       const wrongType = await files.files.upload(tenant, {
         filename: "a.pdf",
         mediaType: "application/pdf",
         size: 3,
       });
+
       expect(wrongType.ok ? undefined : wrongType.error.hint).toBe(
         "AI_FILE_TYPE",
       );
+
       const { file, signedUrl } = await files.files
         .upload(tenant, {
           filename: "cat.png",
@@ -84,6 +89,7 @@ describe.skipIf(!live)("ai-files module", () => {
           chatId: chat.id,
         })
         .orThrow();
+
       expect(file).toMatchObject({
         status: "pending",
         bucket: BUCKET,
@@ -102,6 +108,7 @@ describe.skipIf(!live)("ai-files module", () => {
            values ($1, $2, auth.uid()::text, '{"size": 2, "mimetype": "image/png"}')`,
           [BUCKET, name],
         );
+
       expect(
         await store(`${tenant}/${member.id}/${crypto.randomUUID()}/x.png`),
       ).not.toBe("no error");
@@ -109,9 +116,11 @@ describe.skipIf(!live)("ai-files module", () => {
       expect(await store(file.path)).not.toBe("no error");
       await s.asRole(member);
       expect(await store(file.path)).toBe("no error");
+
       const ready = await files.files
         .confirm(file.id, "ab".repeat(32))
         .orThrow();
+
       expect(ready).toMatchObject({ status: "ready", size: 2 });
       expect(ready.uploadedAt).toBeDefined();
 
@@ -120,6 +129,7 @@ describe.skipIf(!live)("ai-files module", () => {
           "(select count(*)::int from storage.objects where bucket_id = $1)",
           [BUCKET],
         );
+
       expect(await visible()).toBe(1);
       expect((await files.files.resolve(aiFileUrl(file)).orThrow()).id).toBe(
         file.id,
@@ -149,6 +159,7 @@ describe.skipIf(!live)("ai-files module", () => {
 
   it("stores generated files, caches provider references and purges stale ones", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "ai-chat", "ai-files"], {
         modules: { "ai-files": { options: { bucket: BUCKET } } },
@@ -156,6 +167,7 @@ describe.skipIf(!live)("ai-files module", () => {
       const owner = await s.user("owner");
       const tenant = await s.organization(owner);
       await s.as(owner);
+
       const chat = await s.value<{ id: string }>(
         "better_supabase.create_ai_chat($1, $2)",
         [tenant, { title: "Draw" }],
@@ -163,6 +175,7 @@ describe.skipIf(!live)("ai-files module", () => {
 
       await s.service();
       const files = createAiFiles({ transport: sqlTransport(s.sql), storage });
+
       const generated = await files.files
         .store(tenant, {
           ownerId: owner.id,
@@ -172,6 +185,7 @@ describe.skipIf(!live)("ai-files module", () => {
           chatId: chat.id,
         })
         .orThrow();
+
       expect(generated).toMatchObject({
         status: "ready",
         source: "generated",
@@ -211,10 +225,12 @@ describe.skipIf(!live)("ai-files module", () => {
       ).toBeUndefined();
 
       await s.as(owner);
+
       const stale = await s.value<{ id: string }>(
         "better_supabase.reserve_ai_file($1, 'old.png', 'image/png', 1)",
         [tenant],
       );
+
       await s.service();
       await s.rows(
         "update better_supabase.ai_files set created_at = now() - interval '2 days' where id = $1",
@@ -243,6 +259,7 @@ describe.skipIf(!live)("ai-files module", () => {
 
   it("versions documents, guards concurrent edits and resolves suggestions", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "ai-chat", "ai-files"]);
       const owner = await s.user("owner");
@@ -252,17 +269,21 @@ describe.skipIf(!live)("ai-files module", () => {
       const files = createAiFiles({ transport: sqlTransport(s.sql), storage });
 
       await s.asRole(member);
+
       const doc = await files.documents
         .create(tenant, { kind: "code", title: "main.ts", content: "a" })
         .orThrow();
+
       expect(doc.version).toBe(1);
       await files.documents
         .update(doc.id, { content: "b", expectedVersion: 1, messageId: "m1" })
         .orThrow();
+
       const conflict = await files.documents.update(doc.id, {
         content: "c",
         expectedVersion: 1,
       });
+
       expect(conflict.ok ? undefined : conflict.error.hint).toBe(
         "AI_DOCUMENT_CONFLICT",
       );
@@ -284,6 +305,7 @@ describe.skipIf(!live)("ai-files module", () => {
       const suggestion = await files.documents
         .suggest(doc.id, { originalText: "a", suggestedText: "A" })
         .orThrow();
+
       expect(suggestion.version).toBe(3);
       await files.documents.resolve(suggestion.id, true).orThrow();
       expect(await files.documents.suggestions(doc.id).orThrow()).toEqual([]);
@@ -294,11 +316,13 @@ describe.skipIf(!live)("ai-files module", () => {
       expect(foreign.ok ? undefined : foreign.error.hint).toBe(
         "AI_DOCUMENT_NOT_FOUND",
       );
+
       const forbidden = await files.documents.create(tenant, {
         kind: "text",
         title: "x",
         content: "x",
       });
+
       expect(forbidden.ok ? undefined : forbidden.error.hint).toBe(
         "AI_DOCUMENT_FORBIDDEN",
       );

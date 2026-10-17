@@ -17,6 +17,7 @@ describe.skipIf(!live)("approvals with the provider's isApprover", () => {
 
   it("lets the user isApprover allows decide, never the requester", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const owner = await s.user("owner");
       const requester = await s.user("requester");
@@ -38,6 +39,7 @@ describe.skipIf(!live)("approvals with the provider's isApprover", () => {
           language sql stable as $$ select false $$;
         grant usage on schema ${schema} to authenticated;
       `);
+
       const layout: ModuleLayout = {
         modules: {
           access: { model: "provider" },
@@ -65,14 +67,18 @@ describe.skipIf(!live)("approvals with the provider's isApprover", () => {
           },
         },
       };
+
       await s.install(["organizations", "approvals"], layout);
+
       const tenant = await s.organization(owner, {
         member: requester,
         viewer: reviewer,
       });
+
       const approvals = createApprovals({ transport: sqlTransport(s.sql) });
 
       await s.service();
+
       const request = await approvals
         .request({
           organizationId: tenant,
@@ -84,6 +90,7 @@ describe.skipIf(!live)("approvals with the provider's isApprover", () => {
 
       const canDecide = async () =>
         (await approvals.get(request.id).orThrow()).canDecide;
+
       await s.asRole(outsider);
       expect(await canDecide()).toBe(false);
       await s.service();

@@ -49,6 +49,7 @@ export function embedWith(
       if (values.length === 0) {
         return [];
       }
+
       const { embeddings } = await embedMany({
         model,
         values: [...values],
@@ -60,6 +61,7 @@ export function embedWith(
           ? {}
           : { abortSignal: embedOptions.signal }),
       });
+
       return embeddings;
     },
   };
@@ -80,6 +82,7 @@ export function rerankWith(
     if (hits.length <= 1) {
       return hits;
     }
+
     const { ranking } = await rerank({
       model,
       query,
@@ -89,8 +92,10 @@ export function rerankWith(
         ? {}
         : { abortSignal: rerankOptions.signal }),
     });
+
     return ranking.flatMap((entry) => {
       const hit = hits[entry.originalIndex];
+
       return hit === undefined ? [] : [{ ...hit, score: entry.score }];
     });
   };
@@ -137,6 +142,7 @@ export function searchTool(
   options: SearchToolOptions = {},
 ): Tool<{ query: string }, SearchToolResult> {
   const { description, results, rerank: reorder, onHits, ...search } = options;
+
   return tool({
     description:
       description ??
@@ -154,12 +160,15 @@ export function searchTool(
         ...search,
         ...(abortSignal === undefined ? {} : { signal: abortSignal }),
       });
+
       if (!found.ok) {
         throw new DbException(found.error);
       }
+
       const readable = results
         ? await results(found.data, { query })
         : found.data;
+
       const hits = reorder
         ? await reorder(
             query,
@@ -167,7 +176,9 @@ export function searchTool(
             abortSignal === undefined ? undefined : { signal: abortSignal },
           )
         : readable;
+
       onHits?.(hits);
+
       return {
         results: hits.map((hit) => ({
           id: sourceId(hit),
@@ -188,10 +199,12 @@ export function toSourceParts(
 ): SourceDocumentUIPart[] {
   const seen = new Set<string>();
   const parts: SourceDocumentUIPart[] = [];
+
   for (const hit of hits) {
     if (seen.has(hit.documentId)) {
       continue;
     }
+
     seen.add(hit.documentId);
     parts.push({
       type: "source-document",
@@ -200,6 +213,7 @@ export function toSourceParts(
       title: hit.title,
     });
   }
+
   return parts;
 }
 
@@ -228,11 +242,13 @@ function supabaseSession(model: string): SupabaseAiSession {
   // SAFETY: every member is optional and `Session` is checked before use.
   const Session = (globalThis as { Supabase?: SupabaseGlobal }).Supabase?.ai
     ?.Session;
+
   if (typeof Session !== "function") {
     throw new TypeError(
       "supabaseEmbed runs in Supabase Edge Functions, where Supabase.ai.Session exists; pass session elsewhere",
     );
   }
+
   return new Session(model);
 }
 
@@ -243,17 +259,20 @@ function supabaseSession(model: string): SupabaseAiSession {
 export function supabaseEmbed(options: SupabaseEmbedOptions = {}): Embedder {
   const name = options.model ?? "gte-small";
   let session = options.session;
+
   return {
     apiVersion: 1,
     model: `supabase/${name}`,
     embed: async (values) => {
       session ??= supabaseSession(name);
       const vectors: number[][] = [];
+
       for (const value of values) {
         const output = await session.run(value, {
           mean_pool: true,
           normalize: true,
         });
+
         if (
           !Array.isArray(output) ||
           !output.every((x) => typeof x === "number")
@@ -262,8 +281,10 @@ export function supabaseEmbed(options: SupabaseEmbedOptions = {}): Embedder {
             `Supabase.ai.Session returned no vector for ${name}`,
           );
         }
+
         vectors.push(output);
       }
+
       return vectors;
     },
   };

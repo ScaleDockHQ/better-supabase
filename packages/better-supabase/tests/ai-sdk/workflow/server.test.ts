@@ -56,6 +56,7 @@ function readable(chunks: readonly unknown[] = CHUNKS): ReadableStream {
       for (const chunk of chunks) {
         controller.enqueue(chunk);
       }
+
       controller.close();
     },
   });
@@ -113,17 +114,22 @@ interface Setup {
 
 function setup(options: Setup = {}) {
   const calls: { name: string; args: unknown[] }[] = [];
+
   const log =
     <T>(name: string, value: () => ReturnType<typeof result<T>>) =>
     (...args: unknown[]) => {
       calls.push({ name, args });
+
       return value();
     };
+
   const chat = options.chat ?? record("c1", { model: "openai/gpt-5" });
   const runs = options.runs ?? [run()];
+
   const aiRuns = {
     get: log("runs.get", () => {
       const found = runs[0];
+
       return found ? result(found) : failure(dbError("not_found", "none"));
     }),
     list: log("runs.list", () => result(runs)),
@@ -131,6 +137,7 @@ function setup(options: Setup = {}) {
       options.attach === undefined ? result(true) : failure(options.attach),
     ),
   };
+
   const chats = {
     chats: {
       get: log("chats.get", () =>
@@ -152,12 +159,15 @@ function setup(options: Setup = {}) {
     approvals: {
       decide: log("decide", () => {
         const decided = options.decided ?? approval();
+
         return "kind" in decided ? failure(decided) : result(decided);
       }),
       list: log("list", () => result(options.approvals ?? [approval()])),
     },
   };
+
   const pending: Promise<unknown>[] = [];
+
   const context: DurableChatContext = {
     // SAFETY: the fakes implement the calls `durableChat` makes.
     chats: chats as unknown as AiChat,
@@ -165,6 +175,7 @@ function setup(options: Setup = {}) {
     organizationId: "org",
     waitUntil: (promise) => pending.push(promise),
   };
+
   const turn: AssistantTurn | Response =
     options.turn instanceof Response
       ? options.turn
@@ -177,11 +188,13 @@ function setup(options: Setup = {}) {
           providerOptions: { gateway: {} },
           ...options.turn,
         };
+
   const prepare = vi.fn(async () => turn);
   const { client } = fakeRedis();
   const streams = redisStreamStore({ client });
   const workflow = vi.fn(async () => undefined);
   let ids = 0;
+
   const durable = durableChat({
     assistant: { prepare },
     workflow,
@@ -189,6 +202,7 @@ function setup(options: Setup = {}) {
     streamTtl: 60,
     generateId: () => `id${++ids}`,
   });
+
   return { durable, context, calls, prepare, pending, streams, workflow };
 }
 
@@ -282,9 +296,11 @@ describe("durableChat respond", () => {
 
   it("cancels the run and releases the claim when the run can't be attached", async () => {
     api.start.mockResolvedValue({ runId: "wrun" });
+
     const cancel = vi.fn(async () => {
       throw new Error("gone");
     });
+
     api.getRun.mockReturnValue({ cancel });
     const s = setup({ attach: dbError("network", "offline") });
     const response = await s.durable.respond(post({ id: "c1" }), s.context);
@@ -301,6 +317,7 @@ describe("durableChat respond", () => {
     api.resumeHook.mockResolvedValue(undefined);
     api.getRun.mockReturnValue({ getReadable: () => readable() });
     const s = setup();
+
     const response = await s.durable.respond(
       post({
         id: "c1",
@@ -308,6 +325,7 @@ describe("durableChat respond", () => {
       }),
       s.context,
     );
+
     expect(response.status).toBe(200);
     expect(response.headers.get(WORKFLOW_RUN_ID_HEADER)).toBe("wrun");
     expect(await response.text()).toContain('"messageId":"m1"');
@@ -339,10 +357,12 @@ describe("durableChat respond", () => {
         approval({ approvalId: "a2", decision: "pending" }),
       ],
     });
+
     const response = await s.durable.respond(
       post({ id: "c1", approvals: [{ approvalId: "a1", approved: true }] }),
       s.context,
     );
+
     expect(response.status).toBe(409);
     expect(await response.json()).toMatchObject({
       code: "AI_APPROVALS_PENDING",
@@ -366,10 +386,12 @@ describe("durableChat respond", () => {
 
   it("rejects approvals of another chat", async () => {
     const s = setup({ decided: approval({ chatId: "c2" }) });
+
     const response = await s.durable.respond(
       post({ id: "c1", approvals: [{ approvalId: "a1", approved: false }] }),
       s.context,
     );
+
     expect(response.status).toBe(400);
   });
 
@@ -379,10 +401,12 @@ describe("durableChat respond", () => {
     ["no workflow run id", approval(), [run({ externalRunId: undefined })]],
   ])("answers not durable for %s", async (_, decided, runs) => {
     const s = setup({ decided, runs });
+
     const response = await s.durable.respond(
       post({ id: "c1", approvals: [{ approvalId: "a1", approved: true }] }),
       s.context,
     );
+
     expect(await response.json()).toMatchObject({
       code: "AI_CHAT_NOT_DURABLE",
     });
@@ -390,16 +414,19 @@ describe("durableChat respond", () => {
 
   it("passes database errors on", async () => {
     const forbidden = dbError("forbidden", "not yours");
+
     for (const options of [
       { decided: forbidden },
       { chat: forbidden },
       { runs: [] },
     ]) {
       const s = setup(options);
+
       const response = await s.durable.respond(
         post({ id: "c1", approvals: [{ approvalId: "a1", approved: true }] }),
         s.context,
       );
+
       expect(response.status).toBeGreaterThanOrEqual(400);
     }
   });
@@ -407,10 +434,12 @@ describe("durableChat respond", () => {
   it("releases the new segment when the turn no longer waits", async () => {
     api.resumeHook.mockRejectedValue(new Error("hook gone"));
     const s = setup();
+
     const response = await s.durable.respond(
       post({ id: "c1", approvals: [{ approvalId: "a1", approved: true }] }),
       s.context,
     );
+
     expect(await response.json()).toMatchObject({
       code: "AI_CHAT_NOT_WAITING",
     });
@@ -422,10 +451,12 @@ describe("durableChat respond", () => {
 
   it("answers busy when a segment is already claimed", async () => {
     const s = setup({ claimed: false });
+
     const response = await s.durable.respond(
       post({ id: "c1", approvals: [{ approvalId: "a1", approved: true }] }),
       s.context,
     );
+
     expect(await response.json()).toMatchObject({ code: "AI_CHAT_BUSY" });
   });
 });
@@ -434,9 +465,11 @@ describe("durableChat resume", () => {
   it("reads the running segment from the World", async () => {
     api.getRun.mockReturnValue({ getReadable: () => readable() });
     const s = setup({ chat: record("c1", { activeRunId: "run1" }) });
+
     const response = await s.durable.resume("c1", s.context, {
       startIndex: 2.7,
     });
+
     expect(response.headers.get(WORKFLOW_RUN_ID_HEADER)).toBe("wrun");
     expect(await response.text()).toContain('"delta":"Hi"');
     expect(names(s.calls)).toContain("runs.get");
@@ -446,9 +479,11 @@ describe("durableChat resume", () => {
     api.start.mockResolvedValue({ runId: "wrun" });
     api.getRun.mockReturnValue({ getReadable: () => readable() });
     const s = setup({ runs: [run({ streamId: "id1" })] });
+
     const live = await (
       await s.durable.respond(post({ id: "c1" }), s.context)
     ).text();
+
     await Promise.all(s.pending);
     api.getRun.mockReturnValue({
       getReadable: () =>
@@ -458,9 +493,11 @@ describe("durableChat resume", () => {
           },
         }),
     });
+
     const fromStore = await s.durable.resume("c1", s.context, {
       signal: new AbortController().signal,
     });
+
     expect(fromStore.status).toBe(200);
     expect(await fromStore.text()).toBe(live);
 
@@ -486,9 +523,11 @@ describe("durableChat resume", () => {
     });
     const s = setup({ chat: record("c1", { activeRunId: "run1" }) });
     const abort = new AbortController();
+
     const response = await s.durable.resume("c1", s.context, {
       signal: abort.signal,
     });
+
     const reader = response.body!.getReader();
     await reader.read();
     abort.abort("client left");
@@ -496,9 +535,11 @@ describe("durableChat resume", () => {
       expect(cancelled).toBe("client left");
     });
     let reads = 0;
+
     while (!(await reader.read()).done) {
       reads += 1;
     }
+
     expect(reads).toBeLessThan(3);
   });
 
@@ -524,10 +565,12 @@ describe("durableChat resume", () => {
   it("passes database errors on", async () => {
     const s = setup({ chat: dbError("forbidden", "not yours") });
     expect((await s.durable.resume("c1", s.context)).status).toBe(403);
+
     const active = setup({
       chat: record("c1", { activeRunId: "r" }),
       runs: [],
     });
+
     expect((await active.durable.resume("c1", active.context)).status).toBe(
       404,
     );
@@ -580,16 +623,20 @@ describe("durableChat stop", () => {
   it("does nothing when no durable answer runs", async () => {
     const idle = setup();
     expect((await idle.durable.stop("c1", idle.context)).status).toBe(204);
+
     const plain = setup({
       stopped: { streamId: "s1", runId: "run1" },
       runs: [run({ externalRunId: undefined })],
     });
+
     expect((await plain.durable.stop("c1", plain.context)).status).toBe(204);
     expect(api.resumeHook).not.toHaveBeenCalled();
+
     const missing = setup({
       stopped: { streamId: "s1", runId: "run1" },
       runs: [],
     });
+
     expect((await missing.durable.stop("c1", missing.context)).status).toBe(
       404,
     );
@@ -600,11 +647,13 @@ describe("durableChat decide", () => {
   it("continues the turn once nothing is pending", async () => {
     api.resumeHook.mockResolvedValue(undefined);
     const s = setup();
+
     const response = await s.durable.decide(
       "c1",
       [{ approvalId: "a1", approved: true }],
       s.context,
     );
+
     expect(await response.json()).toEqual({ continued: true, streamId: "id1" });
   });
 
@@ -612,11 +661,13 @@ describe("durableChat decide", () => {
     const s = setup({
       approvals: [approval({ approvalId: "a2", decision: "pending" })],
     });
+
     const response = await s.durable.decide(
       "c1",
       [{ approvalId: "a1", approved: false, reason: "no" }],
       s.context,
     );
+
     expect(await response.json()).toEqual({ continued: false });
   });
 

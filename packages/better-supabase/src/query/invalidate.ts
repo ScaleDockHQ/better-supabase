@@ -21,11 +21,15 @@ function isString(value: unknown): value is string {
 function queryTables(query: Query): readonly string[] | undefined {
   const meta: Readonly<Record<string, unknown>> | undefined = query.meta;
   const tables = meta?.["bsTables"];
+
   if (Array.isArray(tables)) {
     const list: readonly unknown[] = tables;
+
     return list.every(isString) ? list : list.filter(isString);
   }
+
   const [prefix, table] = query.queryKey;
+
   return prefix === "bs" && typeof table === "string" ? [table] : undefined;
 }
 
@@ -39,24 +43,31 @@ const indexes = new WeakMap<QueryCache, TableIndex>();
 
 function indexOf(cache: QueryCache): TableIndex {
   const existing = indexes.get(cache);
+
   if (existing) {
     return existing;
   }
+
   const index: TableIndex = { byTable: new Map(), tablesOf: new Map() };
+
   const remove = (hash: string) => {
     for (const table of index.tablesOf.get(hash) ?? []) {
       const set = index.byTable.get(table);
       set?.delete(hash);
+
       if (set?.size === 0) {
         index.byTable.delete(table);
       }
     }
+
     index.tablesOf.delete(hash);
   };
+
   const add = (hash: string) => {
     const query = cache.get(hash);
     const tables = query ? queryTables(query) : undefined;
     const known = index.tablesOf.get(hash);
+
     if (
       known !== undefined &&
       tables !== undefined &&
@@ -65,25 +76,34 @@ function indexOf(cache: QueryCache): TableIndex {
     ) {
       return;
     }
+
     remove(hash);
+
     if (!tables || tables.length === 0) {
       return;
     }
+
     index.tablesOf.set(hash, tables);
+
     for (const table of tables) {
       let set = index.byTable.get(table);
+
       if (!set) {
         index.byTable.set(table, (set = new Set()));
       }
+
       set.add(hash);
     }
   };
+
   for (const query of cache.getAll()) {
     add(query.queryHash);
   }
+
   // The index lives as long as the cache; the cache has no teardown hook.
   cache.subscribe((event) => {
     const hash = event.query.queryHash;
+
     if (event.type === "removed") {
       remove(hash);
     }
@@ -99,6 +119,7 @@ function indexOf(cache: QueryCache): TableIndex {
     }
   });
   indexes.set(cache, index);
+
   return index;
 }
 
@@ -115,16 +136,20 @@ export function invalidateTables(
   if (tables.length === 0) {
     return Promise.resolve();
   }
+
   const { byTable } = indexOf(client.getQueryCache());
   const matched = new Set<string>();
+
   for (const table of tables) {
     for (const hash of byTable.get(table) ?? []) {
       matched.add(hash);
     }
   }
+
   if (matched.size === 0) {
     return Promise.resolve();
   }
+
   return client.invalidateQueries({
     predicate: (query) => matched.has(query.queryHash),
   });

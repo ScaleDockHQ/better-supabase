@@ -18,31 +18,38 @@ export function metadataColumns(
 ): readonly (readonly [column: string, key: string])[] {
   const where = "blocks.audit.options.metadataColumns";
   const configured = ctx.option("metadataColumns");
+
   if (configured === undefined) {
     return [];
   }
+
   if (typeof configured !== "object" || configured === null) {
     throw new TypeError(`${where} must map columns to metadata keys`);
   }
+
   if (ctx.manages) {
     throw new TypeError(
       `${where} fills an adopted log's own columns; set mode: "adopt" or keep the values in metadata`,
     );
   }
+
   const mapped = new Set(
     Object.values(ctx.config.columns["log"] ?? {}).filter(
       (column): column is string => typeof column === "string",
     ),
   );
+
   return Object.entries(configured).map(([column, key]) => {
     if (typeof key !== "string" || key === "") {
       throw new TypeError(`${where}.${column} must be a metadata key`);
     }
+
     if (mapped.has(column)) {
       throw new TypeError(
         `${where}.${column}: the column is mapped in blocks.audit.columns.log, so the module already fills it`,
       );
     }
+
     return [column, key] as const;
   });
 }
@@ -55,7 +62,9 @@ export function storedMetadata(
   if (extra.length === 0 || ctx.flag("keepMappedMetadata", false)) {
     return "coalesce(metadata, '{}')";
   }
+
   const keys = [...new Set(extra.map(([, key]) => sqlString(key)))];
+
   return `coalesce(metadata, '{}') - array[${keys.join(", ")}]::text[]`;
 }
 
@@ -71,6 +80,7 @@ export function eventInsert(
 ): string {
   const log = ctx.table("log");
   const id = ctx.col("log", "id");
+
   if (extra.length === 0) {
     return `
   insert into ${log} (${insert.columns})
@@ -79,21 +89,27 @@ export function eventInsert(
   )
   returning ${id} into entry_id;`;
   }
+
   const pairs = insert.pairs.map(
     ([column, value]) => `${sqlString(column)}, ${value}`,
   );
+
   const chunks: string[] = [];
+
   for (let index = 0; index < pairs.length; index += 40) {
     chunks.push(
       `pg_catalog.jsonb_build_object(\n    ${pairs.slice(index, index + 40).join(",\n    ")}\n  )`,
     );
   }
+
   const mapped = extra.map(
     ([column, key]) =>
       `\n    || case when audit_event.metadata ? ${sqlString(key)} then pg_catalog.jsonb_build_object(${sqlString(column)}, audit_event.metadata -> ${sqlString(key)}) else '{}'::jsonb end`,
   );
+
   const target = log.replaceAll("%", "%%");
   const statement = `insert into ${target} (%s) select %s from pg_catalog.jsonb_populate_record(null::${target}, $1) returning ${id.replaceAll("%", "%%")}`;
+
   return `
   entry_row := ${chunks.join("\n  || ")}${mapped.join("")};
   select pg_catalog.string_agg(pg_catalog.quote_ident(k), ', ') into entry_columns

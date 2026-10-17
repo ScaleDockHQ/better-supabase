@@ -15,10 +15,13 @@ export {
   type KnowledgeStatus,
   type NewKnowledgeDocument,
 } from "./knowledge.ts";
+
 export {
   dbTransport,
   rpcTransport,
   sqlTransport,
 } from "../../core/block-transport.ts";
+
 export type { BlockTransport } from "../../core/block-transport.ts";
+
 export { knowledgeBlock } from "./manifest.ts";

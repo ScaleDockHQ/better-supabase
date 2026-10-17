@@ -48,6 +48,7 @@ describe("deadline", () => {
     const statics = AbortSignal as { any?: unknown };
     const any = statics.any;
     statics.any = undefined;
+
     try {
       const caller = new AbortController();
       const first = deadline(caller.signal, 50);

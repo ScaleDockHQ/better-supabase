@@ -115,6 +115,7 @@ export function extraFieldsArg(
   columns: readonly ExtraColumn[],
 ): ExtraFieldsArg {
   const on = columns.length > 0;
+
   return {
     param: on ? ", fields jsonb default null" : "",
     type: on ? ", jsonb" : "",
@@ -164,6 +165,7 @@ export function schemaPreamble(ctx: ModuleContext): string {
   if (ctx.schemaName === "better_supabase") {
     return SCHEMA;
   }
+
   return `${SCHEMA}
 create schema if not exists ${ctx.schema};
 grant usage on schema ${ctx.schema} to anon, authenticated, service_role;`;
@@ -177,15 +179,18 @@ export function jwtClaim(name: string): string {
 /** `table` or `schema.table` as `[schema, table]`, in `public` without a schema. */
 export function splitTable(name: string): readonly [string, string] {
   const parts = name.split(".");
+
   if (parts.length > 2 || parts.some((part) => part.length === 0)) {
     throw new TypeError(`"${name}" must be "table" or "schema.table"`);
   }
+
   return parts.length === 2 ? [parts[0]!, parts[1]!] : ["public", parts[0]!];
 }
 
 /** `table` or `schema.table`, quoted. */
 export function quotedTable(name: string): string {
   const [schema, table] = splitTable(name);
+
   return `${sqlIdent(schema)}.${sqlIdent(table)}`;
 }
 
@@ -195,12 +200,15 @@ export function columnRef(
   value: string,
 ): { readonly table: string; readonly column: string } {
   const parts = value.split(".");
+
   if (parts.length !== 3 || parts.some((part) => part.length === 0)) {
     throw new TypeError(
       `${where} must be "schema.table.column", got "${value}"`,
     );
   }
+
   const [schema, table, column] = parts;
+
   return {
     table: `${sqlIdent(schema!)}.${sqlIdent(table!)}`,
     column: sqlIdent(column!),
@@ -223,6 +231,7 @@ export function replaceColumnCheck(check: {
 }): string {
   const column =
     QUOTED_IDENT.exec(check.column)?.[1]?.replaceAll('""', '"') ?? check.column;
+
   return `do $$
 declare
   v_name name;
@@ -303,20 +312,25 @@ export interface ModuleRenames {
 
 export function renameSql(renames: ModuleRenames): string {
   const schema = sqlString(renames.schema);
+
   const q = (name: string): string =>
     `${sqlIdent(renames.schema)}.${sqlIdent(name)}`;
+
   const lines: string[] = [];
   let table = renames.table;
+
   for (const [from, to] of renames.tables ?? []) {
     lines.push(`  if to_regclass(${sqlString(`${renames.schema}.${from}`)}) is not null
     and (select c.relkind from pg_class c where c.oid = to_regclass(${sqlString(`${renames.schema}.${from}`)})) in ('r', 'p')
     and to_regclass(${sqlString(`${renames.schema}.${to}`)}) is null then
     alter table ${q(from)} rename to ${sqlIdent(to)};
   end if;`);
+
     if (from === table) {
       table = to;
     }
   }
+
   for (const [from, to] of renames.columns ?? []) {
     lines.push(`  if exists (select 1 from information_schema.columns c
       where c.table_schema = ${schema} and c.table_name = ${sqlString(table)} and c.column_name = ${sqlString(from)})
@@ -325,21 +339,25 @@ export function renameSql(renames: ModuleRenames): string {
     alter table ${q(table)} rename column ${sqlIdent(from)} to ${sqlIdent(to)};
   end if;`);
   }
+
   for (const [from, to] of renames.indexes ?? []) {
     lines.push(`  if to_regclass(${sqlString(`${renames.schema}.${from}`)}) is not null
     and to_regclass(${sqlString(`${renames.schema}.${to}`)}) is null then
     alter index ${q(from)} rename to ${sqlIdent(to)};
   end if;`);
   }
+
   for (const [from, to, args] of renames.functions ?? []) {
     lines.push(`  if to_regprocedure(${sqlString(`${renames.schema}.${from}(${args})`)}) is not null
     and to_regprocedure(${sqlString(`${renames.schema}.${to}(${args})`)}) is null then
     alter function ${q(from)}(${args}) rename to ${sqlIdent(to)};
   end if;`);
   }
+
   if (lines.length === 0) {
     return "";
   }
+
   return `do $$
 begin
 ${lines.join("\n")}
@@ -358,7 +376,9 @@ export function organizationMissing(
   if (!ctx.installed("organizations")) {
     return "false";
   }
+
   const organizations = ctx.of("organizations");
+
   return `not exists (select 1 from ${organizations.table("organizations")} o where o.${organizations.col("organizations", "id")} = ${organization})`;
 }
 
@@ -366,21 +386,26 @@ export function membershipDisabledAt(ctx: ModuleContext): string | undefined {
   if (ctx.module !== "tenant" && !ctx.installed("tenant")) {
     return undefined;
   }
+
   const tenant = ctx.module === "tenant" ? ctx : ctx.of("tenant");
+
   if (!tenant.has("memberships", "disabledAt")) {
     return undefined;
   }
+
   if (
     !tenant.manages &&
     typeof tenant.config.columns["memberships"]?.["disabledAt"] !== "string"
   ) {
     return undefined;
   }
+
   return tenant.col("memberships", "disabledAt");
 }
 
 export function activeMembership(ctx: ModuleContext, alias: string): string {
   const column = membershipDisabledAt(ctx);
+
   return column === undefined ? "" : ` and ${alias}.${column} is null`;
 }
 
@@ -390,10 +415,13 @@ export function membershipSuspended(
   user: string,
 ): string | undefined {
   const column = membershipDisabledAt(ctx);
+
   if (column === undefined) {
     return undefined;
   }
+
   const t = ctx.module === "tenant" ? ctx : ctx.of("tenant");
+
   return `exists (select 1 from ${t.table("memberships")} sm where sm.${t.col("memberships", "tenant")} = ${tenant} and sm.${t.col("memberships", "user")} = ${user} and sm.${column} is not null)`;
 }
 
@@ -407,6 +435,7 @@ export function disabledHelpers(ctx: ModuleContext): string {
   const id = ctx.idType;
   const organizations = managedOrganizations(ctx);
   let tenantCheck = "false";
+
   if (disabled.tenant !== undefined) {
     tenantCheck = disabledCheck(
       "blocks.access.disabled.tenant",
@@ -416,6 +445,7 @@ export function disabledHelpers(ctx: ModuleContext): string {
   } else if (organizations) {
     tenantCheck = `exists (select 1 from ${organizations.table} t where t.${organizations.id} = tenant_disabled.tenant and (${organizations.flags.map((column) => `t.${column} is not null`).join(" or ")}))`;
   }
+
   const userCheck =
     disabled.user === undefined
       ? "false"
@@ -424,6 +454,7 @@ export function disabledHelpers(ctx: ModuleContext): string {
           alias: "u",
           value: "user_disabled.user_id",
         });
+
   return `
 -- Disabled tenants and users get no permissions and no membership claims
 -- (blocks.access.disabled; with the managed organizations module, its
@@ -473,31 +504,41 @@ function disabledCheck(
   },
 ): string {
   const { alias: d, value } = match;
+
   if (typeof config === "string") {
     const ref = columnRef(where, config);
+
     return `exists (select 1 from ${ref.table} ${d} where ${d}.${match.key} = ${value} and ${d}.${ref.column} is not null)`;
   }
+
   const parts = config.table.split(".");
+
   if (parts.length !== 2 || parts.some((part) => part.length === 0)) {
     throw new TypeError(
       `${where}.table must be "schema.table", got "${config.table}"`,
     );
   }
+
   const active = [`${d}.${sqlIdent(config.id)} = ${value}`];
+
   if (config.disabledAt !== undefined) {
     active.push(`${d}.${sqlIdent(config.disabledAt)} is null`);
   }
+
   if (config.status !== undefined) {
     if (!config.active || config.active.length === 0) {
       throw new TypeError(`${where}.status needs the active values in active`);
     }
+
     active.push(
       `${d}.${sqlIdent(config.status)}::text in (${config.active.map(sqlString).join(", ")})`,
     );
   }
+
   if (config.disabledAt === undefined && config.status === undefined) {
     throw new TypeError(`${where} needs disabledAt, status or both`);
   }
+
   return `not exists (select 1 from ${parts.map((part) => sqlIdent(part)).join(".")} ${d} where ${active.join(" and ")})`;
 }
 
@@ -509,9 +550,11 @@ function disabledCheck(
  */
 export function accessDefinesDisabledHelpers(ctx: ModuleContext): boolean {
   const access = ctx.modules.access;
+
   if (!ctx.installed("access") && access === undefined) {
     return false;
   }
+
   return (access?.mode ?? "managed") !== "custom";
 }
 
@@ -533,16 +576,21 @@ function managedOrganizations(ctx: ModuleContext):
   if (!ctx.installed("organizations")) {
     return undefined;
   }
+
   const organizations = ctx.of("organizations");
+
   if (!organizations.manages) {
     return undefined;
   }
+
   const flags = ["disabledAt", "deletedAt"]
     .filter((logical) => organizations.has("organizations", logical))
     .map((logical) => organizations.col("organizations", logical));
+
   if (flags.length === 0) {
     return undefined;
   }
+
   return {
     table: organizations.table("organizations"),
     id: organizations.col("organizations", "id"),
@@ -602,10 +650,12 @@ export interface JsonSchemaCheck {
 /** FNV-1a, as 8 hex digits: a stable suffix that keeps two names apart. */
 function shortHash(text: string): string {
   let hash = 0x81_1c_9d_c5;
+
   for (let index = 0; index < text.length; index += 1) {
     hash ^= text.codePointAt(index) ?? 0;
     hash = Math.imul(hash, 0x01_00_01_93) >>> 0;
   }
+
   return hash.toString(16).padStart(8, "0");
 }
 
@@ -624,7 +674,9 @@ export function ensureCheck(
   const marker = sqlString(
     `better-supabase check ${shortHash(`${expression}|${options.notValid === true}`)}`,
   );
+
   const constraint = sqlIdent(name);
+
   return `do $$
 begin
   if coalesce(obj_description((
@@ -647,15 +699,19 @@ $$;`;
  */
 function jsonCheckName(check: JsonSchemaCheck): string {
   const base = `bs_json_${check.column}`;
+
   if (!check.where) {
     return base.slice(0, 63);
   }
+
   const key = check.where.value;
   const clean = key.replaceAll(/[^a-z0-9_]/gi, "_");
   const plain = `${base}_${clean}`;
+
   if (clean === key && plain.length <= 63) {
     return plain;
   }
+
   return `${plain.slice(0, 54)}_${shortHash(key)}`;
 }
 
@@ -663,14 +719,17 @@ export function jsonSchemaChecks(checks: readonly JsonSchemaCheck[]): string {
   if (checks.length === 0) {
     return "";
   }
+
   const statements = checks.map((check) => {
     const target = quotedTable(check.table);
     const name = sqlIdent(jsonCheckName(check));
     const schemaText = sqlString(JSON.stringify(check.schema));
     const matches = `extensions.jsonb_matches_schema(${schemaText}::json, ${sqlIdent(check.column)})`;
+
     const columns = check.where
       ? `${sqlIdent(check.column)}, ${sqlIdent(check.where.column)}`
       : sqlIdent(check.column);
+
     const args = [
       sqlString(check.column),
       schemaText,
@@ -678,6 +737,7 @@ export function jsonSchemaChecks(checks: readonly JsonSchemaCheck[]): string {
         ? [sqlString(check.where.column), sqlString(check.where.value)]
         : []),
     ].join(", ");
+
     return [
       `alter table ${target} drop constraint if exists ${name};`,
       `alter table ${target} add constraint ${name}`,
@@ -688,6 +748,7 @@ export function jsonSchemaChecks(checks: readonly JsonSchemaCheck[]): string {
       `  for each row execute function better_supabase.check_json_schema(${args});`,
     ].join("\n");
   });
+
   return `\n-- config.json schemas
 -- Each check is added not valid and validated separately. On a large table,
 -- move the validate statements to a later migration: adding a not valid check
@@ -890,10 +951,12 @@ export function recordTrigger(
 ): string {
   const fn = ctx.fn(options.name);
   const trigger = ctx.trigger(options.name);
+
   if (options.written === NOTHING && options.removed === NOTHING) {
     return `drop trigger if exists ${trigger} on ${options.table};
 drop function if exists ${fn}();`;
   }
+
   return `create or replace function ${fn}()
 returns trigger
 language plpgsql

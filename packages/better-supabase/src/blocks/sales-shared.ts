@@ -54,12 +54,14 @@ export const plainDate = (value: unknown): Temporal.PlainDate | undefined =>
 export function refOf(type: unknown, id: unknown): RecordRef | undefined {
   const t = optionalText(type);
   const i = optionalText(id);
+
   return t === undefined || i === undefined ? undefined : { type: t, id: i };
 }
 
 export function lineOf(value: unknown): Line {
   const row = recordOf(value, "line");
   const product = recordOf(row["product"] ?? {}, "line product");
+
   return compact<Line>({
     description: textOf(row["description"]),
     quantity: Number(row["quantity"] ?? 1),
@@ -74,6 +76,7 @@ export function lineOf(value: unknown): Line {
 export function totalsOf(row: Record<string, unknown>, camel: boolean): Totals {
   const key = (snake: string, camelKey: string): unknown =>
     camel ? row[camelKey] : row[snake];
+
   return {
     listTotal: big(key("list_total", "listTotal")),
     discountTotal: big(key("discount_total", "discountTotal")),

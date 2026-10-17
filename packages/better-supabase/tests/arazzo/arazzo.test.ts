@@ -136,6 +136,7 @@ describe("defineWorkflow", () => {
         { id: "wait", channel: { id: "tableCustomers", action: "receive" } },
       ],
     });
+
     expect(workflow.steps[0]).toMatchObject({
       workflowId: "other",
       parameters: [
@@ -268,6 +269,7 @@ describe("arazzoFormat: findings", () => {
       }),
       authWorkflow({ call: "missing", signIn: "alsoMissing", id: "auth" }),
     ]);
+
     expect(codes(diagnostics)).toEqual(
       expect.arrayContaining([
         "arazzo-operation-unknown",
@@ -298,6 +300,7 @@ describe("arazzoFormat: findings", () => {
         ],
       }),
     ];
+
     const v10 = render(workflows, "1.0", { events: {} });
     expect(codes(v10.diagnostics)).toContain("arazzo-channel-step-unsupported");
     expect(v10.document.workflows[0]?.steps.map((each) => each.stepId)).toEqual(
@@ -326,6 +329,7 @@ describe("arazzoFormat: findings", () => {
       openapi: { name: "rest", url: "https://api.test/openapi.json" },
       asyncapi: { name: "rt", url: "https://api.test/asyncapi.json" },
     });
+
     const { document } = defineApi(betterSupabase, {
       info,
       events: {},
@@ -338,6 +342,7 @@ describe("arazzoFormat: findings", () => {
         }),
       ],
     }).render(format, { version: "1.1" });
+
     expect(document.sourceDescriptions).toEqual([
       { name: "rt", url: "https://api.test/asyncapi.json", type: "asyncapi" },
     ]);
@@ -362,6 +367,7 @@ describe("arazzoFormat: findings", () => {
         ],
       }),
     ];
+
     const v10 = render(workflows);
     expect(codes(v10.diagnostics)).toEqual([
       "arazzo-action-parameters-unsupported",
@@ -381,6 +387,7 @@ describe("arazzoFormat: findings", () => {
     const { document } = render([onboarding], "1.0", {
       self: "https://api.test/openapi.json",
     });
+
     expect(document.sourceDescriptions[0]?.url).toBe(
       "https://api.test/openapi.json",
     );
@@ -390,6 +397,7 @@ describe("arazzoFormat: findings", () => {
 describe("arazzoFormat: lint", () => {
   const lint = (doc: unknown) =>
     codes(arazzoFormat.lint?.(doc as AnyArazzoDocument, "1.0") ?? []);
+
   const base = (workflows: Json[]): Json => ({
     arazzo: SPEC_PINS.arazzo10,
     info,
@@ -497,6 +505,7 @@ describe("arazzoFormat: lint", () => {
 describe("createArazzo", () => {
   it("returns the document, with sources from the options", () => {
     const heard: string[] = [];
+
     const doc = createArazzo(betterSupabase, {
       info,
       resources: { customers: {} },
@@ -505,6 +514,7 @@ describe("createArazzo", () => {
       asyncapi: { url: "https://api.test/asyncapi.json" },
       onDiagnostic: (diagnostic) => heard.push(diagnostic.code),
     });
+
     expect(doc.arazzo).toBe(SPEC_PINS.arazzo10);
     expect(doc.sourceDescriptions[0]?.url).toBe(
       "https://api.test/openapi.json",
@@ -523,10 +533,12 @@ describe("createArazzo", () => {
       workflows: [paginationWorkflows({ tables: ["customers"] })],
       transform: ({ version, document }) => {
         expect(version).toBe("1.1");
+
         return { ...document, info: { ...document.info, title: "Changed" } };
       },
       overlays: [],
     });
+
     expect(doc.arazzo).toBe(SPEC_PINS.arazzo11);
     expect(doc.info.title).toBe("Changed");
   });

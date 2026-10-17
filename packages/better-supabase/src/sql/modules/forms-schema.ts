@@ -17,14 +17,17 @@ const definitionInvalid = (errors: string): string =>
 function customFieldResolve(ctx: ModuleContext): string {
   const problem = (message: string): string => `v_problem := ${message};
         exit;`;
+
   if (!ctx.installed("custom-fields")) {
     return `if v_field ? 'customField' then
         ${problem(`format('field %s: customField needs the custom-fields module', v_field ->> 'key')`)}
       end if;`;
   }
+
   const cf = ctx.of("custom-fields");
   const d = (column: string): string => cf.col("definitions", column);
   const o = (column: string): string => cf.col("options", column);
+
   // Managed custom-fields stores only option ids; an adopted options table may exist.
   const options = cf.hasTable("options")
     ? `
@@ -34,6 +37,7 @@ function customFieldResolve(ctx: ModuleContext): string {
           v_custom := v_custom || jsonb_strip_nulls(jsonb_build_object('options', v_options));
         end if;`
     : "";
+
   return `if v_field ? 'customField' then
         select jsonb_strip_nulls(jsonb_build_object('label', d.${d("label")}, 'type', d.${d("type")}, 'required', d.${d("required")}))
           into v_custom
@@ -53,6 +57,7 @@ function customFieldResolve(ctx: ModuleContext): string {
  */
 export function formSchemaFunctions(ctx: ModuleContext): string {
   const fn = (name: string): string => ctx.fn(name);
+
   return `-- The schema of one field's answer. Mirrors fieldSchema in
 -- core/contracts/form-definition.ts.
 create or replace function ${fn("form_field_schema")}(field jsonb)

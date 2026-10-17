@@ -30,6 +30,7 @@ describe.skipIf(!live)("time-tracking", () => {
 
   it("tracks time, locks a submitted week and unlocks it on rejection or reopen", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const owner = await s.user("owner");
       const ada = await s.user("ada");
@@ -45,6 +46,7 @@ describe.skipIf(!live)("time-tracking", () => {
       expect(await time.running(tenant).orThrow()).toBeUndefined();
       const first = await time.start(tenant, { note: "Inbox" }).orThrow();
       expect(first.endedAt).toBeUndefined();
+
       const second = await time
         .start(tenant, {
           subjectType: "project",
@@ -53,6 +55,7 @@ describe.skipIf(!live)("time-tracking", () => {
           rate: 80,
         })
         .orThrow();
+
       const running = await time.running(tenant).orThrow();
       expect(running?.id).toBe(second.id);
       const stopped = await time.stop(tenant).orThrow();
@@ -73,6 +76,7 @@ describe.skipIf(!live)("time-tracking", () => {
           rate: 100,
         })
         .orThrow();
+
       expect(logged.seconds).toBe(7200);
       expect(
         await time
@@ -99,6 +103,7 @@ describe.skipIf(!live)("time-tracking", () => {
           })
           .then(hint),
       ).toBe("TIME_FORBIDDEN");
+
       const internal = await time
         .log(tenant, {
           startedAt: at("2026-10-07T23:00:00Z"),
@@ -106,9 +111,11 @@ describe.skipIf(!live)("time-tracking", () => {
           note: "Release",
         })
         .orThrow();
+
       const edited = await time
         .update(internal.id, { note: null, billable: true, rate: 50 })
         .orThrow();
+
       expect(edited).toMatchObject({ billable: true, rate: 50 });
       expect(edited.note).toBeUndefined();
       expect(
@@ -120,6 +127,7 @@ describe.skipIf(!live)("time-tracking", () => {
       const sheet = await time
         .timesheet(tenant, WEEK.add({ days: 2 }))
         .orThrow();
+
       expect(sheet).toMatchObject({ status: "open", userId: ada.id });
       expect(sheet.week.toString()).toBe("2026-10-05");
       expect(sheet.entries.map((entry) => entry.id)).toEqual([
@@ -131,10 +139,12 @@ describe.skipIf(!live)("time-tracking", () => {
         billableSeconds: 14_400,
         amount: 300,
       });
+
       const grid = toWeeklyGrid(sheet.entries, {
         week: sheet.week,
         timeZone: "UTC",
       });
+
       expect(grid.days.map((day) => day.seconds)).toEqual([
         0, 7200, 3600, 3600, 0, 0, 0,
       ]);
@@ -180,13 +190,17 @@ describe.skipIf(!live)("time-tracking", () => {
       await s.value("better_supabase.decide_approval($1, 'approved')", [
         again.approvalId,
       ]);
+
       const everyone = await time
         .list(tenant, { everyone: true, subjectId: "apollo" })
         .orThrow();
+
       expect(everyone.map((entry) => entry.id)).toEqual([second.id, logged.id]);
+
       const approved = await time
         .timesheets(tenant, { userId: ada.id })
         .orThrow();
+
       expect(approved.map((row) => row.status)).toEqual(["approved"]);
       expect(approved[0]?.approvedAt).toBeDefined();
 
@@ -233,6 +247,7 @@ describe.skipIf(!live)("time-tracking", () => {
 
   it("records time and timesheet events", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const owner = await s.user("owner");
       const ada = await s.user("ada");
@@ -240,12 +255,14 @@ describe.skipIf(!live)("time-tracking", () => {
       const tenant = await s.organization(owner, { member: ada });
       const time = createTimeTracking({ transport: sqlTransport(s.sql) });
       await s.as(ada);
+
       const entry = await time
         .log(tenant, {
           startedAt: at("2026-10-06T09:00:00Z"),
           endedAt: at("2026-10-06T10:00:00Z"),
         })
         .orThrow();
+
       await time.update(entry.id, { billable: true }).orThrow();
       const sheet = await time.submit(tenant, WEEK).orThrow();
       await s.as(owner);
@@ -255,10 +272,12 @@ describe.skipIf(!live)("time-tracking", () => {
       await time.reopen(sheet.id!).orThrow();
       await s.as(ada);
       await time.remove(entry.id).orThrow();
+
       const events = await s.rows<{ type: string }>(
         "select type from better_supabase.outbox_events where organization_id = $1 and (type like 'time_entry.%' or type like 'timesheet.%') order by position",
         [tenant],
       );
+
       expect(events.map((row) => row.type)).toEqual([
         "time_entry.recorded",
         "time_entry.updated",
@@ -274,6 +293,7 @@ describe.skipIf(!live)("time-tracking", () => {
 
   it("rolls tracked seconds up by the day each entry started", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const owner = await s.user("owner");
       const ada = await s.user("ada");
@@ -290,22 +310,28 @@ describe.skipIf(!live)("time-tracking", () => {
           billable: true,
         })
         .orThrow();
+
       const moved = await time
         .log(tenant, {
           startedAt: at("2026-10-07T09:00:00Z"),
           endedAt: at("2026-10-07T09:30:00Z"),
         })
         .orThrow();
+
       await time.start(tenant).orThrow();
 
       await s.service();
+
       const metrics = createMetrics({
         transport: sqlTransport(s.sql),
         metrics: timeTrackingMetrics(),
       });
+
       let relayed = 0;
+
       const relay = async () => {
         await s.service();
+
         const events = await s.rows<{
           type: string;
           payload: unknown;
@@ -314,6 +340,7 @@ describe.skipIf(!live)("time-tracking", () => {
           "select type, payload, created_at from better_supabase.outbox_events where organization_id = $1 and type like 'time_entry.%' order by position offset $2",
           [tenant, relayed],
         );
+
         relayed += events.length;
         await metricsSink(metrics, {
           on: TIME_TRACKING_METRIC_EVENTS,
@@ -329,16 +356,20 @@ describe.skipIf(!live)("time-tracking", () => {
           })),
         );
       };
+
       await relay();
 
       await s.as(owner);
+
       const week = {
         from: at("2026-10-05T00:00:00Z"),
         until: at("2026-10-12T00:00:00Z"),
       };
+
       const series = await metrics
         .series("time_tracked", week, { organizationId: tenant, grain: "day" })
         .orThrow();
+
       expect(series.points.slice(1, 3).map((p) => p.value)).toEqual([
         5400, 1800,
       ]);
@@ -360,9 +391,11 @@ describe.skipIf(!live)("time-tracking", () => {
         .orThrow();
       await relay();
       await s.as(owner);
+
       const after = await metrics
         .series("time_tracked", week, { organizationId: tenant, grain: "day" })
         .orThrow();
+
       expect(after.points.slice(1, 5).map((p) => p.value)).toEqual([
         5400, 0, 0, 1800,
       ]);

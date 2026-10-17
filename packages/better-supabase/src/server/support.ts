@@ -207,6 +207,7 @@ const invalid = (message: string, code: string): DbError =>
 
 function storeError(cause: unknown): DbError {
   const raw = fromPgError(cause);
+
   return raw ? mapDbError(raw) : toDbError(cause);
 }
 
@@ -258,6 +259,7 @@ function createSupport(
     temporal !== undefined && options.store.withTemporal
       ? options.store.withTemporal(temporal)
       : options.store;
+
   const policy = options.policy ?? {};
   const ttl = policy.ttl ?? 1800;
   const maxTtl = policy.maxTtl ?? 14_400;
@@ -282,9 +284,11 @@ function createSupport(
     if (options.claims) {
       return options.claims(targetUserId);
     }
+
     if (store.claims) {
       return store.claims(targetUserId);
     }
+
     return { role: "authenticated" };
   };
 
@@ -293,19 +297,23 @@ function createSupport(
     string,
     Readonly<Record<string, unknown>>
   >({ max: CLAIMS_CACHE_SIZE });
+
   const cachedTargetClaims = async (
     session: SupportSession,
   ): Promise<Readonly<Record<string, unknown>>> => {
     const cached = claimsCache.get(session.id);
+
     if (cached) {
       return cached;
     }
+
     const claims = await targetClaims(store, session.targetUserId);
     claimsCache.set(
       session.id,
       claims,
       Math.min(session.expiresAt.epochMilliseconds, Date.now() + CLAIMS_TTL_MS),
     );
+
     return claims;
   };
 
@@ -321,21 +329,25 @@ function createSupport(
         "SUPPORT_NESTED",
       );
     }
+
     if (request.targetUserId === admin.user.id) {
       return invalid(
         "An admin cannot start a support session as themselves",
         "SUPPORT_SELF",
       );
     }
+
     if ((policy.requireReason ?? true) && reason === "") {
       return invalid("A reason is required", "SUPPORT_REASON_REQUIRED");
     }
+
     if (!Number.isFinite(seconds) || seconds <= 0 || seconds > maxTtl) {
       return invalid(
         `ttl must be between 1 and ${String(maxTtl)} seconds`,
         "SUPPORT_TTL",
       );
     }
+
     return;
   };
 
@@ -349,9 +361,11 @@ function createSupport(
     if (authorize === undefined) {
       return false;
     }
+
     if (authorize === "store") {
       return true;
     }
+
     try {
       return await authorize(input);
     } catch {
@@ -364,9 +378,11 @@ function createSupport(
     request: SupportRequest,
   ): Promise<boolean> => {
     const approverOf = authorization?.approverOf;
+
     if (approverOf === undefined) {
       return true;
     }
+
     try {
       return await approverOf(
         { userId: approver.user.id, claims: approver.claims },
@@ -392,6 +408,7 @@ function createSupport(
   ): Promise<SupportRequest | undefined> => {
     const tenant =
       request.tenant === undefined ? {} : { tenant: request.tenant };
+
     if (approvedBy !== undefined) {
       return store.request?.({
         adminId: admin.user.id,
@@ -404,6 +421,7 @@ function createSupport(
         approvedBy,
       });
     }
+
     return store.approvedRequest?.({
       adminId: admin.user.id,
       targetUserId: request.targetUserId,
@@ -430,12 +448,15 @@ function createSupport(
           ),
         );
       }
+
       let expired: readonly SupportSession[];
+
       try {
         expired = await store.expire();
       } catch (cause) {
         return err(storeError(cause));
       }
+
       for (const session of expired) {
         emit("support.ended", {
           sessionId: session.id,
@@ -448,6 +469,7 @@ function createSupport(
             : { organizationId: session.tenant }),
         });
       }
+
       return ok(expired);
     });
 
@@ -455,12 +477,15 @@ function createSupport(
     if (options.sessionId) {
       try {
         const id = options.sessionId(request);
+
         return id === "" ? undefined : id;
       } catch (cause) {
         events.logger.warn("support.sessionId threw", { cause });
+
         return;
       }
     }
+
     return supportCookieValue(request.headers.get("cookie"), cookieName);
   };
 
@@ -471,42 +496,55 @@ function createSupport(
     if (auth.kind !== "user") {
       return;
     }
+
     // A support session's own token never nests another one.
     if (auth.claims["act"] !== undefined) {
       return;
     }
+
     if (!id) {
       return;
     }
+
     let session: SupportSession | undefined;
     let claims: Readonly<Record<string, unknown>>;
+
     try {
       session = await store.get(id, auth.user.id, auth.claims);
+
       if (!session || session.expiresAt.epochMilliseconds <= Date.now()) {
         return;
       }
+
       if (policy.readOnly !== "default" && !session.readOnly) {
         session = { ...session, readOnly: true };
       }
+
       claims = supportClaims(session, await cachedTargetClaims(session));
     } catch (cause) {
       // The admin keeps their own view; a store outage never widens access.
       events.logger.warn("Could not load the support session", { cause });
+
       return;
     }
+
     if (claimsSchema) {
       const checked = await validate(claimsSchema, claims, "claims");
+
       if (!checked.ok) {
         events.logger.warn(
           "The support target's claims fail the claims schema",
           { sessionId: session.id },
         );
+
         return;
       }
+
       if (typeof checked.data === "object" && checked.data !== null) {
         claims = { ...claims, ...checked.data };
       }
     }
+
     return {
       session,
       admin: {
@@ -528,6 +566,7 @@ function createSupport(
         },
         async (_request, instance) => {
           const result = await expire();
+
           return result.ok
             ? Response.json({ expired: result.data.length })
             : problemResponse(result.error, {
@@ -543,10 +582,13 @@ function createSupport(
             dbError("unauthorized", "Sign in to start a support session"),
           );
         }
+
         const reason = request.reason?.trim() ?? "";
         const seconds = request.ttl ?? ttl;
+
         const readOnly =
           policy.readOnly === "default" ? (request.readOnly ?? true) : true;
+
         const deny = (
           error: DbError,
           denial: NonNullable<SupportEventData["denial"]>,
@@ -557,14 +599,19 @@ function createSupport(
             ...(reason ? { reason } : {}),
             denial,
           });
+
           return err(error);
         };
+
         const violation = checkPolicy(admin, request, reason, seconds);
+
         if (violation) {
           return deny(violation, "policy");
         }
+
         const tenant =
           request.tenant === undefined ? {} : { tenant: request.tenant };
+
         const input: SupportAuthorizeInput = {
           admin,
           targetUserId: request.targetUserId,
@@ -573,18 +620,25 @@ function createSupport(
           ...tenant,
           metadata: request.metadata ?? {},
         };
+
         const decision = await decide(input);
+
         if (decision === false) {
           return deny(forbidden(), "authorize");
         }
+
         const approvedBy =
           typeof decision === "object" ? decision.approvedBy : undefined;
+
         if (approvedBy === admin.user.id) {
           return deny(selfApproval(), "authorize");
         }
+
         let requestId: string | undefined;
+
         if (approval === "distinct") {
           let approved: SupportRequest | undefined;
+
           try {
             approved = await approvedRequest(
               admin,
@@ -595,8 +649,10 @@ function createSupport(
             );
           } catch (cause) {
             const error = storeError(cause);
+
             return deny(error, error.code === "42501" ? "permission" : "store");
           }
+
           if (approved === undefined || approved.approvedBy === admin.user.id) {
             return deny(
               denied(
@@ -606,9 +662,12 @@ function createSupport(
               "policy",
             );
           }
+
           requestId = approved.id;
         }
+
         let session: SupportSession;
+
         try {
           session = await store.start({
             adminId: admin.user.id,
@@ -623,8 +682,10 @@ function createSupport(
           });
         } catch (cause) {
           const error = storeError(cause);
+
           return deny(error, error.code === "42501" ? "permission" : "store");
         }
+
         emit("support.started", {
           sessionId: session.id,
           adminId: session.adminId,
@@ -633,6 +694,7 @@ function createSupport(
           readOnly: session.readOnly,
           expiresAt: session.expiresAt,
         });
+
         return ok({ session, cookie: supportCookie(session, options.cookie) });
       });
     },
@@ -644,19 +706,24 @@ function createSupport(
             dbError("unauthorized", "Sign in to ask for a support session"),
           );
         }
+
         const reason = request.reason?.trim() ?? "";
+
         const violation = checkPolicy(
           admin,
           request,
           reason,
           request.ttl ?? ttl,
         );
+
         if (violation) {
           return err(violation);
         }
+
         if (!store.request) {
           return err(noApprovals());
         }
+
         try {
           return ok(
             await store.request({
@@ -687,6 +754,7 @@ function createSupport(
             dbError("unauthorized", "Sign in to approve a support session"),
           );
         }
+
         if (approver.claims["act"] !== undefined) {
           return err(
             denied(
@@ -695,11 +763,14 @@ function createSupport(
             ),
           );
         }
+
         if (!store.approve || !store.getRequest) {
           return err(noApprovals());
         }
+
         try {
           const found = await store.getRequest(requestId);
+
           if (!found) {
             return err(
               dbError("not_found", "No such support request", {
@@ -707,9 +778,11 @@ function createSupport(
               }),
             );
           }
+
           if (found.adminId === approver.user.id) {
             return err(selfApproval());
           }
+
           if (authorization?.approverOf === undefined) {
             return ok(
               await store.approve(requestId, {
@@ -718,6 +791,7 @@ function createSupport(
               }),
             );
           }
+
           if (!(await mayApprove(approver, found))) {
             return err(
               denied(
@@ -726,6 +800,7 @@ function createSupport(
               ),
             );
           }
+
           return ok(await store.approve(requestId, { id: approver.user.id }));
         } catch (cause) {
           return err(storeError(cause));
@@ -736,21 +811,26 @@ function createSupport(
     stop(admin, sessionId) {
       return AsyncResult.from(async () => {
         const cookie = clearSupportCookie(options.cookie);
+
         if (admin.kind !== "user") {
           return err(
             dbError("unauthorized", "Sign in to stop a support session"),
           );
         }
+
         try {
           const session = await store.get(
             sessionId,
             admin.user.id,
             admin.claims,
           );
+
           if (!session) {
             return ok({ ended: false, cookie });
           }
+
           const ended = await store.end(sessionId, "admin", admin.claims);
+
           if (ended) {
             emit("support.ended", {
               sessionId,
@@ -759,6 +839,7 @@ function createSupport(
               endedBy: "admin",
             });
           }
+
           return ok({ ended, cookie });
         } catch (cause) {
           return err(storeError(cause));
@@ -773,6 +854,7 @@ function createSupport(
             dbError("unauthorized", "Sign in to revoke a support session"),
           );
         }
+
         try {
           return ok(await store.end(sessionId, "revoked", caller.claims));
         } catch (cause) {
@@ -783,6 +865,7 @@ function createSupport(
 
     async current(request, auth) {
       const id = sessionIdOf(request);
+
       return id ? resolve(id, auth) : undefined;
     },
 
@@ -795,6 +878,7 @@ function createSupport(
             dbError("unauthorized", "Sign in to list support sessions"),
           );
         }
+
         try {
           return ok(await store.list(filter, caller.claims));
         } catch (cause) {

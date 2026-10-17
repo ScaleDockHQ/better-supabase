@@ -106,14 +106,17 @@ export function memoryStorage(
   initial: Readonly<Record<string, string>> = {},
 ): StoragePort {
   const values = new Map(Object.entries(initial));
+
   return {
     get: (key) => Promise.resolve(values.get(key) ?? null),
     set: (key, value) => {
       values.set(key, value);
+
       return Promise.resolve();
     },
     remove: (key) => {
       values.delete(key);
+
       return Promise.resolve();
     },
   };
@@ -127,15 +130,18 @@ export function storageUpload(
     AsyncResult.from(async () => {
       try {
         const body = await file.read();
+
         const { data, error } = await supabase.storage
           .from(to.bucket)
           .upload(to.path, body, {
             ...(file.type === undefined ? {} : { contentType: file.type }),
             ...(to.upsert === undefined ? {} : { upsert: to.upsert }),
           });
+
         if (error) {
           return err(fromStorageError(error, to.bucket));
         }
+
         return ok({ path: data.path });
       } catch (cause) {
         return err(fromStorageError(cause, to.bucket));

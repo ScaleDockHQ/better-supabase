@@ -66,6 +66,7 @@ function overlaps(
   range: OccurrenceRange,
 ): boolean {
   const time = temporal();
+
   return (
     time.Instant.compare(start, range.until) < 0 &&
     (time.Instant.compare(end, range.from) > 0 ||
@@ -87,10 +88,13 @@ export function expandOccurrences(
   options: OccurrenceOptions = {},
 ): CalendarOccurrence[] {
   const time = temporal();
+
   const keep = (event: CalendarEvent) =>
     options.includeCancelled === true || event.status !== "cancelled";
+
   const series = new Map<string, CalendarEvent>();
   const overrides = new Map<string, CalendarEvent>();
+
   for (const event of events) {
     if (event.recurrenceId !== undefined && event.originalStart !== undefined) {
       overrides.set(keyOf(event.recurrenceId, event.originalStart), event);
@@ -98,10 +102,13 @@ export function expandOccurrences(
       series.set(event.id, event);
     }
   }
+
   const found: CalendarOccurrence[] = [];
+
   for (const event of events) {
     if (event.recurrenceId !== undefined) {
       const master = series.get(event.recurrenceId);
+
       if (
         event.originalStart !== undefined &&
         keep(event) &&
@@ -118,8 +125,10 @@ export function expandOccurrences(
           recurring: true,
         });
       }
+
       continue;
     }
+
     if (event.rrule === undefined) {
       if (keep(event) && overlaps(event.startsAt, event.endsAt, range)) {
         found.push({
@@ -132,35 +141,47 @@ export function expandOccurrences(
           recurring: false,
         });
       }
+
       continue;
     }
+
     if (!keep(event)) {
       continue;
     }
+
     const zoned = event.startsAt.toZonedDateTimeISO(event.tz);
+
     const length = zoned.until(event.endsAt.toZonedDateTimeISO(event.tz), {
       largestUnit: event.allDay ? "days" : "hours",
     });
+
     const reach = event.endsAt.since(event.startsAt).add({ hours: 25 });
+
     const skipped = new Set(
       event.exdates.map((date) => date.epochMilliseconds),
     );
+
     for (const when of expandRule({
       dtstart: zoned,
       rrule: event.rrule,
       window: { from: range.from.subtract(reach), until: range.until },
     })) {
       const start = when.toInstant();
+
       if (skipped.has(start.epochMilliseconds)) {
         continue;
       }
+
       if (overrides.has(keyOf(event.id, start))) {
         continue;
       }
+
       const end = when.add(length).toInstant();
+
       if (!overlaps(start, end, range)) {
         continue;
       }
+
       found.push({
         key: keyOf(event.id, start),
         event,
@@ -173,6 +194,7 @@ export function expandOccurrences(
       });
     }
   }
+
   return found.toSorted(
     (a, b) =>
       time.Instant.compare(a.start, b.start) || a.key.localeCompare(b.key),
@@ -189,12 +211,15 @@ export interface SplitRules {
 
 function ruleParts(rrule: string): Map<string, string> {
   const parts = new Map<string, string>();
+
   for (const part of rrule.replace(/^RRULE:/i, "").split(";")) {
     const [key, value] = part.split("=");
+
     if (key !== undefined && key !== "" && value !== undefined) {
       parts.set(key.toUpperCase(), value);
     }
   }
+
   return parts;
 }
 
@@ -213,9 +238,11 @@ export function splitRule(
 ): SplitRules {
   const parts = ruleParts(rrule);
   const time = temporal();
+
   if (time.Instant.compare(at, dtstart.toInstant()) <= 0) {
     throw new RangeError("splitRule: at must come after the first occurrence");
   }
+
   const before = new Map(parts);
   before.delete("COUNT");
   const until = at.subtract({ seconds: 1 }).toZonedDateTimeISO("UTC");
@@ -225,6 +252,7 @@ export function splitRule(
   );
   const after = new Map(parts);
   const count = parts.get("COUNT");
+
   if (count !== undefined) {
     const used = expandRule({
       dtstart,
@@ -232,13 +260,17 @@ export function splitRule(
       window: { from: dtstart.toInstant(), until: at },
       limit: Number(count),
     }).length;
+
     const left = Number(count) - used;
+
     if (left <= 0) {
       throw new RangeError(
         "splitRule: the series has no occurrence at or after at",
       );
     }
+
     after.set("COUNT", String(left));
   }
+
   return { before: joinRule(before), after: joinRule(after) };
 }

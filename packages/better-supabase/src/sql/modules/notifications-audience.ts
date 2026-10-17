@@ -17,24 +17,31 @@ export function permissionAudience(
   layout: ModuleLayout,
 ): string {
   const named = "nullif(notification ->> 'permission', '')";
+
   const unavailable = `
   if ${named} is not null then
     ${fail("NOTIFICATION_PERMISSION_AUDIENCE_UNAVAILABLE", "This project has no permission audience", "0A000")}
   end if;`;
+
   const needsTenant = `
   if ${named} is not null and v_tenant is null then
     ${fail("NOTIFICATION_PERMISSION_NEEDS_TENANT", "A permission audience needs a tenant", "22023")}
   end if;`;
+
   const model = accessModel(ctx);
+
   if (model === "provider") {
     return providerAudience(layout, needsTenant, unavailable, named);
   }
+
   if (model === "custom") {
     return customAudience(ctx, needsTenant, unavailable, named);
   }
+
   if (!ctx.installed("tenant")) {
     return unavailable;
   }
+
   return membershipAudience(ctx, model, needsTenant, named);
 }
 
@@ -45,18 +52,23 @@ function providerAudience(
   named: string,
 ): string {
   const provider = layout.accessProvider;
+
   if (provider === undefined) {
     return unavailable;
   }
+
   const template = provider.functions.holdersOf;
+
   if (template === undefined) {
     return unavailable;
   }
+
   const call = fillTemplate("authorization.functions.holdersOf", template, {
     permission: "(notification ->> 'permission')",
     tenant: "v_tenant",
     scope: provider.scope,
   });
+
   return audienceAppend(needsTenant, named, call);
 }
 
@@ -67,13 +79,16 @@ function customAudience(
   named: string,
 ): string {
   const template = ctx.modules.access?.functions?.holdersOf;
+
   if (template === undefined) {
     return unavailable;
   }
+
   const call = fillTemplate("blocks.access.functions.holdersOf", template, {
     permission: "(notification ->> 'permission')",
     tenant: "v_tenant",
   });
+
   return audienceAppend(needsTenant, named, call);
 }
 
@@ -87,6 +102,7 @@ function membershipAudience(
   const user = members.col("memberships", "user");
   const tenant = members.col("memberships", "tenant");
   let platform = "";
+
   if (
     model === "catalog" &&
     ctx.installed("access") &&
@@ -100,6 +116,7 @@ function membershipAudience(
       from ${access.table("platformAssignments")} a
       where coalesce(better_supabase.platform_can(a.${holder}, notification ->> 'permission'), false)`;
   }
+
   return `${needsTenant}
   if ${named} is not null then
     v_recipients := v_recipients || coalesce(array(
@@ -131,18 +148,22 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 /** A channel nobody chose is on for `in_app` and off for the rest, unless `channelDefaults` says otherwise. */
 export function channelDefaults(ctx: ModuleContext, channel: string): string {
   const value = ctx.option("channelDefaults") ?? {};
+
   if (!isRecord(value)) {
     throw new TypeError(
       "blocks.notifications.options.channelDefaults must map channel names to booleans",
     );
   }
+
   const cases = Object.entries(value).map(([channel, enabled]) => {
     if (!NAME.test(channel) || typeof enabled !== "boolean") {
       throw new TypeError(
         `blocks.notifications.options.channelDefaults.${channel} must be a boolean`,
       );
     }
+
     return `when ${sqlString(channel)} then ${String(enabled)}`;
   });
+
   return `case ${channel} ${[...cases, "when 'in_app' then true"].join(" ")} else false end`;
 }

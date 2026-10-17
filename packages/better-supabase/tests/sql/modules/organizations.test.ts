@@ -43,6 +43,7 @@ describe("organizations module", () => {
     const sql = renderModules(["organizations", "invitations"], {
       modules: { invitations: {} },
     }).find((file) => file.module === "organizations")!.contents;
+
     expect(sql).toContain(
       'function "better_supabase"."list_my_organizations"()',
     );
@@ -62,6 +63,7 @@ describe("organizations module", () => {
         columns: { roles: { tenant: "organization_id", scope: null } },
       },
     });
+
     expect(sql).toContain(
       `(select r."id" from "public"."roles" r where (r."id"::text = (role)::text or r."key" = (role)::text) and (r."organization_id" = organization or r."organization_id" is null) order by (r."id"::text = (role)::text) desc, (r."organization_id" is not null) desc limit 1)`,
     );
@@ -79,6 +81,7 @@ describe("organizations module", () => {
         },
       },
     });
+
     expect(sql).toContain(
       "and not coalesce(better_supabase.is_platform('platform.members.update_role'), false) then\n    raise exception 'Not allowed to change roles'",
     );
@@ -94,6 +97,7 @@ describe("organizations module", () => {
       }).find(
         (file) => file.module === "organizations" && file.kind === "schema",
       )!.contents;
+
     expect(audited({})).toContain(
       "event_type => 'organization.deleted',\n    category => 'configuration',",
     );
@@ -101,11 +105,13 @@ describe("organizations module", () => {
     const legacy = audited({ auditCategory: "tenancy" });
     expect(legacy).toContain("category => 'tenancy',");
     expect(legacy).not.toContain("category => 'membership',");
+
     const optedOut = renderModules(["organizations", "audit"], {
       modules: { organizations: { audit: false } },
     }).find(
       (file) => file.module === "organizations" && file.kind === "schema",
     )!.contents;
+
     expect(optedOut).not.toContain("audit_event(");
   });
 
@@ -115,6 +121,7 @@ describe("organizations module", () => {
     }).find(
       (file) => file.module === "organizations" && file.kind === "schema",
     )!.contents;
+
     expect(lifecycle).toContain(
       'perform "better_supabase"."request_organization_deletion"(organization);',
     );
@@ -215,6 +222,7 @@ describe("organizations module", () => {
         },
       },
     });
+
     expect(soft).toContain('set "deleted_at" = now()');
     expect(soft).not.toContain("bs_organization_owner");
     expect(soft).toContain("guard_membership");
@@ -243,6 +251,7 @@ describe("organizations module", () => {
         options: { extraColumns: { plan: "text not null default 'free'" } },
       },
     });
+
     expect(sql).toContain(
       `alter table "better_supabase"."organizations" add column if not exists "plan" text not null default 'free';`,
     );
@@ -260,6 +269,7 @@ describe("organizations module", () => {
       modules: CENTRAKIT,
       accessProvider: moduleProvider,
     })!;
+
     expect(sql).toContain(
       `jsonb_build_object('website', o."website", 'default_currency', o."default_currency")`,
     );
@@ -283,10 +293,12 @@ describe("organizations module", () => {
         tables: { memberships: "public.team_members" },
       },
     };
+
     const external = body({
       ...adopted,
       organizations: { options: { assignmentGuard: "external" } },
     });
+
     expect(external).not.toContain(
       'create or replace function "better_supabase"."guard_membership"',
     );
@@ -312,6 +324,7 @@ describe("organizations module", () => {
         },
       },
     });
+
     expect(sql).toContain(
       "and not coalesce(better_supabase.is_platform('platform.organization.update'), false)",
     );
@@ -365,17 +378,21 @@ describe("roles through a lookup table", () => {
       `set "role_id" = (select r."id" from "public"."team_roles" r where (r."id"::text = (role)::text or r."key"::text = (role)::text)`,
     );
     expect(sql).toContain("hint = 'ORGANIZATION_ROLE_UNKNOWN'");
+
     const tenant = moduleBody("tenant", {
       modules: THROUGH,
       accessProvider: moduleProvider,
     })!;
+
     expect(tenant).toContain(
       `jsonb_build_array((select r."key"::text from "public"."team_roles" r where r."id"::text = (m."role_id")::text))`,
     );
+
     const invitations = moduleBody("invitations", {
       modules: { ...THROUGH, invitations: { mode: "adopt" } },
       accessProvider: moduleProvider,
     })!;
+
     expect(invitations).toContain(
       `if (select r."id" from "public"."team_roles" r where (r."id"::text = (invitee_role)::text`,
     );
@@ -407,6 +424,7 @@ describe("roles through a lookup table", () => {
 
   it("takes the role lookup from the provider's role sources", () => {
     const { options: _options, ...tenant } = THROUGH["tenant"]!;
+
     const layout = {
       modules: { ...THROUGH, tenant },
       accessProvider: {
@@ -422,6 +440,7 @@ describe("roles through a lookup table", () => {
         ],
       },
     };
+
     expect(moduleBody("tenant", layout)).toContain(
       `from "public"."team_roles" r where r."id"::text = (m."role_id")::text`,
     );

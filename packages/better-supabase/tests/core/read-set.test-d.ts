@@ -21,6 +21,7 @@ const chrome = defineReadSet(
     expectTypeOf(p.organizationId).toEqualTypeOf<string>();
     expectTypeOf(p.kinds).toEqualTypeOf<readonly string[]>();
     expectTypeOf(p.limit).toEqualTypeOf<number>();
+
     return {
       names: s.customers.findMany({
         select: ["id", "name"],
@@ -33,6 +34,7 @@ const chrome = defineReadSet(
 
 const mine = defineReadSet(betterSupabase, "mine", {}, (s, _p, auth) => {
   expectTypeOf(auth.uid).toEqualTypeOf<string>();
+
   return { mine: s.customers.count({ where: { createdBy: auth.uid } }) };
 });
 

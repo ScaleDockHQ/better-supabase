@@ -8,6 +8,7 @@ import { watch } from "../../src/powersync/watch.ts";
 function fakePowerSync(options: { listeners?: boolean } = {}) {
   const status = { connected: true };
   const listeners = new Set<(next: { connected: boolean }) => void>();
+
   const db: PowerSyncDatabaseLike = {
     execute: vi.fn(),
     getAll: vi.fn(),
@@ -22,16 +23,20 @@ function fakePowerSync(options: { listeners?: boolean } = {}) {
           }) => {
             const notify = (next: { connected: boolean }) =>
               listener.statusChanged?.(next);
+
             listeners.add(notify);
+
             return () => void listeners.delete(notify);
           },
         }),
   };
+
   return {
     db,
     listeners,
     setConnected: (connected: boolean) => {
       status.connected = connected;
+
       for (const listener of listeners) {
         listener({ connected });
       }
@@ -42,8 +47,10 @@ function fakePowerSync(options: { listeners?: boolean } = {}) {
 /** A query whose answer changes on every run, so each run calls `onResult`. */
 function counter() {
   let runs = 0;
+
   return vi.fn(async () => {
     runs += 1;
+
     return ok(runs);
   });
 }
@@ -60,11 +67,13 @@ describe("watch refresh", () => {
     const { db, setConnected } = fakePowerSync();
     const query = counter();
     const onResult = vi.fn();
+
     const stop = watch(db, query, {
       tables: ["customers"],
       onResult,
       refresh: { everyMs: 1000 },
     });
+
     await vi.advanceTimersByTimeAsync(0);
     expect(query).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(2000);
@@ -79,11 +88,13 @@ describe("watch refresh", () => {
   it("reruns when PowerSync connects again", async () => {
     const { db, setConnected } = fakePowerSync();
     const query = counter();
+
     const stop = watch(db, query, {
       tables: ["customers"],
       onResult: vi.fn(),
       refresh: { onReconnect: true },
     });
+
     await vi.advanceTimersByTimeAsync(0);
     setConnected(true);
     await vi.advanceTimersByTimeAsync(0);
@@ -98,11 +109,13 @@ describe("watch refresh", () => {
   it("calls no onResult when a refresh returns the same result", async () => {
     const { db } = fakePowerSync();
     const onResult = vi.fn();
+
     const stop = watch(db, async () => ok([{ id: "a" }]), {
       tables: ["customers"],
       onResult,
       refresh: { everyMs: 1000 },
     });
+
     await vi.advanceTimersByTimeAsync(3000);
     expect(onResult).toHaveBeenCalledTimes(1);
     stop();
@@ -113,19 +126,23 @@ describe("watch refresh", () => {
       const { db, listeners } = fakePowerSync();
       const query = counter();
       const controller = new AbortController();
+
       const stop = watch(db, query, {
         tables: ["customers"],
         onResult: vi.fn(),
         signal: controller.signal,
         refresh: { everyMs: 1000, onReconnect: true },
       });
+
       await vi.advanceTimersByTimeAsync(0);
       expect(listeners.size).toBe(1);
+
       if (end === "stop") {
         stop();
       } else {
         controller.abort();
       }
+
       await vi.advanceTimersByTimeAsync(5000);
       expect(query).toHaveBeenCalledTimes(1);
       expect(listeners.size).toBe(0);

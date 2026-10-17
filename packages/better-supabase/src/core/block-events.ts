@@ -723,25 +723,31 @@ export function blockEventAttributes(
   const attributes: Record<string, string> = {
     [BLOCK_ATTRIBUTES.event]: event.type,
   };
+
   if (event.tenant) {
     attributes[BLOCK_ATTRIBUTES.tenant] = event.tenant;
   }
+
   if (event.actorId) {
     attributes[BLOCK_ATTRIBUTES.actor] = event.actorId;
   }
+
   const data: Readonly<Record<string, unknown>> = Object.fromEntries(
     Object.entries(event.data),
   );
+
   const add = (key: string, value: unknown): void => {
     if (typeof value === "string" && value.length > 0) {
       attributes[key] = value;
     }
   };
+
   add(BLOCK_ATTRIBUTES.supportSessionId, data["sessionId"]);
   add(BLOCK_ATTRIBUTES.organizationId, data["organizationId"]);
   add(BLOCK_ATTRIBUTES.invitationId, data["invitationId"]);
   add(BLOCK_ATTRIBUTES.notificationType, data["type"]);
   add(BLOCK_ATTRIBUTES.webhookEndpointId, data["endpointId"]);
+
   return attributes;
 }
 
@@ -757,15 +763,18 @@ export function emitBlockEvent<
   if (!events.has("block")) {
     return;
   }
+
   // SAFETY: cloneValue keeps the shape of plain objects, so the copy is the
   // `M[K]` data it was made from.
   const copy = cloneValue(data) as M[K];
+
   const event: BlockEvent = {
     ...meta,
     type,
     data: copy,
     time: (events.now ?? nowInstant)(),
   };
+
   events.emit("block", event);
 }
 
@@ -797,6 +806,7 @@ export function blockEmitter<M extends EventMap>(
     if (!options.events) {
       return;
     }
+
     emitBlockEvent<M>(options.events, type, data, {
       subject,
       ...(tenant ? { tenant } : {}),
@@ -826,10 +836,12 @@ export function onBlockEvent<
   handler: (event: BlockEvent<M, BlockEventsMatching<M, P>>) => void,
 ): () => void {
   const known = new Set<string>(events.types);
+
   return betterSupabase.events.on("block", (event) => {
     if (!known.has(event.type) || !matches(pattern, event.type)) {
       return;
     }
+
     // SAFETY: `events` lists the type, and matches() checked it against the
     // pattern, so the data is the one `M` declares for it.
     handler(event as BlockEvent<M, BlockEventsMatching<M, P>>);

@@ -49,6 +49,7 @@ describe("withApiKey", () => {
         headers: { "x-api-key": token },
       }),
     );
+
     expect(await response.json()).toMatchObject({
       kind: "apiKey",
       apiKey: { organization_id: ORG, scopes: ["deals:read"] },
@@ -61,21 +62,26 @@ describe("withApiKey", () => {
     const missing = await handler({ status: "ok", key: keyRow })(
       new Request("https://api.test/v1/deals"),
     );
+
     expect(missing.status).toBe(401);
     expect(missing.headers.get("www-authenticate")).toContain("Bearer");
     expect(await missing.json()).toMatchObject({ code: "API_KEY_REQUIRED" });
+
     const invalid = await handler({ status: "invalid" })(
       new Request("https://api.test/v1/deals", {
         headers: { authorization: `Bearer ${token}` },
       }),
     );
+
     expect(invalid.status).toBe(401);
     expect(await invalid.json()).toMatchObject({ code: "INVALID_API_KEY" });
+
     const limited = await handler({ status: "rate_limited", retry_after: 5 })(
       new Request("https://api.test/v1/deals", {
         headers: { "x-api-key": token },
       }),
     );
+
     expect(limited.status).toBe(429);
     expect(limited.headers.get("retry-after")).toBe("5");
   });

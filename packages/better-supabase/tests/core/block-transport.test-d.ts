@@ -11,9 +11,11 @@ import { rpcTransport } from "../../src/core/block-transport.ts";
 describe("rpcTransport", () => {
   it("takes a typed and an untyped supabase-js client without a cast", () => {
     const typed = createClient<Database>("", "");
+
     const ssr = createServerClient<Database>("", "", {
       cookies: { getAll: () => [] },
     });
+
     const untyped = {} as SupabaseClient;
     rpcTransport(typed);
     rpcTransport(ssr);

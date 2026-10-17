@@ -66,6 +66,7 @@ describe("metrics module", () => {
       },
       window: "12 hours",
     });
+
     expect(sql).toContain(
       `coalesce(t."quantity", 0)::numeric as value, 1::bigint as count`,
     );
@@ -89,6 +90,7 @@ describe("metrics module", () => {
         },
       ],
     });
+
     expect(sql).toContain(
       `t."total"::numeric as value, (t."total" is not null)::int::bigint as count`,
     );
@@ -116,6 +118,7 @@ describe("metrics module", () => {
     expect(
       sqlOf({}, { modules: { metrics: { mode: "custom" } } }),
     ).not.toContain("metric_series");
+
     const adopted = sqlOf(
       { metrics: [orders] },
       {
@@ -124,6 +127,7 @@ describe("metrics module", () => {
         },
       },
     );
+
     expect(adopted).not.toContain('"better_supabase"."metric_points"');
     expect(adopted).toContain(`delete from "analytics"."points"`);
   });

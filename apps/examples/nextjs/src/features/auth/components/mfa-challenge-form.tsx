@@ -35,27 +35,35 @@ export function MfaChallengeForm() {
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
   const verify = () => {
     startTransition(async () => {
       const { data: factors } = await supabase.auth.mfa.listFactors();
       const factor = factors?.totp[0];
+
       if (!factor) {
         router.push(safeNext(`/${locale}`));
+
         return;
       }
+
       const { error: verifyError } = await supabase.auth.mfa.challengeAndVerify(
         {
           factorId: factor.id,
           code,
         },
       );
+
       if (verifyError) {
         setError(t("That code didn't work. Try the next one."));
+
         return;
       }
+
       await changeSession(safeNext(`/${locale}`));
     });
   };
+
   return (
     <Card>
       <CardHeader className="text-center">

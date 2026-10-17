@@ -10,6 +10,7 @@ const NOW = Math.floor(Date.now() / 1000);
 async function hmac(header: object, payload: object): Promise<string> {
   const head = toBase64Url(JSON.stringify(header));
   const body = toBase64Url(JSON.stringify(payload));
+
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(SECRET),
@@ -17,11 +18,13 @@ async function hmac(header: object, payload: object): Promise<string> {
     false,
     ["sign"],
   );
+
   const signature = await crypto.subtle.sign(
     "HMAC",
     key,
     new TextEncoder().encode(`${head}.${body}`),
   );
+
   return `${head}.${body}.${toBase64Url(new Uint8Array(signature))}`;
 }
 
@@ -33,10 +36,12 @@ describe("verifyHs256", () => {
       app_metadata: { plan: "pro" },
       user_metadata: { name: "A" },
     });
+
     const result = await verifyHs256(token, SECRET, {
       now: NOW,
       audience: "authenticated",
     });
+
     expect(result).toMatchObject({
       ok: true,
       claims: { sub: "u1", role: "authenticated" },
@@ -112,6 +117,7 @@ describe("verifyHs256", () => {
       now: NOW,
       ...options,
     });
+
     expect(result.ok).toBe(false);
     expect(!result.ok && result.message).toContain(message);
   });
@@ -121,11 +127,13 @@ describe("verifyHs256", () => {
       { alg: "HS256" },
       { sub: "u1", iss: "lite", aud: ["authenticated", "api"] },
     );
+
     const result = await verifyHs256(token, SECRET, {
       now: NOW,
       issuer: ["lite"],
       audience: "api",
     });
+
     expect(result.ok).toBe(true);
   });
 });

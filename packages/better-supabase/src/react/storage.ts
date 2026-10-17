@@ -46,11 +46,13 @@ export function useSignedUrl<T>(
     target === null || target === undefined
       ? null
       : JSON.stringify([target, options]);
+
   const [state, setState] = useState<{
     readonly key: string | null;
     readonly url: string | undefined;
     readonly error: DbError | undefined;
   }>({ key: null, url: undefined, error: undefined });
+
   const latest = useRef({ target, options });
   // oxlint-disable-next-line react/refs -- latest-ref pattern; the react peer range predates useEffectEvent.
   latest.current = { target, options };
@@ -60,29 +62,38 @@ export function useSignedUrl<T>(
     if (key === null) {
       return;
     }
+
     let active = true;
+
     const sign = () => {
       const current = latest.current.target;
+
       if (current === null || current === undefined) {
         return;
       }
+
       void bucket.signedUrl(current, latest.current.options).then((result) => {
         if (!active) {
           return;
         }
+
         if (!result.ok) {
           setState((last) => ({
             key,
             url: last.key === key ? last.url : undefined,
             error: result.error,
           }));
+
           return;
         }
+
         setState({ key, url: result.data, error: undefined });
       });
     };
+
     sign();
     const timer = setInterval(sign, ttl * 1000 * REFRESH_AT);
+
     return () => {
       active = false;
       clearInterval(timer);
@@ -90,6 +101,7 @@ export function useSignedUrl<T>(
   }, [bucket, key, ttl]);
 
   const fresh = key !== null && state.key === key;
+
   return {
     url: fresh ? state.url : undefined,
     error: fresh ? state.error : undefined,
@@ -157,10 +169,12 @@ export function useUpload<T, R>(
   options: UseUploadOptions<R> = {},
 ): Upload<T, R> {
   const [state, setState] = useState<UploadState<R>>(IDLE);
+
   const latest = useRef<{
     controller: AbortController | undefined;
     options: UseUploadOptions<R>;
   }>({ controller: undefined, options });
+
   // oxlint-disable-next-line react/refs -- latest-ref pattern; the react peer range predates useEffectEvent.
   latest.current.options = options;
 
@@ -177,6 +191,7 @@ export function useUpload<T, R>(
       latest.current.controller = undefined;
       setState(IDLE);
     };
+
     return {
       upload: async (
         target: T,
@@ -189,6 +204,7 @@ export function useUpload<T, R>(
         const mine = () => latest.current.controller === controller;
         setState({ ...IDLE, status: "uploading" });
         let result: Result<R>;
+
         try {
           result = await bucket.upload(target, body, {
             ...uploadOptions,
@@ -202,10 +218,13 @@ export function useUpload<T, R>(
         } catch (cause) {
           result = err(toDbError(cause));
         }
+
         if (!mine() || controller.signal.aborted) {
           return result;
         }
+
         latest.current.controller = undefined;
+
         if (result.ok) {
           setState({
             status: "done",
@@ -222,6 +241,7 @@ export function useUpload<T, R>(
           }));
           latest.current.options.onError?.(result.error);
         }
+
         return result;
       },
       abort: stop,

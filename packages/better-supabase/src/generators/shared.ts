@@ -14,6 +14,7 @@ export type Variant = "Row" | "Insert" | "Update";
 
 const INTEGER = new Set(["int2", "int4", "int8"]);
 const NUMBER = new Set(["float4", "float8", "numeric", "oid", "money"]);
+
 // `timestamp` values have no offset, so they stay plain strings.
 const DATETIME = new Set(["timestamptz"]);
 
@@ -21,42 +22,55 @@ function scalarKind(column: ColumnMeta): ScalarKind {
   if (column.enum) {
     return { kind: "enum", values: column.enum };
   }
+
   if (column.json) {
     return { kind: "json" };
   }
+
   if (column.codec === "instant") {
     return { kind: "instant" };
   }
+
   if (column.codec === "plainDateTime") {
     return { kind: "plainDateTime" };
   }
+
   if (column.codec === "bigint") {
     return { kind: "bigint" };
   }
+
   if (column.codec === "string") {
     return { kind: "string" };
   }
+
   if (column.type === "uuid") {
     return { kind: "uuid" };
   }
+
   if (INTEGER.has(column.type)) {
     return { kind: "integer" };
   }
+
   if (NUMBER.has(column.type)) {
     return { kind: "number" };
   }
+
   if (column.type === "bool") {
     return { kind: "boolean" };
   }
+
   if (DATETIME.has(column.type)) {
     return { kind: "datetime" };
   }
+
   if (column.type === "date") {
     return { kind: "date" };
   }
+
   if (column.type === "record" || column.type === "void") {
     return { kind: "unknown" };
   }
+
   return { kind: "string" };
 }
 
@@ -75,6 +89,7 @@ export interface FieldPlan {
 /** App names of the columns that plugins fill from the table's flags. */
 function managedColumns(table: TableMeta): ReadonlySet<string> {
   const { timestamps, actor, softDelete } = table.flags;
+
   return new Set(
     [
       timestamps?.createdAt,
@@ -93,6 +108,7 @@ function managedColumns(table: TableMeta): ReadonlySet<string> {
  */
 export function rowType(table: string, plan: FieldPlan): string {
   const type = `NonNullable<RowOf<'${table}'>['${plan.name}']>`;
+
   return plan.column.array ? `${type}[number]` : type;
 }
 
@@ -104,6 +120,7 @@ export function fieldsFor(
 ): FieldPlan[] {
   const fields: FieldPlan[] = [];
   const managed = managedColumns(table);
+
   for (const [name, column] of Object.entries(table.columns)) {
     if (
       variant === "Insert" &&
@@ -111,12 +128,14 @@ export function fieldsFor(
     ) {
       continue;
     }
+
     if (
       variant === "Update" &&
       (column.generated || column.updatable === false)
     ) {
       continue;
     }
+
     fields.push({
       name,
       column,
@@ -133,6 +152,7 @@ export function fieldsFor(
       managed: managed.has(name),
     });
   }
+
   return fields;
 }
 
@@ -147,17 +167,21 @@ const TEMPORAL_GUARDS: Partial<Record<ScalarKind["kind"], string>> = {
  */
 export function temporalGuardImport(input: SchemaSource): string | undefined {
   const names = new Set<string>();
+
   for (const [, table] of tableEntries(input)) {
     for (const plan of fieldsFor(table, "Row", input)) {
       if (plan.customJson || plan.column.storage !== undefined) {
         continue;
       }
+
       const guard = TEMPORAL_GUARDS[plan.scalar.kind];
+
       if (guard) {
         names.add(guard);
       }
     }
   }
+
   return names.size === 0
     ? undefined
     : `import { ${[...names].sort().join(", ")} } from ${JSON.stringify(input.runtimeImport ?? "better-supabase")};`;
@@ -235,20 +259,26 @@ export function parseComment(comment: string | null): {
   if (!comment) {
     return { examples: [] };
   }
+
   const deprecated = IS_DEPRECATED.test(comment);
+
   const examples = [...comment.matchAll(EXAMPLE)].map((match) => {
     const raw = match[1] ?? "";
+
     try {
       const parsed: unknown = JSON.parse(raw);
+
       return parsed;
     } catch {
       return raw;
     }
   });
+
   const description = comment
     .replace(EXAMPLE, "")
     .replace(DEPRECATED, "")
     .trim();
+
   return {
     ...(description ? { description } : {}),
     examples,
@@ -258,33 +288,42 @@ export function parseComment(comment: string | null): {
 
 const COMPARISON =
   /^(?:(char_length|length)\(\(?"?(\w+)"?\)?(?:::[\w ]+)?\)|\(?"?(\w+)"?\)?(?:::[\w ]+)?)\s*(>=|>|<=|<)\s*\(?'?(-?\d+(?:\.\d+)?)'?\)?(?:::[\w ]+)?$/;
+
 const REVERSED =
   /^\(?'?(-?\d+(?:\.\d+)?)'?\)?(?:::[\w ]+)?\s*(>=|>|<=|<)\s*(?:(char_length|length)\(\(?"?(\w+)"?\)?(?:::[\w ]+)?\)|\(?"?(\w+)"?\)?(?:::[\w ]+)?)$/;
+
 const FLIP = { ">=": "<=", ">": "<", "<=": ">=", "<": ">" } as const;
+
 type Operator = keyof typeof FLIP;
 
 /** Drops parentheses that wrap the whole expression. */
 function unwrap(expression: string): string {
   let text = expression.trim().replace(/^CHECK\s*/, "");
+
   while (text.startsWith("(") && text.endsWith(")")) {
     let depth = 0;
     let wraps = true;
+
     for (let i = 0; i < text.length - 1; i++) {
       if (text[i] === "(") {
         depth++;
       } else if (text[i] === ")") {
         depth--;
       }
+
       if (depth === 0) {
         wraps = false;
         break;
       }
     }
+
     if (!wraps) {
       break;
     }
+
     text = text.slice(1, -1).trim();
   }
+
   return text;
 }
 
@@ -293,8 +332,10 @@ function conjuncts(expression: string): string[] {
   const terms: string[] = [];
   let depth = 0;
   let start = 0;
+
   for (let i = 0; i < expression.length; i++) {
     const char = expression[i];
+
     if (char === "(") {
       depth++;
     } else if (char === ")") {
@@ -304,7 +345,9 @@ function conjuncts(expression: string): string[] {
       start = i + 5;
     }
   }
+
   terms.push(expression.slice(start));
+
   return terms.map(unwrap);
 }
 
@@ -317,6 +360,7 @@ interface Comparison {
 
 function comparison(term: string): Comparison | undefined {
   const forward = COMPARISON.exec(term);
+
   if (forward) {
     return {
       column: forward[2] ?? forward[3] ?? "",
@@ -326,10 +370,13 @@ function comparison(term: string): Comparison | undefined {
       value: Number(forward[5]),
     };
   }
+
   const reversed = REVERSED.exec(term);
+
   if (!reversed) {
     return undefined;
   }
+
   return {
     column: reversed[4] ?? reversed[5] ?? "",
     length: reversed[3] !== undefined,
@@ -349,17 +396,22 @@ export function parseCheckBounds(
   definition: string,
 ): ReadonlyMap<string, Bounds> {
   const bounds = new Map<string, Bounds>();
+
   for (const term of conjuncts(unwrap(definition))) {
     if (/\sOR\s/i.test(term)) {
       continue;
     }
+
     const parsed = comparison(term);
+
     if (!parsed?.column || Number.isNaN(parsed.value)) {
       continue;
     }
+
     const current = bounds.get(parsed.column) ?? {};
     bounds.set(parsed.column, { ...current, ...boundOf(parsed) });
   }
+
   return bounds;
 }
 
@@ -369,36 +421,47 @@ function boundOf({ length, operator, value }: Comparison): Bounds {
       case ">=": {
         return { minLength: value };
       }
+
       case ">": {
         return { minLength: value + 1 };
       }
+
       case "<=": {
         return { maxLength: value };
       }
+
       case "<": {
         return { maxLength: value - 1 };
       }
+
       default: {
         const exhaustive: never = operator;
+
         return exhaustive;
       }
     }
   }
+
   switch (operator) {
     case ">=": {
       return { minimum: value };
     }
+
     case ">": {
       return { exclusiveMinimum: value };
     }
+
     case "<=": {
       return { maximum: value };
     }
+
     case "<": {
       return { exclusiveMaximum: value };
     }
+
     default: {
       const exhaustive: never = operator;
+
       return exhaustive;
     }
   }
@@ -407,6 +470,7 @@ function boundOf({ length, operator, value }: Comparison): Bounds {
 /** `customer_tags` → `Customer tags`. */
 export function titleOf(name: string): string {
   const words = name.replaceAll("_", " ").trim();
+
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
@@ -426,10 +490,13 @@ const checkIndexes = new WeakMap<Extras, ReadonlyMap<string, string[]>>();
 /** CHECK definitions by `schema.name`, built once per extras. */
 function checksIndex(extras: Extras): ReadonlyMap<string, string[]> {
   let index = checkIndexes.get(extras);
+
   if (index) {
     return index;
   }
+
   const map = new Map<string, string[]>();
+
   for (const table of extras.tables) {
     const key = `${table.schema}.${table.name}`;
     map.set(key, [
@@ -437,39 +504,50 @@ function checksIndex(extras: Extras): ReadonlyMap<string, string[]> {
       ...table.checks.map((check) => check.definition),
     ]);
   }
+
   index = map;
   checkIndexes.set(extras, index);
+
   return index;
 }
 
 /** The catalog keyed for `tableDocs`, built once per catalog. */
 function docsIndex(catalog: Catalog): DocsIndex {
   let index = docsIndexes.get(catalog);
+
   if (index) {
     return index;
   }
+
   const entries = new Map<string, CommentEntry>();
+
   for (const item of [
     ...catalog.tables,
     ...catalog.views,
     ...(catalog.materializedViews ?? []),
   ]) {
     const key = `${item.schema}.${item.name}`;
+
     if (!entries.has(key)) {
       entries.set(key, item);
     }
   }
+
   const columns = new Map<number, Catalog["columns"][number][]>();
+
   for (const column of catalog.columns) {
     const list = columns.get(column.table_id);
+
     if (list) {
       list.push(column);
     } else {
       columns.set(column.table_id, [column]);
     }
   }
+
   index = { entries, columns };
   docsIndexes.set(catalog, index);
+
   return index;
 }
 
@@ -479,38 +557,49 @@ export function tableDocs(
   table: TableMeta,
 ): TableDocs | undefined {
   const catalog = input.introspection;
+
   if (!catalog) {
     return undefined;
   }
+
   const index = docsIndex(catalog);
   const entry = index.entries.get(`${table.schema}.${table.name}`);
   const checks = new Map<string, Bounds>();
+
   const addChecks = (definition: string): void => {
     for (const [column, bounds] of parseCheckBounds(definition)) {
       checks.set(column, { ...checks.get(column), ...bounds });
     }
   };
+
   const extras = input.extras;
+
   for (const definition of extras
     ? (checksIndex(extras).get(`${table.schema}.${table.name}`) ?? [])
     : []) {
     addChecks(definition);
   }
+
   const fields = new Map<string, FieldDocs>();
+
   for (const column of entry ? (index.columns.get(entry.id) ?? []) : []) {
     if (column.check) {
       addChecks(column.check);
     }
+
     const { description, examples } = parseComment(column.comment);
     fields.set(column.name, {
       ...(description === undefined ? {} : { description }),
       ...(examples.length > 0 ? { examples } : {}),
     });
   }
+
   for (const [column, bounds] of checks) {
     fields.set(column, { ...fields.get(column), ...bounds });
   }
+
   const { description } = parseComment(entry?.comment ?? null);
+
   return {
     title: titleOf(table.name),
     ...(description === undefined ? {} : { description }),
@@ -533,29 +622,37 @@ function exampleFits(scalar: ScalarKind, value: unknown): boolean {
     case "date": {
       return typeof value === "string";
     }
+
     case "enum": {
       return typeof value === "string" && scalar.values.includes(value);
     }
+
     case "integer": {
       return Number.isInteger(value);
     }
+
     case "number": {
       return typeof value === "number";
     }
+
     case "boolean": {
       return typeof value === "boolean";
     }
+
     case "json":
     case "unknown": {
       return true;
     }
+
     case "instant":
     case "plainDateTime":
     case "bigint": {
       return false;
     }
+
     default: {
       const exhaustive: never = scalar;
+
       return exhaustive;
     }
   }
@@ -570,20 +667,26 @@ export function fieldDocs(
   plan: FieldPlan,
 ): FieldDocs {
   const found = docs?.fields.get(plan.column.db);
+
   if (!found || plan.customJson || plan.column.storage !== undefined) {
     return {};
   }
+
   const numeric =
     !plan.column.array &&
     (plan.scalar.kind === "integer" || plan.scalar.kind === "number");
+
   const text = !plan.column.array && plan.scalar.kind === "string";
+
   const fits = (value: unknown): boolean =>
     (value === null && plan.nullable) ||
     (plan.column.array
       ? Array.isArray(value) &&
         value.every((item) => exampleFits(plan.scalar, item))
       : exampleFits(plan.scalar, value));
+
   const examples = found.examples?.filter(fits) ?? [];
+
   return {
     ...(found.description === undefined
       ? {}
@@ -619,12 +722,15 @@ export function fieldSpec(plan: FieldPlan, docs: FieldDocs): FieldSpec {
 
 function pick(bounds: Bounds, keys: readonly (keyof Bounds)[]): Bounds {
   const out: Record<string, number> = {};
+
   for (const key of keys) {
     const value = bounds[key];
+
     if (value !== undefined) {
       out[key] = value;
     }
   }
+
   return out;
 }
 
@@ -636,9 +742,11 @@ export function variantsFor(table: TableMeta): readonly Variant[] {
   if (table.kind !== "view") {
     return ["Row", "Insert", "Update"];
   }
+
   const columns = Object.values(table.columns).filter(
     (column) => !column.generated,
   );
+
   return [
     "Row",
     ...(columns.some((column) => column.insertable !== false)
@@ -676,8 +784,10 @@ export const HEADER =
 /** `./metadata.ts#metadataSchema` → `{ from: './metadata.ts', name: 'metadataSchema' }`. */
 export function parseImport(spec: string): { from: string; name: string } {
   const [from, name] = spec.split("#");
+
   if (!from || !name) {
     throw new Error(`Expected "path#export", got "${spec}"`);
   }
+
   return { from, name };
 }

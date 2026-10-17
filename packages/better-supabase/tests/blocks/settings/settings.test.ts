@@ -12,12 +12,15 @@ function fakeTransport(
   answer: (fn: string, args: Record<string, unknown>) => unknown,
 ) {
   const calls: [string, string, Record<string, unknown>][] = [];
+
   const transport: BlockTransport = {
     async call(schemaName, fn, args) {
       calls.push([schemaName, fn, { ...args }]);
+
       return answer(fn, { ...args });
     },
   };
+
   return { transport, calls };
 }
 
@@ -43,6 +46,7 @@ describe("defineSettings", () => {
       theme: "dark",
       stale: true,
     }));
+
     const client = createSettings({ settings, transport });
     expect(await client.getUser().orThrow()).toEqual({
       theme: "dark",
@@ -94,12 +98,14 @@ describe("defineSettings", () => {
     const write = await client.setUser("color", "red");
     // @ts-expect-error not a declared key
     const reset = await client.resetOrganization("org-1", "color");
+
     for (const result of [read, write, reset]) {
       expect(result).toMatchObject({
         ok: false,
         error: { kind: "invalid_input" },
       });
     }
+
     expect(calls).toHaveLength(0);
     expect(await client.resetUser("theme").orThrow()).toBe(true);
     expect(await client.resetOrganization("org-1", "seats").orThrow()).toBe(
@@ -112,6 +118,7 @@ describe("defineSettings", () => {
       settings,
       transport: fakeTransport(() => 0).transport,
     });
+
     expectTypeOf(client.getUser("theme").orThrow()).resolves.toEqualTypeOf<
       "light" | "dark" | "system"
     >();
@@ -126,10 +133,12 @@ describe("defineSettings", () => {
   it("works with an empty spec", async () => {
     const empty = defineSettings({});
     expect(empty.schemas).toEqual({ user: {}, organization: {}, platform: {} });
+
     const client = createSettings({
       settings: empty,
       transport: fakeTransport(() => null).transport,
     });
+
     expect(await client.getUser().orThrow()).toEqual({});
   });
 
@@ -144,12 +153,15 @@ describe("defineSettings", () => {
         },
       },
     });
+
     expect(platform.schemas.platform.fee.permission).toBe("billing.platform");
+
     const { transport, calls } = fakeTransport((fn) =>
       fn === "get_platform_settings"
         ? { fee: 2 }
         : fn === "reset_platform_setting",
     );
+
     const client = createSettings({ settings: platform, transport });
     expect(await client.getPlatform("fee").orThrow()).toBe(2);
     expect(await client.setPlatform("fee", 3).orThrow()).toBe(3);

@@ -167,11 +167,13 @@ function tablesSql(ctx: ModuleContext, n: EmployeeNames): string {
   if (!ctx.manages) {
     return "";
   }
+
   const { t } = n;
   const e = (column: string): string => n.c("employees", column);
   const p = (column: string): string => n.c("privateDetails", column);
   const k = (column: string): string => n.c("contracts", column);
   const statuses = EMPLOYEE_STATUSES.map(sqlString).join(", ");
+
   return `
 create table if not exists ${t("employees")} (
   ${e("id")} uuid primary key default gen_random_uuid(),
@@ -261,6 +263,7 @@ using (${ctx.scope.check(k("tenant"), n.sensitive)} or exists (
 function triggersSql(ctx: ModuleContext, n: EmployeeNames): string {
   const { t } = n;
   const e = (column: string): string => n.c("employees", column);
+
   const mirror =
     ctx.hasTable("privateDetails") && ctx.has("privateDetails", "user")
       ? `
@@ -283,6 +286,7 @@ create trigger bs_employee_user_mirror after update of ${e("user")} on ${t("empl
 for each row execute function better_supabase.bs_employee_user_mirror();
 `
       : "";
+
   return `
 -- A manager is an employee of the same organization and never one of the
 -- employee's own reports, so the org chart stays a tree.
@@ -325,7 +329,9 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const keys = moduleOperations("employees");
+
   const names: EmployeeNames = {
     fn: (name) => ctx.fn(name),
     t: (table) => ctx.table(table),
@@ -337,6 +343,7 @@ function build(ctx: ModuleContext): string {
     service: "(auth.role() = 'service_role')",
     extras: ctx.extraColumns("employees", RESERVED),
   };
+
   return `${schemaPreamble(ctx)}
 -- Employees: the people an organization employs, with or without an
 -- account, their manager, team and status; private details and contracts
@@ -355,6 +362,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
           },
         ]
       : [];
+
   const privateDetails = ctx.hasTable("privateDetails")
     ? [
         { name: "employee_private_details", args: ["uuid"], returns: "jsonb" },
@@ -365,6 +373,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
         },
       ]
     : [];
+
   const contracts = ctx.hasTable("contracts")
     ? [
         { name: "employee_contracts", args: ["uuid"], returns: "jsonb" },
@@ -375,6 +384,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
         },
       ]
     : [];
+
   return [
     { name: "create_employee", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "update_employees", args: ["jsonb"], returns: "jsonb" },

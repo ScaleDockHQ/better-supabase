@@ -18,6 +18,7 @@ import { fakeSql } from "../../fixtures/fake-sql.ts";
 function onceBackend(withOnce = true) {
   const keys = new Map<string, number>();
   const sent: unknown[] = [];
+
   const backend: QueueBackend = {
     apiVersion: 1,
     name: "once",
@@ -39,31 +40,38 @@ function onceBackend(withOnce = true) {
             key: string,
           ) {
             const seen = keys.get(`${queue}:${key}`);
+
             if (seen !== undefined) {
               return Promise.resolve({ id: seen, duplicate: true });
             }
+
             const id = keys.size + 1;
             keys.set(`${queue}:${key}`, id);
             sent.push(payload);
+
             return Promise.resolve({ id, duplicate: false });
           },
         }
       : {}),
   };
+
   return { backend, sent };
 }
 
 describe("incoming destinations", () => {
   it("queues a delivery once per endpoint and message id with its tenant", async () => {
     const { backend, sent } = onceBackend();
+
     const jobs = createJobs({
       backend,
       queues: { leads: v.object({ type: v.string() }) },
     });
+
     const destination = jobsDestination(jobs, {
       queue: "leads",
       payload: (delivery) => ({ type: delivery.type ?? "unknown" }),
     });
+
     await testIncomingDestination(destination, { tenant: "t1" });
     expect(sent).toHaveLength(3);
     expect(sent[0]).toMatchObject({
@@ -74,20 +82,25 @@ describe("incoming destinations", () => {
 
   it("passes the kit on the inbox and keys messages by endpoint", async () => {
     const stored = new Map<string, number>();
+
     const fake = fakeSql([
       [
         "receive_webhook",
         (call) => {
           const key = `${String(call.values[0])}:${String(call.values[1])}:${String(call.values[5])}`;
           const seen = stored.get(key);
+
           if (seen !== undefined) {
             return [{ value: { id: seen, duplicate: true } }];
           }
+
           stored.set(key, stored.size + 1);
+
           return [{ value: { id: stored.size, duplicate: false } }];
         },
       ],
     ]);
+
     await testIncomingDestination(inboxDestination(fake.sql), {
       tenant: "t1",
       source: "forms",
@@ -100,11 +113,13 @@ describe("incoming destinations", () => {
 
   it("fails the kit for a destination that never reports a duplicate", async () => {
     let next = 0;
+
     const forgetful: IncomingDestination = {
       apiVersion: 1,
       name: "forgetful",
       deliver: () => Promise.resolve({ id: ++next, duplicate: false }),
     };
+
     await expect(
       testIncomingDestination(forgetful, { tenant: "t1" }),
     ).rejects.toBeInstanceOf(ConformanceError);
@@ -117,6 +132,7 @@ describe("incoming destinations", () => {
         leads: v.object({}),
       },
     });
+
     await expect(
       jobsDestination(jobs, { queue: "leads", payload: () => ({}) }).deliver({
         endpoint: { id: "e1", tenant: "t1", metadata: {} },
@@ -147,7 +163,9 @@ describe("incoming destinations", () => {
         ],
       ],
     ]);
+
     const delivered: unknown[] = [];
+
     const hooks = createIncomingWebhooks({
       sql: fake.sql,
       source: "forms",
@@ -156,6 +174,7 @@ describe("incoming destinations", () => {
         name: "memory",
         deliver(delivery) {
           delivered.push(delivery);
+
           return Promise.resolve({
             id: 1,
             duplicate: delivered.length > 1,
@@ -163,6 +182,7 @@ describe("incoming destinations", () => {
         },
       },
     });
+
     const post = () =>
       hooks.receive(
         new Request("https://api.test/hooks/tok", {
@@ -172,6 +192,7 @@ describe("incoming destinations", () => {
         }),
         "tok",
       );
+
     expect((await post()).status).toBe(202);
     expect((await post()).status).toBe(200);
     expect(delivered[0]).toMatchObject({

@@ -130,16 +130,20 @@ function tables(ctx: ModuleContext, names: PromotionsNames): string {
   const r = columns(ctx, "redemptions");
   const cart = columns(orders, "carts");
   const order = columns(orders, "orders");
+
   const tenantRead = (table: string): string =>
     `${ctx.col(table, "tenant")} in (select ${ctx.scope.ids(names.read)})`;
+
   const policy = (
     table: string,
     using: string,
   ): string => `drop policy if exists ${ctx.tableName(table).name}_read on ${t(table)};
 create policy ${ctx.tableName(table).name}_read on ${t(table)} for select to authenticated
 using (${using});`;
+
   const currency = (column: string, nullable: boolean): string =>
     `${column} char(3) ${nullable ? "" : "not null "}check (${column} ~ '^[A-Z]{3}$')`;
+
   return `
 create table if not exists ${t("promotions")} (
   ${p("id")} uuid primary key default gen_random_uuid(),
@@ -234,7 +238,9 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const names = namesOf(ctx);
+
   return `${schemaPreamble(ctx)}
 -- Promotions (percentage, fixed or free shipping), automatic or by code,
 -- with usage limits and stacking rules; orders prices carts with them.

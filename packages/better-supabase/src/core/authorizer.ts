@@ -94,6 +94,7 @@ const ANONYMOUS: AuthorizationSubject = { type: "anon", id: "anonymous" };
 
 function scopesOf(claims: JsonObject | undefined): readonly string[] {
   const scope = claims?.["scope"];
+
   return typeof scope === "string" ? scope.split(" ").filter(Boolean) : [];
 }
 
@@ -102,6 +103,7 @@ function claimsProperty(claims: unknown): { readonly claims?: JsonObject } {
   if (!isPlainObject(claims)) {
     return {};
   }
+
   // SAFETY: cloneValue keeps the shape of a plain claims object.
   return { claims: deepFreeze(cloneValue(claims) as JsonObject) };
 }
@@ -114,6 +116,7 @@ export function requestOf(context: RequestContext | undefined): {
   const actor = context?.actor;
   const claims = context?.claims;
   const act = claims?.["act"];
+
   const subject: AuthorizationSubject = actor
     ? {
         type:
@@ -131,7 +134,9 @@ export function requestOf(context: RequestContext | undefined): {
         },
       }
     : ANONYMOUS;
+
   const aal = claims?.["aal"];
+
   return {
     subject,
     context: {
@@ -146,7 +151,9 @@ function isOutcome(value: unknown): value is AuthorizationOutcome {
   if (typeof value !== "object" || value === null || !("outcome" in value)) {
     return false;
   }
+
   const { outcome } = value;
+
   return (
     outcome === "granted" ||
     outcome === "denied" ||
@@ -169,10 +176,12 @@ function outcomeError(
       },
     );
   }
+
   switch (outcome.outcome) {
     case "granted": {
       return undefined;
     }
+
     case "denied": {
       return dbError(
         "forbidden",
@@ -180,6 +189,7 @@ function outcomeError(
         { code: "PERMISSION_DENIED", permission },
       );
     }
+
     case "approval-required": {
       return dbError("forbidden", `${permission} needs an approval`, {
         code: "APPROVAL_REQUIRED",
@@ -187,8 +197,10 @@ function outcomeError(
         ...(outcome.approval ? { approval: { id: outcome.approval.id } } : {}),
       });
     }
+
     default: {
       const exhaustive: never = outcome;
+
       return exhaustive;
     }
   }
@@ -209,6 +221,7 @@ export async function checkPermission<Ref>(
   options: CheckOptions<Ref>,
 ): Promise<Result<void>> {
   const { authorizer, permission } = options;
+
   if (!authorizer) {
     return err(
       dbError(
@@ -220,7 +233,9 @@ export async function checkPermission<Ref>(
       ),
     );
   }
+
   let key: string;
+
   try {
     key = authorizer.key(permission);
   } catch {
@@ -228,7 +243,9 @@ export async function checkPermission<Ref>(
       dbError("forbidden", "Unknown permission", { code: "PERMISSION_DENIED" }),
     );
   }
+
   const { subject, context } = requestOf(options.context);
+
   try {
     const outcome = await authorizer.evaluate({
       subject,
@@ -236,7 +253,9 @@ export async function checkPermission<Ref>(
       resource: options.resource,
       context,
     });
+
     const error = outcomeError(outcome, key);
+
     return error ? err(error) : ok(undefined);
   } catch {
     return err(
@@ -262,13 +281,16 @@ export async function checkEach<Ref>(
   if (!authorizer || resources.length === 0) {
     return resources.map(() => false);
   }
+
   const { subject, context: requestContext } = requestOf(context);
+
   const requests = resources.map((resource) => ({
     subject,
     action: permission,
     resource,
     context: requestContext,
   }));
+
   try {
     const outcomes = authorizer.evaluations
       ? await authorizer.evaluations(requests)
@@ -277,6 +299,7 @@ export async function checkEach<Ref>(
             Promise.resolve(authorizer.evaluate(request)),
           ),
         );
+
     return requests.map(
       (_, index) =>
         isOutcome(outcomes[index]) && outcomes[index].outcome === "granted",

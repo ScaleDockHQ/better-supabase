@@ -16,6 +16,7 @@ describe("validateMessage", () => {
       role: "user",
       parts: [{ type: "text", text: "hi" }],
     };
+
     expect(validateMessage(message)).toEqual({ ok: true, message });
     expect(validateMessage({ id: "m1", role: "robot", parts: [] })).toEqual({
       ok: false,
@@ -83,6 +84,7 @@ describe("repairDanglingToolCalls", () => {
         ],
       },
     ];
+
     const repaired = repairDanglingToolCalls(messages);
     expect(repaired[0]).toBe(messages[0]);
     expect(repaired[2]).toBe(messages[2]);

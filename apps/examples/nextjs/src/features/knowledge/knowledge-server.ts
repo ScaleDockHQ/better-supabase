@@ -26,6 +26,7 @@ function embedder(): Embedder {
   embedderInstance ??= process.env["AI_GATEWAY_API_KEY"]
     ? embedWith("openai/text-embedding-3-small")
     : demoEmbedder;
+
   return embedderInstance;
 }
 

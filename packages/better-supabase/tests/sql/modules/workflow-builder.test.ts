@@ -20,6 +20,7 @@ describe("workflow-builder module", () => {
     const names = renderModules(["workflow-builder"], {}).map(
       (file) => file.module,
     );
+
     expect(names.indexOf("workflows")).toBeLessThan(
       names.indexOf("workflow-builder"),
     );
@@ -43,9 +44,11 @@ describe("workflow-builder module", () => {
 
   it("lets only the service role store a compiled form, and restricts node ids", () => {
     const body = moduleBody("workflow-builder", {})!;
+
     const publish = body.slice(
       body.indexOf('"publish_workflow_version"(version uuid'),
     );
+
     expect(publish).toMatch(
       /if compiled is not null and not \(coalesce\(.*'service_role', 'postgres', 'supabase_admin'\)\) then\s+raise exception [^;]+errcode = '42501', hint = 'WORKFLOW_COMPILED_FORBIDDEN'/,
     );
@@ -63,9 +66,11 @@ describe("workflow-builder module", () => {
     expect(body).toContain(
       `add column if not exists "owner_kind" text check ("owner_kind" in ('user', 'organization'))`,
     );
+
     const publish = body.slice(
       body.indexOf('"publish_workflow_version"(version uuid'),
     );
+
     expect(publish).toMatch(
       /v_permissions := "better_supabase"\."workflow_graph_permissions"\(v_row\."graph"\);\s+if not v_service then/,
     );
@@ -83,9 +88,11 @@ describe("workflow-builder module", () => {
 
   it("checks the stored publisher for every step and never answers for a gone one", () => {
     const body = moduleBody("workflow-builder", {})!;
+
     const principal = body.slice(
       body.indexOf('"workflow_run_principal"(version uuid'),
     );
+
     expect(principal).toContain(
       "where not coalesce(better_supabase.can_user(v_row.\"published_by\", 'tenant', v_tenant, p), false);",
     );
@@ -119,10 +126,13 @@ describe("workflow-builder module", () => {
     expect(body).toContain(
       'or workflow_definitions_list.subject_type = any (x."subject_types")',
     );
+
     const start = (sql: string) => {
       const from = sql.indexOf('"workflow_subject_start_target"(\n');
+
       return sql.slice(from, sql.indexOf("$$;", from));
     };
+
     expect(start(body)).toContain("hint = 'WORKFLOW_SUBJECT_TYPE'");
     expect(start(body)).not.toContain("can_subject");
     expect(start(body)).not.toContain("security definer");
@@ -138,9 +148,11 @@ describe("workflow-builder module", () => {
     expect(body).toContain(
       `or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('workflow.read')))`,
     );
+
     const target = body.slice(
       body.indexOf('"workflow_start_target"(definition uuid'),
     );
+
     expect(target).toContain("hint = 'WORKFLOW_TENANT_REQUIRED'");
     expect(target).toContain("hint = 'WORKFLOW_OPTED_OUT'");
     expect(body).toContain(
@@ -185,12 +197,14 @@ describe("workflow-builder module", () => {
           sql.indexOf('"workflow_graph_permissions"(graph jsonb)'),
         ),
       );
+
     const plain = permissionsFn(moduleBody("workflow-builder", {})!);
     expect(plain).toContain(`'{}'::jsonb ->> (n.value ->> 'step'),`);
     expect(plain).toContain(
       `(select coalesce('{}'::jsonb ->> s."operation", s."operation")`,
     );
     expect(plain).toContain(`'workflow.run'\n    ) as p`);
+
     const layout = {
       modules: {
         "workflow-builder": { permissions: { run: "automations.run" } },
@@ -206,6 +220,7 @@ describe("workflow-builder module", () => {
         },
       },
     };
+
     const sql = permissionsFn(moduleBody("workflow-builder", layout)!);
     expect(sql).toContain(
       `'{"crm.lookup":"crm.read"}'::jsonb ->> (n.value ->> 'step'),`,
@@ -226,10 +241,13 @@ describe("workflow-builder module", () => {
   it("lists its contract in custom mode", () => {
     const custom: AnyBlocksConfig = { "workflow-builder": { mode: "custom" } };
     expect(moduleBody("workflow-builder", { modules: custom })).toBeUndefined();
+
     const [contract] = customContracts(["workflow-builder"], {
       modules: custom,
     });
+
     const names = contract!.functions.map((fn) => fn.name);
+
     for (const name of [
       "save_workflow_definition",
       "publish_workflow_version",

@@ -114,19 +114,25 @@ function assignableRoles(ctx: ModuleContext): readonly string[] {
   const owner = ctx.installed("organizations")
     ? ctx.of("organizations").text("ownerRole", "owner")
     : "owner";
+
   if (ctx.option("roles") !== undefined) {
     const roles = ctx.list("roles", []);
+
     if (roles.includes(owner)) {
       throw new TypeError(
         `blocks.waitlist.options.roles must not include the owner role "${owner}"`,
       );
     }
+
     return roles;
   }
+
   const model = accessModel(ctx);
+
   if (model !== "roles" && model !== "catalog") {
     return [];
   }
+
   return roleNames(ctx).filter((role) => role !== owner);
 }
 
@@ -134,6 +140,7 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const id = ctx.idType;
   const fn = (name: string): string => ctx.fn(name);
   const e = ctx.table("entries");
@@ -145,34 +152,43 @@ function build(ctx: ModuleContext): string {
   const permissions = moduleOperations("waitlist");
   const manage = ctx.permission("manage", permissions.manage);
   const staff = ctx.staff(manage);
+
   const inviter = (tenant: string): string =>
     `(${staff} or (${tenant} is not null and ${ctx.can("tenant", tenant, modulePermission(ctx, "invite", permissions.invite))}))`;
+
   const assignable = assignableRoles(ctx);
   const roles = `array[${assignable.map(sqlString).join(", ")}]::text[]`;
   const defaultRole = ctx.text("defaultRole", "member");
+
   if (assignable.length > 0 && !assignable.includes(defaultRole)) {
     throw new TypeError(
       `blocks.waitlist.options.defaultRole "${defaultRole}" must be a role other than the owner (${assignable.join(", ")})`,
     );
   }
+
   const field = ctx.text("codeField", "invite_code");
+
   if (!FIELD.test(field)) {
     throw new TypeError(
       "blocks.waitlist.options.codeField must be a lowercase identifier",
     );
   }
+
   const tenant = ctx.of("tenant");
   const m = tenant.table("memberships");
   const mt = tenant.col("memberships", "tenant");
   const mu = tenant.col("memberships", "user");
   const mr = tenant.col("memberships", "role");
   const hash = (code: string): string => sha256Hex(`upper(trim(${code}))`);
+
   const usable = (row: string): string =>
     `${row}.${ck("revokedAt")} is null
       and (${row}.${ck("expiresAt")} is null or ${row}.${ck("expiresAt")} > now())
       and (${row}.${ck("maxUses")} is null or ${row}.${ck("uses")} < ${row}.${ck("maxUses")})`;
+
   const publicCode = (row: string): string =>
     `to_jsonb(${row}) - ${sqlString(ck("hash").replaceAll('"', ""))}`;
+
   const decided = (type: string): string =>
     ctx.record({
       type,
@@ -185,6 +201,7 @@ function build(ctx: ModuleContext): string {
         targetLabel: `v_row.${ce("email")}`,
       },
     });
+
   const codeEvent = (type: string, row: string, tenant: string): string =>
     ctx.record({
       type,
@@ -198,6 +215,7 @@ function build(ctx: ModuleContext): string {
         targetLabel: `${row}.${ck("prefix")}`,
       },
     });
+
   const memberAdded = memberAddedRecord(ctx, {
     tenant: `v_code.${ck("tenant")}`,
     user: "redeem_for.member",
@@ -206,6 +224,7 @@ function build(ctx: ModuleContext): string {
 
   const extras = ctx.extraColumns("entries", ["fields"]);
   const extra = extraFieldsArg(extras);
+
   return `${schemaPreamble(ctx)}
 create extension if not exists pgcrypto with schema extensions;
 

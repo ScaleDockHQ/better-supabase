@@ -48,30 +48,39 @@ export function syncWithAuth<C>(
   let user: string | null | undefined;
   let stopped = false;
   let queue: Promise<void> = Promise.resolve();
+
   const enqueue = (step: () => Promise<void>) => {
     queue = queue.then(step).catch((cause: unknown) => {
       options.onError?.(cause);
     });
   };
+
   const leave = () => (clear ? db.disconnectAndClear() : db.disconnect());
 
   const follow = () => {
     if (stopped) {
       return;
     }
+
     const snapshot = auth.current();
+
     if (snapshot.status === "loading") {
       return;
     }
+
     const next = snapshot.status === "signed-in" ? snapshot.user.id : null;
+
     if (next === user) {
       return;
     }
+
     const previous = user;
     user = next;
+
     if (previous === undefined ? next === null && clear : previous !== null) {
       enqueue(leave);
     }
+
     if (next !== null) {
       enqueue(() => db.connect(options.connector));
     }
@@ -79,6 +88,7 @@ export function syncWithAuth<C>(
 
   follow();
   const unsubscribe = auth.subscribe(follow);
+
   return () => {
     stopped = true;
     unsubscribe();

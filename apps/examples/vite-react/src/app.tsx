@@ -15,6 +15,7 @@ import { createCustomer, customerSpec } from "./queries";
 
 function SignIn() {
   const signIn = useSignIn();
+
   const submit = async (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -23,6 +24,7 @@ function SignIn() {
       password: String(form.get("password")),
     });
   };
+
   return (
     <form onSubmit={(event) => void submit(event)}>
       <input name="email" type="email" placeholder="Email" required />
@@ -43,6 +45,7 @@ function Customers({ organizationId }: { organizationId: string }) {
   const list = useQuery(listQuery);
   // Refetches the list when another tab or user changes a customer.
   useLiveQuery(spec);
+
   // The new row shows at once and rolls back if the insert fails.
   const create = useMutation({
     ...createCustomer(queries),
@@ -56,6 +59,7 @@ function Customers({ organizationId }: { organizationId: string }) {
       { position: "start" },
     ),
   });
+
   const add = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -63,6 +67,7 @@ function Customers({ organizationId }: { organizationId: string }) {
     create.mutate({ name, organizationId });
     form.reset();
   };
+
   return (
     <section>
       <input
@@ -92,15 +97,19 @@ function Customers({ organizationId }: { organizationId: string }) {
 export function App() {
   const auth = useAuth();
   const { signOut } = useSignOut();
+
   switch (auth.status) {
     case "loading": {
       return <p>Loading…</p>;
     }
+
     case "signed-out": {
       return <SignIn />;
     }
+
     case "signed-in": {
       const organizationId = tenantOf(auth);
+
       return (
         <main>
           <header>
@@ -115,6 +124,7 @@ export function App() {
         </main>
       );
     }
+
     default: {
       const unreachable: never = auth;
       throw new TypeError(`Unknown auth state ${String(unreachable)}`);

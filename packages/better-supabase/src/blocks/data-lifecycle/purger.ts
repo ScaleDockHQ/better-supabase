@@ -76,14 +76,18 @@ function bucketPrefixes(
   if (typeof entry === "string") {
     return ok({ bucket: entry, prefixes: [organizationId] });
   }
+
   const paths =
     typeof entry.path === "function"
       ? entry.path(organizationId)
       : entry.path.replaceAll("{organizationId}", organizationId);
+
   const prefixes = (typeof paths === "string" ? [paths] : [...paths]).map(
     (path) => path.replace(/\/+$/, ""),
   );
+
   const unsafe = prefixes.find((prefix) => !prefix.includes(organizationId));
+
   if (unsafe !== undefined) {
     return err(
       dbError(
@@ -92,6 +96,7 @@ function bucketPrefixes(
       ),
     );
   }
+
   return ok({ bucket: entry.bucket, prefixes });
 }
 
@@ -159,36 +164,45 @@ async function removePrefix(
 ): Promise<Result<number>> {
   const files: string[] = [];
   const folders = [prefix];
+
   while (folders.length > 0) {
     const folder = folders.pop() ?? prefix;
+
     for (let offset = 0; ; offset += REMOVE_BATCH) {
       const page = await stored(
         bucket.list(folder, { limit: REMOVE_BATCH, offset }),
       );
+
       if (!page.ok) {
         return page;
       }
+
       for (const entry of page.data) {
         const path = `${folder}/${entry.name}`;
+
         if (entry.id === null) {
           folders.push(path);
         } else {
           files.push(path);
         }
       }
+
       if (page.data.length < REMOVE_BATCH) {
         break;
       }
     }
   }
+
   for (let start = 0; start < files.length; start += REMOVE_BATCH) {
     const removed = await stored(
       bucket.remove(files.slice(start, start + REMOVE_BATCH)),
     );
+
     if (!removed.ok) {
       return removed;
     }
   }
+
   return ok(files.length);
 }
 
@@ -204,11 +218,15 @@ function purgeCredentialOf(value: unknown): PurgeCredentialRow | undefined {
   if (!isRecord(value)) {
     return undefined;
   }
+
   const ref = value["ref"];
+
   if (!isRecord(ref) || typeof ref["provider"] !== "string") {
     return undefined;
   }
+
   const userId = optionalText(value["user_id"]);
+
   return {
     table: textOf(value["table"]),
     column: textOf(value["column"]),
@@ -226,6 +244,7 @@ export function createOrganizationPurger(
 ): OrganizationPurger {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema);
+
   const revokeCredentials = (
     organizationId: string,
     rows: readonly PurgeCredentialRow[],
@@ -233,6 +252,7 @@ export function createOrganizationPurger(
     AsyncResult.from(async () => {
       let revoked = 0;
       const unrevoked: UnrevokedCredential[] = [];
+
       const keep = (
         row: PurgeCredentialRow,
         reason: UnrevokedCredential["reason"],
@@ -245,6 +265,7 @@ export function createOrganizationPurger(
           reason,
         });
       };
+
       for (const row of rows) {
         if (!row.inTenant || !credentialRefInTenant(row.ref, organizationId)) {
           keep(row, "foreign");
@@ -254,16 +275,20 @@ export function createOrganizationPurger(
           const result = await options.credentials.revoke(row.ref, {
             subject: row.subject,
           });
+
           if (!result.ok) {
             return result;
           }
+
           revoked += 1;
         } else {
           keep(row, "not_revocable");
         }
       }
+
       return ok({ revoked, unrevoked });
     });
+
   const purge = (organizationId: string): AsyncResult<OrganizationPurge> =>
     AsyncResult.from(async (): Promise<Result<OrganizationPurge>> => {
       const refs = await call(
@@ -273,50 +298,66 @@ export function createOrganizationPurger(
           Array.isArray(value)
             ? value.flatMap((row) => {
                 const parsed = purgeCredentialOf(row);
+
                 return parsed ? [parsed] : [];
               })
             : [],
       );
+
       if (!refs.ok) {
         return refs;
       }
+
       if (options.billing) {
         const cancelled =
           await options.billing.cancelSubscription(organizationId);
+
         if (!cancelled.ok) {
           return cancelled;
         }
       }
+
       const credentials = await revokeCredentials(organizationId, refs.data);
+
       if (!credentials.ok) {
         return credentials;
       }
+
       const removed: Record<string, number> = {};
+
       for (const entry of options.buckets ?? []) {
         if (!options.storage) {
           return err(
             dbError("invalid_request", "Pass storage to clear buckets"),
           );
         }
+
         const target = bucketPrefixes(entry, organizationId);
+
         if (!target.ok) {
           return target;
         }
+
         const { bucket, prefixes } = target.data;
+
         for (const prefix of prefixes) {
           const count = await removePrefix(
             options.storage.from(bucket),
             prefix,
           );
+
           if (!count.ok) {
             return count;
           }
+
           removed[bucket] = (removed[bucket] ?? 0) + count.data;
         }
       }
+
       return call("purge_organization", { tenant: organizationId }, (value) => {
         const row = recordOf(value, "purge_organization");
         const deleted = isRecord(row["deleted"]) ? row["deleted"] : {};
+
         return {
           organizationId: textOf(row["organizationId"]),
           deleted: Object.fromEntries(
@@ -330,6 +371,7 @@ export function createOrganizationPurger(
         };
       });
     });
+
   const purgeDue = (
     due: { readonly limit?: number } = {},
   ): AsyncResult<readonly OrganizationPurge[]> =>
@@ -337,15 +379,20 @@ export function createOrganizationPurger(
       recordsOf(value, "due_organization_deletions").map(deletionOf),
     ).andThen(async (deletions) => {
       const purged: OrganizationPurge[] = [];
+
       for (const deletion of deletions) {
         const result = await purge(deletion.organizationId);
+
         if (!result.ok) {
           return result;
         }
+
         purged.push(result.data);
       }
+
       return ok(purged);
     });
+
   const purgeExports = (
     expired: { readonly limit?: number } = {},
   ): AsyncResult<number> =>
@@ -361,12 +408,15 @@ export function createOrganizationPurger(
       if (exports.length === 0) {
         return ok(0);
       }
+
       const storage = options.storage;
+
       if (!storage) {
         return err(
           dbError("invalid_request", "Pass storage to remove export files"),
         );
       }
+
       for (const entry of exports) {
         for (let start = 0; start < entry.files.length; start += REMOVE_BATCH) {
           const removed = await stored(
@@ -374,17 +424,20 @@ export function createOrganizationPurger(
               .from(entry.bucket)
               .remove(entry.files.slice(start, start + REMOVE_BATCH)),
           );
+
           if (!removed.ok) {
             return removed;
           }
         }
       }
+
       return call(
         "forget_data_exports",
         { ids: exports.map((entry) => entry.id) },
         (value) => Number(value ?? 0),
       );
     });
+
   const anonymizeDue = (
     due: { readonly limit?: number } = {},
   ): AsyncResult<Readonly<Record<string, number>>> =>
@@ -396,6 +449,7 @@ export function createOrganizationPurger(
         ]),
       ),
     );
+
   return {
     purgeExports,
     purge,
@@ -403,6 +457,7 @@ export function createOrganizationPurger(
     anonymizeDue,
     job: async (payload) => {
       await purgeDue(payload).orThrow();
+
       if (options.anonymize) {
         await anonymizeDue().orThrow();
       }

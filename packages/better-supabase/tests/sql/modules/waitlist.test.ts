@@ -42,6 +42,7 @@ describe("waitlist module", () => {
     const sql = sqlOf(["waitlist"], {
       waitlist: { options: { codeField: "referral", defaultRole: "viewer" } },
     });
+
     expect(sql).toContain("->> 'referral'");
     expect(sql).toContain("coalesce(v_code.\"role\", 'viewer')");
   });
@@ -69,6 +70,7 @@ describe("waitlist module", () => {
         },
       },
     });
+
     expect(sql).toContain("array[]::text[]");
   });
 
@@ -79,6 +81,7 @@ describe("waitlist module", () => {
         options: { roles: ["staff", "viewer"], defaultRole: "viewer" },
       },
     };
+
     const sql = sqlOf(["waitlist"], modules);
     expect(sql).toContain("array['staff', 'viewer']::text[]");
     expect(sql).toContain(
@@ -96,6 +99,7 @@ describe("waitlist module", () => {
     const sql = sqlOf(["waitlist"], {
       invitations: { permissions: { invite: "member.invite" } },
     });
+
     expect(sql).toContain("'member.invite'");
     expect(sql).not.toContain("'members.invite'");
     expect(

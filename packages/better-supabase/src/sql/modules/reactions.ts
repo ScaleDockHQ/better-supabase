@@ -66,6 +66,7 @@ const NAMES: ModuleNames = {
 
 /** The subject type of a comment from the `comments` module. */
 const COMMENT_SUBJECT = "comment";
+
 /** The subject type of an inbox message from the `inbox` module. */
 const INBOX_MESSAGE_SUBJECT = "inbox_message";
 
@@ -74,11 +75,13 @@ const SHORTCODE = "^:[a-z0-9_+-]{1,32}:$";
 
 function topicOf(ctx: ModuleContext): string {
   const topic = ctx.text("topic", "reactions");
+
   if (!TOPIC.test(topic)) {
     throw new TypeError(
       "blocks.reactions.options.topic must be a lowercase name of at most 31 characters",
     );
   }
+
   return topic;
 }
 
@@ -97,6 +100,7 @@ function visibleCase(
 ): string {
   const subjects = subjectsOption(ctx);
   const whens: string[] = [];
+
   if (ctx.installed("comments") && ctx.of("comments").mode !== "custom") {
     const comments = ctx.of("comments");
     const cc = (column: string): string => comments.col("comments", column);
@@ -104,6 +108,7 @@ function visibleCase(
       `    when ${sqlString(COMMENT_SUBJECT)} then exists (select 1 from ${comments.table("comments")} c where c.${cc("id")}::text = ${args.id} and c.${cc("tenant")} = ${args.tenant} and c.${cc("deletedAt")} is null)`,
     );
   }
+
   if (ctx.installed("inbox") && ctx.of("inbox").mode !== "custom") {
     const inbox = ctx.of("inbox");
     const mc = (column: string): string => inbox.col("messages", column);
@@ -111,10 +116,13 @@ function visibleCase(
       `    when ${sqlString(INBOX_MESSAGE_SUBJECT)} then exists (select 1 from ${inbox.table("messages")} m where m.${mc("id")}::text = ${args.id} and m.${mc("tenant")} = ${args.tenant})`,
     );
   }
+
   const rest = subjectReadable(ctx, subjects, args);
+
   if (whens.length === 0) {
     return rest;
   }
+
   return `case ${args.type}
 ${whens.join("\n")}
     else ${rest}
@@ -125,12 +133,16 @@ function inboxBackfill(ctx: ModuleContext): string {
   if (!ctx.manages || !ctx.installed("inbox")) {
     return "";
   }
+
   const inbox = ctx.of("inbox");
+
   if (inbox.mode === "custom") {
     return "";
   }
+
   const mc = (column: string): string => inbox.col("messages", column);
   const c = (column: string): string => ctx.col("reactions", column);
+
   return `-- Copies the reactions inbox messages kept in their jsonb column, without
 -- recording them as new reactions.
 select set_config('better_supabase.reactions_backfill', 'on', true);
@@ -151,6 +163,7 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const reactions = ctx.table("reactions");
   const emojiTable = ctx.table("emoji");
   const c = (column: string): string => ctx.col("reactions", column);
@@ -163,10 +176,12 @@ function build(ctx: ModuleContext): string {
   const fn = (name: string): string => ctx.fn(name);
   const visible = fn("reaction_subject_visible");
   const name = ctx.tableName("reactions").name;
+
   const forbidden = fail(
     "REACTION_FORBIDDEN",
     "not allowed to react to this record",
   );
+
   const event = (type: string, row: string): string =>
     ctx.emit({
       type,
@@ -174,6 +189,7 @@ function build(ctx: ModuleContext): string {
       subject: `'reactions/' || ${row}.${c("id")}::text`,
       tenant: `${row}.${c("tenant")}`,
     });
+
   const inboxReact = ctx.installed("inbox")
     ? `
   if react.subject_type = ${sqlString(INBOX_MESSAGE_SUBJECT)} then
@@ -181,9 +197,11 @@ function build(ctx: ModuleContext): string {
     return ${fn("reaction_list")}(react.tenant, react.subject_type, react.subject_id);
   end if;`
     : "";
+
   const insertCheck = ctx.installed("inbox")
     ? ` and ${c("subjectType")} <> ${sqlString(INBOX_MESSAGE_SUBJECT)}`
     : "";
+
   const tables = ctx.manages
     ? `create table if not exists ${reactions} (
   ${c("id")} uuid primary key default gen_random_uuid(),
@@ -223,6 +241,7 @@ create policy "custom_emoji_read" on ${emojiTable} for select to authenticated
   using (${ctx.scope.check(e("tenant"), read)});
 `
     : "";
+
   return `${schemaPreamble(ctx)}
 ${tables}
 -- Whether the caller sees the subject. It runs as the caller, so the subject

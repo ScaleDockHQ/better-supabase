@@ -20,6 +20,7 @@ describe.skipIf(!live)("agents, connectors and ai-tasks modules", () => {
 
   it("keeps private agents private and runs the store", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "agents"]);
       const owner = await s.user("owner");
@@ -29,6 +30,7 @@ describe.skipIf(!live)("agents, connectors and ai-tasks modules", () => {
       const agents = createAgents({ transport: sqlTransport(s.sql) });
 
       await s.asRole(member);
+
       const created = await agents
         .create(tenant, {
           slug: "writer",
@@ -39,15 +41,18 @@ describe.skipIf(!live)("agents, connectors and ai-tasks modules", () => {
           starters: ["Draft a post"],
         })
         .orThrow();
+
       expect(created).toMatchObject({
         ownerId: member.id,
         visibility: "private",
         tools: ["search"],
       });
+
       const duplicate = await agents.create(tenant, {
         slug: "writer",
         name: "Again",
       });
+
       expect(duplicate.ok).toBe(false);
       await agents
         .setSkills(created.id, [
@@ -71,9 +76,11 @@ describe.skipIf(!live)("agents, connectors and ai-tasks modules", () => {
       expect(await agents.install(tenant, created.id).orThrow()).toBe(true);
       const rated = await agents.rate(created.id, 4, "useful").orThrow();
       expect(rated).toMatchObject({ ratingCount: 1, rating: 4 });
+
       const installed = await agents
         .list(tenant, { filter: "installed" })
         .orThrow();
+
       expect(installed[0]).toMatchObject({ installed: true, installCount: 1 });
       expect((await agents.bySlug(tenant, "writer").orThrow()).myRating).toBe(
         4,
@@ -91,12 +98,14 @@ describe.skipIf(!live)("agents, connectors and ai-tasks modules", () => {
 
   it("records grants, revokes their credentials and gates tool changes", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "connectors"]);
       const owner = await s.user("owner");
       const member = await s.user("member");
       const tenant = await s.organization(owner, { member });
       const revoked: CredentialRef[] = [];
+
       const credentials: CredentialProvider = {
         apiVersion: 1,
         name: "fake",
@@ -109,34 +118,43 @@ describe.skipIf(!live)("agents, connectors and ai-tasks modules", () => {
         getToken: () => AsyncResult.ok({ token: "t", headers: {} }),
         revoke: (ref) => {
           revoked.push(ref);
+
           return AsyncResult.ok(true);
         },
       };
+
       const transport = sqlTransport(s.sql);
       const connectors = createConnectors({ transport, credentials });
 
       await s.asRole(member);
+
       const denied = await connectors.servers.create(tenant, {
         name: "GitHub",
         url: "https://mcp.example.com/mcp",
       });
+
       expect(denied.ok).toBe(false);
 
       await s.asRole(owner);
+
       const insecure = await connectors.servers.create(tenant, {
         name: "Plain",
         url: "http://mcp.example.com/mcp",
       });
+
       expect(insecure.ok).toBe(false);
+
       const foreign = await connectors.servers.create(tenant, {
         name: "Header",
         url: "https://mcp.example.com/mcp",
         authType: "header",
         credentialRef: { provider: "vault", secret: "k", tenant: member.id },
       });
+
       expect(foreign.ok ? undefined : foreign.error.hint).toBe(
         "CREDENTIAL_REF_FOREIGN",
       );
+
       const header = await connectors.servers
         .create(tenant, {
           name: "Header",
@@ -145,11 +163,13 @@ describe.skipIf(!live)("agents, connectors and ai-tasks modules", () => {
           credentialRef: { provider: "vault", secret: "k", tenant },
         })
         .orThrow();
+
       expect(header.credentialRef).toEqual({
         provider: "vault",
         secret: "k",
         tenant,
       });
+
       const server = await connectors.servers
         .create(tenant, {
           name: "GitHub",
@@ -160,11 +180,13 @@ describe.skipIf(!live)("agents, connectors and ai-tasks modules", () => {
         .orThrow();
 
       await s.service();
+
       const ref = {
         provider: "vault",
         secret: `mcp:${server.id}`,
         scope: "user",
       };
+
       await connectors.grants
         .record(server.id, member.id, ref, { scopes: ["repo"] })
         .orThrow();
@@ -174,9 +196,11 @@ describe.skipIf(!live)("agents, connectors and ai-tasks modules", () => {
       const other = { provider: "vercel-connect", connector: "github" };
       await connectors.grants.record(server.id, member.id, other).orThrow();
       expect(revoked).toEqual([ref]);
+
       const viaService = await connectors.servers
         .get(server.id, { ownerId: member.id })
         .orThrow();
+
       expect(viaService.grant?.credentialRef).toEqual(other);
 
       await s.asRole(member);
@@ -191,10 +215,12 @@ describe.skipIf(!live)("agents, connectors and ai-tasks modules", () => {
       expect(
         await connectors.fingerprints.check(server.id, "sha256:b").orThrow(),
       ).toBe("pending");
+
       const notAdmin = await connectors.fingerprints.approve(
         server.id,
         "sha256:b",
       );
+
       expect(notAdmin.ok).toBe(false);
 
       expect(
@@ -244,6 +270,7 @@ describe.skipIf(!live)("agents, connectors and ai-tasks modules", () => {
 
   it("claims due tasks, runs them and schedules the next run", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "agents", "ai-tasks"]);
       const owner = await s.user("owner");
@@ -253,16 +280,19 @@ describe.skipIf(!live)("agents, connectors and ai-tasks modules", () => {
       const past = Temporal.Instant.from("2020-01-01T08:00:00Z");
       const seen: string[] = [];
       let clock = past;
+
       const tasks = createAiTasks({
         transport,
         now: () => clock,
         run: (task) => {
           seen.push(task.prompt);
+
           return Promise.resolve({});
         },
       });
 
       await s.asRole(member);
+
       const task = await tasks
         .create(tenant, {
           title: "Digest",
@@ -270,22 +300,27 @@ describe.skipIf(!live)("agents, connectors and ai-tasks modules", () => {
           cron: "0 9 * * *",
         })
         .orThrow();
+
       expect(task.nextRunAt).toBeUndefined();
+
       const bad = await tasks.create(tenant, {
         title: "x",
         prompt: "y",
         cron: "0 9 * * *",
         agentId: crypto.randomUUID(),
       });
+
       expect(bad.ok ? undefined : bad.error.hint).toBe(
         "AI_TASK_AGENT_FORBIDDEN",
       );
+
       const foreignChat = await tasks.create(tenant, {
         title: "x",
         prompt: "y",
         cron: "0 9 * * *",
         chatId: crypto.randomUUID(),
       });
+
       expect(foreignChat.ok ? undefined : foreignChat.error.hint).toBe(
         "AI_TASK_CHAT_FORBIDDEN",
       );
@@ -303,10 +338,12 @@ describe.skipIf(!live)("agents, connectors and ai-tasks modules", () => {
           ],
         ),
       ).toBe("AI_TASK_INVALID");
+
       const early = await s.value<string | null>(
         "better_supabase.save_ai_task($1, null, $2, now() - interval '1 day') ->> 'next_run_at'",
         [tenant, { title: "x", prompt: "y", cron: "0 9 * * *" }],
       );
+
       expect(early).toBeNull();
 
       await s.service();
@@ -315,10 +352,12 @@ describe.skipIf(!live)("agents, connectors and ai-tasks modules", () => {
         [task.id],
       );
       expect(await tasks.tick().orThrow()).toEqual([]);
+
       const [scheduled] = await s.rows<{ next_run_at: Date }>(
         "select next_run_at from better_supabase.ai_scheduled_tasks where id = $1",
         [task.id],
       );
+
       expect(scheduled?.next_run_at.toISOString()).toBe(
         "2020-01-01T09:00:00.000Z",
       );
@@ -327,11 +366,13 @@ describe.skipIf(!live)("agents, connectors and ai-tasks modules", () => {
       expect(seen).toEqual(["Summarize my day"]);
       const second = await tasks.tick().orThrow();
       expect(second).toEqual([]);
+
       const [stale] = await s.rows<{ id: string }>(
         `insert into better_supabase.ai_task_runs (task_id, organization_id, user_id, scheduled_for, created_at)
          values ($1, $2, $3, now(), now() - interval '2 hours') returning id`,
         [task.id, tenant, member.id],
       );
+
       await tasks.tick().orThrow();
       expect(
         await s.value<string>(

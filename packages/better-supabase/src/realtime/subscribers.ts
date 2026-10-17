@@ -23,12 +23,16 @@ export async function allowedSubscribers<S extends Subscriber>(
   if (policy === undefined || subscribers.length === 0) {
     return { ok: true, allowed: subscribers };
   }
+
   let kept: Set<string>;
+
   try {
     const returned: unknown = await policy(event, subscribers);
+
     if (!Array.isArray(returned)) {
       throw new TypeError("The subscriber policy did not return an array");
     }
+
     kept = new Set(
       returned.flatMap((entry: unknown) =>
         typeof entry === "object" &&
@@ -50,6 +54,7 @@ export async function allowedSubscribers<S extends Subscriber>(
   } catch (cause) {
     return { ok: false, cause };
   }
+
   return {
     ok: true,
     allowed: subscribers.filter((subscriber) => kept.has(keyOf(subscriber))),

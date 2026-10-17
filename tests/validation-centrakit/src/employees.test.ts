@@ -51,15 +51,18 @@ const EXTRA: Extra = {
 
 async function organization(s: Session): Promise<string> {
   await s.as("service");
+
   const { rows } = await s.client.query<{ id: string }>(
     "insert into centrakit.organizations (name, slug) values ('Acme', $1) returning id",
     [`acme-${crypto.randomUUID().slice(0, 8)}`],
   );
+
   const org = rows[0]!.id;
   await s.client.query(
     "insert into centrakit.organization_users (user_id, organization_id, role_id) values ($1, $3, $4), ($2, $3, $5)",
     [USERS.owner, USERS.member, org, ROLES.owner, ROLES.member],
   );
+
   return org;
 }
 
@@ -80,11 +83,14 @@ describe.skipIf(!live)("employees on CentraKit", () => {
       async (s) => {
         const org = await organization(s);
         await s.as("owner");
+
         const ada = await s.value<Row>(
           "better_supabase.create_employee($1::uuid, $2::jsonb)",
           [org, { name: "Ada", userId: USERS.owner, jobTitle: "CEO" }],
         );
+
         expect(ada).toMatchObject({ first_name: "Ada", status: "active" });
+
         const bob = await s.value<Row & { kind: string }>(
           "better_supabase.create_employee($1::uuid, $2::jsonb)",
           [
@@ -92,6 +98,7 @@ describe.skipIf(!live)("employees on CentraKit", () => {
             { name: "Bob", managerId: ada.id, employmentType: "contractor" },
           ],
         );
+
         expect(bob.kind).toBe("contractor");
 
         const result = await s.value<{
@@ -103,16 +110,19 @@ describe.skipIf(!live)("employees on CentraKit", () => {
             { employeeId: bob.id, field: "email", value: "bob@acme.test" },
           ]),
         ]);
+
         expect(result.accepted).toHaveLength(1);
         expect(result.rejected.map((change) => change.hint)).toEqual([
           "EMPLOYEE_MANAGER_CYCLE",
         ]);
 
         await s.as("member");
+
         const chart = await s.value<Row[]>(
           "better_supabase.org_chart($1::uuid, null)",
           [org],
         );
+
         expect(chart.map((row) => [row.first_name, row.depth])).toEqual([
           ["Ada", 0],
           ["Bob", 1],
@@ -125,10 +135,12 @@ describe.skipIf(!live)("employees on CentraKit", () => {
         ).toBe("EMPLOYEE_FORBIDDEN");
 
         await s.as("owner");
+
         const gone = await s.value<Row & { end_date: string }>(
           "better_supabase.offboard_employee($1, '2026-12-31', 'Moved')",
           [bob.id],
         );
+
         expect(gone).toMatchObject({
           status: "offboarded",
           end_date: "2026-12-31",

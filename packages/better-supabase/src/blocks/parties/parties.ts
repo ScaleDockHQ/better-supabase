@@ -191,6 +191,7 @@ const COMMON = [
   "created_at",
   "updated_at",
 ];
+
 const COMPANY_COLUMNS = new Set([
   ...COMMON,
   "domain",
@@ -198,6 +199,7 @@ const COMPANY_COLUMNS = new Set([
   "vat_id",
   "address",
 ]);
+
 const PERSON_COLUMNS = new Set([
   ...COMMON,
   "email",
@@ -221,6 +223,7 @@ function base(
   const fields = row["fields"];
   const ownerId = optionalText(row["owner_user_id"]);
   const mergedInto = optionalText(row["merged_into"]);
+
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["tenant_id"]),
@@ -239,6 +242,7 @@ function companyOf(value: unknown): Company {
   const website = optionalText(row["website"]);
   const vatId = optionalText(row["vat_id"]);
   const address = row["address"];
+
   return {
     ...base(row, COMPANY_COLUMNS),
     ...(domain === undefined ? {} : { domain }),
@@ -254,6 +258,7 @@ function personOf(value: unknown): Person {
   const phone = optionalText(row["phone"]);
   const title = optionalText(row["title"]);
   const userId = optionalText(row["user_id"]);
+
   return {
     ...base(row, PERSON_COLUMNS),
     ...(email === undefined ? {} : { email }),
@@ -266,6 +271,7 @@ function personOf(value: unknown): Person {
 function companyPersonOf(value: unknown): CompanyPerson {
   const row = recordOf(value, "company person");
   const role = optionalText(row["role"]);
+
   return {
     ...personOf(row),
     primary: row["is_primary"] === true,
@@ -276,6 +282,7 @@ function companyPersonOf(value: unknown): CompanyPerson {
 /** The attrs of a write: the keys the input sets, `null` included, and its fields. */
 function attrsOf(input: CompanyInput | PersonInput): Record<string, unknown> {
   const { id: _id, fields, ...rest } = input;
+
   return { ...rest, ...fields };
 }
 
@@ -284,6 +291,7 @@ function pageFrom<T extends { readonly id: string; readonly name: string }>(
   limit: number | undefined,
 ): PartyPage<T> {
   const last = rows.at(-1);
+
   return rows.length === (limit ?? 50) && last !== undefined
     ? { items: rows, next: { name: last.name, id: last.id } }
     : { items: rows };
@@ -298,10 +306,13 @@ export function createParties<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: PartiesOptions<S>): Parties<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   const call = blockCall(options.transport, options.schema, options.mappers);
   const fields: BlockFields<F> = blockFields(options.fields, "company fields");
+
   const company = (result: AsyncResult<Company>): AsyncResult<Company<F>> =>
     result.andThen((row) => readFields(fields, row));
+
   const list = <T extends { readonly id: string; readonly name: string }>(
     fn: string,
     organizationId: string,
@@ -309,6 +320,7 @@ export function createParties<
     map: (value: unknown) => T,
   ) => {
     const { limit, cursor } = pageOf(listOptions);
+
     return call(
       fn,
       {
@@ -323,6 +335,7 @@ export function createParties<
       (value) => pageFrom(recordsOf(value, fn).map(map), limit),
     );
   };
+
   const client: Parties<F> = {
     saveCompany: (organizationId, input) =>
       writeFields(fields, input.fields, (checked) =>
@@ -408,6 +421,7 @@ export function createParties<
         recordsOf(value, "company_people_of").map(companyPersonOf),
       ),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "parties",
     ...(options.logger ? { logger: options.logger } : {}),
@@ -426,6 +440,7 @@ export function partiesSubjects(
   } = {},
 ): { readonly company: SubjectConfig; readonly person: SubjectConfig } {
   const schema = options.schema ?? DEFAULT_BLOCK_SCHEMA;
+
   return {
     company: {
       table: `${schema}.companies`,

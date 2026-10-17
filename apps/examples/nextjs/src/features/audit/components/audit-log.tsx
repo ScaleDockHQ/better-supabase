@@ -33,12 +33,15 @@ import { AuditLogTable } from "./audit-log-table";
 export async function AuditLog() {
   const [session, t] = await Promise.all([getSession(), getExtracted("audit")]);
   const organizationId = tenantOf(session);
+
   if (!organizationId) {
     return null;
   }
+
   if (!can(session, "audit.read")) {
     forbidden();
   }
+
   if (!hasEntitlement(session, organizationId, "audit")) {
     return (
       <Empty className="border" data-testid="audit-upsell">
@@ -59,6 +62,7 @@ export async function AuditLog() {
       </Empty>
     );
   }
+
   return (
     <Card>
       <CardHeader>

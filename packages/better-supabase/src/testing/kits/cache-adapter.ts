@@ -12,8 +12,10 @@ export function testCacheAdapter(
   options: { readonly table?: string } = {},
 ): Promise<ConformanceReport> {
   const table = options.table ?? "customers";
+
   const invalidate = (target: CacheTarget): Promise<void> =>
     Promise.resolve(adapter.invalidate(deepFreeze(target)));
+
   return conform(`CacheAdapter "${adapter.name}"`, [
     hasName(adapter),
     [

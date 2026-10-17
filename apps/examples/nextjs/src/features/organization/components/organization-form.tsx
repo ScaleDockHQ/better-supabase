@@ -30,18 +30,21 @@ export function OrganizationForm({
   const t = useExtracted("organization");
   const fieldId = useId();
   const errorMessage = useErrorMessage();
+
   const form = useActionForm(updateOrganization, {
     resetOnSuccess: false,
     onSuccess: () => {
       toast.success(t("Organization saved"));
     },
   });
+
   const error =
     form.error === undefined
       ? null
       : form.error.kind === "conflict"
         ? t("That URL is taken. Pick another one.")
         : errorMessage(form.error);
+
   return (
     <form {...form.formProps} className="space-y-6">
       <fieldset disabled={!canEdit}>

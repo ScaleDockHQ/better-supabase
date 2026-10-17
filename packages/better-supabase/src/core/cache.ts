@@ -37,10 +37,13 @@ export function rowKey(
   if (table.primaryKey.length === 0) {
     return undefined;
   }
+
   const parts = table.primaryKey.map((column) => row[column]);
+
   if (parts.some((part) => part === undefined || part === null)) {
     return undefined;
   }
+
   return parts.map(String).join(",");
 }
 
@@ -50,10 +53,13 @@ export function cacheTargetOf(
 ): CacheTarget {
   const table = meta.tables[notice.table];
   const rows = notice.rows.length > 0 ? notice.rows : (notice.keys ?? []);
+
   const ids = table
     ? [...new Set(rows.flatMap((row) => rowKey(table, row) ?? []))]
     : [];
+
   const tenant = notice.tenant ?? notice.context.tenant;
+
   return {
     table: notice.table,
     tables:
@@ -71,6 +77,7 @@ export function rpcCacheTargets(
   notice: RpcNotice,
 ): CacheTarget[] {
   const tenant = notice.context.tenant;
+
   return notice.invalidates.map((table) => ({
     table,
     tables: invalidationTargets(meta, table),
@@ -87,6 +94,7 @@ export interface MemoryCache extends CacheAdapter {
 /** Records invalidations. For tests and for checking what a mutation touches. */
 export function memoryCache(): MemoryCache {
   const invalidated: CacheTarget[] = [];
+
   return {
     name: "memory",
     invalidated,

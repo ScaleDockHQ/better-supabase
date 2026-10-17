@@ -66,18 +66,23 @@ export function parseAiFileUrl(
   url: string | URL,
 ): { readonly bucket: string; readonly path: string } | undefined {
   let parsed: URL;
+
   try {
     parsed = typeof url === "string" ? new URL(url) : url;
   } catch {
     return undefined;
   }
+
   if (parsed.protocol !== SCHEME || parsed.hostname === "") {
     return undefined;
   }
+
   const segments = parsed.pathname.split("/").filter((part) => part !== "");
+
   if (segments.length === 0) {
     return undefined;
   }
+
   try {
     return {
       bucket: decodeURIComponent(parsed.hostname),
@@ -102,12 +107,15 @@ function stored<T>(
   return AsyncResult.from(async () => {
     try {
       const { data, error } = await reply;
+
       if (error) {
         return err(fromStorageError(error, "storage.objects"));
       }
+
       if (data === null || data === undefined) {
         return err(dbError("network", "Storage returned no data"));
       }
+
       return ok(data);
     } catch (cause) {
       return err(fromStorageError(cause, "storage.objects"));
@@ -123,29 +131,38 @@ export function createAiFiles<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: AiFilesOptions<S>): AiFiles<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const fields: BlockFields<F> = blockFields(options.fields, "file fields");
+
   const typed = (value: unknown): AsyncResult<AiFile & F> =>
     AsyncResult.from(() => withFields(fields, value, fileOf(value)));
+
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const service = blockCall(
     options.service ?? options.transport,
     options.schema,
     options.mappers,
   );
+
   const ttl = options.downloadTtl ?? 300;
   const maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES;
   const serviceStorage = options.serviceStorage ?? options.storage;
 
   const found = (value: unknown): AsyncResult<AiFile & F> =>
     isRecord(value) ? typed(value) : AsyncResult.err(notFound());
+
   const get = (fileId: string): AsyncResult<AiFile & F> =>
     call("get_ai_file", { file_id: fileId }, (value) => value).andThen(found);
+
   const fileFrom = (file: AiFile | string): AsyncResult<AiFile & F> =>
     // SAFETY: a file the caller passes came from this client, so it carries F.
     typeof file === "string" ? get(file) : AsyncResult.ok(file as AiFile & F);
+
   const resolve = (url: string | URL): AsyncResult<AiFile & F> => {
     const target = parseAiFileUrl(url);
+
     if (!target) {
       return AsyncResult.err(
         dbError("invalid_request", "Not a supabase-storage:// URL", {
@@ -153,12 +170,14 @@ export function createAiFiles<
         }),
       );
     }
+
     return call(
       "get_ai_file_by_path",
       { bucket: target.bucket, path: target.path },
       (value) => value,
     ).andThen(found);
   };
+
   const sign = (file: AiFile | string): AsyncResult<string> =>
     fileFrom(file).andThen((row) =>
       row.status === "ready"
@@ -222,6 +241,7 @@ export function createAiFiles<
           if (row.status !== "ready") {
             return err(notReady());
           }
+
           if (row.size > maxBytes) {
             return err(
               dbError("invalid_request", "The file is larger than maxBytes", {
@@ -229,12 +249,15 @@ export function createAiFiles<
               }),
             );
           }
+
           const blob = await stored(
             options.storage.from(row.bucket).download(row.path),
           );
+
           if (!blob.ok) {
             return err(blob.error);
           }
+
           if (blob.data.size > maxBytes) {
             return err(
               dbError("invalid_request", "The file is larger than maxBytes", {
@@ -242,6 +265,7 @@ export function createAiFiles<
               }),
             );
           }
+
           return ok({
             file: row,
             data: new Uint8Array(await blob.data.arrayBuffer()),
@@ -253,17 +277,20 @@ export function createAiFiles<
             if (!isRecord(value)) {
               return ok(false);
             }
+
             const removed = await stored(
               options.storage
                 .from(textOf(value["bucket"]))
                 .remove([textOf(value["path"])]),
             );
+
             return removed.ok ? ok(true) : err(removed.error);
           },
         ),
       store: (organizationId, file) => {
         const { ownerId, filename, mediaType, data, chatId, source, ...extra } =
           file;
+
         return AsyncResult.from(() => extraFieldsArg(fields, extra))
           .andThen((more) =>
             service(
@@ -285,6 +312,7 @@ export function createAiFiles<
           .andThen(typed)
           .andThen(async (created) => {
             const target = serviceStorage.from(created.bucket);
+
             if (!target.upload) {
               return err(
                 dbError("invalid_request", "The storage client has no upload", {
@@ -292,20 +320,24 @@ export function createAiFiles<
                 }),
               );
             }
+
             const sent = await stored(
               target.upload(created.path, file.data, {
                 contentType: created.mediaType,
                 upsert: false,
               }),
             );
+
             if (sent.ok) {
               return ok(created);
             }
+
             await service(
               "delete_ai_file",
               { file_id: created.id },
               () => true,
             );
+
             return err(sent.error);
           });
       },
@@ -316,20 +348,24 @@ export function createAiFiles<
           (value) => recordsOf(value, "purge_ai_files"),
         ).andThen(async (removed) => {
           const byBucket = new Map<string, string[]>();
+
           for (const row of removed) {
             const bucket = textOf(row["bucket"]);
             const paths = byBucket.get(bucket) ?? [];
             paths.push(textOf(row["path"]));
             byBucket.set(bucket, paths);
           }
+
           for (const [bucket, paths] of byBucket) {
             const result = await stored(
               serviceStorage.from(bucket).remove(paths),
             );
+
             if (!result.ok) {
               return err(result.error);
             }
           }
+
           return ok(removed.length);
         }),
     },
@@ -450,34 +486,43 @@ export function createAiFiles<
     },
     sign: async (messages) => {
       const signed = new Map<string, string | undefined>();
+
       for (const message of messages) {
         for (const part of message.parts) {
           if (part.type !== "file" || signed.has(part.url)) {
             continue;
           }
+
           if (!parseAiFileUrl(part.url)) {
             continue;
           }
+
           const result = await resolve(part.url).andThen(sign);
           signed.set(part.url, result.ok ? result.data : undefined);
         }
       }
+
       if (signed.size === 0) {
         return messages;
       }
+
       const swap = (part: AiMessagePart): AiMessagePart => {
         if (part.type !== "file") {
           return part;
         }
+
         const url = signed.get(part.url);
+
         return url === undefined ? part : { ...part, url };
       };
+
       return messages.map((message) => ({
         ...message,
         parts: message.parts.map(swap),
       }));
     },
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "ai-files",
     ...(options.logger ? { logger: options.logger } : {}),

@@ -60,6 +60,7 @@ describe("entitlements sources", () => {
     }).find(
       (file) => file.module === "entitlements" && file.kind === "schema",
     )!.contents;
+
     expect(sql).toContain("stripe.active_entitlements");
     expect(sql).toContain("better_supabase.tenant_stripe_customer");
   });
@@ -76,6 +77,7 @@ describe("entitlements sources", () => {
     }).find(
       (file) => file.module === "entitlements" && file.kind === "schema",
     )!.contents;
+
     expect(sql).toContain("-- config.entitlements: app.team_billing.cus_id");
     expect(sql).toContain(
       'select t."cus_id" from "app"."team_billing" t where t."team_id" = tenant',
@@ -95,6 +97,7 @@ describe("entitlements sources", () => {
     }).find(
       (file) => file.module === "entitlements" && file.kind === "schema",
     )!.contents;
+
     expect(sql).toContain(
       'select t."stripe_customer_id" from "app"."teams" t where t."team_id" = tenant',
     );
@@ -112,6 +115,7 @@ describe("entitlements sources", () => {
         features: { table: "plan_features", plan: "plan", feature: "key" },
       },
     });
+
     expect(sql).not.toContain("any (array['active'");
     expect(sql).not.toContain('and f."included"');
   });
@@ -123,6 +127,7 @@ describe("entitlements sources", () => {
         features: { ...PLANS.plans.features, value: "limit_value" },
       },
     });
+
     expect(sql).toContain(
       "create or replace function better_supabase.tenant_entitlement_value(tenant uuid, key text)",
     );
@@ -138,6 +143,7 @@ describe("entitlements sources", () => {
     expect(sql).toContain(
       "grant execute on function better_supabase.entitlement_value(uuid, text) to authenticated, service_role;",
     );
+
     for (const source of [PLANS, "stripe-sync"] as const) {
       const plain =
         source === "stripe-sync"
@@ -152,10 +158,12 @@ describe("entitlements sources", () => {
                 file.module === "entitlements" && file.kind === "schema",
             )!.contents
           : entitlements(source);
+
       expect(plain).toContain(
         "select case when key = any (better_supabase.tenant_entitlements(tenant)) then 'true'::jsonb end",
       );
     }
+
     const custom = entitlements("custom");
     expect(custom).not.toContain(
       "create or replace function better_supabase.tenant_entitlement_value",

@@ -185,17 +185,22 @@ function castId(value: string, idType: ModuleIdType): string {
     case "uuid": {
       return `case when ${value} ~* '^[0-9a-f-]{36}$' then (${value})::uuid end`;
     }
+
     case "bigint": {
       return `case when ${value} ~ '^-?[0-9]{1,18}$' then (${value})::bigint end`;
     }
+
     case "integer": {
       return `case when ${value} ~ '^-?[0-9]{1,9}$' then (${value})::integer end`;
     }
+
     case "text": {
       return value;
     }
+
     default: {
       const unknown: never = idType;
+
       return unknown;
     }
   }
@@ -262,6 +267,7 @@ function present(
   pairs: readonly (readonly [string, string])[],
 ): AuditInsert {
   const kept = pairs.filter(([logical]) => hasColumn(ctx, table, logical));
+
   return {
     columns: kept.map(([logical]) => ctx.col(table, logical)).join(", "),
     values: kept.map(([, value]) => value).join(",\n    "),
@@ -279,20 +285,25 @@ function managedTables(ctx: ModuleContext, restricted: boolean): string {
   const sequence = `better_supabase.${ctx.naming.rename("audit_events_id_seq")}`;
   const fallback = `better_supabase.${ctx.naming.rename("audit_events_default")}`;
   const c = (logical: string) => ctx.col("log", logical);
+
   const line = (logical: string, definition: string) =>
     ctx.has("log", logical) ? `\n  ${c(logical)} ${definition},` : "";
+
   const add = (logical: string, definition: string) =>
     ctx.has("log", logical)
       ? `\nalter table ${log} add column if not exists ${c(logical)} ${definition};`
       : "";
+
   const op = ctx.has("log", "op")
     ? `
 alter table ${log} drop constraint if exists audit_log_op_check;
 ${ensureCheck(log, "bs_audit_op_check", `${c("op")} in ('insert', 'update', 'delete', 'event')`)}`
     : "";
+
   const table = ctx.has("log", "table")
     ? `\nalter table ${log} alter column ${c("table")} drop not null;`
     : "";
+
   const restrictedTable = restricted
     ? `
 create table if not exists ${ctx.table("restricted")} (
@@ -309,6 +320,7 @@ alter table ${ctx.table("restricted")} add column if not exists ${ctx.col("restr
 alter table ${ctx.table("restricted")} enable row level security;
 ${revokeTable(ctx.table("restricted"))}`
     : "";
+
   const head = partitioned
     ? `-- Partitioned by month on occurred_at: the key includes it, and a purge
 -- drops whole months. A log created before the option stays as it is.
@@ -317,6 +329,7 @@ create table if not exists ${log} (
   ${c("id")} bigint not null default nextval('${sequence}'),`
     : `create table if not exists ${log} (
   ${c("id")} bigint generated always as identity primary key,`;
+
   const tail = partitioned
     ? `,
   primary key (${c("id")}, ${c("occurredAt")})
@@ -332,6 +345,7 @@ end;
 $$;`
     : `
 );`;
+
   return `${head}${line("table", "text")}${line("record", "text")}${line("op", "text not null")}${line("old", "jsonb")}${line("new", "jsonb")}${line("changed", "text[]")}${line("actor", "uuid")}${line("actorRole", "text")}
   ${c("tenant")} ${ctx.idType},
   ${c("occurredAt")} timestamptz not null default now()${tail}${op}${table}
@@ -439,7 +453,9 @@ function restrictedInsert(
   if (!restricted) {
     return "";
   }
+
   const r = (logical: string) => ctx.col("restricted", logical);
+
   const pairs: (readonly [string, string])[] = [
     ["entry", "entry_id"],
     ["old", values.old],
@@ -450,9 +466,11 @@ function restrictedInsert(
     ["sessionId", values.sessionId ?? "auth.jwt() ->> 'session_id'"],
     ["changedValues", values.changed ?? "null"],
   ];
+
   const kept = pairs.filter(
     ([logical]) => logical === "entry" || hasColumn(ctx, "restricted", logical),
   );
+
   return `
   insert into ${ctx.table("restricted")} (${kept.map(([logical]) => r(logical)).join(", ")})
   values (${kept.map(([, value]) => value).join(", ")});`;
@@ -468,9 +486,11 @@ function eventRestricted(ctx: ModuleContext, restricted: boolean): string {
     userAgent: "user_agent",
     sessionId: "session_id",
   });
+
   if (insert === "") {
     return "";
   }
+
   return `
   if coalesce(restricted, '{}') <> '{}' or ip is not null or nullif(user_agent, '') is not null or nullif(session_id, '') is not null then${insert.replaceAll("\n  ", "\n    ")}
   end if;`;
@@ -482,6 +502,7 @@ function triggerFunction(
   restricted: boolean,
 ): string {
   const snapshots = !restricted;
+
   const insert = present(ctx, "log", [
     ["table", "tg_table_schema || '.' || tg_table_name"],
     [
@@ -525,10 +546,12 @@ function triggerFunction(
       correlationId: correlationIdSql(ctx),
     }),
   ]);
+
   const tenantValue = castId(
     `row_data ->> coalesce(entry.tenant_column, ${sqlString(tenantColumn)})`,
     ctx.idType,
   );
+
   // The trigger reads the JWT and the request headers once per row, not once
   // per column that uses them.
   const once = (sql: string): string =>
@@ -538,6 +561,7 @@ function triggerFunction(
         /better_supabase\.request_header\(('[^']*')\)/g,
         "(v_headers ->> $1)",
       );
+
   const changedValues = restricted
     ? `
   -- One change per column, values cut at 1000 characters, for revealing a
@@ -549,6 +573,7 @@ function triggerFunction(
   into changed_values
   from unnest(coalesce(changed_columns, array(select jsonb_object_keys(coalesce(new_row, old_row))))) k;`
     : "";
+
   return `create or replace function better_supabase.audit_row_change()
 returns trigger
 language plpgsql
@@ -637,6 +662,7 @@ function auditEvent(ctx: ModuleContext, restricted: boolean): string {
   const extra = metadataColumns(ctx);
   const log = ctx.table("log");
   const c = (logical: string) => ctx.col("log", logical);
+
   const insert = present(ctx, "log", [
     ["table", "null"],
     ["record", "record_id"],
@@ -688,7 +714,9 @@ function auditEvent(ctx: ModuleContext, restricted: boolean): string {
         "coalesce(audit_event.scope, case when tenant is null then 'platform' else 'tenant' end)",
     }),
   ]);
+
   const roles = ctx.list("eventRoles", ["service_role"]);
+
   const noRestricted = restricted
     ? ""
     : `
@@ -700,6 +728,7 @@ function auditEvent(ctx: ModuleContext, restricted: boolean): string {
           : "Map blocks.audit.tables.restricted to the table for sensitive details.",
       )};
   end if;`;
+
   const idempotent = ctx.has("log", "idempotencyKey")
     ? `
   if idempotency_key is not null then
@@ -714,6 +743,7 @@ function auditEvent(ctx: ModuleContext, restricted: boolean): string {
     end if;
   end if;`
     : "";
+
   // The body names its own function to qualify arguments (audit_event.tenant).
   const create = (name: string, trusted: boolean): string =>
     `create or replace function better_supabase.${name}(
@@ -776,6 +806,7 @@ begin${noRestricted}
 end;
 $$;
 `.replaceAll("audit_event.", `${name}.`);
+
   return `-- Records a semantic app event (invoice.sent, member.invited) next to the
 -- row changes. A repeated idempotency_key returns the first entry's id.
 -- actor_id, actor_kind, actor_label, ip, user_agent, session_id, request_id
@@ -816,6 +847,7 @@ grant execute on function better_supabase.audit_event_trusted(${EVENT_ARGS(id)})
 
 function readPolicy(ctx: ModuleContext): string {
   const log = ctx.table("log");
+
   if (!ctx.flag("readPolicy", false)) {
     return ctx.manages
       ? `drop policy if exists bs_audit_read on ${log};
@@ -823,14 +855,17 @@ drop function if exists ${ctx.fn("audit_read_tenants")}();
 drop function if exists ${ctx.fn("audit_reads_all")}();`
       : "";
   }
+
   const c = (logical: string) => ctx.col("log", logical);
   const view = ctx.permission("view", OPERATIONS["audit.view"]);
   const viewAll = modulePermission(ctx, "viewAll", OPERATIONS["audit.viewAll"]);
+
   const hidden = new Set(
     impersonators(ctx) === "hide"
       ? ["impersonatedBy", "impersonationReason", "supportSession"]
       : [],
   );
+
   const readable = [
     ...Object.keys(NAMES.tables["log"]!.columns)
       .filter(
@@ -839,6 +874,7 @@ drop function if exists ${ctx.fn("audit_reads_all")}();`
       .map(c),
     ...metadataColumns(ctx).map(([column]) => sqlIdent(column)),
   ];
+
   return `-- Members read their tenant's entries with the ${ctx.permissionKey("view", OPERATIONS["audit.view"])} permission;
 -- platform staff read every entry. PL/pgSQL resolves tenant_ids_with and
 -- is_platform when it runs, so this file installs before the access module's.
@@ -883,10 +919,12 @@ grant select (${readable.join(", ")}) on ${log} to authenticated;`
 
 function auditSql(ctx: ModuleContext, layout: ModuleLayout): string {
   const restricted = restrictedOn(ctx);
+
   const tenantColumn = ctx.text(
     "tenantColumn",
     layout.tenantColumn ?? "organization_id",
   );
+
   return [
     SCHEMA,
     REGISTRY,

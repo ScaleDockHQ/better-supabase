@@ -17,7 +17,9 @@ export function parseDbStats(
   if (!value) {
     return undefined;
   }
+
   const [calls, waves, ms] = value.split(";").map(Number);
+
   if (
     calls === undefined ||
     waves === undefined ||
@@ -26,6 +28,7 @@ export function parseDbStats(
   ) {
     return undefined;
   }
+
   return { calls, waves, ms };
 }
 
@@ -43,6 +46,7 @@ function withHeaders(
 ): Response {
   const headers = new Headers(response.headers);
   edit(headers);
+
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
@@ -57,6 +61,7 @@ function metric(name: string, dur: number, description?: string): string {
     description === undefined
       ? ""
       : `;desc="${description.replaceAll(/["\\]/g, "")}"`;
+
   return `${name.replaceAll(TOKEN, "_")};dur=${dur.toFixed(1)}${desc}`;
 }
 
@@ -81,12 +86,14 @@ export function withServerTiming(
       async function* run() {
         const started = now();
         const metrics: string[] = [];
+
         const timing: ServerTiming = {
           add: (name, dur, description) => {
             metrics.push(metric(name, dur, description));
           },
           async measure(name, fn) {
             const start = now();
+
             try {
               return await fn();
             } finally {
@@ -94,8 +101,10 @@ export function withServerTiming(
             }
           },
         };
+
         const response = yield { timing };
         const total = metric("bs", now() - started);
+
         return withHeaders(response, (headers) => {
           headers.append("server-timing", [total, ...metrics].join(", "));
         });
@@ -117,6 +126,7 @@ export function withDbStats(
   () => DbStats
 > {
   const header = options.header ?? DB_CALLS_HEADER;
+
   return defineMiddleware<
     "dbStats",
     undefined,
@@ -130,6 +140,7 @@ export function withDbStats(
         const dbStats = (): DbStats => ctx.bs.stats();
         const response = yield { dbStats };
         const stats = dbStats();
+
         return withHeaders(response, (headers) => {
           headers.set(header, formatDbStats(stats));
           headers.append(

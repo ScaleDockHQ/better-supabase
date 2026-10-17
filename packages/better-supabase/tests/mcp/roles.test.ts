@@ -34,6 +34,7 @@ async function call(
   appMetadata: Record<string, unknown>,
 ): Promise<Response> {
   const token = await signer.sign({ sub: USER, app_metadata: appMetadata });
+
   return mcp.fetch(
     new Request("https://tools.test/mcp", {
       method: "POST",

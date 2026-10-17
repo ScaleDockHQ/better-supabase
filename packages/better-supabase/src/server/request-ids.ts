@@ -41,10 +41,13 @@ export function sessionWith(
       : { "better_supabase.correlation_id": ids.correlationId }),
     ...(tenant === undefined ? {} : { "better_supabase.tenant": tenant }),
   };
+
   const hasSettings = Object.keys(settings).length > 0;
+
   if (!hasSettings && !readOnly) {
     return undefined;
   }
+
   return {
     ...(readOnly ? { readOnly: true } : {}),
     ...(hasSettings ? { settings } : {}),
@@ -56,15 +59,19 @@ export function requestIdPolicy(
 ): RequestIdPolicy {
   const on = options !== false;
   const settings = on ? options : {};
+
   const requestHeader = (
     settings.requestHeader ?? "x-request-id"
   ).toLowerCase();
+
   const correlationHeader = (
     settings.correlationHeader ?? "x-correlation-id"
   ).toLowerCase();
+
   const incoming = on && (settings.incoming ?? true);
   const generate = on && (settings.generate ?? true);
   const generated = new WeakMap<Request, string>();
+
   const fromHeader = (
     request: Request | undefined,
     name: string,
@@ -72,28 +79,36 @@ export function requestIdPolicy(
     incoming && request
       ? requestIdOrUndefined(request.headers.get(name))
       : undefined;
+
   const generatedFor = (request: Request | undefined): string | undefined => {
     if (!generate || !request) {
       return undefined;
     }
+
     const known = generated.get(request);
+
     if (known !== undefined) {
       return known;
     }
+
     const id = crypto.randomUUID();
     generated.set(request, id);
+
     return id;
   };
+
   return {
     forRequest(request, explicit) {
       const requestId =
         requestIdOrUndefined(explicit.requestId) ??
         fromHeader(request, requestHeader) ??
         generatedFor(request);
+
       const correlationId =
         requestIdOrUndefined(explicit.correlationId) ??
         fromHeader(request, correlationHeader) ??
         requestId;
+
       return {
         ...(requestId === undefined ? {} : { requestId }),
         ...(correlationId === undefined ? {} : { correlationId }),

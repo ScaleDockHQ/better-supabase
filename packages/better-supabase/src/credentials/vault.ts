@@ -79,17 +79,21 @@ function vaultRef(ref: CredentialRef): Result<VaultCredentialRef> {
   if (ref.provider !== "vault") {
     return invalidRef(`vault does not resolve "${ref.provider}" credentials`);
   }
+
   const { secret, tenant, scope, header, scheme, inbound, signatureHeader } =
     ref;
+
   if (typeof secret !== "string" || secret.length === 0) {
     return invalidRef("a vault credential ref needs a secret name");
   }
+
   if (tenant !== undefined) {
     if (typeof tenant !== "string" || !TENANT.test(tenant)) {
       return invalidRef(
         "tenant is an id of letters, digits and ._:@- without a slash",
       );
     }
+
     if (secret.includes("/")) {
       return invalidRef("a tenant's secret name has no slash");
     }
@@ -98,15 +102,19 @@ function vaultRef(ref: CredentialRef): Result<VaultCredentialRef> {
       `a secret name starting with "${TENANT_PREFIX}" needs its tenant set`,
     );
   }
+
   if (scope !== undefined && scope !== "app" && scope !== "user") {
     return invalidRef('scope is "app" or "user"');
   }
+
   if (header !== undefined && typeof header !== "string") {
     return invalidRef("header is a header name");
   }
+
   if (scheme !== undefined && scheme !== null && typeof scheme !== "string") {
     return invalidRef("scheme is a string or null");
   }
+
   if (
     inbound !== undefined &&
     inbound !== "standard-webhooks" &&
@@ -117,9 +125,11 @@ function vaultRef(ref: CredentialRef): Result<VaultCredentialRef> {
       'inbound is "standard-webhooks", "hmac-sha256" or "shared-secret"',
     );
   }
+
   if (signatureHeader !== undefined && typeof signatureHeader !== "string") {
     return invalidRef("signatureHeader is a header name");
   }
+
   return ok({
     provider: "vault",
     secret,
@@ -144,9 +154,11 @@ function storageName(
     ref.tenant === undefined
       ? ref.secret
       : `${TENANT_PREFIX}${ref.tenant}/${ref.secret}`;
+
   if (ref.scope !== "user") {
     return ok(base);
   }
+
   if (subject?.type !== "user") {
     return err(
       dbError("forbidden", `"${ref.secret}" is stored per user`, {
@@ -154,6 +166,7 @@ function storageName(
       }),
     );
   }
+
   return ok(`${base}@${subject.id}`);
 }
 
@@ -162,6 +175,7 @@ function headersFor(
   token: string,
 ): Record<string, string> {
   const scheme = ref.scheme === undefined ? "Bearer" : ref.scheme;
+
   return {
     [(ref.header ?? "authorization").toLowerCase()]:
       scheme === null ? token : `${scheme} ${token}`,
@@ -180,18 +194,22 @@ async function verifyWith(
         { headers: request.headers, body: await request.text() },
         secret,
       );
+
       // A valid signature over a body that isn't JSON still proves the sender.
       return verified.ok || verified.error.kind === "invalid_request";
     }
+
     case "hmac-sha256": {
       const offered = (
         request.headers.get(ref.signatureHeader ?? "x-hub-signature-256") ?? ""
       ).replace(/^sha256=/i, "");
+
       return timingSafeEqual(
         offered.toLowerCase(),
         await hmacHex(secret, await request.text()),
       );
     }
+
     case "shared-secret": {
       return verifySharedSecret(
         request,
@@ -199,8 +217,10 @@ async function verifyWith(
         ref.signatureHeader ?? "authorization",
       );
     }
+
     default: {
       const unreachable: never = scheme;
+
       return unreachable;
     }
   }
@@ -220,14 +240,17 @@ export function vaultCredentials(
     options.schema ?? DEFAULT_BLOCK_SCHEMA,
     options.mappers,
   );
+
   const cacheMs = options.cacheMs ?? 60_000;
   const cache = new Map<string, { value: string; until: number }>();
 
   const read = (name: string): AsyncResult<string> => {
     const cached = cache.get(name);
+
     if (cached !== undefined && cached.until > Date.now()) {
       return AsyncResult.ok(cached.value);
     }
+
     return call(
       "credential_get",
       { provider: "vault", name },
@@ -242,12 +265,15 @@ export function vaultCredentials(
           ),
         );
       }
+
       if (cacheMs > 0) {
         if (cache.size >= MAX_CACHED) {
           cache.clear();
         }
+
         cache.set(name, { value, until: Date.now() + cacheMs });
       }
+
       return Promise.resolve(ok(value));
     });
   };
@@ -257,10 +283,13 @@ export function vaultCredentials(
     subject: CredentialSubject | undefined,
   ): Result<{ ref: VaultCredentialRef; name: string }> => {
     const parsed = vaultRef(ref);
+
     if (!parsed.ok) {
       return parsed;
     }
+
     const name = storageName(parsed.data, subject);
+
     return name.ok ? ok({ ref: parsed.data, name: name.data }) : name;
   };
 
@@ -269,9 +298,11 @@ export function vaultCredentials(
     name: "vault",
     getToken(ref, getOptions) {
       const resolved = resolve(ref, getOptions.subject);
+
       if (!resolved.ok) {
         return AsyncResult.err(resolved.error);
       }
+
       return read(resolved.data.name).map((token): CredentialToken => ({
         token,
         headers: headersFor(resolved.data.ref, token),
@@ -279,6 +310,7 @@ export function vaultCredentials(
     },
     capabilities(ref) {
       const parsed = vaultRef(ref);
+
       return {
         userSubjects: parsed.ok && parsed.data.scope === "user",
         authorization: false,
@@ -288,11 +320,14 @@ export function vaultCredentials(
     },
     revoke(ref, revokeOptions) {
       const resolved = resolve(ref, revokeOptions.subject);
+
       if (!resolved.ok) {
         return AsyncResult.err(resolved.error);
       }
+
       const { name } = resolved.data;
       cache.delete(name);
+
       return call(
         "credential_delete",
         { provider: "vault", name },
@@ -301,11 +336,14 @@ export function vaultCredentials(
     },
     set(ref, value, setOptions = {}) {
       const resolved = resolve(ref, setOptions.subject);
+
       if (!resolved.ok) {
         return AsyncResult.err(resolved.error);
       }
+
       const { name } = resolved.data;
       cache.delete(name);
+
       return call(
         "credential_set",
         {
@@ -319,10 +357,13 @@ export function vaultCredentials(
     },
     verifyInbound(request, ref) {
       const parsed = vaultRef(ref);
+
       if (!parsed.ok) {
         return AsyncResult.err(parsed.error);
       }
+
       const { inbound } = parsed.data;
+
       if (inbound === undefined) {
         return AsyncResult.err(
           dbError(
@@ -334,10 +375,13 @@ export function vaultCredentials(
           ),
         );
       }
+
       const name = storageName(parsed.data, { type: "app" });
+
       if (!name.ok) {
         return AsyncResult.err(name.error);
       }
+
       return read(name.data).andThen(async (secret) =>
         ok(await verifyWith(parsed.data, inbound, request.clone(), secret)),
       );

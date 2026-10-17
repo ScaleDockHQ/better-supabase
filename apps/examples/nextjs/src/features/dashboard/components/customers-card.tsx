@@ -16,18 +16,22 @@ import { getCustomerCounts } from "../dashboard-queries";
 /** Render inside `<Suspense>`: new customers over 30 days, by status. */
 export async function CustomersCard() {
   const organizationId = tenantOf(await getSession());
+
   if (!organizationId) {
     return null;
   }
+
   const [counts, t, format] = await Promise.all([
     getCustomerCounts(organizationId),
     getExtracted("dashboard"),
     getFormatter(),
   ]);
+
   const rows = [
     { key: "lead", label: t("Leads"), value: counts.lead },
     { key: "active", label: t("Active"), value: counts.active },
   ];
+
   return (
     <Card data-testid="customer-metrics">
       <CardHeader>

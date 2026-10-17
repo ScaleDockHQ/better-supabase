@@ -23,6 +23,7 @@ describe("versions module", () => {
         file: { table: "public.files" },
       }),
     );
+
     expect(sql).toContain(
       `update "public"."docs" s set "title" = r."title"\n      from jsonb_populate_record(null::"public"."docs", v_content) r`,
     );
@@ -55,6 +56,7 @@ describe("versions module", () => {
         },
       }),
     );
+
     expect(sql).toContain(
       `after insert or update of "text", "title" on "public"."notes"`,
     );
@@ -81,6 +83,7 @@ describe("versions module", () => {
         },
       },
     });
+
     expect(sql).toContain(
       `when 'doc' then coalesce(better_supabase.can('tenant', v_tenant, 'docs.write'), false)`,
     );

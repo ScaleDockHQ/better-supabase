@@ -12,6 +12,7 @@ export const instant = true;
 
 export default function WorkflowBuilderPage() {
   const t = useExtracted("workflows");
+
   return (
     <>
       <PageHeader

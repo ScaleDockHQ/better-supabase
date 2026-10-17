@@ -25,6 +25,7 @@ import {
 import { OPERATIONS } from "./access-model.ts";
 
 const TOPIC = /^[a-z][a-z0-9_-]{0,30}$/;
+
 const UUID_TEXT =
   "'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'";
 
@@ -83,11 +84,13 @@ const NAMES: ModuleNames = {
 /** `options.topic`: the realtime topic prefix, `documents` by default. */
 function documentsTopic(ctx: ModuleContext): string {
   const topic = ctx.text("topic", "documents");
+
   if (!TOPIC.test(topic)) {
     throw new TypeError(
       "blocks.documents.options.topic must be a lowercase name of at most 31 characters",
     );
   }
+
   return topic;
 }
 
@@ -98,6 +101,7 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const documents = ctx.table("documents");
   const updates = ctx.table("updates");
   const snapshots = ctx.table("snapshots");
@@ -112,40 +116,51 @@ function build(ctx: ModuleContext): string {
   const topic = documentsTopic(ctx);
   const maxBytes = ctx.number("maxUpdateBytes", 1_048_576);
   const compactAfter = ctx.number("compactAfter", 200);
+
   if (!Number.isInteger(maxBytes) || maxBytes < 1) {
     throw new TypeError(
       "blocks.documents.options.maxUpdateBytes must be a positive whole number",
     );
   }
+
   if (!Number.isInteger(compactAfter) || compactAfter < 1) {
     throw new TypeError(
       "blocks.documents.options.compactAfter must be a positive whole number",
     );
   }
+
   const readable = (row: string): string =>
     subjectReadable(ctx, subjects, {
       type: `${row}.${c("subjectType")}`,
       id: `${row}.${c("subjectId")}`,
       tenant: `${row}.${c("tenant")}`,
     });
+
   const canRead = (row: string): string =>
     `(${ctx.can("tenant", `${row}.${c("tenant")}`, read)} and ${readable(row)})`;
+
   const canWrite = (row: string): string =>
     `(${ctx.can("tenant", `${row}.${c("tenant")}`, write)} and ${readable(row)} and ${subjectWritable(ctx, subjects, { type: `${row}.${c("subjectType")}`, tenant: `${row}.${c("tenant")}` })})`;
+
   const json = (row: string): string =>
     `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'subjectType', ${row}.${c("subjectType")}, 'subjectId', ${row}.${c("subjectId")}, 'name', ${row}.${c("name")}, 'topic', ${sqlString(`${topic}:`)} || ${row}.${c("id")}::text, 'createdAt', ${row}.${c("createdAt")}, 'updatedAt', ${row}.${c("updatedAt")})`;
+
   const notFound = fail("DOCUMENT_NOT_FOUND", "document not found", "P0002");
+
   const versions =
     ctx.installed("versions") && ctx.of("versions").mode !== "custom"
       ? ctx.of("versions")
       : undefined;
+
   const v = (column: string): string =>
     versions === undefined ? column : versions.col("versions", column);
+
   const compactJob = ctx.enqueue(
     "documents.compact",
     `jsonb_build_object('documentId', v_doc.${c("id")})`,
     `'documents.compact:' || v_doc.${c("id")}::text`,
   );
+
   const tables = ctx.manages
     ? `create table if not exists ${documents} (
   ${c("id")} uuid primary key default gen_random_uuid(),
@@ -185,6 +200,7 @@ create table if not exists ${snapshots} (
 ${lockTable(snapshots, { read: false })}
 `
     : "";
+
   const versionFunctions =
     versions === undefined
       ? ""
@@ -266,6 +282,7 @@ end;
 $$;
 ${userGrant(`${fn("get_document_version")}(uuid, uuid)`)}
 `;
+
   return `${schemaPreamble(ctx)}
 ${tables}
 -- Whether the caller may read (or, with write, edit) a document. The

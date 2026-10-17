@@ -22,6 +22,7 @@ export async function AgentActivity() {
     getExtracted("assistant"),
     getFormatter(),
   ]);
+
   const when = (iso: string) =>
     format.dateTime(new Date(iso), { dateStyle: "medium", timeStyle: "short" });
 

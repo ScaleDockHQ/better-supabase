@@ -49,6 +49,7 @@ describe("deals module", () => {
         },
       }),
     );
+
     expect(pipelines).toContain("('lead', 'Lead', 'open', 'open'");
     expect(pipelines).not.toContain("'qualified'");
     expect(pipelines).toContain("bs_pipeline_status_deal");
@@ -59,10 +60,12 @@ describe("deals module", () => {
       "deals",
       render({ modules: { deals: { options: { readAll: false } } } }),
     );
+
     expect(scoped).toContain("deal_members");
     expect(scoped).toMatch(
       /create policy deals_read[\s\S]*owner_user_id" = auth.uid\(\)/,
     );
+
     const numbered = body(
       "deals",
       render(
@@ -78,6 +81,7 @@ describe("deals module", () => {
         ["number-sequences"],
       ),
     );
+
     expect(numbered).toContain("format_assigned_number('D-{n}'");
     expect(body("deals", render())).toContain("'DEAL-' || v_seq::text");
   });

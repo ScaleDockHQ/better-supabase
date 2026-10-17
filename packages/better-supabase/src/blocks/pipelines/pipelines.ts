@@ -223,6 +223,7 @@ function stageOf(value: unknown): PipelineStage {
   const probability = numberOf(row["probability"]);
   const rotting = numberOf(row["rotting_after_days"]);
   const wipLimit = numberOf(row["wip_limit"]);
+
   return {
     id: textOf(row["id"]),
     pipelineId: textOf(row["pipeline_id"]),
@@ -242,6 +243,7 @@ function stageOf(value: unknown): PipelineStage {
 function pipelineOf(value: unknown): Pipeline {
   const row = recordOf(value, "pipeline");
   const scopeId = optionalText(row["scope_id"]);
+
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["tenant_id"]),
@@ -261,6 +263,7 @@ function columnOf(value: unknown): PipelineColumn {
   const color = optionalText(row["color"]);
   const probability = numberOf(row["probability"]);
   const wipLimit = numberOf(row["wipLimit"]);
+
   return {
     stageId: textOf(row["stageId"]),
     key: textOf(row["key"]),
@@ -283,12 +286,14 @@ function columnOf(value: unknown): PipelineColumn {
 function statsOf(value: unknown): PipelineStats {
   const row = recordOf(value, "pipeline_stats");
   const winRate = numberOf(row["winRate"]);
+
   return {
     won: numberOf(row["won"]) ?? 0,
     lost: numberOf(row["lost"]) ?? 0,
     ...(winRate === undefined ? {} : { winRate }),
     stages: recordsOf(row["stages"], "pipeline_stats stages").map((stage) => {
       const averageSeconds = numberOf(stage["averageSeconds"]);
+
       return {
         stageId: textOf(stage["stageId"]),
         key: textOf(stage["key"]),
@@ -301,6 +306,7 @@ function statsOf(value: unknown): PipelineStats {
 
 function healthOf(value: unknown): PipelineHealth {
   const row = recordOf(value, "pipeline_health");
+
   return {
     subjectType: textOf(row["subjectType"]),
     subjectId: textOf(row["subjectId"]),
@@ -321,9 +327,11 @@ export function createPipelines<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: PipelinesOptions<S>): Pipelines<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const fields: BlockFields<F> = blockFields(options.fields, "pipeline fields");
+
   const client: Pipelines<F> = {
     list: (organizationId, subjectType) =>
       call(
@@ -372,9 +380,11 @@ export function createPipelines<
       ),
     reorderStage: (stageId, neighbors) => {
       const key = rankBetweenResult(neighbors);
+
       if (!key.ok) {
         return AsyncResult.err(key.error);
       }
+
       return call(
         "rank_pipeline_stage",
         { stage: stageId, rank: key.data },
@@ -421,6 +431,7 @@ export function createPipelines<
         recordsOf(value, "pipeline_health").map(healthOf),
       ),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "pipelines",
     ...(options.logger ? { logger: options.logger } : {}),

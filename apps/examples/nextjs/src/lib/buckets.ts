@@ -19,5 +19,6 @@ export function avatarSrc(
   if (row.avatarPath) {
     return storage.publicUrl(row.avatarPath).data ?? null;
   }
+
   return row.avatarUrl;
 }

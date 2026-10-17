@@ -26,10 +26,13 @@ export async function ProfileDetails() {
     getExtracted("user"),
     getFormatter(),
   ]);
+
   if (session.kind !== "user") {
     return null;
   }
+
   const role = roleOf(session);
+
   return (
     <>
       <Card>

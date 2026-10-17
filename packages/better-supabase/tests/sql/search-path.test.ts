@@ -10,6 +10,7 @@ function mutable(contents: string): string[] {
     .filter((part) => /^create (?:or replace )?function /i.test(part))
     .filter((part) => {
       const end = part.search(/\bas \$/);
+
       return !/\bset search_path\b/i.test(part.slice(0, end));
     })
     .map((part) => part.slice(0, part.indexOf("(")));
@@ -18,6 +19,7 @@ function mutable(contents: string): string[] {
 describe("function search paths", () => {
   it("fixes the search_path of every module and pgTAP kit function", () => {
     const names = Object.keys(SQL_MODULES);
+
     const layouts = [
       {},
       {
@@ -49,12 +51,15 @@ describe("function search paths", () => {
         },
       },
     ];
+
     for (const layout of layouts) {
       const files = renderModules(names, layout);
       expect(files.some((file) => file.module === "pgtap")).toBe(true);
+
       const found = files.flatMap((file) =>
         mutable(file.contents).map((fn) => `${file.module}: ${fn}`),
       );
+
       expect(found).toEqual([]);
     }
   });

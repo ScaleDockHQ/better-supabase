@@ -49,17 +49,23 @@ async function uploadAttachment(
       size: file.size,
       chatId,
     });
+
     if (!reserved.ok) {
       return undefined;
     }
+
     const { bucket, path, token } = reserved.data;
+
     const uploaded = await supabase.storage
       .from(bucket)
       .uploadToSignedUrl(path, token, file);
+
     if (uploaded.error) {
       return undefined;
     }
+
     const confirmed = await confirmAttachment({ id: reserved.data.id });
+
     return confirmed.ok ? confirmed.data : undefined;
   } catch {
     return undefined;
@@ -76,10 +82,12 @@ function ToolCall({
 }) {
   const t = useExtracted("assistant");
   const name = getToolName(part);
+
   if (part.state === "approval-requested") {
     const decide = (approved: boolean) => {
       void chat.addToolApprovalResponse({ id: part.approval.id, approved });
     };
+
     return (
       <div className="my-1 flex flex-col gap-2 rounded-lg border bg-background p-2 text-xs">
         <p className="flex items-center gap-1 font-medium">
@@ -113,6 +121,7 @@ function ToolCall({
       </div>
     );
   }
+
   return (
     <p className="flex items-center gap-1 text-xs text-muted-foreground">
       <WrenchIcon className="size-3" aria-hidden />
@@ -144,9 +153,11 @@ export function ChatView({ id, chat }: { id: string; chat: AssistantState }) {
 
   const send = () => {
     const text = input.trim();
+
     if (text === "" || busy || uploading) {
       return;
     }
+
     setInput("");
     setAttachments([]);
     void chat.sendMessage({ text, files: attachments });
@@ -155,14 +166,18 @@ export function ChatView({ id, chat }: { id: string; chat: AssistantState }) {
   const attach = async (picked: readonly File[]) => {
     setUploading(true);
     setUploadFailed(false);
+
     for (const file of picked) {
       const part = await uploadAttachment(supabase, file, id);
+
       if (!part) {
         setUploadFailed(true);
         break;
       }
+
       setAttachments((current) => [...current, part]);
     }
+
     setUploading(false);
   };
 
@@ -243,6 +258,7 @@ export function ChatView({ id, chat }: { id: string; chat: AssistantState }) {
           onChange={(event) => {
             const picked = [...(event.target.files ?? [])];
             event.target.value = "";
+
             if (picked.length > 0) {
               void attach(picked);
             }

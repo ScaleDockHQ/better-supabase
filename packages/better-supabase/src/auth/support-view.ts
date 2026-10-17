@@ -17,11 +17,14 @@ export function supportOf(session: AuthSession): SupportView | undefined {
   if (session.kind !== "user") {
     return;
   }
+
   const { impersonator } = session;
   const sessionId = impersonator?.sessionId;
+
   if (!impersonator || !sessionId) {
     return;
   }
+
   return {
     sessionId,
     adminId: impersonator.id,

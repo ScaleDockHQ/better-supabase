@@ -27,6 +27,7 @@ type OverlayOf<V extends OverlayVersion> = V extends "1.0.0"
     : Overlay11;
 
 type Kind = "object" | "array" | "primitive";
+
 const kindOf = (value: unknown): Kind =>
   Array.isArray(value) ? "array" : isObject(value) ? "object" : "primitive";
 
@@ -34,16 +35,20 @@ function equal(a: unknown, b: unknown): boolean {
   if (a === b) {
     return true;
   }
+
   if (Array.isArray(a) && Array.isArray(b)) {
     return a.length === b.length && a.every((item, i) => equal(item, b[i]));
   }
+
   if (isObject(a) && isObject(b)) {
     const keys = Object.keys(a);
+
     return (
       keys.length === Object.keys(b).length &&
       keys.every((key) => Object.hasOwn(b, key) && equal(a[key], b[key]))
     );
   }
+
   return false;
 }
 
@@ -66,23 +71,32 @@ function diffArray(
     if (b.length > a.length) {
       ctx.actions.push({ target: formatPath(path), update: b.slice(a.length) });
     }
+
     return true;
   }
+
   if (a.length !== b.length) {
     return false;
   }
+
   const pending: OverlayAction[] = [];
+
   for (const [i, item] of a.entries()) {
     const next = b[i];
+
     if (equal(item, next)) {
       continue;
     }
+
     if (!isObject(item) || !isObject(next)) {
       return false;
     }
+
     diffObject([...path, i], item, next, { ...ctx, actions: pending });
   }
+
   ctx.actions.push(...pending);
+
   return true;
 }
 
@@ -95,25 +109,32 @@ function diffObject(
   const removals: OverlayAction[] = [];
   const added: Record<string, unknown> = {};
   const nested: OverlayAction[] = [];
+
   const replace = (key: string, value: unknown): void => {
     removals.push({ target: formatPath([...path, key]), remove: true });
     added[key] = value;
   };
+
   for (const key of Object.keys(a)) {
     if (!Object.hasOwn(b, key)) {
       removals.push({ target: formatPath([...path, key]), remove: true });
     }
   }
+
   for (const [key, next] of Object.entries(b)) {
     if (!Object.hasOwn(a, key)) {
       added[key] = next;
       continue;
     }
+
     const current = a[key];
+
     if (equal(current, next)) {
       continue;
     }
+
     const kind = kindOf(current);
+
     if (kind !== kindOf(next)) {
       replace(key, next);
     } else if (isObject(current) && isObject(next)) {
@@ -130,10 +151,13 @@ function diffObject(
       replace(key, next);
     }
   }
+
   ctx.actions.push(...removals);
+
   if (Object.keys(added).length > 0) {
     ctx.actions.push({ target: formatPath(path), update: added });
   }
+
   ctx.actions.push(...nested);
 }
 
@@ -161,17 +185,20 @@ export function overlayFromDiff<V extends OverlayVersion = "1.1.0">(
   if (!isObject(base) || !isObject(enriched)) {
     throw new TypeError("overlayFromDiff: both documents must be objects");
   }
+
   const version: OverlayVersion = options.version ?? "1.1.0";
   const actions: OverlayAction[] = [];
   diffObject([], base, enriched, {
     replacePrimitives: version !== "1.0.0",
     actions,
   });
+
   if (actions.length === 0) {
     throw new TypeError(
       "overlayFromDiff: the documents are equal, so there is nothing to write",
     );
   }
+
   const overlay: Overlay = {
     overlay: version,
     info: options.info ?? {
@@ -181,6 +208,7 @@ export function overlayFromDiff<V extends OverlayVersion = "1.1.0">(
     ...(options.extends === undefined ? {} : { extends: options.extends }),
     actions,
   };
+
   // SAFETY: `overlay` carries the requested version, which is what OverlayOf<V> selects on.
   return overlay as OverlayOf<V>;
 }

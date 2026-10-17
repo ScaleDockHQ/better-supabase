@@ -20,12 +20,15 @@ export function filterBlocks<T extends BlockSummary>(
   query: string,
 ): T[] {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+
   return blocks.filter((block) => {
     if (category !== ALL_CATEGORIES && block.category !== category) {
       return false;
     }
+
     const text =
       `${block.name} ${block.title} ${block.description}`.toLowerCase();
+
     return words.every((word) => text.includes(word));
   });
 }

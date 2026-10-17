@@ -56,9 +56,11 @@ describe("spec emit", () => {
     expect(second.stdout).toContain(
       "Unchanged openapi.json (openapi 3.1, cached)",
     );
+
     const manifest = await readJson(
       "node_modules/.cache/better-supabase/specs/diagnostics.json",
     );
+
     expect(manifest).toMatchObject({ version: 1, ok: true, failOn: "error" });
   });
 
@@ -72,6 +74,7 @@ describe("spec emit", () => {
       "--ui",
       "redoc",
     );
+
     expect(result.code).toBe(0);
     expect(result.stdout).toContain("Wrote openapi-3.0.yaml");
     const text = await readFile(join(dir, "openapi-3.0.yaml"), "utf-8");
@@ -90,6 +93,7 @@ describe("spec emit", () => {
       "report.json",
       "--no-cache",
     );
+
     expect(result.code).toBe(0);
     expect(existsSync(join(dir, "docs/api.json"))).toBe(true);
     const manifest = await readJson("report.json");
@@ -109,8 +113,10 @@ describe("spec emit", () => {
       "--spec-version",
       "3.3-preview",
     );
+
     expect(preview.code).toBe(0);
     expect(preview.stdout).toContain("preview-version");
+
     const strict = await spec(
       "emit",
       "openapi",
@@ -119,6 +125,7 @@ describe("spec emit", () => {
       "--fail-on",
       "warning",
     );
+
     expect(strict.code).toBe(1);
     expect(strict.stderr).toContain("--fail-on warning");
   });
@@ -141,6 +148,7 @@ describe("spec emit --watch", () => {
       join(dir, "better-supabase.config.mjs"),
       "export default { specs: { entry: 'api.mjs' } };\n",
     );
+
     const watching = run(
       ["spec", "emit", "--watch", "--interval", "20", "--cwd", dir],
       {
@@ -155,17 +163,21 @@ describe("spec emit --watch", () => {
         },
       },
     );
+
     const waitFor = async (pattern: RegExp): Promise<void> => {
       for (let attempt = 0; attempt < 200; attempt += 1) {
         if (lines.some((line) => pattern.test(line))) {
           return;
         }
+
         await new Promise((done) => {
           setTimeout(done, 20);
         });
       }
+
       throw new Error(`no output matched ${pattern}: ${lines.join("")}`);
     };
+
     await waitFor(/Wrote openapi\.json/);
     await new Promise((done) => {
       setTimeout(done, 30);
@@ -195,6 +207,7 @@ describe("spec diagnostics", () => {
     expect(() => fails(warning, "loud" as never)).toThrow(
       "Unknown fail-on level",
     );
+
     const text = formatDiagnostics([
       {
         format: "openapi",
@@ -210,6 +223,7 @@ describe("spec diagnostics", () => {
         ],
       },
     ]);
+
     expect(text).toBe(
       "Warnings (1):\n  openapi.json w at /info: m\nInfo (1):\n  openapi.json i: note",
     );
@@ -246,16 +260,19 @@ describe("spec validate", () => {
         "--spec-version",
         version,
       );
+
       expect(result.stderr).toBe("");
       expect(result.code).toBe(0);
       expect(result.stdout).toContain("Checked");
     }
+
     const preview = await spec(
       "validate",
       "openapi",
       "--spec-version",
       "3.3-preview",
     );
+
     expect(preview.stdout).toContain("schema-unavailable");
   });
 });
@@ -278,6 +295,7 @@ describe("spec arguments", () => {
 
   it("explains an entry that exports nothing usable", async () => {
     await writeFile(join(dir, "empty.mjs"), "export const nothing = 1;\n");
+
     const result = await run([
       "spec",
       "emit",
@@ -286,8 +304,10 @@ describe("spec arguments", () => {
       "--cwd",
       dir,
     ]);
+
     expect(result.code).toBe(1);
     expect(result.stderr).toContain("must export `api`");
+
     const absent = await run([
       "spec",
       "emit",
@@ -296,6 +316,7 @@ describe("spec arguments", () => {
       "--cwd",
       dir,
     ]);
+
     expect(absent.stderr).toContain("Could not load");
   });
 
@@ -304,6 +325,7 @@ describe("spec arguments", () => {
       join(dir, "doc.mjs"),
       "export default { openapi: '3.1.0', info: { title: 'x', version: '1' }, paths: {} };\n",
     );
+
     const emit = await run([
       "spec",
       "emit",
@@ -312,8 +334,10 @@ describe("spec arguments", () => {
       "--cwd",
       dir,
     ]);
+
     expect(emit.stderr).toBe("");
     expect(emit.code).toBe(0);
+
     const other = await run([
       "spec",
       "emit",
@@ -325,6 +349,7 @@ describe("spec arguments", () => {
       "--cwd",
       dir,
     ]);
+
     expect(other.code).toBe(1);
     expect(other.stdout).toContain("document-version");
   });

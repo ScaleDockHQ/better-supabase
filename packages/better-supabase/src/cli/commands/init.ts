@@ -113,6 +113,7 @@ const LITE_VERSION = "0.11";
  */
 function devPackages(project: Project, lite: boolean): string[][] {
   const database = lite ? "@supabase/lite" : "pg";
+
   const missing = [
     ...(database in project.dependencies
       ? []
@@ -121,6 +122,7 @@ function devPackages(project: Project, lite: boolean): string[][] {
       ? []
       : [`@supabase/postgrest-typegen@${TYPEGEN_VERSION}`]),
   ];
+
   return missing.length === 0 ? [] : [missing];
 }
 
@@ -132,25 +134,32 @@ async function initTarget(
 ): Promise<{ readonly dir: string } | CommandResult> {
   if (args.package !== undefined) {
     const dir = posix.normalize(args.package.replaceAll("\\", "/"));
+
     if (!existsSync(join(cwd, dir, "package.json"))) {
       return {
         code: 2,
         error: `--package ${args.package} has no package.json. Pass the directory of a workspace package, relative to --cwd.`,
       };
     }
+
     return { dir: dir.replace(/\/$/, "") || "." };
   }
+
   const workspace = await detectWorkspace(cwd);
+
   if (!workspace || workspace.packages.length === 0) {
     return { dir: "." };
   }
+
   const suggested = suggestedPackage(workspace) ?? ".";
+
   if (!prompts) {
     return {
       code: 2,
       error: `${workspace.file} makes this a workspace root. Pass --package with the package that owns the runtime (${workspace.packages.map((entry) => entry.dir).join(", ")}), or --package . to write here.`,
     };
   }
+
   const dir = await prompts.select(
     "Package that owns the runtime",
     [
@@ -163,6 +172,7 @@ async function initTarget(
     ],
     suggested,
   );
+
   return dir === undefined ? CANCELLED : { dir };
 }
 
@@ -176,6 +186,7 @@ async function chosenPreset(
   | CommandResult
 > {
   let value = args.preset;
+
   if (
     value === undefined &&
     prompts &&
@@ -194,17 +205,22 @@ async function chosenPreset(
       ],
       "none",
     );
+
     if (picked === undefined) {
       return CANCELLED;
     }
+
     if (picked !== "none") {
       value = picked;
     }
   }
+
   if (value === undefined) {
     return null;
   }
+
   let preset: Preset;
+
   try {
     preset = presetOf(value);
   } catch (error) {
@@ -213,13 +229,16 @@ async function chosenPreset(
       error: error instanceof Error ? error.message : String(error),
     };
   }
+
   const resolved = resolvePreset(preset);
+
   if (resolved.conflicts.length > 0) {
     return {
       code: 2,
       error: `The preset can't install: ${resolved.conflicts.map((conflict) => `${conflict.block ?? conflict.field ?? ""} (${conflict.reason})`).join("; ")}.`,
     };
   }
+
   return {
     value: isPresetName(value) ? value : encodePreset(preset),
     resolved,
@@ -233,9 +252,11 @@ export async function runInit(
   now: Now = () => new Date(),
 ): Promise<CommandResult> {
   const chosen = await chosenPreset(args, prompts);
+
   if (chosen !== null && "code" in chosen) {
     return chosen;
   }
+
   const casing =
     args.casing ??
     chosen?.resolved.preset.casing ??
@@ -253,40 +274,53 @@ export async function runInit(
           "camel",
         )
       : "camel");
+
   if (casing === undefined) {
     return CANCELLED;
   }
+
   if (casing !== "camel" && casing !== "snake") {
     return { code: 2, error: '--casing must be "camel" or "snake"' };
   }
+
   const workflow = args.workflow ?? "pg-delta";
+
   if (!isSqlWorkflow(workflow)) {
     return {
       code: 2,
       error: '--workflow must be "pg-delta", "migra" or "migrations"',
     };
   }
+
   const target = await initTarget(config.root, args, prompts);
+
   if ("code" in target) {
     return target;
   }
+
   const root = resolve(config.root, target.dir);
   const inPackage = target.dir !== ".";
   const workspaceProject = await detectProject(config.root);
+
   const project: Project = inPackage
     ? {
         ...(await detectProject(root)),
         packageManager: workspaceProject.packageManager,
       }
     : workspaceProject;
+
   const lite = args.lite === true;
+
   const installTarget: InstallTarget | undefined = inPackage
     ? { dir: target.dir, name: project.name }
     : undefined;
+
   const requested = parseIntegrations(list(args.with));
+
   if (typeof requested === "string") {
     return { code: 2, error: requested };
   }
+
   const fromPreset = parseIntegrations(
     chosen === null
       ? []
@@ -297,29 +331,37 @@ export async function runInit(
           ),
         ],
   );
+
   if (typeof fromPreset === "string") {
     return { code: 2, error: fromPreset };
   }
+
   const detected = resolveIntegrations([
     ...suggestedIntegrations(project.frameworks),
     ...requested,
     ...fromPreset,
   ]);
+
   const picked =
     args.with === undefined && prompts && chosen === null
       ? await chooseIntegrations(prompts, detected)
       : detected;
+
   if (picked === undefined) {
     return CANCELLED;
   }
+
   const integrations = resolveIntegrations(picked);
   const hasConfig = findConfig(root) !== undefined;
+
   let generated = posix.normalize(
     posix.join(project.srcDir, "lib/supabase/generated.ts"),
   );
+
   if (hasConfig) {
     generated = inPackage ? (await loadConfig(root)).output : config.output;
   }
+
   const templateContext = templateContextFor(project, generated);
 
   const files = [
@@ -344,11 +386,15 @@ export async function runInit(
           },
         ]),
   ];
+
   const force = await overwrite(root, files, args, prompts, config.root);
+
   if (force === undefined) {
     return CANCELLED;
   }
+
   const where = inPackage ? ` in ${target.dir}` : "";
+
   const lines = [
     project.frameworks.length > 0
       ? `Found ${project.frameworks.join(", ")}${where}.`
@@ -359,6 +405,7 @@ export async function runInit(
       ? await enablePgDelta(root, args["dry-run"] === true, config.root)
       : []),
   ];
+
   if (chosen !== null) {
     const presetConfig = resolveConfig(
       {
@@ -369,14 +416,17 @@ export async function runInit(
       },
       root,
     );
+
     const synced = await syncModules(
       presetConfig,
       { "dry-run": args["dry-run"] === true },
       plain,
       now,
     );
+
     lines.push("", synced.output ?? synced.error ?? "");
     const glue = presetGlue(chosen.resolved);
+
     if (glue.length > 0) {
       lines.push(
         "",
@@ -384,8 +434,10 @@ export async function runInit(
       );
     }
   }
+
   const packages = packagesFor(project, integrations);
   const cwdFlag = inPackage ? ` --cwd ${target.dir}` : "";
+
   const steps = [
     ...(packages.length > 0
       ? [installCommand(project.packageManager, packages, false, installTarget)]
@@ -404,22 +456,27 @@ export async function runInit(
       : ["supabase start", `better-supabase env${cwdFlag}`]),
     `better-supabase gen${cwdFlag}`,
   ];
+
   lines.push(
     "",
     "Next:",
     ...steps.map((step, index) => `  ${index + 1}. ${step}`),
   );
+
   if (lite) {
     lines.push(
       "  - Pass backend: 'lite' to createServer (or createNext, createHono, createEdge, createOrpc): https://bettersupabase.com/docs/platform/lite",
     );
   }
+
   for (const name of integrations) {
     for (const hint of TEMPLATES[name].next ?? []) {
       lines.push(`  - ${hint}`);
     }
   }
+
   lines.push("", "Agent skills: better-supabase skills install");
+
   return { code: 0, output: lines.join("\n") };
 }
 

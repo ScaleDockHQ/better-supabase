@@ -4,15 +4,18 @@ import { createApprovals } from "../../../src/blocks/approvals/index.ts";
 
 function transport(results: Record<string, (args: unknown) => unknown>) {
   const calls: [string, unknown][] = [];
+
   return {
     calls,
     call(schema: string, fn: string, args: unknown) {
       expect(schema).toBe("app");
       calls.push([fn, args]);
       const result = results[fn];
+
       if (!result) {
         return Promise.reject(new Error(`unexpected ${fn}`));
       }
+
       return Promise.resolve(result(args));
     },
   };
@@ -45,8 +48,10 @@ describe("approvals client", () => {
       decide_approval: () => ({ ...REQUEST, status: "approved" }),
       delegate_approval: () => REQUEST,
     });
+
     const seen: unknown[] = [];
     let allow = false;
+
     const approvals = createApprovals({
       transport: fake,
       schema: "app",
@@ -54,10 +59,12 @@ describe("approvals client", () => {
       authorization: {
         approverOf: (approver, request) => {
           seen.push([approver.userId, request]);
+
           return allow;
         },
       },
     });
+
     const refused = await approvals.approve("r1");
     expect(!refused.ok && refused.error.hint).toBe("APPROVAL_FORBIDDEN");
     expect(seen[0]).toEqual([
@@ -81,7 +88,9 @@ describe("approvals client", () => {
     const fake = transport({
       get_approval: () => ({ ...REQUEST, canDecide: false, decisions: [] }),
     });
+
     let asked = false;
+
     const approvals = createApprovals({
       transport: fake,
       schema: "app",
@@ -89,10 +98,12 @@ describe("approvals client", () => {
       authorization: {
         approverOf: () => {
           asked = true;
+
           return true;
         },
       },
     });
+
     const result = await approvals.reject("r1");
     expect(!result.ok && result.error.kind).toBe("forbidden");
     expect(asked).toBe(false);
@@ -118,7 +129,9 @@ describe("approvals client", () => {
       delegate_approval: () => REQUEST,
       cancel_approval: () => ({ ...REQUEST, status: "cancelled" }),
     });
+
     const approvals = createApprovals({ transport: fake, schema: "app" });
+
     const request = await approvals
       .request({
         organizationId: "o",
@@ -129,6 +142,7 @@ describe("approvals client", () => {
         payload: { total: 100 },
       })
       .orThrow();
+
     expect(request).toMatchObject({
       id: "r1",
       status: "pending",
@@ -194,6 +208,7 @@ describe("approvals client", () => {
       list_approvals: () => [REQUEST],
       is_approved: () => true,
     });
+
     const approvals = createApprovals({ transport: fake, schema: "app" });
     const detail = await approvals.get("r1").orThrow();
     expect(detail.canDecide).toBe(true);
@@ -253,6 +268,7 @@ describe("approvals client", () => {
     const fake = transport({
       cancel_approval: () => ({ ...REQUEST, status: "archived" }),
     });
+
     const approvals = createApprovals({ transport: fake, schema: "app" });
     expect((await approvals.cancel("r1")).ok).toBe(false);
   });

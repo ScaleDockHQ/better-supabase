@@ -29,9 +29,11 @@ function validateSegment(_name: string, value: string): string | undefined {
   if (value === "." || value === "..") {
     return "is a relative path";
   }
+
   if (!SAFE_SEGMENT.test(value)) {
     return "contains characters Storage does not allow";
   }
+
   return undefined;
 }
 
@@ -42,12 +44,15 @@ const keysOf = (values: Values): string[] =>
 function commonFolder(folders: readonly string[]): string {
   const split = folders.map((folder) => (folder ? folder.split("/") : []));
   const shared: string[] = [];
+
   for (const [index, segment] of (split[0] ?? []).entries()) {
     if (split.some((parts) => parts[index] !== segment)) {
       break;
     }
+
     shared.push(segment);
   }
+
   return shared.join("/");
 }
 
@@ -57,25 +62,32 @@ export function pathLayouts(
   sqlString: (value: string) => string,
 ): Layouts {
   const sources: readonly string[] = typeof path === "string" ? [path] : path;
+
   if (sources.length === 0) {
     throw new TypeError(`defineBucket(${id}): path needs a template`);
   }
+
   const layouts: readonly Template[] = sources.map((source) =>
     parseTemplate(source, "/", validateSegment, { rest: true }),
   );
+
   const layoutFor = (values: Values): Template => {
     if (layouts.length === 1) {
       return layouts[0]!;
     }
+
     const keys = keysOf(values);
+
     const layout = layouts.find(
       (candidate) =>
         candidate.params.length === keys.length &&
         candidate.params.every((name) => keys.includes(name)),
     );
+
     if (layout) {
       return layout;
     }
+
     throw new DbException(
       dbError(
         "invalid_input",
@@ -83,9 +95,11 @@ export function pathLayouts(
       ),
     );
   };
+
   const patterns = layouts.map(
     (layout) => `name ~ ${sqlString(layout.sqlPattern)}`,
   );
+
   return {
     sources,
     params: [...new Set(layouts.flatMap((layout) => layout.params))],
@@ -93,22 +107,27 @@ export function pathLayouts(
       // SAFETY: Template.build checks every value it reads and throws an
       // invalid_input DbException for a missing one.
       const filled = values as Readonly<Record<string, string | number>>;
+
       return layoutFor(values).build(filled);
     },
     match(value) {
       for (const layout of layouts) {
         const values = layout.match(value);
+
         if (values) {
           return values;
         }
       }
+
       return null;
     },
     prefix(values) {
       const given = keysOf(values);
+
       const fitting = layouts.filter((layout) =>
         given.every((key) => layout.params.includes(key)),
       );
+
       return commonFolder(
         (fitting.length > 0 ? fitting : layouts).map((layout) =>
           layout.prefix(
@@ -121,18 +140,22 @@ export function pathLayouts(
     segmentOf(param, kind) {
       const indexes = layouts.map((layout) => {
         const index = layout.segmentOf(param);
+
         if (index === undefined) {
           throw new TypeError(
             `defineBucket: a ${kind} policy needs {${param}} as a whole path segment in "${layout.source}"`,
           );
         }
+
         return index;
       });
+
       if (new Set(indexes).size > 1) {
         throw new TypeError(
           `defineBucket: a ${kind} policy needs {${param}} at the same segment in every path of "${id}"`,
         );
       }
+
       return indexes[0]!;
     },
     requireParam(param, label) {
@@ -157,11 +180,14 @@ export function inScope(
   if (!values) {
     return false;
   }
+
   return Object.entries(within).every(([key, expected]) => {
     if (expected === undefined) {
       return true;
     }
+
     const actual = String(values[key]);
+
     return (
       actual === String(expected) || actual.startsWith(`${String(expected)}/`)
     );

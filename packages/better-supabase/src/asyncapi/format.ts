@@ -116,11 +116,14 @@ function uses2020(value: unknown): boolean {
   if (Array.isArray(value)) {
     // SAFETY: Array.isArray narrows to any[]; each item is read as unknown.
     const items = value as readonly unknown[];
+
     return items.some(uses2020);
   }
+
   if (!isPlainObject(value)) {
     return false;
   }
+
   return Object.entries(value).some(
     ([key, item]) => KEYWORDS_2020.has(key) || uses2020(item),
   );
@@ -133,40 +136,52 @@ function referencedSchemas(
 ): Record<string, JsonSchema> {
   const out: Record<string, JsonSchema> = {};
   const pending: string[] = [];
+
   const visit = (value: unknown) => {
     const refs = new Set<string>();
     collectRefs(value, refs);
+
     for (const ref of refs) {
       if (!ref.startsWith(SCHEMA_PREFIX)) {
         continue;
       }
+
       const name = ref
         .slice(SCHEMA_PREFIX.length)
         .replaceAll("~1", "/")
         .replaceAll("~0", "~");
+
       if (name in out || !model.schemas[name]) {
         continue;
       }
+
       out[name] = model.schemas[name];
       pending.push(name);
     }
   };
+
   for (const root of roots) {
     visit(root);
   }
+
   while (pending.length > 0) {
     const name = pending.pop();
+
     if (name !== undefined) {
       visit(out[name]);
     }
   }
+
   const sorted: Record<string, JsonSchema> = {};
+
   for (const name of Object.keys(out).toSorted()) {
     const schema = out[name];
+
     if (schema) {
       sorted[name] = structuredClone(schema);
     }
   }
+
   return sorted;
 }
 
@@ -179,6 +194,7 @@ function lowerScheme(
     case "http": {
       return omitUndefined({ ...scheme });
     }
+
     case "apiKey": {
       return omitUndefined({
         type: "httpApiKey",
@@ -187,11 +203,14 @@ function lowerScheme(
         description: scheme.description,
       });
     }
+
     case "openIdConnect": {
       return omitUndefined({ ...scheme });
     }
+
     case "oauth2": {
       const flows: Json = {};
+
       for (const [flow, value] of Object.entries(scheme.flows)) {
         const { scopes, ...rest } = value;
         flows[flow] = omitUndefined({
@@ -199,12 +218,14 @@ function lowerScheme(
           availableScopes: { ...scopes },
         });
       }
+
       return omitUndefined({
         type: "oauth2",
         description: scheme.description,
         flows,
       });
     }
+
     case "profile": {
       ctx.report({
         code: "asyncapi-security-unsupported",
@@ -212,10 +233,13 @@ function lowerScheme(
         message: `Security scheme "${name}" uses Security Profiles, which AsyncAPI cannot describe; it is left out`,
         pointer: `/components/securitySchemes/${pointerToken(name)}`,
       });
+
       return undefined;
     }
+
     default: {
       const unknown: never = scheme;
+
       return unknown;
     }
   }
@@ -272,18 +296,23 @@ function serverFrom(
   wsDefault: boolean,
 ): Json | undefined {
   let parsed: URL;
+
   try {
     parsed = new URL(url);
   } catch {
     return undefined;
   }
+
   const scheme = parsed.protocol.slice(0, -1);
+
   const protocol = wsDefault
     ? scheme === "http" || scheme === "ws"
       ? "ws"
       : "wss"
     : scheme;
+
   const pathname = parsed.pathname === "/" ? undefined : parsed.pathname;
+
   return omitUndefined({
     host: parsed.host,
     protocol,
@@ -303,29 +332,37 @@ function lowerAsyncApi(
   ctx: LowerContext,
 ): AnyAsyncApiDocument {
   const prefix = model.extensionPrefix;
+
   const keyOf = (id: string, where: string): string => {
     if (KEY.test(id)) {
       return id;
     }
+
     const key = safeKey(id);
     ctx.report({
       code: "asyncapi-key-invalid",
       severity: "info",
       message: `${where} "${id}" is written as "${key}"; AsyncAPI keys allow letters, digits, "_" and "-"`,
     });
+
     return key;
   };
 
   const securitySchemes: Json = {};
+
   for (const [name, scheme] of Object.entries(model.securitySchemes)) {
     const lowered = lowerScheme(name, scheme, ctx);
+
     if (lowered) {
       securitySchemes[safeKey(name)] = lowered;
     }
   }
+
   const security: Json[] = [];
+
   for (const requirement of model.security) {
     const names = Object.keys(requirement);
+
     if (names.length > 1) {
       ctx.report({
         code: "asyncapi-security-combined",
@@ -334,8 +371,10 @@ function lowerAsyncApi(
         pointer: "/security",
       });
     }
+
     for (const name of names) {
       const key = safeKey(name);
+
       if (
         key in securitySchemes &&
         !security.some(
@@ -349,10 +388,13 @@ function lowerAsyncApi(
 
   const webhookMessages = model.webhooks.map(webhookMessage);
   const allMessages: Record<string, ModelMessage> = { ...model.messages };
+
   for (const message of webhookMessages) {
     allMessages[message.id] = message;
   }
+
   const channels: ModelChannel[] = [...model.channels];
+
   if (webhookMessages.length > 0) {
     channels.push({
       id: "webhooks",
@@ -376,6 +418,7 @@ function lowerAsyncApi(
   const httpServers: Json[] = [];
   const hasWs = channels.some((channel) => channel.protocol === "ws");
   const hasHttp = channels.some((channel) => channel.protocol === "http");
+
   if (hasWs && model.realtimeUrl) {
     const server = serverFrom(
       model.realtimeUrl,
@@ -387,6 +430,7 @@ function lowerAsyncApi(
       },
       true,
     );
+
     if (server) {
       servers["realtime"] = server;
       wsServers.push({ $ref: "#/servers/realtime" });
@@ -407,19 +451,23 @@ function lowerAsyncApi(
       pointer: "/servers",
     });
   }
+
   if (hasHttp) {
     model.servers.forEach((entry, index) => {
       const key = safeKey(
         entry.name ?? (index === 0 ? "api" : `api${String(index + 1)}`),
       );
+
       const server = serverFrom(
         entry.url,
         omitUndefined({ description: entry.description }),
         false,
       );
+
       if (!server || key in servers) {
         return;
       }
+
       servers[key] = server;
       httpServers.push({ $ref: `#/servers/${key}` });
     });
@@ -427,10 +475,12 @@ function lowerAsyncApi(
 
   const messageKeys = new Map<string, string>();
   const messages: Json = {};
+
   for (const [id, message] of Object.entries(allMessages)) {
     const key = keyOf(id, "Message");
     messageKeys.set(id, key);
     messages[key] = lowerMessage(message, prefix);
+
     if (uses2020(message.payload) || uses2020(message.headers)) {
       ctx.report({
         code: "asyncapi-schema-dialect",
@@ -444,6 +494,7 @@ function lowerAsyncApi(
   const channelObjects: Json = {};
   const operations: Json = {};
   const placed: Placed[] = [];
+
   const addOperation = (key: string, operation: Json, pointer: string) => {
     if (key in operations) {
       ctx.report({
@@ -452,12 +503,16 @@ function lowerAsyncApi(
         message: `Two operations have the id "${key}"; the first one is kept`,
         pointer,
       });
+
       return;
     }
+
     operations[key] = operation;
   };
+
   for (const channel of channels) {
     const key = keyOf(channel.id, "Channel");
+
     if (key in channelObjects) {
       ctx.report({
         code: "asyncapi-channel-id-duplicate",
@@ -467,10 +522,13 @@ function lowerAsyncApi(
       });
       continue;
     }
+
     placed.push({ key, channel });
     const channelMessages: Json = {};
+
     for (const id of channel.messages) {
       const messageKey = messageKeys.get(id);
+
       if (messageKey === undefined) {
         ctx.report({
           code: "asyncapi-message-unknown",
@@ -480,13 +538,16 @@ function lowerAsyncApi(
         });
         continue;
       }
+
       channelMessages[messageKey] = {
         $ref: `#/components/messages/${messageKey}`,
       };
     }
+
     const names = [...channel.address.matchAll(PARAM)].map(
       (match) => match[1] ?? "",
     );
+
     const parameters =
       names.length > 0
         ? Object.fromEntries(
@@ -496,6 +557,7 @@ function lowerAsyncApi(
             ]),
           )
         : undefined;
+
     const serverRefs = channel.protocol === "ws" ? wsServers : httpServers;
     channelObjects[key] = omitUndefined({
       address: channel.address === "" ? null : channel.address,
@@ -512,11 +574,14 @@ function lowerAsyncApi(
         channel.protocol === "ws" ? structuredClone(WS_BINDING) : undefined,
       ...channel.extensions,
     });
+
     for (const operation of channel.operations) {
       const operationKey = keyOf(operation.id, "Operation");
       const refs: Json[] = [];
+
       for (const id of operation.messages ?? []) {
         const messageKey = messageKeys.get(id);
+
         if (messageKey === undefined || !channel.messages.includes(id)) {
           ctx.report({
             code: "asyncapi-operation-message-unknown",
@@ -526,10 +591,12 @@ function lowerAsyncApi(
           });
           continue;
         }
+
         refs.push({
           $ref: `#/channels/${key}/messages/${messageKey}`,
         });
       }
+
       addOperation(
         operationKey,
         omitUndefined({
@@ -548,18 +615,23 @@ function lowerAsyncApi(
 
   for (const operation of model.operations) {
     const emits = operation.extensions[`${prefix}emits`];
+
     if (!Array.isArray(emits)) {
       continue;
     }
+
     const byChannel = new Map<string, string[]>();
+
     // SAFETY: Array.isArray narrowed it; each entry is checked to be a string.
     for (const event of emits as readonly unknown[]) {
       if (typeof event !== "string") {
         continue;
       }
+
       const target = placed.find(({ channel }) =>
         channel.messages.some((id) => {
           const message = allMessages[id];
+
           return (
             id === event ||
             message?.name === event ||
@@ -567,14 +639,17 @@ function lowerAsyncApi(
           );
         }),
       );
+
       const id = target?.channel.messages.find((candidate) => {
         const message = allMessages[candidate];
+
         return (
           candidate === event ||
           message?.name === event ||
           message?.name?.endsWith(`.${event}`) === true
         );
       });
+
       if (!target || id === undefined) {
         ctx.report({
           code: "asyncapi-emits-unknown",
@@ -584,17 +659,21 @@ function lowerAsyncApi(
         });
         continue;
       }
+
       const list = byChannel.get(target.key) ?? [];
       list.push(messageKeys.get(id) ?? id);
       byChannel.set(target.key, list);
     }
+
     const many = byChannel.size > 1;
+
     for (const [channelKey, keys] of byChannel) {
       const operationKey = safeKey(
         many
           ? `${operation.id}Emits${pascal(channelKey)}`
           : `${operation.id}Emits`,
       );
+
       addOperation(
         operationKey,
         {
@@ -612,6 +691,7 @@ function lowerAsyncApi(
   }
 
   const traits: Json = {};
+
   for (const [name, trait] of Object.entries(model.messageTraits ?? {})) {
     traits[safeKey(name)] = lowerTrait(trait);
   }
@@ -620,7 +700,9 @@ function lowerAsyncApi(
     Object.values(messages),
     Object.values(traits),
   ]);
+
   const { info } = model;
+
   const document: Json = omitUndefined({
     asyncapi: ASYNCAPI_FIELD[version],
     info: omitUndefined({
@@ -645,11 +727,13 @@ function lowerAsyncApi(
         Object.keys(securitySchemes).length > 0 ? securitySchemes : undefined,
     }),
   });
+
   if (!isAsyncApiDocument(document)) {
     throw new TypeError(
       "better-supabase/asyncapi: lowering lost a required field",
     );
   }
+
   return document;
 }
 
@@ -667,14 +751,19 @@ function resolve(document: unknown, ref: string): unknown {
   if (!ref.startsWith("#/")) {
     return undefined;
   }
+
   let node: unknown = document;
+
   for (const raw of ref.slice(2).split("/")) {
     const key = raw.replaceAll("~1", "/").replaceAll("~0", "~");
+
     if (!isPlainObject(node)) {
       return undefined;
     }
+
     node = node[key];
   }
+
   return node;
 }
 
@@ -688,6 +777,7 @@ function lintAsyncApi(document: AnyAsyncApiDocument): SpecDiagnostic[] {
   const diagnostics: SpecDiagnostic[] = [];
   const refs = new Set<string>();
   collectRefs(document, refs);
+
   for (const ref of refs) {
     if (ref.startsWith("#") && resolve(document, ref) === undefined) {
       diagnostics.push({
@@ -697,8 +787,10 @@ function lintAsyncApi(document: AnyAsyncApiDocument): SpecDiagnostic[] {
       });
     }
   }
+
   for (const [key, channel] of Object.entries(document.channels)) {
     const pointer = `/channels/${pointerToken(key)}`;
+
     if (!KEY.test(key)) {
       diagnostics.push({
         code: "asyncapi-key-invalid",
@@ -707,15 +799,19 @@ function lintAsyncApi(document: AnyAsyncApiDocument): SpecDiagnostic[] {
         pointer,
       });
     }
+
     const address = channel["address"];
+
     const names = new Set(
       typeof address === "string"
         ? [...address.matchAll(PARAM)].map((match) => match[1] ?? "")
         : [],
     );
+
     const parameters = isPlainObject(channel["parameters"])
       ? Object.keys(channel["parameters"])
       : [];
+
     for (const name of parameters) {
       if (!names.has(name)) {
         diagnostics.push({
@@ -726,6 +822,7 @@ function lintAsyncApi(document: AnyAsyncApiDocument): SpecDiagnostic[] {
         });
       }
     }
+
     for (const name of names) {
       if (!parameters.includes(name)) {
         diagnostics.push({
@@ -737,9 +834,11 @@ function lintAsyncApi(document: AnyAsyncApiDocument): SpecDiagnostic[] {
       }
     }
   }
+
   for (const [key, operation] of Object.entries(document.operations)) {
     const pointer = `/operations/${pointerToken(key)}`;
     const channelRef = refOf(operation["channel"]);
+
     if (!channelRef?.startsWith("#/channels/")) {
       diagnostics.push({
         code: "asyncapi-operation-channel-unknown",
@@ -749,11 +848,14 @@ function lintAsyncApi(document: AnyAsyncApiDocument): SpecDiagnostic[] {
       });
       continue;
     }
+
     const list: unknown[] = Array.isArray(operation["messages"])
       ? operation["messages"]
       : [];
+
     for (const entry of list) {
       const ref = refOf(entry);
+
       if (!ref?.startsWith(`${channelRef}/messages/`)) {
         diagnostics.push({
           code: "asyncapi-operation-message-unknown",
@@ -764,6 +866,7 @@ function lintAsyncApi(document: AnyAsyncApiDocument): SpecDiagnostic[] {
       }
     }
   }
+
   return diagnostics;
 }
 

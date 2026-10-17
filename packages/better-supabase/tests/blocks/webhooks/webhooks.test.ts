@@ -34,10 +34,12 @@ describe("Standard Webhooks", () => {
     onTestFinished(() => {
       vi.unstubAllGlobals();
     });
+
     const result = await verifyWebhook(
       { headers: headers(), body: BODY },
       SECRET,
     );
+
     expect(result.error).toMatchObject({ kind: "unexpected" });
   });
 
@@ -48,11 +50,13 @@ describe("Standard Webhooks", () => {
       provideTemporal(undefined);
       vi.unstubAllGlobals();
     });
+
     const result = await verifyWebhook(
       { headers: headers(), body: BODY },
       SECRET,
       { now: () => Polyfill.Instant.fromEpochMilliseconds(TIMESTAMP * 1000) },
     );
+
     expect(result.error).toBeNull();
     expect(result.data?.timestamp).toBeInstanceOf(Polyfill.Instant);
   });
@@ -67,11 +71,13 @@ describe("Standard Webhooks", () => {
         })
       )["webhook-signature"],
     ).toBe(SIGNATURE);
+
     const verified = await verifyWebhook(
       { headers: headers(), body: BODY },
       SECRET,
       { now },
     );
+
     expect(verified).toEqual({
       ok: true,
       error: null,
@@ -90,6 +96,7 @@ describe("Standard Webhooks", () => {
       "svix-timestamp": String(TIMESTAMP),
       "svix-signature": SIGNATURE,
     };
+
     expect(
       await verifyWebhook({ headers: svix, body: BODY }, SECRET, { now }),
     ).toMatchObject({ ok: true, data: { id: ID } });
@@ -135,6 +142,7 @@ describe("Standard Webhooks", () => {
   it("rejects tampering, stale timestamps and missing headers", async () => {
     const code = async (input: Parameters<typeof verifyWebhook>[0]) =>
       (await verifyWebhook(input, SECRET, { now })).error?.code;
+
     expect(await code({ headers: headers(), body: '{"test": 1}' })).toBe(
       "WEBHOOK_INVALID_SIGNATURE",
     );
@@ -153,9 +161,11 @@ describe("Standard Webhooks", () => {
     expect(await code({ headers: { "webhook-id": ID }, body: BODY })).toBe(
       "WEBHOOK_MISSING_HEADERS",
     );
+
     const error = (
       await verifyWebhook({ headers: headers(), body: "{}" }, SECRET, { now })
     ).error;
+
     expect(error).toMatchObject({ kind: "unauthorized", status: 401 });
   });
 
@@ -164,6 +174,7 @@ describe("Standard Webhooks", () => {
       method: "POST",
       body: BODY,
     });
+
     expect((await verifyWebhook(request, SECRET, { now })).error?.code).toBe(
       "WEBHOOK_MISSING_HEADERS",
     );
@@ -183,9 +194,11 @@ describe("Standard Webhooks", () => {
     expect(timingSafeEqual("abc", "abc")).toBe(true);
     expect(timingSafeEqual("abc", "abd")).toBe(false);
     expect(timingSafeEqual("abc", "abcd")).toBe(false);
+
     const request = new Request("http://x", {
       headers: { authorization: "Bearer s3cret" },
     });
+
     expect(verifySharedSecret(request, "s3cret")).toBe(true);
     expect(verifySharedSecret(request, "other")).toBe(false);
   });
@@ -200,11 +213,13 @@ describe("authHook", () => {
     sign = secret,
   ) {
     const text = JSON.stringify(body);
+
     const request = new Request("http://x/hook", {
       method: "POST",
       body: text,
       headers: await signWebhook(sign, { id: "msg_1", body: text }),
     });
+
     return authHook("custom_access_token", secret, handler)(request);
   }
 
@@ -221,6 +236,7 @@ describe("authHook", () => {
       }),
       payload,
     );
+
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       claims: {
@@ -237,11 +253,13 @@ describe("authHook", () => {
     expect(await rejected.json()).toEqual({
       error: { http_code: 403, message: "Not allowed" },
     });
+
     const forged = await call(
       () => ({ claims: {} }),
       payload,
       `whsec_${btoa("wrong")}`,
     );
+
     expect(forged.status).toBe(401);
   });
 });
@@ -257,6 +275,7 @@ describe("databaseChange", () => {
       record: { id: "c1", organization_id: "o1" },
       old_record: { id: "c1", organization_id: "o0" },
     };
+
     const change = databaseChange(betterSupabase, "customers", payload);
     expect(change).toEqual({
       type: "UPDATE",

@@ -38,6 +38,7 @@ describe("defineBucket", () => {
       customerId: "c1",
       version: 3,
     });
+
     expect(built).toEqual({ ok: true, data: "o1/c1/logo/3.webp", error: null });
     const path = built.data!;
     expect(logos.match(path)).toEqual({
@@ -86,42 +87,52 @@ describe("defineBucket", () => {
     expect(sql).toContain(
       'drop policy if exists "bs_customer_logos_insert" on storage.objects;',
     );
+
     const tenant =
       "(coalesce((select auth.jwt()) ->> 'tenant_id', (select auth.jwt()) -> 'app_metadata' ->> 'tenant_id'))";
+
     expect(sql).toContain(
       `with check (bucket_id = 'customer-logos' and name collate "C" >= (${tenant} || '/') and name collate "C" < (${tenant} || '0') and split_part(name, '/', 1) = ${tenant} and name ~ '^[^/]+/[^/]+/logo/[^/]+\\.webp$')`,
     );
+
     const owner = defineBucket({
       id: "avatars",
       path: "users/{userId}/{file}",
       policy: "owner",
     }).sql();
+
     expect(owner).toContain(
       "split_part(name, '/', 2) = (select auth.uid())::text",
     );
     expect(owner).not.toContain('collate "C"');
+
     const ownerFirst = defineBucket({
       id: "drafts",
       path: "{userId}/{file}",
       policy: "owner",
     }).sql();
+
     expect(ownerFirst).toContain(
       `name collate "C" >= ((select auth.uid())::text || '/') and name collate "C" < ((select auth.uid())::text || '0') and split_part(name, '/', 1) = (select auth.uid())::text`,
     );
+
     const open = defineBucket({
       id: "public",
       path: "{file}",
       policy: "public",
       public: true,
     }).sql();
+
     expect(open).not.toContain("for select");
     expect(open).toContain("a select policy would also let anyone list them");
     expect(open).not.toContain("for insert");
+
     const readable = defineBucket({
       id: "readable",
       path: "{file}",
       policy: "public",
     }).sql();
+
     expect(readable).toContain(
       "for select to anon, authenticated\n  using (bucket_id = 'readable')",
     );
@@ -160,11 +171,15 @@ describe("defineBucket", () => {
         sql: SQL,
       },
     });
+
     const sql = files.sql();
+
     const ids = (key: string) =>
       `split_part(name, '/', 1) in (select t.id::text from authz.ids_organization('${key}') as t(id))`;
+
     const listing =
       "storage.allow_any_operation(array['object.list', 'object.list_v2', 's3.object.list'])";
+
     expect(sql).toContain(
       `create policy "bs_organization_files_select" on storage.objects for select to authenticated\n  using (bucket_id = 'organization-files' and not ${listing} and ${ids("files.read")});`,
     );
@@ -192,6 +207,7 @@ describe("defineBucket", () => {
         sql: SQL,
       },
     }).sql();
+
     expect(global).toContain(
       `using (bucket_id = 'docs' and (select authz.is_platform('docs.read')));`,
     );
@@ -217,6 +233,7 @@ describe("defineBucket", () => {
           ...(sql ? { sql } : {}),
         },
       });
+
     expect(() => bucket("")).toThrow(/empty/);
     expect(() => bucket("x.read", "organization; drop")).toThrow(
       /invalid scope/,
@@ -296,11 +313,13 @@ describe("storage helpers", () => {
 
 describe("renderUrl", () => {
   const URL_BASE = "https://abcdefghijklmnopqrst.supabase.co";
+
   const client = (fetch: typeof globalThis.fetch) =>
     createClient(URL_BASE, "sb_publishable_test", {
       auth: { persistSession: false, autoRefreshToken: false },
       global: { fetch },
     });
+
   const transform = {
     width: 320,
     height: 200,
@@ -310,15 +329,18 @@ describe("renderUrl", () => {
 
   it("builds a /render/image/public URL for public buckets without a request", async () => {
     const fetch = vi.fn<typeof globalThis.fetch>();
+
     const avatars = defineBucket({
       id: "avatars",
       path: "{userId}/{file}",
       public: true,
       policy: "public",
     }).connect(client(fetch));
+
     const url = await avatars
       .renderUrl({ userId: "u1", file: "me.webp" }, transform)
       .orThrow();
+
     expect(fetch).not.toHaveBeenCalled();
     const parsed = new URL(url);
     expect(parsed.pathname).toBe(
@@ -339,10 +361,12 @@ describe("renderUrl", () => {
           "/render/image/sign/customer-logos/o1/c1/logo/3.webp?token=t0k",
       }),
     );
+
     const url = await logos
       .connect(client(fetch))
       .renderUrl("o1/c1/logo/3.webp", transform, { ttl: "day" })
       .orThrow();
+
     const [input, init] = fetch.mock.calls[0]!;
     expect(String(input)).toBe(
       `${URL_BASE}/storage/v1/object/sign/customer-logos/o1/c1/logo/3.webp`,
@@ -364,18 +388,23 @@ describe("StoragePath", () => {
       customerId: "c1",
       version: 1,
     });
+
     expectTypeOf(built).toEqualTypeOf<Result<StoragePath<"customer-logos">>>();
     const path = built.data!;
     expectTypeOf(path).toEqualTypeOf<StoragePath<"customer-logos">>();
     expectTypeOf(path).toExtend<string>();
     const bucket = logos.connect({} as never);
+
     type Target = Parameters<typeof bucket.exists>[0];
+
     expectTypeOf(path).toExtend<Target>();
     expectTypeOf("o1/c1/logo/1.webp").toExtend<Target>();
     const avatar = "" as StoragePath<"avatars">;
+
     const wrongBucket = () =>
       // @ts-expect-error a path from another bucket
       bucket.exists(avatar);
+
     expectTypeOf(wrongBucket).toBeFunction();
   });
 });
@@ -388,15 +417,18 @@ describe("defineBucket options", () => {
       policy: "tenant",
       tenant: { param: "teamId", sql: "(select private.team_id())" },
     }).sql();
+
     expect(fromSql).toContain(
       "split_part(name, '/', 1) = ((select private.team_id()))",
     );
+
     const fromClaim = defineBucket({
       id: "b",
       path: "x/{organizationId}/{file}",
       policy: "tenant",
       tenant: { claim: "app_metadata.organization" },
     }).sql();
+
     expect(fromClaim).toContain(
       "split_part(name, '/', 2) = ((select auth.jwt()) -> 'app_metadata' ->> 'organization')",
     );
@@ -409,6 +441,7 @@ describe("defineBucket options", () => {
       policy: "owner",
       owner: { param: "memberId" },
     });
+
     expect(custom.owner).toBe("memberId");
     expect(custom.sql()).toContain(
       "split_part(name, '/', 1) = (select auth.uid())::text",
@@ -432,6 +465,7 @@ describe("defineBucket options", () => {
         sql: SQL,
       },
     }).sql();
+
     expect(sql).toContain(
       `split_part(name, '/', 2) in (select t.id::text from authz.ids_team('f.read') as t(id))`,
     );
@@ -466,6 +500,7 @@ describe("defineBucket options", () => {
   it("labels numeric size limits in TOML and errors", () => {
     const toml = (fileSizeLimit: number) =>
       defineBucket({ id: "a", path: "{f}", fileSizeLimit }).toml();
+
     expect(toml(1024)).toContain('file_size_limit = "1KiB"');
     expect(toml(2 * 1024 ** 3)).toContain('file_size_limit = "2GiB"');
     expect(toml(1000)).toContain('file_size_limit = "1000B"');
@@ -482,6 +517,7 @@ describe("defineBucket options", () => {
       path: "{f}",
       allowedMimeTypes: ["text/plain"],
     });
+
     expect(text.check({ type: "TEXT/PLAIN" })).toBeUndefined();
     expect(text.check({ type: "text/plainer" })).toMatchObject({
       status: 415,
@@ -565,6 +601,7 @@ const docs = defineBucket({
   fileSizeLimit: "1KiB",
   allowedMimeTypes: ["text/plain", "image/*"],
 });
+
 const A = { organizationId: "o1", userId: "u1", file: "a.txt" } as const;
 
 /** A Storage client whose bucket API is exactly `methods`. */
@@ -576,11 +613,13 @@ function stubClient(methods: Record<string, unknown>): StorageClient {
 describe("BucketClient upload and download", () => {
   it("uploads to the templated path with the file options", async () => {
     const { client, files, calls } = fakeStorage();
+
     const result = await docs.connect(client).upload(A, "hello", {
       contentType: "text/plain",
       cacheControl: "60",
       metadata: { source: "test" },
     });
+
     expect(result).toEqual(ok({ path: "o1/u1/a.txt" }));
     expect(calls).toEqual([
       {
@@ -627,12 +666,14 @@ describe("BucketClient upload and download", () => {
     const { client, calls } = fakeStorage();
     const bucket = docs.connect(client);
     const big = new Uint8Array(1025);
+
     for (const body of [big, big.buffer, new Blob([big])]) {
       expect(await bucket.upload(A, body)).toMatchObject({
         ok: false,
         error: { kind: "invalid_input", status: 413 },
       });
     }
+
     expect(
       await bucket.upload(A, new Blob(["%PDF"], { type: "application/pdf" })),
     ).toMatchObject({ ok: false, error: { status: 415 } });
@@ -668,13 +709,16 @@ describe("BucketClient upload and download", () => {
         upload: storageError("fetch failed", { name: "StorageUnknownError" }),
       },
     });
+
     expect(await docs.connect(client).upload(A, "x")).toMatchObject({
       ok: false,
       error: { kind: "network", message: "fetch failed", table: "docs" },
     });
+
     const empty = stubClient({
       upload: async () => ({ data: null, error: null }),
     });
+
     expect(await docs.connect(empty).upload(A, "x")).toMatchObject({
       ok: false,
       error: { kind: "unexpected" },
@@ -685,6 +729,7 @@ describe("BucketClient upload and download", () => {
     const { client, calls } = fakeStorage({
       files: { "docs/o1/u1/a.txt": "hello" },
     });
+
     const bucket = docs.connect(client);
     const signal = new AbortController().signal;
     const blob = await bucket.download(A, { signal }).orThrow();
@@ -703,16 +748,20 @@ describe("BucketClient upload and download", () => {
     const bucket = docs.connect(client);
     expect(await bucket.exists(A)).toEqual(ok(true));
     expect(await bucket.exists({ ...A, file: "b.txt" })).toEqual(ok(false));
+
     const failing = fakeStorage({
       fail: { exists: storageError("denied", { statusCode: "403" }) },
     });
+
     expect(await docs.connect(failing.client).exists(A)).toMatchObject({
       ok: false,
       error: { kind: "forbidden", table: "docs" },
     });
+
     const missing = fakeStorage({
       fail: { exists: storageError("Object not found", { statusCode: "400" }) },
     });
+
     expect(await docs.connect(missing.client).exists(A)).toEqual(ok(false));
   });
 });
@@ -722,6 +771,7 @@ describe("BucketClient remove and list", () => {
     const { client, files, calls } = fakeStorage({
       files: { "docs/o1/u1/a.txt": "a", "docs/o1/u1/b.txt": "b" },
     });
+
     const bucket = docs.connect(client);
     expect(await bucket.remove([])).toEqual(ok([]));
     expect(calls).toEqual([]);
@@ -740,6 +790,7 @@ describe("BucketClient remove and list", () => {
     const { client, files, calls } = fakeStorage({
       files: { "docs/o1/u1/a.txt": "a" },
     });
+
     const bucket = docs.connect(client);
     expect(await bucket.copy(A, { ...A, file: "b.txt" })).toEqual(
       ok({ path: "o1/u1/b.txt" }),
@@ -769,6 +820,7 @@ describe("BucketClient remove and list", () => {
     const { client, calls } = fakeStorage({
       files: { "docs/o1/u1/a.txt": "a" },
     });
+
     const bucket = docs.connect(client);
     const result = await bucket.copy(A, "not/a/valid/path/at/all.txt");
     expect(result.ok).toBe(false);
@@ -777,17 +829,21 @@ describe("BucketClient remove and list", () => {
 
   it("lists sibling folders four at a time, in order", async () => {
     const files: Record<string, string> = {};
+
     for (const org of ["o1", "o2", "o3", "o4", "o5", "o6"]) {
       files[`docs/${org}/u1/a.txt`] = "a";
     }
+
     const { client } = fakeStorage({ files });
     let active = 0;
     let peak = 0;
     const from = client.storage.from.bind(client.storage);
+
     const slow = {
       storage: {
         from: (id: string) => {
           const api = from(id);
+
           const list = async (...args: Parameters<typeof api.list>) => {
             active++;
             peak = Math.max(peak, active);
@@ -795,17 +851,21 @@ describe("BucketClient remove and list", () => {
               setTimeout(resolve, 5);
             });
             active--;
+
             return api.list(...args);
           };
+
           return Object.assign(Object.create(api) as typeof api, { list });
         },
       },
     };
+
     const paths = await docs
       .connect(slow as never)
       .list()
       .map((objects) => objects.map((object) => object.path))
       .orThrow();
+
     expect(paths).toEqual(
       ["o1", "o2", "o3", "o4", "o5", "o6"].map((org) => `${org}/u1/a.txt`),
     );
@@ -820,6 +880,7 @@ describe("BucketClient remove and list", () => {
         "docs/o2/u1/c.txt": "c",
       },
     });
+
     const bucket = docs.connect(client);
     await bucket.upload({ ...A, file: "d.png" }, "png", {
       contentType: "image/png",
@@ -850,13 +911,17 @@ describe("BucketClient remove and list", () => {
 
   it("pages through folders of more than 1000 entries", async () => {
     const files: Record<string, string> = {};
+
     for (let index = 0; index < 1001; index += 1) {
       files[`docs/o1/u1/${String(index).padStart(4, "0")}.txt`] = "x";
     }
+
     const { client, calls } = fakeStorage({ files });
+
     const listed = await docs
       .connect(client)
       .list({ organizationId: "o1", userId: "u1" });
+
     expect(listed.ok && listed.data).toHaveLength(1001);
     expect(calls.map((call) => call.args)).toEqual([
       [
@@ -890,6 +955,7 @@ describe("BucketClient remove and list", () => {
       ],
       error: null,
     }));
+
     const signal = new AbortController().signal;
     expect(
       await docs.connect(stubClient({ list })).list(A, { signal }).orThrow(),
@@ -908,13 +974,16 @@ describe("BucketClient remove and list", () => {
     const { client } = fakeStorage({
       fail: { list: storageError("denied", { statusCode: "403" }) },
     });
+
     expect(await docs.connect(client).list()).toMatchObject({
       ok: false,
       error: { kind: "forbidden", table: "docs" },
     });
+
     const aborted = await docs
       .connect(fakeStorage().client)
       .list(undefined, { signal: AbortSignal.abort() });
+
     expect(aborted).toMatchObject({
       ok: false,
       error: { kind: "aborted", table: "docs" },
@@ -940,9 +1009,11 @@ describe("BucketClient URLs", () => {
       [TTL.week, { download: "a.txt" }],
       [30, { download: true, transform: { width: 10 } }],
     ]);
+
     const failing = fakeStorage({
       fail: { createSignedUrl: storageError("nope", { statusCode: "404" }) },
     });
+
     expect(await docs.connect(failing.client).signedUrl(A)).toMatchObject({
       ok: false,
       error: { kind: "not_found" },
@@ -952,9 +1023,11 @@ describe("BucketClient URLs", () => {
   it("keeps at most 500 signed URLs per connection", async () => {
     const { client, calls } = fakeStorage();
     const cached = docs.connect(client, { cacheSignedUrls: true });
+
     for (let index = 0; index <= 500; index++) {
       await cached.signedUrl({ ...A, file: `f${String(index)}.txt` });
     }
+
     expect(calls).toHaveLength(501);
     await cached.signedUrl({ ...A, file: "f500.txt" });
     expect(calls).toHaveLength(501);
@@ -966,9 +1039,12 @@ describe("BucketClient URLs", () => {
     const { client, calls } = fakeStorage({
       files: { "docs/o1/u1/a.txt": "a" },
     });
+
     const cached = docs.connect(client, { cacheSignedUrls: true });
+
     const signs = () =>
       calls.filter((call) => call.method === "createSignedUrl").length;
+
     await cached.signedUrl(A);
     await cached.signedUrl({ ...A, file: "b.txt" });
     await cached.upload(A, "new", { upsert: true });
@@ -986,15 +1062,18 @@ describe("BucketClient URLs", () => {
   it("settles an upload with an error when its signal aborts mid-request", async () => {
     const { client } = fakeStorage();
     const controller = new AbortController();
+
     const pending = docs
       .connect(client)
       .upload(A, "a", { signal: controller.signal });
+
     controller.abort(new Error("stop"));
     expect((await pending).ok).toBe(false);
   });
 
   it("reuses a signed URL per connection when asked, until it nears expiry", async () => {
     vi.useFakeTimers();
+
     try {
       const { client, calls } = fakeStorage();
       const cached = docs.connect(client, { cacheSignedUrls: true });
@@ -1017,6 +1096,7 @@ describe("BucketClient URLs", () => {
     const { client, calls } = fakeStorage({
       files: { "docs/o1/u1/a.txt": "a", "docs/o1/u1/b.txt": "b" },
     });
+
     const bucket = docs.connect(client);
     expect(await bucket.signedUrls([])).toEqual(ok([]));
     expect(calls).toEqual([]);
@@ -1040,12 +1120,14 @@ describe("BucketClient URLs", () => {
         },
       },
     );
+
     const blank = stubClient({
       createSignedUrls: async (paths: string[]) => ({
         data: paths.map((path) => ({ path, error: null, signedUrl: "" })),
         error: null,
       }),
     });
+
     expect(await docs.connect(blank).signedUrls([A])).toMatchObject({
       ok: false,
       error: { kind: "not_found", message: "No URL for o1/u1/a.txt" },
@@ -1058,13 +1140,16 @@ describe("BucketClient URLs", () => {
         publicUrl: `https://cdn.test/${path}?${JSON.stringify(options)}`,
       },
     }));
+
     const createSignedUrl = vi.fn();
+
     const images = defineBucket({
       id: "images",
       path: "{file}",
       public: true,
       policy: "public",
     }).connect(stubClient({ getPublicUrl, createSignedUrl }));
+
     expect(images.publicUrl("a.png")).toEqual(ok("https://cdn.test/a.png?{}"));
     images.publicUrl("a.png", { download: "a.png", transform: { width: 5 } });
     expect(
@@ -1085,12 +1170,14 @@ describe("BucketClient URLs", () => {
       data: null,
       error: { kind: "invalid_input" },
     });
+
     const scoped = defineBucket({
       id: "images",
       path: "{organizationId}/{file}",
       public: true,
       tenant: {},
     }).connect(stubClient({ getPublicUrl }), { tenant: "o1" });
+
     expect(scoped.publicUrl("o2/a.png")).toMatchObject({
       ok: false,
       error: { kind: "forbidden" },
@@ -1106,10 +1193,13 @@ describe("BucketClient replace", () => {
     const { client, files } = fakeStorage({
       files: { "docs/o1/u1/a.txt": "old" },
     });
+
     const commit = vi.fn(() => ok(undefined));
+
     const result = await docs
       .connect(client)
       .replace(B, "new", { previous: "o1/u1/a.txt", commit });
+
     expect(result).toEqual(ok({ path: "o1/u1/b.txt", removed: "o1/u1/a.txt" }));
     expect(commit).toHaveBeenCalledWith("o1/u1/b.txt");
     expect([...files.keys()]).toEqual(["docs/o1/u1/b.txt"]);
@@ -1119,10 +1209,12 @@ describe("BucketClient replace", () => {
     const { client, files, calls } = fakeStorage({
       files: { "docs/o1/u1/a.txt": "old" },
     });
+
     const result = await docs.connect(client).replace(A, "new", {
       previous: "o1/u1/a.txt",
       signal: new AbortController().signal,
     });
+
     expect(result).toEqual(ok({ path: "o1/u1/a.txt", removed: null }));
     expect(files.get("docs/o1/u1/a.txt")?.body).toBe("new");
     expect(calls.map((call) => call.method)).toEqual(["upload"]);
@@ -1131,11 +1223,13 @@ describe("BucketClient replace", () => {
 
   it("checks the previous path before uploading", async () => {
     const { client, calls } = fakeStorage();
+
     const scoped = defineBucket({
       id: "docs",
       path: "{organizationId}/{userId}/{file}",
       tenant: {},
     }).connect(client, { tenant: "o1" });
+
     expect(
       await scoped.replace(A, "new", { previous: "o2/u1/a.txt" }),
     ).toMatchObject({ ok: false, error: { kind: "forbidden" } });
@@ -1154,6 +1248,7 @@ describe("BucketClient replace", () => {
 
   it("removes the new object and keeps the previous one when commit fails", async () => {
     const failure = dbError("conflict", "row changed");
+
     for (const commit of [
       () => err(failure),
       async () => err(failure),
@@ -1164,9 +1259,11 @@ describe("BucketClient replace", () => {
       const { client, files } = fakeStorage({
         files: { "docs/o1/u1/a.txt": "old" },
       });
+
       const result = await docs
         .connect(client)
         .replace(B, "new", { previous: "o1/u1/a.txt", commit });
+
       expect(result).toEqual(err(failure));
       expect([...files.keys()]).toEqual(["docs/o1/u1/a.txt"]);
     }
@@ -1176,12 +1273,14 @@ describe("BucketClient replace", () => {
     const { client, files, calls } = fakeStorage({
       files: { "docs/o1/u1/a.txt": "old" },
     });
+
     const result = await docs.connect(client).replace(A, "new", {
       previous: "o1/u1/a.txt",
       commit: () => {
         throw new Error("db down");
       },
     });
+
     expect(result).toMatchObject({
       ok: false,
       error: { kind: "unexpected", message: "db down" },
@@ -1204,9 +1303,11 @@ describe("BucketClient replace", () => {
       files: { "docs/o1/u1/a.txt": "old" },
       fail: { remove: storageError("denied", { statusCode: "403" }) },
     });
+
     const result = await docs
       .connect(client)
       .replace(B, "new", { previous: "o1/u1/a.txt" });
+
     expect(result).toMatchObject({
       ok: true,
       data: {
@@ -1233,11 +1334,13 @@ describe("BucketClient signed uploads", () => {
       undefined,
       { upsert: true },
     ]);
+
     const failing = fakeStorage({
       fail: {
         createSignedUploadUrl: storageError("denied", { statusCode: "403" }),
       },
     });
+
     expect(await docs.connect(failing.client).reserve(A)).toMatchObject({
       ok: false,
       error: { kind: "forbidden" },
@@ -1279,6 +1382,7 @@ describe("BucketClient signed uploads", () => {
         uploadToSignedUrl: storageError("expired", { statusCode: "400" }),
       },
     });
+
     expect(
       await docs.connect(failing.client).uploadReserved(reservation, "x"),
     ).toMatchObject({ ok: false, error: { kind: "invalid_request" } });
@@ -1287,6 +1391,7 @@ describe("BucketClient signed uploads", () => {
 
 describe("BucketClient sweep", () => {
   const NOW = Temporal.Instant.from("2026-01-02T00:00:00Z");
+
   const files = () =>
     fakeStorage({
       files: {
@@ -1299,14 +1404,17 @@ describe("BucketClient sweep", () => {
 
   it("removes unreferenced objects that match the template and are old enough", async () => {
     const storage = files();
+
     const referenced = vi.fn((paths: readonly string[]) =>
       paths.filter((path) => path === "o1/u1/a.txt"),
     );
+
     const result = await docs.connect(storage.client).sweep({
       olderThan: Temporal.Duration.from({ hours: 1 }),
       now: () => NOW,
       referenced,
     });
+
     expect(result).toEqual(
       ok({
         scanned: 4,
@@ -1327,12 +1435,14 @@ describe("BucketClient sweep", () => {
 
   it("only sweeps objects whose values match every within value", async () => {
     const storage = files();
+
     const result = await docs.connect(storage.client).sweep({
       within: { organizationId: "o1", file: "c.txt" },
       olderThan: Temporal.Duration.from({ hours: 1 }),
       now: () => NOW,
       referenced: () => [],
     });
+
     expect(result).toEqual(
       ok({ scanned: 4, orphans: ["o1/u2/c.txt"], removed: ["o1/u2/c.txt"] }),
     );
@@ -1356,10 +1466,12 @@ describe("BucketClient sweep", () => {
       }),
     ).toEqual(ok({ scanned: 4, orphans: [], removed: [] }));
     expect(referenced).not.toHaveBeenCalled();
+
     const old = await bucket.sweep({
       olderThan: Temporal.Instant.from("2026-01-02T00:00:00Z"),
       referenced: async () => new Set(["o1/u1/a.txt", "o1/u1/b.txt"]),
     });
+
     expect(old.ok && old.data.removed).toEqual(["o1/u2/c.txt"]);
   });
 
@@ -1378,12 +1490,14 @@ describe("BucketClient sweep", () => {
     const storage = files();
     const bucket = docs.connect(storage.client);
     const olderThan = Temporal.Instant.from("2026-01-02T00:00:00Z");
+
     const namespace = {
       Now: Polyfill.Now,
       Instant: class OtherInstant {
         readonly copy = "other";
       },
     };
+
     vi.stubGlobal("Temporal", undefined);
     // SAFETY: sweep reads only Now and Instant from the namespace.
     provideTemporal(namespace as unknown as typeof Temporal);
@@ -1391,32 +1505,38 @@ describe("BucketClient sweep", () => {
       provideTemporal(undefined);
       vi.unstubAllGlobals();
     });
+
     const result = await bucket.sweep({
       olderThan,
       referenced: async () => new Set(["o1/u1/a.txt", "o1/u1/b.txt"]),
     });
+
     expect(result.error).toBeNull();
     expect(result.ok && result.data.removed).toEqual(["o1/u2/c.txt"]);
   });
 
   it("uses the real clock by default", async () => {
     const storage = files();
+
     const result = await docs.connect(storage.client).sweep({
       olderThan: Temporal.Duration.from({ seconds: 1 }),
       referenced: () => [],
       dryRun: true,
     });
+
     expect(result.ok && result.data.orphans).toHaveLength(3);
   });
 
   it("reports orphans without removing them on a dry run", async () => {
     const storage = files();
+
     const result = await docs.connect(storage.client).sweep({
       olderThan: Temporal.Duration.from({ seconds: 0 }),
       now: () => NOW,
       referenced: () => [],
       dryRun: true,
     });
+
     expect(result.ok && result.data).toEqual({
       scanned: 4,
       orphans: ["o1/u1/a.txt", "o1/u1/b.txt", "o1/u2/c.txt"],
@@ -1428,9 +1548,11 @@ describe("BucketClient sweep", () => {
 
   it("checks and removes in batches, within a prefix", async () => {
     const storage = files();
+
     const referenced = vi.fn((paths: readonly string[]) =>
       paths.filter((path) => path.endsWith("a.txt")),
     );
+
     const result = await docs.connect(storage.client).sweep({
       within: { organizationId: "o1", userId: "u1" },
       olderThan: Temporal.Duration.from({ seconds: 0 }),
@@ -1439,6 +1561,7 @@ describe("BucketClient sweep", () => {
       referenced,
       signal: new AbortController().signal,
     });
+
     expect(result.ok && result.data).toEqual({
       scanned: 2,
       orphans: ["o1/u1/b.txt"],
@@ -1482,6 +1605,7 @@ describe("BucketClient sweep", () => {
       ],
       error: null,
     });
+
     const result = await docs.connect(stubClient({ list })).sweep({
       within: { organizationId: "o1", userId: "u1" },
       olderThan: Temporal.Duration.from({ seconds: 0 }),
@@ -1489,18 +1613,23 @@ describe("BucketClient sweep", () => {
       referenced: () => [],
       dryRun: true,
     });
+
     expect(result.ok && result.data.orphans).toEqual(["o1/u1/a.txt"]);
   });
 
   it("pages through large folders and removes only after the walk", async () => {
     const many: Record<string, string> = {};
+
     for (let index = 0; index < 1005; index++) {
       many[`docs/o1/u1/f${String(index).padStart(4, "0")}.txt`] = "x";
     }
+
     const storage = fakeStorage({ files: many });
+
     const referenced = vi.fn((paths: readonly string[]) =>
       paths.filter((path) => !path.endsWith("0.txt")),
     );
+
     const result = await docs.connect(storage.client).sweep({
       within: { organizationId: "o1", userId: "u1" },
       olderThan: Temporal.Duration.from({ seconds: 0 }),
@@ -1508,6 +1637,7 @@ describe("BucketClient sweep", () => {
       batchSize: 400,
       referenced,
     });
+
     expect(result.ok && result.data.scanned).toBe(1005);
     expect(result.ok && result.data.removed).toHaveLength(101);
     expect(referenced).toHaveBeenCalledTimes(3);
@@ -1520,6 +1650,7 @@ describe("BucketClient sweep", () => {
     const listing = fakeStorage({
       fail: { list: storageError("denied", { statusCode: "403" }) },
     });
+
     expect(
       await docs.connect(listing.client).sweep({
         olderThan: Temporal.Duration.from({ seconds: 0 }),
@@ -1531,6 +1662,7 @@ describe("BucketClient sweep", () => {
       files: { "docs/o1/u1/a.txt": "a" },
       fail: { remove: storageError("boom", { statusCode: "500" }) },
     });
+
     expect(
       await docs.connect(storage.client).sweep({
         olderThan: Temporal.Duration.from({ seconds: 0 }),
@@ -1555,6 +1687,7 @@ describe("tenant-scoped buckets", () => {
     path: "{organizationId}/{userId}/{file}",
     tenant: {},
   });
+
   const mine = { organizationId: "o1", userId: "u1", file: "a.txt" } as const;
   const theirs = { organizationId: "o2", userId: "u1", file: "a.txt" } as const;
 
@@ -1572,11 +1705,14 @@ describe("tenant-scoped buckets", () => {
     const { client, calls } = fakeStorage({
       files: { "scoped/o2/u1/a.txt": "x" },
     });
+
     const storage = scoped.connect(client, { tenant: "o1" });
+
     const refused = {
       ok: false,
       error: { kind: "forbidden", table: "scoped" },
     };
+
     expect(await storage.upload(theirs, "x")).toMatchObject(refused);
     expect(await storage.upload("o2/u1/b.txt", "x")).toMatchObject(refused);
     expect(await storage.download(theirs)).toMatchObject(refused);
@@ -1605,6 +1741,7 @@ describe("tenant-scoped buckets", () => {
     const { client } = fakeStorage({
       files: { "scoped/o1/u1/a.txt": "x", "scoped/o2/u1/a.txt": "y" },
     });
+
     const listed = await scoped.connect(client, { tenant: "o1" }).list();
     expect(listed.ok && listed.data.map((object) => object.path)).toEqual([
       "o1/u1/a.txt",
@@ -1613,20 +1750,24 @@ describe("tenant-scoped buckets", () => {
 
   it("reads the tenant from the request context, and fails closed without one", async () => {
     const { client, calls } = fakeStorage();
+
     const fromClaims = scoped.connect(client, {
       context: { claims: { tenant_id: "o1" } },
     });
+
     expect((await fromClaims.upload(mine, "x")).ok).toBe(true);
     const fromContext = scoped.connect(client, { context: { tenant: "o2" } });
     expect(await fromContext.upload(mine, "x")).toMatchObject({
       ok: false,
       error: { kind: "forbidden" },
     });
+
     const custom = defineBucket({
       id: "scoped",
       path: "{organizationId}/{file}",
       tenant: { claim: "app_metadata.organization" },
     });
+
     expect(
       custom
         .connect(client, {
@@ -1653,6 +1794,7 @@ describe("tenant-scoped buckets", () => {
 
   it("uses the tenant tenant() resolved from a custom claim path", async () => {
     const { client } = fakeStorage();
+
     const db = defineSupabase(schema)
       .use(tenant({ claim: "app_metadata.organization" }))
       .connect(
@@ -1662,6 +1804,7 @@ describe("tenant-scoped buckets", () => {
         },
         { claims: { tenant_id: "o1", app_metadata: { organization: "o9" } } },
       );
+
     const storage = scoped.connect(client, { context: db.$context });
     expect(
       storage.path({ organizationId: "o9", userId: "u1", file: "a" }).ok,
@@ -1731,6 +1874,7 @@ describe("path layouts", () => {
       organizationId: "o1",
       rest: "a/b.txt",
     });
+
     for (const path of [
       "o1/legacy",
       "o1/legacy/",
@@ -1796,6 +1940,7 @@ describe("path layouts", () => {
     const { client } = fakeStorage({
       files: { "files/o1/legacy/2020/report.pdf": "x" },
     });
+
     const storage = files.connect(client, { tenant: "o1" });
     expect((await storage.download("o1/legacy/2020/report.pdf")).ok).toBe(true);
     expect(storage.path("o2/legacy/a.pdf")).toMatchObject({

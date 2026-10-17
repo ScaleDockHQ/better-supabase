@@ -16,8 +16,10 @@ async function reachable(): Promise<boolean> {
     max: 1,
     connectionTimeoutMillis: 1000,
   });
+
   try {
     await pool.query("select 1");
+
     return true;
   } catch {
     return false;
@@ -31,32 +33,41 @@ const SCHEMA = `bs_outbox_${crypto.randomUUID().slice(0, 8)}`;
 
 describe.skipIf(!live)("outbox", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 3 });
+
   const sql: SqlClient = {
     queryRaw: async <T>(text: string, params?: unknown[]) =>
       // SAFETY: the caller names the row shape of its own query.
       (await pool.query(text, params)).rows as T[],
   };
+
   const outbox = createOutbox({
     transport: sqlTransport(sql),
     schema: SCHEMA,
     source: "https://crm.example.com",
   });
+
   let registered = true;
 
   beforeAll(async () => {
     const { rows } = await pool.query(
       "select to_regclass('better_supabase.modules') is not null and exists (select 1 from better_supabase.modules where name = 'outbox') as present",
     );
+
     registered = Boolean(rows[0]?.present);
+
     const layout = {
       modules: { outbox: { schema: SCHEMA, idType: "text" as const } },
     };
+
     const client = await pool.connect();
+
     try {
       await client.query("begin");
+
       for (const file of renderModules(["outbox"], layout)) {
         await client.query(file.contents);
       }
+
       await client.query(
         `create table ${SCHEMA}.widgets (id bigint primary key, organization text, name text)`,
       );
@@ -74,11 +85,13 @@ describe.skipIf(!live)("outbox", () => {
 
   afterAll(async () => {
     await pool.query(`drop schema if exists ${SCHEMA} cascade`);
+
     if (!registered) {
       await pool.query(
         "delete from better_supabase.modules where name = 'outbox'",
       );
     }
+
     await pool.end();
   });
 
@@ -89,19 +102,23 @@ describe.skipIf(!live)("outbox", () => {
     ).toBe(true);
     const slow = await pool.connect();
     const sent: CloudEvent[] = [];
+
     const sink = {
       send: (events: readonly CloudEvent[]) => void sent.push(...events),
     };
+
     try {
       await slow.query("begin");
       await slow.query(
         `select ${SCHEMA}.emit_event('organization.slow', '{}'::jsonb, 'organizations/1')`,
       );
+
       const fast = await outbox.emit(
         "organization.fast",
         { n: 1 },
         { tenant: "t1" },
       );
+
       expect(fast.ok).toBe(true);
       expect((await outbox.emit("other.type")).ok).toBe(true);
 
@@ -110,6 +127,7 @@ describe.skipIf(!live)("outbox", () => {
     } finally {
       slow.release();
     }
+
     expect(await outbox.relay("crm", sink)).toEqual({ delivered: 2 });
     expect(sent.map((event) => event.type)).toEqual([
       "dev.better-supabase.organization.slow",
@@ -124,10 +142,13 @@ describe.skipIf(!live)("outbox", () => {
       true,
     );
     const sent: CloudEvent[] = [];
+
     const sink = {
       send: (events: readonly CloudEvent[]) => void sent.push(...events),
     };
+
     const early = await pool.connect();
+
     try {
       await early.query("begin");
       await early.query(
@@ -139,6 +160,7 @@ describe.skipIf(!live)("outbox", () => {
     } finally {
       early.release();
     }
+
     expect(await outbox.relay("late", sink)).toEqual({ delivered: 2 });
     expect(sent.map((event) => event.type)).toEqual([
       "dev.better-supabase.late.first",
@@ -153,16 +175,19 @@ describe.skipIf(!live)("outbox", () => {
       {},
       { tenant: "t2", key: "inv-9" },
     );
+
     const again = await outbox.emit(
       "invoice.paid",
       {},
       { tenant: "t2", key: "inv-9" },
     );
+
     const other = await outbox.emit(
       "invoice.paid",
       {},
       { tenant: "t3", key: "inv-9" },
     );
+
     expect(again.data).toBe(first.data);
     expect(other.data).not.toBe(first.data);
 
@@ -189,6 +214,7 @@ describe.skipIf(!live)("outbox", () => {
     );
     const actor = crypto.randomUUID();
     const client = await pool.connect();
+
     try {
       await client.query("begin");
       await client.query("select set_config('request.jwt.claims', $1, true)", [
@@ -201,11 +227,13 @@ describe.skipIf(!live)("outbox", () => {
     } finally {
       client.release();
     }
+
     const seen: {
       type: string;
       actorId: string | null;
       tenant: string | null;
     }[] = [];
+
     expect(
       await outbox.consume("rows", (events) => {
         seen.push(
@@ -225,9 +253,11 @@ describe.skipIf(!live)("outbox", () => {
 
   it("keeps the lease to one worker and purges only what consumers passed", async () => {
     await outbox.register("audit", { fromStart: true });
+
     const { rows } = await pool.query(
       `select ${SCHEMA}.outbox_claim('audit', 'w1', 1) as a, ${SCHEMA}.outbox_claim('audit', 'w2', 1) as b`,
     );
+
     expect(rows[0].a).toHaveLength(1);
     expect(rows[0].b).toEqual([]);
     await pool.query(`select ${SCHEMA}.outbox_ack('audit', 'w1', null)`);
@@ -243,13 +273,17 @@ describe.skipIf(!live)("outbox", () => {
     expect((await outbox.emit("poison.bad", { n: 1 })).ok).toBe(true);
     expect((await outbox.emit("poison.good", { n: 2 })).ok).toBe(true);
     const handled: string[] = [];
+
     const handler = (events: readonly { type: string }[]) => {
       if (events.some((event) => event.type === "poison.bad")) {
         throw new Error("No such customer");
       }
+
       handled.push(...events.map((event) => event.type));
     };
+
     const options = { maxAttempts: 2 };
+
     const ready = () =>
       pool.query(
         `update ${SCHEMA}.outbox_consumers set retry_at = now() - interval '1 second' where name = 'poison'`,
@@ -258,9 +292,11 @@ describe.skipIf(!live)("outbox", () => {
     const first = await outbox.consume("poison", handler, options);
     expect(first).toMatchObject({ delivered: 0 });
     expect(first.error?.message).toContain("No such customer");
+
     const { rows } = await pool.query(
       `select attempts, last_error, retry_at > now() as waiting from ${SCHEMA}.outbox_consumers where name = 'poison'`,
     );
+
     expect(rows[0]).toEqual({
       attempts: 1,
       last_error: "No such customer",
@@ -286,9 +322,11 @@ describe.skipIf(!live)("outbox", () => {
       error: "No such customer",
       event: { type: "poison.bad", payload: { n: 1 } },
     });
+
     const { rows: after } = await pool.query(
       `select attempts, last_error, retry_at from ${SCHEMA}.outbox_consumers where name = 'poison'`,
     );
+
     expect(after[0]).toEqual({ attempts: 0, last_error: null, retry_at: null });
   });
 
@@ -298,6 +336,7 @@ describe.skipIf(!live)("outbox", () => {
       `update ${SCHEMA}.outbox_consumers set updated_at = now() - interval '2 days' where name = 'idle'`,
     );
     expect((await outbox.emit("purge.me")).ok).toBe(true);
+
     for (const consumer of ["crm", "audit", "poison"]) {
       await outbox.relay(consumer, { send: () => undefined });
     }

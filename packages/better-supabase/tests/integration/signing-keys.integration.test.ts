@@ -17,6 +17,7 @@ describe.skipIf(!live)("signing-keys module", () => {
 
   it("keeps the private key in Vault, rotates and publishes retired keys until their exp", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["signing-keys"]);
       await s.service();
@@ -25,10 +26,12 @@ describe.skipIf(!live)("signing-keys module", () => {
 
       const first = await keys.create(OWNER).orThrow();
       const exp = Math.floor(Date.now() / 1000) + 3600;
+
       const token = await keys
         .signer(OWNER)
         .signJwt({ sub: "u1", exp })
         .orThrow();
+
       const second = await keys.rotate(OWNER, "ES256").orThrow();
       expect(second).toMatchObject({ alg: "ES256", retired: first.kid });
 
@@ -65,6 +68,7 @@ describe.skipIf(!live)("signing-keys module", () => {
 
   it("refuses callers other than the service role", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["signing-keys"]);
       const alice = await s.user("alice");

@@ -23,6 +23,7 @@ function delayedFetch(ms: number): typeof fetch {
         { once: true },
       );
     });
+
     return fetch(input, init);
   };
 }

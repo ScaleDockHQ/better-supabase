@@ -53,6 +53,7 @@ type Column<M extends AnyModels, T extends keyof M> = Extract<
   keyof Row<M, T>,
   string
 >;
+
 type TextColumn<M extends AnyModels, T extends keyof M> = {
   [K in Column<M, T>]: [NonNullable<Row<M, T>[K]>] extends [string] ? K : never;
 }[Column<M, T>];
@@ -287,6 +288,7 @@ export type ListParsers<S extends string, F extends string> = {
 } & { readonly [K in F]: ParserSpec<readonly string[]> };
 
 const RESERVED = new Set(["q", "sort", "page", "after", "size"]);
+
 /** Longest `filter` URL parameter, in characters. */
 const MAX_FILTER_PARAM = 16_384;
 
@@ -309,6 +311,7 @@ function first(
 
 function all(value: string | readonly string[] | undefined): string[] {
   const values = typeof value === "string" ? [value] : [...(value ?? [])];
+
   return values
     .flatMap((entry) => entry.split(","))
     .map((entry) => entry.trim())
@@ -334,10 +337,13 @@ function readRecord(
   if (!(input instanceof URLSearchParams)) {
     return input;
   }
+
   const out: Record<string, string[]> = {};
+
   for (const [key, value] of input) {
     (out[key] ??= []).push(value);
   }
+
   return out;
 }
 
@@ -345,9 +351,11 @@ function toInt(raw: unknown): number | undefined {
   if (typeof raw === "number") {
     return raw;
   }
+
   if (typeof raw !== "string" || !/^\d+$/.test(raw)) {
     return Number.NaN;
   }
+
   return Number(raw);
 }
 
@@ -381,9 +389,11 @@ export function defineListQuery<
   config: ListQueryConfig<M, T, S, F, C, P>,
 ): ListDefinition<M, T, E, S, F, C, P> {
   const meta: TableMeta | undefined = betterSupabase.meta.tables[table];
+
   if (!meta) {
     throw new TypeError(`defineListQuery: unknown table "${table}"`);
   }
+
   const pageSize = config.pageSize ?? 50;
   const maxPageSize = config.maxPageSize ?? 200;
   const maxSearch = config.maxSearchLength ?? 200;
@@ -395,6 +405,7 @@ export function defineListQuery<
   const facetEntries = Object.entries(config.facets ?? {}) as [F, string][];
   const filterFields = filterFieldsOf(meta, config.filters ?? {});
   const filtering = filterFields.length > 0;
+
   const limits: FilterLimits = {
     maxDepth: config.maxFilterDepth ?? 4,
     maxRules: config.maxFilterRules ?? 50,
@@ -406,12 +417,14 @@ export function defineListQuery<
     if (RESERVED.has(key) || (filtering && key === "filter")) {
       throw new TypeError(`defineListQuery: facet key "${key}" is reserved`);
     }
+
     if (!meta.columns[column]) {
       throw new TypeError(
         `defineListQuery: unknown column "${table}.${column}"`,
       );
     }
   }
+
   if (!sortKeys.includes(config.defaultSort)) {
     throw new TypeError(
       `defineListQuery: defaultSort "${config.defaultSort}" is not in sorts`,
@@ -420,6 +433,7 @@ export function defineListQuery<
 
   const facets: FacetInfo[] = facetEntries.map(([key, column]) => {
     const columnMeta = meta.columns[column]!;
+
     return {
       key,
       column,
@@ -447,6 +461,7 @@ export function defineListQuery<
   }): ListParseResult<S, F> {
     const issues: ValidationIssue[] = [];
     let filter: FilterQuery | undefined;
+
     if (raw.filter !== undefined && raw.filter !== null) {
       if (filtering) {
         filter = checkFilterQuery(raw.filter, filterFields, limits, issues);
@@ -454,10 +469,13 @@ export function defineListQuery<
         issues.push({ message: "This list has no filters", path: ["filter"] });
       }
     }
+
     if (raw.timeZone !== undefined && !validTimeZone(raw.timeZone)) {
       issues.push({ message: "Unknown time zone", path: ["timeZone"] });
     }
+
     let q: string | undefined;
+
     if (raw.q !== undefined && raw.q !== null) {
       if (typeof raw.q !== "string") {
         issues.push({ message: "Must be text", path: ["q"] });
@@ -470,7 +488,9 @@ export function defineListQuery<
         q = raw.q.trim();
       }
     }
+
     let sort = config.defaultSort;
+
     // SAFETY: sortKeys holds S values, which are strings, so includes can take any string.
     if (raw.sort !== undefined && raw.sort !== "") {
       if (
@@ -486,8 +506,10 @@ export function defineListQuery<
         });
       }
     }
+
     const page =
       raw.page === undefined || raw.page === "" ? 1 : toInt(raw.page);
+
     if (page === undefined || !Number.isInteger(page) || page < 1) {
       issues.push({
         message: "Must be a whole number of at least 1",
@@ -499,7 +521,9 @@ export function defineListQuery<
         path: ["page"],
       });
     }
+
     let after: string | undefined;
+
     if (raw.after !== undefined && raw.after !== "") {
       if (cursor && typeof raw.after === "string") {
         after = raw.after;
@@ -512,8 +536,10 @@ export function defineListQuery<
         });
       }
     }
+
     const size =
       raw.size === undefined || raw.size === "" ? pageSize : toInt(raw.size);
+
     if (
       size === undefined ||
       !Number.isInteger(size) ||
@@ -525,17 +551,22 @@ export function defineListQuery<
         path: ["size"],
       });
     }
+
     const facetValues: Partial<Record<F, readonly string[]>> = {};
+
     for (const facet of facets) {
       const values = raw.facets[facet.key];
+
       if (!values || values.length === 0) {
         continue;
       }
+
       for (const value of values) {
         const allowed =
           value === UNSET
             ? facet.nullable
             : !facet.values || facet.values.includes(value);
+
         if (!allowed) {
           issues.push({
             message:
@@ -546,12 +577,15 @@ export function defineListQuery<
           });
         }
       }
+
       // SAFETY: facets are built from config.facets, which is keyed by F.
       facetValues[facet.key as F] = [...new Set(values)];
     }
+
     if (issues.length > 0) {
       return { ok: false, issues };
     }
+
     return {
       ok: true,
       value: {
@@ -572,31 +606,38 @@ export function defineListQuery<
     options: ListParseOptions = {},
   ): ListParseResult<S, F> {
     const timeZone = options.timeZone;
+
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- search params from JavaScript can be null.
     if (input === undefined || input === null) {
       return timeZone === undefined
         ? { ok: true, value: defaults }
         : normalize({ facets: {}, timeZone });
     }
+
     if (typeof input !== "object") {
       return {
         ok: false,
         issues: [{ message: "Expected an object or URL parameters" }],
       };
     }
+
     if (isSearchParams(input)) {
       const record = readRecord(input);
       const facetValues: Record<string, string[]> = {};
+
       for (const facet of facets) {
         facetValues[facet.key] = all(record[facet.key]);
       }
+
       const encoded = filtering ? first(record["filter"]) : undefined;
       let filter: unknown;
+
       if (encoded !== undefined && encoded !== "") {
         filter =
           encoded.length > MAX_FILTER_PARAM
             ? undefined
             : decodeFilterQuery(encoded);
+
         if (filter === undefined) {
           return {
             ok: false,
@@ -609,6 +650,7 @@ export function defineListQuery<
           };
         }
       }
+
       return normalize({
         filter,
         timeZone,
@@ -620,10 +662,12 @@ export function defineListQuery<
         facets: facetValues,
       });
     }
+
     const typed = input;
     // SAFETY: the list input types facets as a record of facet values; each
     // value is checked below.
     const rawFacets = (typed.facets ?? {}) as Partial<Record<string, unknown>>;
+
     for (const [key, value] of Object.entries(rawFacets)) {
       if (
         !Array.isArray(value) ||
@@ -637,6 +681,7 @@ export function defineListQuery<
         };
       }
     }
+
     // SAFETY: the loop above rejected every facet value that is not a list of strings.
     return normalize({
       filter: typed.filter,
@@ -656,18 +701,23 @@ export function defineListQuery<
     if (!query.q || !config.search) {
       return undefined;
     }
+
     if (Array.isArray(config.search)) {
       // SAFETY: the Array.isArray check narrows the search config to its column-list form.
       const columns = config.search as readonly string[];
+
       if (columns.length === 0) {
         return undefined;
       }
+
       return {
         OR: columns.map((column) => ({ [column]: { contains: query.q } })),
       };
     }
+
     // SAFETY: a search config that is not a column list is the full-text form.
     const fts = config.search as { fts: string; config?: string };
+
     return {
       [fts.fts]: {
         search: fts.config ? { query: query.q, config: fts.config } : query.q,
@@ -682,22 +732,28 @@ export function defineListQuery<
     if (!values || values.length === 0) {
       return undefined;
     }
+
     const unset = values.includes(UNSET);
     const set = values.filter((value) => value !== UNSET);
+
     if (unset && set.length === 0) {
       return { [facet.column]: null };
     }
+
     if (!unset) {
       return { [facet.column]: { in: set } };
     }
+
     return { OR: [{ [facet.column]: { in: set } }, { [facet.column]: null }] };
   }
 
   function and(parts: readonly (Where | undefined)[]): Where | undefined {
     const present = parts.filter((part): part is Where => part !== undefined);
+
     if (present.length === 0) {
       return undefined;
     }
+
     return present.length === 1 ? present[0] : { AND: present };
   }
 
@@ -708,6 +764,7 @@ export function defineListQuery<
     if (!query.filter || !filtering) {
       return undefined;
     }
+
     return filterWhere(query.filter, filterFields, {
       ...clock,
       ...(query.timeZone === undefined ? {} : { timeZone: query.timeZone }),
@@ -731,9 +788,11 @@ export function defineListQuery<
     clock?: Pick<FilterClock, "now">,
   ): [P] extends ["cursor"] ? CursorPageArgs<M, T> : OffsetPageArgs<M, T> {
     const filter = where(query, clock);
+
     const paging = cursor
       ? { after: query.after ?? null }
       : { page: query.page, count: config.count ?? "planned" };
+
     // SAFETY: orderBy comes from config.sorts for table T, the filter is
     // built from its columns, and `paging` matches the pagination P.
     return {
@@ -750,43 +809,52 @@ export function defineListQuery<
     groups: readonly Record<string, unknown>[],
   ): Record<string, number> {
     const counts: Record<string, number> = {};
+
     for (const value of facet.values ?? []) {
       counts[value] = 0;
     }
+
     for (const group of groups) {
       const raw = group[facet.column];
       const key = raw === null || raw === undefined ? UNSET : String(raw);
       counts[key] = (counts[key] ?? 0) + Number(group["_count"] ?? 0);
     }
+
     return counts;
   }
 
   const listParser: ParserSpec<readonly string[]> = {
     parse: (value) => {
       const values = all(value);
+
       return values.length > 0 ? values : null;
     },
     serialize: (values) => values.join(","),
   };
+
   const intParser: ParserSpec<number> = {
     parse: (value) => (/^\d+$/.test(value) ? Number(value) : null),
     serialize: String,
   };
+
   const filterParser: ParserSpec<FilterQuery> = {
     parse: (value) => {
       const decoded =
         value.length > MAX_FILTER_PARAM ? undefined : decodeFilterQuery(value);
+
       const group =
         typeof decoded === "object" &&
         decoded !== null &&
         "type" in decoded &&
         decoded.type === "group";
+
       // SAFETY: a decoded group; `parse` checks every node before it is used.
       return group ? (decoded as FilterQuery) : null;
     },
     serialize: encodeFilterQuery,
     eq: (a, b) => encodeFilterQuery(a) === encodeFilterQuery(b),
   };
+
   // SAFETY: the object has q, sort, page and size parsers, a filter parser when
   // filters are configured, and one list parser per facet key in F.
   const parsers = {
@@ -820,6 +888,7 @@ export function defineListQuery<
     },
     uniqueItems: true,
   });
+
   // SAFETY: the Array.isArray check narrows the search config to its column-list form.
   const searchDescription = config.search
     ? Array.isArray(config.search)
@@ -899,6 +968,7 @@ export function defineListQuery<
   const filterSchema = filtering
     ? filterJsonSchema(filterFields, limits)
     : undefined;
+
   const jsonSchema = {
     ...(filterSchema ? { $defs: filterSchema["$defs"] } : {}),
     type: "object",
@@ -960,6 +1030,7 @@ export function defineListQuery<
           const result = parse(
             value as ListQueryInput<S, F> | ListSearchParams | undefined,
           );
+
           return result.ok
             ? { value: result.value }
             : { issues: result.issues };
@@ -968,18 +1039,23 @@ export function defineListQuery<
     },
     toSearchParams(query) {
       const params = new URLSearchParams();
+
       if (query.q) {
         params.set("q", query.q);
       }
+
       if (query.sort && query.sort !== config.defaultSort) {
         params.set("sort", query.sort);
       }
+
       if (query.page && query.page !== 1) {
         params.set("page", String(query.page));
       }
+
       if (query.after) {
         params.set("after", query.after);
       }
+
       if (
         query.size !== undefined &&
         query.size > 0 &&
@@ -987,16 +1063,20 @@ export function defineListQuery<
       ) {
         params.set("size", String(query.size));
       }
+
       if (query.filter && query.filter.rules.length > 0) {
         params.set("filter", encodeFilterQuery(query.filter));
       }
+
       for (const facet of facets) {
         // SAFETY: facets are built from config.facets, which is keyed by F.
         const values = query.facets?.[facet.key as F];
+
         if (values && values.length > 0) {
           params.set(facet.key, values.join(","));
         }
       }
+
       return params;
     },
     parsers,
@@ -1014,6 +1094,7 @@ export function defineListQuery<
     run(db, query, extra) {
       // SAFETY: args() returns an object of paginate options.
       const base = args(query) as Record<string, unknown>;
+
       // SAFETY: extra is optional ListExtra, and the rest spread keeps its
       // other paginate options.
       const {
@@ -1023,8 +1104,10 @@ export function defineListQuery<
         include: _include,
         ...options
       } = (extra ?? {}) as ListExtra<M, T> & Record<string, unknown>;
+
       // SAFETY: base comes from args(), whose where is a Where for table T.
       const combined = and([extraWhere, base["where"] as Where | undefined]);
+
       // SAFETY: db is generic over M; this helper only calls paginate and
       // aggregate on table T.
       // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- `db` is generic over M; this helper only needs paginate and aggregate.
@@ -1032,16 +1115,19 @@ export function defineListQuery<
         paginate: (input: Record<string, unknown>) => AsyncResult<unknown>;
         aggregate: (input: Record<string, unknown>) => AsyncResult<unknown>;
       };
+
       const page = repository.paginate({
         ...extra,
         ...base,
         ...(cursor ? {} : { count: count ?? base["count"] }),
         ...(combined ? { where: combined } : {}),
       });
+
       if (!config.facetCounts) {
         // SAFETY: without facet counts, run returns the paginate result as is.
         return page as AsyncResult<never>;
       }
+
       if (facets.length === 0) {
         // SAFETY: paginate returns a page object, which gets an empty facetCounts field.
         return page.map((data) => ({
@@ -1050,10 +1136,12 @@ export function defineListQuery<
           facetCountsTruncated: [],
         })) as AsyncResult<never>;
       }
+
       // Per facet, rows per value under every other facet's selection, so
       // picking a value doesn't zero the other values of the same facet.
       const search = searchWhere(query);
       const tree = treeWhere(query);
+
       const counted = facets.map((facet) => {
         const filter = and([
           extraWhere,
@@ -1066,6 +1154,7 @@ export function defineListQuery<
               : facetWhere(other, query.facets[other.key as F]),
           ),
         ]);
+
         return repository.aggregate({
           ...options,
           ...(filter ? { where: filter } : {}),
@@ -1075,24 +1164,31 @@ export function defineListQuery<
           limit: facetLimit + 1,
         });
       });
+
       // SAFETY: paginate returns a page object, and aggregate with groupBy
       // returns one row per group.
       return page.andThen(async (data) => {
         const results = await Promise.all(counted);
         const facetCounts: Record<string, Record<string, number>> = {};
         const truncated: string[] = [];
+
         for (const [index, facet] of facets.entries()) {
           const result = results[index]!;
+
           if (!result.ok) {
             return result;
           }
+
           // SAFETY: aggregate with groupBy returns one row per group.
           const rows = result.data as Record<string, unknown>[];
+
           if (rows.length > facetLimit) {
             truncated.push(facet.key);
           }
+
           facetCounts[facet.key] = countsOf(facet, rows.slice(0, facetLimit));
         }
+
         // A literal, not ok(), keeps the error classes out of this entry.
         return {
           ok: true as const,

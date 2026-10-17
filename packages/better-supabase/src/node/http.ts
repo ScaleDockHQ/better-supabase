@@ -29,14 +29,17 @@ export function toWebRequest(
   options: WebRequestOptions = {},
 ): Request {
   const method = req.method ?? "GET";
+
   const hasBody =
     (options.body ?? true) && method !== "GET" && method !== "HEAD";
+
   const controller = new AbortController();
   req.once("close", () => {
     if (!req.complete) {
       controller.abort();
     }
   });
+
   return new Request(nodeRequestUrl(req, options.trustProxy ?? false), {
     method,
     headers: toWebHeaders(req.headers),
@@ -57,14 +60,19 @@ export async function sendWebResponse(
   response: Response,
 ): Promise<void> {
   res.statusCode = response.status;
+
   if (response.statusText) {
     res.statusMessage = response.statusText;
   }
+
   applyWebHeaders(res, response.headers);
+
   if (!response.body) {
     res.end();
+
     return;
   }
+
   // SAFETY: a Response body is a byte stream, which Readable.fromWeb takes.
   const body = response.body as Parameters<typeof Readable.fromWeb>[0];
   await pipeline(Readable.fromWeb(body), res);

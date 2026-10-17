@@ -160,6 +160,7 @@ function betterSupabaseParts<
     checkSession,
     ...guardConfig
   } = config;
+
   return [
     withSession(core, {
       ...(refresh === undefined ? {} : { refresh }),
@@ -242,6 +243,7 @@ export function withBetterSupabase<
 ): BetterSupabaseEntry<M, F, E, C, P> {
   const server = isDefinition(source) ? createServer(source, config) : source;
   const core = serverCore(server);
+
   const {
     refresh,
     cookies,
@@ -254,6 +256,7 @@ export function withBetterSupabase<
     scopes,
     expose,
   } = config;
+
   const parts = betterSupabaseParts(core, {
     ...(refresh === undefined ? {} : { refresh }),
     ...(cookies === undefined ? {} : { cookies }),
@@ -266,6 +269,7 @@ export function withBetterSupabase<
     ...(scopes === undefined ? {} : { scopes }),
     ...(expose === undefined ? {} : { expose }),
   });
+
   return defineComposite({
     build: () => parts,
     internal: ["session", "auth", "guard"],

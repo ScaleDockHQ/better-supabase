@@ -25,6 +25,7 @@ const hold = (overrides: Record<string, unknown> = {}) => ({
 
 function fakeTransport(results: Record<string, unknown>) {
   const calls: [string, Record<string, unknown>][] = [];
+
   return {
     calls,
     transport: {
@@ -34,6 +35,7 @@ function fakeTransport(results: Record<string, unknown>) {
         args: Readonly<Record<string, unknown>>,
       ) {
         calls.push([fn, { ...args }]);
+
         return Promise.resolve(results[fn]);
       },
     },
@@ -47,12 +49,15 @@ describe("createRetention", () => {
       list_retention_policies: [policy],
       remove_retention_policy: true,
     });
+
     const retention = createRetention({ transport });
+
     const set = await retention
       .setPolicy("audit", Temporal.Duration.from({ years: 7 }), {
         organizationId: "org-1",
       })
       .orThrow();
+
     expect(set).toMatchObject({
       kind: "audit",
       keep: "7 years",
@@ -84,11 +89,13 @@ describe("createRetention", () => {
       released_by: "u1",
       released_at: "2026-10-17T12:00:00Z",
     });
+
     const { transport, calls } = fakeTransport({
       place_legal_hold: hold(),
       release_legal_hold: released,
       list_legal_holds: [released],
     });
+
     const retention = createRetention({ transport });
     expect(
       await retention
@@ -121,6 +128,7 @@ describe("createRetention", () => {
     const retention = createRetention({
       transport: fakeTransport({ release_legal_hold: null }).transport,
     });
+
     expect(await retention.releaseHold("h1").orThrow()).toBeUndefined();
   });
 });

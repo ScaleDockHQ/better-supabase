@@ -19,6 +19,7 @@ export function withGuard<C, P>(
   config: GuardEntryConfig = {},
 ): SingleKeyEntry<"guard", { readonly auth: AuthState<C, P> }, GuardOptions> {
   const { expose = defaultExpose(), ...options } = config;
+
   return defineMiddleware<
     "guard",
     undefined,
@@ -33,6 +34,7 @@ export function withGuard<C, P>(
         options.aal,
         options.scopes,
       );
+
       return Promise.resolve(
         denied
           ? problemResponse(denied, {

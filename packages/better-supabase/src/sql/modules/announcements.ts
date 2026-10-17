@@ -84,6 +84,7 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const id = ctx.idType;
   const fn = (name: string): string => ctx.fn(name);
   const a = ctx.table("announcements");
@@ -95,6 +96,7 @@ function build(ctx: ModuleContext): string {
   const editable = [...EDITABLE.map(ca), ...extras.map((extra) => extra.ident)];
   const manage = ctx.permission("manage", OPERATIONS["announcements.manage"]);
   const staff = ctx.staff(manage);
+
   const announcementEvent = (type: string, id: string): string =>
     ctx.record({
       type,
@@ -106,17 +108,21 @@ function build(ctx: ModuleContext): string {
         recordId: `${id}::text`,
       },
     });
+
   const plans = ctx.entitlements("v_tenant");
   const audiences = ["all", "tenant", "role", ...(plans ? ["plan"] : [])];
   const topic = ctx.text("topic", "announcements");
+
   if (!TOPIC.test(topic)) {
     throw new TypeError(
       "blocks.announcements.options.topic: use letters, digits, '_', '.', ':' or '-'",
     );
   }
+
   const event = ctx.text("event", "announcement_changed");
   const receive = ctx.trigger("announcements_receive");
   const trigger = ctx.trigger("announcements_broadcast");
+
   const planMatch = plans
     ? `when 'plan' then v_tenant is not null and x.${ca("targets")} && ${plans}`
     : "";

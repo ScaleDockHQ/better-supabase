@@ -17,12 +17,15 @@ export const POST = bs.route(
     if (session.kind !== "user") {
       return err(dbError("unauthorized", "Sign in to use the assistant"));
     }
+
     if (!durableAvailable()) {
       return err(
         dbError("unsupported", "Durable chats need AI_GATEWAY_API_KEY"),
       );
     }
+
     const agent = await agentOf(request);
+
     return durable(agent).respond(
       request,
       durableContext(supabase, session.user.id, tenant),

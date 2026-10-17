@@ -9,7 +9,9 @@ import {
 import { createUndoController } from "../client.ts";
 
 export type { BlockOptions } from "../../block-env.ts";
+
 export type { SolidController } from "../../solid-controller.ts";
+
 export type { UndoActions, UndoSnapshot, UndoStackOptions } from "../client.ts";
 
 /**

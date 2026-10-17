@@ -9,14 +9,17 @@ import {
 
 function transport(results: Record<string, (args: unknown) => unknown>) {
   const calls: [string, string, unknown][] = [];
+
   return {
     calls,
     call(schema: string, fn: string, args: unknown) {
       calls.push([schema, fn, args]);
       const result = results[fn];
+
       if (!result) {
         return Promise.reject(new Error(`unexpected ${fn}`));
       }
+
       return Promise.resolve(result(args));
     },
   };
@@ -92,11 +95,13 @@ interface Bucket {
 
 function storage(fail?: "url" | "remove") {
   const buckets: Bucket[] = [];
+
   return {
     buckets,
     from(name: string) {
       const bucket: Bucket = { name, removed: [] };
       buckets.push(bucket);
+
       return {
         createSignedUploadUrl: (path: string) =>
           Promise.resolve(
@@ -115,6 +120,7 @@ function storage(fail?: "url" | "remove") {
         download: () => Promise.resolve({ data: new Blob(["x"]), error: null }),
         remove: (paths: string[]) => {
           bucket.removed.push(paths);
+
           return Promise.resolve(
             fail === "remove"
               ? { data: null, error: { message: "gone", statusCode: "500" } }
@@ -141,10 +147,13 @@ describe("drive client", () => {
       drive_unshare: () => true,
       drive_grants: () => [GRANT],
     });
+
     const drive = createDrive({ transport: fake, schema: "app" });
+
     const folder = await drive
       .createFolder("o", { name: "Projects", conflict: "rename" })
       .orThrow();
+
     expect(folder).toMatchObject({
       id: "f1",
       parentId: null,
@@ -179,11 +188,13 @@ describe("drive client", () => {
         .parentId,
     ).toBeNull();
     expect(await drive.delete("n1").orThrow()).toBe(true);
+
     const shared = await drive
       .share("f1", { type: "team", id: "t1" }, "editor", {
         expiresAt: Temporal.Instant.from("2026-11-01T00:00:00Z"),
       })
       .orThrow();
+
     expect(shared).toMatchObject({
       principal: { type: "team", id: "t1" },
       inherited: false,
@@ -228,12 +239,15 @@ describe("drive client", () => {
       drive_get: () => FILE,
       get_attachment: () => ({ ...ATTACHMENT, id: "a1", status: "clean" }),
     });
+
     const files = storage();
+
     const drive = createDrive({
       transport: fake,
       storage: files,
       attachments: createAttachments({ transport: fake, storage: files }),
     });
+
     const upload = await drive
       .upload("o", {
         parentId: "f1",
@@ -242,12 +256,15 @@ describe("drive client", () => {
         size: 12,
       })
       .orThrow();
+
     expect(upload.signedUrl).toBe("https://up/o/attachments/a2");
     expect(upload.token).toBe("tok");
     expect(upload.attachment.path).toBe("o/attachments/a2");
+
     const revision = await drive
       .uploadRevision("n1", { mimeType: "application/pdf", size: 12 })
       .orThrow();
+
     expect(revision.node.id).toBe("n1");
     expect((await drive.commit("n1", "a2").orThrow()).attachmentId).toBe("a2");
     const download = await drive.download("n1", { as: "plan.pdf" }).orThrow();
@@ -258,11 +275,13 @@ describe("drive client", () => {
   it("refuses file calls without storage and a download of a folder", async () => {
     const fake = transport({ drive_get: () => FOLDER });
     const drive = createDrive({ transport: fake });
+
     const upload = await drive.upload("o", {
       name: "a.txt",
       mimeType: "text/plain",
       size: 1,
     });
+
     expect(!upload.ok && upload.error.hint).toBe("DRIVE_STORAGE_CLIENT");
     expect(fake.calls).toEqual([]);
     const download = await drive.download("f1");
@@ -271,6 +290,7 @@ describe("drive client", () => {
     );
 
     const files = storage();
+
     const withStorage = createDrive({
       transport: fake,
       storage: files,
@@ -283,6 +303,7 @@ describe("drive client", () => {
       }),
       mappers: [],
     });
+
     const folder = await withStorage.download("f1");
     expect(!folder.ok && folder.error.hint).toBe("DRIVE_NOT_A_FILE");
   });
@@ -291,12 +312,15 @@ describe("drive client", () => {
     const fake = transport({
       drive_create_file: () => ({ node: FILE, attachment: ATTACHMENT }),
     });
+
     const drive = createDrive({ transport: fake, storage: storage("url") });
+
     const upload = await drive.upload("o", {
       name: "plan.pdf",
       mimeType: "application/pdf",
       size: 12,
     });
+
     expect(upload.ok).toBe(false);
   });
 
@@ -369,6 +393,7 @@ describe("drive client", () => {
               },
       }),
     });
+
     const drive = createDrive({ transport: fake });
     const [revision] = await drive.revisions("n1").orThrow();
     expect(revision).toMatchObject({ number: 2, size: 12, current: true });
@@ -382,12 +407,14 @@ describe("drive client", () => {
     expect(
       (await drive.restore("t1", { conflict: "rename" }).orThrow()).node.id,
     ).toBe("f1");
+
     const [entry] = await drive
       .bin("o", {
         pageSize: 10,
         before: Temporal.Instant.from("2026-10-04T00:00:00Z"),
       })
       .orThrow();
+
     expect(entry?.node.deletedAt?.toString()).toBe("2026-10-03T00:00:00Z");
     expect(entry?.purgeAfter).toBeUndefined();
     expect(await drive.purge("t1").orThrow()).toBe(2);
@@ -413,13 +440,16 @@ describe("drive client", () => {
       { bucket: "attachments", path: "o/2" },
       { bucket: "archive", path: "o/3" },
     ];
+
     const fake = transport({ drive_prune: () => objects });
     const files = storage();
+
     const drive = createDrive({
       transport: fake,
       storage: files,
       attachments: createAttachments({ transport: fake, storage: files }),
     });
+
     expect(await drive.prune({ maxObjects: 10 }).orThrow()).toEqual(objects);
     expect(
       files.buckets.map((bucket) => [bucket.name, bucket.removed]),
@@ -430,15 +460,19 @@ describe("drive client", () => {
     expect(
       await createDrive({ transport: fake }).prune().orThrow(),
     ).toHaveLength(3);
+
     const failing = createDrive({
       transport: fake,
       storage: storage("remove"),
     });
+
     expect((await failing.prune()).ok).toBe(false);
+
     const none = createDrive({
       transport: transport({ drive_prune: () => [] }),
       storage: files,
     });
+
     expect(await none.prune().orThrow()).toEqual([]);
   });
 
@@ -457,7 +491,9 @@ describe("drive client", () => {
       drive_bin: () => [],
       drive_marked: () => [],
     });
+
     const events: string[] = [];
+
     const drive = createDrive({
       transport: fake,
       logger: {
@@ -474,6 +510,7 @@ describe("drive client", () => {
         },
       },
     });
+
     await drive.createFolder("o", { name: "Root" }).orThrow();
     await drive.list("o").orThrow();
     await drive.move("f1", null).orThrow();
@@ -518,6 +555,7 @@ describe("drive client", () => {
     const drive = createDrive({
       transport: transport({ drive_get: () => ({ ...FILE, kind: "link" }) }),
     });
+
     expect((await drive.get("n1")).ok).toBe(false);
   });
 

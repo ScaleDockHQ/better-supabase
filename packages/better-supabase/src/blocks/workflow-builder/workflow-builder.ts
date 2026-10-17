@@ -115,27 +115,34 @@ export function createWorkflowBuilder<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: BuilderOptions<S>): WorkflowBuilder<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
+
   const fields: BlockFields<F> = blockFields(
     options.fields,
     "workflow definition fields",
   );
+
   injectableOf("workflow-builder compiler", options.compile);
   injectableOf("workflow-builder starter", options.start);
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const serviceCall = blockCall(
     options.service ?? options.transport,
     options.schema,
     options.mappers,
   );
+
   const providers: readonly CredentialProvider[] =
     options.credentials === undefined
       ? []
       : Array.isArray(options.credentials)
         ? options.credentials
         : [options.credentials];
+
   const providerFor = (ref: CredentialRef): CredentialProvider | undefined =>
     providers.find((provider) => provider.name === ref.provider);
+
   const noProvider = (ref: CredentialRef) =>
     dbError(
       "invalid_request",
@@ -173,6 +180,7 @@ export function createWorkflowBuilder<
     ).andThen(async (row) => ok(await start(startTargetOf(row))));
 
   const starterOf = (): BuilderStarter | undefined => options.start;
+
   const missingStarter = () =>
     dbError(
       "invalid_request",
@@ -184,9 +192,11 @@ export function createWorkflowBuilder<
     input: RunInput & { readonly trigger?: WorkflowTrigger },
   ): AsyncResult<string> => {
     const start = starterOf();
+
     if (start === undefined) {
       return AsyncResult.err(missingStarter());
     }
+
     return startTarget(
       caller,
       {
@@ -196,6 +206,7 @@ export function createWorkflowBuilder<
       },
       (target) => {
         const node = input.trigger?.config["node"];
+
         return start({
           definition: target.definition,
           version: target.version,
@@ -315,7 +326,9 @@ export function createWorkflowBuilder<
           if (found === undefined) {
             return err(dbError("not_found", "No such workflow version"));
           }
+
           const mayPublish = options.authorization?.automation?.mayPublish;
+
           if (mayPublish !== undefined && found.status !== "published") {
             const refusal = await mayPublishRefusal(
               call,
@@ -323,14 +336,18 @@ export function createWorkflowBuilder<
               found,
               publishOptions.claims,
             );
+
             if (!refusal.ok) {
               return refusal;
             }
+
             if (refusal.data !== undefined) {
               return err(refusal.data);
             }
           }
+
           let compiled: unknown = null;
+
           if (options.compile !== undefined && found.status !== "published") {
             try {
               compiled =
@@ -345,13 +362,16 @@ export function createWorkflowBuilder<
               );
             }
           }
+
           const publish = (caller: typeof call, stored: unknown) =>
             caller(
               "publish_workflow_version",
               { version, compiled: stored },
               (value) => versionOf(recordOf(value, "publish_workflow_version")),
             );
+
           const result = await publish(call, null);
+
           if (
             !result.ok ||
             compiled === null ||
@@ -359,6 +379,7 @@ export function createWorkflowBuilder<
           ) {
             return result;
           }
+
           return publish(serviceCall, compiled);
         }),
       list: (definition) =>
@@ -376,12 +397,15 @@ export function createWorkflowBuilder<
       diff: (from, to) =>
         getVersion(from).andThen(async (before) => {
           const after = await getVersion(to);
+
           if (!after.ok) {
             return after;
           }
+
           if (before === undefined || after.data === undefined) {
             return err(dbError("not_found", "No such workflow version"));
           }
+
           return ok(
             diffGraphs(
               before.graph ?? graphOf(undefined),
@@ -393,9 +417,11 @@ export function createWorkflowBuilder<
     run: (input) => runWith(call, input),
     test: (input) => {
       const start = starterOf();
+
       if (start === undefined) {
         return AsyncResult.err(missingStarter());
       }
+
       return call(
         "start_test_run",
         {
@@ -409,6 +435,7 @@ export function createWorkflowBuilder<
       ).andThen(async (row) => {
         const target = startTargetOf(row);
         const subject = input.subject;
+
         if (
           subject !== undefined &&
           !target.definition.subjectTypes.includes(subject.type)
@@ -421,7 +448,9 @@ export function createWorkflowBuilder<
             ),
           );
         }
+
         const node = row["triggerNode"];
+
         return ok(
           await start({
             definition: target.definition,
@@ -473,26 +502,33 @@ export function createWorkflowBuilder<
             { status: 405, headers: { allow: "POST" } },
           );
         }
+
         const token = webhookToken(request);
+
         if (token === undefined) {
           return Response.json({ error: "Not found" }, { status: 404 });
         }
+
         const target = await serviceCall(
           "workflow_webhook_target",
           { token },
           (value) => (isRecord(value) ? value : undefined),
         );
+
         if (!target.ok) {
           return Response.json(
             { error: target.error.message },
             { status: 500 },
           );
         }
+
         if (target.data === undefined) {
           return Response.json({ error: "Not found" }, { status: 404 });
         }
+
         const trigger = triggerOf(recordOf(target.data["trigger"], "trigger"));
         const key = request.headers.get("idempotency-key");
+
         const started = await runWith(serviceCall, {
           definition: trigger.definition,
           input: await bodyOf(request),
@@ -502,6 +538,7 @@ export function createWorkflowBuilder<
               : `webhook:${trigger.id}:${key}`,
           trigger,
         });
+
         return started.ok
           ? Response.json({ runId: started.data }, { status: 202 })
           : Response.json(
@@ -516,10 +553,12 @@ export function createWorkflowBuilder<
           (value) => recordsOf(value, "workflow_event_targets"),
         ).andThen(async (rows) => {
           const runs: string[] = [];
+
           for (const row of rows) {
             const trigger = triggerOf(recordOf(row["trigger"], "trigger"));
             const subject = eventSubject(event, stringsOf(row["subjectTypes"]));
             const tenant = optionalText(row["tenant"]);
+
             const started = await runWith(serviceCall, {
               definition: trigger.definition,
               input: event.payload ?? {},
@@ -529,15 +568,19 @@ export function createWorkflowBuilder<
               ...(tenant === undefined ? {} : { tenant }),
               ...(subject === undefined ? {} : { subject }),
             });
+
             if (!started.ok) {
               return started;
             }
+
             runs.push(started.data);
           }
+
           return ok(runs);
         }),
       syncSchedule: (trigger, tenant) => {
         const cron = trigger.config["cron"];
+
         if (trigger.kind !== "schedule" || typeof cron !== "string") {
           return AsyncResult.err(
             dbError(
@@ -546,8 +589,10 @@ export function createWorkflowBuilder<
             ),
           );
         }
+
         const timezone = trigger.config["timezone"];
         const workflows = options.workflows;
+
         if (workflows === undefined) {
           return AsyncResult.err(
             dbError(
@@ -557,6 +602,7 @@ export function createWorkflowBuilder<
             ),
           );
         }
+
         return workflows.schedules.create({
           name: `builder-trigger:${trigger.id}`,
           workflow: `${BUILDER_PREFIX}${trigger.definition}`,
@@ -573,8 +619,10 @@ export function createWorkflowBuilder<
               `better-supabase: no starter for workflow "${scheduled.workflow}"`,
             );
           }
+
           return fallback(scheduled);
         }
+
         const started = await runWith(serviceCall, {
           definition: scheduled.workflow.slice(BUILDER_PREFIX.length),
           input: scheduled.input,
@@ -587,9 +635,11 @@ export function createWorkflowBuilder<
             ? {}
             : { subject: scheduled.subject }),
         });
+
         if (!started.ok && started.error.hint === "WORKFLOW_OPTED_OUT") {
           return "";
         }
+
         return AsyncResult.from(() => Promise.resolve(started)).orThrow();
       },
     },
@@ -612,16 +662,21 @@ export function createWorkflowBuilder<
             (value) =>
               credentialOf(recordOf(value, "save_workflow_credential")),
           );
+
         if (input.secret === undefined) {
           return save();
         }
+
         if (!credentialRefInTenant(input.ref, input.tenant)) {
           return AsyncResult.err(foreignCredentialRef(input.tenant));
         }
+
         const provider = providerFor(input.ref);
+
         if (provider === undefined) {
           return AsyncResult.err(noProvider(input.ref));
         }
+
         if (provider.set === undefined) {
           return AsyncResult.err(
             dbError(
@@ -630,6 +685,7 @@ export function createWorkflowBuilder<
             ),
           );
         }
+
         return provider
           .set(input.ref, input.secret, { subject: { type: "app" } })
           .andThen(() => save());
@@ -639,10 +695,13 @@ export function createWorkflowBuilder<
           if (row === undefined) {
             return err(dbError("not_found", "No such credential"));
           }
+
           const provider = providerFor(row.ref);
+
           if (provider === undefined) {
             return err(noProvider(row.ref));
           }
+
           if (
             provider.startAuthorization === undefined ||
             !provider.capabilities(row.ref).authorization
@@ -654,6 +713,7 @@ export function createWorkflowBuilder<
               ),
             );
           }
+
           return provider
             .startAuthorization(row.ref, {
               subject: { type: "app" },
@@ -672,19 +732,25 @@ export function createWorkflowBuilder<
           if (row === undefined) {
             return ok(false);
           }
+
           if (!credentialRefInTenant(row.ref, row.tenant)) {
             return ok(true);
           }
+
           const provider = providerFor(row.ref);
+
           if (provider === undefined) {
             return err(noProvider(row.ref));
           }
+
           if (!provider.capabilities(row.ref).revoke) {
             return ok(true);
           }
+
           const revoked = await provider.revoke(row.ref, {
             subject: { type: "app" },
           });
+
           return revoked.ok ? ok(true) : revoked;
         }),
       resolve: (id) =>
@@ -692,13 +758,17 @@ export function createWorkflowBuilder<
           if (row === undefined) {
             return err(dbError("not_found", "No such credential"));
           }
+
           if (!credentialRefInTenant(row.ref, row.tenant)) {
             return err(foreignCredentialRef(row.tenant));
           }
+
           const provider = providerFor(row.ref);
+
           if (provider === undefined) {
             return err(noProvider(row.ref));
           }
+
           return provider.getToken(row.ref, {
             subject: { type: "app" },
             scopes: row.scopes,
@@ -776,6 +846,7 @@ export function createWorkflowBuilder<
         serviceCall("check_workflow_alerts", { batch: check.batch }, Number),
     },
   };
+
   return hooked(builder, options);
 }
 
@@ -787,14 +858,18 @@ function hooked<F extends object>(
   },
 ): WorkflowBuilder<F> {
   const hooks = options.hooks;
+
   if (hooks === undefined) {
     return builder;
   }
+
   const logger = options.logger ? { logger: options.logger } : {};
+
   const block = (group: string) => ({
     block: `workflow-builder.${group}`,
     ...logger,
   });
+
   const top = withBlockHooks(
     {
       run: (input: RunInput) => builder.run(input),
@@ -806,6 +881,7 @@ function hooked<F extends object>(
     },
     { block: "workflow-builder", ...logger },
   );
+
   return {
     ...builder,
     run: top.run,
@@ -850,21 +926,27 @@ function exampleStubs(
 ): Record<string, unknown> {
   const schemas = new Map(steps.map((step) => [step.name, step.outputSchema]));
   const stubs: Record<string, unknown> = {};
+
   for (const node of version.graph?.nodes ?? []) {
     if (node.kind !== "step" || node.step === undefined) {
       continue;
     }
+
     const schema = schemas.get(node.step);
+
     if (schema === undefined) {
       continue;
     }
+
     const examples = schema["examples"];
+
     if (Array.isArray(examples) && examples.length > 0) {
       stubs[node.id] = examples[0];
     } else if (Object.hasOwn(schema, "default")) {
       stubs[node.id] = schema["default"];
     }
   }
+
   return stubs;
 }
 
@@ -878,6 +960,7 @@ interface StartTarget {
 function startTargetOf(row: Record<string, unknown>): StartTarget {
   const definition = definitionOf(recordOf(row["definition"], "definition"));
   const subject = isRecord(row["subject"]) ? row["subject"] : undefined;
+
   return {
     definition,
     version: versionOf(recordOf(row["version"], "version")),
@@ -904,6 +987,7 @@ function eventSubject(
   const payload = isRecord(event.payload) ? event.payload : {};
   const type = event.subjectType ?? payload["subjectType"];
   const id = event.subjectId ?? payload["subjectId"];
+
   return typeof type === "string" &&
     typeof id === "string" &&
     subjectTypes.includes(type)
@@ -913,11 +997,15 @@ function eventSubject(
 
 function webhookToken(request: Request): string | undefined {
   const header = request.headers.get("authorization");
+
   if (header !== null && /^bearer\s+/i.test(header)) {
     const token = header.replace(/^bearer\s+/i, "").trim();
+
     return token.length > 0 ? token : undefined;
   }
+
   const segment = new URL(request.url).pathname.split("/").findLast(Boolean);
+
   return segment?.startsWith("wfh_") === true
     ? decodeURIComponent(segment)
     : undefined;
@@ -925,11 +1013,14 @@ function webhookToken(request: Request): string | undefined {
 
 async function bodyOf(request: Request): Promise<unknown> {
   const text = await request.text();
+
   if (text.length === 0) {
     return {};
   }
+
   try {
     const parsed: unknown = JSON.parse(text);
+
     return parsed;
   } catch {
     return { body: text };

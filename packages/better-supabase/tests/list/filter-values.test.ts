@@ -16,6 +16,7 @@ const column = (
 ): ColumnMeta => ({ db, type, nullable: true, hasDefault: false, ...extra });
 
 const customers = schema.meta.tables["customers"];
+
 if (!customers) {
   throw new Error("No fixture table customers");
 }
@@ -53,6 +54,7 @@ function check(node: unknown): ValidationIssue[] {
     LIMITS,
     issues,
   );
+
   return issues;
 }
 

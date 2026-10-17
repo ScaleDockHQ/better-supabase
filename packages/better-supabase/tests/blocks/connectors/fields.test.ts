@@ -32,7 +32,9 @@ describe("connectors fields", () => {
       list_connector_servers: () => [ROW, ROW],
       get_connector: () => ROW,
     });
+
     const connectors = createConnectors({ transport: t, fields: Fields });
+
     const created = await connectors.servers
       .create("o1", {
         name: "GitHub",
@@ -41,6 +43,7 @@ describe("connectors fields", () => {
         fields: { region: "eu" },
       })
       .orThrow();
+
     expectTypeOf(created.fields.region).toEqualTypeOf<"eu" | "us">();
     expect(created.fields).toEqual({ region: "eu" });
     expect(t.calls[0]?.[1]["fields"]).toEqual({
@@ -64,10 +67,13 @@ describe("connectors fields", () => {
     const t = fieldsTransport({
       get_connector: () => ({ ...ROW, fields: { region: "mars" } }),
     });
+
     const connectors = createConnectors({ transport: t, fields: Fields });
+
     const updated = await connectors.servers.update("o1", "s1", {
       fields: { region: "mars" as never },
     });
+
     expect(updated.ok ? undefined : updated.error.kind).toBe("validation");
     expect(t.calls).toEqual([]);
     const got = await connectors.servers.get("s1");

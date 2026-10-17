@@ -20,6 +20,7 @@ const stack: LocalStack = {
     process.env["SUPABASE_SECRET_KEY"] ??
     "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz",
 };
+
 const dbUrl = stackDbUrl();
 
 const ACME = "00000000-0000-4000-8000-000000000001";
@@ -30,6 +31,7 @@ const USER = "00000000-0000-4000-8000-0000000000ff";
 
 const source = await openPg(dbUrl);
 const betterSupabase = defineSupabase(schema).use(tenant());
+
 const tags = {
   row: (owner: { id: string }, n: 0 | 1) => ({
     organizationId: owner.id,
@@ -42,6 +44,7 @@ describe.skipIf(!source)(
   "expectTenantIsolation against the local stack",
   () => {
     const db = source!;
+
     const admin = defineSupabase(schema).connect(
       createClient(stack.url!, stack.secretKey!, {
         auth: { persistSession: false, autoRefreshToken: false },
@@ -70,11 +73,14 @@ describe.skipIf(!source)(
         ],
         tables: { tags },
       });
+
       expect(report.checks).toHaveLength(10);
       expect(report.checks.every((check) => check.ok)).toBe(true);
+
       const left = await admin.tags
         .count({ where: { name: { startsWith: `iso-${RUN}` } } })
         .orThrow();
+
       expect(left).toBe(0);
     });
 
@@ -102,10 +108,13 @@ describe.skipIf(!source)(
         `);
         },
       }).catch((cause: unknown) => cause);
+
       expect(error).toBeInstanceOf(ConformanceError);
+
       const failed = (error as ConformanceError).report.checks
         .filter((check) => !check.ok)
         .map((check) => check.name);
+
       expect(failed).toEqual([
         "tags: globex can't select leaky's rows",
         "tags: globex can't delete leaky's rows",

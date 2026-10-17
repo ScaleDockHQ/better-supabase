@@ -35,15 +35,19 @@ export function ConversationPanel({
   const format = useFormatter();
   const errorMessage = useErrorMessage();
   const userId = useAuth().user?.id ?? null;
+
   const thread = useConversation({
     conversationId,
     load: async () => [unwrap(await loadThread({ conversationId }))],
   });
+
   const loaded = thread.items?.[0];
   const conversation = loaded?.conversation ?? null;
+
   const onError = (error: Parameters<typeof errorMessage>[0]) => {
     toast.error(errorMessage(error));
   };
+
   const assignAction = useAction(assign, { onError });
   const mode = useAction(takeOver, { onError });
   const status = useAction(setStatus, { onError });
@@ -57,6 +61,7 @@ export function ConversationPanel({
       </div>
     );
   }
+
   if (conversation === null) {
     return (
       <p className="rounded-xl border p-4 text-sm text-muted-foreground">
@@ -64,14 +69,18 @@ export function ConversationPanel({
       </p>
     );
   }
+
   const resolved = conversation.status === "resolved";
   const mine = userId !== null && conversation.assigneeId === userId;
+
   const contactReadAt =
     conversation.contactReadAt === null
       ? null
       : Date.parse(conversation.contactReadAt);
+
   const seen = (message: MessageRow): boolean =>
     contactReadAt !== null && Date.parse(message.createdAt) <= contactReadAt;
+
   const busy = assignAction.pending || mode.pending || status.pending;
 
   return (
@@ -136,6 +145,7 @@ export function ConversationPanel({
       <ol className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
         {loaded.messages.map((message) => {
           const outbound = message.authorType !== "contact";
+
           return (
             <li
               key={message.id}

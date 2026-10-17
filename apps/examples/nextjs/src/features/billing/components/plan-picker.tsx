@@ -25,9 +25,11 @@ import { loadPlanCatalog, startCheckout } from "../billing-actions";
 
 async function loadCatalog(): Promise<PlanCatalog<PlanOption>> {
   const result = await loadPlanCatalog({});
+
   if (!result.ok) {
     throw new DbException(result.error);
   }
+
   return result.data;
 }
 
@@ -46,6 +48,7 @@ export function PlanPicker({
   const t = useExtracted("billing");
   const format = useFormatter();
   const errorMessage = useErrorMessage();
+
   const { plans, current, pending, choose } = usePlanPicker({
     load: loadCatalog,
     initial,
@@ -54,6 +57,7 @@ export function PlanPicker({
       window.location.assign(url);
     },
   });
+
   const price = (cents: number) =>
     cents === 0
       ? t("Free")
@@ -63,29 +67,36 @@ export function PlanPicker({
             currency: "USD",
           }),
         });
+
   const featureLabel = ({ key, value }: PlanOption["features"][number]) => {
     switch (key) {
       case "seats": {
         return t("{seats} seats", { seats: String(value) });
       }
+
       case "exports": {
         return t("CSV exports");
       }
+
       case "audit": {
         return t("Audit log");
       }
+
       case "sso": {
         return t("Single sign-on");
       }
+
       default: {
         return key;
       }
     }
   };
+
   return (
     <div className="grid gap-4 md:grid-cols-3">
       {(plans ?? initial.plans).map((plan) => {
         const active = plan.key === current;
+
         return (
           <Card key={plan.key} size="sm" data-testid="plan">
             <CardHeader>

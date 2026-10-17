@@ -14,9 +14,11 @@ export async function getWorkspaceSummary() {
   "use cache: private";
   const { db, session } = await bs.cached();
   bs.cacheTags(workspaceSummary);
+
   if (session.kind !== "user") {
     return null;
   }
+
   return db.$many(workspaceSummary, {}).orThrow();
 }
 
@@ -40,11 +42,14 @@ export async function getCustomerCounts(
   "use cache: private";
   const { supabase } = await bs.cached();
   const until = Temporal.Now.instant();
+
   const range = {
     from: until.subtract({ milliseconds: 30 * DAY_MS }),
     until,
   };
+
   const { metrics } = blocks(supabase);
+
   const [total, lead, active] = await Promise.all([
     metrics
       .kpi("customers", range, { organizationId, compare: "previous" })
@@ -59,6 +64,7 @@ export async function getCustomerCounts(
       })
       .orThrow(),
   ]);
+
   return {
     total: total.value ?? 0,
     previous: total.previous ?? 0,

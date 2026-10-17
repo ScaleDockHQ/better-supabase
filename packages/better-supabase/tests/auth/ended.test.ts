@@ -61,6 +61,7 @@ describe("sessionStatus", () => {
         }),
       ).resolves.toBe("banned");
     }
+
     await expect(
       sessionStatus(live, {
         url: PROJECT,
@@ -107,9 +108,11 @@ describe("sessionStatus", () => {
   it("reads the token from the session cookie or the bearer header", async () => {
     const fetch = answering(403);
     const options = { url: PROJECT, publishableKey: "pk", fetch };
+
     const chunked = new Request("https://app.test/", {
       headers: { cookie: cookieHeader(live, 5000) },
     });
+
     await expect(sessionStatus(chunked, options)).resolves.toBe("ended");
     expect(
       new Headers(fetch.mock.calls[0]![1]?.headers).get("authorization"),
@@ -118,11 +121,13 @@ describe("sessionStatus", () => {
     const bearer = new Request("https://app.test/", {
       headers: { authorization: `Bearer ${live}` },
     });
+
     await expect(sessionStatus(bearer, options)).resolves.toBe("ended");
 
     const renamed = new Request("https://app.test/", {
       headers: { cookie: cookieHeader(live).replaceAll(NAME, "custom") },
     });
+
     await expect(
       sessionStatus(renamed, { ...options, cookieName: "custom" }),
     ).resolves.toBe("ended");
@@ -149,6 +154,7 @@ describe("clearSessionCookies", () => {
     const request = new Request("https://app.test/", {
       headers: { cookie: `${cookieHeader(live, 5000)}; other=1` },
     });
+
     const response = new Response(null, { status: 200 });
     expect(clearSessionCookies(request, response, { url: PROJECT })).toBe(
       response,
@@ -164,11 +170,13 @@ describe("clearSessionCookies", () => {
     const request = new Request("https://app.test/", {
       headers: { cookie: cookieHeader(live).replaceAll(NAME, "custom") },
     });
+
     const response = clearSessionCookies(request, new Response(null), {
       url: PROJECT,
       cookieName: "custom",
       cookie: { domain: ".app.test" },
     });
+
     const [cleared] = response.headers.getSetCookie();
     expect(cleared).toMatch(/^custom=;/);
     expect(cleared).toContain("Domain=.app.test");
@@ -180,6 +188,7 @@ describe("clearSessionCookies", () => {
       new Response(null),
       { url: PROJECT },
     );
+
     expect(response.headers.getSetCookie()).toEqual([]);
     expect(response.headers.get("cache-control")).toBeNull();
   });

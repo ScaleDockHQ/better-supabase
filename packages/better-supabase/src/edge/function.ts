@@ -71,10 +71,13 @@ async function readInput(request: Request): Promise<Result<unknown>> {
   if (request.method === "GET" || request.method === "HEAD") {
     return ok(undefined);
   }
+
   const text = await request.text();
+
   if (text === "") {
     return ok(undefined);
   }
+
   try {
     return ok(JSON.parse(text));
   } catch {
@@ -110,25 +113,34 @@ export function defineFunction<
   definition: FunctionDefinition<I, Out, M, F, E, C, P>,
 ): TypedFunction<StandardSchemaV1.InferInput<I>, Out> {
   const { input, output, summary, handler, ...options } = definition;
+
   const fn = edge.handler(async (request, ctx) => {
     const body = await readInput(request);
+
     if (!body.ok) {
       return body;
     }
+
     const parsed = await validate(input, body.data, "input");
+
     if (!parsed.ok) {
       return parsed;
     }
+
     const settled = await settle(() =>
       handler(parsed.data, withExtra(ctx, { request })),
     );
+
     if (!settled.ok) {
       return err(settled.error);
     }
+
     if (output === undefined || settled.data instanceof Response) {
       return settled.data;
     }
+
     const checked = await validate(output, settled.data, "output");
+
     return checked.ok
       ? checked.data
       : err(
@@ -138,12 +150,15 @@ export function defineFunction<
           ),
         );
   }, options);
+
   const descriptor: FunctionDescriptor = {
     input,
     ...(output ? { output } : {}),
     ...(summary === undefined ? {} : { summary }),
   };
+
   Object.defineProperty(fn, FUNCTION_DESCRIPTOR, { value: descriptor });
+
   // SAFETY: the line above defined the descriptor on fn.
   return fn as TypedFunction<StandardSchemaV1.InferInput<I>, Out>;
 }

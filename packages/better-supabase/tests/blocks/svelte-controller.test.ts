@@ -17,11 +17,14 @@ import {
 // Node resolves svelte to its server runtime, where effects never run.
 vi.mock("svelte", () => {
   const clientBuild = "../../node_modules/svelte/src/index-client.js";
+
   return import(clientBuild);
 });
+
 vi.mock("svelte/reactivity", () => {
   const clientBuild =
     "../../node_modules/svelte/src/reactivity/index-client.js";
+
   return import(clientBuild);
 });
 
@@ -36,6 +39,7 @@ function mount<S, A>(
   let bound: SvelteController<S, A> | undefined;
   let last: S | undefined;
   let unsubscribe = (): void => undefined;
+
   const stop = $.effect_root(() => {
     $.push({}, true);
     parent?.();
@@ -45,7 +49,9 @@ function mount<S, A>(
     });
     $.pop();
   });
+
   $.flush();
+
   return {
     // SAFETY: setup ran inside the effect root.
     bound: bound!,
@@ -66,6 +72,7 @@ describe("useBlockController (Svelte)", () => {
         const mounted = mount(() =>
           useBlockController((_options: EnvOptions) => create(), env),
         );
+
         return {
           read: mounted.read,
           actions: mounted.bound.actions,
@@ -81,10 +88,12 @@ describe("useBlockController (Svelte)", () => {
   it("fills auth and ports from setBetterSupabase, and needs it", () => {
     const client = fakeBlockClient();
     const counter = startCounter();
+
     const mounted = mount(
       () => useBlockController(counter.create, { label: "a" }),
       () => void setBetterSupabase(client),
     );
+
     expect(counter.given()).toMatchObject({ label: "a", auth: client.auth });
     expect(counter.given()?.ports.topic).toBe(client.ports?.topic);
     mounted.unmount();
@@ -97,6 +106,7 @@ describe("useBlockController (Svelte)", () => {
   it("starts nothing until the component mounts", () => {
     const counter = startCounter();
     let started = -1;
+
     const stop = $.effect_root(() => {
       $.push({}, true);
       const bound = useBlockController(counter.create, fakeEnv());
@@ -104,6 +114,7 @@ describe("useBlockController (Svelte)", () => {
       started = counter.starts();
       $.pop();
     });
+
     expect(started).toBe(0);
     $.flush();
     expect(counter.starts()).toBe(1);

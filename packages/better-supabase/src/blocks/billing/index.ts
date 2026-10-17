@@ -16,22 +16,31 @@ export {
   type TenantStripeRow,
   type BillingCustomer,
 } from "./types.ts";
+
 export { createBilling } from "./billing.ts";
+
 export type { BillingEventData } from "../../core/block-events.ts";
+
 export type { StripeClient, StripeSource, StripeTaxId } from "../stripe.ts";
+
 export {
   signStripeWebhook,
   stripeInboxVerify,
   verifyStripeWebhook,
 } from "../webhooks/verify.ts";
+
 export {
   dbTransport,
   rpcTransport,
   sqlTransport,
 } from "../../core/block-transport.ts";
+
 export type { BlockTransport } from "../../core/block-transport.ts";
+
 export { billingBlock } from "./manifest.ts";
+
 export { createPlanPickerController } from "./client.ts";
+
 export type {
   CheckoutStarted,
   PlanCatalog,
@@ -41,5 +50,7 @@ export type {
   PlanPickerControllerOptions,
   PlanPickerSnapshot,
 } from "./client.ts";
+
 export { billingEvents } from "./events.ts";
+
 export type { BillingEvents } from "./events.ts";

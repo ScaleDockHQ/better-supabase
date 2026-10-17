@@ -131,12 +131,15 @@ export function createShareLinks<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: ShareLinksOptions<S>): ShareLinks<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const fields: BlockFields<F> = blockFields(
     options.fields,
     "share link fields",
   );
+
   const client: ShareLinks<F> = {
     create: (organizationId, subjectType, subjectId, link = {}) => {
       const {
@@ -147,6 +150,7 @@ export function createShareLinks<
       }: CreateShareLinkOptions<F> = typeof link === "string"
         ? { role: link }
         : link;
+
       return fields.args(extra).andThen((checked) =>
         call(
           "create_share_link",
@@ -161,6 +165,7 @@ export function createShareLinks<
           },
           (value) => {
             const row = recordOf(value, "create_share_link");
+
             return {
               id: textOf(row["id"]),
               token: textOf(row["token"]),
@@ -177,9 +182,11 @@ export function createShareLinks<
         if (value === null || value === undefined) {
           return null;
         }
+
         const row = recordOf(value, "resolve_share_link");
         const versionId = optionalText(row["versionId"]);
         const expiresAt = optionalInstant(row["expiresAt"]);
+
         return {
           id: textOf(row["id"]),
           organizationId: textOf(row["organizationId"]),
@@ -222,6 +229,7 @@ export function createShareLinks<
         (value) => value === true,
       ),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "share-links",
     ...(options.logger ? { logger: options.logger } : {}),

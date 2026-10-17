@@ -24,10 +24,12 @@ const WEB_APP = "apps/examples/nextjs";
 const NATIVE_APP = "apps/examples/expo-powersync";
 const RECIPES_FILE = join(ROOT, "apps/marketing/lib/recipes.json");
 const DOCS_FILE = join(ROOT, "apps/docs/content/docs/registry/ui-recipes.mdx");
+
 const SKILL_FILE = join(
   ROOT,
   "packages/better-supabase/skills/better-supabase/references/ui-recipes.md",
 );
+
 const SITE = "https://bettersupabase.com";
 
 interface Side {
@@ -445,34 +447,44 @@ const REGION = /^\s*\/\/ #(region|endregion) recipe:([a-z0-9-]+)\s*$/;
 function extractRegion(source: string, slug: string, file = ""): string {
   const parts: string[] = [];
   let current: string[] | null = null;
+
   for (const line of source.split("\n")) {
     const marker = REGION.exec(line);
+
     if (marker?.[2] === slug) {
       if (marker[1] === "region") {
         if (current) {
           throw new Error(`${file}: nested region recipe:${slug}`);
         }
+
         current = [];
       } else {
         if (!current) {
           throw new Error(`${file}: #endregion recipe:${slug} without #region`);
         }
+
         parts.push(current.join("\n").trim());
         current = null;
       }
+
       continue;
     }
+
     if (marker) {
       continue;
     }
+
     current?.push(line);
   }
+
   if (current) {
     throw new Error(`${file}: region recipe:${slug} is not closed`);
   }
+
   if (parts.length === 0) {
     throw new Error(`${file}: no region recipe:${slug}`);
   }
+
   return `${parts.join("\n\n")}\n`;
 }
 
@@ -490,6 +502,7 @@ function sourceFiles(dir: string): string[] {
 /** Every `recipe:` region in the examples names a recipe with that file. */
 function checkRegions(recipes: readonly RecipeSource[]): void {
   const owners = new Map<string, string[]>();
+
   for (const recipe of recipes) {
     for (const side of [recipe.web, recipe.native]) {
       if (side) {
@@ -497,12 +510,14 @@ function checkRegions(recipes: readonly RecipeSource[]): void {
       }
     }
   }
+
   for (const file of [
     ...sourceFiles(`${WEB_APP}/src`),
     ...sourceFiles(`${NATIVE_APP}/src`),
   ]) {
     for (const line of readFileSync(join(ROOT, file), "utf-8").split("\n")) {
       const slug = REGION.exec(line)?.[2];
+
       if (slug && !owners.get(file)?.includes(slug)) {
         throw new Error(
           `build-recipes: ${file} has a region recipe:${slug}, which no recipe in scripts/build-recipes.ts reads from that file.`,
@@ -516,7 +531,9 @@ function withSnippet(side: Side | undefined, slug: string) {
   if (!side) {
     return null;
   }
+
   const source = readFileSync(join(ROOT, side.file), "utf-8");
+
   return {
     ...side,
     snippet: { file: side.file, code: extractRegion(source, slug, side.file) },
@@ -526,17 +543,21 @@ function withSnippet(side: Side | undefined, slug: string) {
 /** Width and height from the PNG's IHDR chunk, at the 2x scale it was taken in. */
 function pngSize(file: string) {
   const png = readFileSync(join(ROOT, "apps/marketing/public/recipes", file));
+
   return { width: png.readUInt32BE(16), height: png.readUInt32BE(20) };
 }
 
 function buildRecipes(): readonly Recipe[] {
   checkRegions(RECIPES);
+
   const screenshots = new Set(
     readdirSync(join(ROOT, "apps/marketing/public/recipes")),
   );
+
   return RECIPES.map((recipe): Recipe => {
     const available = recipe.web !== undefined && recipe.native !== undefined;
     const screenshot = `${recipe.slug}.png`;
+
     return {
       slug: recipe.slug,
       title: recipe.title,
@@ -563,6 +584,7 @@ function recipeMarkdown(recipe: Recipe, heading: string): string {
   if (!recipe.web || !recipe.native || !recipe.hook) {
     return "";
   }
+
   const lines = [
     `${heading} ${recipe.title}`,
     "",
@@ -572,6 +594,7 @@ function recipeMarkdown(recipe: Recipe, heading: string): string {
     "",
     fence("bash", `npx shadcn add ${recipe.web.components.join(" ")}\n`),
   ];
+
   if (recipe.web.glue.length > 0) {
     lines.push(
       "",
@@ -581,6 +604,7 @@ function recipeMarkdown(recipe: Recipe, heading: string): string {
       ),
     );
   }
+
   lines.push(
     "",
     fence("tsx", recipe.web.snippet.code, recipe.web.snippet.file),
@@ -588,6 +612,7 @@ function recipeMarkdown(recipe: Recipe, heading: string): string {
     `React Native, with ${recipe.native.components.map((name) => `\`${name}\``).join(", ")} from \`react-native\`:`,
     "",
   );
+
   if (recipe.native.glue.length > 0) {
     lines.push(
       fence(
@@ -597,9 +622,11 @@ function recipeMarkdown(recipe: Recipe, heading: string): string {
       "",
     );
   }
+
   lines.push(
     fence("tsx", recipe.native.snippet.code, recipe.native.snippet.file),
   );
+
   return lines.join("\n");
 }
 
@@ -608,9 +635,12 @@ function table(rows: readonly (readonly string[])[]): string {
   const widths = (rows[0] ?? []).map((_, column) =>
     Math.max(...rows.map((row) => (row[column] ?? "").length)),
   );
+
   const line = (row: readonly string[]): string =>
     `| ${row.map((cell, column) => cell.padEnd(widths[column] ?? 0)).join(" | ")} |`;
+
   const [head, ...body] = rows;
+
   return [
     line(head ?? []),
     line(widths.map((width) => "-".repeat(width))),
@@ -624,9 +654,11 @@ function plannedSection(
   lead: readonly string[] = [],
 ): readonly string[] {
   const planned = recipes.filter((recipe) => recipe.status === "planned");
+
   if (planned.length === 0) {
     return [];
   }
+
   return [
     "## Planned",
     "",
@@ -647,6 +679,7 @@ const INTRO = `better-supabase ships no visible UI components. A recipe builds o
 
 function renderDocsPage(recipes: readonly Recipe[]): string {
   const available = recipes.filter((recipe) => recipe.status === "available");
+
   return [
     "---",
     "title: UI recipes",
@@ -666,6 +699,7 @@ function renderDocsPage(recipes: readonly Recipe[]): string {
 
 function renderSkill(recipes: readonly Recipe[]): string {
   const available = recipes.filter((recipe) => recipe.status === "available");
+
   return [
     "# UI recipes",
     "",
@@ -688,19 +722,23 @@ if (import.meta.main) {
     const recipes = buildRecipes();
     mkdirSync(dirname(RECIPES_FILE), { recursive: true });
     writeFileSync(RECIPES_FILE, `${JSON.stringify(recipes, null, 2)}\n`);
+
     const outputs = new Map([
       [DOCS_FILE, renderDocsPage(recipes)],
       [SKILL_FILE, renderSkill(recipes)],
     ]);
+
     if (argv.includes("--write")) {
       for (const [file, contents] of outputs) {
         writeFileSync(file, contents);
       }
     }
+
     if (argv.includes("--check")) {
       const stale = [...outputs]
         .filter(([file, contents]) => readFileSync(file, "utf-8") !== contents)
         .map(([file]) => relative(ROOT, file));
+
       if (stale.length > 0) {
         console.error(
           `build-recipes: ${stale.join(", ")} is stale. Run \`pnpm recipes\`.`,

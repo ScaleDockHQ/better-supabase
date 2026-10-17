@@ -11,15 +11,19 @@ describe.skipIf(!live)("read-only actors", () => {
 
   it("refuses support, impersonation and a session-only act", async () => {
     const session = await BlockSession.open(pool);
+
     try {
       await session.install(["actor"]);
+
       const may = async (act: object | undefined): Promise<boolean> => {
         await session.as(
           { id: crypto.randomUUID(), email: "actor@example.test" },
           act === undefined ? {} : { act },
         );
+
         return session.value<boolean>("better_supabase.actor_may_write()");
       };
+
       expect(await may(undefined)).toBe(true);
       expect(await may({ kind: "agent" })).toBe(true);
       expect(await may({ kind: "agent", read_only: true })).toBe(false);
@@ -34,6 +38,7 @@ describe.skipIf(!live)("read-only actors", () => {
 
   it("raises ACTOR_READ_ONLY from a user write", async () => {
     const session = await BlockSession.open(pool);
+
     try {
       await session.install(["teams"]);
       await session.as(

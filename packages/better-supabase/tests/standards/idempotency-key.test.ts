@@ -9,18 +9,21 @@ function store() {
     string,
     { fingerprint: string; status: number | null; response: unknown }
   >();
+
   return fakeSql([
     [
       "begin_idempotent",
       ({ values: [scope, key, fingerprint] }) => {
         const id = `${String(scope)}:${String(key)}`;
         const row = rows.get(id);
+
         if (!row) {
           rows.set(id, {
             fingerprint: String(fingerprint),
             status: null,
             response: null,
           });
+
           return [
             {
               state: "started",
@@ -30,12 +33,15 @@ function store() {
             },
           ];
         }
+
         if (row.fingerprint !== fingerprint) {
           return [{ state: "mismatch", status_code: null, response: null }];
         }
+
         if (row.status === null) {
           return [{ state: "running", status_code: null, response: null }];
         }
+
         return [
           { state: "replay", status_code: row.status, response: row.response },
         ];
@@ -48,6 +54,7 @@ function store() {
         rows.get(`${String(scope)}:${String(key)}`)!.response = JSON.parse(
           String(body),
         );
+
         return [];
       },
     ],
@@ -55,6 +62,7 @@ function store() {
       "release_idempotent",
       ({ values: [scope, key] }) => {
         rows.delete(`${String(scope)}:${String(key)}`);
+
         return [];
       },
     ],
@@ -79,10 +87,13 @@ describe("Idempotency-Key header (IETF draft-ietf-httpapi-idempotency-key-header
   it("runs the handler once per key and replays the stored response", async () => {
     const idempotency = createIdempotency({ sql: store().sql });
     let calls = 0;
+
     const handler = () => {
       calls += 1;
+
       return Response.json({ id: `pay_${calls}` }, { status: 201 });
     };
+
     const first = await idempotency.handle(post("k1"), handler);
     const second = await idempotency.handle(post("k1"), handler);
     expect(calls).toBe(1);
@@ -96,10 +107,12 @@ describe("Idempotency-Key header (IETF draft-ietf-httpapi-idempotency-key-header
   it("answers 422 when a key is reused with a different payload (section 2.7)", async () => {
     const idempotency = createIdempotency({ sql: store().sql });
     await idempotency.handle(post("k2"), () => new Response("ok"));
+
     const reused = await idempotency.handle(
       post("k2", '{"amount":99}'),
       () => new Response("again"),
     );
+
     expect(reused.status).toBe(422);
     expect(reused.headers.get("content-type")).toBe("application/problem+json");
     expect(await reused.json()).toMatchObject({
@@ -111,9 +124,11 @@ describe("Idempotency-Key header (IETF draft-ietf-httpapi-idempotency-key-header
     const idempotency = createIdempotency({ sql: store().sql });
     let release!: () => void;
     let started!: () => void;
+
     const running = new Promise<void>((resolve) => {
       started = resolve;
     });
+
     const slow = idempotency.handle(
       post("k3"),
       () =>
@@ -121,14 +136,18 @@ describe("Idempotency-Key header (IETF draft-ietf-httpapi-idempotency-key-header
           release = () => {
             resolve(new Response("done"));
           };
+
           started();
         }),
     );
+
     await running;
+
     const concurrent = await idempotency.handle(
       post("k3"),
       () => new Response("second"),
     );
+
     expect(concurrent.status).toBe(409);
     expect(concurrent.headers.get("retry-after")).toBe("1");
     release();
@@ -146,10 +165,12 @@ describe("Idempotency-Key header (IETF draft-ietf-httpapi-idempotency-key-header
         errorCode: error.code,
       }),
     });
+
     const missing = await idempotency.handle(
       post(undefined),
       () => new Response("ok"),
     );
+
     expect(missing.status).toBe(400);
     expect(missing.headers.get("content-type")).toBe(
       "application/problem+json",
@@ -164,10 +185,12 @@ describe("Idempotency-Key header (IETF draft-ietf-httpapi-idempotency-key-header
 
   it("answers 400 when the header is required and missing (section 2.7)", async () => {
     const idempotency = createIdempotency({ sql: store().sql, required: true });
+
     const missing = await idempotency.handle(
       post(undefined),
       () => new Response("ok"),
     );
+
     expect(missing.status).toBe(400);
     expect(await missing.json()).toMatchObject({
       code: "IDEMPOTENCY_KEY_MISSING",
@@ -185,6 +208,7 @@ describe("Idempotency-Key header (IETF draft-ietf-httpapi-idempotency-key-header
       post("k".repeat(256)),
       () => new Response("ok"),
     );
+
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({
       code: "IDEMPOTENCY_KEY_INVALID",
@@ -223,6 +247,7 @@ describe("Idempotency-Key header (IETF draft-ietf-httpapi-idempotency-key-header
       sql: store().sql,
       scope: (request) => new URL(request.url).pathname,
     });
+
     await idempotency.handle(post("k6", "{}", "/a"), () => new Response("a"));
     expect(
       await (
@@ -236,17 +261,20 @@ describe("Idempotency-Key header (IETF draft-ietf-httpapi-idempotency-key-header
 
   it("uses a custom header name and passes TTL and lock as intervals", async () => {
     const sql = store();
+
     const idempotency = createIdempotency({
       sql: sql.sql,
       header: "x-request-id",
       ttl: 60,
       lock: "5 seconds",
     });
+
     const request = new Request("https://api.test/x", {
       method: "POST",
       headers: { "x-request-id": "r1" },
       body: "{}",
     });
+
     await idempotency.handle(request, () => new Response("ok"));
     expect(sql.calls[0]!.values.slice(3)).toEqual(["60 seconds", "5 seconds"]);
   });

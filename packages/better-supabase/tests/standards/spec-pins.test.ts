@@ -6,11 +6,14 @@ import { describe, expect, it } from "vitest";
 import { SPEC_PINS } from "../../src/core/spec-pins.ts";
 
 const HERE = import.meta.dirname;
+
 /** The CLI's conformance tests (doctor's SARIF, schemas, keys and skills). */
 const CLI = resolve(HERE, "../cli/standards");
 const DIRS = [HERE, CLI];
+
 const testFiles = (dir: string): string[] =>
   readdirSync(dir).filter((file) => file.endsWith(".test.ts"));
+
 const PAGE = resolve(
   HERE,
   "../../../../apps/docs/content/docs/standards/index.mdx",
@@ -24,10 +27,12 @@ interface Row {
 
 async function registry(): Promise<Row[]> {
   const page = await readFile(PAGE, "utf-8");
+
   const table = page.slice(
     page.indexOf("## Registry"),
     page.indexOf("## Pins"),
   );
+
   return table
     .split("\n")
     .filter((line) => line.startsWith("| ["))
@@ -36,6 +41,7 @@ async function registry(): Promise<Row[]> {
         .split(/(?<!\\)\|/)
         .slice(1, -1)
         .map((cell) => cell.trim());
+
       return {
         standard: cells[0]!,
         posture: cells[1]!,
@@ -74,15 +80,18 @@ describe("standards registry", async () => {
 
   it("every test file in tests/standards backs a registry row", () => {
     const named = new Set(adopted.flatMap((row) => row.tests));
+
     const files = DIRS.flatMap(testFiles).filter(
       (file) => !["sources.test.ts", "spec-pins.test.ts"].includes(file),
     );
+
     expect(files.filter((file) => !named.has(file))).toEqual([]);
   });
 });
 
 describe("SPEC_PINS", async () => {
   const page = await readFile(PAGE, "utf-8");
+
   const suite = (
     await Promise.all(
       DIRS.flatMap((dir) =>
@@ -111,6 +120,7 @@ describe("SPEC_PINS", async () => {
     const listed = [...page.matchAll(/^SPEC_PINS\.([a-zA-Z0-9]+);/gm)].map(
       (match) => match[1],
     );
+
     expect(new Set(listed)).toEqual(new Set(Object.keys(SPEC_PINS)));
   });
 });

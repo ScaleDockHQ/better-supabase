@@ -18,6 +18,7 @@ export function AddDocumentForm() {
   const errorMessage = useErrorMessage();
   const form = useActionForm(addDocument);
   const error = form.error === undefined ? null : errorMessage(form.error);
+
   return (
     <form {...form.formProps} className="space-y-3">
       <Field>

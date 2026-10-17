@@ -50,11 +50,13 @@ export function listEntries(
   const id = ctx.idType;
   const log = ctx.table("log");
   const c = (logical: string) => ctx.col("log", logical);
+
   const hidden = new Set(
     impersonators(ctx) === "hide"
       ? ["impersonatedBy", "impersonationReason", "supportSession"]
       : [],
   );
+
   const pairs = ENTRY_KEYS.filter(
     ([logical]) =>
       hasColumn(ctx, "log", logical) &&
@@ -62,34 +64,44 @@ export function listEntries(
       !(restricted && (logical === "old" || logical === "new")),
   ).map(([logical, key]) => {
     const value = `l.${c(logical)}`;
+
     return `'${key}', ${isAuditValueColumn(logical) ? auditRead(ctx, logical, value) : value}`;
   });
+
   if (extra.length > 0) {
     pairs.push(
       `'columns', jsonb_build_object(${extra.map(([column]) => `${sqlString(column)}, l.${sqlIdent(column)}`).join(", ")})`,
     );
   }
+
   // jsonb_build_object takes at most 100 arguments; split in chunks of 20 keys.
   const chunks: string[] = [];
+
   for (let index = 0; index < pairs.length; index += 20) {
     chunks.push(
       `jsonb_build_object(${pairs.slice(index, index + 20).join(", ")})`,
     );
   }
+
   // The filters and their positions in the dynamic query's `using` list.
   const conditions: string[] = [];
+
   const filter = (logical: string, param: string, position: number) => {
     if (!hasColumn(ctx, "log", logical)) {
       return;
     }
+
     const value = `l.${c(logical)}`;
+
     const read = isAuditValueColumn(logical)
       ? auditRead(ctx, logical, value)
       : value;
+
     conditions.push(`  if cardinality(${param}) > 0 then
     v_where := v_where || $q$ and ${read} = any ($${position})$q$;
   end if;`);
   };
+
   filter("tenant", "for_tenants", 1);
   filter("eventType", "for_event_types", 2);
   filter("actor", "for_actors", 3);
@@ -100,6 +112,7 @@ export function listEntries(
   filter("source", "for_sources", 9);
   filter("actorKind", "for_actor_kinds", 10);
   filter("correlationId", "for_correlation_ids", 11);
+
   const searchable = (
     [
       "eventType",
@@ -113,11 +126,13 @@ export function listEntries(
   )
     .filter((logical) => hasColumn(ctx, "log", logical))
     .map((logical) => `l.${c(logical)}`);
+
   if (searchable.length > 0) {
     conditions.push(`  if search <> '' then
     v_where := v_where || $q$ and concat_ws(' ', ${searchable.join(", ")}) ilike '%' || replace(replace(replace($8, '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%'$q$;
   end if;`);
   }
+
   conditions.push(`  if since is not null then
     v_where := v_where || $q$ and l.${c("occurredAt")} >= $12$q$;
   end if;
@@ -125,12 +140,15 @@ export function listEntries(
     v_where := v_where || $q$ and l.${c("occurredAt")} < $13$q$;
   end if;`);
   const where = conditions.join("\n");
+
   const using =
     "for_tenants, for_event_types, for_actors, for_target_types, for_records, for_categories, for_outcomes, search, for_sources, for_actor_kinds, for_correlation_ids, since, until";
+
   // A managed log's id is a bigint, so "10" pages after "9"; an adopted
   // log's id compares as text.
   const idKey = ctx.manages ? `l.${c("id")}` : `l.${c("id")}::text`;
   const cursorKey = ctx.manages ? "$15::bigint" : "$15";
+
   const filters = `for_tenants ${id}[] default null,
   for_event_types text[] default null,
   for_actors uuid[] default null,
@@ -144,18 +162,22 @@ export function listEntries(
   for_correlation_ids text[] default null,
   since timestamptz default null,
   until timestamptz default null`;
+
   const filterTypes = `${id}[], text[], uuid[], text[], text[], text[], text[], text, text[], text[], text[], timestamptz, timestamptz`;
   const listTypes = `${filterTypes}, timestamptz, text, integer, boolean, integer`;
+
   // A managed log without options.readPolicy grants users no select, so the
   // invoker functions would only raise 42501 for them.
   const callers =
     !ctx.manages || ctx.flag("readPolicy", false)
       ? "authenticated, service_role"
       : "service_role";
+
   const revokeUsers = (fn: string, types: string): string =>
     callers === "service_role"
       ? `revoke execute on function ${fn}(${types}) from authenticated;\n`
       : "";
+
   return `-- A page of the entries the caller can read, newest first unless ascending:
 -- the read policy decides (security invoker). Each filter takes several
 -- values; search matches the event type, summary, labels, record and table.
@@ -241,14 +263,18 @@ export function reveal(ctx: ModuleContext, restricted: boolean): string {
   if (!restricted || !ctx.installed("access")) {
     return "";
   }
+
   const log = ctx.table("log");
   const c = (logical: string) => ctx.col("log", logical);
   const r = (logical: string) => ctx.col("restricted", logical);
+
   const key = ctx.permission(
     "reveal",
     ctx.permissionKey("view", OPERATIONS["audit.view"]),
   );
+
   const viewAll = modulePermission(ctx, "viewAll", OPERATIONS["audit.viewAll"]);
+
   const fields = (
     [
       ["old", "old"],
@@ -263,9 +289,11 @@ export function reveal(ctx: ModuleContext, restricted: boolean): string {
     .filter(([logical]) => hasColumn(ctx, "restricted", logical))
     .map(([logical, out]) => `, '${out}', d.${r(logical)}`)
     .join("");
+
   const allowed = (tenant: string) => `(${SERVICE_CALLER})
     or coalesce(${ctx.scope.platform(viewAll)}, false)
     or (${tenant} is not null and coalesce(better_supabase.member_can(auth.uid(), ${tenant}, ${key}), false))`;
+
   return `-- The restricted details of one entry for a member with the reveal
 -- permission in its tenant, or platform staff, recorded as audit.revealed.
 create or replace function ${ctx.fn("reveal_audit_entry")}(entry text)

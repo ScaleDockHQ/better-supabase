@@ -20,15 +20,19 @@ function lintsOf(
   category: AdvisorCategory,
 ): Promise<readonly Lint[]> {
   let byCategory = fetched.get(advisors);
+
   if (!byCategory) {
     byCategory = new Map();
     fetched.set(advisors, byCategory);
   }
+
   let lints = byCategory.get(category);
+
   if (!lints) {
     lints = advisors.lints(category);
     byCategory.set(category, lints);
   }
+
   return lints;
 }
 
@@ -40,20 +44,25 @@ const ADVISOR_SEVERITY: Record<Lint["level"], Severity> = {
 
 function lintObject(lint: Lint): SqlObject | undefined {
   const { schema, name, type } = lint.metadata ?? {};
+
   if (typeof schema !== "string" || typeof name !== "string") {
     return undefined;
   }
+
   if (type === "table" || type === "view") {
     return { kind: "table", schema, name };
   }
+
   if (type === "function") {
     return { kind: "function", schema, name };
   }
+
   return undefined;
 }
 
 function lintFinding(lint: Lint): FindingInput {
   const object = lintObject(lint);
+
   return {
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- splinter can add levels this map does not know.
     severity: ADVISOR_SEVERITY[lint.level] ?? "warning",
@@ -79,9 +88,11 @@ export function advisorRule(
     description,
     async check(context) {
       const { advisors } = context;
+
       if (!advisors) {
         return [];
       }
+
       if ("skipped" in advisors) {
         return [
           {
@@ -90,6 +101,7 @@ export function advisorRule(
           },
         ];
       }
+
       try {
         return (await lintsOf(advisors, category)).map(lintFinding);
       } catch (cause) {
@@ -118,24 +130,31 @@ export async function splinterTables(
   lint: string,
 ): Promise<ReadonlySet<string> | undefined> {
   const { advisors } = context;
+
   if (!advisors || "skipped" in advisors) {
     return undefined;
   }
+
   if (!context.codes?.includes(PERFORMANCE_ADVISOR)) {
     return undefined;
   }
+
   let lints: readonly Lint[];
+
   try {
     lints = await lintsOf(advisors, "performance");
   } catch {
     return undefined;
   }
+
   return new Set(
     lints.flatMap((entry) => {
       if (entry.name !== lint) {
         return [];
       }
+
       const object = lintObject(entry);
+
       return object ? [`${object.schema}.${object.name}`] : [];
     }),
   );

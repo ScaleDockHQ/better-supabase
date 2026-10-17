@@ -5,17 +5,20 @@ import { BULK_ACTIONS } from "../../../src/sql/modules/bulk.ts";
 
 function transport(results: Record<string, unknown>) {
   const calls: { fn: string; args: Record<string, unknown> }[] = [];
+
   return {
     calls,
     call(_schema: string, fn: string, args: Record<string, unknown>) {
       calls.push({ fn, args });
       const result = results[fn];
+
       return Promise.resolve(Array.isArray(result) ? result.shift() : result);
     },
   };
 }
 
 const ORG = "org-1";
+
 const step = (position: number, done: boolean) => ({
   id: "run-1",
   status: done ? "completed" : "running",
@@ -35,6 +38,7 @@ describe("bulk client", () => {
       "trash.trash",
       "collections.add",
     ];
+
     expect(Object.keys(BULK_ACTIONS)).toEqual(actions);
   });
 
@@ -58,7 +62,9 @@ describe("bulk client", () => {
         ],
       },
     });
+
     const bulk = createBulk({ transport: fake });
+
     const result = await bulk
       .run({
         organizationId: ORG,
@@ -69,6 +75,7 @@ describe("bulk client", () => {
         atomic: true,
       })
       .orThrow();
+
     expect(fake.calls[0]).toEqual({
       fn: "bulk_apply",
       args: {
@@ -96,12 +103,15 @@ describe("bulk client", () => {
       bulk_apply: { total: 2, succeeded: 2, failed: 0, results: [] },
       start_bulk: { id: "run-1", total: 3, topic: "bulk:run-1" },
     });
+
     const bulk = createBulk({ transport: fake, limit: 2 });
+
     const input = {
       organizationId: ORG,
       subjectType: "task",
       action: "tasks.archive",
     };
+
     expect(
       await bulk.apply({ ...input, rows: ["a", "b"] }).orThrow(),
     ).toMatchObject({
@@ -133,6 +143,7 @@ describe("bulk client", () => {
     const fake = transport({
       bulk_step: [step(2, false), step(3, true), step(2, false), step(3, true)],
     });
+
     const bulk = createBulk({ transport: fake });
     expect(await bulk.drain("run-1", { size: 2 }).orThrow()).toMatchObject({
       status: "completed",
@@ -171,6 +182,7 @@ describe("bulk client", () => {
         null,
       ],
     });
+
     const bulk = createBulk({ transport: fake, schema: "app" });
     expect(await bulk.get("run-1").orThrow()).toMatchObject({
       status: "pending",

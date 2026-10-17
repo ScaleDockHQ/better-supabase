@@ -73,6 +73,7 @@ describe("timeTrackingMetrics", () => {
     ).toBeUndefined();
 
     const requests: unknown[] = [];
+
     const sink = metricsSink(
       {
         rollup: (request) => {
@@ -80,6 +81,7 @@ describe("timeTrackingMetrics", () => {
             metric: request?.metric,
             since: request?.since?.toString(),
           });
+
           return AsyncResult.ok(1);
         },
       },
@@ -88,6 +90,7 @@ describe("timeTrackingMetrics", () => {
         time: timeEntryMetricTime,
       },
     );
+
     await sink.send([
       event(
         "time_entry.updated",

@@ -67,6 +67,7 @@ describe("quota_exceeded", () => {
       code: "BSQ29",
       message: "over",
     });
+
     for (const details of ["not json", "null", '{"limit":"x"}']) {
       expect(mapDbError({ code: "BSQ29", message: "over", details })).toEqual({
         kind: "quota_exceeded",
@@ -128,6 +129,7 @@ describe("forbidden permissions", () => {
       hint: "WORKFLOW_PUBLISHER_FORBIDDEN",
       permissions: ["crm.read"],
     });
+
     const response = problemResponse(error);
     expect(toProblem(error)).toMatchObject({ permissions: ["crm.read"] });
     expect(fromProblem(await response.json())).toEqual(error);
@@ -143,6 +145,7 @@ describe("problemResponse format", () => {
         format: (problem) => ({ error: problem.kind, at: problem.instance }),
       },
     );
+
     expect(response.status).toBe(429);
     expect(response.headers.get("retry-after")).toBe("3");
     expect(await response.json()).toEqual({

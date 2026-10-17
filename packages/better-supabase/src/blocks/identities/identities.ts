@@ -100,12 +100,15 @@ function targetOf(value: unknown): IdentityTarget | null {
   if (!isRecord(value)) {
     return null;
   }
+
   if (value["kind"] === "user" && typeof value["userId"] === "string") {
     return { kind: "user", userId: value["userId"] };
   }
+
   if (value["kind"] === "contact" && typeof value["contactId"] === "string") {
     return { kind: "contact", contactId: value["contactId"] };
   }
+
   return null;
 }
 
@@ -121,6 +124,7 @@ const identityArgs = (
 export function createIdentities(options: IdentitiesOptions): Identities {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const client: Identities = {
     beginLink: (kind, provider) =>
       call(
@@ -128,6 +132,7 @@ export function createIdentities(options: IdentitiesOptions): Identities {
         { kind, provider: provider ?? null },
         (value) => {
           const row = recordOf(value, "begin_identity_link");
+
           return {
             code: textOf(row["code"]),
             expiresAt: requiredInstant(row["expires_at"], "expires_at"),
@@ -140,6 +145,7 @@ export function createIdentities(options: IdentitiesOptions): Identities {
         { code, ...identityArgs(identity) },
         (value) => {
           const row = recordOf(value, "redeem_identity_link");
+
           return { id: textOf(row["id"]), userId: textOf(row["user_id"]) };
         },
       ),
@@ -163,6 +169,7 @@ export function createIdentities(options: IdentitiesOptions): Identities {
         typeof value === "number" ? value : Number(value),
       ),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "identities",
     ...(options.logger ? { logger: options.logger } : {}),
@@ -181,6 +188,7 @@ export function identityResolver(
   options: Omit<IdentitiesOptions, "transport"> = {},
 ): PrincipalByIdentity {
   const identities = createIdentities({ ...options, transport });
+
   return (identity) => identities.resolve(identity).orThrow();
 }
 

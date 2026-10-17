@@ -29,6 +29,7 @@ export interface WorldMigration {
 
 export function migrationsDir(): string {
   const entry = fileURLToPath(import.meta.resolve(WORLD_POSTGRES_PACKAGE));
+
   return join(dirname(entry), "..", "src", "drizzle", "migrations");
 }
 
@@ -39,34 +40,43 @@ export async function worldPostgresVersion(): Promise<string> {
       "utf-8",
     ),
   );
+
   if (typeof pkg === "object" && pkg !== null && "version" in pkg) {
     return String(pkg.version);
   }
+
   throw new Error(`no version in ${WORLD_POSTGRES_PACKAGE}/package.json`);
 }
 
 export async function readMigrations(): Promise<WorldMigration[]> {
   const dir = migrationsDir();
+
   const journal: unknown = JSON.parse(
     await readFile(join(dir, "meta", "_journal.json"), "utf-8"),
   );
+
   const entries =
     typeof journal === "object" && journal !== null && "entries" in journal
       ? journal.entries
       : undefined;
+
   if (!Array.isArray(entries)) {
     throw new TypeError("the migration journal has no entries");
   }
+
   const list: unknown[] = entries;
   const migrations: WorldMigration[] = [];
+
   for (const entry of list) {
     const tag: unknown =
       typeof entry === "object" && entry !== null && "tag" in entry
         ? entry.tag
         : undefined;
+
     if (typeof tag !== "string") {
       throw new TypeError("a journal entry has no tag");
     }
+
     const sql = await readFile(join(dir, `${tag}.sql`), "utf-8");
     migrations.push({
       tag,
@@ -74,6 +84,7 @@ export async function readMigrations(): Promise<WorldMigration[]> {
       sql,
     });
   }
+
   return migrations;
 }
 
@@ -83,6 +94,7 @@ export async function applyMigrations(
   migrations: readonly WorldMigration[],
 ): Promise<void> {
   await client.query("begin");
+
   try {
     for (const migration of migrations) {
       for (const statement of migration.sql.split("--> statement-breakpoint")) {
@@ -91,6 +103,7 @@ export async function applyMigrations(
         }
       }
     }
+
     await client.query("commit");
   } catch (error) {
     await client.query("rollback");
@@ -127,10 +140,12 @@ export async function renderSchema(
       order by t.typname`,
     [schema],
   );
+
   for (const row of enums.rows) {
     const labels = (Array.isArray(row["labels"]) ? row["labels"] : [])
       .map((label) => `'${String(label)}'`)
       .join(", ");
+
     out.push(
       [
         "do $$ begin",
@@ -149,8 +164,10 @@ export async function renderSchema(
       order by c.relname`,
     [schema],
   );
+
   for (const table of tables.rows) {
     const qualified = `${schema}.${text(table, "name")}`;
+
     const columns = await client.query<Row>(
       `select a.attname as name,
               format_type(a.atttypid, a.atttypmod) as type,
@@ -163,22 +180,29 @@ export async function renderSchema(
         order by a.attnum`,
       [table["oid"], qualified],
     );
+
     const definitions = columns.rows.map((column) => {
       const serial = column["serial"] !== null;
+
       const type = serial
         ? text(column, "type") === "bigint"
           ? "bigserial"
           : "serial"
         : text(column, "type");
+
       const parts = [`"${text(column, "name")}"`, type];
+
       if (column["not_null"] === true && !serial) {
         parts.push("not null");
       }
+
       if (column["default_expr"] !== null && !serial) {
         parts.push(`default ${text(column, "default_expr")}`);
       }
+
       return parts.join(" ");
     });
+
     const constraints = await client.query<Row>(
       `select conname as name, pg_get_constraintdef(oid) as definition
          from pg_constraint
@@ -186,12 +210,14 @@ export async function renderSchema(
         order by contype, conname`,
       [table["oid"]],
     );
+
     const body = [
       ...definitions,
       ...constraints.rows.map(
         (row) => `constraint "${text(row, "name")}" ${text(row, "definition")}`,
       ),
     ];
+
     out.push(
       `create table if not exists ${qualified} (\n  ${body.join(",\n  ")}\n);`,
       `alter table ${qualified}\n  ${definitions
@@ -208,6 +234,7 @@ export async function renderSchema(
         order by c.relname`,
       [table["oid"]],
     );
+
     for (const row of indexes.rows) {
       out.push(
         `${text(row, "definition")
@@ -219,6 +246,7 @@ export async function renderSchema(
       );
     }
   }
+
   return `${out.join("\n\n")}\n`;
 }
 
@@ -230,6 +258,7 @@ export async function generateDdl(
   const scratch = `bs_workflow_ddl_${process.pid}`;
   const admin = new Client({ connectionString: dbUrl });
   await admin.connect();
+
   try {
     await admin.query(`drop database if exists ${scratch}`);
     await admin.query(`create database ${scratch}`);
@@ -237,8 +266,10 @@ export async function generateDdl(
     url.pathname = `/${scratch}`;
     const client = new Client({ connectionString: url.toString() });
     await client.connect();
+
     try {
       await applyMigrations(client, migrations);
+
       return await renderSchema(client);
     } finally {
       await client.end();
@@ -260,6 +291,7 @@ export function renderModuleFile(
         `  { tag: "${migration.tag}", sha256: "${migration.sha256}" },`,
     )
     .join("\n");
+
   return `// Generated by scripts/gen-workflow-ddl.ts from ${WORLD_POSTGRES_PACKAGE} ${version}. Do not edit.
 
 /** The \`${WORLD_POSTGRES_PACKAGE}\` version the DDL below was generated from. */
@@ -284,17 +316,22 @@ export const OUTPUT: string = fileURLToPath(
 
 if (import.meta.main) {
   const dbUrl = process.env["SUPABASE_DB_URL"];
+
   if (dbUrl === undefined) {
     throw new Error("SUPABASE_DB_URL is not set; run pnpm env:local");
   }
+
   const migrations = await readMigrations();
+
   const contents = renderModuleFile(
     await worldPostgresVersion(),
     migrations,
     await generateDdl(dbUrl, migrations),
   );
+
   if (process.argv.includes("--check")) {
     const current = await readFile(OUTPUT, "utf-8").catch(() => "");
+
     if (current !== contents) {
       console.error(`stale: ${OUTPUT}`);
       process.exitCode = 1;

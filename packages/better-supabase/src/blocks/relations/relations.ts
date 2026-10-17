@@ -199,6 +199,7 @@ const linkArgs = (
 
 function edgeOf(value: unknown): RelationEdge {
   const row = recordOf(value, "relation");
+
   return {
     id: textOf(row["id"]),
     kind: textOf(row["kind"]),
@@ -211,6 +212,7 @@ function edgeOf(value: unknown): RelationEdge {
 
 function nodeOf(value: unknown): RelationNode {
   const row = recordOf(value, "relation node");
+
   return {
     type: textOf(row["type"]),
     id: textOf(row["id"]),
@@ -222,8 +224,10 @@ export function createRelations<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: RelationsOptions<S>): Relations<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   const call = blockCall(options.transport, options.schema, options.mappers);
   const fields: BlockFields<F> = blockFields(options.fields, "relation fields");
+
   const client: Relations<F> = {
     link: (input) =>
       writeFields(fields, input.fields, (checked) =>
@@ -246,6 +250,7 @@ export function createRelations<
             const target = ref(row["targetType"], row["targetId"]);
             const created = row["created"] === true;
             const replacedRow = row["replaced"];
+
             const replaced = isRecord(replacedRow)
               ? {
                   target: ref(
@@ -255,11 +260,14 @@ export function createRelations<
                   data: objectOf(replacedRow["data"]),
                 }
               : null;
+
             const calls: UndoCall[] = [];
             const args = linkArgs(input.organizationId, kind, source, target);
+
             if (created) {
               calls.push({ fn: "unlink", args });
             }
+
             if (replaced) {
               calls.push({
                 fn: "link",
@@ -274,10 +282,13 @@ export function createRelations<
                 },
               });
             }
+
             const previous = row["previousData"];
+
             if (!created && input.data !== undefined && isRecord(previous)) {
               calls.push({ fn: "link", args: { ...args, data: previous } });
             }
+
             return {
               id: textOf(row["id"]),
               kind,
@@ -298,6 +309,7 @@ export function createRelations<
         (value) => {
           const row = recordOf(value, "unlink");
           const removed = row["removed"] === true;
+
           return {
             removed,
             undo: removed
@@ -383,6 +395,7 @@ export function createRelations<
         subject_type: subject.type,
         subject_id: subject.id,
       };
+
       return call("ancestors", args, (value) =>
         recordsOf(value, "ancestors").map(nodeOf),
       ).andThen((origins) =>
@@ -408,6 +421,7 @@ export function createRelations<
           typeof value === "number" || typeof value === "string" ? value : null,
       ),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "relations",
     ...(options.logger ? { logger: options.logger } : {}),

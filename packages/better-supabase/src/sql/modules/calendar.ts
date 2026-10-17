@@ -125,6 +125,7 @@ function eventFields(
   ctx: ModuleContext,
 ): readonly (readonly [string, string])[] {
   const e = (column: string) => ctx.col("events", column);
+
   const fields: [string, string][] = [
     [e("title"), "coalesce(v_item ->> 'title', '')"],
     [e("startsAt"), "(v_item ->> 'startsAt')::timestamptz"],
@@ -135,17 +136,20 @@ function eventFields(
     [e("rrule"), "nullif(v_item ->> 'rrule', '')"],
     [e("exdates"), "v_exdates"],
   ];
+
   for (const column of ["description", "location", "color"] as const) {
     if (ctx.has("events", column)) {
       fields.push([e(column), `v_item ->> '${column}'`]);
     }
   }
+
   if (ctx.has("events", "subjectType") && ctx.has("events", "subjectId")) {
     fields.push(
       [e("subjectType"), "v_item ->> 'subjectType'"],
       [e("subjectId"), "v_item ->> 'subjectId'"],
     );
   }
+
   return fields;
 }
 
@@ -165,26 +169,33 @@ function updateSet(ctx: ModuleContext): string {
     subjectType: "subjectType",
     subjectId: "subjectId",
   };
+
   const values = new Map(eventFields(ctx));
   const sets: string[] = [];
+
   for (const [column, key] of Object.entries(keys)) {
     if (!ctx.has("events", column)) {
       continue;
     }
+
     const ident = ctx.col("events", column);
     const value = values.get(ident);
+
     if (value === undefined) {
       continue;
     }
+
     sets.push(
       `${ident} = case when v_item ? '${key}' then ${value} else ${ident} end`,
     );
   }
+
   const exdates = ctx.col("events", "exdates");
   sets.push(
     `${exdates} = case when v_item ? 'exdates' then v_exdates else ${exdates} end`,
     `${ctx.col("events", "updatedAt")} = now()`,
   );
+
   return sets.join(",\n    ");
 }
 
@@ -212,12 +223,16 @@ const eventExtras = (ctx: ModuleContext) =>
 /** A jsonb object of one event row, aliased `e`. */
 function eventJson(ctx: ModuleContext, attendees: string): string {
   const e = (column: string) => `e.${ctx.col("events", column)}`;
+
   const optional = (key: string, column: string) =>
     ctx.has("events", column) ? `, '${key}', ${e(column)}` : "";
+
   const a = (column: string) => `a.${ctx.col("attendees", column)}`;
+
   const list = ctx.hasTable("attendees")
     ? `, 'attendees', coalesce((select jsonb_agg(jsonb_build_object('email', ${a("email")}, 'name', ${a("name")}, 'userId', ${a("user")}, 'role', ${a("role")}, 'response', ${a("response")}) order by ${a("email")}) from ${attendees} a where ${a("event")} = ${e("id")}), '[]'::jsonb)`
     : "";
+
   return `jsonb_build_object('id', ${e("id")}, 'calendarId', ${e("calendar")}, 'uid', ${e("uid")}, 'title', ${e("title")}, 'startsAt', ${e("startsAt")}, 'endsAt', ${e("endsAt")}, 'allDay', ${e("allDay")}, 'tz', ${e("tz")}, 'status', ${e("status")}, 'rrule', ${e("rrule")}, 'exdates', to_jsonb(${e("exdates")}), 'recurrenceId', ${e("recurrence")}, 'originalStart', ${e("originalStart")}${optional("description", "description")}${optional("location", "location")}${optional("color", "color")}${optional("subjectType", "subjectType")}${optional("subjectId", "subjectId")}) || jsonb_build_object('updatedAt', ${e("updatedAt")}${list}${extraFieldsJson("e", eventExtras(ctx))})`;
 }
 
@@ -226,15 +241,20 @@ function reminderRule(ctx: ModuleContext, op: "save" | "delete"): string {
   if (!ctx.installed("reminders")) {
     return "";
   }
+
   const r = ctx.of("reminders");
+
   if (!r.has("rules", "rrule")) {
     return "";
   }
+
   const rules = r.table("rules");
   const col = (column: string) => r.col("rules", column);
+
   if (op === "delete") {
     return `delete from ${rules} where ${col("subjectType")} = 'calendar_event' and ${col("subjectId")} = v_id::text;`;
   }
+
   return `insert into ${rules} (${col("tenant")}, ${col("subjectType")}, ${col("subjectId")}, ${col("dtstart")}, ${col("tzid")}, ${col("rrule")})
   select e.${ctx.col("events", "tenant")}, 'calendar_event', e.${ctx.col("events", "id")}::text, e.${ctx.col("events", "startsAt")}, e.${ctx.col("events", "tz")}, coalesce(e.${ctx.col("events", "rrule")}, 'FREQ=DAILY;COUNT=1')
   from ${ctx.table("events")} e where e.${ctx.col("events", "id")} = v_id
@@ -251,10 +271,12 @@ function feed(
   if (!ctx.installed("share-links")) {
     return "";
   }
+
   const s = ctx.of("share-links");
   const links = s.table("links");
   const l = (column: string) => `l.${s.col("links", column)}`;
   const k = (column: string) => `k.${ctx.col("calendars", column)}`;
+
   return `
 -- The events of the calendar a share link points at, for an iCal feed. Open
 -- to anon: the token is the credential, and it is hashed before the lookup.
@@ -304,6 +326,7 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const calendars = ctx.table("calendars");
   const events = ctx.table("events");
   const attendees = ctx.hasTable("attendees") ? ctx.table("attendees") : "";
@@ -315,9 +338,12 @@ function build(ctx: ModuleContext): string {
   const write = ctx.permission("write", perms.write);
   const read = ctx.permission("read", perms.read);
   const fn = (name: string): string => ctx.fn(name);
+
   const allowed = (tenant: string, key: string) =>
     `(auth.role() = 'service_role' or ${ctx.scope.can(tenant, key)})`;
+
   const fields = eventFields(ctx);
+
   const record = (type: string, id: string, calendar: string, tenant: string) =>
     ctx.record({
       type,
@@ -326,6 +352,7 @@ function build(ctx: ModuleContext): string {
       tenant,
       audit: false,
     });
+
   const tables = ctx.manages
     ? `create table if not exists ${calendars} (
   ${k("id")} uuid primary key default gen_random_uuid(),
@@ -391,6 +418,7 @@ create policy calendar_attendees_read on ${attendees} for select to authenticate
 using (${ctx.scope.check(a("tenant"), read)} or ${a("user")} = (select auth.uid()));
 `
     : "";
+
   const attendeeFunctions = ctx.hasTable("attendees")
     ? `
 create or replace function ${fn("set_calendar_attendee")}(event_id uuid, email text, name text, user_id uuid, role text)
@@ -468,6 +496,7 @@ $$;
 ${userGrant(`${fn("respond_calendar_event")}(uuid, text)`)}
 `
     : "";
+
   return `${schemaPreamble(ctx)}
 ${tables}
 create or replace function ${fn("create_calendar")}(tenant ${ctx.idType}, name text, tz text, owner_type text, owner_id text)

@@ -159,6 +159,7 @@ describe("fromUIMessage", () => {
       metadata: "x",
       parts: [{ type: "future" } as unknown as UIMessage["parts"][number]],
     });
+
     expect(message).toEqual({ id: "u1", role: "user", parts: [] });
   });
 
@@ -176,6 +177,7 @@ describe("fromUIMessage", () => {
         },
       ],
     });
+
     expect(message.parts.at(-1)).toMatchObject({ output: DENIED_TOOL_OUTPUT });
   });
 });
@@ -223,6 +225,7 @@ describe("toUIMessage", () => {
       format: AI_SDK_UI_FORMAT,
       native: ui,
     };
+
     expect(toUIMessage(stored)).toBe(ui);
   });
 
@@ -270,6 +273,7 @@ describe("toUIMessage", () => {
         { type: "data", name: "plain", data: 1, providerMetadata: { bad: 1 } },
       ],
     };
+
     const back = toUIMessage(message);
     expect(back.role).toBe("assistant");
     expect(back.parts).toEqual([
@@ -332,6 +336,7 @@ describe("toUIMessages", () => {
         parts: [{ type: "text", text: "done" }],
       },
     ];
+
     const out = toUIMessages(history);
     expect(out.map((message) => message.id)).toEqual(["u", "a", "n"]);
     expect(out[1]?.parts[0]).toMatchObject({
@@ -343,6 +348,7 @@ describe("toUIMessages", () => {
 
   it("keeps native messages and a leading tool message", () => {
     const native: UIMessage = { id: "x", role: "assistant", parts: [] };
+
     const out = toUIMessages([
       { id: "t", role: "tool", parts: [] },
       {
@@ -354,6 +360,7 @@ describe("toUIMessages", () => {
       } as AiMessage,
       { id: "t2", role: "tool", parts: [] },
     ]);
+
     expect(out.map((message) => [message.id, message.role])).toEqual([
       ["t", "assistant"],
       ["x", "assistant"],
@@ -494,6 +501,7 @@ describe("fromModelMessages", () => {
         },
       ],
     });
+
     expect(isAiMessage(message)).toBe(true);
     expect(message).toEqual({
       id: "m1",
@@ -624,6 +632,7 @@ describe("fromModelMessages", () => {
         ],
       },
     );
+
     expect(message.parts.slice(2)).toEqual([
       {
         type: "tool-approval",

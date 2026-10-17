@@ -14,6 +14,7 @@ type SearchResults = Awaited<ReturnType<typeof docsSearch.search>>;
 export async function search(query: string): Promise<SearchResults> {
   "use cache";
   cacheLife("max");
+
   return docsSearch.search(query);
 }
 
@@ -23,6 +24,7 @@ export async function searchHits(
   limit: number,
 ): Promise<readonly DocsSearchHit[]> {
   const results = await search(query);
+
   return results.slice(0, limit).map((result) => ({
     url: result.url,
     title: result.content.replaceAll(/<\/?mark>/gu, ""),

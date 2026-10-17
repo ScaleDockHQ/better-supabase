@@ -28,6 +28,7 @@ function approvalsOf(message: UIMessage | undefined): {
   if (message?.role !== "assistant") {
     return [];
   }
+
   return message.parts.flatMap((part) =>
     "state" in part && part.state === "approval-responded"
       ? [
@@ -54,10 +55,12 @@ export function durableTransport(
 ): ChatTransport<UIMessage> {
   const { api, headers } = config;
   const extra = headers === undefined ? {} : { headers: { ...headers } };
+
   const transport = new WorkflowChatTransport<UIMessage>({
     api,
     prepareSendMessagesRequest: (request) => {
       const approvals = approvalsOf(request.messages.at(-1));
+
       return {
         ...extra,
         body:
@@ -71,6 +74,7 @@ export function durableTransport(
       api: `${api}/${encodeURIComponent(request.id)}/stream`,
     }),
   });
+
   return {
     sendMessages: ({ messageId, abortSignal, ...rest }) =>
       transport.sendMessages({

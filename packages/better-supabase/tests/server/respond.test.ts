@@ -95,6 +95,7 @@ describe("respond", () => {
       id: 9_007_199_254_740_993n,
       ids: [1n],
     }));
+
     expect(response.headers.get("content-type")).toBe("application/json");
     expect(await response.text()).toBe('{"id":"9007199254740993","ids":["1"]}');
   });

@@ -88,8 +88,10 @@ function contentLine(line: string): ContentLine | undefined {
   const parts: string[] = [];
   let quoted = false;
   let start = 0;
+
   for (let index = 0; index < line.length; index += 1) {
     const char = line[index];
+
     if (char === '"') {
       quoted = !quoted;
     } else if (!quoted && char === ";") {
@@ -99,18 +101,23 @@ function contentLine(line: string): ContentLine | undefined {
       parts.push(line.slice(start, index));
       const [name = "", ...rest] = parts;
       const params: Record<string, string> = {};
+
       for (const param of rest) {
         const equals = param.indexOf("=");
+
         if (equals < 1) {
           continue;
         }
+
         params[param.slice(0, equals).toUpperCase()] = param
           .slice(equals + 1)
           .replaceAll('"', "");
       }
+
       return { name: name.toUpperCase(), params, value: line.slice(index + 1) };
     }
   }
+
   return undefined;
 }
 
@@ -133,8 +140,10 @@ function zoneOr(zone: string | undefined, fallback: string): string {
   if (zone === undefined) {
     return fallback;
   }
+
   try {
     temporal().Now.zonedDateTimeISO(zone);
+
     return zone;
   } catch {
     return fallback;
@@ -155,25 +164,31 @@ function dateValue(
   const time = temporal();
   const tz = zoneOr(params["TZID"], fallback);
   const date = DATE.exec(value);
+
   if (date !== null || params["VALUE"] === "DATE") {
     if (date === null) {
       return undefined;
     }
+
     const plain = time.PlainDate.from({
       year: Number(date[1]),
       month: Number(date[2]),
       day: Number(date[3]),
     });
+
     return {
       instant: plain.toZonedDateTime({ timeZone: tz }).toInstant(),
       allDay: true,
       tz,
     };
   }
+
   const match = DATE_TIME.exec(value);
+
   if (match === null) {
     return undefined;
   }
+
   const fields = {
     year: Number(match[1]),
     month: Number(match[2]),
@@ -182,6 +197,7 @@ function dateValue(
     minute: Number(match[5]),
     second: Number(match[6]),
   };
+
   if (match[7] === "Z") {
     return {
       instant: time.ZonedDateTime.from({
@@ -192,6 +208,7 @@ function dateValue(
       tz,
     };
   }
+
   return {
     instant: time.ZonedDateTime.from({ ...fields, timeZone: tz }).toInstant(),
     allDay: false,
@@ -204,10 +221,13 @@ function attendeeOf(line: ContentLine): CalendarAttendee | undefined {
     .replace(/^mailto:/i, "")
     .trim()
     .toLowerCase();
+
   if (email === "") {
     return undefined;
   }
+
   const name = line.params["CN"];
+
   return {
     email,
     ...(name === undefined ? {} : { name }),
@@ -236,78 +256,99 @@ function eventOf(
   let originalStart: Temporal.Instant | undefined;
   const exdates: Temporal.Instant[] = [];
   const attendees: CalendarAttendee[] = [];
+
   for (const line of lines) {
     switch (line.name) {
       case "UID": {
         uid = line.value.trim();
         break;
       }
+
       case "DTSTART": {
         start = dateValue(line.value, line.params, fallback);
         break;
       }
+
       case "DTEND": {
         end = dateValue(line.value, line.params, fallback);
         break;
       }
+
       case "DURATION": {
         try {
           duration = time.Duration.from(line.value.trim());
         } catch {
           duration = undefined;
         }
+
         break;
       }
+
       case "SUMMARY": {
         title = unescapeText(line.value);
         break;
       }
+
       case "DESCRIPTION": {
         description = unescapeText(line.value);
         break;
       }
+
       case "LOCATION": {
         location = unescapeText(line.value);
         break;
       }
+
       case "STATUS": {
         const value = line.value.trim().toLowerCase();
         status = STATUSES.find((item) => item === value) ?? "confirmed";
         break;
       }
+
       case "RRULE": {
         rrule = line.value.trim();
         break;
       }
+
       case "EXDATE": {
         for (const value of line.value.split(",")) {
           const date = dateValue(value.trim(), line.params, fallback);
+
           if (date !== undefined) {
             exdates.push(date.instant);
           }
         }
+
         break;
       }
+
       case "RECURRENCE-ID": {
         originalStart = dateValue(line.value, line.params, fallback)?.instant;
         break;
       }
+
       case "ATTENDEE": {
         const attendee = attendeeOf(line);
+
         if (attendee !== undefined) {
           attendees.push(attendee);
         }
+
         break;
       }
+
       default: {
         break;
       }
     }
   }
+
   if (uid === undefined || uid === "" || start === undefined) {
     return undefined;
   }
+
   const zoned = start.instant.toZonedDateTimeISO(start.tz);
+
   const endsAt =
     end?.instant ??
     (duration === undefined
@@ -315,6 +356,7 @@ function eventOf(
         ? zoned.add({ days: 1 }).toInstant()
         : start.instant
       : zoned.add(duration).toInstant());
+
   return {
     uid,
     title,
@@ -344,22 +386,28 @@ export function parseIcs(text: string): ParsedIcs {
     .split(/\r?\n/)
     .flatMap((raw) => {
       const line = contentLine(raw);
+
       return line === undefined ? [] : [line];
     });
+
   let name: string | undefined;
   let tz = "UTC";
+
   for (const line of lines) {
     if (line.name === "X-WR-CALNAME") {
       name = unescapeText(line.value);
     }
+
     if (line.name === "X-WR-TIMEZONE") {
       tz = zoneOr(line.value.trim(), "UTC");
     }
   }
+
   const events: IcsEvent[] = [];
   let skipped = 0;
   let current: ContentLine[] | undefined;
   let depth = 0;
+
   for (const line of lines) {
     if (line.name === "BEGIN" && line.value.toUpperCase() === "VEVENT") {
       current = [];
@@ -371,17 +419,20 @@ export function parseIcs(text: string): ParsedIcs {
         depth -= 1;
       } else if (line.value.toUpperCase() === "VEVENT") {
         const event = eventOf(current, tz);
+
         if (event === undefined) {
           skipped += 1;
         } else {
           events.push(event);
         }
+
         current = undefined;
       }
     } else if (current !== undefined && depth === 0) {
       current.push(line);
     }
   }
+
   return { ...(name === undefined ? {} : { name }), tz, events, skipped };
 }
 
@@ -427,6 +478,7 @@ function utc(instant: Temporal.Instant): string {
 
 function day(instant: Temporal.Instant, tz: string): string {
   const date = instant.toZonedDateTimeISO(tz);
+
   return `${pad(date.year, 4)}${pad(date.month)}${pad(date.day)}`;
 }
 
@@ -439,9 +491,11 @@ function timeProperty(
   if (event.allDay) {
     return `${name};VALUE=DATE:${day(instant, event.tz)}`;
   }
+
   if (event.tz === "UTC") {
     return `${name}:${utc(instant)}`;
   }
+
   return `${name};TZID=${event.tz}:${compact(instant.toZonedDateTimeISO(event.tz))}`;
 }
 
@@ -449,6 +503,7 @@ function offset(nanoseconds: number): string {
   const minutes = Math.round(nanoseconds / 60e9);
   const sign = minutes < 0 ? "-" : "+";
   const abs = Math.abs(minutes);
+
   return `${sign}${pad(Math.floor(abs / 60))}${pad(abs % 60)}`;
 }
 
@@ -463,6 +518,7 @@ function vtimezone(
   until: Temporal.Instant,
 ): string[] {
   let zoned = from.toZonedDateTimeISO(tz);
+
   const lines = [
     "BEGIN:VTIMEZONE",
     `TZID:${tz}`,
@@ -472,22 +528,27 @@ function vtimezone(
     `TZOFFSETTO:${offset(zoned.offsetNanoseconds)}`,
     "END:STANDARD",
   ];
+
   for (let count = 0; count < 80; count += 1) {
     const next = zoned.getTimeZoneTransition("next");
+
     if (
       next === null ||
       temporal().Instant.compare(next.toInstant(), until) > 0
     ) {
       break;
     }
+
     const before = zoned.offsetNanoseconds;
     const after = next.offsetNanoseconds;
     const kind = after > before ? "DAYLIGHT" : "STANDARD";
+
     const onset = next
       .toInstant()
       .toZonedDateTimeISO("UTC")
       .add({ nanoseconds: before })
       .toPlainDateTime();
+
     lines.push(
       `BEGIN:${kind}`,
       `DTSTART:${compact(onset)}`,
@@ -497,31 +558,40 @@ function vtimezone(
     );
     zoned = next;
   }
+
   lines.push("END:VTIMEZONE");
+
   return lines;
 }
 
 /** Folds a content line to 75 octets, never inside a UTF-8 sequence. */
 function fold(line: string): string {
   const encoder = new TextEncoder();
+
   if (encoder.encode(line).length <= 75) {
     return line;
   }
+
   const parts: string[] = [];
   let current = "";
   let size = 0;
+
   for (const char of line) {
     const bytes = encoder.encode(char).length;
     const limit = parts.length === 0 ? 75 : 74;
+
     if (size + bytes > limit) {
       parts.push(current);
       current = "";
       size = 0;
     }
+
     current += char;
     size += bytes;
   }
+
   parts.push(current);
+
   return parts.join("\r\n ");
 }
 
@@ -534,6 +604,7 @@ const ROLE_OUT: Readonly<Record<AttendeeRole, string>> = {
 
 function paramValue(value: string): string {
   const clean = value.replaceAll('"', "");
+
   return /[:;,]/.test(clean) ? `"${clean}"` : clean;
 }
 
@@ -545,31 +616,42 @@ function eventLines(event: IcsSource, stamp: Temporal.Instant): string[] {
     timeProperty("DTSTART", event.startsAt, event),
     timeProperty("DTEND", event.endsAt, event),
   ];
+
   if (event.originalStart !== undefined) {
     lines.push(timeProperty("RECURRENCE-ID", event.originalStart, event));
   }
+
   if (event.rrule !== undefined) {
     lines.push(`RRULE:${event.rrule}`);
   }
+
   for (const exdate of event.exdates) {
     lines.push(timeProperty("EXDATE", exdate, event));
   }
+
   lines.push(`SUMMARY:${escapeText(event.title)}`);
+
   if (event.description !== undefined) {
     lines.push(`DESCRIPTION:${escapeText(event.description)}`);
   }
+
   if (event.location !== undefined) {
     lines.push(`LOCATION:${escapeText(event.location)}`);
   }
+
   lines.push(`STATUS:${event.status.toUpperCase()}`);
+
   for (const attendee of event.attendees ?? []) {
     const cn =
       attendee.name === undefined ? "" : `;CN=${paramValue(attendee.name)}`;
+
     lines.push(
       `ATTENDEE${cn};ROLE=${ROLE_OUT[attendee.role]};PARTSTAT=${attendee.response.toUpperCase()}:mailto:${attendee.email}`,
     );
   }
+
   lines.push("END:VEVENT");
+
   return lines;
 }
 
@@ -584,19 +666,24 @@ export function toIcs(
 ): string {
   const time = temporal();
   const stamp = options.now ?? time.Now.instant();
+
   const zones = new Map<
     string,
     { from: Temporal.Instant; until: Temporal.Instant }
   >();
+
   for (const event of events) {
     if (event.allDay || event.tz === "UTC") {
       continue;
     }
+
     const from = event.startsAt.subtract({ hours: 24 });
+
     const until =
       event.rrule === undefined
         ? event.endsAt.add({ hours: 24 })
         : event.startsAt.add({ hours: 24 * 366 * 3 });
+
     const known = zones.get(event.tz);
     zones.set(event.tz, {
       from:
@@ -609,24 +696,31 @@ export function toIcs(
           : known.until,
     });
   }
+
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
     `PRODID:${options.prodId ?? "-//better-supabase//calendar//EN"}`,
     "CALSCALE:GREGORIAN",
   ];
+
   if (options.name !== undefined) {
     lines.push(`X-WR-CALNAME:${escapeText(options.name)}`);
   }
+
   if (options.tz !== undefined) {
     lines.push(`X-WR-TIMEZONE:${options.tz}`);
   }
+
   for (const [tz, range] of zones) {
     lines.push(...vtimezone(tz, range.from, range.until));
   }
+
   for (const event of events) {
     lines.push(...eventLines(event, stamp));
   }
+
   lines.push("END:VCALENDAR");
+
   return `${lines.map(fold).join("\r\n")}\r\n`;
 }

@@ -15,6 +15,7 @@ import { AsyncResult } from "../../../src/core/result.ts";
 
 const AT = Temporal.Instant.from("2026-01-01T00:00:00Z");
 const REF = { version: 2 as const, id: "batch_1", provider: "openai" };
+
 const USAGE = {
   inputTokens: 3,
   inputTokenDetails: {
@@ -65,9 +66,11 @@ function fakeStore(due: AiBatch[] = []) {
   const saved: AiBatchItemInput[][] = [];
   const recorded: unknown[] = [];
   let current = batch();
+
   const store: AiProviders["batches"] = {
     record: (_org, input) => {
       recorded.push(input);
+
       return AsyncResult.ok(current);
     },
     get: () => AsyncResult.ok(current),
@@ -83,13 +86,16 @@ function fakeStore(due: AiBatch[] = []) {
           ? {}
           : { resultsSaved: patch.resultsSaved }),
       };
+
       return AsyncResult.ok(current);
     },
     saveItems: (_id, items) => {
       saved.push([...items]);
+
       return AsyncResult.ok(items.length);
     },
   };
+
   return { store, updates, saved, recorded };
 }
 
@@ -143,6 +149,7 @@ describe("batchItemOf", () => {
 describe("aiBatches", () => {
   it("starts a batch and records it with its reference", async () => {
     const { store, recorded } = fakeStore();
+
     const start = vi.fn(async (_options: unknown) => ({
       ...REF,
       status: "pending" as const,
@@ -151,10 +158,12 @@ describe("aiBatches", () => {
       expiresAt: "2026-01-02T00:00:00Z",
       warnings: [],
     }));
+
     const batches = aiBatches({
       providers: { batches: store },
       api: { start },
     });
+
     await batches
       .start({ organizationId: "o1", userId: "u1" }, {
         requests: [
@@ -180,14 +189,17 @@ describe("aiBatches", () => {
 
   it("maps a provider failure to a network error", async () => {
     const { store } = fakeStore();
+
     const batches = aiBatches({
       providers: { batches: store },
       api: { start: () => Promise.reject(new Error("quota")) },
     });
+
     const started = await batches.start(
       { organizationId: "o1" },
       { requests: [] },
     );
+
     expect(!started.ok && started.error).toMatchObject({
       kind: "network",
       hint: "AI_BATCH_PROVIDER",
@@ -198,6 +210,7 @@ describe("aiBatches", () => {
     const { store, updates, saved } = fakeStore([batch()]);
     const onDone = vi.fn();
     const provider = { id: "fake" } as never;
+
     const status = vi.fn(async (_options: unknown) => ({
       status: "completed" as const,
       rawStatus: "completed",
@@ -205,6 +218,7 @@ describe("aiBatches", () => {
       error: { message: "two expired" },
       expiresAt: "2026-01-03T00:00:00Z",
     }));
+
     const batches = aiBatches({
       providers: { batches: store },
       provider: () => provider,
@@ -212,6 +226,7 @@ describe("aiBatches", () => {
       onDone,
       api: { status, results: () => results(150) },
     });
+
     expect(
       await batches.pollJob()(
         undefined,
@@ -234,16 +249,19 @@ describe("aiBatches", () => {
 
   it("leaves a pending batch for the next poll", async () => {
     const { store, saved } = fakeStore([batch()]);
+
     const batches = aiBatches({
       providers: { batches: store },
       api: { status: async () => ({ status: "pending" as const }) },
     });
+
     expect(await batches.poll().orThrow()).toBe(1);
     expect(saved).toEqual([]);
   });
 
   it("collects a finished batch whose results were not saved, with onItem", async () => {
     const { store, saved } = fakeStore([batch({ status: "completed" })]);
+
     const batches = aiBatches({
       providers: { batches: store },
       provider: { id: "fixed" } as never,
@@ -254,6 +272,7 @@ describe("aiBatches", () => {
       }),
       api: { results: () => results(1) },
     });
+
     await batches.poll().orThrow();
     expect(saved).toEqual([
       [{ requestId: "r0", status: "succeeded", output: "custom" }],
@@ -265,12 +284,14 @@ describe("aiBatches", () => {
       batch({ reference: {} }),
       batch({ id: "b2" }),
     ]);
+
     const batches = aiBatches({
       providers: { batches: store },
       api: {
         status: () => Promise.reject(new Error("timeout")),
       },
     });
+
     expect(await batches.poll().orThrow()).toBe(2);
     expect(updates.map((update) => [update.id, update.patch.error])).toEqual([
       ["b1", "batch b1 has no batch reference"],
@@ -280,6 +301,7 @@ describe("aiBatches", () => {
 
   it("stops a collect when results fail to stream or save", async () => {
     const { store } = fakeStore();
+
     const broken = aiBatches({
       providers: { batches: store },
       api: {
@@ -289,7 +311,9 @@ describe("aiBatches", () => {
         },
       },
     });
+
     expect((await broken.collect(batch())).ok).toBe(false);
+
     const failing = aiBatches({
       providers: {
         batches: {
@@ -299,7 +323,9 @@ describe("aiBatches", () => {
       },
       api: { results: () => results(150) },
     });
+
     expect((await failing.collect(batch())).ok).toBe(false);
+
     const tail = aiBatches({
       providers: {
         batches: {
@@ -309,16 +335,19 @@ describe("aiBatches", () => {
       },
       api: { results: () => results(1) },
     });
+
     expect((await tail.collect(batch())).ok).toBe(false);
   });
 
   it("reads stored state and cancels at the provider", async () => {
     const { store, updates } = fakeStore();
     const cancel = vi.fn(async () => undefined);
+
     const batches = aiBatches({
       providers: { batches: store },
       api: { cancel },
     });
+
     expect((await batches.status("b1").orThrow())?.id).toBe("b1");
     expect(await batches.results("b1", { limit: 10 }).orThrow()).toEqual([]);
     expect((await batches.cancel(batch()).orThrow()).status).toBe("cancelled");

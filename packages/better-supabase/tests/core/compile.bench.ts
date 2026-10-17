@@ -14,6 +14,7 @@ import { defineListQuery } from "../../src/list/list-query.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const RUNS = 20_000;
+
 /**
  * Each pair may differ by at most this factor. Generous on purpose: the
  * gate catches work that starts scaling with the input, not noise.
@@ -21,28 +22,35 @@ const RUNS = 20_000;
 const MAX_RATIO = 15;
 
 const ORG = "00000000-0000-4000-8000-000000000001";
+
 const rows = Array.from({ length: 50 }, (_, i) => ({
   id: `c${String(i)}`,
   name: "Acme",
   organizationId: ORG,
   status: "active",
 }));
+
 let captured: Operation | undefined;
+
 const executor: Executor = {
   name: "instant",
   execute: (op) => {
     captured = op;
+
     return Promise.resolve(ok({ rows, count: rows.length }));
   },
 };
+
 const betterSupabase = defineSupabase(schema);
 const db = betterSupabase.connect(executor);
 
 async function opOf(run: () => PromiseLike<unknown>): Promise<Operation> {
   await run();
+
   if (!captured) {
     throw new Error("No operation captured");
   }
+
   return captured;
 }
 
@@ -50,10 +58,13 @@ function measure(work: () => unknown): number {
   for (let warm = 0; warm < 2000; warm++) {
     work();
   }
+
   const started = performance.now();
+
   for (let run = 0; run < RUNS; run++) {
     work();
   }
+
   return ((performance.now() - started) / RUNS) * 1000;
 }
 
@@ -61,14 +72,18 @@ async function measureAsync(work: () => PromiseLike<unknown>): Promise<number> {
   for (let warm = 0; warm < 2000; warm++) {
     await work();
   }
+
   const started = performance.now();
+
   for (let run = 0; run < RUNS; run++) {
     await work();
   }
+
   return ((performance.now() - started) / RUNS) * 1000;
 }
 
 const simple = await opOf(() => db.customers.findMany({ select: ["id"] }));
+
 const complex = await opOf(() =>
   db.customers.findMany({
     select: ["id", "name", "status", "createdAt"],
@@ -90,6 +105,7 @@ const coded: Selection = {
   ],
   includes: [],
 };
+
 const wire = Array.from({ length: 200 }, (_, i) => ({
   id: `r${String(i)}`,
   total: String(9_007_199_254_740_993n + BigInt(i)),
@@ -101,6 +117,7 @@ const list = defineListQuery(betterSupabase, "customers", {
   sorts: { name: [{ name: "asc" }, { id: "asc" }] },
   defaultSort: "name",
 });
+
 const query = list.parse(new URLSearchParams("q=acme&status=active")).value!;
 
 const timings = {
@@ -113,6 +130,7 @@ const timings = {
   ),
   "list run µs": await measureAsync(() => list.run(db, query)),
 };
+
 console.table(
   Object.fromEntries(
     Object.entries(timings).map(([label, value]) => [label, value.toFixed(2)]),
@@ -133,9 +151,11 @@ const gates: readonly [string, number, number][] = [
   ],
   ["running a list", timings["list run µs"], timings["paginate µs"]],
 ];
+
 for (const [label, slow, base] of gates) {
   const ratio = slow / base;
   console.log(`${label}: ${ratio.toFixed(1)}x`);
+
   if (ratio > MAX_RATIO) {
     console.error(
       `${label} costs ${ratio.toFixed(1)}x its baseline (limit ${String(MAX_RATIO)}x).`,

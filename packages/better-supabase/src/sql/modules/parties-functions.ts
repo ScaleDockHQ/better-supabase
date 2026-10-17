@@ -31,7 +31,9 @@ function extraFields(ctx: ModuleContext, kind: Kind, alias: string): string {
   if (kind !== "company") {
     return "";
   }
+
   const extras = ctx.extraColumns("companies");
+
   return extras.length === 0
     ? ""
     : ` || jsonb_build_object('fields', ${columnsObject(
@@ -118,8 +120,10 @@ function saveFunction(
   // options.extraColumns adds columns to companies; people take custom fields.
   const extras = kind === "company" ? ctx.extraColumns("companies") : [];
   const table = t(spec.table);
+
   const extraValue = (ident: string): string =>
     `(jsonb_populate_record(null::${table}, ${fnName}.attrs)).${ident}`;
+
   const insertColumns = [
     col("tenant"),
     ...fields.map((field) => col(field.column)),
@@ -127,6 +131,7 @@ function saveFunction(
     col("createdBy"),
     ...extras.map((extra) => extra.ident),
   ];
+
   const insertValues = [
     `${fnName}.tenant`,
     ...fields.map((field) =>
@@ -138,6 +143,7 @@ function saveFunction(
     "auth.uid()",
     ...extras.map((extra) => extraValue(extra.ident)),
   ];
+
   const updates = [
     ...fields.map(
       (field) =>
@@ -154,14 +160,17 @@ function saveFunction(
     ),
     `${col("updatedAt")} = now()`,
   ];
+
   const payload = `jsonb_build_object('organizationId', ${fnName}.tenant, ${sqlString(spec.idKey)}, v_id, 'name', v_row ->> 'name')`;
   const subject = `'${spec.subject}/' || v_id::text`;
+
   const watch = watchSql(ctx, {
     tenant: `${fnName}.tenant`,
     user: "v_owner",
     subjectType: sqlString(kind),
     subjectId: "v_id::text",
   });
+
   return `
 -- Creates a ${kind} (${kind} null) or updates the keys attrs names.
 -- Returns its row. The owner watches it when notifications is installed.
@@ -244,6 +253,7 @@ function archiveFunction(
   const { t, c, fn } = names;
   const col = (logical: string): string => c(spec.table, logical);
   const name = `archive_${kind}`;
+
   return `
 -- Archives a ${kind} (archived true) or restores it.
 create or replace function ${fn(name)}(id uuid, archived boolean)
@@ -289,12 +299,14 @@ function mergeFunction(
   const name = kind === "company" ? "merge_companies" : "merge_people";
   const linkColumn = kind === "company" ? li("company") : li("person");
   const unique = kind === "company" ? col("domain") : col("email");
+
   const fill = FIELDS[kind]
     .filter((field) => field.key !== "name" && field.key !== "lifecycle")
     .map(
       (field) =>
         `${col(field.column)} = coalesce(x.${col(field.column)}, v_drop.${col(field.column)})`,
     );
+
   return `
 -- Merges drop into keep: keep's empty fields take drop's values, drop's
 -- links move to keep, and drop is archived with merged_into set. Apps move
@@ -357,10 +369,12 @@ function listFunction(
   const { t, c, fn } = names;
   const col = (logical: string): string => c(spec.table, logical);
   const name = kind === "company" ? "list_companies" : "list_people";
+
   const searchable =
     kind === "company"
       ? `x.${col("name")} ilike v_like or x.${col("domain")} ilike v_like`
       : `x.${col("name")} ilike v_like or x.${col("email")} ilike v_like`;
+
   return `
 -- A page of the organization's active ${spec.table}, by name. search matches
 -- the name and ${kind === "company" ? "domain" : "email"}; after_name and after_id continue after the
@@ -400,10 +414,13 @@ export function partyFunctions(ctx: ModuleContext, names: PartyNames): string {
   const li = (logical: string): string => c("links", logical);
   const co = (logical: string): string => c("companies", logical);
   const pe = (logical: string): string => c("people", logical);
+
   const linkPayload = (name: string): string =>
     `jsonb_build_object('organizationId', v_tenant, 'companyId', ${name}.company, 'personId', ${name}.person, 'role', v_role)`;
+
   const archived = (kind: Kind): string => {
     const spec = SPEC[kind];
+
     return ctx.record({
       type: `${kind}.archived`,
       payload: `jsonb_build_object('organizationId', v_tenant, ${sqlString(spec.idKey)}, archive_${kind}.id, 'name', v_name)`,
@@ -412,6 +429,7 @@ export function partyFunctions(ctx: ModuleContext, names: PartyNames): string {
       audit: false,
     });
   };
+
   return `${saveFunction(ctx, names, "company")}${saveFunction(ctx, names, "person")}
 ${archiveFunction(ctx, names, "company").replace("__RECORD__", archived("company"))}
 ${archiveFunction(ctx, names, "person").replace("__RECORD__", archived("person"))}

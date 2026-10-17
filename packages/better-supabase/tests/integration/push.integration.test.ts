@@ -12,6 +12,7 @@ describe.skipIf(!live)("push module", () => {
 
   it("registers, moves, reads and prunes device tokens", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["push"]);
       const alice = await s.user("alice");
@@ -20,12 +21,15 @@ describe.skipIf(!live)("push module", () => {
       const token = `ExponentPushToken[${crypto.randomUUID()}]`;
 
       await s.as(alice);
+
       const first = await devices
         .register({ token, platform: "ios", deviceName: "Alice's phone" })
         .orThrow();
+
       const again = await devices
         .register({ token, platform: "ios", appVersion: "1.2.0" })
         .orThrow();
+
       expect(again).toBe(first);
 
       await s.asRole(alice);
@@ -73,6 +77,7 @@ describe.skipIf(!live)("push module", () => {
 
   it("refuses anonymous callers and unknown platforms", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["push"]);
       const user = await s.user("reader");

@@ -16,10 +16,12 @@ const executor: Executor = {
   name: "fake",
   execute: async () => {
     await tick();
+
     return ok({ rows: [], count: 0 });
   },
   rpc: async () => {
     await tick();
+
     return ok(null);
   },
 };

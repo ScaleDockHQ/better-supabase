@@ -140,6 +140,7 @@ const NAMES: ModuleNames = {
 /** A Storage bucket id: Supabase allows 1 to 100 characters. */
 const BUCKET = /^[a-z0-9._-]{1,100}$/;
 const MIME = /^[a-z0-9.+*-]+\/[a-z0-9.+*-]+$/;
+
 /** 50 MB, the Supabase free-plan object limit. */
 const DEFAULT_MAX_SIZE = 50 * 1024 * 1024;
 
@@ -151,18 +152,23 @@ interface BucketOptions {
 
 function bucketOptions(ctx: ModuleContext): BucketOptions {
   const bucket = ctx.text("bucket", "ai-files");
+
   if (!BUCKET.test(bucket)) {
     throw new TypeError(
       "blocks.ai-files.options.bucket must be 1 to 100 lowercase letters, digits, dots, dashes or underscores",
     );
   }
+
   const maxSize = ctx.number("maxSize", DEFAULT_MAX_SIZE);
+
   if (!Number.isInteger(maxSize) || maxSize <= 0) {
     throw new TypeError(
       "blocks.ai-files.options.maxSize must be a positive whole number of bytes",
     );
   }
+
   const mimeTypes = ctx.list("allowedMimeTypes", []);
+
   for (const type of mimeTypes) {
     if (!MIME.test(type)) {
       throw new TypeError(
@@ -170,6 +176,7 @@ function bucketOptions(ctx: ModuleContext): BucketOptions {
       );
     }
   }
+
   return { bucket, maxSize, mimeTypes };
 }
 
@@ -190,6 +197,7 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const id = ctx.idType;
   const fn = (name: string): string => ctx.fn(name);
   const f = columnsOf(ctx, "files", FILES);
@@ -208,10 +216,12 @@ function build(ctx: ModuleContext): string {
   const { bucket, maxSize, mimeTypes } = bucketOptions(ctx);
   const bucketLiteral = sqlString(bucket);
   const pendingTtl = ctx.text("pendingTtl", "1 day");
+
   const chatReadable = ctx.installed("ai-chat")
     ? (chat: string): string =>
         `(${chat} is not null and ${ctx.of("ai-chat").fn("ai_chat_can_read")}(${chat}))`
     : (): string => "false";
+
   const mimeCheck =
     mimeTypes.length === 0
       ? ""
@@ -219,10 +229,13 @@ function build(ctx: ModuleContext): string {
   if not (lower(media_type) like any (array[${mimeTypes.map((type) => sqlString(type.replaceAll("*", "%"))).join(", ")}])) then
     ${raise("media type % is not allowed", "22023", "AI_FILE_TYPE", "media_type")}
   end if;`;
+
   const policy = (name: string): string => `bs_ai_files_${name}`;
   const extras = ctx.extraColumns("files", FILE_KEYS);
+
   const fileJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${f.id}, 'organization_id', ${row}.${f.tenant}, 'owner_id', ${row}.${f.owner}, 'chat_id', ${row}.${f.chat}, 'project_id', ${row}.${f.project}, 'bucket', ${row}.${f.bucket}, 'path', ${row}.${f.path}, 'media_type', ${row}.${f.mediaType}, 'filename', ${row}.${f.filename}, 'byte_size', ${row}.${f.size}, 'sha256', ${row}.${f.sha256}, 'status', ${row}.${f.status}, 'source', ${row}.${f.source}, 'created_at', ${row}.${f.createdAt}, 'uploaded_at', ${row}.${f.uploadedAt}, 'expires_at', ${row}.${f.expiresAt}${extraFieldsJson(row, extras)})`;
+
   const setExtras = (name: string): string =>
     writeExtraColumns(
       files,
@@ -231,12 +244,16 @@ function build(ctx: ModuleContext): string {
       `x.${f.id} = v_row.${f.id}`,
       "v_row",
     );
+
   const documentJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${d.id}, 'organization_id', ${row}.${d.tenant}, 'owner_id', ${row}.${d.owner}, 'chat_id', ${row}.${d.chat}, 'kind', ${row}.${d.kind}, 'title', ${row}.${d.title}, 'current_version', ${row}.${d.version}, 'created_at', ${row}.${d.createdAt}, 'updated_at', ${row}.${d.updatedAt})`;
+
   const versionJson = (row: string): string =>
     `jsonb_build_object('document_id', ${row}.${v.document}, 'version', ${row}.${v.version}, 'content', ${row}.${v.content}, 'storage_path', ${row}.${v.storagePath}, 'created_by_message_id', ${row}.${v.message}, 'created_by', ${row}.${v.createdBy}, 'created_at', ${row}.${v.createdAt})`;
+
   const suggestionJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${sg.id}, 'document_id', ${row}.${sg.document}, 'version', ${row}.${sg.version}, 'original_text', ${row}.${sg.original}, 'suggested_text', ${row}.${sg.suggested}, 'description', ${row}.${sg.description}, 'created_by', ${row}.${sg.createdBy}, 'created_at', ${row}.${sg.createdAt}, 'resolved_at', ${row}.${sg.resolvedAt}, 'accepted', ${row}.${sg.accepted})`;
+
   // The owner, an ai_chat admin of the organization, or a reader of the chat
   // the file or document belongs to.
   const readable = (
@@ -246,10 +263,13 @@ function build(ctx: ModuleContext): string {
     chat: string,
   ): string =>
     `(${prefix}${owner} = (select auth.uid()) or ${prefix === "" ? ctx.scope.check(tenant, manage) : ctx.scope.can(`${prefix}${tenant}`, manage)} or ${chatReadable(`${prefix}${chat}`)})`;
+
   const ownFile = (row: string): string =>
     `(${SERVICE_CALLER} or ${row}.${f.owner} = auth.uid() or ${ctx.scope.can(`${row}.${f.tenant}`, manage)})`;
+
   const ownDocument = (row: string): string =>
     `(${SERVICE_CALLER} or ${row}.${d.owner} = auth.uid() or ${ctx.scope.can(`${row}.${d.tenant}`, manage)})`;
+
   const docNotFound = raise(
     "document % not found",
     "P0002",
@@ -857,11 +877,14 @@ function data(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const { bucket, maxSize, mimeTypes } = bucketOptions(ctx);
+
   const mimeArray =
     mimeTypes.length === 0
       ? "null"
       : `array[${mimeTypes.map(sqlString).join(", ")}]::text[]`;
+
   return `insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (${sqlString(bucket)}, ${sqlString(bucket)}, false, ${String(maxSize)}, ${mimeArray})
 on conflict (id) do nothing;`;
@@ -869,6 +892,7 @@ on conflict (id) do nothing;`;
 
 function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   const extra = extraFieldsArg(ctx.extraColumns("files", FILE_KEYS)).contract;
+
   return [
     {
       name: "reserve_ai_file",

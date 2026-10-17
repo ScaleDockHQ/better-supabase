@@ -18,17 +18,20 @@ import {
 } from "../../src/chat-sdk/index.ts";
 
 const ALICE: IdentityTarget = { kind: "user", userId: "alice" };
+
 const linked = (identity: IdentityRef): IdentityTarget | null =>
   identity.value === "U-alice"
     ? ALICE
     : identity.value === "U-contact"
       ? { kind: "contact", contactId: "contact-1" }
       : null;
+
 const author = (value: string): IdentityRef => ({
   kind: "chat",
   provider: "slack",
   value,
 });
+
 const server = (hooks: Partial<AuthorizationHooks>) => ({
   authorization: { apiVersion: 1, name: "test", ...hooks } as const,
 });
@@ -95,11 +98,13 @@ describe("botJobs", () => {
   it("keeps an unlinked or contact author anonymous", async () => {
     const enqueue = vi.fn(() => 1);
     const ticketFor = vi.fn(() => "never");
+
     const jobs = botJobs({
       enqueue,
       ticketFor,
       server: server({ identities: { principalByIdentity: linked } }),
     });
+
     expect(await jobs.enqueue(author("U-stranger"), "a")).toEqual({
       result: 1,
       author: null,
@@ -165,12 +170,14 @@ describe("chatActions", () => {
 
   it("allows what the hook allows for the linked author", async () => {
     const onAction = vi.fn<ChatActionHook>(() => ({ allowed: true }));
+
     const decide = chatActions({
       server: server({
         identities: { principalByIdentity: linked },
         chat: { onAction },
       }),
     });
+
     expect(await decide(approve)).toEqual({
       allowed: true,
       author: ALICE,
@@ -207,6 +214,7 @@ describe("chatActions", () => {
       principalByIdentity: linked,
       ...(onAction === undefined ? {} : { onAction }),
     });
+
     expect(await decide(approve)).toEqual({ allowed: false, reason });
   });
 
@@ -217,16 +225,19 @@ describe("chatActions", () => {
       },
       onAction: () => ({ allowed: true }),
     });
+
     expect(await decide(approve)).toEqual({ allowed: false, reason: "error" });
   });
 
   it("lets the explicit hook win and keeps a contact's named user", async () => {
     const serverHook = vi.fn<ChatActionHook>(() => ({ allowed: false }));
+
     const decide = chatActions({
       principalByIdentity: linked,
       onAction: () => ({ allowed: true, userId: "staff-1" }),
       server: server({ chat: { onAction: serverHook } }),
     });
+
     const contact = { ...approve, author: author("U-contact") };
     expect(await decide(contact)).toEqual({
       allowed: true,

@@ -7,6 +7,7 @@ import { createNextConfig } from "@better-supabase/next-config/next-config";
 import "./env.ts";
 
 const withMDX = createMDX();
+
 const config = createNextConfig({
   // Served under /docs on bettersupabase.com, next to the marketing app.
   assetPrefix: "/docs",

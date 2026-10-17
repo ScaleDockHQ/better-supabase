@@ -18,6 +18,7 @@ export function CommentThread({ customerId }: { readonly customerId: string }) {
   const organizationId = tenantOf(useAuth());
   const [body, setBody] = useState("");
   const [pending, setPending] = useState(false);
+
   const { comments, error, add } = useComments({
     organizationId,
     subjectType: "customer",
@@ -27,19 +28,24 @@ export function CommentThread({ customerId }: { readonly customerId: string }) {
 
   const submit = async () => {
     const text = body.trim();
+
     if (!text) {
       return;
     }
+
     setPending(true);
+
     if ((await add(text)).ok) {
       setBody("");
     }
+
     setPending(false);
   };
 
   if (comments === undefined) {
     return <ActivityIndicator />;
   }
+
   return (
     <View style={{ flex: 1, gap: 12 }}>
       <FlatList

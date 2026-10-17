@@ -27,13 +27,16 @@ export interface TableGrant {
 
 const privilegeSql = (privilege: string): string => {
   const open = privilege.indexOf("(");
+
   if (open === -1) {
     return privilege;
   }
+
   const columns = privilege
     .slice(open + 1, privilege.lastIndexOf(")"))
     .split(",")
     .map((column) => sqlIdent(column.trim()));
+
   return `${privilege.slice(0, open).trim()} (${columns.join(", ")})`;
 };
 
@@ -50,11 +53,13 @@ function qualifiedFunction(signature: string): string {
   const open = signature.indexOf("(");
   const name = signature.slice(0, open).trim();
   const args = signature.slice(open);
+
   if (open <= 0 || !/^\([\w\s,.[\]"]*\)$/.test(args)) {
     throw new TypeError(
       `expose: "${signature}" is not a function signature such as search_notes(text, integer)`,
     );
   }
+
   return `${qualifiedTable(name)}${args}`;
 }
 
@@ -73,13 +78,17 @@ const keyOf = (name: string): string =>
 function tableGrants(layout: ModuleLayout): string {
   const listed = layout.grants ?? [];
   const named = new Set(listed.map((grant) => keyOf(grant.table)));
+
   const derived = (layout.policyGrants ?? []).filter(
     (grant) => !named.has(keyOf(grant.table)),
   );
+
   const derivedTables = [...new Set(derived.map((grant) => grant.table))];
+
   const reached = new Set(
     (layout.policyGrants ?? []).map((grant) => keyOf(grant.table)),
   );
+
   const serviceOnly =
     layout.policyGrants === undefined
       ? []
@@ -89,6 +98,7 @@ function tableGrants(layout: ModuleLayout): string {
             !named.has(keyOf(table)) &&
             !reached.has(keyOf(table)),
         );
+
   const grants = [
     ...listed,
     ...derived,
@@ -98,7 +108,9 @@ function tableGrants(layout: ModuleLayout): string {
       privileges: ["select", "insert", "update", "delete"],
     })),
   ];
+
   const tables = [...new Set(grants.map((grant) => keyOf(grant.table)))];
+
   const statements = tables.flatMap((table) => [
     `revoke all on table ${qualifiedTable(table)} from public, anon, authenticated, service_role;`,
     ...grants
@@ -110,8 +122,10 @@ function tableGrants(layout: ModuleLayout): string {
           `grant ${grant.privileges.map(privilegeSql).join(", ")} on table ${qualifiedTable(table)} to ${grant.role};`,
       ),
   ]);
+
   const functions = (layout.functionGrants ?? []).flatMap((grant) => {
     const target = qualifiedFunction(grant.function);
+
     return [
       `revoke execute on function ${target} from public, anon, authenticated, service_role;`,
       ...(grant.roles.length > 0
@@ -119,9 +133,12 @@ function tableGrants(layout: ModuleLayout): string {
         : []),
     ];
   });
+
   const all = [...statements, ...functions];
+
   if (all.length === 0) {
     return "";
   }
+
   return `\n-- config.expose${derived.length > 0 || serviceOnly.length > 0 ? " and the policies (blocks.grants.options.fromPolicies)" : ""}\n${all.join("\n")}\n`;
 }

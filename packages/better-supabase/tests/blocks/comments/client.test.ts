@@ -40,6 +40,7 @@ function setup(
   const create = vi.fn(() => resolved(comment("c2", "New")));
   const edit = vi.fn(() => resolved(comment("c1", "Edited")));
   const remove = vi.fn(() => resolved(true));
+
   const controller = createCommentsController({
     client: { list, create, edit, remove },
     auth,
@@ -51,6 +52,7 @@ function setup(
     limit: 20,
     ...(options.topic === undefined ? {} : { topic: options.topic }),
   });
+
   return { topic, auth, list, create, edit, remove, controller };
 }
 

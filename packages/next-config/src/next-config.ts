@@ -37,6 +37,7 @@ export const documentSecurityHeaderRules: HeaderRules = [
  */
 export function createNextConfig(overrides: NextConfig = {}): NextConfig {
   const { experimental, typescript, compiler, headers, ...rest } = overrides;
+
   return {
     reactCompiler: true,
     typedRoutes: true,
@@ -76,6 +77,7 @@ export function createNextConfig(overrides: NextConfig = {}): NextConfig {
     typescript: { ignoreBuildErrors: true, ...typescript },
     async headers() {
       const own = headers === undefined ? [] : await headers();
+
       return [...documentSecurityHeaderRules, ...own];
     },
   };

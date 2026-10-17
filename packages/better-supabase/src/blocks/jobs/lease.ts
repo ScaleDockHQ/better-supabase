@@ -42,6 +42,7 @@ function sqlCalls(sql: SqlClient): LeaseCalls {
         "select better_supabase.acquire_lease($1, $2, $3) as holder",
         [key, ttl, scope],
       );
+
       return row?.holder ?? null;
     },
     async extend(key, holder, ttl, scope) {
@@ -49,6 +50,7 @@ function sqlCalls(sql: SqlClient): LeaseCalls {
         "select better_supabase.extend_lease($1, $2, $3, $4) as done",
         [key, holder, ttl, scope],
       );
+
       return row?.done === true;
     },
     async release(key, holder, scope) {
@@ -69,6 +71,7 @@ function transportCalls(transport: BlockTransport, schema: string): LeaseCalls {
         seconds: ttl,
         scope,
       });
+
       return typeof holder === "string" ? holder : null;
     },
     extend: async (key, holder, ttl, scope) =>
@@ -100,19 +103,24 @@ export function withLease<T>(
 ): AsyncResult<LeaseOutcome<T>> {
   const scope = options.scope ?? "";
   const ttl = options.seconds ?? 60;
+
   const calls =
     "call" in source
       ? transportCalls(source, options.schema ?? DEFAULT_BLOCK_SCHEMA)
       : sqlCalls(source);
+
   return run(async (): Promise<LeaseOutcome<T>> => {
     const holder = await calls.acquire(key, ttl, scope);
+
     if (!holder) {
       return { acquired: false };
     }
+
     const lease: Lease = {
       holder,
       extend: (next = ttl) => run(() => calls.extend(key, holder, next, scope)),
     };
+
     try {
       return { acquired: true, value: await fn(lease) };
     } finally {

@@ -15,11 +15,14 @@ type Answer = (url: URL) => Json;
 function capture(answer: Answer = () => []) {
   const fetch = vi.fn<typeof globalThis.fetch>((input) => {
     const url = new URL(String(input));
+
     return Promise.resolve(
       Response.json(answer(url), { headers: { "content-range": "0-0/7" } }),
     );
   });
+
   const urls = () => fetch.mock.calls.map(([input]) => new URL(String(input)));
+
   return { fetch, urls };
 }
 
@@ -33,12 +36,15 @@ describe("CRM latency ports", () => {
           ]
         : [],
     );
+
     const db = betterSupabase.connect(
       createClient(PROJECT_URL, "sb_publishable_test", { global: { fetch } }),
     );
+
     const query = customerOverview.parse(
       new URLSearchParams("q=acme&status=active"),
     );
+
     if (!query.ok) {
       throw new Error("invalid query");
     }
@@ -74,6 +80,7 @@ describe("CRM latency ports", () => {
           }
         : [],
     );
+
     const db = betterSupabase.connect(
       createClient(PROJECT_URL, "sb_publishable_test", { global: { fetch } }),
     );

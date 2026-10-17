@@ -22,16 +22,19 @@ describe("jws", () => {
     "signs and verifies a compact JWS with %s",
     async (alg) => {
       const key = await generateSigningKey(alg);
+
       const token = await signCompact(
         await importSigningKey(key.privateKey),
         alg,
         { alg: alg === "Ed25519" ? "EdDSA" : "ES256", kid: key.kid },
         { sub: "u1" },
       );
+
       const verified = await verifyCompact(
         token,
         keySet(key.kid, key.publicKey),
       );
+
       expect(verified.payload).toEqual({ sub: "u1" });
       expect(key.publicKey).not.toHaveProperty("d");
     },
@@ -44,6 +47,7 @@ describe("jws", () => {
       crv: "Ed25519",
       x: "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
     };
+
     expect(await jwkThumbprint(jwk)).toBe(
       "kPrK_qmxVWaYVA9wwBF6Iuo3vVzz7TxHCTwXBygrS4k",
     );
@@ -52,12 +56,14 @@ describe("jws", () => {
   it("refuses a tampered token, an unknown alg and a missing key", async () => {
     const key = await generateSigningKey("Ed25519");
     const signing = await importSigningKey(key.privateKey);
+
     const token = await signCompact(
       signing,
       "Ed25519",
       { alg: "EdDSA", kid: key.kid, typ: "secevent+jwt" },
       { a: 1 },
     );
+
     const jwks = keySet(key.kid, key.publicKey);
     const [header, , signature] = token.split(".");
     const forged = `${header}.${btoa('{"a":2}').replaceAll("=", "")}.${signature}`;
@@ -95,8 +101,10 @@ describe("jws", () => {
   it("refuses malformed tokens, alg none and public keys for signing", async () => {
     const key = await generateSigningKey("Ed25519");
     const jwks = keySet(key.kid, key.publicKey);
+
     const json = (value: unknown) =>
       btoa(JSON.stringify(value)).replaceAll("=", "");
+
     for (const token of [
       "a.b",
       "!!.e30.AA",
@@ -105,6 +113,7 @@ describe("jws", () => {
     ]) {
       await expect(verifyCompact(token, jwks)).rejects.toBeInstanceOf(JwsError);
     }
+
     expect(() => importSigningKey(key.publicKey)).toThrow(TypeError);
   });
 });

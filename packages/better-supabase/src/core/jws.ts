@@ -46,6 +46,7 @@ function keyMaterial(
   withPrivate: boolean,
 ): { kty: string; crv: string; x: string; y?: string; d?: string } {
   const key = publicJwk(jwk);
+
   return {
     kty: key.kty,
     crv: String(key.crv),
@@ -66,9 +67,11 @@ function keyAlgorithmOf(alg: string): SigningAlgorithm | undefined {
   if (alg === "ES256") {
     return "ES256";
   }
+
   if (alg === "EdDSA" || alg === "Ed25519") {
     return "Ed25519";
   }
+
   return undefined;
 }
 
@@ -77,36 +80,44 @@ function jwkAlgorithm(jwk: Jwk): SigningAlgorithm | undefined {
   if (jwk.kty === "OKP" && jwk.crv === "Ed25519") {
     return "Ed25519";
   }
+
   if (jwk.kty === "EC" && jwk.crv === "P-256") {
     return "ES256";
   }
+
   return undefined;
 }
 
 /** The public members of `jwk`, without `d` and other private parts. */
 export function publicJwk(jwk: Jwk): Jwk {
   const alg = jwkAlgorithm(jwk);
+
   if (alg === "Ed25519") {
     return { kty: "OKP", crv: "Ed25519", x: String(jwk.x) };
   }
+
   if (alg === "ES256") {
     return { kty: "EC", crv: "P-256", x: String(jwk.x), y: String(jwk.y) };
   }
+
   throw new TypeError("Only Ed25519 and P-256 keys are supported");
 }
 
 /** The RFC 7638 SHA-256 thumbprint of a key, base64url: a stable `kid`. */
 export async function jwkThumbprint(jwk: Jwk): Promise<string> {
   const key = publicJwk(jwk);
+
   // RFC 7638: the required members only, in lexicographic order, no whitespace.
   const canonical =
     key.kty === "OKP"
       ? `{"crv":"${key.crv}","kty":"OKP","x":"${key.x}"}`
       : `{"crv":"${key.crv}","kty":"EC","x":"${key.x}","y":"${key.y}"}`;
+
   const digest = await crypto.subtle.digest(
     "SHA-256",
     encoder.encode(canonical),
   );
+
   return toBase64Url(new Uint8Array(digest));
 }
 
@@ -120,24 +131,30 @@ export async function generateSigningKey(alg: SigningAlgorithm): Promise<{
     "sign",
     "verify",
   ]);
+
   if (!("privateKey" in pair)) {
     throw new TypeError("WebCrypto returned a single key, not a key pair");
   }
+
   // SAFETY: exportKey("jwk") returns a JsonWebKey, which Jwk describes.
   const privateKey = (await crypto.subtle.exportKey(
     "jwk",
     pair.privateKey,
   )) as Jwk;
+
   const kid = await jwkThumbprint(privateKey);
+
   return { kid, publicKey: publicJwk(privateKey), privateKey };
 }
 
 /** Imports the private JWK of an Ed25519 or P-256 key for signing. */
 export function importSigningKey(jwk: Jwk): Promise<SigningCryptoKey> {
   const alg = jwkAlgorithm(jwk);
+
   if (alg === undefined || typeof jwk.d !== "string") {
     throw new TypeError("A signing key is a private Ed25519 or P-256 JWK");
   }
+
   return crypto.subtle.importKey(
     "jwk",
     keyMaterial(jwk, alg, true),
@@ -182,6 +199,7 @@ export async function signCompact(
 ): Promise<string> {
   const input = `${toBase64Url(JSON.stringify(header))}.${toBase64Url(JSON.stringify(payload))}`;
   const signature = await signBytes(key, alg, encoder.encode(input));
+
   return `${input}.${toBase64Url(signature)}`;
 }
 
@@ -212,15 +230,19 @@ function part(text: string | undefined): Record<string, unknown> {
   if (text === undefined) {
     throw new JwsError("JWS_MALFORMED", "Not a JWS");
   }
+
   let value: unknown;
+
   try {
     value = JSON.parse(decoder.decode(fromBase64(text)));
   } catch {
     throw new JwsError("JWS_MALFORMED", "A JWS part is not base64url JSON");
   }
+
   if (!isRecord(value)) {
     throw new JwsError("JWS_MALFORMED", "A JWS part is not a JSON object");
   }
+
   return value;
 }
 
@@ -235,17 +257,21 @@ export async function verifyCompact(
   options: VerifyCompactOptions = {},
 ): Promise<VerifiedJws> {
   const pieces = token.split(".");
+
   if (pieces.length !== 3) {
     throw new JwsError("JWS_MALFORMED", "A compact JWS has three parts");
   }
+
   const header = part(pieces[0]);
   const payload = part(pieces[1]);
   const alg = typeof header["alg"] === "string" ? header["alg"] : "";
   const allowed = options.algorithms ?? ["EdDSA", "Ed25519", "ES256"];
   const keyAlg = keyAlgorithmOf(alg);
+
   if (keyAlg === undefined || !allowed.some((name) => name === alg)) {
     throw new JwsError("JWS_ALG", `The alg ${alg || "(none)"} is not accepted`);
   }
+
   if (
     options.typ !== undefined &&
     (typeof header["typ"] !== "string" ||
@@ -253,24 +279,31 @@ export async function verifyCompact(
   ) {
     throw new JwsError("JWS_TYP", `The typ must be ${options.typ}`);
   }
+
   const kid = typeof header["kid"] === "string" ? header["kid"] : undefined;
+
   const candidates = jwks.keys.filter(
     (jwk) =>
       jwkAlgorithm(jwk) === keyAlg && (kid === undefined || jwk.kid === kid),
   );
+
   const jwk = candidates.length === 1 ? candidates[0] : undefined;
+
   if (jwk === undefined) {
     throw new JwsError("JWS_KEY", `No key matches kid ${kid ?? "(none)"}`);
   }
+
   const valid = await crypto.subtle.verify(
     signParams(keyAlg),
     await importVerifyKey(jwk, keyAlg),
     fromBase64(pieces[2] ?? ""),
     encoder.encode(`${pieces[0]}.${pieces[1]}`),
   );
+
   if (!valid) {
     throw new JwsError("JWS_SIGNATURE", "The signature is invalid");
   }
+
   return { header, payload };
 }
 
@@ -278,6 +311,7 @@ export async function verifyCompact(
 export function jwksOf(value: unknown): Jwks {
   const keys =
     isRecord(value) && Array.isArray(value["keys"]) ? value["keys"] : [];
+
   return {
     keys: keys.filter(
       (key): key is Jwk =>

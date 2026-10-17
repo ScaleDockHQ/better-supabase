@@ -13,6 +13,7 @@ describe.skipIf(!live)("tags", () => {
 
   it("lists the tenant's tags and a readable subject's tags", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.rows(
         `create table if not exists public.bs_test_projects (
@@ -37,10 +38,12 @@ describe.skipIf(!live)("tags", () => {
       const member = await s.user("member");
       const outsider = await s.user("outsider");
       const org = await s.organization(owner, { member });
+
       const [inserted] = await s.rows<{ id: string }>(
         "insert into public.bs_test_projects (organization_id, name) values ($1, 'Apollo') returning id",
         [org],
       );
+
       const project = inserted!.id;
       const tags = createTags({ transport: sqlTransport(s.sql) });
 

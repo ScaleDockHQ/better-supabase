@@ -4,6 +4,7 @@ import type { NotifyNames } from "./notifications-sql.ts";
 export function readers(ctx: ModuleContext, n: NotifyNames): string {
   const id = ctx.idType;
   const parts: string[] = [];
+
   if (ctx.hasTable("subscriptions")) {
     const s = (logical: string) => n.col("subscriptions", logical);
     const t = n.has("subscriptions", "tenant");
@@ -36,6 +37,7 @@ $$;
 revoke execute on function ${ctx.fn(list)}(${id}, text, text) from public, anon;
 grant execute on function ${ctx.fn(list)}(${id}, text, text) to authenticated, service_role;`);
   }
+
   if (ctx.hasTable("preferences")) {
     const p = (logical: string) => n.col("preferences", logical);
     const t = n.has("preferences", "tenant");
@@ -65,5 +67,6 @@ $$;
 revoke execute on function ${ctx.fn(list)}(${id}) from public, anon;
 grant execute on function ${ctx.fn(list)}(${id}) to authenticated, service_role;`);
   }
+
   return parts.join("\n");
 }

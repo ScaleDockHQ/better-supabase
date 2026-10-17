@@ -14,10 +14,12 @@ async function project(files: Record<string, string>): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "bs-lite-"));
   dirs.push(root);
   await writeFile(join(root, ".git"), "");
+
   for (const [path, text] of Object.entries(files)) {
     await mkdir(join(root, path, ".."), { recursive: true });
     await writeFile(join(root, path), text);
   }
+
   return root;
 }
 
@@ -32,14 +34,19 @@ describe("liteDriverOf", () => {
     const lite = await project({
       "supabase/config.toml": '[db]\ndriver = "pglite"\n',
     });
+
     expect(liteDriverOf(await readSupabaseToml(lite))).toBe("pglite");
+
     const plain = await project({
       "supabase/config.toml": "[db]\nport = 54322\n",
     });
+
     expect(liteDriverOf(await readSupabaseToml(plain))).toBeUndefined();
+
     const wrong = await project({
       "supabase/config.toml": '[db]\ndriver = "mysql"\n',
     });
+
     const toml = await readSupabaseToml(wrong);
     expect(() => liteDriverOf(toml)).toThrow(CliError);
   });
@@ -57,9 +64,11 @@ describe("liteSource", { timeout: 30_000 }, () => {
       "supabase/schemas/count.sql":
         "create function public.note_count() returns bigint language sql as $$ select count(*) from public.notes $$;",
     });
+
     const toml = await readSupabaseToml(root);
     const source = await liteSource(root, toml, "sqlite-postgres");
     expect(source.replay).toMatch(/replayed into an in-memory PGlite/);
+
     try {
       const snapshot = await introspect(source.queryable, ["public"]);
       const notes = snapshot.generator.tables.find((t) => t.name === "notes");
@@ -83,6 +92,7 @@ describe("liteSource", { timeout: 30_000 }, () => {
       "supabase/config.toml": '[db]\ndriver = "pglite"\n',
       "supabase/migrations/1_bad.sql": "create table broken (",
     });
+
     await expect(
       liteSource(root, await readSupabaseToml(root), "pglite"),
     ).rejects.toThrow(/Replaying the Supabase Lite schema/);
@@ -92,6 +102,7 @@ describe("liteSource", { timeout: 30_000 }, () => {
     const root = await project({
       "supabase/config.toml": '[db]\ndriver = "postgres"\n',
     });
+
     const toml = await readSupabaseToml(root);
     await expect(liteSource(root, toml, "postgres")).rejects.toThrow(
       /\[db\] url/,
@@ -109,13 +120,16 @@ describe("liteSource", { timeout: 30_000 }, () => {
       "supabase/config.toml":
         '[db]\ndriver = "postgres"\nurl = "postgresql://u:p@db/x"\n',
     });
+
     const urls: string[] = [];
+
     const source = await liteSource(
       root,
       await readSupabaseToml(root),
       "postgres",
       (url) => {
         urls.push(url);
+
         return Promise.resolve({
           client: { query: <R>() => Promise.resolve({ rows: [] as R[] }) },
           pooled: true,
@@ -124,6 +138,7 @@ describe("liteSource", { timeout: 30_000 }, () => {
         });
       },
     );
+
     expect(urls).toEqual(["postgresql://u:p@db/x"]);
     expect(source.describe).toBe("postgresql://u:***@db/x");
   });
@@ -131,6 +146,7 @@ describe("liteSource", { timeout: 30_000 }, () => {
   it("opens an empty PGlite when the project has no schema files", async () => {
     const root = await project({});
     const source = await liteSource(root, undefined, "pglite");
+
     try {
       const snapshot = await introspect(source.queryable, ["public"]);
       expect(snapshot.generator.tables).toEqual([]);

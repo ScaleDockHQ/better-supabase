@@ -81,11 +81,13 @@ describe("createInbox", () => {
     const created = await inbox.inboxes
       .create({ tenant: "org", name: "Support", channel: "whatsapp" })
       .orThrow();
+
     expect(created).toMatchObject({
       channel: "whatsapp",
       botMode: "bot",
       address: "+3100",
     });
+
     const updated = await inbox.inboxes
       .update("i1", {
         name: "Help",
@@ -94,6 +96,7 @@ describe("createInbox", () => {
         archived: true,
       })
       .orThrow();
+
     expect(updated).toMatchObject({ channel: "other", botMode: "human" });
     expect(await inbox.inboxes.setMember("i1", "u1", "lead").orThrow()).toBe(
       true,
@@ -113,11 +116,13 @@ describe("createInbox", () => {
         identity: { channel: "whatsapp", externalId: "+3199" },
       })
       .orThrow();
+
     expect(contact).toMatchObject({ name: "Ada", metadata: { plan: "pro" } });
 
     const open = await inbox.conversations
       .open("i1", { contact: { email: "ada@example.test" }, message: "hi" })
       .orThrow();
+
     expect(open).toMatchObject({
       priority: "high",
       unread: true,
@@ -128,6 +133,7 @@ describe("createInbox", () => {
       contact: "ct1",
       message: { body: "hi", format: "markdown" },
     });
+
     const [listed] = await inbox.conversations
       .list("org", {
         status: "all",
@@ -136,6 +142,7 @@ describe("createInbox", () => {
         limit: 10,
       })
       .orThrow();
+
     expect(listed?.lastMessageAt?.toString()).toBe(AT);
     expect(await inbox.conversations.get("c1").orThrow()).toBeNull();
     expect(
@@ -176,15 +183,18 @@ describe("createInbox", () => {
         deliveredByCaller: true,
       })
       .orThrow();
+
     expect(sent.delivery).toEqual({
       channel: "whatsapp",
       status: "sent",
       error: null,
     });
     await inbox.messages.note("c1", "internal", { mentions: ["u2"] }).orThrow();
+
     const [message] = await inbox.messages
       .list("c1", { cursor: later, limit: 5 })
       .orThrow();
+
     expect(message).toMatchObject({
       attachments: [
         { path: "org/c1/a.png", contentType: "image/png", size: 3 },
@@ -243,9 +253,11 @@ describe("createInbox", () => {
         .orThrow(),
     ).toEqual({ id: "e1", duplicate: false });
     await inbox.inbound.setStatus("e1", "failed", "boom").orThrow();
+
     const [stored] = await inbox.inbound
       .pending({ limit: 5, maxAttempts: 3 })
       .orThrow();
+
     expect(stored).toMatchObject({
       adapter: "whatsapp",
       headers: { "content-type": "application/json" },
@@ -263,6 +275,7 @@ describe("createInbox", () => {
     for (const [schema] of call.mock.calls) {
       expect(schema).toBe("app");
     }
+
     expect(call.mock.calls.map(([, fn, args]) => [fn, args])).toMatchSnapshot();
   });
 

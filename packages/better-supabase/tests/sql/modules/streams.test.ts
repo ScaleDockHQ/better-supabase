@@ -23,6 +23,7 @@ describe("streams module", () => {
 
   it("keeps the writes for the service role", () => {
     const sql = body();
+
     for (const signature of [
       '"stream_open"(text, uuid, uuid, text, interval, boolean)',
       '"stream_append"(text, integer, text[])',
@@ -33,6 +34,7 @@ describe("streams module", () => {
         `grant execute on function "better_supabase".${signature} to service_role;`,
       );
     }
+
     expect(sql).toContain(
       'grant execute on function "better_supabase"."stream_read"(text, integer, integer) to authenticated, service_role;',
     );
@@ -61,6 +63,7 @@ describe("streams module", () => {
     const sql = body({
       streams: { idType: "bigint", options: { topic: "ai" } },
     });
+
     expect(sql).toContain("'ai:' || stream_append.stream_id");
     expect(sql).toContain("substr((select realtime.topic()), 4)");
     expect(sql).toContain('"tenant_id" bigint');

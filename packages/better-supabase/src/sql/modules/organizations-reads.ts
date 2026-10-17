@@ -32,8 +32,10 @@ export function organizationAttributes(ctx: ModuleContext): readonly string[] {
         `blocks.organizations.options.attributes: "${column}" is not a valid column`,
       );
     }
+
     return column;
   });
+
   return [
     ...new Set([
       ...listed,
@@ -57,25 +59,34 @@ export function organizationReads(
   n: OrganizationReadNames,
 ): string {
   const name = ctx.col("organizations", "name");
+
   const slug = ctx.has("organizations", "slug")
     ? ctx.col("organizations", "slug")
     : undefined;
+
   const flags = (["deletedAt", "disabledAt"] as const)
     .filter((logical) => ctx.has("organizations", logical))
     .map((logical) => ` and o.${ctx.col("organizations", logical)} is null`)
     .join("");
+
   const invites = ctx.installed("invitations") ? invitationsRead(ctx) : "";
   const disabledAt = membershipDisabledAt(ctx);
+
   const disabledColumn =
     disabledAt === undefined ? "" : ",\n  disabled_at timestamptz";
+
   const disabledValue = disabledAt === undefined ? "" : `, m.${disabledAt}`;
+
   const attributes = organizationAttributes(ctx).filter(
     (column) => !MEMBERSHIP_KEYS.includes(column),
   );
+
   const attributesColumn =
     attributes.length === 0 ? "" : ",\n  attributes jsonb";
+
   const attributesValue =
     attributes.length === 0 ? "" : `, ${columnsObject("o", attributes)}`;
+
   return `
 drop function if exists ${ctx.fn("list_my_organizations")}();
 create or replace function ${ctx.fn("list_my_organizations")}()
@@ -126,13 +137,16 @@ function invitationsRead(ctx: ModuleContext): string {
   const tenant = invitations.col("invitations", "tenant");
   const email = invitations.col("invitations", "email");
   const role = invitations.col("invitations", "role");
+
   const open = ["acceptedAt", "declinedAt", "revokedAt"]
     .filter((logical) => invitations.has("invitations", logical))
     .map((logical) => `i.${invitations.col("invitations", logical)} is null`)
     .join(" and ");
+
   const expires = invitations.has("invitations", "expiresAt")
     ? invitations.col("invitations", "expiresAt")
     : undefined;
+
   return `
 create or replace function ${ctx.fn("list_organization_invitations")}(organization ${ctx.idType})
 returns table (

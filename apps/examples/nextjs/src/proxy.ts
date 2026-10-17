@@ -17,14 +17,17 @@ const PUBLIC = new Set([
   "/forgot-password",
   "/reset-password",
 ]);
+
 /** Pages a signed-in user skips straight to the dashboard from. */
 const GUEST_ONLY = new Set(["/login", "/signup", "/forgot-password"]);
 
 function splitLocale(pathname: string) {
   const [, locale, ...rest] = pathname.split("/");
+
   if (!hasLocale(routing.locales, locale)) {
     return null;
   }
+
   return { locale, path: `/${rest.join("/")}`.replace(/\/$/, "") || "/" };
 }
 
@@ -38,29 +41,39 @@ const protect: NonNullable<ProxyOptions["protect"]> = (auth, request) => {
   if (request.method !== "GET" && request.method !== "HEAD") {
     return;
   }
+
   const { pathname, search } = request.nextUrl;
   const route = pathname.startsWith("/api/") ? null : splitLocale(pathname);
+
   if (!route) {
     return;
   }
+
   const { locale, path } = route;
   const session = toSession(auth);
   const isPublic = PUBLIC.has(path) || path.startsWith("/invite/");
+
   if (session.kind !== "user") {
     if (isPublic) {
       return;
     }
+
     const login = new URL(`/${locale}/login`, request.url);
     login.searchParams.set("next", `${pathname}${search}`);
+
     return NextResponse.redirect(login);
   }
+
   if (GUEST_ONLY.has(path)) {
     return NextResponse.redirect(new URL(`/${locale}`, request.url));
   }
+
   const permission = requiredPermission(path);
+
   if (permission && !can(session, permission)) {
     return NextResponse.redirect(new URL(`/${locale}`, request.url));
   }
+
   return;
 };
 

@@ -282,6 +282,7 @@ export type FunctionTypes = {
   readonly Args: object;
   readonly Returns: unknown;
 };
+
 export type AnyFunctions = { readonly [name: string]: FunctionTypes };
 
 /**
@@ -306,12 +307,16 @@ export interface Schema<
 }
 
 export type ModelsOf<S> = S extends Schema<infer M> ? M : never;
+
 export type DatabaseOf<S> = S extends Schema<AnyModels, infer D> ? D : never;
+
 export type FunctionsOf<S> =
   S extends Schema<AnyModels, unknown, infer F> ? F : never;
+
 /** The schema's subject types (`config.subjects`), `string` without a registry. */
 export type SubjectTypeOf<S> =
   S extends Schema<AnyModels, unknown, AnyFunctions, infer T> ? T : string;
+
 /** One subject: its type and its id as text. */
 export interface SubjectRef<T extends string = string> {
   readonly type: T;
@@ -319,18 +324,25 @@ export interface SubjectRef<T extends string = string> {
 }
 
 export type TableKey<M extends AnyModels> = Extract<keyof M, string>;
+
 export type Row<M extends AnyModels, T extends keyof M> = M[T]["Row"];
+
 export type Insert<M extends AnyModels, T extends keyof M> = M[T]["Insert"];
+
 export type Update<M extends AnyModels, T extends keyof M> = M[T]["Update"];
+
 export type Relations<
   M extends AnyModels,
   T extends keyof M,
 > = M[T]["Relations"];
+
 export type Flags<M extends AnyModels, T extends keyof M> = M[T]["Flags"];
+
 export type PrimaryKeyColumn<M extends AnyModels, T extends keyof M> = Extract<
   M[T]["PrimaryKey"],
   keyof Row<M, T>
 >;
+
 export type UniqueKeyName<M extends AnyModels, T extends keyof M> = Extract<
   keyof M[T]["UniqueKeys"],
   string

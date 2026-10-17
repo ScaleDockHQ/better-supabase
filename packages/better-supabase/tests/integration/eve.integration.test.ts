@@ -23,9 +23,11 @@ const live = await reachable();
 /** Runs every call as the service role, as eve's hooks and providers do. */
 function serviceTransport(s: BlockSession): BlockTransport {
   const inner = sqlTransport(s.sql);
+
   return {
     async call(schema, fn, args) {
       await s.service();
+
       return inner.call(schema, fn, args);
     },
   };
@@ -37,28 +39,35 @@ describe.skipIf(!live)("better-supabase/eve", () => {
 
   it("stores each redelivered eve event once", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "outbox", "ai-chat"]);
       const owner = await s.user("owner");
       const tenant = await s.organization(owner);
       const service = serviceTransport(s);
+
       const hooks = persistSessions({
         chats: createAiChat({ transport: service, service }),
       });
+
       const auth: EveSessionAuth = {
         authenticator: "supabase",
         principalType: "user",
         principalId: owner.id,
         attributes: { tenantId: tenant },
       };
+
       const ctx = {
         session: { id: "sess_live", auth: { current: auth, initiator: auth } },
       };
+
       const turn = { turnId: "t1", sequence: 0 };
+
       const twice = async (deliver: () => Promise<void>) => {
         await deliver();
         await deliver();
       };
+
       await twice(() => hooks["session.started"]({ data: {} }, ctx));
       await twice(() => hooks["turn.started"]({ data: turn }, ctx));
       await twice(() =>
@@ -120,21 +129,26 @@ describe.skipIf(!live)("better-supabase/eve", () => {
 
   it("recalls once per operation and versions file memory", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "memory"]);
       const owner = await s.user("owner");
       const tenant = await s.organization(owner);
+
       const memory = createMemory({
         transport: serviceTransport(s),
         embedder: wordEmbedder(),
       });
+
       const provider = supabaseMemory({ memory, tools: false });
+
       const auth: EveSessionAuth = {
         authenticator: "supabase",
         principalType: "user",
         principalId: owner.id,
         attributes: { tenantId: tenant },
       };
+
       const ctx = (operationId: string) => ({
         session: { id: "sess_mem", auth: { current: auth } },
         memory: { scope: { key: "agent:main" } },
@@ -144,6 +158,7 @@ describe.skipIf(!live)("better-supabase/eve", () => {
           input: [{ role: "user", content: "what tea do I like?" }],
         },
       });
+
       const first = await provider.recall["turn.started"](ctx("op1"));
       const replay = await provider.recall["turn.started"](ctx("op1"));
       expect(replay).toEqual(first);
@@ -155,11 +170,13 @@ describe.skipIf(!live)("better-supabase/eve", () => {
       ).toEqual([{ path: "agent:main/recall/op1" }]);
 
       const backend = supabaseDocumentBackend({ memory });
+
       const written = await backend.write({
         key: "agent:main/notes.md",
         content: "likes green tea",
         expectedVersion: null,
       });
+
       await expect(
         backend.write({
           key: "agent:main/notes.md",
@@ -177,6 +194,7 @@ describe.skipIf(!live)("better-supabase/eve", () => {
 
   it("reads connection tokens from Vault for the app and the user", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["credentials"]);
       await s.service();
@@ -194,13 +212,16 @@ describe.skipIf(!live)("better-supabase/eve", () => {
         secret: `eve-user-${crypto.randomUUID()}`,
         scope: "user",
       };
+
       const user = { type: "user", id: crypto.randomUUID() } as const;
+
       const perUser = credentialAuth({
         provider: vault,
         ref: userRef,
         owner: "user",
         connection: "linear",
       });
+
       expect(perUser).toMatchObject({ credentialOwner: "user" });
       await expect(
         perUser.getToken({ principal: user, connection }),

@@ -30,22 +30,28 @@ export interface BlockNaming {
 export function blockNames(naming: BlockNaming): BlockTransportMiddleware {
   const names = tenantNames(naming.tenant);
   const functions = naming.functions ?? {};
+
   const rename = (fn: string): string => {
     const renamed = names.rename(fn);
+
     return functions[fn] ?? functions[renamed] ?? renamed;
   };
+
   const columns = new Map(
     TENANT_COLUMNS.map((column) => [names.rename(column), column]),
   );
+
   // A row a function returns whole (`to_jsonb(row)`) carries the renamed
   // tenant columns; the clients read them by their default names.
   const restore = (value: unknown): unknown => {
     if (Array.isArray(value)) {
       return value.map(restore);
     }
+
     if (typeof value !== "object" || value === null) {
       return value;
     }
+
     return Object.fromEntries(
       Object.entries(value).map(([key, each]) => [
         columns.get(key) ?? key,
@@ -53,10 +59,12 @@ export function blockNames(naming: BlockNaming): BlockTransportMiddleware {
       ]),
     );
   };
+
   return defineTransportMiddleware({
     name: "block-names",
     call: async (request, next) => {
       const result = await next({ ...request, fn: rename(request.fn) });
+
       return names.renamed ? restore(result) : result;
     },
   });

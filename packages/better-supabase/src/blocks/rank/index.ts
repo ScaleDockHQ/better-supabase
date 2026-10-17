@@ -5,10 +5,12 @@ export {
   rankBetween,
   rankKeys,
 } from "../../core/rank-keys.ts";
+
 export {
   rankBetweenResult,
   type RankNeighbors,
 } from "../../core/rank-result.ts";
+
 export {
   createRank,
   type MoveTarget,
@@ -16,4 +18,5 @@ export {
   type RankOptions,
   type RankRebalancePayload,
 } from "./rank.ts";
+
 export { rankBlock } from "./manifest.ts";

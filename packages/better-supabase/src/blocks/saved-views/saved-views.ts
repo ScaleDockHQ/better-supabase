@@ -36,9 +36,11 @@ export const SAVED_VIEW_KINDS = [
   "timeline",
   "gantt",
 ] as const;
+
 export type SavedViewKind = (typeof SAVED_VIEW_KINDS)[number];
 
 export const SAVED_VIEW_SCOPES = ["user", "team", "tenant"] as const;
+
 export type SavedViewScope = (typeof SAVED_VIEW_SCOPES)[number];
 
 export const SAVED_VIEW_DENSITIES = [
@@ -46,6 +48,7 @@ export const SAVED_VIEW_DENSITIES = [
   "default",
   "comfortable",
 ] as const;
+
 export type SavedViewDensity = (typeof SAVED_VIEW_DENSITIES)[number];
 
 /** Column layout, in the shape of TanStack Table's column state. */
@@ -221,10 +224,13 @@ function columnIssues(value: unknown): ValidationIssue[] {
   if (value === undefined) {
     return [];
   }
+
   if (!isRecord(value)) {
     return [{ message: "columns must be an object", path: ["columns"] }];
   }
+
   const issues: ValidationIssue[] = [];
+
   for (const key of ["visible", "order"] as const) {
     if (value[key] !== undefined && !strings(value[key])) {
       issues.push({
@@ -233,7 +239,9 @@ function columnIssues(value: unknown): ValidationIssue[] {
       });
     }
   }
+
   const sizes = value["sizes"];
+
   if (
     sizes !== undefined &&
     !(isRecord(sizes) && Object.values(sizes).every(Number.isFinite))
@@ -243,7 +251,9 @@ function columnIssues(value: unknown): ValidationIssue[] {
       path: ["columns", "sizes"],
     });
   }
+
   const pinned = value["pinned"];
+
   if (
     pinned !== undefined &&
     !(
@@ -257,6 +267,7 @@ function columnIssues(value: unknown): ValidationIssue[] {
       path: ["columns", "pinned"],
     });
   }
+
   return issues;
 }
 
@@ -271,14 +282,18 @@ export function savedViewIssues(
   if (!isRecord(state)) {
     return [{ message: "state must be an object" }];
   }
+
   const issues = columnIssues(state["columns"]);
+
   if (state["grouping"] !== undefined && !strings(state["grouping"])) {
     issues.push({
       message: "grouping must be a list of column ids",
       path: ["grouping"],
     });
   }
+
   const density = state["density"];
+
   if (
     density !== undefined &&
     !SAVED_VIEW_DENSITIES.some((item) => item === density)
@@ -288,9 +303,11 @@ export function savedViewIssues(
       path: ["density"],
     });
   }
+
   if (state["layout"] !== undefined && !isRecord(state["layout"])) {
     issues.push({ message: "layout must be an object", path: ["layout"] });
   }
+
   if (
     state["collectionId"] !== undefined &&
     typeof state["collectionId"] !== "string"
@@ -300,12 +317,15 @@ export function savedViewIssues(
       path: ["collectionId"],
     });
   }
+
   const query = state["query"];
+
   if (query !== undefined) {
     if (!isRecord(query)) {
       issues.push({ message: "query must be an object", path: ["query"] });
     } else if (list) {
       const parsed = list.parse(query);
+
       for (const issue of parsed.ok ? [] : (parsed.issues ?? [])) {
         issues.push({
           message: issue.message,
@@ -314,6 +334,7 @@ export function savedViewIssues(
       }
     }
   }
+
   return issues;
 }
 
@@ -322,6 +343,7 @@ export function savedViewStateSchema(
   list?: SavedViewList,
 ): Readonly<Record<string, unknown>> {
   const ids = { type: "array", items: { type: "string" } };
+
   return {
     $schema: "https://json-schema.org/draft/2020-12/schema",
     type: "object",
@@ -353,6 +375,7 @@ function storedState(state: SavedViewState): Record<string, unknown> {
   if (!state.query) {
     return { ...state };
   }
+
   return {
     ...state,
     query: Object.fromEntries(
@@ -373,6 +396,7 @@ function oneOfOr<T extends string>(
 
 function preferenceOf(value: unknown): SavedViewPreference {
   const row = isRecord(value) ? value : {};
+
   return {
     isDefault: row["isDefault"] === true,
     hidden: row["hidden"] === true,
@@ -382,6 +406,7 @@ function preferenceOf(value: unknown): SavedViewPreference {
 
 function savedOf(value: unknown): SavedViewRef {
   const row = recordOf(value, "saved view");
+
   return {
     id: textOf(row["id"]),
     rank: textOf(row["rank"]),
@@ -392,6 +417,7 @@ function savedOf(value: unknown): SavedViewRef {
 function viewOf(value: unknown): SavedView {
   const row = recordOf(value, "saved view");
   const state = row["state"];
+
   return {
     id: textOf(row["id"]),
     list: textOf(row["list"]),
@@ -412,14 +438,18 @@ export function createSavedViews<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: SavedViewsOptions<S>): SavedViews<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const fields: BlockFields<F> = blockFields(
     options.fields,
     "saved view fields",
   );
+
   const client: SavedViews<F> = {
     save: (input) => {
       const issues = savedViewIssues(input.state, options.lists?.[input.list]);
+
       if (issues.length > 0) {
         return AsyncResult.err(
           dbError("validation", "the saved view's state is not valid", {
@@ -427,6 +457,7 @@ export function createSavedViews<
           }),
         );
       }
+
       return writeFields(fields, input.fields, (checked) =>
         call(
           "save_view",
@@ -451,9 +482,11 @@ export function createSavedViews<
       ).andThen((views) => readAllFields(fields, views)),
     reorder: (id, neighbors) => {
       const key = rankBetweenResult(neighbors);
+
       if (!key.ok) {
         return AsyncResult.err(key.error);
       }
+
       return call("rank_view", { view_id: id, rank: key.data }, () => key.data);
     },
     setDefault: (id, on = true) =>
@@ -487,6 +520,7 @@ export function createSavedViews<
     delete: (id) =>
       call("delete_view", { view_id: id }, (value) => value === true),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "saved-views",
     ...(options.logger ? { logger: options.logger } : {}),
@@ -512,14 +546,18 @@ export function defaultView<V extends DefaultViewCandidate>(
 ): V | undefined {
   const shown = views.filter((view) => view.preference?.hidden !== true);
   const preferred = shown.find((view) => view.preference?.isDefault === true);
+
   if (preferred) {
     return preferred;
   }
+
   for (const scope of SAVED_VIEW_SCOPES) {
     const match = shown.find((view) => view.isDefault && view.scope === scope);
+
     if (match) {
       return match;
     }
   }
+
   return shown[0];
 }

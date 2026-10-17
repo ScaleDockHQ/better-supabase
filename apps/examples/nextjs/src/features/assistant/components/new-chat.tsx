@@ -9,6 +9,7 @@ import { AssistantChat } from "./assistant-chat";
  */
 export async function NewChat() {
   await connection();
+
   return (
     <AssistantChat
       id={crypto.randomUUID()}

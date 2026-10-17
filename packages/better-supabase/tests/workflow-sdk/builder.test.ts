@@ -9,16 +9,20 @@ import {
 import { fakeRuntime, GRAPH } from "../blocks/workflow-builder/fixture.ts";
 
 const start = vi.fn(async (..._args: unknown[]) => ({ runId: "wrun_new" }));
+
 const listRuns = vi.fn(
   async (_params: unknown): Promise<{ data: { runId: string }[] }> => ({
     data: [],
   }),
 );
+
 const world = { analytics: { runs: { list: listRuns } } };
 let attempt = 1;
 
 vi.mock("workflow/api", () => ({ start }));
+
 vi.mock("workflow/runtime", () => ({ getWorld: async () => world }));
+
 vi.mock("workflow", () => ({
   getWorkflowMetadata: () => ({ workflowRunId: "wrun_7" }),
   getStepMetadata: () => ({ attempt }),
@@ -49,6 +53,7 @@ function load(
       (call: GraphStepCall) => runtime.step(call),
     ]),
   );
+
   // oxlint-disable-next-line eslint/no-new-func, typescript/no-implied-eval -- the test runs the compiled source the way the SDK's VM does.
   const factory = new Function(
     "steps",
@@ -56,15 +61,21 @@ function load(
     "createHook",
     `${source}\nreturn workflow;`,
   );
+
   const sleep = (ms: number) => runtime.sleep(ms);
+
   const createHook = ({ token }: { token: string }) =>
     runtime.approval(token, token.split(":").at(-1) ?? "");
+
   const workflow: unknown = factory(steps, sleep, createHook);
+
   if (typeof workflow !== "function") {
     throw new TypeError("no workflow");
   }
+
   return async (input, meta) => {
     const result: unknown = await workflow(input, meta);
+
     return result as Record<string, unknown>;
   };
 }
@@ -127,17 +138,20 @@ describe("compileGraph", () => {
       "email.send",
       "slack.post",
     ]);
+
     for (const [plan, approval] of [
       ["pro", { approved: true }],
       ["pro", { approved: false }],
       ["free", undefined],
     ] as const) {
       const expected = fakeRuntime(plan, approval);
+
       const results = await executeGraph(
         GRAPH,
         { email: "a@x.test" },
         expected,
       );
+
       const actual = fakeRuntime(plan, approval);
       const run = load(compiled.source, actual, compiled.aliases);
       expect(await run({ email: "a@x.test" }, { runKey: "run-1" })).toEqual(
@@ -145,6 +159,7 @@ describe("compileGraph", () => {
       );
       expect(actual.log).toEqual(expected.log);
     }
+
     const calls: GraphStepCall[] = [];
     const versioned = fakeRuntime("free", undefined);
     await load(
@@ -153,6 +168,7 @@ describe("compileGraph", () => {
         ...versioned,
         step: async (call) => {
           calls.push(call);
+
           return versioned.step(call);
         },
       },
@@ -168,6 +184,7 @@ describe("compileGraph", () => {
     const compiled = compileGraph(GRAPH);
     const runtime = fakeRuntime("pro", { approved: true });
     const requests: unknown[] = [];
+
     const steps = {
       ...Object.fromEntries(
         Object.keys(compiled.aliases).map((alias) => [
@@ -177,9 +194,11 @@ describe("compileGraph", () => {
       ),
       bs_approval: async (call: unknown) => {
         requests.push(call);
+
         return "req-123";
       },
     };
+
     // oxlint-disable-next-line eslint/no-new-func, typescript/no-implied-eval -- the test runs the compiled source the way the SDK's VM does.
     const factory = new Function(
       "steps",
@@ -187,18 +206,23 @@ describe("compileGraph", () => {
       "createHook",
       `${compiled.source}\nreturn workflow;`,
     );
+
     const tokens: string[] = [];
+
     const workflow: unknown = factory(
       steps,
       async () => undefined,
       async ({ token }: { token: string }) => {
         tokens.push(token);
+
         return { approved: true };
       },
     );
+
     if (typeof workflow !== "function") {
       throw new TypeError("no workflow");
     }
+
     await workflow({ email: "a@x.test" }, { runKey: "run-1", versionId: "v1" });
     expect(tokens).toEqual(["req-123"]);
     expect(requests).toMatchObject([
@@ -219,6 +243,7 @@ describe("compileGraph", () => {
       ["equals", "input.tags.0.a", 1],
       ["equals", "input.plan.x.y", null],
     ];
+
     for (const [op, path, value] of cases) {
       const graph = {
         nodes: [
@@ -231,18 +256,23 @@ describe("compileGraph", () => {
           { id: "2", source: "c", target: "s", branch: "true" as const },
         ],
       };
+
       const input = { plan: "free", seats: 5, tags: [{ a: 1 }] };
+
       const expected = await executeGraph(
         graph,
         input,
         fakeRuntime("", undefined),
       );
+
       const compiled = compileGraph(graph);
+
       const actual = await load(
         compiled.source,
         fakeRuntime("", undefined),
         compiled.aliases,
       )(input, { runKey: "k" });
+
       expect([op, path, actual]).toEqual([op, path, expected]);
     }
   });
@@ -250,6 +280,7 @@ describe("compileGraph", () => {
   it("runs a test from stubs, starts at the trigger node, and reads the subject", async () => {
     const compiled = compileGraph(GRAPH);
     const runtime = fakeRuntime("free", undefined);
+
     const results = await load(
       compiled.source,
       runtime,
@@ -262,6 +293,7 @@ describe("compileGraph", () => {
         stubs: { lookup: { plan: "pro" }, ok: { approved: false } },
       },
     );
+
     expect(runtime.log).toEqual([]);
     expect(results).toMatchObject({
       lookup: { plan: "pro" },
@@ -270,6 +302,7 @@ describe("compileGraph", () => {
       ok: { approved: false },
       rejected: { stubbed: true },
     });
+
     const twoTriggers = {
       nodes: [
         { id: "a", kind: "trigger" as const },
@@ -289,6 +322,7 @@ describe("compileGraph", () => {
         { id: "2", source: "b", target: "deal" },
       ],
     };
+
     const multi = compileGraph(twoTriggers);
     const run = load(multi.source, fakeRuntime("", undefined), multi.aliases);
     expect(
@@ -307,6 +341,7 @@ describe("compileGraph", () => {
     expect(() => compileGraph({ nodes: [], edges: [] })).toThrow(
       "at least one trigger",
     );
+
     const huge = {
       nodes: [
         { id: "t", kind: "trigger" as const },
@@ -319,6 +354,7 @@ describe("compileGraph", () => {
       ],
       edges: [{ id: "1", source: "t", target: "s" }],
     };
+
     expect(() => compileGraph(huge)).toThrow("dynamic workflows take at most");
   });
 
@@ -334,10 +370,13 @@ describe("compileGraph", () => {
         }),
       ).toThrow("letters, digits, underscores or hyphens");
     }
+
     const comments = compileGraph(GRAPH)
       .source.split("\n")
       .filter((line) => line.trimStart().startsWith("//"));
+
     expect(comments.length).toBe(GRAPH.nodes.length);
+
     for (const line of comments) {
       expect(line).toMatch(/^ {2}\/\/ [a-z]+ node \d+$/);
     }
@@ -390,9 +429,11 @@ describe("graphStarter", () => {
       },
       experimental_dynamic: { exportName: "workflow" },
     });
+
     const bound = (
       options as { experimental_dynamic: { steps: Record<string, unknown> } }
     ).experimental_dynamic.steps;
+
     expect(Object.values(bound)).toEqual([
       steps["crm.lookup"],
       steps["email.send"],
@@ -405,9 +446,11 @@ describe("graphStarter", () => {
     const approval = { stepId: "approval" };
     await graphStarter({ steps, approval, dynamic: true })(CALL);
     const [, , options] = start.mock.calls[0] ?? [];
+
     const bound = (
       options as { experimental_dynamic: { steps: Record<string, unknown> } }
     ).experimental_dynamic.steps;
+
     expect(bound["bs_approval"]).toBe(approval);
   });
 
@@ -416,6 +459,7 @@ describe("graphStarter", () => {
       ...compileGraph(GRAPH),
       source: "async function workflow() { globalThis.pwned = true; }",
     };
+
     await graphStarter({ steps, dynamic: true })({
       ...CALL,
       version: { ...CALL.version, compiled },
@@ -430,6 +474,7 @@ describe("graphStarter", () => {
     const executor = Object.assign(async () => undefined, {
       workflowId: "executor",
     });
+
     vi.stubEnv(DYNAMIC_WORKFLOWS_ENV, "true");
     await graphStarter({ steps, executor })(CALL);
     expect(typeof start.mock.calls[0]?.[0]).toBe("string");
@@ -475,8 +520,10 @@ describe("graphStarter", () => {
       mode: "test",
       stubs: { lookup: { plan: "pro" } },
     });
+
     const attributes = (options as { attributes: Record<string, string> })
       .attributes;
+
     expect(attributes).toMatchObject({
       "bs.subject": "deal/d9",
       "bs.mode": "test",
@@ -494,8 +541,10 @@ describe("graphStarter", () => {
       },
     });
     const [, , options] = start.mock.calls[0] ?? [];
+
     const attributes = (options as { attributes: Record<string, string> })
       .attributes;
+
     expect(attributes["bs.principal_kind"]).toBe("service_principal");
     expect(attributes).not.toHaveProperty("bs.principal");
   });
@@ -504,6 +553,7 @@ describe("graphStarter", () => {
     const executor = Object.assign(async () => undefined, {
       workflowId: "executor",
     });
+
     const test = { ...CALL, mode: "test" as const };
     await expect(
       graphStarter({ steps, executor, dynamic: false })(test),
@@ -573,11 +623,13 @@ describe("nodeRunReporter", () => {
       { run: "wrun_7", node: "n", status: "running", attempt: 2 },
       { run: "wrun_7", node: "n", status: "failed", attempt: 2, error: "raw" },
     ]);
+
     const lossy = nodeRunReporter({
       record: async () => {
         throw new Error("db down");
       },
     });
+
     expect(await lossy(call, async () => 5)).toBe(5);
   });
 });

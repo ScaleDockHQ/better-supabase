@@ -157,6 +157,7 @@ export function createSigningKeys(options: SigningKeysOptions): SigningKeys {
   const cacheMs = (options.cacheSeconds ?? 300) * 1000;
   const keys = new Map<string, ActiveKey>();
   const noted = new Map<string, number>();
+
   const jwsAlg = (alg: SigningAlgorithm): JwsAlgorithm =>
     alg === "Ed25519" ? ed25519Alg : "ES256";
 
@@ -177,6 +178,7 @@ export function createSigningKeys(options: SigningKeysOptions): SigningKeys {
         (value) => {
           const row = recordOf(value, "add_signing_key");
           keys.delete(`${owner.type}:${owner.id}`);
+
           return {
             kid: generated.kid,
             alg,
@@ -198,7 +200,9 @@ export function createSigningKeys(options: SigningKeysOptions): SigningKeys {
       if (value === null || value === undefined) {
         return null;
       }
+
       const row = recordOf(value, "signing_key");
+
       return {
         kid: textOf(row["kid"]),
         alg: enumOrThrow(row["alg"], ALGORITHMS, "signing key alg"),
@@ -212,23 +216,29 @@ export function createSigningKeys(options: SigningKeysOptions): SigningKeys {
   ): AsyncResult<ActiveKey> => {
     const cacheKey = `${owner.type}:${owner.id}`;
     const cached = keys.get(cacheKey);
+
     if (cached && Date.now() - cached.at < cacheMs) {
       return AsyncResult.ok(cached);
     }
+
     return stored(owner).andThen((found) => {
       if (found) {
         return run(async () => {
           const parsed: unknown = JSON.parse(found.privateKey);
+
           if (!isRecord(parsed) || typeof parsed["kty"] !== "string") {
             throw new TypeError("The stored signing key is not a JWK");
           }
+
           // SAFETY: parsed is an object with a string kty; importSigningKey checks the rest.
           const key = await importSigningKey(parsed as Jwk);
           const entry = { kid: found.kid, alg: found.alg, key, at: Date.now() };
           keys.set(cacheKey, entry);
+
           return entry;
         });
       }
+
       if (create === undefined) {
         return AsyncResult.err(
           dbError("not_found", `${cacheKey} has no signing key`, {
@@ -236,6 +246,7 @@ export function createSigningKeys(options: SigningKeysOptions): SigningKeys {
           }),
         );
       }
+
       return add(owner, create).andThen(() => active(owner, undefined));
     });
   };
@@ -260,6 +271,7 @@ export function createSigningKeys(options: SigningKeysOptions): SigningKeys {
             keys.delete(owner);
           }
         }
+
         return value === true;
       }),
     noteExp,
@@ -271,6 +283,7 @@ export function createSigningKeys(options: SigningKeysOptions): SigningKeys {
       ),
     jwksResponse: async (owner, responseOptions = {}) => {
       const result = await client.jwks(owner, responseOptions);
+
       if (!result.ok) {
         return Response.json(
           { title: "The key set is unavailable", status: 503 },
@@ -280,6 +293,7 @@ export function createSigningKeys(options: SigningKeysOptions): SigningKeys {
           },
         );
       }
+
       return Response.json(result.data, {
         headers: {
           "content-type": "application/jwk-set+json",
@@ -290,6 +304,7 @@ export function createSigningKeys(options: SigningKeysOptions): SigningKeys {
     remove: (owner) =>
       call("delete_signing_keys", ownerArgs(owner), (value) => {
         keys.delete(`${owner.type}:${owner.id}`);
+
         return Number(value);
       }),
     purge: (purgeOptions = {}) =>
@@ -311,11 +326,13 @@ export function createSigningKeys(options: SigningKeysOptions): SigningKeys {
       signJwt: (claims, header = {}) =>
         active(owner, signerOptions.create).andThen((key) => {
           const exp = claims["exp"];
+
           // Noting the exp rounded up to the hour keeps the calls to one per key per hour.
           const until =
             typeof exp === "number" && Number.isFinite(exp)
               ? Math.ceil(exp / HOUR) * HOUR
               : undefined;
+
           const note =
             until !== undefined && until > (noted.get(key.kid) ?? 0)
               ? noteExp(
@@ -323,9 +340,11 @@ export function createSigningKeys(options: SigningKeysOptions): SigningKeys {
                   temporal().Instant.fromEpochMilliseconds(until * 1000),
                 ).map((known) => {
                   noted.set(key.kid, until);
+
                   return known;
                 })
               : AsyncResult.ok(true);
+
           return note.andThen(() =>
             run(() =>
               signCompact(
@@ -339,6 +358,7 @@ export function createSigningKeys(options: SigningKeysOptions): SigningKeys {
         }),
     }),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "signing-keys",
     ...(options.logger ? { logger: options.logger } : {}),

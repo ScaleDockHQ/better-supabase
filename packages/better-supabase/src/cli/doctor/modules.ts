@@ -36,9 +36,11 @@ function claimAt(
   path: string,
 ): string | undefined {
   let value: unknown = claims;
+
   for (const segment of path.split(".")) {
     value = isRecord(value) ? value[segment] : undefined;
   }
+
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
@@ -83,6 +85,7 @@ function declared(context: DoctorContext, check: ContractCheck): boolean {
     `create\\s+(?:or\\s+replace\\s+)?function\\s+${ident(check.schema)}\\.${ident(check.name)}\\s*\\(`,
     "i",
   );
+
   return (context.sqlFiles ?? []).some((file) => pattern.test(file.text));
 }
 
@@ -109,6 +112,7 @@ from (
 /** `rate-limit` in `blocks` without PostgREST's pre-request hook reaching `check_request()`. */
 async function rateLimitHook(context: DoctorContext): Promise<FindingInput[]> {
   const db = context.database;
+
   if (
     !context.config.blockNames.includes("rate-limit") ||
     context.config.blocks["rate-limit"]?.options?.["preRequest"] === false ||
@@ -117,16 +121,21 @@ async function rateLimitHook(context: DoctorContext): Promise<FindingInput[]> {
   ) {
     return [];
   }
+
   let rows: { hook: string | null; calls: boolean }[];
+
   try {
     rows = await db.query(PRE_REQUEST_HOOK);
   } catch {
     return [];
   }
+
   const [row] = rows;
+
   if (!row || row.hook === "better_supabase.check_request" || row.calls) {
     return [];
   }
+
   return [
     {
       message:
@@ -149,15 +158,19 @@ async function danglingAuditRegistrations(
   context: DoctorContext,
 ): Promise<FindingInput[]> {
   const db = context.database;
+
   if (!context.config.blockNames.includes("audit") || !db || "skipped" in db) {
     return [];
   }
+
   let rows: { oid: string }[];
+
   try {
     rows = await db.query(DANGLING_AUDIT);
   } catch {
     return [];
   }
+
   return rows.map((row) => ({
     message: `better_supabase.audited_tables registers the table with oid ${row.oid}, which no longer exists. It was dropped before the audit module's sql_drop event trigger was installed. Run \`better-supabase sql sync\` and apply the migration \`better-supabase sql data\` writes, which deletes such rows, or run \`delete from better_supabase.audited_tables where not exists (select 1 from pg_catalog.pg_class c where c.oid = target::oid)\`.`,
     target: `better_supabase.audited_tables ${row.oid}`,
@@ -169,17 +182,23 @@ async function missingAdoptedColumns(
   context: DoctorContext,
 ): Promise<FindingInput[]> {
   const db = context.database;
+
   if (!db || "skipped" in db) {
     return [];
   }
+
   const tables = adoptedTables(context.config.blocks);
+
   if (tables.length === 0) {
     return [];
   }
+
   const names = tables
     .map((table) => `(${literal(table.schema)}, ${literal(table.table)})`)
     .join(", ");
+
   let rows: { schema: string; name: string; column: string }[];
+
   try {
     rows = await db.query(
       `select table_schema as schema, table_name as name, column_name as column
@@ -189,13 +208,16 @@ async function missingAdoptedColumns(
   } catch {
     return [];
   }
+
   return tables.flatMap((table): FindingInput[] => {
     const target = `${table.schema}.${table.table}`;
+
     const object = {
       kind: "table" as const,
       schema: table.schema,
       name: table.table,
     };
+
     const present = new Set(
       rows
         .filter(
@@ -203,6 +225,7 @@ async function missingAdoptedColumns(
         )
         .map((row) => row.column),
     );
+
     if (present.size === 0) {
       return [
         {
@@ -212,6 +235,7 @@ async function missingAdoptedColumns(
         },
       ];
     }
+
     return Object.entries(table.columns)
       .filter(([, column]) => !present.has(column))
       .map(([logical, column]) => ({
@@ -230,12 +254,16 @@ async function missingEventTriggers(
   context: DoctorContext,
 ): Promise<FindingInput[]> {
   const expected = moduleEventTriggers(context.config.blockNames);
+
   if (expected.length === 0) {
     return [];
   }
+
   const db = context.database;
+
   if (db && !("skipped" in db)) {
     let rows: { name: string }[];
+
     try {
       rows = await db.query(
         "select evtname as name from pg_catalog.pg_event_trigger",
@@ -243,7 +271,9 @@ async function missingEventTriggers(
     } catch {
       return [];
     }
+
     const present = new Set(rows.map((row) => row.name));
+
     return expected
       .filter((trigger) => !present.has(trigger.name))
       .map((trigger) => ({
@@ -251,22 +281,28 @@ async function missingEventTriggers(
         target: trigger.name,
       }));
   }
+
   const toml = context.configToml;
+
   if (toml === undefined) {
     return [];
   }
+
   const migrations = (context.sqlFiles ?? []).filter((file) =>
     file.path.startsWith(`${toml.dir}/migrations/`),
   );
+
   if (migrations.length === 0) {
     return [];
   }
+
   return expected
     .filter((trigger) => {
       const pattern = new RegExp(
         `create\\s+event\\s+trigger\\s+${ident(trigger.name)}\\s`,
         "i",
       );
+
       return !migrations.some((file) => pattern.test(file.text));
     })
     .map((trigger) => ({
@@ -280,11 +316,14 @@ async function missingContracts(
   context: DoctorContext,
 ): Promise<FindingInput[]> {
   const checks = contractChecks(context);
+
   if (checks.length === 0) {
     return [];
   }
+
   const db = context.database;
   const live = db && !("skipped" in db) ? db : undefined;
+
   if (!live) {
     return checks
       .filter((check) => !declared(context, check))
@@ -294,10 +333,13 @@ async function missingContracts(
         object: { kind: "function", schema: check.schema, name: check.name },
       }));
   }
+
   const names = checks
     .map((check) => `(${literal(check.schema)}, ${literal(check.name)})`)
     .join(", ");
+
   let rows: { schema: string; name: string; args: string; returns: string }[];
+
   try {
     rows = await live.query(
       `select n.nspname as schema, p.proname as name,
@@ -315,16 +357,20 @@ async function missingContracts(
       },
     ];
   }
+
   return checks.flatMap((check): FindingInput[] => {
     const found = rows.filter(
       (row) => row.schema === check.schema && row.name === check.name,
     );
+
     const target = `${check.schema}.${check.name}`;
+
     const object = {
       kind: "function" as const,
       schema: check.schema,
       name: check.name,
     };
+
     if (found.length === 0) {
       return [
         {
@@ -334,9 +380,11 @@ async function missingContracts(
         },
       ];
     }
+
     const match = found.find(
       (row) => normalize(row.args) === normalize(check.args),
     );
+
     if (!match) {
       return [
         {
@@ -346,6 +394,7 @@ async function missingContracts(
         },
       ];
     }
+
     if (normalize(match.returns) !== normalize(check.returns)) {
       return [
         {
@@ -355,6 +404,7 @@ async function missingContracts(
         },
       ];
     }
+
     return [];
   });
 }
@@ -366,41 +416,52 @@ async function missingTenantClaim(
   if (!context.config.blockNames.includes("tenant")) {
     return [];
   }
+
   if (
     (context.config.blocks.access?.activeTenant ?? DEFAULT_ACTIVE_TENANT) !==
     "claim"
   ) {
     return [];
   }
+
   const userId = context.hookUser;
   const db = context.database;
+
   if (!userId || !db || "skipped" in db || !db.session) {
     return [];
   }
+
   const claim = context.config.claims.tenant;
   const findings: FindingInput[] = [];
+
   for (const { config, extras } of configuredHooks(context)) {
     if (config.hook !== "custom_access_token" || !extras) {
       continue;
     }
+
     for (const fn of extras.functions) {
       const target = `${signatureOf(fn)}:${claim}`;
       let claims: Readonly<Record<string, unknown>> | undefined;
+
       try {
         claims = await hookClaims(db, fn, userId);
       } catch {
         // BS405 reports a hook call that fails.
         continue;
       }
+
       if (claims === undefined) {
         continue;
       }
+
       const found = tenantClaimPaths(claim).some(
         (path) => claimAt(claims, path) !== undefined,
       );
+
       if (found) {
         continue;
       }
+
       findings.push({
         message: `${signatureOf(fn)} returns no \`${claim}\` claim for ${userId} (top level or app_metadata), and blocks.access.activeTenant is 'claim', so current_tenant_id() is null and the tenant() plugin rejects their requests. Write the claim in the hook, or set blocks.access.activeTenant to 'resolver' (with ServerOptions.tenant) or a profile column.`,
         target,
@@ -408,29 +469,36 @@ async function missingTenantClaim(
       });
     }
   }
+
   return findings;
 }
 
 /** Where a deprecated symbol is used: a call, a qualified name or a claim lookup. */
 function deprecationPattern(entry: ModuleDeprecation): RegExp {
   const [first = "", second] = entry.symbol.split(".");
+
   const qualified =
     second === undefined ? ident(first) : `${ident(first)}\\.${ident(second)}`;
+
   switch (entry.kind) {
     case "function": {
       return new RegExp(`${qualified}\\s*\\(`, "i");
     }
+
     case "table":
     case "column": {
       return new RegExp(`(?<![\\w."])${qualified}(?![\\w"])`, "i");
     }
+
     case "claim": {
       const name = escapeRegExp(entry.symbol);
+
       return new RegExp(
         `->>?\\s*'${name}'|#>>?\\s*'\\{[^}]*\\b${name}\\b[^}]*\\}'`,
         "i",
       );
     }
+
     default: {
       const never: never = entry.kind;
       throw new TypeError(`Unknown deprecation kind ${String(never)}`);
@@ -452,25 +520,32 @@ function lineOfUse(
   policyTable?: string,
 ): number | undefined {
   const direct = lineOf(text, deprecationPattern(entry));
+
   if (direct !== undefined || entry.kind !== "column") {
     return direct;
   }
+
   const [table = "", column = ""] = entry.symbol.split(".");
   let offset = 0;
+
   for (const statement of text.split(";")) {
     const named = policyTable === table || bareWord(table).test(statement);
     const at = statement.search(bareWord(column));
+
     if (named && at !== -1) {
       return text.slice(0, offset + at).split("\n").length;
     }
+
     offset += statement.length + 1;
   }
+
   return undefined;
 }
 
 /** SQL files and policies that still use a symbol a SQL module deprecated or removed. */
 function deprecatedSymbols(context: DoctorContext): FindingInput[] {
   const configured = new Set<string>(Object.values(context.config.claims));
+
   const entries = moduleDeprecations().filter(
     (entry) =>
       context.config.blockNames.includes(entry.module) &&
@@ -481,38 +556,49 @@ function deprecatedSymbols(context: DoctorContext): FindingInput[] {
         (context.config.blocks[entry.module]?.mode ?? "managed") !== "managed"
       ),
   );
+
   if (entries.length === 0) {
     return [];
   }
+
   const files = (context.sqlFiles ?? []).filter(
     (file) =>
       !/(^|\/)supabase\/migrations\//.test(file.path) &&
       moduleFileVersion(file.text) === undefined,
   );
+
   const findings: FindingInput[] = [];
+
   for (const entry of entries) {
     const status =
       entry.removed === undefined
         ? `deprecated since ${entry.since}`
         : `removed in ${entry.removed}`;
+
     const advice = `the ${entry.module} module's ${entry.kind} ${entry.symbol}, ${status}. Use ${entry.use}.`;
+
     for (const file of files) {
       const line = lineOfUse(entry, file.text);
+
       if (line === undefined) {
         continue;
       }
+
       findings.push({
         message: `${file.path} uses ${advice}`,
         target: `${file.path}:${entry.symbol}`,
         location: { file: file.path, line },
       });
     }
+
     for (const table of catalogOf(context).tables) {
       for (const policy of table.policies) {
         const text = `${policy.using ?? ""}\n${policy.check ?? ""}`;
+
         if (lineOfUse(entry, text, table.name) === undefined) {
           continue;
         }
+
         findings.push({
           message: `Policy "${policy.name}" on ${qualified(table)} uses ${advice}`,
           target: `${qualified(table)}.${policy.name}:${entry.symbol}`,
@@ -521,6 +607,7 @@ function deprecatedSymbols(context: DoctorContext): FindingInput[] {
       }
     }
   }
+
   return findings;
 }
 
@@ -541,6 +628,7 @@ function duplicateTriggers(context: DoctorContext): FindingInput[] {
       if (!table.triggers.some((entry) => entry.name === trigger)) {
         return [];
       }
+
       return table.triggers
         .filter(
           (entry) =>
@@ -572,14 +660,17 @@ function moduleOwned(context: DoctorContext): {
 } {
   const schemas = new Set<string>(["better_supabase"]);
   const tables = new Set<string>();
+
   for (const module of Object.values(context.config.blocks)) {
     if (module?.schema !== undefined) {
       schemas.add(module.schema);
     }
+
     for (const table of Object.values(module?.tables ?? {})) {
       if (table === null) {
         continue;
       }
+
       tables.add(
         table.includes(".")
           ? table
@@ -587,6 +678,7 @@ function moduleOwned(context: DoctorContext): {
       );
     }
   }
+
   return { schemas, tables };
 }
 
@@ -595,8 +687,10 @@ function unauditedTables(context: DoctorContext): FindingInput[] {
   if (!context.config.blockNames.includes("audit")) {
     return [];
   }
+
   const exempt = globs(context.config.blocks["audit"]?.options?.["exempt"]);
   const owned = moduleOwned(context);
+
   return catalogOf(context)
     .tables.filter(
       (table) =>
@@ -623,10 +717,13 @@ function sessionlessTables(context: DoctorContext): FindingInput[] {
   if (!context.config.blockNames.includes("sessions")) {
     return [];
   }
+
   const exclude = globs(
     context.config.blocks["sessions"]?.options?.["exclude"],
   );
+
   const owned = moduleOwned(context);
+
   return catalogOf(context)
     .tables.filter(
       (table) =>
@@ -656,12 +753,15 @@ function exposedModuleSchemas(context: DoctorContext): FindingInput[] {
   if (context.config.blockNames.length === 0) {
     return [];
   }
+
   const moduleSchemas = new Set<string>(["better_supabase"]);
+
   for (const module of Object.values(context.config.blocks)) {
     if (module?.schema !== undefined) {
       moduleSchemas.add(module.schema);
     }
   }
+
   return exposedSchemas(context)
     .filter((schema) => moduleSchemas.has(schema))
     .map((schema) => ({
@@ -672,6 +772,7 @@ function exposedModuleSchemas(context: DoctorContext): FindingInput[] {
 
 function migrationOptions(context: DoctorContext): FindingInput[] {
   const module = new Set(context.config.blockNames);
+
   return migrationOptionUses(context.config.blocks)
     .filter((use) => module.has(use.module))
     .map((use) => ({
@@ -685,11 +786,15 @@ function sharedRoleTables(context: DoctorContext): FindingInput[] {
   if (context.config.blockNames.length === 0) {
     return [];
   }
+
   const access = accessModule(context);
+
   if (access.kind !== "provider") {
     return [];
   }
+
   let problems: ReturnType<typeof sharedRolesProblems>;
+
   try {
     problems = sharedRolesProblems(
       context.config.blockNames,
@@ -705,6 +810,7 @@ function sharedRoleTables(context: DoctorContext): FindingInput[] {
   } catch {
     return [];
   }
+
   return problems.map(({ setting, message }) => ({
     message: `${message} Without it, ${setting.startsWith("blocks.tenant.") ? "an organization invitation, accept or role change can resolve a platform role" : "a platform invitation can resolve a tenant role"}.`,
     target: setting,
@@ -878,17 +984,21 @@ function unpartitionedAuditLog(context: DoctorContext): FindingInput[] {
   if (!context.config.blockNames.includes("audit")) {
     return [];
   }
+
   if (context.config.blocks["audit"]?.options?.["partitioned"] !== true) {
     return [];
   }
+
   const table = catalogOf(context).tables.find(
     (candidate) =>
       candidate.schema === "better_supabase" &&
       candidate.name === "audit_events",
   );
+
   if (table?.primaryKey.length !== 1) {
     return [];
   }
+
   return [
     {
       message:
@@ -900,19 +1010,24 @@ function unpartitionedAuditLog(context: DoctorContext): FindingInput[] {
 
 function subjectTables(context: DoctorContext) {
   const catalog = catalogOf(context);
+
   return Object.entries(context.config.subjects).flatMap(([type, entry]) => {
     const [schema, name] = entry.table.includes(".")
       ? entry.table.split(".", 2)
       : ["public", entry.table];
+
     if (schema === undefined || name === undefined) {
       return [];
     }
+
     if (!context.snapshot.schemas.includes(schema)) {
       return [];
     }
+
     const table = catalog.tables.find(
       (candidate) => candidate.schema === schema && candidate.name === name,
     );
+
     return [{ type, entry, schema, name, table }];
   });
 }
@@ -921,6 +1036,7 @@ function missingSubjectColumns(context: DoctorContext): FindingInput[] {
   return subjectTables(context).flatMap(
     ({ type, entry, schema, name, table }): FindingInput[] => {
       const target = `${schema}.${name}`;
+
       if (!table) {
         return [
           {
@@ -929,7 +1045,9 @@ function missingSubjectColumns(context: DoctorContext): FindingInput[] {
           },
         ];
       }
+
       const present = new Set(table.columns.map((column) => column.name));
+
       return subjectColumns(entry)
         .filter(([, column]) => !present.has(column))
         .map(([path, column]) => ({
@@ -959,22 +1077,29 @@ function auditUserSession(context: DoctorContext): FindingInput[] {
   if (!context.config.blockNames.includes("audit")) {
     return [];
   }
+
   const options = context.config.blocks["audit"]?.options ?? {};
+
   const roles = Array.isArray(options["eventRoles"])
     ? options["eventRoles"].filter(
         (role): role is string => typeof role === "string",
       )
     : ["service_role"];
+
   const readPolicy = options["readPolicy"] === true;
+
   if (readPolicy && roles.includes("authenticated")) {
     return [];
   }
+
   const calls = context.sources.some((file) =>
     /\baudit\.(list|listAll)\s*\(/.test(file.text),
   );
+
   if (!calls) {
     return [];
   }
+
   return [
     {
       message:
@@ -988,17 +1113,21 @@ function missingSecretKey(context: DoctorContext): FindingInput[] {
   const usesAdmin = context.sources.some((file) =>
     /\bdeleteAccount\b|\.admin\s*\(|supabaseAdmin\b/.test(file.text),
   );
+
   if (!usesAdmin) {
     return [];
   }
+
   const hasKey = context.envFiles.some((file) =>
     /^\s*(?:SUPABASE_SECRET_KEY|SUPABASE_SERVICE_ROLE_KEY)\s*=/m.test(
       file.text,
     ),
   );
+
   if (hasKey) {
     return [];
   }
+
   return [
     {
       message:
@@ -1010,30 +1139,37 @@ function missingSecretKey(context: DoctorContext): FindingInput[] {
 
 function aal2WithoutMfa(context: DoctorContext): FindingInput[] {
   const toml = context.configToml;
+
   if (!toml) {
     return [];
   }
+
   const requiresAal2 = context.sources.some((file) =>
     /requireAal\s*\(\s*['"]aal2['"]/.test(file.text),
   );
+
   if (!requiresAal2) {
     return [];
   }
+
   const enroll = tomlGet(toml.document, [
     "auth",
     "mfa",
     "totp",
     "enroll_enabled",
   ]);
+
   const verify = tomlGet(toml.document, [
     "auth",
     "mfa",
     "totp",
     "verify_enabled",
   ]);
+
   if (enroll === true && verify === true) {
     return [];
   }
+
   return [
     {
       message:

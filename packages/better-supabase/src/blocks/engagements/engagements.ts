@@ -138,6 +138,7 @@ export interface EngagementsOptions<
 
 function engagementOf(value: unknown): Engagement {
   const row = recordOf(value, "engagement");
+
   const optional = {
     body: optionalText(row["body"]),
     outcome: optionalText(row["outcome"]),
@@ -151,6 +152,7 @@ function engagementOf(value: unknown): Engagement {
     externalRef: optionalText(row["external_ref"]),
     createdBy: optionalText(row["created_by"]),
   };
+
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["tenant_id"]),
@@ -174,6 +176,7 @@ function engagementOf(value: unknown): Engagement {
 /** The attrs of a write: the keys the input sets, instants as ISO text. */
 function attrsOf(input: EngagementInput): Record<string, unknown> {
   const { dueAt, doneAt, ...rest } = input;
+
   return {
     ...rest,
     ...(dueAt === undefined ? {} : { dueAt: instantArg(dueAt) ?? null }),
@@ -195,44 +198,56 @@ export function createEngagements<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: EngagementsOptions<S>): Engagements<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const fields: BlockFields<F> = blockFields(
     options.fields,
     "engagement fields",
   );
+
   const parsed = (engagement: Engagement): AsyncResult<Engagement<F>> =>
     AsyncResult.from(() => fields.read(engagement.fields)).map((value) => ({
       ...engagement,
       fields: value,
     }));
+
   const parsedAll = (
     engagements: readonly Engagement[],
   ): AsyncResult<Engagement<F>[]> =>
     AsyncResult.from(async () => {
       const out: Engagement<F>[] = [];
+
       for (const engagement of engagements) {
         const read = await parsed(engagement);
+
         if (!read.ok) {
           return read;
         }
+
         out.push(read.data);
       }
+
       return ok(out);
     });
+
   /** The attrs of a write, with the extra fields checked first. */
   const checked = (
     input: EngagementInput<F>,
   ): AsyncResult<Record<string, unknown>> => {
     const { fields: extra, ...rest } = input;
+
     if (extra === undefined) {
       return AsyncResult.ok(attrsOf(rest));
     }
+
     return AsyncResult.from(() => fields.write({ ...extra })).map((valid) => ({
       ...attrsOf(rest),
       fields: valid,
     }));
   };
+
   const client: Engagements<F> = {
     log: (organizationId, input, subjects) =>
       checked(input)
@@ -306,6 +321,7 @@ export function createEngagements<
         (value) => recordsOf(value, "open_engagements").map(engagementOf),
       ).andThen(parsedAll),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "engagements",
     ...(options.logger ? { logger: options.logger } : {}),

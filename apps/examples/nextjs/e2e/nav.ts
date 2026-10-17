@@ -68,6 +68,7 @@ export async function signIn(
     .getByRole("button", { name: locale === "en" ? "Sign in" : "Inloggen" })
     .click();
   await page.waitForURL((url) => url.pathname === landing);
+
   if (landing === `/${locale}`) {
     await expect(heading(page, "Dashboard")).toBeVisible();
   }

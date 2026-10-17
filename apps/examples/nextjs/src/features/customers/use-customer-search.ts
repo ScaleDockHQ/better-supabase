@@ -18,6 +18,7 @@ export function useCustomerSearch(needle: string) {
   const queries = useQueries();
   const storage = logos.connect(useSupabase());
   const search = useDeferredValue(needle);
+
   return useQuery({
     ...queries.customers.findMany(
       search === ""

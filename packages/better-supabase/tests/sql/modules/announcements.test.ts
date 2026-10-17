@@ -37,6 +37,7 @@ describe("announcements module", () => {
     const sql = sqlOf(["announcements"], {
       announcements: { options: { topic: "app:news", event: "news" } },
     });
+
     expect(sql).toContain("'news',\n      'app:news',");
     expect(() =>
       sqlOf(["announcements"], {

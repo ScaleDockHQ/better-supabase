@@ -13,10 +13,13 @@ function connect(answer: (url: URL) => Json) {
   const fetch = vi.fn<typeof globalThis.fetch>((input) =>
     Promise.resolve(Response.json(answer(new URL(String(input))))),
   );
+
   const db = betterSupabase.connect(
     createClient(PROJECT_URL, "sb_publishable_test", { global: { fetch } }),
   );
+
   const urls = () => fetch.mock.calls.map(([input]) => new URL(String(input)));
+
   return { db, urls };
 }
 

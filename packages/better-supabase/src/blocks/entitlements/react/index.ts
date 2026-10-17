@@ -36,6 +36,7 @@ export function useFeatureGate(
   const { auth } = useBlockEnv();
   const { organizationId, claim, tenantClaim } = options;
   const claimKey = typeof claim === "object" ? JSON.stringify(claim) : claim;
+
   return useController(
     () =>
       createFeatureGateController({

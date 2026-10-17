@@ -51,6 +51,7 @@ describe("config discovery", () => {
 
   it("does not look past the .git boundary", async () => {
     const outer = await mkdtemp(join(tmpdir(), "better-supabase-outer-"));
+
     try {
       await write(outer, "better-supabase.config.json", { casing: "camel" });
       const inner = join(outer, "checkout/app");
@@ -163,6 +164,7 @@ describe("config environments", () => {
     const result = await run(["config", "--env", "ci", "--cwd", dir], {
       env: {},
     });
+
     expect(result.code).toBe(0);
     expect(result.stdout).toMatch(
       /^# better-supabase\.config\.json \(environment: ci\)/,

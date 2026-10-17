@@ -44,10 +44,12 @@ describe("extraColumns on managed tables", () => {
     (module, table, read) => {
       const name = SQL_MODULES[module]?.names?.tables[table]?.name;
       expect(name).toBeDefined();
+
       const sql = sqlOf(module, {
         app_note: "text",
         app_rank: "integer not null default 0",
       });
+
       expect(sql).toMatch(
         new RegExp(
           `alter table [^\\n]*"?${name}"? add column if not exists "app_note" text;`,

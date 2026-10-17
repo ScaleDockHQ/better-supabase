@@ -10,6 +10,7 @@ import type {
 import { decodePointerToken, parseNormalizedPath } from "./path.ts";
 
 type JsonObject = Record<string, unknown>;
+
 type Minor = 0 | 1 | 2;
 
 const ALLOW_EMPTY = "x-better-supabase-allow-empty";
@@ -21,6 +22,7 @@ export const isObject = (value: unknown): value is JsonObject =>
 const isArray = (value: unknown): value is unknown[] => Array.isArray(value);
 
 type Kind = "object" | "array" | "primitive";
+
 const kindOf = (value: unknown): Kind =>
   Array.isArray(value) ? "array" : isObject(value) ? "object" : "primitive";
 
@@ -28,11 +30,15 @@ function readMinor(version: unknown): Minor | undefined {
   if (typeof version !== "string") {
     return undefined;
   }
+
   const match = /^1\.([012])\.\d+$/.exec(version);
+
   if (!match) {
     return undefined;
   }
+
   const minor = Number(match[1]);
+
   return minor === 0 || minor === 1 || minor === 2 ? minor : undefined;
 }
 
@@ -75,6 +81,7 @@ export function resolveReference(
   reporter: Reporter,
 ): JsonObject | undefined {
   const { $ref: ref, ...own } = entry;
+
   if (typeof ref !== "string" || !ref.startsWith(REF_PREFIX)) {
     report(
       reporter,
@@ -83,16 +90,22 @@ export function resolveReference(
       `The reusable action reference ${String(ref)} does not point under ${REF_PREFIX}`,
       pointer,
     );
+
     return undefined;
   }
+
   const name = decodePointerToken(ref.slice(REF_PREFIX.length));
+
   const components: unknown =
     "components" in overlay ? overlay.components : undefined;
+
   const reusables = isObject(components) ? components["actions"] : undefined;
+
   const reusable =
     isObject(reusables) && Object.hasOwn(reusables, name)
       ? reusables[name]
       : undefined;
+
   if (!isObject(reusable)) {
     report(
       reporter,
@@ -101,11 +114,14 @@ export function resolveReference(
       `The reusable action ${ref} does not exist in components.actions`,
       pointer,
     );
+
     return undefined;
   }
+
   const fields: JsonObject = isObject(reusable["fields"])
     ? { ...reusable["fields"] }
     : {};
+
   if ("target" in fields) {
     report(
       reporter,
@@ -116,6 +132,7 @@ export function resolveReference(
     );
     delete fields["target"];
   }
+
   return { ...fields, ...own };
 }
 
@@ -126,6 +143,7 @@ function resolve(
   let parent: unknown = undefined;
   let key: PathSegment | undefined = undefined;
   let value = document;
+
   for (const segment of segments) {
     parent = value;
     key = segment;
@@ -138,6 +156,7 @@ function resolve(
           ? value[segment]
           : undefined;
   }
+
   return { parent, key, value };
 }
 
@@ -159,11 +178,14 @@ function mergeInto(
       target[key] = value;
       continue;
     }
+
     const current = target[key];
+
     if (kindOf(current) !== kindOf(value)) {
       conflicts.push(`${at}${escapeToken(key)}`);
       continue;
     }
+
     if (isObject(current) && isObject(value)) {
       mergeInto(current, value, `${at}${escapeToken(key)}`, conflicts);
     } else if (isArray(current) && isArray(value)) {
@@ -198,6 +220,7 @@ function select(
       `The ${field} ${JSON.stringify(expression)} is not a valid RFC 9535 query: ${error instanceof Error ? error.message : String(error)}`,
       pointer,
     );
+
     return undefined;
   }
 }
@@ -209,8 +232,10 @@ function removeNodes(
   pointer: string,
 ): void {
   const fromArrays = new Map<unknown[], number[]>();
+
   for (const segments of targets) {
     const { parent, key } = resolve(state.document, segments);
+
     if (key === undefined) {
       report(
         reporter,
@@ -221,6 +246,7 @@ function removeNodes(
       );
       continue;
     }
+
     if (Array.isArray(parent) && typeof key === "number") {
       const indexes = fromArrays.get(parent) ?? [];
       indexes.push(key);
@@ -229,6 +255,7 @@ function removeNodes(
       delete parent[key];
     }
   }
+
   for (const [array, indexes] of fromArrays) {
     for (const index of [...new Set(indexes)].toSorted((a, b) => b - a)) {
       array.splice(index, 1);
@@ -247,7 +274,9 @@ function updateNodes(
     segments,
     ...resolve(state.document, segments),
   }));
+
   const kinds = new Set(nodes.map((node) => kindOf(node.value)));
+
   if (kinds.size > 1) {
     report(
       reporter,
@@ -256,20 +285,26 @@ function updateNodes(
       `The target selects ${[...kinds].join(" and ")} nodes; an update needs nodes of one kind`,
       pointer,
     );
+
     return;
   }
+
   const valueKind = kindOf(value);
+
   for (const node of nodes) {
     const copy = structuredClone(value);
     const at = toPointer(node.segments) || "the root";
+
     if (isArray(node.value)) {
       if (isArray(copy)) {
         node.value.push(...copy);
       } else {
         node.value.push(copy);
       }
+
       continue;
     }
+
     if (isObject(node.value)) {
       if (!isObject(copy)) {
         report(
@@ -281,8 +316,10 @@ function updateNodes(
         );
         continue;
       }
+
       const conflicts: string[] = [];
       mergeInto(node.value, copy, toPointer(node.segments), conflicts);
+
       for (const conflict of conflicts) {
         report(
           reporter,
@@ -292,8 +329,10 @@ function updateNodes(
           pointer,
         );
       }
+
       continue;
     }
+
     if (valueKind !== "primitive") {
       report(
         reporter,
@@ -304,6 +343,7 @@ function updateNodes(
       );
       continue;
     }
+
     if (node.key === undefined) {
       state.document = copy;
     } else if (Array.isArray(node.parent) && typeof node.key === "number") {
@@ -326,6 +366,7 @@ function runAction(
     action.remove !== true &&
     action.update === undefined &&
     action.copy !== undefined;
+
   if (usesCopy && minor === 0) {
     report(
       reporter,
@@ -334,8 +375,10 @@ function runAction(
       "copy needs Overlay 1.1 or later; the action is skipped",
       pointer,
     );
+
     return;
   }
+
   const targets = select(
     state,
     action.target,
@@ -344,9 +387,11 @@ function runAction(
     pointer,
     "target",
   );
+
   if (!targets) {
     return;
   }
+
   if (targets.length === 0) {
     if (action[ALLOW_EMPTY] !== true && options.allowEmpty !== true) {
       report(
@@ -357,16 +402,22 @@ function runAction(
         pointer,
       );
     }
+
     return;
   }
+
   if (action.remove === true) {
     removeNodes(state, targets, reporter, pointer);
+
     return;
   }
+
   if (action.update !== undefined) {
     updateNodes(state, targets, action.update, reporter, pointer);
+
     return;
   }
+
   if (typeof action.copy === "string") {
     const sources = select(
       state,
@@ -376,10 +427,13 @@ function runAction(
       pointer,
       "copy source",
     );
+
     if (!sources) {
       return;
     }
+
     const [source] = sources;
+
     if (sources.length !== 1 || !source) {
       report(
         reporter,
@@ -388,8 +442,10 @@ function runAction(
         `The copy source ${action.copy} selects ${sources.length} nodes; it must select exactly one`,
         pointer,
       );
+
       return;
     }
+
     updateNodes(
       state,
       targets,
@@ -397,8 +453,10 @@ function runAction(
       reporter,
       pointer,
     );
+
     return;
   }
+
   report(
     reporter,
     "warning",
@@ -416,6 +474,7 @@ function applyInPlace(
   reporter: Reporter,
 ): void {
   const minor = readMinor(overlay.overlay);
+
   if (minor === undefined) {
     report(
       reporter,
@@ -424,8 +483,10 @@ function applyInPlace(
       `Overlay version ${overlay.overlay} is not supported; use 1.0.x, 1.1.x or 1.2.x`,
       "/overlay",
     );
+
     return;
   }
+
   if (!Array.isArray(overlay.actions)) {
     report(
       reporter,
@@ -434,11 +495,15 @@ function applyInPlace(
       "The overlay has no actions array",
       "/actions",
     );
+
     return;
   }
+
   const actions: readonly unknown[] = overlay.actions;
+
   for (const [index, entry] of actions.entries()) {
     const pointer = `/actions/${index}`;
+
     if (!isObject(entry)) {
       report(
         reporter,
@@ -449,6 +514,7 @@ function applyInPlace(
       );
       continue;
     }
+
     if ("$ref" in entry && minor < 2) {
       report(
         reporter,
@@ -458,13 +524,16 @@ function applyInPlace(
         pointer,
       );
     }
+
     const action =
       "$ref" in entry
         ? resolveReference(overlay, entry, pointer, reporter)
         : entry;
+
     if (!action) {
       continue;
     }
+
     if (!isAction(action)) {
       report(
         reporter,
@@ -475,6 +544,7 @@ function applyInPlace(
       );
       continue;
     }
+
     runAction(state, action, minor, options, reporter, pointer);
   }
 }
@@ -536,12 +606,14 @@ function run<T>(
 ): OverlayResult<T> {
   const state: State = { document: structuredClone(document) };
   const diagnostics: SpecDiagnostic[] = [];
+
   for (const [index, overlay] of overlays.entries()) {
     applyInPlace(state, overlay, options, {
       prefix: prefix(index),
       diagnostics,
     });
   }
+
   // SAFETY: the clone starts as a T; overlays that change its shape are the caller's to narrow (see applyOverlay).
   return { document: state.document as T, diagnostics };
 }

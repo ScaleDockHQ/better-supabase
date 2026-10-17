@@ -48,7 +48,9 @@ export function stampAfter(migrations: readonly string[], now: Date): string {
       ),
     )
     .reduce((max, time) => Math.max(max, time), Number.NEGATIVE_INFINITY);
+
   const at = Math.floor(now.getTime() / 1000) * 1000;
+
   return migrationStamp(new Date(Math.max(at, newest + 1000)));
 }
 
@@ -66,19 +68,25 @@ async function unmigratedExtensions(
   missing: ModuleExtension[];
 }> {
   const dir = migrationsDir(config);
+
   const existing: string[] = await readdir(resolve(config.root, dir)).catch(
     () => [],
   );
+
   const created = new Set<string>();
+
   for (const name of existing) {
     if (!name.endsWith(".sql") || name.endsWith(DATA_SUFFIX)) {
       continue;
     }
+
     const text = await readFile(resolve(config.root, dir, name), "utf-8");
+
     for (const match of text.matchAll(MIGRATION_EXTENSION)) {
       created.add(match[1]!.toLowerCase());
     }
   }
+
   return {
     dir,
     existing,
@@ -95,17 +103,22 @@ export async function writeExtensionsMigration(
   now: Now,
 ): Promise<string[]> {
   const { dir, existing, missing } = await unmigratedExtensions(config, files);
+
   if (missing.length === 0) {
     return [];
   }
+
   const path = `${dir}/${stampAfter(existing, new Date(now().getTime() - 1000))}${EXTENSIONS_SUFFIX}`;
+
   if (dryRun) {
     return [`Would write ${path}`];
   }
+
   await writeIfChanged(
     resolve(config.root, path),
     `-- better-supabase sql: the extensions of ${missing.map((extension) => extension.name).join(", ")}, created before the schema migration that needs them.\n\n${missing.map((extension) => extension.statement).join("\n")}\n`,
   );
+
   return [
     `Wrote ${path}`,
     "It creates the extensions the module schemas need, so create the schema migration after it.",
@@ -114,6 +127,7 @@ export async function writeExtensionsMigration(
 
 export const DATA_NEXT =
   "The better-supabase-data files hold rows and settings a schema diff skips: after the schema migration, run `better-supabase sql data`.";
+
 const DATA_SUFFIX = "_better_supabase_module_data.sql";
 
 /**
@@ -129,6 +143,7 @@ export async function dataMigration(
   if (config.blockNames.length === 0) {
     return { code: 0, output: "blocks is empty; nothing to write." };
   }
+
   if (
     sqlWorkflow(config, await readSupabaseToml(config.root)) === "migrations"
   ) {
@@ -138,11 +153,14 @@ export async function dataMigration(
         "sql.workflow is 'migrations', so `better-supabase sql sync` already writes the rows into the module migration; nothing to write.",
     };
   }
+
   const rendered = renderModules(
     config.blockNames,
     await layoutFor(config, args, config.blockNames),
   );
+
   const { missing } = await unmigratedExtensions(config, rendered);
+
   if (missing.length > 0) {
     return {
       code: 1,
@@ -152,15 +170,19 @@ export async function dataMigration(
       ].join("\n"),
     };
   }
+
   const files = rendered.filter((file) => file.kind === "data");
   const contents = `-- better-supabase sql data: the rows and settings of ${files.map((file) => file.module).join(", ")}, which a schema diff skips.\n\n${files.map((file) => file.contents.trim()).join("\n\n")}\n`;
   const dir = migrationsDir(config);
+
   const existing: string[] = await readdir(resolve(config.root, dir)).catch(
     () => [],
   );
+
   const latest = existing
     .toSorted()
     .findLast((name) => name.endsWith(DATA_SUFFIX));
+
   if (
     latest !== undefined &&
     (await readFile(resolve(config.root, dir, latest), "utf-8")) === contents
@@ -170,10 +192,14 @@ export async function dataMigration(
       output: `${dir}/${latest} already has these rows; nothing to write.`,
     };
   }
+
   const path = `${dir}/${stampAfter(existing, now())}${DATA_SUFFIX}`;
+
   if (args["dry-run"] === true) {
     return { code: 0, output: `Would write ${path}` };
   }
+
   await writeIfChanged(resolve(config.root, path), contents);
+
   return { code: 0, output: `Wrote ${path}` };
 }

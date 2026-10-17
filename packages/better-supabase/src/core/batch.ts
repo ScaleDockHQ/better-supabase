@@ -19,22 +19,29 @@ function allAborted(
   signals: readonly (AbortSignal | undefined)[],
 ): AbortSignal | undefined {
   const present = signals.filter((signal) => signal !== undefined);
+
   if (present.length < signals.length) {
     return undefined;
   }
+
   if (present.length === 1) {
     return present[0];
   }
+
   const controller = new AbortController();
+
   const check = (): void => {
     if (present.every((signal) => signal.aborted)) {
       controller.abort();
     }
   };
+
   for (const signal of present) {
     signal.addEventListener("abort", check, { once: true });
   }
+
   check();
+
   return controller.signal;
 }
 
@@ -60,10 +67,12 @@ export function batchingExecutor(
     if (queue.length === 0 || queue.length < running) {
       return;
     }
+
     const items = queue.splice(0);
     const { signal: _first, ...shared } = items[0]!.context;
     const signal = allAborted(items.map((item) => item.context.signal));
     const context: ExecuteContext = signal ? { ...shared, signal } : shared;
+
     for (const item of items) {
       item.context.signal?.addEventListener(
         "abort",
@@ -73,6 +82,7 @@ export function batchingExecutor(
         { once: true },
       );
     }
+
     base
       .batch(
         items.map((item) => item.op),
@@ -110,6 +120,7 @@ export function batchingExecutor(
       }),
     ...(base.rpc ? { rpc: base.rpc.bind(base) } : {}),
   };
+
   return {
     executor,
     done: () => {

@@ -71,6 +71,7 @@ export interface AiFilesOptions<
 }
 
 export type AiFileStatus = "pending" | "ready" | "failed";
+
 export type AiFileSource = "upload" | "generated" | "provider";
 
 export interface AiFile {

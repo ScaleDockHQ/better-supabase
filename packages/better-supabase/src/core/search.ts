@@ -49,8 +49,10 @@ export function vectorLiteral(
   if (typeof vector === "string") {
     return /^\[[^\]]+\]$/.test(vector.trim()) ? vector.trim() : undefined;
   }
+
   if (vector.length === 0 || !vector.every(Number.isFinite)) {
     return undefined;
   }
+
   return `[${vector.join(",")}]`;
 }

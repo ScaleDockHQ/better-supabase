@@ -60,6 +60,7 @@ describe("createModuleContext", () => {
         },
       },
     });
+
     expect(ctx.manages).toBe(false);
     expect(ctx.table("items")).toBe('"public"."things"');
     expect(ctx.col("items", "tenant")).toBe('"organization_id"');
@@ -89,6 +90,7 @@ describe("createModuleContext", () => {
   it("rejects unknown tables and columns, required nulls and bad names", () => {
     const build = (demo: object) => () =>
       createModuleContext("demo", () => names, { modules: { demo } });
+
     expect(build({ tables: { nope: "x" } })).toThrow(/unknown table "nope"/);
     expect(build({ columns: { nope: {} } })).toThrow(/unknown table "nope"/);
     expect(build({ columns: { items: { nope: "x" } } })).toThrow(
@@ -195,6 +197,7 @@ describe("hooks and events", () => {
         },
       },
     });
+
     expect(ctx.hook("after_item_create", [["uuid", "id"]])).toContain(
       `v_hook regprocedure := to_regprocedure('"private"."seed_item"(uuid)');`,
     );
@@ -231,11 +234,14 @@ describe("hooks and events", () => {
       subject: "'items/' || new_id",
       tenant: "organization",
     };
+
     expect(createModuleContext("demo", () => names).emit(event)).toBe("");
+
     const ctx = createModuleContext("demo", () => names, {
       installed: ["demo", "outbox"],
       modules: { outbox: { schema: "events" } },
     });
+
     expect(ctx.emit(event)).toBe(
       `perform "events".emit_event('item.created', jsonb_build_object('id', new_id), 'items/' || new_id, (organization)::text, null, 'better-supabase/demo');`,
     );
@@ -248,10 +254,12 @@ describe("hooks and events", () => {
         modules: { demo: { events: false } },
       }).emit(event),
     ).toBe("");
+
     const sourced = createModuleContext("demo", () => names, {
       installed: ["demo", "outbox"],
       modules: { outbox: { options: { blockSource: "app/{module}" } } },
     });
+
     expect(sourced.emit({ type: "x", payload: "'{}'" })).toContain(
       "'app/demo');",
     );
@@ -315,6 +323,7 @@ describe("module modes", () => {
     const tenant = renderModules(["tenant"]).filter(
       (module) => module.module === "tenant",
     );
+
     const file = tenant.find((module) => module.kind === "schema");
     expect(file!.contents).toContain("-- @bs-module tenant@2 managed\n");
     expect(moduleFileVersion(file!.contents)).toEqual({
@@ -335,10 +344,12 @@ describe("module modes", () => {
     expect(data!.contents).toContain("values ('tenant', 2, 'managed')");
     expect(isModuleDataFile(data!.contents)).toBe(true);
     expect(isModuleDataFile(file!.contents)).toBe(false);
+
     const dataPath = (layout: Parameters<typeof renderModules>[1]) =>
       renderModules(["tenant"], layout).find(
         (module) => module.kind === "data" && module.module === "tenant",
       )!.path;
+
     expect(dataPath({ dir: "supabase/schemas/_custom/better_supabase" })).toBe(
       "supabase/better-supabase-data/900_better_supabase_04_tenant.sql",
     );
@@ -389,6 +400,7 @@ describe("module modes", () => {
         },
       },
     })!;
+
     expect(sql).not.toMatch(/create table/);
     expect(sql).not.toContain("bs_memberships_read");
     expect(sql).toContain('from "public"."organization_users" m');
@@ -406,9 +418,11 @@ describe("module modes", () => {
     expect(sql).toContain(
       `check ("role" in ('owner', 'admin', 'member', 'viewer'))`,
     );
+
     const custom = moduleBody("tenant", {
       modules: { access: { roles: { lead: ["*"], guest: [] } } },
     })!;
+
     expect(custom).toContain(`check ("role" in ('lead', 'guest'))`);
   });
 
@@ -416,6 +430,7 @@ describe("module modes", () => {
     const sql = moduleBody("tenant", {
       modules: { tenant: { options: { claimFormat: "map" } } },
     })!;
+
     expect(sql).toContain('jsonb_object_agg(m."organization_id"::text');
   });
 
@@ -423,6 +438,7 @@ describe("module modes", () => {
     const claim = moduleBody("tenant", {
       modules: { access: { activeTenant: "claim" } },
     })!;
+
     expect(claim).toContain("auth.jwt() ->> 'tenant_id'");
     expect(claim).not.toContain("x-bs-tenant");
     expect(claim).toContain('and m."user_id" = auth.uid() limit 1');
@@ -433,6 +449,7 @@ describe("module modes", () => {
       "current_setting('better_supabase.tenant', true)",
     );
     expect(resolver).toContain("->> 'x-bs-tenant'");
+
     const profile = moduleBody("tenant", {
       modules: {
         access: {
@@ -443,6 +460,7 @@ describe("module modes", () => {
         },
       },
     })!;
+
     expect(profile).toContain(
       'select p."active_organization_id"::text from "public"."profiles" p where p."user_id" = auth.uid()',
     );
@@ -457,19 +475,23 @@ describe("module modes", () => {
     const disabled = {
       tenant: "public.organizations.disabled_at",
     } as const;
+
     const files = renderModules(["access"], {
       modules: { access: { disabled } },
     }).filter((file) => file.kind === "schema");
+
     expect(files.map((file) => file.module)).toEqual([
       "updated-at",
       "tenant",
       "access",
     ]);
+
     const defining = files.filter((file) =>
       file.contents.includes(
         "create or replace function better_supabase.tenant_disabled(",
       ),
     );
+
     expect(defining.map((file) => file.module)).toEqual(["access"]);
     const tenant = files.find((file) => file.module === "tenant")!.contents;
     expect(tenant).toContain("set check_function_bodies = off;");
@@ -494,6 +516,7 @@ describe("module modes", () => {
         },
       },
     })!;
+
     expect(sql).toContain(
       'exists (select 1 from "public"."organizations" t where t."id" = tenant_disabled.tenant and t."disabled_at" is not null)',
     );
@@ -507,6 +530,7 @@ describe("module modes", () => {
       resolveModules(["access"], { modules: { access: { model } } }).map(
         (module) => module.name,
       );
+
     expect(names("roles")).toEqual(["updated-at", "tenant", "access"]);
     expect(names("catalog")).toEqual(["updated-at", "tenant", "access"]);
     expect(names("provider")).toEqual(["access"]);
@@ -522,6 +546,7 @@ describe("statement helpers", () => {
     tenant: "organization",
     key: "'item.created:' || new_id",
   };
+
   const all = (...installed: string[]) =>
     createModuleContext("demo", () => names, {
       installed: ["demo", ...installed],
@@ -541,10 +566,12 @@ describe("statement helpers", () => {
     expect(all("outbox").record({ ...event, audit: false })).toBe(
       all("outbox").emit(event),
     );
+
     const audited = all("audit").record({
       ...event,
       audit: { category: "data", targetType: "item", recordId: "new_id::text" },
     });
+
     expect(audited).toBe(`perform better_supabase.audit_event(
     event_type => 'item.created',
     category => 'data',
@@ -554,24 +581,29 @@ describe("statement helpers", () => {
     metadata => jsonb_build_object('id', new_id),
     idempotency_key => 'item.created:' || new_id
   );`);
+
     const both = all("outbox", "audit").record({
       ...event,
       audit: { category: "data" },
     });
+
     expect(both.startsWith(all("outbox").emit(event))).toBe(true);
     expect(both).toContain("better_supabase.audit_event(");
   });
 
   it("skips the audit entry for audit: false, per action or per module", () => {
     expect(all("audit").record({ ...event, audit: false })).toBe(NOTHING);
+
     const optedOut = createModuleContext("demo", () => names, {
       installed: ["demo", "audit", "outbox"],
       modules: { demo: { audit: false } },
     });
+
     const statement = optedOut.record({
       ...event,
       audit: { category: "data" },
     });
+
     expect(statement).toBe(optedOut.emit(event));
     expect(statement).not.toContain("audit_event");
   });
@@ -588,9 +620,11 @@ describe("statement helpers", () => {
         },
       },
     );
+
     const statement = legacy.record({ ...event, audit: { category: "data" } });
     expect(statement).toContain("category => 'org'");
     expect(statement).toContain("tenant => (organization)::text");
+
     const invalid = createModuleContext(
       "demo",
       () => ({ ...names, options: [...names.options, "auditCategory"] }),
@@ -599,6 +633,7 @@ describe("statement helpers", () => {
         modules: { demo: { options: { auditCategory: 1 } } },
       },
     );
+
     expect(() =>
       invalid.record({ ...event, audit: { category: "data" } }),
     ).toThrow("blocks.demo.options.auditCategory must be a string");
@@ -609,6 +644,7 @@ describe("statement helpers", () => {
       createModuleContext("demo", () => ({ ...names, events }), {
         installed: ["demo", "outbox"],
       });
+
     const member = {
       type: "organization.member_added",
       payload:
@@ -617,10 +653,12 @@ describe("statement helpers", () => {
       tenant: "t",
       audit: false,
     } as const;
+
     const spec = {
       subject: "organizations",
       payload: ["organizationId", "userId", "role"],
     } as const;
+
     expect(
       catalog({ "organization.member_added": spec }).record(member),
     ).toContain("emit_event('organization.member_added'");
@@ -721,12 +759,14 @@ describe("integrates", () => {
       checkModules({ jobs: { schema: "better_supabase" } });
     }).not.toThrow();
     const layout = { modules: { access: { schema: "app" } } };
+
     const support = moduleContext("support-sessions", layout, [
       "tenant",
       "access",
       "audit",
       "support-sessions",
     ]);
+
     expect(support.of("access").fn("is_platform")).toBe(
       '"better_supabase"."is_platform"',
     );
@@ -741,6 +781,7 @@ describe("fixed functions", () => {
       { modules: { tenant: { schema: "app" }, flags: { schema: "app" } } },
       ["tenant", "flags"],
     );
+
     const tenant = flags.of("tenant");
     expect(tenant.fn("member_organization_ids")).toBe(
       "better_supabase.member_organization_ids",
@@ -762,6 +803,7 @@ describe("fixed functions", () => {
         },
       },
     });
+
     expect(organizations.colName("organizations", "id")).toBe("team_id");
     expect(() => organizations.colName("organizations", "slug")).toThrow(
       "needs organizations.slug",

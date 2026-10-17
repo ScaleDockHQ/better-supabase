@@ -13,6 +13,7 @@ export const instant = true;
 
 export default function AssistantPage() {
   const t = useExtracted("assistant");
+
   return (
     <>
       <PageHeader

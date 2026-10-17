@@ -26,18 +26,22 @@ export function contextFromSupabase(ctx: SupabaseAuthContext): RequestContext {
       if (!ctx.userClaims) {
         break;
       }
+
       return userContext(ctx.userClaims, ctx.jwtClaims ?? {});
     }
+
     case "secret": {
       return {
         actor: { id: "service", kind: "service", role: "service_role" },
         claims: { role: "service_role" },
       };
     }
+
     case "publishable":
     case "none": {
       break;
     }
+
     default: {
       const unknown: never = ctx.authMode;
       throw new TypeError(
@@ -45,6 +49,7 @@ export function contextFromSupabase(ctx: SupabaseAuthContext): RequestContext {
       );
     }
   }
+
   return {
     actor: { id: "anon", kind: "anon", role: "anon" },
     claims: { role: "anon" },

@@ -28,8 +28,10 @@ function fields(w: (column: string) => string): readonly {
 }[] {
   const text = (column: string) => (v: string) =>
     `${w(column)} = nullif(trim(${v} #>> '{}'), '')`;
+
   const cast = (column: string, type: string) => (v: string) =>
     `${w(column)} = (${v} #>> '{}')::${type}`;
+
   return [
     { field: "title", set: (v) => `${w("title")} = trim(${v} #>> '{}')` },
     { field: "body", set: text("body") },
@@ -55,10 +57,13 @@ export function workItemFunctions(
   const { fn, t, c } = n;
   const w = (column: string): string => c("items", column);
   const a = (column: string): string => c("assignees", column);
+
   const editable = (alias: string): string =>
     `(${n.service} or ${ctx.scope.can(`${alias}.${w("tenant")}`, n.write)})`;
+
   const row = (alias: string): string =>
     `to_jsonb(${alias}) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra.${a("user")} order by ra.${a("createdAt")}, ra.${a("user")}) from ${t("assignees")} ra where ra.${a("item")} = ${alias}.${w("id")}), '[]'::jsonb))`;
+
   const record = (type: string, alias: string, extra = ""): string =>
     ctx.record({
       type,
@@ -67,6 +72,7 @@ export function workItemFunctions(
       tenant: `${alias}.${w("tenant")}::text`,
       audit: false,
     });
+
   const writes = [
     ...fields(w).map(
       (field) => `      when ${sqlString(field.field)} then
@@ -77,12 +83,14 @@ export function workItemFunctions(
         update ${t("items")} x set ${extra.ident} = (jsonb_populate_record(null::${t("items")}, jsonb_build_object(${sqlString(extra.name)}, v_change -> 'value'))).${extra.ident} where x.${w("id")} = v_item;`,
     ),
   ].join("\n");
+
   const watch = watchSql(ctx, {
     tenant: `v_row.${w("tenant")}`,
     user: "v_user",
     subjectType: "'work_item'",
     subjectId: `v_row.${w("id")}::text`,
   });
+
   const notify = ctx.installed("notifications")
     ? `
   if cardinality(v_new) > 0 then
@@ -103,6 +111,7 @@ export function workItemFunctions(
     )}
   end if;`
     : "";
+
   const limit =
     n.maxAssignees === 0
       ? ""
@@ -110,13 +119,16 @@ export function workItemFunctions(
   if cardinality(v_users) > ${String(n.maxAssignees)} then
     ${fail("WORK_ITEM_ASSIGNEES_LIMIT", `an item takes at most ${String(n.maxAssignees)} assignees`, "22023")}
   end if;`;
+
   const p = (column: string): string => c("projects", column);
   const i = (column: string): string => c("iterations", column);
+
   const manageGuard = (
     tenant: string,
   ): string => `if not (${n.service} or ${ctx.scope.can(tenant, n.manage)}) then
     ${fail("WORK_ITEM_FORBIDDEN", "not allowed to manage projects and iterations")}
   end if;`;
+
   const projects = ctx.hasTable("projects")
     ? `
 -- Creates a project (project null) or changes the keys attrs names: key,
@@ -166,6 +178,7 @@ $$;
 ${userGrant(`${fn("save_project")}(${ctx.idType}, uuid, jsonb)`)}
 `
     : "";
+
   const iterations = ctx.hasTable("iterations")
     ? `
 -- Creates an iteration (a cycle or a sprint) or changes it: name, teamId,
@@ -205,6 +218,7 @@ $$;
 ${userGrant(`${fn("save_iteration")}(${ctx.idType}, uuid, jsonb)`)}
 `
     : "";
+
   return `
 -- Creates a work item. attrs: title (required), body, parentId, teamId,
 -- projectId, iterationId, priority (0 none to 4 low, as Linear), estimate,

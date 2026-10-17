@@ -28,16 +28,20 @@ import {
 } from "../shared.ts";
 
 export type JobStatus = "draft" | "open" | "closed";
+
 export type ApplicationState = "active" | "hired" | "rejected" | "withdrawn";
+
 export type Recommendation = "strong_no" | "no" | "yes" | "strong_yes";
 
 const JOB_STATUSES: readonly JobStatus[] = ["draft", "open", "closed"];
+
 const STATES: readonly ApplicationState[] = [
   "active",
   "hired",
   "rejected",
   "withdrawn",
 ];
+
 const RECOMMENDATIONS: readonly Recommendation[] = [
   "strong_no",
   "no",
@@ -175,6 +179,7 @@ export interface HiringOptions<
 
 function jobOf(value: unknown): Job {
   const row = recordOf(value, "job");
+
   return compact<Job>({
     id: textOf(row["id"]),
     title: textOf(row["title"]),
@@ -192,6 +197,7 @@ function jobOf(value: unknown): Job {
 
 function applicationOf(value: unknown): Application {
   const row = recordOf(value, "application");
+
   return compact<Application>({
     id: textOf(row["id"]),
     jobId: textOf(row["job_id"]),
@@ -213,6 +219,7 @@ function applicationOf(value: unknown): Application {
 
 function scorecardOf(value: unknown): Scorecard {
   const row = recordOf(value, "scorecard");
+
   return compact<Scorecard>({
     id: textOf(row["id"]),
     stageId: optionalText(row["stage_id"]),
@@ -230,6 +237,7 @@ function scorecardOf(value: unknown): Scorecard {
 
 function interviewOf(value: unknown): Interview {
   const row = recordOf(value, "interview");
+
   return compact<Interview>({
     id: textOf(row["id"]),
     kind: optionalText(row["kind"]),
@@ -251,18 +259,22 @@ export function createHiring<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: HiringOptions<S>): Hiring<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const fields: BlockFields<F> = blockFields(options.fields, "job fields");
+
   const close = (applicationId: string, outcome: string, reason?: string) =>
     call(
       "close_application",
       { application: applicationId, outcome, reason: reason ?? null },
       applicationOf,
     );
+
   const client: Hiring<F> = {
     saveJob: (organizationId, job) => {
       const { id, fields: extra, ...attrs } = job;
+
       return AsyncResult.from(() => fields.write({ ...extra }))
         .andThen((valid) =>
           call(
@@ -323,6 +335,7 @@ export function createHiring<
     detail: (applicationId) =>
       call("application_detail", { application: applicationId }, (value) => {
         const row = recordOf(value, "application_detail");
+
         return compact<ApplicationDetail>({
           ...applicationOf(row),
           scorecards: recordsOf(row["scorecards"], "scorecards").map(
@@ -338,6 +351,7 @@ export function createHiring<
         });
       }),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "hiring",
     ...(options.logger ? { logger: options.logger } : {}),

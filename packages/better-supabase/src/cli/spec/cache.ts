@@ -61,6 +61,7 @@ export async function readCachedRender(
   const cached: unknown = await readFile(cacheFile(root, output), "utf-8")
     .then((text): unknown => JSON.parse(text))
     .catch(() => undefined);
+
   return isCached(cached) && cached.key === key ? cached : undefined;
 }
 

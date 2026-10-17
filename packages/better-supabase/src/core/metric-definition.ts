@@ -6,6 +6,7 @@ export type MetricMeasure =
 
 /** The bucket sizes of a series. */
 export const METRIC_GRAINS = ["hour", "day", "week", "month"] as const;
+
 export type MetricGrain = (typeof METRIC_GRAINS)[number];
 
 /** A literal a metric's rows must equal, such as `meter: "api_calls"`. */
@@ -58,6 +59,7 @@ function column(where: string, value: unknown): string {
   if (typeof value !== "string" || !COLUMN.test(value)) {
     throw new TypeError(`${where} must be a column name`);
   }
+
   return value;
 }
 
@@ -65,11 +67,13 @@ function timeZone(where: string, value: unknown): string {
   if (typeof value !== "string" || value.length === 0) {
     throw new TypeError(`${where} must be an IANA time zone such as UTC`);
   }
+
   try {
     Intl.DateTimeFormat("en", { timeZone: value }).resolvedOptions();
   } catch {
     throw new TypeError(`${where}: "${value}" is not an IANA time zone`);
   }
+
   return value;
 }
 
@@ -77,13 +81,17 @@ function measureOf(where: string, value: unknown): MetricMeasure {
   if (value === "count") {
     return "count";
   }
+
   if (isObject(value)) {
     const keys = Object.keys(value);
+
     if (keys.length === 1 && (keys[0] === "sum" || keys[0] === "avg")) {
       const name = column(`${where}.${keys[0]}`, value[keys[0]]);
+
       return keys[0] === "sum" ? { sum: name } : { avg: name };
     }
   }
+
   throw new TypeError(
     `${where} must be "count", { sum: "column" } or { avg: "column" }`,
   );
@@ -95,6 +103,7 @@ export function checkMetric(
   where = "metric",
 ): MetricDefinition {
   assertMetric(value, where);
+
   return value;
 }
 
@@ -105,28 +114,38 @@ function assertMetric(
   if (!isObject(value)) {
     throw new TypeError(`${where} must be an object`);
   }
+
   const key = value["key"];
+
   if (typeof key !== "string" || !KEY.test(key)) {
     throw new TypeError(
       `${where}.key must be lowercase letters, digits and underscores`,
     );
   }
+
   const at = `${where} ${key}`;
   const table = value["table"];
+
   if (typeof table !== "string" || !TABLE.test(table)) {
     throw new TypeError(`${at}.table must be "table" or "schema.table"`);
   }
+
   const dimensions = value["dimensions"] ?? [];
+
   if (!Array.isArray(dimensions)) {
     throw new TypeError(`${at}.dimensions must be a list of columns`);
   }
+
   const dims = dimensions.map((name: unknown) =>
     column(`${at}.dimensions`, name),
   );
+
   if (new Set(dims).size !== dims.length) {
     throw new TypeError(`${at}.dimensions lists a column twice`);
   }
+
   const rollup = value["rollup"];
+
   if (
     rollup !== undefined &&
     rollup !== false &&
@@ -142,20 +161,26 @@ function assertMetric(
       `${at}.rollup must be false or a list of ${METRIC_GRAINS.join(", ")}`,
     );
   }
+
   const permission = value["permission"];
+
   if (
     permission !== undefined &&
     (typeof permission !== "string" || !PERMISSION.test(permission))
   ) {
     throw new TypeError(`${at}.permission must be a permission key`);
   }
+
   const filter = value["where"];
+
   if (filter !== undefined) {
     if (!isObject(filter)) {
       throw new TypeError(`${at}.where must be an object of column to value`);
     }
+
     for (const [name, literal] of Object.entries(filter)) {
       column(`${at}.where`, name);
+
       if (
         !(
           literal === null ||
@@ -170,16 +195,20 @@ function assertMetric(
       }
     }
   }
+
   for (const name of ["label", "unit"] as const) {
     if (value[name] !== undefined && typeof value[name] !== "string") {
       throw new TypeError(`${at}.${name} must be a string`);
     }
   }
+
   measureOf(`${at}.measure`, value["measure"]);
   column(`${at}.timeColumn`, value["timeColumn"]);
+
   if (value["tenant"] !== undefined) {
     column(`${at}.tenant`, value["tenant"]);
   }
+
   if (value["tz"] !== undefined) {
     timeZone(`${at}.tz`, value["tz"]);
   }
@@ -204,6 +233,7 @@ export function defineMetric<
   const D extends string = never,
 >(definition: MetricDefinition<K, D>): MetricDefinition<K, D> {
   checkMetric(definition, "defineMetric");
+
   return definition;
 }
 
@@ -215,26 +245,33 @@ export function metricsOf(
   if (value === undefined) {
     return [];
   }
+
   if (!Array.isArray(value) && !isObject(value)) {
     throw new TypeError(
       `${where} must be a list of defineMetric() definitions or an object of key to definition`,
     );
   }
+
   const entries: unknown[] = Array.isArray(value)
     ? value
     : Object.entries(value).map(([key, entry]) =>
         isObject(entry) ? { key, ...entry } : entry,
       );
+
   const metrics = entries.map((entry, index) =>
     checkMetric(entry, `${where}[${String(index)}]`),
   );
+
   const keys = new Set<string>();
+
   for (const metric of metrics) {
     if (keys.has(metric.key)) {
       throw new TypeError(`${where}: metric "${metric.key}" is defined twice`);
     }
+
     keys.add(metric.key);
   }
+
   return metrics;
 }
 
@@ -244,17 +281,22 @@ export function grainDivides(stored: MetricGrain, grain: MetricGrain): boolean {
     case "hour": {
       return true;
     }
+
     case "day": {
       return grain !== "hour";
     }
+
     case "week": {
       return grain === "week";
     }
+
     case "month": {
       return grain === "month";
     }
+
     default: {
       const never: never = stored;
+
       return never;
     }
   }

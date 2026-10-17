@@ -50,19 +50,23 @@ export function honoMiddleware(
     const handoff = handoffOf<Handoff>(ctx, HANDOFF);
     handoff.publish(handoff.c, ctx);
     await handoff.next();
+
     return handoff.c.res;
   });
+
   return async (c, next) => {
     // A bridge that seeds the context buffers the body itself, and puts the
     // buffered request on Hono's so an entry and the route read one cache.
     if (c.req.raw.body) {
       c.req.raw = bufferRequest(c.req.raw);
     }
+
     // `c.env` holds the bindings on Workers, which is how `getEnv` reads them there.
     const response = await run(c.req.raw, {
       ...seedContext(c.env),
       [HANDOFF]: { c, next, publish } satisfies Handoff,
     });
+
     if (response !== c.res) {
       // Hono's `res` setter merges the previous response's headers into the
       // new one, which would undo headers the response phase rewrote.

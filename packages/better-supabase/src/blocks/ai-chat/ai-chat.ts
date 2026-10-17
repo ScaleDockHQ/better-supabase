@@ -322,6 +322,7 @@ export interface AiModelInput {
 }
 
 export type AiModerationStage = "input" | "output" | "tool";
+
 export type AiModerationAction = "allow" | "flag" | "redact" | "block";
 
 export interface AiModerationEvent {
@@ -564,19 +565,26 @@ export function createAiChat<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: AiChatOptions<S>): AiChat<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const fields: BlockFields<F> = blockFields(options.fields, "chat fields");
+
   const typed = (value: unknown): AsyncResult<AiChatRecord & F> =>
     AsyncResult.from(() => withFields(fields, value, chatOf(value)));
+
   const checked = (input: object): AsyncResult<Record<string, unknown>> =>
     AsyncResult.from(() => fields.write(extraOf(input, CHAT_INPUT)));
+
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const service = blockCall(
     options.service ?? options.transport,
     options.schema,
     options.mappers,
   );
+
   const isTrue = (value: unknown): boolean => value === true;
+
   const count = (value: unknown): number =>
     typeof value === "number" ? value : Number(value ?? 0);
 
@@ -609,6 +617,7 @@ export function createAiChat<
           },
           (value) => {
             const row = recordOf(value, "list_ai_chats");
+
             return {
               items: recordsOf(row["items"], "list_ai_chats").map(
                 (item) => [item, chatOf(item)] as const,
@@ -618,6 +627,7 @@ export function createAiChat<
           },
         ).andThen(async ({ items, next }) => {
           const parsed = await allWithFields(fields, items);
+
           return parsed.ok ? ok({ items: parsed.data, next }) : parsed;
         }),
       update: (chatId, patch) =>
@@ -693,6 +703,7 @@ export function createAiChat<
             recordsOf(value, "ai_message_path").map((row) => {
               const stored = storedOf(row);
               const native = stored.native;
+
               return isRecord(native) && "value" in native
                 ? { ...stored, native: native["value"] }
                 : stored;
@@ -732,6 +743,7 @@ export function createAiChat<
           },
           (value) => {
             const row = recordOf(value, "claim_ai_chat_stream");
+
             return {
               claimed: row["claimed"] === true,
               streamId: optionalText(row["stream_id"]),
@@ -758,6 +770,7 @@ export function createAiChat<
           const row = record(value);
           const streamId = optionalText(row["stream_id"]);
           const runId = optionalText(row["run_id"]);
+
           return streamId && runId ? { streamId, runId } : undefined;
         }),
       setCost: (generationId, costMicroUsd, usage) =>
@@ -810,12 +823,15 @@ export function createAiChat<
       policies: (organizationId) =>
         call("ai_tool_policies_for", { tenant: organizationId }, (value) => {
           const policies: Record<string, AiToolPolicy> = {};
+
           for (const [tool, policy] of Object.entries(record(value))) {
             const known = policyOf(policy);
+
             if (known) {
               policies[tool] = known;
             }
           }
+
           return policies;
         }),
     },
@@ -868,6 +884,7 @@ export function createAiChat<
       create: (chatId, leafId) =>
         call("share_ai_chat", { chat: chatId, leaf: leafId }, (value) => {
           const row = recordOf(value, "share_ai_chat");
+
           return {
             id: textOf(row["id"]),
             token: textOf(row["token"]),
@@ -922,6 +939,7 @@ export function createAiChat<
         ),
     },
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "ai-chat",
     ...(options.logger ? { logger: options.logger } : {}),

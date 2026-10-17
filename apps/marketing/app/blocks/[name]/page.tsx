@@ -32,9 +32,11 @@ export async function generateMetadata({
   params,
 }: BlockPageProps): Promise<Metadata> {
   const block = getBlock((await params).name);
+
   if (!block) {
     return {};
   }
+
   return { title: `${block.title} block`, description: block.description };
 }
 
@@ -48,6 +50,7 @@ function BlockLinks({
   if (names.length === 0) {
     return <p className="text-sm text-muted-foreground">{empty}</p>;
   }
+
   return (
     <ul className="flex flex-wrap gap-1.5">
       {names.map((name) => (
@@ -93,6 +96,7 @@ function ClientPanel({ block }: { block: CatalogBlock }) {
       </div>
     );
   }
+
   return (
     <p className="leading-6 text-muted-foreground">
       {block.subpath ? (
@@ -116,6 +120,7 @@ function EventsPanel({ block }: { block: CatalogBlock }) {
       </p>
     );
   }
+
   return (
     <div className="flex flex-col gap-3">
       <p className="leading-6 text-muted-foreground">
@@ -141,11 +146,13 @@ function EventsPanel({ block }: { block: CatalogBlock }) {
 
 function RecipeLinks({ block }: { block: string }) {
   const recipes = recipesFor(block);
+
   if (recipes.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">No UI recipe uses it yet.</p>
     );
   }
+
   return (
     <ul className="flex flex-col gap-1.5">
       {recipes.map((recipe) => (
@@ -172,9 +179,11 @@ function lineCount(contents: string): number {
 
 export default async function BlockPage({ params }: BlockPageProps) {
   const block = getBlock((await params).name);
+
   if (!block) {
     notFound();
   }
+
   const migrations = blockMigrations(block.name);
   const own = migrations.files.filter((file) => file.module === block.name);
   const install = installCommand(block.name);

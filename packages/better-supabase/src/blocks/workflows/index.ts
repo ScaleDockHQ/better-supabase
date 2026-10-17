@@ -16,17 +16,20 @@ export {
   type WorkflowTickOptions,
   type WorkflowTickResult,
 } from "./workflows.ts";
+
 export {
   dbTransport,
   rpcTransport,
   sqlTransport,
 } from "../../core/block-transport.ts";
+
 export type { BlockTransport } from "../../core/block-transport.ts";
 
 export {
   createWorkflowRunController,
   createWorkflowRunsController,
 } from "./client.ts";
+
 export type {
   WorkflowRunActions,
   WorkflowRunController,
@@ -37,6 +40,9 @@ export type {
   WorkflowRunSnapshot,
   WorkflowRunsSnapshot,
 } from "./client.ts";
+
 export { workflowsBlock } from "./manifest.ts";
+
 export { workflowsEvents } from "./events.ts";
+
 export type { WorkflowsEvents } from "./events.ts";

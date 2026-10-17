@@ -14,7 +14,9 @@ async function failures(provider: AuthorizationProvider): Promise<string[]> {
     () => undefined,
     (cause: unknown) => cause,
   );
+
   expect(error).toBeInstanceOf(ConformanceError);
+
   return (error as ConformanceError).report.checks
     .filter((check) => !check.ok)
     .map((check) => `${check.name}: ${check.message ?? ""}`);
@@ -210,6 +212,7 @@ describe("testAuthorizationProvider", () => {
         ),
       ).toContainEqual(expect.stringMatching(problem));
     }
+
     expect(
       await testAuthorizationProvider(
         withProvider({
@@ -339,6 +342,7 @@ describe("testAuthorizationProvider", () => {
         approvals: { distinctApprover: true },
       }),
     );
+
     expect(report.checks.every((check) => check.ok)).toBe(true);
   });
 
@@ -355,15 +359,19 @@ describe("testAuthorizationProvider", () => {
           },
         ],
       });
+
     const report = await testAuthorizationProvider(
       isApprover("authz.is_approver({kind}, {subject}, {tenant})"),
     );
+
     expect(report.checks.every((check) => check.ok)).toBe(true);
+
     const withRequester = await testAuthorizationProvider(
       isApprover(
         "authz.is_approver({kind}, {subject}, {tenant}, ({requester})::text)",
       ),
     );
+
     expect(withRequester.checks.every((check) => check.ok)).toBe(true);
     expect(
       await failures(isApprover("authz.is_approver({kind}, {subject})")),
@@ -385,6 +393,7 @@ describe("testAuthorizationProvider", () => {
         },
       }),
     );
+
     expect(report.checks.map((check) => check.name)).toContain(
       "operations name listed permissions",
     );

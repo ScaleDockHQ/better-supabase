@@ -66,6 +66,7 @@ const blockSet = defineBlocks(blockConfig, {
 export function blocks(supabase: RpcClient) {
   const transport = rpcTransport(supabase);
   const built = blockSet.create({ transport });
+
   return {
     ...built,
     /** A module function without a typed client, such as `flag_enabled`. */

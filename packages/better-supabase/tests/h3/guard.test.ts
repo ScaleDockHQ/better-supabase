@@ -9,10 +9,12 @@ describe("h3 guard and problemOnError", () => {
   const middleware = toH3([
     withBetterSupabase(server, { allow: ["user", "anon"] }),
   ]);
+
   const admin = guard({ allow: ["user"] });
 
   const serve = (request: Request) => {
     const event = { req: request, context: {} };
+
     return middleware(event, () => admin(event, () => "secret"));
   };
 

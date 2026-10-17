@@ -8,11 +8,14 @@ import { billing, stripeInbox } from "@/lib/stripe";
  */
 export async function GET(request: Request): Promise<Response> {
   const secret = process.env.CRON_SECRET;
+
   if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
     return new Response(null, { status: 401 });
   }
+
   const result = await stripeInbox.process((message) =>
     billing.handleStripeEvent(message.payload).orThrow(),
   );
+
   return Response.json(result);
 }

@@ -148,9 +148,11 @@ const STATUSES: ReadonlySet<string> = new Set([
 
 function statusOf(value: unknown): WaitlistStatus {
   const text = textOf(value);
+
   if (!STATUSES.has(text)) {
     throw new TypeError(`Unknown waitlist status ${text}`);
   }
+
   // SAFETY: the set holds exactly the WaitlistStatus values.
   return text as WaitlistStatus;
 }
@@ -160,6 +162,7 @@ const optionalNumber = (value: unknown): number | undefined =>
 
 function entryOf(value: unknown): WaitlistEntry {
   const row = recordOf(value, "waitlist_entries");
+
   return {
     id: textOf(row["id"]),
     email: textOf(row["email"]),
@@ -177,6 +180,7 @@ function entryOf(value: unknown): WaitlistEntry {
 
 function codeOf(value: unknown): InviteCode {
   const row = recordOf(value, "invite_codes");
+
   return {
     id: textOf(row["id"]),
     prefix: textOf(row["prefix"]),
@@ -196,6 +200,7 @@ export function generateInviteCode(): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   const bytes = crypto.getRandomValues(new Uint8Array(16));
   const chars = [...bytes].map((byte) => alphabet[byte % alphabet.length]);
+
   return [0, 4, 8, 12].map((at) => chars.slice(at, at + 4).join("")).join("-");
 }
 
@@ -204,16 +209,20 @@ export function createWaitlist<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: WaitlistOptions<S>): Waitlist<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const fields: BlockFields<F> = blockFields(
     options.fields,
     "waitlist entry fields",
   );
+
   const decide = (entryId: string, approve: boolean) =>
     call("decide_waitlist_entry", { id: entryId, approve }, entryOf).andThen(
       fields.row,
     );
+
   const client: Waitlist<F> = {
     join: (email, more = {}) =>
       fields.args(more.fields).andThen((checked) =>
@@ -228,6 +237,7 @@ export function createWaitlist<
           (value) => {
             const row = recordOf(value, "join_waitlist");
             const status = statusOf(row["status"]);
+
             return {
               position: optionalNumber(row["position"]),
               status: status === "rejected" ? "waiting" : status,
@@ -249,6 +259,7 @@ export function createWaitlist<
     reject: (entryId) => decide(entryId, false),
     createCode: (input = {}) => {
       const code = input.code ?? generateInviteCode();
+
       return call(
         "create_invite_code",
         {
@@ -270,12 +281,14 @@ export function createWaitlist<
     redeem: (code) =>
       call("redeem_invite_code", { code }, (value) => {
         const row = recordOf(value, "redeem_invite_code");
+
         return {
           organizationId: optionalText(row["organizationId"]),
           role: optionalText(row["role"]),
         };
       }),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "waitlist",
     ...(options.logger ? { logger: options.logger } : {}),
@@ -308,13 +321,16 @@ export function waitlistHook(
 ): (request: Request) => Promise<Response> {
   const call = blockCall(options.transport, options.schema);
   const field = options.codeField ?? "invite_code";
+
   const message =
     options.message ?? "Sign-ups are invite-only. Join the waitlist first.";
+
   return authHook(
     "before_user_created",
     options.secret,
     async ({ user }) => {
       const code = user.user_metadata?.[field];
+
       const result = await call(
         "waitlist_admit",
         {
@@ -323,9 +339,11 @@ export function waitlistHook(
         },
         (value) => recordOf(value, "waitlist_admit")["allowed"] === true,
       );
+
       if (!result.ok) {
         throw new Error(result.error.message);
       }
+
       return result.data ? {} : hookError(403, message);
     },
     options.verify,

@@ -1,6 +1,7 @@
 /** A router or browser prefetch, by its request headers. */
 export function isPrefetch(request: Request): boolean {
   const h = request.headers;
+
   return (
     h.has("next-router-prefetch") ||
     h.get("purpose") === "prefetch" ||
@@ -19,26 +20,35 @@ const FORM_TYPES = ["application/x-www-form-urlencoded", "multipart/form-data"];
  */
 export function shouldRefresh(request: Request): boolean {
   const h = request.headers;
+
   if (request.method !== "GET" && request.method !== "HEAD") {
     if (h.has("next-action") || h.has("x-sveltekit-action")) {
       return true;
     }
+
     if (h.get("sec-fetch-dest") === "document") {
       return true;
     }
+
     const type = h.get("content-type") ?? "";
+
     return FORM_TYPES.some((form) => type.startsWith(form));
   }
+
   if (isPrefetch(request)) {
     return false;
   }
+
   if (h.get("rsc") === "1") {
     return true;
   }
+
   const dest = h.get("sec-fetch-dest");
+
   if (dest) {
     return dest === "document";
   }
+
   return h.get("accept")?.includes("text/html") ?? false;
 }
 
@@ -54,12 +64,15 @@ export function shouldCheckSession(
   if (request.method !== "GET" && request.method !== "HEAD") {
     return false;
   }
+
   if (isPrefetch(request)) {
     return false;
   }
+
   if (request.headers.get("sec-fetch-dest") === "document") {
     return true;
   }
+
   return paths?.includes(new URL(request.url).pathname) ?? false;
 }
 
@@ -77,5 +90,6 @@ export function refreshFor(
   if (policy === undefined || typeof policy === "boolean") {
     return policy;
   }
+
   return policy === "navigation" ? shouldRefresh(request) : policy(request);
 }

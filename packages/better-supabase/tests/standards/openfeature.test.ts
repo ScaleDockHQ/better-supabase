@@ -40,7 +40,9 @@ const definitions: readonly FlagDefinition[] = [
 ];
 
 const provider = createFlagsProvider({ definitions, errorCodes: ErrorCode });
+
 await OpenFeature.setProviderAndWait(DOMAIN, provider);
+
 const client = OpenFeature.getClient(DOMAIN);
 
 afterAll(async () => {
@@ -69,6 +71,7 @@ describe("OpenFeature", () => {
         features: { "org-1": ["pro"] },
       },
     });
+
     expect(
       await client.getBooleanDetails("new_editor", false, context),
     ).toEqual({

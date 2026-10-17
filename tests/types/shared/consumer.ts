@@ -74,16 +74,21 @@ type Equal<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
     ? true
     : false;
+
 // SAFETY: T extends true, so true is its only value.
 const assert = <T extends true>(): T => true as T;
 
 declare const client: SupabaseClient;
 declare const typedClient: SupabaseClient<Database>;
+
 rpcTransport(typedClient, { schema: "api" });
+
 rpcTransport(client);
+
 createJobs({ client: typedClient, queues: {} });
 
 const logger: Logger = silentLogger;
+
 const base = defineSupabase(schema, { logger })
   .use(timestamps())
   .use(softDelete())
@@ -94,6 +99,7 @@ const customers = defineRepository(base, "customers", (repo) => ({
   active: () =>
     repo.findMany({ where: { status: "active" }, select: ["id", "name"] }),
 }));
+
 export const betterSupabase = base.use(customers);
 
 const db = betterSupabase.connect(client, { tenant: "organization" });
@@ -102,6 +108,7 @@ export async function reads(): Promise<void> {
   const rows = await db.customers
     .findMany({ select: ["id", "status", "createdAt"] })
     .orThrow();
+
   assert<
     Equal<
       (typeof rows)[number],
@@ -118,6 +125,7 @@ export async function reads(): Promise<void> {
       include: { customerTags: { select: ["tagId"] } },
     })
     .orThrow();
+
   assert<
     Equal<
       typeof withTags,
@@ -126,6 +134,7 @@ export async function reads(): Promise<void> {
   >();
 
   const result: Result<unknown> = await db.tags.count();
+
   if (!result.ok) {
     const error: DbError = result.error;
     void error.kind;
@@ -153,23 +162,29 @@ export function integrations(): unknown[] {
   forwardMutations(betterSupabase, httpSink("https://example.com/events"), {
     source: "/crm",
   });
+
   const executor: Executor = postgresExecutor(
     createPostgres({ connectionString: "postgres://x" }).admin,
   );
+
   const list = defineListQuery(betterSupabase, "customers", {
     search: ["name"],
     facets: { status: "status" },
     sorts: { name: [{ name: "asc" }] },
     defaultSort: "name",
   });
+
   const logos = defineBucket({
     id: "customer-logos",
     path: "{organizationId}/{customerId}/logo.webp",
   });
+
   const topic = defineTopic("organization:{organizationId}:customers");
+
   const seed = defineSeed(betterSupabase, {
     tags: { urgent: { organizationId: "organization", name: "Urgent" } },
   });
+
   return [
     env,
     server,
@@ -238,6 +253,7 @@ export function integrations(): unknown[] {
       .context(new Request("https://app.test/"))
       .then((ctx) => {
         ctx.replica?.pin();
+
         return ctx.replica?.wrote satisfies boolean | undefined;
       }),
     PRIMARY_COOKIE satisfies string,

@@ -37,11 +37,13 @@ const headerFor = (mode: string, given: string, kept: string): string =>
 
 function secretStorage(ctx: ModuleContext): boolean {
   const storage = ctx.text("secretStorage", "vault");
+
   if (storage !== "vault" && storage !== "column") {
     throw new TypeError(
       `blocks.webhooks-in.options.secretStorage must be "vault" or "column", not "${storage}"`,
     );
   }
+
   return storage === "vault";
 }
 
@@ -90,11 +92,13 @@ const graceColumns = (vault: boolean): readonly EndpointColumn[] => [
 
 function webhooksInSql(ctx: ModuleContext): string {
   const renamed = Object.keys(ctx.config.columns["endpoints"] ?? {});
+
   if (ctx.manages && renamed.length > 0) {
     throw new TypeError(
       `blocks.webhooks-in.columns.endpoints: the module owns its table, so ${renamed.join(", ")} can't be renamed; adopt your own table with mode "adopt"`,
     );
   }
+
   const id = ctx.idType;
   const t = ctx.table("endpoints");
   const c = (logical: EndpointColumn) => ctx.col("endpoints", logical);
@@ -103,9 +107,11 @@ function webhooksInSql(ctx: ModuleContext): string {
   /** A column for an `assign` value, which `assign` drops when it's missing. */
   const cv = (logical: EndpointColumn) => (has(logical) ? c(logical) : "null");
   const ev = (logical: EndpointColumn) => `e.${cv(logical)}`;
+
   /** `alias.column` when the column exists, else `fallback`. */
   const read = (alias: string, logical: EndpointColumn, fallback = "null") =>
     has(logical) ? `${alias}.${c(logical)}` : fallback;
+
   /** `column = value` assignments for the columns that exist. */
   const assign = (
     pairs: readonly (readonly [EndpointColumn, string])[],
@@ -113,9 +119,12 @@ function webhooksInSql(ctx: ModuleContext): string {
     pairs
       .filter(([logical]) => has(logical))
       .map(([logical, value]) => `${c(logical)} = ${value}`);
+
   const p = moduleOperations("webhooks-in");
+
   const key = (action: "create" | "update" | "delete") =>
     sqlString(modulePermissionKey(ctx, action, p[action]));
+
   const view = ctx.permission("view", p.view);
   const verify = INCOMING_VERIFY.map((mode) => `'${mode}'`).join(", ");
   const maxBody = ctx.number("maxBodyBytes", 1_048_576);
@@ -123,15 +132,20 @@ function webhooksInSql(ctx: ModuleContext): string {
   // The column the secret is kept in must exist; the other one is optional.
   c(vault ? "secretId" : "secret");
   const grace = graceColumns(vault).every(has);
+
   const stored = (secret: string, endpoint: string) =>
     vault ? vaultSecret(secret, endpoint) : "null";
+
   const plain = (secret: string) => (vault ? "null" : secret);
+
   const vaultIds = (row: string) =>
     [
       `${row}.${c("secretId")}`,
       ...(has("previousSecretId") ? [`${row}.${c("previousSecretId")}`] : []),
     ].join(", ");
+
   const cleanupTrigger = ctx.trigger("incoming_webhook_vault");
+
   const cleanup = vault
     ? `
 -- Deleting an endpoint (or its tenant or subject) deletes its Vault secret.
@@ -157,8 +171,10 @@ create trigger ${cleanupTrigger} after delete on ${t}
     )}) execute function ${ctx.fn("drop_incoming_webhook_secret")}();`
     : `
 drop trigger if exists ${cleanupTrigger} on ${t};`;
+
   const can = (tenant: string, action: "create" | "update" | "delete") =>
     `(${SERVICE_CALLER} or coalesce(better_supabase.member_can(auth.uid(), ${tenant}, ${key(action)}), false))`;
+
   const hookEvent = (
     type: string,
     endpoint: string,
@@ -177,20 +193,24 @@ drop trigger if exists ${cleanupTrigger} on ${t};`;
         recordId: `${endpoint}::text`,
       },
     });
+
   // An endpoint names a subject only when the app asks for it, so the
   // registry applies to the types options.subjects lists.
   const subjects = subjectsOption(ctx, [], { fallback: false });
   const subjectColumns = has("subjectType") && has("subjectId");
+
   if (subjects.length > 0 && !subjectColumns) {
     throw new TypeError(
       "blocks.webhooks-in.options.subjects needs the subjectType and subjectId columns of the endpoints table",
     );
   }
+
   const readable = subjectReadable(ctx, subjects, {
     type: "subject_type",
     id: "subject_id",
     tenant: "tenant",
   });
+
   // The create function runs as its owner, so it checks that the subject
   // exists in the tenant and its permission; the read policy applies the
   // subject table's own policies as the caller.
@@ -202,9 +222,11 @@ drop trigger if exists ${cleanupTrigger} on ${t};`;
             const permission = subject.permission
               ? ` and (${SERVICE_CALLER} or coalesce(better_supabase.member_can(auth.uid(), tenant, ${sqlString(subject.permission)}), false))`
               : "";
+
             return `      when ${sqlString(type)} then exists (select 1 from ${qualifiedTable(subject.table)} s where ${subjectIdMatches(subject, "subject_id")} and s.${sqlIdent(subject.tenant === false ? "organization_id" : (subject.tenant ?? "organization_id"))} = tenant)${permission}`;
           })
           .join("\n")}\n      else false\n    end`;
+
   const cascades = subjectColumns
     ? subjectCascades(
         ctx,
@@ -212,6 +234,7 @@ drop trigger if exists ${cleanupTrigger} on ${t};`;
         `delete from ${t} e where ${e("subjectType")} = v_type and ${e("subjectId")} = v_id;`,
       )
     : "";
+
   const table = ctx.manages
     ? `
 -- Trigger URLs a tenant hands to another system: /hooks/<token> stores each
@@ -257,6 +280,7 @@ ${updatedAt(t, "updated_at")}`
     : `
 -- Trigger URLs over the app's table ${t} (adopt mode): the app owns its
 -- columns, indexes, grants and policies. Only the token's hash is kept.`;
+
   const policies = ctx.manages
     ? `
 alter table ${t} enable row level security;
@@ -266,6 +290,7 @@ grant select (id, tenant, name, verify, signature_header, enabled, max_body_byte
 grant all on ${t} to service_role;
 `
     : "\n";
+
   const readPolicy = ctx.manages
     ? `
 drop policy if exists bs_incoming_webhooks_read on ${t};
@@ -276,6 +301,7 @@ create policy bs_incoming_webhooks_read on ${t} for select to authenticated
   );
 `
     : "\n";
+
   const listed: readonly (readonly [string, string])[] = [
     ["id", e("id")],
     ["tenant", e("tenant")],
@@ -293,12 +319,14 @@ create policy bs_incoming_webhooks_read on ${t} for select to authenticated
     ["created_by", read("e", "createdBy")],
     ["created_at", read("e", "createdAt")],
   ];
+
   const subjectFilter = subjectColumns
     ? `
     and (list_incoming_webhooks.subject_type is null or ${e("subjectType")} = list_incoming_webhooks.subject_type)
     and (list_incoming_webhooks.subject_id is null or ${e("subjectId")} = list_incoming_webhooks.subject_id)`
     : `
     and list_incoming_webhooks.subject_type is null and list_incoming_webhooks.subject_id is null`;
+
   const insertColumns = (
     [
       ["id", "v_id"],
@@ -315,18 +343,21 @@ create policy bs_incoming_webhooks_read on ${t} for select to authenticated
       ["createdBy", "auth.uid()"],
     ] as const satisfies readonly (readonly [EndpointColumn, string])[]
   ).filter(([logical]) => has(logical));
+
   const noSubjects = subjectColumns
     ? ""
     : `
   if subject_type is not null or subject_id is not null then
     ${fail("WEBHOOK_IN_SUBJECT_INVALID", "This endpoints table has no subject columns", "22023")}
   end if;`;
+
   const noMetadata = has("metadata")
     ? ""
     : `
   if metadata is not null and metadata <> '{}'::jsonb then
     ${fail("WEBHOOK_IN_METADATA_INVALID", "This endpoints table has no metadata column", "22023")}
   end if;`;
+
   const clearGrace = (when: string, keep: string) =>
     assign([
       [
@@ -342,6 +373,7 @@ create policy bs_incoming_webhooks_read on ${t} for select to authenticated
         `case when ${when} then null else ${keep}.${cv("previousSecretExpiresAt")} end`,
       ],
     ]);
+
   const rotateSet = [
     `${c("tokenHash")} = ${sha256Hex("token")}`,
     ...assign([
@@ -356,8 +388,10 @@ create policy bs_incoming_webhooks_read on ${t} for select to authenticated
     ]),
     ...clearGrace("rotate_secret", "e"),
   ];
+
   const keepColumn = (logical: EndpointColumn, when: string, from: string) =>
     has(logical) ? `case when ${when} then ${from} end` : "";
+
   const secretSet = [
     ...assign([
       ["secret", plain("v_secret")],
@@ -380,7 +414,9 @@ create policy bs_incoming_webhooks_read on ${t} for select to authenticated
         ])
       : []),
   ];
+
   const same = `v_verify = previous.${c("verify")}`;
+
   const updateSet = [
     `${c("name")} = coalesce(update_incoming_webhook.name, ${ev("name")})`,
     ...assign([
@@ -418,12 +454,14 @@ create policy bs_incoming_webhooks_read on ${t} for select to authenticated
       ],
     ]),
   ];
+
   const current = (alias: string) =>
     vault
       ? has("secret")
         ? `coalesce(ds.decrypted_secret, ${alias}.${c("secret")})`
         : "ds.decrypted_secret"
       : `${alias}.${c("secret")}`;
+
   const previousSecret = grace
     ? `case when ${e("previousSecretExpiresAt")} > now() then ${
         vault
@@ -433,6 +471,7 @@ create policy bs_incoming_webhooks_read on ${t} for select to authenticated
           : e("previousSecret")
       } end`
     : "null::text";
+
   const vaultJoins = vault
     ? `\n  left join vault.decrypted_secrets ds on ds.id = ${e("secretId")}${
         grace && has("previousSecretId")
@@ -440,11 +479,13 @@ create policy bs_incoming_webhooks_read on ${t} for select to authenticated
           : ""
       }`
     : "";
+
   const counters = assign([
     ["receiveCount", `${ev("receiveCount")} + 1`],
     ["lastReceivedAt", "now()"],
     ["lastStatus", "record_incoming_webhook.status"],
   ]);
+
   const record =
     counters.length > 0
       ? `language sql
@@ -461,6 +502,7 @@ set search_path = ''
 as $$
   select
 $$;`;
+
   return `${schemaPreamble(ctx)}${table}${cleanup}${policies}
 create or replace function ${ctx.fn("incoming_webhook_tenant_ids")}()
 returns setof ${id}
@@ -860,7 +902,9 @@ export const WEBHOOKS_IN: ModuleDefinition = {
         if (!secretStorage(ctx)) {
           return "";
         }
+
         const t = ctx.table("endpoints");
+
         return `alter table ${t} add column if not exists secret_id uuid;
 update ${t} e set secret_id = ${vaultSecret("e.secret", "e.id")}, secret = null
 where e.secret is not null and e.secret_id is null;`;

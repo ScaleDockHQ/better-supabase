@@ -27,12 +27,15 @@ export function FeatureGate({
 }) {
   const t = useExtracted("billing");
   const { allowed } = useFeatureGate(feature);
+
   if (allowed === undefined) {
     return <Skeleton className="h-8 w-28" aria-busy="true" />;
   }
+
   if (allowed) {
     return children;
   }
+
   return (
     <Link
       href="/settings/billing"

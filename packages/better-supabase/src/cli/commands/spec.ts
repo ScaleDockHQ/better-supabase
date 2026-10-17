@@ -41,6 +41,7 @@ import {
 } from "../watch.ts";
 
 const ACTIONS = ["emit", "check", "validate"] as const;
+
 type SpecAction = (typeof ACTIONS)[number];
 
 const isAction = (value: unknown): value is SpecAction =>
@@ -140,6 +141,7 @@ export function specOptionsFromConfig(
   > = {},
 ): SpecRunOptions {
   const manifest = overrides.manifest ?? config.specs.manifest;
+
   return {
     config,
     action,
@@ -162,6 +164,7 @@ export function uiPath(output: string): string {
 function uiHtml(rendered: RenderedTarget, ui: SpecUi): string {
   const document = parseAs(rendered.target.serialization, rendered.text);
   const title = fieldOf(fieldOf(document, "info"), "title");
+
   return `${specReferenceHtml({
     specUrl: `./${basename(rendered.target.output)}`,
     ui,
@@ -178,6 +181,7 @@ interface Settled {
 
 async function compare(path: string, expected: string): Promise<boolean> {
   const current = existsSync(path) ? await readFile(path, "utf-8") : undefined;
+
   return sameText(current, expected);
 }
 
@@ -188,10 +192,13 @@ async function settle(
 ): Promise<Settled> {
   const { target } = rendered;
   const shown = display(root, target.output);
+
   const files: { path: string; text: string }[] = [
     { path: target.output, text: rendered.text },
   ];
+
   const diagnostics: SpecDiagnostic[] = [...rendered.diagnostics];
+
   if (target.ui) {
     if (target.format.id === "openapi") {
       files.push({
@@ -206,21 +213,26 @@ async function settle(
       });
     }
   }
+
   const label = `(${target.format.id} ${target.version}${rendered.cached ? ", cached" : ""})`;
+
   switch (action) {
     case "emit": {
       const lines: string[] = [];
       let wrote = false;
+
       for (const file of files) {
         const changed = await writeIfChanged(
           resolve(root, file.path),
           file.text,
         );
+
         wrote ||= changed;
         lines.push(
           `${changed ? "Wrote" : "Unchanged"} ${display(root, file.path)}${file.path === target.output ? ` ${label}` : ""}`,
         );
       }
+
       return {
         status: wrote ? "written" : "unchanged",
         lines,
@@ -228,15 +240,19 @@ async function settle(
         stale: false,
       };
     }
+
     case "check": {
       const lines: string[] = [];
       let stale = false;
+
       for (const file of files) {
         const path = resolve(root, file.path);
+
         if (await compare(path, file.text)) {
           lines.push(`${display(root, file.path)} is up to date.`);
           continue;
         }
+
         stale = true;
         const missing = !existsSync(path);
         diagnostics.push({
@@ -245,6 +261,7 @@ async function settle(
           message: `${display(root, file.path)} ${missing ? "does not exist" : "is out of date"}. Run \`better-supabase spec emit\`.`,
         });
       }
+
       return {
         status: stale ? "stale" : "up-to-date",
         lines,
@@ -252,6 +269,7 @@ async function settle(
         stale,
       };
     }
+
     case "validate": {
       return {
         status: "validated",
@@ -260,6 +278,7 @@ async function settle(
         stale: false,
       };
     }
+
     default: {
       const unknown: never = action;
       throw new Error(`Unknown spec action: ${String(unknown)}`);
@@ -273,6 +292,7 @@ export async function runSpec(options: SpecRunOptions): Promise<CommandResult> {
   const root = config.root;
   const entryPath = options.entry ?? config.specs.entry;
   let entry;
+
   try {
     entry = await loadSpecEntry(resolve(root, entryPath));
   } catch (cause) {
@@ -281,19 +301,24 @@ export async function runSpec(options: SpecRunOptions): Promise<CommandResult> {
       error: `Could not load ${display(root, entryPath)}: ${errorText(cause)}`,
     };
   }
+
   const registry = formatRegistry(entry.formats);
   let targets: SpecTarget[];
+
   try {
     targets = resolveTargets(config.specs.outputs, registry, options.filter);
   } catch (cause) {
     if (cause instanceof TargetError) {
       return { code: cause.code === "usage" ? 2 : 1, error: cause.message };
     }
+
     throw cause;
   }
+
   const missing = targets.find(
     (target) => !entry.api && !entry.documents.has(target.format.id),
   );
+
   if (missing) {
     return {
       code: 1,
@@ -307,12 +332,15 @@ export async function runSpec(options: SpecRunOptions): Promise<CommandResult> {
     cache: options.cache,
     validate: options.action === "validate",
   };
+
   const rendered = await Promise.all(
     targets.map((target) => renderTarget(target, context)),
   );
+
   const outputs: ManifestOutput[] = [];
   const lines: string[] = [];
   let stale = false;
+
   for (const result of rendered) {
     const settled = await settle(options.action, root, result);
     stale ||= settled.stale;
@@ -328,6 +356,7 @@ export async function runSpec(options: SpecRunOptions): Promise<CommandResult> {
       diagnostics: settled.diagnostics,
     });
   }
+
   const failing = outputs.flatMap((output) =>
     output.diagnostics.filter(
       (diagnostic) =>
@@ -336,6 +365,7 @@ export async function runSpec(options: SpecRunOptions): Promise<CommandResult> {
         diagnostic.code === "output-missing",
     ),
   );
+
   const ok = failing.length === 0 && !stale;
   const manifest = buildManifest(outputs, options.failOn, ok);
   const manifestText = `${JSON.stringify(manifest, null, 2)}\n`;
@@ -343,16 +373,20 @@ export async function runSpec(options: SpecRunOptions): Promise<CommandResult> {
     resolve(root, SPEC_CACHE_DIR, "diagnostics.json"),
     manifestText,
   ).catch(() => undefined);
+
   if (options.manifest) {
     await writeIfChanged(resolve(root, options.manifest), manifestText);
   }
 
   const findings = formatDiagnostics(outputs);
   const output = [...lines, ...(findings ? ["", findings] : [])].join("\n");
+
   if (ok) {
     return { code: 0, output, data: manifest };
   }
+
   const count = failing.length;
+
   return {
     code: 1,
     output,
@@ -369,6 +403,7 @@ function watchedFiles(
   configFile: string | undefined,
 ): string[] {
   const { config } = options;
+
   return [
     ...(configFile ? [configFile] : []),
     resolve(config.root, options.entry ?? config.specs.entry),
@@ -392,39 +427,53 @@ async function watch(
   let options = initial;
   let last = "";
   const fresh = onceReporter();
+
   const configStamp = (): Promise<number | undefined> =>
     configFile ? modifiedTime(configFile) : Promise.resolve(undefined);
+
   let configTime = await configStamp();
+
   for (;;) {
     if (signal?.aborted === true) {
       break;
     }
+
     const changedConfig = await configStamp();
+
     if (reloadConfig && changedConfig !== configTime) {
       configTime = changedConfig;
+
       try {
         options = { ...options, config: await reloadConfig() };
       } catch (cause) {
         const message = errorText(cause);
+
         if (fresh(message)) {
           io.stderr(`${message}\n`);
         }
       }
     }
+
     const current = await stampFiles(watchedFiles(options, configFile));
+
     if (current !== last) {
       last = current;
       const result = await runSpec(options).catch(failedResult);
+
       if (result.output) {
         io.stdout(`${result.output}\n`);
       }
+
       const message = result.error ?? "";
+
       if (fresh(message)) {
         io.stderr(`${message}\n`);
       }
     }
+
     await sleep(interval, signal);
   }
+
   return { code: 0 };
 }
 
@@ -437,29 +486,35 @@ export const specCommand: AnyCommand = defineCliCommand({
   args: ARGS,
   run: (args, context) => {
     const [action, format] = args._;
+
     if (!isAction(action)) {
       return Promise.resolve({
         code: 2,
         error: `${action ? `Unknown spec action "${action}"` : "Name an action"}. Run \`better-supabase spec emit\`, \`check\` or \`validate\`.`,
       });
     }
+
     const failOn = args["fail-on"] ?? context.config.specs.failOn;
+
     if (!isFailOn(failOn)) {
       return Promise.resolve({
         code: 2,
         error: `--fail-on takes ${FAIL_ON.join(", ")}, got "${failOn}".`,
       });
     }
+
     if (args.ui !== undefined && !isUi(args.ui)) {
       return Promise.resolve({
         code: 2,
         error: `--ui takes ${SPEC_UIS.join(", ")}, got "${args.ui}".`,
       });
     }
+
     const interval = parseInterval(
       args.interval,
       context.config.gen.watchInterval,
     );
+
     if (
       args.watch === true &&
       (action !== "emit" || typeof interval === "string")
@@ -472,6 +527,7 @@ export const specCommand: AnyCommand = defineCliCommand({
             : "--watch only applies to `spec emit`.",
       });
     }
+
     const options = specOptionsFromConfig(context.config, action, {
       failOn,
       cache: args.cache,
@@ -487,6 +543,7 @@ export const specCommand: AnyCommand = defineCliCommand({
         ...(isUi(args.ui) ? { ui: args.ui } : {}),
       },
     });
+
     return args.watch === true && typeof interval === "number"
       ? watch(options, interval, context)
       : runSpec(options);

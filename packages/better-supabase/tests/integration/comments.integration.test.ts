@@ -21,6 +21,7 @@ describe.skipIf(!live)("comments", () => {
     url.username = "authenticator";
     const client = new Client({ connectionString: url.toString() });
     await client.connect();
+
     try {
       await client.query("begin");
       await client.query(
@@ -36,11 +37,13 @@ describe.skipIf(!live)("comments", () => {
         `select set_config('request.jwt.claims', '{"role":"service_role"}', true)`,
       );
       const tenant = crypto.randomUUID();
+
       const copy = () =>
         client.query<{ copied: number }>(
           "select better_supabase.copy_comments($1, 'quote', 'q1', 'invoice', 'i1') as copied",
           [tenant],
         );
+
       expect((await copy()).rows).toEqual([{ copied: 0 }]);
       expect((await copy()).rows).toEqual([{ copied: 0 }]);
       await client.query("rollback");
@@ -51,6 +54,7 @@ describe.skipIf(!live)("comments", () => {
 
   it("threads comments on readable subjects, notifies mentions and emits events", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.rows(
         `create table if not exists public.bs_test_projects (
@@ -79,14 +83,17 @@ describe.skipIf(!live)("comments", () => {
       const viewer = await s.user("viewer");
       const outsider = await s.user("outsider");
       const organization = await s.organization(owner, { member, viewer });
+
       const [project] = await s.rows<{ id: string }>(
         "insert into public.bs_test_projects (organization_id, name) values ($1, 'Apollo') returning id",
         [organization],
       );
+
       const subject = project!.id;
       const comments = createComments({ transport: sqlTransport(s.sql) });
 
       await s.asRole(member);
+
       const first = await comments
         .create({
           organizationId: organization,
@@ -95,6 +102,7 @@ describe.skipIf(!live)("comments", () => {
           body: `Ready for review @[Owner](${owner.id}) @[Me](${member.id}) @[Out](${outsider.id})`,
         })
         .orThrow();
+
       expect(first).toMatchObject({
         organizationId: organization,
         subjectType: "project",
@@ -114,19 +122,23 @@ describe.skipIf(!live)("comments", () => {
         subjectId: crypto.randomUUID(),
         body: "No such project",
       });
+
       expect(missing).toMatchObject({
         ok: false,
         error: { kind: "forbidden" },
       });
+
       const unknown = await comments.create({
         organizationId: organization,
         subjectType: "invoice",
         subjectId: subject,
         body: "Not a subject type",
       });
+
       expect(unknown).toMatchObject({ ok: false });
 
       await s.asRole(owner);
+
       const reply = await comments
         .create({
           organizationId: organization,
@@ -136,26 +148,31 @@ describe.skipIf(!live)("comments", () => {
           parentId: first.id,
         })
         .orThrow();
+
       expect(reply.parentId).toBe(first.id);
       expect(
         await comments.edit(first.id, { body: "Owner editing" }),
       ).toMatchObject({ ok: false, error: { hint: "COMMENT_NOT_AUTHOR" } });
 
       await s.service();
+
       const notified = await s.rows<{ user_id: string; type: string }>(
         `select r.user_id, e.type from better_supabase.notification_recipients r
          join better_supabase.notification_events e on e.id = r.event_id
          where e.subject_id = $1`,
         [subject],
       );
+
       expect(notified).toEqual([
         { user_id: owner.id, type: "comment.mentioned" },
       ]);
 
       await s.asRole(member);
+
       const edited = await comments
         .edit(first.id, { body: `Now with @[Viewer](${viewer.id})` })
         .orThrow();
+
       expect(edited.editedAt).toBeDefined();
       expect(edited.mentions).toEqual([viewer.id]);
       expect(
@@ -165,6 +182,7 @@ describe.skipIf(!live)("comments", () => {
       const thread = await comments
         .list(organization, "project", subject)
         .orThrow();
+
       expect(thread.map((comment) => comment.id)).toEqual([first.id, reply.id]);
 
       await s.asRole(viewer);
@@ -176,9 +194,11 @@ describe.skipIf(!live)("comments", () => {
       await s.asRole(owner);
       expect(await comments.remove(first.id).orThrow()).toBe(true);
       expect(await comments.remove(first.id).orThrow()).toBe(false);
+
       const after = await comments
         .list(organization, "project", subject)
         .orThrow();
+
       expect(after[0]).toMatchObject({ body: "", mentions: [] });
       expect(after[0]?.deletedAt).toBeDefined();
 
@@ -188,6 +208,7 @@ describe.skipIf(!live)("comments", () => {
       ).toEqual([]);
 
       await s.service();
+
       const events = await s.rows<{
         type: string;
         payload: Record<string, unknown>;
@@ -197,6 +218,7 @@ describe.skipIf(!live)("comments", () => {
          where type like 'comment.%' and organization_id = $1 order by position`,
         [organization],
       );
+
       // The edit's mention of the viewer, who lacks comments.read, sends nothing.
       expect(events.map((event) => event.type)).toEqual([
         "comment.created",
@@ -215,12 +237,15 @@ describe.skipIf(!live)("comments", () => {
         data: event.payload,
         partitionkey: event.tenant,
       }));
+
       const sink = activitySink({
         transport: sqlTransport(s.sql),
         types: ["comment.created", "comment.deleted"],
       });
+
       await sink.send(cloud);
       await sink.send(cloud);
+
       const feed = await s.rows<{
         type: string;
         actor_id: string;
@@ -230,6 +255,7 @@ describe.skipIf(!live)("comments", () => {
          where organization_id = $1 order by event_id`,
         [organization],
       );
+
       expect(feed).toEqual([
         {
           type: "comment.created",
@@ -267,6 +293,7 @@ describe.skipIf(!live)("comments", () => {
   it("labels mention notifications, keeps them to readers of the subject and can stay quiet", async () => {
     const s = await BlockSession.open(pool);
     const table = `public.bs_test_tasks_${crypto.randomUUID().slice(0, 8)}`;
+
     try {
       await s.rows(
         `create table ${table} (
@@ -281,6 +308,7 @@ describe.skipIf(!live)("comments", () => {
          create policy "read" on ${table} for select to authenticated
            using (better_supabase.has_organization_role(organization_id));`,
       );
+
       const subjects = {
         task: {
           table,
@@ -290,6 +318,7 @@ describe.skipIf(!live)("comments", () => {
           readableBy: "not {row}.private or {row}.owner_id = {user}",
         },
       };
+
       await s.install(
         ["organizations", "outbox", "notifications", "comments"],
         {
@@ -299,14 +328,17 @@ describe.skipIf(!live)("comments", () => {
       const owner = await s.user("owner");
       const member = await s.user("member");
       const author = await s.user("author");
+
       const organization = await s.organization(owner, {
         member,
         member2: author,
       });
+
       const [task] = await s.rows<{ id: string }>(
         `insert into ${table} (organization_id, title, owner_id, private) values ($1, 'Fix the pump', $2, true) returning id`,
         [organization, owner.id],
       );
+
       const comments = createComments({ transport: sqlTransport(s.sql) });
       await s.asRole(author);
       await comments
@@ -318,12 +350,14 @@ describe.skipIf(!live)("comments", () => {
         })
         .orThrow();
       await s.service();
+
       const notified = await s.rows(
         `select r.user_id::text, e.subject_label, e.action_path from better_supabase.notification_recipients r
          join better_supabase.notification_events e on e.id = r.event_id
          where e.subject_id = $1`,
         [task!.id],
       );
+
       expect(notified).toEqual([
         {
           user_id: owner.id,
@@ -368,6 +402,7 @@ describe.skipIf(!live)("comments", () => {
   it("hides comments on rows an enforced readableBy refuses", async () => {
     const s = await BlockSession.open(pool);
     const table = `public.bs_test_tasks_${crypto.randomUUID().slice(0, 8)}`;
+
     try {
       await s.rows(
         `create table ${table} (
@@ -402,12 +437,15 @@ describe.skipIf(!live)("comments", () => {
       const owner = await s.user("owner");
       const member = await s.user("member");
       const organization = await s.organization(owner, { member });
+
       const tasks = await s.rows<{ id: string }>(
         `insert into ${table} (organization_id, owner_id, private) values ($1, $2, true), ($1, $2, false) returning id`,
         [organization, owner.id],
       );
+
       const comments = createComments({ transport: sqlTransport(s.sql) });
       await s.asRole(owner);
+
       for (const task of tasks) {
         await comments
           .create({
@@ -418,8 +456,10 @@ describe.skipIf(!live)("comments", () => {
           })
           .orThrow();
       }
+
       const visible = async (): Promise<number> =>
         s.value<number>("(select count(*)::int from better_supabase.comments)");
+
       expect(await visible()).toBe(2);
       await s.asRole(member);
       expect(await visible()).toBe(1);
@@ -431,6 +471,7 @@ describe.skipIf(!live)("comments", () => {
   it("expands group mentions and keeps them to readers", async () => {
     const s = await BlockSession.open(pool);
     const teams = `public.bs_test_team_members_${crypto.randomUUID().slice(0, 8)}`;
+
     try {
       await s.rows(
         `create table ${teams} (
@@ -475,18 +516,23 @@ describe.skipIf(!live)("comments", () => {
         ],
       );
       const comments = createComments({ transport: sqlTransport(s.sql) });
+
       const recipients = async () => {
         await s.service();
+
         const rows = await s.rows<{ user_id: string }>(
           `select r.user_id::text from better_supabase.notification_recipients r
            join better_supabase.notification_events e on e.id = r.event_id
            where e.subject_id = 'p1' order by e.created_at, r.user_id`,
         );
+
         await s.asRole(owner);
+
         return rows.map((row) => row.user_id);
       };
 
       await s.asRole(owner);
+
       const comment = await comments
         .create({
           organizationId: organization,
@@ -495,6 +541,7 @@ describe.skipIf(!live)("comments", () => {
           body: `Team @[Team](${team}) and @[Elsewhere](${elsewhere})`,
         })
         .orThrow();
+
       expect(comment.mentions).toEqual([team, elsewhere].toSorted());
       expect(await recipients()).toEqual([member.id]);
 
@@ -511,6 +558,7 @@ describe.skipIf(!live)("comments", () => {
 
   it("checks a subject type's own read, create and moderate permissions", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.rows(
         `create table if not exists public.bs_test_deals (
@@ -544,17 +592,21 @@ describe.skipIf(!live)("comments", () => {
       const owner = await s.user("owner");
       const member = await s.user("member");
       const organization = await s.organization(owner, { member });
+
       const [deal] = await s.rows<{ id: string }>(
         "insert into public.bs_test_deals (organization_id) values ($1) returning id",
         [organization],
       );
+
       const comments = createComments({ transport: sqlTransport(s.sql) });
+
       const input = {
         organizationId: organization,
         subjectType: "deal",
         subjectId: deal!.id,
         body: "Pricing looks right",
       };
+
       await s.asRole(member);
       expect(await comments.create(input)).toMatchObject({ ok: false });
       await s.asRole(owner);
@@ -598,6 +650,7 @@ describe.skipIf(!live)("comments", () => {
 
   it("keeps a document, copies a thread, cascades deletes and lists a timeline", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.rows(
         `create table public.bs_test_quotes (
@@ -623,21 +676,25 @@ describe.skipIf(!live)("comments", () => {
       const owner = await s.user("owner");
       const member = await s.user("member");
       const organization = await s.organization(owner, { member });
+
       const [from, to] = await s.rows<{ id: string }>(
         "insert into public.bs_test_quotes (organization_id) values ($1), ($1) returning id",
         [organization],
       );
+
       const comments = createComments({
         transport: sqlTransport(s.sql),
         mentionsOf: ({ document }) =>
           JSON.stringify(document ?? {}).includes(owner.id) ? [owner.id] : [],
       });
+
       const document = {
         type: "doc",
         content: [{ type: "mention", id: owner.id }],
       };
 
       await s.asRole(member);
+
       const root = await comments
         .create({
           organizationId: organization,
@@ -647,6 +704,7 @@ describe.skipIf(!live)("comments", () => {
           document,
         })
         .orThrow();
+
       expect(root.document).toEqual(document);
       expect(root.mentions).toEqual([owner.id]);
       await comments
@@ -660,9 +718,11 @@ describe.skipIf(!live)("comments", () => {
         .orThrow();
       const edited = await comments.edit(root.id, { body: "Plain" }).orThrow();
       expect(edited.document).toEqual(document);
+
       const cleared = await comments
         .edit(root.id, { body: "Plain", document: null })
         .orThrow();
+
       expect(cleared.document).toBeNull();
       expect(
         (
@@ -685,9 +745,11 @@ describe.skipIf(!live)("comments", () => {
           .orThrow(),
       ).toBe(2);
       await s.asRole(member);
+
       const copied = await comments
         .list(organization, "quote", to!.id)
         .orThrow();
+
       expect(copied.map((comment) => comment.body)).toEqual(["Plain", "Done"]);
       expect(copied[0]!.authorId).toBe(member.id);
       expect(copied[1]!.parentId).toBe(copied[0]!.id);
@@ -714,19 +776,23 @@ describe.skipIf(!live)("comments", () => {
         [organization, to!.id],
       );
       await s.asRole(owner);
+
       const timeline = await comments
         .history(organization, { type: "quote", id: to!.id })
         .orThrow();
+
       expect(timeline.map((entry) => entry.type)).toEqual([
         "quote.sent",
         "quote.created",
       ]);
+
       const page = await comments
         .history(organization, undefined, {
           cursor: Temporal.Instant.from("2026-10-06T10:30:00Z"),
           limit: 1,
         })
         .orThrow();
+
       expect(page.map((entry) => entry.type)).toEqual(["quote.sent"]);
     } finally {
       await s.close();
@@ -735,6 +801,7 @@ describe.skipIf(!live)("comments", () => {
 
   it("filters activity through can_subject, adds audit entries and makes participants follow", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.rows(
         `create table public.bs_test_activity_quotes (
@@ -763,10 +830,12 @@ describe.skipIf(!live)("comments", () => {
       await s.rows(
         "select better_supabase.audit('public.bs_test_activity_quotes')",
       );
+
       const [open, mine] = await s.rows<{ id: string }>(
         "insert into public.bs_test_activity_quotes (organization_id, owner_id) values ($1, null), ($1, $2) returning id",
         [organization, owner.id],
       );
+
       const entry = (event: string, type: string, subject: string) => ({
         event_id: event,
         organization_id: organization,
@@ -775,6 +844,7 @@ describe.skipIf(!live)("comments", () => {
         subject_id: subject,
         occurred_at: "2026-10-06T10:00:00Z",
       });
+
       await s.rows("select better_supabase.record_activity($1)", [
         {
           entries: [
@@ -787,9 +857,11 @@ describe.skipIf(!live)("comments", () => {
       const comments = createComments({ transport: sqlTransport(s.sql) });
 
       await s.asRole(admin);
+
       const timeline = await comments
         .history(organization, { type: "quote", id: open!.id })
         .orThrow();
+
       expect(
         timeline
           .map((item) => `${item.source} ${item.type}`)
@@ -808,10 +880,12 @@ describe.skipIf(!live)("comments", () => {
           .orThrow(),
       ).toEqual([]);
       const feed = await comments.history(organization).orThrow();
+
       const byText = (
         a: string | null | undefined,
         b: string | null | undefined,
       ): number => (a ?? "").localeCompare(b ?? "");
+
       expect(feed.map((item) => item.subjectId).toSorted(byText)).toEqual(
         [open!.id, "t1"].toSorted(byText),
       );
@@ -847,11 +921,13 @@ describe.skipIf(!live)("comments", () => {
         })
         .orThrow();
       await s.service();
+
       const levels = await s.rows<{ user_id: string; level: string }>(
         `select user_id, level from better_supabase.notification_subscriptions
          where subject_type = 'quote' and subject_id = $1 order by level, user_id`,
         [open!.id],
       );
+
       expect(levels).toEqual([
         { user_id: admin.id, level: "ignore" },
         ...[member.id, owner.id]

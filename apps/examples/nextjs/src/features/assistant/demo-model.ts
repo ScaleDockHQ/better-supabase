@@ -11,6 +11,7 @@ const REPLY = [
 /** A scripted model that streams a fixed answer word by word. */
 export function demoModel(): MockLanguageModelV4 {
   const words = REPLY.split(" ");
+
   return new MockLanguageModelV4({
     doStream: () =>
       Promise.resolve({

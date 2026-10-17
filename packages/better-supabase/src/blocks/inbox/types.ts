@@ -16,11 +16,17 @@ export type InboxChannel =
 
 /** `bot`: the bot answers; `human`: staff answer; `paused`: nobody answers. */
 export type BotMode = "bot" | "human" | "paused";
+
 export type ConversationStatus = "open" | "pending" | "snoozed" | "resolved";
+
 export type ConversationPriority = "low" | "normal" | "high" | "urgent";
+
 export type MessageDirection = "inbound" | "outbound";
+
 export type MessageKind = "message" | "note";
+
 export type AuthorType = "contact" | "agent" | "bot" | "system";
+
 export type DeliveryStatus =
   | "queued"
   | "sent"

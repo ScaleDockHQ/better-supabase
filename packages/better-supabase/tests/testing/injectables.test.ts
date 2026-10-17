@@ -55,6 +55,7 @@ describe("testEmbedder", () => {
       model: "",
       embed: async (values) => values.slice(1).map(() => [Number.NaN]),
     };
+
     await expect(testEmbedder(ragged)).rejects.toBeInstanceOf(ConformanceError);
   });
 });
@@ -67,10 +68,12 @@ describe("testAiTaskRunner", () => {
     const runner: AiTaskRunner = Object.assign(
       async (_task: AiTask, _run: AiTaskRun, signal: AbortSignal) => {
         signal.throwIfAborted();
+
         return { chatId: "c" };
       },
       { apiVersion: 1 as const },
     );
+
     expect(failed(await testAiTaskRunner(runner, { task, run }))).toEqual([]);
   });
 
@@ -90,14 +93,17 @@ describe("testGraphCompiler", () => {
       (input: WorkflowGraph) => ({ steps: input.nodes.length }),
       { apiVersion: 1 as const },
     );
+
     expect(failed(await testGraphCompiler(compile, { graph }))).toEqual([]);
   });
 
   it("fails a compiler that returns a new value each time", async () => {
     let n = 0;
+
     const compile: GraphCompiler = Object.assign(() => ({ at: (n += 1) }), {
       apiVersion: 1 as const,
     });
+
     await expect(testGraphCompiler(compile, { graph })).rejects.toThrow(
       /two compiles of one graph differ/,
     );
@@ -112,6 +118,7 @@ describe("testBuilderStarter", () => {
       async (input: BuilderStartCall) => `run_${input.idempotencyKey}`,
       { apiVersion: 1 as const },
     );
+
     expect(failed(await testBuilderStarter(start, { call }))).toEqual([]);
   });
 
@@ -120,6 +127,7 @@ describe("testBuilderStarter", () => {
       async () => crypto.randomUUID(),
       { apiVersion: 1 as const },
     );
+
     await expect(testBuilderStarter(start, { call })).rejects.toThrow(
       /started a new run/,
     );

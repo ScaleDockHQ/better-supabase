@@ -71,6 +71,7 @@ async function decisionsOf(
   const rows = await chats.approvals
     .list(input.chatId, input.approvalIds)
     .orThrow();
+
   return rows.flatMap((row) =>
     row.decision === "pending"
       ? []
@@ -97,6 +98,7 @@ async function release(
     )
     .orThrow();
   const { usage } = input;
+
   if (
     usage?.costMicroUsd === undefined &&
     usage?.generationId !== undefined &&
@@ -134,5 +136,6 @@ export function runDurableStep<K extends DurableStepName>(
   options: DurableStepOptions = {},
 ): Promise<DurableStepOutput<K>> {
   const calls: DurableStepCalls = durableSteps(chats, options);
+
   return calls[name](input);
 }

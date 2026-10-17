@@ -75,6 +75,7 @@ describe("entitlementsMode", () => {
         },
       ],
     });
+
     expect(
       entitlementsMode(resolveConfig({ authorization: provider }, "/project")),
     ).toMatchObject({
@@ -165,6 +166,7 @@ describe("accessProviderMode", () => {
       id: "id",
       disabledAt: "banned_at",
     };
+
     const roleSources = [
       {
         table: "authz.memberships",
@@ -174,6 +176,7 @@ describe("accessProviderMode", () => {
         },
       },
     ];
+
     expect(
       accessProviderMode(
         config({}, withProvider({ suspension: { user }, roleSources })),
@@ -310,9 +313,11 @@ describe("requirements", () => {
         "/project",
       ),
     );
+
     if (mode.kind !== "provider") {
       throw new Error("expected provider mode");
     }
+
     expect(accessRequirements(mode.access)).toEqual([
       {
         function: "authz.ids_organization",
@@ -331,9 +336,11 @@ describe("requirements", () => {
     const mode = entitlementsMode(
       resolveConfig({ authorization: stubProvider }, "/project"),
     );
+
     if (mode.kind !== "provider") {
       throw new Error("expected provider mode");
     }
+
     expect(entitlementRequirements(mode.provider)).toEqual([
       {
         kind: "member",

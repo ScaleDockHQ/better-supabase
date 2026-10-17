@@ -34,6 +34,7 @@ describe.skipIf(!live)("delegated jobs under RLS", () => {
       grant select, update on public.${table} to authenticated;
       insert into public.${table} values (1, '${organization}', 'draft');
     `);
+
     return table;
   }
 
@@ -44,15 +45,18 @@ describe.skipIf(!live)("delegated jobs under RLS", () => {
   ): Promise<RequestContext> {
     await session.service();
     const queue = `delegation_${crypto.randomUUID().slice(0, 8)}`;
+
     const jobs = createJobs({
       sql: session.sql,
       queues: {
         [queue]: v.object({ id: v.number() }),
       },
     });
+
     await jobs.enqueue(queue, { id: 1 }, { context }).orThrow();
     const [job] = await jobs.claim(queue).orThrow();
     expect(job?.payload).toEqual({ id: 1 });
+
     return job!.context;
   }
 
@@ -62,34 +66,42 @@ describe.skipIf(!live)("delegated jobs under RLS", () => {
     context: RequestContext,
   ): Promise<number | null> {
     const built = contextClaims(context);
+
     if (!built.ok) {
       throw new Error(built.message);
     }
+
     const { sub, ...claims } = built.claims;
     await session.asRole({ id: sub, email: "worker@example.test" }, claims);
+
     const result = await session.client.query(
       `update public.${table} set title = 'published' where id = 1`,
     );
+
     return result.rowCount;
   }
 
   it("refuses a job queued with a read scope and runs one with the write scope", async () => {
     const session = await BlockSession.open(pool);
+
     try {
       await session.install(["organizations", "jobs", "actor", "access"], {
         modules: { access: { scopes: { "posts:write": ["members.invite"] } } },
       });
       const author = await session.user("author");
+
       const table = await postsTable(
         session,
         await session.organization(author),
       );
+
       const actor = { id: author.id, kind: "user" as const };
 
       const reader = await roundTrip(session, {
         actor,
         claims: { client_id: "mcp-client", scope: "posts:read" },
       });
+
       expect(reader.claims).toEqual({
         client_id: "mcp-client",
         scope: "posts:read",
@@ -103,12 +115,14 @@ describe.skipIf(!live)("delegated jobs under RLS", () => {
           scope: ["posts:read"],
         },
       });
+
       expect(await updateAs(session, table, chain)).toBe(0);
 
       const writer = await roundTrip(session, {
         actor,
         claims: { client_id: "mcp-client", scope: "posts:read posts:write" },
       });
+
       expect(await updateAs(session, table, writer)).toBe(1);
 
       const own = await roundTrip(session, { actor, claims: {} });
@@ -119,6 +133,7 @@ describe.skipIf(!live)("delegated jobs under RLS", () => {
         actor,
         claims: { bs_permission_cap: ["audit.read"] },
       });
+
       expect(capped.claims).toEqual({ bs_permission_cap: ["audit.read"] });
       expect(await updateAs(session, table, capped)).toBe(0);
     } finally {
@@ -128,16 +143,20 @@ describe.skipIf(!live)("delegated jobs under RLS", () => {
 
   it("answers token_scope_allows from the claims", async () => {
     const session = await BlockSession.open(pool);
+
     try {
       await session.install(["actor"]);
       const user = { id: crypto.randomUUID(), email: "scope@example.test" };
+
       const allows = async (claims: object, scope = "posts:write") => {
         await session.as(user, claims);
+
         return session.value<boolean>(
           "better_supabase.token_scope_allows($1)",
           [scope],
         );
       };
+
       expect(await allows({})).toBe(true);
       expect(await allows({ act: { kind: "support", sub: "a" } })).toBe(true);
       expect(await allows({ act: { kind: "impersonation", sub: "a" } })).toBe(

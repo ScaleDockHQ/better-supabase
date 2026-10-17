@@ -30,6 +30,7 @@ const start = graphStarter({ steps: graphSteps, executor: graphExecutor });
  */
 export function builderFor(supabase: RpcClient) {
   const service = rpcTransport(bs.admin().$client, { schema: API_SCHEMA });
+
   return createWorkflowBuilder({
     transport: rpcTransport(supabase, { schema: API_SCHEMA }),
     service,

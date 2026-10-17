@@ -21,6 +21,7 @@ export async function DocsArticle({
   slug: Promise<string[] | undefined>;
 }) {
   const page = source.getPage(await slug);
+
   if (!page) {
     notFound();
   }

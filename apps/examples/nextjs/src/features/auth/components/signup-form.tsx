@@ -42,9 +42,11 @@ export function SignupForm() {
   const supabase = useSupabase();
   const router = useRouter();
   const changeSession = useSessionChange(sessionChanged, router);
+
   const [state, submit, pending] = useActionState(
     async (_previous: State, form: FormData): Promise<State> => {
       const email = String(form.get("email"));
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password: String(form.get("password")),
@@ -53,18 +55,23 @@ export function SignupForm() {
           emailRedirectTo: `${window.location.origin}/${locale}`,
         },
       });
+
       if (error) {
         return { error: error.message };
       }
+
       // With email confirmations on, there is no session until the link is opened.
       if (!data.session) {
         return { confirm: email };
       }
+
       await changeSession(safeNext(`/${locale}`));
+
       return null;
     },
     null,
   );
+
   if (state && "confirm" in state) {
     return (
       <Card>
@@ -80,7 +87,9 @@ export function SignupForm() {
       </Card>
     );
   }
+
   const error = state && "error" in state ? state.error : null;
+
   return (
     <Card>
       <CardHeader className="text-center">

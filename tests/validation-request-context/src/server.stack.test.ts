@@ -8,6 +8,7 @@ import { createAppServer, withCron, withUserAuth } from "./supabase.ts";
 // `pnpm env:local` writes it (the CLI picks the ports per checkout); without
 // it the suite skips, like it does when the stack is down.
 const stackUrl = process.env["SUPABASE_URL"];
+
 const stack = {
   url: stackUrl ?? "http://supabase-url-not-set.invalid",
   publishableKey:
@@ -17,6 +18,7 @@ const stack = {
     process.env["SUPABASE_SECRET_KEY"] ??
     "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz",
 };
+
 const CRON_KEY = "sb_secret_cron_validation";
 const ACME = "00000000-0000-4000-8000-000000000001";
 
@@ -52,16 +54,20 @@ const admin = createClient(stack.url, stack.secretKey, {
 async function signIn(): Promise<Session & { remove: () => Promise<void> }> {
   const email = `request-context-${crypto.randomUUID()}@example.com`;
   const password = "correct horse battery staple";
+
   const { data, error } = await admin.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
     app_metadata: { tenant_id: ACME },
   });
+
   if (error) {
     throw error;
   }
+
   const cookies = new Map<string, string>();
+
   const client = createServerClient(stack.url, stack.publishableKey, {
     cookies: {
       getAll: () => [...cookies].map(([name, value]) => ({ name, value })),
@@ -72,11 +78,14 @@ async function signIn(): Promise<Session & { remove: () => Promise<void> }> {
       },
     },
   });
+
   const { data: session, error: signInError } =
     await client.auth.signInWithPassword({ email, password });
+
   if (signInError) {
     throw signInError;
   }
+
   return {
     id: data.user.id,
     accessToken: session.session.access_token,
@@ -92,16 +101,19 @@ const cookieHeader = (cookies: Map<string, string>) =>
 
 describe.skipIf(!up)("request context on better-supabase", () => {
   const server = createAppServer(env, "web");
+
   const whoami = withUserAuth(server, async (_request, ctx) => {
     const customers = await ctx.db.customers
       .findMany({ select: ["organizationId"] })
       .orThrow();
+
     return {
       userId: ctx.auth.kind === "user" ? ctx.auth.user.id : null,
       source: ctx.auth.kind === "user" ? ctx.auth.source : null,
       organizations: [...new Set(customers.map((row) => row.organizationId))],
     };
   });
+
   const cron = withCron(server, (_request, ctx) => ({ auth: ctx.auth }));
   let a: Awaited<ReturnType<typeof signIn>>;
   let b: Awaited<ReturnType<typeof signIn>>;
@@ -122,6 +134,7 @@ describe.skipIf(!up)("request context on better-supabase", () => {
     const response = await call(whoami, {
       authorization: `Bearer ${a.accessToken}`,
     });
+
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       userId: a.id,
@@ -135,6 +148,7 @@ describe.skipIf(!up)("request context on better-supabase", () => {
       authorization: `Bearer ${a.accessToken}`,
       cookie: cookieHeader(b.cookies),
     });
+
     expect(await response.json()).toMatchObject({
       userId: a.id,
       source: "bearer",
@@ -152,12 +166,15 @@ describe.skipIf(!up)("request context on better-supabase", () => {
   it("rejects a tampered token", async () => {
     const [head, body, signature] = a.accessToken.split(".");
     const claims = JSON.parse(Buffer.from(body!, "base64url").toString());
+
     const forged = Buffer.from(
       JSON.stringify({ ...claims, app_metadata: { tenant_id: "x" } }),
     ).toString("base64url");
+
     const response = await call(whoami, {
       authorization: `Bearer ${head}.${forged}.${signature}`,
     });
+
     expect(response.status).toBe(401);
     expect(response.headers.get("content-type")).toContain(
       "application/problem+json",
@@ -176,6 +193,7 @@ describe.skipIf(!up)("request context on better-supabase", () => {
     const response = await call(whoami, {
       authorization: `Bearer ${stack.publishableKey}`,
     });
+
     expect(response.status).toBe(401);
   });
 
@@ -195,6 +213,7 @@ describe.skipIf(!up)("request context on better-supabase", () => {
       SUPABASE_URL: stack.url,
       SUPABASE_PUBLISHABLE_KEY: stack.publishableKey,
     }).env!;
+
     const lazy = createAppServer(publicOnly, "worker");
     expect(() => lazy.admin()).toThrow(/SUPABASE_SECRET_KEY/);
   });

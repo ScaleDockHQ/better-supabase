@@ -56,9 +56,11 @@ export function useAction<I, T>(
   options: UseActionOptions<ActionInputOf<I>, T> = {},
 ): ActionHandle<ActionInputOf<I>, T> {
   const [transitioning, startTransition] = useTransition();
+
   const [inFlight, setInFlight] = useState<
     readonly { readonly input: ActionInputOf<I> }[]
   >([]);
+
   const [settled, setSettled] = useState<Settled<T>>(IDLE);
   const latest = useRef({ action, options });
   // oxlint-disable-next-line react/refs -- latest-ref pattern so `run` stays stable; the react peer range predates useEffectEvent.
@@ -74,12 +76,15 @@ export function useAction<I, T>(
           ? current
           : { ...current, error: undefined },
       );
+
       const settledRun = new Promise<ActionResultOf<T>>((resolve, reject) => {
         const done = (): void => {
           setInFlight((current) => current.filter((item) => item !== entry));
         };
+
         startTransition(async () => {
           let result: ActionResultOf<T>;
+
           try {
             result = await latest.current.action(input);
           } catch (cause) {
@@ -88,6 +93,7 @@ export function useAction<I, T>(
             // A throw (not an `ActionResult` error) goes to the error boundary.
             throw cause;
           }
+
           done();
           setSettled(
             result.ok
@@ -95,26 +101,32 @@ export function useAction<I, T>(
               : (current) => ({ data: current.data, error: result.error }),
           );
           const { onSuccess, onError } = latest.current.options;
+
           if (result.ok) {
             onSuccess?.(result.data, input);
           } else {
             onError?.(result.error, input);
           }
+
           resolve(result);
         });
       });
+
       // The error boundary reports a throw; callers that ignore the promise
       // should not get an unhandled rejection on top.
       settledRun.catch(() => undefined);
+
       return settledRun;
     },
     [],
   );
+
   const reset = useCallback(() => {
     setSettled(IDLE);
   }, []);
 
   const pendingInputs = inFlight.map((item) => item.input);
+
   return {
     run,
     pending: transitioning || inFlight.length > 0,
@@ -163,6 +175,7 @@ export function useActionForm<T>(
   options: UseActionFormOptions<T> = {},
 ): ActionForm<T> {
   const handle = useAction(action);
+
   return {
     formProps: {
       onSubmit: (event) => {
@@ -172,11 +185,14 @@ export function useActionForm<T>(
           (result) => {
             if (!result.ok) {
               options.onError?.(result.error, form);
+
               return;
             }
+
             if (options.resetOnSuccess ?? true) {
               form.reset();
             }
+
             options.onSuccess?.(result.data, form);
           },
           () => undefined,

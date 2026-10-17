@@ -60,12 +60,14 @@ export async function runSeed(
   const entry = args.entry ?? config.seed.entry;
   const out = args.out ?? config.seed.output;
   const seed = await importExport(resolve(config.root, entry), "seed");
+
   if (!isSeed(seed)) {
     return {
       code: 1,
       error: `${display(config.root, entry)} must export defineSeed(...) as \`seed\` or default.`,
     };
   }
+
   const statements = seed.statements();
   const contents = `${HEADER} from ${display(config.root, entry)}. Do not edit.\n\n${statements.join("\n\n")}\n`;
   const state = await fileState(config.root, out, contents);
@@ -74,26 +76,33 @@ export async function runSeed(
   if (args.check === true) {
     return staleResult(state, "better-supabase seed");
   }
+
   if (current !== undefined && !current.startsWith(HEADER)) {
     return {
       code: 1,
       error: `${display(config.root, out)} was not written by better-supabase; pass --out to write elsewhere.`,
     };
   }
+
   const { line } = await writeLine(
     state.path,
     contents,
     state.file,
     ` (${statements.length} table${statements.length === 1 ? "" : "s"})`,
   );
+
   const lines = [line];
+
   if (args.apply === true) {
     const { client, close } = await open(await databaseUrl(config, env, dbUrl));
+
     try {
       await client.query("begin");
+
       for (const text of statements) {
         await client.query(text);
       }
+
       await client.query("commit");
     } catch (error) {
       await client.query("rollback");
@@ -101,16 +110,21 @@ export async function runSeed(
     } finally {
       await close();
     }
+
     lines.push("Inserted the fixtures (existing rows were kept).");
   }
+
   const dir = supabaseDir(config.root);
   const toml = resolve(config.root, dir, "config.toml");
+
   const seedPath = out.startsWith(`${dir}/`)
     ? `./${out.slice(dir.length + 1)}`
     : out;
+
   if (existsSync(toml)) {
     const text = await readFile(toml, "utf-8");
     const folder = seedPath.replace(/[^/]+$/, "");
+
     if (!text.includes(seedPath) && !text.includes(`${folder}*`)) {
       lines.push(
         "",
@@ -120,6 +134,7 @@ export async function runSeed(
       );
     }
   }
+
   return { code: 0, output: lines.join("\n") };
 }
 
@@ -132,6 +147,7 @@ export const seedCommand: AnyCommand = defineCliCommand({
   args: ARGS,
   run: async (args, { config, env, io }) => {
     const dbUrl = await stdinDatabaseUrl(args["db-url-stdin"], io);
+
     return withSpinner(
       args.apply === true ? io.prompts : undefined,
       "Inserting the seed rows",

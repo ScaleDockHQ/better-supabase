@@ -32,16 +32,20 @@ type Handler = (args: Record<string, unknown>) => unknown;
 
 function fakeTransport(handlers: Record<string, Handler>) {
   const calls: { fn: string; args: Record<string, unknown> }[] = [];
+
   const transport: BlockTransport = {
     call: (_schema, fn, args) => {
       calls.push({ fn, args });
       const handler = handlers[fn];
+
       if (!handler) {
         return Promise.reject(new Error(`unexpected ${fn}`));
       }
+
       return Promise.resolve(handler(args));
     },
   };
+
   return { transport, calls };
 }
 
@@ -56,6 +60,7 @@ describe("createAiChat sandboxes", () => {
         sandboxRow({ stopped_at: AT, status: "stopped" }),
       ],
     });
+
     const { sandboxes } = createAiChat({ transport });
     await sandboxes
       .register("o1", {
@@ -100,6 +105,7 @@ describe("createAiChat sandboxes", () => {
 
   it("stops idle sandboxes and records failures", async () => {
     const finished: unknown[] = [];
+
     const { transport } = fakeTransport({
       idle_ai_sandboxes: () => [
         sandboxRow(),
@@ -107,15 +113,19 @@ describe("createAiChat sandboxes", () => {
       ],
       finish_ai_sandbox_stop: (args) => {
         finished.push(args);
+
         return true;
       },
     });
+
     const { sandboxes } = createAiChat({ transport });
+
     const stopped = await sandboxes.idleStopJob(async (sandbox) => {
       if (sandbox.id === "s2") {
         throw new Error("busy");
       }
     })(undefined, job, signal);
+
     expect(stopped).toBe(1);
     expect(finished).toEqual([
       { id: "s1", stopped: true, error: undefined },
@@ -128,9 +138,11 @@ describe("createAiChat sandboxes", () => {
       idle_ai_sandboxes: () => [sandboxRow()],
       finish_ai_sandbox_stop: () => Promise.reject(new Error("db down")),
     });
+
     const result = await createAiChat({ transport }).sandboxes.stopIdle(
       async () => {},
     );
+
     expect(result.ok).toBe(false);
   });
 });

@@ -96,19 +96,25 @@ function scope(client: PostgrestClientLike, schema: string): ScopedClient {
   // from() and may have schema() and rpc().
   // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- PostgrestClientLike is structural and `schema()` is optional at runtime.
   const loose = client as unknown as LooseClient;
+
   if (schema === "public" || !loose.schema) {
     return loose;
   }
+
   let schemas = scopedClients.get(client);
+
   if (!schemas) {
     schemas = new Map();
     scopedClients.set(client, schemas);
   }
+
   let scoped = schemas.get(schema);
+
   if (!scoped) {
     scoped = loose.schema(schema);
     schemas.set(schema, scoped);
   }
+
   return scoped;
 }
 
@@ -132,11 +138,13 @@ function fromFunction(
   options: { count?: string; head?: boolean },
 ): BuilderLike {
   const scoped = scope(client, source.schema);
+
   if (!scoped.rpc) {
     throw new TypeError(
       `better-supabase: the client has no rpc(), needed to read from ${source.name}`,
     );
   }
+
   // SAFETY: rpc() on a supabase-js or postgrest-js client returns a filter
   // builder with these methods.
   return scoped.rpc(source.name, source.args, options) as BuilderLike;
@@ -144,6 +152,7 @@ function fromFunction(
 
 function applyFilters(builder: BuilderLike, plan: PostgrestPlan): BuilderLike {
   let query = builder;
+
   for (const filter of plan.filters) {
     query =
       filter.kind === "filter"
@@ -155,6 +164,7 @@ function applyFilters(builder: BuilderLike, plan: PostgrestPlan): BuilderLike {
               : {},
           );
   }
+
   return query;
 }
 
@@ -163,6 +173,7 @@ function applyOrderAndLimits(
   plan: PostgrestPlan,
 ): BuilderLike {
   let query = builder;
+
   for (const order of plan.orders) {
     const options: {
       ascending: boolean;
@@ -171,23 +182,29 @@ function applyOrderAndLimits(
     } = {
       ascending: order.ascending,
     };
+
     if (order.nullsFirst !== undefined) {
       options.nullsFirst = order.nullsFirst;
     }
+
     if (order.referencedTable) {
       options.referencedTable = order.referencedTable;
     }
+
     query = query.order(order.column, options);
   }
+
   for (const limit of plan.limits) {
     query = query.limit(
       limit.count,
       limit.referencedTable ? { referencedTable: limit.referencedTable } : {},
     );
   }
+
   if (plan.range) {
     query = query.range(plan.range.from, plan.range.to);
   }
+
   return query;
 }
 
@@ -204,12 +221,14 @@ function bounded(
   if (plan.maxAffected === undefined) {
     return query;
   }
+
   if (!query.maxAffected) {
     invalidRequest(
       '"maxAffected" needs @supabase/postgrest-js 2 or later',
       op.table.key,
     );
   }
+
   return query.maxAffected(plan.maxAffected);
 }
 
@@ -219,30 +238,40 @@ function build(
   plan: PostgrestPlan,
 ): BuilderLike {
   const base = fromTable(client, op.table.schema, op.table.name);
+
   switch (op.kind) {
     case "select": {
       const options: { count?: string; head?: boolean } = {};
+
       if (op.count) {
         options.count = op.count;
       }
+
       if (op.head) {
         options.head = true;
       }
+
       const selected = op.source
         ? fromFunction(client, op.source, options).select(plan.select)
         : base.select(plan.select, options);
+
       let query = applyOrderAndLimits(applyFilters(selected, plan), plan);
+
       if (op.single === "one") {
         query = query.single();
       }
+
       if (op.single === "maybe") {
         query = query.maybeSingle();
       }
+
       return query;
     }
+
     case "insert": {
       const rows = op.rows.length === 1 ? op.rows[0] : op.rows;
       const count = countOf(op, plan);
+
       let query = op.onConflict
         ? base.upsert(rows, {
             onConflict: op.onConflict.columns.join(","),
@@ -251,27 +280,37 @@ function build(
             ...count,
           })
         : base.insert(rows, { defaultToNull: op.defaultToNull, ...count });
+
       if (plan.select !== undefined) {
         query = query.select(plan.select);
       }
+
       return query;
     }
+
     case "update": {
       let query = applyFilters(base.update(op.set, countOf(op, plan)), plan);
+
       if (plan.select !== undefined) {
         query = query.select(plan.select);
       }
+
       return bounded(query, op, plan);
     }
+
     case "delete": {
       let query = applyFilters(base.delete(countOf(op, plan)), plan);
+
       if (plan.select !== undefined) {
         query = query.select(plan.select);
       }
+
       return bounded(query, op, plan);
     }
+
     default: {
       const exhaustive: never = op;
+
       return exhaustive;
     }
   }
@@ -281,10 +320,12 @@ function rowsOf(data: unknown): readonly Record<string, unknown>[] {
   if (data === null || data === undefined) {
     return [];
   }
+
   if (Array.isArray(data)) {
     // SAFETY: PostgREST returns a list of row objects for a multi-row query.
     return data as Record<string, unknown>[];
   }
+
   // SAFETY: PostgREST returns one row object for a single-row query.
   return [data as Record<string, unknown>];
 }
@@ -299,7 +340,9 @@ function pastLastRow(op: Operation, error: RawDbError): number | undefined {
   if (op.kind !== "select" || !op.count || error.code !== "PGRST103") {
     return undefined;
   }
+
   const match = ONLY_ROWS.exec(error.details ?? "");
+
   return match ? Number(match[1]) : undefined;
 }
 
@@ -311,12 +354,15 @@ function tune(
   retry: boolean | undefined,
 ): BuilderLike {
   let query = builder;
+
   if (signal) {
     query = query.abortSignal(signal);
   }
+
   if (retry !== undefined && query.retry) {
     query = query.retry(retry);
   }
+
   return query;
 }
 
@@ -360,7 +406,9 @@ function clientUrlLengthLimit(client: PostgrestClientLike): number | undefined {
     readonly urlLengthLimit?: unknown;
     readonly rest?: { readonly urlLengthLimit?: unknown };
   };
+
   const limit = loose.urlLengthLimit ?? loose.rest?.urlLengthLimit;
+
   return typeof limit === "number" && limit > 0 ? limit : undefined;
 }
 
@@ -370,10 +418,13 @@ export function resolveUrlLengthLimit(
   options: Pick<PostgrestExecutorOptions, "urlLengthLimit">,
 ): number {
   const explicit = options.urlLengthLimit;
+
   if (explicit !== undefined) {
     return explicit;
   }
+
   const fromClient = clientUrlLengthLimit(client);
+
   return fromClient === undefined
     ? DEFAULT_URL_LENGTH_LIMIT
     : Math.min(fromClient, DEFAULT_URL_LENGTH_LIMIT);
@@ -388,28 +439,36 @@ export function postgrestExecutor(
   options: PostgrestExecutorOptions = {},
 ): Executor {
   const urlLengthLimit = resolveUrlLengthLimit(client, options);
+
   const compileOptions: PostgrestCompileOptions =
     options.postgrestVersion === undefined
       ? {}
       : { postgrestVersion: options.postgrestVersion };
+
   const timeout = isTimeout(options.timeout) ? options.timeout : undefined;
+
   const execute = async (
     op: Operation,
     context: ExecuteContext,
   ): Promise<Result<ExecuteResult>> => {
     let plan: PostgrestPlan;
+
     try {
       plan = compilePostgrest(op, compileOptions);
     } catch (cause) {
       return err(toDbError(cause));
     }
+
     if (plan.never) {
       return ok({ rows: [], count: 0 });
     }
+
     if (context.signal?.aborted) {
       return err(aborted());
     }
+
     const length = queryLength(plan);
+
     if (op.kind !== "select" && length > urlLengthLimit) {
       return err(
         tooLong(
@@ -420,27 +479,35 @@ export function postgrestExecutor(
         ),
       );
     }
+
     if (op.kind === "select" && length > urlLengthLimit) {
       const chunked = chunkRead(op, plan, urlLengthLimit);
+
       if (!("ops" in chunked)) {
         return err(chunked);
       }
+
       const results: Result<ExecuteResult>[] = [];
       let next = 0;
+
       const lane = async (): Promise<void> => {
         while (next < chunked.ops.length) {
           const index = next++;
           const chunk = chunked.ops[index]!;
           const chunkPlan = chunked.plans?.[index];
+
           const result = await (chunkPlan
             ? run(chunk, chunkPlan, context)
             : send(chunk, context));
+
           results[index] = result;
+
           if (!result.ok) {
             next = chunked.ops.length;
           }
         }
       };
+
       await Promise.all(
         Array.from(
           { length: Math.min(CHUNK_CONCURRENCY, chunked.ops.length) },
@@ -448,61 +515,77 @@ export function postgrestExecutor(
         ),
       );
       const rows: Record<string, unknown>[] = [];
+
       for (const result of results) {
         if (!result.ok) {
           return result;
         }
+
         for (const row of result.data.rows) {
           rows.push(row);
         }
       }
+
       return ok({
         rows: chunked.sort ? chunked.sort(rows) : rows,
         count: null,
       });
     }
+
     return run(op, plan, context);
   };
+
   const send = (
     op: Operation,
     context: ExecuteContext,
   ): Promise<Result<ExecuteResult>> => {
     let plan: PostgrestPlan;
+
     try {
       plan = compilePostgrest(op, compileOptions);
     } catch (cause) {
       return Promise.resolve(err(toDbError(cause)));
     }
+
     return plan.never
       ? Promise.resolve(ok({ rows: [], count: 0 }))
       : run(op, plan, context);
   };
+
   const run = async (
     op: Operation,
     plan: PostgrestPlan,
     context: ExecuteContext,
   ): Promise<Result<ExecuteResult>> => {
     let query: BuilderLike;
+
     try {
       query = build(client, op, plan);
     } catch (cause) {
       return err(toDbError(cause));
     }
+
     const limit = deadline(context.signal, timeout);
+
     try {
       query = tune(query, limit.signal, context.retry ?? options.retry);
       const response = await query;
+
       if (response.error) {
         if (limit.timedOut() && timeout !== undefined) {
           return err(timedOut(timeout));
         }
+
         if (limit.signal?.aborted) {
           return err(aborted());
         }
+
         const total = pastLastRow(op, response.error);
+
         if (total !== undefined) {
           return ok({ rows: [], count: total });
         }
+
         return err(
           withMaxAffected(
             mapDbError(response.error, context.errorMappers),
@@ -510,11 +593,13 @@ export function postgrestExecutor(
           ),
         );
       }
+
       return ok({ rows: rowsOf(response.data), count: response.count ?? null });
     } finally {
       limit.clear();
     }
   };
+
   return {
     name: "postgrest",
     functionSources: true,
@@ -528,13 +613,17 @@ export function postgrestExecutor(
           }),
         );
       }
+
       const scoped = scope(client, context.schema);
+
       if (!scoped.rpc) {
         return err(toDbError(new Error("The client does not support rpc()")));
       }
+
       if (context.signal?.aborted) {
         return err(aborted());
       }
+
       // SAFETY: rpc() on a supabase-js or postgrest-js client returns a filter
       // builder with these methods.
       const built = (
@@ -542,22 +631,28 @@ export function postgrestExecutor(
           ? scoped.rpc(name, queryArgs(args), { get: true })
           : scoped.rpc(name, args)
       ) as BuilderLike;
+
       const limit = deadline(context.signal, timeout);
+
       try {
         const response = await tune(
           built,
           limit.signal,
           context.retry ?? options.retry,
         );
+
         if (response.error) {
           if (limit.timedOut() && timeout !== undefined) {
             return err(timedOut(timeout));
           }
+
           if (limit.signal?.aborted) {
             return err(aborted());
           }
+
           return err(mapDbError(response.error, context.errorMappers));
         }
+
         return ok(response.data);
       } finally {
         limit.clear();

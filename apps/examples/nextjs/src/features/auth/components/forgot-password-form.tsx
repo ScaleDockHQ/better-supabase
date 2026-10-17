@@ -29,6 +29,7 @@ export function ForgotPasswordForm() {
   const fieldId = useId();
   const locale = useLocale();
   const supabase = useSupabase();
+
   const [state, submit, pending] = useActionState(
     async (_previous: State, form: FormData): Promise<State> => {
       const { error } = await supabase.auth.resetPasswordForEmail(
@@ -37,11 +38,14 @@ export function ForgotPasswordForm() {
           redirectTo: `${window.location.origin}/${locale}/reset-password`,
         },
       );
+
       return error ? { error: error.message } : { sent: true };
     },
     null,
   );
+
   const error = state && "error" in state ? state.error : null;
+
   return (
     <Card>
       <CardHeader className="text-center">

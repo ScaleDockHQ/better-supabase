@@ -91,12 +91,15 @@ function fake(answers: Record<string, unknown> = ANSWERS) {
     async (_schema: string, fn: string, _args: Record<string, unknown>) =>
       answers[fn],
   );
+
   const server = vi.fn(
     async (_schema: string, fn: string, _args: Record<string, unknown>) =>
       answers[fn],
   );
+
   const transport: BlockTransport = { call: user };
   const service: BlockTransport = { call: server };
+
   return {
     user,
     server,
@@ -129,9 +132,11 @@ describe("ai-chat runs", () => {
 
   it("lists runs and falls back on unknown states", async () => {
     const { runs, user } = fake();
+
     const list = await runs
       .list({ chatId: "c1", active: true, limit: 5 })
       .orThrow();
+
     expect(list.map((run) => run.status)).toEqual(["running", "running"]);
     expect(list[1]?.costMicroUsd).toBeUndefined();
     expect(lastArgs(user)).toEqual({ chat: "c1", active: true, size: 5 });
@@ -154,6 +159,7 @@ describe("ai-chat runs", () => {
 
   it("records steps by key and lists them", async () => {
     const { runs, server, user } = fake();
+
     const step = await runs.steps
       .record("r1", {
         key: "search",
@@ -162,6 +168,7 @@ describe("ai-chat runs", () => {
         detail: { sources: 4 },
       })
       .orThrow();
+
     expect(step).toMatchObject({ key: "search", status: "done" });
     expect(step.endedAt?.toString()).toBe("2026-01-01T00:00:00Z");
     expect(lastArgs(server)).toEqual({
@@ -188,9 +195,11 @@ describe("ai-chat runs", () => {
       chatTitle: "Launch",
     });
     expect(lastArgs(user)).toEqual({ size: 10 });
+
     const untitled = fake({
       list_pending_ai_tool_approvals: [{ ...approvalRow, chat_title: null }],
     });
+
     const [row] = await untitled.runs.pendingApprovals().orThrow();
     expect(row?.chatTitle).toBe("");
   });

@@ -57,6 +57,7 @@ function rewrite<T, V>(
   apply: (current: T, variables: V) => T,
 ): OptimisticHandlers<V> {
   const list = listOf(targets);
+
   return {
     async onMutate(variables, { client }) {
       await Promise.all(
@@ -64,13 +65,17 @@ function rewrite<T, V>(
           client.cancelQueries({ queryKey: target.queryKey, exact: true }),
         ),
       );
+
       const previous = list.map((target) => {
         const data = client.getQueryData<T>(target.queryKey);
+
         if (data !== undefined) {
           client.setQueryData<T>(target.queryKey, apply(data, variables));
         }
+
         return [target.queryKey, data] as const;
       });
+
       return { previous };
     },
     onError(_error, _variables, snapshot, { client }) {
@@ -142,6 +147,7 @@ export const optimistic: (<T, V>(
   ): OptimisticHandlers<{ readonly id: R[K]; readonly patch: Partial<R> }> {
     // SAFETY: K defaults to "id"; a row type without it has to pass `key`.
     const key = options.key ?? ("id" as K);
+
     return rewrite<R[], { readonly id: R[K]; readonly patch: Partial<R> }>(
       targets,
       (rows, { id, patch }) =>
@@ -154,6 +160,7 @@ export const optimistic: (<T, V>(
   ): OptimisticHandlers<R[K]> {
     // SAFETY: K defaults to "id"; a row type without it has to pass `key`.
     const key = options.key ?? ("id" as K);
+
     return rewrite<R[], R[K]>(targets, (rows, id) =>
       rows.filter((row) => row[key] !== id),
     );

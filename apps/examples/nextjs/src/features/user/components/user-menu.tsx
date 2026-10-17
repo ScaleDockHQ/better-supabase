@@ -11,9 +11,11 @@ import { UserMenuDropdown } from "./user-menu-dropdown";
 /** Render inside `<Suspense>`; the fallback is `UserMenuSkeleton`. */
 export async function UserMenu() {
   const [session, profile] = await Promise.all([getSession(), getMyProfile()]);
+
   if (session.kind !== "user") {
     return null;
   }
+
   return (
     <SidebarMenu>
       <SidebarMenuItem>

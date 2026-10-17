@@ -15,9 +15,11 @@ import {
 import { stackUrl } from "./stack-env.ts";
 
 const url = stackUrl();
+
 const publishableKey =
   process.env["SUPABASE_PUBLISHABLE_KEY"] ??
   "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";
+
 const secretKey =
   process.env["SUPABASE_SECRET_KEY"] ??
   "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -32,6 +34,7 @@ async function reachable(): Promise<boolean> {
       headers: { apikey: publishableKey },
       signal: AbortSignal.timeout(1000),
     });
+
     return response.status < 500;
   } catch {
     return false;
@@ -42,19 +45,23 @@ const live = await reachable();
 
 describe.skipIf(!live)("Hono adapter against the local stack", async () => {
   const betterSupabase = defineSupabase(schema);
+
   const env = parseEnv({
     SUPABASE_URL: url,
     SUPABASE_PUBLISHABLE_KEY: publishableKey,
   }).env!;
+
   const bs = createHono(betterSupabase, {
     env,
   });
+
   const list = defineListQuery(betterSupabase, "customers", {
     search: ["name"],
     sorts: { name: { name: "asc" } },
     defaultSort: "name",
     pageSize: 20,
   });
+
   const app = new Hono<HonoEnv<Models, Functions, unknown>>()
     .onError(bs.onError)
     .use("/api/*", bs.middleware())
@@ -65,9 +72,11 @@ describe.skipIf(!live)("Hono adapter against the local stack", async () => {
         select: ["id", "name", "organizationId"],
       }),
     );
+
   const admin = betterSupabase.connect(
     createClient(url, secretKey, { auth: { persistSession: false } }),
   );
+
   const created: string[] = [];
   afterAll(async () => {
     if (created.length > 0) {
@@ -77,6 +86,7 @@ describe.skipIf(!live)("Hono adapter against the local stack", async () => {
 
   const tokenFor = (organizationId: string) =>
     signLocalJwt({ sub: USER, tenant_id: organizationId });
+
   const call = async (
     organizationId: string,
     path: string,
@@ -95,10 +105,12 @@ describe.skipIf(!live)("Hono adapter against the local stack", async () => {
 
   it("runs CRUD as the caller, under RLS", async () => {
     const name = `Hono ${String(Date.now())}`;
+
     const create = await call(ACME, "/api/customers", {
       method: "POST",
       body: { name, organizationId: ACME },
     });
+
     expect(create.status).toBe(201);
     const row = (await create.json()) as { id: string; organizationId: string };
     created.push(row.id);
@@ -108,22 +120,26 @@ describe.skipIf(!live)("Hono adapter against the local stack", async () => {
       ACME,
       `/api/customers?q=${encodeURIComponent(name)}`,
     );
+
     expect(await found.json()).toMatchObject({
       items: [{ id: row.id, name }],
     });
 
     const hidden = await call(OTHER, `/api/customers/${row.id}`);
     expect(hidden.status).toBe(404);
+
     const crossTenant = await call(OTHER, "/api/customers", {
       method: "POST",
       body: { name, organizationId: ACME },
     });
+
     expect(crossTenant.status).toBe(403);
 
     const patched = await call(ACME, `/api/customers/${row.id}`, {
       method: "PATCH",
       body: { name: `${name} (renamed)` },
     });
+
     expect(await patched.json()).toMatchObject({ name: `${name} (renamed)` });
 
     expect(

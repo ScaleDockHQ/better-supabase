@@ -9,24 +9,29 @@ interface FakeHook {
 let resume: (payload: unknown) => void = () => undefined;
 let wake: () => void = () => undefined;
 const dispose = vi.fn();
+
 const createHook = vi.fn((options: { token: string }): FakeHook => {
   const payload = new Promise<unknown>((resolve) => {
     resume = resolve;
   });
+
   // oxlint-disable-next-line unicorn/no-thenable -- a workflow Hook is a thenable
   return { token: options.token, then: payload.then.bind(payload), dispose };
 });
+
 const sleep = vi.fn(
   (_until: Date) =>
     new Promise<void>((resolve) => {
       wake = resolve;
     }),
 );
+
 const resumeHook = vi.fn(async (_token: string, _payload: unknown) => ({
   runId: "wrun_1",
 }));
 
 vi.mock("workflow", () => ({ createHook, sleep }));
+
 vi.mock("workflow/api", () => ({ resumeHook }));
 
 const { approvalWaiter, wakeOnApproval } =
@@ -46,6 +51,7 @@ describe("approvalWaiter.wait", () => {
     const waiting = approvalWaiter.wait<{ approved: boolean }>("apr_1", {
       expiresAt: Temporal.Instant.from(LATER),
     });
+
     await vi.waitFor(() => {
       expect(createHook).toHaveBeenCalled();
     });
@@ -101,11 +107,13 @@ describe("approvalWaiter.wake", () => {
 describe("wakeOnApproval", () => {
   it("wakes the run waiting on the request id with the outcome", async () => {
     const woken: unknown[] = [];
+
     const waiter = {
       wake: async (token: string, payload: unknown) => {
         woken.push([token, payload]);
       },
     };
+
     expect(
       await wakeOnApproval(
         { type: "approval.approved", payload: { id: "req-1" } },
@@ -137,6 +145,7 @@ describe("wakeOnApproval", () => {
     const missing = Object.assign(new Error("Hook not found"), {
       name: "HookNotFoundError",
     });
+
     await expect(
       wakeOnApproval(
         { type: "approval.cancelled", payload: { id: "req-4" } },

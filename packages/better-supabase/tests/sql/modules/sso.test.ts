@@ -53,6 +53,7 @@ describe("sso module", () => {
       roleOrder: ["admin", "viewer"],
       groupRoles: { Engineering: "viewer", "IT Admins": "admin" },
     });
+
     expect(sql).toContain(
       "values ('engineering', 'viewer'), ('it admins', 'admin')",
     );
@@ -72,6 +73,7 @@ describe("sso module", () => {
       .filter((file) => file.module === "sso")
       .map((file) => file.contents)
       .join("");
+
     expect(sql.trim()).toBe("");
   });
 
@@ -97,14 +99,17 @@ describe("sso module", () => {
         },
       },
     };
+
     expect(() => sqlOf(["sso"], undefined, custom)).toThrow(
       /list the roles SCIM and auto-join may assign in blocks.sso.options.roleOrder/,
     );
+
     const sql = sqlOf(
       ["sso"],
       { roleOrder: ["manager", "staff"], defaultRole: "staff" },
       custom,
     );
+
     expect(sql).toContain("array['manager', 'staff']::text[]");
     expect(sql).toContain("hint = 'SSO_ROLE_FORBIDDEN'");
     expect(sql).toContain(

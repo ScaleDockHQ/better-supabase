@@ -20,7 +20,9 @@ describe("_count includes", () => {
         },
       ],
     }));
+
     const db = betterSupabase.connect(client);
+
     const rows = await db.customers
       .findMany({
         select: ["id"],
@@ -42,9 +44,11 @@ describe("_count includes", () => {
   it("compiles to a count(*) subquery in SQL", () => {
     const builder = new IrBuilder(schema.meta);
     const table = builder.table("customers");
+
     const selection = builder.selection(table, ["id"], {
       _count: { notes: true },
     });
+
     const plan = compileSql({
       kind: "select",
       table,
@@ -57,6 +61,7 @@ describe("_count includes", () => {
       head: false,
       single: undefined,
     });
+
     expect(plan.rows?.text).toContain('(select count(*) from "public"."notes"');
     expect(decodeRows(selection, [{ id: "c1", _count_notes: "2" }])).toEqual([
       { id: "c1", _count: { notes: 2 } },
@@ -65,9 +70,11 @@ describe("_count includes", () => {
 
   it("rejects counts over to-one relations", async () => {
     const { client } = capturingClient();
+
     const result = await betterSupabase.connect(client).customers.findMany({
       include: { _count: { organization: true } as never },
     });
+
     expect(result.error?.message).toContain("needs a to-many relation");
   });
 });

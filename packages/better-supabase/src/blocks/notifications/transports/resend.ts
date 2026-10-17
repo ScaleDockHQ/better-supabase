@@ -40,8 +40,10 @@ export function resendTransport(
   if (options.apiKey === "") {
     throw new TypeError("resendTransport needs an apiKey");
   }
+
   const endpoint = `${(options.baseUrl ?? "https://api.resend.com").replace(/\/+$/, "")}/emails`;
   const send = options.fetch ?? fetch;
+
   return {
     apiVersion: 1,
     channel: "email",
@@ -76,12 +78,15 @@ export function resendTransport(
           `Resend did not answer: ${cause instanceof Error ? cause.message : String(cause)}`,
         );
       });
+
       const body: unknown = await response.json().catch(() => undefined);
+
       if (!response.ok) {
         const text =
           isRecord(body) && typeof body["message"] === "string"
             ? body["message"]
             : response.statusText;
+
         throw new ResendError(
           response.status,
           `Resend answered ${String(response.status)}: ${text}`,
@@ -90,6 +95,7 @@ export function resendTransport(
             : undefined,
         );
       }
+
       return isRecord(body) && typeof body["id"] === "string"
         ? { providerMessageId: body["id"] }
         : {};

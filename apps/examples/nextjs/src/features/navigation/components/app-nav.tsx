@@ -11,6 +11,7 @@ import { SideNav } from "./side-nav";
  */
 export async function AppNav() {
   const [session, flags] = await Promise.all([getSession(), getEnabledFlags()]);
+
   const visible = navItems
     .filter(
       (item) =>
@@ -18,5 +19,6 @@ export async function AppNav() {
         (!item.flag || flags.some((flag) => flag === item.flag)),
     )
     .map((item) => item.id);
+
   return <SideNav visible={visible} />;
 }

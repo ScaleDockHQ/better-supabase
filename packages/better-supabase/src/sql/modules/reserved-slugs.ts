@@ -24,6 +24,7 @@ function slugLengths(ctx: ModuleContext): {
 } {
   const min = ctx.number("minLength", 1);
   const max = ctx.number("maxLength", 63);
+
   if (
     !Number.isInteger(min) ||
     !Number.isInteger(max) ||
@@ -34,12 +35,14 @@ function slugLengths(ctx: ModuleContext): {
       "blocks.reserved-slugs.options.minLength and maxLength must be whole numbers with 1 <= minLength <= maxLength",
     );
   }
+
   return { min, max };
 }
 
 /** `blocks["reserved-slugs"].options.slugs`: the app's own words, such as its route names. */
 function appSlugs(ctx: ModuleContext): string {
   const slugs = ctx.list("slugs", []);
+
   for (const slug of slugs) {
     if (!new RegExp(SLUG_PATTERN).test(slug) || slug.includes("--")) {
       throw new TypeError(
@@ -47,9 +50,11 @@ function appSlugs(ctx: ModuleContext): string {
       );
     }
   }
+
   if (slugs.length === 0) {
     return "";
   }
+
   return `
 
 -- blocks.reserved-slugs.options.slugs
@@ -70,6 +75,7 @@ export const RESERVED_SLUGS: ModuleDefinition = {
   target: "schema",
   build: (ctx) => {
     const { min, max } = slugLengths(ctx);
+
     return `${SCHEMA}
 
 create table if not exists better_supabase.reserved_slugs (

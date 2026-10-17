@@ -33,12 +33,14 @@ export function CreateCustomerDialog() {
   const fieldId = useId();
   const errorMessage = useErrorMessage();
   const [open, setOpen] = useState(false);
+
   const form = useActionForm(createCustomer, {
     onSuccess: (customer) => {
       setOpen(false);
       toast.success(t("{name} added", { name: customer.name }));
     },
   });
+
   const error =
     form.error === undefined
       ? null
@@ -47,6 +49,7 @@ export function CreateCustomerDialog() {
             seconds: form.error.retryAfter ?? 60,
           })
         : errorMessage(form.error);
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={<Button />}>

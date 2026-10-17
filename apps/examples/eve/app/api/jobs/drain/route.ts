@@ -21,6 +21,7 @@ export const GET = jobs.drainRoute({
           }),
         },
       );
+
       if (!response.ok) {
         throw new Error(`The inbox channel answered ${response.status}`);
       }

@@ -29,6 +29,7 @@ export function createErrorMessages(
     const message = messages[error.kind] as
       | string
       | ((error: DbError) => string);
+
     return typeof message === "string" ? message : message(error);
   };
 }

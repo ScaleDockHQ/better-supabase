@@ -7,12 +7,16 @@ export function fieldErrorsOf(
   if (error?.kind !== "validation") {
     return {};
   }
+
   const fields: Partial<Record<string, string>> = {};
+
   for (const issue of error.issues) {
     const key = issue.path?.[0];
+
     if (typeof key === "string" && fields[key] === undefined) {
       fields[key] = issue.message;
     }
   }
+
   return fields;
 }

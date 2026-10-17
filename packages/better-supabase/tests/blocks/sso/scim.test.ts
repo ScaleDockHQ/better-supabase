@@ -17,6 +17,7 @@ function memoryStore() {
   const groups = new Map<string, Row>();
   const membership = new Map<string, Set<string>>();
   let clock = 0;
+
   const now = () =>
     new Date(Date.UTC(2026, 9, 6, 12, 0, clock++)).toISOString();
 
@@ -28,6 +29,7 @@ function memoryStore() {
       )
       .map((group) => ({ value: group["id"], display: group["display_name"] })),
   });
+
   const groupJson = (row: Row): Row => ({
     ...row,
     members: [...(membership.get(String(row["id"])) ?? [])].map((id) => ({
@@ -35,10 +37,13 @@ function memoryStore() {
       display: users.get(id)?.["display_name"] ?? users.get(id)?.["user_name"],
     })),
   });
+
   const inTenant = (map: Map<string, Row>, tenant: unknown, id: unknown) => {
     const row = map.get(String(id));
+
     return row && row["organization_id"] === tenant ? row : undefined;
   };
+
   const checkVersion = (row: Row, version: unknown) => {
     if (version !== null && version !== row["version"]) {
       throw pgError("P0001", "changed", "SCIM_PRECONDITION");
@@ -52,11 +57,13 @@ function memoryStore() {
         .map(userJson),
     scim_get_user: ({ tenant, id }) => {
       const row = inTenant(users, tenant, id);
+
       return row ? userJson(row) : null;
     },
     scim_save_user: ({ tenant, id, data, version }) => {
       const input = data as Row;
       const name = String(input["userName"]).toLowerCase();
+
       for (const row of users.values()) {
         if (
           row["organization_id"] === tenant &&
@@ -69,6 +76,7 @@ function memoryStore() {
           );
         }
       }
+
       const fields = {
         user_name: input["userName"],
         external_id: input["externalId"],
@@ -78,6 +86,7 @@ function memoryStore() {
         emails: input["emails"],
         active: input["active"],
       };
+
       if (id === null) {
         const created = {
           id: crypto.randomUUID(),
@@ -87,28 +96,37 @@ function memoryStore() {
           updated_at: now(),
           ...fields,
         };
+
         users.set(created.id, created);
+
         return userJson(created);
       }
+
       const row = inTenant(users, tenant, id);
+
       if (!row) {
         throw pgError("P0002", "No SCIM user has this id", "SCIM_NOT_FOUND");
       }
+
       checkVersion(row, version);
       Object.assign(row, fields, {
         version: Number(row["version"]) + 1,
         updated_at: now(),
       });
+
       return userJson(row);
     },
     scim_delete_user: ({ tenant, id }) => {
       if (!inTenant(users, tenant, id)) {
         return false;
       }
+
       users.delete(String(id));
+
       for (const set of membership.values()) {
         set.delete(String(id));
       }
+
       return true;
     },
     scim_list_groups: ({ tenant }) =>
@@ -117,21 +135,26 @@ function memoryStore() {
         .map(groupJson),
     scim_get_group: ({ tenant, id }) => {
       const row = inTenant(groups, tenant, id);
+
       return row ? groupJson(row) : null;
     },
     scim_save_group: ({ tenant, id, data, version }) => {
       const input = data as Row;
       const members = input["members"] as string[];
+
       for (const member of members) {
         if (!inTenant(users, tenant, member)) {
           throw pgError("22023", "members must be SCIM users", "SCIM_INVALID");
         }
       }
+
       const fields = {
         display_name: input["displayName"],
         external_id: input["externalId"],
       };
+
       let row: Row;
+
       if (id === null) {
         row = {
           id: crypto.randomUUID(),
@@ -144,24 +167,30 @@ function memoryStore() {
         groups.set(String(row["id"]), row);
       } else {
         const found = inTenant(groups, tenant, id);
+
         if (!found) {
           throw pgError("P0002", "No SCIM group", "SCIM_NOT_FOUND");
         }
+
         checkVersion(found, version);
         row = Object.assign(found, fields, {
           version: Number(found["version"]) + 1,
           updated_at: now(),
         });
       }
+
       membership.set(String(row["id"]), new Set(members));
+
       return groupJson(row);
     },
     scim_delete_group: ({ tenant, id }) => {
       if (!inTenant(groups, tenant, id)) {
         return false;
       }
+
       groups.delete(String(id));
       membership.delete(String(id));
+
       return true;
     },
   };
@@ -169,9 +198,11 @@ function memoryStore() {
   const transport: BlockTransport = {
     call(_schema, fn, args) {
       const answer = functions[fn];
+
       if (!answer) {
         return Promise.reject(new Error(`no fake for ${fn}`));
       }
+
       try {
         return Promise.resolve(answer({ ...args }));
       } catch (error) {
@@ -179,6 +210,7 @@ function memoryStore() {
       }
     },
   };
+
   return { transport, users, groups };
 }
 
@@ -202,10 +234,12 @@ function setup(
   } = {},
 ) {
   const store = memoryStore();
+
   const checks: Record<string, ApiKeyCheck> = options.keys ?? {
     "org-a": { status: "ok", key: key("org-a", ["scim"]) as never },
     "org-b": { status: "ok", key: key("org-b", ["*"]) as never },
   };
+
   const handler = scimHandler({
     transport: store.transport,
     keys: {
@@ -217,6 +251,7 @@ function setup(
     basePath: "/scim/v2",
     ...(options.maxResults ? { maxResults: options.maxResults } : {}),
   });
+
   const send = async (
     method: string,
     path: string,
@@ -224,6 +259,7 @@ function setup(
     init: { token?: string | null; headers?: Record<string, string> } = {},
   ) => {
     const token = init.token === undefined ? "org-a" : init.token;
+
     const response = await handler(
       new Request(`https://app.test/scim/v2${path}`, {
         method,
@@ -239,7 +275,9 @@ function setup(
           : { body: typeof body === "string" ? body : JSON.stringify(body) }),
       }),
     );
+
     const text = await response.text();
+
     return {
       status: response.status,
       headers: response.headers,
@@ -249,6 +287,7 @@ function setup(
       },
     };
   };
+
   return { send, store };
 }
 
@@ -299,10 +338,12 @@ describe("scimHandler", () => {
   it("answers 409 uniqueness for a duplicate userName", async () => {
     const { send } = setup();
     await send("POST", "/Users", bjensen);
+
     const duplicate = await send("POST", "/Users", {
       ...bjensen,
       userName: "BJensen@acme.test",
     });
+
     expect(duplicate.status).toBe(409);
     expect(duplicate.body).toEqual({
       schemas: [ERROR],
@@ -314,6 +355,7 @@ describe("scimHandler", () => {
 
   it("filters, pages and projects list responses", async () => {
     const { send } = setup({ maxResults: 2 });
+
     for (const name of ["a", "b", "c"]) {
       await send("POST", "/Users", {
         schemas: [USER],
@@ -324,6 +366,7 @@ describe("scimHandler", () => {
         active: name !== "b",
       });
     }
+
     const all = await send("GET", "/Users?count=10");
     expect(all.body).toMatchObject({
       totalResults: 3,
@@ -339,6 +382,7 @@ describe("scimHandler", () => {
       "GET",
       `/Users?filter=${encodeURIComponent('userName eq "A@ACME.TEST" or (active eq false and emails[type eq "work"])')}`,
     );
+
     expect(filtered.body.Resources.map((r) => r["userName"])).toEqual([
       "a@acme.test",
       "b@acme.test",
@@ -349,33 +393,40 @@ describe("scimHandler", () => {
       "schemas",
       "userName",
     ]);
+
     const none = await send(
       "GET",
       `/Users?filter=${encodeURIComponent('userName eq "nobody"')}`,
     );
+
     expect(none.status).toBe(200);
     expect(none.body).toMatchObject({ totalResults: 0, Resources: [] });
+
     const search = await send("POST", "/Users/.search", {
       schemas: ["urn:ietf:params:scim:api:messages:2.0:SearchRequest"],
       filter: 'emails.type eq "home"',
       excludedAttributes: ["emails"],
     });
+
     expect(search.body.Resources).toHaveLength(1);
     expect(search.body.Resources[0]!["emails"]).toBeUndefined();
   });
 
   it("answers 400 invalidFilter for unknown operators and bad syntax", async () => {
     const { send } = setup();
+
     for (const filter of [
       'userName xx "a"',
       'userName eq "a" and',
       "active gt true",
     ]) {
       await send("POST", "/Users", { schemas: [USER], userName: "a" });
+
       const response = await send(
         "GET",
         `/Users?filter=${encodeURIComponent(filter)}`,
       );
+
       expect(response.status).toBe(400);
       expect(response.body["scimType"]).toBe("invalidFilter");
     }
@@ -385,6 +436,7 @@ describe("scimHandler", () => {
     const { send } = setup();
     const created = await send("POST", "/Users", bjensen);
     const id = String(created.body["id"]);
+
     const failed = await send("PATCH", `/Users/${id}`, {
       schemas: [PATCH],
       Operations: [
@@ -392,6 +444,7 @@ describe("scimHandler", () => {
         { op: "replace", path: 'emails[type eq "home"].value', value: "x@y" },
       ],
     });
+
     expect(failed.status).toBe(400);
     expect(failed.body["scimType"]).toBe("noTarget");
     const unchanged = await send("GET", `/Users/${id}`);
@@ -409,6 +462,7 @@ describe("scimHandler", () => {
         { op: "replace", path: `${USER}:displayName`, value: "Babs Jensen" },
       ],
     });
+
     expect(patched.status).toBe(200);
     expect(patched.body).toMatchObject({
       active: false,
@@ -426,6 +480,7 @@ describe("scimHandler", () => {
       schemas: [PATCH],
       Operations: [{ op: "remove", path: 'emails[type eq "home"]' }],
     });
+
     expect((removed.body["emails"] as Row[]).map((e) => e["value"])).toEqual([
       "bjensen@acme.test",
     ]);
@@ -450,10 +505,12 @@ describe("scimHandler", () => {
   ])("rejects the PATCH operation %j with %s", async (operation, scimType) => {
     const { send } = setup();
     const id = String((await send("POST", "/Users", bjensen)).body["id"]);
+
     const response = await send("PATCH", `/Users/${id}`, {
       schemas: [PATCH],
       Operations: [operation],
     });
+
     expect(response.status).toBe(400);
     expect(response.body["scimType"]).toBe(scimType);
   });
@@ -461,23 +518,29 @@ describe("scimHandler", () => {
   it("honors If-Match and If-None-Match", async () => {
     const { send } = setup();
     const id = String((await send("POST", "/Users", bjensen)).body["id"]);
+
     const cached = await send("GET", `/Users/${id}`, undefined, {
       headers: { "if-none-match": 'W/"1"' },
     });
+
     expect(cached.status).toBe(304);
+
     const stale = await send(
       "PUT",
       `/Users/${id}`,
       { ...bjensen, displayName: "x" },
       { headers: { "if-match": 'W/"7"' } },
     );
+
     expect(stale.status).toBe(412);
+
     const fresh = await send(
       "PUT",
       `/Users/${id}`,
       { ...bjensen, displayName: "x" },
       { headers: { "if-match": 'W/"1"' } },
     );
+
     expect(fresh.status).toBe(200);
     expect(fresh.body["displayName"]).toBe("x");
   });
@@ -486,14 +549,17 @@ describe("scimHandler", () => {
     const { send } = setup();
     const id = String((await send("POST", "/Users", bjensen)).body["id"]);
     expect((await send("DELETE", `/Users/${id}`)).status).toBe(204);
+
     for (const method of ["GET", "DELETE", "PATCH"]) {
       const response = await send(
         method,
         `/Users/${id}`,
         method === "PATCH" ? { schemas: [PATCH], Operations: [] } : undefined,
       );
+
       expect(response.status).toBe(404);
     }
+
     expect((await send("PUT", "/Users/not-a-uuid", bjensen)).status).toBe(404);
   });
 
@@ -510,6 +576,7 @@ describe("scimHandler", () => {
   it("manages groups and their members", async () => {
     const { send } = setup();
     const a = String((await send("POST", "/Users", bjensen)).body["id"]);
+
     const b = String(
       (
         await send("POST", "/Users", {
@@ -518,11 +585,13 @@ describe("scimHandler", () => {
         })
       ).body["id"],
     );
+
     const group = await send("POST", "/Groups", {
       schemas: [GROUP],
       displayName: "Admins",
       members: [{ value: a }],
     });
+
     expect(group.status).toBe(201);
     const gid = String(group.body["id"]);
     expect(group.body["members"]).toEqual([
@@ -533,12 +602,14 @@ describe("scimHandler", () => {
         $ref: `https://app.test/scim/v2/Users/${a}`,
       },
     ]);
+
     const added = await send("PATCH", `/Groups/${gid}`, {
       schemas: [PATCH],
       Operations: [
         { op: "add", path: "members", value: [{ value: b }, { value: a }] },
       ],
     });
+
     expect(
       (added.body["members"] as Row[])
         .map((m) => String(m["value"]))
@@ -552,6 +623,7 @@ describe("scimHandler", () => {
         $ref: `https://app.test/scim/v2/Groups/${gid}`,
       },
     ]);
+
     const removed = await send("PATCH", `/Groups/${gid}`, {
       schemas: [PATCH],
       Operations: [
@@ -559,13 +631,16 @@ describe("scimHandler", () => {
         { op: "remove", path: `members[value eq "${b}"]` },
       ],
     });
+
     expect(removed.body["members"]).toEqual([]);
+
     const unknown = await send("PATCH", `/Groups/${gid}`, {
       schemas: [PATCH],
       Operations: [
         { op: "add", path: "members", value: [{ value: crypto.randomUUID() }] },
       ],
     });
+
     expect(unknown.status).toBe(400);
     expect(unknown.body["scimType"]).toBe("invalidValue");
     expect((await send("DELETE", `/Groups/${gid}`)).status).toBe(204);
@@ -574,9 +649,11 @@ describe("scimHandler", () => {
 
   it("serves discovery without a token and refuses filters there", async () => {
     const { send } = setup();
+
     const config = await send("GET", "/ServiceProviderConfig", undefined, {
       token: null,
     });
+
     expect(config.status).toBe(200);
     expect(config.body).toMatchObject({
       patch: { supported: true },
@@ -585,16 +662,20 @@ describe("scimHandler", () => {
       etag: { supported: true },
       authenticationSchemes: [{ type: "oauthbearertoken" }],
     });
+
     const types = await send("GET", "/ResourceTypes", undefined, {
       token: null,
     });
+
     expect(types.body.Resources.map((r) => r["endpoint"])).toEqual([
       "/Users",
       "/Groups",
     ]);
+
     const schema = await send("GET", `/Schemas/${USER}`, undefined, {
       token: null,
     });
+
     expect(schema.body["id"]).toBe(USER);
     expect(
       (await send("GET", "/Schemas/urn:nope", undefined, { token: null }))
@@ -617,6 +698,7 @@ describe("scimHandler", () => {
         busy: { status: "rate_limited", retryAfter: 30 },
       },
     });
+
     const missing = await send("GET", "/Users", undefined, { token: null });
     expect(missing.status).toBe(401);
     expect(missing.headers.get("www-authenticate")).toBe('Bearer realm="SCIM"');
@@ -650,10 +732,12 @@ describe("scimHandler", () => {
     expect(schemaless.body["scimType"]).toBe("invalidSyntax");
     const nameless = await send("POST", "/Users", { schemas: [USER] });
     expect(nameless.body["scimType"]).toBe("invalidValue");
+
     const both = await send(
       "GET",
       "/Users?attributes=userName&excludedAttributes=emails",
     );
+
     expect(both.body["scimType"]).toBe("invalidSyntax");
   });
 });

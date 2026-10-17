@@ -15,6 +15,7 @@ const live = await reachable();
 
 const createOrganization = async (s: Session): Promise<string> => {
   await s.as("owner");
+
   return s.value<string>("better_supabase.create_organization($1)", [
     { name: "Acme", slug: `acme-${USERS.owner.slice(0, 8)}` },
   ]);
@@ -28,15 +29,18 @@ describe.skipIf(!live)("integrations on CentraKit's tables", () => {
     await withCentraKit(pool, async (s) => {
       const organization = await createOrganization(s);
       await s.as("service");
+
       const vault = vaultCredentials({
         transport: sqlTransport(s.sql),
         cacheMs: 0,
       });
+
       const ref = {
         provider: "vault",
         secret: "openai:api-key",
         tenant: organization,
       };
+
       const app = { subject: { type: "app" as const } };
 
       await vault.set(ref, "sk-1").orThrow();
@@ -54,6 +58,7 @@ describe.skipIf(!live)("integrations on CentraKit's tables", () => {
       const [row] = await s.rows<{ id: string }>(
         "select vault_secret_id::text as id from centrakit.integration_credentials",
       );
+
       expect(await vault.revoke(ref, app).orThrow()).toBe(true);
       expect(
         await s.rows(
@@ -67,10 +72,12 @@ describe.skipIf(!live)("integrations on CentraKit's tables", () => {
   it("manages inbound webhooks per organization and stores their messages once", async () => {
     await withCentraKit(pool, async (s) => {
       const organization = await createOrganization(s);
+
       const endpoint = await s.value<{ id: string; token: string }>(
         "better_supabase.create_incoming_webhook($1, 'Stripe', 'none')",
         [organization],
       );
+
       expect(
         await s.rows(
           `select name, organization_id::text as organization, token_digest <> $1 as hashed
@@ -101,6 +108,7 @@ describe.skipIf(!live)("integrations on CentraKit's tables", () => {
              '{"amount": 100}', tenant => $1) ->> 'duplicate')::boolean as duplicate`,
           [organization],
         );
+
       expect(await receive()).toEqual([{ duplicate: false }]);
       expect(await receive()).toEqual([{ duplicate: true }]);
       expect(
@@ -121,6 +129,7 @@ describe.skipIf(!live)("integrations on CentraKit's tables", () => {
       const [claimed] = await s.rows<{ id: string; attempts: number }>(
         "select m ->> 'id' as id, (m ->> 'attempts')::integer as attempts from jsonb_array_elements(better_supabase.claim_webhooks('stripe', 'worker-1')) m",
       );
+
       expect(
         await s.value<boolean>(
           "better_supabase.complete_webhook($1, 'worker-1', $2)",

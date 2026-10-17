@@ -18,6 +18,7 @@ describe("api-keys module", () => {
       "invoice.read",
       "apiKey.manage",
     ]);
+
     expect(sql).toContain(`'{invoice.read,apiKey.manage}'::text[]`);
     expect(() => render({ scopes: "catalog" })).toThrow(
       /no authorization.permissions to read/,
@@ -52,6 +53,7 @@ describe("api-keys module", () => {
       modules: { access: { model: "provider" } },
       accessProvider: moduleProvider,
     })!;
+
     expect(sql).toContain("API_KEY_SCOPE_WILDCARD");
     expect(render({})).not.toContain("API_KEY_SCOPE_WILDCARD");
   });
@@ -78,6 +80,7 @@ describe("api-keys module", () => {
     const sql = moduleBody("api-keys", {
       modules: { "api-keys": { permissions: { own: "apiKey.own" } } },
     })!;
+
     const create = sql.slice(sql.indexOf('create_api_key"('));
     expect(create.slice(0, create.indexOf("$$;"))).toContain(
       `if personal and tenant is null and exists (

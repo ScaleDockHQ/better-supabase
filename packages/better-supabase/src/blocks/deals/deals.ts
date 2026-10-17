@@ -33,6 +33,7 @@ export type ForecastCategory = "commit" | "best_case" | "pipeline" | "omit";
 export type DealOutcome = "open" | "won" | "lost";
 
 const OUTCOMES: readonly DealOutcome[] = ["open", "won", "lost"];
+
 const FORECASTS: readonly ForecastCategory[] = [
   "commit",
   "best_case",
@@ -382,8 +383,10 @@ const KNOWN = new Set([
 
 const big = (value: unknown): bigint =>
   typeof value === "string" || typeof value === "number" ? BigInt(value) : 0n;
+
 const num = (value: unknown): number | undefined =>
   typeof value === "number" ? value : undefined;
+
 const date = (value: unknown): Temporal.PlainDate | undefined =>
   typeof value === "string"
     ? temporal().PlainDate.from(value.slice(0, 10))
@@ -392,6 +395,7 @@ const date = (value: unknown): Temporal.PlainDate | undefined =>
 function totalsOf(row: Record<string, unknown>, camel = false): DealTotals {
   const key = (snake: string, camelKey: string): unknown =>
     camel ? row[camelKey] : row[snake];
+
   return {
     listTotal: big(key("list_total", "listTotal")),
     discountTotal: big(key("discount_total", "discountTotal")),
@@ -417,6 +421,7 @@ function dealOf(value: unknown): Deal {
   const companyType = optionalText(row["company_type"]);
   const companyId = optionalText(row["company_id"]);
   const forecast = optionalText(row["forecast_category"]);
+
   return compact<Deal>({
     id: textOf(row["id"]),
     organizationId: textOf(row["tenant_id"]),
@@ -498,12 +503,14 @@ function valueArg(value: unknown): unknown {
   if (typeof value === "bigint") {
     return value.toString();
   }
+
   if (
     value instanceof temporal().Instant ||
     value instanceof temporal().PlainDate
   ) {
     return value.toString();
   }
+
   return value;
 }
 
@@ -521,6 +528,7 @@ function sums(row: Record<string, unknown>) {
 
 function forecastOf(value: unknown): DealForecast {
   const row = recordOf(value, "deal_forecast");
+
   return compact<DealForecast>({
     currency: textOf(row["currency"]),
     ...sums(row),
@@ -551,17 +559,21 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
   options: DealsOptions<S>,
 ): Deals<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const fields: BlockFields<F> = blockFields(options.fields, "deal fields");
+
   const parsed = (deal: Deal): AsyncResult<Deal<F>> =>
     AsyncResult.from(() => fields.read(deal.fields)).map((value) => ({
       ...deal,
       fields: value,
     }));
+
   const client: Deals<F> = {
     create: (organizationId, input, contacts) => {
       const { fields: extra, ...rest } = input;
+
       return AsyncResult.from(() => fields.write({ ...extra }))
         .andThen((valid) =>
           call(
@@ -590,11 +602,14 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
           if (BUILT_IN.has(change.field)) {
             continue;
           }
+
           const valid = await fields.write({ [change.field]: change.value });
+
           if (!valid.ok) {
             return valid;
           }
         }
+
         return ok(changes);
       }).andThen((checked) =>
         call(
@@ -608,6 +623,7 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
           },
           (value) => {
             const row = recordOf(value, "update_deals");
+
             return {
               accepted: recordsOf(row["accepted"], "accepted").map((item) => ({
                 dealId: textOf(item["dealId"]),
@@ -703,6 +719,7 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
         })),
       ),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "deals",
     ...(options.logger ? { logger: options.logger } : {}),

@@ -9,9 +9,11 @@ import { stackDbUrl, stackEngine, stackUrl } from "./stack-env.ts";
 
 const url = stackUrl();
 const dbUrl = stackDbUrl();
+
 const publishableKey =
   process.env["SUPABASE_PUBLISHABLE_KEY"] ??
   "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";
+
 const secretKey =
   process.env["SUPABASE_SECRET_KEY"] ??
   "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -19,6 +21,7 @@ const secretKey =
 const ACME = "00000000-0000-4000-8000-000000000001";
 const OTHER = "00000000-0000-4000-8000-000000000002";
 const USER = "00000000-0000-4000-8000-0000000000fe";
+
 /** An id with hex letters, so its uppercase form differs. */
 const HEX = "abcdef00-0000-4000-8000-0000000000ab";
 const RUN = String(Date.now());
@@ -29,6 +32,7 @@ async function reachable(): Promise<boolean> {
     const response = await fetch(`${url}/storage/v1/status`, {
       signal: AbortSignal.timeout(1000),
     });
+
     return response.ok;
   } catch {
     return false;
@@ -92,9 +96,11 @@ describe.skipIf(!live)("access policies on provider functions", async () => {
           authz_platform: platform,
         }),
     });
+
   const service = createClient(url, secretKey, {
     auth: { persistSession: false },
   });
+
   const admin = files.connect(service);
   const reader = files.connect(clientWith({ "files.read": [ACME] }));
   const lister = files.connect(clientWith({ "files.list": [ACME] }));
@@ -111,6 +117,7 @@ describe.skipIf(!live)("access policies on provider functions", async () => {
     await admin
       .upload({ organizationId: OTHER, file: "b.txt" }, new Blob(["other"]))
       .orThrow();
+
     for (const organizationId of [HEX, HEX.toUpperCase()]) {
       await admin
         .upload({ organizationId, file: "h.txt" }, new Blob([organizationId]))
@@ -126,14 +133,17 @@ describe.skipIf(!live)("access policies on provider functions", async () => {
       { organizationId: HEX.toUpperCase(), file: "h.txt" },
     ]);
     await service.storage.deleteBucket(files.id);
+
     const objects = ["select", "list", "insert", "update", "delete"].map(
       (suffix) =>
         `drop policy if exists "bs_bs_it_pd_${RUN}_${suffix}" on storage.objects;`,
     );
+
     const topics = ["receive", "send"].map(
       (suffix) =>
         `drop policy if exists "bs_topic_pd_board_${RUN}_${suffix}" on realtime.messages;`,
     );
+
     await pool.query(
       [...objects, ...topics, `drop schema ${SCHEMA} cascade;`].join("\n"),
     );
@@ -144,21 +154,26 @@ describe.skipIf(!live)("access policies on provider functions", async () => {
     const own = await reader
       .download({ organizationId: ACME, file: "a.txt" })
       .orThrow();
+
     expect(await own.text()).toBe("acme");
     expect(await reader.list({ organizationId: ACME }).orThrow()).toEqual([]);
+
     const other = await reader.download({
       organizationId: OTHER,
       file: "b.txt",
     });
+
     expect(other.ok).toBe(false);
 
     const listed = await lister.list({ organizationId: ACME }).orThrow();
     expect(listed.map((object) => object.path)).toEqual([`${ACME}/a.txt`]);
     expect(await lister.list({ organizationId: OTHER }).orThrow()).toEqual([]);
+
     const download = await lister.download({
       organizationId: ACME,
       file: "a.txt",
     });
+
     expect(download.ok).toBe(false);
   });
 
@@ -167,16 +182,21 @@ describe.skipIf(!live)("access policies on provider functions", async () => {
       { organizationId: ACME, file: "w.txt" },
       new Blob(["w"]),
     );
+
     expect(own.ok).toBe(true);
+
     const other = await writer.upload(
       { organizationId: OTHER, file: "w.txt" },
       new Blob(["w"]),
     );
+
     expect(other.error?.kind).toBe("forbidden");
+
     const readerWrite = await reader.upload(
       { organizationId: ACME, file: "r.txt" },
       new Blob(["r"]),
     );
+
     expect(readerWrite.error?.kind).toBe("forbidden");
   });
 
@@ -185,26 +205,32 @@ describe.skipIf(!live)("access policies on provider functions", async () => {
     "compares ids as canonical lowercase text",
     async () => {
       const hexReader = files.connect(clientWith({ "files.read": [HEX] }));
+
       const lower = await hexReader.download({
         organizationId: HEX,
         file: "h.txt",
       });
+
       expect(lower.ok).toBe(true);
+
       const upper = await hexReader.download({
         organizationId: HEX.toUpperCase(),
         file: "h.txt",
       });
+
       expect(upper.ok).toBe(false);
 
       const client = clientWith({ "board.read": [HEX] });
       const joined = board.subscribe(client, { organizationId: HEX }, {});
       await joined.ready;
       await joined.unsubscribe();
+
       const shouting = board.subscribe(
         client,
         { organizationId: HEX.toUpperCase() },
         {},
       );
+
       await expect(shouting.ready).rejects.toThrow(/./);
       await shouting.unsubscribe();
       client.removeAllChannels();
@@ -226,6 +252,7 @@ describe.skipIf(!live)("access policies on provider functions", async () => {
         { organizationId: OTHER },
         {},
       );
+
       await expect(elsewhere.ready).rejects.toThrow(/./);
       await elsewhere.unsubscribe();
 
@@ -235,17 +262,21 @@ describe.skipIf(!live)("access policies on provider functions", async () => {
         "moved",
         {},
       );
+
       expect(denied.ok).toBe(false);
+
       const sender = clientWith({
         "board.read": [ACME],
         "board.write": [ACME],
       });
+
       const sent = await board.send(
         sender,
         { organizationId: ACME },
         "moved",
         {},
       );
+
       expect(sent.ok).toBe(true);
       readOnly.removeAllChannels();
       sender.removeAllChannels();

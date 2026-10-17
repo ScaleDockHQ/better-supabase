@@ -10,6 +10,7 @@ export function supportApprovalFunctions(
 ): string {
   const requests = ctx.table("requests");
   const c = (logical: string) => ctx.col("requests", logical);
+
   return `
 
 -- Whether the caller may approve the waiting request: never its requester.

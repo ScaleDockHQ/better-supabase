@@ -1,4 +1,5 @@
 import { importOptionalPeer } from "./optional-peer.ts";
+
 /** The feature groups Supabase's MCP server turns on with `features`. */
 export type SupabaseMcpFeature =
   | "account"
@@ -83,9 +84,11 @@ function isPlatformModule(value: unknown): value is SupabaseMcpPlatformModule {
  */
 export async function loadSupabaseMcp(): Promise<SupabaseMcpModule> {
   const loaded = await importOptionalPeer("@supabase/mcp-server-supabase");
+
   if (!isServerModule(loaded)) {
     throw new TypeError(INSTALL);
   }
+
   return loaded;
 }
 
@@ -94,8 +97,10 @@ export async function loadSupabaseMcpPlatform(): Promise<SupabaseMcpPlatformModu
   const loaded = await importOptionalPeer(
     "@supabase/mcp-server-supabase/platform/api",
   );
+
   if (!isPlatformModule(loaded)) {
     throw new TypeError(INSTALL);
   }
+
   return loaded;
 }

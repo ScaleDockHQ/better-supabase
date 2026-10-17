@@ -69,6 +69,7 @@ export interface BetterSupabaseNuxtModule {
 
 function setup(inline: NuxtModuleOptions | undefined, nuxt: NuxtLike): void {
   const options = { ...nuxt.options.betterSupabase, ...inline };
+
   if (options.server !== undefined) {
     const nitro = nuxt.options.nitro;
     nitro.virtual = {
@@ -80,6 +81,7 @@ function setup(inline: NuxtModuleOptions | undefined, nuxt: NuxtLike): void {
       { handler: MIDDLEWARE_ID, middleware: true },
     ];
   }
+
   if (options.composables ?? true) {
     nuxt.hook("imports:extend", (imports) => {
       for (const name of VUE_COMPOSABLES) {

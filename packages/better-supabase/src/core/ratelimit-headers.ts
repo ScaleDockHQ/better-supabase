@@ -37,16 +37,19 @@ function sfString(value: string): string {
       `"${value}" is not a RateLimit policy name: use printable ASCII`,
     );
   }
+
   return `"${value.replaceAll(/[\\"]/g, (char) => `\\${char}`)}"`;
 }
 
 function sfInteger(value: number, field: string): string {
   const whole = Math.ceil(value);
+
   if (!Number.isFinite(whole) || whole < 0 || whole > MAX_INTEGER) {
     throw new TypeError(
       `${field} must be a non-negative integer, got ${value}`,
     );
   }
+
   return String(whole);
 }
 
@@ -57,18 +60,23 @@ export function rateLimitPolicyHeader(
   if (policies.length === 0) {
     throw new TypeError("RateLimit-Policy needs at least one policy");
   }
+
   return policies
     .map((policy) => {
       let item = `${sfString(policy.name)};q=${sfInteger(policy.quota, "q")}`;
+
       if (policy.unit !== undefined && policy.unit !== "requests") {
         item += `;qu=${sfString(policy.unit)}`;
       }
+
       if (policy.window !== undefined) {
         if (policy.window <= 0) {
           throw new TypeError("w must be greater than 0");
         }
+
         item += `;w=${sfInteger(policy.window, "w")}`;
       }
+
       return item;
     })
     .join(", ");
@@ -79,9 +87,11 @@ export function rateLimitHeader(states: readonly RateLimitState[]): string {
   return states
     .map((state) => {
       let item = `${sfString(state.policy)};r=${sfInteger(state.remaining, "r")}`;
+
       if (state.reset !== undefined) {
         item += `;t=${sfInteger(state.reset, "t")}`;
       }
+
       return item;
     })
     .join(", ");
@@ -96,6 +106,7 @@ const UNIT_SECONDS: Readonly<Record<string, number>> = {
   hr: 3600,
   day: 86_400,
 };
+
 const INTERVAL = /^\s*(\d+)\s*([a-z]+)\s*$/i;
 
 /**
@@ -108,14 +119,20 @@ export function periodSeconds(period: number | string): number | undefined {
       ? Math.ceil(period)
       : undefined;
   }
+
   const match = INTERVAL.exec(period);
+
   if (!match) {
     return undefined;
   }
+
   const word = match[2]!.toLowerCase();
+
   const unit =
     UNIT_SECONDS[word] ??
     (word.endsWith("s") ? UNIT_SECONDS[word.slice(0, -1)] : undefined);
+
   const count = Number(match[1]);
+
   return unit === undefined || count <= 0 ? undefined : count * unit;
 }

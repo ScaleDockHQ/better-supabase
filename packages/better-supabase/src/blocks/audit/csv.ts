@@ -77,16 +77,20 @@ function defaultRow<Columns extends AuditColumns>(
     occurredAt: record.occurredAt.toString(),
     changed: record.changed?.join(" "),
   };
+
   for (const key of keys) {
     const [scope, ...rest] = key.split(".");
     const name = rest.join(".");
+
     if (scope === "columns" && name !== "") {
       row[key] = record.columns?.[name];
     }
+
     if (scope === "restricted" && name !== "") {
       row[key] = new Map(Object.entries(details ?? {})).get(name);
     }
   }
+
   return row;
 }
 
@@ -95,6 +99,7 @@ const lines = (values: readonly string[]): string =>
   values
     .map((value) => {
       const csv = toCsv([{ value }], { columns: ["value"] });
+
       return csv.slice(csv.indexOf("\r\n") + 2);
     })
     .join("");
@@ -108,20 +113,26 @@ export function csvPage<Columns extends AuditColumns>(
 ): string {
   const columns = options.columns ?? DEFAULT_COLUMNS;
   const keys = columns.map(keyOf);
+
   const rows = entries.map((record) => {
     const found = details?.get(record.id);
     const row = defaultRow(record, keys, found);
+
     return options.formatRow ? options.formatRow(row, record, found) : row;
   });
+
   const csv = toCsv(rows, { columns: keys });
   const body = csv.slice(csv.indexOf("\r\n") + 2);
+
   if (!first) {
     return body;
   }
+
   const header = toCsv([], {
     columns: columns.map((column) =>
       typeof column === "string" ? column : column.label,
     ),
   });
+
   return `${lines(options.preamble ?? [])}${header}${body}`;
 }

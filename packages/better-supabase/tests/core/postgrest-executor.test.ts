@@ -24,27 +24,34 @@ interface Call {
 function fakeClient(response: { data?: unknown; error?: unknown }) {
   const calls: Call[] = [];
   const schemaCalls: string[] = [];
+
   const scoped = (schema: string) => ({
     from: () => ({}),
     rpc: (name: string, args: unknown, options?: unknown) => {
       const call: Call = { schema, name, args, options };
       calls.push(call);
+
       const builder = Object.assign(Promise.resolve(response), {
         abortSignal: (signal: AbortSignal): unknown => {
           call.signal = signal;
+
           return builder;
         },
       });
+
       return builder;
     },
   });
+
   const client = {
     ...scoped("public"),
     schema(schema: string) {
       schemaCalls.push(schema);
+
       return scoped(schema);
     },
   };
+
   // SAFETY: the executor only calls schema() and rpc() on this fake.
   return {
     client: client as unknown as PostgrestClientLike,
@@ -97,11 +104,13 @@ describe("postgrestExecutor rpc", () => {
     expect(calls[0]?.signal).toBe(controller.signal);
 
     controller.abort();
+
     const result = await executor.rpc?.(
       "a",
       {},
       { schema: "public", signal: controller.signal, errorMappers: [] },
     );
+
     expect(result).toMatchObject({ ok: false, error: { kind: "aborted" } });
     expect(calls).toHaveLength(1);
   });
@@ -110,22 +119,26 @@ describe("postgrestExecutor rpc", () => {
     const { client } = fakeClient({
       error: { code: "42501", message: "permission denied" },
     });
+
     const result = await postgrestExecutor(client).rpc?.(
       "a",
       {},
       { schema: "public", errorMappers: [] },
     );
+
     expect(result).toMatchObject({ ok: false });
   });
 
   it("fails without rpc() on the client", async () => {
     // SAFETY: a client with from() only, as some custom clients are.
     const client = { from: () => ({}) } as unknown as PostgrestClientLike;
+
     const result = await postgrestExecutor(client).rpc?.(
       "a",
       {},
       { schema: "public", errorMappers: [] },
     );
+
     expect(result).toMatchObject({ ok: false });
   });
 });
@@ -138,6 +151,7 @@ describe("postgrestExecutor request options", () => {
       status: 204,
       headers: { "content-range": "*/2" },
     }));
+
     const db = betterSupabase.connect(client);
     await db.customers.updateMany({
       where: { status: "lead" },
@@ -153,6 +167,7 @@ describe("postgrestExecutor request options", () => {
       const prefer = request.headers.get("prefer") ?? "";
       expect(prefer).toContain("handling=strict");
     }
+
     expect(requests[0]?.headers.get("prefer")).toContain("max-affected=5");
     expect(requests[1]?.headers.get("prefer")).toContain("max-affected=2");
   });
@@ -175,10 +190,12 @@ describe("postgrestExecutor request options", () => {
         hint: null,
       },
     }));
+
     const result = await betterSupabase.connect(client).customers.deleteMany({
       where: { status: "lead" },
       maxAffected: 2,
     });
+
     expect(result).toMatchObject({
       ok: false,
       error: {
@@ -194,11 +211,13 @@ describe("postgrestExecutor request options", () => {
   it("refuses maxAffected before PostgREST 13 without a request", async () => {
     const { client, requests } = capturingClient();
     const old = defineSupabase(schema, { postgrestVersion: "12.2" });
+
     const result = await old.connect(client).customers.updateMany({
       where: { status: "lead" },
       data: { status: "active" },
       maxAffected: 1,
     });
+
     expect(result).toMatchObject({
       ok: false,
       error: { kind: "invalid_request" },
@@ -212,11 +231,13 @@ describe("postgrestExecutor request options", () => {
       status: 204,
       headers: { "content-range": "*/7" },
     }));
+
     const result = await betterSupabase.connect(client).customers.updateMany({
       where: { status: "lead" },
       data: { status: "active" },
       count: "planned",
     });
+
     expect(last().headers.get("prefer")).toContain("count=planned");
     expect(result).toMatchObject({ ok: true, data: { count: 7 } });
   });
@@ -224,10 +245,12 @@ describe("postgrestExecutor request options", () => {
   it("sends defaultToNull=false as columns on createMany, true on request", async () => {
     const { client, requests } = capturingClient(() => ({ status: 201 }));
     const db = betterSupabase.connect(client);
+
     const rows = [
       { organizationId: "o", name: "a" },
       { organizationId: "o", name: "b", color: "red" as const },
     ];
+
     await db.tags.createMany(rows, { returning: false });
     await db.tags.createMany(rows, { returning: false, defaultToNull: true });
 
@@ -239,6 +262,7 @@ describe("postgrestExecutor request options", () => {
 
   it("turns retries off per call and per connection", async () => {
     const retried: boolean[] = [];
+
     const builder = (): object => {
       const self: object = Object.assign(
         Promise.resolve({ data: [], error: null, count: null }),
@@ -250,12 +274,15 @@ describe("postgrestExecutor request options", () => {
           abortSignal: () => self,
           retry: (enabled: boolean) => {
             retried.push(enabled);
+
             return self;
           },
         },
       );
+
       return self;
     };
+
     // SAFETY: the executor only calls from() and the builder methods above.
     const client = { from: builder } as unknown as PostgrestClientLike;
     await betterSupabase.connect(client).tags.findMany({ retry: false });
@@ -272,6 +299,7 @@ describe("postgrestExecutor request options", () => {
   it("fails a call that runs past its timeout with a timeout error", async () => {
     const pending = (): object => {
       let settle: (value: unknown) => void = () => {};
+
       const self: object = Object.assign(
         new Promise((resolve) => {
           settle = resolve;
@@ -288,18 +316,23 @@ describe("postgrestExecutor request options", () => {
                 error: { message: "AbortError: aborted", code: "20" },
               });
             });
+
             return self;
           },
         },
       );
+
       return self;
     };
+
     // SAFETY: the executor only calls from() and the builder methods above.
     const client = { from: pending } as unknown as PostgrestClientLike;
     const caller = new AbortController();
+
     const result = await betterSupabase
       .connect(client)
       .tags.findMany({ timeout: 5, signal: caller.signal });
+
     expect(result).toMatchObject({
       ok: false,
       error: { kind: "timeout", status: 504 },
@@ -314,6 +347,7 @@ describe("postgrestExecutor request options", () => {
       },
       { errorMappers: [] },
     );
+
     expect(executorLevel).toMatchObject({
       ok: false,
       error: { kind: "timeout", message: "The request timed out after 5 ms" },
@@ -324,9 +358,11 @@ describe("postgrestExecutor request options", () => {
     const { client } = capturingClient();
     const controller = new AbortController();
     controller.abort();
+
     const result = await betterSupabase
       .connect(client)
       .tags.findMany({ timeout: 1000, signal: controller.signal });
+
     expect(result).toMatchObject({ ok: false, error: { kind: "aborted" } });
   });
 
@@ -334,9 +370,11 @@ describe("postgrestExecutor request options", () => {
     "rejects timeout %j before any request",
     async (timeout) => {
       const { client, requests } = capturingClient();
+
       const result = await betterSupabase
         .connect(client)
         .tags.findMany({ timeout: timeout as number });
+
       expect(result).toMatchObject({
         ok: false,
         error: { kind: "invalid_request" },
@@ -369,9 +407,11 @@ describe("resolveUrlLengthLimit", () => {
   it("chunks with urlLengthLimit", async () => {
     const { client, requests } = capturingClient();
     const ids = Array.from({ length: 40 }, (_, index) => `tag-${index}`);
+
     const result = await defineSupabase(schema, { urlLengthLimit: 200 })
       .connect(client)
       .tags.findMany({ where: { id: { in: ids } } });
+
     expect(result.ok).toBe(true);
     expect(requests.length).toBeGreaterThan(1);
   });
@@ -379,17 +419,22 @@ describe("resolveUrlLengthLimit", () => {
 
 async function captureSelect(): Promise<Operation> {
   const ops: Operation[] = [];
+
   const capture: Executor = {
     name: "capture",
     execute: (op) => {
       ops.push(op);
+
       return Promise.resolve(ok({ rows: [], count: null }));
     },
   };
+
   await defineSupabase(schema).connect(capture).tags.findMany({ limit: 1 });
   const [op] = ops;
+
   if (!op) {
     throw new Error("no operation");
   }
+
   return op;
 }

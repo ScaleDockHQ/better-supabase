@@ -44,7 +44,9 @@ function withDeprecated(
   if (!deprecated && columns.length === 0) {
     return schema;
   }
+
   const properties = schema["properties"];
+
   return {
     ...schema,
     ...(deprecated ? { deprecated: true } : {}),
@@ -76,17 +78,21 @@ export function buildJsonSchema(
   target: JsonSchemaTarget = "draft-2020-12",
 ): JsonSchema {
   const defs: Record<string, JsonSchema> = {};
+
   for (const [key, table] of tableEntries(input)) {
     const docs = tableDocs(input, table);
     const description = docs ? docs.description : table.description;
+
     for (const variant of variantsFor(table)) {
       const plans = fieldsFor(table, variant, input);
+
       const schema = tableJsonSchema({
         ...(docs ? { title: variantTitle(docs, variant) } : {}),
         ...(description === undefined ? {} : { description }),
         fields: Object.fromEntries(
           plans.map((plan) => {
             const spec = fieldSpec(plan, fieldDocs(docs, plan));
+
             return [
               plan.name,
               docs || plan.column.description === undefined
@@ -96,6 +102,7 @@ export function buildJsonSchema(
           }),
         ),
       });
+
       defs[`${key}${variant}`] = withDeprecated(
         schema,
         table.deprecated === true,
@@ -103,6 +110,7 @@ export function buildJsonSchema(
       );
     }
   }
+
   switch (target) {
     case "draft-2020-12": {
       return {
@@ -111,6 +119,7 @@ export function buildJsonSchema(
         $defs: defs,
       };
     }
+
     case "draft-07": {
       return forTarget(
         {
@@ -122,6 +131,7 @@ export function buildJsonSchema(
         "draft-07",
       );
     }
+
     case "openapi-3.0": {
       return {
         ...(id ? { $id: id } : {}),
@@ -133,8 +143,10 @@ export function buildJsonSchema(
         ),
       };
     }
+
     default: {
       const exhaustive: never = target;
+
       return exhaustive;
     }
   }
@@ -150,6 +162,7 @@ export function jsonSchema(
     generate(input: GeneratorInput): GeneratedFile[] {
       const path =
         options.output ?? siblingPath(input.config.output, "schema.json");
+
       return [
         {
           path,

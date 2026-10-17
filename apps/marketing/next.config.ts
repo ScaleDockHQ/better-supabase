@@ -32,6 +32,7 @@ export default createNextConfig({
     if (env.NODE_ENV === "production") {
       return Promise.resolve([]);
     }
+
     return Promise.resolve(
       docsPaths.map((source) => ({
         source,

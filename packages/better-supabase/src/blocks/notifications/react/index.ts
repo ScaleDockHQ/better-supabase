@@ -35,6 +35,7 @@ export function useNotifications<T>(
   const { auth, ports } = useBlockEnv();
   const latest = useLatest(options);
   const { topic } = options;
+
   return useController(
     () =>
       createNotificationsController<T>({

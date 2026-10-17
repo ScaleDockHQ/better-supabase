@@ -122,29 +122,37 @@ const pathTemplate = (ctx: ModuleContext): string =>
 function pathExpression(ctx: ModuleContext, tenantless = false): string {
   const template = pathTemplate(ctx);
   const where = "blocks.attachments.options.path";
+
   if (!template.includes("{id}")) {
     throw new TypeError(
       `${where} must contain {id}, so each file has its own path`,
     );
   }
+
   if (!template.startsWith("{organization_id}/")) {
     throw new TypeError(
       `${where} must start with {organization_id}/, so a tenant's files share a prefix`,
     );
   }
+
   const parts = template.split(/(\{[a-z_]+\})/).filter((part) => part !== "");
+
   return parts
     .map((part) => {
       const match = /^\{([a-z_]+)\}$/.exec(part);
+
       if (!match) {
         if (!/^[A-Za-z0-9/_.-]+$/.test(part)) {
           throw new TypeError(
             `${where}: "${part}" may hold letters, digits, /, _, . and - only`,
           );
         }
+
         return sqlString(part);
       }
+
       const logical = PATH_PARTS[match[1]!];
+
       if (!logical) {
         throw new TypeError(
           `${where}: {${match[1]}} is not a placeholder. Use ${Object.keys(
@@ -154,7 +162,9 @@ function pathExpression(ctx: ModuleContext, tenantless = false): string {
             .join(", ")}`,
         );
       }
+
       const column = ctx.col("attachments", logical);
+
       return logical === "subjectType" ||
         logical === "subjectId" ||
         (tenantless && logical === "tenant")
@@ -179,17 +189,21 @@ function subjectBuckets(
 ): readonly SubjectBucket[] {
   return subjects.map(([type, subject]) => {
     const bucket = subject.extra["bucket"] ?? fallback;
+
     if (!isText(bucket) || !BUCKET.test(bucket)) {
       throw new TypeError(
         `blocks.attachments.options.subjects.${type}.bucket must be 1 to 100 lowercase letters, digits, dots, dashes or underscores`,
       );
     }
+
     const mimeTypes = subject.extra["allowedMimeTypes"] ?? [];
+
     if (!Array.isArray(mimeTypes) || !mimeTypes.every(isText)) {
       throw new TypeError(
         `blocks.attachments.options.subjects.${type}.allowedMimeTypes must be a list of MIME types`,
       );
     }
+
     return { type, bucket, mimeTypes };
   });
 }
@@ -206,6 +220,7 @@ const mimeMatch = (column: string, types: readonly string[]): string =>
 /** `options.scanBuckets`: buckets whose new objects get a pending scan row. */
 function scanBucketsOf(ctx: ModuleContext): readonly string[] {
   const buckets = ctx.list("scanBuckets", []);
+
   for (const bucket of buckets) {
     if (!BUCKET.test(bucket)) {
       throw new TypeError(
@@ -213,6 +228,7 @@ function scanBucketsOf(ctx: ModuleContext): readonly string[] {
       );
     }
   }
+
   return buckets;
 }
 
@@ -223,6 +239,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const id = ctx.idType;
   const t = ctx.table("attachments");
   const metadata = ctx.has("attachments", "metadata");
@@ -231,6 +248,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const permissions = moduleOperations("attachments");
   const { bucket, maxSize, mimeTypes } = bucketOptions(ctx);
   const requireScan = ctx.flag("requireScan", true);
+
   const subjects = subjectsOption(
     ctx,
     ["bucket", "allowedMimeTypes", "permissions", "scope"],
@@ -238,25 +256,31 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
       tenantless: true,
     },
   );
+
   // Subject types without a tenant: their files have no organization_id, and
   // the subject's own policies decide who reads and uploads them.
   const tenantless = subjects
     .filter(([, subject]) => subject.tenant === false)
     .map(([type]) => type);
+
   // The column comment records what the expression was built from, so a
   // changed template, or files without a tenant, rewrite the column.
   const pathComment = `better-supabase path: ${pathTemplate(ctx)}${tenantless.length > 0 ? " (tenantless)" : ""}`;
+
   const access = subjectAccess(ctx, {
     subjects,
     actions: ["read", "upload", "manage"],
     permission: (action) => ctx.permission(action, permissions[action]),
     provider: layout.accessProvider,
   });
+
   const orTenantless = (tenant: string, check: string): string =>
     tenantless.length === 0 ? check : `(${tenant} is null or ${check})`;
+
   // row is the alias of the attachments row, or "" for the policies.
   const at = (row: string, logical: string): string =>
     row === "" ? c(logical) : `${row}.${c(logical)}`;
+
   const inTenant = (row: string, action: keyof typeof permissions): string =>
     orTenantless(
       at(row, "tenant"),
@@ -267,6 +291,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
         action,
       ),
     );
+
   // The policy form of inTenant: the tenant_ids_with set runs once per
   // statement instead of can() once per row.
   const memberIn = (action: keyof typeof permissions): string =>
@@ -274,6 +299,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
       c("tenant"),
       access.memberOn(c("tenant"), c("subjectType"), c("subjectId"), action),
     );
+
   const canManage = (row: string): string =>
     access.canOn(
       at(row, "tenant"),
@@ -281,14 +307,19 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
       at(row, "subjectId"),
       "manage",
     );
+
   const perSubject = subjectBuckets(subjects, bucket);
+
   const buckets = [
     ...new Set([bucket, ...perSubject.map((entry) => entry.bucket)]),
   ];
+
   const bucketList = buckets.map(sqlString).join(", ");
   const extras = ctx.extraColumns("attachments", RESERVED);
+
   const json = (row: string): string =>
     withExtraFields(`to_jsonb(${row})`, row, extras);
+
   const bucketFor = perSubject.some((entry) => entry.bucket !== bucket)
     ? `case create_attachment.subject_type ${perSubject
         .filter((entry) => entry.bucket !== bucket)
@@ -298,6 +329,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
         )
         .join(" ")} else ${sqlString(bucket)} end`
     : sqlString(bucket);
+
   // Inserts only the extra columns attrs names, so the others keep their
   // default, under the caller's column grants and policies.
   const insertColumns = [
@@ -310,6 +342,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     c("subjectId"),
     ...(metadata ? [c("metadata")] : []),
   ];
+
   const createWithExtras = `
 declare
   v_row ${t};
@@ -337,6 +370,7 @@ begin
   using v_row;
   return ${json("v_row")};
 end;`;
+
   const mimeRules = [
     ...(mimeTypes.length === 0 ? [] : [mimeMatch(c("mimeType"), mimeTypes)]),
     ...perSubject
@@ -346,6 +380,7 @@ end;`;
           `${c("subjectType")} is distinct from ${sqlString(entry.type)} or ${mimeMatch(c("mimeType"), entry.mimeTypes)}`,
       ),
   ];
+
   const mimeCheck =
     mimeRules.length === 0
       ? `alter table ${t} drop constraint if exists bs_attachments_mime_type;`
@@ -354,19 +389,23 @@ end;`;
           "bs_attachments_mime_type",
           mimeRules.map((rule) => `(${rule})`).join(" and "),
         );
+
   const subjectReadableSql = subjectReadable(ctx, subjects, {
     type: "subject_type",
     id: "subject_id",
     tenant: "tenant",
   });
+
   const cascades = subjectCascades(
     ctx,
     subjects,
     `delete from ${t} x where x.${c("subjectType")} = v_type and x.${c("subjectId")} = v_id;`,
   );
+
   const scans = ctx.table("scans");
   const sc = (logical: string): string => ctx.col("scans", logical);
   const scanBuckets = scanBucketsOf(ctx);
+
   const objectUploaded = ctx.record({
     type: "object.uploaded",
     payload: `jsonb_build_object('bucket', new.bucket_id, 'path', new.name)`,
@@ -374,10 +413,13 @@ end;`;
     tenant: "null",
     audit: false,
   });
+
   const readable = requireScan
     ? `a.${c("status")} = 'clean'`
     : `a.${c("status")} in ('pending', 'clean', 'failed')`;
+
   const bucketLiteral = sqlString(bucket);
+
   const uploaded = ctx.record({
     type: "attachment.uploaded",
     payload: `jsonb_build_object('attachmentId', v_row.${c("id")}, 'organizationId', v_row.${c("tenant")}::text, 'subjectType', v_row.${c("subjectType")}, 'subjectId', v_row.${c("subjectId")}, 'uploadedBy', v_row.${c("uploadedBy")}, 'mimeType', v_row.${c("mimeType")}, 'size', v_row.${c("size")})`,
@@ -389,6 +431,7 @@ end;`;
       recordId: `v_row.${c("id")}::text`,
     },
   });
+
   const scanned = ctx.record({
     type: "attachment.scanned",
     payload: `jsonb_build_object('attachmentId', v_row.${c("id")}, 'organizationId', v_row.${c("tenant")}::text, 'status', v_row.${c("status")}, 'uploadedBy', v_row.${c("uploadedBy")})`,
@@ -397,6 +440,7 @@ end;`;
     key: `'attachment.scanned:' || v_row.${c("id")}::text || ':' || v_row.${c("status")}`,
     audit: false,
   });
+
   const policy = (name: string): string => sqlIdent(`bs_attachments_${name}`);
 
   return `${schemaPreamble(ctx)}
@@ -818,17 +862,21 @@ interface BucketOptions {
 
 function bucketOptions(ctx: ModuleContext): BucketOptions {
   const bucket = ctx.text("bucket", "attachments");
+
   if (!BUCKET.test(bucket)) {
     throw new TypeError(
       "blocks.attachments.options.bucket must be 1 to 100 lowercase letters, digits, dots, dashes or underscores",
     );
   }
+
   const maxSize = ctx.number("maxSize", 50 * 1024 * 1024);
+
   if (!Number.isInteger(maxSize) || maxSize < 1) {
     throw new TypeError(
       "blocks.attachments.options.maxSize must be a whole number of bytes above zero",
     );
   }
+
   return { bucket, maxSize, mimeTypes: ctx.list("allowedMimeTypes", []) };
 }
 
@@ -837,7 +885,9 @@ function data(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const { bucket, maxSize, mimeTypes } = bucketOptions(ctx);
+
   const subjects = subjectBuckets(
     subjectsOption(
       ctx,
@@ -846,19 +896,24 @@ function data(ctx: ModuleContext): string {
     ),
     bucket,
   );
+
   const rows = new Map<string, readonly string[]>([[bucket, mimeTypes]]);
+
   for (const entry of subjects) {
     if (!rows.has(entry.bucket)) {
       rows.set(entry.bucket, entry.mimeTypes);
     }
   }
+
   const values = [...rows].map(([id, types]) => {
     const mimeArray =
       types.length === 0
         ? "null"
         : `array[${types.map(sqlString).join(", ")}]::text[]`;
+
     return `(${sqlString(id)}, ${sqlString(id)}, false, ${String(maxSize)}, ${mimeArray})`;
   });
+
   return `insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ${values.join(",\n  ")}
 on conflict (id) do nothing;`;
@@ -868,6 +923,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   const extra = extraFieldsArg(
     ctx.extraColumns("attachments", RESERVED),
   ).contract;
+
   return [
     {
       name: "attachment_object_allowed",

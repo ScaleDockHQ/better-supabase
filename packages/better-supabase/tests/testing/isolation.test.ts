@@ -9,20 +9,25 @@ import { expectTenantIsolation } from "../../src/testing/isolation.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const SECRET = "sb_secret_unit";
+
 const stack: LocalStack = {
   url: "http://127.0.0.1:54321",
   publishableKey: "sb_publishable_unit",
   secretKey: SECRET,
   alg: "HS256",
 };
+
 const ACME = "00000000-0000-4000-8000-000000000001";
 const GLOBEX = "00000000-0000-4000-8000-000000000002";
 const USER = "00000000-0000-4000-8000-0000000000ff";
+
 const tenants = [
   { id: ACME, name: "acme", claims: { sub: USER, tenant_id: ACME } },
   { id: GLOBEX, claims: { sub: USER, tenant_id: GLOBEX } },
 ] as const;
+
 const betterSupabase = defineSupabase(schema).use(tenant());
+
 const tags = {
   row: (owner: { id: string }, n: 0 | 1) => ({
     organizationId: owner.id,
@@ -32,6 +37,7 @@ const tags = {
 };
 
 type Row = Record<string, unknown>;
+
 type Command = "select" | "insert" | "update" | "delete";
 
 interface Logged {
@@ -62,14 +68,18 @@ function fakePostgrest(
     if (headers.get("apikey") === SECRET) {
       return undefined;
     }
+
     const token = headers.get("authorization")?.replace(/^Bearer /, "");
     const body = token?.split(".")[1];
+
     if (!body) {
       return null;
     }
+
     const claims = JSON.parse(
       atob(body.replaceAll("-", "+").replaceAll("_", "/")),
     ) as Row;
+
     return typeof claims["tenant_id"] === "string" ? claims["tenant_id"] : null;
   };
 
@@ -85,12 +95,15 @@ function fakePostgrest(
     if (!select || select === "*") {
       return rows.map((row) => ({ ...row }));
     }
+
     const fields = select.split(",").map((field) => {
       const [alias, column] = field.includes(":")
         ? field.split(":")
         : [field, field];
+
       return [alias!, column!.replace(/::\w+$/, "")] as const;
     });
+
     return rows.map((row) =>
       Object.fromEntries(fields.map(([alias, column]) => [alias, row[column]])),
     );
@@ -117,21 +130,26 @@ function fakePostgrest(
         admin,
         query: decodeURIComponent(url.search),
       });
+
       const visible = (command: Command, row: Row) =>
         admin ||
         leaks.has(command) ||
         (row["organization_id"] === owner &&
           !(options.hideOwn && command === "select"));
+
       const filters = filtersOf(url.searchParams);
+
       const matching = (command: Command) =>
         rows.filter(
           (row) =>
             visible(command, row) &&
             filters.every(([column, value]) => String(row[column]) === value),
         );
+
       const wantsRows = request.headers
         .get("prefer")
         ?.includes("return=representation");
+
       const select = url.searchParams.get("select");
 
       switch (request.method) {
@@ -139,13 +157,17 @@ function fakePostgrest(
         case "HEAD": {
           return respond(200, project(matching("select"), select));
         }
+
         case "POST": {
           const body = (await request.json()) as Row | Row[];
           const incoming = Array.isArray(body) ? body : [body];
+
           if (!admin && options.insertError) {
             const { status, ...error } = options.insertError;
+
             return respond(status, error);
           }
+
           if (incoming.some((row) => !visible("insert", row))) {
             return respond(403, {
               code: "42501",
@@ -153,41 +175,52 @@ function fakePostgrest(
                 'new row violates row-level security policy for table "tags"',
             });
           }
+
           const created = incoming.map((row) => ({
             id: `row-${(ids += 1)}`,
             color: "gray",
             ...row,
           }));
+
           rows.push(...created);
+
           return wantsRows
             ? respond(201, project(created, select))
             : respond(201);
         }
+
         case "PATCH": {
           const patch = (await request.json()) as Row;
           const changed = matching("update");
+
           for (const row of changed) {
             Object.assign(row, patch);
           }
+
           return wantsRows
             ? respond(200, project(changed, select))
             : respond(204);
         }
+
         case "DELETE": {
           const removed = matching("delete");
+
           for (const row of removed) {
             rows.splice(rows.indexOf(row), 1);
           }
+
           return wantsRows
             ? respond(200, project(removed, select))
             : respond(204);
         }
+
         default: {
           return respond(405, { message: "method not allowed" });
         }
       }
     },
   );
+
   return { fetch, tables, log };
 }
 
@@ -196,7 +229,9 @@ async function failures(pending: Promise<unknown>): Promise<string[]> {
     () => undefined,
     (cause: unknown) => cause,
   );
+
   expect(error).toBeInstanceOf(ConformanceError);
+
   return (error as ConformanceError).report.checks
     .filter((check) => !check.ok)
     .map((check) => `${check.name}: ${check.message}`);
@@ -217,12 +252,14 @@ afterEach(() => {
 describe("expectTenantIsolation", () => {
   it("passes when every command is scoped, and removes every row it seeded", async () => {
     const seed = vi.fn(async () => undefined);
+
     const report = await expectTenantIsolation(betterSupabase, {
       stack,
       tenants,
       tables: { tags },
       seed,
     });
+
     expect(seed).toHaveBeenCalledOnce();
     expect(report.subject).toBe("Tenant isolation");
     expect(report.checks.map((check) => check.name)).toEqual([
@@ -279,6 +316,7 @@ describe("expectTenantIsolation", () => {
   it("explains a tenant that can't read its own row", async () => {
     api = fakePostgrest({ hideOwn: true });
     vi.stubGlobal("fetch", api.fetch);
+
     const failed = await failures(
       expectTenantIsolation(betterSupabase, {
         stack,
@@ -286,6 +324,7 @@ describe("expectTenantIsolation", () => {
         tables: { tags },
       }),
     );
+
     expect(failed).toEqual([
       "tags: acme reads its own row: acme can't read its own row, so the other checks prove nothing; check its claims and memberships",
       `tags: ${GLOBEX} reads its own row: ${GLOBEX} can't read its own row, so the other checks prove nothing; check its claims and memberships`,
@@ -301,6 +340,7 @@ describe("expectTenantIsolation", () => {
       },
     });
     vi.stubGlobal("fetch", api.fetch);
+
     const failed = await failures(
       expectTenantIsolation(betterSupabase, {
         stack,
@@ -308,6 +348,7 @@ describe("expectTenantIsolation", () => {
         tables: { tags },
       }),
     );
+
     expect(failed).toHaveLength(2);
     expect(failed[0]).toMatch(
       /^tags: acme can't insert .*: insert failed with \w+ \(null value in column "name"\), not an RLS error; check the row factory$/,
@@ -322,6 +363,7 @@ describe("expectTenantIsolation", () => {
         tables: { tags: { ...tags, update: { color: "gray" } } },
       }),
     );
+
     expect(failed).toEqual([
       `tags: acme can't update ${GLOBEX}'s rows: update must change the row to detect a leak`,
       `tags: ${GLOBEX} can't update acme's rows: update must change the row to detect a leak`,
@@ -339,6 +381,7 @@ describe("expectTenantIsolation", () => {
         },
       },
     } as never);
+
     await expect(
       expectTenantIsolation(keyless, {
         stack,
@@ -369,6 +412,7 @@ describe("expectTenantIsolation", () => {
             { status: 409, headers: { "content-type": "application/json" } },
           );
         }
+
         return inner(input, init);
       }),
     );
@@ -385,6 +429,7 @@ describe("expectTenantIsolation", () => {
   it("cleans up leaked inserts by their scalar columns in every table", async () => {
     api = fakePostgrest({ leaks: ["insert"] });
     vi.stubGlobal("fetch", api.fetch);
+
     const locations = {
       row: (owner: { id: string }, n: 0 | 1) => ({
         organizationId: owner.id,
@@ -394,6 +439,7 @@ describe("expectTenantIsolation", () => {
       }),
       update: { label: "moved" },
     };
+
     const failed = await failures(
       expectTenantIsolation(betterSupabase, {
         stack,
@@ -401,17 +447,20 @@ describe("expectTenantIsolation", () => {
         tables: { tags, locations },
       }),
     );
+
     expect(failed.filter((name) => name.includes("can't insert"))).toHaveLength(
       4,
     );
     expect(api.tables.get("tags")).toEqual([]);
     expect(api.tables.get("locations")).toEqual([]);
+
     const cleanup = api.log.filter(
       (entry) =>
         entry.method === "DELETE" &&
         entry.table === "locations" &&
         entry.query.includes("is_primary=eq.true"),
     );
+
     expect(cleanup).toHaveLength(2);
   });
 
@@ -426,6 +475,7 @@ describe("expectTenantIsolation", () => {
     ]) {
       vi.stubEnv(`${prefix}SUPABASE_URL`, "");
     }
+
     const { url: _url, ...withoutUrl } = stack;
     await expectTenantIsolation(betterSupabase, {
       stack: withoutUrl,
@@ -451,11 +501,13 @@ describe("expectTenantIsolation", () => {
       "expectTenantIsolation needs stack.secretKey or $SUPABASE_SECRET_KEY to seed rows.",
     );
     vi.stubEnv("SUPABASE_SECRET_KEY", SECRET);
+
     const report = await expectTenantIsolation(betterSupabase, {
       stack: { alg: "HS256" },
       tenants,
       tables: { tags },
     });
+
     expect(report.checks.every((check) => check.ok)).toBe(true);
     expect(
       api.fetch.mock.calls.every(([input]) =>

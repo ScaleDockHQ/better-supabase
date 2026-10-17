@@ -146,6 +146,7 @@ describe(`OpenAPI 3.3-preview (v3.3-dev at ${SPEC_PINS.openapi33Preview})`, () =
       agentLogin: { scheme: "agents", scopes: ["a"] },
     },
   };
+
   const document = plain(
     openapiFormat.lower(profileModel, "3.3-preview", { report: () => {} }),
   );
@@ -184,9 +185,11 @@ describe(`OpenAPI 3.3-preview (v3.3-dev at ${SPEC_PINS.openapi33Preview})`, () =
     const stripped = structuredClone(document);
     stripped["openapi"] = SPEC_PINS.openapi32;
     delete stripped["x-better-supabase-preview"];
+
     for (const item of Object.values(stripped["paths"] as Json)) {
       delete (item as Json)["security"];
     }
+
     const components = stripped["components"] as Json;
     delete components["securityProfileRequirements"];
     delete (components["securitySchemes"] as Json)["agents"];

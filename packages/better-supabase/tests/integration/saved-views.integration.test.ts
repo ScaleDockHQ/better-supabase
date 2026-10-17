@@ -47,6 +47,7 @@ describe.skipIf(!live)("saved views in Postgres", () => {
     await db.asRole(user);
     const list = await db.value<View[]>(`sv_it.list_views('${org}', 'tasks')`);
     await db.service();
+
     return list;
   };
 
@@ -80,9 +81,11 @@ describe.skipIf(!live)("saved views in Postgres", () => {
 
   it("keeps a personal view to its owner", async () => {
     await db.as(member);
+
     const saved = await db.value<{ id: string; rank: string }>(
       save("user", "Mine"),
     );
+
     expect(saved.rank).toBe("V");
     expect((await views(member)).map((v) => v.name)).toEqual(["Mine"]);
     expect(await views(outsider)).toEqual([]);
@@ -135,17 +138,21 @@ describe.skipIf(!live)("saved views in Postgres", () => {
 
   it("lets a member prefer, hide and pin a shared view they can't edit", async () => {
     await db.as(owner);
+
     const shared = (await db.value<{ id: string }>(save("tenant", "Shared")))
       .id;
+
     const other = (await db.value<{ id: string }>(save("tenant", "Other"))).id;
     await db.as(member);
     expect(await db.hint(`sv_it.set_default_view('${shared}', true)`)).toBe(
       "SAVED_VIEW_FORBIDDEN",
     );
     await db.value(`sv_it.set_view_preference('${other}', true, null, null)`);
+
     const pref = await db.value<Record<string, unknown>>(
       `sv_it.set_view_preference('${shared}', true, null, true)`,
     );
+
     expect(pref).toEqual({
       viewId: shared,
       isDefault: true,
@@ -153,9 +160,11 @@ describe.skipIf(!live)("saved views in Postgres", () => {
       pinned: true,
     });
     await db.value(`sv_it.set_view_preference('${shared}', null, true, null)`);
+
     const mine = (await views(member)) as (View & {
       preference: Record<string, boolean>;
     })[];
+
     expect(mine.find((v) => v.id === shared)?.preference).toEqual({
       isDefault: true,
       hidden: true,
@@ -164,9 +173,11 @@ describe.skipIf(!live)("saved views in Postgres", () => {
     expect(mine.find((v) => v.id === other)?.preference["isDefault"]).toBe(
       false,
     );
+
     const theirs = (await views(outsider)) as (View & {
       preference: Record<string, boolean>;
     })[];
+
     expect(theirs.find((v) => v.id === shared)?.preference["isDefault"]).toBe(
       false,
     );
@@ -186,12 +197,16 @@ describe.skipIf(!live)("saved views in Postgres", () => {
 
   it("duplicates a shared view as the caller's own and checks the new scope", async () => {
     await db.as(owner);
+
     const source = (await db.value<{ id: string }>(save("tenant", "Source")))
       .id;
+
     await db.as(member);
+
     const copy = await db.value<{ id: string }>(
       `sv_it.duplicate_view('${source}', 'user', 'My copy', null)`,
     );
+
     const mine = await views(member);
     expect(mine.find((v) => v.id === copy.id)).toMatchObject({
       name: "My copy",
@@ -210,7 +225,9 @@ describe.skipIf(!live)("saved views in Postgres", () => {
       transport: sqlTransport(db.sql),
       schema: "sv_it",
     });
+
     await db.asRole(member);
+
     const saved = await client
       .save({
         organizationId: org,
@@ -220,6 +237,7 @@ describe.skipIf(!live)("saved views in Postgres", () => {
         state: { grouping: ["stage"], query: { q: "acme" } },
       })
       .orThrow();
+
     const [view] = await client.list(org, "deals").orThrow();
     expect(view).toMatchObject({
       id: saved.id,
@@ -236,6 +254,7 @@ describe.skipIf(!live)("saved views in Postgres", () => {
       "select payload from better_supabase.outbox_events where type = 'saved_view.saved' and organization_id = $1",
       [org],
     );
+
     expect(rows.length).toBeGreaterThan(0);
     expect(rows[0]?.payload).toMatchObject({
       organizationId: org,

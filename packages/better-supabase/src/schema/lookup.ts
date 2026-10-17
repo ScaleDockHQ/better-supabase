@@ -15,6 +15,7 @@ const lookups = new WeakMap<TableMeta, TableLookup>();
 /** The cached lookup for a table; metadata is immutable after `defineSchema`. */
 export function lookupOf(table: TableMeta): TableLookup {
   let lookup = lookups.get(table);
+
   if (!lookup) {
     const entries = Object.entries(table.columns);
     lookup = {
@@ -24,5 +25,6 @@ export function lookupOf(table: TableMeta): TableLookup {
     };
     lookups.set(table, lookup);
   }
+
   return lookup;
 }

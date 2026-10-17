@@ -23,6 +23,7 @@ export function guard<Entries extends readonly AnyEntry[]>(
 ): (context: { readonly request: Request }) => Promise<Response | undefined> {
   return ({ request }) => {
     const locals = guardedLocals(bridge.context(request));
+
     return routeRefusal(locals, request, options);
   };
 }

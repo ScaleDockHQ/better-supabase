@@ -24,21 +24,25 @@ import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
+
 const env = {
   url: PROJECT_URL,
   publishableKey: "sb_publishable_test",
   jwksUrl: new URL(`${PROJECT_URL}/auth/v1/.well-known/jwks.json`),
 };
+
 const USER = "11111111-1111-4111-8111-111111111111";
 const signer = await createTestSigner();
 
 describe("handle", () => {
   const betterSupabase = defineSupabase(schema);
+
   const server = createServer(betterSupabase, {
     env,
     auth: { jwks: signer.jwks as never },
     readUrl: "https://replica.test",
   });
+
   const request = (token?: string) =>
     new Request("https://api.test/notes", {
       headers: token ? { authorization: `Bearer ${token}` } : {},
@@ -46,9 +50,11 @@ describe("handle", () => {
 
   it("runs as the caller and answers data as JSON", async () => {
     const token = await signer.sign({ sub: USER });
+
     const response = await handle(server, request(token), (ctx) =>
       ctx.auth.kind === "user" ? { id: ctx.auth.user.id } : null,
     );
+
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ id: USER });
   });
@@ -66,13 +72,16 @@ describe("handle", () => {
 
   it("answers Results and thrown errors as Problem Details", async () => {
     const options = { allow: ["anon"] as const };
+
     const failed = await handle(
       server,
       request(),
       () => err(dbError("conflict", "Taken")),
       options,
     );
+
     expect(failed.status).toBe(409);
+
     const thrown = await handle(
       server,
       request(),
@@ -81,10 +90,12 @@ describe("handle", () => {
       },
       { ...options, instance: "/custom" },
     );
+
     expect(thrown.status).toBe(500);
     const body = await thrown.text();
     expect(body).not.toContain("secret detail");
     expect(body).toContain("/custom");
+
     const exposed = await handle(
       server,
       request(),
@@ -93,6 +104,7 @@ describe("handle", () => {
       },
       { ...options, expose: true },
     );
+
     expect(await exposed.text()).toContain("secret detail");
   });
 
@@ -151,6 +163,7 @@ describe("handle", () => {
   it("applies the primary pin and flushes event sends", async () => {
     const waitUntil = vi.fn();
     let release = (): void => undefined;
+
     const response = await handle(
       server,
       request(),
@@ -161,10 +174,12 @@ describe("handle", () => {
             release = resolve;
           }),
         );
+
         return { ok: 1 };
       },
       { allow: ["anon"], waitUntil, status: 201 },
     );
+
     expect(response.status).toBe(201);
     expect(response.headers.get("set-cookie")).toContain(`${PRIMARY_COOKIE}=`);
     expect(waitUntil).toHaveBeenCalledOnce();
@@ -178,6 +193,7 @@ describe("ctx.cookies", () => {
       env,
       readUrl: "https://replica.test",
     });
+
     const ctx = await server.context(new Request("https://api.test/"));
     expect(ctx.cookies()).toEqual([]);
     ctx.replica?.pin();
@@ -261,9 +277,11 @@ describe("testAdapter", () => {
           (_request, ctx) => run(ctx),
           { allow },
         );
+
         return async (request) => {
           const response = await handler(request);
           flushEvents(betterSupabase, waitUntil);
+
           return response;
         };
       },
@@ -281,6 +299,7 @@ describe("testAdapter", () => {
           "*",
           bs.handler((_c, ctx) => run(ctx)),
         );
+
         return async (request) => app.fetch(request);
       },
     });
@@ -291,11 +310,14 @@ describe("testAdapter", () => {
       betterSupabase,
       serve: (server, run, { allow, waitUntil }) => {
         const bs = createOrpc(betterSupabase, { ...server, waitUntil });
+
         const procedure = os
           .$context<OrpcRequestContext>()
           .use(bs.middleware({ allow }))
           .handler(({ context }) => bs.unwrap(run(context.bs)));
+
         const fetch = bs.fetchHandler(new RPCHandler({ procedure }));
+
         return (request) =>
           fetch(
             new Request(new URL("/procedure", request.url), {
@@ -325,6 +347,7 @@ describe("testAdapter", () => {
           description: "Runs the module.",
           run: (_a, ctx) => run(ctx),
         });
+
         return (request) =>
           mcp.fetch(
             new Request(request.url, {
@@ -350,19 +373,24 @@ describe("testAdapter", () => {
       betterSupabase,
       serve: (server, run) => async (request) => {
         const ctx = await createServer(betterSupabase, server).context(request);
+
         try {
           return Response.json(await run(ctx));
         } catch (cause) {
           const status =
             cause instanceof DbException ? cause.error.status : 500;
+
           return new Response(String(cause), { status });
         }
       },
     }).catch((cause: unknown) => cause);
+
     expect(failure).toBeInstanceOf(ConformanceError);
+
     const failed = (failure as ConformanceError).report.checks
       .filter((check) => !check.ok)
       .map((check) => check.name);
+
     expect(failed).toEqual([
       "refuses a caller the guard rejects",
       "hides the message of an unexpected error",

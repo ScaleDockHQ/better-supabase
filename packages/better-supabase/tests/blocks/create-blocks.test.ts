@@ -64,6 +64,7 @@ const recorder = <const C extends Record<string, "optional" | "required">>(
     name: "recorder",
     create: (options: Record<string, unknown>) => {
       seen.push(options);
+
       return {};
     },
     ...(consumes === undefined ? {} : { consumes }),
@@ -79,12 +80,14 @@ describe("createBlocks sinks", () => {
   it("drops trashed subjects from the search block", async () => {
     const remove = vi.fn(() => AsyncResult.ok(true));
     const refresh = vi.fn(() => AsyncResult.ok(true));
+
     const search = defineBlock({
       name: "search",
       create: (_options: BlockContext) => ({ remove, refresh }),
       provides: { sink: (client) => searchSink(client) },
       category: "work",
     });
+
     const blocks = createBlocks({ transport }, { search });
     await blocks.sinks.search?.send([
       cloudEvent("subject.trashed", { subjectType: "task", subjectId: "t1" }),
@@ -106,9 +109,11 @@ describe("createBlocks sinks", () => {
         }),
       },
     );
+
     const rollup = vi
       .spyOn(blocks.metrics, "rollup")
       .mockImplementation(() => AsyncResult.ok(1));
+
     await blocks.sinks.metrics?.send([cloudEvent("time_entry.recorded", {})]);
     expect(rollup.mock.calls[0]?.[0]).toMatchObject({ metric: "time_tracked" });
     expect(rollup.mock.calls[0]?.[0]?.since?.toString()).toBe(
@@ -127,10 +132,12 @@ describe("createBlocks hooks", () => {
     const before = vi.fn(() =>
       dbError("forbidden", "Organizations are created by support"),
     );
+
     const blocks = createBlocks(
       { transport, hooks: { organizations: { create: { before } } } },
       { organizations: organizationsBlock, audit: auditBlock },
     );
+
     expect(await blocks.organizations.create({ name: "Acme" })).toMatchObject({
       ok: false,
       error: { kind: "forbidden" },
@@ -166,6 +173,7 @@ describe("createBlocks", () => {
       { transport },
       { organizations: organizationsBlock, audit: auditBlock },
     );
+
     expect(typeof blocks.organizations.create).toBe("function");
     expect(typeof blocks.audit.sink).toBe("function");
     expectTypeOf(blocks.organizations).toEqualTypeOf<
@@ -176,17 +184,20 @@ describe("createBlocks", () => {
 
   it("builds rate-limit over the shared transport", async () => {
     const calls: [string, string, Record<string, unknown>][] = [];
+
     const blocks = createBlocks(
       {
         transport: {
           async call(schema, fn, args) {
             calls.push([schema, fn, { ...args }]);
+
             return { allowed: true, remaining: 4, retry_after: 0 };
           },
         },
       },
       { "rate-limit": rateLimitBlock },
     );
+
     expect(await blocks["rate-limit"].check("api", "key-1").orThrow()).toEqual({
       allowed: true,
       remaining: 4,
@@ -216,12 +227,14 @@ describe("createBlocks", () => {
     const credentials = vaultCredentials({ transport });
     const events = new EventHub();
     const seen: Record<string, unknown>[] = [];
+
     const files = defineBlock({
       name: "ai-files",
       create: (_options: BlockContext) => fakeFiles,
       provides: { files: (client) => client },
       category: "ai",
     });
+
     createBlocks(
       { transport, credentials, events },
       {
@@ -300,6 +313,7 @@ describe("createBlocks", () => {
 
   it("wires reminders to the notifier with their notification type", async () => {
     const send = vi.fn(() => Promise.resolve("n1"));
+
     const blocks = createBlocks(
       {
         transport: rpcTransport({
@@ -316,6 +330,7 @@ describe("createBlocks", () => {
         notifications: notifier(send),
       },
     );
+
     await blocks.reminders
       .deliver({
         reminderId: "r1",
@@ -353,6 +368,7 @@ describe("createBlocks", () => {
   it("forwards block events to audit until close", async () => {
     const events = new EventHub();
     const sent: CloudEvent[] = [];
+
     const blocks = createBlocks(
       {
         transport,
@@ -361,6 +377,7 @@ describe("createBlocks", () => {
       },
       {},
     );
+
     const created = { organizationId: "o1" };
     emitBlockEvent<OrganizationsEvents>(
       events,
@@ -394,22 +411,26 @@ describe("createBlocks", () => {
       name: "loop",
       create: (options: { readonly files?: AiFiles }): Notifier => {
         void options.files;
+
         return { send: vi.fn() };
       },
       consumes: { files: "optional" },
       provides: { notifier: (client) => client },
       category: "collaboration",
     });
+
     const files = defineBlock({
       name: "files",
       create: (options: { readonly notifier?: Notifier }): AiFiles => {
         void options.notifier;
+
         return fakeFiles;
       },
       consumes: { notifier: "optional" },
       provides: { files: (client) => client },
       category: "ai",
     });
+
     expect(() => createBlocks({ transport }, { loop, files })).toThrow(
       /depends on itself/,
     );
@@ -420,9 +441,11 @@ describe("defineBlocks", () => {
   const app = defineEvents({
     "invoice.sent": event<{ readonly invoiceId: string }>(),
   });
+
   const config = {
     organizations: { schema: "better_supabase", api: "api", options: {} },
   } as const;
+
   const set = defineBlocks(
     config,
     { organizations: organizationsBlock, audit: auditBlock },
@@ -438,10 +461,12 @@ describe("defineBlocks", () => {
   it("types events from the blocks and the app, and listens to them", async () => {
     const events = new EventHub();
     const seen: string[] = [];
+
     const stop = set.on({ events }, "invoice.*", (sent) => {
       expectTypeOf(sent.data.invoiceId).toBeString();
       seen.push(sent.data.invoiceId);
     });
+
     set.on({ events }, "organization.created", (created) => {
       expectTypeOf(created.data.organizationId).toBeString();
       seen.push(created.type);
@@ -467,6 +492,7 @@ describe("defineBlocks", () => {
 
   it("calls the functions by the generated names", async () => {
     const calls: string[] = [];
+
     const named = defineBlocks(
       {
         organizations: {
@@ -477,14 +503,17 @@ describe("defineBlocks", () => {
       },
       { organizations: organizationsBlock },
     );
+
     const blocks = named.create({
       transport: {
         async call(_schema, fn) {
           calls.push(fn);
+
           return [{ workspace_id: "w1", role: "owner" }];
         },
       },
     });
+
     await blocks.organizations.mine();
     expect(calls).toEqual(["list_my_workspaces"]);
     blocks.close();

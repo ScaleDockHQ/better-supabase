@@ -85,10 +85,12 @@ describe("doctor command", () => {
   it("reads the snapshot and the live checks over one connection, then closes it", async () => {
     const db = fakeSql([TEMP_FILES]);
     const open = fakeConnect(db.pg);
+
     const result = await doctor(["--only", "BS208", "--json"], {
       connect: open.connect,
       dbUrl: "postgresql://u:pw@h/db",
     });
+
     expect(result.code).toBe(0);
     expect(findings(result)).toEqual([
       expect.objectContaining({
@@ -107,15 +109,19 @@ describe("doctor command", () => {
     const config: BetterSupabaseConfig = {
       doctor: { only: ["BS208"], format: "sarif", output: "doctor.sarif" },
     };
+
     const options = () => ({
       connect: fakeConnect(fakeSql([TEMP_FILES]).pg).connect,
       dbUrl: "postgresql://u:pw@h/db",
     });
+
     const sarif = await doctor([], options(), config);
     expect(sarif.code).toBe(0);
+
     const written = JSON.parse(
       await readFile(join(root, "doctor.sarif"), "utf-8"),
     ) as { runs: { results: { ruleId: string }[] }[] };
+
     expect(written.runs[0]!.results.map((result) => result.ruleId)).toEqual([
       "BS208",
     ]);
@@ -132,6 +138,7 @@ describe("doctor command", () => {
     const open = fakeConnect({
       query: () => Promise.reject(new Error("permission denied")),
     });
+
     await expect(
       doctor(["--only", "BS208", "--json"], {
         connect: open.connect,
@@ -146,12 +153,14 @@ describe("doctor command", () => {
     vi.stubGlobal("fetch", api.fetch);
     const db = fakeSql();
     const open = fakeConnect(db.pg);
+
     const result = await doctor(
       ["--only", "BS100,BS200", "--json"],
       { connect: open.connect },
       {},
       { DATABASE_URL: "postgresql://env/db" },
     );
+
     const reported = findings(result);
     expect(reported.map((finding) => finding.code)).toEqual(["BS100", "BS200"]);
     expect(reported[0]!.message).toMatch(
@@ -168,19 +177,24 @@ describe("doctor command", () => {
       if (call.url.includes("/advisors/")) {
         return { body: { lints: [] } };
       }
+
       const query = JSON.parse(String(call.body)) as { query: string };
+
       return {
         body: query.query.includes("pg_stat_database") ? TEMP_FILES[1] : [],
       };
     });
+
     vi.stubGlobal("fetch", api.fetch);
     const open = fakeConnect(fakeSql().pg);
+
     const result = await doctor(
       ["--project-ref", "abc", "--only", "BS100,BS208", "--json"],
       { connect: open.connect },
       {},
       { SUPABASE_ACCESS_TOKEN: "sbp_test" },
     );
+
     expect(findings(result).map((finding) => finding.code)).toEqual(["BS208"]);
     expect(open.urls).toEqual([]);
     const urls = api.calls.map((call) => call.url);
@@ -196,6 +210,7 @@ describe("doctor command", () => {
 
   it("skips the advisors and live checks for a saved snapshot", async () => {
     await write("snapshot.json", JSON.stringify(fixture));
+
     const result = await doctor([
       "--snapshot",
       "snapshot.json",
@@ -203,6 +218,7 @@ describe("doctor command", () => {
       "BS100,BS208",
       "--json",
     ]);
+
     expect(findings(result)).toEqual([
       expect.objectContaining({
         code: "BS100",
@@ -229,17 +245,22 @@ describe("doctor command", () => {
       ...fixture,
       extras: { ...fixture.extras, roleSettings: {} },
     });
+
     await write("node_modules/dep/index.ts", "db.notes.aggregate({});\n");
+
     const clean = await doctor(["--only", "BS210", "--json"], {
       snapshot,
     });
+
     expect(findings(clean)).toEqual([]);
 
     await write("src/z.ts", "\n\ndb.notes.aggregate({});\n");
     await write("src/a.ts", "db.notes.list({ facetCounts: true });\n");
+
     const result = await doctor(["--only", "BS210", "--json"], {
       snapshot,
     });
+
     expect(findings(result)).toEqual([
       expect.objectContaining({
         code: "BS210",
@@ -251,11 +272,13 @@ describe("doctor command", () => {
   it("skips the read-sets module file when config.readSets cannot load", async () => {
     const snapshot = await parseSnapshot(fixture);
     const config = { blocks: ["read-sets"] };
+
     const loaded = await doctor(
       ["--only", "BS304", "--json"],
       { snapshot },
       config,
     );
+
     expect(findings(loaded).map((finding) => finding.message)).toEqual([
       expect.stringContaining(
         "supabase/schemas/900_better_supabase_14_read_sets.sql",
@@ -264,11 +287,13 @@ describe("doctor command", () => {
         "supabase/better-supabase-data/900_better_supabase_14_read_sets.sql",
       ),
     ]);
+
     const skipped = await doctor(
       ["--only", "BS304", "--json"],
       { snapshot },
       { ...config, readSets: ["src/missing.ts"] },
     );
+
     expect(findings(skipped)).toEqual([]);
   });
 });

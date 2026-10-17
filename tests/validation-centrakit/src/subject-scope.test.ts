@@ -83,11 +83,14 @@ describe.skipIf(!live)("provider subject scopes on CentraKit's tables", () => {
   it("reads comments and attachments through a grant on the project", async () => {
     await withCentraKit(pool, async (s) => {
       await s.as("owner");
+
       const organization = await s.value<string>(
         "better_supabase.create_organization($1)",
         [{ name: "Acme", slug: `acme-${USERS.owner.slice(0, 8)}` }],
       );
+
       await s.client.query(PROVIDER);
+
       for (const file of renderModules(
         ["access", "comments", "attachments"],
         LAYOUT,
@@ -100,6 +103,7 @@ describe.skipIf(!live)("provider subject scopes on CentraKit's tables", () => {
          values ($1, 'Granted'), ($1, 'Hidden') returning id::text`,
         [organization],
       );
+
       await s.client.query(
         "insert into centrakit.project_members values ($1, $2)",
         [granted?.id, USERS.member],

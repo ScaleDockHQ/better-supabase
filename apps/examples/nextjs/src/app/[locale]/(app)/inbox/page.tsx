@@ -11,6 +11,7 @@ export const instant = true;
 
 export default function InboxPage() {
   const t = useExtracted("inbox");
+
   return (
     <>
       <PageHeader

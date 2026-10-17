@@ -36,8 +36,10 @@ export interface CommentsState extends CommentsSnapshot, CommentsActions {}
  */
 export function useComments(options: UseCommentsOptions): CommentsState {
   const { supabase, auth, ports } = useBlockEnv();
+
   const { organizationId, subjectType, subjectId, topic, limit, schema } =
     options;
+
   return useController(
     () =>
       createCommentsController({

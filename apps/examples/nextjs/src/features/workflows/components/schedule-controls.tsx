@@ -17,6 +17,7 @@ import {
 
 function useToastErrors() {
   const errorMessage = useErrorMessage();
+
   return {
     onError: (error: Parameters<typeof errorMessage>[0]) => {
       toast.error(errorMessage(error));
@@ -35,6 +36,7 @@ export function ScheduleControls({
   const handlers = useToastErrors();
   const pause = useAction(pauseSchedule, handlers);
   const remove = useAction(removeSchedule, handlers);
+
   return (
     <span className="flex gap-1">
       <Button
@@ -67,12 +69,14 @@ export function ScheduleControls({
 export function ScheduleForm() {
   const t = useExtracted("workflows");
   const handlers = useToastErrors();
+
   const create = useAction(createSchedule, {
     ...handlers,
     onSuccess: () => {
       toast.success(t("Schedule saved"));
     },
   });
+
   return (
     <form
       className="flex flex-wrap items-end gap-2"

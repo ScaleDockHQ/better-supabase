@@ -80,6 +80,7 @@ export function shadcnAdd(names: readonly string[], registry = false): string {
   const items = registry
     ? names.map((name) => `@better-supabase/${name}`)
     : names;
+
   return `npx shadcn add ${items.join(" ")}`;
 }
 

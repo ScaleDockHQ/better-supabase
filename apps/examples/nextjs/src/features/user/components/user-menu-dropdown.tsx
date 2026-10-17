@@ -79,6 +79,7 @@ export function UserMenuDropdown({
       </AvatarFallback>
     </Avatar>
   );
+
   const identity = (
     <div className="grid flex-1 text-left text-sm leading-tight">
       <span className="truncate font-medium">{name ?? email}</span>
@@ -176,6 +177,7 @@ export function UserMenuDropdown({
                   if (!isLocale(value)) {
                     return;
                   }
+
                   startTransition(() => {
                     router.replace(pathname, { locale: value });
                   });

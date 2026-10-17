@@ -9,9 +9,11 @@ export function WebMcp(): null {
   useEffect(() => {
     const lifetime = new AbortController();
     registerDocsWebMcp(document, lifetime.signal).catch(reportError);
+
     return () => {
       lifetime.abort();
     };
   }, []);
+
   return null;
 }

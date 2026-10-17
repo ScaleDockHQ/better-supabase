@@ -59,6 +59,7 @@ export type AnyDocumentFormat = DocumentFormat<string, any, any, any>;
 
 export type VersionOf<F> =
   F extends DocumentFormat<string, infer V> ? V : never;
+
 export type DocumentOf<F> =
   // oxlint-disable-next-line typescript/no-explicit-any -- see AnyDocumentFormat
   F extends DocumentFormat<string, any, infer D, any> ? D : never;
@@ -100,10 +101,12 @@ export function defineDocumentFormat<
       `Document format "${format.id}": the default version "${format.defaultVersion}" is not in versions`,
     );
   }
+
   if (format.versions[format.defaultVersion].status === "preview") {
     throw new TypeError(
       `Document format "${format.id}": a preview version cannot be the default`,
     );
   }
+
   return { ...format, apiVersion: 1 };
 }

@@ -88,9 +88,11 @@ const GET_BATCH = 100;
 
 function chunks<T>(items: readonly T[], size: number): T[][] {
   const out: T[][] = [];
+
   for (let index = 0; index < items.length; index += size) {
     out.push(items.slice(index, index + size));
   }
+
   return out;
 }
 
@@ -105,20 +107,26 @@ async function inLanes<T, R>(
   const out: R[] = [];
   let next = 0;
   let failed: Result<R[]> | undefined;
+
   const lane = async (): Promise<void> => {
     while (!failed && next < items.length) {
       const index = next++;
       const result = await run(items[index]!);
+
       if (!result.ok) {
         failed ??= result;
+
         return;
       }
+
       out[index] = result.data;
     }
   };
+
   await Promise.all(
     Array.from({ length: Math.min(CHUNK_CONCURRENCY, items.length) }, lane),
   );
+
   return failed ?? ok(out);
 }
 
@@ -149,6 +157,7 @@ export function defineVectorBucket<
       );
     }
   }
+
   return {
     id: config.id,
     indexes: config.indexes,
@@ -163,6 +172,7 @@ function connectVectorBucket<I extends string>(
   const vectors = () => client.storage.vectors;
   const scope = () => vectors().from(config.id);
   const failure = (raw: unknown): DbError => fromStorageError(raw, config.id);
+
   const attempt = <T>(fn: () => Promise<Result<T>>): AsyncResult<T> =>
     AsyncResult.from(async () => {
       try {
@@ -177,22 +187,29 @@ function connectVectorBucket<I extends string>(
       attempt(async () => {
         const created: string[] = [];
         const found = await vectors().getBucket(config.id);
+
         if (found.error) {
           if (failure(found.error).kind !== "not_found") {
             return err(failure(found.error));
           }
+
           const made = await vectors().createBucket(config.id);
+
           if (made.error) {
             return err(failure(made.error));
           }
         }
+
         const entries: [string, VectorIndexConfig][] = Object.entries(
           config.indexes,
         );
+
         for (const [name, index] of entries) {
           const existing = await scope().getIndex(name);
+
           if (existing.data) {
             const actual = existing.data.index;
+
             if (
               actual.dimension !== index.dimension ||
               actual.distanceMetric !== metricOf(index)
@@ -205,11 +222,14 @@ function connectVectorBucket<I extends string>(
                 ),
               );
             }
+
             continue;
           }
+
           if (failure(existing.error).kind !== "not_found") {
             return err(failure(existing.error));
           }
+
           const made = await scope().createIndex({
             indexName: name,
             dataType: "float32",
@@ -225,16 +245,20 @@ function connectVectorBucket<I extends string>(
                 }
               : {}),
           });
+
           if (made.error) {
             return err(failure(made.error));
           }
+
           created.push(name);
         }
+
         return ok({ created });
       }),
     index<M extends VectorMetadata>(name: I): VectorIndexClient<M> {
       const settings: VectorIndexConfig = config.indexes[name];
       const api = () => scope().index(name);
+
       const checkDimension = (
         vector: readonly number[],
         key?: string,
@@ -246,6 +270,7 @@ function connectVectorBucket<I extends string>(
               `${key === undefined ? "The query vector" : `Vector "${key}"`} has ${String(vector.length)} values; index "${name}" takes ${String(settings.dimension)}`,
               { table: config.id },
             );
+
       // SAFETY: Storage returns the metadata that `put` stored for these keys.
       const hit = (match: {
         key: string;
@@ -260,6 +285,7 @@ function connectVectorBucket<I extends string>(
           : { metadata: match.metadata as M }),
         ...(match.data ? { vector: match.data.float32 } : {}),
       });
+
       return {
         name,
         dimension: settings.dimension,
@@ -267,10 +293,12 @@ function connectVectorBucket<I extends string>(
           attempt(async () => {
             for (const record of records) {
               const problem = checkDimension(record.vector, record.key);
+
               if (problem) {
                 return err(problem);
               }
             }
+
             const put = await inLanes(
               chunks(records, PUT_BATCH),
               async (batch) => {
@@ -283,17 +311,21 @@ function connectVectorBucket<I extends string>(
                       : {}),
                   })),
                 });
+
                 return error ? err(failure(error)) : ok(batch.length);
               },
             );
+
             return put.ok ? ok(records.length) : put;
           }),
         query: (vector, options = {}) =>
           attempt(async () => {
             const problem = checkDimension(vector);
+
             if (problem) {
               return err(problem);
             }
+
             const found = await api().queryVectors({
               queryVector: { float32: [...vector] },
               topK: options.topK ?? 10,
@@ -301,9 +333,11 @@ function connectVectorBucket<I extends string>(
               returnMetadata: options.metadata ?? true,
               ...(options.filter ? { filter: { ...options.filter } } : {}),
             });
+
             if (found.error) {
               return err(failure(found.error));
             }
+
             return ok(found.data.vectors.map(hit));
           }),
         get: (keys, options = {}) =>
@@ -316,9 +350,11 @@ function connectVectorBucket<I extends string>(
                   returnMetadata: true,
                   returnData: options.vector ?? false,
                 });
+
                 return error ? err(failure(error)) : ok(data.vectors.map(hit));
               },
             );
+
             return found.ok ? ok(found.data.flat()) : found;
           }),
         remove: (keys) =>
@@ -327,9 +363,11 @@ function connectVectorBucket<I extends string>(
               chunks(keys, PUT_BATCH),
               async (batch) => {
                 const { error } = await api().deleteVectors({ keys: batch });
+
                 return error ? err(failure(error)) : ok(batch.length);
               },
             );
+
             return removed.ok ? ok(keys) : removed;
           }),
       };

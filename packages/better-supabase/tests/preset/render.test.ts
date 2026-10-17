@@ -20,6 +20,7 @@ describe("presetConfigSource", () => {
       integrations: ["next" as const],
       blocks: ["comments", "api-keys"],
     };
+
     expect(presetConfigSource(resolvePreset(preset))).toBe(
       [
         'import { defineConfig } from "better-supabase/config";',
@@ -48,6 +49,7 @@ describe("presetConfigSource", () => {
     const source = presetConfigSource(
       resolvePreset({ ...DEFAULT_CONVENTIONS, blocks: ["profiles"] }),
     );
+
     expect(source).toContain("  blocks: {\n    profiles: {},\n  },");
     expect(source).not.toContain("casing");
   });
@@ -62,6 +64,7 @@ describe("presetBlocksSource", () => {
         blocks: ["comments", "ai-chat"],
       }),
     );
+
     expect(source).toContain(
       'import { commentsBlock } from "better-supabase/blocks/comments";',
     );
@@ -86,6 +89,7 @@ describe("presetBlocksSource", () => {
       resolvePreset({ ...DEFAULT_CONVENTIONS, blocks: ["tags"] }),
       "./db/blocks.generated.ts",
     );
+
     expect(source).toContain(
       'import { blockConfig } from "./db/blocks.generated.ts";',
     );

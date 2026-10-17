@@ -5,6 +5,7 @@ import { toBase64Url } from "../../../src/core/base64.ts";
 import { AsyncResult } from "../../../src/core/result.ts";
 
 const head = { tenant: "org-1", seq: 3, hash: "ab", entryId: "7" };
+
 const checkpoint = {
   ...head,
   id: "1",
@@ -15,6 +16,7 @@ const checkpoint = {
 
 function fakeTransport(results: Record<string, unknown>) {
   const calls: [string, Record<string, unknown>][] = [];
+
   return {
     calls,
     transport: {
@@ -24,6 +26,7 @@ function fakeTransport(results: Record<string, unknown>) {
         args: Readonly<Record<string, unknown>>,
       ) {
         calls.push([fn, { ...args }]);
+
         return Promise.resolve(results[fn]);
       },
     },
@@ -38,6 +41,7 @@ describe("createAuditChain", () => {
     const valid = fakeTransport({
       verify_audit_chain: { valid: true, checked: 3, seq: 3, hash: "ab" },
     });
+
     const chain = createAuditChain({ transport: valid.transport });
     expect(
       await chain
@@ -57,6 +61,7 @@ describe("createAuditChain", () => {
         verify_audit_chain: { valid: true, checked: 0, seq: null, hash: null },
       }).transport,
     });
+
     expect(await empty.verify().orThrow()).toEqual({
       valid: true,
       checked: 0,
@@ -69,6 +74,7 @@ describe("createAuditChain", () => {
         verify_audit_chain: { valid: false, checked: 1, seq: 4, reason: "gap" },
       }).transport,
     });
+
     expect(await broken.verify().orThrow()).toEqual({
       valid: false,
       checked: 1,
@@ -84,19 +90,23 @@ describe("createAuditChain", () => {
       record_audit_checkpoint: checkpoint,
       list_audit_checkpoints: [checkpoint],
     });
+
     const signed: Record<string, unknown>[] = [];
+
     const chain = createAuditChain({
       transport,
       issuer: "https://app.example",
       signer: {
         signJwt: (claims) => {
           signed.push({ ...claims });
+
           return AsyncResult.ok(
             signed.length === 1 ? token({ kid: "k1" }) : token({ alg: "x" }),
           );
         },
       },
     });
+
     const made = await chain.checkpoint().orThrow();
     expect(made).toHaveLength(2);
     expect(made[0]).toMatchObject({ organizationId: "org-1", keyId: "k1" });
@@ -142,6 +152,7 @@ describe("createAuditChain", () => {
     const result = await createAuditChain({
       transport: fakeTransport({}).transport,
     }).checkpoint();
+
     expect(result.ok ? undefined : result.error).toMatchObject({
       kind: "invalid_request",
       hint: "AUDIT_CHAIN_SIGNER",
@@ -156,6 +167,7 @@ describe("createAuditChain", () => {
       signer: {
         signJwt: (claims) => {
           signed.push({ ...claims });
+
           return AsyncResult.ok(token({ kid: "k1" }));
         },
       },

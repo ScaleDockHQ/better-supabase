@@ -45,6 +45,7 @@ describe(`RFC 9396 authorization details (${SPEC_PINS.rfc9396})`, () => {
       actor,
       claims: { client_id: "c", authorization_details: DETAILS },
     });
+
     const { context } = unwrap(JSON.parse(JSON.stringify(stored)));
     expect(contextClaims(context)).toMatchObject({
       ok: true,

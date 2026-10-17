@@ -37,8 +37,10 @@ function orderJson(ctx: ModuleContext, names: OrdersNames): string {
   const r = columns(ctx, "returns");
   const rl = columns(ctx, "returnLines");
   const rf = columns(ctx, "refunds");
+
   const text = (alias: string, column: string): string =>
     `${alias}.${column}::text`;
+
   return `
 -- The order as one object. Amounts are text. Internal: get_order and
 -- place_order return it after their checks.
@@ -102,12 +104,14 @@ function reserveLines(ctx: ModuleContext, minutes: number): string {
   if (!ctx.installed("inventory")) {
     return "";
   }
+
   const inventory = ctx.of("inventory");
   const catalog = ctx.of("catalog");
   const v = columns(catalog, "variants");
   const l = columns(inventory, "locations");
   const lv = columns(inventory, "levels");
   const ol = columns(ctx, "orderLines");
+
   return `
   for v_line in
     select x.${ol("id")} as id, x.${ol("variant")} as variant, x.${ol("quantity")} as quantity,
@@ -146,9 +150,11 @@ function commitLines(ctx: ModuleContext): string {
   if (!ctx.installed("inventory")) {
     return "";
   }
+
   const inventory = ctx.of("inventory");
   const m = columns(inventory, "movements");
   const ol = columns(ctx, "orderLines");
+
   return `
     for v_line in
       select x.${ol("id")} as id, x.${ol("variant")} as variant, x.${ol("quantity")} as quantity,
@@ -175,8 +181,10 @@ function releaseLines(ctx: ModuleContext): string {
   if (!ctx.installed("inventory")) {
     return "";
   }
+
   const inventory = ctx.of("inventory");
   const ol = columns(ctx, "orderLines");
+
   return `
   for v_line in
     select x.${ol("reservation")} as reservation from ${ctx.table("orderLines")} x
@@ -199,13 +207,18 @@ export function checkoutFunctions(
   const o = columns(ctx, "orders");
   const ol = columns(ctx, "orderLines");
   const p = columns(ctx, "payments");
+
   const promotions = ctx.installed("promotions")
     ? ctx.of("promotions")
     : undefined;
+
   const taxOf = (key: string): string => amountOf(`(e ->> '${key}')`);
+
   const load = (id: string, lock: boolean): string =>
     `select ${orderFields(ctx, "x")} into v_order from ${orders} x where x.${o("id")} = ${id}${lock ? " for update" : ""};`;
+
   const units = `(select coalesce(sum(l.${ol("quantity")}), 0)::text from ${ctx.table("orderLines")} l where l.${ol("order")} = v_order.id)`;
+
   const cancelled = ctx.record({
     type: "order.cancelled",
     payload: orderPayload("v_order", [
@@ -217,6 +230,7 @@ export function checkoutFunctions(
     tenant: "v_order.tenant",
     audit: false,
   });
+
   return `${transitionFunction(ctx, names)}${orderJson(ctx, names)}
 -- Turns an open cart into an order: prices it again, refuses a total that
 -- moved since the caller quoted tax (ORDERS_PRICE_CHANGED), numbers the

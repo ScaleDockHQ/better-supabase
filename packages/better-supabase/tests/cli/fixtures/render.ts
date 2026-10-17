@@ -61,6 +61,7 @@ export async function renderFixtures(): Promise<
 > {
   const snapshot = await loadFixtureSnapshot();
   const root = here("../..");
+
   const variants: BetterSupabaseConfig[] = [
     { ...fixtureConfig, casing: "snake" },
     {
@@ -79,14 +80,18 @@ export async function renderFixtures(): Promise<
       ],
     },
   ];
+
   const files = new Map<string, string>();
+
   for (const variant of variants) {
     const rendered = await renderFiles(resolveConfig(variant, root), snapshot, {
       runtimeImport: "../../src/index.ts",
     });
+
     for (const file of rendered) {
       files.set(resolve(root, file.path), file.contents);
     }
   }
+
   return [...files].map(([path, contents]) => ({ path, contents }));
 }

@@ -9,18 +9,22 @@ import { importFresh } from "./fresh-import.ts";
 /** Every read set exported by the modules in `config.readSets`. */
 async function loadReadSets(config: ResolvedConfig): Promise<ReadSet[]> {
   const sets: ReadSet[] = [];
+
   for (const entry of config.readSets) {
     const loaded = await importFresh(resolve(config.root, entry));
     const found = Object.values(loaded).filter(isReadSet);
+
     if (found.length === 0) {
       throw new Error(`${entry} exports no read set (defineReadSet)`);
     }
+
     for (const set of found) {
       if (!sets.includes(set)) {
         sets.push(set);
       }
     }
   }
+
   return sets;
 }
 
@@ -31,5 +35,6 @@ export async function compiledReadSets(
   if (config.readSets.length === 0) {
     return [];
   }
+
   return compileReadSets(await loadReadSets(config));
 }

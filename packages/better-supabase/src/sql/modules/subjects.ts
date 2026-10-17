@@ -24,10 +24,13 @@ const NAMES: ModuleNames = { tables: {} };
 /** The permission check for `action` on row `s`, `true` when the action has no key. */
 function actionCheck(ctx: ModuleContext, subject: RegisteredSubject): string {
   const permissions = Object.entries(subject.config.permissions ?? {});
+
   if (permissions.length === 0) {
     return "true";
   }
+
   const scope = subject.config.scope;
+
   const held = (key: string): string => {
     const parts = [
       ...(subject.tenant === undefined
@@ -37,8 +40,10 @@ function actionCheck(ctx: ModuleContext, subject: RegisteredSubject): string {
         ? []
         : [ctx.can(scope, `s.${subject.id}::text`, sqlString(key))]),
     ];
+
     return parts.length === 1 ? parts[0]! : `(${parts.join(" or ")})`;
   };
+
   return `(${SERVICE_CALLER} or case can_subject.action\n${permissions
     .map(
       ([action, key]) =>
@@ -54,21 +59,27 @@ function actionCheck(ctx: ModuleContext, subject: RegisteredSubject): string {
  */
 function actionCheckFor(subject: RegisteredSubject, user: string): string {
   const permissions = Object.entries(subject.config.permissions ?? {});
+
   if (permissions.length === 0) {
     return "false";
   }
+
   const scope = subject.config.scope;
+
   const held = (key: string): string => {
     const userCan = (scopeName: string, id: string): string =>
       `coalesce(better_supabase.can_user(${user}, ${sqlString(scopeName)}, ${id}, ${sqlString(key)}), false)`;
+
     const parts = [
       ...(subject.tenant === undefined
         ? []
         : [userCan("tenant", `s.${subject.tenant}`)]),
       ...(scope === undefined ? [] : [userCan(scope, `s.${subject.id}::text`)]),
     ];
+
     return parts.length === 1 ? parts[0]! : `(${parts.join(" or ")})`;
   };
+
   return `case can_subject_for.action\n${permissions
     .map(
       ([action, key]) =>
@@ -80,6 +91,7 @@ function actionCheckFor(subject: RegisteredSubject, user: string): string {
 /** The row `s` is `id` and, with `deletedAt`, not soft-deleted. */
 function rowMatches(subject: RegisteredSubject, id: string): string {
   const match = registeredIdMatches(subject, id);
+
   return subject.config.deletedAt === undefined
     ? match
     : `${match} and s.${sqlIdent(subject.config.deletedAt)} is null`;
@@ -91,10 +103,12 @@ function cases(
 ): string {
   const whens = subjects.flatMap((subject) => {
     const body = branch(subject);
+
     return body === undefined
       ? []
       : [`    when ${sqlString(subject.type)} then\n      ${body}`];
   });
+
   return whens.length === 0 ? "    when '' then null;" : whens.join("\n");
 }
 
@@ -102,8 +116,10 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const subjects = registeredSubjects(ctx.subjects);
   const fn = (name: string): string => ctx.fn(name);
+
   return `${schemaPreamble(ctx)}
 -- The app's subject registry (config.subjects, ADR 0020). Each function runs
 -- as the caller, so the subject table's own policies decide what is visible.

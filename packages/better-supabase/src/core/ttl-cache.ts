@@ -13,23 +13,30 @@ export function boundedTtlCache<K, V>(options: {
 }): BoundedTtlCache<K, V> {
   const now = options.now ?? Date.now;
   const entries = new Map<K, { readonly value: V; readonly until: number }>();
+
   return {
     get(key) {
       const entry = entries.get(key);
+
       if (entry && entry.until > now()) {
         return entry.value;
       }
+
       entries.delete(key);
+
       return;
     },
     set(key, value, expiresAt) {
       entries.delete(key);
+
       if (entries.size >= options.max) {
         const oldest = entries.keys().next();
+
         if (!oldest.done) {
           entries.delete(oldest.value);
         }
       }
+
       entries.set(key, { value, until: expiresAt });
     },
     get size() {

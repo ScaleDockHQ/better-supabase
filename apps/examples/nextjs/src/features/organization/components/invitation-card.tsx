@@ -25,6 +25,7 @@ export async function InvitationCard({
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
+
   const [preview, session, t, format, locale] = await Promise.all([
     getInvitationPreview(token),
     getSession(),
@@ -32,6 +33,7 @@ export async function InvitationCard({
     getFormatter(),
     getLocale(),
   ]);
+
   if (preview?.status !== "pending") {
     return (
       <Card>
@@ -53,8 +55,10 @@ export async function InvitationCard({
       </Card>
     );
   }
+
   const back = `/${locale}/invite/${encodeURIComponent(token)}`;
   const signedIn = session.kind === "user";
+
   return (
     <Card data-testid="invitation">
       <CardHeader className="text-center">

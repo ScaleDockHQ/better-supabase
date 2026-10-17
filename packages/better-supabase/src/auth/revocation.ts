@@ -39,10 +39,13 @@ export async function checkSession(
   if (auth.kind !== "user" || !("claims" in auth)) {
     return undefined;
   }
+
   const { sub, session_id: sessionId } = auth.claims;
+
   const revoked = dbError("unauthorized", "This session has ended", {
     code: "SESSION_REVOKED",
   });
+
   if (
     typeof sessionId !== "string" ||
     typeof sub !== "string" ||
@@ -51,9 +54,11 @@ export async function checkSession(
   ) {
     return revoked;
   }
+
   const [row] = await sql.queryRaw<{ active: boolean }>(ACTIVE, [
     sessionId,
     sub,
   ]);
+
   return row?.active === true ? undefined : revoked;
 }

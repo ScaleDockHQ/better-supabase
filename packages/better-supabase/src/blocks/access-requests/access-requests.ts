@@ -125,9 +125,11 @@ const STATUSES: readonly AccessRequestStatus[] = [
 
 function statusOf(value: unknown): AccessRequestStatus {
   const status = STATUSES.find((item) => item === value);
+
   if (status === undefined) {
     throw new TypeError(`unknown access request status ${String(value)}`);
   }
+
   return status;
 }
 
@@ -141,6 +143,7 @@ const instant = (
 
 function durationOf(value: unknown): { readonly duration?: Temporal.Duration } {
   const text = optionalText(value);
+
   return text === undefined ? {} : { duration: temporal().Duration.from(text) };
 }
 
@@ -149,6 +152,7 @@ function requestOf(value: unknown, fn: string): AccessRequest {
   const previousRole = optionalText(row["previousRole"]);
   const reason = optionalText(row["reason"]);
   const approvalId = optionalText(row["approvalId"]);
+
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["organizationId"]),
@@ -172,14 +176,17 @@ export function createAccessRequests<
 >(options: AccessRequestsOptions<S>): AccessRequests<FieldsOf<S>> {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const fields: BlockFields<FieldsOf<S>> = blockFields(
     options.fields,
     "access request fields",
   );
+
   const one = (fn: string, args: Readonly<Record<string, unknown>>) =>
     call(fn, args, (value) => [value, requestOf(value, fn)] as const).andThen(
       ([raw, row]) => withFields(fields, raw, row),
     );
+
   const client: AccessRequests<FieldsOf<S>> = {
     request: ({ organizationId, role, reason, duration, ...extra }) =>
       AsyncResult.from(() => extraFieldsArg(fields, extra)).andThen((more) =>
@@ -209,6 +216,7 @@ export function createAccessRequests<
           ),
       ).andThen((rows) => allWithFields(fields, rows)),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "access-requests",
     ...(options.logger ? { logger: options.logger } : {}),

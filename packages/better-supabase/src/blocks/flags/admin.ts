@@ -89,11 +89,13 @@ const rowOf = (
   fields: Readonly<Record<string, unknown>> | undefined,
 ): Record<string, unknown> => {
   const row: Record<string, unknown> = {};
+
   const set = (name: string, value: unknown): void => {
     if (value !== undefined) {
       row[name] = value;
     }
   };
+
   set("type", input.type);
   set("description", input.description);
   set("variants", input.variants);
@@ -103,6 +105,7 @@ const rowOf = (
   set("rollout_percentage", input.rolloutPercentage);
   set("rollout_variant", input.rolloutVariant);
   set("fields", fields);
+
   return row;
 };
 
@@ -111,6 +114,7 @@ const recordOf = async <F extends object>(
   flag: FlagDefinition,
 ) => {
   const parsed = await fields.read({ ...flag.fields });
+
   return parsed.ok ? ok({ ...flag, fields: parsed.data }) : parsed;
 };
 
@@ -123,22 +127,29 @@ export function createFlags<S extends StandardSchemaV1 | undefined = undefined>(
   options: FlagsOptions<S>,
 ): Flags<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   const call = blockCall(options.transport, options.schema, options.mappers);
   const fields: BlockFields<F> = blockFields(options.fields, "flag fields");
+
   const records = (
     flags: readonly FlagDefinition[],
   ): AsyncResult<FlagRecord<F>[]> =>
     AsyncResult.from(async () => {
       const out: FlagRecord<F>[] = [];
+
       for (const flag of flags) {
         const parsed = await recordOf(fields, flag);
+
         if (!parsed.ok) {
           return parsed;
         }
+
         out.push(parsed.data);
       }
+
       return ok(out);
     });
+
   const client: Flags<F> = {
     list: () => call("list_flags", {}, flagDefinitionsOf).andThen(records),
     save: (key, input) =>
@@ -167,6 +178,7 @@ export function createFlags<S extends StandardSchemaV1 | undefined = undefined>(
         (value) => value === true,
       ),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "flags",
     ...(options.logger ? { logger: options.logger } : {}),

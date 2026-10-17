@@ -47,6 +47,7 @@ describe("readSupabaseToml", () => {
       ].join("\n"),
     );
     process.env["BS_TOML_SITE_URL"] = "https://example.test";
+
     try {
       const toml = await readSupabaseToml(dir);
       expect(toml?.parser).toBe("@supabase/config");
@@ -119,6 +120,7 @@ describe("parseToml", () => {
         "enabled = true",
       ].join("\n"),
     );
+
     expect(tomlGet(document, ["db", "migrations", "schema_paths"])).toEqual([
       "./schemas/010_extensions.sql",
       "./schemas/030_crm/*.sql",
@@ -142,6 +144,7 @@ describe("schemaPaths", () => {
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), "better-supabase-schema-paths-"));
     await mkdir(join(dir, "supabase/schemas/030_crm"), { recursive: true });
+
     for (const file of [
       "010_extensions.sql",
       "020_types.sql",
@@ -179,6 +182,7 @@ describe("schemaPaths", () => {
         ].join("\n"),
       ),
     );
+
     expect(order).toEqual({
       configured: true,
       files: [
@@ -229,6 +233,7 @@ describe("schemaPaths", () => {
         "enabled = true",
       ].join("\n"),
     );
+
     expect(diffEngine(pgdelta)).toBe("pg-delta");
     expect(await schemaPaths(dir, pgdelta)).toEqual({
       configured: false,
@@ -241,6 +246,7 @@ describe("schemaPaths", () => {
       ],
       unlisted: [],
     });
+
     const custom = tomlWith(
       [
         "[experimental.pgdelta]",
@@ -248,13 +254,16 @@ describe("schemaPaths", () => {
         'declarative_schema_path = "./schemas/030_crm/"',
       ].join("\n"),
     );
+
     expect((await schemaPaths(dir, custom)).files).toEqual([
       "supabase/schemas/030_crm/a.sql",
       "supabase/schemas/030_crm/b.sql",
     ]);
+
     const missing = tomlWith(
       '[experimental.pgdelta]\nenabled = true\ndeclarative_schema_path = "./db"',
     );
+
     expect(await schemaPaths(dir, missing)).toEqual({
       configured: false,
       files: [],
@@ -312,6 +321,7 @@ describe("sqlWorkflow", () => {
     document: parseToml(text),
     parser: "smol-toml",
   });
+
   const config = (workflow?: SqlWorkflow) => ({
     root: dir,
     sql: workflow === undefined ? {} : { workflow },

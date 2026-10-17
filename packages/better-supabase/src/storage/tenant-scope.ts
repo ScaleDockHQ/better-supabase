@@ -27,6 +27,7 @@ function resolveTenant(
   if (options.tenant !== undefined) {
     return options.tenant;
   }
+
   return options.context && tenantFrom(options.context, tenantPathsFor(claim));
 }
 
@@ -43,6 +44,7 @@ export function tenantGuard(
   options: TenantScopeOptions,
 ): TenantGuard | undefined {
   const { context } = options;
+
   if (
     param === undefined ||
     options.allTenants === true ||
@@ -50,31 +52,39 @@ export function tenantGuard(
   ) {
     return undefined;
   }
+
   const tenant = resolveTenant(options, claim);
+
   const tenantOrThrow = (): string => {
     if (tenant !== undefined) {
       return tenant;
     }
+
     throw forbidden(
       bucket,
       `No tenant for bucket "${bucket}": pass { context } or { tenant } to connect(), or { allTenants: true }`,
     );
   };
+
   return {
     param,
     path(path) {
       const owner = tenantOrThrow();
+
       if (String(match(path)?.[param]) !== owner) {
         throw forbidden(bucket, `Path "${path}" belongs to another tenant`);
       }
+
       return path;
     },
     within(within) {
       const owner = tenantOrThrow();
       const given = within?.[param];
+
       if (given !== undefined && String(given) !== owner) {
         throw forbidden(bucket, "Listing belongs to another tenant");
       }
+
       return owner;
     },
   };

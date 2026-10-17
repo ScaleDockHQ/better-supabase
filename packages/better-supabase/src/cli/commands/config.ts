@@ -8,10 +8,13 @@ import { display } from "../io.ts";
 function redactUrl(url: string): string {
   try {
     const parsed = new URL(url);
+
     if (parsed.password === "") {
       return url;
     }
+
     parsed.password = "redacted";
+
     return parsed.toString();
   } catch {
     return "<redacted>";
@@ -42,11 +45,14 @@ export const configCommand: AnyCommand = defineCliCommand({
   args: {},
   run: (_args, context) => {
     const config = printableConfig(context.config);
+
     const file = context.configFile
       ? display(context.cwd, context.configFile)
       : null;
+
     const environment = context.config.environment ?? null;
     const header = file ? `# ${file}` : "# no config file, defaults only";
+
     return Promise.resolve({
       code: 0,
       output: `${header}${environment ? ` (environment: ${environment})` : ""}\n${JSON.stringify(config, null, 2)}`,

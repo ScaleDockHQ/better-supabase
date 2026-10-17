@@ -61,6 +61,7 @@ export function isUIMessage(value: unknown): value is UIMessage {
 function toolParts(part: ToolPart): AiMessagePart[] {
   const toolName =
     part.type === "dynamic-tool" ? part.toolName : part.type.slice(5);
+
   const call: AiToolCallPart = {
     type: "tool-call",
     toolCallId: part.toolCallId,
@@ -71,15 +72,19 @@ function toolParts(part: ToolPart): AiMessagePart[] {
       : { providerExecuted: part.providerExecuted }),
     ...meta(part.callProviderMetadata),
   };
+
   const parts: AiMessagePart[] = [call];
   const { approval } = part;
+
   if (approval !== undefined) {
     let state: AiToolApprovalPart["state"] = "requested";
+
     if (approval.approved === true) {
       state = "approved";
     } else if (approval.approved === false) {
       state = "denied";
     }
+
     parts.push({
       type: "tool-approval",
       toolCallId: part.toolCallId,
@@ -88,6 +93,7 @@ function toolParts(part: ToolPart): AiMessagePart[] {
       ...(approval.reason === undefined ? {} : { reason: approval.reason }),
     });
   }
+
   const result = (
     output: unknown,
     isError: boolean,
@@ -100,30 +106,37 @@ function toolParts(part: ToolPart): AiMessagePart[] {
     ...(isError ? { isError } : {}),
     ...meta(metadata),
   });
+
   switch (part.state) {
     case "output-available": {
       parts.push(result(part.output, false, part.resultProviderMetadata));
       break;
     }
+
     case "output-error": {
       parts.push(result(part.errorText, true, part.resultProviderMetadata));
       break;
     }
+
     case "output-denied": {
       parts.push(result(part.approval.reason ?? DENIED_TOOL_OUTPUT, true));
       break;
     }
+
     case "input-streaming":
     case "input-available":
     case "approval-requested":
     case "approval-responded": {
       break;
     }
+
     default: {
       const unreachable: never = part;
+
       return unreachable;
     }
   }
+
   return parts;
 }
 
@@ -131,6 +144,7 @@ function fromPart(part: UIPart): AiMessagePart[] {
   if (isToolPart(part)) {
     return toolParts(part);
   }
+
   switch (part.type) {
     case "text":
     case "reasoning": {
@@ -143,6 +157,7 @@ function fromPart(part: UIPart): AiMessagePart[] {
         },
       ];
     }
+
     case "file": {
       return [
         {
@@ -154,6 +169,7 @@ function fromPart(part: UIPart): AiMessagePart[] {
         },
       ];
     }
+
     case "source-url": {
       return [
         {
@@ -166,6 +182,7 @@ function fromPart(part: UIPart): AiMessagePart[] {
         },
       ];
     }
+
     case "source-document": {
       return [
         {
@@ -178,9 +195,11 @@ function fromPart(part: UIPart): AiMessagePart[] {
         },
       ];
     }
+
     case "step-start": {
       return [{ type: "step", boundary: "start" }];
     }
+
     case "custom": {
       return [
         {
@@ -191,6 +210,7 @@ function fromPart(part: UIPart): AiMessagePart[] {
         },
       ];
     }
+
     case "reasoning-file": {
       return [
         {
@@ -201,6 +221,7 @@ function fromPart(part: UIPart): AiMessagePart[] {
         },
       ];
     }
+
     default: {
       if (part.type.startsWith("data-") && "data" in part) {
         return [
@@ -214,6 +235,7 @@ function fromPart(part: UIPart): AiMessagePart[] {
           },
         ];
       }
+
       return [];
     }
   }
@@ -252,8 +274,10 @@ function toToolPart({ call, approval, result }: ToolState): UIPart {
       ? { callProviderMetadata: call.providerMetadata }
       : {}),
   };
+
   const reason =
     approval?.reason === undefined ? {} : { reason: approval.reason };
+
   if (approval?.state === "denied") {
     return result === undefined
       ? {
@@ -267,14 +291,17 @@ function toToolPart({ call, approval, result }: ToolState): UIPart {
           approval: { id: approval.approvalId, approved: false, ...reason },
         };
   }
+
   const approved =
     approval?.state === "approved"
       ? { approval: { id: approval.approvalId, approved: true as const } }
       : {};
+
   if (result !== undefined) {
     const resultMeta = isProviderMetadata(result.providerMetadata)
       ? { resultProviderMetadata: result.providerMetadata }
       : {};
+
     if (result.isError === true) {
       return {
         ...base,
@@ -287,6 +314,7 @@ function toToolPart({ call, approval, result }: ToolState): UIPart {
             : JSON.stringify(result.output),
       };
     }
+
     return {
       ...base,
       ...approved,
@@ -295,6 +323,7 @@ function toToolPart({ call, approval, result }: ToolState): UIPart {
       output: result.output,
     };
   }
+
   if (approval?.state === "requested") {
     return {
       ...base,
@@ -302,6 +331,7 @@ function toToolPart({ call, approval, result }: ToolState): UIPart {
       approval: { id: approval.approvalId },
     };
   }
+
   if (approval?.state === "approved") {
     return {
       ...base,
@@ -309,6 +339,7 @@ function toToolPart({ call, approval, result }: ToolState): UIPart {
       approval: { id: approval.approvalId, approved: true, ...reason },
     };
   }
+
   return { ...base, state: "input-available" };
 }
 
@@ -316,6 +347,7 @@ function toPart(part: AiMessagePart): UIPart | undefined {
   const providerMetadata = isProviderMetadata(part.providerMetadata)
     ? { providerMetadata: part.providerMetadata }
     : {};
+
   switch (part.type) {
     case "text":
     case "reasoning": {
@@ -326,6 +358,7 @@ function toPart(part: AiMessagePart): UIPart | undefined {
         ...providerMetadata,
       };
     }
+
     case "file": {
       return {
         type: "file",
@@ -335,6 +368,7 @@ function toPart(part: AiMessagePart): UIPart | undefined {
         ...providerMetadata,
       };
     }
+
     case "source": {
       return part.sourceType === "url"
         ? {
@@ -352,12 +386,15 @@ function toPart(part: AiMessagePart): UIPart | undefined {
             ...providerMetadata,
           };
     }
+
     case "step": {
       return part.boundary === "start" ? { type: "step-start" } : undefined;
     }
+
     case "data": {
       if (part.name === "ui.custom" && isRecord(part.data)) {
         const kind = part.data["kind"];
+
         return typeof kind === "string" && kind.includes(".")
           ? {
               type: "custom",
@@ -367,25 +404,31 @@ function toPart(part: AiMessagePart): UIPart | undefined {
             }
           : undefined;
       }
+
       if (part.name === "ui.reasoning-file" && isRecord(part.data)) {
         const { mediaType, url } = part.data;
+
         return typeof mediaType === "string" && typeof url === "string"
           ? { type: "reasoning-file", mediaType, url, ...providerMetadata }
           : undefined;
       }
+
       return {
         type: `data-${part.name}`,
         ...(part.id === undefined ? {} : { id: part.id }),
         data: part.data,
       };
     }
+
     case "tool-call":
     case "tool-result":
     case "tool-approval": {
       return undefined;
     }
+
     default: {
       const unreachable: never = part;
+
       return unreachable;
     }
   }
@@ -404,9 +447,11 @@ function render(
       part.type === "tool-approval"
     ) {
       let state = tools.get(part.toolCallId);
+
       if (part.type === "tool-call") {
         state = { ...state, call: part };
         tools.set(part.toolCallId, state);
+
         if (!slots.has(part.toolCallId)) {
           slots.set(part.toolCallId, into.length);
           into.push(toToolPart(state));
@@ -418,13 +463,18 @@ function render(
           state.approval = part;
         }
       }
+
       const slot = slots.get(part.toolCallId);
+
       if (state !== undefined && slot !== undefined) {
         into[slot] = toToolPart(state);
       }
+
       continue;
     }
+
     const converted = toPart(part);
+
     if (converted !== undefined) {
       into.push(converted);
     }
@@ -433,6 +483,7 @@ function render(
 
 function nativeOf(message: AiMessage): UIMessage | undefined {
   const stored: StoredLike = message;
+
   return stored.format === AI_SDK_UI_FORMAT && isUIMessage(stored.native)
     ? stored.native
     : undefined;
@@ -445,11 +496,14 @@ function nativeOf(message: AiMessage): UIMessage | undefined {
  */
 export function toUIMessage(message: AiMessage): UIMessage {
   const native = nativeOf(message);
+
   if (native !== undefined) {
     return native;
   }
+
   const parts: UIPart[] = [];
   render(message.parts, new Map(), parts, new Map());
+
   return {
     id: message.id,
     role: message.role === "tool" ? "assistant" : message.role,
@@ -467,17 +521,21 @@ export function toUIMessages(messages: readonly AiMessage[]): UIMessage[] {
   const out: UIMessage[] = [];
   const tools = new Map<string, ToolState>();
   let owner: { parts: UIPart[]; slots: Map<string, number> } | undefined;
+
   for (const message of messages) {
     const native = nativeOf(message);
+
     if (native !== undefined) {
       out.push(native);
       owner = undefined;
       continue;
     }
+
     if (message.role === "tool" && owner !== undefined) {
       render(message.parts, tools, owner.parts, owner.slots);
       continue;
     }
+
     const parts: UIPart[] = [];
     const slots = new Map<string, number>();
     render(message.parts, tools, parts, slots);
@@ -489,5 +547,6 @@ export function toUIMessages(messages: readonly AiMessage[]): UIMessage[] {
     });
     owner = message.role === "user" ? undefined : { parts, slots };
   }
+
   return out;
 }

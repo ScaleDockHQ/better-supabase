@@ -30,6 +30,7 @@ vi.mock("next/headers.js", () => ({
   cookies: () =>
     Promise.resolve({ set: mocks.setCookie, delete: mocks.deleteCookie }),
 }));
+
 vi.mock("next/cache.js", () => ({
   updateTag: mocks.updateTag,
   revalidateTag: vi.fn(),
@@ -39,11 +40,13 @@ vi.mock("next/cache.js", () => ({
 }));
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
+
 const env = {
   url: PROJECT_URL,
   publishableKey: "sb_publishable_test",
   jwksUrl: new URL(`${PROJECT_URL}/auth/v1/.well-known/jwks.json`),
 };
+
 const ADMIN = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const TARGET = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const signer = await createTestSigner();
@@ -52,15 +55,19 @@ const token = await signer.sign({ sub: ADMIN, role: "authenticated" });
 function setup() {
   const fake = fakeSql();
   const claims: SqlClaims[] = [];
+
   // SAFETY: the server only calls executorFor; the executor only calls queryRaw.
   const postgres = {
     admin: fake.sql,
     executorFor: (value: SqlClaims) => {
       claims.push(value);
+
       return postgresExecutor(fake.sql);
     },
   } as unknown as BetterPostgres;
+
   const store = memorySupportStore();
+
   const bs = createNext(defineSupabase(schema), {
     env,
     auth: { jwks: signer.jwks as never },
@@ -72,6 +79,7 @@ function setup() {
       policy: { approval: "none" },
     }),
   });
+
   return { bs, store, claims };
 }
 
@@ -83,10 +91,12 @@ beforeEach(() => {
 describe("support sessions in Next.js", () => {
   it("starts, renders as the target and stops", async () => {
     const { bs, claims } = setup();
+
     const started = await bs.startSupport({
       targetUserId: TARGET,
       reason: "ticket 4",
     });
+
     expect(started.ok).toBe(true);
     const id = started.data!.sessionId;
     expect(started.data).toMatchObject({
@@ -118,6 +128,7 @@ describe("support sessions in Next.js", () => {
       {},
       (_input, ctx) => ctx.auth.kind === "user" && ctx.auth.user.id,
     );
+
     expect((await action(undefined)).data).toBe(TARGET);
 
     const stopped = await bs.stopSupport();

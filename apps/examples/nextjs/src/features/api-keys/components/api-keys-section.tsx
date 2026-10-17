@@ -20,11 +20,15 @@ export async function ApiKeysSection() {
     getSession(),
     getExtracted("apiKeys"),
   ]);
+
   const organizationId = tenantOf(session);
+
   if (!organizationId) {
     return null;
   }
+
   const manage = can(session, "api_keys.manage");
+
   return (
     <Card>
       <CardHeader>

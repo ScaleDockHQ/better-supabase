@@ -52,10 +52,13 @@ class FakeXhr {
       if (current === "hang") {
         return;
       }
+
       if (current === "error") {
         this.onerror?.();
+
         return;
       }
+
       this.upload.onprogress?.({
         loaded: 0,
         total: 0,
@@ -78,6 +81,7 @@ const docs = defineBucket({
   path: "{organizationId}/{file}",
   fileSizeLimit: "1KiB",
 });
+
 const A = { organizationId: "o1", file: "a.txt" } as const;
 
 afterEach(() => {
@@ -90,9 +94,11 @@ describe("upload progress", () => {
   it("reports 1 after a storage-js upload when XMLHttpRequest is missing", async () => {
     const { client } = fakeStorage();
     const progress: number[] = [];
+
     const result = await docs.connect(client).upload(A, "hello", {
       onProgress: (value) => progress.push(value),
     });
+
     expect(result).toEqual(ok({ path: "o1/a.txt" }));
     expect(progress).toEqual([1]);
   });
@@ -102,11 +108,13 @@ describe("upload progress", () => {
     const { client, calls } = fakeStorage();
     const progress: number[] = [];
     const body = new Blob(["hello"], { type: "text/plain" });
+
     const result = await docs.connect(client).upload(A, body, {
       upsert: true,
       cacheControl: "60",
       onProgress: (value) => progress.push(value),
     });
+
     expect(result).toEqual(ok({ path: "o1/a.txt" }));
     expect(progress).toEqual([0.5, 1]);
     expect(calls.map((call) => call.method)).toEqual(["createSignedUploadUrl"]);
@@ -161,11 +169,13 @@ describe("upload progress", () => {
     vi.stubGlobal("XMLHttpRequest", FakeXhr);
     outcome = "hang";
     const controller = new AbortController();
+
     const pending = xhrUpload(FakeXhr, "https://x", "body", {
       upsert: false,
       signal: controller.signal,
       onProgress: () => undefined,
     });
+
     controller.abort();
     expect(await pending).toMatchObject({ name: "AbortError" });
     expect(sent[0]!.aborted).toBe(true);

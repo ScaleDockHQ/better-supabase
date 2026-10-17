@@ -134,22 +134,29 @@ function build(ctx: ModuleContext): string {
   const publish = ctx.permission("publish", permissions.publish);
   const moderate = ctx.permission("moderate", permissions.moderate);
   const maxInstructions = ctx.number("maxInstructions", 100_000);
+
   if (!Number.isInteger(maxInstructions) || maxInstructions < 1) {
     throw new TypeError(
       "blocks.agents.options.maxInstructions must be a positive whole number of characters",
     );
   }
+
   const extras = ctx.extraColumns("agents", AGENT_KEYS);
+
   const json = (row: string): string =>
     withExtraFields(rowJson(AGENTS, a, row), row, extras);
+
   // Owners see their agents, members the tenant's published ones, every
   // signed-in user the published public ones, moderators all of the tenant's.
   const readable = (row: string): string =>
     `(${row}.${a.owner} = (select auth.uid()) or (${row}.${a.publishedAt} is not null and (${row}.${a.visibility} = 'public' or (${row}.${a.visibility} = 'organization' and ${ctx.scope.check(`${row}.${a.tenant}`, read)}))) or ${ctx.scope.check(`${row}.${a.tenant}`, moderate)})`;
+
   const canChange = (row: string): string =>
     `(${SERVICE_CALLER} or ${row}.${a.owner} = auth.uid() or ${ctx.scope.can(`${row}.${a.tenant}`, moderate)})`;
+
   const notFound = (agent: string): string =>
     raise("agent % not found", "P0002", "AGENT_NOT_FOUND", agent);
+
   const agentEvent = (type: string, row: string, extra = ""): string =>
     ctx.record({
       type,
@@ -163,6 +170,7 @@ function build(ctx: ModuleContext): string {
         targetLabel: `${row}.${a.name}`,
       },
     });
+
   const installEvent = (type: string): string =>
     ctx.record({
       type,

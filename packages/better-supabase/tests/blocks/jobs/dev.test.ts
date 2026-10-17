@@ -25,7 +25,9 @@ describe("devDrain", () => {
     const fetch = vi.fn<typeof globalThis.fetch>(() =>
       Promise.resolve(Response.json({ ok: true })),
     );
+
     const onError = vi.fn<(message: string) => void>();
+
     const drain = devDrain({
       url: "http://localhost:3000/api/jobs/drain",
       secret: "s3cret",
@@ -33,6 +35,7 @@ describe("devDrain", () => {
       fetch,
       onError,
     });
+
     expect(fetch).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1000);
     expect(fetch).toHaveBeenCalledTimes(1);
@@ -52,6 +55,7 @@ describe("devDrain", () => {
 
   it("reports failures, skips overlapping calls and stops on abort", async () => {
     let release: () => void = () => undefined;
+
     const fetch = vi.fn<typeof globalThis.fetch>(
       () =>
         new Promise((resolve) => {
@@ -60,8 +64,10 @@ describe("devDrain", () => {
           };
         }),
     );
+
     const onError = vi.fn<(message: string) => void>();
     const controller = new AbortController();
+
     const drain = devDrain({
       url: new URL("http://localhost:3000/drain"),
       secret: "s",
@@ -69,6 +75,7 @@ describe("devDrain", () => {
       onError,
       signal: controller.signal,
     });
+
     const first = drain.tick();
     await drain.tick();
     expect(fetch).toHaveBeenCalledTimes(1);

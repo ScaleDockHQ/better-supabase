@@ -9,6 +9,7 @@ import { SIGNUP } from "./fixtures.ts";
 
 const schema = formSchema(SIGNUP);
 const BASE = { name: "Ada", email: "ada@example.com" };
+
 const messages = (value: unknown) =>
   validateAnswers(schema, value).map((issue) => [
     issue.path?.join("."),
@@ -104,6 +105,7 @@ describe("validateAnswers", () => {
       type: "object",
       properties: { a: { const: { x: [1, { y: 2 }] } }, b: { enum: [[1, 2]] } },
     } as const;
+
     expect(
       validateAnswers(deep, { a: { x: [1, { y: 2 }] }, b: [1, 2] }),
     ).toEqual([]);

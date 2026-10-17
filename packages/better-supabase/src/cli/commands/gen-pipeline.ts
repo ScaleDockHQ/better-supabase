@@ -48,9 +48,11 @@ export function selectTasks(
   requested: readonly GenTask[] | undefined,
 ): readonly GenTask[] {
   const named = requested ?? config.gen.tasks;
+
   if (named === undefined) {
     return configuredTasks(config);
   }
+
   return [...new Set(named)].toSorted(
     (a, b) => (ORDER.get(a) ?? 0) - (ORDER.get(b) ?? 0),
   );
@@ -60,6 +62,7 @@ export function selectTasks(
 export function configuredTasks(config: ResolvedConfig): readonly GenTask[] {
   const exists = (path: string): boolean =>
     existsSync(resolve(config.root, path));
+
   const configured: Readonly<Record<GenTask, () => boolean>> = {
     types: () => true,
     sql: () =>
@@ -69,6 +72,7 @@ export function configuredTasks(config: ResolvedConfig): readonly GenTask[] {
     scaffold: () => config.scaffold.api !== undefined,
     env: () => false,
   };
+
   return GEN_TASKS.filter((task) => configured[task]());
 }
 
@@ -78,6 +82,7 @@ export function stepInputs(
   tasks: readonly GenTask[],
 ): string[] {
   const at = (path: string): string => resolve(config.root, path);
+
   const inputs: Readonly<Record<GenTask, () => readonly string[]>> = {
     types: () => [],
     sql: () => [],
@@ -91,6 +96,7 @@ export function stepInputs(
     scaffold: () => [],
     env: () => [],
   };
+
   return tasks.flatMap((task) => inputs[task]());
 }
 
@@ -127,16 +133,20 @@ export async function runSteps(
   previous: readonly TaskResult[] = [],
 ): Promise<TaskResult[]> {
   const results = [...previous];
+
   for (const task of tasks) {
     if (task === "types") {
       continue;
     }
+
     if (!options.check && results.some(({ result }) => result.code !== 0)) {
       break;
     }
+
     const result = await STEPS[task](options).catch(failedResult);
     results.push({ task, result });
   }
+
   return results;
 }
 
@@ -153,9 +163,11 @@ const indent = (text: string): string =>
  */
 export function combineResults(results: readonly TaskResult[]): CommandResult {
   const [only] = results;
+
   if (results.length === 1 && only) {
     return only.result;
   }
+
   const output = results
     .flatMap(({ task, result }) =>
       result.output
@@ -163,10 +175,13 @@ export function combineResults(results: readonly TaskResult[]): CommandResult {
         : [`[${task}] done`],
     )
     .join("\n");
+
   const errors = results.flatMap(({ task, result }) =>
     result.error ? [`[${task}] ${result.error}`] : [],
   );
+
   const failed = results.find(({ result }) => result.code !== 0);
+
   return {
     code: failed?.result.code ?? 0,
     output,

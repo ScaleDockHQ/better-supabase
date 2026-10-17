@@ -31,6 +31,7 @@ export function testSupportSessionStore(
 ): Promise<ConformanceReport> {
   const { admin } = options;
   const [first, second] = options.targets;
+
   const start = (targetUserId: string) =>
     store.start({
       adminId: admin.id,
@@ -41,6 +42,7 @@ export function testSupportSessionStore(
       readOnly: true,
       metadata: { ticket: "T-1" },
     });
+
   return conform(`SupportSessionStore "${store.name}"`, [
     hasName(store),
     [
@@ -54,6 +56,7 @@ export function testSupportSessionStore(
       "starts a session with its input and shows it to its admin only",
       async () => {
         const session = await start(first);
+
         try {
           expect(session.id.length > 0, "start must return an id");
           expect(session.adminId === admin.id, "adminId must round-trip");
@@ -67,10 +70,12 @@ export function testSupportSessionStore(
             same(session.metadata, { ticket: "T-1" }),
             "metadata must round-trip",
           );
+
           const seconds =
             (session.expiresAt.epochMilliseconds -
               session.startedAt.epochMilliseconds) /
             1000;
+
           expect(
             Math.abs(seconds - 600) < 5,
             "expiresAt must be ttlSeconds after startedAt",
@@ -94,6 +99,7 @@ export function testSupportSessionStore(
       async () => {
         const older = await start(first);
         const newer = await start(second);
+
         try {
           expect(
             (await store.get(older.id, admin.id)) === undefined,
@@ -138,7 +144,9 @@ export function testSupportSessionStore(
         if (!store.expire) {
           return;
         }
+
         const session = await start(first);
+
         try {
           const expired = await store.expire();
           expect(

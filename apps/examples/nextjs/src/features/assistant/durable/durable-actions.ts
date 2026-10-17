@@ -28,17 +28,21 @@ export const decideApproval = bs.action(
     if (auth.kind !== "user") {
       return err(dbError("unauthorized", "Sign in to decide approvals"));
     }
+
     const response = await durable().decide(
       chatId,
       [{ approvalId, approved }],
       durableContext(supabase, auth.user.id, tenant),
     );
+
     if (!response.ok) {
       return err(
         dbError("unexpected", `The approval failed (${response.status})`),
       );
     }
+
     refresh();
+
     return ok(approved);
   },
 );

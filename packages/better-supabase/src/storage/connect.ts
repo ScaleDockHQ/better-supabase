@@ -28,6 +28,7 @@ import { type ObjectVersion, toVersion } from "./versioning.ts";
 
 /** Folder listings in flight at once while `list` walks a tree. */
 const LIST_CONCURRENCY = 4;
+
 /** Signed URLs kept per connected bucket; the oldest goes first. */
 const SIGNED_CACHE_SIZE = 500;
 
@@ -35,6 +36,7 @@ const SIGNED_CACHE_SIZE = 500;
 function pool(limit: number): <T>(fn: () => Promise<T>) => Promise<T> {
   let active = 0;
   const waiting: (() => void)[] = [];
+
   return async (fn) => {
     if (active < limit) {
       active++;
@@ -43,10 +45,12 @@ function pool(limit: number): <T>(fn: () => Promise<T>) => Promise<T> {
         waiting.push(resolve);
       });
     }
+
     try {
       return await fn();
     } finally {
       const next = waiting.shift();
+
       if (next) {
         next();
       } else {
@@ -61,17 +65,21 @@ function bodyInfo(
   contentType: string | undefined,
 ): { size?: number; type?: string } {
   const info: { size?: number; type?: string } = {};
+
   if (typeof Blob !== "undefined" && body instanceof Blob) {
     info.size = body.size;
+
     if (body.type) {
       info.type = body.type;
     }
   } else if (body instanceof ArrayBuffer || ArrayBuffer.isView(body)) {
     info.size = body.byteLength;
   }
+
   if (contentType) {
     info.type = contentType;
   }
+
   return info;
 }
 
@@ -83,15 +91,19 @@ async function abortable<T>(
   if (!signal) {
     return promise;
   }
+
   signal.throwIfAborted();
   let abort = () => {};
+
   const aborted = new Promise<never>((_, reject) => {
     abort = () => {
       const reason: unknown = signal.reason;
       reject(reason instanceof Error ? reason : new Error(String(reason)));
     };
+
     signal.addEventListener("abort", abort, { once: true });
   });
+
   try {
     return await Promise.race([promise, aborted]);
   } finally {
@@ -118,35 +130,44 @@ export function connectBucket<P extends string, Id extends string>(
 ): BucketClient<P, Id> {
   const resolve = (target: ObjectTarget<P, Id>): StoragePath<Id> => {
     const path = resolveTarget(target);
+
     return guard ? guard.path(path) : path;
   };
+
   const scopedWithin = (
     within: Partial<TemplateValues<P>> | undefined,
   ): Partial<TemplateValues<P>> =>
     guard ? { ...within, [guard.param]: guard.within(within) } : (within ?? {});
+
   const storage = storageApiOf(client);
   const api = () => storage.from(bucket.id);
+
   const signed = connectOptions.cacheSignedUrls
     ? new Map<string, { readonly url: string; readonly until: number }>()
     : undefined;
+
   /** Drops cached signed URLs for `paths`; keys start with the JSON-quoted path. */
   const evict = (paths: readonly string[]) => {
     if (!signed || signed.size === 0) {
       return;
     }
+
     const prefixes = paths.map((path) => `[${JSON.stringify(path)},`);
+
     for (const key of signed.keys()) {
       if (prefixes.some((prefix) => key.startsWith(prefix))) {
         signed.delete(key);
       }
     }
   };
+
   const run = <T>(
     fn: () => PromiseLike<{ data: T; error: unknown }>,
   ): AsyncResult<NonNullable<T>> =>
     AsyncResult.from(async () => {
       try {
         const { data, error } = await fn();
+
         // SAFETY: the null check above excludes null data.
         return error || data === null
           ? err(fromStorageError(error, bucket.id))
@@ -155,6 +176,7 @@ export function connectBucket<P extends string, Id extends string>(
         return err(fromStorageError(cause, bucket.id));
       }
     });
+
   const fileOptions = (
     options: UploadOptions | undefined,
     contentType: string | undefined,
@@ -164,8 +186,10 @@ export function connectBucket<P extends string, Id extends string>(
     ...(options?.metadata ? { metadata: { ...options.metadata } } : {}),
     upsert: options?.upsert ?? false,
   });
+
   const download = (value: boolean | string | undefined) =>
     value === undefined ? {} : { download: value };
+
   const urlExtras = (options: Omit<UrlOptions, "ttl"> | undefined) => ({
     ...download(options?.download),
     ...(options?.transform ? { transform: { ...options.transform } } : {}),
@@ -179,10 +203,13 @@ export function connectBucket<P extends string, Id extends string>(
       const path = resolve(target);
       const contentType = options?.contentType;
       const problem = bucket.check(bodyInfo(body, contentType));
+
       if (problem) {
         return err(problem);
       }
+
       const Request = options?.onProgress ? xhrConstructor() : undefined;
+
       if (
         options?.onProgress &&
         Request &&
@@ -195,9 +222,11 @@ export function connectBucket<P extends string, Id extends string>(
             options.upsert ? { upsert: true } : undefined,
           ),
         );
+
         if (!reserved.ok) {
           return reserved;
         }
+
         const failure = await xhrUpload(
           Request,
           reserved.data.signedUrl,
@@ -210,12 +239,16 @@ export function connectBucket<P extends string, Id extends string>(
             onProgress: options.onProgress,
           },
         );
+
         if (failure) {
           return err(fromStorageError(failure, bucket.id));
         }
+
         evict([path]);
+
         return ok({ path });
       }
+
       // storage-js `upload` takes no signal, so an abort settles the result
       // early instead of cancelling the request.
       return run(() =>
@@ -226,6 +259,7 @@ export function connectBucket<P extends string, Id extends string>(
       ).map(() => {
         evict([path]);
         options?.onProgress?.(1);
+
         return { path };
       });
     });
@@ -233,11 +267,14 @@ export function connectBucket<P extends string, Id extends string>(
   const remove: BucketClient<P, Id>["remove"] = (targets) =>
     AsyncResult.from(async () => {
       const paths = targets.map(resolve);
+
       if (paths.length === 0) {
         return ok([]);
       }
+
       return run(() => api().remove(paths)).map(() => {
         evict(paths);
+
         return paths;
       });
     });
@@ -247,6 +284,7 @@ export function connectBucket<P extends string, Id extends string>(
     (from, to, options) =>
       AsyncResult.from(async () => {
         const [source, path] = [resolve(from), resolve(to)];
+
         const result = run<unknown>(() =>
           api()[method](
             source,
@@ -256,8 +294,10 @@ export function connectBucket<P extends string, Id extends string>(
               : undefined,
           ),
         );
+
         return result.map(() => {
           evict(method === "move" ? [source, path] : [path]);
+
           return { path };
         });
       });
@@ -266,8 +306,10 @@ export function connectBucket<P extends string, Id extends string>(
     AsyncResult.from(async () => {
       const path = resolve(target);
       const out: ObjectVersion[] = [];
+
       for (let cursor: string | undefined; ;) {
         options?.signal?.throwIfAborted();
+
         const { data, error } = await api().listV2(
           {
             prefix: path,
@@ -279,18 +321,23 @@ export function connectBucket<P extends string, Id extends string>(
           },
           options?.signal ? { signal: options.signal } : {},
         );
+
         if (error) {
           return err(fromStorageError(error, bucket.id));
         }
+
         for (const item of data.objects) {
           const version = toVersion(item);
+
           if (version) {
             out.push(version);
           }
         }
+
         if (!data.hasNext || !data.nextCursor) {
           return ok(out);
         }
+
         cursor = data.nextCursor;
       }
     });
@@ -302,6 +349,7 @@ export function connectBucket<P extends string, Id extends string>(
     created_at: string | null;
     updated_at: string | null;
   };
+
   const toObject = (path: string, item: Listed): StoredObject => {
     // SAFETY: Storage returns object metadata as JSON with optional size
     // and type fields.
@@ -309,6 +357,7 @@ export function connectBucket<P extends string, Id extends string>(
       size?: number;
       mimetype?: string;
     };
+
     return {
       path,
       ...(typeof metadata.size === "number" ? { size: metadata.size } : {}),
@@ -317,21 +366,26 @@ export function connectBucket<P extends string, Id extends string>(
       updatedAt: item.updated_at,
     };
   };
+
   const PAGE = 1000;
+
   const page = async (
     folder: string,
     offset: number,
     signal: AbortSignal | undefined,
   ): Promise<readonly Listed[]> => {
     signal?.throwIfAborted();
+
     const { data, error } = await api().list(
       folder,
       { limit: PAGE, offset, sortBy: { column: "name", order: "asc" } },
       signal ? { signal } : {},
     );
+
     if (error) {
       throw new DbException(fromStorageError(error, bucket.id));
     }
+
     return data;
   };
 
@@ -341,10 +395,13 @@ export function connectBucket<P extends string, Id extends string>(
     request: <T>(fn: () => Promise<T>) => Promise<T>,
   ): Promise<StoredObject[]> => {
     const parts: (StoredObject | Promise<StoredObject[]>)[] = [];
+
     for (let offset = 0; ; offset += PAGE) {
       const data = await request(() => page(folder, offset, signal));
+
       for (const item of data) {
         const path = folder ? `${folder}/${item.name}` : item.name;
+
         if (item.id === null) {
           const nested = walk(path, signal, request);
           // Awaited below in order; this only keeps an early failure from
@@ -355,11 +412,14 @@ export function connectBucket<P extends string, Id extends string>(
           parts.push(toObject(path, item));
         }
       }
+
       if (data.length < PAGE) {
         break;
       }
     }
+
     const out: StoredObject[] = [];
+
     for (const part of parts) {
       if (part instanceof Promise) {
         for (const each of await part) {
@@ -369,6 +429,7 @@ export function connectBucket<P extends string, Id extends string>(
         out.push(part);
       }
     }
+
     return out;
   };
 
@@ -383,14 +444,17 @@ export function connectBucket<P extends string, Id extends string>(
   ): AsyncGenerator<StoredObject> {
     for (let offset = 0; ; offset += PAGE) {
       const data = await page(folder, offset, signal);
+
       for (const item of data) {
         const path = folder ? `${folder}/${item.name}` : item.name;
+
         if (item.id === null) {
           yield* stream(path, signal);
         } else {
           yield toObject(path, item);
         }
       }
+
       if (data.length < PAGE) {
         return;
       }
@@ -412,6 +476,7 @@ export function connectBucket<P extends string, Id extends string>(
     AsyncResult.from(async () => {
       const path = resolve(target);
       const ttl = ttlSeconds(options?.ttl);
+
       const key = signed
         ? JSON.stringify([
             path,
@@ -422,29 +487,38 @@ export function connectBucket<P extends string, Id extends string>(
             options?.versionId,
           ])
         : "";
+
       const cached = signed?.get(key);
+
       if (cached) {
         if (cached.until > Date.now()) {
           return ok(cached.url);
         }
+
         signed?.delete(key);
       }
+
       const result = await run(() =>
         api().createSignedUrl(path, ttl, urlExtras(options)),
       ).map((data) => data.signedUrl);
+
       if (signed && result.ok) {
         const margin = Math.min(60, ttl / 10);
+
         if (signed.size >= SIGNED_CACHE_SIZE) {
           const oldest = signed.keys().next();
+
           if (!oldest.done) {
             signed.delete(oldest.value);
           }
         }
+
         signed.set(key, {
           url: result.data,
           until: Date.now() + (ttl - margin) * 1000,
         });
       }
+
       return result;
     });
 
@@ -461,6 +535,7 @@ export function connectBucket<P extends string, Id extends string>(
     download: (target, options) =>
       AsyncResult.from(async () => {
         const path = resolve(target);
+
         return run(() =>
           api().download(
             path,
@@ -473,19 +548,24 @@ export function connectBucket<P extends string, Id extends string>(
       AsyncResult.from(async () => {
         const path = resolve(target);
         let found: { data: boolean; error: unknown };
+
         try {
           found = await api().exists(path);
         } catch (cause) {
           return err(fromStorageError(cause, bucket.id));
         }
+
         if (found.data && !found.error) {
           return ok(true);
         }
+
         if (!found.error) {
           return ok(false);
         }
+
         // Only a 400 or 404 means missing; a denied or failed check is an error.
         const error = fromStorageError(found.error, bucket.id);
+
         return error.status === 400 || error.status === 404
           ? ok(false)
           : err(error);
@@ -497,19 +577,23 @@ export function connectBucket<P extends string, Id extends string>(
     removeVersions: (target, versionIds) =>
       AsyncResult.from(async () => {
         const path = resolve(target);
+
         if (versionIds.length === 0) {
           return ok([]);
         }
+
         return run(() =>
           api().remove(versionIds.map((versionId) => ({ path, versionId }))),
         ).map(() => {
           evict([path]);
+
           return versionIds;
         });
       }),
     purgeCache: (target, options) =>
       AsyncResult.from(async () => {
         const path = resolve(target);
+
         return run(() =>
           api().purgeCache(
             path,
@@ -523,9 +607,11 @@ export function connectBucket<P extends string, Id extends string>(
     signedUrls: (targets, options) =>
       AsyncResult.from(async () => {
         const paths = targets.map(resolve);
+
         if (paths.length === 0) {
           return ok([]);
         }
+
         return run(() =>
           api().createSignedUrls(paths, ttlSeconds(options?.ttl), {
             ...download(options?.download),
@@ -535,6 +621,7 @@ export function connectBucket<P extends string, Id extends string>(
           const failed = data.find(
             (entry) => entry.error != null || !entry.signedUrl,
           );
+
           if (failed) {
             return Promise.resolve(
               err(
@@ -546,6 +633,7 @@ export function connectBucket<P extends string, Id extends string>(
               ),
             );
           }
+
           // SAFETY: the failure check above returned early, so every entry has
           // a signed URL.
           return Promise.resolve(ok(data.map((entry) => entry.signedUrl!)));
@@ -565,6 +653,7 @@ export function connectBucket<P extends string, Id extends string>(
       if (!bucket.public) {
         return signedUrl(target, { ...options, transform });
       }
+
       return AsyncResult.from(() =>
         Promise.resolve(
           ok(
@@ -579,38 +668,50 @@ export function connectBucket<P extends string, Id extends string>(
     replace: (target, body, options = {}) =>
       AsyncResult.from<ReplaceResult<Id>>(async () => {
         const path = resolve(target);
+
         const previous =
           options.previous == null ? null : resolve(options.previous);
+
         const same = previous === path;
+
         const uploaded = await upload(path, body, {
           ...options,
           upsert: same || (options.upsert ?? false),
         });
+
         if (!uploaded.ok) {
           return uploaded;
         }
+
         const undo = async (error: DbError) => {
           if (!same) {
             await remove([path]);
           }
+
           return err(error);
         };
+
         try {
           options.signal?.throwIfAborted();
           const outcome: unknown = await options.commit?.(path);
+
           if (isErrorResult(outcome)) {
             return await undo(outcome.error);
           }
         } catch (cause) {
           return undo(fromStorageError(cause, bucket.id));
         }
+
         if (!previous || same) {
           return ok({ path, removed: null });
         }
+
         const removed = await run(() => api().remove([previous]));
+
         if (removed.ok) {
           evict([previous]);
         }
+
         return ok(
           removed.ok
             ? { path, removed: previous }
@@ -620,6 +721,7 @@ export function connectBucket<P extends string, Id extends string>(
     reserve: (target, options) =>
       AsyncResult.from(async () => {
         const path = resolve(target);
+
         return run(() =>
           api().createSignedUploadUrl(
             path,
@@ -636,9 +738,11 @@ export function connectBucket<P extends string, Id extends string>(
         options?.signal?.throwIfAborted();
         const path = resolve(reservation.path);
         const problem = bucket.check(bodyInfo(body, options?.contentType));
+
         if (problem) {
           return err(problem);
         }
+
         return run(() =>
           api().uploadToSignedUrl(
             path,
@@ -648,75 +752,94 @@ export function connectBucket<P extends string, Id extends string>(
           ),
         ).map(() => {
           evict([path]);
+
           return { path };
         });
       }),
     sweep: (options) =>
       AsyncResult.from(async () => {
         const namespace = optionalTemporal();
+
         if (namespace === undefined) {
           return err(temporalMissing());
         }
+
         const now = options.now?.() ?? namespace.Now.instant();
+
         const cutoff = isInstant(options.olderThan)
           ? options.olderThan.epochMilliseconds
           : now.epochMilliseconds - options.olderThan.total("milliseconds");
+
         const scope = scopedWithin(options.within);
         const size = options.batchSize ?? 100;
         const orphans: string[] = [];
         const removed: string[] = [];
         let scanned = 0;
         let batch: string[] = [];
+
         const check = async () => {
           options.signal?.throwIfAborted();
           const keep = new Set(await options.referenced(batch));
+
           for (const path of batch) {
             if (!keep.has(path)) {
               orphans.push(path);
             }
           }
+
           batch = [];
         };
+
         try {
           for await (const object of stream(
             bucket.prefix(scope),
             options.signal,
           )) {
             scanned++;
+
             if (!inScope(bucket.match(object.path), scope)) {
               continue;
             }
+
             // Storage sends ISO text; epoch milliseconds compare directly.
             const created = Date.parse(
               object.createdAt ?? object.updatedAt ?? "",
             );
+
             if (!Number.isFinite(created) || created >= cutoff) {
               continue;
             }
+
             batch.push(object.path);
+
             if (batch.length >= size) {
               await check();
             }
           }
+
           if (batch.length > 0) {
             await check();
           }
         } catch (cause) {
           return err({ ...toDbError(cause), table: bucket.id });
         }
+
         // Removing only after the walk keeps offset paging from skipping
         // objects that shift into an already listed page.
         for (let index = 0; index < orphans.length && !options.dryRun;) {
           options.signal?.throwIfAborted();
           const chunk = orphans.slice(index, index + size);
           const result = await run(() => api().remove(chunk));
+
           if (!result.ok) {
             return result;
           }
+
           evict(chunk);
           removed.push(...chunk);
           index += size;
         }
+
         return ok({ scanned, orphans, removed });
       }),
   };

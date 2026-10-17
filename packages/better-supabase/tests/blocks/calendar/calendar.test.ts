@@ -9,16 +9,19 @@ interface Call {
 
 function recorder(results: Record<string, unknown>) {
   const calls: Call[] = [];
+
   const transport = {
     call(schema: string, fn: string, args: Readonly<Record<string, unknown>>) {
       expect(schema).toBe("app");
       calls.push({ fn, args });
       const result = results[fn];
+
       return result instanceof Error
         ? Promise.reject(result)
         : Promise.resolve(result);
     },
   };
+
   return { calls, calendar: createCalendar({ transport, schema: "app" }) };
 }
 
@@ -61,6 +64,7 @@ describe("calendar client", () => {
         { id: "c1", name: "Team", tz: "Europe/Amsterdam", color: null },
       ],
     });
+
     expect(
       await calendar
         .createCalendar("org", "Team", { tz: "Europe/Amsterdam" })
@@ -107,10 +111,13 @@ describe("calendar client", () => {
       list_calendar_events: [SERIES],
       save_calendar_event: { id: "o1", uid: "s1", created: true },
     });
+
     const [, second] = await calendar.occurrences(["c1"], range).orThrow();
+
     const saved = await calendar
       .editOccurrence(second!, { title: "Moved" })
       .orThrow();
+
     expect(saved).toEqual({ id: "o1", uid: "s1", created: true });
     expect(calls[1]).toEqual({
       fn: "save_calendar_event",
@@ -137,10 +144,13 @@ describe("calendar client", () => {
       list_calendar_events: [SERIES],
       split_calendar_event: { id: "s2", uid: "s1-20260406T070000Z" },
     });
+
     const [, , third] = await calendar.occurrences(["c1"], range).orThrow();
+
     const result = await calendar
       .editFollowing(third!, { title: "Later" })
       .orThrow();
+
     expect(result).toEqual({ id: "s2" });
     expect(calls[1]?.fn).toBe("split_calendar_event");
     expect(calls[1]?.args).toMatchObject({
@@ -161,6 +171,7 @@ describe("calendar client", () => {
       list_calendar_events: [SERIES],
       save_calendar_event: { id: "s1", uid: "s1", created: false },
     });
+
     const [first] = await calendar.occurrences(["c1"], range).orThrow();
     await calendar.editFollowing(first!, { title: "Renamed" });
     expect(calls[1]).toEqual({
@@ -171,17 +182,21 @@ describe("calendar client", () => {
 
   it("cancels an occurrence with an EXDATE and deletes a single event", async () => {
     const single = { ...SERIES, id: "e1", rrule: null };
+
     const { calls, calendar } = recorder({
       list_calendar_events: [SERIES, single],
       cancel_calendar_occurrence: true,
       delete_calendar_event: true,
     });
+
     const found = await calendar.occurrences(["c1"], range).orThrow();
+
     const occurrence = found.find(
       (item) =>
         item.event.id === "s1" &&
         item.start.toString() === "2026-03-30T07:00:00Z",
     );
+
     const event = found.find((item) => item.event.id === "e1");
     expect(await calendar.cancelOccurrence(occurrence!).orThrow()).toBe(true);
     expect(await calendar.cancelOccurrence(event!).orThrow()).toBe(true);
@@ -199,6 +214,7 @@ describe("calendar client", () => {
       import_calendar_events: { created: 1, updated: 0, skipped: 0 },
       list_calendar_events: [SERIES],
     });
+
     const ics = [
       "BEGIN:VCALENDAR",
       "BEGIN:VEVENT",
@@ -212,6 +228,7 @@ describe("calendar client", () => {
       "END:VEVENT",
       "END:VCALENDAR",
     ].join("\r\n");
+
     expect(await calendar.importIcs("c1", ics).orThrow()).toEqual({
       created: 1,
       updated: 0,
@@ -233,9 +250,11 @@ describe("calendar client", () => {
         ],
       },
     });
+
     const out = await calendar
       .exportIcs({ id: "c1", name: "Team", tz: "Europe/Amsterdam" })
       .orThrow();
+
     expect(out).toContain("X-WR-CALNAME:Team\r\n");
     expect(out).toContain("RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=4\r\n");
     expect(calls[1]?.args).toMatchObject({
@@ -251,6 +270,7 @@ describe("calendar client", () => {
         events: [SERIES],
       },
     });
+
     const feed = await calendar.feed("t".repeat(48)).orThrow();
     expect(feed).toContain("UID:s1\r\n");
     const none = recorder({ calendar_feed: null });
@@ -264,6 +284,7 @@ describe("calendar client", () => {
         hint: "CALENDAR_EVENT_NOT_FOUND",
       }),
     });
+
     const result = await calendar.delete("missing");
     expect(result.ok).toBe(false);
   });
@@ -285,6 +306,7 @@ describe("calendar client", () => {
       ],
       save_calendar_event: { id: "e1", uid: "e1", created: false },
     });
+
     expect(await calendar.deleteCalendar("c1").orThrow()).toBe(true);
     expect(await calendar.delete("e1").orThrow()).toBe(true);
     expect(await calendar.listCalendars("org").orThrow()).toEqual([
@@ -326,6 +348,7 @@ describe("calendar client", () => {
       remove_calendar_attendee: true,
       respond_calendar_event: true,
     });
+
     await calendar.setAttendee("e1", { email: "a@example.test" }).orThrow();
     await calendar
       .setAttendee("e1", {
@@ -366,6 +389,7 @@ describe("calendar client", () => {
       subjectId: "p1",
       color: "blue",
     };
+
     const override = {
       ...SERIES,
       id: "o1",
@@ -376,6 +400,7 @@ describe("calendar client", () => {
       endsAt: "2026-03-30T09:15:00+00:00",
       attendees: [{ email: "x@example.test", name: "X", role: "unknown" }],
     };
+
     const single = {
       ...SERIES,
       id: "e2",
@@ -385,16 +410,20 @@ describe("calendar client", () => {
       startsAt: "2026-04-01T08:00:00+00:00",
       endsAt: "2026-04-01T09:00:00+00:00",
     };
+
     const { calls, calendar } = recorder({
       list_calendar_events: [detailed, override, single],
       save_calendar_event: { id: "x", uid: "x", created: false },
     });
+
     const found = await calendar.occurrences(["c1"], range).orThrow();
     const moved = found.find((item) => item.event.id === "o1")!;
     const lone = found.find((item) => item.event.id === "e2")!;
+
     const third = found.find(
       (item) => item.start.toString() === "2026-04-06T07:00:00Z",
     )!;
+
     expect(moved.event.attendees[0]).toEqual({
       email: "x@example.test",
       name: "X",
@@ -427,10 +456,12 @@ describe("calendar client", () => {
   it("refuses to split a series after its last occurrence", async () => {
     const { calls, calendar } = recorder({ list_calendar_events: [SERIES] });
     const [, , , last] = await calendar.occurrences(["c1"], range).orThrow();
+
     const beyond = {
       ...last!,
       originalStart: Temporal.Instant.from("2027-01-04T08:00:00Z"),
     };
+
     const result = await calendar.editFollowing(beyond, { title: "Never" });
     expect(result.ok ? undefined : result.error.hint).toBe(
       "CALENDAR_SPLIT_INVALID",

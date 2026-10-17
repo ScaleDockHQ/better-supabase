@@ -13,6 +13,7 @@ export {
   type Recommendation,
   type Scorecard,
 } from "./hiring.ts";
+
 export {
   extendBlock,
   withBlockHooks,
@@ -20,6 +21,7 @@ export {
   type BlockHooks,
   type BlockTransportMiddleware,
 } from "../../core/block-hooks.ts";
+
 export {
   dbTransport,
   rpcTransport,
@@ -27,6 +29,9 @@ export {
   type BlockTransport,
   type RpcClient,
 } from "../../core/block-transport.ts";
+
 export { hiringBlock } from "./manifest.ts";
+
 export { hiringEvents } from "./events.ts";
+
 export type { HiringEvents } from "./events.ts";

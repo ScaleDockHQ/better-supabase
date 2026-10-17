@@ -72,6 +72,7 @@ describe("invitations module", () => {
         },
       },
     });
+
     expect(sql).not.toContain("create table if not exists");
     expect(sql).not.toContain("extensions.digest(token");
     expect(sql).toContain(
@@ -100,6 +101,7 @@ describe("invitations module", () => {
       access: { model: "catalog" },
       invitations: { options: { prefill: true, maxValidFor: "14 days" } },
     });
+
     expect(sql).toContain(
       'create table if not exists "better_supabase"."platform_invitations" (',
     );
@@ -120,6 +122,7 @@ describe("invitations module", () => {
     const sql = body({
       access: { model: "custom", roles: { owner: [], admin: [], member: [] } },
     });
+
     expect(sql).toContain(
       "not (invitee_role = any (array['owner', 'admin', 'member']::text[]))",
     );
@@ -132,6 +135,7 @@ describe("invitations module", () => {
         model: "provider",
       },
     });
+
     expect(sql).toContain("if invitee_role is not null and false then");
     expect(sql).not.toContain(
       "not (invitee_role = any (array['owner', 'admin', 'member', 'viewer']::text[]))",
@@ -141,6 +145,7 @@ describe("invitations module", () => {
   it("rejects removed and invalid options", () => {
     const options = (value: Record<string, unknown>) => () =>
       body({ invitations: { options: value } });
+
     expect(options({ errorCodes: { NOPE: "P0001" } })).toThrow(/errorCodes/);
     expect(options({ tokenStorage: "md5" })).toThrow(/tokenStorage/);
   });
@@ -151,6 +156,7 @@ describe("invitations module", () => {
         invitations: { options: { previewColumns: ["name", "logo_path"] } },
       },
     })!;
+
     expect(sql).toContain(
       "'organization', jsonb_build_object('id', i.\"organization_id\")",
     );
@@ -166,12 +172,15 @@ describe("invitations module", () => {
       })
         .map((file) => file.contents)
         .join("\n");
+
     expect(accept({})).toContain("better_supabase.can_user(invite.");
+
     const callerOnly = accept({
       access: {
         model: "provider",
       },
     });
+
     expect(callerOnly).not.toContain("better_supabase.can_user(invite.");
     expect(callerOnly).toContain(
       "-- The provider model answers for the caller only, so the inviter's",
@@ -185,6 +194,7 @@ describe("platform invitations under the provider model", () => {
       model: "provider",
     },
   };
+
   const roles = {
     table: "public.user_roles",
     user: "user_id",
@@ -204,6 +214,7 @@ describe("platform invitations under the provider model", () => {
         },
       },
     });
+
     expect(sql).toContain(
       'create table if not exists "better_supabase"."platform_invitations"',
     );
@@ -224,25 +235,30 @@ describe("platform invitations under the provider model", () => {
         model: "provider" as const,
       },
     };
+
     const sql = (platformRoles: Record<string, unknown>) =>
       body(
         { ...forUser, invitations: { options: { platformRoles } } },
         moduleProvider,
       );
+
     const callerOnly = sql({
       ...roles,
       canAssign: "authz.can_grant({role})",
     });
+
     expect(callerOnly).toContain(
       "coalesce((authz.can_grant(((invitee_role))::text)), false)",
     );
     expect(callerOnly).toContain("better_supabase.platform_can(pinvite.");
     expect(callerOnly).not.toMatch(/can_grant\([^;]*pinvite/);
+
     const withFor = sql({
       ...roles,
       canAssign: "authz.can_grant({role})",
       canAssignFor: "authz.can_grant_for({user}, {role})",
     });
+
     expect(withFor).toContain(
       'and coalesce((authz.can_grant_for(pinvite."invited_by", (pinvite."role")::text)), false)',
     );
@@ -259,6 +275,7 @@ describe("platform invitations under the provider model", () => {
 
   it("resolves platform roles only among the roles through.where names", () => {
     const through = { table: "public.roles", id: "id", column: "key" };
+
     const sql = (where?: string, tenantWhere?: string) =>
       body({
         ...PROVIDER,
@@ -282,6 +299,7 @@ describe("platform invitations under the provider model", () => {
           },
         },
       });
+
     const tenantScope = "{row}.scope = 'organization'";
     expect(() => sql(undefined, tenantScope)).toThrow(
       /platformRoles\.through\.where/,
@@ -300,6 +318,7 @@ describe("platform invitations under the provider model", () => {
 
   it("resolves tenant roles only among the roles roleThrough.where names", () => {
     const through = { table: "public.roles", id: "id", column: "key" };
+
     const modules = (tenantWhere?: string): AnyBlocksConfig => ({
       ...PROVIDER,
       tenant: {
@@ -323,6 +342,7 @@ describe("platform invitations under the provider model", () => {
         },
       },
     });
+
     expect(() => body(modules())).toThrow(
       /roleThrough\.where: "public"\."roles" also holds the platform roles/,
     );
@@ -345,6 +365,7 @@ describe("platform invitations under the provider model", () => {
 
   it("checks every write to the roles tables against where with bs_role_scope", () => {
     const through = { table: "public.roles", id: "id", column: "key" };
+
     const modules = (where: boolean): AnyBlocksConfig => ({
       ...PROVIDER,
       tenant: {
@@ -372,6 +393,7 @@ describe("platform invitations under the provider model", () => {
         },
       },
     });
+
     const tenant = moduleBody("tenant", { modules: modules(true) })!;
     expect(tenant).toContain(
       `where r."id"::text = new."role_id"::text and (r.scope = 'organization')`,
@@ -405,10 +427,12 @@ describe("platform invitations under the provider model", () => {
 
   it("refuses platform invitations without platformRoles and checks its shape", () => {
     expect(body(PROVIDER)).toContain("INVITATION_SCOPE_UNSUPPORTED");
+
     const plain = body({
       ...PROVIDER,
       invitations: { options: { platformRoles: roles } },
     });
+
     expect(plain).toContain(
       "No platform role ceiling: holding the invite permission is enough.",
     );
@@ -472,6 +496,7 @@ describe("invitation_preview_extra", () => {
         hooks: { functions: { invitation_preview_extra: "app.preview" } },
       },
     });
+
     expect(sql).toContain(`to_regprocedure('"app"."preview"(uuid)')`);
     expect(sql).toContain(
       'preview := preview || "better_supabase"."invitation_extra"(invitation);',
@@ -486,15 +511,19 @@ describe("invitation_preview_extra", () => {
     expect(sql).not.toMatch(
       /grant execute on function "better_supabase"\."invitation_extra"/,
     );
+
     for (const row of ["created", "updated"]) {
       expect(sql).toContain(
         `) || "better_supabase"."invitation_extra"(${row}."id"))`,
       );
     }
+
     expect(sql).not.toContain("'inviter'");
+
     const withProfiles = renderModules(["profiles", "invitations"], {}).find(
       (file) => file.module === "invitations" && file.kind === "schema",
     )!.contents;
+
     expect(withProfiles).toContain(
       `'inviter', (select jsonb_build_object('id', pr."id", 'username', pr."username", 'fullName', pr."full_name"`,
     );
@@ -507,8 +536,10 @@ describe("invitation_preview_extra", () => {
     const renamed = body({
       invitations: { permissions: { invite: "member.invite" } },
     });
+
     expect(renamed).toContain("'member.invite'");
     expect(renamed).not.toContain("'members.invite'");
+
     const own = body({
       invitations: {
         permissions: {
@@ -518,13 +549,16 @@ describe("invitation_preview_extra", () => {
         },
       },
     });
+
     expect(own).toContain("tenant_ids_with('member.view')");
+
     const listing = renderModules(["organizations", "invitations"], {
       modules: { invitations: { permissions: { invite: "member.invite" } } },
       accessProvider: moduleProvider,
     })
       .map((file) => file.contents)
       .join("\n");
+
     expect(listing).not.toContain("'members.invite'");
     expect(own).toContain("'member.revoke'");
   });

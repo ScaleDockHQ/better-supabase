@@ -22,6 +22,7 @@ describe("adoptedColumnProblems", () => {
       ],
       ["public"],
     );
+
     expect(problems.join("\n")).toContain("disabled_at");
     expect(problems.join("\n")).toContain("deleted_at");
   });
@@ -66,6 +67,7 @@ describe("adoptedColumnProblems", () => {
   created_at timestamptz not null
 );`,
     };
+
     expect(
       adoptedColumnProblems(
         {
@@ -99,6 +101,7 @@ describe("adoptedColumnProblems", () => {
   created_at timestamptz not null
 );`,
     });
+
     const webhooks = (secretStorage: string) => ({
       "webhooks-out": {
         mode: "adopt" as const,
@@ -106,6 +109,7 @@ describe("adoptedColumnProblems", () => {
         options: { secretStorage },
       },
     });
+
     expect(
       adoptedColumnProblems(
         webhooks("vault"),

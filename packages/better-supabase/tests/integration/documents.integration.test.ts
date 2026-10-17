@@ -24,6 +24,7 @@ describe.skipIf(!live)("documents", () => {
 
   it("stores updates, compacts them and saves versions under the tenant's rules", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const owner = await s.user("owner");
       const member = await s.user("member");
@@ -34,6 +35,7 @@ describe.skipIf(!live)("documents", () => {
       });
       const tenant = await s.organization(owner, { member, viewer });
       const documents = createDocuments({ transport: sqlTransport(s.sql) });
+
       const ref = {
         organizationId: tenant,
         subjectType: "page",
@@ -123,6 +125,7 @@ describe.skipIf(!live)("documents", () => {
       const saved = await documents
         .saveVersion(opened.id, Y.encodeStateAsUpdate(copy), "first draft")
         .orThrow();
+
       expect(saved.number).toBe(1);
       const versions = await documents.versions(opened.id).orThrow();
       expect(versions).toMatchObject([{ number: 1, label: "first draft" }]);

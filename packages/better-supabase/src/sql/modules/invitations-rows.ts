@@ -31,16 +31,20 @@ export function organizationJson(ctx: ModuleContext, tenant: string): string {
   if (!ctx.installed("organizations")) {
     return `jsonb_build_object('id', ${tenant})`;
   }
+
   const organizations = ctx.of("organizations");
   const id = organizations.col("organizations", "id");
+
   const columns = ctx.list("previewColumns", ["name"]).map((column) => {
     if (!/^[A-Za-z_][A-Za-z0-9_$]*$/.test(column)) {
       throw new TypeError(
         `blocks.invitations.options.previewColumns: "${column}" is not a valid column`,
       );
     }
+
     return `, ${sqlString(column)}, o.${sqlIdent(column)}`;
   });
+
   return `(select jsonb_build_object('id', o.${id}${columns.join("")})
       from ${organizations.table("organizations")} o where o.${id} = ${tenant})`;
 }
@@ -58,14 +62,17 @@ function inviterJson(
   if (!ctx.installed("profiles") || !t.has("invitedBy")) {
     return undefined;
   }
+
   const profiles = ctx.of("profiles");
   const p = (logical: string) => profiles.col("profiles", logical);
+
   const fields = (
     ["username", "fullName", "firstName", "lastName", "avatar"] as const
   )
     .filter((logical) => profiles.has("profiles", logical))
     .map((logical) => `, '${logical}', pr.${p(logical)}`)
     .join("");
+
   return `(select jsonb_build_object('id', pr.${p("key")}${fields})
       from ${profiles.table("profiles")} pr where pr.${p("key")} = ${row}.${t.col("invitedBy")})`;
 }
@@ -120,6 +127,7 @@ export function inviteJson(
 ): string {
   const c = (logical: string) => `${row}.${t.col(logical)}`;
   const inviter = inviterJson(ctx, t, row);
+
   return `(jsonb_build_object(
     'id', ${c("id")},
     'tenant', ${tenant ?? "null"},
@@ -146,16 +154,20 @@ export function inviteJson(
 export function myInvitations(ctx: ModuleContext): string {
   const t = tenantTable(ctx);
   const p = platformTable(ctx);
+
   const confirmed = ctx.flag("requireConfirmedEmail", true)
     ? " and u.email_confirmed_at is not null"
     : "";
+
   const rows = (table: InviteTable, tenant: string | null) => {
     const open = openFilter(table, "i");
+
     return `select ${inviteJson(ctx, table, "i", "null", tenant)} - 'token' as invitation, i.${table.col("id")} as id, i.${table.col("expiresAt")} as expires_at
     from ${table.table} i
     where lower(i.${table.col("email")}) = invitee_email
       and i.${table.col("expiresAt")} >= now()${open ? ` and ${open}` : ""}${table.only("i")}`;
   };
+
   return `
 -- The caller's open invitations, for an in-app inbox: the invitation without
 -- its token, its organization (id plus previewColumns) and the keys an
@@ -210,6 +222,7 @@ export function updateInvitation(ctx: ModuleContext): string {
   const mu = tenantMembers.col("memberships", "user");
   const { stored, unknownRole } = tenantRole(ctx);
   const open = openFilter(t, "i");
+
   /**
    * Writes the changes into row variable `next`, a copy of the current row,
    * so each value takes the column's own type, then updates the row from it.
@@ -221,12 +234,14 @@ export function updateInvitation(ctx: ModuleContext): string {
     role: string,
   ) => {
     const col = (logical: string) => table.col(logical);
+
     const prefill = table.has("prefill")
       ? `
     if prefill is not null then
       ${next}.${col("prefill")} := prefill;
     end if;`
       : "";
+
     return `${next} := ${current};
     if invitee_email is not null then
       ${next}.${col("email")} := lower(btrim(invitee_email));
@@ -245,14 +260,18 @@ export function updateInvitation(ctx: ModuleContext): string {
     where i.${col("id")} = invitation_id
     returning * into ${next};`;
   };
+
   let platformEdit = "";
+
   if (p) {
     const pc = (logical: string) => p.col(logical);
     const pOpen = openFilter(p, "i");
     const assignment = platformAssignment(ctx);
     const role = assignment.value("invitee_role");
+
     const ceiling = (stored: string) =>
       assignment.canAssign("auth.uid()", `(${stored})`);
+
     const newCeiling = ceiling(role);
     const oldCeiling = ceiling(`platform_current.${pc("role")}`);
     platformEdit = `
@@ -286,6 +305,7 @@ export function updateInvitation(ctx: ModuleContext): string {
       return ${inviteJson(ctx, p, "platform_updated", "null", null)} - 'token';
     end if;`;
   }
+
   return `
 -- A new email, role or prefill for an open invitation that has not expired;
 -- null keeps the current value. The caller needs what invite_member needs, and may assign

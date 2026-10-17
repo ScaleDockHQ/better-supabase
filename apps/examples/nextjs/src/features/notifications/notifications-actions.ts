@@ -24,16 +24,20 @@ export const notifyMe = bs.action(
     if (auth.kind !== "user") {
       return err(dbError("unauthorized", "Sign in to get notifications"));
     }
+
     const sent = await blocks(supabase).notifications.send("test.sent", {
       tenant,
       recipients: [auth.user.id],
       includeActor: true,
       data: { title },
     });
+
     if (!sent.ok) {
       return sent;
     }
+
     refresh();
+
     return ok(sent.data?.id ?? null);
   },
 );
@@ -43,10 +47,13 @@ export const markAllRead = bs.action(
   { requireTenant: true },
   async (_input, { tenant, supabase }) => {
     const updated = await blocks(supabase).notifications.markRead({ tenant });
+
     if (!updated.ok) {
       return updated;
     }
+
     refresh();
+
     return ok(updated.data.count);
   },
 );
@@ -66,6 +73,7 @@ export const loadNotifications = bs.action(
       tenant,
       limit: 20,
     });
+
     return items.ok ? ok(items.data.map(toNotificationRow)) : items;
   },
 );

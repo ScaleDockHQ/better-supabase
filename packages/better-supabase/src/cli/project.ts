@@ -11,6 +11,7 @@ export type Framework =
   | "vite"
   | "expo"
   | "tanstack-query";
+
 export type PackageManager = "pnpm" | "npm" | "yarn" | "bun";
 
 export interface Project {
@@ -42,7 +43,9 @@ async function readJson(
   if (!existsSync(path)) {
     return undefined;
   }
+
   const text = await readFile(path, "utf-8");
+
   try {
     // SAFETY: callers only read optional fields and check their types.
     return JSON.parse(
@@ -56,6 +59,7 @@ async function readJson(
 function packageManager(root: string, declared: unknown): PackageManager {
   if (typeof declared === "string") {
     const name = declared.split("@")[0];
+
     if (
       name === "pnpm" ||
       name === "npm" ||
@@ -65,33 +69,41 @@ function packageManager(root: string, declared: unknown): PackageManager {
       return name;
     }
   }
+
   if (existsSync(join(root, "pnpm-lock.yaml"))) {
     return "pnpm";
   }
+
   if (
     existsSync(join(root, "bun.lock")) ||
     existsSync(join(root, "bun.lockb"))
   ) {
     return "bun";
   }
+
   if (existsSync(join(root, "yarn.lock"))) {
     return "yarn";
   }
+
   return existsSync(join(root, "package-lock.json")) ? "npm" : "pnpm";
 }
 
 export async function detectProject(root: string): Promise<Project> {
   const pkg = (await readJson(join(root, "package.json"))) ?? {};
   const dependencies: Record<string, string> = {};
+
   for (const field of ["peerDependencies", "devDependencies", "dependencies"]) {
     Object.assign(dependencies, pkg[field] ?? {});
   }
+
   const tsconfig = await readJson(join(root, "tsconfig.json"));
+
   // SAFETY: compilerOptions is an object in a valid tsconfig, and callers check each option.
   const options = (tsconfig?.["compilerOptions"] ?? {}) as Record<
     string,
     unknown
   >;
+
   return {
     root,
     name: typeof pkg["name"] === "string" ? pkg["name"] : undefined,
@@ -122,30 +134,39 @@ export function installCommand(
   target?: InstallTarget,
 ): string {
   const list = packages.join(" ");
+
   switch (manager) {
     case "pnpm": {
       const filter = target
         ? `--filter ${target.name ?? `./${target.dir}`} `
         : "";
+
       return `pnpm ${filter}add ${dev ? "-D " : ""}${list}`;
     }
+
     case "bun": {
       return `bun add ${dev ? "-d " : ""}${list}${target ? ` --cwd ${target.dir}` : ""}`;
     }
+
     case "yarn": {
       const command = `add ${dev ? "-D " : ""}${list}`;
+
       if (!target) {
         return `yarn ${command}`;
       }
+
       return target.name
         ? `yarn workspace ${target.name} ${command}`
         : `cd ${target.dir} && yarn ${command}`;
     }
+
     case "npm": {
       return `npm install ${dev ? "-D " : ""}${list}${target ? ` -w ${target.dir}` : ""}`;
     }
+
     default: {
       const unreachable: never = manager;
+
       return unreachable;
     }
   }
@@ -156,11 +177,14 @@ export function publicPrefix(project: Project): string {
   if (project.frameworks.includes("next")) {
     return "NEXT_PUBLIC_";
   }
+
   if (project.frameworks.includes("expo")) {
     return "EXPO_PUBLIC_";
   }
+
   if (project.frameworks.includes("vite")) {
     return "VITE_";
   }
+
   return "";
 }

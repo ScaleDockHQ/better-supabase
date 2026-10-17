@@ -36,8 +36,10 @@ export function formatRegistry(
   extra: readonly AnyDocumentFormat[] = [],
 ): ReadonlyMap<string, AnyDocumentFormat> {
   const registry = new Map<string, AnyDocumentFormat>();
+
   for (const format of [...BUILTIN_FORMATS, ...extra]) {
     registry.set(format.id, format);
   }
+
   return registry;
 }

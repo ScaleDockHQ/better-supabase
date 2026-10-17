@@ -47,8 +47,10 @@ export function createdFromLink(
   if (!ctx.installed("relations")) {
     return "";
   }
+
   const r = ctx.of("relations");
   const col = (name: string): string => r.col("relations", name);
+
   return `insert into ${r.table("relations")} (${col("tenant")}, ${col("kind")}, ${col("sourceType")}, ${col("sourceId")}, ${col("targetType")}, ${col("targetId")}, ${col("createdBy")})
     select ${link.tenant}, 'created_from', ${link.sourceType}, ${link.sourceId}, ${link.originType}, ${link.originId}, auth.uid()
     where not exists (
@@ -61,12 +63,16 @@ export function quoteFunctions(ctx: ModuleContext, n: QuoteNames): string {
   const { fn, t, c } = n;
   const q = (column: string): string => c("quotes", column);
   const l = (column: string): string => c("lines", column);
+
   const editable = (alias: string): string =>
     `(${n.service} or ${ctx.scope.can(`${alias}.${q("tenant")}`, n.write)})`;
+
   const open = (alias: string): string =>
     `${alias}.${q("status")} in ('draft', 'changes_requested')`;
+
   const lines = (alias: string): string =>
     `coalesce((select jsonb_agg(jsonb_build_object('description', ql.${l("description")}, 'quantity', ql.${l("quantity")}, 'unitAmount', ql.${l("unitAmount")}::text, 'discountBps', ql.${l("discountBps")}, 'taxRateBps', ql.${l("taxRateBps")}, 'taxCode', ql.${l("taxCode")}, 'product', case when ql.${l("productType")} is null then null else jsonb_build_object('type', ql.${l("productType")}, 'id', ql.${l("productId")}) end) order by ql.${l("position")}) from ${t("lines")} ql where ql.${l("parent")} = ${alias}.${q("id")}), '[]'::jsonb)`;
+
   const row = (alias: string): string =>
     `(to_jsonb(${alias}) - ${sqlString(q("tokenHash").replaceAll('"', ""))}) || jsonb_build_object('lines', ${lines(alias)}${
       n.extras.length === 0
@@ -76,6 +82,7 @@ export function quoteFunctions(ctx: ModuleContext, n: QuoteNames): string {
             n.extras.map((extra) => extra.name),
           )}`
     })`;
+
   const record = (type: string, alias: string, extra = ""): string =>
     ctx.record({
       type,
@@ -84,6 +91,7 @@ export function quoteFunctions(ctx: ModuleContext, n: QuoteNames): string {
       tenant: `${alias}.${q("tenant")}::text`,
       audit: false,
     });
+
   const checkParty = (
     kind: "COMPANY" | "CONTACT",
     type: string,
@@ -93,6 +101,7 @@ export function quoteFunctions(ctx: ModuleContext, n: QuoteNames): string {
   if ${id} is not null and not ${subjectInTenant(ctx, type, id, tenant)} then
     ${fail(`QUOTE_${kind}_FORBIDDEN`, `the ${kind.toLowerCase()} is unknown or not readable in this organization`, "42501")}
   end if;`;
+
   const notifyOwner = (event: string): string =>
     ctx.installed("notifications")
       ? `
@@ -112,6 +121,7 @@ export function quoteFunctions(ctx: ModuleContext, n: QuoteNames): string {
     )}
   end if;`
       : "";
+
   const decide = (decision: string, note: string, by: string): string => `
   update ${t("quotes")} x set ${q("status")} = ${decision}, ${q("decidedAt")} = now(), ${q("decidedBy")} = ${by},
     ${q("decisionNote")} = nullif(trim(${note}), ''), ${q("updatedAt")} = now()
@@ -125,7 +135,9 @@ export function quoteFunctions(ctx: ModuleContext, n: QuoteNames): string {
     else
       ${record("quote.changes_requested", "v_row", `, 'note', v_row.${q("decisionNote")}`)}
   end case;${notifyOwner("quote.decided")}`;
+
   const deals = ctx.installed("deals") ? ctx.of("deals") : undefined;
+
   const fromDeal =
     deals === undefined
       ? ""
@@ -133,6 +145,7 @@ export function quoteFunctions(ctx: ModuleContext, n: QuoteNames): string {
           const d = (column: string): string => deals.col("deals", column);
           const dk = (column: string): string => deals.col("contacts", column);
           const dl = (column: string): string => deals.col("lines", column);
+
           return `
 -- A draft quote from a deal: its name, company, primary contact, currency,
 -- owner and lines (or one line for its amount). Converting a deal again
@@ -179,6 +192,7 @@ $$;
 ${userGrant(`${fn("quote_from_deal")}(uuid)`)}
 `;
         })();
+
   return `
 -- Creates a draft quote. attrs: title (required), currency, company and
 -- contact ({ type, id }), ownerId, validUntil, terms, note, origin ({ type,

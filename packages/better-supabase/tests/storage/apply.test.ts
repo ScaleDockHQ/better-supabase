@@ -11,6 +11,7 @@ const notFound = {
   status: 400,
   statusCode: "404",
 };
+
 const disabled = {
   name: "StorageApiError",
   message: "The feature object lifecycles is not enabled for this resource",
@@ -18,6 +19,7 @@ const disabled = {
   statusCode: "409",
   code: "FeatureNotEnabled",
 };
+
 const okMessage = { data: { message: "ok" }, error: null };
 
 function bucketApi(found: { data: unknown; error: unknown }) {
@@ -34,6 +36,7 @@ function bucketApi(found: { data: unknown; error: unknown }) {
     })),
     deleteBucketLifecycle: vi.fn(async (): Promise<unknown> => okMessage),
   };
+
   return { api, client: { storage: api } as unknown as StorageAdminClient };
 }
 
@@ -78,6 +81,7 @@ describe("bucket.apply", () => {
       data: { id: "plain", versioning_status: "ENABLED" },
       error: null,
     });
+
     expect((await plain.apply(client)).data).toEqual({ created: false });
     expect(api.updateBucket).toHaveBeenCalledWith("plain", {
       public: true,
@@ -93,6 +97,7 @@ describe("bucket.apply", () => {
       data: { id: "plain", versioning_status: "DISABLED" },
       error: null,
     });
+
     await plain.apply(client);
     expect(api.updateBucket).toHaveBeenCalledWith("plain", {
       public: true,
@@ -118,6 +123,7 @@ describe("bucket.apply", () => {
       message: "new row violates row-level security policy",
       statusCode: "403",
     };
+
     const cases: [
       string,
       (api: ReturnType<typeof bucketApi>["api"]) => void,
@@ -167,13 +173,16 @@ describe("bucket.apply", () => {
           api.getBucket.mockRejectedValueOnce(new TypeError("fetch failed")),
       ],
     ];
+
     const kinds: Record<string, string | undefined> = {};
+
     for (const [name, arrange] of cases) {
       const { api, client } = bucketApi({ data: { id: "x" }, error: null });
       arrange(api);
       const bucket = name === "deleteBucketLifecycle" ? plain : documents;
       kinds[name] = (await bucket.apply(client)).error?.kind;
     }
+
     expect(kinds).toEqual({
       getBucket: "forbidden",
       createBucket: "forbidden",

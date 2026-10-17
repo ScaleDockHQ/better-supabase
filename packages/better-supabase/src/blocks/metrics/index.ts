@@ -8,6 +8,7 @@ export {
   type MetricMeasure,
   type MetricWhereValue,
 } from "../../core/metric-definition.ts";
+
 export {
   compareValues,
   createMetrics,
@@ -26,16 +27,21 @@ export {
   type MetricsOptions,
   type MetricsRollupRequest,
 } from "./metrics.ts";
+
 export {
   toChartData,
   type MetricChartOptions,
   type MetricChartRow,
 } from "./chart.ts";
+
 export { metricsSink, type MetricsSinkOptions } from "./sink.ts";
+
 export {
   dbTransport,
   rpcTransport,
   sqlTransport,
 } from "../../core/block-transport.ts";
+
 export type { BlockTransport } from "../../core/block-transport.ts";
+
 export { metricsBlock } from "./manifest.ts";

@@ -38,9 +38,11 @@ const parse = <S extends v.GenericSchema>(
 // (SUPABASE_EXPERIMENTAL_STACK=0) only knows `-o json`.
 const engine = supabase("status", "--env", "--output-format", "json");
 const status = engine ?? supabase("status", "-o", "json");
+
 if (status === undefined) {
   throw new Error("supabase status failed; run pnpm supabase:start");
 }
+
 const stack = parse(Stack, status);
 const details = engine && supabase("status", "--output-format", "json");
 const runtime = details ? parse(Runtime, details).runtime : "legacy";
@@ -61,4 +63,5 @@ const lines = [
 ];
 
 await writeFile(".env.development.local", lines.join("\n"));
+
 console.log("Wrote .env.development.local");

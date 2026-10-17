@@ -10,14 +10,17 @@ import { createUndo, isUndoToken } from "../../../src/blocks/undo/undo.ts";
 
 function transport(results: Record<string, unknown>) {
   const calls: { fn: string; args: Record<string, unknown> }[] = [];
+
   return {
     calls,
     call(_schema: string, fn: string, args: Record<string, unknown>) {
       calls.push({ fn, args });
       const result = results[fn];
+
       if (result instanceof Error) {
         return Promise.reject(result);
       }
+
       return Promise.resolve(result);
     },
   };
@@ -45,9 +48,11 @@ describe("relations client", () => {
   it("links and returns an undo token that unlinks the stored edge", async () => {
     const fake = transport({ link: stored({}) });
     const relations = createRelations({ transport: fake });
+
     const made = await relations
       .link({ organizationId: ORG, kind: "blocked_by", source: a, target: b })
       .orThrow();
+
     expect(fake.calls[0]).toEqual({
       fn: "link",
       args: {
@@ -88,9 +93,11 @@ describe("relations client", () => {
         replaced: { targetType: "task", targetId: "b", data: { x: 1 } },
       }),
     });
+
     const made = await createRelations({ transport: fake })
       .link({ organizationId: ORG, kind: "parent", source: a, target: c })
       .orThrow();
+
     expect(made.replaced).toEqual({ target: b, data: { x: 1 } });
     expect(made.undo?.calls.map((call) => call.fn)).toEqual(["unlink", "link"]);
     expect(made.undo?.calls[1]?.args).toMatchObject({
@@ -103,7 +110,9 @@ describe("relations client", () => {
     const fake = transport({
       link: stored({ created: false, previousData: { lag: 1 } }),
     });
+
     const relations = createRelations({ transport: fake });
+
     const changed = await relations
       .link({
         organizationId: ORG,
@@ -113,6 +122,7 @@ describe("relations client", () => {
         data: { lag: 2 },
       })
       .orThrow();
+
     expect(changed.undo?.calls).toEqual([
       expect.objectContaining({
         fn: "link",
@@ -120,26 +130,32 @@ describe("relations client", () => {
       }),
     ]);
     const fakeSame = transport({ link: stored({ created: false }) });
+
     const same = await createRelations({ transport: fakeSame })
       .link({ organizationId: ORG, kind: "blocks", source: b, target: a })
       .orThrow();
+
     expect(same.undo).toBeNull();
   });
 
   it("unlinks with an undo that links again with the old data", async () => {
     const fake = transport({ unlink: { removed: true, data: { lag: 3 } } });
     const relations = createRelations({ transport: fake, schema: "app" });
+
     const gone = await relations
       .unlink({ organizationId: ORG, kind: "relates", source: a, target: b })
       .orThrow();
+
     expect(gone.undo?.calls[0]).toMatchObject({
       fn: "link",
       args: { kind: "relates", data: { lag: 3 } },
     });
     const fakeNone = transport({ unlink: { removed: false, data: null } });
+
     const none = await createRelations({ transport: fakeNone })
       .unlink({ organizationId: ORG, kind: "relates", source: a, target: b })
       .orThrow();
+
     expect(none).toEqual({ removed: false, undo: null });
   });
 
@@ -161,6 +177,7 @@ describe("relations client", () => {
       descendants: null,
       relation_rollup: 12,
     });
+
     const relations = createRelations({ transport: fake });
     expect(await relations.of(ORG, a).orThrow()).toEqual([
       {
@@ -205,6 +222,7 @@ describe("undo tokens", () => {
   it("applies the calls in order and refuses other functions", async () => {
     const fake = transport({ unlink: { removed: true }, link: {} });
     const undo = createUndo({ transport: fake });
+
     const token = {
       v: 1,
       calls: [
@@ -212,13 +230,16 @@ describe("undo tokens", () => {
         { fn: "link", args: { kind: "parent" } },
       ],
     };
+
     expect(isUndoToken(token)).toBe(true);
     expect(await undo.apply(token).orThrow()).toBe(2);
     expect(fake.calls.map((call) => call.fn)).toEqual(["unlink", "link"]);
+
     const bad = await undo.apply({
       v: 1,
       calls: [{ fn: "drop_all", args: {} }],
     });
+
     expect(bad.ok).toBe(false);
     expect(isUndoToken({ v: 1, calls: [] })).toBe(false);
     expect(
@@ -230,6 +251,7 @@ describe("undo tokens", () => {
 
   it("stops at the first failing call", async () => {
     const fake = transport({ unlink: new Error("boom"), link: {} });
+
     const result = await createUndo({ transport: fake }).apply({
       v: 1,
       calls: [
@@ -237,6 +259,7 @@ describe("undo tokens", () => {
         { fn: "link", args: {} },
       ],
     });
+
     expect(result.ok).toBe(false);
     expect(fake.calls).toHaveLength(1);
   });
@@ -261,6 +284,7 @@ describe("relation adapters", () => {
       { id: "a", name: "Design" },
       { id: "b", name: "Build" },
     ];
+
     expect(
       toGanttTasks(tasks, [
         edge("a", "b", { type: "SS", lag: 2 }),
@@ -287,6 +311,7 @@ describe("relation adapters", () => {
       { id: "one", name: "One" },
       { id: "two", name: "Two" },
     ];
+
     expect(
       toTreeItems(items, [
         edge("one", "epic"),
@@ -312,6 +337,7 @@ describe("relations conversions", () => {
       ancestors: [{ type: "deal", id: "d1", depth: 1 }],
       descendants: [{ type: "invoice", id: "i1", depth: 1 }],
     });
+
     const relations = createRelations({ transport: t });
     expect(
       await relations
@@ -335,6 +361,7 @@ describe("relations conversions", () => {
     const none = createRelations({
       transport: transport({ converted_into: null }),
     });
+
     expect(await none.convertedInto(ORG, a, "quote").orThrow()).toBeUndefined();
     const failing = transport({ ancestors: new Error("down") });
     expect(

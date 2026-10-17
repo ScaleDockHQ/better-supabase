@@ -23,6 +23,7 @@ describe("parseEnv", () => {
 
   it("reports a malformed URL as env_invalid with one issue per variable", () => {
     let caught: unknown;
+
     try {
       parseEnv({
         DATABASE_URL: "not a url",
@@ -32,6 +33,7 @@ describe("parseEnv", () => {
     } catch (error) {
       caught = error;
     }
+
     expect(caught).toBeInstanceOf(CliError);
     expect(caught).toMatchObject({
       code: "env_invalid",

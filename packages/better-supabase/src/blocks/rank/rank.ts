@@ -64,6 +64,7 @@ function payloadOf(value: unknown): RankRebalancePayload {
   if (!isRecord(value)) {
     throw new TypeError(`${RANK_REBALANCE_QUEUE} needs an object payload`);
   }
+
   return {
     subjectType: textOf(value["subjectType"]),
     tenant: optionalText(value["tenant"]) ?? null,
@@ -73,11 +74,13 @@ function payloadOf(value: unknown): RankRebalancePayload {
 
 export function createRank(options: RankOptions): Rank {
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const service = blockCall(
     options.service ?? options.transport,
     options.schema,
     options.mappers,
   );
+
   const client: Rank = {
     move: (subjectType, subjectId, target) =>
       call(
@@ -102,9 +105,11 @@ export function createRank(options: RankOptions): Rank {
       await hooked.rebalance(subjectType, tenant, group).orThrow();
     },
   };
+
   const hooked = withBlockHooks(client, options.hooks, {
     block: "rank",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
   return hooked;
 }

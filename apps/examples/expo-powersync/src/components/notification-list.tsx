@@ -14,22 +14,27 @@ export function NotificationList() {
   const supabase = useSupabase();
   const tenant = tenantOf(auth);
   const userId = auth.user?.id;
+
   const { items } = useNotifications({
     topic: userId ? `notifications:${userId}` : null,
     load: async () => {
       if (!tenant) {
         return [];
       }
+
       const result = await blocks(supabase).notifications.list({
         tenant,
         limit: 20,
       });
+
       return result.ok ? result.data : [];
     },
   });
+
   if (items === undefined) {
     return <ActivityIndicator />;
   }
+
   return (
     <FlatList
       data={items}

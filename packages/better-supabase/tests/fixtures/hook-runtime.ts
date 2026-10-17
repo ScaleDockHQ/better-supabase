@@ -30,6 +30,7 @@ const state = {
 const slot = (): Slot => {
   const index = state.index;
   state.index += 1;
+
   return (state.slots[index] ??= {});
 };
 
@@ -71,48 +72,60 @@ export const reactHooks: ReactHooks = {
     if (typeof type === "object" && type !== null && "Consumer" in type) {
       state.provided.set(type, props?.value);
     }
+
     return { type, props, children };
   },
   useContext: (context) => state.provided.get(context) ?? null,
   useState(initial) {
     const cell = slot();
+
     const setter =
       cell.setter ??
       ((next: unknown) => {
         const value = typeof next === "function" ? next(cell.value) : next;
+
         if (Object.is(value, cell.value)) {
           return;
         }
+
         cell.value = value;
         schedule();
       });
+
     if (!cell.setter) {
       cell.value = typeof initial === "function" ? initial() : initial;
       cell.setter = setter;
     }
+
     return [cell.value, setter];
   },
   useMemo(factory, deps) {
     const cell = slot();
+
     if (changed(cell.deps, deps)) {
       cell.value = factory();
       cell.deps = deps;
     }
+
     return cell.value;
   },
   useCallback(fn, deps) {
     const cell = slot();
+
     if (changed(cell.deps, deps)) {
       cell.value = fn;
       cell.deps = deps;
     }
+
     return cell.value;
   },
   useEffect(effect, deps) {
     const cell = slot();
+
     if (!changed(cell.deps, deps)) {
       return;
     }
+
     cell.deps = deps;
     state.pending.push(() => {
       cell.cleanup?.();
@@ -122,14 +135,17 @@ export const reactHooks: ReactHooks = {
   },
   useRef(initial) {
     const cell = slot();
+
     if (!("value" in cell)) {
       cell.value = { current: initial };
     }
+
     // SAFETY: the branch above stored a ref object in this slot.
     return cell.value as { current: unknown };
   },
   useSyncExternalStore(subscribe, getSnapshot) {
     const cell = slot();
+
     if (cell.subscribe !== subscribe) {
       cell.cleanup?.();
       cell.subscribe = subscribe;
@@ -139,7 +155,9 @@ export const reactHooks: ReactHooks = {
         }
       });
     }
+
     cell.value = getSnapshot();
+
     return cell.value;
   },
 };
@@ -169,10 +187,12 @@ export function renderHook<P, R>(
     do {
       state.dirty = false;
       state.busy = true;
+
       try {
         state.index = 0;
         before?.();
         result = hook(props);
+
         for (const effect of state.pending.splice(0)) {
           effect();
         }
@@ -181,7 +201,9 @@ export function renderHook<P, R>(
       }
     } while (dirty());
   };
+
   state.render();
+
   return {
     get result(): R {
       // SAFETY: the first render above assigned it.
@@ -195,6 +217,7 @@ export function renderHook<P, R>(
       for (const cell of state.slots) {
         cell.cleanup?.();
       }
+
       state.slots = [];
       state.render = () => undefined;
     },

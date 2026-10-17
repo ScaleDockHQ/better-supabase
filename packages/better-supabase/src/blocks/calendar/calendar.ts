@@ -182,12 +182,14 @@ const ROLES: readonly AttendeeRole[] = [
   "optional",
   "non-participant",
 ];
+
 const RESPONSES: readonly AttendeeResponse[] = [
   "needs-action",
   "accepted",
   "declined",
   "tentative",
 ];
+
 const STATUSES: readonly CalendarEventStatus[] = [
   "confirmed",
   "tentative",
@@ -197,6 +199,7 @@ const STATUSES: readonly CalendarEventStatus[] = [
 function attendeeOf(value: Record<string, unknown>): CalendarAttendee {
   const name = optionalText(value["name"]);
   const userId = optionalText(value["userId"]);
+
   return {
     email: textOf(value["email"]),
     ...(name === undefined ? {} : { name }),
@@ -209,13 +212,17 @@ function attendeeOf(value: Record<string, unknown>): CalendarAttendee {
 /** A `list_calendar_events` or `calendar_feed` row as an event. */
 export function calendarEventOf(value: unknown): CalendarEvent {
   const row = recordOf(value, "calendar event");
+
   const text = (key: string) => {
     const found = optionalText(row[key]);
+
     return found === undefined ? {} : { [key]: found };
   };
+
   const originalStart = optionalInstant(row["originalStart"]);
   const updatedAt = optionalInstant(row["updatedAt"]);
   const exdates = Array.isArray(row["exdates"]) ? row["exdates"] : [];
+
   return {
     id: textOf(row["id"]),
     calendarId: textOf(row["calendarId"]),
@@ -249,10 +256,12 @@ function itemOf(
   },
 ): Record<string, unknown> {
   const item: Record<string, unknown> = {};
+
   for (const [key, value] of Object.entries(input)) {
     if (value === undefined) {
       continue;
     }
+
     if (key === "exdates" && Array.isArray(value)) {
       item[key] = value.map(String);
     } else if (
@@ -265,6 +274,7 @@ function itemOf(
       item[key] = value;
     }
   }
+
   return item;
 }
 
@@ -334,8 +344,10 @@ export function createCalendar<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: CalendarOptions<S>): Calendar<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   const call = blockCall(options.transport, options.schema, options.mappers);
   const fields: BlockFields<F> = blockFields(options.fields, "event fields");
+
   /** The item a write sends, with its extra fields validated. */
   const checked = (
     input: Parameters<typeof itemOf>[0],
@@ -343,14 +355,17 @@ export function createCalendar<
     AsyncResult.from(() => fields.write(extraOf(input, EVENT_INPUT))).map(
       (extra) => ({ ...extra, ...itemOf(input) }),
     );
+
   const saved = (value: unknown): SavedCalendarEvent => {
     const row = recordOf(value, "save_calendar_event");
+
     return {
       id: textOf(row["id"]),
       uid: textOf(row["uid"]),
       created: row["created"] === true,
     };
   };
+
   const save = (
     calendarId: string,
     input: Parameters<typeof itemOf>[0],
@@ -358,6 +373,7 @@ export function createCalendar<
     checked(input).andThen((item) =>
       call("save_calendar_event", { calendar_id: calendarId, item }, saved),
     );
+
   const list = (
     calendarIds: readonly string[],
     range: OccurrenceRange | typeof INFINITE,
@@ -374,6 +390,7 @@ export function createCalendar<
           (raw) => [raw, calendarEventOf(raw)] as const,
         ),
     ).andThen((rows) => allWithFields(fields, rows));
+
   const client: Calendar<F> = {
     createCalendar: (organizationId, name, extra = {}) =>
       call(
@@ -393,12 +410,15 @@ export function createCalendar<
       call("list_calendars", { tenant: organizationId }, (value) =>
         recordsOf(value, "list_calendars").map((row) => {
           const extra: Record<string, string> = {};
+
           for (const key of ["color", "ownerType", "ownerId"]) {
             const found = optionalText(row[key]);
+
             if (found !== undefined) {
               extra[key] = found;
             }
           }
+
           return {
             id: textOf(row["id"]),
             name: textOf(row["name"]),
@@ -421,18 +441,21 @@ export function createCalendar<
       ),
     editOccurrence: (occurrence, changes) => {
       const series = occurrence.series;
+
       if (!occurrence.recurring || series === undefined) {
         return save(occurrence.event.calendarId, {
           ...changes,
           id: occurrence.event.id,
         });
       }
+
       if (occurrence.event.recurrenceId !== undefined) {
         return save(occurrence.event.calendarId, {
           ...changes,
           id: occurrence.event.id,
         });
       }
+
       return save(series.calendarId, {
         ...copyOf(series),
         startsAt: occurrence.start,
@@ -446,18 +469,22 @@ export function createCalendar<
     },
     editFollowing: (occurrence, changes) => {
       const series = occurrence.series;
+
       if (!occurrence.recurring || series?.rrule === undefined) {
         return save(occurrence.event.calendarId, {
           ...changes,
           id: occurrence.event.id,
         }).map(({ id }) => ({ id }));
       }
+
       if (occurrence.originalStart.equals(series.startsAt)) {
         return save(series.calendarId, { ...changes, id: series.id }).map(
           ({ id }) => ({ id }),
         );
       }
+
       let rules: ReturnType<typeof splitRule>;
+
       try {
         rules = splitRule(
           series.rrule,
@@ -475,7 +502,9 @@ export function createCalendar<
           ),
         );
       }
+
       const length = series.endsAt.since(series.startsAt);
+
       return checked({
         ...copyOf(series),
         startsAt: occurrence.originalStart,
@@ -499,6 +528,7 @@ export function createCalendar<
     },
     cancelOccurrence: (occurrence) => {
       const series = occurrence.series;
+
       if (!occurrence.recurring || series === undefined) {
         return call(
           "delete_calendar_event",
@@ -506,6 +536,7 @@ export function createCalendar<
           (value) => value === true,
         );
       }
+
       return call(
         "cancel_calendar_occurrence",
         {
@@ -541,6 +572,7 @@ export function createCalendar<
       ),
     importIcs: (calendarId, text) => {
       const parsed = parseIcs(text);
+
       return call(
         "import_calendar_events",
         {
@@ -549,6 +581,7 @@ export function createCalendar<
         },
         (value) => {
           const row = recordOf(value, "import_calendar_events");
+
           return {
             created: Number(row["created"] ?? 0),
             updated: Number(row["updated"] ?? 0),
@@ -566,8 +599,10 @@ export function createCalendar<
         if (value === null || value === undefined) {
           return null;
         }
+
         const row = recordOf(value, "calendar_feed");
         const info = recordOf(row["calendar"], "calendar_feed");
+
         return toIcs(
           recordsOf(row["events"], "calendar_feed").map(calendarEventOf),
           {
@@ -577,6 +612,7 @@ export function createCalendar<
         );
       }),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "calendar",
     ...(options.logger ? { logger: options.logger } : {}),

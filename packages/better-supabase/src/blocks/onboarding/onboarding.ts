@@ -104,15 +104,19 @@ export function defineChecklist<
   if (!ID.test(spec.id)) {
     throw new TypeError(`defineChecklist: "${spec.id}" is not a checklist id`);
   }
+
   const seen = new Set<string>();
+
   for (const step of spec.steps) {
     if (!ID.test(step.id) || seen.has(step.id)) {
       throw new TypeError(
         `defineChecklist(${spec.id}): step "${step.id}" is not a unique step id`,
       );
     }
+
     seen.add(step.id);
   }
+
   return spec;
 }
 
@@ -123,9 +127,11 @@ export function defineChecklist<
 export function createOnboarding(options: OnboardingOptions): Onboarding {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const tenantOf = (subject: readonly string[]) => ({
     tenant: subject[0] ?? null,
   });
+
   const client: Onboarding = {
     progress: (checklist, ...subject) =>
       call(
@@ -146,6 +152,7 @@ export function createOnboarding(options: OnboardingOptions): Onboarding {
         (value) => value === true,
       ),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "onboarding",
     ...(options.logger ? { logger: options.logger } : {}),
@@ -162,8 +169,10 @@ function progressOf<Id extends string>(
       row,
     ]),
   );
+
   const list = steps.map((step): StepProgress<Id> => {
     const row = rows.get(step.id);
+
     return {
       ...step,
       completed: row !== undefined,
@@ -171,7 +180,9 @@ function progressOf<Id extends string>(
       completedBy: optionalText(row?.["completedBy"]),
     };
   });
+
   const completed = list.filter((step) => step.completed).length;
+
   return {
     steps: list,
     completed,

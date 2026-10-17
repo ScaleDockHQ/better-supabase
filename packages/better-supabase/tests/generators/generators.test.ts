@@ -22,6 +22,7 @@ import fixture from "../fixtures/snapshot.json" with { type: "json" };
 
 function importPath(fromFile: string, toFile: string): string {
   const path = relative(dirname(fromFile), toFile).split(sep).join("/");
+
   return path.startsWith(".") ? path : `./${path}`;
 }
 
@@ -43,6 +44,7 @@ describe("zod generator", () => {
       status: "deleted",
       organizationId: "x",
     });
+
     expect(result.success).toBe(false);
     expect(
       result.error?.issues.map((issue) => issue.path.join(".")).sort(),
@@ -55,6 +57,7 @@ describe("zod generator", () => {
       customerId: customer.organizationId,
       body: "hi",
     };
+
     expect(zodSchemas.notesInsert.parse({ ...note, id: 5 })).toEqual(note);
     expect(
       zodSchemas.notesRow.safeParse({
@@ -75,11 +78,13 @@ describe("zod generator", () => {
 describe("zod generator, mini flavor", () => {
   it("validates the same shapes with zod/mini", () => {
     expect(zodMiniSchemas.customersInsert.parse(customer)).toEqual(customer);
+
     const result = zodMiniSchemas.customersInsert.safeParse({
       ...customer,
       status: "deleted",
       organizationId: "x",
     });
+
     expect(
       result.error?.issues.map((issue) => issue.path.join(".")).sort(),
     ).toEqual(["organizationId", "status"]);
@@ -123,11 +128,13 @@ describe("standard schema generator", () => {
     expect(props.validate({ ...customer, extra: 1 })).toEqual({
       value: customer,
     });
+
     const bad = props.validate({
       ...customer,
       status: "deleted",
       organizationId: "x",
     });
+
     expect(
       !(bad instanceof Promise) &&
         bad.issues?.map((issue) => issue.path?.join(".")).sort(),
@@ -140,6 +147,7 @@ describe("standard schema generator", () => {
       customerId: customer.organizationId,
       body: "hi",
     };
+
     expect(
       standardSchemas.notesInsert["~standard"].validate({ ...note, id: 5 }),
     ).toEqual({ value: note });
@@ -152,7 +160,9 @@ describe("standard schema generator", () => {
         "utf-8",
       ),
     ) as { $defs: Record<string, Record<string, unknown>> };
+
     const { validators: _, ...schemas } = standardSchemas;
+
     for (const [name, schema] of Object.entries(schemas)) {
       expect(
         schema["~standard"].jsonSchema.input({ target: "draft-2020-12" }),
@@ -183,6 +193,7 @@ describe("json schema generator", () => {
         { required?: string[]; properties: Record<string, unknown> }
       >;
     };
+
     const insert = doc.$defs["customersInsert"];
     expect(insert?.required).toEqual(["organizationId", "name"]);
     expect(insert?.properties["status"]).toEqual({
@@ -227,6 +238,7 @@ const tableMeta = (
 });
 
 const root = "/project";
+
 const config = resolveConfig(
   {
     output: "src/generated.ts",
@@ -334,11 +346,13 @@ describe("zod()", () => {
         "export const eventViewRow: z.ZodType<RowOf<'eventView'>> = z.object({",
       ]),
     );
+
     const insert = text.slice(
       text.indexOf(
         "export const eventsInsert: z.ZodType<InsertOf<'events'>> = z.object({",
       ),
     );
+
     expect(insert.slice(0, insert.indexOf("});"))).not.toContain(
       "  id: z.int(),",
     );
@@ -422,10 +436,12 @@ describe("valibot()", () => {
 describe("jsonSchema()", () => {
   it("writes a property per scalar kind", async () => {
     const [file] = await jsonSchema({ id: "urn:test" }).generate(input);
+
     const doc = JSON.parse(file!.contents) as {
       $id: string;
       $defs: Record<string, { properties: Record<string, unknown> }>;
     };
+
     expect(doc.$id).toBe("urn:test");
     expect(doc.$defs["eventsRow"]?.properties).toMatchObject({
       id: { type: "integer" },
@@ -478,6 +494,7 @@ describe("standardSchema()", () => {
   it("matches buildJsonSchema for every variant", async () => {
     const [file] = await standardSchema().generate(input);
     const defs = buildJsonSchema(input)["$defs"] as Record<string, unknown>;
+
     for (const name of Object.keys(defs)) {
       expect(file!.contents).toContain(`export const ${name}: TableSchema<`);
     }

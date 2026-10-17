@@ -25,6 +25,7 @@ const user: UIMessage = {
   role: "user",
   parts: [{ type: "text", text: "Delete the file" }],
 };
+
 const answered: UIMessage = {
   id: "a1",
   role: "assistant",
@@ -56,6 +57,7 @@ function capture() {
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
       calls.push({ url, init });
+
       return new Response(SSE, {
         headers: {
           "content-type": "text/event-stream",
@@ -64,11 +66,13 @@ function capture() {
       });
     }),
   );
+
   return calls;
 }
 
 async function drain(stream: ReadableStream<unknown>): Promise<void> {
   const reader = stream.getReader();
+
   while (!(await reader.read()).done) {
     // Every chunk is read so the producer can finish.
   }
@@ -145,11 +149,13 @@ describe("useDurableAssistant", () => {
   it("does not resume by default and continues after approvals", () => {
     chatHook.mockReturnValue({ messages: [], stop: vi.fn() });
     useDurableAssistant({ id: "c1" });
+
     const options = chatHook.mock.lastCall?.[0] as {
       transport: ChatTransport<UIMessage>;
       resume: boolean;
       sendAutomaticallyWhen: (input: { messages: UIMessage[] }) => boolean;
     };
+
     expect(options.resume).toBe(false);
     expect(options.sendAutomaticallyWhen({ messages: [user, answered] })).toBe(
       true,

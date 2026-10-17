@@ -14,16 +14,20 @@ const result = <T>(value: T) => AsyncResult.from(async () => ok(value));
 
 function fakeChats(failSave = false) {
   const calls: { name: string; args: unknown[] }[] = [];
+
   const record =
     <T>(name: string, value: T) =>
     (...args: unknown[]) => {
       calls.push({ name, args });
+
       return result(value);
     };
+
   const api = {
     messages: {
       saveAssistant: (...args: unknown[]) => {
         calls.push({ name: "saveAssistant", args });
+
         return failSave
           ? AsyncResult.from(async () => err(dbError("unexpected", "down")))
           : result({ messageId: "m1", parentId: "u1", created: true });
@@ -39,6 +43,7 @@ function fakeChats(failSave = false) {
     },
     runs: { release: record("release", true) },
   };
+
   // SAFETY: the fake implements the calls the steps make.
   return { chats: api as unknown as AiChat, calls };
 }

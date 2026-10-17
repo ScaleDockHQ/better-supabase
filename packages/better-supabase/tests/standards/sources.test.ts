@@ -7,6 +7,7 @@ const folder = new URL("schemas/", import.meta.url);
 describe("vendored schemas", () => {
   it("match the SHA-256 recorded in SOURCES.md and nothing is unlisted", async () => {
     const sources = await readFile(new URL("SOURCES.md", folder), "utf-8");
+
     const pinned = new Map(
       [
         ...sources.matchAll(
@@ -14,11 +15,14 @@ describe("vendored schemas", () => {
         ),
       ].map((match) => [match[1]!, match[2]!]),
     );
+
     const files = (await readdir(folder)).filter(
       (file) => file !== "SOURCES.md",
     );
+
     expect(files.toSorted()).toEqual([...pinned.keys()].toSorted());
     const digests = new Map<string, string>();
+
     for (const file of files) {
       digests.set(
         file,
@@ -27,6 +31,7 @@ describe("vendored schemas", () => {
           .digest("hex"),
       );
     }
+
     expect(Object.fromEntries(digests)).toEqual(Object.fromEntries(pinned));
   });
 });

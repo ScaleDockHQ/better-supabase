@@ -14,17 +14,20 @@ vi.mock("next/headers.js", () => ({
   headers: () => Promise.resolve(mocks.headers),
   cookies: () => Promise.resolve({ set: () => undefined }),
 }));
+
 vi.mock("next/server.js", async (original) => ({
   ...(await original<Record<string, unknown>>()),
   after: () => undefined,
 }));
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
+
 const env = {
   url: PROJECT_URL,
   publishableKey: "sb_publishable_test",
   jwksUrl: new URL(`${PROJECT_URL}/auth/v1/.well-known/jwks.json`),
 };
+
 const USER = "11111111-1111-4111-8111-111111111111";
 const signer = await createTestSigner();
 
@@ -50,11 +53,13 @@ describe("bs.resources()", () => {
         ? { outcome: "granted" }
         : { outcome: "approval-required", approval: { id: "apr_9" } },
   });
+
   const bs = createNext(defineSupabase(schema), {
     env,
     auth: { jwks: signer.jwks as never },
     authorizer,
   });
+
   const routes = bs.resources(
     {
       customers: {
@@ -86,6 +91,7 @@ describe("bs.resources()", () => {
     },
     { basePath: "/api" },
   );
+
   const call = async (path: string, method = "GET", body?: unknown) =>
     routes[method === "GET" ? "GET" : "POST"](
       new NextRequest(`https://app.test${path}`, {
@@ -130,8 +136,10 @@ describe("bs.resources()", () => {
     mocks.headers = new Headers({
       authorization: `Bearer ${await signer.sign({ sub: USER })}`,
     });
+
     const request = () =>
       new NextRequest("https://app.test/api/x", { headers: mocks.headers });
+
     const segment = { params: Promise.resolve({}) };
     const byRole = bs.route(() => ({ ok: true }), { roles: ["admin"] });
     expect((await byRole(request(), segment)).status).toBe(403);

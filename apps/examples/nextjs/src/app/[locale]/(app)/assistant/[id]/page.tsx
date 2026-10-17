@@ -16,6 +16,7 @@ export default function AssistantChatPage({
   params,
 }: PageProps<"/[locale]/assistant/[id]">) {
   const t = useExtracted("assistant");
+
   return (
     <>
       <Link

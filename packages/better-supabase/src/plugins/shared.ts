@@ -36,6 +36,7 @@ export function withDefault(
   if (column === undefined || column in row) {
     return row;
   }
+
   return { ...row, [column]: value };
 }
 
@@ -53,12 +54,15 @@ export function guardManaged(
   if (options["override"] === true) {
     return true;
   }
+
   const rows =
     op.kind === "insert" ? op.rows : op.kind === "update" ? [op.set] : [];
+
   for (const column of columns) {
     if (column === undefined) {
       continue;
     }
+
     if (rows.some((row) => column in row)) {
       throw new DbException(
         dbError(
@@ -69,6 +73,7 @@ export function guardManaged(
       );
     }
   }
+
   return false;
 }
 

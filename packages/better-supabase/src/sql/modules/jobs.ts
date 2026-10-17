@@ -5,27 +5,32 @@ import { SCHEMA, serviceOnly, revokeTable } from "../shared.ts";
 import { table } from "./jobs-table.ts";
 
 export type JobsBackend = "pgmq" | "table";
+
 export type JobsScheduler = "pg_cron" | "drain";
 
 /** `blocks.jobs.options.backend`: Supabase Queues (pgmq) or a plain table. */
 function jobsBackend(ctx: ModuleContext): JobsBackend {
   const backend = ctx.text("backend", "pgmq");
+
   if (backend !== "pgmq" && backend !== "table") {
     throw new TypeError(
       `blocks.jobs.options.backend must be "pgmq" or "table", not "${backend}"`,
     );
   }
+
   return backend;
 }
 
 /** `blocks.jobs.options.scheduler`: pg_cron, or due schedules run by the drain route. */
 function jobsScheduler(ctx: ModuleContext): JobsScheduler {
   const scheduler = ctx.text("scheduler", "pg_cron");
+
   if (scheduler !== "pg_cron" && scheduler !== "drain") {
     throw new TypeError(
       `blocks.jobs.options.scheduler must be "pg_cron" or "drain", not "${scheduler}"`,
     );
   }
+
   return scheduler;
 }
 
@@ -52,9 +57,11 @@ drop function if exists better_supabase.claim_due_schedules(integer, integer);`;
  */
 function archiveGuard(ctx: ModuleContext): string {
   const held = ctx.held("job_archive", "null");
+
   if (held === "false") {
     return "null;";
   }
+
   return `if ${held} then
     return 0;
   end if;
@@ -726,6 +733,7 @@ const GRANTS = (backend: JobsBackend): string =>
 function jobsSql(ctx: ModuleContext): string {
   const backend = jobsBackend(ctx);
   const scheduler = jobsScheduler(ctx);
+
   return [
     SCHEMA,
     LEGACY,

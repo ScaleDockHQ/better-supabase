@@ -20,6 +20,7 @@ export function ApprovalButtons({
 }) {
   const t = useExtracted("assistant");
   const errorMessage = useErrorMessage();
+
   const decide = useAction(decideApproval, {
     onSuccess: (approved) => {
       toast.success(approved ? t("Approved") : t("Denied"));
@@ -28,6 +29,7 @@ export function ApprovalButtons({
       toast.error(errorMessage(error));
     },
   });
+
   return (
     <div className="flex gap-2">
       <Button

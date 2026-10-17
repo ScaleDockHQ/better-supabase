@@ -1,3 +1,5 @@
+// Outside tsconfig.json's include, so linting this file alone needs Node's types here.
+/// <reference types="node" />
 import { dirname, relative, resolve } from "node:path";
 import { defineConfig } from "tsdown";
 
@@ -313,13 +315,17 @@ const USE_CLIENT_MODULE =
  */
 function librarySubpath(file: string): string | undefined {
   const path = relative(src, file).replace(/(\.d)?\.(ts|js)$/, "");
+
   if (path === "index") {
     return "";
   }
+
   if (!path.endsWith("/index") || path.startsWith("cli/")) {
     return undefined;
   }
+
   const subpath = path.slice(0, -"/index".length);
+
   return entries.includes(`${subpath}/index`) ? subpath : undefined;
 }
 
@@ -346,6 +352,7 @@ const library = defineConfig({
         if (!chunk.fileName.endsWith(".d.ts") || !code.includes("Temporal.")) {
           return null;
         }
+
         return `/// <reference lib="esnext.temporal" />\n${code}`;
       },
     },
@@ -360,6 +367,7 @@ const library = defineConfig({
         ) {
           return { id: "./session.js", external: true };
         }
+
         return null;
       },
     },
@@ -373,6 +381,7 @@ const library = defineConfig({
       ) {
         return;
       }
+
       handler(level, log);
     },
   },
@@ -419,10 +428,13 @@ const cli = defineConfig({
         if (!importer || !source.startsWith(".")) {
           return null;
         }
+
         const subpath = librarySubpath(resolve(dirname(importer), source));
+
         if (subpath === undefined) {
           return null;
         }
+
         return {
           id: subpath === "" ? "better-supabase" : `better-supabase/${subpath}`,
           external: true,

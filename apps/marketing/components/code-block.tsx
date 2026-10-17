@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 async function highlight(code: string, lang: string): Promise<string> {
   "use cache";
   cacheLife("max");
+
   return codeToHtml(code, {
     lang,
     themes: { light: "github-light", dark: "github-dark" },
@@ -24,6 +25,7 @@ export async function CodeBlock({
   className?: string;
 }) {
   const html = await highlight(snippet.code, snippet.language);
+
   return (
     <figure
       className={cn(

@@ -129,11 +129,13 @@ function lifecycles(
   fallback: readonly string[],
 ): readonly string[] {
   const list = ctx.list(name, fallback);
+
   if (list.length === 0 || list.some((item) => !STAGE.test(item))) {
     throw new TypeError(
       `blocks.parties.options.${name} must be a non-empty list of lowercase names`,
     );
   }
+
   return list;
 }
 
@@ -144,15 +146,19 @@ function tables(ctx: ModuleContext, names: PartyNames): string {
   if (!ctx.manages) {
     return "";
   }
+
   const { t, c } = names;
+
   const read = (
     table: string,
   ): string => `drop policy if exists ${ctx.tableName(table).name}_read on ${t(table)};
 create policy ${ctx.tableName(table).name}_read on ${t(table)} for select to authenticated
 using (${ctx.scope.check(c(table, "tenant"), names.read)});`;
+
   const co = (column: string): string => c("companies", column);
   const pe = (column: string): string => c("people", column);
   const li = (column: string): string => c("links", column);
+
   return `
 create table if not exists ${t("companies")} (
   ${co("id")} uuid primary key default gen_random_uuid(),
@@ -223,7 +229,9 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const keys = moduleOperations("parties");
+
   const names: PartyNames = {
     scope: ctx.scope,
     fn: (name) => ctx.fn(name),
@@ -239,6 +247,7 @@ function build(ctx: ModuleContext): string {
       lifecycles(ctx, "personLifecycles", PERSON_LIFECYCLES),
     ),
   };
+
   return `${schemaPreamble(ctx)}
 -- Companies and people an organization works with, and who works where.
 ${tables(ctx, names)}${partyFunctions(ctx, names)}${partiesInboxSql(ctx, names)}`;

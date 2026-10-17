@@ -32,13 +32,16 @@ type Handler = (args: Readonly<Record<string, unknown>>) => unknown;
 function fakeTransport(handlers: Record<string, Handler> = {}) {
   const calls: { schema: string; fn: string; args: Record<string, unknown> }[] =
     [];
+
   const transport: BlockTransport = {
     async call(schema, fn, args) {
       calls.push({ schema, fn, args: { ...args } });
       const handler = handlers[fn];
+
       return handler ? handler(args) : null;
     },
   };
+
   return { transport, calls };
 }
 
@@ -75,10 +78,13 @@ describe("createNotifications().sink", () => {
     const { transport, calls } = fakeTransport({
       send_notification: () => ({ id: "e1", recipients: ["u1"] }),
     });
+
     const seen: string[] = [];
+
     const sink = createNotifications({ transport, types }).sink({
       map(cloudEvent) {
         seen.push(cloudEvent.type);
+
         return cloudEvent.type === "organization.member_added"
           ? {
               type: "task.assigned",
@@ -88,6 +94,7 @@ describe("createNotifications().sink", () => {
           : null;
       },
     });
+
     await sink.send([
       event("organization.member_added", { partitionkey: "organization_1" }),
       event("organization.updated"),
@@ -107,6 +114,7 @@ describe("createNotifications().sink", () => {
 
   it("keeps the mapped key and tenant, and rejects when the send fails", async () => {
     const { transport, calls } = fakeTransport();
+
     const sink = createNotifications({ transport, types }).sink({
       typePrefix: "",
       map: async (cloudEvent) => ({
@@ -116,6 +124,7 @@ describe("createNotifications().sink", () => {
         data: { title: "Hi" },
       }),
     });
+
     await sink.send([event("x", { partitionkey: "organization_1" })]);
     expect(calls[0]?.args).toMatchObject({
       notification: {
@@ -123,6 +132,7 @@ describe("createNotifications().sink", () => {
         key: "own-dev.better-supabase.x",
       },
     });
+
     const failing = createNotifications({
       transport: {
         async call() {
@@ -133,6 +143,7 @@ describe("createNotifications().sink", () => {
     }).sink({
       map: () => ({ type: "task.assigned", data: { title: "Hi" } }),
     });
+
     await expect(failing.send([event("x")])).rejects.toThrow("denied");
   });
 });
@@ -142,10 +153,12 @@ describe("createNotifications().send", () => {
     const { transport, calls } = fakeTransport({
       send_notification: () => ({ id: "e1", recipients: ["u1", "u3"] }),
     });
+
     const events = new EventHub();
     const seen: unknown[] = [];
     events.on("block", (event) => seen.push([event.type, event.data]));
     const onSent = vi.fn();
+
     const notifications = createNotifications({
       transport,
       types,
@@ -153,6 +166,7 @@ describe("createNotifications().send", () => {
       events,
       onSent,
     });
+
     const sent = await notifications.send("task.assigned", {
       recipients: ["u1"],
       tenant: "organization_1",
@@ -160,6 +174,7 @@ describe("createNotifications().send", () => {
       data: { title: "Ship it" },
       key: "task-42",
     });
+
     expect(sent).toMatchObject({
       ok: true,
       data: { id: "e1", recipients: ["u1", "u3"] },
@@ -202,6 +217,7 @@ describe("createNotifications().send", () => {
     const { transport, calls } = fakeTransport({
       set_notification_subscription: () => null,
     });
+
     await createNotifications({ transport, types })
       .subscribe({
         subject: { type: "task", id: "42" },
@@ -221,6 +237,7 @@ describe("createNotifications().send", () => {
     const { transport, calls } = fakeTransport({
       send_notification: () => ({ id: "e2" }),
     });
+
     await createNotifications({ transport, types })
       .send("task.assigned", {
         recipients: ["u1"],
@@ -238,19 +255,23 @@ describe("createNotifications().send", () => {
   it("rejects unknown types and invalid data without calling the database", async () => {
     const { transport, calls } = fakeTransport();
     const notifications = createNotifications({ transport, types });
+
     const unknown = await notifications.send(
       // @ts-expect-error -- not a configured type
       "nope",
       { data: {} },
     );
+
     expect(unknown).toMatchObject({
       ok: false,
       error: { kind: "validation", hint: "NOTIFICATION_TYPE_UNKNOWN" },
     });
+
     const invalid = await notifications.send("task.assigned", {
       // @ts-expect-error -- title is required
       data: {},
     });
+
     expect(invalid).toMatchObject({ ok: false, error: { kind: "validation" } });
     expect(calls).toHaveLength(0);
   });
@@ -259,9 +280,11 @@ describe("createNotifications().send", () => {
     const { transport } = fakeTransport({ send_notification: () => null });
     const onSent = vi.fn();
     const notifications = createNotifications({ transport, types, onSent });
+
     const sent = await notifications.send("task.assigned", {
       data: { title: "x" },
     });
+
     expect(sent).toMatchObject({ ok: true, data: null });
     expect(onSent).not.toHaveBeenCalled();
   });
@@ -275,10 +298,13 @@ describe("createNotifications().send", () => {
         });
       },
     });
+
     const notifications = createNotifications({ transport, types });
+
     const denied = await notifications.send("task.assigned", {
       data: { title: "x" },
     });
+
     expect(denied).toMatchObject({
       ok: false,
       error: { kind: "forbidden", hint: "NOTIFICATION_FORBIDDEN" },
@@ -293,6 +319,7 @@ describe("createNotifications().send", () => {
         throw new Error("cache down");
       },
     });
+
     const sent = await failing.send("task.assigned", { data: { title: "x" } });
     expect(sent.ok).toBe(false);
   });
@@ -305,6 +332,7 @@ describe("createNotifications reads and writes", () => {
       notification_page: () => ({ items: [], total: 0 }),
       mark_notifications_read: () => null,
     });
+
     const notifications = createNotifications({
       transport,
       types,
@@ -312,6 +340,7 @@ describe("createNotifications reads and writes", () => {
         title: `${locale ?? "en"}: ${item.summary ?? ""}`,
       }),
     });
+
     expect(
       await notifications.get("r1", { locale: "nl" }).orThrow(),
     ).toMatchObject({ id: "r1", text: { title: "nl: Assigned" } });
@@ -335,6 +364,7 @@ describe("createNotifications reads and writes", () => {
     const { transport, calls } = fakeTransport({
       list_notifications: () => [row(), row({ id: "r2", subject_type: null })],
     });
+
     const notifications = createNotifications({
       transport,
       types,
@@ -342,6 +372,7 @@ describe("createNotifications reads and writes", () => {
         title: `${locale ?? "en"}: ${item.summary ?? ""}`,
       }),
     });
+
     const listed = await notifications.list({
       status: "unread",
       types: ["task.assigned"],
@@ -349,6 +380,7 @@ describe("createNotifications reads and writes", () => {
       limit: 10,
       locale: "nl",
     });
+
     expect(listed.ok).toBe(true);
     const [first, second] = listed.ok ? listed.data : [];
     expect(first).toMatchObject({
@@ -384,11 +416,13 @@ describe("createNotifications reads and writes", () => {
     const { transport, calls } = fakeTransport({
       notification_page: () => ({ items: [row()], total: 31 }),
     });
+
     const notifications = createNotifications({
       transport,
       types,
       render: (item) => ({ title: item.summary ?? "" }),
     });
+
     const page = await notifications
       .page({
         status: "settled",
@@ -398,6 +432,7 @@ describe("createNotifications reads and writes", () => {
         offset: 30,
       })
       .orThrow();
+
     expect(page.total).toBe(31);
     expect(page.items[0]).toMatchObject({
       id: "r1",
@@ -449,15 +484,18 @@ describe("createNotifications reads and writes", () => {
         "not a row",
       ],
     });
+
     const notifications = createNotifications({ transport, types });
     expect(
       await notifications
         .markUnread({ ids: ["r1", "r2"], tenant: "organization_1" })
         .orThrow(),
     ).toMatchObject({ count: 2, items: [{ id: "r1" }, { id: "r2" }] });
+
     const subscriptions = await notifications
       .subscriptions({ tenant: "organization_1", subject: { type: "task" } })
       .orThrow();
+
     expect(subscriptions).toHaveLength(1);
     expect(subscriptions[0]).toMatchObject({
       subject: { type: "task", id: "42" },
@@ -481,10 +519,12 @@ describe("createNotifications reads and writes", () => {
       ],
       ["list_notification_preferences", { tenant: null }],
     ]);
+
     const odd = fakeTransport({
       list_notification_subscriptions: () => null,
       list_notification_preferences: () => null,
     });
+
     const quiet = createNotifications({ transport: odd.transport, types });
     expect(await quiet.subscriptions().orThrow()).toEqual([]);
     expect(await quiet.preferences().orThrow()).toEqual([]);
@@ -503,6 +543,7 @@ describe("createNotifications reads and writes", () => {
         bad: "not a profile",
       }),
     });
+
     const hydrate = vi.fn(
       (
         items: readonly { actorId: string | null }[],
@@ -511,6 +552,7 @@ describe("createNotifications reads and writes", () => {
         names: new Map(items.map((item) => [item.actorId, "Ada"])),
       }),
     );
+
     const notifications = createNotifications({
       transport,
       types,
@@ -519,9 +561,11 @@ describe("createNotifications reads and writes", () => {
         title: `${hydrated?.names.get(item.actorId) ?? "?"} assigned you`,
       }),
     });
+
     const listed = await notifications
       .list({ include: ["actor"], locale: "en" })
       .orThrow();
+
     expect(hydrate).toHaveBeenCalledTimes(1);
     expect(hydrate.mock.calls[0]![1]).toEqual({ locale: "en" });
     expect(listed[0]).toMatchObject({
@@ -550,6 +594,7 @@ describe("createNotifications reads and writes", () => {
         u2: { username: "cy", avatarPath: "" },
       }),
     };
+
     const bucket = await createNotifications({
       transport: fakeTransport(handlers).transport,
       types,
@@ -557,6 +602,7 @@ describe("createNotifications reads and writes", () => {
     })
       .list({ include: ["actor"] })
       .orThrow();
+
     expect(bucket.map((item) => item.actor)).toEqual([
       {
         id: "u0",
@@ -569,6 +615,7 @@ describe("createNotifications reads and writes", () => {
       { id: "u1", username: "bob", avatarPath: null },
       { id: "u2", username: "cy", avatarPath: "" },
     ]);
+
     const custom = await createNotifications({
       transport: fakeTransport(handlers).transport,
       types,
@@ -576,13 +623,16 @@ describe("createNotifications reads and writes", () => {
     })
       .list({ include: ["actor"] })
       .orThrow();
+
     expect(custom[0]!.actor?.avatarUrl).toBe("https://cdn.test/u0/face 1.webp");
+
     const plain = await createNotifications({
       transport: fakeTransport(handlers).transport,
       types,
     })
       .list({ include: ["actor"] })
       .orThrow();
+
     expect(plain[0]!.actor).not.toHaveProperty("avatarUrl");
   });
 
@@ -590,29 +640,35 @@ describe("createNotifications reads and writes", () => {
     const quiet = fakeTransport({
       list_notifications: () => [row({ actor_id: null })],
     });
+
     const plain = await createNotifications({
       transport: quiet.transport,
       types,
     })
       .list({ include: ["actor"] })
       .orThrow();
+
     expect(plain[0]!.actor).toBeNull();
     expect(quiet.calls).toHaveLength(1);
+
     const failing = fakeTransport({
       list_notifications: () => [row()],
       notification_actors: () => {
         throw Object.assign(new Error("missing"), { code: "42883" });
       },
     });
+
     expect(
       await createNotifications({ transport: failing.transport, types }).list({
         include: ["actor"],
       }),
     ).toMatchObject({ ok: false });
+
     const odd = fakeTransport({
       list_notifications: () => [row()],
       notification_actors: () => null,
     });
+
     expect(
       (
         await createNotifications({ transport: odd.transport, types })
@@ -620,12 +676,14 @@ describe("createNotifications reads and writes", () => {
           .orThrow()
       )[0]!.actor,
     ).toBeNull();
+
     const thrown = fakeTransport({
       list_notifications: () => [row()],
       notification_actors: () => {
         throw new Error("boom");
       },
     });
+
     expect(
       await createNotifications({ transport: thrown.transport, types }).list({
         include: ["actor"],
@@ -648,11 +706,13 @@ describe("createNotifications reads and writes", () => {
       resolve_notifications: () => ({ count: 4, items: "not a list" }),
       purge_notifications: () => 12,
     });
+
     const notifications = createNotifications({
       transport,
       types,
       actionable: ["approval.requested"],
     });
+
     expect(
       await notifications.counts({ tenant: "organization_1" }),
     ).toMatchObject({
@@ -736,14 +796,18 @@ describe("createNotifications reads and writes", () => {
 describe("createNotifications().deliver", () => {
   const claim = (deliveries: Record<string, unknown>[]) => {
     let served = false;
+
     return () => {
       if (served) {
         return [];
       }
+
       served = true;
+
       return deliveries;
     };
   };
+
   const delivery = (id: string, attempts = 1) => ({
     delivery_id: id,
     user_id: "u1",
@@ -761,22 +825,27 @@ describe("createNotifications().deliver", () => {
         delivery("d4", 5),
       ]),
     });
+
     const send = vi.fn<NotificationChannel["send"]>((message) => {
       switch (message.deliveryId) {
         case "d1": {
           return { provider: "resend", providerMessageId: "m1" };
         }
+
         case "d2": {
           return { status: "skipped" };
         }
+
         default: {
           throw new Error("smtp down");
         }
       }
     });
+
     const events = new EventHub();
     const seen: string[] = [];
     events.on("block", (event) => seen.push(event.type));
+
     const notifications = createNotifications({
       transport,
       types,
@@ -784,6 +853,7 @@ describe("createNotifications().deliver", () => {
       render: (item) => ({ title: item.summary ?? "" }),
       channels: [{ apiVersion: 1, name: "email", send }],
     });
+
     const result = await notifications.deliver({ batch: 10, budgetMs: 10_000 });
     expect(result).toEqual({ sent: 1, skipped: 1, failed: 2 });
     expect(send.mock.calls[0]?.[0]).toMatchObject({
@@ -792,9 +862,11 @@ describe("createNotifications().deliver", () => {
       text: { title: "Assigned" },
       notification: { eventId: "e1", type: "task.assigned" },
     });
+
     const completions = calls
       .filter((call) => call.fn === "complete_notification_delivery")
       .map((call) => call.args);
+
     expect(completions).toEqual([
       {
         delivery: "d1",
@@ -830,19 +902,24 @@ describe("createNotifications().deliver", () => {
 
   it("only works on the requested channels and claims again while batches are full", async () => {
     let claims = 0;
+
     const { transport, calls } = fakeTransport({
       claim_notification_deliveries: () => {
         claims += 1;
+
         return claims === 1 ? [delivery("d1")] : [];
       },
     });
+
     const email = { apiVersion: 1 as const, name: "email", send: vi.fn() };
     const push = { apiVersion: 1 as const, name: "push", send: vi.fn() };
+
     const notifications = createNotifications({
       transport,
       types,
       channels: [email, push],
     });
+
     expect(
       await notifications.deliver({ channels: ["email"], batch: 1 }),
     ).toEqual({ sent: 1, skipped: 0, failed: 0 });
@@ -856,11 +933,13 @@ describe("createNotifications().deliver", () => {
     const { transport } = fakeTransport({
       claim_notification_deliveries: claim([{ delivery_id: "d1" }]),
     });
+
     const notifications = createNotifications({
       transport,
       types,
       channels: [{ apiVersion: 1, name: "email", send: vi.fn() }],
     });
+
     await expect(notifications.deliver()).rejects.toThrow(/no notification/);
   });
 });
@@ -868,17 +947,20 @@ describe("createNotifications().deliver", () => {
 describe("testNotificationChannel", () => {
   it("passes a conforming channel and checks delivery", async () => {
     const received: string[] = [];
+
     const report = await testNotificationChannel(
       {
         apiVersion: 1,
         name: "email",
         send: (message) => {
           received.push(message.deliveryId);
+
           return { status: "sent", provider: "test" };
         },
       },
       { email: "a@b.test", received: async () => received },
     );
+
     expect(report.checks.every((check) => check.ok)).toBe(true);
   });
 
@@ -920,6 +1002,7 @@ describe("typed notification data and hooks", () => {
         row({ id: "r2", type: "retired.type", data: { anything: true } }),
       ],
     });
+
     const notifications = createNotifications({ transport, types: typed });
     const [paid, retired] = await notifications.list().orThrow();
     expect(paid).toMatchObject({
@@ -933,6 +1016,7 @@ describe("typed notification data and hooks", () => {
     const { transport } = fakeTransport({
       get_notification: () => row({ type: "invoice.paid", data: {} }),
     });
+
     const notifications = createNotifications({ transport, types: typed });
     expect(await notifications.get("r1")).toMatchObject({
       ok: false,
@@ -944,17 +1028,20 @@ describe("typed notification data and hooks", () => {
     const { transport, calls } = fakeTransport({
       send_notification: () => ({ id: "e1", recipients: ["u1"] }),
     });
+
     const before = vi.fn(
       ([, input]: readonly [string, { readonly tenant?: string }]) =>
         input.tenant === "frozen"
           ? dbError("forbidden", "This organization is frozen")
           : undefined,
     );
+
     const notifications = createNotifications({
       transport,
       types,
       hooks: { send: { before } },
     });
+
     expect(
       await notifications.send("task.assigned", {
         tenant: "frozen",

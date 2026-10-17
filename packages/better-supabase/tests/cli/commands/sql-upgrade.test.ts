@@ -46,6 +46,7 @@ describe("sql upgrade with forward steps", () => {
 
   it("writes the steps with SQL into a migration before the schema diff", async () => {
     await sql(["sync"]);
+
     const path =
       "supabase/migrations/20261003080910_better_supabase_block_upgrade.sql";
 

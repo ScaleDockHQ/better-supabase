@@ -9,6 +9,7 @@ export function authContext(auth: AuthState): RequestContext {
     case "user": {
       return userContext(auth.user, auth.claims);
     }
+
     case "service": {
       return {
         actor: {
@@ -19,6 +20,7 @@ export function authContext(auth: AuthState): RequestContext {
         claims: { role: "service_role" },
       };
     }
+
     case "apiKey": {
       return {
         actor: auth.userId
@@ -32,6 +34,7 @@ export function authContext(auth: AuthState): RequestContext {
         ...(auth.organizationId ? { tenant: auth.organizationId } : {}),
       };
     }
+
     case "anon":
     case "invalid": {
       return {
@@ -39,8 +42,10 @@ export function authContext(auth: AuthState): RequestContext {
         claims: { role: "anon" },
       };
     }
+
     default: {
       const exhaustive: never = auth;
+
       return exhaustive;
     }
   }

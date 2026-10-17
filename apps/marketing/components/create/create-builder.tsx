@@ -77,6 +77,7 @@ function valuesOf(key: string): readonly string[] {
 
 function CopyButton({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false);
+
   return (
     <Button
       variant="outline"
@@ -145,6 +146,7 @@ async function loadMigrations(code: string): Promise<MigrationState> {
   try {
     const response = await fetch(`/create/migrations?preset=${code}`);
     const body = v.parse(migrationsResponse, await response.json());
+
     return "error" in body
       ? { status: "error", message: body.error }
       : { status: "ready", files: body.files };
@@ -167,16 +169,20 @@ const migrationRequests = new Map<string, Promise<MigrationState>>();
 
 function migrationsFor(code: string): Promise<MigrationState> {
   const known = migrationRequests.get(code);
+
   if (known !== undefined) {
     return known;
   }
+
   const request = loadMigrations(code);
   migrationRequests.set(code, request);
+
   return request;
 }
 
 function Migrations({ code }: { code: string }) {
   const state = use(migrationsFor(code));
+
   if (state.status === "error") {
     return (
       <p className="text-sm text-destructive" role="alert">
@@ -184,6 +190,7 @@ function Migrations({ code }: { code: string }) {
       </p>
     );
   }
+
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm text-muted-foreground">
@@ -215,15 +222,19 @@ function Migrations({ code }: { code: string }) {
 
 export function CreateBuilder() {
   const params = useSearchParams();
+
   const [preset, setPreset] = useState<Preset>(() =>
     initialPreset(params.get("preset")),
   );
+
   const [tab, setTab] = useState("config");
   const resolved = useMemo(() => resolvePreset(preset), [preset]);
+
   const groups = useMemo(
     () => blockGroups(preset, resolved),
     [preset, resolved],
   );
+
   const code = encodePreset(preset);
   const configSource = presetConfigSource(resolved);
   const wiringSource = presetBlocksSource(resolved);
@@ -234,6 +245,7 @@ export function CreateBuilder() {
 
   useEffect(() => {
     const href = createHref(preset);
+
     if (`${window.location.pathname}${window.location.search}` !== href) {
       window.history.replaceState(null, "", href);
     }
@@ -264,6 +276,7 @@ export function CreateBuilder() {
               const value = PRESET_NAMES.find(
                 (name) => name === event.target.value,
               );
+
               if (value !== undefined) {
                 setPreset(applyNamedPreset(preset, value));
               }
@@ -298,6 +311,7 @@ export function CreateBuilder() {
               const value = PRESET_FRAMEWORKS.find(
                 (each) => each === event.target.value,
               );
+
               if (value !== undefined) {
                 setPreset((current) => ({ ...current, framework: value }));
               }
@@ -335,6 +349,7 @@ export function CreateBuilder() {
           <legend className="mb-2 text-sm font-medium">Conventions</legend>
           {CONVENTION_KEYS.map((key: ConventionKey) => {
             const values = valuesOf(key);
+
             return (
               <div key={key} className="flex flex-col gap-1">
                 <label
@@ -407,9 +422,11 @@ export function CreateBuilder() {
               {group.rows.map((row) => {
                 const note = rowNote(row.state);
                 const noteId = `${ids}-${row.name}-note`;
+
                 const checked =
                   row.state.kind === "selected" ||
                   row.state.kind === "required";
+
                 return (
                   <label
                     key={row.name}
@@ -478,6 +495,7 @@ export function CreateBuilder() {
                 const url = URL.createObjectURL(
                   new Blob([configSource], { type: "text/typescript" }),
                 );
+
                 const link = document.createElement("a");
                 link.href = url;
                 link.download = "better-supabase.config.ts";

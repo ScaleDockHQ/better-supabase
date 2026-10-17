@@ -34,6 +34,7 @@ async function ready(url: string): Promise<void> {
     } catch {
       // Not listening yet.
     }
+
     await sleep(250);
   }
 }
@@ -43,10 +44,13 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
     for (const server of servers) {
       server.kill(signal);
     }
+
     process.exit(0);
   });
 }
 
 start(port);
+
 await ready(`${baseURL}/en/login`);
+
 start(latencyPort, { BS_FETCH_DELAY_MS: String(fetchDelayMs) });

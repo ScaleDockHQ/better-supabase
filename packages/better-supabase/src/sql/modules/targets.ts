@@ -49,18 +49,23 @@ function metrics(
   c: (column: string) => string,
 ): Readonly<Record<string, string>> {
   const out: Record<string, string> = {};
+
   const window = (column: string): string =>
     `${column}::date between x.${c("periodStart")} and x.${c("periodEnd")}`;
+
   if (ctx.installed("deals")) {
     const deals = ctx.of("deals");
     const d = (column: string): string => `d.${deals.col("deals", column)}`;
+
     const scope = `${d("tenant")} = x.${c("tenant")} and ${d("outcome")} = 'won' and ${window(d("closedAt"))}
         and (x.${c("owner")} is null or ${d("owner")} = x.${c("owner")})`;
+
     out["deals.won_amount"] =
       `(select coalesce(sum(${d("amount")}), 0) from ${deals.table("deals")} d where ${scope} and ${d("currency")} = x.${c("currency")})`;
     out["deals.won_count"] =
       `(select count(*) from ${deals.table("deals")} d where ${scope})`;
   }
+
   if (ctx.installed("work-items")) {
     const items = ctx.of("work-items");
     const w = (column: string): string => `w.${items.col("items", column)}`;
@@ -71,17 +76,22 @@ function metrics(
         and (x.${c("team")} is null or ${w("team")} = x.${c("team")})
         and (x.${c("owner")} is null or exists (select 1 from ${items.table("assignees")} a where ${a("item")} = ${w("id")} and ${a("user")} = x.${c("owner")})))`;
   }
+
   if (ctx.installed("invoices")) {
     const invoices = ctx.of("invoices");
+
     const i = (column: string): string =>
       `i.${invoices.col("invoices", column)}`;
+
     const p = (column: string): string =>
       `p.${invoices.col("payments", column)}`;
+
     out["invoices.paid_amount"] =
       `(select coalesce(sum(${p("amount")}), 0) from ${invoices.table("payments")} p
       join ${invoices.table("invoices")} i on ${i("id")} = ${p("invoice")}
       where ${p("tenant")} = x.${c("tenant")} and ${i("currency")} = x.${c("currency")} and ${window(p("paidAt"))})`;
   }
+
   return out;
 }
 
@@ -89,6 +99,7 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const keys = moduleOperations("targets");
   const read = ctx.permission("read", keys.read);
   const manage = ctx.permission("manage", keys.manage);
@@ -96,6 +107,7 @@ function build(ctx: ModuleContext): string {
   const t = ctx.table("targets");
   const c = (column: string): string => ctx.col("targets", column);
   const known = metrics(ctx, c);
+
   const actual =
     Object.keys(known).length === 0
       ? `x.${c("actual")}`
@@ -105,16 +117,19 @@ ${Object.entries(known)
   .join("\n")}
         else x.${c("actual")}
       end`;
+
   // The target's extra columns: attrs.fields writes them, reads return them under fields.
   const extras = ctx.extraColumns("targets", [
     "fields",
     "progress",
     "attainment",
   ]);
+
   const progressRow =
     extras.length === 0
       ? "to_jsonb(p)"
       : withExtraFields("to_jsonb(p)", "p", extras);
+
   return `${schemaPreamble(ctx)}
 -- Targets: a goal per period for a metric, for a member, a team or the
 -- whole organization, with progress from the data the blocks keep.

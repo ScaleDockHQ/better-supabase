@@ -38,6 +38,7 @@ describe("outbox module", () => {
         },
       },
     });
+
     expect(sql).not.toContain(
       "create table if not exists public.domain_events",
     );
@@ -70,9 +71,11 @@ describe("outbox module", () => {
     );
     expect(sql).toContain("outbox_unregister");
     expect(sql).toContain("limit coalesce(batch, 10000)");
+
     const shared = body({
       outbox: { columns: { events: { position: "id" } } },
     });
+
     expect(shared).toContain(
       '"id" bigint generated always as identity primary key',
     );
@@ -82,6 +85,7 @@ describe("outbox module", () => {
     const adopted = body({
       outbox: { mode: "adopt", tables: { events: "public.domain_events" } },
     });
+
     expect(adopted).toContain(
       'alter table "public"."domain_events" add column if not exists "xid" xid8 not null default pg_current_xact_id();',
     );
@@ -115,15 +119,19 @@ describe("outbox module", () => {
     const without = renderModules(["organizations"]).at(-1)!.contents;
     expect(without).not.toContain("emit_event");
     const files = renderModules(["organizations", "outbox"]);
+
     const organizations = files.find((file) =>
       file.path.includes("organizations"),
     )!;
+
     expect(organizations.contents).toContain(
       `perform "better_supabase".emit_event('organization.created'`,
     );
+
     const silenced = renderModules(["organizations", "outbox"], {
       modules: { organizations: { events: false } },
     }).find((file) => file.path.includes("organizations"))!;
+
     expect(silenced.contents).not.toContain("emit_event");
   });
 });

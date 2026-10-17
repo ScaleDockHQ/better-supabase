@@ -56,6 +56,7 @@ function probe(): Probe {
   let made: ProbeController | undefined;
   const idle = (): void => undefined;
   let emit: (patch: Partial<ProbeSnapshot>) => void = idle;
+
   return {
     create: () => {
       const controller = defineController<ProbeSnapshot, ProbeActions>(
@@ -74,6 +75,7 @@ function probe(): Probe {
             emit = (patch) => {
               state.set(patch);
             };
+
             return () => {
               stops += 1;
               emit = idle;
@@ -81,6 +83,7 @@ function probe(): Probe {
           },
         }),
       );
+
       made = {
         ...controller,
         dispose: () => {
@@ -88,6 +91,7 @@ function probe(): Probe {
           controller.dispose();
         },
       };
+
       return made;
     },
     emit: (patch) => {
@@ -112,11 +116,13 @@ export function testControllerBinding(
   const settle = async (): Promise<void> => {
     await harness.settle?.();
   };
+
   const mounted = async (
     run: (binding: MountedBinding, probe: Probe) => void | Promise<void>,
   ): Promise<void> => {
     const current = probe();
     const binding = await harness.mount(current.create);
+
     try {
       await settle();
       await run(binding, current);
@@ -124,6 +130,7 @@ export function testControllerBinding(
       await binding.unmount();
     }
   };
+
   return conform(`ControllerBinding "${name}"`, [
     [
       "renders the initial snapshot",
@@ -190,9 +197,11 @@ export function testControllerBinding(
           current.stops() === current.starts() && current.starts() > 0,
           `the controller started ${current.starts()} times and stopped ${current.stops()} times`,
         );
+
         if (harness.disposes ?? true) {
           expect(current.disposed(), "unmount didn't dispose the controller");
         }
+
         current.emit({ count: 9 });
         await settle();
       },

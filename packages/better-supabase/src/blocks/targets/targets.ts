@@ -100,6 +100,7 @@ export interface TargetsOptions<
 
 function targetOf(value: unknown): Target {
   const row = recordOf(value, "target");
+
   return compact<Target>({
     id: textOf(row["id"]),
     name: textOf(row["name"]),
@@ -122,12 +123,15 @@ export function createTargets<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: TargetsOptions<S>): Targets<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const fields: BlockFields<F> = blockFields(options.fields, "target fields");
+
   const client: Targets<F> = {
     save: (organizationId, target) => {
       const { id, goal, actual, fields: extra, ...rest } = target;
+
       return fields.args(extra).andThen((checked) =>
         call(
           "save_target",
@@ -161,6 +165,7 @@ export function createTargets<
           })),
       ).andThen(fields.rows),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "targets",
     ...(options.logger ? { logger: options.logger } : {}),

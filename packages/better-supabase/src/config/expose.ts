@@ -51,12 +51,14 @@ function checkedPrivileges(
 ): readonly ExposePrivilege[] {
   for (const privilege of privileges) {
     const value: unknown = privilege;
+
     if (typeof value !== "string" || !EXPOSE_PRIVILEGE.test(value)) {
       throw new TypeError(
         `expose.${key}: "${String(value)}" is not a privilege. Use select, insert, update or delete, or name columns such as "update(title, body)"`,
       );
     }
   }
+
   return privileges;
 }
 
@@ -71,16 +73,19 @@ export function resolveExpose(
       serviceRole: ALL_PRIVILEGES,
     };
   }
+
   if ("execute" in entry) {
     throw new TypeError(
       `expose.${key}: \`execute\` is for functions; key it by its signature, such as ${key}(text)`,
     );
   }
+
   // SAFETY: the checks above removed the privilege-list and function forms.
   const roles = entry as Exclude<
     ExposeConfig,
     readonly ExposePrivilege[] | { readonly execute: unknown }
   >;
+
   return {
     anon: checkedPrivileges(key, roles.anon ?? []),
     authenticated: checkedPrivileges(key, roles.authenticated ?? []),
@@ -97,6 +102,7 @@ export function resolveExposeFunction(
       `expose.${key}: a function takes { execute: ["authenticated"] }, not table privileges`,
     );
   }
+
   return [
     ...entry.execute,
     ...(entry.serviceRole === false ? [] : (["service_role"] as const)),

@@ -12,6 +12,7 @@ describe("testBlockTransportMiddleware", () => {
           next({ ...request, args: { ...request.args, request_id: "r1" } }),
       }),
     );
+
     expect(report.checks.every((check) => check.ok)).toBe(true);
   });
 

@@ -15,6 +15,7 @@ import { trashTypes } from "./trash.ts";
 const SUBJECT_TYPE = /^[a-z][a-z0-9_]{0,62}$/;
 const ROLE = /^[a-z][a-z0-9_]{0,30}$/;
 export const CONFLICTS = ["fail", "rename", "replace"] as const;
+
 /**
  * The read-only session check for functions whose only writes happen in the
  * internal helpers they call, which the write guard can't see.
@@ -24,6 +25,7 @@ export const READ_ONLY_GUARD =
 
 export const UUID_TEXT =
   "'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'";
+
 const PATH_SEGMENT = "drive-nodes";
 
 const SUBJECT = ["organizationId", "subjectType", "subjectId"] as const;
@@ -147,6 +149,7 @@ export interface DriveRoles {
 function driveRoles(ctx: ModuleContext): DriveRoles {
   const where = "blocks.drive.options";
   const all = ctx.list("roles", ["viewer", "editor", "owner"]);
+
   if (
     all.length === 0 ||
     new Set(all).size !== all.length ||
@@ -156,21 +159,27 @@ function driveRoles(ctx: ModuleContext): DriveRoles {
       `${where}.roles must list distinct lowercase role names, lowest first`,
     );
   }
+
   const pick = (name: string, fallback: string): string => {
     const role = ctx.text(name, fallback);
+
     if (!all.includes(role)) {
       throw new TypeError(`${where}.${name} must be one of options.roles`);
     }
+
     return role;
   };
+
   const top = all.at(-1) ?? "owner";
   const member = ctx.option("memberRole");
+
   if (
     member !== undefined &&
     (typeof member !== "string" || !all.includes(member))
   ) {
     throw new TypeError(`${where}.memberRole must be one of options.roles`);
   }
+
   return {
     all,
     read: all[0] ?? "viewer",
@@ -184,21 +193,25 @@ function driveRoles(ctx: ModuleContext): DriveRoles {
 /** `options.subjectType`: the subject type of a node, `drive_node` by default. */
 function driveSubjectType(ctx: ModuleContext): string {
   const type = ctx.text("subjectType", "drive_node");
+
   if (!SUBJECT_TYPE.test(type)) {
     throw new TypeError(
       "blocks.drive.options.subjectType must be lowercase letters, digits and underscores",
     );
   }
+
   return type;
 }
 
 function conflictDefault(ctx: ModuleContext): string {
   const conflict = ctx.text("conflict", "fail");
+
   if (!CONFLICTS.some((value) => value === conflict)) {
     throw new TypeError(
       `blocks.drive.options.conflict must be one of ${CONFLICTS.join(", ")}`,
     );
   }
+
   return conflict;
 }
 
@@ -298,6 +311,7 @@ export function driveKit(ctx: ModuleContext, own: ModuleContext): DriveKit {
   const type = driveSubjectType(ctx);
   const typeLit = sqlString(type);
   const conflict = sqlString(conflictDefault(ctx));
+
   const extras = ctx.extraColumns("nodes", [
     "organizationId",
     "parentId",
@@ -306,59 +320,79 @@ export function driveKit(ctx: ModuleContext, own: ModuleContext): DriveKit {
     "fields",
     "role",
   ]);
+
   const has = (column: string): boolean => ctx.has("nodes", column);
   const pathMode = has("path");
   const ranked = has("rank");
   const binColumn = has("deletedAt");
   const typed = ctx.has("grants", "principalType");
+
   if (!typed && !ctx.has("grants", "user")) {
     throw new TypeError(
       "blocks.drive.columns.grants needs principalType and principalId, or user (and team)",
     );
   }
+
   const teamColumn = !typed && ctx.has("grants", "team");
   const expiring = ctx.has("grants", "expiresAt");
 
   const attachments = has("attachment")
     ? usable(ctx, "attachments")
     : undefined;
+
   const A = attachments?.table("attachments");
+
   const a = (column: string): string =>
     attachments === undefined ? column : attachments.col("attachments", column);
+
   const versions =
     attachments === undefined ? undefined : usable(ctx, "versions");
+
   const v = (column: string): string =>
     versions === undefined ? column : versions.col("versions", column);
+
   const trash =
     binColumn &&
     usable(ctx, "trash") !== undefined &&
     trashTypes(ctx.of("trash")).has(type)
       ? ctx.of("trash")
       : undefined;
+
   const ti = (column: string): string =>
     trash === undefined ? column : trash.col("items", column);
+
   const shareLinks = usable(ctx, "share-links");
   const state = shareLinks?.hasTable("state") ? shareLinks : undefined;
+
   const st = (column: string): string =>
     state === undefined ? column : state.col("state", column);
+
   const teams = usable(ctx, "teams");
   const tenant = ctx.of("tenant");
   const m = (column: string): string => tenant.col("memberships", column);
 
   const rolesArray = `array[${roles.all.map(sqlString).join(", ")}]::text[]`;
+
   const rank = (role: string): string =>
     `coalesce(array_position(${rolesArray}, ${role}), 0)`;
+
   const live = (row: string): string =>
     binColumn ? ` and ${row}.${n("deletedAt")} is null` : "";
+
   const canRead = (node: string): string =>
     `${fn("drive_can")}(${node}, ${sqlString(roles.read)})`;
+
   const canWrite = (node: string): string =>
     `${fn("drive_can")}(${node}, ${sqlString(roles.write)})`;
+
   const canShare = (node: string): string =>
     `${fn("drive_can")}(${node}, ${sqlString(roles.share)})`;
+
   const notFound = fail("DRIVE_NOT_FOUND", "drive item not found", "P0002");
+
   const forbidden = (what: string): string =>
     fail("DRIVE_FORBIDDEN", `not allowed to ${what}`);
+
   const record = (
     event: string,
     row: string,
@@ -372,6 +406,7 @@ export function driveKit(ctx: ModuleContext, own: ModuleContext): DriveKit {
       tenant: `${row}.${n("tenant")}`,
       audit,
     });
+
   const dataAudit = (row: string, summary: string): ModuleAudit => ({
     category: "data",
     targetType: type,
@@ -379,6 +414,7 @@ export function driveKit(ctx: ModuleContext, own: ModuleContext): DriveKit {
     targetLabel: `${row}.${n("name")}`,
     summary: sqlString(summary),
   });
+
   const accessAudit = (row: string, summary: string): ModuleAudit => ({
     category: "access",
     targetType: type,
@@ -396,23 +432,28 @@ export function driveKit(ctx: ModuleContext, own: ModuleContext): DriveKit {
       teams === undefined
         ? "false"
         : `exists (select 1 from ${teams.table("members")} tm where tm.${teams.col("members", "team")}::text = ${team}::text and tm.${teams.col("members", "user")} = ${uid})`;
+
     if (!typed) {
       return `(${grant}.${g("user")} = ${uid}${teamColumn ? ` or (${grant}.${g("team")} is not null and ${teamMember(`${grant}.${g("team")}`)})` : ""})`;
     }
+
     return `((${grant}.${g("principalType")} = 'user' and ${grant}.${g("principalId")} = ${uid}::text)
       or (${grant}.${g("principalType")} = 'team' and ${teamMember(`${grant}.${g("principalId")}`)})
       or (${grant}.${g("principalType")} = 'role' and exists (select 1 from ${tenant.table("memberships")} mr where mr.${m("tenant")} = ${tenantId} and mr.${m("user")} = ${uid} and mr.${m("role")}::text = ${grant}.${g("principalId")}${activeMembership(ctx, "mr")})))`;
   };
+
   const grantLive = (grant: string): string =>
     expiring
       ? ` and (${grant}.${g("expiresAt")} is null or ${grant}.${g("expiresAt")} > now())`
       : "";
+
   const principalType = (grant: string): string =>
     typed
       ? `${grant}.${g("principalType")}`
       : teamColumn
         ? `case when ${grant}.${g("user")} is not null then 'user' else 'team' end`
         : "'user'";
+
   const principalId = (grant: string): string =>
     typed
       ? `${grant}.${g("principalId")}`
@@ -424,6 +465,7 @@ export function driveKit(ctx: ModuleContext, own: ModuleContext): DriveKit {
     A === undefined
       ? ""
       : `, 'attachmentId', ($1).${n("attachment")}, 'file', (select jsonb_build_object('mimeType', fa.${a("mimeType")}, 'size', fa.${a("size")}, 'status', fa.${a("status")}, 'uploadedAt', fa.${a("uploadedAt")}) from ${A} fa where fa.${a("id")} = ($1).${n("attachment")})`;
+
   const nodeJson = (file: string): string =>
     `jsonb_build_object('id', ($1).${n("id")}, 'organizationId', ($1).${n("tenant")}, 'parentId', ($1).${n("parent")}, 'kind', ($1).${n("kind")}, 'name', ($1).${n("name")}, 'rank', ${ranked ? `($1).${n("rank")}` : "null"}, 'createdBy', ${has("createdBy") ? `($1).${n("createdBy")}` : "null"}, 'createdAt', ($1).${n("createdAt")}, 'updatedAt', ${has("updatedAt") ? `($1).${n("updatedAt")}` : "null"}, 'deletedAt', ${binColumn ? `($1).${n("deletedAt")}` : "null"}${file}${
       extras.length === 0
@@ -433,11 +475,15 @@ export function driveKit(ctx: ModuleContext, own: ModuleContext): DriveKit {
             extras.map((column) => column.name),
           )}`
     })`;
+
   const json = (row: string): string => `${fn("drive_node_json")}(${row})`;
+
   const withRole = (row: string): string =>
     `(${json(row)} || jsonb_build_object('role', ${fn("drive_role")}((${row}).${n("id")})))`;
+
   const orderBy = (alias: string): string =>
     `(${alias}.${n("kind")} = 'folder') desc${ranked ? `, ${alias}.${n("rank")}` : ""}, lower(${alias}.${n("name")}), ${alias}.${n("id")}`;
+
   const touch = has("updatedAt") ? `, ${n("updatedAt")} = now()` : "";
 
   const insertColumns = [
@@ -449,6 +495,7 @@ export function driveKit(ctx: ModuleContext, own: ModuleContext): DriveKit {
     ...(has("createdBy") ? [n("createdBy")] : []),
     ...extras.map((column) => column.ident),
   ];
+
   const insertValues = [
     "drive_insert_node.tenant",
     "drive_insert_node.parent",
@@ -461,6 +508,7 @@ export function driveKit(ctx: ModuleContext, own: ModuleContext): DriveKit {
         `coalesce(v_fields.${column.ident}, v_parent.${column.ident})`,
     ),
   ];
+
   const directGrant = (node: string, role: string, uid: string): string =>
     typed
       ? `insert into ${G} (${g("tenant")}, ${g("node")}, ${g("principalType")}, ${g("principalId")}, ${g("role")})

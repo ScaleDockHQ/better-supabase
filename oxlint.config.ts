@@ -335,11 +335,6 @@ const config: OxlintConfig = defineConfig({
     // Ultracite rules that fire on code written before it was adopted. Each
     // is its own follow-up change; backlog in docs/decisions/0002.
     //
-    // Whitespace only (its autofix adds blank lines), but the diff touches
-    // most files, so it lands in its own commit.
-    // Findings when measured: require-readable-spacing 36,556.
-    "anti-slop/require-readable-spacing": "off",
-
     // These prefer a different form than the one the repo writes (function
     // declarations, keys in reading order, interfaces); adopting one is a
     // repo-wide codemod.

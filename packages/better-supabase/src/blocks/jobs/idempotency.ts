@@ -112,6 +112,7 @@ async function sha256(text: string): Promise<string> {
     "SHA-256",
     new TextEncoder().encode(text),
   );
+
   return Array.from(new Uint8Array(digest), (byte) =>
     byte.toString(16).padStart(2, "0"),
   ).join("");
@@ -122,12 +123,15 @@ const AUTH_COOKIE = /^sb-.+-auth-token(?:\.\d+)?$/;
 /** A hash of the credentials the request carries, or `''` without any. */
 async function callerScope(request: Request): Promise<string> {
   const authorization = request.headers.get("authorization");
+
   const cookies = (request.headers.get("cookie") ?? "")
     .split(";")
     .map((pair) => pair.trim())
     .filter((pair) => AUTH_COOKIE.test(pair.split("=", 1)[0] ?? ""))
     .sort();
+
   const credential = authorization ?? cookies.join(";");
+
   return credential === "" ? "" : `caller:${await sha256(credential)}`;
 }
 
@@ -171,6 +175,7 @@ function sqlCalls(sql: SqlClient): IdempotencyCalls {
           "select * from better_supabase.begin_idempotent($1, $2, $3, $4::interval, $5::interval)",
           [scope, key, fingerprint, ttl, lock],
         );
+
         return row;
       }),
     complete: (scope, key, holder, status, body) =>
@@ -179,6 +184,7 @@ function sqlCalls(sql: SqlClient): IdempotencyCalls {
           "select better_supabase.complete_idempotent($1, $2, $3, $4, $5) as done",
           [scope, key, holder, status, JSON.stringify(body)],
         );
+
         return row?.done === true;
       }),
     release: (scope, key, holder) =>
@@ -187,6 +193,7 @@ function sqlCalls(sql: SqlClient): IdempotencyCalls {
           "select better_supabase.release_idempotent($1, $2, $3) as done",
           [scope, key, holder],
         );
+
         return row?.done === true;
       }),
     purge: () =>
@@ -194,6 +201,7 @@ function sqlCalls(sql: SqlClient): IdempotencyCalls {
         const [row] = await sql.queryRaw<{ purged: number }>(
           "select better_supabase.purge_idempotency_keys() as purged",
         );
+
         return row?.purged ?? 0;
       }),
   };
@@ -205,6 +213,7 @@ function transportCalls(
   mappers: readonly ErrorMapper[] | undefined,
 ): IdempotencyCalls {
   const call = blockCall(transport, schema, mappers);
+
   return {
     begin: (scope, key, fingerprint, ttl, lock) =>
       call(
@@ -240,6 +249,7 @@ export function createIdempotency(options: IdempotencyOptions): Idempotency {
   const format = options.problem;
   const ttl = seconds(options.ttl ?? "24 hours");
   const lock = seconds(options.lock ?? "1 minute");
+
   const calls =
     options.transport === undefined
       ? sqlCalls(options.sql)
@@ -267,6 +277,7 @@ export function createIdempotency(options: IdempotencyOptions): Idempotency {
     async handle(request, handler) {
       const key = request.headers.get(headerName);
       const instance = new URL(request.url).pathname;
+
       if (!key) {
         return options.required
           ? problemResponse(
@@ -281,6 +292,7 @@ export function createIdempotency(options: IdempotencyOptions): Idempotency {
             )
           : handler(request);
       }
+
       if (key.length > 255) {
         return problemResponse(
           dbError("invalid_request", `The ${headerName} header is too long`, {
@@ -289,24 +301,32 @@ export function createIdempotency(options: IdempotencyOptions): Idempotency {
           { instance, format },
         );
       }
+
       const scope =
         typeof options.scope === "function"
           ? options.scope(request)
           : (options.scope ?? (await callerScope(request)));
+
       const body = await request.clone().text();
+
       const fingerprint = await sha256(
         `${request.method} ${instance}\n${body}`,
       );
+
       const started = await hooked.begin(key, fingerprint, scope);
+
       if (!started.ok) {
         return problemResponse(started.error, { instance, format });
       }
+
       const { state, holder = "" } = started.data;
+
       switch (state) {
         case "replay": {
           // SAFETY: the replay state is only written with the stored response
           // of the first request.
           const stored = started.data.body as StoredResponse;
+
           return new Response(stored.body, {
             status: started.data.status ?? 200,
             headers: {
@@ -317,6 +337,7 @@ export function createIdempotency(options: IdempotencyOptions): Idempotency {
             },
           });
         }
+
         case "running": {
           return problemResponse(
             dbError(
@@ -329,6 +350,7 @@ export function createIdempotency(options: IdempotencyOptions): Idempotency {
             { instance, format, headers: { "retry-after": "1" } },
           );
         }
+
         case "mismatch": {
           return problemResponse(
             dbError(
@@ -347,37 +369,48 @@ export function createIdempotency(options: IdempotencyOptions): Idempotency {
             { instance, format },
           );
         }
+
         case "started": {
           break;
         }
+
         default: {
           const unknown: never = state;
           throw new TypeError(`Unknown idempotency state ${String(unknown)}`);
         }
       }
+
       let response: Response;
+
       try {
         response = await handler(request);
       } catch (cause) {
         await hooked.release(key, holder, scope);
         throw cause;
       }
+
       if (response.status >= 500) {
         await hooked.release(key, holder, scope);
+
         return response;
       }
+
       const stored: StoredResponse = {
         body: await response.clone().text(),
         contentType: response.headers.get("content-type"),
       };
+
       await hooked.complete(key, holder, response.status, stored, scope);
+
       return response;
     },
   };
+
   const hooked = withBlockHooks(client, options.hooks, {
     block: "idempotency",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
   return hooked;
 }
 

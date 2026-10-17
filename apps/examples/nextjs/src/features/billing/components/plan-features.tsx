@@ -16,19 +16,24 @@ export async function PlanFeatures() {
     getSession(),
     getExtracted("billing"),
   ]);
+
   const organizationId = tenantOf(session);
+
   if (!organizationId) {
     return null;
   }
+
   const features = [
     ["exports", t("CSV exports")],
     ["audit", t("Audit log")],
     ["sso", t("Single sign-on")],
   ] satisfies readonly (readonly [Entitlement, string])[];
+
   return (
     <ul aria-label={t("Plan features")} className="space-y-2 text-sm">
       {features.map(([key, label]) => {
         const included = hasEntitlement(session, organizationId, key);
+
         return (
           <li key={key} className="flex items-center gap-2">
             {included ? (

@@ -54,12 +54,15 @@ function fakeTransport(
   answer: (fn: string, args: Record<string, unknown>) => unknown,
 ) {
   const calls: [string, string, Record<string, unknown>][] = [];
+
   const transport: BlockTransport = {
     async call(schemaName, fn, args) {
       calls.push([schemaName, fn, { ...args }]);
+
       return answer(fn, { ...args });
     },
   };
+
   return { transport, calls };
 }
 
@@ -156,6 +159,7 @@ describe("apiKeyClaims", () => {
       claim: { name: "api_key" },
       tenantClaim: "tenant_id",
     });
+
     expect(claims).toMatchObject({ sub: USER, tenant_id: ORG });
     expect(claims["api_key"]).not.toHaveProperty("tenant");
     expect(claims["api_key"]).not.toHaveProperty("roles");
@@ -163,10 +167,12 @@ describe("apiKeyClaims", () => {
 
   it("adds the claims hook's claims, but never over the reserved ones", () => {
     type Fields = { readonly region: string };
+
     const typed = {
       ...key({ organizationId: ORG, kind: "feed" }),
       region: "eu",
     };
+
     const claims = apiKeyClaims<Fields>(typed, {
       tenantClaim: "tenant_id",
       serviceRoles: (each) => [`${each.region}-reader`],
@@ -179,6 +185,7 @@ describe("apiKeyClaims", () => {
           api_key: "forged",
         }) as unknown as Record<string, unknown>,
     });
+
     expect(claims).toMatchObject({
       sub: "",
       role: "authenticated",
@@ -197,6 +204,7 @@ describe("createApiKeys", () => {
   it("sends only the secret's hash and returns the token once", async () => {
     const { transport, calls } = fakeTransport(() => row({ kind: "export" }));
     const keys = createApiKeys({ transport, prefix: "acme" });
+
     const created = await keys
       .create({
         name: "CI",
@@ -207,6 +215,7 @@ describe("createApiKeys", () => {
         rateLimit: 60,
       })
       .orThrow();
+
     const parsed = parseApiKey(created.token)!;
     expect(parsed.prefix).toBe("acme");
     const [, fn, args] = calls[0]!;
@@ -250,15 +259,18 @@ describe("createApiKeys", () => {
           ? true
           : row({ rotated_from: "33333333-3333-4333-8333-333333333333" }),
     );
+
     const keys = createApiKeys({ transport });
     const listed = await keys.list(ORG).orThrow();
     expect(listed[1]).toMatchObject({ userId: USER, rotatedFrom: "x" });
     expect(listed.map((key) => key.state)).toEqual(["active", "revoked"]);
     expect(await keys.list().orThrow()).toHaveLength(2);
     expect(await keys.revoke("k").orThrow()).toBe(true);
+
     const rotated = await keys
       .rotate("k", { grace: Temporal.Duration.from({ hours: 2 }) })
       .orThrow();
+
     expect(rotated.token).toMatch(/^bs_/);
     expect(calls.at(-1)?.[2]).toMatchObject({ key: "k", grace: "PT2H" });
     await keys.rotate("k");
@@ -268,6 +280,7 @@ describe("createApiKeys", () => {
   it("reads the state and successor the database computed", async () => {
     const future = Temporal.Now.instant().add({ hours: 1 }).toString();
     const past = "2020-01-01T00:00:00Z";
+
     const { transport } = fakeTransport(() => [
       row({ state: "grace", successor_id: "next", revoked_at: future }),
       row({ state: "expired", expires_at: past }),
@@ -275,6 +288,7 @@ describe("createApiKeys", () => {
       row({ expires_at: past }),
       row({ state: "unknown" }),
     ]);
+
     const listed = await createApiKeys({ transport }).list(ORG).orThrow();
     expect(listed.map((key) => key.state)).toEqual([
       "grace",
@@ -293,6 +307,7 @@ describe("createApiKeys", () => {
       { status: "rate_limited", retry_after: 12 },
       { status: "invalid" },
     ];
+
     const { transport, calls } = fakeTransport(() => answers.shift());
     const keys = createApiKeys({ transport });
     const token = `bs_0123456789abcdef_${"b".repeat(43)}`;
@@ -318,6 +333,7 @@ describe("createApiKeys", () => {
 
 describe("apiKeyResolver", () => {
   const token = `bs_0123456789abcdef_${"c".repeat(43)}`;
+
   const resolverWith = (answer: unknown) =>
     apiKeyResolver({
       keys: createApiKeys({ transport: fakeTransport(() => answer).transport }),
@@ -328,9 +344,11 @@ describe("apiKeyResolver", () => {
       status: "ok",
       key: row({ user_id: USER }),
     });
+
     const state = await resolver.resolve(
       new Request("https://x.test", { headers: { "x-api-key": token } }),
     );
+
     expect(state).toMatchObject({
       kind: "apiKey",
       organizationId: ORG,
@@ -372,6 +390,7 @@ describe("apiKeyResolver", () => {
   it("answers invalid and rate-limited keys with their errors", async () => {
     const request = () =>
       new Request("https://x.test", { headers: { "x-api-key": token } });
+
     expect(
       await resolverWith({ status: "invalid" }).resolve(request()),
     ).toMatchObject({
@@ -386,6 +405,7 @@ describe("apiKeyResolver", () => {
       kind: "invalid",
       error: { kind: "rate_limited", retryAfter: 3 },
     });
+
     const failing = apiKeyResolver({
       keys: {
         verify: () =>
@@ -396,40 +416,49 @@ describe("apiKeyResolver", () => {
           }).verify(token),
       },
     });
+
     expect(await failing.resolve(request())).toMatchObject({ kind: "invalid" });
   });
 });
 
 describe("API keys in a server", () => {
   const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
+
   const env = {
     url: PROJECT_URL,
     publishableKey: "sb_publishable_test",
     jwksUrl: new URL(`${PROJECT_URL}/auth/v1/.well-known/jwks.json`),
   };
+
   const token = `bs_0123456789abcdef_${"d".repeat(43)}`;
 
   it("runs queries over Postgres with the key's claims and tenant", async () => {
     const fake = fakeSql();
     const claims: SqlClaims[] = [];
     const sessions: (SessionOptions | undefined)[] = [];
+
     // SAFETY: the server only calls executorFor; the executor only calls queryRaw.
     const postgres = {
       executorFor: (value: SqlClaims, session?: SessionOptions) => {
         claims.push(value);
         sessions.push(session);
+
         return postgresExecutor(fake.sql);
       },
     } as unknown as BetterPostgres;
+
     const keys = createApiKeys({
       transport: fakeTransport(() => ({ status: "ok", key: row() })).transport,
     });
+
     const bs = createHono(defineSupabase(schema), {
       env,
       postgres,
       auth: { resolvers: [apiKeyResolver({ keys })] },
     });
+
     type Env = HonoEnv<Models, Functions, unknown>;
+
     const app = new Hono<Env>()
       .onError(bs.onError)
       .use(
@@ -446,17 +475,21 @@ describe("API keys in a server", () => {
         bs.handler(async (_c, ctx) => {
           void ctx.db;
           let client = "available";
+
           try {
             void ctx.db.$client;
           } catch {
             client = "unavailable";
           }
+
           let supabase = "available";
+
           try {
             void ctx.supabase;
           } catch {
             supabase = "unavailable";
           }
+
           return ok({
             kind: ctx.auth.kind,
             supabase,

@@ -41,9 +41,11 @@ const globals = new Set(["help", "version", ...Object.keys(GLOBAL_ARGS)]);
 
 async function flagsOf(command: string): Promise<string[]> {
   const usage = await help(command);
+
   const flags = [...usage.matchAll(/--([a-z][a-z0-9-]*)/g)].map(
     (match) => match[1] ?? "",
   );
+
   return [...new Set(flags)].filter((flag) => !globals.has(flag)).toSorted();
 }
 
@@ -56,22 +58,28 @@ describe("CLI docs", () => {
     "documents every flag of %s in %s",
     async (command, page) => {
       const text = await readFile(join(docs, page), "utf-8");
+
       const missing = (await flagsOf(command)).filter(
         (flag) => !text.includes(`--${flag}`),
       );
+
       expect(missing).toEqual([]);
     },
   );
 
   it("documents the global options and every error code", async () => {
     const index = await readFile(join(docs, "cli/index.mdx"), "utf-8");
+
     for (const flag of Object.keys(GLOBAL_ARGS)) {
       expect(index).toContain(`--${flag}`);
     }
+
     const errors = await readFile(join(docs, "cli/errors.mdx"), "utf-8");
+
     const headings = [...errors.matchAll(/^## `([a-z_]+)`$/gm)].map(
       (match) => match[1],
     );
+
     expect(headings).toEqual([
       "usage",
       "unknown_command",
@@ -94,6 +102,7 @@ const SOURCES = [
   "README.md",
   "packages/better-supabase/README.md",
 ];
+
 /** Pages that quote the old names on purpose. */
 const HISTORY = new Set([
   "apps/docs/content/docs/concepts/naming.mdx",
@@ -102,6 +111,7 @@ const HISTORY = new Set([
 
 async function sources(): Promise<{ path: string; text: string }[]> {
   const paths: string[] = [];
+
   for await (const path of glob(
     SOURCES.map((source) =>
       /\.\w+$/.test(source) ? source : `${source}/**/*.{md,mdx,ts,tsx}`,
@@ -115,12 +125,14 @@ async function sources(): Promise<{ path: string; text: string }[]> {
       paths.push(path);
     }
   }
+
   const read = paths
     .filter((path) => !HISTORY.has(path))
     .map(async (path) => ({
       path,
       text: await readFile(join(repo, path), "utf-8"),
     }));
+
   return Promise.all(read);
 }
 
@@ -134,6 +146,7 @@ const templateContext: TemplateContext = {
 
 const LEGACY_INSTANCE =
   /\b(?:const|let)\s+(sb|next|browser|server|mcp)\s*=\s*(?:defineSupabase|create[A-Z]\w*)\(/;
+
 const LEGACY_PATH = /supabase\.(?:browser|server|client)(?:\.tsx?)?["'`]/;
 
 describe("naming", () => {
@@ -147,12 +160,15 @@ describe("naming", () => {
         })),
       ),
     ];
+
     const offenders = files.flatMap(({ path, text }) => {
       const found = [LEGACY_INSTANCE, LEGACY_PATH]
         .map((pattern) => pattern.exec(text)?.[0])
         .filter((match) => match !== undefined);
+
       return found.map((match) => `${path}: ${match}`);
     });
+
     expect(offenders).toEqual([]);
   });
 
@@ -164,6 +180,7 @@ describe("naming", () => {
           "utf-8",
         ),
       );
+
     const missing = Object.entries(api).flatMap(([subpath, names]) =>
       (names.values ?? [])
         .filter((name) => FACTORIES.has(name))
@@ -172,6 +189,7 @@ describe("naming", () => {
         )
         .map((name) => `${subpath}: ${name}`),
     );
+
     expect(missing).toEqual([]);
     expect(
       Object.values(api)
@@ -199,6 +217,7 @@ describe("blocks overview", () => {
   it("lists every module with what it requires and works with", async () => {
     const page = await readFile(join(docs, "blocks/index.mdx"), "utf-8");
     const section = page.slice(page.indexOf("## How modules work together"));
+
     const cell = (names: readonly string[]): string =>
       names.length === 0
         ? "none"
@@ -207,16 +226,21 @@ describe("blocks overview", () => {
               name === "*" ? "every installed module" : `\`${name}\``,
             )
             .join(", ");
+
     const rows = [
       ...section.matchAll(/^\| `([a-z-]+)` +\| (.+?) +\| (.+?) +\|$/gm),
     ].map(([, name, requires, works]) => `${name} | ${requires} | ${works}`);
+
     const expected = Object.values(SQL_MODULES).map((module) => {
       const required = new Set(module.requires);
+
       const works = (module.integrates ?? []).filter(
         (name) => !required.has(name),
       );
+
       return `${module.name} | ${cell(module.requires)} | ${cell(works)}`;
     });
+
     expect(rows).toEqual(expected);
   });
 });

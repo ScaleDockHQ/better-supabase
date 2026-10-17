@@ -69,6 +69,7 @@ export interface MeasuredRender {
 
 function isPrefetch(response: BudgetResponse): boolean {
   const headers = response.request().headers();
+
   return (
     headers["next-router-prefetch"] !== undefined ||
     headers["purpose"] === "prefetch" ||
@@ -84,6 +85,7 @@ function sleep(ms: number): Promise<void> {
 
 function settle(promise: Promise<unknown>, ms: number): Promise<unknown> {
   let timer: ReturnType<typeof setTimeout> | undefined;
+
   return Promise.race([
     promise,
     new Promise((done) => {
@@ -111,11 +113,13 @@ function expectResponseBudget(
 ): ResponseDbStats {
   const header = expectation.header ?? DB_CALLS_HEADER;
   const stats = parseDbStats(response.headers.get(header));
+
   if (!stats) {
     throw new Error(
       `expectDbBudget: the response has no ${header} header. Add withDbStats() to the entries.`,
     );
   }
+
   if (
     (expectation.maxCalls !== undefined &&
       stats.calls > expectation.maxCalls) ||
@@ -125,6 +129,7 @@ function expectResponseBudget(
       `expectDbBudget: ${stats.calls} calls in ${stats.waves} waves, over the budget of ${expectation.maxCalls ?? "∞"} calls and ${expectation.maxWaves ?? "∞"} waves`,
     );
   }
+
   return stats;
 }
 
@@ -153,6 +158,7 @@ export function expectDbBudget(
   if (target instanceof Response) {
     return expectResponseBudget(target, expectation);
   }
+
   return expectPageBudget(target, expectation);
 }
 
@@ -162,41 +168,54 @@ async function expectPageBudget(
 ): Promise<readonly MeasuredRender[]> {
   const seen: { response: BudgetResponse; url: string; id: string }[] = [];
   let lastSeen = 0;
+
   const listener = (response: BudgetResponse): void => {
     const headers = response.headers();
     const id = headers["x-bs-request-id"];
     const stats = headers["x-bs-stats"];
+
     if (!id || !stats || (!expectation.prefetches && isPrefetch(response))) {
       return;
     }
+
     lastSeen = Date.now();
     seen.push({ response, id, url: new URL(stats, response.url()).href });
   };
+
   const settleMs = expectation.settleMs ?? 500;
   const timeoutMs = expectation.timeoutMs ?? 10_000;
+
   /** Waits until no response has arrived for `settleMs`, at most `timeoutMs`. */
   const quiet = async (): Promise<void> => {
     const start = Date.now();
     lastSeen = Math.max(lastSeen, start);
+
     for (;;) {
       const left = lastSeen + settleMs - Date.now();
+
       if (left <= 0 || Date.now() - start >= timeoutMs) {
         return;
       }
+
       await sleep(left);
     }
   };
+
   const failed = new WeakSet<BudgetRequest>();
   const aborts = new Map<BudgetRequest, () => void>();
+
   const onFailed = (request: BudgetRequest): void => {
     failed.add(request);
     aborts.get(request)?.();
   };
+
   const ended = (response: BudgetResponse): Promise<unknown> => {
     const request = response.request();
+
     if (failed.has(request)) {
       return Promise.resolve();
     }
+
     return Promise.race([
       response.finished(),
       new Promise<void>((done) => {
@@ -204,8 +223,10 @@ async function expectPageBudget(
       }),
     ]);
   };
+
   page.on("response", listener);
   page.on("requestfailed", onFailed);
+
   try {
     try {
       await (expectation.during ? expectation.during() : page.reload());
@@ -213,14 +234,17 @@ async function expectPageBudget(
     } finally {
       page.off("response", listener);
     }
+
     if (seen.length === 0) {
       if (expectation.requireRequest === false) {
         return [];
       }
+
       throw new Error(
         "expectDbBudget: no response carried x-bs-request-id. Enable createNext(betterSupabase, { debug: { enabled: true } }) and run the proxy.",
       );
     }
+
     await Promise.all(
       seen.map(({ response }) => settle(ended(response), timeoutMs)),
     );
@@ -229,13 +253,16 @@ async function expectPageBudget(
   }
 
   const renders: MeasuredRender[] = [];
+
   for (const { response, id, url } of seen) {
     const reply = await page.request.get(url);
+
     if (!reply.ok()) {
       throw new Error(
         `expectDbBudget: ${url} answered ${reply.status()}. Mount bs.debugRoute() at that path.`,
       );
     }
+
     // SAFETY: the stats endpoint always responds with a DbStats object.
     renders.push({
       url: response.url(),
@@ -251,14 +278,17 @@ async function expectPageBudget(
       (expectation.maxWaves !== undefined &&
         stats.waves > expectation.maxWaves),
   );
+
   if (over.length > 0) {
     const lines = over.map(
       ({ url, stats }) =>
         `  ${url}: ${stats.calls} calls in ${stats.waves} waves (${stats.tables.join(", ")})`,
     );
+
     throw new Error(
       `expectDbBudget: over the budget of ${expectation.maxCalls ?? "∞"} calls and ${expectation.maxWaves ?? "∞"} waves:\n${lines.join("\n")}`,
     );
   }
+
   return renders;
 }

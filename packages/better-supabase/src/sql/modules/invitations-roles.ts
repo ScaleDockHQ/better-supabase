@@ -24,15 +24,19 @@ function roleIn(
   if (accessModel(ctx) !== "catalog") {
     return roleValue(ctx, expr, tenant);
   }
+
   const scoped = roleScopeIs(ctx, "r", scope);
+
   if (!scoped) {
     return roleValue(ctx, expr, tenant);
   }
+
   const access = ctx.of("access");
   const rid = access.col("roles", "id");
   const key = access.col("roles", "key");
   const text = `(${expr})::text`;
   const own = tenantRoleScope(ctx, tenant);
+
   return `(select r.${rid} from ${access.table("roles")} r where (r.${rid}::text = ${text} or r.${key} = ${text}) and ${scoped}${own.where} order by (r.${rid}::text = ${text}) desc${own.order} limit 1)`;
 }
 
@@ -59,30 +63,38 @@ export interface PlatformAssignment {
  */
 export function platformRolesProblem(ctx: ModuleContext): string | undefined {
   const through = providerPlatformRoles(ctx)?.through;
+
   if (!through || through.where) {
     return undefined;
   }
+
   if (roleThroughTable(ctx.of("tenant"))?.table !== through.table) {
     return undefined;
   }
+
   return `blocks.invitations.options.platformRoles.through.where: ${through.table} also holds the tenant roles (blocks.tenant.options.roleThrough), so name the platform roles with a condition such as "{row}.scope = 'platform'"`;
 }
 
 export function platformAssignment(ctx: ModuleContext): PlatformAssignment {
   const platform = providerPlatformRoles(ctx);
+
   if (platform) {
     const through = platform.through;
     const problem = platformRolesProblem(ctx);
+
     if (problem) {
       throw new TypeError(problem);
     }
+
     const platformOnly = through?.where
       ? ` and (${through.where.replaceAll("{row}", "r")})`
       : "";
+
     const name = (stored: string) =>
       through
         ? `(select r.${through.column}::text from ${through.table} r where r.${through.id}::text = (${stored})::text)`
         : `(${stored})::text`;
+
     return {
       value: (expr) =>
         through
@@ -99,6 +111,7 @@ export function platformAssignment(ctx: ModuleContext): PlatformAssignment {
         const template = platform.canAssign?.includes("{user}")
           ? platform.canAssign
           : platform.canAssignFor;
+
         return template === undefined
           ? undefined
           : `coalesce((${template.replaceAll("{user}", member).replaceAll("{role}", name(stored))}), false)`;
@@ -109,7 +122,9 @@ export function platformAssignment(ctx: ModuleContext): PlatformAssignment {
       recheck: false,
     };
   }
+
   const access = ctx.of("access");
+
   return {
     value: (expr) => roleIn(ctx, expr, "platform"),
     assign: (stored) => roleValue(ctx, stored, undefined, false),
@@ -131,18 +146,22 @@ export function platformAssignment(ctx: ModuleContext): PlatformAssignment {
  */
 export function platformRoleScope(ctx: ModuleContext): string {
   const platform = providerPlatformRoles(ctx);
+
   if (!platform) {
     return "";
   }
+
   const through = platform.through;
   const fn = ctx.fn("platform_role_scope");
   const trigger = ctx.trigger("role_scope");
+
   if (!through?.where) {
     return `
 drop trigger if exists ${trigger} on ${platform.table};
 drop function if exists ${fn}();
 `;
   }
+
   return `
 -- blocks.invitations.options.platformRoles.through.where names the
 -- platform roles. Every write to ${platform.table} stores one of them,
@@ -185,11 +204,13 @@ export function tenantRole(ctx: ModuleContext): {
   const model = accessModel(ctx);
   const stored = roleIn(ctx, "invitee_role", "tenant", "tenant");
   const through = roleThrough(ctx.of("tenant")) !== undefined;
+
   const unknownRole =
     model === "catalog" || through
       ? `${stored} is null`
       : model === "provider"
         ? "false"
         : `not (invitee_role = any (array[${roleNames(ctx).map(sqlString).join(", ")}]::text[]))`;
+
   return { stored, unknownRole };
 }

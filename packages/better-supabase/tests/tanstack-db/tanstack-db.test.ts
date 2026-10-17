@@ -23,6 +23,7 @@ function mutations(
       })),
     },
   };
+
   return params as never;
 }
 
@@ -31,14 +32,17 @@ describe("collectionOptions", () => {
     const { client } = capturingClient(() => ({
       body: [{ id: "c1", name: "Acme" }],
     }));
+
     const db = betterSupabase.connect(client);
     const queries = createQueries(betterSupabase, db);
     const queryClient = new QueryClient();
     const query = queries.customers.findMany({ select: ["id", "name"] });
+
     const config = collectionOptions(betterSupabase, db, "customers", {
       query,
       queryClient,
     });
+
     expect(config.id).toBe("customers");
     expect(config.queryKey).toBe(query.queryKey);
     expect(config.meta?.bsTables).toEqual(["customers"]);
@@ -52,15 +56,18 @@ describe("collectionOptions", () => {
       body: [{ id: "c2" }],
       headers: { "content-range": "0-0/1" },
     }));
+
     const db = betterSupabase.connect(client);
     const queryClient = new QueryClient();
     const queries = createQueries(betterSupabase, db);
     const query = queries.customers.findMany({});
+
     const config = collectionOptions(betterSupabase, () => db, "customers", {
       query,
       queryClient,
       id: "active-customers",
     });
+
     expect(config.id).toBe("active-customers");
 
     await expect(
@@ -97,12 +104,15 @@ describe("collectionOptions", () => {
       body: [{ customerId: "c1", tagId: "t1" }],
       headers: { "content-range": "0-0/1" },
     }));
+
     const db = betterSupabase.connect(client);
     const queries = createQueries(betterSupabase, db);
+
     const config = collectionOptions(betterSupabase, db, "customerTags", {
       query: queries.customerTags.findMany({}),
       queryClient: new QueryClient(),
     });
+
     const row = { customerId: "c1", tagId: "t1" };
     expect(config.getKey(row as never)).toBe('["c1","t1"]');
     await config.onDelete(mutations({ original: row, modified: row }));
@@ -115,12 +125,15 @@ describe("collectionOptions", () => {
       status: 409,
       body: { code: "23505", message: "duplicate key", details: null },
     }));
+
     const db = betterSupabase.connect(client);
     const queries = createQueries(betterSupabase, db);
+
     const config = collectionOptions(betterSupabase, db, "customers", {
       query: queries.customers.findMany({}),
       queryClient: new QueryClient(),
     });
+
     await expect(
       config.onInsert(mutations({ modified: { id: "c1", name: "Acme" } })),
     ).rejects.toBeInstanceOf(DbException);

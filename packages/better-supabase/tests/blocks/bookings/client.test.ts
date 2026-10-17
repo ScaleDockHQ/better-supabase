@@ -40,6 +40,7 @@ function fakeClient() {
 describe("createAvailableSlotsController", () => {
   it("loads the range by day, holds a slot and follows the range", async () => {
     const client = fakeClient();
+
     const controller = createAvailableSlotsController({
       client,
       serviceId: "s1",
@@ -47,6 +48,7 @@ describe("createAvailableSlotsController", () => {
       tz: "Europe/Amsterdam",
       resourceId: "r1",
     });
+
     expect(controller.getSnapshot().loading).toBe(true);
     const { view, unmount } = mount(controller);
     await flush();
@@ -88,6 +90,7 @@ describe("createAvailableSlotsController", () => {
     const client = fakeClient();
     const slow = held([slot("2030-03-09T09:00")]);
     client.public.slots.mockReturnValueOnce(slow.result);
+
     const { view, unmount } = mount(
       createAvailableSlotsController({
         client,
@@ -96,6 +99,7 @@ describe("createAvailableSlotsController", () => {
         token: "share",
       }),
     );
+
     view().setRange({
       start: range.start,
       end: new Date("2030-03-07T00:00:00Z"),

@@ -14,6 +14,7 @@ describe("webhooks-in module", () => {
         },
       },
     })!;
+
     expect(sql).toContain(
       'create table if not exists "better_supabase"."incoming_webhooks"',
     );
@@ -36,9 +37,11 @@ describe("webhooks-in module", () => {
     expect(vault).toContain(
       'delete from vault.secrets vs where vs.id in (old."secret_id", old."previous_secret_id");',
     );
+
     const column = moduleBody("webhooks-in", {
       modules: { "webhooks-in": { options: { secretStorage: "column" } } },
     })!;
+
     expect(column).not.toContain("vault.");
     expect(() =>
       moduleBody("webhooks-in", {
@@ -80,12 +83,14 @@ describe("webhooks-in module", () => {
       modulePermissionKeys({ "webhooks-in": { permissions } }, ["webhooks-in"])
         .filter((entry) => entry.module === "webhooks-in")
         .map((entry) => [entry.action, entry.key]);
+
     expect(keys({ manage: "hooks.admin", delete: "hooks.delete" })).toEqual([
       ["create", "hooks.admin"],
       ["update", "hooks.admin"],
       ["delete", "hooks.delete"],
       ["view", "webhooks.read"],
     ]);
+
     const sql = moduleBody("webhooks-in", {
       modules: {
         "webhooks-in": {
@@ -97,10 +102,12 @@ describe("webhooks-in module", () => {
         },
       },
     })!;
+
     const fn = (name: string) =>
       sql
         .slice(sql.indexOf(`function "better_supabase"."${name}"(`))
         .split("\n$$;")[0]!;
+
     expect(fn("create_incoming_webhook")).toContain("'hooks.create'");
     expect(fn("rotate_incoming_webhook")).toContain("'hooks.update'");
     expect(fn("set_incoming_webhook_enabled")).toContain("'hooks.update'");
@@ -112,9 +119,11 @@ describe("webhooks-in module", () => {
     const sql = moduleBody("webhooks-in", {
       modules: { "webhooks-in": { permissions: { update: "hooks.update" } } },
     })!;
+
     const update = sql.slice(
       sql.indexOf('function "better_supabase"."update_incoming_webhook"('),
     );
+
     expect(update).toContain("'hooks.update'");
     expect(update).toContain("hint = 'WEBHOOK_IN_NOT_FOUND'");
     expect(update).toContain("hint = 'WEBHOOK_IN_VERIFY_UNKNOWN'");
@@ -128,11 +137,13 @@ describe("webhooks-in module", () => {
 
   it("rotates the secret with a grace window and keeps tokens apart", () => {
     const sql = moduleBody("webhooks-in")!;
+
     const rotate = sql.slice(
       sql.indexOf(
         'function "better_supabase"."rotate_incoming_webhook_secret"(',
       ),
     );
+
     expect(rotate).toContain(
       '"previous_secret_expires_at" = case when v_keep then now() + grace end',
     );
@@ -144,9 +155,11 @@ describe("webhooks-in module", () => {
     expect(sql).toContain(
       'delete from vault.secrets vs where vs.id in (old."secret_id", old."previous_secret_id");',
     );
+
     const column = moduleBody("webhooks-in", {
       modules: { "webhooks-in": { options: { secretStorage: "column" } } },
     })!;
+
     expect(column).toContain(
       'case when e."previous_secret_expires_at" > now() then e."previous_secret" end',
     );

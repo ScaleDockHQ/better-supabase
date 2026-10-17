@@ -28,6 +28,7 @@ export function TagInput({
   const listId = useId();
   const errorMessage = useErrorMessage();
   const [name, setName] = useState("");
+
   const { tags, available, pending, error, create, remove } = useTagInput({
     organizationId,
     subjectType: "customer",
@@ -35,14 +36,17 @@ export function TagInput({
     kind: "customer",
     schema: blockConfig.tags.api,
   });
+
   const applied = new Set(tags?.map((tag) => tag.id));
   const suggestions = available?.filter((tag) => !applied.has(tag.id)) ?? [];
 
   const submit = async (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
+
     if (!name.trim()) {
       return;
     }
+
     if ((await create(name)).ok) {
       setName("");
     }
@@ -51,6 +55,7 @@ export function TagInput({
   if (tags === undefined) {
     return <Skeleton className="h-16" />;
   }
+
   return (
     <div className="space-y-3">
       <ul className="flex flex-wrap gap-1.5" data-testid="tags">

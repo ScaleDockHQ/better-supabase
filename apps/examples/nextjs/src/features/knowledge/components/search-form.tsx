@@ -18,6 +18,7 @@ export function SearchForm() {
   const errorMessage = useErrorMessage();
   const form = useActionForm(searchKnowledge, { resetOnSuccess: false });
   const error = form.error === undefined ? null : errorMessage(form.error);
+
   return (
     <div className="space-y-4">
       <form {...form.formProps} className="flex items-end gap-2">

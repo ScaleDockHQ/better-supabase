@@ -37,13 +37,16 @@ function entitlementsProviderFor(
   names?: readonly string[],
 ): ModuleEntitlementsProvider | undefined {
   const mode = entitlementsMode(config);
+
   switch (mode.kind) {
     case "tenant": {
       return undefined;
     }
+
     case "provider": {
       return mode.provider;
     }
+
     case "invalid": {
       if (
         names === undefined ||
@@ -53,10 +56,13 @@ function entitlementsProviderFor(
       ) {
         return undefined;
       }
+
       throw new TypeError(mode.problem);
     }
+
     default: {
       const unreachable: never = mode;
+
       return unreachable;
     }
   }
@@ -73,36 +79,46 @@ function accessProviderFor(
   names?: readonly string[],
 ): ModuleAccessProvider | undefined {
   const mode = accessProviderMode(config);
+
   const renders =
     names !== undefined &&
     resolveModules(names, {}).some((module) => module.name === "access");
+
   switch (mode.kind) {
     case "off": {
       return undefined;
     }
+
     case "provider": {
       if (!renders || !config.authorization) {
         return mode.access;
       }
+
       const problems = moduleKeyProblems(
         config.authorization,
         modulePermissionKeys(config.blocks, names),
       );
+
       if (problems.length > 0) {
         throw new TypeError(
           problems.map((problem) => problem.message).join("\n"),
         );
       }
+
       return mode.access;
     }
+
     case "invalid": {
       if (!renders) {
         return undefined;
       }
+
       throw new TypeError(mode.problem);
     }
+
     default: {
       const unreachable: never = mode;
+
       return unreachable;
     }
   }
@@ -142,12 +158,15 @@ export async function layoutFor(
   names: readonly string[],
 ): Promise<ModuleLayout> {
   const entitlementsProvider = entitlementsProviderFor(config, names);
+
   const resolved = new Set(
     resolveModules(names, {
       ...(entitlementsProvider ? { entitlementsProvider } : {}),
     }).map((module) => module.name),
   );
+
   const accessProvider = accessProviderFor(config, names);
+
   return moduleLayoutFor(config, {
     names,
     testsDir: args["tests-dir"],

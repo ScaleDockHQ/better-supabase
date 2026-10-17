@@ -9,5 +9,6 @@ export function unwrap<T>(result: Loaded<T>): T {
   if (!result.ok) {
     throw new Error(result.error.message, { cause: result.error });
   }
+
   return result.data;
 }

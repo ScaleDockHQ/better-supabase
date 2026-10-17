@@ -15,6 +15,7 @@ import { Link } from "@/i18n/navigation";
 /** `unauthorized()`, e.g. from `bs.require()` without a session. Next answers 401. */
 export default function Unauthorized() {
   const t = useExtracted("app");
+
   return (
     <Empty role="alert" className="m-6 border">
       <EmptyHeader>

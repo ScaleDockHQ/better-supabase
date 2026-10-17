@@ -81,6 +81,7 @@ describe("resolvePreset", () => {
         scope: "user",
       }),
     );
+
     expect(resolved.blocks.map((block) => block.name)).toEqual(["profiles"]);
     expect(resolved.conflicts).toEqual([
       {
@@ -106,6 +107,7 @@ describe("resolvePreset", () => {
       const resolved = resolvePreset(
         preset(["tags", "comments", "notifications"], { scope }),
       );
+
       expect(resolved.conflicts).toEqual([]);
       const names = resolved.blocks.map((block) => block.name);
       expect(names).toEqual(
@@ -114,6 +116,7 @@ describe("resolvePreset", () => {
       expect(names).not.toContain("tenant");
       expect(names).not.toContain("access");
     }
+
     expect(
       resolvePreset(preset(["tags"])).blocks.map((block) => block.name),
     ).toEqual(expect.arrayContaining(["tenant", "access"]));
@@ -211,6 +214,7 @@ describe("resolvePreset", () => {
       ],
       glue: [],
     };
+
     expect(resolvePreset(preset(["a"]), catalog).conflicts).toEqual([
       {
         block: "a",
@@ -240,6 +244,7 @@ describe("named presets", () => {
       if (name === "minimal" || name === "saas") {
         continue;
       }
+
       expect(PRESETS[name].blocks).toEqual(
         expect.arrayContaining([...PRESETS.saas.blocks]),
       );

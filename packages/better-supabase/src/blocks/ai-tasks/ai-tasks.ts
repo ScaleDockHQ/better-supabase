@@ -214,6 +214,7 @@ const instant = (value: unknown): Temporal.Instant =>
 
 function runOf(value: unknown): AiTaskRun {
   const row = recordOf(value, "ai_task_runs");
+
   return {
     id: textOf(row["id"]),
     taskId: textOf(row["task_id"]),
@@ -231,6 +232,7 @@ function runOf(value: unknown): AiTaskRun {
 
 function taskOf(value: unknown): AiTask {
   const row = recordOf(value, "ai_scheduled_tasks");
+
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["organization_id"]),
@@ -265,24 +267,31 @@ const TASK_FIELDS: ReadonlySet<string> = new Set([
 
 function fieldsArg(fields: AiTaskFields): Record<string, unknown> {
   const out: Record<string, unknown> = {};
+
   if (fields.title !== undefined) {
     out["title"] = fields.title;
   }
+
   if (fields.prompt !== undefined) {
     out["prompt"] = fields.prompt;
   }
+
   if (fields.cron !== undefined) {
     out["cron"] = fields.cron;
   }
+
   if (fields.timezone !== undefined) {
     out["timezone"] = fields.timezone;
   }
+
   if (fields.chatId !== undefined) {
     out["chat_id"] = fields.chatId;
   }
+
   if (fields.agentId !== undefined) {
     out["agent_id"] = fields.agentId;
   }
+
   return out;
 }
 
@@ -291,9 +300,11 @@ function notifyThrough(
   options: Pick<AiTasksOptions, "notifier" | "notification">,
 ): ((outcome: AiTaskOutcome) => unknown) | undefined {
   const { notifier, notification } = options;
+
   if (notifier === undefined || notification === undefined) {
     return undefined;
   }
+
   return (outcome) =>
     notifier.send(notification, {
       recipients: [outcome.task.userId],
@@ -314,22 +325,26 @@ export function createAiTasks<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: AiTasksOptions<S>): AiTasks<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const fields: BlockFields<F> = blockFields(options.fields, "task fields");
   injectableOf("ai-tasks runner", options.run);
   const notify = options.notify ?? notifyThrough(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const service = blockCall(
     options.service ?? options.transport,
     options.schema,
     options.mappers,
   );
+
   const now = options.now ?? nowInstant;
 
   /** The next occurrence, or an `invalid_input` error for a bad cron or zone. */
   const next = (cron: string, timezone: string): Result<Temporal.Instant> => {
     try {
       assertCron(cron);
+
       return ok(nextCronRun(cron, timezone, now()));
     } catch (cause) {
       return err(invalid(errorText(cause)));
@@ -345,9 +360,11 @@ export function createAiTasks<
     AsyncResult.from(() => fields.write(extraOf(task, TASK_FIELDS)))
       .andThen((extra) => {
         const args: Record<string, unknown> = { ...extra, ...fieldsArg(task) };
+
         if (task.enabled !== undefined) {
           args["enabled"] = task.enabled;
         }
+
         return call(
           "save_ai_task",
           {
@@ -372,10 +389,13 @@ export function createAiTasks<
     ) {
       return AsyncResult.ok(task);
     }
+
     const upcoming = next(task.cron, task.timezone);
+
     if (!upcoming.ok) {
       return AsyncResult.ok(task);
     }
+
     return service(
       "schedule_ai_tasks",
       {
@@ -394,10 +414,13 @@ export function createAiTasks<
     if (fields.cron === undefined && fields.timezone === undefined) {
       return AsyncResult.ok(undefined);
     }
+
     if (fields.cron === undefined) {
       return AsyncResult.err(invalid("change cron together with timezone"));
     }
+
     const result = next(fields.cron, fields.timezone ?? fallbackZone ?? "UTC");
+
     return result.ok
       ? AsyncResult.ok(result.data)
       : AsyncResult.err(result.error);
@@ -410,9 +433,11 @@ export function createAiTasks<
       recordOf(value, "claim_due_ai_tasks"),
     ).andThen((claimed) => {
       const runs = recordsOf(claimed["runs"], "claim_due_ai_tasks").map(runOf);
+
       const items = recordsOf(claimed["unscheduled"], "claim_due_ai_tasks").map(
         (row) => {
           const result = next(textOf(row["cron"]), textOf(row["timezone"]));
+
           return {
             id: textOf(row["id"]),
             // A task whose cron no longer parses waits a day instead of looping.
@@ -423,6 +448,7 @@ export function createAiTasks<
           };
         },
       );
+
       return items.length === 0
         ? AsyncResult.ok(runs)
         : service("schedule_ai_tasks", { items: { items } }, () => runs);
@@ -438,10 +464,12 @@ export function createAiTasks<
           if (!isRecord(value)) {
             return ok(false);
           }
+
           const run = runOf(value);
           const task = taskOf(value["task"]);
           const runner = options.run;
           let outcome: AiTaskOutcome;
+
           if (runner === undefined) {
             outcome = {
               task,
@@ -456,6 +484,7 @@ export function createAiTasks<
                 run,
                 executeOptions.signal ?? new AbortController().signal,
               );
+
               outcome =
                 result?.chatId === undefined
                   ? { task, run, ok: true }
@@ -464,6 +493,7 @@ export function createAiTasks<
               outcome = { task, run, ok: false, error: errorText(cause) };
             }
           }
+
           const finished = await service(
             "finish_ai_task_run",
             {
@@ -474,10 +504,13 @@ export function createAiTasks<
             },
             (done) => done === true,
           );
+
           if (!finished.ok) {
             return finished;
           }
+
           await notify?.(outcome);
+
           return ok(true);
         }),
     );
@@ -516,6 +549,7 @@ export function createAiTasks<
     execute,
     runJob: () => async (payload, _job, signal) => {
       const result = await execute(payload.run_id, { signal });
+
       if (!result.ok) {
         throw new DbException(result.error);
       }
@@ -524,25 +558,32 @@ export function createAiTasks<
       tick(drainOptions).andThen((runs) =>
         AsyncResult.from(async (): Promise<Result<number>> => {
           let done = 0;
+
           const failures: {
             readonly runId: string;
             readonly error: DbError;
           }[] = [];
+
           for (const run of runs) {
             if (drainOptions.signal?.aborted) {
               break;
             }
+
             const result = await execute(run.id, drainOptions);
+
             if (!result.ok) {
               failures.push({ runId: run.id, error: result.error });
             } else if (result.data) {
               done += 1;
             }
           }
+
           const [first] = failures;
+
           if (first === undefined) {
             return ok(done);
           }
+
           return err({
             ...first.error,
             details: `${failures.length} of ${runs.length} runs failed: ${failures
@@ -552,6 +593,7 @@ export function createAiTasks<
         }),
       ),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "ai-tasks",
     ...(options.logger ? { logger: options.logger } : {}),

@@ -104,6 +104,7 @@ describe("audit module", () => {
       },
       permissions: { view: "audit.read", viewAll: "platform.audit.read" },
     });
+
     expect(sql).toContain(
       'create trigger "bs_audit_append_only" before update or delete',
     );
@@ -124,6 +125,7 @@ describe("audit module", () => {
         functions: { audit_retention: "plan_audit_days" },
       },
     });
+
     expect(sql).toContain(`to_regprocedure('"app"."plan_audit_days"(uuid)')`);
     expect(sql).toContain(
       `to_regprocedure('"app"."plan_audit_days"(uuid)')::oid::regproc)\n        into v_older using v_tenant;`,
@@ -137,6 +139,7 @@ describe("audit module", () => {
       resolveModules(["audit"], { modules: { audit: config } }).map(
         (module) => module.name,
       );
+
     expect(names({})).toEqual(["audit"]);
     expect(names({ options: { readPolicy: true } })).toContain("access");
   });
@@ -202,6 +205,7 @@ describe("audit module", () => {
         correlationIdHeader: "x-action-id",
       },
     });
+
     expect(sql).toContain("(v_headers ->> 'x-amzn-trace-id')");
     expect(sql).toContain("(v_headers ->> 'x-action-id')");
     expect(sql).toContain("better_supabase.request_header('x-action-id')");
@@ -217,6 +221,7 @@ describe("audit module", () => {
         log: { ...CENTRAKIT.columns!["log"], correlationId: "trace_group" },
       },
     });
+
     expect(sql).toMatch(
       /insert into "public"\."audit_logs" \([^)]*"trace_group"/,
     );
@@ -249,11 +254,13 @@ describe("audit module", () => {
     expect(audit({ ...CENTRAKIT, options: { chain: true } })).not.toContain(
       "audit_chain",
     );
+
     const contract = (config: BlockConfig) =>
       resolveModules(["audit"]).find((module) => module.name === "audit")!
         .contract!(moduleContext("audit", { modules: { audit: config } })).map(
         (fn) => fn.name,
       );
+
     expect(contract({ options: { chain: true } })).toContain(
       "verify_audit_chain",
     );
@@ -290,6 +297,7 @@ describe("audit module", () => {
       .filter((file) => file.module === "audit")
       .map((file) => file.contents)
       .join("\n");
+
     expect(sql).toContain(
       `"better_supabase"."retention_cutoff"('audit', older_than)) p`,
     );
@@ -339,6 +347,7 @@ describe("audit value mapping", () => {
       ...ADOPTED,
       options: { metadataColumns: { ticket_id: "ticketId" } },
     });
+
     expect(sql).toContain(
       "|| case when audit_event.metadata ? 'ticketId' then pg_catalog.jsonb_build_object('ticket_id', audit_event.metadata -> 'ticketId') else '{}'::jsonb end;",
     );
@@ -447,11 +456,13 @@ describe("audit value mapping", () => {
 
   it("writes audit_event_trusted for definer functions, granted to trusted roles only", () => {
     const sql = audit({ options: { trustedRoles: ["app_owner"] } });
+
     const trusted = sql.slice(
       sql.indexOf(
         "create or replace function better_supabase.audit_event_trusted(",
       ),
     );
+
     const body = trusted.slice(0, trusted.indexOf("$$;"));
     expect(body).toContain("actor_id := coalesce(actor_id, auth.uid());");
     expect(body).not.toContain("actor_kind := null;");
@@ -483,9 +494,11 @@ describe("audit value mapping", () => {
     expect(sql).toContain(
       "coalesce(audit_event_trusted.support_session, case when",
     );
+
     const plain = sql.slice(
       sql.indexOf("create or replace function better_supabase.audit_event("),
     );
+
     expect(plain.slice(0, plain.indexOf("$$;"))).toContain(
       "    if (select auth.jwt()) -> 'act' is not null or impersonated_by is distinct from auth.uid() then\n      support_session := null;",
     );
@@ -493,8 +506,10 @@ describe("audit value mapping", () => {
 
   it("drops the previous signatures of audit_event and audit_event_trusted", () => {
     const sql = audit();
+
     const previous =
       "text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text)";
+
     expect(sql).toContain(
       `drop function if exists better_supabase.audit_event(${previous};`,
     );

@@ -26,16 +26,20 @@ describe("pgTAP", () => {
     expect(file.contents).toContain(
       "create extension if not exists pgtap with schema extensions;",
     );
+
     const plans = [
       ...file.contents.matchAll(/select extensions\.plan\((\d+)\);/g),
     ];
+
     expect(plans).toHaveLength(1);
+
     const assertions =
       file.contents
         .slice(plans[0]!.index)
         .match(
           /select (extensions\.)?(ok|is|isnt|has_function|lives_ok|throws_ok|pass)\(/g,
         ) ?? [];
+
     expect(assertions).toHaveLength(Number(plans[0]![1]));
     expect(file.contents.trimEnd()).toMatch(
       /select \* from extensions\.finish\(\);$/,
@@ -69,7 +73,9 @@ describe(`pgvector iterative index scans (${SPEC_PINS.pgvector}+)`, () => {
         /set_config\('hnsw\.iterative_scan', '([a-z_]+)', true\)/g,
       ),
     ].map((match) => match[1]);
+
     expect(values).toHaveLength(6);
+
     for (const value of values) {
       expect(["strict_order", "relaxed_order"]).toContain(value);
     }
@@ -109,23 +115,29 @@ describe(`Stripe Sync Engine schema (${SPEC_PINS.stripeSyncEngine})`, () => {
       ),
       "utf-8",
     );
+
     const columns = new Set(
       [...migration.matchAll(/^\s+"([a-z_]+)" [a-z]/gm)].map(
         (match) => match[1],
       ),
     );
+
     expect(columns).toContain("customer");
     const sql = contents("entitlements", ENTITLEMENTS).contents;
     expect(sql).toContain("from stripe.active_entitlements e");
     const from = sql.indexOf("from stripe.active_entitlements e");
+
     const statement = sql.slice(
       sql.lastIndexOf("select", from),
       sql.indexOf(";", from),
     );
+
     const used = new Set(
       [...statement.matchAll(/\be\.([a-z_]+)/g)].map((match) => match[1]),
     );
+
     expect(used.size).toBeGreaterThan(0);
+
     for (const column of used) {
       expect(columns).toContain(column);
     }

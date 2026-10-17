@@ -9,9 +9,11 @@ import { schema } from "../fixtures/generated-camel.ts";
 import { stackUrl } from "./stack-env.ts";
 
 const url = stackUrl();
+
 const publishableKey =
   process.env["SUPABASE_PUBLISHABLE_KEY"] ??
   "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";
+
 const secretKey =
   process.env["SUPABASE_SECRET_KEY"] ??
   "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -26,6 +28,7 @@ async function reachable(): Promise<boolean> {
       headers: { apikey: publishableKey },
       signal: AbortSignal.timeout(1000),
     });
+
     return response.status < 500;
   } catch {
     return false;
@@ -41,6 +44,7 @@ interface ToolResult {
 
 describe.skipIf(!live)("MCP tools against the local stack", () => {
   const betterSupabase = defineSupabase(schema);
+
   const mcp = createMcp(betterSupabase, {
     env: parseEnv({
       SUPABASE_URL: url,
@@ -50,9 +54,11 @@ describe.skipIf(!live)("MCP tools against the local stack", () => {
     version: "1.0.0",
     resources: { customers: { select: ["id", "name", "organizationId"] } },
   });
+
   const admin = betterSupabase.connect(
     createClient(url, secretKey, { auth: { persistSession: false } }),
   );
+
   const created: string[] = [];
   afterAll(async () => {
     if (created.length > 0) {
@@ -62,6 +68,7 @@ describe.skipIf(!live)("MCP tools against the local stack", () => {
 
   const call = async (organizationId: string, name: string, args: unknown) => {
     const token = await signLocalJwt({ sub: USER, tenant_id: organizationId });
+
     const response = await mcp.fetch(
       new Request("http://127.0.0.1/mcp", {
         method: "POST",
@@ -77,15 +84,18 @@ describe.skipIf(!live)("MCP tools against the local stack", () => {
         }),
       }),
     );
+
     return ((await response.json()) as { result: ToolResult }).result;
   };
 
   it("creates, reads, updates and deletes as the caller under RLS", async () => {
     const name = `MCP ${String(Date.now())}`;
+
     const createdRow = await call(ACME, "customers_create", {
       name,
       organizationId: ACME,
     });
+
     expect(createdRow.isError).toBeUndefined();
     const id = createdRow.structuredContent!["id"] as string;
     created.push(id);

@@ -16,6 +16,7 @@ import { stepLibrary } from "./step-library";
 /** The service-role builder steps record node status and resolve credentials with. */
 function stepBuilder() {
   const transport = rpcTransport(serviceSupabase(), { schema: "api" });
+
   return createWorkflowBuilder({
     transport,
     schema: "api",
@@ -38,6 +39,7 @@ const text = (config: GraphStepCall["config"], key: string): string =>
 /** The run's tenant and actor, from the registry: graph steps get no request context. */
 async function runOwner() {
   const { workflowRunId } = getWorkflowMetadata();
+
   const run = await createWorkflows({
     transport: rpcTransport(serviceSupabase(), { schema: "api" }),
     schema: "api",
@@ -45,16 +47,20 @@ async function runOwner() {
   })
     .runs.get(workflowRunId)
     .orThrow();
+
   return { tenant: run?.tenant, actor: run?.actor };
 }
 
 async function notifyMember(call: GraphStepCall): Promise<boolean> {
   "use step";
+
   return report(call, async () => {
     const { tenant, actor } = await runOwner();
+
     if (tenant === undefined || actor === undefined) {
       return false;
     }
+
     await serviceNotifications()
       .send("workflow.message", {
         tenant,
@@ -63,14 +69,17 @@ async function notifyMember(call: GraphStepCall): Promise<boolean> {
         data: { title: text(call.config, "title").slice(0, 200) },
       })
       .orThrow();
+
     return true;
   });
 }
 
 async function summarizeText(call: GraphStepCall) {
   "use step";
+
   return report(call, () => {
     const trimmed = v.parse(SummaryInput, call.input).text.trim();
+
     return Promise.resolve({
       words: trimmed === "" ? 0 : trimmed.split(/\s+/u).length,
       sentences: trimmed.split(/[.!?]+/u).filter((part) => part.trim() !== "")
@@ -82,10 +91,12 @@ async function summarizeText(call: GraphStepCall) {
 /** Posts to Slack's API only, so a graph can't point the server at another host. */
 async function postToSlack(call: GraphStepCall): Promise<boolean> {
   "use step";
+
   return report(call, async () => {
     const token = await stepBuilder()
       .credentials.resolve(text(call.config, "credential"))
       .orThrow();
+
     const response = await fetch("https://slack.com/api/chat.postMessage", {
       method: "POST",
       headers: { ...token.headers, "content-type": "application/json" },
@@ -94,9 +105,11 @@ async function postToSlack(call: GraphStepCall): Promise<boolean> {
         text: text(call.config, "text"),
       }),
     });
+
     if (!response.ok) {
       throw new Error(`Slack answered ${response.status}`);
     }
+
     return true;
   });
 }

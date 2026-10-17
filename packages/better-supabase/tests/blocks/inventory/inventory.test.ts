@@ -8,11 +8,13 @@ import { money } from "../../../src/commerce/index.ts";
 
 function recorder(...results: unknown[]) {
   const calls: { fn: string; args: unknown }[] = [];
+
   return {
     calls,
     transport: {
       call(_schema: string, fn: string, args: unknown) {
         calls.push({ fn, args });
+
         return Promise.resolve(
           results.length > 1 ? results.shift() : results[0],
         );
@@ -27,6 +29,7 @@ describe("inventory block", () => {
       { id: "l1", code: "WH-1", active: true },
       { movementId: "m1", onHand: 10, available: 8 },
     );
+
     const inventory = createInventory({ transport });
     expect(
       await inventory
@@ -72,7 +75,9 @@ describe("inventory block", () => {
       { id: "r1", expiresAt: "2026-10-14T10:15:00Z", available: 3 },
       { id: "r1", movementId: "m2" },
     );
+
     const inventory = createInventory({ transport });
+
     const held = await inventory
       .reserve("v1", "l1", {
         quantity: 2,
@@ -81,6 +86,7 @@ describe("inventory block", () => {
         expiresAt: Temporal.Instant.from("2026-10-14T10:15:00Z"),
       })
       .orThrow();
+
     expect(held.expiresAt.toString()).toBe("2026-10-14T10:15:00Z");
     expect(await inventory.commitReservation("r1").orThrow()).toBe("m2");
     expect(calls[0]?.args).toMatchObject({
@@ -93,10 +99,12 @@ describe("inventory block", () => {
   it("expires reservations through the service transport and the job", async () => {
     const member = recorder(0);
     const service = recorder(4);
+
     const inventory = createInventory({
       transport: member.transport,
       service: service.transport,
     });
+
     expect(await inventory.expireReservations().orThrow()).toBe(4);
     await inventory.job(
       { maxRows: 50 },
@@ -128,11 +136,13 @@ describe("inventory block", () => {
       supplier_id: "acme",
       lines: [{ variantId: "v1", quantity: 10, unitCost: "450" }],
     });
+
     const mixed = await inventory.savePurchaseOrder("org", {
       locationId: "l1",
       currency: "EUR",
       lines: [{ variantId: "v1", quantity: 1, unitCost: money(450n, "USD") }],
     });
+
     expect(mixed).toMatchObject({
       ok: false,
       error: { hint: "INVENTORY_CURRENCY_INVALID" },
@@ -145,6 +155,7 @@ describe("inventory block", () => {
       { status: "partially_received", backordered: 4 },
       { status: "lost", backordered: 0 },
     );
+
     const inventory = createInventory({ transport });
     expect(
       await inventory
@@ -157,6 +168,7 @@ describe("inventory block", () => {
   it("runs hooks around methods", async () => {
     const { calls, transport } = recorder({ id: "t1" });
     const seen: string[] = [];
+
     const inventory = createInventory({
       transport,
       hooks: {
@@ -171,6 +183,7 @@ describe("inventory block", () => {
         },
       },
     });
+
     await inventory
       .createTransfer("org", {
         fromLocationId: "a",
@@ -218,6 +231,7 @@ describe("inventory block", () => {
         (i) => i.cancelPurchaseOrder("po1").orThrow(),
       ],
     ];
+
     for (const [fn, result, run] of cases) {
       const { calls, transport } = recorder(result);
       await run(createInventory({ transport }));

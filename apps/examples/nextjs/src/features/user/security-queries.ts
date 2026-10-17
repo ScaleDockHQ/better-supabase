@@ -42,7 +42,9 @@ async function authGet<S extends v.GenericSchema>(
       },
     },
   );
+
   const body: unknown = await response.json();
+
   if (!response.ok) {
     const parsed = v.safeParse(AuthError, body);
     throw new Error(
@@ -50,6 +52,7 @@ async function authGet<S extends v.GenericSchema>(
         `Supabase Auth answered ${String(response.status)}`,
     );
   }
+
   return v.parse(schema, body);
 }
 
@@ -73,12 +76,16 @@ async function attempt<T>(read: () => Promise<T>): Promise<AuthRead<T>> {
 export async function getTotpFactorId(): Promise<AuthRead<string | null>> {
   "use cache: private";
   const { auth } = await bs.cached();
+
   if (auth.kind !== "user") {
     return { ok: true, value: null };
   }
+
   const token = auth.token;
+
   return attempt(async () => {
     const user = await authGet(token, "/user", User);
+
     return (
       user.factors?.find(
         (factor) =>
@@ -92,9 +99,12 @@ export async function getTotpFactorId(): Promise<AuthRead<string | null>> {
 export async function getOAuthGrants(): Promise<AuthRead<readonly Grant[]>> {
   "use cache: private";
   const { auth } = await bs.cached();
+
   if (auth.kind !== "user") {
     return { ok: true, value: [] };
   }
+
   const token = auth.token;
+
   return attempt(() => authGet(token, "/user/oauth/grants", v.array(Grant)));
 }

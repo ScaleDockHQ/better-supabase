@@ -14,9 +14,13 @@ import {
 } from "../spec/api.ts";
 
 export type { ResourceOperation } from "../spec/model.ts";
+
 export { PROBLEM_SCHEMA } from "../spec/presets.ts";
+
 export { openapiFormat } from "./format.ts";
+
 export { toOpenApi30Schema } from "./schema30.ts";
+
 export type {
   AnyOpenApiDocument,
   OpenApi30Document,
@@ -31,6 +35,7 @@ export type {
   OpenApiVersion,
   RenderedOpenApi,
 } from "./types.ts";
+
 export { OPENAPI_33_PREVIEW_VERSION } from "./types.ts";
 
 /** How one table is published; see `defineApi`'s `resources`. */
@@ -71,15 +76,18 @@ export function createOpenApi<V extends OpenApiVersion = "3.1", Ref = string>(
   const { version, transform, overlays, onDiagnostic, ...apiOptions } = options;
   const api = defineApi(betterSupabase, apiOptions);
   const engine: OverlayEngine | undefined = options.applyOverlays;
+
   const result = api.openapi<V>({
     ...(version === undefined ? {} : { version }),
     ...(transform === undefined ? {} : { transform }),
     ...(overlays === undefined ? {} : { overlays }),
     ...(engine === undefined ? {} : { applyOverlays: engine }),
   });
+
   const errors = result.diagnostics.filter(
     (diagnostic) => diagnostic.severity === "error",
   );
+
   if (errors.length > 0) {
     throw new TypeError(
       `createOpenApi: ${errors
@@ -90,10 +98,12 @@ export function createOpenApi<V extends OpenApiVersion = "3.1", Ref = string>(
         .join("; ")}`,
     );
   }
+
   if (onDiagnostic) {
     for (const diagnostic of result.diagnostics) {
       onDiagnostic(diagnostic);
     }
   }
+
   return result.document;
 }

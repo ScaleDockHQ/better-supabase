@@ -13,17 +13,21 @@ const labels = new Map([
 /** This period's usage per meter against the plan's quota. */
 export function UsageMeter() {
   const organizationId = tenantOf(useAuth()) ?? null;
+
   const { meters } = useUsageMeter({
     organizationId,
     meters: ["api.calls", "customers.created"],
     schema: API_SCHEMA,
   });
+
   if (!organizationId) {
     return null;
   }
+
   if (meters === undefined) {
     return <ActivityIndicator />;
   }
+
   return (
     <View style={{ gap: 12, padding: 16, borderWidth: 1, borderRadius: 12 }}>
       <Text style={{ fontSize: 17, fontWeight: "600" }}>Usage this period</Text>

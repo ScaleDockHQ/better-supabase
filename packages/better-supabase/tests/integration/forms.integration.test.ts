@@ -62,6 +62,7 @@ describe.skipIf(!live)("forms", () => {
 
   it("publishes versions, validates submissions in Postgres and takes public answers", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const owner = await s.user("owner");
       const member = await s.user("member");
@@ -69,16 +70,20 @@ describe.skipIf(!live)("forms", () => {
       const tenant = await s.organization(owner, { member });
 
       await s.asRole(owner);
+
       const form = await s.value<{ id: string; status: string }>(
         "better_supabase.create_form($1, 'signup', 'Sign up')",
         [tenant],
       );
+
       expect(form.status).toBe("draft");
+
       const version = await s.value<{
         number: number;
         schema: unknown;
         definition: unknown;
       }>("better_supabase.publish_form_version($1, $2)", [form.id, DEFINITION]);
+
       expect(version.number).toBe(1);
       expect(version.schema).toEqual(formSchema(DEFINITION as never));
       expect(
@@ -104,11 +109,14 @@ describe.skipIf(!live)("forms", () => {
           { name: "Ada", email: "ada@example.test", plan: "team" },
         ]),
       ).toBe("JSON_SCHEMA_INVALID");
+
       const draft = await s.value<{ id: string; status: string }>(
         "better_supabase.submit_form($1, $2, null, null, null, true)",
         [form.id, { name: "Ada" }],
       );
+
       expect(draft.status).toBe("draft");
+
       const submitted = await s.value<{ id: string; status: string }>(
         "better_supabase.submit_form($1, $2, null, null, $3)",
         [
@@ -123,6 +131,7 @@ describe.skipIf(!live)("forms", () => {
           draft.id,
         ],
       );
+
       expect(submitted).toMatchObject({ id: draft.id, status: "submitted" });
       expect(
         await s.hint("better_supabase.review_form_submission($1, 'accepted')", [
@@ -131,15 +140,19 @@ describe.skipIf(!live)("forms", () => {
       ).toBe("FORM_FORBIDDEN");
 
       await s.asRole(owner);
+
       const reviewed = await s.value<{ status: string }>(
         "better_supabase.review_form_submission($1, 'accepted')",
         [draft.id],
       );
+
       expect(reviewed.status).toBe("accepted");
+
       const list = await s.value<unknown[]>(
         "better_supabase.list_form_submissions($1)",
         [form.id],
       );
+
       expect(list).toHaveLength(2 - 1);
 
       await s.service();
@@ -150,15 +163,19 @@ describe.skipIf(!live)("forms", () => {
         [tenant, form.id, token],
       );
       await s.asRole("anon");
+
       const pub = await s.value<{ id: string; version: { number: number } }>(
         "better_supabase.get_public_form($1)",
         [token],
       );
+
       expect(pub).toMatchObject({ id: form.id, version: { number: 1 } });
+
       const answered = await s.value<{ status: string }>(
         "better_supabase.submit_public_form($1, $2)",
         [token, { name: "Lin", email: "lin@example.test", plan: "free" }],
       );
+
       expect(answered.status).toBe("submitted");
       expect(
         await s.hint("better_supabase.get_public_form($1)", ["wrong-token"]),
@@ -185,11 +202,13 @@ describe.skipIf(!live)("forms", () => {
 
   it("generates the same schema as formSchema for every field type and copies custom fields in", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const owner = await s.user("owner");
       await s.install(MODULES);
       const tenant = await s.organization(owner);
       await s.service();
+
       const [{ id: definition }] = (await s.rows<{ id: string }>(
         `insert into better_supabase.field_definitions (tenant_id, entity, key, label, type, required)
          values ($1, 'lead', 'source', 'Source', 'option', true) returning id`,
@@ -197,14 +216,17 @@ describe.skipIf(!live)("forms", () => {
       )) as [{ id: string }];
 
       await s.asRole(owner);
+
       const form = await s.value<{ id: string }>(
         "better_supabase.create_form($1, 'everything', 'Everything')",
         [tenant],
       );
+
       const version = await s.value<{ schema: unknown }>(
         "better_supabase.publish_form_version($1, $2)",
         [form.id, SIGNUP],
       );
+
       expect(version.schema).toEqual(formSchema(SIGNUP));
 
       const linked = await s.value<{
@@ -230,6 +252,7 @@ describe.skipIf(!live)("forms", () => {
           ],
         },
       ]);
+
       expect(linked.definition.steps[0]!.fields[0]).toMatchObject({
         key: "source",
         label: "Source",

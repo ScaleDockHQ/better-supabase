@@ -32,9 +32,11 @@ import {
 } from "../shared.ts";
 
 export const PRODUCT_KINDS = ["physical", "digital", "service"] as const;
+
 export type ProductKind = (typeof PRODUCT_KINDS)[number];
 
 export const PRODUCT_STATUSES = ["draft", "active", "archived"] as const;
+
 export type ProductStatus = (typeof PRODUCT_STATUSES)[number];
 
 export interface CatalogOptions<
@@ -277,11 +279,13 @@ const minor = (value: Money | undefined): string | null =>
 
 function moneyOf(value: unknown, currency: string): Money | undefined {
   const amount = optionalText(value);
+
   return amount === undefined ? undefined : money(BigInt(amount), currency);
 }
 
 function productOf(value: unknown): SavedProduct {
   const row = recordOf(value, "save_product");
+
   return {
     id: textOf(row["id"]),
     slug: textOf(row["slug"]),
@@ -291,6 +295,7 @@ function productOf(value: unknown): SavedProduct {
 
 function variantOf(value: unknown): SavedVariant {
   const row = recordOf(value, "save_variant");
+
   return {
     id: textOf(row["id"]),
     sku: textOf(row["sku"]),
@@ -302,9 +307,11 @@ function priceOf(value: unknown): Price | null {
   if (!isRecord(value)) {
     return null;
   }
+
   const currency = textOf(value["currency"]);
   const compareAt = moneyOf(value["compareAt"], currency);
   const priceListId = optionalText(value["priceListId"]);
+
   return {
     id: textOf(value["id"]),
     variantId: textOf(value["variantId"]),
@@ -337,9 +344,11 @@ export function createCatalog<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: CatalogOptions<S>): Catalog<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const fields: BlockFields<F> = blockFields(options.fields, "product fields");
+
   const saveProduct = (
     organizationId: string,
     productId: string | null,
@@ -362,6 +371,7 @@ export function createCatalog<
         ),
       )
       .andThen((value) => withFields(fields, value, productOf(value)));
+
   const catalog: Catalog<F> = {
     createProduct: (organizationId, input) =>
       saveProduct(organizationId, null, input),
@@ -370,6 +380,7 @@ export function createCatalog<
     setProductStatus: (productId, status) =>
       call("set_product_status", { product: productId, status }, (value) => {
         const row = recordOf(value, "set_product_status");
+
         return {
           status: enumOrThrow(row["status"], PRODUCT_STATUSES, "status"),
           from: enumOrThrow(row["from"], PRODUCT_STATUSES, "status"),
@@ -388,6 +399,7 @@ export function createCatalog<
         },
         (value) => {
           const row = recordOf(value, "save_product_option");
+
           return {
             id: textOf(row["id"]),
             values: recordsOf(row["values"], "save_product_option").map(
@@ -411,9 +423,11 @@ export function createCatalog<
       call("save_variant", variantArgs(productId, variantId, input), variantOf),
     reorderVariant: (variantId, neighbors) => {
       const key = rankBetweenResult(neighbors);
+
       if (!key.ok) {
         return AsyncResult.err(key.error);
       }
+
       return call(
         "rank_variant",
         { variant: variantId, rank: key.data },
@@ -441,6 +455,7 @@ export function createCatalog<
       ),
     setPrice: (variantId, input) => {
       const { currency } = input.amount;
+
       if (
         input.compareAt !== undefined &&
         input.compareAt.currency !== currency
@@ -453,6 +468,7 @@ export function createCatalog<
           ),
         );
       }
+
       return call(
         "set_price",
         {
@@ -467,6 +483,7 @@ export function createCatalog<
         (value) => {
           const row = recordOf(value, "set_price");
           const previousAmount = moneyOf(row["previousAmount"], currency);
+
           return {
             id: textOf(row["id"]),
             amount: money(BigInt(textOf(row["amount"])), currency),
@@ -501,6 +518,7 @@ export function createCatalog<
         },
         (value) => {
           const row = recordOf(value, "save_category");
+
           return {
             id: textOf(row["id"]),
             slug: textOf(row["slug"]),
@@ -510,9 +528,11 @@ export function createCatalog<
       ),
     moveCategory: (categoryId, parentId, neighbors) => {
       const key = rankBetweenResult(neighbors);
+
       if (!key.ok) {
         return AsyncResult.err(key.error);
       }
+
       return call(
         "move_category",
         { category: categoryId, parent: parentId, rank: key.data },
@@ -544,6 +564,7 @@ export function createCatalog<
         },
         (value) => {
           const row = recordOf(value, "save_collection");
+
           return {
             id: textOf(row["id"]),
             slug: textOf(row["slug"]),
@@ -564,10 +585,13 @@ export function createCatalog<
           { collection: collectionId, product: productId, rank },
           textOf,
         );
+
       if (neighbors === undefined) {
         return add(null);
       }
+
       const key = rankBetweenResult(neighbors);
+
       return key.ok ? add(key.data) : AsyncResult.err(key.error);
     },
     removeFromCollection: (collectionId, productId) =>
@@ -583,6 +607,7 @@ export function createCatalog<
         (value) => value === true,
       ),
   };
+
   return withBlockHooks(catalog, options.hooks, {
     block: "catalog",
     ...(options.logger ? { logger: options.logger } : {}),
@@ -606,6 +631,7 @@ export function catalogSubjects(
 ): SubjectsConfig {
   const schema = subjectOptions.schema ?? DEFAULT_BLOCK_SCHEMA;
   const permissions = { read: "catalog.read", write: "catalog.manage" };
+
   return {
     product: {
       table: `${schema}.products`,

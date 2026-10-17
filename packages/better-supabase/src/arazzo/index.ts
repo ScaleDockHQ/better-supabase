@@ -11,18 +11,24 @@ import { type DefineApiOptions, defineApi } from "../spec/api.ts";
 import { type ArazzoFormatOptions, createArazzoFormat } from "./format.ts";
 
 export type { WorkflowSource } from "../spec/options.ts";
+
 export type { ModelStep, ModelWorkflow } from "../spec/model.ts";
+
 export {
   authWorkflow,
   createThenGetWorkflows,
   paginationWorkflows,
 } from "./builtins.ts";
+
 export type {
   AuthWorkflowOptions,
   BuiltinWorkflowOptions,
 } from "./builtins.ts";
+
 export { arazzoFormat, createArazzoFormat } from "./format.ts";
+
 export type { ArazzoFormatOptions, ArazzoSourceOptions } from "./format.ts";
+
 export type {
   AnyArazzoDocument,
   Arazzo10Document,
@@ -36,7 +42,9 @@ export type {
   ArazzoWorkflow,
   RenderedArazzo,
 } from "./types.ts";
+
 export { defineWorkflow } from "./workflow.ts";
+
 export type {
   ChannelStep,
   CriterionObject,
@@ -92,10 +100,12 @@ export function createArazzo<V extends ArazzoVersion = "1.0", Ref = string>(
     asyncapi,
     ...apiOptions
   } = options;
+
   const format = createArazzoFormat({
     ...(openapi === undefined ? {} : { openapi }),
     ...(asyncapi === undefined ? {} : { asyncapi }),
   });
+
   const result = defineApi(betterSupabase, apiOptions).render(format, {
     ...(version === undefined ? {} : { version }),
     ...(transform === undefined
@@ -110,9 +120,11 @@ export function createArazzo<V extends ArazzoVersion = "1.0", Ref = string>(
         }),
     ...(overlays === undefined ? {} : { overlays }),
   });
+
   const errors = result.diagnostics.filter(
     (diagnostic) => diagnostic.severity === "error",
   );
+
   if (errors.length > 0) {
     throw new TypeError(
       `createArazzo: ${errors
@@ -123,11 +135,13 @@ export function createArazzo<V extends ArazzoVersion = "1.0", Ref = string>(
         .join("; ")}`,
     );
   }
+
   if (onDiagnostic) {
     for (const diagnostic of result.diagnostics) {
       onDiagnostic(diagnostic);
     }
   }
+
   // SAFETY: the format lowers version V to ArazzoDocuments[V].
   return result.document as ArazzoDocuments[V];
 }

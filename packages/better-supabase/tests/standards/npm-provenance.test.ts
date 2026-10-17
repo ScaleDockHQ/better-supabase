@@ -12,11 +12,14 @@ describe("npm provenance", () => {
     ) as {
       publishConfig?: { provenance?: boolean; access?: string };
     };
+
     expect(manifest.publishConfig?.provenance).toBe(true);
+
     const release = await readFile(
       join(REPO, ".github/workflows/release.yml"),
       "utf-8",
     );
+
     expect(release).toMatch(/id-token:\s*write/);
   });
 });

@@ -22,6 +22,7 @@ const sandboxInstant = (value: unknown): Temporal.Instant =>
 export function sandboxOf(value: unknown): AiSandbox {
   const row = recordOf(value, "ai_sandboxes");
   const idle = row["idle_seconds"];
+
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["organization_id"]),

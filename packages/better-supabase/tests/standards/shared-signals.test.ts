@@ -14,12 +14,14 @@ import { SPEC_PINS } from "../../src/core/spec-pins.ts";
 import { signingKey, store } from "../blocks/shared-signals/fixtures.ts";
 
 const ISSUER = "https://tx.example";
+
 const decode = (part: string): Record<string, unknown> =>
   JSON.parse(Buffer.from(part, "base64url").toString());
 
 async function transmitter() {
   const t = store();
   const { signer, jwks } = await signingKey();
+
   const tx = createSsfTransmitter({
     transport: t,
     issuer: ISSUER,
@@ -27,18 +29,21 @@ async function transmitter() {
     signer,
     authorize: () => ({ receiver: "rx" }),
   });
+
   return { t, jwks, tx };
 }
 
 describe(`Security Event Tokens (RFC 8417, ${SPEC_PINS.rfc8417})`, () => {
   it("mints a SET with typ secevent+jwt, iss, iat, jti, aud and one event", async () => {
     const { signer } = await signingKey();
+
     const { token } = await mintSet(signer, {
       issuer: ISSUER,
       audience: "rx",
       subject: { format: "opaque", id: "u1" },
       event: { type: CAEP_EVENTS.sessionRevoked, claims: {} },
     }).orThrow();
+
     const [header, payload] = token.split(".").slice(0, 2).map(decode);
     // §2.3: explicit typing with the secevent+jwt media type, without the application/ prefix.
     expect(header!["typ"]).toBe("secevent+jwt");
@@ -53,12 +58,14 @@ describe(`Security Event Tokens (RFC 8417, ${SPEC_PINS.rfc8417})`, () => {
 describe(`Push delivery (RFC 8935, ${SPEC_PINS.rfc8935})`, () => {
   it("answers 202 to a valid SET and 400 with an err code from §2.4 otherwise", async () => {
     const { signer, jwks } = await signingKey();
+
     const push = createSsfReceiver({
       transport: store(),
       issuer: ISSUER,
       audience: "rx",
       jwks,
     }).pushHandler();
+
     const send = (body: string, type = "application/secevent+jwt") =>
       push(
         new Request("https://rx.example/ssf", {
@@ -67,12 +74,14 @@ describe(`Push delivery (RFC 8935, ${SPEC_PINS.rfc8935})`, () => {
           body,
         }),
       );
+
     const { token } = await mintSet(signer, {
       issuer: ISSUER,
       audience: "rx",
       subject: { format: "opaque", id: "u1" },
       event: { type: RISC_EVENTS.accountDisabled, claims: {} },
     }).orThrow();
+
     expect((await send(token)).status).toBe(202);
     const wrongType = await send(token, "application/jwt");
     expect(wrongType.status).toBe(400);
@@ -92,6 +101,7 @@ describe(`Push delivery (RFC 8935, ${SPEC_PINS.rfc8935})`, () => {
 describe(`Poll delivery (RFC 8936, ${SPEC_PINS.rfc8936})`, () => {
   it("returns sets keyed by jti and moreAvailable, and drops acknowledged SETs", async () => {
     const { tx, t } = await transmitter();
+
     const stream = await tx
       .createStream({
         receiver: { receiver: "rx" },
@@ -99,6 +109,7 @@ describe(`Poll delivery (RFC 8936, ${SPEC_PINS.rfc8936})`, () => {
         eventsRequested: [CAEP_EVENTS.credentialChange],
       })
       .orThrow();
+
     await tx
       .emit({
         subject: { format: "opaque", id: "u1" },
@@ -106,6 +117,7 @@ describe(`Poll delivery (RFC 8936, ${SPEC_PINS.rfc8936})`, () => {
       })
       .orThrow();
     const handle = tx.handler();
+
     const poll = async (body: unknown) =>
       (
         await handle(
@@ -116,6 +128,7 @@ describe(`Poll delivery (RFC 8936, ${SPEC_PINS.rfc8936})`, () => {
           }),
         )
       ).json();
+
     const first = await poll({ maxEvents: 10, returnImmediately: true });
     expect(Object.keys(first).sort()).toEqual(["moreAvailable", "sets"]);
     const [jti] = Object.keys(first.sets);
@@ -153,6 +166,7 @@ describe(`CAEP (${SPEC_PINS.caep}) and RISC (${SPEC_PINS.risc}) event types`, ()
     const names = Object.values(CAEP_EVENTS).map((uri) =>
       uri.replace("https://schemas.openid.net/secevent/caep/event-type/", ""),
     );
+
     expect(names.sort()).toEqual(
       [
         "assurance-level-change",
@@ -171,6 +185,7 @@ describe(`CAEP (${SPEC_PINS.caep}) and RISC (${SPEC_PINS.risc}) event types`, ()
     const names = Object.values(RISC_EVENTS).map((uri) =>
       uri.replace("https://schemas.openid.net/secevent/risc/event-type/", ""),
     );
+
     expect(names.sort()).toEqual(
       [
         "account-credential-change-required",

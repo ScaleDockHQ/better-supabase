@@ -36,6 +36,7 @@ export function credentialRefInTenant(
   tenant: string | undefined,
 ): boolean {
   const owner: unknown = ref.tenant;
+
   return tenant === undefined
     ? owner === undefined
     : typeof owner === "string" && owner === tenant;
@@ -147,11 +148,13 @@ export function credentialProviderOf(
   provider: CredentialProvider,
 ): CredentialProvider {
   const version: unknown = provider.apiVersion;
+
   if (version !== 1) {
     throw new TypeError(
       `credentials "${provider.name}" targets credential provider API ${String(version)}; this better-supabase supports 1. Upgrade better-supabase or use a release of the provider for API 1.`,
     );
   }
+
   return provider;
 }
 
@@ -163,27 +166,34 @@ export function subjectFor(context: {
   readonly auth: AuthState;
 }): CredentialSubject | undefined {
   const { auth } = context;
+
   switch (auth.kind) {
     case "user": {
       const issuer = auth.claims.iss;
+
       return typeof issuer === "string" && issuer.length > 0
         ? { type: "user", id: auth.claims.sub, issuer }
         : { type: "user", id: auth.claims.sub };
     }
+
     case "apiKey": {
       return auth.userId === undefined
         ? undefined
         : { type: "user", id: auth.userId };
     }
+
     case "service": {
       return { type: "app" };
     }
+
     case "anon":
     case "invalid": {
       return undefined;
     }
+
     default: {
       const unreachable: never = auth;
+
       return unreachable;
     }
   }

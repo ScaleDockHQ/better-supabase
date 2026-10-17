@@ -13,14 +13,19 @@ function sequenceFormatOf(
   if (!ctx.installed("number-sequences")) {
     return undefined;
   }
+
   const entities = ctx.of("number-sequences").option("entities");
+
   if (!isRecord(entities)) {
     return undefined;
   }
+
   const entry = entities[entity];
+
   if (!isRecord(entry) || typeof entry["format"] !== "string") {
     return undefined;
   }
+
   return entry["format"];
 }
 
@@ -44,11 +49,14 @@ export function assignNumberSql(
   },
 ): string {
   const format = sequenceFormatOf(ctx, entity);
+
   if (format !== undefined) {
     const next = ctx.of("number-sequences").fn("next_number");
+
     return `${target.seq} := ${next}(${tenant}, ${sqlString(entity)}, now());
   ${target.identifier} := better_supabase.format_assigned_number(${sqlString(format)}, ${target.seq}, now());`;
   }
+
   return `perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(${tenant}::text || ${sqlString(`:${entity}`)}, 0));
   select coalesce(max(x.${fallback.seq}), 0) + 1 into ${target.seq} from ${fallback.table} x where x.${fallback.tenant} = ${tenant};
   ${target.identifier} := ${sqlString(fallback.prefix)} || ${target.seq}::text;`;

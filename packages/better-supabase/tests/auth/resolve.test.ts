@@ -14,11 +14,13 @@ import { createTestSigner } from "../../src/testing/jwt.ts";
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 const NAME = "sb-abcdefghijklmnopqrst-auth-token";
 const USER = "11111111-1111-4111-8111-111111111111";
+
 const env = {
   url: PROJECT_URL,
   publishableKey: "sb_publishable_test",
   jwksUrl: new URL(`${PROJECT_URL}/auth/v1/.well-known/jwks.json`),
 };
+
 const signer = await createTestSigner();
 
 afterEach(() => {
@@ -112,14 +114,17 @@ describe("verified token memo", () => {
   it("evicts the oldest token past 256 entries", async () => {
     const jwks = keys();
     const options: ResolveAuthOptions = { env, jwks };
+
     const tokens = await Promise.all(
       Array.from({ length: 257 }, (_, index) =>
         signer.sign({ sub: USER, n: index }),
       ),
     );
+
     for (const token of tokens) {
       await resolveAuth(bearer(token), options);
     }
+
     jwks.keys.length = 0;
     expect((await resolveAuth(bearer(tokens[0]!), options)).auth.kind).toBe(
       "invalid",
@@ -145,17 +150,21 @@ describe("verified token memo", () => {
     const fetch = vi.fn<typeof globalThis.fetch>(async () =>
       Response.json(signer.jwks),
     );
+
     vi.stubGlobal("fetch", fetch);
     const jwksUrl = new URL(`${PROJECT_URL}/remote-a/jwks.json`);
+
     const options: ResolveAuthOptions = {
       env: { ...env, jwksUrl },
       audience: "authenticated",
       issuer: ["https://issuer.test"],
     };
+
     const token = await signer.sign({
       sub: USER,
       iss: "https://issuer.test",
     });
+
     expect((await resolveAuth(bearer(token), options)).auth).toMatchObject({
       kind: "user",
       user: { id: USER },
@@ -172,11 +181,13 @@ describe("verified token memo", () => {
       "fetch",
       vi.fn(async () => new Response("down", { status: 500 })),
     );
+
     const options: ResolveAuthOptions = {
       env: { ...env, jwksUrl: new URL(`${PROJECT_URL}/remote-b/jwks.json`) },
       refresh: true,
       fetch: vi.fn<typeof globalThis.fetch>(),
     };
+
     const token = await signer.sign({ sub: USER });
     const { auth } = await resolveAuth(bearer(token), options);
     expect(auth).toMatchObject({
@@ -197,6 +208,7 @@ describe("verified token memo", () => {
       ),
       options,
     );
+
     expect(session.auth).toMatchObject({ error: { kind: "network" } });
     expect(options.fetch).not.toHaveBeenCalled();
   });
@@ -207,6 +219,7 @@ describe("cookie sessions", () => {
 
   it("reads the expiry from the access token when expires_at is missing", async () => {
     const token = await signer.sign({ sub: USER });
+
     const { auth } = await resolveAuth(
       cookieRequest(
         sessionCookie({
@@ -218,11 +231,13 @@ describe("cookie sessions", () => {
       ),
       options,
     );
+
     expect(auth).toMatchObject({ kind: "user", source: "cookie" });
   });
 
   it("ignores the session cookie with cookies: false", async () => {
     const token = await signer.sign({ sub: USER });
+
     const { auth } = await resolveAuth(
       cookieRequest(
         sessionCookie({
@@ -234,6 +249,7 @@ describe("cookie sessions", () => {
       ),
       { ...options, cookies: false },
     );
+
     expect(auth).toEqual({ kind: "anon", reason: "none" });
   });
 
@@ -255,6 +271,7 @@ describe("cookie sessions", () => {
         ),
         options,
       );
+
       expect(auth).toEqual({ kind: "anon", reason: "expired" });
     }
   });
@@ -262,6 +279,7 @@ describe("cookie sessions", () => {
   it("signs out a fresh session whose token fails, refreshing only when allowed", async () => {
     const other = await createTestSigner();
     const token = await other.sign({ sub: USER });
+
     const cookie = sessionCookie({
       access_token: token,
       refresh_token: "r-foreign",
@@ -269,12 +287,14 @@ describe("cookie sessions", () => {
       token_type: "bearer",
       user: { id: USER },
     });
+
     expect((await resolveAuth(cookieRequest(cookie), options)).auth).toEqual({
       kind: "anon",
       reason: "signed_out",
     });
 
     const fresh = await signer.sign({ sub: USER });
+
     const fetch = vi.fn<typeof globalThis.fetch>(async () =>
       Response.json({
         access_token: fresh,
@@ -284,12 +304,14 @@ describe("cookie sessions", () => {
         user: { id: USER },
       }),
     );
+
     const refreshed = await resolveAuth(cookieRequest(cookie), {
       ...options,
       refresh: true,
       fetch,
       now: () => Date.now(),
     });
+
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(refreshed.auth).toMatchObject({ kind: "user", token: fresh });
     expect(refreshed.cookies.length).toBeGreaterThan(0);
@@ -305,6 +327,7 @@ describe("cookie sessions", () => {
       ...options,
       refresh: true,
     });
+
     expect(cleared.auth).toEqual({ kind: "anon", reason: "signed_out" });
     expect(cleared.cookies.map((write) => write.name)).toContain(`${NAME}.0`);
     expect(cleared.cookies.every((write) => write.options.maxAge === 0)).toBe(
@@ -315,6 +338,7 @@ describe("cookie sessions", () => {
 
   it("prunes leftover chunks next to a valid session where it can write", async () => {
     const token = await signer.sign({ sub: USER });
+
     const cookie = `${sessionCookie({
       access_token: token,
       refresh_token: "r",
@@ -322,6 +346,7 @@ describe("cookie sessions", () => {
       token_type: "bearer",
       user: { id: USER },
     })}; ${NAME}.0=old; ${NAME}.1=old`;
+
     const read = await resolveAuth(cookieRequest(cookie), options);
     expect(read.auth.kind).toBe("user");
     expect(read.cookies).toEqual([]);
@@ -330,6 +355,7 @@ describe("cookie sessions", () => {
       ...options,
       refresh: true,
     });
+
     expect(pruned.auth.kind).toBe("user");
     expect(pruned.cookies.map((write) => write.name)).toEqual([
       `${NAME}.0`,
@@ -342,6 +368,7 @@ describe("cookie sessions", () => {
       refresh: true,
       pruneChunks: false,
     });
+
     expect(off.cookies).toEqual([]);
   });
 
@@ -350,6 +377,7 @@ describe("cookie sessions", () => {
       sub: USER,
       exp: Math.floor(Date.now() / 1000) + 30,
     });
+
     const early = sessionCookie({
       access_token: token,
       refresh_token: "r-outage",
@@ -357,13 +385,16 @@ describe("cookie sessions", () => {
       token_type: "bearer",
       user: { id: USER },
     });
+
     const events: unknown[] = [];
+
     const kept = await resolveAuth(cookieRequest(early), {
       ...options,
       refresh: true,
       fetch: vi.fn(async () => new Response("busy", { status: 503 })),
       onRefresh: (event) => events.push(event),
     });
+
     expect(kept.auth.kind).toBe("user");
     expect(kept.outage).toMatchObject({
       cause: "status",
@@ -382,6 +413,7 @@ describe("cookie sessions", () => {
       token_type: "bearer",
       user: { id: USER },
     });
+
     const lost = await resolveAuth(cookieRequest(expired), {
       ...options,
       refresh: true,
@@ -389,6 +421,7 @@ describe("cookie sessions", () => {
         throw new TypeError("fetch failed");
       }),
     });
+
     expect(lost.auth).toEqual({ kind: "anon", reason: "refresh_failed" });
     expect(lost.outage).toMatchObject({ cause: "network", kept: false });
     expect(lost.outage?.durationMs).toBeGreaterThanOrEqual(0);
@@ -410,11 +443,13 @@ describe("cookie sessions", () => {
         ),
       },
     );
+
     expect(rejected.outage).toBeUndefined();
   });
 
   it("uses a custom cookie name", async () => {
     const token = await signer.sign({ sub: USER });
+
     const writes = writeSession([], "session", {
       access_token: token,
       refresh_token: "r",
@@ -422,6 +457,7 @@ describe("cookie sessions", () => {
       token_type: "bearer",
       user: { id: USER },
     });
+
     const { auth } = await resolveAuth(
       cookieRequest(
         writes
@@ -430,6 +466,7 @@ describe("cookie sessions", () => {
       ),
       { ...options, cookie: { name: "session" } },
     );
+
     expect(auth).toMatchObject({ kind: "user", source: "cookie" });
   });
 
@@ -438,6 +475,7 @@ describe("cookie sessions", () => {
       ...options,
       refresh: true,
     });
+
     const redirect = Response.redirect("https://app.test/login", 302);
     const applied = response.apply(redirect);
     expect(applied).not.toBe(redirect);
@@ -458,6 +496,7 @@ describe("claims and user_metadata schemas", () => {
 
   it("joins issues without a path and with numeric paths", async () => {
     const token = await signer.sign({ sub: USER });
+
     const { auth } = await resolveAuth(bearer(token), {
       ...options,
       claims: schema(() => ({
@@ -467,6 +506,7 @@ describe("claims and user_metadata schemas", () => {
         ],
       })),
     });
+
     expect(auth).toMatchObject({
       kind: "invalid",
       reason: "claims",
@@ -478,10 +518,12 @@ describe("claims and user_metadata schemas", () => {
 
   it("keeps the claims when an async schema returns a non-object", async () => {
     const token = await signer.sign({ sub: USER, tenant_id: "t1" });
+
     const { auth } = await resolveAuth(bearer(token), {
       ...options,
       claims: schema(async () => ({ value: "ok" })),
     });
+
     expect(auth).toMatchObject({
       kind: "user",
       claims: { sub: USER, tenant_id: "t1" },
@@ -500,14 +542,17 @@ describe("claims and user_metadata schemas", () => {
 
   it("runs async user_metadata schemas and warns through console by default", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
     const token = await signer.sign({
       sub: USER,
       user_metadata: { theme: "dark" },
     });
+
     const parsed = await resolveAuth(bearer(token), {
       ...options,
       userMetadata: schema(async (value) => ({ value })),
     });
+
     expect(parsed.auth).toMatchObject({ profile: { theme: "dark" } });
 
     const failing = await resolveAuth(bearer(token), {
@@ -519,6 +564,7 @@ describe("claims and user_metadata schemas", () => {
         ],
       })),
     });
+
     expect(failing.auth).not.toHaveProperty("profile");
     expect(warn).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(warn.mock.calls[0])).toContain('["","0.theme"]');
@@ -571,10 +617,12 @@ describe("authContext", () => {
       actor: { id: "service:cron", kind: "service", role: "service_role" },
       claims: { role: "service_role" },
     });
+
     const anon = {
       actor: { id: "anon", kind: "anon", role: "anon" },
       claims: { role: "anon" },
     };
+
     expect(authContext({ kind: "anon", reason: "none" })).toEqual(anon);
     expect(
       authContext({

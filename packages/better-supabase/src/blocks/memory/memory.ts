@@ -43,21 +43,27 @@ export type {
 
 const nsArg = (ns: MemoryNamespace = {}): Record<string, string> => {
   const arg: Record<string, string> = {};
+
   if (ns.scope !== undefined) {
     arg["scope"] = ns.scope;
   }
+
   if (ns.agentId !== undefined) {
     arg["agent_id"] = ns.agentId;
   }
+
   if (ns.chatId !== undefined) {
     arg["chat_id"] = ns.chatId;
   }
+
   if (ns.projectId !== undefined) {
     arg["project_id"] = ns.projectId;
   }
+
   if (ns.ownerId !== undefined) {
     arg["owner_id"] = ns.ownerId;
   }
+
   return arg;
 };
 
@@ -74,6 +80,7 @@ function numbered(
   const lines = content.split("\n");
   const from = Math.max(range?.[0] ?? 1, 1);
   const to = range === undefined || range[1] === -1 ? lines.length : range[1];
+
   return lines
     .slice(from - 1, to)
     .map((line, index) => `${String(from + index).padStart(6)}\t${line}`)
@@ -87,11 +94,13 @@ const escapeTag = (text: string): string =>
 export function createMemory(options: MemoryOptions): Memory {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const service = blockCall(
     options.service ?? options.transport,
     options.schema,
     options.mappers,
   );
+
   const embedder = injectableOf("embedder", options.embedder);
   const maxRender = options.maxRender ?? 8000;
   const threshold = options.dedupeThreshold ?? 0.92;
@@ -244,20 +253,25 @@ export function createMemory(options: MemoryOptions): Memory {
           if (result === undefined) {
             return `${command.path} does not exist.`;
           }
+
           if (result.type === "file") {
             return `Here's the content of ${result.path} with line numbers:\n${numbered(result.content, command.view_range)}`;
           }
+
           const entries = result.entries.map(
             (entry) => `${String(entry.size)}\t${entry.path}`,
           );
+
           return `Here are the files in ${result.path}:\n${entries.join("\n")}`;
         });
       }
+
       case "create": {
         return core
           .write(organizationId, command.path, command.file_text, ns)
           .map(() => `File created successfully at: ${command.path}`);
       }
+
       case "str_replace": {
         return core
           .strReplace(
@@ -269,6 +283,7 @@ export function createMemory(options: MemoryOptions): Memory {
           )
           .map(() => `The memory file ${command.path} has been edited.`);
       }
+
       case "insert": {
         return core
           .insert(
@@ -280,6 +295,7 @@ export function createMemory(options: MemoryOptions): Memory {
           )
           .map(() => `The memory file ${command.path} has been edited.`);
       }
+
       case "delete": {
         return core
           .remove(organizationId, command.path, ns)
@@ -289,6 +305,7 @@ export function createMemory(options: MemoryOptions): Memory {
               : `Successfully deleted ${command.path}`,
           );
       }
+
       case "rename": {
         return core
           .rename(organizationId, command.old_path, command.new_path, ns)
@@ -297,8 +314,10 @@ export function createMemory(options: MemoryOptions): Memory {
               `Successfully renamed ${command.old_path} to ${command.new_path}`,
           );
       }
+
       default: {
         const unknown: never = command;
+
         return AsyncResult.err(
           dbError(
             "invalid_request",
@@ -376,41 +395,56 @@ export function createMemory(options: MemoryOptions): Memory {
         if (files.length === 0) {
           return "";
         }
+
         const close = "</memories>";
         let text = "<memories>\n";
+
         for (const file of files) {
           const block = `<memory path="${file.path ?? ""}">\n${escapeTag(file.content)}\n</memory>\n`;
+
           if (text.length + block.length + close.length > maxRender) {
             text += `<!-- ${String(files.length)} files; the rest is cut at ${String(maxRender)} characters -->\n`;
             break;
           }
+
           text += block;
         }
+
         return text + close;
       }),
     saveExtracted: (organizationId, facts, ns, saveOptions) =>
       AsyncResult.from(async (): Promise<Result<MemoryRecord[]>> => {
         const saved: MemoryRecord[] = [];
+
         const contents = facts
           .map((fact) => fact.trim())
           .filter((content) => content !== "");
+
         if (contents.length === 0) {
           return ok(saved);
         }
+
         let embeddings: readonly (string | undefined)[] = [];
+
         if (embedder) {
           const vectors = await run(() => embedder.embed(contents));
+
           if (!vectors.ok) {
             return vectors;
           }
+
           const invalid = checkVectors(vectors.data, contents.length);
+
           if (invalid) {
             return err(invalid);
           }
+
           embeddings = vectors.data.map((vector) => vectorLiteral(vector));
         }
+
         for (const [index, content] of contents.entries()) {
           const embedding = embeddings[index];
+
           const similar = await search(
             organizationId,
             content,
@@ -419,10 +453,13 @@ export function createMemory(options: MemoryOptions): Memory {
             true,
             embedding,
           );
+
           if (!similar.ok) {
             return similar;
           }
+
           const nearest = similar.data[0];
+
           if (
             nearest !== undefined &&
             (nearest.content === content ||
@@ -430,6 +467,7 @@ export function createMemory(options: MemoryOptions): Memory {
           ) {
             continue;
           }
+
           const record = await save(
             organizationId,
             content,
@@ -438,11 +476,14 @@ export function createMemory(options: MemoryOptions): Memory {
             true,
             embedding,
           );
+
           if (!record.ok) {
             return record;
           }
+
           saved.push(record.data);
         }
+
         return ok(saved);
       }),
     embedPending: (embedOptions = {}) =>
@@ -456,6 +497,7 @@ export function createMemory(options: MemoryOptions): Memory {
               if (rows.length === 0) {
                 return ok(0);
               }
+
               const vectors = await run(() =>
                 embedder.embed(
                   rows.map((row) => textOf(row["content"])),
@@ -464,13 +506,17 @@ export function createMemory(options: MemoryOptions): Memory {
                     : { signal: embedOptions.signal },
                 ),
               );
+
               if (!vectors.ok) {
                 return vectors;
               }
+
               const invalid = checkVectors(vectors.data, rows.length);
+
               if (invalid) {
                 return err(invalid);
               }
+
               return service(
                 "set_memory_embeddings",
                 {
@@ -510,6 +556,7 @@ export function createMemory(options: MemoryOptions): Memory {
       purge: (batch) => service("purge_memory_documents", { batch }, Number),
     },
   };
+
   const {
     core: coreHooks,
     archival,
@@ -517,7 +564,9 @@ export function createMemory(options: MemoryOptions): Memory {
     documents,
     ...hooks
   } = options.hooks ?? {};
+
   const logger = options.logger ? { logger: options.logger } : {};
+
   return withBlockHooks(
     {
       ...client,

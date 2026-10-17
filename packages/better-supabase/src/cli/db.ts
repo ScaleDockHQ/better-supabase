@@ -61,18 +61,22 @@ export async function connect(
   options: ConnectOptions = {},
 ): Promise<PgConnection> {
   let pg: PgModule;
+
   try {
     // SAFETY: pg is an optional peer loaded without its types.
     const mod = (await load()) as {
       default?: PgModule;
     } & PgModule;
+
     pg = mod.default ?? mod;
   } catch {
     throw new Error(
       'better-supabase needs the "pg" package to read your database. Install it: pnpm add -D pg',
     );
   }
+
   options.signal?.throwIfAborted();
+
   const settings: PgOptions = {
     connectionString: url,
     connectionTimeoutMillis: CONNECT_TIMEOUT_MS,
@@ -80,10 +84,12 @@ export async function connect(
       ? {}
       : { statement_timeout: options.statementTimeout }),
   };
+
   const pool =
     options.pool === undefined || pg.Pool === undefined
       ? undefined
       : new pg.Pool({ ...settings, max: options.pool });
+
   const client: PgPool | PgClient = pool ?? new pg.Client(settings);
   const pooled = pool !== undefined;
   // An unhandled "error" event (the server restarting under `gen --watch`)
@@ -92,6 +98,7 @@ export async function connect(
   let ended: Promise<void> | undefined;
   const close = (): Promise<void> => (ended ??= client.end());
   const onAbort = (): void => void close().catch(() => undefined);
+
   try {
     if (pool) {
       (await pool.connect()).release();
@@ -106,12 +113,15 @@ export async function connect(
       { cause },
     );
   }
+
   options.signal?.addEventListener("abort", onAbort, { once: true });
+
   return {
     client,
     ...(pooled ? { pooled } : {}),
     close: () => {
       options.signal?.removeEventListener("abort", onAbort);
+
       return close();
     },
     describe: redact(url),

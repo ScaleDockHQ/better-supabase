@@ -28,11 +28,13 @@ vi.mock("expo-server", async (importOriginal) => ({
 }));
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
+
 const env = {
   url: PROJECT_URL,
   publishableKey: "sb_publishable_test",
   jwksUrl: new URL(`${PROJECT_URL}/auth/v1/.well-known/jwks.json`),
 };
+
 const USER = "11111111-1111-4111-8111-111111111111";
 const signer = await createTestSigner();
 const COOKIE = "sb-abcdefghijklmnopqrst-auth-token";
@@ -42,6 +44,7 @@ async function sessionCookie(
   refreshToken: string,
 ): Promise<string> {
   const token = await signer.sign({ sub: USER, expiresIn });
+
   return writeSession([], COOKIE, {
     access_token: token,
     refresh_token: refreshToken,
@@ -67,7 +70,9 @@ describe("createExpo", () => {
       user: { id: USER },
     }),
   );
+
   const betterSupabase = defineSupabase(schema);
+
   const bs = createExpo(betterSupabase, {
     env,
     auth: { jwks: signer.jwks as never, fetch: refreshed },
@@ -80,12 +85,14 @@ describe("createExpo", () => {
 
   it("verifies a bearer token before the cookie and writes nothing", async () => {
     const token = await signer.sign({ sub: USER });
+
     const ctx = await bs.request(
       immutable("https://app.test/", {
         authorization: `Bearer ${token}`,
         cookie: await sessionCookie(3600, "r-unused"),
       }),
     );
+
     expect(ctx.auth).toMatchObject({ kind: "user", source: "bearer" });
     expect([...written.headers]).toEqual([]);
     expect(refreshed).not.toHaveBeenCalled();
@@ -93,10 +100,12 @@ describe("createExpo", () => {
 
   it("refreshes an expired cookie session and sets the cookies on the response", async () => {
     const cookie = await sessionCookie(5, "r-loader");
+
     const loader = bs.loader((ctx, params) => ({
       user: ctx.auth.kind === "user" ? ctx.auth.user.id : null,
       params,
     }));
+
     expect(
       await loader(immutable("https://app.test/posts/1", { cookie }), {
         id: "1",
@@ -117,9 +126,11 @@ describe("createExpo", () => {
 
   it("throws a StatusError for a refused caller and in static rendering", async () => {
     const loader = bs.loader(() => "secret", { allow: ["user"] });
+
     const refused = await loader(immutable("https://app.test/"), {}).catch(
       (cause: unknown) => cause,
     );
+
     expect(refused).toBeInstanceOf(StatusError);
     expect(refused).toMatchObject({ status: 401 });
     await expect(loader(undefined, {})).rejects.toThrow(
@@ -131,14 +142,18 @@ describe("createExpo", () => {
     const missing = bs.loader(() => {
       throw new DbException(dbError("not_found", "No customer"));
     });
+
     const refused = await missing(immutable("https://app.test/"), {}).catch(
       (cause: unknown) => cause,
     );
+
     expect(refused).toBeInstanceOf(StatusError);
     expect(refused).toMatchObject({ status: 404 });
+
     const failing = bs.loader(() => {
       throw new TypeError("boom");
     });
+
     await expect(failing(immutable("https://app.test/"), {})).rejects.toThrow(
       TypeError,
     );
@@ -146,9 +161,11 @@ describe("createExpo", () => {
 
   it("redirects refused callers from middleware", async () => {
     const middleware = bs.middleware({ redirectTo: "/sign-in" });
+
     const response = await middleware(
       immutable("https://app.test/account?tab=1"),
     );
+
     expect(response).toBeInstanceOf(Response);
     expect(response!.status).toBe(303);
     expect(response!.headers.get("location")).toBe(
@@ -172,11 +189,13 @@ describe("createExpo", () => {
       redirectTo: "/sign-in",
       publicPaths: ["/", "/legal"],
     });
+
     for (const path of ["/sign-in/callback", "/", "/legal", "/legal/terms"]) {
       expect(
         await middleware(immutable(`https://app.test${path}`)),
       ).toBeUndefined();
     }
+
     for (const path of ["/sign-inx", "/legalese", "/account"]) {
       expect(
         (await middleware(immutable(`https://app.test${path}`)))?.status,
@@ -186,22 +205,27 @@ describe("createExpo", () => {
 
   it("answers API routes with JSON and Problem Details", async () => {
     const token = await signer.sign({ sub: USER });
+
     const handler = bs.handler((_request, ctx, params) =>
       params["fail"]
         ? err(dbError("not_found", "No such row"))
         : ok({ user: ctx.auth.kind === "user" ? ctx.auth.user.id : null }),
     );
+
     const request = new Request("https://app.test/api/me", {
       headers: { authorization: `Bearer ${token}` },
     });
+
     expect(await (await handler(request)).json()).toEqual({ user: USER });
     expect((await handler(request, { fail: "1" })).status).toBe(404);
     expect((await handler(new Request("https://app.test/api/me"))).status).toBe(
       401,
     );
+
     const throwing = bs.handler(() => {
       throw new Error("boom");
     });
+
     const failed = await throwing(request);
     expect(failed.status).toBe(500);
     expect(await failed.text()).not.toContain("boom");

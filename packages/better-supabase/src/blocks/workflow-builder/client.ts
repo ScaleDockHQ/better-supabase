@@ -45,29 +45,35 @@ export function createWorkflowBuilderController(
   options: WorkflowBuilderControllerOptions,
 ): WorkflowBuilderController {
   const tenant = options.tenant ?? null;
+
   return defineController<WorkflowBuilderSnapshot, WorkflowBuilderActions>(
     { definitions: undefined, steps: undefined, error: undefined },
     (state) => {
       const refresh = async (): Promise<void> => {
         const run = state.run();
+
         const [listed, library] = await Promise.all([
           options.client.definitions.list(tenant ?? undefined),
           options.client.steps.list(),
         ]);
+
         if (run !== state.run()) {
           return;
         }
+
         state.set({
           ...(listed.ok ? { definitions: listed.data } : {}),
           ...(library.ok ? { steps: library.data } : {}),
           error: firstError(listed, library),
         });
       };
+
       return {
         actions: { refresh },
         start: () =>
           whileSignedIn(options.auth, () => {
             void refresh();
+
             return;
           }),
       };
@@ -114,6 +120,7 @@ export function createWorkflowCanvasRunController(
 ): WorkflowCanvasRunController {
   const { client } = options;
   const run = options.run ?? "";
+
   return defineController<WorkflowCanvasRunSnapshot, WorkflowCanvasRunActions>(
     { run: undefined, nodes: NO_NODES, error: undefined, status: "closed" },
     (state) => {
@@ -125,6 +132,7 @@ export function createWorkflowCanvasRunController(
               client.runs.get(run),
               client.nodeRuns.list(run),
             ]);
+
             return {
               id: found.ok ? (found.data?.id ?? null) : null,
               patch: {
@@ -143,6 +151,7 @@ export function createWorkflowCanvasRunController(
         },
         state,
       );
+
       return { actions: { refresh: watch.refresh }, start: watch.start };
     },
   );

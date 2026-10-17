@@ -14,6 +14,7 @@ describe.skipIf(!live)("tenant sameTenant", () => {
     const suffix = crypto.randomUUID().slice(0, 8);
     const projects = `public.bs_projects_${suffix}`;
     const tasks = `public.bs_tasks_${suffix}`;
+
     try {
       await s.client.query(`
         create table ${projects} (
@@ -49,11 +50,13 @@ describe.skipIf(!live)("tenant sameTenant", () => {
       });
       const a = crypto.randomUUID();
       const b = crypto.randomUUID();
+
       const [own, other, template] = await s.rows<{ id: string }>(
         `insert into ${projects} (organization_id, kind)
          values ($1, 'project'), ($2, 'project'), ($1, 'template') returning id`,
         [a, b],
       );
+
       await s.service();
       expect(
         await s.hint(
@@ -116,6 +119,7 @@ describe.skipIf(!live)("tenant sameTenant", () => {
     const suffix = crypto.randomUUID().slice(0, 8);
     const assets = `public.bs_assets_${suffix}`;
     const jobs = `public.bs_jobs_${suffix}`;
+
     try {
       await s.client.query(`
         create table ${assets} (
@@ -150,6 +154,7 @@ describe.skipIf(!live)("tenant sameTenant", () => {
       const b = crypto.randomUUID();
       const alice = crypto.randomUUID();
       const bob = crypto.randomUUID();
+
       const [aliceAsset, bobAsset, looseAsset, otherTenant] = await s.rows<{
         id: string;
       }>(
@@ -157,6 +162,7 @@ describe.skipIf(!live)("tenant sameTenant", () => {
          values ($1, $3), ($1, $4), ($1, null), ($2, $3) returning id`,
         [a, b, alice, bob],
       );
+
       const insert = `insert into ${jobs} (organization_id, customer_id, asset_id) values ($1, $2, $3)`;
 
       expect(await s.hint(insert, [a, alice, bobAsset!.id])).toBe(
@@ -205,6 +211,7 @@ describe.skipIf(!live)("tenant sameTenant", () => {
     const quotes = `public.bs_quotes_${suffix}`;
     const assets = `public.bs_assets_${suffix}`;
     const lines = `public.bs_quote_assets_${suffix}`;
+
     try {
       await s.client.query(`
         create table ${quotes} (
@@ -243,14 +250,17 @@ describe.skipIf(!live)("tenant sameTenant", () => {
       const a = crypto.randomUUID();
       const alice = crypto.randomUUID();
       const bob = crypto.randomUUID();
+
       const [aliceQuote, bobQuote] = await s.rows<{ id: string }>(
         `insert into ${quotes} (organization_id, customer_id) values ($1, $2), ($1, $3) returning id`,
         [a, alice, bob],
       );
+
       const [aliceAsset, bobAsset] = await s.rows<{ id: string }>(
         `insert into ${assets} (organization_id, customer_id) values ($1, $2), ($1, $3) returning id`,
         [a, alice, bob],
       );
+
       const insert = `insert into ${lines} (organization_id, quote_id, asset_id) values ($1, $2, $3)`;
 
       await s.service();

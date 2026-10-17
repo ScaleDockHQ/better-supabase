@@ -15,6 +15,7 @@ describe("notification permission audiences", () => {
     const withTenant = renderModules(["access", "tenant", "notifications"])
       .map((file) => file.contents)
       .join("\n");
+
     expect(withTenant).toContain("NOTIFICATION_PERMISSION_NEEDS_TENANT");
     expect(withTenant).toContain(
       "better_supabase.can_user(m.\"user_id\", 'tenant', v_tenant, notification ->> 'permission')",

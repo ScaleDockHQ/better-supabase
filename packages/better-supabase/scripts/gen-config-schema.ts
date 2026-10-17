@@ -12,7 +12,9 @@ import {
 } from "../tests/config/config-json-schema.ts";
 
 await writeFile(CONFIG_SCHEMA, await renderConfigSchema());
+
 execFileSync("pnpm", ["exec", "oxfmt", fileURLToPath(CONFIG_SCHEMA)], {
   stdio: "inherit",
 });
+
 console.log("wrote schemas/config-v1.json");

@@ -50,11 +50,13 @@ export const INBOX_CHANNELS: readonly InboxChannel[] = [
 
 const channelOf = (value: unknown): InboxChannel =>
   oneOf(value, INBOX_CHANNELS, "other");
+
 const botModeOf = (value: unknown): BotMode =>
   oneOf<BotMode>(value, ["bot", "human", "paused"], "human");
 
 export function inboxOf(value: unknown): InboxRow {
   const row = recordOf(value, "inbox");
+
   return {
     id: textOf(row["id"]),
     tenant: textOf(row["tenant_id"]),
@@ -71,6 +73,7 @@ export function inboxOf(value: unknown): InboxRow {
 
 export function contactOf(value: unknown): Contact {
   const row = recordOf(value, "contact");
+
   return {
     id: textOf(row["id"]),
     ...(row["tenant_id"] === undefined
@@ -90,6 +93,7 @@ export function contactOf(value: unknown): Contact {
 export function conversationOf(value: unknown): Conversation {
   const row = recordOf(value, "conversation");
   const inbox = isRecord(row["inbox"]) ? row["inbox"] : undefined;
+
   return {
     id: textOf(row["id"]),
     tenant: textOf(row["tenant_id"]),
@@ -138,6 +142,7 @@ function attachmentOf(value: unknown): MessageAttachment {
   const name = optionalText(row["name"]);
   const contentType = optionalText(row["content_type"]);
   const size = row["size"];
+
   return {
     ...(path === undefined ? {} : { path }),
     ...(url === undefined ? {} : { url }),
@@ -149,15 +154,18 @@ function attachmentOf(value: unknown): MessageAttachment {
 
 export function reactionsOf(value: unknown): Record<string, readonly string[]> {
   const out: Record<string, readonly string[]> = {};
+
   for (const [emoji, actors] of Object.entries(recordOrEmpty(value))) {
     out[emoji] = stringsOf(actors);
   }
+
   return out;
 }
 
 export function messageOf(value: unknown): InboxMessage {
   const row = recordOf(value, "message");
   const delivery = isRecord(row["delivery"]) ? row["delivery"] : undefined;
+
   return {
     id: textOf(row["id"]),
     conversationId: textOf(row["conversation_id"]),
@@ -220,6 +228,7 @@ export const eventsOf = (value: unknown): readonly ConversationEvent[] =>
 
 export function countsOf(value: unknown): InboxCounts {
   const row = recordOf(value, "inbox_counts");
+
   return {
     open: Number(row["open"] ?? 0),
     mine: Number(row["mine"] ?? 0),
@@ -231,6 +240,7 @@ export function countsOf(value: unknown): InboxCounts {
 export function purgedOf(value: unknown): PurgedContact {
   const row = recordOf(value, "purge_contact");
   const paths = row["attachments"];
+
   return {
     conversations: Number(row["conversations"] ?? 0),
     messages: Number(row["messages"] ?? 0),
@@ -242,6 +252,7 @@ export function purgedOf(value: unknown): PurgedContact {
 
 export function inboundOf(value: unknown): InboundResult {
   const row = recordOf(value, "record_inbound");
+
   return {
     conversationId: textOf(row["conversation_id"]),
     messageId: textOf(row["message_id"]),
@@ -254,6 +265,7 @@ export function inboundOf(value: unknown): InboundResult {
 
 export function templateOf(value: unknown): MessageTemplate {
   const row = recordOf(value, "message_template");
+
   return {
     id: textOf(row["id"]),
     tenant: textOf(row["tenant_id"]),
@@ -270,9 +282,11 @@ export function templateOf(value: unknown): MessageTemplate {
 export const storedEventsOf = (value: unknown): readonly StoredInboundEvent[] =>
   recordsOf(value, "pending_inbound_events").map((row) => {
     const headers: Record<string, string> = {};
+
     for (const [key, header] of Object.entries(recordOrEmpty(row["headers"]))) {
       headers[key] = textOf(header);
     }
+
     return {
       id: textOf(row["id"]),
       adapter: textOf(row["adapter"]),

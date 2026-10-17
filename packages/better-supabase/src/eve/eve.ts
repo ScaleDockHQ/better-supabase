@@ -11,12 +11,15 @@ import { importOptionalPeer } from "../core/optional-peer.ts";
 import { stableUuid } from "./ids.ts";
 
 export { EveAuthRejection, principalOf, supabaseAuth } from "./auth.ts";
+
 export type { SupabaseAuthOptions } from "./auth.ts";
+
 export {
   ConnectionAuthorizationFailedError,
   ConnectionAuthorizationRequiredError,
   credentialAuth,
 } from "./connections.ts";
+
 export type {
   CredentialAuthOptions,
   EveAuthorizationChallenge,
@@ -27,16 +30,22 @@ export type {
   EveTokenAuthorization,
   EveTokenResult,
 } from "./connections.ts";
+
 export { stableUuid } from "./ids.ts";
+
 export { routeInbox } from "./inbox.ts";
+
 export type {
   EveChatMessage,
   EveChatSdkBridge,
   EveChatThread,
   RouteInboxOptions,
 } from "./inbox.ts";
+
 export { chatIdOf, persistSessions } from "./sessions.ts";
+
 export type { EveSessionHooks, PersistSessionsOptions } from "./sessions.ts";
+
 export type { EveSessionAuth, EveSessionContext } from "./types.ts";
 
 // ---------------------------------------------------------------------------
@@ -88,25 +97,31 @@ export function supabaseDocumentBackend(
   options: SupabaseDocumentBackendOptions,
 ): EveDocumentBackend {
   const scope = options.scope ?? "eve";
+
   return {
     apiVersion: 1,
     read: async ({ key }) => {
       const result = await options.memory.documents.read(scope, key);
+
       if (!result.ok) {
         throw new DbException(result.error);
       }
+
       return result.data ?? null;
     },
     write: async ({ key, content, expectedVersion }) => {
       const result = await options.memory.documents.write(scope, key, content, {
         expectedVersion,
       });
+
       if (result.ok) {
         return result.data;
       }
+
       if (isConflict(result.error)) {
         throw new MemoryDocumentConflictError(key);
       }
+
       throw new DbException(result.error);
     },
   };
@@ -210,6 +225,7 @@ function textOfMessage(message: EveModelMessage): string {
   if (typeof message.content === "string") {
     return message.content;
   }
+
   return message.content
     .flatMap((part) =>
       part.type === "text" && typeof part.text === "string" ? [part.text] : [],
@@ -248,10 +264,12 @@ export function supabaseMemory(
 ): EveMemoryProvider {
   const { memory } = options;
   const k = options.k ?? 5;
+
   const organizationOf =
     options.organizationOf ??
     ((auth: EveSessionAuth) => {
       const tenant = auth.attributes["tenantId"];
+
       return typeof tenant === "string" ? tenant : undefined;
     });
 
@@ -262,13 +280,17 @@ export function supabaseMemory(
     | undefined
   > => {
     const auth = ctx.session.auth.current;
+
     if (auth?.principalType !== "user") {
       return undefined;
     }
+
     const organizationId = organizationOf(auth);
+
     if (organizationId === undefined) {
       return undefined;
     }
+
     return {
       organizationId,
       namespace: {
@@ -291,6 +313,7 @@ export function supabaseMemory(
       .map(textOfMessage)
       .join("\n")
       .trim();
+
     const [core, archival, documents] = await Promise.all([
       memory.render(where.organizationId, where.namespace).orThrow(),
       query.length === 0
@@ -307,23 +330,29 @@ export function supabaseMemory(
             })
             .orThrow(),
     ]);
+
     const messages: EveRecallMessage[] = [];
+
     if (core.trim().length > 0) {
       messages.push({ id: "core", content: core });
     }
+
     for (const hit of archival) {
       messages.push({ id: `memory:${hit.id}`, content: hit.content });
     }
+
     for (const hit of documents) {
       messages.push({
         id: `knowledge:${hit.documentId}:${String(hit.index)}`,
         content: hit.title ? `${hit.title}\n${hit.content}` : hit.content,
       });
     }
+
     return { messages };
   };
 
   let tools: Promise<EveToolsModule> | undefined;
+
   const loaded = (): Promise<EveToolsModule> =>
     (tools ??= (options.load ?? loadTools)().then((value) => {
       if (!isToolsModule(value)) {
@@ -332,6 +361,7 @@ export function supabaseMemory(
           "supabaseMemory needs the eve package: pnpm add eve",
         );
       }
+
       return value;
     }));
 
@@ -339,35 +369,47 @@ export function supabaseMemory(
     recall: {
       "turn.started": async (ctx) => {
         const where = await target(ctx);
+
         if (!where) {
           return null;
         }
+
         const path = `recall/${ctx.operationId}`;
         const scopeKey = ctx.memory.scope.key;
+
         const stored = await memory.documents
           .read(OPS_SCOPE, `${scopeKey}/${path}`)
           .orThrow();
+
         if (stored) {
           const value: unknown = JSON.parse(stored.content);
+
           return isRecallResult(value) ? value : null;
         }
+
         const result = await recall(ctx, where);
+
         const written = await memory.documents.write(
           OPS_SCOPE,
           `${scopeKey}/${path}`,
           JSON.stringify(result),
           { expectedVersion: null, expiresIn: OP_TTL_SECONDS },
         );
+
         if (written.ok) {
           return result;
         }
+
         if (!isConflict(written.error)) {
           throw new DbException(written.error);
         }
+
         const raced = await memory.documents
           .read(OPS_SCOPE, `${scopeKey}/${path}`)
           .orThrow();
+
         const value: unknown = raced ? JSON.parse(raced.content) : null;
+
         return isRecallResult(value) ? value : null;
       },
     },
@@ -377,14 +419,19 @@ export function supabaseMemory(
             "turn.completed": async (ctx: EveMemoryContext) => {
               const extract = options.extract;
               const where = await target(ctx);
+
               if (!extract || !where) {
                 return;
               }
+
               const marker = `${ctx.memory.scope.key}/capture/${ctx.operationId}`;
+
               if (await memory.documents.read(OPS_SCOPE, marker).orThrow()) {
                 return;
               }
+
               const facts = await extract(ctx.messages ?? [], ctx);
+
               if (facts.length > 0) {
                 await memory
                   .saveExtracted(where.organizationId, facts, where.namespace, {
@@ -392,6 +439,7 @@ export function supabaseMemory(
                   })
                   .orThrow();
               }
+
               const written = await memory.documents.write(
                 OPS_SCOPE,
                 marker,
@@ -401,6 +449,7 @@ export function supabaseMemory(
                   expiresIn: OP_TTL_SECONDS,
                 },
               );
+
               if (!written.ok && !isConflict(written.error)) {
                 throw new DbException(written.error);
               }
@@ -409,17 +458,22 @@ export function supabaseMemory(
         }
       : {}),
   };
+
   if (options.tools === false) {
     return provider;
   }
+
   return {
     ...provider,
     tools: async (ctx) => {
       const where = await target(ctx);
+
       if (!where) {
         return null;
       }
+
       const { defineTool } = await loaded();
+
       return {
         remember: defineTool({
           description:
@@ -434,9 +488,11 @@ export function supabaseMemory(
           },
           execute: async (input: Readonly<Record<string, unknown>>) => {
             const fact = typeof input["fact"] === "string" ? input["fact"] : "";
+
             const saved = await memory.archival
               .save(where.organizationId, fact, where.namespace)
               .orThrow();
+
             return { id: saved.id };
           },
         }),
@@ -453,12 +509,15 @@ export function supabaseMemory(
               typeof input["id"] === "string"
                 ? input["id"].replace(/^memory:/, "")
                 : "";
+
             const page = await memory.archival
               .list(where.organizationId, where.namespace, { limit: 1000 })
               .orThrow();
+
             if (!page.some((record) => record.id === id)) {
               return { deleted: false };
             }
+
             return { deleted: await memory.archival.forget(id).orThrow() };
           },
         }),

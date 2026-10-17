@@ -91,9 +91,11 @@ const REQUEST_KEYS: readonly string[] = [
 /** `options.roles`, or every role but `owner` when the model names them. */
 function requestableRoles(ctx: ModuleContext): readonly string[] {
   const raw = ctx.option("roles");
+
   if (raw === undefined) {
     return roleNames(ctx).filter((role) => role !== "owner");
   }
+
   if (
     !Array.isArray(raw) ||
     raw.length === 0 ||
@@ -101,6 +103,7 @@ function requestableRoles(ctx: ModuleContext): readonly string[] {
   ) {
     throw new TypeError(`${WHERE}.roles must be a non-empty list of roles`);
   }
+
   return raw.filter((role): role is string => typeof role === "string");
 }
 
@@ -115,30 +118,36 @@ function accessPolicy(ctx: ModuleContext): string {
       },
     ],
   };
+
   const policy = policyOf(
     ACCESS_REQUEST_SUBJECT,
     "grant",
     raw,
     `${WHERE}.policy`,
   );
+
   if (policy.run !== undefined) {
     throw new TypeError(
       `${WHERE}.policy.run is not allowed; the final approval grants the role`,
     );
   }
+
   return policySnapshot(policy);
 }
 
 function maxDuration(ctx: ModuleContext): string | undefined {
   const raw = ctx.option("maxDuration");
+
   if (raw === undefined) {
     return undefined;
   }
+
   if (typeof raw !== "string" || !DURATION.test(raw)) {
     throw new TypeError(
       `${WHERE}.maxDuration must be an ISO 8601 duration such as P7D`,
     );
   }
+
   return raw;
 }
 
@@ -146,6 +155,7 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const requests = ctx.table("requests");
   const c = (column: string): string => ctx.col("requests", column);
   const fn = (name: string): string => ctx.fn(name);
@@ -166,14 +176,18 @@ function build(ctx: ModuleContext): string {
   const max = maxDuration(ctx);
   const join = ctx.flag("join", false);
   const provider = accessModel(ctx) === "provider";
+
   const roleCheck =
     roles.length === 0
       ? `request_access.role = 'owner'`
       : `not (request_access.role = any (array[${roles.map(sqlString).join(", ")}]::text[]))`;
+
   const status = (row: string, approval: string): string =>
     `case when ${row}.${c("endedAt")} is not null then 'ended' when ${row}.${c("grantedAt")} is not null then 'granted' else coalesce(${approval}.${a("status")}, 'pending') end`;
+
   const json = (row: string, state: string): string =>
     `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'userId', ${row}.${c("user")}, 'role', ${row}.${c("role")}, 'previousRole', ${row}.${c("previousRole")}, 'reason', ${row}.${c("reason")}, 'duration', ${row}.${c("duration")}::text, 'status', ${state}, 'approvalId', ${row}.${c("approval")}, 'grantedAt', ${row}.${c("grantedAt")}, 'expiresAt', ${row}.${c("expiresAt")}, 'endedAt', ${row}.${c("endedAt")}, 'createdAt', ${row}.${c("createdAt")}${extraFieldsJson(row, extras)})`;
+
   const record = (
     event: string,
     row: string,
@@ -192,6 +206,7 @@ function build(ctx: ModuleContext): string {
         ...(summary === "" ? {} : { summary }),
       },
     });
+
   const durationCheck =
     max === undefined
       ? `
@@ -201,6 +216,7 @@ function build(ctx: ModuleContext): string {
   if v_duration > ${sqlString(max)}::interval then
     ${fail("ACCESS_DURATION_INVALID", `access can last at most ${max}`, "22023")}
   end if;`;
+
   const grantRole = provider
     ? `
   -- The authorization provider's adapter grants the role from the event.
@@ -216,6 +232,7 @@ function build(ctx: ModuleContext): string {
     insert into ${m} (${mt}, ${mu}, ${mr})
     values (v_row.${c("tenant")}, v_row.${c("user")}, ${roleValue(ctx, `v_row.${c("role")}`, `v_row.${c("tenant")}`)});
   end if;`;
+
   const revertRole = provider
     ? ""
     : `
@@ -232,6 +249,7 @@ function build(ctx: ModuleContext): string {
       where ${mt} = v_row.${c("tenant")} and ${mu} = v_row.${c("user")};
     end if;
   end if;`;
+
   const tables = ctx.manages
     ? `create table if not exists ${requests} (
   ${c("id")} uuid primary key default gen_random_uuid(),
@@ -256,6 +274,7 @@ create policy "access_requests_read" on ${requests} for select to authenticated
   using (${ctx.scope.check(c("tenant"), read)} or ${c("user")} = (select auth.uid()));
 `
     : "";
+
   return `${schemaPreamble(ctx)}
 ${tables}
 -- Asks for a role in an organization. Approvers come from options.policy;
@@ -464,6 +483,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   const extra = extraFieldsArg(
     ctx.extraColumns("requests", REQUEST_KEYS),
   ).contract;
+
   return [
     {
       name: "request_access",

@@ -20,24 +20,29 @@ const env = {
     "https://abcdefghijklmnopqrst.supabase.co/auth/v1/.well-known/jwks.json",
   ),
 };
+
 const USER = "6f1f5b8e-2c1d-4a3b-9e7f-0a1b2c3d4e5f";
 const ADMIN = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
 function setup(sink: EventSink) {
   const fake = fakeSql([[/delete from auth\.sessions/, [{ ended: 2 }]]]);
+
   // SAFETY: the server only calls admin.queryRaw and executorFor here.
   const postgres = {
     admin: fake.sql,
     anon: fake.sql,
     executorFor: () => postgresExecutor(fake.sql),
   } as unknown as BetterPostgres;
+
   const betterSupabase = defineSupabase(schema);
+
   const server = createServer(betterSupabase, {
     env,
     postgres,
     support: supportSessions({ store: memorySupportStore() }),
     audit: sink,
   });
+
   return { server, betterSupabase };
 }
 
@@ -76,9 +81,11 @@ describe("the server's audit sink", () => {
         throw new Error("down");
       },
     });
+
     const error = vi
       .spyOn(betterSupabase.events.logger, "error")
       .mockImplementation(() => undefined);
+
     expect((await server.endSessions(USER)).ok).toBe(true);
     await server.events.settled();
     expect(error).toHaveBeenCalledWith("audit sink failed", expect.anything());

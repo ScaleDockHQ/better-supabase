@@ -21,6 +21,7 @@ export function SignInScreen() {
       email,
       options: { emailRedirectTo: redirectTo },
     });
+
     setSent(failure === undefined);
   };
 
@@ -33,6 +34,7 @@ export function SignInScreen() {
         redirectTo,
       },
     );
+
     setOauthError(result.type === "error" ? result.error.message : undefined);
   };
 

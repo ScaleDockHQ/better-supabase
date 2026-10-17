@@ -100,16 +100,20 @@ interface Versioned {
 
 function versioned(ctx: ModuleContext): readonly Versioned[] {
   const where = "blocks.versions.options.subjects";
+
   return subjectsOption(ctx, ["columns", "apply", "auto", "freeze"]).map(
     ([type, subject]) => {
       const extra = subject.extra;
       const columns = extra["columns"] ?? [];
+
       if (!isColumnList(columns)) {
         throw new TypeError(
           `${where}.${type}.columns must be a list of column names`,
         );
       }
+
       const apply = extra["apply"];
+
       if (
         apply !== undefined &&
         (typeof apply !== "string" || !FUNCTION.test(apply))
@@ -118,16 +122,21 @@ function versioned(ctx: ModuleContext): readonly Versioned[] {
           `${where}.${type}.apply must name a function, such as public.apply_document_version`,
         );
       }
+
       const auto = extra["auto"] ?? false;
+
       if (typeof auto !== "boolean") {
         throw new TypeError(`${where}.${type}.auto must be true or false`);
       }
+
       const freeze = freezeOf(extra["freeze"], `${where}.${type}.freeze`);
+
       if ((auto || freeze) && columns.length === 0) {
         throw new TypeError(
           `${where}.${type}: auto and freeze snapshot the columns listed in columns`,
         );
       }
+
       return {
         type,
         subject,
@@ -167,19 +176,25 @@ function freezeOf(
   if (value === undefined) {
     return undefined;
   }
+
   const expected = `${where} must be { column, values }`;
+
   if (!isFreezeInput(value)) {
     throw new TypeError(expected);
   }
+
   const { column, values } = value;
+
   if (typeof column !== "string" || !COLUMN.test(column)) {
     throw new TypeError(expected);
   }
+
   if (!isFreezeValues(values)) {
     throw new TypeError(
       `${where}.values must be a list of values without commas`,
     );
   }
+
   return { column, values };
 }
 
@@ -207,9 +222,11 @@ function captureCase(
       where ${subjectIdMatches(entry.subject, id)}
         and e.key = any (${sqlString(`{${entry.columns.join(",")}}`)}::text[]);`,
     );
+
   if (whens.length === 0) {
     return "";
   }
+
   return `case ${type}
 ${whens.join("\n")}
     else null;
@@ -224,13 +241,17 @@ function restoreCase(list: readonly Versioned[]): string {
       perform ${functionName(entry.apply)}(v_subject_id, v_content);`,
       ];
     }
+
     if (entry.columns.length === 0) {
       return [];
     }
+
     const table = qualifiedTable(entry.subject.table);
+
     const sets = entry.columns
       .map((column) => `${sqlIdent(column)} = r.${sqlIdent(column)}`)
       .join(", ");
+
     return [
       `    when ${sqlString(entry.type)} then
       update ${table} s set ${sets}
@@ -238,14 +259,17 @@ function restoreCase(list: readonly Versioned[]): string {
       where ${subjectIdMatches(entry.subject, "v_subject_id")};`,
     ];
   });
+
   const unsupported = fail(
     "VERSION_RESTORE_UNSUPPORTED",
     "this subject type has no columns or apply function to restore into",
     "22023",
   );
+
   if (whens.length === 0) {
     return unsupported;
   }
+
   return `perform set_config(${sqlString(RESTORING)}, 'on', true);
   case v_subject_type
 ${whens.join("\n")}
@@ -260,9 +284,11 @@ function captureTriggers(
   list: readonly Versioned[],
 ): string {
   const capture = ctx.fn("versions_capture");
+
   return list
     .flatMap((entry) => {
       const table = qualifiedTable(entry.subject.table);
+
       const args = (freeze: Versioned["freeze"]) =>
         [
           entry.type,
@@ -276,7 +302,9 @@ function captureTriggers(
         ]
           .map((value) => sqlString(value))
           .join(", ");
+
       const statements: string[] = [];
+
       if (entry.auto) {
         const trigger = ctx.trigger(`versions_${entry.type}_auto`);
         statements.push(`drop trigger if exists ${trigger} on ${table};
@@ -284,6 +312,7 @@ create trigger ${trigger}
   after insert or update of ${entry.columns.map((column) => sqlIdent(column)).join(", ")} on ${table}
   for each row execute function ${capture}(${args(undefined)});`);
       }
+
       if (entry.freeze) {
         const trigger = ctx.trigger(`versions_${entry.type}_freeze`);
         statements.push(`drop trigger if exists ${trigger} on ${table};
@@ -291,6 +320,7 @@ create trigger ${trigger}
   after insert or update of ${sqlIdent(entry.freeze.column)} on ${table}
   for each row execute function ${capture}(${args(entry.freeze)});`);
       }
+
       return statements;
     })
     .join("\n\n");
@@ -300,6 +330,7 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const versions = ctx.table("versions");
   const c = (column: string): string => ctx.col("versions", column);
   const read = ctx.permission("read", OPERATIONS["versions.read"]);
@@ -310,37 +341,45 @@ function build(ctx: ModuleContext): string {
   const subjects = list.map((entry) => [entry.type, entry.subject] as const);
   const keep = ctx.number("keep", 50);
   const debounce = ctx.number("debounce", 300);
+
   if (!Number.isInteger(keep) || keep < 1) {
     throw new TypeError("blocks.versions.options.keep must be at least 1");
   }
+
   if (!Number.isInteger(debounce) || debounce < 0) {
     throw new TypeError(
       "blocks.versions.options.debounce must be a whole number of seconds",
     );
   }
+
   const fn = (name: string): string => ctx.fn(name);
+
   const readable = (prefix: string) =>
     subjectReadable(ctx, subjects, {
       type: `${prefix}subject_type`,
       id: `${prefix}subject_id`,
       tenant: `${prefix}tenant`,
     });
+
   const forbidden = fail(
     "VERSION_FORBIDDEN",
     "not allowed to read these versions",
   );
+
   const notFound = fail("VERSION_NOT_FOUND", "version not found", "P0002");
   // The version's extra columns: snapshot_version sets them, reads by
   // members return them under fields; the anon read of a shared version
   // leaves them out.
   const extras = ctx.extraColumns("versions", ["fields", "content"]);
   const extra = extraFieldsArg(extras);
+
   const summary = (row: string, withFields = true): string =>
     withExtraFields(
       `jsonb_build_object('id', ${row}.${c("id")}, 'number', ${row}.${c("number")}, 'label', ${row}.${c("label")}, 'source', ${row}.${c("source")}, 'frozen', ${row}.${c("frozen")}, 'contentHash', ${row}.${c("contentHash")}, 'storagePath', ${row}.${c("storagePath")}, 'subjectType', ${row}.${c("subjectType")}, 'subjectId', ${row}.${c("subjectId")}, 'createdBy', ${row}.${c("createdBy")}, 'createdAt', ${row}.${c("createdAt")})`,
       row,
       withFields ? extras : [],
     );
+
   const tables = ctx.manages
     ? `create table if not exists ${versions} (
   ${c("id")} uuid primary key default gen_random_uuid(),
@@ -366,12 +405,14 @@ create policy "versions_read" on ${versions} for select to authenticated
   using (${ctx.scope.check(c("tenant"), read)});
 `
     : "";
+
   const capture = captureCase(
     list,
     "snapshot_version.subject_type",
     "snapshot_version.subject_id",
     "v_content",
   );
+
   return `${schemaPreamble(ctx)}
 ${tables}
 -- Writes a version, numbered per subject. A version without a label whose
@@ -737,6 +778,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   const extra = extraFieldsArg(
     ctx.extraColumns("versions", ["fields", "content"]),
   ).contract;
+
   return [
     {
       name: "version_insert",

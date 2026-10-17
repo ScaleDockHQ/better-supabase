@@ -12,6 +12,7 @@ function headerStore(): NodeHeaderTarget & {
   readonly values: Map<string, number | string | readonly string[]>;
 } {
   const values = new Map<string, number | string | readonly string[]>();
+
   return {
     values,
     getHeader: (name) => values.get(name),
@@ -21,11 +22,14 @@ function headerStore(): NodeHeaderTarget & {
 
 async function eventAs(role?: string, context: Record<string, unknown> = {}) {
   const headers: Record<string, string> = { host: "app.test" };
+
   if (role) {
     headers["authorization"] =
       `Bearer ${await signer.sign({ sub: USER, app_metadata: { role } })}`;
   }
+
   const res = headerStore();
+
   return {
     node: { req: { method: "GET", url: "/admin", headers }, res },
     context,
@@ -53,12 +57,15 @@ describe("toH3V1", () => {
 
   it("reads the env from the Cloudflare bindings or the env option", async () => {
     let seen: unknown;
+
     const withEnv = toH3V1([withBetterSupabase(server, { allow: ["anon"] })], {
       env: (event) => {
         seen = event.context.cloudflare?.env;
+
         return seen;
       },
     });
+
     await withEnv(
       await eventAs(undefined, { cloudflare: { env: { A: "1" } } }),
     );
@@ -71,6 +78,7 @@ describe("h3 v1 guard and problemOnError", () => {
     const middleware = toH3V1([
       withBetterSupabase(server, { allow: ["user"] }),
     ]);
+
     const admins = guard({ roles: ["admin"] });
     const member = await eventAs("member");
     await middleware(member);

@@ -12,17 +12,20 @@ import { renderHook } from "../../../fixtures/hook-runtime.ts";
 const rpc = vi.hoisted(() => {
   const calls: { schema: string; fn: string; args: unknown }[] = [];
   const results = new Map<string, unknown>();
+
   const client = {
     schema: (schema: string) => ({
       rpc: async (fn: string, args: unknown) => {
         calls.push({ schema, fn, args });
         const result = results.get(fn);
+
         return result instanceof Error
           ? { data: null, error: result }
           : { data: result ?? null, error: null };
       },
     }),
   };
+
   return { calls, results, client };
 });
 
@@ -34,6 +37,7 @@ vi.mock("react", async (importOriginal) => ({
 
 // SAFETY: the hooks read only `supabase` from the client.
 const client = { supabase: rpc.client } as unknown as ClientLike;
+
 const provide = (): void => {
   BetterSupabaseProvider({ client });
 };
@@ -75,6 +79,7 @@ afterEach(() => {
 describe("useCalendar", () => {
   it("loads the range's occurrences as event calendar events", async () => {
     rpc.results.set("list_calendar_events", [SERIES]);
+
     const view = renderHook(
       useCalendar,
       {
@@ -86,6 +91,7 @@ describe("useCalendar", () => {
       },
       provide,
     );
+
     expect(view.result.loading).toBe(true);
     await settle(view);
     expect(view.result.occurrences).toHaveLength(4);
@@ -111,11 +117,13 @@ describe("useCalendar", () => {
     });
     rpc.results.set("split_calendar_event", { id: "s2" });
     rpc.results.set("cancel_calendar_occurrence", true);
+
     const view = renderHook(
       useCalendar,
       { calendarIds: ["c1"], range },
       provide,
     );
+
     await settle(view);
     const [, second, third] = view.result.occurrences!;
     expect(await view.result.editOccurrence(second!, { title: "Moved" })).toBe(
@@ -159,11 +167,13 @@ describe("useCalendar", () => {
 
   it("drops a load that finishes after the range changed", async () => {
     rpc.results.set("list_calendar_events", [SERIES]);
+
     const view = renderHook(
       useCalendar,
       { calendarIds: ["c1"], range },
       provide,
     );
+
     view.rerender({
       calendarIds: ["c1"],
       range: { start: range.start, end: new Date("2026-03-24T00:00:00Z") },

@@ -45,6 +45,7 @@ function SettingControl({
         />
       );
     }
+
     case "choice": {
       return (
         <View style={{ flexDirection: "row", gap: 6 }}>
@@ -71,6 +72,7 @@ function SettingControl({
         </View>
       );
     }
+
     case "number":
     case "text":
     case "json": {
@@ -87,8 +89,10 @@ function SettingControl({
         />
       );
     }
+
     default: {
       const unknown: never = field.kind;
+
       return unknown;
     }
   }
@@ -105,6 +109,7 @@ function SettingsSection<E extends SettingEntries>({
   if (state.values === undefined) {
     return <ActivityIndicator />;
   }
+
   return (
     <View style={{ gap: 12 }}>
       <Text style={{ fontSize: 17, fontWeight: "600" }}>{title}</Text>
@@ -135,11 +140,13 @@ function SettingsSection<E extends SettingEntries>({
 export function SettingsLayout() {
   const organizationId = tenantOf(useAuth()) ?? null;
   const user = useSettings(settings, { scope: "user", schema: API_SCHEMA });
+
   const organization = useSettings(settings, {
     scope: "organization",
     organizationId,
     schema: API_SCHEMA,
   });
+
   return (
     <ScrollView contentContainerStyle={{ gap: 24, padding: 16 }}>
       <SettingsSection title="Your preferences" state={user} />

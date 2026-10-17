@@ -13,6 +13,7 @@ export async function ScheduleList() {
     getExtracted("workflows"),
     getFormatter(),
   ]);
+
   if (schedules.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -20,6 +21,7 @@ export async function ScheduleList() {
       </p>
     );
   }
+
   return (
     <ul className="divide-y rounded-xl border">
       {schedules.map((schedule) => (

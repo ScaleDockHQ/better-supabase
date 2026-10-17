@@ -15,6 +15,7 @@ import { toMembers, toOrganizationSummaries } from "./organization-queries";
 
 const Id = v.pipe(v.string(), v.uuid());
 const Name = v.pipe(v.string(), v.trim(), v.minLength(2), v.maxLength(80));
+
 const Slug = v.pipe(
   v.string(),
   v.trim(),
@@ -46,9 +47,11 @@ export const createOrganization = bs.action(
   async ({ name }, { supabase }) => {
     const { organizations } = blocks(supabase);
     const created = await organizations.create({ name, slug: slugify(name) });
+
     if (!created.ok) {
       return created;
     }
+
     after(() =>
       recordAudit(supabase, {
         eventType: "organization.created",
@@ -59,6 +62,7 @@ export const createOrganization = bs.action(
         targetLabel: name,
       }),
     );
+
     return organizations.switch(created.data.id);
   },
 );
@@ -77,9 +81,11 @@ export const updateOrganization = bs.action(
         slug,
       },
     );
+
     if (!updated.ok) {
       return updated;
     }
+
     after(() =>
       recordAudit(supabase, {
         eventType: "organization.updated",
@@ -91,6 +97,7 @@ export const updateOrganization = bs.action(
       }),
     );
     refresh();
+
     return ok(true);
   },
 );
@@ -112,6 +119,7 @@ export const invitationSent = bs.action(
       organizationId,
     );
     refresh();
+
     return ok(true);
   },
 );
@@ -137,9 +145,11 @@ export const revokeInvitation = bs.action(
   async ({ invitationId }, { tenant: organizationId, supabase }) => {
     const revoked =
       await blocks(supabase).organizations.revokeInvitation(invitationId);
+
     if (!revoked.ok) {
       return revoked;
     }
+
     after(() =>
       recordAudit(supabase, {
         eventType: "invitation.revoked",
@@ -150,6 +160,7 @@ export const revokeInvitation = bs.action(
       }),
     );
     refresh();
+
     return ok(revoked.data);
   },
 );
@@ -168,6 +179,7 @@ export const memberChanged = bs.action(
   },
   ({ userId }) => {
     bs.invalidateSession(userId);
+
     return ok(true);
   },
 );
@@ -192,14 +204,19 @@ export const acceptInvitation = bs.action(
     const { organizations } = blocks(supabase);
     const preview = await organizations.previewInvitation(token);
     const accepted = await organizations.acceptInvitation(token);
+
     if (!accepted.ok) {
       return accepted;
     }
+
     const organizationId = accepted.data.organizationId;
+
     if (!organizationId) {
       return ok({ organizationId: null, refresh: false });
     }
+
     const name = preview.ok ? preview.data?.organization?.["name"] : undefined;
+
     const event = {
       eventType: "invitation.accepted",
       category: "membership",
@@ -207,12 +224,14 @@ export const acceptInvitation = bs.action(
       targetType: "organization",
       record: organizationId,
     };
+
     after(() =>
       recordAudit(
         supabase,
         v.is(v.string(), name) ? { ...event, targetLabel: name } : event,
       ),
     );
+
     return organizations.switch(organizationId);
   },
 );

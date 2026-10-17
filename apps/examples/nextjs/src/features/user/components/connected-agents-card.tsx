@@ -33,9 +33,11 @@ export function ConnectedAgentsCard({
   const format = useFormatter();
   const supabase = useSupabase();
   const changeSession = useSessionChange(sessionChanged);
+
   const [grants, setGrants] = useState<readonly Grant[]>(
     initial.ok ? initial.value : [],
   );
+
   const error = initial.ok ? null : initial.error;
   const [pending, startTransition] = useTransition();
 
@@ -44,10 +46,13 @@ export function ConnectedAgentsCard({
       const { error: revokeError } = await supabase.auth.oauth.revokeGrant({
         clientId: grant.client.id,
       });
+
       if (revokeError) {
         toast.error(revokeError.message);
+
         return;
       }
+
       setGrants((current) =>
         current.filter((item) => item.client.id !== grant.client.id),
       );

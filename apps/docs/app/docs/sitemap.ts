@@ -7,9 +7,11 @@ import { source } from "@/lib/source";
 export default function sitemap(): MetadataRoute.Sitemap {
   return source.getPages().map((page) => {
     const entry: MetadataRoute.Sitemap[number] = { url: siteUrl(page.url) };
+
     if (page.data.lastModified !== undefined) {
       entry.lastModified = new Date(page.data.lastModified);
     }
+
     return entry;
   });
 }

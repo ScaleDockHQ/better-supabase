@@ -9,6 +9,7 @@ const subscribe = () => () => {};
 /** `className` comes from the server so the button variants stay out of the client bundle. */
 export function ThemeToggle({ className }: { readonly className: string }) {
   const { resolvedTheme, setTheme } = useTheme();
+
   // The theme is only known in the browser; the server render shows the default icon.
   const mounted = useSyncExternalStore(
     subscribe,

@@ -56,17 +56,21 @@ describe("reads", () => {
   it("refuses relation sorts in cursor pages and aggregates", async () => {
     const { client, requests } = capturingClient();
     const db = sbCamel.connect(client);
+
     const page = await db.customers.paginate({
       orderBy: { organization: { name: "asc" } },
       size: 10,
       after: null,
     });
+
     expect(page.error?.message).toContain("use an offset page");
+
     const grouped = await db.customers.aggregate({
       groupBy: ["status"],
       _count: true,
       orderBy: { organization: { name: "asc" } } as never,
     });
+
     expect(grouped.error?.kind).toBe("invalid_request");
     expect(requests).toHaveLength(0);
   });
@@ -221,9 +225,11 @@ describe("reads", () => {
   it("returns not_found from findById and throws from orThrow", async () => {
     const { client, last } = capturingClient(() => ({ body: [] }));
     const db = sbCamel.connect(client);
+
     const result = await db.customers.findById(
       "00000000-0000-4000-8000-000000000009",
     );
+
     expect(result.ok).toBe(false);
     expect(result.error?.kind).toBe("not_found");
     expect(result.error?.table).toBe("customers");
@@ -240,6 +246,7 @@ describe("reads", () => {
       body: [],
       headers: { "content-range": "*/42" },
     }));
+
     const db = sbCamel.connect(client);
     const result = await db.customers.count({ where: { status: "active" } });
     expect(result.data).toBe(42);
@@ -253,14 +260,17 @@ describe("reads", () => {
       { id: "b", name: "Beta" },
       { id: "c", name: "Gamma" },
     ];
+
     const { client, last } = capturingClient(() => ({ body: rows }));
     const db = sbCamel.connect(client);
+
     const first = await db.customers.paginate({
       select: ["id", "name"],
       orderBy: { name: "asc" },
       size: 2,
       after: null,
     });
+
     expect(first.data?.items).toEqual(rows.slice(0, 2));
     expect(first.data?.hasMore).toBe(true);
     const cursor = first.data?.nextCursor;
@@ -286,13 +296,16 @@ describe("reads", () => {
       body: [{ id: "a" }],
       headers: { "content-range": "20-20/21" },
     }));
+
     const db = sbCamel.connect(client);
+
     const page = await db.customers.paginate({
       select: ["id"],
       page: 3,
       size: 10,
       count: "exact",
     });
+
     expect(page.data?.page).toEqual({
       number: 3,
       size: 10,
@@ -318,11 +331,13 @@ describe("reads", () => {
         message: "Requested range not satisfiable",
       },
     });
+
     const db = sbCamel.connect(
       capturingClient(
         pastEnd("An offset of 50 was requested, but there are only 8 rows."),
       ).client,
     );
+
     expect(
       (await db.customers.paginate({ offset: 50, limit: 5, count: "exact" }))
         .data,
@@ -350,13 +365,16 @@ describe("reads", () => {
       body: [{ id: "a" }],
       headers: { "content-range": "7-7/8" },
     }));
+
     const db = sbCamel.connect(client);
+
     const page = await db.customers.paginate({
       select: ["id"],
       offset: 7,
       limit: 5,
       count: "exact",
     });
+
     expect(page.data).toEqual({
       items: [{ id: "a" }],
       page: { number: 2, size: 5, total: 8, pages: 2, hasMore: false },
@@ -378,7 +396,9 @@ describe("writes", () => {
       status: 201,
       body: [{ id: "new", name: "Acme" }],
     }));
+
     const db = sbCamel.connect(client);
+
     const created = await db.customers
       .create(
         {
@@ -389,6 +409,7 @@ describe("writes", () => {
         { select: ["id", "name"] },
       )
       .orThrow();
+
     expect(created).toEqual({ id: "new", name: "Acme" });
     expect(last().method).toBe("POST");
     expect(last().body).toEqual({
@@ -404,6 +425,7 @@ describe("writes", () => {
       status: 201,
       body: [{ id: "x" }],
     }));
+
     const db = sbCamel.connect(client);
     await db.customers.upsert(
       { organizationId: "organization", name: "Acme", kvk: "123" },
@@ -420,18 +442,23 @@ describe("writes", () => {
 
   it("reports a stale row for optimistic concurrency", async () => {
     let call = 0;
+
     const { client, requests } = capturingClient(() => {
       call += 1;
+
       return call === 1
         ? { body: [] }
         : { body: [], headers: { "content-range": "*/1" } };
     });
+
     const db = sbCamel.connect(client);
+
     const result = await db.customers.update(
       "c1",
       { name: "New" },
       { expect: { updatedAt: "2026-01-01T00:00:00Z" } },
     );
+
     expect(result.error?.kind).toBe("stale");
     expect(query(requests[0] ?? (undefined as never))).toEqual([
       "id=eq.c1",
@@ -443,11 +470,13 @@ describe("writes", () => {
   it("updates with a where condition and returns not_found in one request", async () => {
     const { client, requests } = capturingClient(() => ({ body: [] }));
     const db = sbCamel.connect(client);
+
     const result = await db.customers.update(
       "c1",
       { name: "New" },
       { where: { organizationId: "t", status: { in: ["lead", "active"] } } },
     );
+
     expect(result.error?.kind).toBe("not_found");
     expect(requests).toHaveLength(1);
     expect(query(requests[0]!).slice(0, 3)).toEqual([
@@ -464,7 +493,9 @@ describe("writes", () => {
     const { client } = capturingClient(() => ({
       body: [{ id: "c1", name: "New" }],
     }));
+
     const db = sbCamel.connect(client);
+
     const row = await db.customers
       .update(
         "c1",
@@ -472,18 +503,23 @@ describe("writes", () => {
         { where: { organizationId: "t" }, select: ["id", "name"] },
       )
       .orThrow();
+
     expect(row).toEqual({ id: "c1", name: "New" });
   });
 
   it("probes with the where condition before calling a row stale", async () => {
     let call = 0;
+
     const { client, requests } = capturingClient(() => {
       call += 1;
+
       return call === 1
         ? { body: [] }
         : { body: [], headers: { "content-range": "*/0" } };
     });
+
     const db = sbCamel.connect(client);
+
     const result = await db.customers.update(
       "c1",
       { name: "New" },
@@ -492,6 +528,7 @@ describe("writes", () => {
         expect: { status: { in: ["lead"] } },
       },
     );
+
     expect(result.error?.kind).toBe("not_found");
     expect(requests).toHaveLength(2);
     expect(query(requests[0]!).slice(0, 3)).toEqual([
@@ -510,7 +547,9 @@ describe("writes", () => {
     const { client, last } = capturingClient(() => ({
       body: [{ id: "c1", createdAt: "2026-01-01T00:00:00Z" }],
     }));
+
     const db = sbCamel.connect(client);
+
     const rows = await db.customers
       .updateMany({
         where: { status: "lead" },
@@ -519,6 +558,7 @@ describe("writes", () => {
         select: ["id", "createdAt"],
       })
       .orThrow();
+
     expect(rows).toEqual([{ id: "c1", createdAt: "2026-01-01T00:00:00Z" }]);
     expect(query(last())).toEqual([
       "status=eq.lead",
@@ -532,13 +572,17 @@ describe("writes", () => {
       status: 204,
       headers: { "content-range": "*/3" },
     }));
+
     const db = sbCamel.connect(client);
+
     const updated = await db.customers
       .updateMany({ where: { status: "lead" }, data: { status: "active" } })
       .orThrow();
+
     const deleted = await db.customers
       .deleteMany({ where: { status: "lead" } })
       .orThrow();
+
     expect(updated).toEqual({ count: 3 });
     expect(deleted).toEqual({ count: 3 });
     expect(requests.map((request) => request.params.get("select"))).toEqual([
@@ -551,7 +595,9 @@ describe("writes", () => {
     const { client, last } = capturingClient(() => ({
       body: [{ id: "c1" }, { id: "c2" }],
     }));
+
     const db = sbCamel.connect(client);
+
     const rows = await db.customers
       .deleteMany({
         where: { status: "archived" },
@@ -559,6 +605,7 @@ describe("writes", () => {
         select: ["id"],
       })
       .orThrow();
+
     expect(rows).toEqual([{ id: "c1" }, { id: "c2" }]);
     expect(last().method).toBe("DELETE");
     expect(query(last())).toEqual(["status=eq.archived", "select=id"]);
@@ -575,6 +622,7 @@ describe("writes", () => {
         hint: null,
       },
     }));
+
     const db = sbCamel.connect(client);
     const result = await db.tags.create({ organizationId: "o", name: "vip" });
     expect(result.error).toMatchObject({
@@ -592,19 +640,23 @@ describe("writes", () => {
         status: 403,
         body: { code: "42501", message, details: null, hint: null },
       })).client;
+
     const denied = await sbCamel
       .connect(reply("permission denied for table tags"))
       .tags.findMany();
+
     expect(denied.error).toMatchObject({
       kind: "forbidden",
       status: 403,
       hint: expect.stringContaining("add tags to `expose`"),
     });
+
     const rls = await sbCamel
       .connect(
         reply('new row violates row-level security policy for table "tags"'),
       )
       .tags.create({ organizationId: "o", name: "vip" });
+
     expect(rls.error?.kind).toBe("forbidden");
     expect(rls.error?.hint).toBeUndefined();
   });
@@ -614,11 +666,14 @@ describe("writes", () => {
       status: 204,
       headers: { "content-range": "*/0" },
     }));
+
     const db = sbCamel.connect(client);
+
     const result = await db.customerTags.delete({
       customerId: "c",
       tagId: "t",
     });
+
     expect(result.error?.kind).toBe("not_found");
     expect(last().method).toBe("DELETE");
     expect(query(last())).toEqual([
@@ -631,10 +686,12 @@ describe("writes", () => {
   it("rejects relation filters in updateMany on PostgREST", async () => {
     const { client } = capturingClient();
     const db = sbCamel.connect(client);
+
     const result = await db.customers.updateMany({
       where: { notes: { some: {} } },
       data: { status: "active" },
     });
+
     expect(result.error?.kind).toBe("invalid_request");
   });
 });
@@ -645,20 +702,25 @@ describe("events", () => {
       status: 201,
       body: [{ id: "x" }],
     }));
+
     const betterSupabase = defineSupabase(camel);
     const seen: string[] = [];
+
     const off = betterSupabase.on("mutation", (event) => {
       seen.push(`${event.table}:${event.kind}`);
       throw new Error("ignored");
     });
+
     betterSupabase.on("query", (event) =>
       seen.push(`query:${event.operation}`),
     );
     const original = console.error;
     console.error = () => {};
+
     const result = await betterSupabase
       .connect(client)
       .tags.create({ organizationId: "o", name: "n" });
+
     console.error = original;
     off();
     expect(result.ok).toBe(true);
@@ -670,14 +732,17 @@ describe("events", () => {
       status: 409,
       body: { code: "23505", message: "duplicate key", details: null },
     }));
+
     const logger = { debug() {}, info() {}, warn() {}, error: vi.fn() };
     const betterSupabase = defineSupabase(camel, { logger });
     betterSupabase.on("error", (event) => {
       (event.error as { message: string }).message = "changed";
     });
+
     const result = await betterSupabase
       .connect(client)
       .tags.create({ organizationId: "o", name: "n" });
+
     expect(result.error).toMatchObject({
       kind: "conflict",
       message: expect.not.stringContaining("changed"),
@@ -694,9 +759,11 @@ describe("events", () => {
     const betterSupabase = defineSupabase(camel);
     const errors: unknown[] = [];
     betterSupabase.on("error", (event) => errors.push(event));
+
     const result = await betterSupabase
       .connect(client)
       .customers.findMany({ limit: -1 });
+
     expect(requests).toHaveLength(0);
     expect(result.error).toMatchObject({
       kind: "invalid_request",

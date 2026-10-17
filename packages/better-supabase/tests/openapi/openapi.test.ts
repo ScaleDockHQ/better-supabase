@@ -6,6 +6,7 @@ import { createOpenApi } from "../../src/openapi/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const betterSupabase = defineSupabase(schema);
+
 const customerList = defineListQuery(betterSupabase, "customers", {
   search: ["name"],
   facets: { status: "status" },
@@ -38,6 +39,7 @@ function refs(value: unknown, out: string[] = []): string[] {
       }
     }
   }
+
   return out;
 }
 
@@ -82,6 +84,7 @@ describe("createOpenApi", () => {
     const list = doc.paths["/api/customers"]!["get"] as {
       parameters: { name: string }[];
     };
+
     expect(list.parameters.map((parameter) => parameter.name)).toEqual([
       "q",
       "sort",
@@ -125,11 +128,14 @@ describe("createOpenApi", () => {
       string,
       Record<string, unknown>
     >;
+
     const missing = refs(doc).filter((target) => {
       const [, section, name] =
         /^#\/components\/(\w+)\/(\w+)$/.exec(target) ?? [];
+
       return components[section!]?.[name!] === undefined;
     });
+
     expect(refs(doc).length).toBeGreaterThan(10);
     expect(missing).toEqual([]);
   });
@@ -156,6 +162,7 @@ describe("createOpenApi", () => {
       defaultSort: "name",
       pagination: "cursor",
     });
+
     const cursorDoc = createOpenApi(betterSupabase, {
       info: { title: "CRM", version: "1.0.0" },
       resources: {
@@ -163,8 +170,10 @@ describe("createOpenApi", () => {
         notes: { pagination: "cursor", maxPageSize: 20 },
       },
     });
+
     const pageOf = (name: string) =>
       cursorDoc.components.schemas[name] as { required: string[] };
+
     expect(pageOf("CustomersPage").required).toEqual([
       "items",
       "nextCursor",
@@ -175,9 +184,11 @@ describe("createOpenApi", () => {
       "nextCursor",
       "hasMore",
     ]);
+
     const notes = (cursorDoc.paths["/notes"] as Record<string, unknown>)[
       "get"
     ] as { parameters: { name: string; schema: { maximum?: number } }[] };
+
     expect(notes.parameters.map((parameter) => parameter.name)).toEqual([
       "after",
       "size",

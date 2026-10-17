@@ -37,28 +37,36 @@ export function rankBetween(
   if (previous !== null && !KEY.test(previous)) {
     throw new RangeError(`"${previous}" is not a rank key`);
   }
+
   if (next !== null && !KEY.test(next)) {
     throw new RangeError(`"${next}" is not a rank key`);
   }
+
   if (previous !== null && next !== null && previous >= next) {
     throw new RangeError(`"${previous}" must sort before "${next}"`);
   }
+
   const low = previous ?? "";
   let key = "";
   let bounded = next !== null;
+
   for (let index = 0; ; index += 1) {
     const lowDigit = digitAt(low, index);
     const highDigit = bounded && next !== null ? digitAt(next, index) : BASE;
+
     if (highDigit === lowDigit) {
       key += RANK_ALPHABET.charAt(lowDigit);
       continue;
     }
+
     if (highDigit - lowDigit > 1) {
       return key + RANK_ALPHABET.charAt(Math.floor((lowDigit + highDigit) / 2));
     }
+
     if (bounded && next !== null && index + 1 < next.length) {
       return key + next.charAt(index);
     }
+
     key += RANK_ALPHABET.charAt(lowDigit);
     bounded = false;
   }
@@ -72,18 +80,24 @@ export function rankKeys(count: number): string[] {
   if (!Number.isSafeInteger(count) || count < 0) {
     throw new RangeError("count must be a whole number of keys");
   }
+
   let width = 1;
+
   while (BASE ** width <= count) {
     width += 1;
   }
+
   const step = Math.floor(BASE ** width / (count + 1));
+
   return Array.from({ length: count }, (_, index) => {
     let value = step * (index + 1);
     let key = "";
+
     for (let place = 0; place < width; place += 1) {
       key = RANK_ALPHABET.charAt(value % BASE) + key;
       value = Math.floor(value / BASE);
     }
+
     return key.replace(/0+$/, "");
   });
 }

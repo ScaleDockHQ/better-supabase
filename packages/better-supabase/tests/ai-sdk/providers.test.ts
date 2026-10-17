@@ -49,12 +49,14 @@ describe("byokOptions", () => {
 describe("tenantGatewayOptions", () => {
   it("adds the tenant's keys to the gateway options", async () => {
     const resolve = vi.fn(() => AsyncResult.ok([key()]));
+
     const options = await tenantGatewayOptions(
       { keys: { resolve } as never },
       { organizationId: "o1", userId: "u1" },
       { order: ["anthropic"] },
       { providers: ["anthropic"] },
     ).orThrow();
+
     expect(resolve).toHaveBeenCalledWith("o1", { providers: ["anthropic"] });
     expect(options).toEqual({
       gateway: {
@@ -71,19 +73,23 @@ describe("trackedSandbox", () => {
   it("touches the registry row on use, at most every interval", async () => {
     let now = 0;
     const touch = vi.fn(() => AsyncResult.ok(true));
+
     class Session {
       readonly id = "sbx";
       run(command: string) {
         return Promise.resolve(`ran ${command} in ${this.id}`);
       }
     }
+
     const session = new Session() as unknown as Experimental_SandboxSession;
+
     const tracked = trackedSandbox(session, {
       sandboxes: { touch },
       id: "s1",
       every: 1000,
       now: () => now,
     }) as unknown as Session;
+
     expect(await tracked.run("ls")).toBe("ran ls in sbx");
     now = 500;
     await tracked.run("ls");

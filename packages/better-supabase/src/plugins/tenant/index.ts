@@ -84,9 +84,11 @@ export function resolveTenant<C = unknown>(
   if (options.resolve) {
     return options.resolve(context);
   }
+
   // SAFETY: TenantOptions types claim as ClaimPath<C> or a list of them, and
   // both are strings at runtime.
   const claim = options.claim as string | readonly string[] | undefined;
+
   return tenantFrom(context, tenantPathsFor(claim, schema));
 }
 
@@ -95,6 +97,7 @@ function sameTenant(value: unknown, id: string): boolean {
   if (value === id) {
     return true;
   }
+
   return (
     (typeof value === "number" || typeof value === "bigint") &&
     String(value) === id
@@ -124,10 +127,12 @@ export function tenant<C = unknown>(
     schema: SchemaMeta,
   ): string | undefined => {
     let id = resolved.get(context);
+
     if (id === undefined && !resolved.has(context)) {
       id = resolveTenant(context, options, schema);
       resolved.set(context, id);
     }
+
     return id;
   };
 
@@ -146,9 +151,11 @@ export function tenant<C = unknown>(
     schema: SchemaMeta,
   ): string | undefined => {
     const id = resolvedFor(context, schema);
+
     if (id === undefined && onMissing === "error" && tenantColumn(table)) {
       missing(table);
     }
+
     return id;
   };
 
@@ -158,10 +165,13 @@ export function tenant<C = unknown>(
     describe(api): void {
       for (const { table } of api.resources) {
         const flag = table.flags.tenant;
+
         if (!flag) {
           continue;
         }
+
         api.markReadOnly(table.key, flag, "Set from the request's tenant.");
+
         if (options.header) {
           api.addParameter(table.key, {
             name: options.header,
@@ -177,41 +187,54 @@ export function tenant<C = unknown>(
       if (spansAllTenants(context)) {
         return context;
       }
+
       const id = resolvedFor(context, schema);
+
       if (id === undefined || id === context.tenant) {
         return context;
       }
+
       const derived = { ...context, tenant: id };
       resolved.set(derived, id);
+
       return derived;
     },
     transformQuery(op, { context, schema, options: call }): Operation {
       if (call["allTenants"] === true || spansAllTenants(context)) {
         return op;
       }
+
       const id = resolvedFor(context, schema);
+
       if (id === undefined) {
         if (onMissing === "error") {
           scopeOperation(op, (table) =>
             tenantColumn(table) ? missing(table) : undefined,
           );
         }
+
         return op;
       }
+
       return scopeOperation(op, (table) => {
         const column = tenantColumn(table);
+
         return column ? equals(column, id) : undefined;
       });
     },
     beforeMutation(op, { table, context, schema, options: call }): MutationOp {
       const column = tenantColumn(table);
+
       if (!column || call["allTenants"] === true || spansAllTenants(context)) {
         return op;
       }
+
       const id = current(table, context, schema);
+
       if (id === undefined) {
         return op;
       }
+
       switch (op.kind) {
         case "insert": {
           if (!insertsOnly(op) && !op.onConflict?.columns.includes(column)) {
@@ -219,27 +242,34 @@ export function tenant<C = unknown>(
               `An upsert on ${table.key} that updates on conflict needs the tenant column "${column}" in its conflict target`,
             );
           }
+
           return {
             ...op,
             rows: op.rows.map((row) => {
               if (column in row && !sameTenant(row[column], id)) {
                 forbidden(`Cannot write a ${table.key} row for another tenant`);
               }
+
               return { ...row, [column]: id };
             }),
           };
         }
+
         case "update": {
           if (column in op.set && !sameTenant(op.set[column], id)) {
             forbidden(`Cannot move a ${table.key} row to another tenant`);
           }
+
           return op;
         }
+
         case "delete": {
           return op;
         }
+
         default: {
           const exhaustive: never = op;
+
           return exhaustive;
         }
       }

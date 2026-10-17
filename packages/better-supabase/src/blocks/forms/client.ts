@@ -61,11 +61,13 @@ function byField(
   issues: readonly ValidationIssue[],
 ): Readonly<Record<string, readonly string[]>> {
   const out: Record<string, string[]> = {};
+
   for (const issue of issues) {
     const key = issue.path?.[0];
     const name = typeof key === "string" ? key : "";
     (out[name] ??= []).push(issue.message);
   }
+
   return out;
 }
 
@@ -77,6 +79,7 @@ function viewOf(
 ): QuestionnaireSnapshot {
   const steps = questionnaireSteps(form, current);
   const index = steps.findIndex((step) => step.active);
+
   return {
     steps,
     step: steps[index],
@@ -99,16 +102,19 @@ export function createQuestionnaireController(
   let current = initialQuestionnaire(form, options.initialAnswers);
   let finalIssues: readonly ValidationIssue[] = [];
   let submitting = false;
+
   return defineController<QuestionnaireSnapshot, QuestionnaireActions>(
     viewOf(form, current, finalIssues, submitting),
     (state) => {
       const show = (): void => {
         state.set(viewOf(form, current, finalIssues, submitting));
       };
+
       const dispatch = (action: QuestionnaireAction): void => {
         current = questionnaireReducer(form, current, action);
         show();
       };
+
       return {
         actions: {
           setAnswer: (key, value) => {
@@ -136,19 +142,24 @@ export function createQuestionnaireController(
           },
           submit: async () => {
             const result = finishQuestionnaire(form, current);
+
             if (!result.ok) {
               finalIssues = result.issues;
               show();
+
               return false;
             }
+
             submitting = true;
             show();
+
             try {
               await options.onSubmit(result.answers);
             } finally {
               submitting = false;
               show();
             }
+
             return true;
           },
         },

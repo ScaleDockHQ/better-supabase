@@ -112,9 +112,11 @@ insert into rel_it.tasks (id, organization_id) values ('${task(99)}', '${OTHER_O
       targetId: task(3),
     });
     await db.asRole(member);
+
     const of3 = await db.value<Edge[]>(
       `rel_it.relations_of('${org}', 'task', '${task(3)}', null)`,
     );
+
     expect(of3).toEqual([
       expect.objectContaining({
         kind: "blocked_by",
@@ -122,9 +124,11 @@ insert into rel_it.tasks (id, organization_id) values ('${task(99)}', '${OTHER_O
         subjectId: task(4),
       }),
     ]);
+
     const of4 = await db.value<Edge[]>(
       `rel_it.relations_of('${org}', 'task', '${task(4)}', 'blocks')`,
     );
+
     expect(of4.map((edge) => edge.subjectId)).toEqual([task(3)]);
   });
 
@@ -151,16 +155,20 @@ insert into rel_it.tasks (id, organization_id) values ('${task(99)}', '${OTHER_O
     await db.value(link("parent", 9, 8));
     await db.value(link("children", 9, 6));
     await db.asRole(member);
+
     const up = await db.value<{ id: string; depth: number }[]>(
       `rel_it.ancestors('${org}', 'parent', 'task', '${task(6)}')`,
     );
+
     expect(up).toEqual([
       { type: "task", id: task(9), depth: 1 },
       { type: "task", id: task(8), depth: 2 },
     ]);
+
     const down = await db.value<{ id: string }[]>(
       `rel_it.descendants('${org}', 'parent', 'task', '${task(8)}')`,
     );
+
     expect(down.map((row) => row.id)).toEqual([task(2), task(9), task(6)]);
     expect(
       await db.value(
@@ -185,9 +193,11 @@ insert into rel_it.tasks (id, organization_id) values ('${task(99)}', '${OTHER_O
     await db.value(link("relates", 4, 1));
     const again = await db.value<Linked>(link("relates", 1, 4));
     expect(again.created).toBe(false);
+
     const removed = await db.value<{ removed: boolean }>(
       `rel_it.unlink('${org}', 'relates', 'task', '${task(4)}', 'task', '${task(1)}')`,
     );
+
     expect(removed.removed).toBe(true);
   });
 
@@ -195,6 +205,7 @@ insert into rel_it.tasks (id, organization_id) values ('${task(99)}', '${OTHER_O
     const transport = sqlTransport(db.sql);
     const relations = createRelations({ transport, schema: "rel_it" });
     await db.as(owner);
+
     const moved = await relations
       .link({
         organizationId: org,
@@ -203,6 +214,7 @@ insert into rel_it.tasks (id, organization_id) values ('${task(99)}', '${OTHER_O
         target: { type: "task", id: task(1) },
       })
       .orThrow();
+
     const again = await relations
       .link({
         organizationId: org,
@@ -211,13 +223,16 @@ insert into rel_it.tasks (id, organization_id) values ('${task(99)}', '${OTHER_O
         target: { type: "task", id: task(5) },
       })
       .orThrow();
+
     expect(moved.created && again.replaced?.target.id).toBe(task(1));
     await createUndo({ transport, schema: "rel_it" })
       .apply(again.undo)
       .orThrow();
+
     const up = await relations
       .ancestors(org, "parent", { type: "task", id: task(3) })
       .orThrow();
+
     expect(up.map((node) => node.id)).toEqual([task(1)]);
   });
 
@@ -236,13 +251,16 @@ insert into rel_it.tasks (id, organization_id) values ('${task(99)}', '${OTHER_O
       ),
     ).toBeNull();
     expect(await db.hint(link("created_from", 7, 9))).toBe("RELATION_CYCLE");
+
     const relations = createRelations({
       transport: sqlTransport(db.sql),
       schema: "rel_it",
     });
+
     const lineage = await relations
       .lineage(org, { type: "task", id: task(8) })
       .orThrow();
+
     expect(lineage.origins.map((node) => node.id)).toEqual([task(7)]);
     expect(lineage.conversions.map((node) => node.id)).toEqual([task(9)]);
     expect(
@@ -254,18 +272,22 @@ insert into rel_it.tasks (id, organization_id) values ('${task(99)}', '${OTHER_O
 
   it("records events and deletes links with their subject", async () => {
     await db.service();
+
     const events = await db.rows<{ type: string }>(
       `select type from better_supabase.outbox_events where organization_id = $1 and type like 'subject.%'`,
       [org],
     );
+
     expect(new Set(events.map((row) => row.type))).toEqual(
       new Set(["subject.linked", "subject.unlinked"]),
     );
     await db.client.query(`delete from rel_it.tasks where id = $1`, [task(6)]);
+
     const left = await db.rows(
       `select 1 from rel_it.relations where source_id = $1 or target_id = $1`,
       [task(6)],
     );
+
     expect(left).toEqual([]);
   });
 });

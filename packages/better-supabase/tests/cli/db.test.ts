@@ -11,6 +11,7 @@ function fakePg(connectError?: unknown, endError?: Error) {
     queries: [] as string[],
     listeners: [] as ((error: unknown) => void)[],
   };
+
   class Client {
     constructor(options: unknown) {
       state.options.push(options);
@@ -25,15 +26,18 @@ function fakePg(connectError?: unknown, endError?: Error) {
     }
     async query(text: string): Promise<{ rows: unknown[] }> {
       state.queries.push(text);
+
       return { rows: [{ one: 1 }] };
     }
     async end(): Promise<void> {
       state.ended += 1;
+
       if (endError !== undefined) {
         throw endError;
       }
     }
   }
+
   return { Client, state };
 }
 
@@ -55,6 +59,7 @@ describe("connect", () => {
   it("opens a pool with a statement timeout when the module has one", async () => {
     const pg = fakePg();
     const released: number[] = [];
+
     class Pool {
       constructor(options: unknown) {
         pg.state.options.push(options);
@@ -69,10 +74,12 @@ describe("connect", () => {
         pg.state.ended += 1;
       }
     }
+
     const db = await connect(URL, async () => ({ Client: pg.Client, Pool }), {
       pool: 4,
       statementTimeout: 5000,
     });
+
     expect(pg.state.options).toEqual([
       {
         connectionString: URL,
@@ -91,9 +98,11 @@ describe("connect", () => {
   it("ends the connection when the signal aborts", async () => {
     const pg = fakePg();
     const controller = new AbortController();
+
     const db = await connect(URL, async () => pg, {
       signal: controller.signal,
     });
+
     expect(db.pooled).toBeUndefined();
     controller.abort();
     await Promise.resolve();
@@ -135,9 +144,11 @@ describe("connect", () => {
 
   it("prefers the default export of a CommonJS interop module", async () => {
     const pg = fakePg();
+
     const db = await connect(URL, async () => ({
       default: { Client: pg.Client },
     }));
+
     expect(pg.state.options).toHaveLength(1);
     await db.client.query("select 2");
     expect(pg.state.queries).toEqual(["select 2"]);
@@ -166,9 +177,11 @@ describe("connect", () => {
   it("redacts the password and keeps the cause when the connection fails", async () => {
     const refused = new Error("connect ECONNREFUSED 127.0.0.1:55422");
     const pg = fakePg(refused);
+
     const failure = await connect(URL, async () => pg).catch(
       (error: unknown) => error,
     );
+
     expect(failure).toBeInstanceOf(Error);
     expect((failure as Error).message).toBe(
       "Could not connect to postgresql://postgres:***@127.0.0.1:55422/postgres: connect ECONNREFUSED 127.0.0.1:55422. Is the local stack running (supabase start)?",

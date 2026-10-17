@@ -36,16 +36,20 @@ type Handler = (args: Record<string, unknown>) => unknown;
 
 function fakeTransport(handlers: Record<string, Handler>) {
   const calls: { fn: string; args: Record<string, unknown> }[] = [];
+
   const transport: BlockTransport = {
     call: (_schema, fn, args) => {
       calls.push({ fn, args });
       const handler = handlers[fn];
+
       if (!handler) {
         return Promise.reject(new Error(`unexpected ${fn}`));
       }
+
       return Promise.resolve(handler(args));
     },
   };
+
   return { transport, calls };
 }
 
@@ -55,7 +59,9 @@ describe("createAgents", () => {
       save_agent: () => agentRow(),
       get_agent: (args) => (args["id"] === "gone" ? null : agentRow()),
     });
+
     const agents = createAgents({ transport });
+
     const created = await agents
       .create("o1", {
         slug: "writer",
@@ -69,6 +75,7 @@ describe("createAgents", () => {
         starters: ["Hi"],
       })
       .orThrow();
+
     expect(calls[0]).toEqual({
       fn: "save_agent",
       args: {
@@ -121,9 +128,11 @@ describe("createAgents", () => {
           created_at: new Date(AT),
         }),
     });
+
     const agent = await createAgents({ transport })
       .update("o1", "a1", {})
       .orThrow();
+
     expect(agent).toMatchObject({
       ownerId: undefined,
       description: "",
@@ -145,6 +154,7 @@ describe("createAgents", () => {
       set_agent_skills: () => 2,
       delete_agent: () => true,
     });
+
     const agents = createAgents({ transport, schema: "app" });
     expect(
       (

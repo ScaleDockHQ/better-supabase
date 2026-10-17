@@ -39,6 +39,7 @@ describe("unwrap", () => {
 });
 
 const Claims = v.object({ tenant_id: v.string(), user_role: v.string() });
+
 type Claims = v.InferOutput<typeof Claims>;
 
 describe("betterSupabase.claims(schema) in oRPC", () => {
@@ -49,6 +50,7 @@ describe("betterSupabase.claims(schema) in oRPC", () => {
       .handler(({ context }) => {
         expectTypeOf(context.auth).toEqualTypeOf<AuthState<Claims>>();
         expectTypeOf(context.bs.auth).toEqualTypeOf<AuthState<Claims>>();
+
         return null;
       });
   });
@@ -59,13 +61,16 @@ describe("betterSupabase.claims(schema) in oRPC", () => {
         .input(v.object({ id: v.string() }))
         .output(v.object({ deleted: v.boolean() })),
     };
+
     const impl = implement(contract)
       .$context<OrpcRequestContext>()
       .use(bs.middleware());
+
     impl.remove
       .use(bs.middleware({ permission: "customers.delete" }))
       .handler(({ context }) => {
         expectTypeOf(context.auth).toEqualTypeOf<AuthState>();
+
         return { deleted: true };
       });
   });
@@ -75,6 +80,7 @@ describe("betterSupabase.claims(schema) in oRPC", () => {
       .use(bs.middleware())
       .handler(({ context }) => {
         expectTypeOf(context.auth).toEqualTypeOf<AuthState>();
+
         return null;
       });
   });

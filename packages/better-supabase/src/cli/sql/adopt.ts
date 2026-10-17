@@ -95,6 +95,7 @@ export function existingTables(
 function candidates(logical: string, physical: string): readonly string[] {
   const snake = toSnake(logical);
   const singular = physical.endsWith("s") ? physical.slice(0, -1) : undefined;
+
   return [
     physical,
     snake,
@@ -116,17 +117,20 @@ function matchColumns(
   const names = new Set(table.columns.map((column) => column.name));
   const used = new Set<string>();
   const matches: ColumnMatch[] = [];
+
   // Exact names first, so an alias never takes a column another logical column names.
   for (const physical of Object.values(spec.columns)) {
     if (names.has(physical)) {
       used.add(physical);
     }
   }
+
   for (const [logical, physical] of Object.entries(spec.columns)) {
     if (names.has(physical)) {
       matches.push({ logical, column: physical, by: "name" });
       continue;
     }
+
     const found =
       candidates(logical, physical).find(
         (name) => names.has(name) && !used.has(name),
@@ -136,6 +140,7 @@ function matchColumns(
           .map((column) => column.name)
           .filter((name) => name.endsWith(`_${physical}`) && !used.has(name)),
       );
+
     if (found === undefined) {
       matches.push({ logical, column: null, by: "missing" });
     } else {
@@ -143,6 +148,7 @@ function matchColumns(
       matches.push({ logical, column: found, by: "alias" });
     }
   }
+
   return matches;
 }
 
@@ -168,19 +174,25 @@ function matchTables(
   errors: string[],
 ): Map<string, ExistingTable | null> {
   const spec = SQL_MODULES[block]?.names?.tables ?? {};
+
   const byName = new Map(
     tables.map((table) => [`${table.schema}.${table.name}`, table]),
   );
+
   const chosen = new Map<string, ExistingTable | null>();
+
   for (const name of from) {
     const table = byName.get(qualifiedName(name));
+
     if (table === undefined) {
       errors.push(`${qualifiedName(name)} is not a table in the database.`);
       continue;
     }
+
     const open = Object.entries(spec).filter(
       ([logical]) => !chosen.has(logical),
     );
+
     // A table under the logical table's default name wins over any column match.
     const best = open
       .map(([logical, names]) => ({
@@ -190,21 +202,26 @@ function matchTables(
           (table.name === names.name ? 1 : 0),
       }))
       .sort((left, right) => right.score - left.score)[0];
+
     if (best === undefined || best.score === 0) {
       errors.push(
         `${qualifiedName(name)} matches none of the ${block} tables (${Object.keys(spec).join(", ")}).`,
       );
       continue;
     }
+
     chosen.set(best.logical, table);
   }
+
   for (const [logical, table] of Object.entries(spec)) {
     if (chosen.has(logical)) {
       continue;
     }
+
     const found = schemas
       .map((schema) => byName.get(`${schema}.${table.name}`))
       .find((match) => match !== undefined);
+
     if (found !== undefined) {
       chosen.set(logical, found);
     } else if (table.optionalTable === true) {
@@ -215,6 +232,7 @@ function matchTables(
       );
     }
   }
+
   return chosen;
 }
 
@@ -238,6 +256,7 @@ export function proposeAdoption(
   options: ProposeOptions = {},
 ): AdoptProposal {
   const module = SQL_MODULES[block];
+
   if (module?.modes?.includes("adopt") !== true) {
     return {
       block,
@@ -251,8 +270,10 @@ export function proposeAdoption(
       warnings: [],
     };
   }
+
   const errors: string[] = [];
   const spec = module.names?.tables ?? {};
+
   const chosen = matchTables(
     block,
     tables,
@@ -260,25 +281,31 @@ export function proposeAdoption(
     options.schemas ?? ["public"],
     errors,
   );
+
   const matched: TableMatch[] = [];
   const entryTables: Record<string, string | null> = {};
   const entryColumns: Record<string, Record<string, string | null>> = {};
   let idType: string | undefined;
+
   for (const [logical, table] of Object.entries(spec)) {
     if (!chosen.has(logical)) {
       continue;
     }
+
     const existing = chosen.get(logical) ?? null;
+
     if (existing === null) {
       entryTables[logical] = null;
       matched.push({ logical, table: null, columns: [] });
       continue;
     }
+
     const name = `${existing.schema}.${existing.name}`;
     entryTables[logical] = name;
     const columns = matchColumns(table, existing);
     matched.push({ logical, table: name, columns });
     const mapped: Record<string, string | null> = {};
+
     for (const match of columns) {
       if (match.column === null) {
         if (table.optional?.includes(match.logical) === true) {
@@ -288,26 +315,34 @@ export function proposeAdoption(
             `${name} has no column for ${logical}.${match.logical} (${table.columns[match.logical]} by default). Add the column, or map blocks.${block}.columns.${logical}.${match.logical} to the one that holds it.`,
           );
         }
+
         continue;
       }
+
       if (match.column !== table.columns[match.logical]) {
         mapped[match.logical] = match.column;
       }
+
       if (match.logical === "tenant" && idType === undefined) {
         const udt = existing.columns.find(
           (column) => column.name === match.column,
         )?.udt;
+
         const type = udt === undefined ? undefined : moduleIdType(udt);
+
         if (type !== undefined && type !== "uuid") {
           idType = type;
         }
       }
     }
+
     if (Object.keys(mapped).length > 0) {
       entryColumns[logical] = mapped;
     }
   }
+
   const current = options.blocks?.[block];
+
   const entry: BlockConfig = {
     ...current,
     mode: "adopt",
@@ -317,15 +352,20 @@ export function proposeAdoption(
       ? {}
       : { idType }),
   };
+
   const warnings: string[] = [];
+
   if (errors.length === 0) {
     const blocks = { ...options.blocks, [block]: entry };
+
     try {
       // Builds each adopted module's context, which throws on what it refuses.
       adoptedTables(blocks);
+
       const adopted = [...chosen.values()].filter(
         (table): table is ExistingTable => table !== null,
       );
+
       errors.push(
         ...adoptedColumnProblems(
           blocks,
@@ -336,10 +376,12 @@ export function proposeAdoption(
     } catch (error) {
       errors.push(error instanceof Error ? error.message : String(error));
     }
+
     warnings.push(
       ...migrationOptionUses({ [block]: entry }).map((use) => use.message),
     );
   }
+
   return { block, entry, tables: matched, errors, warnings };
 }
 
@@ -357,6 +399,7 @@ export function hasDefaultTable(
       (table) => table.name,
     ),
   );
+
   return tables.some(
     (table) => names.has(table.name) && schemas.includes(table.schema),
   );
@@ -365,9 +408,11 @@ export function hasDefaultTable(
 /** The proposal as lines: each table and column, then the errors and warnings. */
 export function describeProposal(proposal: AdoptProposal): string[] {
   const lines: string[] = [];
+
   for (const table of proposal.tables) {
     lines.push(`  ${table.logical}: ${table.table ?? "null (not in the app)"}`);
     const width = Math.max(0, ...table.columns.map((c) => c.logical.length));
+
     for (const column of table.columns) {
       const target =
         column.column === null
@@ -375,14 +420,18 @@ export function describeProposal(proposal: AdoptProposal): string[] {
           : column.by === "alias"
             ? `${column.column} (guessed)`
             : column.column;
+
       lines.push(`    ${column.logical.padEnd(width)}  ${target}`);
     }
   }
+
   for (const error of proposal.errors) {
     lines.push(`  error  ${error}`);
   }
+
   for (const warning of proposal.warnings) {
     lines.push(`  warn   ${warning}`);
   }
+
   return lines;
 }

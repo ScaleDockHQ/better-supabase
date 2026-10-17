@@ -133,6 +133,7 @@ export async function flagBucket(
     "SHA-256",
     new TextEncoder().encode(`${flag}.${target}`),
   );
+
   return new DataView(digest).getUint32(0) % BUCKETS;
 }
 
@@ -168,6 +169,7 @@ async function chooseVariant(
   if (!flag.enabled) {
     return { variant: flag.defaultVariant, reason: "DISABLED" };
   }
+
   const override =
     flag.overrides.find(
       (entry) =>
@@ -178,16 +180,21 @@ async function chooseVariant(
         entry.organizationId !== undefined &&
         entry.organizationId === context.tenant,
     );
+
   let chosen = override?.variant;
   let reason: FlagReason = chosen === undefined ? "DEFAULT" : "TARGETING_MATCH";
+
   if (chosen === undefined) {
     const rule = flag.rules.find((entry) => ruleMatches(entry, context));
+
     if (rule) {
       chosen = rule.variant;
       reason = "TARGETING_MATCH";
     }
   }
+
   const target = context.targetingKey ?? context.tenant;
+
   if (
     chosen === undefined &&
     flag.rolloutVariant !== undefined &&
@@ -197,9 +204,11 @@ async function chooseVariant(
     chosen = flag.rolloutVariant;
     reason = "SPLIT";
   }
+
   if (chosen === undefined || !Object.hasOwn(flag.variants, chosen)) {
     return { variant: flag.defaultVariant, reason: "DEFAULT" };
   }
+
   return { variant: chosen, reason };
 }
 
@@ -216,6 +225,7 @@ export async function evaluateFlag(
   context: FlagContext = {},
 ): Promise<FlagEvaluation> {
   const { variant, reason } = await chooseVariant(flag, context);
+
   return { value: flag.variants[variant] ?? null, variant, reason };
 }
 
@@ -228,6 +238,7 @@ const FLAG_TYPES: ReadonlySet<string> = new Set([
 
 const flagTypeOf = (value: unknown): FlagType => {
   const text = textOf(value);
+
   // SAFETY: checked against the types the flags table's check allows.
   return FLAG_TYPES.has(text) ? (text as FlagType) : "boolean";
 };
@@ -236,12 +247,15 @@ function ruleOf(value: unknown): FlagRule | undefined {
   if (!isRecord(value) || typeof value["variant"] !== "string") {
     return undefined;
   }
+
   const list = (key: string): readonly string[] | undefined =>
     Array.isArray(value[key]) ? stringsOf(value[key]) : undefined;
+
   const tenants = list("tenants");
   const users = list("users");
   const plans = list("plans");
   const roles = list("roles");
+
   return {
     variant: value["variant"],
     ...(tenants && { tenants }),
@@ -265,6 +279,7 @@ export function flagDefinitionsOf(value: unknown): readonly FlagDefinition[] {
     enabled: row["enabled"] !== false,
     rules: (Array.isArray(row["rules"]) ? row["rules"] : []).flatMap((rule) => {
       const parsed = ruleOf(rule);
+
       return parsed ? [parsed] : [];
     }),
     rolloutPercentage: Number(row["rollout_percentage"] ?? 0),
@@ -355,6 +370,7 @@ export function createFlagsProvider<Code extends string = FlagErrorCode>(
 ): FlagsProvider<Code> {
   applyTemporal(options);
   const { transport, definitions } = options;
+
   const call =
     transport === undefined
       ? undefined
@@ -363,19 +379,24 @@ export function createFlagsProvider<Code extends string = FlagErrorCode>(
           options.schema ?? DEFAULT_BLOCK_SCHEMA,
           options.mappers,
         );
+
   const fetchFlags = definitions
     ? () => Promise.resolve(definitions)
     : call
       ? () => call("flag_definitions", {}, flagDefinitionsOf).orThrow()
       : undefined;
+
   if (!fetchFlags) {
     throw new TypeError("createFlagsProvider needs a transport or definitions");
   }
+
   const ttl = options.ttl ?? 30_000;
   const now = options.now ?? Date.now;
+
   // SAFETY: without errorCodes, Code is its default, FlagErrorCode.
   const codes =
     options.errorCodes ?? (DEFAULT_CODES as Record<FlagErrorCode, Code>);
+
   let cache:
     | {
         readonly at: number;
@@ -387,9 +408,11 @@ export function createFlagsProvider<Code extends string = FlagErrorCode>(
     if (cache && now() - cache.at < ttl) {
       return cache.flags;
     }
+
     const flags = fetchFlags().then(
       (list) => new Map(list.map((flag) => [flag.key, flag])),
     );
+
     const entry = { at: now(), flags };
     cache = entry;
     flags.catch(() => {
@@ -397,6 +420,7 @@ export function createFlagsProvider<Code extends string = FlagErrorCode>(
         cache = undefined;
       }
     });
+
     return flags;
   };
 
@@ -407,6 +431,7 @@ export function createFlagsProvider<Code extends string = FlagErrorCode>(
     check: (value: FlagValue) => value is T,
   ): Promise<FlagResolution<T, Code>> {
     let flags: ReadonlyMap<string, FlagDefinition>;
+
     try {
       flags = await load();
     } catch (error) {
@@ -417,7 +442,9 @@ export function createFlagsProvider<Code extends string = FlagErrorCode>(
         errorMessage: errorText(error),
       };
     }
+
     const flag = flags.get(flagKey);
+
     if (!flag) {
       return {
         value: defaultValue,
@@ -426,7 +453,9 @@ export function createFlagsProvider<Code extends string = FlagErrorCode>(
         errorMessage: `Flag "${flagKey}" is not defined`,
       };
     }
+
     const result = await evaluateFlag(flag, context);
+
     if (!check(result.value)) {
       return {
         value: defaultValue,
@@ -435,6 +464,7 @@ export function createFlagsProvider<Code extends string = FlagErrorCode>(
         errorMessage: `Flag "${flagKey}" is a ${flag.type} flag`,
       };
     }
+
     return {
       value: result.value,
       variant: result.variant,
@@ -516,6 +546,7 @@ export function createFlagClient<Code extends string = FlagErrorCode>(
 ): FlagClient<Code> {
   const provider =
     "resolveBooleanEvaluation" in source ? source : createFlagsProvider(source);
+
   return {
     getBooleanDetails: (flagKey, defaultValue, context = {}) =>
       details(
@@ -583,11 +614,14 @@ function membershipRoles(
 ): string[] {
   if (isRecord(memberships)) {
     const role = optionalText(memberships[tenant]);
+
     return role === undefined ? [] : [role];
   }
+
   if (!Array.isArray(memberships)) {
     return [];
   }
+
   const entry = memberships.find(
     (item): item is Record<string, unknown> =>
       isRecord(item) &&
@@ -596,10 +630,13 @@ function membershipRoles(
         ? item["within"] === undefined
         : optionalText(item["scope"]) === scope),
   );
+
   if (!entry) {
     return [];
   }
+
   const role = optionalText(entry["role"]);
+
   return [...(role === undefined ? [] : [role]), ...stringsOf(entry["roles"])];
 }
 
@@ -614,36 +651,45 @@ export function flagContext(
   options: FlagContextOptions = {},
 ): RequestFlagContext {
   const claims = source.jwtClaims ?? {};
+
   const appMetadata = isRecord(claims["app_metadata"])
     ? claims["app_metadata"]
     : {};
+
   const tenantClaim = options.tenantClaim ?? DEFAULT_CLAIMS.tenant;
+
   const tenant =
     source.tenant ??
     optionalText(claims[tenantClaim]) ??
     optionalText(appMetadata[tenantClaim]);
+
   const sub = optionalText(claims["sub"]);
   const features = claims[options.featuresClaim ?? DEFAULT_CLAIMS.features];
+
   const memberships =
     claims[options.membershipsClaim ?? DEFAULT_CLAIMS.memberships];
+
   const plans =
     tenant !== undefined &&
     isRecord(features) &&
     Array.isArray(features[tenant])
       ? [...stringsOf(features[tenant])]
       : undefined;
+
   const resolved =
     tenant === undefined
       ? undefined
       : options.roles
         ? options.roles(claims, tenant)
         : membershipRoles(memberships, tenant, options.membershipScope);
+
   const roles =
     resolved === undefined
       ? []
       : typeof resolved === "string"
         ? [resolved]
         : [...resolved];
+
   return {
     ...(sub !== undefined && { targetingKey: sub }),
     ...(tenant !== undefined && { tenant }),

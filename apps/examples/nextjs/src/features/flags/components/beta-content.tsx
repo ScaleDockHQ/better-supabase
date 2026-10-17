@@ -22,9 +22,11 @@ export async function BetaContent() {
     getEnabledFlags(),
     getExtracted("beta"),
   ]);
+
   if (!flags.includes("beta-page")) {
     notFound();
   }
+
   return (
     <Card data-testid="beta">
       <CardHeader>

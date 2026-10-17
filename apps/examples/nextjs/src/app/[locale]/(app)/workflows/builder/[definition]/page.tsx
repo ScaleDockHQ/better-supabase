@@ -16,6 +16,7 @@ export default function WorkflowDefinitionPage({
   params,
 }: PageProps<"/[locale]/workflows/builder/[definition]">) {
   const t = useExtracted("workflows");
+
   return (
     <>
       <Link

@@ -14,10 +14,12 @@ function restock(ctx: ModuleContext): string {
   if (!ctx.installed("inventory")) {
     return "";
   }
+
   const inventory = ctx.of("inventory");
   const catalog = ctx.of("catalog");
   const v = columns(catalog, "variants");
   const m = columns(inventory, "movements");
+
   return `
     if receive_return.restock and v_line.variant is not null and coalesce(receive_return.location, v_line.location) is not null
       and exists (select 1 from ${catalog.table("variants")} cv where cv.${v("id")} = v_line.variant and cv.${v("trackInventory")}) then
@@ -47,12 +49,15 @@ export function afterSaleFunctions(
   const rl = columns(ctx, "returnLines");
   const rf = columns(ctx, "refunds");
   const p = columns(ctx, "payments");
+
   const load = (id: string): string =>
     `select ${orderFields(ctx, "x")} into v_order from ${orders} x where x.${o("id")} = ${id} for update;
   if not found then
     ${fail("ORDERS_ORDER_NOT_FOUND", "order not found", "P0002")}
   end if;`;
+
   const subject = "'orders/' || v_order.id::text";
+
   const event = (
     type: string,
     extra: readonly (readonly [string, string])[],
@@ -70,6 +75,7 @@ export function afterSaleFunctions(
       ...(key === undefined ? {} : { key }),
       audit: false,
     });
+
   // Fulfillment and return events are about the order's parts; their id is
   // the fulfillment or return and the subject stays the order.
   const partEvent = (
@@ -84,6 +90,7 @@ export function afterSaleFunctions(
       tenant: "v_order.tenant",
       audit: false,
     });
+
   const loadFulfillment = (id: string): string =>
     `select x.${f("id")} as id, x.${f("order")} as order_id, x.${f("status")} as status into v_fulfillment
   from ${fulfillments} x where x.${f("id")} = ${id} for update;
@@ -91,6 +98,7 @@ export function afterSaleFunctions(
     ${fail("ORDERS_FULFILLMENT_NOT_FOUND", "fulfillment not found", "P0002")}
   end if;
   ${load("v_fulfillment.order_id")}`;
+
   const loadReturn = (id: string): string =>
     `select x.${r("id")} as id, x.${r("order")} as order_id, x.${r("status")} as status into v_return
   from ${returns} x where x.${r("id")} = ${id} for update;
@@ -98,6 +106,7 @@ export function afterSaleFunctions(
     ${fail("ORDERS_RETURN_NOT_FOUND", "return not found", "P0002")}
   end if;
   ${load("v_return.order_id")}`;
+
   return `
 -- Fulfills lines of a paid order from one location. lines is
 -- [{lineId, quantity}]; null fulfills everything not yet fulfilled.

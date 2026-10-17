@@ -127,12 +127,15 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const versionsModule = ctx.of("versions");
+
   if (versionsModule.mode === "custom") {
     throw new TypeError(
       "blocks.signatures needs the versions table; versions can't be in custom mode",
     );
   }
+
   const requests = ctx.table("requests");
   const signatures = ctx.table("signatures");
   const r = (column: string): string => ctx.col("requests", column);
@@ -145,29 +148,37 @@ function build(ctx: ModuleContext): string {
   const manage = ctx.permission("manage", OPERATIONS["signatures.manage"]);
   const subjects = subjectsOption(ctx);
   const members = ctx.of("tenant");
+
   const approvals =
     ctx.installed("approvals") && ctx.of("approvals").mode !== "custom"
       ? ctx.of("approvals")
       : undefined;
+
   const attachments =
     ctx.installed("attachments") && ctx.of("attachments").mode !== "custom"
       ? ctx.of("attachments")
       : undefined;
+
   const notFound = fail(
     "SIGNATURE_REQUEST_NOT_FOUND",
     "signature request not found",
     "P0002",
   );
+
   const forbidden = (message: string): string =>
     fail("SIGNATURE_FORBIDDEN", message);
+
   // The request's extra columns: create_signature_request sets them, the
   // request reads return them under fields.
   const extras = ctx.extraColumns("requests", ["fields"]);
   const extra = extraFieldsArg(extras);
+
   const requestJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'subjectType', ${row}.${r("subjectType")}, 'subjectId', ${row}.${r("subjectId")}, 'versionId', ${row}.${r("version")}, 'contentHash', ${row}.${r("contentHash")}, 'signers', to_jsonb(${row}.${r("signers")}), 'order', ${row}.${r("order")}, 'status', ${row}.${r("status")}, 'approvalRequestId', ${row}.${r("approval")}, 'message', ${row}.${r("message")}, 'requestedBy', ${row}.${r("requestedBy")}, 'createdAt', ${row}.${r("createdAt")}, 'completedAt', ${row}.${r("completedAt")}${extraFieldsJson(row, extras)})`;
+
   const signatureJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${s("id")}, 'requestId', ${row}.${s("request")}, 'signer', ${row}.${s("signer")}, 'method', ${row}.${s("method")}, 'typedName', ${row}.${s("typedName")}, 'imageAttachmentId', ${row}.${s("image")}, 'signedHash', ${row}.${s("signedHash")}, 'ip', ${row}.${s("ip")}, 'userAgent', ${row}.${s("userAgent")}, 'signedAt', ${row}.${s("signedAt")})`;
+
   const requestRecord = (
     type: string,
     row: string,
@@ -189,6 +200,7 @@ function build(ctx: ModuleContext): string {
               summary: audit,
             },
     });
+
   const readableRequest = (row: string): string =>
     `(${ctx.can("tenant", `${row}.${r("tenant")}`, read)} and ${subjectReadable(
       ctx,
@@ -199,6 +211,7 @@ function build(ctx: ModuleContext): string {
         tenant: `${row}.${r("tenant")}`,
       },
     )})`;
+
   const imageCheck =
     attachments === undefined
       ? `if sign_signature.method = 'drawn' then
@@ -211,6 +224,7 @@ function build(ctx: ModuleContext): string {
   ) then
     ${fail("SIGNATURE_IMAGE_NOT_FOUND", "the signature image isn't an attachment in this organization", "22023")}
   end if;`;
+
   const approvalCheck =
     approvals === undefined
       ? `if create_signature_request.approval_request_id is not null then
@@ -225,6 +239,7 @@ function build(ctx: ModuleContext): string {
   ) then
     ${fail("SIGNATURE_APPROVAL_NOT_FOUND", "the approval request isn't for this record", "22023")}
   end if;`;
+
   const approvalStep =
     approvals === undefined
       ? ""
@@ -233,6 +248,7 @@ function build(ctx: ModuleContext): string {
   if v_req.${r("approval")} is not null and ${approvals.fn("approval_eligible")}(v_req.${r("approval")}) then
     perform ${approvals.fn("decide_approval")}(v_req.${r("approval")}, 'approved', 'Signed electronically');
   end if;`;
+
   const tables = ctx.manages
     ? `create table if not exists ${requests} (
   ${r("id")} uuid primary key default gen_random_uuid(),
@@ -280,6 +296,7 @@ create policy "signatures_read" on ${signatures} for select to authenticated
   using (${ctx.scope.check(s("tenant"), read)} or ${s("signer")} = (select auth.uid()));
 `
     : "";
+
   const hash = (row: string): string =>
     signedHash({
       request: `${row}.${s("request")}`,
@@ -290,6 +307,7 @@ create policy "signatures_read" on ${signatures} for select to authenticated
       image: `${row}.${s("image")}`,
       signedAt: `${row}.${s("signedAt")}`,
     });
+
   return `${schemaPreamble(ctx)}
 ${tables}
 -- Asks members to sign one version of a record. The version is frozen, so

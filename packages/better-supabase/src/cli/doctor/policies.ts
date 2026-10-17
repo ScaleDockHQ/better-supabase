@@ -50,20 +50,26 @@ const allows = (
 /** Policy commands on `storage.objects` the SQL files create, by policy name. */
 function storagePolicies(context: DoctorContext): Map<string, string> {
   const commands = new Map<string, string>();
+
   const pattern =
     /create\s+policy\s+("(?:[^"]|"")+"|\S+)\s+on\s+"?storage"?\s*\.\s*"?objects"?\b([^;]*)/gi;
+
   for (const file of context.sqlFiles ?? []) {
     for (const match of withoutStrings(file.text).matchAll(pattern)) {
       const name = match[1]!;
+
       if (commands.has(name)) {
         continue;
       }
+
       const command = /\bfor\s+(select|insert|update|delete|all)\b/i.exec(
         match[2]!,
       )?.[1];
+
       commands.set(name, command?.toLowerCase() ?? "all");
     }
   }
+
   return commands;
 }
 
@@ -76,11 +82,13 @@ export const POLICY_RULES: readonly Rule[] = [
       "Supabase deprecated `auth.role()`. Scope the policy with `to authenticated`, or read the claim with `(select auth.jwt() ->> 'role')`.",
     check: (context) => {
       const findings: FindingInput[] = [];
+
       for (const table of catalogOf(context).tables) {
         for (const policy of table.policies) {
           if (!AUTH_ROLE.test(policyText(policy))) {
             continue;
           }
+
           findings.push({
             message: `Policy "${policy.name}" on ${qualified(table)} calls auth.role(), which Supabase deprecated. Use \`to authenticated\` on the policy, or \`(select auth.jwt() ->> 'role')\`.`,
             target: `${qualified(table)}.${policy.name}`,
@@ -88,17 +96,22 @@ export const POLICY_RULES: readonly Rule[] = [
           });
         }
       }
+
       const bodies = new Map(policyHelpers(context));
+
       for (const fn of context.snapshot.generator.functions) {
         if (!context.config.schemas.includes(fn.schema) || !fn.definition) {
           continue;
         }
+
         bodies.set(`${fn.schema}.${fn.name}`, withoutStrings(fn.definition));
       }
+
       for (const [name, body] of bodies) {
         if (!AUTH_ROLE.test(body)) {
           continue;
         }
+
         const dot = name.indexOf(".");
         findings.push({
           message: `${name} calls auth.role(), which Supabase deprecated. Read \`auth.jwt() ->> 'role'\` instead.`,
@@ -110,6 +123,7 @@ export const POLICY_RULES: readonly Rule[] = [
           },
         });
       }
+
       return findings;
     },
   },
@@ -124,16 +138,20 @@ export const POLICY_RULES: readonly Rule[] = [
         if (!table.rls) {
           return [];
         }
+
         return table.policies.flatMap((policy): FindingInput[] => {
           if (!policy.permissive || policy.command !== "update") {
             return [];
           }
+
           const roles =
             policy.roles.length === 0 || policy.roles.includes("public")
               ? ["anon", "authenticated"]
               : policy.roles;
+
           const blind = roles.filter((role) => !allows(table, "select", role));
           const target = `${qualified(table)}.${policy.name}`;
+
           if (blind.length > 0) {
             return [
               {
@@ -143,9 +161,11 @@ export const POLICY_RULES: readonly Rule[] = [
               },
             ];
           }
+
           if (policy.check !== null) {
             return [];
           }
+
           return [
             {
               severity: "info",
@@ -168,16 +188,20 @@ export const POLICY_RULES: readonly Rule[] = [
         if (table.kind !== "table") {
           return [];
         }
+
         const findings: FindingInput[] = [];
+
         for (const role of ["anon", "authenticated"] as const) {
           const privileges = new Set(
             table.grants
               .filter((grant) => grant.role === role)
               .flatMap((grant) => grant.privileges),
           );
+
           const needless = NEEDLESS.filter((privilege) =>
             privileges.has(privilege),
           );
+
           if (needless.length > 0) {
             findings.push({
               message: `${role} has ${needless.join(", ").toLowerCase()} on ${qualified(table)}. \`truncate\` bypasses RLS. Run \`revoke ${needless.join(", ").toLowerCase()} on table ${qualified(table)} from ${role};\`.`,
@@ -185,14 +209,17 @@ export const POLICY_RULES: readonly Rule[] = [
               object: tableObject(table),
             });
           }
+
           if (role !== "anon" || !table.rls) {
             continue;
           }
+
           const unused = COMMANDS.filter(
             (command) =>
               privileges.has(command.toUpperCase()) &&
               !allows(table, command, role),
           );
+
           if (unused.length > 0) {
             findings.push({
               severity: "info",
@@ -202,6 +229,7 @@ export const POLICY_RULES: readonly Rule[] = [
             });
           }
         }
+
         return findings;
       }),
   },
@@ -220,14 +248,19 @@ export const POLICY_RULES: readonly Rule[] = [
           ) {
             return [];
           }
+
           const callers = fn.execute ?? [];
+
           if (callers.length === 0) {
             return [];
           }
+
           const body = functionBody(context, fn.schema, fn.name);
+
           if (body === undefined || CALLER_CHECK.test(body)) {
             return [];
           }
+
           return [
             {
               message: `${fn.schema}.${fn.name}(${fn.signature}) is security definer, ${callers.join(" and ")} may execute it through /rpc, and it never checks auth.uid() or auth.jwt(). Check the caller, run \`revoke execute on function ${fn.schema}.${fn.name}(${fn.signature}) from ${callers.join(", ")};\`, or move it to a private schema.`,
@@ -246,15 +279,19 @@ export const POLICY_RULES: readonly Rule[] = [
       "An upload with `upsert: true` (`x-upsert`) needs `select` and `update` policies on `storage.objects` besides `insert`; without them, replacing an existing file fails with a 403. Doctor reads the policies in `supabase/schemas` and the migrations.",
     check: (context) => {
       const commands = new Set(storagePolicies(context).values());
+
       if (!commands.has("insert") || commands.has("all")) {
         return [];
       }
+
       const missing = (["select", "update"] as const).filter(
         (command) => !commands.has(command),
       );
+
       if (missing.length === 0) {
         return [];
       }
+
       return [
         {
           message: `storage.objects has an insert policy but no ${missing.join(" or ")} policy, so uploads with \`upsert: true\` fail with 403 when the file exists. Add ${missing.join(" and ")} policies with the same bucket and path check.`,
@@ -272,15 +309,18 @@ export const POLICY_RULES: readonly Rule[] = [
     check: (context) =>
       [...policyHelpers(context).keys()].flatMap((name): FindingInput[] => {
         const dot = name.indexOf(".");
+
         // The claim is always a string literal, which the helper bodies blank out.
         const body = functionBody(
           context,
           name.slice(0, dot),
           name.slice(dot + 1),
         );
+
         if (!body || !USER_METADATA.test(body)) {
           return [];
         }
+
         return [
           {
             message: `${name} reads user_metadata, which users can write themselves, and policies call it. Read \`auth.jwt() -> 'app_metadata'\` instead.`,
@@ -305,20 +345,24 @@ export const POLICY_RULES: readonly Rule[] = [
         if (table.kind !== "table" || !table.rls) {
           return [];
         }
+
         const options = configFor(
           context.config.tables,
           table.schema,
           table.name,
         );
+
         if (options?.exclude || options?.serviceRole) {
           return [];
         }
+
         if (
           context.config.expose[qualified(table)] ??
           context.config.expose[table.name]
         ) {
           return [];
         }
+
         const roles = (["anon", "authenticated"] as const).filter((role) =>
           table.grants.some(
             (grant) =>
@@ -326,9 +370,11 @@ export const POLICY_RULES: readonly Rule[] = [
               grant.privileges.length > 0,
           ),
         );
+
         if (roles.length === 0) {
           return [];
         }
+
         if (
           table.policies.some(
             (policy) =>
@@ -338,6 +384,7 @@ export const POLICY_RULES: readonly Rule[] = [
         ) {
           return [];
         }
+
         return [
           {
             message: `${qualified(table)} has RLS on and no permissive policy for ${roles.join(" or ")}, but ${roles.join(" and ")} still hold grants on it. Run \`revoke all on table ${qualified(table)} from public, anon, authenticated;\`, or set \`blocks.grants.options.fromPolicies\` and run \`better-supabase sql sync\` so the migration revokes it.`,
@@ -356,21 +403,26 @@ export const POLICY_RULES: readonly Rule[] = [
       "Postgres grants `execute` on a new function to `public`, so a `security definer` function in an exposed schema is callable at `/rpc` by `anon` and `authenticated` unless it is revoked. When no `expose` entry lists it and no policy calls it, nothing in the project says the API roles should reach it. Doctor never revokes it; list it in `expose` with the roles that call it, or revoke `execute` from `public`, `anon` and `authenticated` and grant it back to those roles.",
     check: (context) => {
       const schemas = exposedSchemas(context);
+
       const listed = new Set(
         Object.keys(context.config.exposeFunctions).map((signature) => {
           const name = signature.slice(0, signature.indexOf("(")).trim();
+
           return name.includes(".") ? name : `public.${name}`;
         }),
       );
+
       const inPolicies = new Set(
         catalogOf(context).tables.flatMap((table) =>
           table.policies.flatMap((policy) => policy.functions ?? []),
         ),
       );
+
       return (context.snapshot.extras.functions ?? []).flatMap(
         (fn): FindingInput[] => {
           const name = `${fn.schema}.${fn.name}`;
           const callers = fn.execute ?? [];
+
           if (
             !fn.securityDefiner ||
             !schemas.includes(fn.schema) ||
@@ -380,6 +432,7 @@ export const POLICY_RULES: readonly Rule[] = [
           ) {
             return [];
           }
+
           return [
             {
               message: `${name}(${fn.signature}) is security definer, ${callers.join(" and ")} may execute it through /rpc, and no \`expose\` entry or policy uses it. Run \`revoke all on function ${name}(${fn.signature}) from public, anon, authenticated;\`, then \`grant execute on function ${name}(${fn.signature}) to <the roles that call it>;\`, or list it in \`expose\`.`,
@@ -404,26 +457,33 @@ export const POLICY_RULES: readonly Rule[] = [
           fn.volatility,
         ]),
       );
+
       return exposed(context).flatMap((table) => {
         if (!table.rls) {
           return [];
         }
+
         return table.policies.flatMap((policy): FindingInput[] => {
           const text = policyText(policy);
+
           const bare = (policy.functions ?? []).filter((name) => {
             const dot = name.indexOf(".");
             const schema = name.slice(0, dot);
+
             if (schema === "auth" || volatility.get(name) === "immutable") {
               return false;
             }
+
             return new RegExp(
               `(?<!\\bselect\\s+)(?<![\\w."])(?:"?${escape(schema)}"?\\.)?"?${escape(name.slice(dot + 1))}"?\\s*\\(\\s*\\)`,
               "i",
             ).test(text);
           });
+
           if (bare.length === 0) {
             return [];
           }
+
           return [
             {
               message: `Policy "${policy.name}" on ${qualified(table)} calls ${bare.map((name) => `${name}()`).join(", ")} without \`(select ...)\`, so it runs once per row. Write \`(select ${bare[0]}())\`.`,

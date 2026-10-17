@@ -30,8 +30,10 @@ async function reachable(): Promise<boolean> {
     max: 1,
     connectionTimeoutMillis: 1000,
   });
+
   try {
     await pool.query("select 1");
+
     return true;
   } catch {
     return false;
@@ -50,9 +52,11 @@ function clientAs(client: PoolClient, claims: () => object): SqlClient {
         JSON.stringify(claims()),
       ]);
       await client.query("savepoint call");
+
       try {
         const { rows } = await client.query(text, params);
         await client.query("release savepoint call");
+
         // SAFETY: the block names the row shape of its own queries.
         return rows as T[];
       } catch (error) {
@@ -75,8 +79,10 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
     let claims: object = { sub: owner, role: "authenticated" };
     const sql = clientAs(client, () => claims);
     const source = `webhook-in-${owner.slice(0, 8)}`;
+
     try {
       await client.query("begin");
+
       for (const id of [owner, outsider]) {
         await client.query(
           `insert into auth.users (id, email, aud, role, instance_id)
@@ -84,11 +90,13 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
           [id, `${id}@example.test`],
         );
       }
+
       for (const file of renderModules(["webhooks-in", "rate-limit"])) {
         if (file.kind === "schema") {
           await client.query(file.contents);
         }
       }
+
       if (
         (
           await client.query(
@@ -101,10 +109,12 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
           [organization, `hooks-${organization.slice(0, 8)}`],
         );
       }
+
       await client.query(
         "insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, 'owner')",
         [organization, owner],
       );
+
       const hooks = createIncomingWebhooks({
         sql,
         source,
@@ -115,7 +125,9 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       const plain = await hooks
         .create({ tenant: organization, name: "Form" })
         .orThrow();
+
       expect(plain).toMatchObject({ verify: "none", secret: null });
+
       const signed = await hooks
         .create({
           tenant: organization,
@@ -123,11 +135,15 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
           verify: "standard-webhooks",
         })
         .orThrow();
+
       expect(signed.secret).toMatch(/^whsec_/);
+
       const hmac = await hooks
         .create({ tenant: organization, name: "HMAC", verify: "hmac-sha256" })
         .orThrow();
+
       expect(hmac.signatureHeader).toBe("x-signature");
+
       const stored = async (id: string) =>
         (
           await client.query<{ secret: string | null; vaulted: string | null }>(
@@ -138,17 +154,20 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
             [id],
           )
         ).rows[0];
+
       expect(await stored(signed.id)).toEqual({
         secret: null,
         vaulted: signed.secret,
       });
       expect(await stored(plain.id)).toEqual({ secret: null, vaulted: null });
+
       const vaultCount = async () =>
         (
           await client.query<{ n: number }>(
             "select count(*)::int as n from vault.secrets where name like 'webhook-in:%'",
           )
         ).rows[0]!.n;
+
       claims = { sub: outsider, role: "authenticated" };
       expect(
         await hooks.create({ tenant: organization, name: "Nope" }),
@@ -162,6 +181,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       ).toBeGreaterThanOrEqual(3);
 
       claims = { role: "service_role" };
+
       const post = (token: string, body: string, headers = {}) =>
         hooks.receive(
           new Request(`https://api.test/hooks/${token}`, {
@@ -171,10 +191,12 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
           }),
           token,
         );
+
       const first = await post(plain.token, '{"type":"lead.created"}', {
         "x-request-id": "r1",
         "webhook-id": "m1",
       });
+
       expect(first.status).toBe(202);
       expect(
         (await post(plain.token, "{}", { "webhook-id": "m1" })).status,
@@ -197,9 +219,11 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
         ),
         new TextEncoder().encode(body),
       );
+
       const hex = Array.from(new Uint8Array(mac), (byte) =>
         byte.toString(16).padStart(2, "0"),
       ).join("");
+
       expect(
         (await post(hmac.token, body, { "x-signature": `sha256=${hex}` }))
           .status,
@@ -220,6 +244,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
         "select receive_count, last_status from better_supabase.incoming_webhooks where id = $1",
         [plain.id],
       );
+
       expect(stats[0]).toEqual({ receive_count: "4", last_status: 429 });
 
       const inbox = createWebhookInbox({
@@ -227,6 +252,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
         source,
         verify: () => Promise.reject(new Error("process only")),
       });
+
       const seen: [string | null, string | undefined][] = [];
       await inbox.process((message) => {
         seen.push([message.tenant, message.headers[INCOMING_ENDPOINT_HEADER]]);
@@ -238,9 +264,11 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       const rotated = await hooks.rotate(plain.id).orThrow();
       expect(rotated.secret).toBeNull();
       const before = await vaultCount();
+
       const resigned = await hooks
         .rotate(signed.id, { rotateSecret: true })
         .orThrow();
+
       expect(resigned.secret).toMatch(/^whsec_/);
       expect(resigned.secret).not.toBe(signed.secret);
       expect(await stored(signed.id)).toEqual({
@@ -264,6 +292,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
 
   it("updates endpoints and checks the split create, update and delete keys", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "webhooks-in"], {
         modules: {
@@ -275,18 +304,21 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       const member = await s.user("member");
       const organization = await s.organization(owner, { admin, member });
       const hooks = createIncomingWebhooks({ sql: s.sql });
+
       const vaulted = (id: string) =>
         s.value<string | null>(
           `(select ds.decrypted_secret from better_supabase.incoming_webhooks e
             left join vault.decrypted_secrets ds on ds.id = e.secret_id where e.id = $1)`,
           [id],
         );
+
       const vaultCount = () =>
         s.value<number>(
           "(select count(*)::int from vault.secrets where name like 'webhook-in:%')",
         );
 
       await s.as(admin);
+
       const created = await hooks
         .create({
           tenant: organization,
@@ -295,6 +327,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
           metadata: { workflow: "w1" },
         })
         .orThrow();
+
       const count = await vaultCount();
       expect(
         await hooks
@@ -317,6 +350,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       const hmac = await hooks
         .update(created.id, { verify: "hmac-sha256", signatureHeader: "x-hub" })
         .orThrow();
+
       expect(hmac).toMatchObject({
         verify: "hmac-sha256",
         signatureHeader: "x-hub",
@@ -376,20 +410,25 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
 
   it("rotates a signing secret and verifies the old one during the grace", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "webhooks-in"]);
       const owner = await s.user("owner");
       const member = await s.user("member");
       const organization = await s.organization(owner, { member });
+
       const hooks = createIncomingWebhooks({
         sql: s.sql,
         source: `rotate-${organization.slice(0, 8)}`,
       });
+
       const vaultCount = () =>
         s.value<number>(
           "(select count(*)::int from vault.secrets where name like 'webhook-in:%')",
         );
+
       await s.as(owner);
+
       const created = await hooks
         .create({
           tenant: organization,
@@ -397,19 +436,24 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
           verify: "standard-webhooks",
         })
         .orThrow();
+
       const plain = await hooks
         .create({ tenant: organization, name: "Plain" })
         .orThrow();
+
       const count = await vaultCount();
+
       const rotated = await hooks
         .rotateSecret(created.id, { grace: "1 hour" })
         .orThrow();
+
       expect(rotated.secret).toMatch(/^whsec_/);
       expect(rotated.secret).not.toBe(created.secret);
       expect(rotated.previousSecretExpiresAt).not.toBeNull();
       expect(await vaultCount()).toBe(count + 1);
 
       const body = '{"type":"x"}';
+
       const post = async (secret: string, id: string) =>
         (
           await hooks.receive(
@@ -421,6 +465,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
             created.token,
           )
         ).status;
+
       await s.service();
       expect(await post(created.secret!, "a1")).toBe(202);
       expect(await post(rotated.secret, "a2")).toBe(202);
@@ -462,16 +507,20 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
 
   it("verifies senders that cannot sign with a shared secret header", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "webhooks-in"]);
       const owner = await s.user("owner");
       const organization = await s.organization(owner);
+
       const hooks = createIncomingWebhooks({
         sql: s.sql,
         source: `shared-${organization.slice(0, 8)}`,
         keepHeaders: ["x-api-key"],
       });
+
       await s.as(owner);
+
       const created = await hooks
         .create({
           tenant: organization,
@@ -480,14 +529,17 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
           signatureHeader: "x-api-key",
         })
         .orThrow();
+
       expect(created).toMatchObject({
         verify: "shared-secret",
         signatureHeader: "x-api-key",
       });
       expect(created.secret).toMatch(/^[0-9a-f]{64}$/);
+
       const plain = await hooks
         .create({ tenant: organization, name: "Other" })
         .orThrow();
+
       expect(
         await hooks.update(plain.id, { verify: "shared-secret" }).orThrow(),
       ).toMatchObject({ signatureHeader: "x-webhook-secret" });
@@ -503,6 +555,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
             created.token,
           )
         ).status;
+
       await s.service();
       expect(await post({ "x-api-key": created.secret! })).toBe(202);
       expect(await post({ "x-api-key": "wrong" })).toBe(401);
@@ -515,9 +568,11 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       ).toBe(0);
 
       await s.as(owner);
+
       const rotated = await hooks
         .rotateSecret(created.id, { grace: "1 hour" })
         .orThrow();
+
       await s.service();
       expect(await post({ "x-api-key": created.secret! })).toBe(202);
       expect(await post({ "x-api-key": rotated.secret })).toBe(202);
@@ -528,6 +583,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
 
   it("ties endpoints to readable subjects and cascades their deletes", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.rows(
         `create table public.bs_test_flows (
@@ -551,12 +607,15 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       });
       const owner = await s.user("owner");
       const organization = await s.organization(owner);
+
       const [open, hidden] = await s.rows<{ id: string }>(
         "insert into public.bs_test_flows (organization_id, private) values ($1, false), ($1, true) returning id",
         [organization],
       );
+
       const hooks = createIncomingWebhooks({ sql: s.sql });
       await s.asRole(owner);
+
       for (const flow of [open!, hidden!]) {
         await hooks
           .create({
@@ -566,6 +625,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
           })
           .orThrow();
       }
+
       expect(
         await hooks.create({
           tenant: organization,
@@ -601,25 +661,32 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
 
   it("moves plaintext secrets of an older install to Vault on upgrade", async () => {
     const client = await pool.connect();
+
     try {
       await client.query("begin");
+
       for (const file of renderModules(["webhooks-in"])) {
         if (file.kind === "schema") {
           await client.query(file.contents);
         }
       }
+
       const { rows } = await client.query<{ id: string }>(
         `insert into better_supabase.incoming_webhooks (tenant, name, token_hash, verify, secret)
          values ($1, 'Legacy', $2, 'hmac-sha256', 'legacy-secret-0123456789') returning id`,
         [crypto.randomUUID(), crypto.randomUUID()],
       );
+
       const [plan] = upgradePlan([{ module: "webhooks-in", version: 1 }]);
+
       for (const step of plan!.steps) {
         await client.query(step.sql);
       }
+
       for (const step of plan!.steps) {
         await client.query(step.sql);
       }
+
       const { rows: after } = await client.query(
         `select e.secret, ds.decrypted_secret as vaulted
          from better_supabase.incoming_webhooks e
@@ -627,6 +694,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
          where e.id = $1`,
         [rows[0]!.id],
       );
+
       expect(after).toEqual([
         { secret: null, vaulted: "legacy-secret-0123456789" },
       ]);
@@ -647,6 +715,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
     const inboxTable = `public.bs_inbox_${suffix}`;
     const source = `adopted-${suffix}`;
     const queue = `adopted_${suffix}`;
+
     try {
       await client.query("begin");
       await client.query(
@@ -683,6 +752,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
           organization_id text
         );
       `);
+
       const layout = {
         modules: {
           "webhooks-in": {
@@ -723,6 +793,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
           },
         },
       };
+
       for (const file of renderModules(
         ["organizations", "webhooks-in", "webhook-inbox", "jobs"],
         layout,
@@ -731,6 +802,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
           await client.query(file.contents);
         }
       }
+
       await client.query(
         "insert into better_supabase.organizations (id, name, slug) values ($1, 'Adopted', $2)",
         [organization, `adopted-${suffix}`],
@@ -740,6 +812,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
         [organization, owner],
       );
       const hooks = createIncomingWebhooks({ sql, source });
+
       const endpoint = await hooks
         .create({
           tenant: organization,
@@ -748,9 +821,11 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
           metadata: { route: "leads" },
         })
         .orThrow();
+
       expect(endpoint.secret).toMatch(/^whsec_/);
 
       claims = { role: "service_role" };
+
       const post = async (
         target: typeof hooks,
         id: string,
@@ -767,21 +842,26 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
           }),
           endpoint.token,
         );
+
       expect((await post(hooks, "m1")).status).toBe(202);
       expect((await post(hooks, "m1")).status).toBe(200);
+
       const inbox = createWebhookInbox({
         transport: sqlTransport(sql),
         source,
         verify: () => Promise.reject(new Error("process only")),
       });
+
       const seen: unknown[] = [];
       await inbox.process((message) => {
         seen.push([message.tenant, message.type, message.headers]);
       });
       expect(seen).toEqual([[organization, "lead.created", {}]]);
+
       const { rows: stored } = await client.query<{ status: string }>(
         `select status from ${inboxTable}`,
       );
+
       expect(stored).toEqual([{ status: "processed" }]);
       await testIncomingDestination(inboxDestination(sql), {
         tenant: organization,
@@ -794,6 +874,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
           [queue]: v.object({ route: v.string() }),
         },
       });
+
       const queued = createIncomingWebhooks({
         sql,
         source,
@@ -804,6 +885,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
           }),
         }),
       });
+
       expect((await post(queued, "m2")).status).toBe(202);
       expect((await post(queued, "m2")).status).toBe(200);
       const drained: unknown[] = [];
@@ -823,13 +905,16 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
   it("dedupes message ids per source and tenant", async () => {
     const client = await pool.connect();
     const source = `inbox-${crypto.randomUUID().slice(0, 8)}`;
+
     try {
       await client.query("begin");
+
       for (const file of renderModules(["webhook-inbox"])) {
         if (file.kind === "schema") {
           await client.query(file.contents);
         }
       }
+
       const receive = async (tenant: string | null) =>
         (
           await client.query<{ duplicate: boolean }>(
@@ -837,6 +922,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
             [source, tenant],
           )
         ).rows[0]!.duplicate;
+
       expect(await receive("tenant-a")).toBe(false);
       expect(await receive("tenant-b")).toBe(false);
       expect(await receive(null)).toBe(false);

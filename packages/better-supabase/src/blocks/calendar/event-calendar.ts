@@ -50,10 +50,12 @@ export function toEventCalendarEvents(
 ): EventCalendarEvent<CalendarOccurrence>[] {
   return occurrences.map((occurrence) => {
     const color = occurrence.event.color;
+
     const resourceId =
       options.resourceOf === undefined
         ? occurrence.event.calendarId
         : options.resourceOf(occurrence);
+
     return {
       id: occurrence.key,
       title: occurrence.event.title,
@@ -106,6 +108,7 @@ export function fromEventCalendarUpdate(update: {
   readonly allDay?: boolean;
 }): OccurrenceMove {
   const time = temporal();
+
   return {
     startsAt: time.Instant.fromEpochMilliseconds(update.start.getTime()),
     endsAt: time.Instant.fromEpochMilliseconds(update.end.getTime()),

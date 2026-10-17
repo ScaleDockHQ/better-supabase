@@ -14,8 +14,11 @@ import {
 import { createOnboardingController } from "../client.ts";
 
 export type { BlockOptions } from "../../block-env.ts";
+
 export type { SolidController } from "../../solid-controller.ts";
+
 export type { ChecklistScope } from "../onboarding.ts";
+
 export type {
   OnboardingActions,
   OnboardingControllerOptions,

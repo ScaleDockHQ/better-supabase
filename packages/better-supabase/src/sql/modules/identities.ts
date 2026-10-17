@@ -58,15 +58,19 @@ function build(ctx: ModuleContext): string {
   const l = (column: string): string => ctx.col("links", column);
   const c = (column: string): string => ctx.col("codes", column);
   const fn = (name: string): string => ctx.fn(name);
+
   const minutes = Math.max(
     1,
     Math.min(60, Math.trunc(ctx.number("codeMinutes", 10))),
   );
+
   const contactRef = ctx.installed("inbox")
     ? ` references ${ctx.of("inbox").table("contacts")} (${ctx.of("inbox").col("contacts", "id")}) on delete cascade`
     : "";
+
   const verified = ctx.flag("verifiedEmails", true);
   const trigger = ctx.trigger("identity_email");
+
   const emailTrigger = verified
     ? `
 -- Keeps the email identity of each user equal to the confirmed address in

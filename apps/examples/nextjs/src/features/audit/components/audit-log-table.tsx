@@ -45,17 +45,21 @@ export function AuditLogTable({ organizationId }: { organizationId: string }) {
   const t = useExtracted("audit");
   const format = useFormatter();
   const errorMessage = useErrorMessage();
+
   const { entries, filters, hasMore, loading, error, setFilters, loadMore } =
     useAuditLog({ organizationId, schema: blockConfig.audit.api });
+
   const actors = new Map(
     (entries ?? []).flatMap((entry) =>
       entry.actorId ? [[entry.actorId, entry.actorLabel ?? entry.actorId]] : [],
     ),
   );
+
   const actions = choices(
     (entries ?? []).map((entry) => entry.eventType),
     filters.eventType,
   );
+
   const actorItems = [
     { value: ALL, label: t("Every actor") },
     ...choices([...actors.keys()], filters.actorId).map((id) => ({
@@ -63,10 +67,12 @@ export function AuditLogTable({ organizationId }: { organizationId: string }) {
       label: actors.get(id) ?? id,
     })),
   ];
+
   const actionItems = [
     { value: ALL, label: t("Every action") },
     ...actions.map((action) => ({ value: action, label: action })),
   ];
+
   const pick = (value: string | null): string | undefined =>
     value === null || value === ALL ? undefined : value;
 

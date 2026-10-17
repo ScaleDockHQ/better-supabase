@@ -12,11 +12,14 @@ type Route = (url: string, init: RequestInit) => Response;
 
 function fakeFetch(route: Route) {
   const calls: { url: string; init: RequestInit }[] = [];
+
   const fetch = async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input);
     calls.push({ url, init: init ?? {} });
+
     return route(url, init ?? {});
   };
+
   return { fetch, calls };
 }
 
@@ -34,6 +37,7 @@ describe("fetchTransport", () => {
     const { fetch, calls } = fakeFetch(
       () => new Response("ok", { status: 202 }),
     );
+
     const transport = fetchTransport({ fetch });
     expect(await transport.send(request)).toEqual({ status: 202, body: "ok" });
     expect(calls[0]!.init).toMatchObject({
@@ -48,6 +52,7 @@ describe("fetchTransport", () => {
       () =>
         new Response("", { status: 429, headers: { "retry-after": "120" } }),
     );
+
     expect(await fetchTransport({ fetch }).send(request)).toEqual({
       status: 429,
       body: "",
@@ -62,17 +67,21 @@ describe("fetchTransport", () => {
 
   it("follows allowed redirects and checks each hop", async () => {
     const seen: string[] = [];
+
     const { fetch, calls } = fakeFetch((url) =>
       url.endsWith("/in") ? redirect("/moved") : new Response("done"),
     );
+
     const transport = fetchTransport({
       fetch,
       maxRedirects: 5,
       allowUrl: (url) => {
         seen.push(url.href);
+
         return true;
       },
     });
+
     expect(await transport.send(request)).toEqual({
       status: 200,
       body: "done",
@@ -88,11 +97,13 @@ describe("fetchTransport", () => {
     const { fetch, calls } = fakeFetch(() =>
       redirect("http://169.254.169.254/latest"),
     );
+
     const transport = fetchTransport({
       fetch,
       maxRedirects: 5,
       allowUrl: (url) => url.hostname !== "169.254.169.254",
     });
+
     await expect(transport.send(request)).rejects.toThrow(WebhookPolicyError);
     expect(calls).toHaveLength(1);
   });
@@ -107,15 +118,18 @@ describe("fetchTransport", () => {
 
   it("reads at most maxResponseBytes of the body", async () => {
     let pulled = 0;
+
     const stream = new ReadableStream<Uint8Array>({
       pull(controller) {
         pulled += 1;
         controller.enqueue(new TextEncoder().encode("abcdefgh"));
+
         if (pulled > 100) {
           controller.close();
         }
       },
     });
+
     const { fetch } = fakeFetch(() => new Response(stream, { status: 500 }));
     expect(
       await fetchTransport({ fetch, maxResponseBytes: 12 }).send(request),
@@ -130,18 +144,22 @@ describe("fetchTransport", () => {
 
   it("treats a throwing allowUrl as a failed check that can be retried, not a refusal", async () => {
     const { fetch, calls } = fakeFetch(() => new Response("ok"));
+
     const dns = Object.assign(new Error("getaddrinfo EAI_AGAIN"), {
       code: "EAI_AGAIN",
     });
+
     const transport = fetchTransport({
       fetch,
       allowUrl: () => {
         throw dns;
       },
     });
+
     const error: unknown = await transport
       .send(request)
       .catch((cause: unknown) => cause);
+
     expect(error).toBeInstanceOf(UrlCheckError);
     expect(error).not.toBeInstanceOf(WebhookPolicyError);
     expect(error).toMatchObject({
@@ -178,14 +196,18 @@ describe("fetchTransport", () => {
 
   it("passes the transport conformance kit", async () => {
     const bodies: string[] = [];
+
     const { fetch } = fakeFetch((_url, init) => {
       bodies.push(String(init.body));
+
       return new Response("ok");
     });
+
     const report = await testWebhookTransport(fetchTransport({ fetch }), {
       url: "https://hooks.example.com/in",
       received: async () => bodies,
     });
+
     expect(report.checks.every((check) => check.ok)).toBe(true);
   });
 

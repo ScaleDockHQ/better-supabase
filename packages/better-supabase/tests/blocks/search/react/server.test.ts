@@ -34,6 +34,7 @@ describe("groupHits", () => {
       hit("note", "n1"),
       hit("deal", "d2"),
     ]);
+
     expect(
       groups.map((group) => [
         group.key,

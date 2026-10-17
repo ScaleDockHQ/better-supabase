@@ -22,13 +22,17 @@ export function presetOf(input: PresetInput): Preset {
   if (typeof input !== "string") {
     return { ...DEFAULT_CONVENTIONS, ...input, blocks: input.blocks ?? [] };
   }
+
   const value = /[?&]preset=([^&#]+)/.exec(input)?.[1] ?? input;
+
   if (isPresetName(value)) {
     return namedPreset(value);
   }
+
   if (isPresetCode(value)) {
     return decodePreset(value).preset;
   }
+
   throw new TypeError(
     `preset: "${input}" is not a preset. Use a name (${PRESET_NAMES.join(", ")}), a code from /create, or its URL.`,
   );
@@ -42,6 +46,7 @@ function conventionEntry(
   if (name !== "access") {
     return {};
   }
+
   return {
     ...(preset.access === "roles" ? {} : { model: preset.access }),
     ...(preset.idType === "uuid" ? {} : { idType: preset.idType }),
@@ -57,6 +62,7 @@ function sqlOf(preset: Preset): BetterSupabaseConfig["sql"] {
       ? {}
       : { naming: { tenant: preset.tenantName } }),
   };
+
   return Object.keys(sql).length === 0 ? undefined : sql;
 }
 
@@ -69,6 +75,7 @@ export function presetConfig(resolved: ResolvedPreset): Pick<
 } {
   const { preset } = resolved;
   const sql = sqlOf(preset);
+
   return {
     ...(preset.casing === "snake" ? {} : { casing: preset.casing }),
     ...(sql === undefined ? {} : { sql }),
@@ -94,9 +101,11 @@ function blocksOf(blocks: BetterSupabaseConfig["blocks"]): AnyBlocksConfig {
   if (blocks === undefined) {
     return {};
   }
+
   if (!isBlockList(blocks)) {
     return blocks;
   }
+
   return Object.fromEntries(blocks.map((name) => [name, {}]));
 }
 
@@ -112,7 +121,9 @@ export function expandPreset(
   if (config.preset === undefined) {
     return config;
   }
+
   const resolved = resolvePreset(presetOf(config.preset));
+
   if (resolved.conflicts.length > 0) {
     throw new TypeError(
       `preset: ${listNames(
@@ -123,13 +134,17 @@ export function expandPreset(
       )} can't install.`,
     );
   }
+
   const base = presetConfig(resolved);
   const own = blocksOf(config.blocks);
+
   const blocks: Record<string, BlockConfig | AccessBlockConfig | undefined> =
     Object.fromEntries(Object.entries(base.blocks));
+
   for (const [name, entry] of Object.entries(own)) {
     blocks[name] = { ...blocks[name], ...entry };
   }
+
   return {
     ...base,
     ...config,

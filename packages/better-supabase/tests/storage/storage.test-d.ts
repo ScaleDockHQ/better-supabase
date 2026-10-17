@@ -16,6 +16,7 @@ describe("bucket types", () => {
       id: "logos",
       path: "{organizationId}/{customerId}/logo/{version}.webp",
     });
+
     expectTypeOf<TemplateParams<"{a}/x/{b}.png">>().toEqualTypeOf<"a" | "b">();
     expectTypeOf(logos.params).toEqualTypeOf<
       readonly ("organizationId" | "customerId" | "version")[]
@@ -42,6 +43,7 @@ describe("bucket layouts", () => {
         "{organizationId}/{...rest}",
       ],
     });
+
     expectTypeOf<TemplateParams<"{organizationId}/{...rest}">>().toEqualTypeOf<
       "organizationId" | "rest"
     >();
@@ -71,10 +73,12 @@ describe("storage clients", () => {
     expectTypeOf<
       ReturnType<SupabaseClient["storage"]["from"]>
     >().toExtend<StorageBucketApi>();
+
     const files = defineBucket({
       id: "files",
       path: "{organizationId}/{file}",
     });
+
     const supabase = {} as SupabaseClient;
     files.connect(supabase);
     files.connect(supabase.storage);

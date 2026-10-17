@@ -55,6 +55,7 @@ export function useCommandSearch(
   const { schema, organizationId, limit, listLimit, debounceMs } = options;
   const keyboard = (options.shortcut ?? true) ? ports.keyboard : undefined;
   const typesKey = options.types?.join("\u0000") ?? null;
+
   return useController(
     () =>
       createCommandSearchController({

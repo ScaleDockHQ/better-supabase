@@ -58,9 +58,11 @@ interface BlockEntry {
 
 function entryOf(block: PresetCatalogBlock): BlockEntry {
   const module = SQL_MODULES[block.name];
+
   const manifest = PRESET_CATALOG.manifests.find(
     (each) => each.name === block.manifest,
   );
+
   return {
     name: block.name,
     title: block.title,
@@ -78,11 +80,14 @@ const ENTRIES: readonly BlockEntry[] = PRESET_CATALOG.blocks.map(entryOf);
 
 function listing(entries: readonly BlockEntry[]): string[] {
   const width = Math.max(0, ...entries.map((entry) => entry.name.length));
+
   return CATEGORIES.flatMap((category) => {
     const rows = entries.filter((entry) => entry.category === category);
+
     if (rows.length === 0) {
       return [];
     }
+
     return [
       "",
       `${category}:`,
@@ -98,9 +103,11 @@ function list(category: string | undefined): CommandResult {
       error: `Unknown category "${category}". Categories: ${CATEGORIES.join(", ")}`,
     };
   }
+
   const entries = ENTRIES.filter(
     (entry) => category === undefined || entry.category === category,
   );
+
   return {
     code: 0,
     output: listing(entries).join("\n"),
@@ -112,16 +119,20 @@ function view(name: string | undefined): CommandResult {
   if (name === undefined) {
     return { code: 2, error: `Name a block.\n${USAGE}` };
   }
+
   const entry = ENTRIES.find((each) => each.name === name);
+
   if (entry === undefined) {
     return {
       code: 2,
       error: `Unknown block "${name}". Run \`better-supabase blocks search ${name}\`.`,
     };
   }
+
   const glue = PRESET_CATALOG.glue.filter(
     (item) => item.preset === undefined && item.blocks.includes(name),
   );
+
   const lines = [
     `${entry.title} (${entry.name}, ${entry.category})`,
     "",
@@ -138,6 +149,7 @@ function view(name: string | undefined): CommandResult {
     ),
     `More: ${entry.page}`,
   ];
+
   return { code: 0, output: lines.join("\n"), data: { block: entry, glue } };
 }
 
@@ -145,12 +157,15 @@ function search(text: string | undefined): CommandResult {
   if (text === undefined || text.trim() === "") {
     return { code: 2, error: `Pass the text to search for.\n${USAGE}` };
   }
+
   const query = text.toLowerCase();
+
   const found = ENTRIES.filter((entry) =>
     [entry.name, entry.title, entry.description].some((field) =>
       field.toLowerCase().includes(query),
     ),
   );
+
   return {
     code: 0,
     output:
@@ -163,19 +178,24 @@ function search(text: string | undefined): CommandResult {
 
 export function runBlocks(args: BlocksOptions): CommandResult {
   const [action, ...rest] = args._ ?? [];
+
   switch (action) {
     case "list": {
       return list(args.category);
     }
+
     case "view": {
       return view(rest[0]);
     }
+
     case "search": {
       return search(rest.join(" "));
     }
+
     case undefined: {
       return { code: 2, error: `Name an action.\n${USAGE}` };
     }
+
     default: {
       return { code: 2, error: `Unknown blocks action "${action}".\n${USAGE}` };
     }

@@ -31,6 +31,7 @@ describe("bulk module", () => {
     const sql = sqlOf(["bulk"], {
       actions: { "tasks.archive": "app.archive_task" },
     });
+
     expect(sql).toContain("when 'tasks.archive' then");
     expect(sql).toContain(
       `perform "app"."archive_task"(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id, bulk_row.args);`,

@@ -64,10 +64,13 @@ export function toBlockError(
   mappers: readonly ErrorMapper[] = [],
 ): DbError {
   const known = dbErrorOf(cause);
+
   if (known) {
     return known;
   }
+
   const raw = rawError(cause);
+
   return raw ? mapDbError(raw, mappers) : toDbError(cause);
 }
 
@@ -80,11 +83,13 @@ export function blockCall(
   return (fn, args, then) =>
     AsyncResult.from(async () => {
       let value: unknown;
+
       try {
         value = await transport.call(schema, fn, args);
       } catch (cause) {
         return err(toBlockError(cause, mappers));
       }
+
       return ok(await then(value));
     });
 }
@@ -105,6 +110,7 @@ export function budget(
   now: () => number = Date.now,
 ): Budget {
   const deadline = ms === undefined ? Number.POSITIVE_INFINITY : now() + ms;
+
   return {
     deadline,
     expired: () => now() >= deadline,
@@ -121,6 +127,7 @@ export function leaseHeartbeat(
   extend: () => void,
 ): () => void {
   const timer = setInterval(extend, Math.max(1000, (leaseSeconds * 1000) / 2));
+
   return () => {
     clearInterval(timer);
   };
@@ -139,6 +146,7 @@ export function recordOf(value: unknown, fn: string): Record<string, unknown> {
   if (!isRecord(value)) {
     throw new TypeError(`${fn} returned ${JSON.stringify(value)}`);
   }
+
   return value;
 }
 
@@ -150,9 +158,11 @@ export function recordsOf(
   if (value === null || value === undefined) {
     return [];
   }
+
   if (!Array.isArray(value) || !value.every(isRecord)) {
     throw new TypeError(`${fn} returned ${JSON.stringify(value)}`);
   }
+
   return value;
 }
 
@@ -175,9 +185,11 @@ export function enumOrThrow<T extends string>(
   what: string,
 ): T {
   const found = values.find((item) => item === value);
+
   if (found === undefined) {
     throw new TypeError(`unknown ${what} "${String(value)}"`);
   }
+
   return found;
 }
 
@@ -191,6 +203,7 @@ export function credentialRefOf(value: unknown): CredentialRef | undefined {
   if (!isRecord(value) || typeof value["provider"] !== "string") {
     return undefined;
   }
+
   return { ...value, provider: value["provider"] };
 }
 
@@ -222,9 +235,11 @@ export function requiredInstant(
   field: string,
 ): Temporal.Instant {
   const instant = optionalInstant(value);
+
   if (instant === undefined) {
     throw new TypeError(`${field} is missing`);
   }
+
   return instant;
 }
 
@@ -240,6 +255,7 @@ export async function sha256Hex(value: string): Promise<string> {
     "SHA-256",
     new TextEncoder().encode(value),
   );
+
   return [...new Uint8Array(digest)]
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
@@ -249,9 +265,11 @@ export async function sha256Hex(value: string): Promise<string> {
 export function randomToken(bytes = 24): string {
   const data = crypto.getRandomValues(new Uint8Array(bytes));
   let binary = "";
+
   for (const byte of data) {
     binary += String.fromCodePoint(byte);
   }
+
   return btoa(binary)
     .replaceAll("+", "-")
     .replaceAll("/", "_")
@@ -260,6 +278,7 @@ export function randomToken(bytes = 24): string {
 
 export function asDbError(cause: unknown): DbError {
   const raw = fromPgError(cause);
+
   return raw ? mapDbError(raw) : toDbError(cause);
 }
 
@@ -283,35 +302,47 @@ export async function readBodyCapped(
   limit: number,
 ): Promise<string | undefined> {
   const length = Number(request.headers.get("content-length") ?? Number.NaN);
+
   if (Number.isFinite(length) && length > limit) {
     return undefined;
   }
+
   if (!request.body) {
     return "";
   }
+
   const reader = request.body.getReader();
   const chunks: Uint8Array[] = [];
   let size = 0;
+
   for (;;) {
     const { done, value } = await reader.read();
+
     if (done) {
       break;
     }
+
     size += value.byteLength;
+
     if (size > limit) {
       // Not awaited: a branch of a cloned request settles its cancel only
       // once the other branch is cancelled too.
       void reader.cancel().catch(() => undefined);
+
       return undefined;
     }
+
     chunks.push(value);
   }
+
   const bytes = new Uint8Array(size);
   let offset = 0;
+
   for (const chunk of chunks) {
     bytes.set(chunk, offset);
     offset += chunk.byteLength;
   }
+
   return new TextDecoder().decode(bytes);
 }
 
@@ -335,9 +366,11 @@ export async function eachLimit<T>(
 ): Promise<void> {
   let next = 0;
   let failure: { cause: unknown } | undefined;
+
   const lane = async (): Promise<void> => {
     while (failure === undefined && next < items.length) {
       const index = next++;
+
       try {
         await fn(items[index]!, index);
       } catch (cause) {
@@ -345,9 +378,11 @@ export async function eachLimit<T>(
       }
     }
   };
+
   await Promise.all(
     Array.from({ length: Math.min(Math.max(1, limit), items.length) }, lane),
   );
+
   if (failure) {
     throw failure.cause;
   }
@@ -357,14 +392,18 @@ export const sleep = (ms: number, signal?: AbortSignal): Promise<void> =>
   new Promise((resolve) => {
     if (signal?.aborted) {
       resolve();
+
       return;
     }
+
     const timer = setTimeout(done, ms);
+
     function done(): void {
       clearTimeout(timer);
       signal?.removeEventListener("abort", done);
       resolve();
     }
+
     signal?.addEventListener("abort", done, { once: true });
   });
 
@@ -378,9 +417,11 @@ export function errorText(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
   }
+
   if (typeof error === "object" && error !== null && "message" in error) {
     return String(error.message);
   }
+
   return String(error);
 }
 
@@ -404,12 +445,15 @@ export function injectableOf<T extends { readonly apiVersion?: 1 }>(
   if (value === undefined) {
     return undefined;
   }
+
   const version: unknown = value.apiVersion;
+
   if (version !== undefined && version !== 1) {
     throw new TypeError(
       `${what} targets API ${String(version)}; this better-supabase supports 1. Upgrade better-supabase or use a release built for API 1.`,
     );
   }
+
   return value;
 }
 

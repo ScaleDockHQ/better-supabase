@@ -45,6 +45,7 @@ export function ApiKeyTable({
   const t = useExtracted("apiKeys");
   const errorMessage = useErrorMessage();
   const format = useFormatter();
+
   const { keys, created, creating, revoking, error, create, revoke, dismiss } =
     useApiKeys({
       organizationId,
@@ -58,12 +59,14 @@ export function ApiKeyTable({
 
   const revokeKey = async (id: string) => {
     const result = await revoke(id);
+
     if (result.ok) {
       toast.success(t("Key revoked"));
     } else {
       toast.error(errorMessage(result.error));
     }
   };
+
   const date = (value: Temporal.Instant | undefined) =>
     value
       ? format.dateTime(new Date(value.epochMilliseconds), {
@@ -82,6 +85,7 @@ export function ApiKeyTable({
       onClose={dismiss}
     />
   );
+
   if (keys === undefined) {
     return (
       <div className="grid gap-4">
@@ -90,6 +94,7 @@ export function ApiKeyTable({
       </div>
     );
   }
+
   return (
     <div className="grid gap-4">
       <div className="flex justify-end">{dialog}</div>

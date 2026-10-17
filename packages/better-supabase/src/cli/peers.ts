@@ -18,9 +18,11 @@ const VERSION =
 
 function parseVersion(text: string): Version | undefined {
   const match = VERSION.exec(text.trim());
+
   if (!match) {
     return undefined;
   }
+
   return [
     Number(match[1]),
     Number(match[2] ?? 0),
@@ -33,12 +35,15 @@ const NUMERIC = /^\d+$/;
 
 function compareIdentifiers(a: string, b: string): number {
   const numeric = NUMERIC.test(a);
+
   if (numeric !== NUMERIC.test(b)) {
     return numeric ? -1 : 1;
   }
+
   if (numeric) {
     return Number(a) - Number(b);
   }
+
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
@@ -48,25 +53,33 @@ function compare(a: Version, b: Version): number {
       return a[index] - b[index];
     }
   }
+
   const [, , , left] = a;
   const [, , , right] = b;
+
   if (left.length === 0 || right.length === 0) {
     return right.length - left.length;
   }
+
   for (let index = 0; index < Math.max(left.length, right.length); index++) {
     const x = left[index];
     const y = right[index];
+
     if (x === undefined) {
       return -1;
     }
+
     if (y === undefined) {
       return 1;
     }
+
     const order = compareIdentifiers(x, y);
+
     if (order !== 0) {
       return order;
     }
   }
+
   return 0;
 }
 
@@ -87,9 +100,11 @@ function caretCeiling([major, minor, patch]: Version): Version {
   if (major > 0) {
     return [major + 1, 0, 0, []];
   }
+
   if (minor > 0) {
     return [0, minor + 1, 0, []];
   }
+
   return [0, 0, patch + 1, []];
 }
 
@@ -99,14 +114,19 @@ function comparators(range: string): Comparator[] | undefined {
     .replaceAll(/(>=|<=|>|<|=|\^)\s+/g, "$1")
     .split(/\s+/)
     .filter((part) => part.length > 0);
+
   const result: Comparator[] = [];
+
   for (const part of parts) {
     const match = COMPARATOR.exec(part);
     const version = match ? parseVersion(match[2]!) : undefined;
+
     if (!match || !version) {
       return undefined;
     }
+
     const operator = match[1] ?? "=";
+
     if (operator === "^") {
       result.push(
         { operator: ">=", version },
@@ -117,6 +137,7 @@ function comparators(range: string): Comparator[] | undefined {
       result.push({ operator: operator as Operator, version });
     }
   }
+
   return result;
 }
 
@@ -125,24 +146,31 @@ function holds(
   { operator, version: bound }: Comparator,
 ): boolean {
   const order = compare(version, bound);
+
   switch (operator) {
     case ">=": {
       return order >= 0;
     }
+
     case ">": {
       return order > 0;
     }
+
     case "<=": {
       return order <= 0;
     }
+
     case "<": {
       return order < 0;
     }
+
     case "=": {
       return order === 0;
     }
+
     default: {
       const unreachable: never = operator;
+
       return unreachable;
     }
   }
@@ -157,13 +185,17 @@ function holds(
  */
 export function satisfies(version: string, range: string): boolean | undefined {
   const parsed = parseVersion(version);
+
   if (!parsed) {
     return undefined;
   }
+
   const sets = range.split("||").map(comparators);
+
   if (sets.some((set) => set === undefined)) {
     return undefined;
   }
+
   return sets.some(
     (set) =>
       set !== undefined &&
@@ -181,6 +213,7 @@ async function readManifest(
 ): Promise<Record<string, unknown> | undefined> {
   try {
     const data: unknown = JSON.parse(await readFile(path, "utf-8"));
+
     // SAFETY: a package.json is a JSON object; callers check each field.
     return typeof data === "object" && data !== null
       ? (data as Record<string, unknown>)
@@ -196,17 +229,22 @@ export async function installedVersion(
   root: string,
 ): Promise<string | undefined> {
   let dir = root;
+
   for (;;) {
     const manifest = await readManifest(
       join(dir, "node_modules", name, "package.json"),
     );
+
     if (typeof manifest?.["version"] === "string") {
       return manifest["version"];
     }
+
     const parent = dirname(dir);
+
     if (parent === dir) {
       return undefined;
     }
+
     dir = parent;
   }
 }
@@ -214,15 +252,20 @@ export async function installedVersion(
 /** The version in the nearest `package.json` above a resolved module file. */
 export async function versionAt(file: string): Promise<string | undefined> {
   let dir = dirname(file);
+
   for (;;) {
     const manifest = await readManifest(join(dir, "package.json"));
+
     if (manifest && typeof manifest["version"] === "string") {
       return manifest["version"];
     }
+
     const parent = dirname(dir);
+
     if (parent === dir) {
       return undefined;
     }
+
     dir = parent;
   }
 }
@@ -232,10 +275,13 @@ export async function declaredPeers(): Promise<Record<string, string>> {
   const manifest = await readManifest(
     fileURLToPath(import.meta.resolve("better-supabase/package.json")),
   );
+
   const peers = manifest?.["peerDependencies"];
+
   if (typeof peers !== "object" || peers === null) {
     return {};
   }
+
   return Object.fromEntries(
     Object.entries(peers).filter(
       (entry): entry is [string, string] => typeof entry[1] === "string",
@@ -246,6 +292,7 @@ export async function declaredPeers(): Promise<Record<string, string>> {
 /** Every declared peer with the version `root` resolves. */
 export async function peerVersions(root: string): Promise<PeerVersion[]> {
   const peers = await declaredPeers();
+
   return Promise.all(
     Object.entries(peers).map(async ([name, range]) => ({
       name,

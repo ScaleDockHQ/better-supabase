@@ -51,6 +51,7 @@ export function useSavedViews<V extends SavedViewLike>(
   options: UseSavedViewsOptions<V>,
 ): SavedViewsState<V> {
   const latest = useLatest(options);
+
   const { view } = useController(
     () =>
       createSavedViewsController<V>({
@@ -71,7 +72,9 @@ export function useSavedViews<V extends SavedViewLike>(
       }),
     [latest],
   );
+
   const match = matchSavedViews(view, options.urlState, options.getState?.());
+
   return {
     views: view.views,
     error: view.error,
@@ -89,5 +92,6 @@ function needs<T>(value: T | undefined, name: string): T {
   if (value === undefined) {
     throw new Error(`useSavedViews: pass \`${name}\``);
   }
+
   return value;
 }

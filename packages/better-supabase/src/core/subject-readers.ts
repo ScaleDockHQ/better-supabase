@@ -22,11 +22,15 @@ function parseSubject(
   const rest = subject.startsWith("subjects/")
     ? subject.slice("subjects/".length)
     : subject;
+
   const slash = rest.indexOf("/");
+
   if (slash <= 0 || slash === rest.length - 1) {
     return undefined;
   }
+
   const type = rest.slice(0, slash);
+
   return types.has(type) ? { type, id: rest.slice(slash + 1) } : undefined;
 }
 
@@ -48,6 +52,7 @@ export function subjectReaders(
   const schema = options.schema ?? DEFAULT_BLOCK_SCHEMA;
   const action = options.action ?? "read";
   let types: Promise<ReadonlySet<string>> | undefined;
+
   const registered = (): Promise<ReadonlySet<string>> =>
     (types ??= transport
       .call(schema, "subject_types", {})
@@ -63,6 +68,7 @@ export function subjectReaders(
         types = undefined;
         throw cause;
       }));
+
   return async <S extends Subscriber>(
     event: SubscriberEvent,
     subscribers: readonly S[],
@@ -70,10 +76,13 @@ export function subjectReaders(
     if (typeof event.subject !== "string" || subscribers.length === 0) {
       return subscribers;
     }
+
     const subject = parseSubject(event.subject, await registered());
+
     if (subject === undefined) {
       return subscribers;
     }
+
     const allowed = await Promise.all(
       subscribers.map(async (subscriber) =>
         UUID.test(subscriber.principal)
@@ -86,6 +95,7 @@ export function subjectReaders(
           : false,
       ),
     );
+
     return subscribers.filter((_, index) => allowed[index]);
   };
 }

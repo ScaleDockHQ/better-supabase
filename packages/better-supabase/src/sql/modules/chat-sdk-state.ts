@@ -86,6 +86,7 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const id = ctx.idType;
   const fn = (name: string): string => ctx.fn(name);
   const sub = ctx.table("subscriptions");
@@ -100,11 +101,14 @@ function build(ctx: ModuleContext): string {
   const cli = (column: string): string => ctx.col("lists", column);
   const cq = (column: string): string => ctx.col("queues", column);
   const ci = (column: string): string => ctx.col("installations", column);
+
   const ttl = (ms: string): string =>
     `case when ${ms} is null or ${ms} <= 0 then null else clock_timestamp() + make_interval(secs => ${ms} / 1000.0) end`;
+
   // Expiry reads the wall clock, so a long transaction sees TTLs pass.
   const live = (column: string): string =>
     `(${column} is null or ${column} > clock_timestamp())`;
+
   const lockJson = (row: string): string =>
     `jsonb_build_object('thread_id', ${row}.${cl("thread")}, 'token', ${row}.${cl("token")}, 'expires_at', ${row}.${cl("expiresAt")})`;
 
@@ -571,6 +575,7 @@ ${serviceGrant(`${fn("chat_uninstall")}(text, text)`)}`;
 
 function contract(): readonly ModuleContractFunction[] {
   const pair = ["text", "text"] as const;
+
   return [
     { name: "chat_state_subscribe", args: pair, returns: "void" },
     { name: "chat_state_unsubscribe", args: pair, returns: "void" },

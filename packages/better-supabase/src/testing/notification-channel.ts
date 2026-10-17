@@ -20,6 +20,7 @@ const STATUSES = new Set(["sent", "skipped"]);
 
 function sample(channel: string, email: string | null): NotificationMessage {
   const createdAt = temporal().Instant.fromEpochMilliseconds(0);
+
   return Object.freeze({
     deliveryId: "00000000-0000-4000-8000-00000000c0f0",
     channel,
@@ -56,6 +57,7 @@ export function testNotificationChannel(
   options: TestNotificationChannelOptions = {},
 ): Promise<ConformanceReport> {
   const message = sample(channel.name, options.email ?? null);
+
   return conform(`NotificationChannel "${channel.name}"`, [
     [
       "has apiVersion 1",
@@ -77,13 +79,16 @@ export function testNotificationChannel(
       "sends a message without mutating it and returns a valid result",
       async () => {
         const result = await channel.send(message);
+
         if (result === undefined) {
           return;
         }
+
         expect(
           result.status === undefined || STATUSES.has(result.status),
           `status must be "sent" or "skipped", got ${String(result.status)}`,
         );
+
         for (const key of ["provider", "providerMessageId"] as const) {
           expect(
             result[key] === undefined || typeof result[key] === "string",

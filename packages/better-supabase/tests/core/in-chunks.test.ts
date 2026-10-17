@@ -24,6 +24,7 @@ describe("oversized in lists", () => {
     const { client, requests } = capturingClient((request) => ({
       body: listOf(request.params.get("id")).map((id) => ({ id })),
     }));
+
     const rows = await betterSupabase
       .connect(client)
       .customers.findMany({
@@ -32,11 +33,14 @@ describe("oversized in lists", () => {
         orderBy: { id: "desc" },
       })
       .orThrow();
+
     expect(requests.length).toBeGreaterThan(1);
+
     for (const request of requests) {
       expect(request.params.get("status")).toBe("eq.active");
       expect(request.params.toString().length).toBeLessThanOrEqual(4000);
     }
+
     expect(
       requests.flatMap((request) => listOf(request.params.get("id"))),
     ).toEqual(ids);
@@ -50,6 +54,7 @@ describe("oversized in lists", () => {
         _bs_order0: `2026-01-01T00:00:${String(59 - (index % 60)).padStart(2, "0")}+00:00`,
       })),
     }));
+
     const rows = await betterSupabase
       .connect(client)
       .customers.findMany({
@@ -58,11 +63,14 @@ describe("oversized in lists", () => {
         orderBy: { createdAt: "asc" },
       })
       .orThrow();
+
     expect(requests.length).toBeGreaterThan(1);
+
     for (const request of requests) {
       expect(request.params.get("select")).toBe("id,_bs_order0:created_at");
       expect(request.params.toString().length).toBeLessThanOrEqual(4000);
     }
+
     expect(rows).toHaveLength(ids.length);
     expect(rows.every((row) => Object.keys(row).join(",") === "id")).toBe(true);
   });
@@ -73,10 +81,12 @@ describe("oversized in lists", () => {
         .map((id) => ({ name: id, _bs_order0: id }))
         .reverse(),
     }));
+
     const rows = await betterSupabase
       .connect(client)
       .customers.findMany({ select: ["name"], where: { id: { in: ids } } })
       .orThrow();
+
     expect(rows.map((row) => row.name)).toEqual(ids);
   });
 
@@ -84,6 +94,7 @@ describe("oversized in lists", () => {
     const { client, requests } = capturingClient((request) => ({
       body: listOf(request.params.get("id")).map((id) => ({ id })),
     }));
+
     const rows = await betterSupabase
       .connect(client)
       .customers.findMany({
@@ -91,9 +102,11 @@ describe("oversized in lists", () => {
         where: { id: { in: [...ids, ...ids] } },
       })
       .orThrow();
+
     const sent = requests.flatMap((request) =>
       listOf(request.params.get("id")),
     );
+
     expect(sent).toEqual(ids);
     expect(rows).toHaveLength(ids.length);
   });
@@ -105,12 +118,14 @@ describe("oversized in lists", () => {
       "2026-01-01T00:00:00.000001+00:00",
       "2026-01-01T00:00:00+00:00",
     ];
+
     const { client } = capturingClient((request) => ({
       body: listOf(request.params.get("id")).map((id, index) => ({
         id,
         createdAt: times[index % times.length],
       })),
     }));
+
     const rows = await betterSupabase
       .connect(client)
       .customers.findMany({
@@ -119,6 +134,7 @@ describe("oversized in lists", () => {
         orderBy: { createdAt: "asc" },
       })
       .orThrow();
+
     const order = [...new Set(rows.map((row) => row.createdAt))];
     expect(order.slice(2)).toEqual([
       "2026-01-01T00:00:00.000001+00:00",
@@ -134,6 +150,7 @@ describe("oversized in lists", () => {
     let inFlight = 0;
     let peak = 0;
     let calls = 0;
+
     const client = createClient(
       "http://localhost:54321",
       "sb_publishable_test",
@@ -149,6 +166,7 @@ describe("oversized in lists", () => {
             });
             inFlight -= 1;
             const url = new URL(String(input));
+
             return Response.json(
               listOf(url.searchParams.get("id")).map((id) => ({ id })),
             );
@@ -156,15 +174,18 @@ describe("oversized in lists", () => {
         },
       },
     );
+
     const many = Array.from(
       { length: 1500 },
       (_, index) =>
         `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
     );
+
     const rows = await defineSupabase(schema, { urlLengthLimit: 2000 })
       .connect(client)
       .customers.findMany({ select: ["id"], where: { id: { in: many } } })
       .orThrow();
+
     expect(rows).toHaveLength(many.length);
     expect(calls).toBeGreaterThan(4);
     expect(peak).toBe(4);
@@ -189,6 +210,7 @@ describe("oversized in lists", () => {
             : `2026-01-01T00:00:${String(index % 60).padStart(2, "0")}+00:00`,
       })),
     }));
+
     const rows = await betterSupabase
       .connect(client)
       .customers.findMany({
@@ -197,6 +219,7 @@ describe("oversized in lists", () => {
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       })
       .orThrow();
+
     const times: unknown[] = rows.map((row) => row.createdAt);
     const firstNull = times.indexOf(null);
     expect(times.slice(firstNull).every((time) => time === null)).toBe(true);
@@ -230,9 +253,11 @@ describe("oversized in lists", () => {
     "returns invalid_request for %s",
     async (_name, args, message) => {
       const { client, requests } = capturingClient();
+
       const result = await betterSupabase
         .connect(client)
         .customers.findMany(args as never);
+
       expect(result.error).toMatchObject({
         kind: "invalid_request",
         table: "customers",
@@ -244,22 +269,26 @@ describe("oversized in lists", () => {
 
   it("returns invalid_request for a page of a long list", async () => {
     const { client, requests } = capturingClient();
+
     const page = await betterSupabase.connect(client).customers.paginate({
       where: { id: { in: ids } },
       include: { notes: { where: { OR: [{ kind: "call" }, { body: "x" }] } } },
       size: 20,
     });
+
     expect(page.error?.kind).toBe("invalid_request");
     expect(requests).toHaveLength(0);
   });
 
   it("refuses a read whose other filters leave no room for the list", async () => {
     const { client } = capturingClient();
+
     const result = await defineSupabase(schema, { urlLengthLimit: 200 })
       .connect(client)
       .customers.findMany({
         where: { id: { in: ids.slice(0, 20) }, name: { in: ids.slice(0, 5) } },
       });
+
     expect(result.error?.message).toContain("leaves no room");
   });
 
@@ -271,9 +300,11 @@ describe("oversized in lists", () => {
     async (method, args) => {
       const { client, requests } = capturingClient();
       const { customers } = betterSupabase.connect(client);
+
       const result = await (method === "updateMany"
         ? customers.updateMany(args as never)
         : customers.deleteMany(args as never));
+
       expect(result.error).toMatchObject({
         kind: "invalid_request",
         table: "customers",
@@ -285,15 +316,19 @@ describe("oversized in lists", () => {
 
   it("passes the first error through", async () => {
     let call = 0;
+
     const { client } = capturingClient(() => {
       call += 1;
+
       return call === 2
         ? { status: 500, body: { code: "XX000", message: "boom" } }
         : { body: [] };
     });
+
     const result = await betterSupabase
       .connect(client)
       .customers.findMany({ where: { id: { in: ids } } });
+
     expect(result.error?.message).toBe("boom");
   });
 });
@@ -306,6 +341,7 @@ describe("oversized in lists on other key types", () => {
     hasDefault: false,
     ...extra,
   });
+
   const meta: SchemaMeta = {
     version: 1,
     casing: "camel",
@@ -340,20 +376,24 @@ describe("oversized in lists on other key types", () => {
       },
     },
   };
+
   const betterSupabase = defineSupabase(defineSchema(meta), {
     urlLengthLimit: 4000,
   });
+
   interface Repository {
     findMany(args: object): PromiseLike<{
       readonly data: Record<string, unknown>[] | null;
       readonly error: { readonly message: string } | null;
     }> & { orThrow(): Promise<Record<string, unknown>[]> };
   }
+
   const connect = (client: SupabaseClient) =>
     betterSupabase.connect(client) as never as {
       countries: Repository;
       ledger: Repository;
     };
+
   const codes = Array.from(
     { length: 400 },
     (_, index) => `code-${String(index).padStart(4, "0")}`,
@@ -365,19 +405,23 @@ describe("oversized in lists on other key types", () => {
         .map((code) => ({ code, name: code }))
         .reverse(),
     }));
+
     const rows = await connect(client)
       .countries.findMany({ where: { code: { in: codes } } })
       .orThrow();
+
     expect(requests.length).toBeGreaterThan(1);
     expect(rows.map((row) => row["code"])).toEqual(codes);
   });
 
   it("still refuses an orderBy on text the caller asked for", async () => {
     const { client, requests } = capturingClient();
+
     const result = await connect(client).countries.findMany({
       where: { code: { in: codes } },
       orderBy: { name: "asc" },
     });
+
     expect(result.error?.message).toContain("can't be re-applied");
     expect(requests).toHaveLength(0);
   });
@@ -385,11 +429,13 @@ describe("oversized in lists on other key types", () => {
   it("sorts int8 values past 2^53 exactly", async () => {
     const big = (index: number) => (2n ** 53n + BigInt(index)).toString();
     const keys = Array.from({ length: 400 }, (_, index) => big(index));
+
     const { client, requests } = capturingClient((request) => ({
       body: listOf(request.params.get("id"))
         .map((id) => ({ memo: id, _bs_order0: id }))
         .reverse(),
     }));
+
     const rows = await connect(client)
       .ledger.findMany({
         select: ["memo"],
@@ -397,6 +443,7 @@ describe("oversized in lists on other key types", () => {
         orderBy: { seq: "asc" },
       })
       .orThrow();
+
     expect(requests.length).toBeGreaterThan(1);
     expect(requests[0]?.params.get("select")).toBe("memo,_bs_order0:seq::text");
     expect(rows.map((row) => row["memo"])).toEqual(keys);

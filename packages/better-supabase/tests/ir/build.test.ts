@@ -92,11 +92,14 @@ const ir = new IrBuilder(meta);
 const customers = ir.table("customers");
 const notes = ir.table("notes");
 const organizations = ir.table("organizations");
+
 const relation = (from: TableMeta, name: string) => {
   const found = from.relations[name];
+
   if (!found) {
     throw new Error(`No relation ${name}`);
   }
+
   return found;
 };
 
@@ -107,8 +110,10 @@ function rejection(fn: () => unknown): DbError {
     if (error instanceof DbException) {
       return error.error;
     }
+
     throw error;
   }
+
   throw new Error("Expected a DbException");
 }
 
@@ -658,6 +663,7 @@ describe("IrBuilder.selection", () => {
       },
       primaryContact: "yes",
     });
+
     expect(selection.includes).toEqual([
       {
         alias: "organization",
@@ -977,6 +983,7 @@ describe("IrBuilder.aggregateOrderBy", () => {
       groupBy: ["name"],
       _count: true,
     });
+
     expect(
       rejection(() =>
         ir.aggregateOrderBy(

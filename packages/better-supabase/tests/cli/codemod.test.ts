@@ -38,6 +38,7 @@ const note = "createBrowser stays in strings"; // and createBrowser in comments
 type Q = Queries;
 obj.createBrowser();
 `;
+
     expect(applyCodemod(v04, source).text)
       .toBe(`import { createClient, type BetterClient } from "better-supabase/react";
 import { BetterPostgres as PG, createPostgres } from "better-supabase/postgres";
@@ -58,6 +59,7 @@ bs.toORPCError(error);
 const name = repository.$table;
 const table = db.$table("notes");
 `;
+
     expect(applyCodemod(v04, source).text)
       .toBe(`next.contextForSession(session, { token });
 bs.toOrpcError(error);
@@ -70,6 +72,7 @@ const table = db.$table("notes");
     const source = `<BetterSupabaseProvider onError={(e) => e > 1} browser={browser}>
   <Other browser={browser} />
 </BetterSupabaseProvider>`;
+
     expect(applyCodemod(v04, source).text)
       .toBe(`<BetterSupabaseProvider onError={(e) => e > 1} client={browser}>
   <Other browser={browser} />
@@ -81,6 +84,7 @@ const table = db.$table("notes");
       v04,
       `const ctx = await next.server();\napp.get("/", bs.handle());\nconst x = client.sb;\n`,
     );
+
     expect(review.map((hint) => hint.line)).toEqual([1, 2, 3]);
     expect(review[0]!.message).toContain("bs.context()");
   });
@@ -97,6 +101,7 @@ describe("codemod 0.5", () => {
 const short = createMcp(betterSupabase, { scopes, other });
 other({ scopes: [] });
 `;
+
     expect(applyCodemod(v05, source).text)
       .toBe(`const mcp = createMcp(betterSupabase, {
   name: "crm",
@@ -122,6 +127,7 @@ onBlockEvent(sb, 'org.*', handle);
 const sql = \`select * from outbox_events where type = 'org.switched'\`;
 const org = { created: "org.created.v2", key: "my.org.created" };
 `;
+
     expect(applyCodemod(v06, source).text)
       .toBe(`onBlockEvent(sb, "organization.member_added", handle);
 onBlockEvent(sb, 'organization.*', handle);
@@ -135,6 +141,7 @@ const org = { created: "org.created.v2", key: "my.org.created" };
 const typed = db.$rpc<"x">("x");
 const label = "$rpc in a string";
 `;
+
     const result = applyCodemod(v06, source);
     expect(result.text).toBe(source);
     expect(result.review.map((entry) => entry.line)).toEqual([1, 2]);
@@ -145,6 +152,7 @@ const label = "$rpc in a string";
     const source = `const url = storage.publicUrl(path);
 const allow = publicUrl({ allowHosts: [] });
 `;
+
     const result = applyCodemod(v06, source);
     expect(result.text).toBe(source);
     expect(result.review.map((entry) => entry.line)).toEqual([1]);
@@ -156,6 +164,7 @@ const allow = publicUrl({ allowHosts: [] });
 const joined = node.path("a");
 const dir = join(root, "path({");
 `;
+
     const result = applyCodemod(v06, source);
     expect(result.text).toBe(source);
     expect(result.review.map((entry) => entry.line)).toEqual([1]);
@@ -170,6 +179,7 @@ const orgs = createOrgs(transport);
 onKitEvent(sb, "org.created", handle);
 const db = defineSupabase(schema, { maxUrlLength: 4000 });
 `;
+
     const result = applyCodemod(v06, source);
     expect(result.text)
       .toBe(`import { createOrganizations, type OrganizationsOptions } from "better-supabase/orgs";
@@ -196,6 +206,7 @@ describe("codemod 0.9", () => {
       'expect(body.type).toBe("https://bettersupabase.com/problems/forbidden");',
       "const ok = 1;",
     ].join("\n");
+
     const result = applyCodemod(v09, source);
     expect(result.text).toBe(source);
     expect(result.review.map((entry) => entry.line)).toEqual([2, 3, 4, 5, 6]);
@@ -215,6 +226,7 @@ describe("codemod 0.9", () => {
       "const modules = { comments: { options: {} } };",
       "const ok = 1;",
     ].join("\n");
+
     const result = applyCodemod(v09, source);
     expect(result.text).toBe(source);
     expect(result.review.map((entry) => entry.line)).toEqual([

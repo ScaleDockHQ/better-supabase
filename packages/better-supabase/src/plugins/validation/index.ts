@@ -35,17 +35,21 @@ function decoded(
   row: Readonly<Record<string, unknown>>,
 ): Record<string, unknown> {
   const app = toApp(table, row);
+
   for (const [name, value] of Object.entries(app)) {
     const codec = table.columns[name]?.codec;
+
     if (codec === undefined || typeof value !== "string") {
       continue;
     }
+
     try {
       app[name] = decodeValue(codec, value);
     } catch {
       // Malformed text stays as it is, so the validator reports it.
     }
   }
+
   return app;
 }
 
@@ -53,6 +57,7 @@ function encoded(row: Record<string, unknown>): Record<string, unknown> {
   for (const [name, value] of Object.entries(row)) {
     row[name] = encodeValue(value);
   }
+
   return row;
 }
 
@@ -64,8 +69,10 @@ async function check(
   index: number | undefined,
 ): Promise<Record<string, unknown>> {
   const result = await validate(schema, decoded(table, row), label);
+
   if (result.ok) {
     const output = result.data;
+
     // The output goes over the row: a schema that strips unknown keys would
     // otherwise drop the columns other plugins filled (tenant, actor).
     // SAFETY: the condition narrows output to a non-null object, and schemas
@@ -74,14 +81,18 @@ async function check(
       ? { ...row, ...encoded(toDb(table, output as Record<string, unknown>)) }
       : { ...row };
   }
+
   const error = result.error;
+
   if (index === undefined || error.kind !== "validation") {
     throw new DbException(error);
   }
+
   const issues: ValidationIssue[] = error.issues.map((issue) => ({
     message: issue.message,
     path: [index, ...(issue.path ?? [])],
   }));
+
   throw new DbException(dbError("validation", error.message, { issues }));
 }
 
@@ -97,16 +108,21 @@ export function validation(options: ValidationOptions): Plugin<"validation"> {
     enforce: "post",
     async beforeMutation(op, { table }): Promise<MutationOp> {
       const validators = options.schemas[table.key];
+
       if (!validators) {
         return op;
       }
+
       switch (op.kind) {
         case "insert": {
           const schema = validators.insert;
+
           if (!schema) {
             return op;
           }
+
           const many = op.rows.length > 1;
+
           const rows = await Promise.all(
             op.rows.map((row, index) =>
               check(
@@ -118,13 +134,17 @@ export function validation(options: ValidationOptions): Plugin<"validation"> {
               ),
             ),
           );
+
           return { ...op, rows };
         }
+
         case "update": {
           const schema = validators.update;
+
           if (!schema) {
             return op;
           }
+
           return {
             ...op,
             set: await check(
@@ -136,11 +156,14 @@ export function validation(options: ValidationOptions): Plugin<"validation"> {
             ),
           };
         }
+
         case "delete": {
           return op;
         }
+
         default: {
           const exhaustive: never = op;
+
           return exhaustive;
         }
       }

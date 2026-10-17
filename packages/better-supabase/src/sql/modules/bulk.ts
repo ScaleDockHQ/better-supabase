@@ -71,26 +71,33 @@ const NAMES: ModuleNames = {
 function bulkActions(ctx: ModuleContext): ReadonlyMap<string, string> {
   const where = "blocks.bulk.options.actions";
   const raw: unknown = ctx.option("actions") ?? {};
+
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     throw new TypeError(`${where} must map action names to functions`);
   }
+
   const actions = new Map<string, string>();
+
   for (const [name, value] of new Map<string, unknown>(Object.entries(raw))) {
     if (!ACTION_NAME.test(name)) {
       throw new TypeError(
         `${where}: "${name}" must look like "block.method" (letters and digits)`,
       );
     }
+
     if (name in BULK_ACTIONS) {
       throw new TypeError(`${where}: "${name}" is a built-in action`);
     }
+
     if (typeof value !== "string" || !FUNCTION_NAME.test(value)) {
       throw new TypeError(
         `${where}.${name} must be a "schema.function" name in lowercase`,
       );
     }
+
     actions.set(name, value);
   }
+
   return actions;
 }
 
@@ -99,6 +106,7 @@ function dispatch(
   custom: ReadonlyMap<string, string>,
 ): string {
   const arms: string[] = [];
+
   if (ctx.installed("tags")) {
     const tags = ctx.of("tags");
     arms.push(`    when 'tags.set' then
@@ -109,30 +117,38 @@ function dispatch(
         perform ${tags.fn("untag")}(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id, v_tag);
       end loop;`);
   }
+
   if (ctx.installed("state-machine")) {
     arms.push(`    when 'stateMachine.transition' then
       perform ${ctx.of("state-machine").fn("transition")}(bulk_row.subject_type, bulk_row.subject_id, bulk_row.args ->> 'to', bulk_row.args ->> 'reason');`);
   }
+
   if (ctx.installed("relations")) {
     arms.push(`    when 'relations.link' then
       perform ${ctx.of("relations").fn("link")}(bulk_row.tenant, bulk_row.args ->> 'kind', bulk_row.subject_type, bulk_row.subject_id, bulk_row.args ->> 'targetType', bulk_row.args ->> 'targetId', bulk_row.args -> 'data');`);
   }
+
   if (ctx.installed("trash")) {
     arms.push(`    when 'trash.trash' then
       perform ${ctx.of("trash").fn("trash")}(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id);`);
   }
+
   if (ctx.installed("collections")) {
     arms.push(`    when 'collections.add' then
       perform ${ctx.of("collections").fn("add_collection_entries")}((bulk_row.args ->> 'collectionId')::uuid, array[bulk_row.subject_id], bulk_row.subject_type);`);
   }
+
   for (const [name, target] of custom) {
     arms.push(`    when ${sqlString(name)} then
       perform ${quotedTable(target)}(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id, bulk_row.args);`);
   }
+
   const unknown = fail("BULK_ACTION_UNKNOWN", "unknown bulk action", "22023");
+
   if (arms.length === 0) {
     return unknown;
   }
+
   return `case bulk_row.action
 ${arms.join("\n")}
     else
@@ -169,27 +185,33 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const runs = ctx.table("runs");
   const c = (name: string): string => ctx.col("runs", name);
   const run = ctx.permission("run", OPERATIONS["bulk.run"]);
   const limit = ctx.number("limit", DEFAULT_LIMIT);
+
   if (!Number.isInteger(limit) || limit < 1 || limit > 10_000) {
     throw new TypeError(
       "blocks.bulk.options.limit must be an integer from 1 to 10000",
     );
   }
+
   const custom = bulkActions(ctx);
   const background = ctx.installed("jobs");
+
   const known = [
     ...Object.entries(BULK_ACTIONS)
       .filter(([, module]) => ctx.installed(module))
       .map(([name]) => name),
     ...custom.keys(),
   ];
+
   const knownList =
     known.length === 0
       ? "array[]::text[]"
       : `array[${known.map(sqlString).join(", ")}]`;
+
   const tables = ctx.manages
     ? `create table if not exists ${runs} (
   ${c("id")} uuid primary key default gen_random_uuid(),
@@ -214,6 +236,7 @@ create policy bulk_runs_read on ${runs} for select to authenticated
   using (${c("createdBy")} = (select auth.uid()));
 `
     : "";
+
   return `${schemaPreamble(ctx)}
 ${tables}
 create or replace function ${ctx.fn("bulk_row")}(tenant ${ctx.idType}, subject_type text, subject_id text, action text, args jsonb)

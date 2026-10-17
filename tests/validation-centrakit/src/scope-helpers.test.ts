@@ -12,21 +12,26 @@ describe.skipIf(!live)("authorization provider policy shapes (pgTAP)", () => {
       new URL("../supabase/scope-helpers.test.sql", import.meta.url),
       "utf-8",
     );
+
     // The file rolls back its own transaction, extension included.
     const text = file.replace(
       /^begin;$/m,
       "begin;\ncreate extension if not exists pgtap with schema extensions;",
     );
+
     const client = new Client({ connectionString: dbUrl });
     await client.connect();
+
     try {
       const result: QueryArrayResult | QueryArrayResult[] = await client.query({
         text,
         rowMode: "array",
       });
+
       const tap = (Array.isArray(result) ? result : [result])
         .flatMap((step) => step.rows.flat())
         .map(String);
+
       const plan = tap.find((line) => /^1\.\.\d+$/.test(line));
       expect(plan).toBeDefined();
       expect(tap.filter((line) => /^(not ok|# Looks like)/.test(line))).toEqual(

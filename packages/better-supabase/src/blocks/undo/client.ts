@@ -48,6 +48,7 @@ export function createUndoController(
     { entries: [], canUndo: false, pending: false, error: undefined },
     (state) => {
       let nextId = 0;
+
       const show = (
         entries: readonly UndoEntry[],
         pending: boolean,
@@ -60,12 +61,14 @@ export function createUndoController(
           canUndo: entries.length > 0 && !pending,
         });
       };
+
       return {
         actions: {
           push: (token, label = "") => {
             if (!token) {
               return;
             }
+
             nextId += 1;
             const limit = Math.max(1, options.limit ?? 20);
             const { entries, pending } = state.get();
@@ -78,19 +81,24 @@ export function createUndoController(
           undo: async () => {
             const { entries, pending } = state.get();
             const top = entries.at(-1);
+
             if (!top || pending) {
               return false;
             }
+
             show(entries.slice(0, -1), true, undefined);
             let error: unknown;
             let worked = true;
+
             try {
               await options.apply(top.token);
             } catch (cause) {
               error = cause;
               worked = false;
             }
+
             show(state.get().entries, false, error);
+
             return worked;
           },
           clear: () => {

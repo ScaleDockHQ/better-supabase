@@ -11,6 +11,7 @@ const body = (modules: AnyBlocksConfig = {}) =>
 describe("credentials module", () => {
   it("keeps every function for the service role", () => {
     const sql = body();
+
     for (const signature of [
       '"credential_get"(text, text)',
       '"credential_set"(text, text, text, text)',
@@ -23,6 +24,7 @@ describe("credentials module", () => {
         `grant execute on function "better_supabase".${signature} to service_role;`,
       );
     }
+
     expect(sql.match(/security definer/g)).toHaveLength(3);
     expect(sql.match(/set search_path = ''/g)).toHaveLength(3);
   });
@@ -94,6 +96,7 @@ describe("credentials module", () => {
         { vaultId: null, updatedAt: null, scope: "user_id" },
         { secretStorage: "column" },
       );
+
       expect(sql).toContain(
         'select s."secret" from "public"."integration_secrets" s',
       );

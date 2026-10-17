@@ -10,19 +10,23 @@ export function buildFunctions(
   tableModels: readonly TableModel[],
 ): FunctionModel[] {
   const { config, catalog, enumsByName, tsType, warnings } = ctx;
+
   const tablesByName = new Map(
     tableModels.map((table) => [
       `${table.snapshot.schema}.${table.snapshot.name}`,
       table,
     ]),
   );
+
   // `$rpc` calls a function by its name, so one schema owns each name: the
   // first configured schema. Overloads in that schema stay, in signature order.
   const callable = catalog.functions
     .filter((fn) => config.schemas.includes(fn.schema))
     .filter((fn) => fn.returns !== "trigger" && fn.returns !== "event_trigger")
     .filter((fn) => !fn.args.some((arg) => arg.udt === "internal"));
+
   const ownerSchema = new Map<string, string>();
+
   for (const schema of config.schemas) {
     for (const fn of callable) {
       if (fn.schema === schema && !ownerSchema.has(fn.name)) {
@@ -30,28 +34,37 @@ export function buildFunctions(
       }
     }
   }
+
   const shadowed = new Set<string>();
+
   const functions: FunctionModel[] = callable
     .filter((fn) => {
       if (ownerSchema.get(fn.name) === fn.schema) {
         return true;
       }
+
       shadowed.add(`${fn.schema}.${fn.name}`);
+
       return false;
     })
     .map((fn) => {
       const typeOf = (format: string, typeSchema?: string): string => {
         const isArray = format.startsWith("_");
+
         const values = enumsByName.get(
           `${typeSchema ?? fn.schema}.${isArray ? format.slice(1) : format}`,
         );
+
         if (values) {
           return isArray ? arrayOf(enumType(values)) : enumType(values);
         }
+
         return tsType(fn.schema, format, typeSchema);
       };
+
       const notNull = configFor(config.functions, fn.schema, fn.name)?.notNull;
       const notNullColumns = new Set(Array.isArray(notNull) ? notNull : []);
+
       if (Array.isArray(notNull)) {
         for (const name of notNullColumns) {
           if (!fn.returnsTable?.some((column) => column.name === name)) {
@@ -61,6 +74,7 @@ export function buildFunctions(
           }
         }
       }
+
       const orNull = (type: string, column?: string): string =>
         notNull === true ||
         (column !== undefined && notNullColumns.has(column)) ||
@@ -69,14 +83,18 @@ export function buildFunctions(
         type === "unknown"
           ? type
           : `${type} | null`;
+
       let returns: string;
       let result: FunctionResult | undefined;
+
       const rowTable = fn.returnsRelation
         ? tablesByName.get(fn.returnsRelation)
         : undefined;
+
       if (fn.returnsTable) {
         const columns = fn.returnsTable.map((column) => {
           const codec = codecFor(column.udt, config);
+
           return {
             db: column.name,
             app: applyCasing(column.name, config.casing),
@@ -86,12 +104,14 @@ export function buildFunctions(
               : typeOf(column.udt, column.typeSchema),
           };
         });
+
         returns = `{ ${columns
           .map(
             (column) =>
               `${JSON.stringify(column.app)}: ${orNull(column.tsType, column.db)}`,
           )
           .join("; ")} }[]`;
+
         if (
           columns.some(
             (column) => column.codec !== undefined || column.app !== column.db,
@@ -108,6 +128,7 @@ export function buildFunctions(
       } else if (rowTable) {
         returns = `Models[${JSON.stringify(rowTable.key)}]['Row']`;
         returns = fn.returnsSet ? arrayOf(returns) : orNull(returns);
+
         if (
           rowTable.columns.some(
             (column) => column.codec !== undefined || column.app !== column.db,
@@ -117,10 +138,12 @@ export function buildFunctions(
         }
       } else {
         returns = orNull(typeOf(fn.returns, fn.returnsSchema));
+
         if (fn.returnsSet) {
           returns = arrayOf(returns);
         }
       }
+
       return {
         key: fn.name,
         meta: {
@@ -152,11 +175,13 @@ export function buildFunctions(
       );
     }
   }
+
   for (const id of shadowed) {
     const name = id.slice(id.indexOf(".") + 1);
     warnings.push(
       `${id}: ${ownerSchema.get(name) ?? ""}.${name} has the same name and comes first in \`schemas\`, so ${id} gets no \`$rpc\` types.`,
     );
   }
+
   return functions;
 }

@@ -1,7 +1,11 @@
 export { CONFIG_DEFAULTS } from "./defaults.ts";
+
 export { GEN_TASKS, INTEGRATION_NAMES, SKILLS_AGENTS } from "./names.ts";
+
 export { resolveJsonSchema } from "./json.ts";
+
 export { CONFIG_SCHEMA_URL, defineConfig, resolveConfig } from "./resolve.ts";
+
 export type {
   ActorConfig,
   Casing,
@@ -23,6 +27,7 @@ export type {
   TenantConfig,
   TimestampsConfig,
 } from "./types/codegen.ts";
+
 export type {
   BucketConfig,
   RealtimeConfig,
@@ -34,11 +39,14 @@ export type {
   VectorDistance,
   VectorSearchConfig,
 } from "./types/database.ts";
+
 export type { SubjectConfig, SubjectsConfig } from "./types/subjects.ts";
+
 export type {
   EntitlementPlansSource,
   EntitlementsConfig,
 } from "./types/entitlements.ts";
+
 export type {
   DoctorConfig,
   EnvFileConfig,
@@ -52,11 +60,13 @@ export type {
   SkillsAgent,
   SkillsConfig,
 } from "./types/tooling.ts";
+
 export type {
   BetterSupabaseConfig,
   EnvironmentConfig,
   ResolvedConfig,
 } from "./types/config.ts";
+
 export type {
   ColumnPrivilege,
   ExposeConfig,
@@ -65,6 +75,7 @@ export type {
   Privilege,
   ResolvedExpose,
 } from "./expose.ts";
+
 export type {
   AuthorizationFunctions,
   AuthorizationMembership,
@@ -76,7 +87,9 @@ export type {
   AuthorizationScope,
   AuthorizationTokenHook,
 } from "./authorization.ts";
+
 export { providerApiProblem } from "./authorization.ts";
+
 export type {
   AccessBlockConfig,
   ActiveTenantSource,
@@ -88,28 +101,35 @@ export type {
   BlocksConfig,
   SqlNaming,
 } from "./blocks.ts";
+
 export { DEFAULT_ACTIVE_TENANT } from "./blocks.ts";
+
 export type * from "./snapshot.ts";
+
 export {
   type ClaimPaths,
   claimPaths,
   DEFAULT_CLAIMS,
   tenantClaimPaths,
 } from "../core/claims.ts";
+
 export {
   buildJsonSchema,
   jsonSchema,
   type JsonSchemaGeneratorOptions,
   type JsonSchemaTarget,
 } from "../generators/json-schema.ts";
+
 export {
   standardSchema,
   type StandardSchemaGeneratorOptions,
 } from "../generators/standard-schema.ts";
+
 export {
   valibot,
   type ValibotGeneratorOptions,
 } from "../generators/valibot.ts";
+
 export {
   zod,
   type ZodFlavor,

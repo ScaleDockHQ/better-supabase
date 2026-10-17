@@ -55,17 +55,21 @@ export function sensitiveFunctions(
 ): string {
   const e = (column: string): string => n.c("employees", column);
   const employees = n.t("employees");
+
   const reader = (alias: string): string =>
     `(${n.service} or ${ctx.scope.can(`${alias}.${e("tenant")}`, n.sensitive)} or ${alias}.${e("user")} = auth.uid())`;
+
   const load = (fnName: string, arg: string, allowed: string): string => `
   select * into v_employee from ${employees} x where x.${e("id")} = ${fnName}.${arg};
   if v_employee.${e("id")} is null or not ${allowed} then
     ${fail("EMPLOYEE_NOT_FOUND", "no such employee whose details you can see", "P0002")}
   end if;`;
+
   return `${privateSql(ctx, n, reader, load)}${contractsSql(ctx, n, reader, load)}`;
 }
 
 type Reader = (alias: string) => string;
+
 type Loader = (fnName: string, arg: string, allowed: string) => string;
 
 function privateSql(
@@ -77,19 +81,24 @@ function privateSql(
   if (!ctx.hasTable("privateDetails")) {
     return "";
   }
+
   const p = (column: string): string => n.c("privateDetails", column);
   const has = (column: string): boolean => ctx.has("privateDetails", column);
   const e = (column: string): string => n.c("employees", column);
   const table = n.t("privateDetails");
+
   const sets = [
     ...DETAILS.filter((detail) => has(detail.column)).map((detail) => {
       const key = sqlString(detail.key);
+
       return `${p(detail.column)} = case when save_employee_private_details.attrs ? ${key} then ${detail.value(`save_employee_private_details.attrs ->> ${key}`, `save_employee_private_details.attrs -> ${key}`)} else x.${p(detail.column)} end`;
     }),
     ...(has("updatedAt") ? [`${p("updatedAt")} = now()`] : []),
     ...(has("updatedBy") ? [`${p("updatedBy")} = auth.uid()`] : []),
   ];
+
   const user = has("user");
+
   return `
 -- An employee's private details, or null when none are saved.
 create or replace function ${n.fn("employee_private_details")}(employee uuid)
@@ -154,15 +163,19 @@ function contractsSql(
   if (!ctx.hasTable("contracts")) {
     return "";
   }
+
   const k = (column: string): string => n.c("contracts", column);
   const has = (column: string): boolean => ctx.has("contracts", column);
   const e = (column: string): string => n.c("employees", column);
   const table = n.t("contracts");
   const salaryKey = sqlString(k("salary").replaceAll('"', ""));
+
   const row = (alias: string): string =>
     `to_jsonb(${alias}) || jsonb_build_object(${salaryKey}, ${alias}.${k("salary")}::text)`;
+
   const arg = (key: string): string =>
     `add_employee_contract.attrs ->> ${sqlString(key)}`;
+
   const columns = [
     k("tenant"),
     k("employee"),
@@ -175,6 +188,7 @@ function contractsSql(
     ...(has("note") ? [k("note")] : []),
     ...(has("createdBy") ? [k("createdBy")] : []),
   ];
+
   const values = [
     `v_employee.${e("tenant")}`,
     `v_employee.${e("id")}`,
@@ -187,6 +201,7 @@ function contractsSql(
     ...(has("note") ? [`nullif(trim(${arg("note")}), '')`] : []),
     ...(has("createdBy") ? ["auth.uid()"] : []),
   ];
+
   const updated = ctx.record({
     type: "employee.updated",
     payload: `jsonb_build_object('organizationId', v_employee.${e("tenant")}, 'employeeId', v_employee.${e("id")}, 'subjectType', 'employee', 'subjectId', v_employee.${e("id")}::text, 'name', v_employee.${e("name")}, 'fields', jsonb_build_array('contract'))`,
@@ -194,6 +209,7 @@ function contractsSql(
     tenant: `v_employee.${e("tenant")}::text`,
     audit: false,
   });
+
   return `
 -- An employee's contracts, the newest first. Salaries are minor units as
 -- text.

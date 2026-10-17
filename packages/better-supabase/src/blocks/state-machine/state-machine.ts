@@ -130,6 +130,7 @@ const optionalNumber = (value: unknown): number | undefined =>
 
 function stateOf(value: unknown): StatusState {
   const row = recordOf(value, "status_state");
+
   return {
     organizationId: textOf(row["organizationId"]),
     subjectType: textOf(row["subjectType"]),
@@ -177,6 +178,7 @@ export function createStateMachine<S extends string = string>(
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const isTrue = (value: unknown): boolean => value === true;
+
   const client: StateMachine<S> = {
     transition: (subjectType, subjectId, to, reason) =>
       call(
@@ -236,6 +238,7 @@ export function createStateMachine<S extends string = string>(
         (value) => recordsOf(value, "list_status_stages").map(stageOf),
       ),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "state-machine",
     ...(options.logger ? { logger: options.logger } : {}),

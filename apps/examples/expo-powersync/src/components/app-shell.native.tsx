@@ -13,6 +13,7 @@ import { AuthGate } from "./auth-gate";
 export function AppShell({ children }: { readonly children: ReactNode }) {
   useSync();
   useAuthLinks();
+
   return (
     <BetterSupabaseProvider client={bs}>
       <AuthGate>{children}</AuthGate>
@@ -28,9 +29,11 @@ function useAuthLinks(): void {
         void handleAuthDeepLink(supabase, url);
       }
     });
+
     const subscription = Linking.addEventListener("url", ({ url }) => {
       void handleAuthDeepLink(supabase, url);
     });
+
     return () => {
       subscription.remove();
     };

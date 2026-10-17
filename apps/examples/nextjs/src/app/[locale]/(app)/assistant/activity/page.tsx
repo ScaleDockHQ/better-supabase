@@ -11,6 +11,7 @@ export const instant = true;
 
 export default function AgentActivityPage() {
   const t = useExtracted("assistant");
+
   return (
     <>
       <PageHeader

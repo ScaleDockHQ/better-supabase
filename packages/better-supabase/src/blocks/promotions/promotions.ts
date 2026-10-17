@@ -27,6 +27,7 @@ import {
 } from "../shared.ts";
 
 export { PROMOTION_KINDS };
+
 export type PromotionKind = (typeof PROMOTION_KINDS)[number];
 
 export const PROMOTION_SCOPES = [
@@ -35,6 +36,7 @@ export const PROMOTION_SCOPES = [
   "categories",
   "collections",
 ] as const;
+
 export type PromotionScope = (typeof PROMOTION_SCOPES)[number];
 
 /** What a promotion takes off. */
@@ -154,10 +156,12 @@ function promotionData(
   input: PromotionInput,
 ): Record<string, unknown> | string {
   const { discount, minSubtotal } = input;
+
   const currency =
     discount.kind === "fixed"
       ? discount.amount.currency
       : minSubtotal?.currency;
+
   if (
     discount.kind === "fixed" &&
     minSubtotal !== undefined &&
@@ -165,6 +169,7 @@ function promotionData(
   ) {
     return `the minimum subtotal is in ${minSubtotal.currency}, the discount in ${discount.amount.currency}`;
   }
+
   return {
     name: input.name,
     description: input.description ?? null,
@@ -191,6 +196,7 @@ function codesOf(value: unknown): readonly PromotionCode[] {
   if (!Array.isArray(value)) {
     return [];
   }
+
   return value.filter(isRecord).map((entry) => ({
     id: textOf(entry["id"]),
     code: textOf(entry["code"]),
@@ -202,20 +208,25 @@ export function createPromotions<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: PromotionsOptions<S>): Promotions<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const fields: BlockFields<F> = blockFields(
     options.fields,
     "promotion fields",
   );
+
   const promotions: Promotions<F> = {
     savePromotion: (organizationId, input) => {
       const data = promotionData(input);
+
       if (typeof data === "string") {
         return AsyncResult.err(
           dbError("invalid_request", data, { hint: "PROMOTIONS_INVALID" }),
         );
       }
+
       return writeFields(fields, input.fields, (checked) =>
         call(
           "save_promotion",
@@ -227,6 +238,7 @@ export function createPromotions<
           },
           (value) => {
             const row = recordOf(value, "save_promotion");
+
             return { id: textOf(row["id"]), fields: rowFields(row["fields"]) };
           },
         ),
@@ -253,6 +265,7 @@ export function createPromotions<
     applyCode: (cartId, code) =>
       call("apply_promotion_code", { cart: cartId, code }, (value) => {
         const row = recordOf(value, "apply_promotion_code");
+
         return {
           codeId: textOf(row["codeId"]),
           code: textOf(row["code"]),
@@ -262,6 +275,7 @@ export function createPromotions<
     removeCode: (cartId, code) =>
       call("remove_promotion_code", { cart: cartId, code }, isTrue),
   };
+
   return withBlockHooks(promotions, options.hooks, {
     block: "promotions",
     ...(options.logger ? { logger: options.logger } : {}),

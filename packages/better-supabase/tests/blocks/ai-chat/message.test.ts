@@ -39,6 +39,7 @@ describe("aiMessageSchema", () => {
         { type: "data", name: "weather", data: { c: 20 }, id: undefined },
       ],
     };
+
     expect(validate(message)).toEqual({ value: message });
     expect(isAiMessage(message)).toBe(true);
   });

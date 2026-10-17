@@ -20,10 +20,12 @@ function first(
 /** Node's headers as `Headers`; HTTP/2 pseudo-headers (`:path`) are dropped. */
 export function toWebHeaders(incoming: NodeIncomingHeaders): Headers {
   const headers = new Headers();
+
   for (const [name, value] of Object.entries(incoming)) {
     if (value === undefined || name.startsWith(":")) {
       continue;
     }
+
     if (typeof value === "string") {
       headers.set(name, value);
     } else {
@@ -32,6 +34,7 @@ export function toWebHeaders(incoming: NodeIncomingHeaders): Headers {
       }
     }
   }
+
   return headers;
 }
 
@@ -39,14 +42,20 @@ function originOf(req: NodeRequestHead, trustProxy: boolean): string {
   const forwardedProto = trustProxy
     ? first(req.headers["x-forwarded-proto"])?.split(",")[0]?.trim()
     : undefined;
+
   const socket = req.socket;
+
   const encrypted =
     socket !== undefined && "encrypted" in socket && socket.encrypted === true;
+
   const protocol = forwardedProto ?? (encrypted ? "https" : "http");
+
   const forwardedHost = trustProxy
     ? first(req.headers["x-forwarded-host"])?.split(",")[0]?.trim()
     : undefined;
+
   const host = forwardedHost ?? first(req.headers["host"]) ?? "localhost";
+
   return `${protocol}://${host}`;
 }
 
@@ -59,6 +68,7 @@ export function nodeRequestUrl(req: NodeRequestHead, trustProxy = false): URL {
     "originalUrl" in req && typeof req.originalUrl === "string"
       ? req.originalUrl
       : (req.url ?? "/");
+
   return new URL(path, originOf(req, trustProxy));
 }
 
@@ -88,20 +98,26 @@ export function applyWebHeaders(
     if (values.length === 0) {
       return;
     }
+
     const existing = target.getHeader(name);
+
     const before =
       existing === undefined
         ? []
         : typeof existing === "object"
           ? existing
           : [String(existing)];
+
     target.setHeader(name, [...before, ...values]);
   };
+
   append("set-cookie", headers.getSetCookie());
+
   for (const [name, value] of headers) {
     if (name === "set-cookie") {
       continue;
     }
+
     if (name === "server-timing") {
       append(name, [value]);
     } else {

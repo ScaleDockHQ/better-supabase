@@ -31,10 +31,12 @@ describe.skipIf(!live)("audit hash chain", () => {
 
   it("links each tenant's entries, finds an edited one and signs the heads", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["audit"], chained);
       const tenant = crypto.randomUUID();
       const ids: string[] = [];
+
       for (const name of ["deal.won", "deal.lost", "deal.reopened"]) {
         ids.push(
           await s.value<string>(
@@ -43,13 +45,16 @@ describe.skipIf(!live)("audit hash chain", () => {
           ),
         );
       }
+
       await s.service();
       await s.client.query("set local role service_role");
+
       const chain = createAuditChain({
         transport: sqlTransport(s.sql),
         signer,
         issuer: "https://app.example",
       });
+
       const verdict = await chain.verify({ organizationId: tenant }).orThrow();
       expect(verdict).toMatchObject({ valid: true, checked: 3, seq: 3 });
 
@@ -103,6 +108,7 @@ describe.skipIf(!live)("audit hash chain", () => {
 
   it("drops whole expired months of a partitioned log unless a hold covers it", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.client.query(
         "drop table if exists better_supabase.audit_events cascade",
@@ -127,9 +133,11 @@ describe.skipIf(!live)("audit hash chain", () => {
       await s.client.query(
         "create table better_supabase.audit_events_p202301 partition of better_supabase.audit_events for values from ('2023-01-01 00:00Z') to ('2023-02-01 00:00Z')",
       );
+
       const [row] = await s.rows<{ id: string }>(
         "insert into better_supabase.audit_events (op, event_type, occurred_at) values ('event', 'system.old', '2023-01-15Z') returning id",
       );
+
       const old = row!.id;
       await s.client.query(
         "insert into better_supabase.audit_events_restricted (entry_id, metadata) values ($1, '{}')",
@@ -139,12 +147,15 @@ describe.skipIf(!live)("audit hash chain", () => {
 
       await s.service();
       await s.client.query("set local role service_role");
+
       const retention = createRetention({
         transport: lifecycleTransport(s.sql),
       });
+
       const hold = await retention
         .placeHold({ reason: "Audit", kind: "audit" })
         .orThrow();
+
       const purge = "better_supabase.purge_audit_log(older_than => '1 year')";
       expect(await s.value<number>(purge)).toBe(0);
       expect(

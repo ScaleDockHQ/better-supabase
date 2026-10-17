@@ -56,15 +56,19 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 /** The boolean expression a write checks. The provider template wins, alone. */
 function actorMayWriteExpression(layout: ModuleLayout): string {
   const template = layout.accessProvider?.functions.actorMayWrite;
+
   if (template === undefined) {
     return "better_supabase.actor_may_write()";
   }
+
   const placeholders = templatePlaceholders(template);
+
   if (placeholders.length > 0) {
     throw new TypeError(
       `authorization.functions.actorMayWrite takes no placeholders, got ${placeholders.map((name) => `{${name}}`).join(", ")}`,
     );
   }
+
   return fillTemplate("authorization.functions.actorMayWrite", template, {});
 }
 
@@ -75,6 +79,7 @@ function applyProviderCheck(sql: string, expression: string): string {
   if (expression === BUILTIN_ACTOR_MAY_WRITE) {
     return sql;
   }
+
   return sql.replaceAll(BUILTIN_ACTOR_MAY_WRITE, `(${expression})`);
 }
 
@@ -86,19 +91,23 @@ export function applyActorWriteGuards(
   layout: ModuleLayout,
 ): string {
   const expression = actorMayWriteExpression(layout);
+
   const guarded = applyProviderCheck(
     guardPolicies(guardFunctions(sql, expression), expression),
     expression,
   );
+
   if (
     !guarded.includes("actor_may_write(") &&
     !guarded.includes("raise_actor_readonly(")
   ) {
     return guarded;
   }
+
   if (guarded.includes("function better_supabase.actor_may_write(")) {
     return guarded;
   }
+
   return `${actorWriteFunctions()}\n${guarded}`;
 }
 
@@ -107,26 +116,34 @@ function guardFunctions(sql: string, expression: string): string {
   let cursor = 0;
   let out = "";
   const start = /create\s+(?:or\s+replace\s+)?function\s+/gi;
+
   for (const match of sql.matchAll(start)) {
     const at = match.index;
+
     if (at < cursor) {
       continue;
     }
+
     const tagged = /as\s+(\$[a-zA-Z0-9_]*\$)/i.exec(sql.slice(at));
+
     if (tagged === null) {
       break;
     }
+
     const tag = tagged[1] ?? "$$";
     const headerEnd = at + tagged.index;
     const bodyStart = at + tagged.index + tagged[0].length;
     const bodyEnd = sql.indexOf(tag, bodyStart);
+
     if (bodyEnd === -1) {
       break;
     }
+
     out += sql.slice(cursor, bodyStart);
     const header = sql.slice(at, headerEnd);
     const name = functionName(header);
     const body = sql.slice(bodyStart, bodyEnd);
+
     const guard =
       name !== undefined &&
       granted.has(name) &&
@@ -135,11 +152,13 @@ function guardFunctions(sql: string, expression: string): string {
       WRITE.test(body) &&
       !body.includes("ACTOR_READ_ONLY") &&
       !body.includes("raise_actor_readonly()");
+
     out += guard
       ? injectGuard(body, expression, /\blanguage\s+sql\b/i.test(header))
       : body;
     cursor = bodyEnd;
   }
+
   return out + sql.slice(cursor);
 }
 
@@ -149,13 +168,17 @@ function injectGuard(
   languageSql: boolean,
 ): string {
   const begin = /\bbegin\b/i.exec(body);
+
   if (begin !== null) {
     const at = begin.index + begin[0].length;
+
     return `${body.slice(0, at)}\n  if not (${expression}) then\n    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';\n  end if;${body.slice(at)}`;
   }
+
   if (!languageSql) {
     return body;
   }
+
   return `\n  select better_supabase.raise_actor_readonly() where not (${expression});\n${body}`;
 }
 
@@ -164,25 +187,32 @@ function functionName(header: string): string | undefined {
     /function\s+(?:(?:"[^"]+"|[a-z_][\w$]*)\s*\.\s*)?(?:"([^"]+)"|([a-z_][\w$]*))\s*\(/i.exec(
       header,
     );
+
   return match?.[1] ?? match?.[2];
 }
 
 function grantedFunctionNames(sql: string): Set<string> {
   const names = new Set<string>();
+
   const grants =
     /grant\s+execute\s+on\s+function\s+((?:"[^"]+"|[a-z_][\w$]*)(?:\s*\.\s*(?:"[^"]+"|[a-z_][\w$]*))?)\s*\([^;]*?\)\s+to\s+([^;]+)/gi;
+
   for (const match of sql.matchAll(grants)) {
     const roles = match[2] ?? "";
+
     if (!/\bauthenticated\b/i.test(roles) && !/\banon\b/i.test(roles)) {
       continue;
     }
+
     const qualified = match[1] ?? "";
     const name = /(?:"([^"]+)"|([a-z_][\w$]*))\s*$/i.exec(qualified);
     const found = name?.[1] ?? name?.[2];
+
     if (found !== undefined) {
       names.add(found);
     }
   }
+
   return names;
 }
 
@@ -191,12 +221,15 @@ function guardPolicies(sql: string, expression: string): string {
     if (!/\bfor\s+(insert|update|delete)\b/i.test(statement)) {
       return statement;
     }
+
     if (/\bfor\s+(all|select)\b/i.test(statement)) {
       return statement;
     }
+
     if (!/\bto\s+[^;]*\bauthenticated\b/i.test(statement)) {
       return statement;
     }
+
     return wrapClause(
       wrapClause(statement, "with check", expression),
       "using",
@@ -212,26 +245,34 @@ function wrapClause(
 ): string {
   const re = new RegExp(`\\b${keyword}\\s*\\(`, "i");
   const match = re.exec(statement);
+
   if (match === null) {
     return statement;
   }
+
   const open = match.index + match[0].length - 1;
   const close = closingParen(statement, open);
+
   if (close === -1) {
     return statement;
   }
+
   const inner = statement.slice(open + 1, close);
+
   if (inner.includes("actor_may_write(")) {
     return statement;
   }
+
   return `${statement.slice(0, open + 1)}(${inner}) and (select ${expression})${statement.slice(close)}`;
 }
 
 function closingParen(text: string, open: number): number {
   let depth = 0;
   let quote: string | undefined;
+
   for (let i = open; i < text.length; i++) {
     const char = text[i]!;
+
     if (quote) {
       if (char === quote && text[i + 1] === quote) {
         i += 1;
@@ -244,10 +285,12 @@ function closingParen(text: string, open: number): number {
       depth += 1;
     } else if (char === ")") {
       depth -= 1;
+
       if (depth === 0) {
         return i;
       }
     }
   }
+
   return -1;
 }

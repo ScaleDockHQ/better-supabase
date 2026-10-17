@@ -92,6 +92,7 @@ describe("block scope", () => {
   it("drops tenant and access from what a user-scoped block needs", () => {
     const names = (scope?: "user") =>
       resolveModules(["tags"], scope ? { scope } : {}).map((m) => m.name);
+
     expect(names()).toEqual(expect.arrayContaining(["tenant", "access"]));
     expect(names("user")).toEqual(["tags"]);
   });
@@ -124,6 +125,7 @@ describe("block scope", () => {
       )
       .filter((module) => module.scopes === undefined)
       .map((module) => module.name);
+
     expect(undeclared).toEqual([]);
   });
 
@@ -142,16 +144,21 @@ describe("module sources", () => {
   it("name the access contract only through ctx.scope", async () => {
     const literal =
       /better_supabase\.can\(|tenant_ids_with\(|is_platform\(|member_organization_ids\(\)/;
+
     const files = (await readdir(MODULES_DIR)).filter(
       (file) => file.endsWith(".ts") && file !== "access.ts",
     );
+
     const sites: string[] = [];
+
     for (const file of files) {
       const lines = (await readFile(new URL(file, MODULES_DIR), "utf-8")).split(
         "\n",
       );
+
       lines.forEach((line, index) => {
         const code = line.trim();
+
         if (
           /^(\*|\/\/|\/\*|--)/.test(code) ||
           code.startsWith('"') ||
@@ -159,11 +166,13 @@ describe("module sources", () => {
         ) {
           return;
         }
+
         if (literal.test(line)) {
           sites.push(`${file}:${String(index + 1)}`);
         }
       });
     }
+
     expect(sites).toEqual([]);
   });
 });
@@ -178,6 +187,7 @@ describe("sql.naming.tenant", () => {
 
   it("leaves no organization identifier but parameter names", () => {
     const names = Object.keys(SQL_MODULES).filter((name) => name !== "pgtap");
+
     const found = new Set(
       renderModules(names, layout).flatMap((file) =>
         [...code(file.contents).matchAll(/\w*organization\w*/g)].map(
@@ -185,6 +195,7 @@ describe("sql.naming.tenant", () => {
         ),
       ),
     );
+
     // Function parameters keep their names, so the TypeScript clients pass
     // the same arguments under any tenant name.
     expect([...found].toSorted()).toEqual([
@@ -225,6 +236,7 @@ describe("blocks.<name>.functions", () => {
       moduleBody("tags", {
         modules: { tags: { functions: { create_tag: "make_tag" } } },
       }) ?? "";
+
     expect(sql).toContain('"better_supabase"."make_tag"(');
     expect(sql).toContain("make_tag.tenant");
     expect(sql).not.toMatch(/\bcreate_tag\b/);
@@ -238,6 +250,7 @@ describe("blocks.<name>.functions", () => {
           organizations: { functions: { create_workspace: "open_workspace" } },
         },
       }) ?? "";
+
     expect(sql).toContain('"better_supabase"."open_workspace"(');
   });
 

@@ -33,6 +33,7 @@ async function reinstall(
   layout: ModuleLayout,
 ): Promise<void> {
   await s.client.query("reset role");
+
   for (const file of renderModules(modules, layout)) {
     if (file.module === module && file.kind === "schema") {
       await s.client.query(file.contents);
@@ -52,6 +53,7 @@ async function providerLayout(
       language sql stable as $$ select kind = '${kind}' and subject is not null $$;
     grant usage on schema ${schema} to authenticated;
   `);
+
   return {
     modules: { access: { model: "provider" } },
     accessProvider: {
@@ -77,11 +79,13 @@ describe.skipIf(!live)("support session approvals as real users", () => {
     const approver = await s.user("approver");
     const outsider = await s.user("outsider");
     const target = await s.user("target");
+
     return { requester, approver, outsider, target };
   }
 
   it("starts only after a different eligible admin approves, once", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const { requester, approver, outsider, target } = await setUp(s);
       const third = await s.user("third");
@@ -89,6 +93,7 @@ describe.skipIf(!live)("support session approvals as real users", () => {
       expect(await s.hint(START, [target.id, "ticket 1"])).toBe(
         "SUPPORT_APPROVAL_REQUIRED",
       );
+
       for (const reason of [null, "", "   "]) {
         expect(await s.hint(START, [target.id, reason])).toBe(
           "SUPPORT_REASON_REQUIRED",
@@ -120,14 +125,17 @@ describe.skipIf(!live)("support session approvals as real users", () => {
       });
 
       await s.asRole(requester, staff);
+
       const session = await s.value<{ id: string }>(START, [
         target.id,
         "ticket 1",
       ]);
+
       const [used] = await s.rows<Request>(
         "select session_id::text from better_supabase.support_requests where id = $1",
         [request.id],
       );
+
       expect(used?.session_id).toBe(session.id);
       expect(await s.hint(START, [target.id, "ticket 1"])).toBe(
         "SUPPORT_APPROVAL_REQUIRED",
@@ -143,11 +151,14 @@ describe.skipIf(!live)("support session approvals as real users", () => {
 
   it("gives a client no way around the second admin", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const { requester, approver, target } = await setUp(s);
       await s.asRole(requester, staff);
+
       const forged =
         "better_supabase.request_support_session($1, $2, true, '{}', null, null, $3)";
+
       expect(await s.hint(forged, [target.id, "ticket", approver.id])).toBe(
         "SUPPORT_FORBIDDEN",
       );
@@ -213,6 +224,7 @@ describe.skipIf(!live)("support session approvals as real users", () => {
 
   it("asks the provider's isApprover and still refuses the requester", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const { requester, outsider, target } = await setUp(s);
       const layout = await providerLayout(s, "support-session");
@@ -237,6 +249,7 @@ describe.skipIf(!live)("ai-chat tool approvals through isApprover", () => {
 
   it("never lets the chat's owner approve their own tool call", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const modules = ["organizations", "outbox", "ai-chat"];
       await s.install(modules);
@@ -250,10 +263,12 @@ describe.skipIf(!live)("ai-chat tool approvals through isApprover", () => {
         await providerLayout(s, "ai-tool"),
       );
       await s.as(owner);
+
       const chat = await s.value<{ id: string }>(
         "better_supabase.create_ai_chat($1)",
         [tenant],
       );
+
       await s.service();
       await s.value("better_supabase.record_ai_tool_approval($1, $2)", [
         chat.id,

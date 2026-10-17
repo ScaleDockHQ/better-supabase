@@ -23,6 +23,7 @@ class Redirect extends Error {
     this.location = location;
   }
 }
+
 class HttpError extends Error {
   readonly status: number;
   readonly body: { readonly message: string };
@@ -32,6 +33,7 @@ class HttpError extends Error {
     this.body = body;
   }
 }
+
 const kit: SvelteKitHelpers = {
   redirect: (status, location) => {
     throw new Redirect(status, location);
@@ -61,9 +63,11 @@ async function withEvent<T>(
     event,
     resolve: async () => {
       out = await fn(event);
+
       return new Response(null);
     },
   });
+
   // SAFETY: resolve ran fn before handle returned.
   return out as T;
 }
@@ -100,10 +104,12 @@ describe("createSvelteKit", () => {
     const save = bs.action({}, (input) => ok({ input }));
     const form = new FormData();
     form.append("title", "Hello");
+
     const request = await requestAs(
       { role: "member" },
       { method: "POST", body: form, url: "https://app.test/notes" },
     );
+
     const result = await withEvent(request, (event) => save(event));
     expect(result).toEqual({
       ok: true,
@@ -115,6 +121,7 @@ describe("createSvelteKit", () => {
       await requestAs(undefined, { method: "POST", body: new FormData() }),
       (event) => save(event),
     );
+
     expect(refused).toMatchObject({ status: 401, data: { ok: false } });
   });
 

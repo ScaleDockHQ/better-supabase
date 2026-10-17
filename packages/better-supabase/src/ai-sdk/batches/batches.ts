@@ -110,6 +110,7 @@ const PAGE = 100;
 
 function referenceOf(batch: AiBatch): Experimental_BatchReference | undefined {
   const reference = batch.reference;
+
   return reference["version"] === 2 &&
     typeof reference["id"] === "string" &&
     typeof reference["provider"] === "string"
@@ -138,6 +139,7 @@ export function batchItemOf(
       ...(item.error === undefined ? {} : { error: item.error.message }),
     };
   }
+
   if (item.type === "text") {
     return {
       requestId: item.id,
@@ -151,6 +153,7 @@ export function batchItemOf(
       usage: jsonOf(item.usage),
     };
   }
+
   return {
     requestId: item.id,
     status: "succeeded",
@@ -173,6 +176,7 @@ export function aiBatches(options: AiBatchesOptions): AiBatches {
   const api: BatchApi = { ...DEFAULT_API, ...options.api };
   const store = options.providers.batches;
   const pollEvery = options.pollEvery ?? 60;
+
   const providerFor = (
     reference: Experimental_BatchReference,
   ): { provider?: Experimental_BatchProvider } => {
@@ -180,8 +184,10 @@ export function aiBatches(options: AiBatchesOptions): AiBatches {
       typeof options.provider === "function"
         ? options.provider(reference)
         : options.provider;
+
     return chosen === undefined ? {} : { provider: chosen };
   };
+
   const nextPoll = (): Temporal.Instant =>
     nowInstant().add({ seconds: pollEvery });
 
@@ -200,6 +206,7 @@ export function aiBatches(options: AiBatchesOptions): AiBatches {
     batch: AiBatch,
   ): AsyncResult<Experimental_BatchReference> => {
     const reference = referenceOf(batch);
+
     return reference === undefined
       ? AsyncResult.err(
           dbError("invalid_input", `batch ${batch.id} has no batch reference`, {
@@ -215,6 +222,7 @@ export function aiBatches(options: AiBatchesOptions): AiBatches {
         api.status({ ...providerFor(reference), batch: reference }),
       ).andThen((status) => {
         const counts = countsOf(status);
+
         return store.update(batch.id, {
           status: status.status,
           ...(status.rawStatus === undefined
@@ -237,14 +245,18 @@ export function aiBatches(options: AiBatchesOptions): AiBatches {
       AsyncResult.from(async () => {
         let saved = 0;
         let page: AiBatchItemInput[] = [];
+
         const flush = async () => {
           if (page.length === 0) {
             return ok(0);
           }
+
           const written = await store.saveItems(batch.id, page);
           page = [];
+
           return written;
         };
+
         try {
           for await (const item of api.results({
             ...providerFor(reference),
@@ -255,11 +267,14 @@ export function aiBatches(options: AiBatchesOptions): AiBatches {
                 ? batchItemOf(item)
                 : await options.onItem(item, batch),
             );
+
             if (page.length >= PAGE) {
               const written = await flush();
+
               if (!written.ok) {
                 return written;
               }
+
               saved += written.data;
             }
           }
@@ -270,19 +285,26 @@ export function aiBatches(options: AiBatchesOptions): AiBatches {
             }),
           );
         }
+
         const written = await flush();
+
         if (!written.ok) {
           return written;
         }
+
         saved += written.data;
+
         const done = await store.update(batch.id, {
           resultsSaved: true,
           nextPollAt: null,
         });
+
         if (!done.ok) {
           return done;
         }
+
         await options.onDone?.(done.data);
+
         return ok(saved);
       }),
     );
@@ -291,6 +313,7 @@ export function aiBatches(options: AiBatchesOptions): AiBatches {
     if (batch.status !== "pending") {
       return collect(batch).map(() => batch);
     }
+
     return refresh(batch).andThen((fresh) =>
       fresh.status === "pending"
         ? AsyncResult.ok(fresh)
@@ -303,15 +326,18 @@ export function aiBatches(options: AiBatchesOptions): AiBatches {
       AsyncResult.from(async () => {
         for (const batch of due) {
           const polled = await pollOne(batch);
+
           if (!polled.ok) {
             const noted = await store.update(batch.id, {
               error: polled.error.message,
             });
+
             if (!noted.ok) {
               return noted;
             }
           }
         }
+
         return ok(due.length);
       }),
     );
@@ -319,6 +345,7 @@ export function aiBatches(options: AiBatchesOptions): AiBatches {
   return {
     start: (context, startOptions) => {
       const { metadata, ...batchOptions } = startOptions;
+
       return call(() => api.start(batchOptions)).andThen((started) =>
         store.record(context.organizationId, {
           provider: started.provider,

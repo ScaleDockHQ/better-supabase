@@ -18,6 +18,7 @@ describe.skipIf(!source)("readExtras against the local stack", () => {
 
   it("keeps INCLUDE columns out of uniques and reads grants as any role", async () => {
     await db.query("begin");
+
     try {
       await db.query(`
         create schema introspect_probe;
@@ -52,6 +53,7 @@ describe.skipIf(!source)("readExtras against the local stack", () => {
   it("keeps the fingerprint across temporary tables", async () => {
     const before = await catalogFingerprint(db);
     await db.query("begin");
+
     try {
       await db.query(
         "create temp table introspect_scratch (id int primary key, note text default 'x')",

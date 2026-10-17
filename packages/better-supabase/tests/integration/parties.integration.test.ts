@@ -29,6 +29,7 @@ describe.skipIf(!live)("parties", () => {
 
   it("keeps companies, people and who works where", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const owner = await s.user("owner");
       const rep = await s.user("rep");
@@ -38,6 +39,7 @@ describe.skipIf(!live)("parties", () => {
       const parties = createParties({ transport: sqlTransport(s.sql) });
 
       await s.as(rep);
+
       const acme = await parties
         .saveCompany(org, {
           name: "Acme",
@@ -46,6 +48,7 @@ describe.skipIf(!live)("parties", () => {
           fields: { segment: "smb" },
         })
         .orThrow();
+
       expect(acme).toMatchObject({
         name: "Acme",
         domain: "acme.com",
@@ -66,9 +69,11 @@ describe.skipIf(!live)("parties", () => {
       const ada = await parties
         .savePerson(org, { name: "Ada", email: "ADA@acme.com", title: "CTO" })
         .orThrow();
+
       const bob = await parties
         .savePerson(org, { name: "Bob", email: "bob@acme.com" })
         .orThrow();
+
       await parties
         .linkPerson(acme.id, ada.id, { role: "Champion", primary: true })
         .orThrow();
@@ -82,12 +87,15 @@ describe.skipIf(!live)("parties", () => {
       const updated = await parties
         .saveCompany(org, { id: acme.id, lifecycle: "customer", website: null })
         .orThrow();
+
       expect(updated).toMatchObject({ name: "Acme", lifecycle: "customer" });
 
       const page = await parties
         .listPeople(org, { search: "acme", limit: 1 })
         .orThrow();
+
       expect(page.items.map((person) => person.name)).toEqual(["Ada"]);
+
       const next = await parties
         .listPeople(org, {
           search: "acme",
@@ -95,6 +103,7 @@ describe.skipIf(!live)("parties", () => {
           ...(page.next ? { cursor: page.next } : {}),
         })
         .orThrow();
+
       expect(next.items.map((person) => person.name)).toEqual(["Bob"]);
 
       expect(
@@ -148,6 +157,7 @@ describe.skipIf(!live)("parties and the inbox", () => {
 
   it("finds the person behind an inbox contact by link, by email or as a new lead", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const owner = await s.user("owner");
       await s.install(
@@ -157,6 +167,7 @@ describe.skipIf(!live)("parties and the inbox", () => {
       const org = await s.organization(owner);
       const parties = createParties({ transport: sqlTransport(s.sql) });
       await s.service();
+
       const contact = async (
         name: string | null,
         email: string | null,
@@ -167,23 +178,28 @@ describe.skipIf(!live)("parties and the inbox", () => {
             [org, name, email],
           )
         )[0]!.id;
+
       const byEmail = await contact("Ada L.", "ADA@acme.com");
       const unknown = await contact("Bob", null);
       const anonymous = await contact(null, null);
 
       await s.as(owner);
+
       const ada = await parties
         .savePerson(org, { name: "Ada", email: "ada@acme.com" })
         .orThrow();
+
       expect((await parties.personForInboxContact(byEmail).orThrow())?.id).toBe(
         ada.id,
       );
       expect(
         await parties.personForInboxContact(unknown).orThrow(),
       ).toBeUndefined();
+
       const lead = await parties
         .personForInboxContact(unknown, { create: true })
         .orThrow();
+
       expect(lead).toMatchObject({ name: "Bob", lifecycle: "lead" });
       expect((await parties.personForInboxContact(unknown).orThrow())?.id).toBe(
         lead?.id,

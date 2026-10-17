@@ -108,12 +108,15 @@ for (const name of Object.keys(users) as UserName[]) {
         await expect(visibleTestId(page, "organization-name")).toHaveText(
           users[name].organization,
         );
+
         for (const route of routes) {
           const link = sidebarLink(page, route.label[locale]);
+
           if (!route.visibleTo.includes(name)) {
             await expect(link).toHaveCount(0);
             continue;
           }
+
           await expectInstant(page, {
             during: clickSidebar(
               page,

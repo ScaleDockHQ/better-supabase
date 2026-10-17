@@ -44,11 +44,14 @@ const jsonSchemaOf = (
 ): Readonly<Record<string, unknown>> | undefined => {
   const standard: unknown = entry.schema["~standard"];
   const converter = isRecord(standard) ? standard["jsonSchema"] : undefined;
+
   if (!isConverter(converter)) {
     return undefined;
   }
+
   try {
     const converted = converter.input({ target: "draft-2020-12" });
+
     return isRecord(converted) ? converted : undefined;
   } catch {
     return undefined;
@@ -73,13 +76,16 @@ function fieldOf<K extends string>(
 ): SettingField<K> {
   const schema = jsonSchemaOf(entry);
   const values = schema?.["enum"];
+
   const choices = isList(values)
     ? values.filter(
         (value): value is string | number =>
           typeof value === "string" || typeof value === "number",
       )
     : [];
+
   const type = schema?.["type"];
+
   const kind: SettingKind =
     choices.length > 0
       ? "choice"
@@ -92,6 +98,7 @@ function fieldOf<K extends string>(
             : type === undefined
               ? kindOfValue(entry.default)
               : "json";
+
   return {
     key,
     kind,
@@ -110,14 +117,18 @@ export function settingFields<E extends SettingEntries>(
   entries: E,
 ): readonly SettingField<keyof E & string>[] {
   const fields: SettingField<keyof E & string>[] = [];
+
   for (const key of Object.keys(entries)) {
     const entry = entries[key];
+
     if (!entry) {
       continue;
     }
+
     // SAFETY: `key` comes from `Object.keys(entries)`, so it is a key of E.
     fields.push(fieldOf(key as keyof E & string, entry));
   }
+
   return fields;
 }
 
@@ -183,6 +194,7 @@ function storeOf<E extends SettingEntries>(
   options: SettingsControllerOptions<E>,
 ): Store<E> | undefined {
   const { user, organization } = options;
+
   if (user) {
     return {
       get: () => user.getUser(),
@@ -190,15 +202,19 @@ function storeOf<E extends SettingEntries>(
       reset: (key) => user.resetUser(key),
     };
   }
+
   if (!organization) {
     throw new TypeError(
       "better-supabase: createSettingsController needs `user` or `organization`",
     );
   }
+
   const organizationId = options.organizationId ?? null;
+
   if (organizationId === null) {
     return undefined;
   }
+
   return {
     get: () => organization.getOrganization(organizationId),
     set: (key, value) =>
@@ -216,6 +232,7 @@ export function createSettingsController<E extends SettingEntries>(
   options: SettingsControllerOptions<E>,
 ): SettingsController<E> {
   const store = storeOf(options);
+
   return defineController<SettingsSnapshot<E>, SettingsActions<E>>(
     {
       fields: settingFields(options.entries),
@@ -228,39 +245,50 @@ export function createSettingsController<E extends SettingEntries>(
         if (!store) {
           return;
         }
+
         const run = state.run();
         const result = await store.get();
+
         if (run !== state.run()) {
           return;
         }
+
         state.set(
           result.ok
             ? { values: result.data, error: undefined }
             : { error: result.error },
         );
       };
+
       const waiting = <T>(): Result<T> =>
         err(
           dbError("invalid_input", "No organization to save the setting for"),
         );
+
       const set: SettingsActions<E>["set"] = async (key, value) => {
         if (!store) {
           return waiting();
         }
+
         state.set({ saving: key, error: undefined });
         const result = await store.set(key, value);
+
         if (!result.ok) {
           state.set({ saving: undefined, error: result.error });
+
           return result;
         }
+
         state.set((current) => ({
           saving: undefined,
           ...(current.values === undefined
             ? {}
             : { values: { ...current.values, [key]: result.data } }),
         }));
+
         return result;
       };
+
       return {
         actions: {
           refresh,
@@ -273,6 +301,7 @@ export function createSettingsController<E extends SettingEntries>(
             if (!store) {
               return waiting();
             }
+
             state.set({ saving: key, error: undefined });
             const result = await store.reset(key);
             state.set(
@@ -280,9 +309,11 @@ export function createSettingsController<E extends SettingEntries>(
                 ? { saving: undefined }
                 : { saving: undefined, error: result.error },
             );
+
             if (result.ok) {
               await refresh();
             }
+
             return result;
           },
         },
@@ -290,6 +321,7 @@ export function createSettingsController<E extends SettingEntries>(
           store
             ? whileSignedIn(options.auth, () => {
                 void refresh();
+
                 return;
               })
             : undefined,

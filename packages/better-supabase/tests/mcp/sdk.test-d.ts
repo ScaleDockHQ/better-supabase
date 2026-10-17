@@ -21,6 +21,7 @@ describe("withBetterSupabaseMcp", () => {
       new McpServer({ name: "crm", version: "1.0.0" }),
       auth,
     );
+
     server.registerTool(
       "rename",
       {
@@ -33,15 +34,19 @@ describe("withBetterSupabaseMcp", () => {
         expectTypeOf(ctx.auth).toEqualTypeOf<AuthState>();
         expectTypeOf(ctx.db).toEqualTypeOf(ctx.bs.db);
         expectTypeOf(ctx.http).not.toBeAny();
+
         const found = await ctx.db.customers.findUnique({
           where: { id: args.id },
         });
+
         expectTypeOf(found.ok).toBeBoolean();
+
         return { content: [] };
       },
     );
     server.registerTool("ping", {}, (ctx) => {
       expectTypeOf(ctx.db.customers).toHaveProperty("findMany");
+
       return { content: [] };
     });
   });
@@ -51,6 +56,7 @@ describe("withBetterSupabaseMcp", () => {
       new McpServer({ name: "crm", version: "1.0.0" }),
       auth,
     );
+
     expectTypeOf(server).toHaveProperty("connect");
     expectTypeOf(server).not.toHaveProperty("tool");
   });

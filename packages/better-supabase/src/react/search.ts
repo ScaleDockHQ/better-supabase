@@ -45,9 +45,11 @@ export function useDebouncedSearch(
     if (value === settled) {
       return;
     }
+
     const timer = setTimeout(() => {
       setSettled(value);
     }, delayMs);
+
     return () => {
       clearTimeout(timer);
     };
@@ -55,6 +57,7 @@ export function useDebouncedSearch(
 
   const trimmed = settled.trim();
   const term = trimmed.length >= minLength ? trimmed : undefined;
+
   return {
     value,
     setValue,

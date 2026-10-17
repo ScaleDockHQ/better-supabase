@@ -30,7 +30,9 @@ describe("comments fields", () => {
       edit_comment: () => ROW,
       list_comments: () => [ROW, ROW],
     });
+
     const comments = createComments({ transport: t, fields: Fields });
+
     const created = await comments
       .create({
         organizationId: "org-1",
@@ -40,6 +42,7 @@ describe("comments fields", () => {
         fields: { visibility: "internal" },
       })
       .orThrow();
+
     expectTypeOf(created.fields.visibility).toEqualTypeOf<
       "internal" | "customer"
     >();
@@ -73,11 +76,14 @@ describe("comments fields", () => {
     const t = fieldsTransport({
       list_comments: () => [{ ...ROW, fields: { visibility: "public" } }],
     });
+
     const comments = createComments({ transport: t, fields: Fields });
+
     const edited = await comments.edit("c1", {
       body: "Changed",
       fields: { visibility: "public" as never },
     });
+
     expect(edited.ok ? undefined : edited.error.kind).toBe("validation");
     expect(t.calls).toEqual([]);
     const listed = await comments.list("org-1", "project", "p1");

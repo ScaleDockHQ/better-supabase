@@ -36,6 +36,7 @@ describe("comments module", () => {
         maxBodyLength: 2000,
       },
     );
+
     expect(sql).toContain(
       `when 'project' then exists (select 1 from "app"."projects" s where s."id"::text = subject_id and s."organization_id" = tenant) and coalesce(better_supabase.can('tenant', tenant, 'projects.read'), false)`,
     );
@@ -52,6 +53,7 @@ describe("comments module", () => {
     expect(plain).toContain(
       `select x from unnest(new."mentions") x\n    where (tg_op = 'INSERT' or not x = any(old."mentions"))`,
     );
+
     const sql = sqlOf(["organizations", "notifications", "comments"], {
       mentionGroups: {
         table: "app.team_members",
@@ -60,6 +62,7 @@ describe("comments module", () => {
         tenant: "organization_id",
       },
     });
+
     expect(sql).toContain(
       `select e.x from (select m.x from unnest(new."mentions") m(x) union select g."user_id" from "app"."team_members" g where g."team_id" = any(new."mentions") and g."organization_id" = new."organization_id") e(x)`,
     );
@@ -100,6 +103,7 @@ describe("comments module", () => {
         project: { table: "projects" },
       },
     });
+
     expect(sql).toContain(
       `case "subject_type" when 'deal' then 'deals.comment' else 'comments.create' end`,
     );
@@ -127,12 +131,14 @@ describe("comments module", () => {
         .filter((file) => file.module === "comments")
         .map((file) => file.contents)
         .join("\n");
+
     const sql = withProvider({
       subjects: {
         project: { table: "projects", scope: "project" },
         note: { table: "notes" },
       },
     });
+
     expect(sql).toContain(
       `("subject_type" = 'project' and ("organization_id" in (select better_supabase.tenant_ids_with('comments.read')) or "subject_id" in (select t.id::text from authz.ids_project('comments.read') as t(id))))`,
     );
@@ -169,6 +175,7 @@ describe("comments module", () => {
         note: { table: "notes", readableBy: "{row}.public" },
       },
     });
+
     expect(enforced).toContain(
       `and case "subject_type" when 'task' then exists (select 1 from "public"."tasks" s where s."id"::text = "better_supabase"."comments"."subject_id"::text and (s.owner_id = (select auth.uid()))) else true end);`,
     );
@@ -205,6 +212,7 @@ describe("comments module", () => {
       },
       documentSchema: { type: "object", required: ["type"] },
     });
+
     expect(sql).toContain('create trigger "bs_comments_task_cascade"');
     expect(sql).toContain('after delete on "app"."tasks"');
     expect(sql).not.toContain("bs_comments_note_cascade");
@@ -234,6 +242,7 @@ describe("comments module", () => {
         readableBy: "{row}.owner_id = {user}",
       },
     };
+
     const sql = sqlOf(["notifications", "comments"], { subjects });
     expect(sql).toContain(
       `'subject_label', case new."subject_type" when 'task' then (select (s.title)::text from "public"."tasks" s where s."id" = (new."subject_id"::text)::uuid limit 1) end`,
@@ -245,10 +254,12 @@ describe("comments module", () => {
     expect(sql).toContain(
       `coalesce(better_supabase.can_user(x, 'tenant', new."organization_id", 'tasks.read'), false) and exists (select 1 from "public"."tasks" s where s."id" = (new."subject_id"::text)::uuid and (s.owner_id = x))`,
     );
+
     const quiet = sqlOf(["notifications", "comments"], {
       subjects,
       notify: false,
     });
+
     expect(quiet).not.toContain('"notify"(');
     expect(quiet).toContain("comments_after_write");
     const plain = sqlOf(["notifications", "comments"]);
@@ -269,10 +280,12 @@ describe("comments module", () => {
   where f.x is not null
   on conflict do nothing;`,
     );
+
     const quiet = sqlOf(["organizations", "notifications", "comments"], {
       notify: false,
       follow: false,
     });
+
     expect(quiet).not.toContain("notification_subscriptions");
     expect(sqlOf(["comments"])).not.toContain("notification_subscriptions");
   });
@@ -282,6 +295,7 @@ describe("comments module", () => {
       quote: { table: "sales.quotes", permissions: { read: "quotes.read" } },
       note: { table: "notes" },
     };
+
     const render = (
       names: readonly string[],
       audit: Readonly<Record<string, unknown>> = {},
@@ -325,9 +339,11 @@ describe("comments module", () => {
       expect(render(["audit", "comments", "subjects"])).not.toContain(
         "audit_events",
       );
+
       const sql = render(["access", "audit", "comments", "subjects"], {
         readPolicy: true,
       });
+
       expect(sql).toContain(
         `      when 'quote' then 'sales.quotes'\n      when 'note' then 'public.notes'`,
       );

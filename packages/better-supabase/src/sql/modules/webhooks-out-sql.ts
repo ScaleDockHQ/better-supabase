@@ -65,11 +65,13 @@ function statusValues(
   ctx: ModuleContext,
 ): Readonly<Record<WebhookStatus, string>> {
   const configured = ctx.option("statuses") ?? {};
+
   if (typeof configured !== "object" || Array.isArray(configured)) {
     throw new TypeError(
       "blocks.webhooks-out.options.statuses must map status names to the stored values",
     );
   }
+
   const values: Record<WebhookStatus, string> = {
     pending: "pending",
     delivering: "delivering",
@@ -78,24 +80,29 @@ function statusValues(
     dead: "dead",
     canceled: "canceled",
   };
+
   for (const [name, value] of Object.entries(configured)) {
     if (!isStatus(name)) {
       throw new TypeError(
         `blocks.webhooks-out.options.statuses: unknown status "${name}". Statuses: ${WEBHOOK_STATUSES.join(", ")}`,
       );
     }
+
     if (typeof value !== "string" || value.length === 0) {
       throw new TypeError(
         `blocks.webhooks-out.options.statuses.${name} must be a non-empty string`,
       );
     }
+
     if (ctx.manages) {
       throw new TypeError(
         "blocks.webhooks-out.options.statuses maps an adopted table's values; managed tables use the default statuses",
       );
     }
+
     values[name] = value;
   }
+
   return values;
 }
 
@@ -103,11 +110,13 @@ const TYPE = /^[a-z][a-z0-9_ ]*$/;
 
 function typeOption(ctx: ModuleContext, name: string): string {
   const type = ctx.text(name, "text");
+
   if (!TYPE.test(type)) {
     throw new TypeError(
       `blocks.webhooks-out.options.${name} must be a type name such as "uuid", not "${type}"`,
     );
   }
+
   return type;
 }
 
@@ -117,6 +126,7 @@ function userMay(
 ): HookNames["userMay"] {
   const provider = layout.accessProvider;
   const template = provider?.functions.idsWithFor;
+
   if (provider !== undefined && template !== undefined) {
     return (user, tenant, permission) =>
       `${tenant}::text in (select t.id::text from ${fillTemplate(
@@ -125,10 +135,12 @@ function userMay(
         { user, permission, scope: provider.scope },
       )} as t(id))`;
   }
+
   if (ctx.installed("access")) {
     return (user, tenant, permission) =>
       ctx.scope.canUser(user, tenant, permission);
   }
+
   return () => "false";
 }
 
@@ -151,21 +163,27 @@ export function hookNames(
     (ctx.manages ||
       !ADDED_COLUMNS[table]?.includes(logical) ||
       typeof ctx.config.columns[table]?.[logical] === "string");
+
   const storage = ctx.text("secretStorage", "vault");
+
   if (storage !== "vault" && storage !== "column") {
     throw new TypeError(
       `blocks.webhooks-out.options.secretStorage must be "vault" or "column", not "${storage}"`,
     );
   }
+
   const vault = storage === "vault";
+
   if (!has("secrets", vault ? "vaultId" : "secret")) {
     throw new TypeError(
       `blocks.webhooks-out: secretStorage "${storage}" needs the secrets table's ${vault ? "vaultId" : "secret"} column`,
     );
   }
+
   const access = ctx.installed("access");
   const permissions = moduleOperations("webhooks-out");
   const values = statusValues(ctx);
+
   return {
     table: (table) => ctx.table(table),
     col: (table, logical) => ctx.col(table, logical),
@@ -204,6 +222,7 @@ const VARIABLES = "#variable_conflict use_column";
 
 function grants(fn: string, args: string, clients: boolean): string {
   const signature = `${fn}(${args})`;
+
   // Not userGrant: this also revokes from authenticated, and changing the
   // text would change the SQL every app has already generated.
   return clients
@@ -219,6 +238,7 @@ function guard(
   action: "manage" | "view",
 ): string {
   const member = n.has("endpoints", "tenant") ? n.can(tenant, action) : "false";
+
   return `if not (${SERVICE_CALLER}) and not ${member} then
     ${fail("WEBHOOK_FORBIDDEN", "Not allowed to manage this webhook endpoint")}
   end if;`;
@@ -242,11 +262,13 @@ function publish(ctx: ModuleContext, n: HookNames): string {
   const id = ctx.idType;
   const d = (logical: string) => n.col("endpoints", logical);
   const v = (logical: string) => n.col("deliveries", logical);
+
   const columns: [string, string][] = [
     [v("endpoint"), `d.${d("id")}`],
     [v("type"), "publish_webhook_event.event_type"],
     [v("payload"), "coalesce(publish_webhook_event.payload, '{}')"],
   ];
+
   if (n.has("deliveries", "tenant")) {
     columns.push([
       v("tenant"),
@@ -255,21 +277,26 @@ function publish(ctx: ModuleContext, n: HookNames): string {
         : "publish_webhook_event.tenant",
     ]);
   }
+
   if (n.has("deliveries", "event")) {
     columns.push([
       v("event"),
       `publish_webhook_event.event_id::${n.eventIdType}`,
     ]);
   }
+
   if (n.has("deliveries", "subject")) {
     columns.push([v("subject"), "publish_webhook_event.subject"]);
   }
+
   const tenant = n.has("endpoints", "tenant")
     ? `\n    and d.${d("tenant")} is not distinct from publish_webhook_event.tenant`
     : "";
+
   const conflict = n.has("deliveries", "event")
     ? `\n  on conflict (${v("endpoint")}, ${v("event")}) where ${v("event")} is not null do nothing`
     : "";
+
   return `
 drop function if exists ${fn}(text, jsonb, ${id}, text);
 -- Queues the event for every enabled endpoint subscribed to its type:
@@ -329,21 +356,26 @@ ${grants(fn, `text, jsonb, ${id}, text, text, text`, false)}`;
 function readable(n: HookNames): string {
   const d = (logical: string) => n.col("endpoints", logical);
   const declared = "publish_webhook_event.read_permission is null";
+
   const user =
     n.has("endpoints", "tenant") && n.has("endpoints", "createdBy")
       ? n.userMay(`d.${d("createdBy")}`, `d.${d("tenant")}`, "v_permission")
       : declared;
+
   const declaredService = n.has("endpoints", "permissions")
     ? `(${declared} or coalesce(d.${d("permissions")} && v_held, false))`
     : declared;
+
   const principal =
     n.principal && n.has("endpoints", "tenant")
       ? n.principal(`d.${d("tenant")}`)
       : undefined;
+
   const service =
     principal === undefined
       ? declaredService
       : `(case when ${principal} is not null then ${n.userMay(principal, `d.${d("tenant")}`, "v_permission")} else ${declaredService} end)`;
+
   return n.has("endpoints", "createdBy")
     ? `(case when d.${d("createdBy")} is not null then ${user} else ${service} end)`
     : service;
@@ -352,23 +384,30 @@ function readable(n: HookNames): string {
 function dispatch(ctx: ModuleContext, n: HookNames): string {
   const fn = ctx.fn("dispatch_webhook");
   const v = (logical: string) => n.col("deliveries", logical);
+
   const columns: [string, string][] = [
     [v("endpoint"), "dispatch_webhook.endpoint"],
     [v("type"), "dispatch_webhook.event_type"],
     [v("payload"), "coalesce(dispatch_webhook.payload, '{}')"],
   ];
+
   if (n.has("deliveries", "tenant")) {
     columns.push([v("tenant"), "v_tenant"]);
   }
+
   if (n.has("deliveries", "run")) {
     columns.push([v("run"), `dispatch_webhook.run_id::${n.runIdType}`]);
   }
+
   const event = n.has("deliveries", "event");
+
   if (event) {
     columns.push([v("event"), `dispatch_webhook.event_id::${n.eventIdType}`]);
   }
+
   const existing = `select v.${v("id")} into v_id from ${n.table("deliveries")} v
     where v.${v("endpoint")} = dispatch_webhook.endpoint and v.${v("event")} = dispatch_webhook.event_id::${n.eventIdType};`;
+
   return `
 -- Sends one event to one endpoint, outside its subscriptions, e.g. from a
 -- workflow step. With an event id, dispatching it again returns the first delivery.
@@ -431,14 +470,18 @@ function claim(ctx: ModuleContext, n: HookNames): string {
   const fn = ctx.fn("claim_webhook_deliveries");
   const d = (logical: string) => n.col("endpoints", logical);
   const v = (logical: string) => n.col("deliveries", logical);
+
   const optional = (logical: string, key: string) =>
     n.has("deliveries", logical) ? `, '${key}', c.${v(logical)}` : "";
+
   const endpointField = (logical: string, key: string) =>
     n.has("endpoints", logical) ? `, '${key}', d.${d(logical)}` : "";
+
   const principalField =
     n.principal && n.has("endpoints", "tenant")
       ? `, 'principal', ${n.has("endpoints", "createdBy") ? `case when d.${d("createdBy")} is null then ${n.principal(`d.${d("tenant")}`)} end` : n.principal(`d.${d("tenant")}`)}`
       : "";
+
   const stamp = [
     n.has("deliveries", "lastError")
       ? `, ${v("lastError")} = 'The lease ran out on the last attempt'`
@@ -446,6 +489,7 @@ function claim(ctx: ModuleContext, n: HookNames): string {
     n.has("deliveries", "processedAt") ? `, ${v("processedAt")} = now()` : "",
     touched(n, "deliveries"),
   ].join("");
+
   return `
 drop function if exists ${fn}(integer, interval);
 -- Leases due deliveries to one worker and counts the attempt, so a worker
@@ -522,18 +566,22 @@ function complete(ctx: ModuleContext, n: HookNames): string {
   const d = (logical: string) => n.col("endpoints", logical);
   const v = (logical: string) => n.col("deliveries", logical);
   const window = ctx.text("disableAfter", "5 days");
+
   if (!/^\d+ (minute|hour|day|week)s?$/.test(window)) {
     throw new TypeError(
       `blocks.webhooks-out.options.disableAfter must be an interval such as "5 days", not "${window}"`,
     );
   }
+
   const disableAfter = sqlString(window);
+
   const sets = [
     `${v("status")} = ${n.stored("v_status")}`,
     `${v("attempt")} = case when v_status = 'canceled' then greatest(v.${v("attempt")} - 1, 0) else v.${v("attempt")} end`,
     `${v("availableAt")} = case when v_status = 'retrying' then coalesce((complete_webhook_delivery.outcome ->> 'retry_at')::timestamptz, now()) else v.${v("availableAt")} end`,
     `${v("leasedUntil")} = null`,
   ];
+
   const optional: [string, string][] = [
     [
       "responseStatus",
@@ -548,14 +596,17 @@ function complete(ctx: ModuleContext, n: HookNames): string {
     ["processedAt", "case when v_status = 'retrying' then null else now() end"],
     ["updatedAt", "now()"],
   ];
+
   for (const [logical, value] of optional) {
     if (n.has("deliveries", logical)) {
       sets.push(`${v(logical)} = ${value}`);
     }
   }
+
   const tenantSelect = n.has("endpoints", "tenant")
     ? `, d.${d("tenant")}`
     : ", null";
+
   const disable = [
     n.has("endpoints", "disabledAt") ? `, ${d("disabledAt")} = now()` : "",
     n.has("endpoints", "disabledReason")
@@ -563,6 +614,7 @@ function complete(ctx: ModuleContext, n: HookNames): string {
       : "",
     touched(n, "endpoints"),
   ].join("");
+
   const streak = n.has("endpoints", "failingSince")
     ? `
   if v_status = 'succeeded' then
@@ -594,6 +646,7 @@ function complete(ctx: ModuleContext, n: HookNames): string {
     end if;
   end if;`
     : "";
+
   return `
 -- Records an attempt for the worker that holds the lease: outcome.attempt
 -- must be the attempt the claim returned, and a delivery claimed again in
@@ -645,6 +698,7 @@ ${grants(fn, "uuid, jsonb", false)}`;
 function redeliver(ctx: ModuleContext, n: HookNames): string {
   const fn = ctx.fn("redeliver_webhook");
   const v = (logical: string) => n.col("deliveries", logical);
+
   const resets = [
     `${v("status")} = ${n.status("pending")}`,
     `${v("attempt")} = 0`,
@@ -656,6 +710,7 @@ function redeliver(ctx: ModuleContext, n: HookNames): string {
     ...(n.has("deliveries", "lastError") ? [`${v("lastError")} = null`] : []),
     ...(n.has("deliveries", "updatedAt") ? [`${v("updatedAt")} = now()`] : []),
   ];
+
   return `
 -- Queues a finished delivery again, e.g. after the receiver fixed a bug.
 create or replace function ${fn}(delivery uuid)
@@ -696,6 +751,7 @@ ${grants(fn, "uuid", true)}`;
 function purge(ctx: ModuleContext, n: HookNames): string {
   const fn = ctx.fn("purge_webhook_deliveries");
   const v = (logical: string) => n.col("deliveries", logical);
+
   return `
 -- Deletes up to batch finished deliveries (and dead ones with include_dead)
 -- created before older_than. A purged event id can be queued again for the
@@ -737,27 +793,34 @@ function secrets(ctx: ModuleContext, n: HookNames): string {
   const t = n.table("secrets");
   const expires = n.has("secrets", "expiresAt");
   const ofEndpoint = `s.${s("endpoint")} = rotate_webhook_secret.endpoint`;
+
   const dropVault = (where: string) =>
     n.vault
       ? `delete from vault.secrets vs using ${t} s where vs.id = s.${s("vaultId")} and ${where};
   `
       : "";
+
   const retire = expires
     ? `${dropVault(`${ofEndpoint} and s.${s("expiresAt")} <= now()`)}delete from ${t} s where ${ofEndpoint} and s.${s("expiresAt")} <= now();
   update ${t} s set ${s("expiresAt")} = now() + coalesce(rotate_webhook_secret.overlap, '24 hours')
   where ${ofEndpoint} and s.${s("expiresAt")} is null;`
     : `${dropVault(ofEndpoint)}delete from ${t} s where ${ofEndpoint};`;
+
   const columns: [string, string][] = [
     [s("endpoint"), "rotate_webhook_secret.endpoint"],
     n.vault ? [s("vaultId"), "v_vault"] : [s("secret"), "v_secret"],
   ];
+
   if (n.has("secrets", "tenant")) {
     columns.push([s("tenant"), "v_tenant"]);
   }
+
   const value = n.vault ? "ds.decrypted_secret" : `s.${s("secret")}`;
+
   const join = n.vault
     ? `\n    join vault.decrypted_secrets ds on ds.id = s.${s("vaultId")}`
     : "";
+
   return `
 -- A new signing secret, returned once. Older secrets keep signing for
 -- overlap, so receivers can switch without dropping deliveries.

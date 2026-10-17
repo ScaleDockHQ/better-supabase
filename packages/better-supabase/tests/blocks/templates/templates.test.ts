@@ -13,21 +13,25 @@ function transport(
   results: Record<string, (args: Record<string, unknown>) => unknown>,
 ) {
   const calls: [string, Record<string, unknown>][] = [];
+
   return {
     calls,
     call(schema: string, fn: string, args: Record<string, unknown>) {
       expect(schema).toBe("better_supabase");
       calls.push([fn, args]);
       const result = results[fn];
+
       if (!result) {
         return Promise.reject(new Error(`unexpected ${fn}`));
       }
+
       return Promise.resolve(result(args));
     },
   };
 }
 
 const AT = "2026-10-06T09:00:00Z";
+
 const TEMPLATE = {
   id: "t1",
   tenant: "o",
@@ -46,6 +50,7 @@ const TEMPLATE = {
   createdAt: AT,
   updatedAt: AT,
 };
+
 const VERSION = {
   id: "v1",
   template: "t1",
@@ -56,6 +61,7 @@ const VERSION = {
   createdAt: AT,
   body: { tasks: ["Kickoff"] },
 };
+
 const APPLICATION = {
   id: "a1",
   template: "t1",
@@ -68,11 +74,13 @@ const APPLICATION = {
 };
 
 const applied: { color: string; tasks: string[] }[] = [];
+
 const project = defineTemplateType({
   settings: v.object({ color: v.string() }),
   body: v.object({ tasks: v.array(v.string()) }),
   apply: (call) => {
     applied.push({ color: call.settings.color, tasks: call.body.tasks });
+
     return { subject: { type: "project", id: "p1" } };
   },
 });
@@ -106,13 +114,16 @@ describe("templates client", () => {
         publishedAt: null,
       }),
     });
+
     const templates = createTemplates({ transport: fake, types: { project } });
+
     const bad = await templates.save({
       organizationId: "o",
       type: "project",
       name: "Launch",
       settings: { color: 3 },
     });
+
     expect(bad.ok ? undefined : bad.error.kind).toBe("validation");
     expect(fake.calls).toHaveLength(0);
 
@@ -122,6 +133,7 @@ describe("templates client", () => {
     const draft = await templates.versions
       .save("t1", { tasks: ["A"] })
       .orThrow();
+
     expect(draft.publishedAt).toBeUndefined();
     expect(fake.calls.at(-1)).toEqual([
       "save_template_draft",
@@ -138,17 +150,21 @@ describe("templates client", () => {
       }),
       record_template_application: () => APPLICATION,
     });
+
     const runs: unknown[] = [];
+
     const templates = createTemplates({
       transport: fake,
       types: { project },
       workflows: {
         run: (input) => {
           runs.push(input);
+
           return AsyncResult.ok("run-1");
         },
       },
     });
+
     const result = await templates.apply("t1", { into: "o" }).orThrow();
     expect(applied.at(-1)).toEqual({ color: "blue", tasks: ["Kickoff"] });
     expect(result.subject).toEqual({ type: "project", id: "p1" });
@@ -183,14 +199,18 @@ describe("templates client", () => {
         workflows: [{ definition: "d1", inputs: {} }],
       }),
     });
+
     const none = await createTemplates({ transport: target }).apply("t1", {
       into: "o",
     });
+
     expect(none.ok ? undefined : none.error.kind).toBe("invalid_request");
+
     const noBuilder = await createTemplates({
       transport: target,
       types: { project },
     }).apply("t1", { into: "o" });
+
     expect(noBuilder.ok ? undefined : noBuilder.error.message).toMatch(
       /workflows/,
     );
@@ -204,6 +224,7 @@ describe("templates client", () => {
         workflows: [],
       }),
     });
+
     const templates = createTemplates({
       transport: fake,
       types: {
@@ -214,6 +235,7 @@ describe("templates client", () => {
         }),
       },
     });
+
     const result = await templates.apply("t1", { into: "o" });
     expect(result.ok).toBe(false);
     expect(fake.calls.map(([fn]) => fn)).toEqual(["template_apply_target"]);
@@ -222,10 +244,13 @@ describe("templates client", () => {
   it("validates starters before syncing them", async () => {
     const fake = transport({ sync_templates: () => 2 });
     const templates = createTemplates({ transport: fake, types: { project } });
+
     const bad = await templates.sync([
       { key: "launch", type: "project", name: "Launch", body: { tasks: 1 } },
     ]);
+
     expect(bad.ok).toBe(false);
+
     const count = await templates
       .sync([
         {
@@ -237,6 +262,7 @@ describe("templates client", () => {
         },
       ])
       .orThrow();
+
     expect(count).toBe(2);
     expect(fake.calls[0]?.[1]).toEqual({
       starters: [
@@ -261,6 +287,7 @@ describe("templates client", () => {
       createdBy: "u1",
       createdAt: AT,
     };
+
     const fake = transport({
       remove_template: () => true,
       set_default_template: () => true,
@@ -272,6 +299,7 @@ describe("templates client", () => {
       template_workflows_list: () => [{ ...WORKFLOW, enabled: false }],
       template_applications_list: () => [APPLICATION],
     });
+
     const templates = createTemplates({ transport: fake });
 
     expect(await templates.remove("t1").orThrow()).toBe(true);
@@ -291,9 +319,11 @@ describe("templates client", () => {
     expect(await templates.workflows.detach("t1", "d1").orThrow()).toBe(true);
     const [workflow] = await templates.workflows.list("t1").orThrow();
     expect(workflow?.enabled).toBe(false);
+
     const [application] = await templates.applications
       .list("o", { template: "t1", subject: { type: "project", id: "p1" } })
       .orThrow();
+
     expect(application).toMatchObject({
       organizationId: "o",
       subject: { type: "project", id: "p1" },
@@ -341,7 +371,9 @@ describe("templates.apply step", () => {
       }),
       record_template_application: () => APPLICATION,
     });
+
     const keys: (string | undefined)[] = [];
+
     const templates = createTemplates({
       transport: fake,
       types: {
@@ -349,12 +381,15 @@ describe("templates.apply step", () => {
           apply: (call) => {
             keys.push(call.key);
             expect(call.values).toEqual({ month: "October" });
+
             return { subject: { type: "project", id: "p1" } };
           },
         }),
       },
     });
+
     const step = templatesApplyStep(templates);
+
     const output = await step({
       node: "n1",
       step: "templates.apply",
@@ -364,6 +399,7 @@ describe("templates.apply step", () => {
       runKey: "run-9",
       tenant: "o",
     });
+
     expect(output).toEqual({
       applicationId: "a1",
       subject: { type: "project", id: "p1" },
@@ -376,6 +412,7 @@ describe("templates.apply step", () => {
     const step = templatesApplyStep(
       createTemplates({ transport: transport({}) }),
     );
+
     const base = {
       node: "n",
       step: "templates.apply",
@@ -383,6 +420,7 @@ describe("templates.apply step", () => {
       results: {},
       runKey: "r",
     };
+
     await expect(step({ ...base, config: {}, tenant: "o" })).rejects.toThrow(
       /config.template/,
     );

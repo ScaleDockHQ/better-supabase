@@ -37,6 +37,7 @@ export function withReplica<
       async function* run(_request, ctx) {
         const { replica } = ctx.bs;
         const response = yield { replica };
+
         return withPrimaryPin(response, ctx.bs.replica, core.pinMs);
       },
   })();

@@ -19,14 +19,17 @@ import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const betterSupabase = defineSupabase(schema);
+
 const browser = createClient(betterSupabase, {
   client: capturingClient().client,
 });
+
 const hooks = createHooks<typeof browser>();
 
 function Status() {
   const auth = useAuth();
   const db = hooks.useDb();
+
   return createElement(
     "p",
     null,
@@ -43,19 +46,23 @@ describe("react", () => {
         createElement(Status),
       ),
     );
+
     expect(html).toBe("<p>loading:anon</p>");
   });
 
   it("renders a live count seed on the server without fetching", () => {
     const { client, requests } = capturingClient();
     const seeded = createClient(betterSupabase, { client });
+
     function Badge() {
       const { count, status } = useLiveCount({
         spec: betterSupabase.spec.notes.count(),
         count: 3,
       });
+
       return createElement("span", null, `${String(count)}:${status}`);
     }
+
     const html = renderToString(
       createElement(
         BetterSupabaseProvider,
@@ -63,6 +70,7 @@ describe("react", () => {
         createElement(Badge),
       ),
     );
+
     expect(html).toBe("<span>3:closed</span>");
     expect(requests).toHaveLength(0);
   });
@@ -76,12 +84,14 @@ describe("react", () => {
   it("resolves the session promise inside Suspense", async () => {
     function Who() {
       const session = useSession();
+
       return createElement(
         "p",
         null,
         session.kind === "user" ? session.user.email : session.kind,
       );
     }
+
     const render = async (session: AuthSession) => {
       const stream = await renderToReadableStream(
         createElement(
@@ -94,7 +104,9 @@ describe("react", () => {
           ),
         ),
       );
+
       await stream.allReady;
+
       return new Response(stream).text();
     };
 
@@ -117,12 +129,14 @@ describe("react", () => {
   it("shows the support session behind a session", async () => {
     function Banner() {
       const support = useSupportSession();
+
       return createElement(
         "p",
         null,
         support ? `as ${support.targetUserId}` : "self",
       );
     }
+
     const stream = await renderToReadableStream(
       createElement(
         Suspense,
@@ -150,6 +164,7 @@ describe("react", () => {
         ),
       ),
     );
+
     await stream.allReady;
     expect(await new Response(stream).text()).toContain("<p>as u1</p>");
   });
@@ -157,8 +172,10 @@ describe("react", () => {
   it("explains a missing SessionProvider", () => {
     function Who() {
       useSession();
+
       return null;
     }
+
     expect(() => renderToString(createElement(Who))).toThrow(/SessionProvider/);
   });
 });

@@ -21,12 +21,15 @@ function isLiteDriver(value: unknown): value is LiteDriver {
  */
 export function liteDriverOf(toml?: SupabaseToml): LiteDriver | undefined {
   const driver = tomlGet(toml?.document ?? {}, ["db", "driver"]);
+
   if (driver === undefined) {
     return undefined;
   }
+
   if (isLiteDriver(driver)) {
     return driver;
   }
+
   throw new CliError(
     "config_invalid",
     `[db] driver = ${JSON.stringify(driver)} in ${toml?.path ?? "supabase/config.toml"} is not a Supabase Lite driver (${LITE_DRIVERS.join(", ")}).`,
@@ -37,13 +40,16 @@ export function liteDriverOf(toml?: SupabaseToml): LiteDriver | undefined {
 /** `supabase/migrations/*.sql` in version order, then the declarative schema files. */
 async function schemaSql(root: string, toml?: SupabaseToml): Promise<string[]> {
   const migrations = join(root, toml?.dir ?? "supabase", "migrations");
+
   const files = existsSync(migrations)
     ? (await readdir(migrations))
         .filter((name) => name.endsWith(".sql"))
         .sort()
         .map((name) => join(migrations, name))
     : [];
+
   const { files: schemas } = await schemaPaths(root, toml);
+
   return Promise.all(
     [...files, ...schemas.map((path) => join(root, path))].map((path) =>
       readFile(path, "utf-8"),
@@ -66,6 +72,7 @@ export async function liteSource(
   switch (driver) {
     case "postgres": {
       const url = tomlGet(toml?.document ?? {}, ["db", "url"]);
+
       if (typeof url !== "string" || !/^postgres(ql)?:\/\//.test(url)) {
         throw new CliError(
           "missing_value",
@@ -73,8 +80,10 @@ export async function liteSource(
           { flag: "[db] url" },
         );
       }
+
       return pgSource(url, open);
     }
+
     case "sqlite": {
       throw new CliError(
         "config_invalid",
@@ -82,32 +91,42 @@ export async function liteSource(
         { flag: "[db] driver" },
       );
     }
+
     case "pglite":
     case "sqlite-postgres": {
       break;
     }
+
     default: {
       const exhaustive: never = driver;
+
       return exhaustive;
     }
   }
+
   const lite = await loadCliLite();
+
   if (!lite) {
     throw new CliError(
       "failed",
       "Reading a Supabase Lite project needs @supabase/lite: pnpm add -D @supabase/lite",
     );
   }
+
   const connection = await lite.createPgliteConnection();
+
   try {
     const app = new lite.App({
       connection,
       auth: { enabled: true, jwt_secret: "better-supabase-gen".repeat(2) },
     });
+
     await app.init();
+
     const ddl = (await schemaSql(root, toml))
       .filter((part) => part.trim() !== "")
       .join("\n;\n");
+
     if (ddl !== "") {
       await connection.createMigrator(ddl).migrate();
     }
@@ -119,6 +138,7 @@ export async function liteSource(
       { cause: error },
     );
   }
+
   return {
     queryable: connection.driver,
     describe: `Supabase Lite schema (${driver}, replayed into PGlite)`,

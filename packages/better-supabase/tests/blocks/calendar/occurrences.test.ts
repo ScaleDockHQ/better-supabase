@@ -102,6 +102,7 @@ describe("expandOccurrences", () => {
       ],
       range,
     );
+
     expect(out.map((item) => item.start.toString())).not.toContain(
       "2026-04-01T07:00:00Z",
     );
@@ -118,10 +119,12 @@ describe("expandOccurrences", () => {
       endsAt: at("2026-03-02T06:00:00Z"),
       rrule: "FREQ=DAILY",
     };
+
     const out = expandOccurrences([night], {
       from: at("2026-03-10T00:00:00Z"),
       until: at("2026-03-10T12:00:00Z"),
     });
+
     expect(out.map((item) => item.start.toString())).toEqual([
       "2026-03-09T22:00:00Z",
     ]);
@@ -173,6 +176,7 @@ describe("event calendar adapters", () => {
     const events = toEventCalendarEvents(found, {
       readOnly: (item) => item.event.id === "l1",
     });
+
     expect(events[0]).toMatchObject({
       id: "s1::2026-03-23T08:00:00Z",
       title: "Stand-up",
@@ -192,11 +196,13 @@ describe("event calendar adapters", () => {
     expect(
       toEventCalendarResources([{ id: "c1", name: "Team", color: "blue" }]),
     ).toEqual([{ id: "c1", title: "Team", color: "blue" }]);
+
     const move = fromEventCalendarUpdate({
       start: new Date("2026-03-23T09:00:00Z"),
       end: new Date("2026-03-23T09:15:00Z"),
       allDay: false,
     });
+
     expect(move.startsAt.toString()).toBe("2026-03-23T09:00:00Z");
     expect(move).toMatchObject({ allDay: false });
   });
@@ -211,9 +217,11 @@ describe("event calendar adapters", () => {
         end: new Date("2026-03-23T09:15:00Z"),
       }),
     ).not.toHaveProperty("allDay");
+
     const [first] = toEventCalendarEvents(found, {
       resourceOf: () => undefined,
     });
+
     expect(first).not.toHaveProperty("resourceId");
     expect(first).not.toHaveProperty("readOnly");
     expect(seriesOf(found[0]!).id).toBe("s1");

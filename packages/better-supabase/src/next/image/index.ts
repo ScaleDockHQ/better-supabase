@@ -37,5 +37,6 @@ export interface ImageLoaderOptions {
 export function createImageLoader(options: ImageLoaderOptions): ImageLoader {
   const imageUrl = storageImageUrl(options);
   const fallback = options.fallback ?? (({ src }) => src);
+
   return (props) => imageUrl(props.src, props) ?? fallback(props);
 }

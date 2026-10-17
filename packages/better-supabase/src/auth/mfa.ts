@@ -23,18 +23,23 @@ export function amrOf(
   claims: Readonly<Record<string, unknown>>,
 ): readonly AmrEntry[] {
   const amr = claims["amr"];
+
   if (!Array.isArray(amr)) {
     return [];
   }
+
   return amr.flatMap((entry: unknown): AmrEntry[] => {
     if (typeof entry !== "object" || entry === null) {
       return [];
     }
+
     // SAFETY: entry is a non-null object here, and each field is checked below.
     const { method, timestamp, provider } = entry as Record<string, unknown>;
+
     if (typeof method !== "string" || typeof timestamp !== "number") {
       return [];
     }
+
     return [
       typeof provider === "string"
         ? { method, timestamp, provider }
@@ -57,10 +62,12 @@ export function checkAal(
   if (required === "aal1" || auth.kind !== "user" || !("claims" in auth)) {
     return undefined;
   }
+
   // SAFETY: user claims are a JWT payload object, and aalOf checks the field it reads.
   if (aalOf(auth.claims as Record<string, unknown>) === "aal2") {
     return undefined;
   }
+
   return dbError("forbidden", "Verify a second factor to continue", {
     code: "INSUFFICIENT_AAL",
     required,

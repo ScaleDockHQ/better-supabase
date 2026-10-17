@@ -189,6 +189,7 @@ describe.each(Object.entries(REQUIRED))(
   "block SQL hooks of %s",
   (module, hooks) => {
     const declared = SQL_MODULES[module]?.names?.hooks ?? [];
+
     const sql = moduleBody(module, {
       modules:
         OPTIONS[module] === undefined
@@ -207,6 +208,7 @@ describe.each(Object.entries(REQUIRED))(
       const lifecycle = declared.filter((hook) =>
         /^(before|after)_/.test(hook),
       );
+
       expect(lifecycle.filter((hook) => !NAMING.test(hook))).toEqual([]);
     });
   },

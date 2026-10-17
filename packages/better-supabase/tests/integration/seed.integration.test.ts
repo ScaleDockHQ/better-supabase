@@ -14,8 +14,10 @@ async function reachable(): Promise<boolean> {
     max: 1,
     connectionTimeoutMillis: 1000,
   });
+
   try {
     await pool.query("select 1");
+
     return true;
   } catch {
     return false;
@@ -33,6 +35,7 @@ describe.skipIf(!live)("seed against the local database", () => {
   it("inserts fixtures in dependency order and is re-runnable", async () => {
     const organization = crypto.randomUUID();
     const customer = crypto.randomUUID();
+
     const seed = defineSeed(defineSupabase(schema), {
       customers: {
         first: {
@@ -50,15 +53,19 @@ describe.skipIf(!live)("seed against the local database", () => {
         },
       },
     });
+
     const client = await pool.connect();
+
     const sql = {
       queryRaw: async <T>(text: string) =>
         (await client.query(text)).rows as T[],
     };
+
     try {
       await client.query("begin");
       await seed.insert(sql);
       await seed.insert(sql);
+
       const rows = await client.query<{
         name: string;
         metadata: unknown;
@@ -67,6 +74,7 @@ describe.skipIf(!live)("seed against the local database", () => {
         "select name, metadata, organization_id from public.customers where id = $1",
         [seed.rows.customers.first.id],
       );
+
       expect(rows.rows).toEqual([
         {
           name: "Seed's first",

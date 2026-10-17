@@ -13,17 +13,22 @@ type Answer = (fn: string, args: Record<string, unknown>) => unknown;
 
 function setup(answer: Answer, stripeOverrides: Record<string, unknown> = {}) {
   const calls: [string, Record<string, unknown>][] = [];
+
   const transport: BlockTransport = {
     async call(_schema, fn, args) {
       calls.push([fn, { ...args }]);
+
       return answer(fn, { ...args });
     },
   };
+
   const stripeCalls: [string, unknown, unknown?][] = [];
+
   const stripe = {
     customers: {
       create: async (params: unknown, options?: unknown) => {
         stripeCalls.push(["customers.create", params, options]);
+
         return { id: "cus_new" };
       },
     },
@@ -31,6 +36,7 @@ function setup(answer: Answer, stripeOverrides: Record<string, unknown> = {}) {
       sessions: {
         create: async (params: unknown, options: unknown) => {
           stripeCalls.push(["checkout.create", { params, options }]);
+
           return { id: "cs_1", url: null };
         },
       },
@@ -39,6 +45,7 @@ function setup(answer: Answer, stripeOverrides: Record<string, unknown> = {}) {
       sessions: {
         create: async (params: unknown) => {
           stripeCalls.push(["portal.create", params]);
+
           return { id: "bps_1", url: "https://billing.stripe.com/p/1" };
         },
       },
@@ -46,32 +53,40 @@ function setup(answer: Answer, stripeOverrides: Record<string, unknown> = {}) {
     subscriptionItems: {
       update: async (id: string, params: unknown, options: unknown) => {
         stripeCalls.push(["items.update", { id, params, options }]);
+
         return { id };
       },
     },
     ...stripeOverrides,
   } as unknown as StripeClient;
+
   const events = new EventHub();
   const seen: unknown[] = [];
   events.on("block", (event) =>
     seen.push({ type: event.type, data: event.data }),
   );
+
   return { transport, calls, stripe, stripeCalls, events, seen };
 }
 
 describe("createBilling", () => {
   it("creates a customer once and opens checkout and the portal", async () => {
     let linked: string | undefined;
+
     const t = setup((fn, args) => {
       if (fn === "billing_customer") {
         return linked ?? null;
       }
+
       if (fn === "link_billing_customer") {
         linked ??= String(args["customer"]);
+
         return linked;
       }
+
       return null;
     });
+
     const billing = createBilling({ ...t, schema: "app" });
     expect(
       await billing.portal("org", { returnUrl: "https://a" }),
@@ -79,6 +94,7 @@ describe("createBilling", () => {
       ok: false,
       error: { kind: "not_found", hint: "BILLING_NO_CUSTOMER" },
     });
+
     const session = await billing
       .checkout("org", {
         price: "price_1",
@@ -91,6 +107,7 @@ describe("createBilling", () => {
         params: { allow_promotion_codes: true },
       })
       .orThrow();
+
     expect(session).toEqual({ id: "cs_1", url: undefined });
     expect(t.stripeCalls[0]).toEqual([
       "customers.create",
@@ -175,6 +192,7 @@ describe("createBilling", () => {
     const t = setup((fn) =>
       fn === "link_billing_customer" ? "cus_first" : null,
     );
+
     const billing = createBilling({ transport: t.transport, stripe: t.stripe });
     expect(await billing.ensureCustomer("org").orThrow()).toBe("cus_first");
     expect(t.seen).toEqual([]);
@@ -188,6 +206,7 @@ describe("createBilling", () => {
         },
       },
     });
+
     expect(await createBilling(t).ensureCustomer("org")).toMatchObject({
       ok: false,
       error: { message: "card declined" },
@@ -196,6 +215,7 @@ describe("createBilling", () => {
 
   it("skips seat sync without a subscription or a change", async () => {
     let item: unknown = null;
+
     const t = setup((fn) =>
       fn === "billing_seat_count"
         ? 3
@@ -203,11 +223,13 @@ describe("createBilling", () => {
           ? item
           : null,
     );
+
     const billing = createBilling({
       ...t,
       seatPrice: "price_seat",
       prorationBehavior: "none",
     });
+
     expect(await billing.syncSeats("org").orThrow()).toEqual({
       quantity: 3,
       previousQuantity: undefined,
@@ -240,17 +262,20 @@ describe("createBilling", () => {
   it("cancels the active subscription, and nothing without one", async () => {
     let item: unknown = null;
     const cancelled: string[] = [];
+
     const t = setup(
       (fn) => (fn === "billing_subscription_item" ? item : null),
       {
         subscriptions: {
           cancel: async (id: string) => {
             cancelled.push(id);
+
             return { id };
           },
         },
       },
     );
+
     const billing = createBilling(t);
     expect(await billing.cancelSubscription("org").orThrow()).toBe(undefined);
     item = {
@@ -272,6 +297,7 @@ describe("createBilling", () => {
         },
       }),
     );
+
     expect(await failing.cancelSubscription("org")).toMatchObject({
       ok: false,
       error: { message: "No such subscription" },
@@ -286,6 +312,7 @@ describe("createBilling", () => {
           ? { subscription: "sub", item: "si", quantity: 1, status: "active" }
           : null,
     );
+
     const sink = createBilling(t).seatSink();
     await sink.send([
       {
@@ -331,31 +358,41 @@ describe("createBilling", () => {
 
   it("links customers from checkout and subscription events", async () => {
     const tenants = new Map<string, string>();
+
     const t = setup((fn, args) => {
       if (fn === "link_billing_customer") {
         const tenant = String(args["tenant"]);
+
         if (!tenants.has(tenant)) {
           tenants.set(tenant, String(args["customer"]));
         }
+
         return tenants.get(tenant);
       }
+
       if (fn === "billing_customer_tenant") {
         for (const [tenant, customer] of tenants) {
           if (customer === args["customer"]) {
             return tenant;
           }
         }
+
         return null;
       }
+
       if (fn === "billing_status") {
         return { customer: "cus_1", seats: 1, subscription: null };
       }
+
       return null;
     });
+
     const invalidated: string[] = [];
+
     const sql = {
       queryRaw: async () => [{ user_id: "u1" }, { user_id: "u2" }],
     } as unknown as SqlClient;
+
     const billing = createBilling({
       ...t,
       sessions: { sql, invalidate: (id) => invalidated.push(id) },
@@ -428,6 +465,7 @@ describe("createBilling", () => {
         (await billing.handleStripeEvent(event).orThrow()).event,
       ).toBeUndefined();
     }
+
     expect(t.seen.map((event) => (event as { type: string }).type)).toEqual([
       "billing.checkout_completed",
       "billing.subscription_created",
@@ -447,6 +485,7 @@ describe("createBilling", () => {
           ? "org"
           : null,
     );
+
     const billing = createBilling(t);
     await billing.ensureCustomer("org").orThrow();
     await billing
@@ -484,19 +523,23 @@ describe("createBilling", () => {
       quantity: 1,
       status: "active",
     };
+
     const t = setup(
       (fn, args) => {
         if (fn === "billing_customer") {
           return "cus_1";
         }
+
         if (fn === "billing_plan_price") {
           return args["plan"] === "pro"
             ? `price_pro_${String(args["billing_interval"] ?? "month")}`
             : null;
         }
+
         if (fn === "billing_subscription_item") {
           return item;
         }
+
         return null;
       },
       {
@@ -504,11 +547,13 @@ describe("createBilling", () => {
           cancel: async () => ({ id: "sub_1" }),
           update: async (id: string, params: unknown, options: unknown) => {
             stripeCalls.push(["subscriptions.update", { id, params, options }]);
+
             return { id };
           },
         },
       },
     );
+
     const stripeCalls = t.stripeCalls;
     const billing = createBilling(t);
     await billing
@@ -560,14 +605,18 @@ describe("createBilling", () => {
       if (fn === "billing_customer") {
         return "cus_1";
       }
+
       if (fn === "billing_plan_price") {
         if (args["plan"] === "missing") {
           return null;
         }
+
         return `price_${String(args["plan"])}_${String(args["variant"] ?? "base")}`;
       }
+
       return null;
     });
+
     const billing = createBilling(t);
     await billing
       .checkout("org", {
@@ -614,14 +663,17 @@ describe("createBilling", () => {
       if (fn === "billing_subscription") {
         return { id: "sub_1", items: [] };
       }
+
       if (fn === "billing_all_subscriptions") {
         return [
           { tenant: "org", customer: "cus_1", subscription: { id: "sub_1" } },
           { tenant: "broken", customer: "cus_2", subscription: null },
         ];
       }
+
       return null;
     });
+
     const billing = createBilling(t);
     expect(await billing.subscription("org").orThrow()).toEqual({
       id: "sub_1",
@@ -644,6 +696,7 @@ describe("createBilling", () => {
       max_rows: 100,
       before_created: undefined,
     });
+
     const invoices = createBilling(
       setup((fn) =>
         fn === "billing_all_invoices"
@@ -651,6 +704,7 @@ describe("createBilling", () => {
           : null,
       ),
     );
+
     expect(await invoices.allInvoices({ status: "open" }).orThrow()).toEqual([
       { organizationId: "org", customerId: "cus_1", row: { id: "in_1" } },
     ]);
@@ -664,15 +718,19 @@ describe("createBilling", () => {
     let linked: string | undefined;
     const taxCalls: unknown[] = [];
     const taxId = { id: "txi_1", type: "eu_vat", value: "DE123456789" };
+
     const t = setup(
       (fn, args) => {
         if (fn === "billing_customer") {
           return linked ?? null;
         }
+
         if (fn === "link_billing_customer") {
           linked = String(args["customer"]);
+
           return linked;
         }
+
         return null;
       },
       {
@@ -680,19 +738,23 @@ describe("createBilling", () => {
           create: async () => ({ id: "cus_new" }),
           listTaxIds: async (id: string, params: unknown) => {
             taxCalls.push(["list", id, params]);
+
             return { data: [taxId] };
           },
           createTaxId: async (id: string, params: unknown) => {
             taxCalls.push(["create", id, params]);
+
             return taxId;
           },
           deleteTaxId: async (id: string, tax: string) => {
             taxCalls.push(["delete", id, tax]);
+
             return { id: tax, deleted: true };
           },
         },
       },
     );
+
     const billing = createBilling(t);
     expect(await billing.taxIds("org").orThrow()).toEqual([]);
     expect(await billing.removeTaxId("org", "txi_1")).toMatchObject({
@@ -712,6 +774,7 @@ describe("createBilling", () => {
     ]);
     linked = "cus_1";
     const bare = createBilling(setup(() => "cus_1"));
+
     for (const result of [
       await bare.taxIds("org"),
       await bare.addTaxId("org", { type: "eu_vat", value: "x" }),
@@ -745,6 +808,7 @@ describe("createBilling", () => {
           ]
         : null,
     );
+
     const customers = await createBilling(t).allCustomers().orThrow();
     expect(
       customers.map((entry) => ({
@@ -799,6 +863,7 @@ describe("createBilling", () => {
           ]
         : null,
     );
+
     const billing = createBilling(t);
     expect(await billing.taxIds("org", { from: "sync" }).orThrow()).toEqual([
       {
@@ -845,15 +910,19 @@ describe("createBilling", () => {
         if (fn === "billing_invoices") {
           return [{ id: "in_1", status: "open" }, "junk"];
         }
+
         if (fn === "billing_payment_methods") {
           return [{ id: "pm_1", type: "card" }];
         }
+
         if (fn === "billing_customer_details") {
           return { id: "cus_1", email: "a@b.c" };
         }
+
         if (fn === "billing_customer") {
           return "cus_1";
         }
+
         return null;
       },
       {
@@ -870,6 +939,7 @@ describe("createBilling", () => {
         },
       },
     );
+
     const billing = createBilling(t);
     expect(await billing.invoices("org").orThrow()).toEqual([
       { id: "in_1", status: "open" },
@@ -905,7 +975,9 @@ describe("createBilling", () => {
               : null,
       { subscriptions: { cancel: async () => ({ id: "s" }) } },
     );
+
     const billing = createBilling(t);
+
     for (const result of [
       await billing.changePlan("org", { price: "p" }),
       await billing.cancelAtPeriodEnd("org", false),
@@ -918,6 +990,7 @@ describe("createBilling", () => {
         error: { hint: "BILLING_STRIPE_CLIENT" },
       });
     }
+
     const none = createBilling(setup(() => null));
     expect(await none.changePlan("org", { price: "p" })).toMatchObject({
       ok: false,

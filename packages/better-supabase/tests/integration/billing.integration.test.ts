@@ -15,6 +15,7 @@ describe.skipIf(!live)("billing", () => {
 
   it("links customers, syncs seats and handles Stripe events", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "billing", "entitlements"], {
         modules: { billing: { options: { seatRoles: ["owner", "member"] } } },
@@ -23,6 +24,7 @@ describe.skipIf(!live)("billing", () => {
       const member = await s.user("member");
       const organization = await s.organization(owner, { member });
       await s.service();
+
       // The Stripe Sync Engine's tables, when the local stack has none.
       if (
         !(await s.value<boolean>(
@@ -35,10 +37,12 @@ describe.skipIf(!live)("billing", () => {
       }
 
       const calls: [string, unknown][] = [];
+
       const stripe = {
         customers: {
           create: async (params: unknown) => {
             calls.push(["customers.create", params]);
+
             return { id: "cus_test1" };
           },
         },
@@ -46,6 +50,7 @@ describe.skipIf(!live)("billing", () => {
           sessions: {
             create: async (params: unknown) => {
               calls.push(["checkout.create", params]);
+
               return { id: "cs_1", url: "https://checkout.stripe.com/c/cs_1" };
             },
           },
@@ -53,13 +58,16 @@ describe.skipIf(!live)("billing", () => {
         subscriptionItems: {
           update: async (id: string, params: unknown, options: unknown) => {
             calls.push(["items.update", { id, params, options }]);
+
             return { id };
           },
         },
       } as unknown as StripeClient;
+
       const events = new EventHub();
       const seen: string[] = [];
       events.on("block", (event) => seen.push(event.type));
+
       const billing = createBilling({
         stripe,
         transport: sqlTransport(s.sql),
@@ -73,6 +81,7 @@ describe.skipIf(!live)("billing", () => {
           successUrl: "https://app.test/billing",
         })
         .orThrow();
+
       expect(session).toEqual({
         id: "cs_1",
         url: "https://checkout.stripe.com/c/cs_1",
@@ -136,6 +145,7 @@ describe.skipIf(!live)("billing", () => {
           },
         })
         .orThrow();
+
       expect(outcome).toMatchObject({
         event: "billing.subscription_updated",
         organizationId: organization,
@@ -151,9 +161,11 @@ describe.skipIf(!live)("billing", () => {
         status: "active",
         items: [{ id: "si_1", price: "price_seat" }],
       });
+
       const all = await billing
         .allSubscriptions({ status: "active" })
         .orThrow();
+
       expect(
         all.find((entry) => entry.organizationId === organization),
       ).toMatchObject({ customerId: "cus_test1", row: { id: "sub_1" } });
@@ -194,6 +206,7 @@ describe.skipIf(!live)("billing", () => {
 
   it("prices plans from the catalog and reads Stripe rows for readers only", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.rows(
         `create table public.bs_test_plan_prices (
@@ -229,6 +242,7 @@ describe.skipIf(!live)("billing", () => {
       const member = await s.user("member");
       const organization = await s.organization(owner, { member });
       await s.service();
+
       if (
         !(await s.value<boolean>("to_regclass('stripe.invoices') is not null"))
       ) {
@@ -237,6 +251,7 @@ describe.skipIf(!live)("billing", () => {
           create table stripe.payment_methods (id text primary key, customer text, type text, created bigint);
           create table if not exists stripe.customers (id text primary key, email text, name text, created bigint)`);
       }
+
       await s.rows(
         `select better_supabase.link_billing_customer($1, 'cus_bs_plans')`,
         [organization],
@@ -244,6 +259,7 @@ describe.skipIf(!live)("billing", () => {
       await s.rows(`insert into stripe.invoices (id, customer, status, total, created) values
           ('in_bs_1', 'cus_bs_plans', 'paid', 1000, 1), ('in_bs_2', 'cus_bs_plans', 'open', 500, 2),
           ('in_bs_x', 'cus_someone_else', 'open', 1, 3)`);
+
       const price = (
         plan: string,
         interval: string | null = null,
@@ -253,6 +269,7 @@ describe.skipIf(!live)("billing", () => {
           "better_supabase.billing_plan_price($1, $2, $3)",
           [plan, interval, variant],
         );
+
       expect(await price("pro")).toBe("price_pro_m");
       expect(await price("pro", "year")).toBe("price_pro_y");
       expect(await price("old")).toBeNull();
@@ -264,6 +281,7 @@ describe.skipIf(!live)("billing", () => {
         stripe: { secretKey: "sk_test_unused" },
         transport: sqlTransport(s.sql),
       });
+
       await s.asRole(owner);
       const invoices = await billing.invoices(organization).orThrow();
       expect(invoices.map((row) => row["id"])).toEqual(["in_bs_2", "in_bs_1"]);
@@ -328,6 +346,7 @@ describe.skipIf(!live)("billing", () => {
       ).toMatchObject({ error: { hint: "BILLING_FORBIDDEN" } });
 
       await s.service();
+
       for (const [table, columns] of [
         [
           "subscriptions",
@@ -347,6 +366,7 @@ describe.skipIf(!live)("billing", () => {
           await s.rows(`create table stripe.${table} (${columns})`);
         }
       }
+
       await s.rows(`insert into stripe.subscriptions (id, customer, status, created) values
           ('sub_bs_old', 'cus_bs_plans', 'canceled', 1), ('sub_bs_new', 'cus_bs_plans', 'active', 5);
         insert into stripe.subscription_items (id, subscription, price, quantity, created) values
@@ -468,12 +488,14 @@ describe.skipIf(!live)("billing", () => {
   it("reads a tenant's subscription for the app's definer functions only", async () => {
     const s = await BlockSession.open(pool);
     const fn = `public.bs_plan_of_${crypto.randomUUID().slice(0, 8)}`;
+
     try {
       await s.install(["organizations", "billing"]);
       const owner = await s.user("owner");
       const member = await s.user("member");
       const organization = await s.organization(owner, { member });
       await s.service();
+
       if (
         !(await s.value<boolean>(
           "to_regclass('stripe.subscription_items') is not null",
@@ -483,6 +505,7 @@ describe.skipIf(!live)("billing", () => {
           create table stripe.subscriptions (id text primary key, customer text, status text, created bigint);
           create table stripe.subscription_items (id text primary key, subscription text, price text, quantity integer, created bigint)`);
       }
+
       await s.rows(
         "select better_supabase.link_billing_customer($1, 'cus_bs_internal')",
         [organization],
@@ -528,18 +551,21 @@ describe.skipIf(!live)("billing", () => {
 
   it("lists every linked customer for platform staff", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "billing"]);
       const owner = await s.user("owner");
       const first = await s.organization(owner);
       const second = await s.organization(owner);
       await s.service();
+
       if (
         !(await s.value<boolean>("to_regclass('stripe.customers') is not null"))
       ) {
         await s.rows(`create schema if not exists stripe;
           create table stripe.customers (id text primary key, email text, name text, created bigint)`);
       }
+
       await s.rows(
         `select better_supabase.link_billing_customer($1, 'cus_bs_list_1'), better_supabase.link_billing_customer($2, 'cus_bs_list_2')`,
         [first, second],
@@ -547,10 +573,12 @@ describe.skipIf(!live)("billing", () => {
       await s.rows(
         "insert into stripe.customers (id, email, name, created) values ('cus_bs_list_1', 'billing@first.test', 'First', 1767225600)",
       );
+
       const billing = createBilling({
         stripe: { secretKey: "sk_test_unused" },
         transport: sqlTransport(s.sql),
       });
+
       await s.asRole(owner);
       expect(await billing.allCustomers()).toMatchObject({
         error: { hint: "BILLING_FORBIDDEN" },
@@ -558,10 +586,12 @@ describe.skipIf(!live)("billing", () => {
       await s.service();
       const staff = await s.user("staff");
       await s.asRole(staff, { platform_permissions: ["billing.read"] });
+
       const listed = (await billing.allCustomers().orThrow()).filter(
         (entry) =>
           entry.organizationId === first || entry.organizationId === second,
       );
+
       expect(
         listed.map((entry) => ({
           ...entry,
@@ -585,10 +615,12 @@ describe.skipIf(!live)("billing", () => {
           },
         ].sort((a, b) => a.organizationId.localeCompare(b.organizationId)),
       );
+
       const rows = await s.rows<Record<string, unknown>>(
         "select tenant::text, customer, email from better_supabase.billing_platform_customers() where tenant = any ($1::uuid[]) order by customer",
         [[first, second]],
       );
+
       expect(rows).toEqual([
         {
           tenant: first,

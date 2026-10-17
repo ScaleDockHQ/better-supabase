@@ -16,13 +16,17 @@ export function keyValue(table: TableMeta, raw: unknown): Result<unknown> {
       `${JSON.stringify(raw)} is not a valid ${table.key} key`,
     ),
   );
+
   const column = table.columns[table.primaryKey[0]!];
+
   if (column && INTEGER.has(column.type)) {
     const value = typeof raw === "string" ? Number(raw) : raw;
+
     return typeof value === "number" && Number.isSafeInteger(value)
       ? ok(value)
       : invalid;
   }
+
   return typeof raw === "string" && raw !== "" ? ok(raw) : invalid;
 }
 
@@ -35,29 +39,37 @@ export function crossSiteSimpleRequest(request: Request): boolean {
   if (request.method === "GET" || request.method === "HEAD") {
     return false;
   }
+
   if (request.headers.has("authorization")) {
     return false;
   }
+
   const origin = request.headers.get("origin");
+
   if (!origin || origin === new URL(request.url).origin) {
     return false;
   }
+
   if (request.headers.get("sec-fetch-site") === "same-origin") {
     return false;
   }
+
   const type = request.headers.get("content-type") ?? "";
+
   return !/^application\/(?:[\w.+-]+\+)?json\b/iu.test(type);
 }
 
 export async function readBody(request: Request): Promise<Result<unknown>> {
   try {
     const body: unknown = await request.json();
+
     if (typeof body === "object" && body !== null && !Array.isArray(body)) {
       return ok(body);
     }
   } catch {
     // Reported below.
   }
+
   return err(
     dbError("invalid_input", "The request body must be a JSON object"),
   );
@@ -66,9 +78,11 @@ export async function readBody(request: Request): Promise<Result<unknown>> {
 /** Any JSON body; an empty body is `undefined`. */
 export async function readJson(request: Request): Promise<Result<unknown>> {
   const text = await request.text();
+
   if (text.trim() === "") {
     return ok(undefined);
   }
+
   try {
     return ok(JSON.parse(text));
   } catch {
@@ -83,7 +97,9 @@ export function queryObject(
   if (!(query instanceof URLSearchParams)) {
     return query ?? {};
   }
+
   const values: Record<string, string | string[]> = {};
+
   for (const [name, value] of query) {
     const seen = values[name];
     values[name] =
@@ -91,6 +107,7 @@ export function queryObject(
         ? value
         : [...(Array.isArray(seen) ? seen : [seen]), value];
   }
+
   return values;
 }
 
@@ -104,34 +121,47 @@ export function pageArgs(
   const raw = (name: string): unknown => {
     const value: unknown =
       query instanceof URLSearchParams ? query.get(name) : query?.[name];
+
     return value === null || value === "" ? undefined : value;
   };
+
   const read = (name: string, fallback: number): number | undefined => {
     const value = raw(name);
+
     if (value === undefined) {
       return fallback;
     }
+
     const number = Number(value);
+
     return Number.isSafeInteger(number) && number >= 1 ? number : undefined;
   };
+
   const issues: ValidationIssue[] = [];
   const size = read("size", 50);
+
   if (size === undefined || size > max) {
     issues.push({ message: `Must be between 1 and ${max}`, path: ["size"] });
   }
+
   const [used, unused] =
     pagination === "cursor" ? ["after", "page"] : ["page", "after"];
+
   if (raw(unused) !== undefined) {
     issues.push({
       message: `This list pages with \`${used}\``,
       path: [unused],
     });
   }
+
   const page = read("page", 1);
+
   if (pagination === "offset" && page === undefined) {
     issues.push({ message: "Must be a positive integer", path: ["page"] });
   }
+
   const after = raw("after");
+
   if (
     pagination === "cursor" &&
     after !== undefined &&
@@ -139,9 +169,11 @@ export function pageArgs(
   ) {
     issues.push({ message: "Must be text", path: ["after"] });
   }
+
   if (issues.length > 0 || size === undefined) {
     return err(dbError("validation", "Invalid page parameters", { issues }));
   }
+
   return pagination === "cursor"
     ? ok({ after: typeof after === "string" ? after : null, size })
     : ok({ page: page ?? 1, size });
@@ -159,6 +191,7 @@ export function splitPath(
   if (typeof subpath !== "string") {
     return ok(subpath);
   }
+
   try {
     return ok(
       subpath
@@ -173,6 +206,7 @@ export function splitPath(
 
 export function contextOf(db: object): RequestContext {
   const value = "$context" in db ? db.$context : undefined;
+
   return isRecord(value) ? value : {};
 }
 

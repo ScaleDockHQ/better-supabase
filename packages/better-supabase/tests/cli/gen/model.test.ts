@@ -13,14 +13,17 @@ const root = libraryFixture("").pathname;
 const BOTH = ["public", "better_supabase"];
 
 type Generator = Snapshot["generator"];
+
 type Edit = (generator: Generator) => Partial<Generator>;
 
 async function model(edit: Edit, config: BetterSupabaseConfig = {}) {
   const fixture = await loadFixtureSnapshot();
+
   const snapshot: Snapshot = {
     ...fixture,
     generator: { ...fixture.generator, ...edit(fixture.generator) },
   };
+
   return buildModel(
     snapshot,
     resolveConfig({ casing: "camel", ...config }, root),
@@ -38,6 +41,7 @@ const copyTable =
   (generator) => {
     const source = tableNamed(generator, name);
     const id = source.id + 900_000;
+
     return {
       tables: [
         ...generator.tables,
@@ -67,10 +71,12 @@ describe("buildModel collisions", () => {
     await expect(
       model((generator) => {
         const tags = tableNamed(generator, "tags");
+
         const column = generator.columns.find(
           (entry) =>
             entry.table_id === tags.id && entry.name === "organization_id",
         )!;
+
         return {
           columns: [
             ...generator.columns,
@@ -103,6 +109,7 @@ describe("buildModel config keys", () => {
         },
       },
     );
+
     expect(
       built.tables.filter((table) => table.snapshot.name === "tags"),
     ).toHaveLength(1);
@@ -121,6 +128,7 @@ describe("buildModel config keys", () => {
       schemas: ["public", "app"],
       tables: { tags: { casing: "snake" } },
     });
+
     expect(built.warnings).toEqual([
       'tables["tags"]: app.tags and public.tags share the name, so the entry applies to each. Key it `schema.table` to pick one.',
     ]);
@@ -132,6 +140,7 @@ describe("buildModel functions", () => {
     (schema: string, name: string, argType?: number): Edit =>
     (generator) => {
       const template = generator.functions[0]!;
+
       return {
         functions: [
           ...generator.functions,
@@ -165,10 +174,12 @@ describe("buildModel functions", () => {
     const built = await model(
       (generator) => {
         const kind = generator.types.find((type) => type.name === "note_kind")!;
+
         return addFunction("better_supabase", "log_kind", kind.id)(generator);
       },
       { schemas: BOTH },
     );
+
     expect(
       built.functions.find((fn) => fn.key === "log_kind")?.args[0]?.tsType,
     ).toBe('"call" | "meeting" | "email"');
@@ -178,6 +189,7 @@ describe("buildModel functions", () => {
     const built = await model(
       (generator) => {
         const first = addFunction("better_supabase", "ping")(generator);
+
         const both = addFunction(
           "public",
           "ping",
@@ -185,6 +197,7 @@ describe("buildModel functions", () => {
           ...generator,
           functions: first.functions ?? [],
         });
+
         return {
           functions: (both.functions ?? []).map((fn, index, all) =>
             index === all.length - 1 ? { ...fn, id: fn.id + 1 } : fn,
@@ -193,6 +206,7 @@ describe("buildModel functions", () => {
       },
       { schemas: BOTH },
     );
+
     const ping = built.functions.filter((fn) => fn.key === "ping");
     expect(ping.map((fn) => fn.meta.schema)).toEqual(["public"]);
     expect(built.warnings).toContainEqual(
@@ -205,10 +219,12 @@ describe("buildModel functions", () => {
   /** `public.area(side int4)`, `area(label text, scale int4 default)` and `area()`, shuffled. */
   const addOverloads: Edit = (generator) => {
     const template = generator.functions[0]!;
+
     const typeId = (name: string) =>
       generator.types.find(
         (type) => type.schema === "pg_catalog" && type.name === name,
       )!.id;
+
     const overload = (
       offset: number,
       signature: string,
@@ -232,6 +248,7 @@ describe("buildModel functions", () => {
       return_type_relation_id: null,
       is_set_returning_function: false,
     });
+
     return {
       functions: [
         ...generator.functions,
@@ -288,18 +305,24 @@ describe("buildModel functions", () => {
 
   it("emits a union of Args and Returns for an overloaded function", async () => {
     const built = await model(addOverloads);
+
     const reversed = await model((generator) => {
       const edited = addOverloads(generator);
+
       return { functions: [...(edited.functions ?? [])].reverse() };
     });
+
     const emit = (input: typeof built) =>
       emitModule(input, { importPathFor: (from) => from });
+
     const source = emit(built);
     expect(emit(reversed)).toBe(source);
+
     const area = source.slice(
       source.indexOf("area:"),
       source.indexOf("};", source.lastIndexOf("Returns: number | null;")) + 2,
     );
+
     expect(area).toBe(
       [
         "area:",
@@ -330,6 +353,7 @@ describe("buildModel enums", () => {
     const built = await model(
       (generator) => {
         const kind = generator.types.find((type) => type.name === "note_kind")!;
+
         return {
           types: [
             ...generator.types,
@@ -344,6 +368,7 @@ describe("buildModel enums", () => {
       },
       { schemas: BOTH },
     );
+
     expect(
       built.enums.map((entry) => [entry.key, entry.constant, entry.typeName]),
     ).toEqual(
@@ -365,6 +390,7 @@ describe("buildModel enums", () => {
     const withEnum = (name: string) =>
       model((generator) => {
         const kind = generator.types.find((type) => type.name === "note_kind")!;
+
         return {
           types: [
             ...generator.types,
@@ -372,6 +398,7 @@ describe("buildModel enums", () => {
           ],
         };
       });
+
     const odd = await withEnum("2fa level");
     expect(odd.enums.find((entry) => entry.name === "2fa level")).toMatchObject(
       { constant: "_2fa_levelValues", typeName: "_2fa_level" },
@@ -389,6 +416,7 @@ describe("buildModel enums", () => {
 describe('bucket policies with sql: "provider"', () => {
   const idsWith = "authz.ids_{scope}({permission})";
   const isPlatform = "authz.is_platform({permission})";
+
   const buckets = {
     docs: {
       path: "{organizationId}/{...rest}",
@@ -410,6 +438,7 @@ describe('bucket policies with sql: "provider"', () => {
         functions: { idsWith, isPlatform },
       },
     });
+
     expect(meta.buckets?.["docs"]?.policy).toMatchObject({
       sql: { idsWith, isPlatform },
     });
@@ -426,6 +455,7 @@ describe("buildModel comments", () => {
   it("puts table and column comments in the meta, mapping @deprecated", async () => {
     const built = await model((generator) => {
       const tags = tableNamed(generator, "tags");
+
       return {
         tables: generator.tables.map((table) =>
           table.id === tags.id
@@ -439,6 +469,7 @@ describe("buildModel comments", () => {
         ),
       };
     });
+
     const tags = built.tables.find((table) => table.key === "tags")!.meta;
     expect(tags.description).toBe("Labels.");
     expect(tags.deprecated).toBe(true);
@@ -452,9 +483,11 @@ describe("buildModel comments", () => {
     const tags = built.tables.find((table) => table.key === "tags")!.meta;
     expect(tags).not.toHaveProperty("description");
     expect(tags).not.toHaveProperty("deprecated");
+
     const customers = built.tables.find(
       (table) => table.key === "customers",
     )!.meta;
+
     expect(customers.description).toBe("Companies the organization sells to.");
     expect(customers.columns["name"]?.description).toBe("Trading name.");
   });
@@ -468,6 +501,7 @@ describe("subject types", () => {
         customer: { table: "public.customers" },
       },
     });
+
     const source = emitModule(input, { importPathFor: (from) => from });
     expect(source).toContain(
       'export const subjectTypes = ["task", "customer"] as const;',
@@ -481,6 +515,7 @@ describe("subject types", () => {
     const source = emitModule(await model(() => ({})), {
       importPathFor: (from) => from,
     });
+
     expect(source).not.toContain("SubjectType");
   });
 });

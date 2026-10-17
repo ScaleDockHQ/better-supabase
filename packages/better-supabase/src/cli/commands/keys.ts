@@ -45,7 +45,9 @@ async function createSigningKey(): Promise<SigningKey> {
     true,
     ["sign", "verify"],
   );
+
   const jwk = await crypto.subtle.exportKey("jwk", pair.privateKey);
+
   return {
     kty: "EC",
     kid: crypto.randomUUID(),
@@ -69,23 +71,27 @@ export async function runKeys(
   const path = resolve(config.root, out);
   const rotate = args.rotate === true;
   const exists = existsSync(path);
+
   if (exists && !rotate && args.force !== true) {
     return {
       code: 1,
       error: `${display(config.root, out)} exists. Use --rotate to add a key or --force to replace it.`,
     };
   }
+
   // SAFETY: the keys file is a JSON list that this command writes.
   const previous: unknown[] =
     exists && rotate
       ? (JSON.parse(await readFile(path, "utf-8")) as unknown[])
       : [];
+
   if (!Array.isArray(previous)) {
     return {
       code: 1,
       error: `${display(config.root, out)} is not a JSON array of keys.`,
     };
   }
+
   const key = await createSigningKey();
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, `${JSON.stringify([key, ...previous], null, 2)}\n`, {
@@ -96,14 +102,18 @@ export async function runKeys(
   const lines = [
     `Wrote ${display(config.root, out)} with key ${key.kid}${previous.length > 0 ? ` (${previous.length} older key${previous.length === 1 ? "" : "s"} kept for verification)` : ""}.`,
   ];
+
   const toml = resolve(config.root, dir, "config.toml");
+
   const configured =
     existsSync(toml) &&
     /^\s*signing_keys_path\s*=/m.test(await readFile(toml, "utf-8"));
+
   if (!configured) {
     const relativeToSupabase = out.startsWith(`${dir}/`)
       ? `./${out.slice(dir.length + 1)}`
       : out;
+
     lines.push(
       "",
       `Add it to ${dir}/config.toml and restart the stack:`,
@@ -111,11 +121,14 @@ export async function runKeys(
       `  signing_keys_path = "${relativeToSupabase}"`,
     );
   }
+
   const gitignored = [
     resolve(config.root, ".gitignore"),
     resolve(config.root, dir, ".gitignore"),
   ];
+
   let ignored = false;
+
   for (const file of gitignored) {
     if (
       existsSync(file) &&
@@ -124,12 +137,14 @@ export async function runKeys(
       ignored = true;
     }
   }
+
   if (!ignored) {
     lines.push(
       "",
       `Warning: add ${out} to .gitignore; it holds a private key.`,
     );
   }
+
   return { code: 0, output: lines.join("\n") };
 }
 

@@ -36,9 +36,11 @@ describe("useBlockEnv", () => {
   it("keeps the client's ports and defaults the topic port", () => {
     const topic = fakeTopic();
     const own = client({ topic: topic.port });
+
     const view = renderHook(useBlockEnv, undefined, () => {
       BetterSupabaseProvider({ client: own });
     });
+
     expect(view.result.ports.topic).toBe(topic.port);
     expect(view.result.auth).toBe(own.auth);
     view.unmount();
@@ -46,6 +48,7 @@ describe("useBlockEnv", () => {
     const bare = renderHook(useBlockEnv, undefined, () => {
       BetterSupabaseProvider({ client: client() });
     });
+
     expect(typeof bare.result.ports.topic).toBe("function");
     bare.unmount();
   });
@@ -54,6 +57,7 @@ describe("useBlockEnv", () => {
 describe("useController", () => {
   it("renders the snapshot with the actions and makes a new controller per deps", () => {
     const made = vi.fn();
+
     const view = renderHook<
       string,
       { label: string; count: number; add: () => void }
@@ -61,6 +65,7 @@ describe("useController", () => {
       (label) =>
         useController(() => {
           made(label);
+
           return defineController({ label, count: 0 }, (state) => ({
             actions: {
               add: () => {
@@ -71,6 +76,7 @@ describe("useController", () => {
         }, [label]).view,
       "a",
     );
+
     view.result.add();
     expect(view.result).toMatchObject({ label: "a", count: 1 });
     view.rerender("a");
@@ -89,6 +95,7 @@ describe("useController conformance", () => {
           () => useController(create, []).view,
           undefined,
         );
+
         return {
           read: () => view.result,
           actions: view.result,

@@ -64,6 +64,7 @@ describe("applyPatch", () => {
   it("works on multi-valued attributes with and without filters", () => {
     const emails = (doc: Record<string, unknown>) =>
       doc["emails"] as Record<string, unknown>[];
+
     expect(
       emails(
         patchUser({
@@ -138,6 +139,7 @@ describe("applyPatch", () => {
       ATTRIBUTES.User,
       SCIM_PATCH,
     );
+
     expect(empty["emails"]).toEqual([{ value: "x@y.test" }]);
   });
 
@@ -165,6 +167,7 @@ describe("applyPatch", () => {
       displayName: "Admins",
       members: [{ value: "u1" }],
     };
+
     const result = applyPatch(
       group,
       {
@@ -183,6 +186,7 @@ describe("applyPatch", () => {
       ATTRIBUTES.Group,
       SCIM_PATCH,
     );
+
     expect(result["members"]).toEqual([{ value: "u2" }]);
   });
 

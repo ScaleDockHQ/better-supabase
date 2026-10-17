@@ -34,11 +34,14 @@ export function withTenant<
     key: "tenant",
     run: () => async (request, ctx) => {
       const options = callOf(ctx)?.options;
+
       if (options?.support === undefined) {
         startSupportLookup(core, request, ctx.session);
       }
+
       const tenant =
         options?.tenant ?? (await core.tenant(request, ctx.session.auth));
+
       return { tenant };
     },
   })();

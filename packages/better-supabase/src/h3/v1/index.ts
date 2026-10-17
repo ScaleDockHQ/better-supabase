@@ -61,19 +61,24 @@ export function toH3V1<const Entries extends readonly AnyEntry[]>(
   options: ToH3V1Options<Partial<Contributions<Entries>>> = {},
 ): H3V1Handler<Partial<Contributions<Entries>>> {
   const run = beforeRoute(entries);
+
   return async (event) => {
     const env = options.env
       ? options.env(event)
       : event.context.cloudflare?.env;
+
     const outcome = await run(
       headRequest(event.node.req, options.trustProxy),
       env,
     );
+
     if (!outcome.reached) {
       return outcome.response;
     }
+
     applyWebHeaders(event.node.res, outcome.headers);
     Object.assign(event.context, outcome.contributions);
+
     return;
   };
 }

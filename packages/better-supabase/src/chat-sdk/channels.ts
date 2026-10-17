@@ -45,6 +45,7 @@ export interface ChatLike {
 
 const APP: CredentialSubject = { type: "app" };
 const ECHO_TTL_MS = 24 * 60 * 60 * 1000;
+
 const echoKey = (adapter: string, id: string): string =>
   `better-supabase:inbox:echo:${adapter}:${id}`;
 
@@ -64,6 +65,7 @@ export async function channelAdapter<A>(
   const token = await options.credentials
     .getToken(options.ref, { subject: options.subject ?? APP })
     .orThrow();
+
   return options.create(token);
 }
 
@@ -114,15 +116,19 @@ export function webhook(
   options: InboxWebhookOptions,
 ): (request: Request) => Promise<Response> {
   const passthrough = options.passthrough ?? defaultPassthrough;
+
   return async (request) => {
     const body = await request.clone().text();
+
     if (passthrough(request, body)) {
       return options.passthroughHandler
         ? options.passthroughHandler(request)
         : new Response("not found", { status: 404 });
     }
+
     if (options.ref) {
       const provider = options.credentials;
+
       if (!provider?.verifyInbound) {
         return new Response(
           "the credential provider cannot verify inbound requests",
@@ -131,13 +137,16 @@ export function webhook(
           },
         );
       }
+
       const verified = await provider.verifyInbound(request, options.ref);
+
       if (!verified.ok || !verified.data) {
         return new Response("unauthorized", { status: 401 });
       }
     } else if (options.verify && !(await options.verify(request, body))) {
       return new Response("unauthorized", { status: 401 });
     }
+
     const headers: Record<string, string> = {};
     request.headers.forEach((value, key) => {
       if (!DROPPED_HEADERS.has(key)) {
@@ -145,6 +154,7 @@ export function webhook(
       }
     });
     const externalId = options.externalId?.(body, request);
+
     const stored = await options.inbox.inbound.store({
       adapter: options.adapter,
       body,
@@ -153,10 +163,13 @@ export function webhook(
       ...(options.inboxId === undefined ? {} : { inboxId: options.inboxId }),
       ...(options.tenant === undefined ? {} : { tenant: options.tenant }),
     });
+
     if (!stored.ok) {
       return new Response("could not store the event", { status: 503 });
     }
+
     options.after?.(stored.data);
+
     return new Response("ok", { status: 200 });
   };
 }
@@ -233,23 +246,32 @@ export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
 
   const process = async (event: StoredInboundEvent): Promise<void> => {
     await inbox.inbound.setStatus(event.id, "processing").orThrow();
+
     try {
       const parsed = parsers[event.adapter]?.(event) ?? null;
+
       if (parsed) {
         await applyDeliveries(event.adapter, parsed);
       }
+
       if (parsed?.only) {
         await inbox.inbound.setStatus(event.id, "processed").orThrow();
+
         return;
       }
+
       const handle = chat.webhooks[event.adapter];
+
       if (!handle) {
         await inbox.inbound
           .setStatus(event.id, "ignored", `no adapter named ${event.adapter}`)
           .orThrow();
+
         return;
       }
+
       const tasks: Promise<unknown>[] = [];
+
       const response = await handle(
         new Request(`${baseUrl}/${encodeURIComponent(event.adapter)}`, {
           method: "POST",
@@ -258,10 +280,13 @@ export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
         }),
         { waitUntil: (task) => void tasks.push(task) },
       );
+
       await Promise.all(tasks);
+
       if (response.status >= 400) {
         throw new Error(`${event.adapter} answered ${String(response.status)}`);
       }
+
       await inbox.inbound.setStatus(event.id, "processed").orThrow();
     } catch (error) {
       await inbox.inbound.setStatus(event.id, "failed", errorText(error));
@@ -275,9 +300,11 @@ export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
     threadId: string,
   ): Promise<MessageAttachment[]> => {
     const out: MessageAttachment[] = [];
+
     for (const file of message.attachments) {
       if (options.copyFile) {
         const copied = await options.copyFile(file, { adapter, threadId });
+
         if (copied) {
           out.push(copied);
         }
@@ -292,6 +319,7 @@ export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
         });
       }
     }
+
     return out;
   };
 
@@ -306,8 +334,10 @@ export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
             : { maxAttempts: drainOptions.maxAttempts }),
         })
         .orThrow();
+
       let processed = 0;
       let failed = 0;
+
       for (const event of events) {
         try {
           await process(event);
@@ -316,22 +346,30 @@ export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
           failed += 1;
         }
       }
+
       return { processed, failed };
     },
     mirror: async (thread, message) => {
       const adapter = thread.adapter.name;
+
       if (message.author.isMe || message.author.isBot === true) {
         return null;
       }
+
       const state = chat.getState();
+
       if ((await state.get(echoKey(adapter, message.id))) !== null) {
         return null;
       }
+
       const inboxId = options.inboxes[adapter];
+
       if (inboxId === undefined) {
         throw new Error(`inboundHandler: no inbox for adapter "${adapter}"`);
       }
+
       const attachments = await files(message, adapter, thread.id);
+
       return inbox.inbound
         .record({
           inboxId,
@@ -391,9 +429,11 @@ export async function whatsappWindowOpen(
   const page = await inbox.messages
     .list(conversationId, { limit: 200 })
     .orThrow();
+
   const last = page.findLast(
     (message) => message.direction === "inbound" && message.kind === "message",
   );
+
   return (
     last !== undefined &&
     last.createdAt.add({ hours: 24 }).epochMilliseconds > now.epochMilliseconds
@@ -410,35 +450,45 @@ export function deliver(
   options: DeliverOptions,
 ): (job: InboxOutboundJob) => Promise<RawMessage | null> {
   const { chat, inbox } = options;
+
   return async (job) => {
     const message = await inbox.messages.get(job.message_id).orThrow();
+
     if (message?.kind !== "message" || message.deletedAt !== null) {
       return null;
     }
+
     const conversation = await inbox.conversations
       .get(message.conversationId)
       .orThrow();
+
     if (!conversation) {
       return null;
     }
+
     const name =
       options.adapterFor?.(conversation) ??
       (conversation.inbox?.channel === "sms"
         ? "twilio"
         : conversation.inbox?.channel);
+
     const adapter = name === undefined ? undefined : chat.getAdapter(name);
+
     if (!adapter || name === undefined) {
       throw new Error(
         `deliver: no adapter for conversation ${conversation.id}`,
       );
     }
+
     const channel = conversation.inbox?.channel ?? name;
+
     try {
       const template = await options.template?.({
         conversation,
         message,
         adapter,
       });
+
       const raw = await adapter.postMessage(
         conversation.threadId,
         template ??
@@ -446,6 +496,7 @@ export function deliver(
             ? { markdown: message.body }
             : message.body),
       );
+
       await chat.getState().set(echoKey(name, raw.id), true, ECHO_TTL_MS);
       await inbox.deliveries
         .record({
@@ -455,6 +506,7 @@ export function deliver(
           status: "sent",
         })
         .orThrow();
+
       return raw;
     } catch (error) {
       await inbox.deliveries.record({
@@ -493,12 +545,16 @@ export async function maintain(
   options: MaintainOptions,
 ): Promise<MaintainResult> {
   const woken = await options.inbox.wakeSnoozed().orThrow();
+
   const replayed = options.handler
     ? await options.handler.drain()
     : { processed: 0, failed: 0 };
+
   const purgedEvents = await options.inbox.inbound
     .purge({ olderThan: options.keepEvents ?? "7 days" })
     .orThrow();
+
   const purgedState = options.state ? await options.state.purge() : 0;
+
   return { woken, purgedEvents, replayed, purgedState };
 }

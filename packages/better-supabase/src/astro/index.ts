@@ -29,6 +29,7 @@ import { createServer, extendServer } from "../server/server.ts";
 import { storageImageUrl } from "../storage/image-url.ts";
 
 export type { RefusalRedirects } from "../server/refusal.ts";
+
 export type { ActionResult } from "../server/kit.ts";
 
 /** The part of Astro's `APIContext` (middleware, pages, endpoints, actions) the integration uses. */
@@ -111,6 +112,7 @@ export interface BetterAstro<
 
 function runtimeEnv(locals: object): unknown {
   const runtime: unknown = "runtime" in locals ? locals.runtime : undefined;
+
   return typeof runtime === "object" && runtime !== null && "env" in runtime
     ? runtime.env
     : undefined;
@@ -131,6 +133,7 @@ export function createAstro<
   const server = createServer(betterSupabase, options);
   const expose = options.exposeErrors ?? defaultExpose();
   const run = around([frameworkEntry(server, options, expose)]);
+
   type Locals = FrameworkLocals<M, F, E, C, P>;
 
   const scopeOf = (context: AstroContextLike): Locals => {
@@ -139,6 +142,7 @@ export function createAstro<
         "better-supabase: no context; export bs.onRequest from src/middleware.ts",
       );
     }
+
     // SAFETY: onRequest put localsOf(contributions) on locals.
     return context.locals as Locals;
   };
@@ -148,12 +152,14 @@ export function createAstro<
     requireOptions: BlockRequireOptions<C, P>,
   ) => {
     const scope = scopeOf(context);
+
     const caller = await requireCaller(
       scope.bs.auth,
       requireOptions,
       scope.tenant,
       options.authorizer,
     );
+
     return { scope, caller };
   };
 
@@ -162,9 +168,11 @@ export function createAstro<
       const env = options.platformEnv
         ? options.platformEnv(context)
         : runtimeEnv(context.locals);
+
       try {
         return await run(context.request, env, (contributions) => {
           Object.assign(context.locals, localsOf<M, F, E, C, P>(contributions));
+
           return next();
         });
       } finally {
@@ -176,6 +184,7 @@ export function createAstro<
 
     guard: async (context, requireOptions = {}) => {
       const { caller } = await refusalOf(context, requireOptions);
+
       return "kind" in caller
         ? refusalResponse(caller, context.request, options, expose)
         : undefined;
@@ -183,10 +192,12 @@ export function createAstro<
 
     require: async (context, requireOptions = {}) => {
       const { scope, caller } = await refusalOf(context, requireOptions);
+
       if ("kind" in caller) {
         // oxlint-disable-next-line typescript/only-throw-error -- endpoints that rethrow send the Response as the answer.
         throw refusalResponse(caller, context.request, options, expose);
       }
+
       // SAFETY: requireTenant refused a missing tenant.
       return { ...scope, ...caller } as never;
     },
@@ -194,6 +205,7 @@ export function createAstro<
     action(actionOptions, fn) {
       return async (input, context) => {
         const scope = scopeOf(context);
+
         const result = await runAction(
           scope.bs.auth,
           actionOptions,
@@ -205,6 +217,7 @@ export function createAstro<
             fn(parsed as never, { ...scope, ...caller } as never),
           options.authorizer,
         );
+
         // SAFETY: the settled data is what fn returned, unwrapped.
         return result as never;
       };
@@ -239,17 +252,21 @@ export function createImageService(
   options: StorageImageOptions,
 ): AstroImageService {
   const imageUrl = storageImageUrl(options);
+
   return {
     getURL(transform) {
       const src =
         typeof transform.src === "string" ? transform.src : transform.src.src;
+
       if (transform.width === undefined) {
         return src;
       }
+
       const quality =
         typeof transform.quality === "string"
           ? QUALITY_PRESETS[transform.quality]
           : transform.quality;
+
       return (
         imageUrl(src, {
           width: transform.width,

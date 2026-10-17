@@ -31,12 +31,15 @@ export function tableSchemas(
   json: Readonly<Record<string, unknown>> = {},
 ): Readonly<Record<string, JsonSchema>> {
   let byJson = tableDefs.get(meta);
+
   if (!byJson) {
     byJson = new Map();
     tableDefs.set(meta, byJson);
   }
+
   const key = JSON.stringify(json);
   let defs = byJson.get(key);
+
   if (!defs) {
     // SAFETY: buildJsonSchema always returns a $defs object of JSON schemas.
     defs = buildJsonSchema({ meta, config: { json } })["$defs"] as Record<
@@ -45,6 +48,7 @@ export function tableSchemas(
     >;
     byJson.set(key, defs);
   }
+
   return defs;
 }
 
@@ -63,10 +67,13 @@ const converted = new WeakMap<object, Map<string, ConvertedSchema | null>>();
 
 function nameOf(schema: JsonSchema): string | undefined {
   const id = schema["$id"] ?? schema["id"];
+
   if (typeof id !== "string" || id === "") {
     return undefined;
   }
+
   const last = id.split(/[/#]/u).findLast((part) => part !== "") ?? id;
+
   return last.replace(/\.(?:schema\.)?json$/u, "");
 }
 
@@ -80,26 +87,34 @@ export function convertStandard(
   direction: "input" | "output",
 ): ConvertedSchema | undefined {
   let cache = converted.get(schema);
+
   if (!cache) {
     cache = new Map();
     converted.set(schema, cache);
   }
+
   const hit = cache.get(direction);
+
   if (hit !== undefined) {
     return hit ?? undefined;
   }
+
   // SAFETY: every Standard JSON Schema field on ~standard is optional, and a
   // missing jsonSchema is handled below.
   const standard = schema["~standard"] as Partial<StandardJSONSchemaV1.Props>;
   const convert = standard.jsonSchema?.[direction];
+
   if (typeof convert !== "function") {
     cache.set(direction, null);
+
     return undefined;
   }
+
   const raw = convert({ target: "draft-2020-12" });
   const name = nameOf(raw);
   const { $schema: _schema, $id: _id, id: _plainId, ...rest } = raw;
   const result = { schema: rest, ...(name ? { name } : {}) };
   cache.set(direction, result);
+
   return result;
 }

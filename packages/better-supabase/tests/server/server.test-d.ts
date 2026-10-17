@@ -13,6 +13,7 @@ import { createServer } from "../../src/server/server.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const bs = createServer(defineSupabase(schema));
+
 type Server =
   typeof bs extends BetterServer<infer M, infer F, infer E>
     ? { M: M; F: F; E: E }
@@ -33,6 +34,7 @@ describe("createServer forContext", () => {
       claimsFor: (userId, context) => {
         expectTypeOf(userId).toEqualTypeOf<string>();
         expectTypeOf(context.tenant).toEqualTypeOf<string | undefined>();
+
         return { organization_ids: [context.tenant] };
       },
     });
@@ -45,6 +47,7 @@ describe("createServer forContext", () => {
 describe("storage on the context", () => {
   it("types ctx.storage and db.$storage as a StorageApi", () => {
     type Ctx = ServerContext<Server["M"], Server["F"], Server["E"]>;
+
     expectTypeOf<Ctx["storage"]>().toEqualTypeOf<StorageApi | undefined>();
     expectTypeOf<Ctx["db"]["$storage"]>().toEqualTypeOf<StorageApi>();
     expectTypeOf<

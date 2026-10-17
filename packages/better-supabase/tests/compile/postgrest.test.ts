@@ -21,17 +21,21 @@ import { schema } from "../fixtures/generated-camel.ts";
 
 function table(key: string): TableMeta {
   const found = schema.meta.tables[key];
+
   if (!found) {
     throw new Error(`No fixture table ${key}`);
   }
+
   return found;
 }
 
 function relation(from: TableMeta, name: string): RelationMeta {
   const found = from.relations[name];
+
   if (!found) {
     throw new Error(`No relation ${name} on ${from.key}`);
   }
+
   return found;
 }
 
@@ -129,8 +133,10 @@ function invalid(fn: () => unknown): string {
     if (error instanceof DbException && error.kind === "invalid_request") {
       return error.message;
     }
+
     throw error;
   }
+
   throw new Error("Expected an invalid_request DbException");
 }
 
@@ -418,6 +424,7 @@ describe("compilePostgrest relation filters", () => {
 
   it("nests a relation filter inside a relation filter", () => {
     const organizationOf = relation(notes, "organization");
+
     const where = onNotes("some", {
       kind: "relation",
       name: "organization",
@@ -426,6 +433,7 @@ describe("compilePostgrest relation filters", () => {
       quantifier: "some",
       where: col("slug", "eq", "acme"),
     });
+
     const result = plan(select({ where }));
     expect(result.select).toBe(
       `id,_bs1:${EMBED}!inner(_bs2:organizations!notes_organization_id_fkey!inner())`,
@@ -461,6 +469,7 @@ describe("compilePostgrest relation filters", () => {
           where: { kind: "or", items: [relationTerm, col("name", "eq", "A")] },
         }),
       );
+
       expect(result.select).toBe(`id,_bs1:${EMBED}()`);
       expect(result.filters).toEqual([
         ...filters,
@@ -484,9 +493,11 @@ describe("compilePostgrest relation filters", () => {
         col("body", "eq", "x"),
       ],
     };
+
     const result = plan(
       select({ selection: { columns: [], includes: [include({ where })] } }),
     );
+
     expect(result.select).toBe(
       `notes:${EMBED}(id,_bs1:organizations!notes_organization_id_fkey())`,
     );
@@ -596,6 +607,7 @@ describe("compilePostgrest selections and includes", () => {
       target: organizations,
       where: col("slug", "eq", "acme"),
     });
+
     const result = plan(
       select({
         selection: {
@@ -617,6 +629,7 @@ describe("compilePostgrest selections and includes", () => {
         },
       }),
     );
+
     expect(result.filters).toEqual([
       filter("notes.organization.slug", "eq", "acme"),
       filter("notes.body", "eq", "x"),
@@ -647,6 +660,7 @@ describe("compilePostgrest selections and includes", () => {
         },
       }),
     );
+
     expect(result.filters).toEqual([
       filter("notes.id", "is", "null"),
       filter("notes.id", "not.is", "null"),
@@ -756,6 +770,7 @@ describe("compilePostgrest paging", () => {
         },
       },
     };
+
     expect(
       invalid(() =>
         plan(
@@ -854,6 +869,7 @@ describe("compilePostgrest mutations", () => {
         maxAffected: 10,
       }).maxAffected,
     ).toBe(10);
+
     const remove: Operation = {
       kind: "delete",
       table: customers,
@@ -861,6 +877,7 @@ describe("compilePostgrest mutations", () => {
       returning: undefined,
       maxAffected: 0,
     };
+
     expect(plan(remove).maxAffected).toBe(0);
     expect(
       compilePostgrest(remove, { postgrestVersion: "13.0.4" }).maxAffected,
@@ -877,6 +894,7 @@ describe("compilePostgrest mutations", () => {
       returning: undefined,
       maxAffected: -1,
     };
+
     expect(invalid(() => plan(remove))).toBe(
       '"maxAffected" must be a non-negative integer, got -1',
     );
@@ -905,6 +923,7 @@ describe("compilePostgrest mutations", () => {
     "rejects a relation filter in %s",
     (kind) => {
       const where = onNotes("some", col("body", "eq", "x"));
+
       const op: Operation =
         kind === "update"
           ? {
@@ -915,6 +934,7 @@ describe("compilePostgrest mutations", () => {
               returning: undefined,
             }
           : { kind, table: customers, where, returning: undefined };
+
       expect(invalid(() => plan(op))).toBe(
         `Relation filters are not supported in ${kind} on PostgREST; filter by key instead`,
       );

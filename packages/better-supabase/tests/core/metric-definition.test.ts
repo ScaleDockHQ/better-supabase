@@ -28,6 +28,7 @@ describe("defineMetric", () => {
       label: "Orders",
       unit: "EUR",
     });
+
     expect(metric.key).toBe("orders");
     expect(metric.dimensions).toEqual(["channel"]);
   });
@@ -86,6 +87,7 @@ describe("grainDivides", () => {
     const table = METRIC_GRAINS.map((stored) =>
       METRIC_GRAINS.filter((grain) => grainDivides(stored, grain)),
     );
+
     expect(table).toEqual([
       ["hour", "day", "week", "month"],
       ["day", "week", "month"],

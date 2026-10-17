@@ -6,6 +6,7 @@ import { createRuntime, sessionOf } from "./runtime/index.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 const signer = await createTestSigner();
+
 const runtime = createRuntime({
   env: {
     url: PROJECT_URL,
@@ -14,6 +15,7 @@ const runtime = createRuntime({
   },
   auth: { jwks: signer.jwks as never },
 });
+
 const sub = "6f1c2c1e-5d0a-4d9e-9a51-6b1f0e7c2a10";
 const client = "5f0e4d3c-2b1a-4098-8776-655443322110";
 
@@ -21,9 +23,11 @@ const addresses = runtime.handler(
   async (_request, ctx) => {
     const session = sessionOf(ctx);
     const rows = await shippingAddresses(ctx.db, "c1");
+
     if (!rows.ok) {
       return rows;
     }
+
     return {
       actor: session.kind === "user" ? session.actor : undefined,
       delegation: session.kind === "user" ? session.delegation : undefined,
@@ -50,11 +54,13 @@ describe("bearer callers through the runtime", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(() =>
       Promise.resolve(Response.json([])),
     );
+
     const token = await signer.sign({
       sub,
       client_id: client,
       scope: "openid addresses:read",
     });
+
     const response = await call(token);
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
@@ -69,9 +75,11 @@ describe("bearer callers through the runtime", () => {
       Promise.resolve(Response.json([])),
     );
     const act = { sub: "agent-runner", act: { sub: "mcp-client-42" } };
+
     const response = await call(
       await signer.sign({ sub, act, scope: "addresses:read" }),
     );
+
     expect(await response.json()).toMatchObject({
       actor: { id: "agent-runner", kind: "oauth-client", chain: act },
       delegation: { scopes: ["addresses:read"], chain: act },
@@ -80,9 +88,11 @@ describe("bearer callers through the runtime", () => {
 
   it("refuses a missing scope and a malformed chain before any query", async () => {
     const fetch = vi.spyOn(globalThis, "fetch");
+
     const narrow = await call(
       await signer.sign({ sub, client_id: client, scope: "openid" }),
     );
+
     expect(narrow.status).toBe(403);
     expect(narrow.headers.get("www-authenticate")).toContain(
       'error="insufficient_scope", scope="addresses:read"',

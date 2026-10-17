@@ -49,6 +49,7 @@ export const libEntry = (context: TemplateContext): string =>
 /** Import path of `lib/supabase/index.ts`: the folder, unless the project keeps `.ts` extensions. */
 function importLib(context: TemplateContext, from: string): string {
   const path = importFrom(context, from, libEntry(context));
+
   return context.tsExtensions
     ? path
     : path.replace(/^(\.\.?\/.+)\/index$/, "$1");
@@ -62,9 +63,11 @@ export function importFrom(
   keepTs: boolean = context.tsExtensions,
 ): string {
   let path = posix.relative(posix.dirname(from), to);
+
   if (!path.startsWith(".")) {
     path = `./${path}`;
   }
+
   return keepTs ? path : path.replace(/\.tsx?$/, "");
 }
 
@@ -79,15 +82,19 @@ function publicEnv(context: TemplateContext): { url: string; key: string } {
           url: `process.env.${prefix}SUPABASE_URL!`,
           key: `process.env.${prefix}SUPABASE_PUBLISHABLE_KEY!`,
         };
+
   if (context.frameworks.includes("next")) {
     return read("NEXT_PUBLIC_", "process");
   }
+
   if (context.frameworks.includes("expo")) {
     return read("EXPO_PUBLIC_", "process");
   }
+
   if (context.frameworks.includes("vite")) {
     return read("VITE_", "vite");
   }
+
   return read("", "process");
 }
 
@@ -166,13 +173,16 @@ export default defineConfig({${
 });
 `,
   };
+
   if (!lib) {
     return [config];
   }
+
   const path = libEntry(context);
   const generated = importFrom(context, path, context.generated);
   // Hermes has no Temporal, and patching the global breaks other libraries.
   const expo = context.frameworks.includes("expo");
+
   return [
     config,
     {
@@ -197,6 +207,7 @@ export const TEMPLATES: Readonly<Record<Integration, IntegrationTemplate>> = {
     files: (context) => {
       const path = join(supabaseDir(context), "client.ts");
       const env = publicEnv(context);
+
       return [
         {
           path,
@@ -222,6 +233,7 @@ export const bs = createClient(betterSupabase, {
     files: (context) => {
       const server = join(supabaseDir(context), "server.ts");
       const proxy = join(context.srcDir, "proxy.ts");
+
       return [
         {
           path: server,
@@ -259,10 +271,13 @@ export const config = {
     packages: ["@tanstack/react-query"],
     files: (context) => {
       const client = join(supabaseDir(context), "client.ts");
+
       const providers = context.frameworks.includes("next")
         ? join(context.srcDir, "app", "providers.tsx")
         : join(context.srcDir, "providers.tsx");
+
       const hooks = join(libDir(context), "hooks.ts");
+
       return [
         {
           path: providers,
@@ -303,6 +318,7 @@ export const { useDb, useQueries, useAuth, useSupabase } = createHooks<typeof bs
     packages: ["hono", "@supabase/server"],
     files: (context) => {
       const path = join(context.srcDir, "server.ts");
+
       return [
         {
           path,
@@ -330,6 +346,7 @@ export default app;
     packages: ["@orpc/server", "@supabase/server"],
     files: (context) => {
       const path = join(context.srcDir, "router.ts");
+
       return [
         {
           path,
@@ -392,6 +409,7 @@ Deno.serve(bs.handler((_request, { auth }) => ({ kind: auth.kind })));
       const native = join(supabaseDir(context), "client.native.ts");
       const middleware = join(context.srcDir, "app", "+middleware.ts");
       const env = publicEnv(context);
+
       return [
         {
           path: server,
@@ -479,18 +497,23 @@ export function resolveIntegrations(
   names: readonly Integration[],
 ): Integration[] {
   const ordered: Integration[] = [];
+
   const visit = (name: Integration): void => {
     if (ordered.includes(name)) {
       return;
     }
+
     for (const dependency of TEMPLATES[name].requires) {
       visit(dependency);
     }
+
     ordered.push(name);
   };
+
   for (const name of names) {
     visit(name);
   }
+
   return ordered;
 }
 
@@ -504,37 +527,45 @@ export function suggestedIntegrations(
   frameworks: readonly Framework[],
 ): Integration[] {
   const names: Integration[] = [];
+
   for (const framework of frameworks) {
     switch (framework) {
       case "next": {
         names.push("next");
         break;
       }
+
       case "hono": {
         names.push("hono");
         break;
       }
+
       case "orpc": {
         names.push("orpc");
         break;
       }
+
       case "vite": {
         names.push("client");
         break;
       }
+
       case "expo": {
         names.push("expo");
         break;
       }
+
       case "tanstack-query": {
         names.push("react");
         break;
       }
+
       default: {
         const unreachable: never = framework;
         throw new TypeError(`Unknown framework ${String(unreachable)}`);
       }
     }
   }
+
   return resolveIntegrations(names);
 }

@@ -12,13 +12,17 @@ import { InboxView } from "./inbox-view";
 export async function InboxList() {
   const session = await getSession();
   const organizationId = tenantOf(session);
+
   if (!organizationId) {
     return null;
   }
+
   if (!can(session, "inbox.read")) {
     forbidden();
   }
+
   const conversations = await getConversations();
+
   return <InboxView organizationId={organizationId} initial={conversations} />;
 }
 

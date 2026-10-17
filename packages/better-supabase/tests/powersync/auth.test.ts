@@ -5,11 +5,13 @@ import type { AuthSnapshot } from "../../src/client/bind.ts";
 import { syncWithAuth } from "../../src/powersync/auth.ts";
 
 const LOADING: AuthSnapshot = { status: "loading", user: null, claims: null };
+
 const SIGNED_OUT: AuthSnapshot = {
   status: "signed-out",
   user: null,
   claims: null,
 };
+
 const signedIn = (id: string): AuthSnapshot => ({
   status: "signed-in",
   user: { id },
@@ -19,17 +21,20 @@ const signedIn = (id: string): AuthSnapshot => ({
 function fakeAuth(initial: AuthSnapshot) {
   let snapshot = initial;
   const listeners = new Set<() => void>();
+
   return {
     auth: {
       current: () => snapshot,
       subscribe: (listener: () => void) => {
         listeners.add(listener);
+
         return () => void listeners.delete(listener);
       },
     },
     listeners,
     set: (next: AuthSnapshot) => {
       snapshot = next;
+
       for (const listener of [...listeners]) {
         listener();
       }
@@ -39,10 +44,12 @@ function fakeAuth(initial: AuthSnapshot) {
 
 function fakeDb() {
   const steps: string[] = [];
+
   const step = (name: string) =>
     vi.fn(async () => {
       steps.push(name);
     });
+
   return {
     steps,
     db: {

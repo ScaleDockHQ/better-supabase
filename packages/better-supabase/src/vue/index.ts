@@ -84,9 +84,13 @@ export type {
   PresenceTopic,
   UseActionOptions,
 } from "../bindings/client.ts";
+
 export type { AuthSnapshot } from "../client/index.ts";
+
 export type { AuthSession } from "../auth/view.ts";
+
 export type { SupportView } from "../auth/support-view.ts";
+
 export { fieldErrorsOf } from "../bindings/field-errors.ts";
 
 const SESSION: InjectionKey<MaybeRefOrGetter<AuthSession>> = Symbol(
@@ -117,14 +121,17 @@ export function betterSupabase(
   return {
     install(app) {
       const auth = shallowRef(client.auth.current());
+
       const stops = [
         client.auth.subscribe(() => {
           auth.value = client.auth.current();
         }),
       ];
+
       if (options.queryClient) {
         stops.push(clearOnUserChange(options.queryClient, client.auth));
       }
+
       app.onUnmount(() => {
         for (const stop of stops) {
           stop();
@@ -161,11 +168,13 @@ export function useSession<C = unknown, P = unknown>(): ComputedRef<
   AuthSession<C, P>
 > {
   const session = inject(SESSION, null);
+
   if (session === null) {
     throw new Error(
       "better-supabase: useSession() needs provideSession(session) in a parent component",
     );
   }
+
   // SAFETY: provideSession receives `bs.session()` from the same
   // `betterSupabase`, whose schemas fix `C` and `P`.
   return computed(() => toValue(session) as AuthSession<C, P>);
@@ -174,6 +183,7 @@ export function useSession<C = unknown, P = unknown>(): ComputedRef<
 /** The support session the page renders in, or `undefined` for a normal session. */
 export function useSupportSession(): ComputedRef<SupportView | undefined> {
   const session = useSession();
+
   return computed(() => supportOf(session.value));
 }
 
@@ -214,18 +224,23 @@ function useCaller(
   if (context && client === undefined) {
     return computed(() => callerOf(context.auth.value));
   }
+
   const supabase = client ?? context?.client.supabase;
+
   if (!supabase) {
     throw new Error("better-supabase: no supabase client");
   }
+
   const store = plainCaller(supabase);
   const caller = shallowRef(store.current());
   onClient(() => {
     const stop = store.subscribe(() => {
       caller.value = store.current();
     });
+
     onScopeDispose(stop);
   });
+
   return caller;
 }
 
@@ -235,11 +250,13 @@ function supabaseFor(
   client: SupabaseClient | undefined,
 ): SupabaseClient {
   const supabase = client ?? context?.client.supabase;
+
   if (!supabase) {
     throw new Error(
       `better-supabase: ${hook} needs app.use(betterSupabase(bs)) or { client: supabase }`,
     );
   }
+
   return supabase;
 }
 
@@ -264,22 +281,28 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
   const caller = useCaller(context, options?.client);
   const status = shallowRef<SubscriptionStatus>("closed");
   const run = keyed();
+
   const key = computed(() => {
     const current = toValue(values);
+
     if (!current || caller.value.status === "loading") {
       return null;
     }
+
     return JSON.stringify([topic.topic(current), caller.value.userId]);
   });
+
   onClient(() => {
     watch(
       key,
       (next) => {
         run.update(next, () => {
           const current = toValue(values);
+
           if (!current) {
             return;
           }
+
           return startBroadcast({
             supabase,
             topic,
@@ -296,6 +319,7 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
     );
     onScopeDispose(run.stop);
   });
+
   return readonly(status);
 }
 
@@ -316,26 +340,33 @@ export function useLiveQuery(
   const status = shallowRef<SubscriptionStatus>("closed");
   const run = keyed();
   let joined: string | null = null;
+
   const key = computed(() => {
     const current = toValue(spec);
+
     if (current && !queryClient) {
       throw new Error(
         "better-supabase: useLiveQuery needs betterSupabase(bs, { queryClient })",
       );
     }
+
     return liveKey(client, current, auth.value, options);
   });
+
   onClient(() => {
     watch(
       key,
       (next) => {
         run.update(next, () => {
           const current = toValue(spec);
+
           if (!current || !queryClient || next === null) {
             return;
           }
+
           const resumed = joined === next;
           joined = next;
+
           return startLiveQuery({
             client,
             queryClient,
@@ -353,6 +384,7 @@ export function useLiveQuery(
     );
     onScopeDispose(run.stop);
   });
+
   return readonly(status);
 }
 
@@ -384,20 +416,25 @@ export function useLiveCount(
   const run = keyed();
   let joined: { key: string; at: number } | null = null;
   const parsed = computed(() => countSource(toValue(source), options));
+
   const key = computed(() =>
     liveKey(client, parsed.value.spec, auth.value, options),
   );
+
   onClient(() => {
     watch(
       key,
       (next) => {
         run.update(next, () => {
           const { spec, initial, seedAt } = parsed.value;
+
           if (!spec || next === null) {
             return;
           }
+
           const previous = joined?.key === next ? joined : null;
           joined = { key: next, at: previous?.at ?? seedAt ?? 0 };
+
           return startLiveCount({
             client,
             spec,
@@ -408,6 +445,7 @@ export function useLiveCount(
             since: previous ? previous.at : seedAt,
             onState: (update) => {
               state.value = update(state.value);
+
               if (joined?.key === next) {
                 joined = { key: next, at: state.value.at };
               }
@@ -422,9 +460,11 @@ export function useLiveCount(
     );
     onScopeDispose(run.stop);
   });
+
   const shown = computed(() =>
     shownCount(state.value, key.value, parsed.value),
   );
+
   return {
     get count() {
       return shown.value.count;
@@ -476,22 +516,28 @@ export function usePresence<P extends string, I, O>(
   const status = shallowRef<SubscriptionStatus>("closed");
   let join: PresenceJoin<I> | undefined;
   const run = keyed();
+
   const key = computed(() => {
     const current = toValue(values);
+
     if (!current || caller.value.status === "loading") {
       return null;
     }
+
     return JSON.stringify([topic.topic(current), caller.value.userId]);
   });
+
   onClient(() => {
     watch(
       key,
       (next) => {
         run.update(next, () => {
           const current = toValue(values);
+
           if (!current) {
             return;
           }
+
           const joined = joinPresence(supabase, topic, topic.topic(current), {
             onStatus: (value) => {
               status.value = value;
@@ -500,11 +546,14 @@ export function usePresence<P extends string, I, O>(
               members.value = value;
             },
           });
+
           if (!joined) {
             return;
           }
+
           join = joined;
           joined.sync(toValue(options.state));
+
           return () => {
             join = undefined;
             members.value = NO_MEMBERS;
@@ -521,6 +570,7 @@ export function usePresence<P extends string, I, O>(
     );
     onScopeDispose(run.stop);
   });
+
   return {
     get members() {
       return members.value;
@@ -557,14 +607,18 @@ export function useAction<I, T>(
   const call = action as (
     input: ActionInputOf<I>,
   ) => Promise<ActionResultOf<T>>;
+
   const runner = createActionRunner(() => ({ action: call, options }));
   const state = shallowRef(runner.current());
+
   const stop = runner.subscribe(() => {
     state.value = runner.current();
   });
+
   if (getCurrentScope()) {
     onScopeDispose(stop);
   }
+
   return {
     run: runner.run,
     reset: runner.reset,

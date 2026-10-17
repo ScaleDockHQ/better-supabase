@@ -44,6 +44,7 @@ export function InboxView({
   const [status, setStatus] = useState<ConversationStatus>("open");
   const [assignee, setAssignee] = useState<AssigneeFilter>("anyone");
   const [selected, setSelected] = useState<string | null>(null);
+
   const assigneeItems = [
     { value: "anyone", label: t("Anyone") },
     { value: "me", label: t("Mine") },
@@ -60,6 +61,7 @@ export function InboxView({
               if (!v.is(ConversationStatus, value)) {
                 return;
               }
+
               setStatus(value);
             }}
           >
@@ -77,6 +79,7 @@ export function InboxView({
               if (!v.is(AssigneeFilter, value)) {
                 return;
               }
+
               setAssignee(value);
             }}
           >
@@ -141,17 +144,22 @@ function ConversationList({
 }) {
   const t = useExtracted("inbox");
   const format = useFormatter();
+
   const inbox = useInbox({
     organizationId,
     load: async () => unwrap(await loadConversations({ status, assignee })),
   });
+
   const conversations = inbox.items ?? initial;
+
   // Staff reads send no broadcast, so an opened conversation clears its badge here.
   const [openedAt, setOpenedAt] = useState<ReadonlyMap<string, number>>(
     () => new Map(),
   );
+
   const unread = (conversation: ConversationRow): boolean => {
     const opened = openedAt.get(conversation.id);
+
     return (
       conversation.unread &&
       (opened === undefined ||
@@ -159,6 +167,7 @@ function ConversationList({
           Date.parse(conversation.lastMessageAt) > opened))
     );
   };
+
   return conversations.length === 0 ? (
     <Empty className="border">
       <EmptyHeader>

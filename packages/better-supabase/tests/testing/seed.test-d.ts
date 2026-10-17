@@ -18,6 +18,7 @@ describe("seed types", () => {
         },
       },
     });
+
     expectTypeOf(seed.rows.customers.acme.id).toEqualTypeOf<"c1">();
 
     defineSeed(betterSupabase, {

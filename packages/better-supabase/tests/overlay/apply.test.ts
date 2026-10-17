@@ -15,6 +15,7 @@ import {
 } from "../../src/overlay/index.ts";
 
 let jsonpath: JsonPathEngine;
+
 beforeAll(async () => {
   jsonpath = await loadJsonPath();
 });
@@ -59,6 +60,7 @@ describe("applyOverlay", () => {
       ]),
       { jsonpath },
     );
+
     expect(diagnostics).toEqual([]);
     expect(document.paths["/customers"].get).toMatchObject({
       "x-audited": true,
@@ -88,6 +90,7 @@ describe("applyOverlay", () => {
       ]),
       { jsonpath },
     );
+
     expect(diagnostics).toEqual([]);
     const get = document.paths["/customers"].get;
     expect(get.tags).toEqual(["customers", "crm"]);
@@ -110,6 +113,7 @@ describe("applyOverlay", () => {
       ]),
       { jsonpath },
     );
+
     expect(document.tags.map((t) => t.name)).toEqual([
       "customers",
       "a",
@@ -128,6 +132,7 @@ describe("applyOverlay", () => {
       ]),
       { jsonpath },
     );
+
     expect(document.paths["/customers"].get.summary).toBe("Same");
     expect(document.paths["/orders"].get).toMatchObject({
       summary: "Same",
@@ -150,6 +155,7 @@ describe("applyOverlay", () => {
       ]),
       { jsonpath },
     );
+
     expect(diagnostics).toEqual([]);
     expect(Object.keys(document.paths["/customers"])).toEqual(["get"]);
     expect(document.list).toEqual([0, 2, 4]);
@@ -165,6 +171,7 @@ describe("applyOverlay", () => {
       ]),
       { jsonpath },
     );
+
     expect(document.tags).toEqual([{ name: "fresh" }]);
   });
 
@@ -174,6 +181,7 @@ describe("applyOverlay", () => {
       overlay11([{ target: "$", remove: true }]),
       { jsonpath },
     );
+
     expect(document).toEqual(base());
     expect(diagnostics).toEqual([
       expect.objectContaining({
@@ -201,6 +209,7 @@ describe("applyOverlay", () => {
       ]),
       { jsonpath },
     );
+
     expect(diagnostics).toEqual([
       expect.objectContaining({
         code: "overlay-merge-conflict",
@@ -223,6 +232,7 @@ describe("applyOverlay", () => {
       ]),
       { jsonpath },
     );
+
     expect(document.info).toEqual({ title: "CRM", version: "1.0.0", a: 1 });
   });
 
@@ -236,6 +246,7 @@ describe("applyOverlay", () => {
       ]),
       { jsonpath },
     );
+
     expect(diagnostics.map((d) => [d.code, d.pointer])).toEqual([
       ["overlay-copy-source", "/actions/0"],
       ["overlay-copy-source", "/actions/1"],
@@ -252,9 +263,11 @@ describe("applyOverlay", () => {
         { target: "$.info", copy: "$.paths" } as Overlay10["actions"][number],
       ],
     };
+
     const { document, diagnostics } = applyOverlay(base(), overlay, {
       jsonpath,
     });
+
     expect(document).toEqual(base());
     expect(diagnostics).toEqual([
       expect.objectContaining({
@@ -273,9 +286,11 @@ describe("applyOverlay", () => {
         { target: "$.tags", remove: true },
       ],
     };
+
     const { document, diagnostics } = applyOverlay(base(), overlay, {
       jsonpath,
     });
+
     expect(diagnostics).toEqual([]);
     expect(document.info).toHaveProperty("x-v", 1);
     expect(document).not.toHaveProperty("tags");
@@ -293,6 +308,7 @@ describe("applyOverlay", () => {
         "x-better-supabase-allow-empty": true,
       },
     ];
+
     const strict = applyOverlay(base(), overlay11(actions), { jsonpath });
     expect(strict.diagnostics).toEqual([
       {
@@ -302,10 +318,12 @@ describe("applyOverlay", () => {
         pointer: "/actions/0",
       },
     ]);
+
     const lenient = applyOverlay(base(), overlay11(actions), {
       jsonpath,
       allowEmpty: true,
     });
+
     expect(lenient.diagnostics).toEqual([]);
   });
 
@@ -318,6 +336,7 @@ describe("applyOverlay", () => {
       ]),
       { jsonpath },
     );
+
     expect(diagnostics.map((d) => d.code)).toEqual(["overlay-invalid-target"]);
     expect(document.info).toHaveProperty("ok", true);
   });
@@ -329,21 +348,25 @@ describe("applyOverlay", () => {
         throw "boom";
       },
     };
+
     const { diagnostics } = applyOverlay(
       {},
       overlay11([{ target: "$", update: {} }]),
       { jsonpath: throwing },
     );
+
     expect(diagnostics[0]?.message).toContain("boom");
   });
 
   it("reports malformed paths from the engine", () => {
     const broken: JsonPathEngine = { paths: () => ["$.a"] };
+
     const { diagnostics } = applyOverlay(
       { a: {} },
       overlay11([{ target: "$.a", update: {} }]),
       { jsonpath: broken },
     );
+
     expect(diagnostics.map((d) => d.code)).toEqual(["overlay-invalid-target"]);
   });
 
@@ -360,6 +383,7 @@ describe("applyOverlay", () => {
       ]),
       { jsonpath },
     );
+
     expect(diagnostics.map((d) => [d.code, d.pointer])).toEqual([
       ["overlay-mixed-targets", "/actions/0"],
       ["overlay-merge-conflict", "/actions/1"],
@@ -378,6 +402,7 @@ describe("applyOverlay", () => {
       info,
       actions: [{ target: "$.info" }, "nope", { update: {} }],
     };
+
     // SAFETY: the test feeds a malformed overlay on purpose.
     const malformed = overlay as unknown as Overlay;
     const { diagnostics } = applyOverlay(base(), malformed, { jsonpath });
@@ -395,6 +420,7 @@ describe("applyOverlay", () => {
       info,
       actions: [],
     } as unknown as Overlay;
+
     // SAFETY: as above.
     const noActions = { overlay: "1.1.0", info } as unknown as Overlay;
     expect(
@@ -417,10 +443,12 @@ describe("applyOverlay", () => {
     const input = base();
     const snapshot = structuredClone(input);
     const update = { tags: ["new"] };
+
     const overlay = overlay11([
       { target: "$.paths.*.get", update },
       { target: "$.tags", remove: true },
     ]);
+
     const first = applyOverlay(input, overlay, { jsonpath });
     const second = applyOverlay(input, overlay, { jsonpath });
     expect(input).toEqual(snapshot);
@@ -435,12 +463,15 @@ describe("applyOverlay", () => {
 
   it("calls the engine once per target", () => {
     let calls = 0;
+
     const counting: JsonPathEngine = {
       paths: (doc, expression) => {
         calls++;
+
         return jsonpath.paths(doc, expression);
       },
     };
+
     applyOverlay(
       base(),
       overlay11([
@@ -488,6 +519,7 @@ describe("reusable actions (1.2)", () => {
     const { document, diagnostics } = applyOverlay(base(), overlay12, {
       jsonpath,
     });
+
     expect(diagnostics).toEqual([]);
     expect(document.paths["/customers"].get).toHaveProperty("x-audited", true);
     expect(document.paths["/orders"].get).toHaveProperty("x-audited", true);
@@ -504,6 +536,7 @@ describe("reusable actions (1.2)", () => {
       },
       { jsonpath },
     );
+
     expect(diagnostics.map((d) => [d.code, d.severity])).toEqual([
       ["overlay-invalid-action", "warning"],
     ]);
@@ -515,6 +548,7 @@ describe("reusable actions (1.2)", () => {
       { $ref: "#/components/actions/missing", target: "$.info" },
       { $ref: "#/elsewhere", target: "$.info" },
     ];
+
     // SAFETY: the second reference is malformed on purpose.
     const malformed = { ...overlay12, actions } as unknown as Overlay12;
     const { diagnostics } = applyOverlay(base(), malformed, { jsonpath });
@@ -548,9 +582,11 @@ describe("reusable actions (1.2)", () => {
   it("expands references in a 1.1 overlay, with a warning", () => {
     // SAFETY: a 1.1 overlay that uses a 1.2 feature, on purpose.
     const mixed = { ...overlay12, overlay: "1.1.0" } as unknown as Overlay;
+
     const { document, diagnostics } = applyOverlay(base(), mixed, {
       jsonpath,
     });
+
     expect(diagnostics.map((d) => [d.code, d.severity])).toEqual([
       ["overlay-version-feature", "warning"],
       ["overlay-version-feature", "warning"],
@@ -573,6 +609,7 @@ describe("applyOverlays", () => {
       ],
       { jsonpath },
     );
+
     expect(document.info).toHaveProperty("step", 2);
     expect(diagnostics).toEqual([
       expect.objectContaining({

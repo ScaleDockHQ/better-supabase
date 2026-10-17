@@ -6,6 +6,7 @@ import { isRecord } from "../shared.ts";
 
 /** The `typ` header of a Security Event Token (RFC 8417 §2.3). */
 export const SET_TYP = "secevent+jwt";
+
 /** The media type a pushed SET is sent with (RFC 8935 §2). */
 export const SET_CONTENT_TYPE = "application/secevent+jwt";
 
@@ -107,12 +108,14 @@ export function mintSet(
   input: MintSetInput,
 ): AsyncResult<MintedSet> {
   const jti = crypto.randomUUID().replaceAll("-", "");
+
   const audience =
     typeof input.audience === "string"
       ? input.audience
       : input.audience.length === 1
         ? input.audience[0]
         : [...input.audience];
+
   return signer
     .signJwt(
       {
@@ -191,11 +194,13 @@ const jwsFailure = (cause: unknown): SetVerification => {
   if (!(cause instanceof JwsError)) {
     throw cause;
   }
+
   switch (cause.code) {
     case "JWS_MALFORMED":
     case "JWS_TYP": {
       return fail("invalid_request", cause.message);
     }
+
     default: {
       return fail("invalid_key", cause.message);
     }
@@ -213,61 +218,82 @@ export async function verifySet(
 ): Promise<SetVerification> {
   let header: Readonly<Record<string, unknown>>;
   let payload: Readonly<Record<string, unknown>>;
+
   try {
     ({ header, payload } = await verifyCompact(token, options.jwks));
   } catch (cause) {
     return jwsFailure(cause);
   }
+
   const typ =
     typeof header["typ"] === "string" ? header["typ"].toLowerCase() : "";
+
   if (typ !== SET_TYP && typ !== SET_CONTENT_TYPE) {
     return fail("invalid_request", `The typ must be ${SET_TYP}`);
   }
+
   if (payload["iss"] !== options.issuer) {
     return fail("invalid_issuer", "The iss is not the transmitter's issuer");
   }
+
   const aud = payload["aud"];
+
   const audience =
     typeof aud === "string"
       ? [aud]
       : Array.isArray(aud)
         ? aud.filter((value): value is string => typeof value === "string")
         : [];
+
   if (!audience.includes(options.audience)) {
     return fail("invalid_audience", "The aud does not name this receiver");
   }
+
   const jti = payload["jti"];
+
   if (typeof jti !== "string" || jti === "") {
     return fail("invalid_request", "The SET has no jti");
   }
+
   const iat = payload["iat"];
+
   if (typeof iat !== "number" || !Number.isFinite(iat)) {
     return fail("invalid_request", "The SET has no iat");
   }
+
   if (iat > Date.now() / 1000 + (options.skewSeconds ?? 300)) {
     return fail("invalid_request", "The iat is in the future");
   }
+
   const events = payload["events"];
   const entries = isRecord(events) ? Object.entries(events) : [];
   const [entry] = entries;
+
   if (entry === undefined || entries.length !== 1 || !isRecord(entry[1])) {
     return fail("invalid_request", "A SET carries exactly one event");
   }
+
   const subject = payload["sub_id"];
+
   if (!isRecord(subject) || typeof subject["format"] !== "string") {
     return fail("invalid_request", "The SET has no sub_id");
   }
+
   const understood = options.understoodSubjectMembers ?? SSF_MEMBERS;
+
   const unknown = (options.criticalSubjectMembers ?? []).find(
     (member) => member in subject && !understood.includes(member),
   );
+
   if (unknown !== undefined) {
     return fail(
       "invalid_request",
       `The critical subject member ${unknown} is not understood`,
     );
   }
+
   const txn = payload["txn"];
+
   return {
     ok: true,
     set: {

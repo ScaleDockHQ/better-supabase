@@ -26,11 +26,13 @@ export function jwtClaimsOf<C>(auth: AuthState<C>): (JWTClaims & C) | null {
   if (auth.kind === "user") {
     return auth.claims;
   }
+
   if (auth.kind === "apiKey") {
     // API key claims are synthesized, not parsed by the claims schema.
     // SAFETY: downstream entries (withPostgresClient, withOpenFeature) read only `sub` and `role`.
     return auth.claims as JWTClaims & C;
   }
+
   return null;
 }
 
@@ -50,18 +52,23 @@ export function authModeOf(auth: AuthState): AuthMode {
     case "user": {
       return "user";
     }
+
     case "service": {
       return "secret";
     }
+
     case "apiKey": {
       return auth.userId ? "user" : "secret";
     }
+
     case "anon":
     case "invalid": {
       return "none";
     }
+
     default: {
       const exhaustive: never = auth;
+
       return exhaustive;
     }
   }

@@ -32,6 +32,7 @@ const SIGNATURES = [
 describe("shared-signals module", () => {
   it("keeps every function for the service role", () => {
     const sql = body();
+
     for (const signature of SIGNATURES) {
       expect(sql).toContain(
         `revoke execute on function "better_supabase".${signature} from public, anon, authenticated;`,
@@ -40,6 +41,7 @@ describe("shared-signals module", () => {
         `grant execute on function "better_supabase".${signature} to service_role;`,
       );
     }
+
     expect(sql.match(/hint = 'SSF_FORBIDDEN'/g)).toHaveLength(
       SIGNATURES.length,
     );
@@ -63,6 +65,7 @@ describe("shared-signals module", () => {
     const sql = body({
       "shared-signals": { options: { retention: "1 day'; drop table x; --" } },
     });
+
     expect(sql).toContain("'1 day''; drop table x; --'::interval");
   });
 });

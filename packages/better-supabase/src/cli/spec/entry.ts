@@ -49,6 +49,7 @@ export function documentFormatId(value: unknown): string | undefined {
   if (!isRecord(value)) {
     return undefined;
   }
+
   return DOCUMENT_KEYS.find((key) => typeof value[key] === "string");
 }
 
@@ -56,8 +57,10 @@ async function settle(value: unknown): Promise<unknown> {
   if (typeof value !== "function") {
     return value;
   }
+
   // SAFETY: an exported function takes no arguments and returns the value.
   const result: unknown = await (value as () => unknown)();
+
   return result;
 }
 
@@ -71,9 +74,11 @@ export async function loadSpecEntry(path: string): Promise<SpecEntry> {
   if (!existsSync(path)) {
     throw new Error(`Module not found: ${path}`);
   }
+
   const loaded = await importFresh(path);
   const formats: AnyDocumentFormat[] = [];
   const exportedFormats = await settle(loaded["formats"]);
+
   if (Array.isArray(exportedFormats)) {
     for (const format of exportedFormats) {
       if (isDocumentFormat(format)) {
@@ -81,25 +86,33 @@ export async function loadSpecEntry(path: string): Promise<SpecEntry> {
       }
     }
   }
+
   const cacheKey =
     typeof loaded["cacheKey"] === "string" ? loaded["cacheKey"] : undefined;
+
   const base = { formats, ...(cacheKey === undefined ? {} : { cacheKey }) };
 
   const api = await settle(loaded["api"] ?? loaded["default"]);
+
   if (isApi(api)) {
     return { ...base, api, documents: new Map() };
   }
 
   const documents = new Map<string, unknown>();
+
   for (const key of DOCUMENT_KEYS) {
     const document = await settle(loaded[key]);
+
     if (documentFormatId(document) === key) {
       documents.set(key, document);
     }
   }
+
   const fallback = documentFormatId(api);
+
   if (fallback && !documents.has(fallback)) {
     documents.set(fallback, api);
   }
+
   return { ...base, documents };
 }

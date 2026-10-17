@@ -91,14 +91,18 @@ export function agentToolOperation(
   const operation =
     (Object.hasOwn(toolOperations, name) ? toolOperations[name] : undefined) ??
     `${OPERATION_PREFIXES.aiTool}${name}`;
+
   const own = Object.hasOwn(permissions, name) ? permissions[name] : undefined;
+
   const permission =
     operationPermission(
       operations,
       operation,
       typeof own === "string" ? own : undefined,
     ) ?? (own === false ? false : undefined);
+
   const meta = operationMeta(operations, operation);
+
   return {
     operation,
     permission,
@@ -154,11 +158,13 @@ export async function assertModelAllowed(
 ): Promise<void> {
   const modelId = modelIdOf(model);
   let allowed: unknown;
+
   try {
     allowed = await authorize(modelId, context);
   } catch {
     throw refused(modelId);
   }
+
   if (allowed !== true) {
     throw refused(modelId);
   }
@@ -177,11 +183,14 @@ export async function toolPermitted(
   if (operation.permission === false) {
     return true;
   }
+
   if (operation.permission === undefined) {
     return false;
   }
+
   try {
     const permitted: unknown = await authorize(operation.permission, context);
+
     return permitted === true;
   } catch {
     return false;

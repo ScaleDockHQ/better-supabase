@@ -74,6 +74,7 @@ describe.skipIf(!live)("service levels and targets", () => {
 
   it("counts business hours and runs clocks off a ticket's status", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const owner = await s.user("owner");
       const agent = await s.user("agent");
@@ -84,10 +85,12 @@ describe.skipIf(!live)("service levels and targets", () => {
       const sla = createSla({ transport });
 
       await s.as(owner);
+
       // Friday 16:00 in Amsterdam plus two working hours is Monday 10:00.
       const due = await sla
         .dueAt(Temporal.Instant.from("2026-10-16T14:00:00Z"), 120, true)
         .orThrow();
+
       expect(due.toString()).toBe("2026-10-19T08:00:00Z");
       expect(
         (
@@ -128,10 +131,12 @@ describe.skipIf(!live)("service levels and targets", () => {
       ).toBe("SLA_POLICY_TAKEN");
 
       await s.asRole(agent);
+
       const [ticket] = await s.rows<{ id: string }>(
         "insert into sla_it.tickets (organization_id, subject) values ($1, 'Printer') returning id",
         [org],
       );
+
       await s.as(agent);
       const subject = { type: "ticket", id: ticket?.id ?? "" };
       let clocks = await sla.clocks(subject).orThrow();
@@ -218,6 +223,7 @@ describe.skipIf(!live)("service levels and targets", () => {
 
   it("measures targets from won deals and a value the app keeps", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const owner = await s.user("owner");
       const rep = await s.user("rep");
@@ -228,6 +234,7 @@ describe.skipIf(!live)("service levels and targets", () => {
       const targets = createTargets({ transport });
       const deals = createDeals({ transport });
       const today = Temporal.Now.plainDateISO();
+
       const quarter = {
         periodStart: today.subtract({ days: 30 }),
         periodEnd: today.add({ days: 60 }),
@@ -273,6 +280,7 @@ describe.skipIf(!live)("service levels and targets", () => {
       ).toBe("TARGET_INVALID");
 
       await s.as(rep);
+
       const deal = await deals
         .create(org, {
           name: "Win",
@@ -281,6 +289,7 @@ describe.skipIf(!live)("service levels and targets", () => {
           currency: "EUR",
         })
         .orThrow();
+
       await deals.win(deal.id).orThrow();
       await deals
         .create(org, {

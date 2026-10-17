@@ -40,6 +40,7 @@ export async function loadPlanCatalog(organizationId: string): Promise<{
       })
       .orThrow(),
   ]);
+
   return {
     plans: plans.map((plan) => ({
       key: plan.key,
@@ -59,6 +60,7 @@ export async function startCheckout(
   plan: string,
 ): Promise<Result<{ readonly url: string | undefined }>> {
   const { data } = await supabase.auth.getSession();
+
   const response = await fetch("/api/checkout", {
     method: "POST",
     headers: {
@@ -67,13 +69,18 @@ export async function startCheckout(
     },
     body: JSON.stringify({ plan }),
   });
+
   const body: unknown = await response.json();
+
   if (isProblem(body)) {
     return err(fromProblem(body));
   }
+
   const started = v.safeParse(CheckoutStarted, body);
+
   if (!response.ok || !started.success) {
     return err(dbError("unexpected", `Checkout answered ${response.status}`));
   }
+
   return ok({ url: started.output.url });
 }

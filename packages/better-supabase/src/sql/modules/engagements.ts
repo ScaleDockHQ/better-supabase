@@ -82,11 +82,13 @@ const TYPE = /^[a-z][a-z0-9_]{0,62}$/;
 
 function types(ctx: ModuleContext): readonly string[] {
   const list = ctx.list("types", ENGAGEMENT_TYPES);
+
   if (list.length === 0 || list.some((item) => !TYPE.test(item))) {
     throw new TypeError(
       "blocks.engagements.options.types must be a non-empty list of lowercase names",
     );
   }
+
   return list;
 }
 
@@ -94,6 +96,7 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const keys = moduleOperations("engagements");
   const read = ctx.permission("read", keys.read);
   const write = ctx.permission("write", keys.write);
@@ -105,8 +108,10 @@ function build(ctx: ModuleContext): string {
   const extras = ctx.extraColumns("engagements", ["subjects", "overdue"]);
   const typeList = `${sqlString(`{${types(ctx).join(",")}}`)}::text[]`;
   const canSubject = ctx.of("subjects").fn("can_subject");
+
   const payload = (id: string, type: string, tenant: string): string =>
     `jsonb_build_object('organizationId', ${tenant}, 'engagementId', ${id}, 'type', ${type}, 'subjectType', v_first ->> 'type', 'subjectId', v_first ->> 'id', 'subjects', v_subjects)`;
+
   const record = (
     event: string,
     id: string,
@@ -120,12 +125,16 @@ function build(ctx: ModuleContext): string {
       tenant: `${tenant}::text`,
       audit: false,
     });
+
   const editable = (alias: string): string =>
     `(auth.role() = 'service_role' or ${alias}.${e("createdBy")} = auth.uid() or ${alias}.${e("owner")} = auth.uid() or ${ctx.scope.can(`${alias}.${e("tenant")}`, manage)})`;
+
   const subjectsOf = (id: string): string =>
     `coalesce((select jsonb_agg(jsonb_build_object('type', sx.${l("subjectType")}, 'id', sx.${l("subjectId")}) order by sx.${l("position")}) from ${t("links")} sx where sx.${l("engagement")} = ${id}), '[]'::jsonb)`;
+
   const row = (alias: string): string =>
     `to_jsonb(${alias}) || jsonb_build_object('subjects', ${subjectsOf(`${alias}.${e("id")}`)}, 'overdue', ${alias}.${e("doneAt")} is null and ${alias}.${e("dueAt")} < now()${extraFieldsJson(alias, extras)})`;
+
   const setSubjects = (
     engagement: string,
     list: string,
@@ -146,10 +155,13 @@ function build(ctx: ModuleContext): string {
   on conflict do nothing;
   v_subjects := ${subjectsOf(engagement)};
   v_first := v_subjects -> 0;`;
+
   const attrs = (name: string, key: string): string =>
     `${name}.attrs ->> ${sqlString(key)}`;
+
   const has = (name: string, key: string): string =>
     `${name}.attrs ? ${sqlString(key)}`;
+
   const notifyOwner = ctx.installed("notifications")
     ? `
   if v_owner is not null and v_owner is distinct from auth.uid() and v_owner is distinct from v_previous_owner then
@@ -170,6 +182,7 @@ function build(ctx: ModuleContext): string {
     )}
   end if;`
     : "";
+
   return `${schemaPreamble(ctx)}
 -- Calls, emails, meetings, notes and tasks logged on one or more records.
 ${

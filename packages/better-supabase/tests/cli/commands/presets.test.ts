@@ -42,9 +42,11 @@ describe("preset decode", () => {
     );
     expect(named.output).toContain("  profiles");
     const code = encodePreset({ blocks: ["comments"], casing: "camel" });
+
     const decoded = runPreset(config, {
       _: ["decode", `https://bettersupabase.com/create?preset=${code}`],
     });
+
     expect(decoded.output).toContain("  casing        camel");
     expect(decoded.output).toContain(
       "  tenant (required by access and comments)",
@@ -54,9 +56,11 @@ describe("preset decode", () => {
 
   it("exits 1 on what can't install, and 2 on what isn't a preset", () => {
     const config = resolveConfig({}, dir);
+
     const conflict = runPreset(config, {
       _: ["decode", encodePreset({ blocks: ["organizations"], scope: "user" })],
     });
+
     expect(conflict.code).toBe(1);
     expect(conflict.output).toContain(
       'Can\'t install:\n  organizations: it needs tenants, and scope "user" has none',
@@ -80,6 +84,7 @@ describe("preset info", () => {
       },
       dir,
     );
+
     const info = runPreset(config, { _: ["info"] });
     expect(info.code).toBe(0);
     expect(info.output).toContain("Preset: minimal");
@@ -166,6 +171,7 @@ describe("apply", () => {
 
   it("writes nothing with --dry-run, and lists blocks with --only blocks", async () => {
     await files({ "better-supabase.config.json": json({}) });
+
     const dry = await run([
       "apply",
       "--preset",
@@ -174,10 +180,12 @@ describe("apply", () => {
       "--cwd",
       dir,
     ]);
+
     expect(dry.stdout).toContain("Dry run: nothing written.");
     expect(
       await readFile(join(dir, "better-supabase.config.json"), "utf-8"),
     ).toBe(json({}));
+
     const blocks = await run([
       "apply",
       "--preset",
@@ -187,6 +195,7 @@ describe("apply", () => {
       "--cwd",
       dir,
     ]);
+
     expect(blocks.code).toBe(0);
     expect(
       JSON.parse(
@@ -203,6 +212,7 @@ describe("apply", () => {
         "import { defineConfig } from 'better-supabase/config';\n\nexport default defineConfig({\n  casing: 'snake',\n});\n",
     });
     const preset = { ...namedPreset("saas"), casing: "camel" as const };
+
     const result = await runApply(
       resolveConfig({}, dir),
       { preset: encodePreset(preset), only: "conventions" },
@@ -212,6 +222,7 @@ describe("apply", () => {
         reload: () => Promise.resolve(resolveConfig({ casing: "camel" }, dir)),
       },
     );
+
     expect(result.code).toBe(0);
     const code = encodePreset({ ...preset, blocks: [] });
     expect(
@@ -312,10 +323,12 @@ describe("init --preset", () => {
     });
     const result = await run(["init", "--preset", "minimal", "--cwd", dir]);
     expect(result.code).toBe(0);
+
     const config = await readFile(
       join(dir, "better-supabase.config.ts"),
       "utf-8",
     );
+
     expect(config).toContain("  preset: 'minimal',\n  casing: 'snake',");
     expect(await readFile(join(dir, "lib/blocks.ts"), "utf-8")).toContain(
       "profiles: profilesBlock,",
@@ -330,6 +343,7 @@ describe("init --preset", () => {
   it("writes a code for a selection, and refuses what can't install", async () => {
     await files({ "package.json": json({ name: "app" }) });
     const code = encodePreset({ blocks: ["tags"], integrations: ["mcp"] });
+
     const result = await run([
       "init",
       "--preset",
@@ -338,11 +352,13 @@ describe("init --preset", () => {
       "--cwd",
       dir,
     ]);
+
     expect(result.code).toBe(0);
     expect(result.stdout).toContain(
       "Would write supabase/functions/mcp/index.ts",
     );
     expect(result.stdout).toContain("(tags)");
+
     const blocked = await run([
       "init",
       "--preset",
@@ -350,6 +366,7 @@ describe("init --preset", () => {
       "--cwd",
       dir,
     ]);
+
     expect(blocked.code).toBe(2);
     expect(blocked.stderr).toContain("The preset can't install: teams");
     expect(

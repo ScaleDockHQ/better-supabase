@@ -64,16 +64,20 @@ const GLOBAL_VALUE_FLAGS: ReadonlySet<string> = new Set(
 function commandIndex(argv: readonly string[]): number {
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index]!;
+
     if (token === "--") {
       return -1;
     }
+
     if (!token.startsWith("-")) {
       return index;
     }
+
     if (GLOBAL_VALUE_FLAGS.has(token)) {
       index += 1;
     }
   }
+
   return -1;
 }
 
@@ -90,6 +94,7 @@ const SHOWS_USAGE = new Set<CliErrorCode>(["usage", "unknown_command"]);
 
 function withoutPrompts(io: CliIo): CliIo {
   const { prompts: _prompts, ...rest } = io;
+
   return rest;
 }
 
@@ -101,8 +106,10 @@ async function suggestCommand(
   if (names.length === 0) {
     return undefined;
   }
+
   const { closest, distance } = await import("fastest-levenshtein");
   const candidate = closest(name, [...names]);
+
   return distance(name, candidate) <= Math.max(2, Math.floor(name.length / 3))
     ? candidate
     : undefined;
@@ -136,9 +143,11 @@ export function createCli(init: CreateCliOptions): Cli {
   const help = async (command?: string, color = false): Promise<string> => {
     const load =
       command === undefined ? undefined : commands.get(command)?.load;
+
     const text = load
       ? await renderUsage(await load(), root)
       : await renderUsage(root);
+
     return color ? text : stripVTControlCharacters(text);
   };
 
@@ -148,6 +157,7 @@ export function createCli(init: CreateCliOptions): Cli {
   ): Promise<RunResult> => {
     const stdout: string[] = [];
     const stderr: string[] = [];
+
     const io: CliIo = options.io ?? {
       stdout: (text) => {
         stdout.push(text);
@@ -156,23 +166,32 @@ export function createCli(init: CreateCliOptions): Cli {
         stderr.push(text);
       },
     };
+
     const out = (text: string): void => {
       const line = text.endsWith("\n") ? text : `${text}\n`;
+
       if (options.io) {
         stdout.push(line);
       }
+
       io.stdout(line);
     };
+
     const fail = (text: string): void => {
       const line = text.endsWith("\n") ? text : `${text}\n`;
+
       if (options.io) {
         stderr.push(line);
       }
+
       io.stderr(line);
     };
+
     const paint = painter(io.color);
+
     const usage = (command?: string): Promise<string> =>
       help(command, io.color === true);
+
     const finish = (code: number): RunResult => ({
       code,
       stdout: stdout.join(""),
@@ -182,25 +201,32 @@ export function createCli(init: CreateCliOptions): Cli {
     const index = commandIndex(argv);
     const name = index === -1 ? undefined : argv[index];
     const rest = index === -1 ? [...argv] : argv.toSpliced(index, 1);
+
     const flags = new Set(
       rest.slice(0, rest.includes("--") ? rest.indexOf("--") : undefined),
     );
+
     const wantsHelp = flags.has("--help") || flags.has("-h");
     const json = flags.has("--json");
+
     const report = (rendered: Rendered): void => {
       if (rendered.stdout) {
         out(rendered.stdout);
       }
+
       if (rendered.stderr) {
         fail(rendered.stderr);
       }
     };
+
     const reportError = async (cause: unknown): Promise<RunResult> => {
       const error = toCliError(cause);
+
       const shown =
         error.code === "usage"
           ? new CliError("usage", stripVTControlCharacters(error.message))
           : error;
+
       report(
         renderError(shown, {
           json,
@@ -210,25 +236,34 @@ export function createCli(init: CreateCliOptions): Cli {
             : {}),
         }),
       );
+
       return finish(error.exitCode);
     };
 
     if (flags.has("--version") || name === "version") {
       out(json ? JSON.stringify({ version: VERSION }) : VERSION);
+
       return finish(0);
     }
+
     if (name === undefined) {
       (wantsHelp ? out : fail)(await usage());
+
       return finish(wantsHelp ? 0 : 2);
     }
+
     if (name === "help") {
       const topic = rest.find((token) => !token.startsWith("-"));
       out(await usage(topic));
+
       return finish(0);
     }
+
     const load = commands.get(name)?.load;
+
     if (!load) {
       const suggestion = await suggestCommand(name, [...commands.keys()]);
+
       return reportError(
         new CliError(
           "unknown_command",
@@ -237,13 +272,16 @@ export function createCli(init: CreateCliOptions): Cli {
         ),
       );
     }
+
     if (wantsHelp) {
       out(await usage(name));
+
       return finish(0);
     }
 
     let context: CliContext;
     let command: CommandDef;
+
     try {
       // Config loading (c12) and env validation (valibot) stay out of `--version` and `--help`.
       const [
@@ -255,11 +293,13 @@ export function createCli(init: CreateCliOptions): Cli {
         import("./config.ts"),
         import("./env.ts"),
       ]);
+
       command = loaded;
       const globals = parseArgs<typeof GLOBAL_ARGS>(rest, GLOBAL_ARGS);
       const cwd = resolve(options.cwd ?? ".", globals.cwd ?? ".");
       const env = parseEnv(options.env ?? {});
       const environment = configEnvironment(globals.env, env);
+
       const reloadConfig = (): Promise<ResolvedConfig> =>
         loadConfig(cwd, globals.config, environment).catch((cause: unknown) => {
           throw cause instanceof CliError
@@ -268,10 +308,13 @@ export function createCli(init: CreateCliOptions): Cli {
                 cause,
               });
         });
+
       const config = await reloadConfig();
       const configFile = discoverConfig(cwd, globals.config);
+
       const interactive =
         globals.json !== true && globals.yes !== true && env.CI === undefined;
+
       context = {
         cwd,
         config,
@@ -291,10 +334,13 @@ export function createCli(init: CreateCliOptions): Cli {
         rawArgs: joinRepeated(rest, listArgs(command)),
         data: context,
       });
+
       if (!isCommandResult(result)) {
         return finish(0);
       }
+
       report(renderResult(result, { json, paint }));
+
       return finish(result.code);
     } catch (cause) {
       return reportError(cause);

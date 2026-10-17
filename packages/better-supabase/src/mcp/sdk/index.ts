@@ -1,15 +1,18 @@
 export { createMcpAuth, withBetterSupabaseMcp } from "./sdk.ts";
+
 export {
   supabaseMcpHandler,
   type SupabaseMcpHandlerOptions,
   type SupabaseMcpLoaders,
 } from "./supabase.ts";
+
 export type {
   SupabaseMcpFeature,
   SupabaseMcpModule,
   SupabaseMcpPlatformModule,
   SupabaseMcpScope,
 } from "../../core/supabase-mcp.ts";
+
 export type {
   BetterMcpAuth,
   BetterMcpServer,
@@ -21,4 +24,5 @@ export type {
   McpFetchHandler,
   ToolRegistrar,
 } from "./sdk.ts";
+
 export type { AllowedCaller, GuardOptions } from "../../server/respond.ts";

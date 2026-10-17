@@ -30,7 +30,9 @@ describe.skipIf(!live)("scheduling recipe", () => {
         "booking",
         BOOKING,
       );
+
       const watchers = await watching(s);
+
       const { customFields, reminders, stateMachine } = createBlocks(
         {
           transport: sqlTransport(s.sql),
@@ -49,18 +51,22 @@ describe.skipIf(!live)("scheduling recipe", () => {
       await stateMachine
         .transition("booking", subjectId, "confirmed")
         .orThrow();
+
       const room = await customFields
         .saveDefinition(organizationId, "booking", "room", "Room", "text")
         .orThrow();
+
       await customFields
         .setValue(organizationId, "booking", subjectId, room.id, "Atlas")
         .orThrow();
+
       const reminder = await reminders
         .save(organizationId, "booking", subjectId, 15)
         .orThrow();
 
       await watchers.relay();
       await s.service();
+
       const delivery = {
         reminderId: reminder.id,
         occurrenceAt: "2026-10-20T09:00:00Z",
@@ -69,6 +75,7 @@ describe.skipIf(!live)("scheduling recipe", () => {
         subjectType: "booking",
         subjectId,
       };
+
       expect(await reminders.deliver(delivery).orThrow()).toBe(true);
       expect(await reminders.deliver(delivery).orThrow()).toBe(false);
 

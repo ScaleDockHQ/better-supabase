@@ -15,9 +15,11 @@ export const ConversationStatus = v.picklist([
   "resolved",
   "all",
 ]);
+
 export type ConversationStatus = v.InferOutput<typeof ConversationStatus>;
 
 export const AssigneeFilter = v.picklist(["anyone", "me", "unassigned"]);
+
 export type AssigneeFilter = v.InferOutput<typeof AssigneeFilter>;
 
 /** A conversation as plain data, so it crosses the server boundary. */
@@ -38,6 +40,7 @@ export interface ConversationRow {
 
 export function toConversationRow(conversation: Conversation): ConversationRow {
   const contact = conversation.contact;
+
   return {
     id: conversation.id,
     subject: conversation.subject,

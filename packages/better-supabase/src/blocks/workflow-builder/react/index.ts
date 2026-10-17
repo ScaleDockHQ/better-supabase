@@ -46,6 +46,7 @@ export function useWorkflowBuilder(
 ): WorkflowBuilderState {
   const { supabase, auth } = useBlockEnv();
   const { tenant, schema } = options;
+
   const builder = useMemo(
     () =>
       createWorkflowBuilder({
@@ -54,6 +55,7 @@ export function useWorkflowBuilder(
       }),
     [supabase, schema],
   );
+
   const { view } = useController(
     () =>
       createWorkflowBuilderController({
@@ -63,6 +65,7 @@ export function useWorkflowBuilder(
       }),
     [builder, auth, tenant],
   );
+
   return useMemo(() => ({ ...view, builder }), [view, builder]);
 }
 
@@ -83,11 +86,13 @@ export function useWorkflowCanvasRun(
 ): WorkflowCanvasRunState {
   const { supabase, auth, ports } = useBlockEnv();
   const { schema } = options;
+
   return useController(() => {
     const transport = rpcTransport(supabase);
     const scoped = schema === undefined ? {} : { schema };
     const workflows = createWorkflows({ transport, ...scoped });
     const builder = createWorkflowBuilder({ transport, ...scoped });
+
     return createWorkflowCanvasRunController({
       client: { runs: workflows.runs, nodeRuns: builder.nodeRuns },
       auth,

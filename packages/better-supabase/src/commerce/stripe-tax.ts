@@ -22,6 +22,7 @@ import {
 } from "./tax.ts";
 
 type Params = Readonly<Record<string, unknown>>;
+
 type RequestOptions = { readonly idempotencyKey?: string };
 
 type CalculationParams = {
@@ -143,15 +144,19 @@ async function allPages<T extends { readonly id: string }>(
   if (first && !first.has_more) {
     return first.data;
   }
+
   const items: T[] = [];
   let after: string | undefined;
+
   for (;;) {
     const page = await next(after);
     items.push(...page.data);
     const last = page.data.at(-1);
+
     if (!page.has_more || last === undefined) {
       return items;
     }
+
     after = last.id;
   }
 }
@@ -164,13 +169,16 @@ function rateOf(
 ): string {
   let digits = 0;
   const parts: { value: bigint; scale: number }[] = [];
+
   for (const entry of breakdown ?? []) {
     const match = PERCENT.exec(
       entry.tax_rate_details?.percentage_decimal ?? "",
     );
+
     if (!match) {
       continue;
     }
+
     const fraction = match[2] ?? "";
     parts.push({
       value: BigInt(`${match[1] ?? "0"}${fraction}`),
@@ -178,14 +186,17 @@ function rateOf(
     });
     digits = Math.max(digits, fraction.length);
   }
+
   const sum = parts.reduce(
     (total, part) => total + part.value * 10n ** BigInt(digits - part.scale),
     0n,
   );
+
   const scale = digits + 2;
   const text = sum.toString().padStart(scale + 1, "0");
   const whole = text.slice(0, -scale);
   const fraction = text.slice(-scale).replace(/0+$/, "");
+
   return fraction.length === 0 ? whole : `${whole}.${fraction}`;
 }
 
@@ -195,6 +206,7 @@ const jurisdictionOf = (
   const names = (breakdown ?? [])
     .filter((entry) => entry.amount !== 0)
     .flatMap((entry) => entry.jurisdiction?.display_name ?? []);
+
   return names.length === 0 ? undefined : names.join(", ");
 };
 
@@ -211,6 +223,7 @@ function lineOf(
   const tax = fromStripeAmount(amountTax, currency);
   const gross = fromStripeAmount(amount, currency);
   const jurisdiction = jurisdictionOf(breakdown);
+
   return {
     lineId,
     taxable: inclusive
@@ -242,24 +255,31 @@ const addressOf = (address: TaxAddress): Params => ({
 export function stripeTax(options: StripeTaxOptions): TaxProvider {
   const name = options.name ?? "stripe-tax";
   const client = lazyStripe<StripeTaxClient>(options.stripe);
+
   const taxCode = (category: string | undefined): Params => {
     if (category === undefined) {
       return {};
     }
+
     const code = category.startsWith("txcd_")
       ? category
       : options.taxCodes?.[category];
+
     return code === undefined ? {} : { tax_code: code };
   };
+
   const stripeAmount = (value: Money): Result<number> => toStripeAmount(value);
 
   const paramsOf = (cart: TaxCart): Result<CalculationParams> => {
     const lines: CalculationParams["line_items"][number][] = [];
+
     for (const line of cart.lines) {
       const amount = stripeAmount(line.amount);
+
       if (!amount.ok) {
         return amount;
       }
+
       lines.push({
         amount: amount.data,
         reference: line.id,
@@ -268,12 +288,16 @@ export function stripeTax(options: StripeTaxOptions): TaxProvider {
         ...taxCode(line.taxCategory),
       });
     }
+
     let shipping: Params = {};
+
     if (cart.shipping) {
       const amount = stripeAmount(cart.shipping.amount);
+
       if (!amount.ok) {
         return amount;
       }
+
       shipping = {
         shipping_cost: {
           amount: amount.data,
@@ -283,7 +307,9 @@ export function stripeTax(options: StripeTaxOptions): TaxProvider {
         },
       };
     }
+
     const customer = cart.customer;
+
     return ok({
       currency: cart.currency.toLowerCase(),
       line_items: lines,
@@ -306,19 +332,26 @@ export function stripeTax(options: StripeTaxOptions): TaxProvider {
     quote: (cart, call = {}) =>
       stripeResult(async () => {
         const problem = invalidTaxCart(cart);
+
         if (problem) {
           return err(problem);
         }
+
         const params = paramsOf(cart);
+
         if (!params.ok) {
           return params;
         }
+
         const stripe = await client();
+
         const calculation = await stripe.tax.calculations.create(
           params.data,
           idempotency(call.idempotencyKey),
         );
+
         const id = calculation.id;
+
         if (id === null) {
           return err(
             dbError(
@@ -327,6 +360,7 @@ export function stripeTax(options: StripeTaxOptions): TaxProvider {
             ),
           );
         }
+
         const stripeLines = await allPages(calculation.line_items, (after) =>
           stripe.tax.calculations.listLineItems(id, {
             limit: PAGE,
@@ -334,9 +368,11 @@ export function stripeTax(options: StripeTaxOptions): TaxProvider {
             ...(after === undefined ? {} : { starting_after: after }),
           }),
         );
+
         const categories = new Map(
           cart.lines.map((line) => [line.id, line.taxCategory]),
         );
+
         const lines = stripeLines.map((line) =>
           lineOf(
             line.reference,
@@ -348,7 +384,9 @@ export function stripeTax(options: StripeTaxOptions): TaxProvider {
             line.tax_breakdown,
           ),
         );
+
         const shipping = calculation.shipping_cost;
+
         if (shipping && cart.shipping) {
           lines.push(
             lineOf(
@@ -362,11 +400,14 @@ export function stripeTax(options: StripeTaxOptions): TaxProvider {
             ),
           );
         }
+
         const totalTax = lines.reduce(
           (total, line) => total + line.tax.amount,
           0n,
         );
+
         const namespace = optionalTemporal();
+
         const quote: TaxQuote = {
           id,
           provider: name,
@@ -381,6 +422,7 @@ export function stripeTax(options: StripeTaxOptions): TaxProvider {
               }
             : {}),
         };
+
         return ok(quote);
       }),
     commit: ({ quote, reference }, call = {}) =>
@@ -391,6 +433,7 @@ export function stripeTax(options: StripeTaxOptions): TaxProvider {
           { calculation: quote.id, reference },
           idempotency(call.idempotencyKey ?? `tax-commit:${reference}`),
         );
+
         return ok({
           id: transaction.id,
           reference,
@@ -402,18 +445,24 @@ export function stripeTax(options: StripeTaxOptions): TaxProvider {
     reverse: (input, call = {}) =>
       stripeResult(async () => {
         const reversal = reversalOf(input);
+
         if (!reversal.ok) {
           return reversal;
         }
+
         const stripe = await client();
+
         const key = idempotency(
           call.idempotencyKey ?? `tax-reverse:${input.reference}`,
         );
+
         const base = {
           original_transaction: input.transaction.id,
           reference: input.reference,
         };
+
         let params: ReversalParams = { ...base, mode: "full" };
+
         if (input.lines !== undefined) {
           const originals = await allPages(undefined, (after) =>
             stripe.tax.transactions.listLineItems(input.transaction.id, {
@@ -421,28 +470,37 @@ export function stripeTax(options: StripeTaxOptions): TaxProvider {
               ...(after === undefined ? {} : { starting_after: after }),
             }),
           );
+
           const byReference = new Map(
             originals.map((line) => [line.reference, line.id]),
           );
+
           const lineItems: Params[] = [];
           let shipping: Params = {};
+
           for (const line of reversal.data.lines) {
             const amount = stripeAmount(line.taxable);
             const tax = stripeAmount(line.tax);
+
             if (!amount.ok) {
               return amount;
             }
+
             if (!tax.ok) {
               return tax;
             }
+
             const gross = line.inclusive ? amount.data + tax.data : amount.data;
+
             if (line.lineId === SHIPPING_LINE) {
               shipping = {
                 shipping_cost: { amount: gross, amount_tax: tax.data },
               };
               continue;
             }
+
             const original = byReference.get(line.lineId);
+
             if (original === undefined) {
               return err(
                 dbError(
@@ -452,6 +510,7 @@ export function stripeTax(options: StripeTaxOptions): TaxProvider {
                 ),
               );
             }
+
             lineItems.push({
               original_line_item: original,
               reference: line.lineId,
@@ -459,6 +518,7 @@ export function stripeTax(options: StripeTaxOptions): TaxProvider {
               amount_tax: tax.data,
             });
           }
+
           params = {
             ...base,
             mode: "partial",
@@ -466,10 +526,12 @@ export function stripeTax(options: StripeTaxOptions): TaxProvider {
             ...shipping,
           };
         }
+
         const transaction = await stripe.tax.transactions.createReversal(
           params,
           key,
         );
+
         return ok({
           id: transaction.id,
           reference: input.reference,

@@ -33,6 +33,7 @@ export function Composer({
   const [body, setBody] = useState("");
   const [note, setNote] = useState(false);
   const lastPing = useRef(0);
+
   const send = useAction(reply, {
     onSuccess: () => {
       setBody("");
@@ -49,9 +50,11 @@ export function Composer({
       className="space-y-2 border-t p-3"
       onSubmit={(event) => {
         event.preventDefault();
+
         if (body.trim() === "") {
           return;
         }
+
         void send.run({ conversationId, body, note });
       }}
     >
@@ -68,6 +71,7 @@ export function Composer({
         className={note ? "bg-chart-4/10" : undefined}
         onChange={(event) => {
           setBody(event.target.value);
+
           if (event.timeStamp - lastPing.current > TYPING_EVERY_MS) {
             lastPing.current = event.timeStamp;
             onTyping(true);

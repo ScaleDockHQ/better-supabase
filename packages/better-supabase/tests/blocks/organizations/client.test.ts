@@ -36,12 +36,15 @@ function setup(
 ) {
   const auth = fakeAuth(withTenant("org-1"));
   const load = vi.fn(async () => [{ id: "org-1" }, { id: "org-2" }]);
+
   const switchOrganization = vi.fn(() =>
     resolved({ organizationId: "org-2", refresh: true }),
   );
+
   const onSwitched = vi.fn(() => {
     auth.set(withTenant("org-2"));
   });
+
   const controller = createOrganizationsController({
     client: { switch: switchOrganization },
     auth,
@@ -49,6 +52,7 @@ function setup(
     onSwitched,
     ...options,
   });
+
   return { auth, load, switchOrganization, onSwitched, controller };
 }
 
@@ -115,6 +119,7 @@ describe("createOrganizationsController", () => {
   it("starts from the server's rows and active organization", async () => {
     const auth = fakeAuth({ status: "loading", user: null, claims: null });
     const load = vi.fn(async () => [{ id: "org-1" }]);
+
     const controller = createOrganizationsController({
       client: {
         switch: () => resolved({ organizationId: "x", refresh: false }),
@@ -125,6 +130,7 @@ describe("createOrganizationsController", () => {
       initial: [{ id: "org-1" }],
       activeId: "org-1",
     });
+
     const { view, unmount } = mount(controller);
     await flush();
     expect(view().activeId).toBe("org-1");
@@ -150,19 +156,25 @@ function members(
   } = {},
 ) {
   const auth = fakeAuth();
+
   const rows = [
     { userId: "u-1", role: "owner" as Role },
     { userId: "u-2", role: "member" as Role },
   ];
+
   const load = vi.fn(async (_organizationId: string) => rows);
+
   const updateMemberRole = vi.fn(
     (_organizationId: string, _userId: string, _role: string) =>
       resolved(true as const),
   );
+
   const removeMember = vi.fn((_organizationId: string, _userId: string) =>
     resolved(true as const),
   );
+
   const onChanged = vi.fn();
+
   const controller = createMembersController<{ userId: string; role: Role }>({
     client: { updateMemberRole, removeMember },
     auth,
@@ -171,6 +183,7 @@ function members(
     onChanged,
     ...options,
   });
+
   return {
     auth,
     rows,
@@ -264,6 +277,7 @@ describe("createMembersController", () => {
     const { load, onChanged, controller } = members({
       initial: [{ userId: "u-9", role: "admin" }],
     });
+
     const { view, unmount } = mount(controller);
     await flush();
     expect(load).not.toHaveBeenCalled();
@@ -305,14 +319,17 @@ function invitations(
 ) {
   const auth = fakeAuth();
   const load = vi.fn(async (_organizationId: string) => [{ id: "inv-0" }]);
+
   const invite = vi.fn(
     (request: {
       readonly email: string;
       readonly organizationId: string | null;
     }) => resolved(sent(request.email)),
   );
+
   const revokeInvitation = vi.fn((_id: string) => resolved(true));
   const onChanged = vi.fn();
+
   const controller = createInvitationsController<{ id: string }>({
     client: { invite, revokeInvitation },
     auth,
@@ -321,6 +338,7 @@ function invitations(
     onChanged,
     ...options,
   });
+
   return { load, invite, revokeInvitation, onChanged, controller };
 }
 
@@ -330,10 +348,12 @@ describe("createInvitationsController", () => {
     const { view, unmount } = mount(controller);
     await flush();
     expect(view().invitations).toEqual([{ id: "inv-0" }]);
+
     const inviting = view().invite({
       email: "ada@example.com",
       role: "member",
     });
+
     expect(view().inviting).toBe(true);
     const result = await inviting;
     expect(result.ok).toBe(true);
@@ -357,6 +377,7 @@ describe("createInvitationsController", () => {
     const { invite, revokeInvitation, onChanged, controller } = invitations({
       initial: [{ id: "inv-0" }],
     });
+
     const { view, unmount } = mount(controller);
     await flush();
     invite.mockReturnValueOnce(failed("already invited"));

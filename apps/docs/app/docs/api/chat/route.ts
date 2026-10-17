@@ -51,6 +51,7 @@ const tools = {
     inputSchema: pageInputSchema,
     execute: async ({ url }) => {
       const target = docsUrl(url);
+
       return (
         (await getPageMarkdown(target)) ??
         `No page at ${target}. Use search_docs to find one.`
@@ -61,9 +62,11 @@ const tools = {
 
 function lastUserText(messages: readonly UIMessage[]): string {
   const last = messages.findLast((message) => message.role === "user");
+
   if (last === undefined) {
     return "";
   }
+
   return last.parts
     .map((part) => (part.type === "text" ? part.text : ""))
     .join(" ");
@@ -72,9 +75,11 @@ function lastUserText(messages: readonly UIMessage[]): string {
 /** Candidate pages for the question, so the first step can read instead of search. */
 function candidates(question: string): string {
   const matches = searchDocs(getPageSummaries(), question, SEED_PAGES);
+
   if (matches.length === 0) {
     return "No page title matches the question.";
   }
+
   return matches
     .map(
       (match) =>
@@ -105,22 +110,28 @@ export async function POST(request: Request): Promise<Response> {
       () => null,
     ),
   ]);
+
   if (verdict === undefined) {
     return problem(503, "Bot protection is not available on this deployment");
   }
+
   if (verdict.isBot) {
     return problem(403, "Ask AI is not available to automated clients");
   }
+
   if (body === null) {
     return problem(400, "The request body is not JSON");
   }
+
   if (!body.success) {
     return problem(400, "Send between 1 and 20 chat messages");
   }
+
   const parsed = await safeValidateUIMessages({
     messages: body.output.messages,
     tools,
   });
+
   if (!parsed.success || parsed.data.length > MAX_MESSAGES) {
     return problem(400, "Send between 1 and 20 chat messages");
   }
@@ -129,6 +140,7 @@ export async function POST(request: Request): Promise<Response> {
     tools,
     ignoreIncompleteToolCalls: true,
   });
+
   const result = streamText({
     model: MODEL,
     instructions: `${SYSTEM}\n\nPages that may answer it:\n${candidates(
@@ -138,6 +150,7 @@ export async function POST(request: Request): Promise<Response> {
     tools,
     stopWhen: isStepCount(MAX_STEPS),
   });
+
   return createUIMessageStreamResponse({
     stream: toUIMessageStream({ stream: result.stream }),
   });

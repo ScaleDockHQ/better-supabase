@@ -54,14 +54,20 @@ export function openLive(
 ): OpenLive {
   const none = { close: () => Promise.resolve() };
   const file = snapshotFile(config, source);
+
   if (file) {
     const skipped = `reading the saved snapshot ${file}; set $DATABASE_URL or $SUPABASE_DB_URL, or pass --db-url-stdin or --project-ref, to check a database.`;
+
     return { ...none, advisors: { skipped }, database: { skipped } };
   }
+
   let opened: Promise<IntrospectionSource> | undefined;
+
   const open = (): Promise<IntrospectionSource> =>
     (opened ??= openSource(config, env, source, pg));
+
   const target = managementTarget(config, env, source);
+
   const database: LiveDatabase = {
     describe: target
       ? `project ${target.projectRef} (Management API)`
@@ -69,20 +75,25 @@ export function openLive(
     session: !target,
     async query<R>(sql: string) {
       const result = await (await open()).queryable.query(sql);
+
       // SAFETY: R is the row type the caller declares for its query.
       return result.rows as R[];
     },
   };
+
   const close = async (): Promise<void> => {
     if (opened) {
       await (await opened).close();
     }
   };
+
   if (target) {
     return { advisors: managementAdvisors(target), database, open, close };
   }
+
   let splinter: Promise<AdvisorSource> | undefined;
   const cacheDir = resolve(config.root, CACHE_DIR);
+
   const advisors: AdvisorSource = {
     describe: "database (splinter)",
     async lints(category) {
@@ -95,8 +106,10 @@ export function openLive(
           schemas: apiSchemas(toml?.document),
         }),
       );
+
       return (await splinter).lints(category);
     },
   };
+
   return { advisors, database, open, close };
 }

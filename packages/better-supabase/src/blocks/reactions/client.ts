@@ -55,26 +55,32 @@ export function createReactionsController(
   const topic = options.topic === undefined ? "reactions" : options.topic;
   let subjects = [...options.subjectIds];
   let watching = false;
+
   return defineController<ReactionsSnapshot, ReactionsActions>(
     { reactions: undefined, status: "closed", error: undefined },
     (state) => {
       let ticket = 0;
+
       const refresh = async (): Promise<void> => {
         const request = ++ticket;
+
         const result = await client.summary(
           organizationId,
           subjectType,
           subjects,
         );
+
         if (request !== ticket) {
           return;
         }
+
         state.set(
           result.ok
             ? { reactions: result.data, error: undefined }
             : { error: result.error },
         );
       };
+
       const watched = (payload: unknown): boolean =>
         typeof payload !== "object" ||
         payload === null ||
@@ -83,6 +89,7 @@ export function createReactionsController(
         (payload.subjectType === subjectType &&
           typeof payload.subjectId === "string" &&
           subjects.includes(payload.subjectId));
+
       return {
         actions: {
           refresh,
@@ -90,7 +97,9 @@ export function createReactionsController(
             if (sameIds(subjects, subjectIds)) {
               return;
             }
+
             subjects = [...subjectIds];
+
             if (watching) {
               void refresh();
             }
@@ -101,6 +110,7 @@ export function createReactionsController(
               .reactions?.[subjectId]?.some(
                 (reaction) => reaction.emoji === emoji && reaction.reacted,
               );
+
             const result = await client.react(
               organizationId,
               subjectType,
@@ -108,10 +118,13 @@ export function createReactionsController(
               emoji,
               { present },
             );
+
             if (!result.ok) {
               state.set({ error: result.error });
+
               return;
             }
+
             state.set((current) => ({
               error: undefined,
               reactions: { ...current.reactions, [subjectId]: result.data },
@@ -122,6 +135,7 @@ export function createReactionsController(
           whileSignedIn(options.auth, () => {
             watching = true;
             void refresh();
+
             const leave = topic
               ? options.ports.topic(reactionsTopic(organizationId, topic), {
                   onMessage: (_event, payload) => {
@@ -135,6 +149,7 @@ export function createReactionsController(
                   },
                 }).leave
               : undefined;
+
             return () => {
               watching = false;
               leave?.();

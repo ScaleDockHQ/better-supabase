@@ -103,13 +103,16 @@ interface BusinessHours {
 function businessHours(ctx: ModuleContext): BusinessHours {
   const raw = ctx.option("businessHours") ?? {};
   const where = "blocks.sla.options.businessHours";
+
   if (!isRecord(raw)) {
     throw new TypeError(`${where} must be an object`);
   }
+
   const timeZone = raw["timeZone"] ?? "UTC";
   const start = raw["start"] ?? "09:00";
   const end = raw["end"] ?? "17:00";
   const days = raw["days"] ?? [1, 2, 3, 4, 5];
+
   if (
     typeof timeZone !== "string" ||
     !/^[A-Za-z_]+(\/[A-Za-z_+-]+)*$/.test(timeZone)
@@ -118,6 +121,7 @@ function businessHours(ctx: ModuleContext): BusinessHours {
       `${where}.timeZone must be an IANA name such as Europe/Amsterdam`,
     );
   }
+
   if (
     typeof start !== "string" ||
     typeof end !== "string" ||
@@ -129,6 +133,7 @@ function businessHours(ctx: ModuleContext): BusinessHours {
       `${where}.start and end are HH:MM with end after start`,
     );
   }
+
   if (
     !Array.isArray(days) ||
     days.length === 0 ||
@@ -141,6 +146,7 @@ function businessHours(ctx: ModuleContext): BusinessHours {
       `${where}.days lists ISO weekdays, 1 Monday to 7 Sunday`,
     );
   }
+
   return { timeZone, start, end, days: days.map(Number) };
 }
 
@@ -157,42 +163,54 @@ interface SlaBinding {
 
 function bindings(ctx: ModuleContext): readonly SlaBinding[] {
   const raw = ctx.option("subjects") ?? {};
+
   if (!isRecord(raw)) {
     throw new TypeError("blocks.sla.options.subjects must be an object");
   }
+
   const registry = registeredSubjects(ctx.subjects);
+
   return Object.entries(raw).map(([type, entry]) => {
     const where = `blocks.sla.options.subjects.${type}`;
     const subject = registry.find((item) => item.type === type);
+
     if (subject?.tenant === undefined) {
       throw new TypeError(
         `${where}: register "${type}" with a tenant column in config.subjects first`,
       );
     }
+
     if (!isRecord(entry)) {
       throw new TypeError(`${where} must be an object`);
     }
+
     const status = entry["status"];
     const priority = entry["priority"];
+
     if (typeof status !== "string" || !COLUMN.test(status)) {
       throw new TypeError(`${where}.status must be a column name`);
     }
+
     if (
       priority !== undefined &&
       (typeof priority !== "string" || !COLUMN.test(priority))
     ) {
       throw new TypeError(`${where}.priority must be a column name`);
     }
+
     const list = (key: string): readonly string[] => {
       const value = entry[key] ?? [];
+
       if (
         !Array.isArray(value) ||
         value.some((item) => typeof item !== "string")
       ) {
         throw new TypeError(`${where}.${key} must be a list of statuses`);
       }
+
       return value.map(String);
     };
+
     return {
       subject,
       status,
@@ -213,17 +231,21 @@ function bindingTrigger(
   const type = binding.subject.type;
   const name = `bs_sla_${type}`;
   const status = sqlIdent(binding.status);
+
   const priority =
     binding.priority === undefined
       ? "null"
       : `new.${sqlIdent(binding.priority)}::text`;
+
   const id = `new.${binding.subject.id}::text`;
+
   const watched = [
     binding.status,
     ...(binding.priority === undefined ? [] : [binding.priority]),
   ]
     .map(sqlIdent)
     .join(", ");
+
   return `
 create or replace function better_supabase.${name}()
 returns trigger
@@ -267,6 +289,7 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const keys = moduleOperations("sla");
   const read = ctx.permission("read", keys.read);
   const manage = ctx.permission("manage", keys.manage);
@@ -276,6 +299,7 @@ function build(ctx: ModuleContext): string {
   const k = (column: string): string => ctx.col("clocks", column);
   const hours = businessHours(ctx);
   const service = "(auth.role() = 'service_role')";
+
   const record = (type: string, extra = ""): string =>
     ctx.record({
       type,
@@ -284,6 +308,7 @@ function build(ctx: ModuleContext): string {
       tenant: `v_clock.${k("tenant")}::text`,
       audit: false,
     });
+
   const notify = (kind: string): string =>
     ctx.installed("notifications")
       ? ctx.notify(
@@ -300,9 +325,11 @@ function build(ctx: ModuleContext): string {
           { indent: "      " },
         )
       : "";
+
   const list = bindings(ctx);
   // The policy's extra columns: attrs.fields writes them, reads return them under fields.
   const extras = ctx.extraColumns("policies", ["fields"]);
+
   return `${schemaPreamble(ctx)}
 -- Service levels on any record: response and resolution clocks from a
 -- policy per record type and priority, in business hours, paused while the

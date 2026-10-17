@@ -14,6 +14,7 @@ import { upgrade } from "../sql/upgrade.ts";
 import { type Paint, painter, plain } from "../style.ts";
 
 export { migrationsDir };
+
 export type { SqlArgs, SqlFlags } from "../sql/args.ts";
 
 /** What `runSql` reads from outside: the clock behind the migration stamps. */
@@ -32,28 +33,36 @@ export async function runSql(
   deps: SqlDeps = SYSTEM_DEPS,
 ): Promise<CommandResult> {
   const [action, ...names] = args._ ?? [];
+
   switch (action) {
     case "list": {
       return listModules(config, args);
     }
+
     case "add": {
       return addModules(config, args, names, deps);
     }
+
     case "sync": {
       return syncModules(config, args, paint, deps.now);
     }
+
     case "upgrade": {
       return upgrade(config, args, paint, deps.now);
     }
+
     case "data": {
       return dataMigration(config, args, deps.now);
     }
+
     case "print": {
       return printModule(config, args, names);
     }
+
     case undefined: {
       return { code: 2, error: `Name an action.\n${USAGE}` };
     }
+
     default: {
       return {
         code: 2,

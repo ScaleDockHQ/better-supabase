@@ -51,10 +51,12 @@ export function trackingTables(ctx: ModuleContext, n: NotifyNames): string {
   if (!ctx.manages || !tracking(ctx)) {
     return "";
   }
+
   const d = (logical: string) => n.col("deliveries", logical);
   const e = (logical: string) => n.col("deliveryEvents", logical);
   const deliveries = n.table("deliveries");
   const t = n.table("deliveryEvents");
+
   const columns = [
     n.has("deliveries", "providerStatus")
       ? `alter table ${deliveries} add column if not exists ${d("providerStatus")} text check (${d("providerStatus")} in (${DELIVERY_EVENT_KINDS.map(sqlString).join(", ")}));`
@@ -72,7 +74,9 @@ export function trackingTables(ctx: ModuleContext, n: NotifyNames): string {
       .filter((column) => column !== undefined)
       .join(", ")}) where ${d("providerMessageId")} is not null;`,
   ].filter((line) => line !== "");
+
   const policy = sqlIdent("bs_notification_delivery_events_read");
+
   return `
 ${columns.join("\n")}
 
@@ -120,14 +124,17 @@ function recordKinds(ctx: ModuleContext, fn: string): string {
       audit: false,
     }),
   }));
+
   if (statements.every(({ statement }) => statement === NOTHING)) {
     return "";
   }
+
   const branches = statements.map(
     ({ kind, statement }, index) =>
       `${index === 0 ? "if" : "elsif"} v_kind = ${sqlString(kind)} then
       ${statement}`,
   );
+
   return `
     ${branches.join("\n    ")}
     end if;`;
@@ -141,6 +148,7 @@ export function trackingFunctions(ctx: ModuleContext, n: NotifyNames): string {
   if (!tracking(ctx)) {
     return "";
   }
+
   const id = ctx.idType;
   const d = (logical: string) => n.col("deliveries", logical);
   const r = (logical: string) => n.col("recipients", logical);
@@ -148,19 +156,24 @@ export function trackingFunctions(ctx: ModuleContext, n: NotifyNames): string {
   const e = (logical: string) => n.col("deliveryEvents", logical);
   const record = "record_delivery_event";
   const list = "list_subject_deliveries";
+
   const subjects =
     n.has("events", "subjectType") && n.has("events", "subjectId");
+
   const tenant = n.has("deliveries", "tenant")
     ? `d.${d("tenant")}`
     : n.has("events", "tenant")
       ? `ev.${ev("tenant")}`
       : `null::${id}`;
+
   const status = n.has("deliveries", "providerStatus");
   const statusAt = n.has("deliveries", "providerStatusAt");
+
   const statusSet = [
     `${d("providerStatus")} = v_kind`,
     ...(statusAt ? [`${d("providerStatusAt")} = v_at`] : []),
   ];
+
   const updateStatus = status
     ? `
     update ${n.table("deliveries")} d
@@ -168,6 +181,7 @@ export function trackingFunctions(ctx: ModuleContext, n: NotifyNames): string {
     where d.${d("id")} = v_delivery
       and coalesce(array_position(${KINDS}, d.${d("providerStatus")}), 0) <= array_position(${KINDS}, v_kind);`
     : "";
+
   const suppress = suppressing(ctx)
     ? `
     if v_kind in ('bounced', 'complained') and coalesce(${record}.suppress, true) then
@@ -184,6 +198,7 @@ export function trackingFunctions(ctx: ModuleContext, n: NotifyNames): string {
       end if;
     end if;`
     : "";
+
   const insertColumns = [
     e("delivery"),
     ...(n.has("deliveryEvents", "tenant") ? [e("tenant")] : []),
@@ -193,6 +208,7 @@ export function trackingFunctions(ctx: ModuleContext, n: NotifyNames): string {
     e("occurredAt"),
     e("detail"),
   ];
+
   const insertValues = [
     "v_delivery",
     ...(n.has("deliveryEvents", "tenant") ? ["v_tenant"] : []),
@@ -202,6 +218,7 @@ export function trackingFunctions(ctx: ModuleContext, n: NotifyNames): string {
     "v_at",
     `coalesce(${record}.detail, '{}')`,
   ];
+
   const parts = [
     `
 -- Records what a provider reported about a sent message (a webhook): finds
@@ -276,6 +293,7 @@ end;
 $$;
 ${serviceGrant(`${ctx.fn(record)}(text, text, text, text, timestamptz, jsonb, boolean)`)}`,
   ];
+
   if (subjects) {
     const fields: [string, string][] = [
       ["id", `d.${d("id")}`],
@@ -287,6 +305,7 @@ ${serviceGrant(`${ctx.fn(record)}(text, text, text, text, timestamptz, jsonb, bo
       ["provider_message_id", `d.${d("providerMessageId")}`],
       ["created_at", `d.${d("createdAt")}`],
     ];
+
     const optional: [string, string][] = [
       ["provider", "provider"],
       ["provider_status", "providerStatus"],
@@ -296,11 +315,13 @@ ${serviceGrant(`${ctx.fn(record)}(text, text, text, text, timestamptz, jsonb, bo
       ["attempts", "attempts"],
       ["delivered_at", "deliveredAt"],
     ];
+
     for (const [key, logical] of optional) {
       if (n.has("deliveries", logical)) {
         fields.push([key, `d.${d(logical)}`]);
       }
     }
+
     fields.push([
       "events",
       `(
@@ -309,9 +330,11 @@ ${serviceGrant(`${ctx.fn(record)}(text, text, text, text, timestamptz, jsonb, bo
       )`,
     ]);
     const access = ctx.installed("access");
+
     const allowed = access
       ? `(${SERVICE_CALLER}) or (${list}.tenant is not null and coalesce(better_supabase.member_can(auth.uid(), ${list}.tenant, ${n.sendPermission}), false))`
       : SERVICE_CALLER;
+
     const signature = `${ctx.fn(list)}(text, text, ${id}, integer)`;
     parts.push(`
 -- The deliveries of the notifications about one record, newest first, each
@@ -356,6 +379,7 @@ grant execute on function ${signature} to authenticated, service_role;`
     : serviceGrant(signature)
 }`);
   }
+
   return parts.join("\n");
 }
 
@@ -365,6 +389,7 @@ export function trackingContract(
   if (!tracking(ctx)) {
     return [];
   }
+
   const fns: ModuleContractFunction[] = [
     {
       name: "record_delivery_event",
@@ -380,6 +405,7 @@ export function trackingContract(
       returns: "jsonb",
     },
   ];
+
   if (ctx.has("events", "subjectType") && ctx.has("events", "subjectId")) {
     fns.push({
       name: "list_subject_deliveries",
@@ -387,5 +413,6 @@ export function trackingContract(
       returns: "jsonb",
     });
   }
+
   return fns;
 }

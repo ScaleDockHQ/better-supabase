@@ -48,6 +48,7 @@ describe("jobs module", () => {
         .map((match) => match[1])
         .filter((name) => !/index_job_queue|ensure_job_queue/.test(name!))
         .toSorted((a, b) => a!.localeCompare(b!));
+
     const pgmq = signatures(jobs());
     expect(signatures(jobs({ backend: "table", scheduler: "drain" }))).toEqual(
       pgmq,
@@ -116,6 +117,7 @@ describe("jobs module", () => {
       const sql = moduleBody("jobs", {
         modules: { jobs: { options: { backend } } },
       })!;
+
       expect(sql).toContain("The lease ran out on the last attempt");
       expect(sql).toContain(
         "1 + floor(random() * least(3600, 10 * power(2, attempt - 1)))::integer",
@@ -128,6 +130,7 @@ describe("jobs module", () => {
         "grant execute on function better_supabase.replay_dead_job(text, bigint) to service_role;",
       );
     }
+
     expect(moduleBody("jobs", {})).toContain(
       "perform pgmq.set_vt(queue, job_id, lease);",
     );

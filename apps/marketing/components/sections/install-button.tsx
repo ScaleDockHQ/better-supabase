@@ -20,9 +20,11 @@ export function InstallButton({ command }: { command: string }) {
     try {
       await navigator.clipboard.writeText(command);
       setCopied(true);
+
       if (resetTimer.current) {
         clearTimeout(resetTimer.current);
       }
+
       resetTimer.current = setTimeout(() => {
         setCopied(false);
       }, 2000);

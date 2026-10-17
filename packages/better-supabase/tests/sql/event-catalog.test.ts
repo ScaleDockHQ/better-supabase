@@ -26,7 +26,9 @@ const RECORDED = (() => {
   const files = renderModules(Object.keys(SQL_MODULES), {
     modules: { audit: { options: { restricted: true } } },
   });
+
   const byModule = new Map<string, Set<string>>();
+
   for (const file of files) {
     for (const match of file.contents.matchAll(/emit_event\('([a-z_.]+)'/g)) {
       const types = byModule.get(file.module) ?? new Set<string>();
@@ -34,6 +36,7 @@ const RECORDED = (() => {
       byModule.set(file.module, types);
     }
   }
+
   return byModule;
 })();
 
@@ -46,25 +49,31 @@ const declared = (module: string): string[] =>
 describe("SQL module event catalog", () => {
   it("declares the events of every module that records one", () => {
     expect(RECORDED.size).toBeGreaterThan(20);
+
     const mismatches = [...RECORDED].flatMap(([module, types]) => {
       const catalog = declared(module);
+
       if (catalog.length === 0) {
         return [`${module}: no catalog`];
       }
+
       return catalog
         .filter((type) => !types.has(type) && !OPTIONAL.has(type))
         .map((type) => `${module}: ${type} is never recorded`);
     });
+
     expect(mismatches).toEqual([]);
   });
 
   it("declares only types in its block's event map", () => {
     const unknown = Object.keys(SQL_MODULES).flatMap((module) => {
       const known = new Set(OWNER.get(module)?.events.types);
+
       return declared(module)
         .filter((type) => !known.has(type))
         .map((type) => `${module}: ${type}`);
     });
+
     expect(unknown).toEqual([]);
   });
 
@@ -92,6 +101,7 @@ describe("SQL module event catalog", () => {
     const docs = source(
       "../../../../apps/docs/content/docs/extending/events.mdx",
     );
+
     expect(MAP_TYPES.filter((type) => !docs.includes(`\`${type}\``))).toEqual(
       [],
     );

@@ -92,10 +92,12 @@ function model(text: string): MockLanguageModelV4 {
 describe("agentTools", () => {
   it("keeps the agent's tools, drops denied ones and asks for others", () => {
     const available = { a: echo("a"), b: echo("b"), c: echo("c") };
+
     const tools = agentTools(agent({ tools: ["a", "b"] }), available, {
       b: "ask",
       c: "auto",
     });
+
     expect(Object.keys(tools)).toEqual(["a", "b"]);
     expect(agentToolApproval(tools, { b: "ask", c: "ask" })).toEqual({
       b: "user-approval",
@@ -131,10 +133,13 @@ describe("createAgentRuntime", () => {
   it("builds a ToolLoopAgent with knowledge search and both instructions", async () => {
     const pick = vi.fn((id: string | undefined) => {
       expect(id).toBe("openai/gpt-5");
+
       return model("Done");
     });
+
     const search = vi.fn(() => AsyncResult.ok([]));
     const knowledge = { search } as unknown as Knowledge;
+
     const runtime = createAgentRuntime({
       agent: agent({ knowledgeScopes: [{ scope: "agent" }] }),
       model: pick,
@@ -143,6 +148,7 @@ describe("createAgentRuntime", () => {
       knowledge: { knowledge, organizationId: "o1" },
       instructions: "Follow the rules",
     });
+
     expect(runtime.id).toBe("a1");
     expect(Object.keys(runtime.tools)).toEqual(["a", "search_knowledge"]);
     const result = await runtime.generate({ prompt: "Hi" });
@@ -156,6 +162,7 @@ describe("createAgentRuntime", () => {
 
   it("waits for the user before running an ask tool", async () => {
     const execute = vi.fn(() => Promise.resolve("ran"));
+
     const runtime = createAgentRuntime({
       agent: agent(),
       model: () =>
@@ -184,6 +191,7 @@ describe("createAgentRuntime", () => {
       },
       policies: { a: "ask" },
     });
+
     const result = await runtime.generate({ prompt: "Hi" });
     expect(result.content.map((part) => part.type)).toContain(
       "tool-approval-request",
@@ -194,9 +202,11 @@ describe("createAgentRuntime", () => {
   describe("toolApproval", () => {
     const calling = () => {
       let calls = 0;
+
       return new MockLanguageModelV4({
         doGenerate: () => {
           calls += 1;
+
           return Promise.resolve(
             calls === 1
               ? {
@@ -225,6 +235,7 @@ describe("createAgentRuntime", () => {
         },
       });
     };
+
     const run = async (
       toolApproval: NonNullable<
         Parameters<typeof createAgentRuntime>[0]["toolApproval"]
@@ -232,6 +243,7 @@ describe("createAgentRuntime", () => {
       policies: Record<string, "ask" | "auto"> = {},
     ) => {
       const execute = vi.fn(() => Promise.resolve("ran"));
+
       const runtime = createAgentRuntime({
         agent: agent(),
         model: calling,
@@ -245,8 +257,10 @@ describe("createAgentRuntime", () => {
         policies,
         toolApproval,
       });
+
       const result = await runtime.generate({ prompt: "Hi" });
       const parts = result.steps.flatMap((step) => step.content);
+
       return {
         execute,
         types: parts.map((part) => part.type),
@@ -295,6 +309,7 @@ describe("createAgentRuntime", () => {
       model: () => model("x"),
       knowledge: { knowledge: {} as Knowledge, organizationId: "o1" },
     });
+
     expect(Object.keys(runtime.tools)).toEqual([]);
   });
 });
@@ -304,6 +319,7 @@ describe("moderationMiddleware", () => {
     check: (text: string, stage: "input" | "output") => unknown,
   ) => {
     const fake = fakeChats();
+
     return {
       fake,
       middleware: moderationMiddleware({
@@ -323,6 +339,7 @@ describe("moderationMiddleware", () => {
         ? { action: "block", category: "abuse", score: 0.9 }
         : undefined,
     );
+
     const wrapped = wrapLanguageModel({ model: model("ok"), middleware });
     await expect(
       generateText({ model: wrapped, prompt: "bad" }),
@@ -351,6 +368,7 @@ describe("moderationMiddleware", () => {
           ? { action: "block", category: "leak" }
           : { action: "flag", category: "tone" },
     );
+
     expect(
       (
         await generateText({
@@ -374,7 +392,9 @@ describe("moderationMiddleware", () => {
         ? { action: "block", category: "leak" }
         : { action: "allow", category: "ok" },
     );
+
     const errors: unknown[] = [];
+
     const result = streamText({
       model: wrapLanguageModel({ model: model("secret"), middleware }),
       prompt: "Hi",
@@ -382,6 +402,7 @@ describe("moderationMiddleware", () => {
         errors.push(error);
       },
     });
+
     await result.consumeStream();
     expect(errors[0]).toBeInstanceOf(ModerationBlockedError);
 
@@ -389,11 +410,13 @@ describe("moderationMiddleware", () => {
       model: wrapLanguageModel({ model: model("fine"), middleware }),
       prompt: "Hi",
     });
+
     expect(await clean.text).toBe("fine");
   });
 
   it("fails when the verdict cannot be recorded", async () => {
     const fake = fakeChats();
+
     const middleware = moderationMiddleware({
       chats: {
         ...fake.chats,
@@ -410,6 +433,7 @@ describe("moderationMiddleware", () => {
       organizationId: "o1",
       check: () => Promise.resolve({ action: "flag", category: "x" }),
     });
+
     await expect(
       generateText({
         model: wrapLanguageModel({ model: model("x"), middleware }),

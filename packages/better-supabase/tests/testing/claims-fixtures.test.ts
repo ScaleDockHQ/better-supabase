@@ -31,9 +31,11 @@ describe("supabaseClaimFixtures", () => {
       );
       const session = toSession(user(fixture.claims));
       expect(session).toMatchObject({ actor: fixture.expect.actor });
+
       if (session.kind !== "user") {
         throw new Error("expected a user session");
       }
+
       expect(session.impersonator).toEqual(fixture.expect.impersonator);
       expect(session.delegation).toEqual(fixture.expect.delegation);
     });
@@ -42,6 +44,7 @@ describe("supabaseClaimFixtures", () => {
   it("matches what supportClaims and actClaim mint", () => {
     const { supportSession, supportSessionReadOnly, impersonation } =
       supabaseClaimFixtures;
+
     for (const fixture of [supportSession, supportSessionReadOnly]) {
       const act = fixture.claims["act"] as Record<string, unknown>;
       const { act: _act, ...target } = fixture.claims;
@@ -58,6 +61,7 @@ describe("supabaseClaimFixtures", () => {
         ),
       ).toEqual(fixture.claims);
     }
+
     expect(
       actClaim({
         actor: impersonation.expect.actor.id,

@@ -75,12 +75,15 @@ function page(
   max: number,
 ): { limit: number; offset: number; order: "asc" | "desc" } {
   const limit = Math.min(max, Math.max(1, pagination?.limit ?? max));
+
   if (pagination?.limit !== undefined && pagination.limit > max) {
     throw new RangeError(
       `better-supabase: the analytics page limit is ${String(max)}, got ${String(pagination.limit)}`,
     );
   }
+
   const offset = Number(pagination?.cursor ?? 0);
+
   return {
     limit,
     offset: Number.isSafeInteger(offset) && offset > 0 ? offset : 0,
@@ -94,6 +97,7 @@ function paged<T>(
   offset: number,
 ): PaginatedResponse<T> {
   const hasMore = rows.length > limit;
+
   return {
     data: rows.slice(0, limit),
     hasMore,
@@ -104,11 +108,13 @@ function paged<T>(
 /** Converts SQL nulls to the optional fields the analytics schemas allow. */
 function compact<T>(row: Record<string, unknown>): T {
   const out: Record<string, unknown> = {};
+
   for (const [key, value] of Object.entries(row)) {
     if (value !== null) {
       out[key] = value;
     }
   }
+
   // SAFETY: each query selects the columns of its analytics schema under their names.
   return out as T;
 }
@@ -132,8 +138,10 @@ export function createAnalytics(pool: Pool): Analytics {
     params: readonly unknown[],
   ): Promise<T[]> => {
     const result = await pool.query(sql, [...params]);
+
     return result.rows.map((row: Record<string, unknown>) => compact<T>(row));
   };
+
   const one = async <T>(
     sql: string,
     params: readonly unknown[],
@@ -141,11 +149,14 @@ export function createAnalytics(pool: Pool): Analytics {
     id: string,
   ): Promise<T> => {
     const [row] = await rows<T>(sql, params);
+
     if (row === undefined) {
       throw notFound(what, id);
     }
+
     return row;
   };
+
   const window = (
     params: { startTime?: string; endTime?: string },
     column: string,
@@ -156,10 +167,13 @@ export function createAnalytics(pool: Pool): Analytics {
         "better-supabase: analytics startTime and endTime go together",
       );
     }
+
     if (params.startTime === undefined || params.endTime === undefined) {
       return "";
     }
+
     values.push(params.startTime, params.endTime);
+
     return ` and ${utc(column)} between $${String(values.length - 1)}::timestamptz and $${String(values.length)}::timestamptz`;
   };
 
@@ -169,15 +183,19 @@ export function createAnalytics(pool: Pool): Analytics {
     const { limit, offset, order } = page(params.pagination, RUN_SCOPED_LIMIT);
     const values: unknown[] = [params.runId];
     let where = "e.run_id = $1";
+
     if (params.eventType !== undefined) {
       values.push(params.eventType);
       where += ` and e.type = $${String(values.length)}`;
     }
+
     if (params.correlationId !== undefined) {
       values.push(params.correlationId);
       where += ` and e.correlation_id = $${String(values.length)}`;
     }
+
     values.push(limit + 1, offset);
+
     const data = await rows<AnalyticsEvent>(
       `select ${EVENT_COLUMNS} from workflow.workflow_events e
        join workflow.workflow_runs r on r.id = e.run_id
@@ -185,6 +203,7 @@ export function createAnalytics(pool: Pool): Analytics {
        limit $${String(values.length - 1)} offset $${String(values.length)}`,
       values,
     );
+
     return paged(data, limit, offset);
   };
 
@@ -201,31 +220,38 @@ export function createAnalytics(pool: Pool): Analytics {
         const { limit, offset, order } = page(params.pagination, LIMIT);
         const values: unknown[] = [];
         let where = "true";
+
         if (params.workflowName !== undefined) {
           values.push(params.workflowName);
           where += ` and r.name = $${String(values.length)}`;
         }
+
         if (params.status !== undefined) {
           values.push(params.status);
           where += ` and r.status::text = $${String(values.length)}`;
         }
+
         if (params.attributes !== undefined) {
           if (Object.keys(params.attributes).length > MAX_ATTRIBUTE_FILTERS) {
             throw new RangeError(
               `better-supabase: analytics filters by at most ${String(MAX_ATTRIBUTE_FILTERS)} attributes`,
             );
           }
+
           values.push(JSON.stringify(params.attributes));
           where += ` and r.attributes @> $${String(values.length)}::jsonb`;
         }
+
         where += window(params, "r.updated_at", values);
         values.push(limit + 1, offset);
+
         const data = await rows<AnalyticsRun>(
           `select ${RUN_COLUMNS} from workflow.workflow_runs r where ${where}
            order by r.created_at ${order}, r.id ${order}
            limit $${String(values.length - 1)} offset $${String(values.length)}`,
           values,
         );
+
         return paged(data, limit, offset);
       },
     },
@@ -234,12 +260,15 @@ export function createAnalytics(pool: Pool): Analytics {
         const { limit, offset } = page(params.pagination, LIMIT);
         const values: unknown[] = [];
         let where = "true";
+
         if (params.workflowName !== undefined) {
           values.push(params.workflowName);
           where += ` and r.name = $${String(values.length)}`;
         }
+
         where += window(params, "r.updated_at", values);
         values.push(limit + 1, offset);
+
         const data = await rows<AnalyticsAttributeKey>(
           `select k.key, count(*)::int as "runCount",
              ${utc("min(r.created_at)")} as "firstSeenAt",
@@ -251,6 +280,7 @@ export function createAnalytics(pool: Pool): Analytics {
            limit $${String(values.length - 1)} offset $${String(values.length)}`,
           values,
         );
+
         return paged(data, limit, offset);
       },
     },
@@ -267,11 +297,13 @@ export function createAnalytics(pool: Pool): Analytics {
           params.pagination,
           RUN_SCOPED_LIMIT,
         );
+
         const data = await rows<AnalyticsStep>(
           `select ${STEP_COLUMNS} from workflow.workflow_steps s where s.run_id = $1
            order by s.created_at ${order}, s.step_id ${order} limit $2 offset $3`,
           [params.runId, limit + 1, offset],
         );
+
         return paged(data, limit, offset);
       },
     },
@@ -291,6 +323,7 @@ export function createAnalytics(pool: Pool): Analytics {
             `better-supabase: analytics looks up at most ${String(LIMIT)} events at once`,
           );
         }
+
         return rows<AnalyticsEvent>(
           `select ${EVENT_COLUMNS} from workflow.workflow_events e
            join workflow.workflow_runs r on r.id = e.run_id
@@ -321,11 +354,13 @@ export function createAnalytics(pool: Pool): Analytics {
         ),
       async list(params) {
         const { limit, offset, order } = page(params.pagination, LIMIT);
+
         const data = await rows<AnalyticsHook>(
           `${HOOKS} and e.run_id = $1 group by e.run_id, e.correlation_id
            order by "createdAt" ${order}, "hookId" ${order} limit $2 offset $3`,
           [params.runId, limit + 1, offset],
         );
+
         return paged(data, limit, offset);
       },
     },
@@ -343,19 +378,24 @@ export function createAnalytics(pool: Pool): Analytics {
           params.pagination,
           RUN_SCOPED_LIMIT,
         );
+
         const values: unknown[] = [params.runId];
         let where = "w.run_id = $1";
+
         if (params.status !== undefined) {
           values.push(params.status);
           where += ` and w.status::text = $${String(values.length)}`;
         }
+
         values.push(limit + 1, offset);
+
         const data = await rows<AnalyticsWait>(
           `select ${WAIT_COLUMNS} from workflow.workflow_waits w where ${where}
            order by w.created_at ${order}, w.wait_id ${order}
            limit $${String(values.length - 1)} offset $${String(values.length)}`,
           values,
         );
+
         return paged(data, limit, offset);
       },
     },

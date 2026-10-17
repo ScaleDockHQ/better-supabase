@@ -18,6 +18,7 @@ export {
   type PublicBookingService,
   type WeeklyHours,
 } from "./bookings.ts";
+
 export {
   slotsByDay,
   toEventCalendarBookings,
@@ -25,12 +26,16 @@ export {
 } from "./event-calendar.ts";
 
 export { createAvailableSlotsController } from "./client.ts";
+
 export type {
   AvailableSlotsActions,
   AvailableSlotsController,
   AvailableSlotsOptions,
   AvailableSlotsSnapshot,
 } from "./client.ts";
+
 export { bookingsBlock } from "./manifest.ts";
+
 export { bookingsEvents } from "./events.ts";
+
 export type { BookingsEvents } from "./events.ts";

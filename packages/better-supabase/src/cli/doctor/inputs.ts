@@ -23,6 +23,7 @@ export async function readText(
   path: string,
 ): Promise<TextFile | undefined> {
   const absolute = resolve(root, path);
+
   return existsSync(absolute)
     ? { path, text: await readFile(absolute, "utf-8") }
     : undefined;
@@ -38,11 +39,14 @@ export async function sqlFiles(
     path,
     text: await readFile(resolve(root, path), "utf-8"),
   });
+
   const schemas = await Promise.all(
     (await schemaPaths(root, toml, workflow)).files.map(read),
   );
+
   const migrationsPath = `${toml?.dir ?? "supabase"}/migrations`;
   const migrationsDir = resolve(root, migrationsPath);
+
   const migrations = existsSync(migrationsDir)
     ? (await readdir(migrationsDir))
         .filter((name) => name.endsWith(".sql"))
@@ -50,12 +54,14 @@ export async function sqlFiles(
         .reverse()
         .map((name) => `${migrationsPath}/${name}`)
     : [];
+
   return [...schemas, ...(await Promise.all(migrations.map(read)))];
 }
 
 /** Files matching `doctor.sources`, skipping dependencies and build output. */
 export async function sourceFiles(config: ResolvedConfig): Promise<TextFile[]> {
   const files: TextFile[] = [];
+
   for await (const path of glob([...config.doctor.sources], {
     cwd: config.root,
     exclude: (name) => name === "node_modules" || name === ".next",
@@ -65,5 +71,6 @@ export async function sourceFiles(config: ResolvedConfig): Promise<TextFile[]> {
       text: await readFile(resolve(config.root, path), "utf-8"),
     });
   }
+
   return files.sort((a, b) => byCodePoint(a.path, b.path));
 }

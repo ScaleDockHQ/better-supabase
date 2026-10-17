@@ -38,6 +38,7 @@ function cases(
   if (subjects.length === 0) {
     return otherwise;
   }
+
   return `case ${selector}
 ${subjects.map((subject) => `    when ${sqlString(subject.type)} then\n${branch(subject)}`).join("\n")}
     else
@@ -60,6 +61,7 @@ function moveBranch(ctx: ModuleContext, subject: RegisteredSubject): string {
   const groupName = subject.config.rank?.group;
   const group = groupName === undefined ? undefined : sqlIdent(groupName);
   const tenant = subject.tenant === undefined ? "null" : `s.${subject.tenant}`;
+
   const neighbour = (id: string, key: string, at: string): string => `
       if ${id} is not null then
         select s.${rank}, ${tenant}::text${group === undefined ? ", null" : `, s.${group}::text`}
@@ -72,6 +74,7 @@ function moveBranch(ctx: ModuleContext, subject: RegisteredSubject): string {
           ${fail("RANK_NEIGHBOR_MISMATCH", `the ${at} row is in another tenant or group`, "22023")}
         end if;
       end if;`;
+
   return `      select ${tenant}::text${group === undefined ? ", null" : `, s.${group}::text`}
         into v_tenant, v_group
         from ${subject.qualified} s where ${registeredIdMatches(subject, "move.subject_id")};
@@ -105,6 +108,7 @@ function rebalanceBranch(
   const groupName = subject.config.rank?.group;
   const group = groupName === undefined ? undefined : sqlIdent(groupName);
   const partition = group === undefined ? "" : `partition by s.${group} `;
+
   const filters = [
     subject.tenant === undefined
       ? ""
@@ -113,6 +117,7 @@ function rebalanceBranch(
       ? ""
       : `(rebalance_ranks.rank_group is null or s.${group}::text = rebalance_ranks.rank_group)`,
   ].filter((part) => part !== "");
+
   return `      with ordered as (
         select s.${subject.id} as row_id,
           row_number() over (${partition}order by s.${rank} collate "C", s.${subject.id}) as nth,
@@ -129,18 +134,22 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const subjects = ranked(ctx);
   const fn = (name: string): string => ctx.fn(name);
+
   const unknown = fail(
     "RANK_SUBJECT_UNKNOWN",
     "this subject type has no rank column in config.subjects",
     "22023",
   );
+
   const invalid = (
     arg: string,
   ): string => `if ${arg} is not null and ${arg} !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
     ${fail("RANK_KEY_INVALID", "not a rank key", "22023")}
   end if;`;
+
   return `${schemaPreamble(ctx)}
 -- Fractional rank keys (ADR 0021). Keys are base-62 text compared with
 -- collate "C"; the steps match rankBetween in better-supabase/blocks/rank.

@@ -29,7 +29,9 @@ import {
 // SAFETY: the controllers read only these fields.
 const chat = (id: string, temporary = false) =>
   ({ id, temporary }) as unknown as AiChatRecord;
+
 const message = (id: string) => ({ id }) as unknown as AiStoredMessage;
+
 const page = (ids: readonly string[], next?: string): AiChatPage => ({
   items: ids.map((id) => chat(id)),
   next,
@@ -50,6 +52,7 @@ describe("createAiChatsController", () => {
   it("pages, reloads every shown page and edits the list", async () => {
     const topic = fakeTopic();
     const chats = chatsClient();
+
     const { view, unmount } = mount(
       createAiChatsController({
         // SAFETY: the fake has the methods the controller calls.
@@ -59,6 +62,7 @@ describe("createAiChatsController", () => {
         query: { organizationId: "org-1", limit: 1 },
       }),
     );
+
     await flush();
     expect(view()).toMatchObject({ hasMore: true });
     expect(topic.open()).toEqual([`ai-chats:${USER}`]);
@@ -93,6 +97,7 @@ describe("createAiChatsController", () => {
     const auth = fakeAuth();
     const topic = fakeTopic();
     const chats = chatsClient();
+
     const { view, unmount } = mount(
       createAiChatsController({
         client: { chats: chats as never },
@@ -101,6 +106,7 @@ describe("createAiChatsController", () => {
         topic: null,
       }),
     );
+
     await flush();
     expect(await view().create()).toBeUndefined();
     chats.list.mockReturnValueOnce(failed("no more"));
@@ -148,6 +154,7 @@ describe("createAiChatTreeController", () => {
   it("follows the branch, steps between siblings and reloads on saves", async () => {
     const topic = fakeTopic();
     const calls = messages();
+
     const { view, unmount } = mount(
       createAiChatTreeController({
         client: { messages: calls },
@@ -155,6 +162,7 @@ describe("createAiChatTreeController", () => {
         chatId: "c1",
       }),
     );
+
     await flush();
     expect(view().path?.map((item) => item.id)).toEqual(["c1-u"]);
     topic.emit("ai-chat:c1", "message.saved");
@@ -184,6 +192,7 @@ describe("createAiChatTreeController", () => {
 
   it("waits without a chat and drops answers after it stopped", async () => {
     const calls = messages();
+
     const idle = mount(
       createAiChatTreeController({
         client: { messages: calls },
@@ -191,6 +200,7 @@ describe("createAiChatTreeController", () => {
         chatId: null,
       }),
     );
+
     await idle.view().refresh();
     await idle.view().switchBranch("a");
     await idle.view().step("a", 1);
@@ -201,12 +211,14 @@ describe("createAiChatTreeController", () => {
     calls.switchBranch.mockReturnValueOnce(branch.result);
     const siblings = held([message("a1"), message("a2")]);
     calls.siblings.mockReturnValueOnce(siblings.result);
+
     const controller = createAiChatTreeController({
       client: { messages: calls },
       ports: { topic: fakeTopic().port },
       chatId: "c1",
       topic: null,
     });
+
     const mounted = mount(controller);
     await flush();
     const switching = mounted.view().switchBranch("a2");
@@ -223,12 +235,14 @@ describe("createAiChatTreeController", () => {
 describe("createAiModelsController", () => {
   it("loads the allowed models and keeps errors", async () => {
     const allowed = vi.fn(() => resolved([{ id: "m1" }]));
+
     const { view, unmount } = mount(
       createAiModelsController({
         client: { models: { allowed: allowed as never } },
         organizationId: "org-1",
       }),
     );
+
     await flush();
     expect(allowed).toHaveBeenCalledWith("org-1");
     expect(view().models).toHaveLength(1);
@@ -238,9 +252,11 @@ describe("createAiModelsController", () => {
     unmount();
 
     const slow = held([]);
+
     const late = createAiModelsController({
       client: { models: { allowed: () => slow.result } },
     });
+
     mount(late).unmount();
     slow.release();
     await flush();
@@ -255,12 +271,14 @@ describe("createAiShareController", () => {
       create: vi.fn(() => resolved({ id: "s2", token: "t" })),
       revoke: vi.fn(() => resolved(true)),
     };
+
     const { view, unmount } = mount(
       createAiShareController({
         client: { shares: shares as never },
         chatId: "c1",
       }),
     );
+
     await flush();
     expect(view().shares).toHaveLength(1);
     expect(await view().create("leaf")).toMatchObject({ token: "t" });
@@ -281,14 +299,17 @@ describe("createAiShareController", () => {
         chatId: null,
       }),
     );
+
     expect(await idle.view().create()).toBeUndefined();
     idle.unmount();
 
     const slow = held([]);
+
     const late = createAiShareController({
       client: { shares: { ...shares, list: () => slow.result } as never },
       chatId: "c1",
     });
+
     mount(late).unmount();
     slow.release();
     await flush();

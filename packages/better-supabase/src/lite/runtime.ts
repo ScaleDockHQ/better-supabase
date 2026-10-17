@@ -50,6 +50,7 @@ export async function loadLite(): Promise<LiteRuntime | undefined> {
   const root = "@supabase/lite";
   const pglite = "@supabase/lite/pglite";
   const sqlite = "@supabase/lite/sqlite";
+
   try {
     // SAFETY: @supabase/lite 0.11 exports `App`, `createPgliteConnection`
     // and `createConnection` with these shapes; the catch covers a missing
@@ -63,6 +64,7 @@ export async function loadLite(): Promise<LiteRuntime | undefined> {
       { createPgliteConnection(): Promise<PgliteConnection> },
       { createConnection(config: { url: string }): Promise<LiteConnection> },
     ];
+
     return {
       App,
       createPgliteConnection: () => pg.createPgliteConnection(),
@@ -79,6 +81,7 @@ export async function migrateLite(
   sql: readonly string[],
 ): Promise<void> {
   const ddl = sql.filter((part) => part.trim() !== "").join("\n;\n");
+
   if (ddl !== "") {
     await connection.createMigrator(ddl).migrate();
   }
@@ -97,12 +100,16 @@ export async function seedLite(
   if (sql.trim() === "") {
     return;
   }
+
   if (target.driver === "pglite") {
     await target.connection.driver.exec(sql);
+
     return;
   }
+
   const { connection } = target;
   const translated = await connection.translateDdl(sql);
+
   const statements =
     typeof translated === "string"
       ? translated
@@ -112,6 +119,7 @@ export async function seedLite(
           typeof translated.ddl === "string"
         ? translated.ddl
         : "";
+
   if (statements !== "") {
     await connection.transaction([statements]);
   }

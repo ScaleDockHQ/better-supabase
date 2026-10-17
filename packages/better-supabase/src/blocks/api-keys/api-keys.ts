@@ -135,21 +135,27 @@ export interface ParsedApiKey {
 
 const TOKEN = /^([a-z][a-z0-9]*)_([0-9a-f]{16})_([A-Za-z0-9_-]{32,})$/;
 const PREFIX = /^[a-z][a-z0-9]*$/;
+
 const ALPHABET =
   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
 const SECRET_LENGTH = 43;
 const CHECKSUM_LENGTH = 6;
 const CHECKED_TAIL = /^[A-Za-z0-9]{49}$/;
 
 const CRC_TABLE = ((): Uint32Array => {
   const table = new Uint32Array(256);
+
   for (let index = 0; index < 256; index += 1) {
     let value = index;
+
     for (let bit = 0; bit < 8; bit += 1) {
       value = value & 1 ? 0xed_b8_83_20 ^ (value >>> 1) : value >>> 1;
     }
+
     table[index] = value >>> 0;
   }
+
   return table;
 })();
 
@@ -160,25 +166,31 @@ const CRC_TABLE = ((): Uint32Array => {
  */
 export function apiKeyChecksum(text: string): string {
   let crc = 0xff_ff_ff_ff;
+
   for (let index = 0; index < text.length; index += 1) {
     crc =
       (CRC_TABLE[(crc ^ (text.codePointAt(index) ?? 0)) & 0xff] ?? 0) ^
       (crc >>> 8);
   }
+
   let value = (crc ^ 0xff_ff_ff_ff) >>> 0;
   let out = "";
+
   for (let index = 0; index < CHECKSUM_LENGTH; index += 1) {
     out = ALPHABET[value % 62]! + out;
     value = Math.floor(value / 62);
   }
+
   return out;
 }
 
 function base62Secret(): string {
   let secret = "";
   const bytes = new Uint8Array(64);
+
   while (secret.length < SECRET_LENGTH) {
     crypto.getRandomValues(bytes);
+
     for (const byte of bytes) {
       // 248 = 4 * 62: rejecting the rest keeps every character equally likely.
       if (byte < 248 && secret.length < SECRET_LENGTH) {
@@ -186,6 +198,7 @@ function base62Secret(): string {
       }
     }
   }
+
   return secret;
 }
 
@@ -198,24 +211,30 @@ function base62Secret(): string {
  */
 export function parseApiKey(token: string): ParsedApiKey | undefined {
   const match = TOKEN.exec(token.trim());
+
   if (!match) {
     return undefined;
   }
+
   const prefix = match[1]!;
   const publicId = match[2]!;
   const tail = match[3]!;
+
   if (CHECKED_TAIL.test(tail)) {
     const secret = tail.slice(0, SECRET_LENGTH);
+
     return tail.slice(SECRET_LENGTH) ===
       apiKeyChecksum(`${prefix}_${publicId}_${secret}`)
       ? { prefix, publicId, secret, checksum: true }
       : undefined;
   }
+
   return { prefix, publicId, secret: tail, checksum: false };
 }
 
 function publicId(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(8));
+
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join(
     "",
   );
@@ -234,18 +253,24 @@ function stateOf(
   expiresAt: Temporal.Instant | undefined,
 ): ApiKeyState {
   const known = STATES.find((state) => state === value);
+
   if (known) {
     return known;
   }
+
   const now = temporal().Now.instant();
+
   const past = (at: Temporal.Instant | undefined): boolean =>
     at !== undefined && temporal().Instant.compare(at, now) <= 0;
+
   if (past(revokedAt)) {
     return "revoked";
   }
+
   if (past(expiresAt)) {
     return "expired";
   }
+
   return revokedAt === undefined ? "active" : "grace";
 }
 
@@ -261,6 +286,7 @@ function apiKeyOf(value: unknown): ApiKey {
   const successorId = optionalText(row["successor_id"]);
   const kind = optionalText(row["kind"]);
   const rateLimit = row["rate_limit"];
+
   return {
     id: textOf(row["id"]),
     ...(organizationId ? { organizationId } : {}),
@@ -284,16 +310,19 @@ function apiKeyOf(value: unknown): ApiKey {
 
 function checkOf(value: unknown): ApiKeyCheck {
   const row = recordOf(value, "verify_api_key");
+
   switch (row["status"]) {
     case "ok": {
       return { status: "ok", key: apiKeyOf(row["key"]) };
     }
+
     case "rate_limited": {
       return {
         status: "rate_limited",
         retryAfter: Number(row["retry_after"] ?? 60),
       };
     }
+
     default: {
       return { status: "invalid" };
     }
@@ -309,18 +338,22 @@ export function createApiKeys<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: ApiKeysOptions<S>): ApiKeys<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const fields: BlockFields<F> = blockFields(options.fields, "API key fields");
   const prefix = options.prefix ?? "bs";
+
   if (!PREFIX.test(prefix)) {
     throw new TypeError(
       `createApiKeys: prefix must be lowercase letters and digits, not "${prefix}"`,
     );
   }
+
   const call = blockCall(
     options.transport,
     options.schema ?? DEFAULT_BLOCK_SCHEMA,
   );
+
   const created = (
     fn: string,
     args: Readonly<Record<string, unknown>>,
@@ -329,16 +362,19 @@ export function createApiKeys<
     call(fn, args, (value) => value)
       .andThen((value) => withFields(fields, value, apiKeyOf(value)))
       .map((key) => ({ key, token }));
+
   const fresh = async () => {
     const id = publicId();
     const secret = base62Secret();
     const key = `${prefix}_${id}_${secret}`;
+
     return {
       id,
       token: `${key}${apiKeyChecksum(key)}`,
       hash: await sha256Hex(secret),
     };
   };
+
   const client: ApiKeys<F> = {
     create: ({
       name,
@@ -353,6 +389,7 @@ export function createApiKeys<
       AsyncResult.from(() => extraFieldsArg(fields, extra)).andThen(
         async (more) => {
           const { id, token, hash } = await fresh();
+
           return created(
             "create_api_key",
             {
@@ -383,6 +420,7 @@ export function createApiKeys<
     rotate: (id, rotateOptions = {}) =>
       AsyncResult.from(async () => {
         const { id: next, token, hash } = await fresh();
+
         return created(
           "rotate_api_key",
           {
@@ -399,9 +437,11 @@ export function createApiKeys<
     verify: (token) =>
       AsyncResult.from(async () => {
         const parsed = parseApiKey(token);
+
         if (!parsed || parsed.prefix !== prefix) {
           return ok<ApiKeyCheck<F>>({ status: "invalid" });
         }
+
         return call(
           "verify_api_key",
           {
@@ -411,15 +451,19 @@ export function createApiKeys<
           (value) => value,
         ).andThen(async (value): Promise<Result<ApiKeyCheck<F>>> => {
           const check = checkOf(value);
+
           if (check.status !== "ok") {
             return ok(check);
           }
+
           const raw = recordOf(value, "verify_api_key")["key"];
           const key = await withFields(fields, raw, check.key);
+
           return key.ok ? ok({ status: "ok", key: key.data }) : key;
         });
       }),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "api-keys",
     ...(options.logger ? { logger: options.logger } : {}),
@@ -512,15 +556,18 @@ export function apiKeyClaims<F extends object = Record<never, never>>(
           ]),
         ]
       : key.scopes;
+
   const base: Record<string, unknown> = {
     id: key.id,
     name: key.name,
     scopes,
     ...(key.organizationId ? { organization_id: key.organizationId } : {}),
   };
+
   const extra = Object.entries(options.claims?.(key) ?? {}).filter(
     ([name]) => !RESERVED_CLAIMS.has(name),
   );
+
   const claims: Record<string, unknown> = {
     ...Object.fromEntries(extra),
     sub: key.userId ?? "",
@@ -528,25 +575,34 @@ export function apiKeyClaims<F extends object = Record<never, never>>(
     aud: "authenticated",
     api_key: base,
   };
+
   if (options.claim !== undefined) {
     const names = options.claim;
     const claim = names.name;
+
     const service =
       key.userId === undefined && key.organizationId !== undefined;
+
     const roles = service
       ? (options.serviceRoles?.(key) ?? names.serviceRoles)
       : undefined;
+
     const target: Record<string, unknown> =
       claim === "api_key" ? base : { id: key.id, name: key.name };
+
     target[names.scopes ?? "scopes"] = scopes.filter((scope) => scope !== "*");
+
     if (service) {
       target[names.tenant ?? "tenant"] = key.organizationId;
     }
+
     if (roles && roles.length > 0) {
       target[names.roles ?? "roles"] = [...roles];
     }
+
     claims[claim] = target;
   }
+
   if (
     options.tenantClaim !== undefined &&
     key.userId !== undefined &&
@@ -554,17 +610,21 @@ export function apiKeyClaims<F extends object = Record<never, never>>(
   ) {
     claims[options.tenantClaim] = key.organizationId;
   }
+
   // SAFETY: sub, role and aud are the JWTClaims fields; the rest are extra claims.
   return claims as JWTClaims;
 }
 
 function presented(request: Request, header: string): string | undefined {
   const direct = request.headers.get(header)?.trim();
+
   if (direct) {
     return direct;
   }
+
   const authorization = request.headers.get("authorization");
   const bearer = authorization?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
+
   return bearer && parseApiKey(bearer) ? bearer : undefined;
 }
 
@@ -577,21 +637,28 @@ export function apiKeyResolver<F extends object = Record<never, never>>(
   options: ApiKeyResolverOptions<F>,
 ): AuthResolver {
   const header = options.header ?? "x-api-key";
+
   return {
     name: "api-keys",
     async resolve(request): Promise<ResolvedState | undefined> {
       const token = presented(request, header);
+
       if (token === undefined) {
         return undefined;
       }
+
       const checked = await options.keys.verify(token);
+
       if (!checked.ok) {
         return { kind: "invalid", error: checked.error };
       }
+
       const check = checked.data;
+
       switch (check.status) {
         case "ok": {
           const { key } = check;
+
           return {
             kind: "apiKey",
             keyId: key.id,
@@ -606,6 +673,7 @@ export function apiKeyResolver<F extends object = Record<never, never>>(
             claims: apiKeyClaims(key, options),
           };
         }
+
         case "rate_limited": {
           return {
             kind: "invalid",
@@ -615,6 +683,7 @@ export function apiKeyResolver<F extends object = Record<never, never>>(
             }),
           };
         }
+
         case "invalid": {
           return {
             kind: "invalid",
@@ -623,8 +692,10 @@ export function apiKeyResolver<F extends object = Record<never, never>>(
             }),
           };
         }
+
         default: {
           const exhaustive: never = check;
+
           return exhaustive;
         }
       }

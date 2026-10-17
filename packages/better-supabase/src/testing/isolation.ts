@@ -54,13 +54,16 @@ export interface TenantIsolationOptions<M extends AnyModels> {
 }
 
 type Row = Readonly<Record<string, unknown>>;
+
 type Outcome = PromiseLike<Result<unknown>>;
+
 interface Repository {
   create(row: unknown, args?: object): Outcome;
   findMany(args: object): Outcome;
   updateMany(args: object): Outcome;
   deleteMany(args: object): Outcome;
 }
+
 type Repositories = Readonly<Record<string, Repository>>;
 
 const scalar = (value: unknown): boolean =>
@@ -76,9 +79,11 @@ function keyOf(table: TableMeta, row: Row): Row {
 
 async function rowsOf(outcome: Outcome): Promise<Row[]> {
   const result = await outcome;
+
   if (!result.ok) {
     throw new Error(result.error.message);
   }
+
   // SAFETY: repository reads and writes return rows of the table, one or many.
   return (Array.isArray(result.data) ? result.data : [result.data]) as Row[];
 }
@@ -87,12 +92,15 @@ function env(names: readonly string[]): string | undefined {
   if (typeof process === "undefined") {
     return undefined;
   }
+
   for (const name of names) {
     const value = process.env[name];
+
     if (value) {
       return value;
     }
   }
+
   return undefined;
 }
 
@@ -131,11 +139,13 @@ export async function expectTenantIsolation<
   const bare = new BetterSupabase(betterSupabase.schema);
   const url = stack.url ?? env(ENV_VARIABLES.url) ?? "http://127.0.0.1:54321";
   const secretKey = stack.secretKey ?? env(ENV_VARIABLES.secretKey);
+
   if (!secretKey) {
     throw new TypeError(
       "expectTenantIsolation needs stack.secretKey or $SUPABASE_SECRET_KEY to seed rows.",
     );
   }
+
   // SAFETY: repositories are indexed by table name; the harness only uses the
   // tables in options.tables.
   // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the harness indexes repositories by table name for any schema.
@@ -147,6 +157,7 @@ export async function expectTenantIsolation<
 
   await options.seed?.();
   const tenants = options.tenants;
+
   // SAFETY: repositories are indexed by table name; the harness only uses the
   // tables in options.tables.
   const users = await Promise.all(
@@ -157,6 +168,7 @@ export async function expectTenantIsolation<
           .db as unknown as Repositories,
     ),
   );
+
   const label = (tenant: IsolationTenant): string => tenant.name ?? tenant.id;
   const cleanup: (() => PromiseLike<unknown>)[] = [];
   const reads: Check[] = [];
@@ -170,12 +182,15 @@ export async function expectTenantIsolation<
       IsolationTable<M, keyof M>,
     ][]) {
       const table = bare.meta.tables[key];
+
       if (!table || table.primaryKey.length === 0) {
         throw new TypeError(
           `expectTenantIsolation: "${key}" is not a table with a primary key`,
         );
       }
+
       const seeded: Row[] = [];
+
       for (const tenant of tenants) {
         const [row] = await rowsOf(admin[key]!.create(spec.row(tenant, 0)));
         const where = keyOf(table, row!);
@@ -192,6 +207,7 @@ export async function expectTenantIsolation<
         const whose = `${label(tenants[other])}'s`;
         const own = keyOf(table, seeded[self]!);
         const target = keyOf(table, seeded[other]!);
+
         const current = async (): Promise<Row | undefined> =>
           (await rowsOf(admin[key]!.findMany({ where: target })))[0];
 
@@ -219,12 +235,15 @@ export async function expectTenantIsolation<
               // SAFETY: spec.row returns an insert row for this table, passed on untyped.
               const row = spec.row(tenants[other], 1) as Row;
               const result = await user.create(row, { returning: false });
+
               if (result.ok) {
                 const where = Object.fromEntries(
                   Object.entries(row).filter(([, value]) => scalar(value)),
                 );
+
                 cleanup.push(() => admin[key]!.deleteMany({ where }));
               }
+
               expect(
                 !result.ok,
                 `insert of a row for ${whose} tenant succeeded`,
@@ -274,6 +293,7 @@ export async function expectTenantIsolation<
         ]);
       }
     }
+
     return await conform("Tenant isolation", [...reads, ...deletes]);
   } finally {
     for (const remove of cleanup.reverse()) {

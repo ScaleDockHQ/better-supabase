@@ -106,6 +106,7 @@ const runtime = vi.hoisted(() => {
     setter?: (next: unknown) => void;
     subscribe?: unknown;
   }
+
   const state = {
     slots: [] as Slot[],
     index: 0,
@@ -117,11 +118,14 @@ const runtime = vi.hoisted(() => {
     renders: 0,
     render: (() => undefined) as () => void,
   };
+
   const slot = (): Slot => {
     const index = state.index;
     state.index += 1;
+
     return (state.slots[index] ??= {});
   };
+
   const changed = (
     before: readonly unknown[] | undefined,
     after: readonly unknown[] | undefined,
@@ -130,6 +134,7 @@ const runtime = vi.hoisted(() => {
     after === undefined ||
     before.length !== after.length ||
     before.some((value, index) => !Object.is(value, after[index]));
+
   const schedule = (): void => {
     if (state.rendering || state.flushing) {
       state.dirty = true;
@@ -137,12 +142,14 @@ const runtime = vi.hoisted(() => {
       state.render();
     }
   };
+
   return { state, slot, changed, schedule };
 });
 
 vi.mock("react", async (importOriginal) => {
   const actual = await importOriginal<typeof ReactModule>();
   const { state, slot, changed, schedule } = runtime;
+
   return {
     ...actual,
     createElement: (
@@ -154,46 +161,57 @@ vi.mock("react", async (importOriginal) => {
       if (typeof type === "object" && type !== null && "Consumer" in type) {
         state.provided.set(type, props?.value);
       }
+
       return { type, props, children };
     },
     // The only context here is the browser context, whose default is null.
     useContext: (context: object) => state.provided.get(context) ?? null,
     useState: (initial: unknown) => {
       const cell = slot();
+
       if (!cell.setter) {
         cell.value = typeof initial === "function" ? initial() : initial;
         cell.setter = (next) => {
           const value = typeof next === "function" ? next(cell.value) : next;
+
           if (Object.is(value, cell.value)) {
             return;
           }
+
           cell.value = value;
           schedule();
         };
       }
+
       return [cell.value, cell.setter];
     },
     useRef: (initial: unknown) => {
       const cell = slot();
+
       if (!("value" in cell)) {
         cell.value = { current: initial };
       }
+
       return cell.value;
     },
     useMemo: (factory: () => unknown, deps: readonly unknown[]) => {
       const cell = slot();
+
       if (changed(cell.deps, deps)) {
         cell.value = factory();
         cell.deps = deps;
       }
+
       return cell.value;
     },
     useCallback: (fn: unknown, deps: readonly unknown[]) => {
       const cell = slot();
+
       if (changed(cell.deps, deps)) {
         cell.value = fn;
         cell.deps = deps;
       }
+
       return cell.value;
     },
     useEffect: (
@@ -201,9 +219,11 @@ vi.mock("react", async (importOriginal) => {
       deps?: readonly unknown[],
     ) => {
       const cell = slot();
+
       if (!changed(cell.deps, deps)) {
         return;
       }
+
       cell.deps = deps;
       state.pending.push(() => {
         cell.cleanup?.();
@@ -216,6 +236,7 @@ vi.mock("react", async (importOriginal) => {
       false,
       (fn: () => unknown) => {
         const result = fn();
+
         if (result instanceof Promise) {
           result.catch(() => undefined);
         }
@@ -226,6 +247,7 @@ vi.mock("react", async (importOriginal) => {
       getSnapshot: () => unknown,
     ) => {
       const cell = slot();
+
       if (cell.subscribe !== subscribe) {
         cell.cleanup?.();
         cell.subscribe = subscribe;
@@ -235,7 +257,9 @@ vi.mock("react", async (importOriginal) => {
           }
         });
       }
+
       cell.value = getSnapshot();
+
       return cell.value;
     },
   };
@@ -261,10 +285,12 @@ function renderHook<P, R>(
       state.rendering = true;
       state.index = 0;
       state.renders += 1;
+
       try {
         if (provider) {
           BetterSupabaseProvider(provider);
         }
+
         out.result = hook(props);
         delete out.error;
       } catch (cause) {
@@ -272,7 +298,9 @@ function renderHook<P, R>(
       } finally {
         state.rendering = false;
       }
+
       state.flushing = true;
+
       try {
         for (const effect of state.pending.splice(0)) {
           effect();
@@ -282,12 +310,15 @@ function renderHook<P, R>(
       }
     } while (dirty());
   };
+
   state.render();
+
   return {
     get result(): R {
       if (out.error) {
         throw out.error;
       }
+
       return out.result!;
     },
     get error() {
@@ -301,6 +332,7 @@ function renderHook<P, R>(
       for (const cell of state.slots) {
         cell.cleanup?.();
       }
+
       state.slots = [];
       state.render = () => undefined;
     },
@@ -310,11 +342,13 @@ function renderHook<P, R>(
 const USER = "00000000-0000-4000-8000-0000000000aa";
 const OTHER = "00000000-0000-4000-8000-0000000000bb";
 const LOADING: AuthSnapshot = { status: "loading", user: null, claims: null };
+
 const SIGNED_OUT: AuthSnapshot = {
   status: "signed-out",
   user: null,
   claims: null,
 };
+
 const signedIn = (
   id: string,
   claims: Record<string, unknown> = {},
@@ -328,6 +362,7 @@ const meta: SchemaMeta = {
   ...schema.meta,
   realtime: { customers: { tenant: "organizationId" }, notes: {} },
 };
+
 const betterSupabase = defineSupabase(defineSchema(meta));
 const typed = defineSupabase(schema);
 
@@ -338,17 +373,21 @@ function fakeRealtime() {
     string,
     { broadcast: Set<Listener>; status?: (status: string) => void }
   >();
+
   const client = {
     channel: vi.fn((topic: string, _options?: unknown) => {
       const entry = { broadcast: new Set<Listener>() } as {
         broadcast: Set<Listener>;
         status?: (status: string) => void;
       };
+
       channels.set(topic, entry);
+
       const channel = {
         topic,
         on: (_type: string, _filter: unknown, listener: Listener) => {
           entry.broadcast.add(listener);
+
           return channel;
         },
         subscribe: (callback: (status: string) => void) => {
@@ -356,22 +395,27 @@ function fakeRealtime() {
           queueMicrotask(() => {
             callback("SUBSCRIBED");
           });
+
           return channel;
         },
       };
+
       return channel;
     }),
     removeChannel: vi.fn(async (channel: { topic: string }) => {
       channels.delete(channel.topic);
+
       return "ok" as const;
     }),
     realtime: { setAuth: vi.fn(async () => undefined) },
   };
+
   const emit = (topic: string, event: string, payload: unknown = {}) => {
     for (const listener of channels.get(topic)?.broadcast ?? []) {
       listener({ event, payload });
     }
   };
+
   return { client, channels, emit };
 }
 
@@ -379,6 +423,7 @@ function fakeBrowser(initial: AuthSnapshot, run?: ClientLike["db"]) {
   let snapshot = initial;
   const listeners = new Set<() => void>();
   const realtime = fakeRealtime();
+
   const browser = {
     betterSupabase,
     supabase: realtime.client,
@@ -386,18 +431,22 @@ function fakeBrowser(initial: AuthSnapshot, run?: ClientLike["db"]) {
       current: () => snapshot,
       subscribe: (listener: () => void) => {
         listeners.add(listener);
+
         return () => void listeners.delete(listener);
       },
     },
     db: run ?? { name: "db" },
     queries: { name: "queries" },
   } as unknown as ClientLike;
+
   const setAuth = (next: AuthSnapshot) => {
     snapshot = next;
+
     for (const listener of [...listeners]) {
       listener();
     }
   };
+
   return { browser, setAuth, listeners, ...realtime };
 }
 
@@ -405,6 +454,7 @@ const flush = () =>
   new Promise((resolve) => {
     setTimeout(resolve, 0);
   });
+
 const wait = (ms: number) =>
   new Promise((resolve) => {
     setTimeout(resolve, ms);
@@ -412,11 +462,14 @@ const wait = (ms: number) =>
 
 function cachedClient(...keys: (readonly unknown[])[]) {
   const queryClient = new QueryClient();
+
   for (const key of keys) {
     queryClient.setQueryData(key, 1);
   }
+
   const invalidated = (key: readonly unknown[]) =>
     queryClient.getQueryState(key)?.isInvalidated ?? false;
+
   return { queryClient, invalidated };
 }
 
@@ -429,10 +482,12 @@ describe("BetterSupabaseProvider", () => {
     const { browser, setAuth, listeners } = fakeBrowser(LOADING);
     const { queryClient } = cachedClient(["bs", "customers"], ["other"]);
     const remove = vi.spyOn(queryClient, "resetQueries");
+
     const view = renderHook(() => useAuth(), undefined, {
       client: browser,
       queryClient,
     });
+
     expect(view.result.status).toBe("loading");
 
     setAuth(LOADING);
@@ -473,6 +528,7 @@ describe("createHooks", () => {
     const hooks = createHooks<typeof browser>();
     expect(hooks.useSession).toBe(useSession);
     expect(hooks.useAuth).toBe(useAuth);
+
     const view = renderHook(
       () => ({
         db: hooks.useDb(),
@@ -482,6 +538,7 @@ describe("createHooks", () => {
       undefined,
       { client: browser },
     );
+
     expect(view.result).toEqual({
       db: browser.db,
       queries: browser.queries,
@@ -504,12 +561,14 @@ describe("useBroadcast", () => {
           : { issues: [{ message: "title is required" }] },
     },
   };
+
   const room = defineTopic("room:{roomId}", { events: { created: title } });
 
   it("subscribes with a plain supabase-js client without the provider", async () => {
     const realtime = fakeRealtime();
     const auth = new Set<(event: string, session: unknown) => void>();
     const unsubscribed = vi.fn();
+
     const supabase = {
       ...realtime.client,
       auth: {
@@ -517,17 +576,21 @@ describe("useBroadcast", () => {
           callback: (event: string, session: unknown) => void,
         ) => {
           auth.add(callback);
+
           return { data: { subscription: { unsubscribe: unsubscribed } } };
         },
       },
     } as unknown as SupabaseClient;
+
     const signIn = (id: string | null) => {
       for (const callback of auth) {
         callback("SIGNED_IN", id === null ? null : { user: { id } });
       }
     };
+
     const created = vi.fn();
     const { queryClient, invalidated } = cachedClient(["bs", "notes"]);
+
     const view = renderHook(
       () =>
         useBroadcast(
@@ -539,6 +602,7 @@ describe("useBroadcast", () => {
       undefined,
       null,
     );
+
     expect(realtime.client.channel).not.toHaveBeenCalled();
     signIn(USER);
     expect(realtime.client.channel).toHaveBeenCalledTimes(1);
@@ -552,37 +616,45 @@ describe("useBroadcast", () => {
     expect(realtime.client.channel).toHaveBeenCalledTimes(2);
     view.unmount();
     expect(unsubscribed).toHaveBeenCalled();
+
     const bare = renderHook(
       () => useBroadcast(room, { roomId: "r1" }),
       undefined,
       null,
     );
+
     expect(bare.error!.message).toMatch(/or \{ client: supabase \}/);
   });
 
   it("reads the user from the token when tokens-only cookies leave a placeholder user", () => {
     const realtime = fakeRealtime();
     let callback: (event: string, session: unknown) => void = () => undefined;
+
     const supabase = {
       ...realtime.client,
       auth: {
         onAuthStateChange: (next: typeof callback) => {
           callback = next;
+
           return { data: { subscription: { unsubscribe: vi.fn() } } };
         },
       },
     } as unknown as SupabaseClient;
+
     const view = renderHook(
       () => useBroadcast(room, { roomId: "r1" }, {}, { client: supabase }),
       undefined,
       null,
     );
+
     const payload = btoa(JSON.stringify({ sub: USER })).replace(/=+$/, "");
+
     const placeholder = {
       get id(): string {
         throw new Error("tokens-only placeholder");
       },
     };
+
     expect(() => {
       callback("SIGNED_IN", {
         access_token: `e30.${payload}.sig`,
@@ -595,11 +667,13 @@ describe("useBroadcast", () => {
 
   it("needs a query client to invalidate", () => {
     const { browser } = fakeBrowser(SIGNED_OUT);
+
     const view = renderHook(
       () => useBroadcast(room, { roomId: "r1" }, {}, { invalidate: ["notes"] }),
       undefined,
       { client: browser },
     );
+
     expect(view.error!.message).toMatch(
       /useBroadcast\(\{ invalidate \}\) needs <BetterSupabaseProvider queryClient/,
     );
@@ -610,6 +684,7 @@ describe("useBroadcast", () => {
     const created = vi.fn();
     const other = vi.fn();
     const onInvalid = vi.fn();
+
     const view = renderHook(
       (values: { roomId: string } | null) =>
         useBroadcast(
@@ -621,6 +696,7 @@ describe("useBroadcast", () => {
       null as { roomId: string } | null,
       { client: browser },
     );
+
     expect(view.result).toBe("closed");
     view.rerender({ roomId: "r1" });
     expect(client.channel).not.toHaveBeenCalled();
@@ -658,12 +734,14 @@ describe("useBroadcast", () => {
     const { browser, setAuth, client, emit } = fakeBrowser(signedIn(USER));
     const first = vi.fn();
     const second = vi.fn();
+
     const view = renderHook(
       (handler: () => void) =>
         useBroadcast(room, { roomId: "r1" }, { created: handler }),
       first as () => void,
       { client: browser },
     );
+
     await flush();
     view.rerender(second);
     emit("room:r1", "created", { title: "Hi" });
@@ -684,11 +762,13 @@ describe("useBroadcast", () => {
   it("ignores events without a handler", async () => {
     const { browser, emit } = fakeBrowser(signedIn(USER));
     const plain = defineTopic("plain:{id}");
+
     const view = renderHook(
       () => useBroadcast(plain, { id: "p1" }),
       undefined,
       { client: browser },
     );
+
     await flush();
     emit("plain:p1", "anything", { a: 1 });
     await flush();
@@ -698,16 +778,19 @@ describe("useBroadcast", () => {
 
   it("invalidates tables or query keys after each message", async () => {
     const { browser, emit } = fakeBrowser(signedIn(USER));
+
     const cache = cachedClient(
       ["bs", "notes"],
       ["bs", "customers"],
       ["custom", "r1"],
     );
+
     const byTables = renderHook(
       () => useBroadcast(room, { roomId: "r1" }, {}, { invalidate: ["notes"] }),
       undefined,
       { client: browser, queryClient: cache.queryClient },
     );
+
     await flush();
     emit("room:r1", "created", { title: "x" });
     await flush();
@@ -718,11 +801,13 @@ describe("useBroadcast", () => {
     const keys = vi.fn((message: { topic: string }) => [
       ["custom", message.topic.split(":")[1]],
     ]);
+
     const byKeys = renderHook(
       () => useBroadcast(room, { roomId: "r1" }, {}, { invalidate: keys }),
       undefined,
       { client: browser, queryClient: cache.queryClient },
     );
+
     await flush();
     emit("room:r1", "created", { title: "x" });
     await flush();
@@ -735,11 +820,13 @@ describe("useBroadcast", () => {
   it("forwards nothing to onInvalid when it is not given", async () => {
     const { browser, emit } = fakeBrowser(signedIn(USER));
     const created = vi.fn();
+
     const view = renderHook(
       () => useBroadcast(room, { roomId: "r1" }, { created }),
       undefined,
       { client: browser },
     );
+
     await flush();
     emit("room:r1", "created", { nope: true });
     await flush();
@@ -753,13 +840,17 @@ describe("useLiveQuery", () => {
 
   it("needs a query client for a spec, not for null", () => {
     const { browser } = fakeBrowser(signedIn(USER));
+
     const paused = renderHook(() => useLiveQuery(null), undefined, {
       client: browser,
     });
+
     expect(paused.result).toBe("closed");
+
     const view = renderHook(() => useLiveQuery(spec), undefined, {
       client: browser,
     });
+
     expect(view.error!.message).toMatch(
       /useLiveQuery needs <BetterSupabaseProvider queryClient/,
     );
@@ -768,11 +859,13 @@ describe("useLiveQuery", () => {
   it("watches with the claimed tenant and invalidates changed tables", async () => {
     const { browser, client, emit, setAuth } = fakeBrowser(LOADING);
     const cache = cachedClient(["bs", "customers"], ["bs", "organizations"]);
+
     const view = renderHook(
       () => useLiveQuery(spec, { debounceMs: 1 }),
       undefined,
       { client: browser, queryClient: cache.queryClient },
     );
+
     expect(client.channel).not.toHaveBeenCalled();
 
     setAuth(signedIn(USER, { app_metadata: { tenant_id: "org-1" } }));
@@ -798,12 +891,15 @@ describe("useLiveQuery", () => {
     const { browser, client } = fakeBrowser(
       signedIn(USER, { tenant_id: "claimed" }),
     );
+
     const { queryClient } = cachedClient();
+
     const view = renderHook<string, string>(
       (tenant) => useLiveQuery(spec, { tenant }),
       "organization-a",
       { client: browser, queryClient },
     );
+
     expect(client.channel.mock.calls[0]![0]).toBe(
       "bs:t:public.customers:organization-a",
     );
@@ -820,10 +916,12 @@ describe("useLiveQuery", () => {
     const { queryClient } = cachedClient();
     const tablesOf = vi.spyOn(browser.betterSupabase, "tablesOf");
     const first = typed.spec.customers.findMany({ include: { notes: true } });
+
     const view = renderHook((next: typeof first) => useLiveQuery(next), first, {
       client: browser,
       queryClient,
     });
+
     expect(tablesOf.mock.calls[0]![0]).toBe(first);
     view.rerender(typed.spec.customers.findMany({ include: { notes: true } }));
     await flush();
@@ -835,11 +933,13 @@ describe("useLiveQuery", () => {
   it("invalidates the spec's tables after rejoining the same query", async () => {
     const { browser } = fakeBrowser(signedIn(USER, { tenant_id: "t" }));
     const cache = cachedClient(["bs", "customers"], ["bs", "organizations"]);
+
     const view = renderHook<number, SubscriptionStatus>(
       (debounceMs) => useLiveQuery(spec, { debounceMs }),
       1,
       { client: browser, queryClient: cache.queryClient },
     );
+
     await flush();
     expect(cache.invalidated(["bs", "customers"])).toBe(false);
     view.rerender(2);
@@ -870,13 +970,16 @@ describe("useLiveCount", () => {
       AsyncResult.ok(4),
       AsyncResult.err(dbError("network", "offline")),
     ];
+
     const run = vi.fn(() => answers.shift() ?? AsyncResult.ok(0));
     const { browser, emit } = fakeBrowser(signedIn(USER), { $run: run });
+
     const view = renderHook(
       () => useLiveCount(spec, { debounceMs: 1 }),
       undefined,
       { client: browser },
     );
+
     expect(view.result.count).toBeUndefined();
     await flush();
     expect(view.result).toEqual({
@@ -895,11 +998,13 @@ describe("useLiveCount", () => {
   it("shows a seed without fetching until a change", async () => {
     const run = vi.fn(() => AsyncResult.ok(9));
     const { browser, emit } = fakeBrowser(signedIn(USER), { $run: run });
+
     const view = renderHook(
       () => useLiveCount({ spec, count: 3 }, { debounceMs: 1 }),
       undefined,
       { client: browser },
     );
+
     await flush();
     expect(view.result.count).toBe(3);
     expect(run).not.toHaveBeenCalled();
@@ -912,11 +1017,13 @@ describe("useLiveCount", () => {
   it("counts again after joining when the seed is older than a second", async () => {
     const run = vi.fn(() => AsyncResult.ok(7));
     const { browser } = fakeBrowser(signedIn(USER), { $run: run });
+
     const fresh = renderHook(
       () => useLiveCount({ spec, count: 3, at: Date.now() }),
       undefined,
       { client: browser },
     );
+
     await flush();
     expect(run).not.toHaveBeenCalled();
     fresh.unmount();
@@ -926,6 +1033,7 @@ describe("useLiveCount", () => {
       undefined,
       { client: browser },
     );
+
     expect(stale.result.count).toBe(3);
     await flush();
     expect(run).toHaveBeenCalledTimes(1);
@@ -936,12 +1044,14 @@ describe("useLiveCount", () => {
   it("counts again after rejoining, and shows a seed newer than its count", async () => {
     const run = vi.fn(() => AsyncResult.ok(7));
     const { browser } = fakeBrowser(signedIn(USER), { $run: run });
+
     const view = renderHook(
       (props: { seed: LiveCountSeed; debounceMs: number }) =>
         useLiveCount(props.seed, { debounceMs: props.debounceMs }),
       { seed: { spec, count: 3, at: Date.now() - 5000 }, debounceMs: 1 },
       { client: browser },
     );
+
     await flush();
     expect(view.result.count).toBe(7);
 
@@ -959,11 +1069,13 @@ describe("useLiveCount", () => {
   it("uses options.initial, and a null seed count fetches", async () => {
     const run = vi.fn(() => AsyncResult.ok(5));
     const { browser } = fakeBrowser(signedIn(USER), { $run: run });
+
     const initial = renderHook(
       () => useLiveCount(spec, { initial: 2 }),
       undefined,
       { client: browser },
     );
+
     await flush();
     expect(initial.result.count).toBe(2);
     expect(run).not.toHaveBeenCalled();
@@ -974,6 +1086,7 @@ describe("useLiveCount", () => {
       undefined,
       { client: browser },
     );
+
     await flush();
     expect(unseeded.result.count).toBe(5);
     unseeded.unmount();
@@ -984,15 +1097,18 @@ describe("useLiveCount", () => {
       .fn()
       .mockReturnValueOnce(AsyncResult.ok(1))
       .mockReturnValueOnce(AsyncResult.err(dbError("network", "offline")));
+
     const { browser } = fakeBrowser(signedIn(USER, { tenant_id: "org-1" }), {
       $run: run,
     });
+
     const view = renderHook(
       (next: typeof spec | ReturnType<typeof typed.spec.customers.count>) =>
         useLiveCount(next),
       spec as typeof spec | ReturnType<typeof typed.spec.customers.count>,
       { client: browser },
     );
+
     await flush();
     expect(view.result.count).toBe(1);
     view.rerender(typed.spec.customers.count());
@@ -1008,20 +1124,24 @@ describe("useLiveCount", () => {
   it("pauses on null and while auth loads", async () => {
     const run = vi.fn(() => AsyncResult.ok(1));
     const { browser, setAuth } = fakeBrowser(LOADING, { $run: run });
+
     const paused = renderHook(() => useLiveCount(null), undefined, {
       client: browser,
     });
+
     expect(paused.result).toEqual({
       count: undefined,
       status: "closed",
       error: undefined,
     });
     paused.unmount();
+
     const view = renderHook(
       () => useLiveCount(spec, { tenant: "t" }),
       undefined,
       { client: browser },
     );
+
     expect(run).not.toHaveBeenCalled();
     setAuth(signedIn(USER));
     await flush();
@@ -1035,17 +1155,21 @@ describe("useNotifications", () => {
 
   it("loads, merges sources, counts unread and reloads on broadcasts and rejoins", async () => {
     const { browser, emit, channels, client } = fakeBrowser(signedIn(USER));
+
     const load = vi.fn(async () => [
       { id: "a", readAt: null },
       { id: "b", readAt: "2026-01-01T00:00:00Z" },
     ]);
+
     const running = vi.fn(async () => [{ id: "job", readAt: null }]);
     const onMessage = vi.fn();
+
     const view = renderHook(
       () => useNotifications({ topic, load, sources: [running], onMessage }),
       undefined,
       { client: browser },
     );
+
     await flush();
     await flush();
     expect(view.result.items?.map((item) => item.id)).toEqual([
@@ -1079,12 +1203,15 @@ describe("useNotifications", () => {
   it("loads once without a topic, sorts, counts its own way and keeps the error", async () => {
     const { browser, client } = fakeBrowser(signedIn(USER));
     let fail = false;
+
     const load = vi.fn(async () => {
       if (fail) {
         throw new Error("offline");
       }
+
       return [{ at: 1 }, { at: 3 }, { at: 2 }];
     });
+
     const view = renderHook(
       () =>
         useNotifications({
@@ -1096,6 +1223,7 @@ describe("useNotifications", () => {
       undefined,
       { client: browser },
     );
+
     await flush();
     expect(view.result.items).toEqual([{ at: 3 }, { at: 2 }, { at: 1 }]);
     expect(view.result.count).toBe(30);
@@ -1111,11 +1239,13 @@ describe("useNotifications", () => {
   it("waits for a signed-in user", async () => {
     const { browser } = fakeBrowser(SIGNED_OUT);
     const load = vi.fn(async () => []);
+
     const view = renderHook(
       () => useNotifications({ topic, load }),
       undefined,
       { client: browser },
     );
+
     await flush();
     expect(load).not.toHaveBeenCalled();
     expect(view.result).toMatchObject({ items: undefined, count: 0 });
@@ -1138,7 +1268,9 @@ function withRpc(
       };
     }
   });
+
   Object.assign(client, { schema: vi.fn(() => ({ rpc })) });
+
   return rpc;
 }
 
@@ -1148,6 +1280,7 @@ describe("useOnboarding", () => {
     scope: "user",
     steps: [{ id: "avatar" }, { id: "bio" }],
   });
+
   const team = defineChecklist({
     id: "team",
     scope: "organization",
@@ -1158,16 +1291,20 @@ describe("useOnboarding", () => {
     const { browser, client } = fakeBrowser(signedIn(USER));
     const done = new Set<string>();
     let fail = false;
+
     const rpc = withRpc(client, (fn, args) => {
       if (fail) {
         throw new Error("offline");
       }
+
       if (fn === "complete_onboarding_step") {
         done.add(String(args["step"]));
       }
+
       if (fn === "reset_onboarding_step") {
         done.delete(String(args["step"]));
       }
+
       return fn === "onboarding_progress"
         ? [...done].map((step) => ({
             step,
@@ -1175,9 +1312,11 @@ describe("useOnboarding", () => {
           }))
         : true;
     });
+
     const view = renderHook(() => useOnboarding(profile), undefined, {
       client: browser,
     });
+
     await flush();
     expect(view.result.progress).toMatchObject({
       completed: 0,
@@ -1211,12 +1350,14 @@ describe("useOnboarding", () => {
   it("waits for an organization on an organization checklist", async () => {
     const { browser, client } = fakeBrowser(signedIn(USER));
     const rpc = withRpc(client, () => []);
+
     const view = renderHook(
       (organizationId: string | null) =>
         useOnboarding(team, { organizationId, schema: "app" }),
       null as string | null,
       { client: browser },
     );
+
     await flush();
     expect(rpc).not.toHaveBeenCalled();
     view.rerender("org-1");
@@ -1246,12 +1387,15 @@ describe("useAnnouncements", () => {
     const { browser, client, emit } = fakeBrowser(signedIn(USER));
     let rows = [row("a"), row("b")];
     let fail = false;
+
     const rpc = withRpc(client, (fn) => {
       if (fn === "dismiss_announcement" && fail) {
         throw new Error("not dismissible");
       }
+
       return fn === "active_announcements" ? rows : true;
     });
+
     const view = renderHook(
       () => useAnnouncements({ organizationId: "org-1" }),
       undefined,
@@ -1259,6 +1403,7 @@ describe("useAnnouncements", () => {
         client: browser,
       },
     );
+
     await flush();
     await flush();
     expect(view.result.items?.map((item) => item.id)).toEqual(["a", "b"]);
@@ -1288,9 +1433,11 @@ describe("useAnnouncements", () => {
   it("loads once without a topic and waits for a signed-in user", async () => {
     const signedOut = fakeBrowser(SIGNED_OUT);
     const idle = withRpc(signedOut.client, () => []);
+
     const waiting = renderHook(() => useAnnouncements(), undefined, {
       client: signedOut.browser,
     });
+
     await flush();
     expect(idle).not.toHaveBeenCalled();
     waiting.unmount();
@@ -1299,6 +1446,7 @@ describe("useAnnouncements", () => {
     withRpc(client, () => {
       throw new Error("offline");
     });
+
     const view = renderHook(
       () => useAnnouncements({ topic: null, schema: "app" }),
       undefined,
@@ -1306,6 +1454,7 @@ describe("useAnnouncements", () => {
         client: browser,
       },
     );
+
     await flush();
     expect(client.channel).not.toHaveBeenCalled();
     expect(view.result.error?.message).toBe("offline");
@@ -1317,6 +1466,7 @@ describe("useReactions", () => {
   it("loads, toggles and reloads when a watched subject changes", async () => {
     const { browser, client, emit } = fakeBrowser(signedIn(USER));
     let counts = [{ emoji: "👍", count: 1, reacted: false, actors: ["u2"] }];
+
     const rpc = withRpc(client, (fn, args) => {
       if (fn === "react") {
         return [
@@ -1328,8 +1478,10 @@ describe("useReactions", () => {
           },
         ];
       }
+
       return { c1: counts, c2: [] };
     });
+
     const view = renderHook(
       () =>
         useReactions({
@@ -1340,6 +1492,7 @@ describe("useReactions", () => {
       undefined,
       { client: browser },
     );
+
     await flush();
     await flush();
     expect(view.result.reactions?.["c1"]?.[0]?.count).toBe(1);
@@ -1402,16 +1555,21 @@ describe("useComments", () => {
   it("loads the thread, adds and removes, and reloads for the topic", async () => {
     const { browser, client, emit } = fakeBrowser(signedIn(USER));
     let thread = [row("c1", "First")];
+
     const rpc = withRpc(client, (fn, args) => {
       if (fn === "create_comment") {
         return row("c2", String(args["body"]));
       }
+
       if (fn === "delete_comment") {
         thread = [row("c1", "First", true)];
+
         return true;
       }
+
       return thread;
     });
+
     const view = renderHook(
       () =>
         useComments({
@@ -1424,14 +1582,17 @@ describe("useComments", () => {
       undefined,
       { client: browser },
     );
+
     await flush();
     await flush();
     expect(view.result.comments?.map((comment) => comment.body)).toEqual([
       "First",
     ]);
+
     const { schema: toSchema } = client as unknown as {
       schema: ReturnType<typeof vi.fn>;
     };
+
     expect(toSchema).toHaveBeenCalledWith("api");
     expect(rpc).toHaveBeenCalledWith(
       "list_comments",
@@ -1461,6 +1622,7 @@ describe("useComments", () => {
   it("waits without an organization", async () => {
     const { browser, client } = fakeBrowser(signedIn(USER));
     const rpc = withRpc(client, () => []);
+
     const view = renderHook(
       () =>
         useComments({
@@ -1471,6 +1633,7 @@ describe("useComments", () => {
       undefined,
       { client: browser },
     );
+
     await flush();
     expect(view.result.comments).toBeUndefined();
     expect((await view.result.add("Hi")).ok).toBe(false);
@@ -1489,19 +1652,25 @@ describe("useOrganizations", () => {
     const { browser, client, setAuth } = fakeBrowser(
       signedIn(USER, { tenant_id: "org-1" }),
     );
+
     const refreshSession = vi.fn(async () => {
       setAuth(signedIn(USER, { tenant_id: "org-2" }));
+
       return { data: {}, error: null };
     });
+
     Object.assign(client, { auth: { refreshSession } });
+
     const rpc = withRpc(client, (fn) =>
       fn === "switch_organization"
         ? { organization_id: "org-2", refresh: true }
         : rows,
     );
+
     const view = renderHook(() => useOrganizations(), undefined, {
       client: browser,
     });
+
     await flush();
     await flush();
     expect(view.result.organizations?.map((each) => each.name)).toEqual([
@@ -1523,12 +1692,15 @@ describe("useOrganizations", () => {
 
   it("takes a loader, the server's rows and a switch callback", async () => {
     const { browser, client } = fakeBrowser(LOADING);
+
     const rpc = withRpc(client, () => ({
       organization_id: "org-2",
       refresh: true,
     }));
+
     const load = vi.fn(async () => [{ id: "org-2", plan: "pro" }]);
     const onSwitched = vi.fn();
+
     const view = renderHook(
       () =>
         useOrganizations({
@@ -1540,6 +1712,7 @@ describe("useOrganizations", () => {
       undefined,
       { client: browser },
     );
+
     await flush();
     expect(view.result.active?.plan).toBe("free");
     expect(load).not.toHaveBeenCalled();
@@ -1568,17 +1741,21 @@ describe("usePlanPicker", () => {
   it("loads the plans and opens the URL the checkout action returns", async () => {
     const { browser } = fakeBrowser(signedIn(USER));
     const load = vi.fn(async () => catalog);
+
     const checkout = vi.fn(async (_plan: string) =>
       ok<{ url: string | undefined }>({
         url: "https://checkout.stripe.test/c/pay",
       }),
     );
+
     const open = vi.fn();
+
     const view = renderHook(
       () => usePlanPicker({ load, checkout, open }),
       undefined,
       { client: browser },
     );
+
     await flush();
     expect(view.result.active?.name).toBe("Free");
     expect((await view.result.choose("pro")).ok).toBe(true);
@@ -1590,6 +1767,7 @@ describe("usePlanPicker", () => {
   it("starts from the server's catalog", async () => {
     const { browser } = fakeBrowser(signedIn(USER));
     const load = vi.fn(async () => catalog);
+
     const view = renderHook(
       () =>
         usePlanPicker({
@@ -1601,6 +1779,7 @@ describe("usePlanPicker", () => {
       undefined,
       { client: browser },
     );
+
     await flush();
     expect(load).not.toHaveBeenCalled();
     expect(view.result.active?.key).toBe("pro");
@@ -1611,6 +1790,7 @@ describe("usePlanPicker", () => {
 describe("useUsageMeter", () => {
   it("reads the organization's usage overview", async () => {
     const { browser, client } = fakeBrowser(signedIn(USER));
+
     const rpc = withRpc(client, () => [
       {
         meter: "api.calls",
@@ -1623,12 +1803,14 @@ describe("useUsageMeter", () => {
         resets_at: "2026-11-01T00:00:00Z",
       },
     ]);
+
     const view = renderHook(
       (organizationId: string | null) =>
         useUsageMeter({ organizationId, meters: ["api.calls"], schema: "api" }),
       null as string | null,
       { client: browser },
     );
+
     await flush();
     expect(rpc).not.toHaveBeenCalled();
     view.rerender("org-1");
@@ -1646,9 +1828,11 @@ describe("useUsageMeter", () => {
 describe("useFeatureGate", () => {
   it("opens when the session's plan gains the feature", async () => {
     const { browser, setAuth } = fakeBrowser(LOADING);
+
     const view = renderHook(() => useFeatureGate("exports"), undefined, {
       client: browser,
     });
+
     expect(view.result.allowed).toBeUndefined();
     setAuth(signedIn(USER, { tenant_id: "org-1", features: { "org-1": [] } }));
     await flush();
@@ -1668,6 +1852,7 @@ describe("useFeatureGate", () => {
     const { browser } = fakeBrowser(
       signedIn(USER, { plan: { "org-2": ["e"] } }),
     );
+
     const view = renderHook(
       () =>
         useFeatureGate("exports", {
@@ -1678,6 +1863,7 @@ describe("useFeatureGate", () => {
       undefined,
       { client: browser },
     );
+
     await flush();
     expect(view.result.allowed).toBe(true);
     view.unmount();
@@ -1699,14 +1885,17 @@ describe("useSettings", () => {
 
   it("edits the caller's settings with fields from the definition", async () => {
     const { browser, client } = fakeBrowser(signedIn(USER));
+
     const rpc = withRpc(client, (fn) =>
       fn === "get_user_settings" ? { digest: false } : null,
     );
+
     const view = renderHook(
       () => useSettings(settings, { scope: "user" }),
       undefined,
       { client: browser },
     );
+
     await flush();
     expect(view.result.fields.map((field) => field.kind)).toEqual(["boolean"]);
     expect(view.result.values).toEqual({ digest: false });
@@ -1723,6 +1912,7 @@ describe("useSettings", () => {
   it("waits for an organization", async () => {
     const { browser, client } = fakeBrowser(signedIn(USER));
     const rpc = withRpc(client, () => ({ weekStart: "sunday" }));
+
     const view = renderHook(
       (organizationId: string | null) =>
         useSettings(settings, {
@@ -1733,6 +1923,7 @@ describe("useSettings", () => {
       null as string | null,
       { client: browser },
     );
+
     await flush();
     expect(rpc).not.toHaveBeenCalled();
     expect(view.result.fields[0]?.choices).toEqual(["monday", "sunday"]);
@@ -1749,6 +1940,7 @@ describe("useSettings", () => {
 describe("useMembers", () => {
   it("lists the members and changes a role through the browser client", async () => {
     const { browser, client } = fakeBrowser(signedIn(USER));
+
     const rpc = withRpc(client, (fn) =>
       fn === "list_members"
         ? [
@@ -1757,12 +1949,15 @@ describe("useMembers", () => {
           ]
         : true,
     );
+
     const onChanged = vi.fn();
+
     const view = renderHook(
       () => useMembers({ organizationId: "org-1", schema: "api", onChanged }),
       undefined,
       { client: browser },
     );
+
     await flush();
     await flush();
     expect(view.result.members?.map((member) => member.role)).toEqual([
@@ -1784,9 +1979,11 @@ describe("useMembers", () => {
   it("takes a loader and the server's rows", async () => {
     const { browser, client } = fakeBrowser(signedIn(USER));
     const rpc = withRpc(client, () => true);
+
     const load = vi.fn(async () => [
       { userId: OTHER, role: "member", name: "Ada" },
     ]);
+
     const view = renderHook(
       () =>
         useMembers({
@@ -1797,6 +1994,7 @@ describe("useMembers", () => {
       undefined,
       { client: browser },
     );
+
     await flush();
     expect(load).not.toHaveBeenCalled();
     expect(view.result.members?.[0]?.name).toBe("Ada");
@@ -1813,6 +2011,7 @@ describe("useMembers", () => {
 describe("useInvitations", () => {
   it("lists the open invitations and sends one", async () => {
     const { browser, client } = fakeBrowser(signedIn(USER));
+
     const rpc = withRpc(client, (fn, args) =>
       fn === "invite_member"
         ? {
@@ -1825,19 +2024,24 @@ describe("useInvitations", () => {
           }
         : [{ id: "inv-0", email: "a@b.c", role: "member" }],
     );
+
     const onChanged = vi.fn();
+
     const view = renderHook(
       () => useInvitations({ organizationId: "org-1", onChanged }),
       undefined,
       { client: browser },
     );
+
     await flush();
     await flush();
     expect(view.result.invitations?.map((each) => each.id)).toEqual(["inv-0"]);
+
     const result = await view.result.invite({
       email: "ada@example.com",
       role: "member",
     });
+
     expect(result.ok).toBe(true);
     expect(view.result.sent?.token).toBe("token-1");
     expect(rpc).toHaveBeenCalledWith(
@@ -1857,6 +2061,7 @@ describe("useInvitations", () => {
     const { browser, client } = fakeBrowser(signedIn(USER));
     withRpc(client, () => true);
     const load = vi.fn(async () => [{ id: "inv-2" }]);
+
     const view = renderHook(
       () =>
         useInvitations({
@@ -1867,6 +2072,7 @@ describe("useInvitations", () => {
       undefined,
       { client: browser },
     );
+
     await flush();
     expect(load).not.toHaveBeenCalled();
     expect((await view.result.revoke("inv-1")).ok).toBe(true);
@@ -1878,20 +2084,24 @@ describe("useInvitations", () => {
 describe("useAuditLog", () => {
   it("loads a page, filters it and loads more", async () => {
     const { browser, client } = fakeBrowser(signedIn(USER));
+
     const entry = (id: string) => ({
       id,
       occurredAt: "2026-10-06T12:00:00Z",
       eventType: "invitation.created",
       actorId: USER,
     });
+
     const rpc = withRpc(client, (_fn, args) =>
       args["cursor_id"] === "e2" ? [entry("e3")] : [entry("e1"), entry("e2")],
     );
+
     const view = renderHook(
       () => useAuditLog({ organizationId: "org-1", limit: 2, schema: "api" }),
       undefined,
       { client: browser },
     );
+
     await flush();
     await flush();
     expect(view.result.entries?.map((each) => each.id)).toEqual(["e1", "e2"]);
@@ -1916,6 +2126,7 @@ describe("useAuditLog", () => {
 describe("useApiKeys", () => {
   it("lists the keys, creates one and revokes one", async () => {
     const { browser, client } = fakeBrowser(signedIn(USER));
+
     const key = (id: string, created: string) => ({
       id,
       organization_id: "org-1",
@@ -1926,23 +2137,28 @@ describe("useApiKeys", () => {
       created_at: created,
       state: "active",
     });
+
     const rpc = withRpc(client, (fn) => {
       if (fn === "create_api_key") {
         return key("k3", "2026-10-03T00:00:00Z");
       }
+
       if (fn === "revoke_api_key") {
         return true;
       }
+
       return [
         key("k1", "2026-10-01T00:00:00Z"),
         key("k2", "2026-10-02T00:00:00Z"),
       ];
     });
+
     const view = renderHook(
       () => useApiKeys({ organizationId: "org-1", schema: "api" }),
       undefined,
       { client: browser },
     );
+
     await flush();
     await flush();
     expect(view.result.keys?.map((each) => each.id)).toEqual(["k2", "k1"]);
@@ -1964,22 +2180,28 @@ describe("useApiKeys", () => {
 describe("useTagInput", () => {
   it("loads the subject's tags and adds, creates and removes one", async () => {
     const { browser, client } = fakeBrowser(signedIn(USER));
+
     const rpc = withRpc(client, (fn) => {
       if (fn === "subject_tags") {
         return [{ id: "t1", name: "VIP", slug: "vip" }];
       }
+
       if (fn === "list_tags") {
         return [
           { id: "t1", name: "VIP", slug: "vip" },
           { id: "t2", name: "Churn risk", slug: "churn-risk" },
         ];
       }
+
       if (fn === "create_tag") {
         return { id: "t3", slug: "new", rank: "V" };
       }
+
       return true;
     });
+
     const onChanged = vi.fn();
+
     const view = renderHook(
       () =>
         useTagInput({
@@ -1993,6 +2215,7 @@ describe("useTagInput", () => {
       undefined,
       { client: browser },
     );
+
     await flush();
     await flush();
     expect(view.result.tags?.map((tag) => tag.name)).toEqual(["VIP"]);
@@ -2037,12 +2260,15 @@ describe("workflow run hooks", () => {
     const { browser, client, emit } = fakeBrowser(signedIn(USER));
     let rows = [run("a")];
     let fail = false;
+
     const rpc = withRpc(client, () => {
       if (fail) {
         throw new Error("offline");
       }
+
       return rows;
     });
+
     const view = renderHook(
       () =>
         useWorkflowRuns({
@@ -2055,6 +2281,7 @@ describe("workflow run hooks", () => {
       undefined,
       { client: browser },
     );
+
     await flush();
     await flush();
     expect(view.result.runs?.map((entry) => entry.id)).toEqual(["a"]);
@@ -2083,18 +2310,22 @@ describe("workflow run hooks", () => {
   it("loads the user's own runs once without a tenant, after sign-in", async () => {
     const signedOut = fakeBrowser(SIGNED_OUT);
     const idle = withRpc(signedOut.client, () => []);
+
     const waiting = renderHook(() => useWorkflowRuns(), undefined, {
       client: signedOut.browser,
     });
+
     await flush();
     expect(idle).not.toHaveBeenCalled();
     waiting.unmount();
 
     const { browser, client } = fakeBrowser(signedIn(USER));
     withRpc(client, () => [run("a")]);
+
     const view = renderHook(() => useWorkflowRuns(), undefined, {
       client: browser,
     });
+
     await flush();
     expect(client.channel).not.toHaveBeenCalled();
     expect(view.result.runs).toHaveLength(1);
@@ -2105,20 +2336,25 @@ describe("workflow run hooks", () => {
     const { browser, client, emit } = fakeBrowser(signedIn(USER));
     let status = "running";
     let refuse = false;
+
     const rpc = withRpc(client, (fn) => {
       if (fn === "request_workflow_cancel") {
         if (refuse) {
           throw new Error("not allowed");
         }
+
         status = "cancelled";
       }
+
       return run("a", status);
     });
+
     const view = renderHook(
       () => useWorkflowRun("wrun_a", { schema: "app" }),
       undefined,
       { client: browser },
     );
+
     await flush();
     await flush();
     expect(view.result.run?.status).toBe("running");
@@ -2144,9 +2380,11 @@ describe("workflow run hooks", () => {
   it("does nothing for a null run", async () => {
     const { browser, client } = fakeBrowser(signedIn(USER));
     const rpc = withRpc(client, () => null);
+
     const view = renderHook(() => useWorkflowRun(null), undefined, {
       client: browser,
     });
+
     await flush();
     await view.result.refresh();
     await view.result.cancel();
@@ -2160,9 +2398,11 @@ describe("workflow run hooks", () => {
     withRpc(client, () => {
       throw new Error("denied");
     });
+
     const view = renderHook(() => useWorkflowRun("a"), undefined, {
       client: browser,
     });
+
     await flush();
     expect(view.result.error?.message).toBe("denied");
     view.unmount();
@@ -2180,11 +2420,13 @@ describe("workflow builder hooks", () => {
     published: 2,
     draft: true,
   };
+
   const step = {
     name: "email.send",
     title: "Send an email",
     inputSchema: { type: "object" },
   };
+
   const runRow = (status: string) => ({
     id: "r1",
     engine: "workflow-sdk",
@@ -2198,6 +2440,7 @@ describe("workflow builder hooks", () => {
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
   });
+
   const nodeRow = (node: string, status: string) => ({
     run: "r1",
     node,
@@ -2208,9 +2451,11 @@ describe("workflow builder hooks", () => {
   it("lists a tenant's definitions and the step library after sign-in", async () => {
     const signedOut = fakeBrowser(SIGNED_OUT);
     const idle = withRpc(signedOut.client, () => []);
+
     const waiting = renderHook(() => useWorkflowBuilder(), undefined, {
       client: signedOut.browser,
     });
+
     await flush();
     expect(idle).not.toHaveBeenCalled();
     expect(waiting.result.definitions).toBeUndefined();
@@ -2218,20 +2463,25 @@ describe("workflow builder hooks", () => {
 
     const { browser, client } = fakeBrowser(signedIn(USER));
     let failSteps = false;
+
     const rpc = withRpc(client, (fn) => {
       if (fn === "workflow_steps_list") {
         if (failSteps) {
           throw new Error("no steps");
         }
+
         return [step];
       }
+
       return [definition];
     });
+
     const view = renderHook(
       () => useWorkflowBuilder({ tenant: "t1", schema: "app" }),
       undefined,
       { client: browser },
     );
+
     await flush();
     expect(view.result.definitions?.map((entry) => entry.slug)).toEqual([
       "welcome",
@@ -2258,9 +2508,11 @@ describe("workflow builder hooks", () => {
     withRpc(client, () => {
       throw new Error("denied");
     });
+
     const view = renderHook(() => useWorkflowBuilder(), undefined, {
       client: browser,
     });
+
     await flush();
     expect(view.result.error?.message).toBe("denied");
     expect(view.result.definitions).toBeUndefined();
@@ -2271,20 +2523,25 @@ describe("workflow builder hooks", () => {
     const { browser, client, emit } = fakeBrowser(signedIn(USER));
     let nodes = [nodeRow("lookup", "running")];
     let failNodes = false;
+
     const rpc = withRpc(client, (fn) => {
       if (fn === "workflow_node_runs_list") {
         if (failNodes) {
           throw new Error("no nodes");
         }
+
         return nodes;
       }
+
       return runRow("running");
     });
+
     const view = renderHook(
       () => useWorkflowCanvasRun("wrun_r1", { schema: "app" }),
       undefined,
       { client: browser },
     );
+
     await flush();
     await flush();
     expect(view.result.run?.id).toBe("r1");
@@ -2312,9 +2569,11 @@ describe("workflow builder hooks", () => {
   it("does nothing for a null run and keeps a read error", async () => {
     const idle = fakeBrowser(signedIn(USER));
     const unused = withRpc(idle.client, () => null);
+
     const empty = renderHook(() => useWorkflowCanvasRun(null), undefined, {
       client: idle.browser,
     });
+
     await flush();
     await empty.result.refresh();
     expect(unused).not.toHaveBeenCalled();
@@ -2326,9 +2585,11 @@ describe("workflow builder hooks", () => {
     withRpc(client, () => {
       throw new Error("denied");
     });
+
     const view = renderHook(() => useWorkflowCanvasRun("r1"), undefined, {
       client: browser,
     });
+
     await flush();
     expect(view.result.error?.message).toBe("denied");
     expect(view.result.run).toBeUndefined();
@@ -2338,13 +2599,16 @@ describe("workflow builder hooks", () => {
 
 describe("useAction", () => {
   type Out = ActionResultOf<{ id: string }>;
+
   const deferred = () => {
     let resolve: (value: Out) => void = () => undefined;
     let reject: (cause: unknown) => void = () => undefined;
+
     const promise = new Promise<Out>((done, fail) => {
       resolve = done;
       reject = fail;
     });
+
     return { promise, resolve, reject };
   };
 
@@ -2352,14 +2616,17 @@ describe("useAction", () => {
     const first = vi.fn();
     const latest = vi.fn();
     let onSuccess = first;
+
     const action = vi.fn(() =>
       Promise.resolve<Out>({ ok: true, data: { id: "a" }, error: null }),
     );
+
     const view = renderHook(
       () => useAction(action, { onSuccess }),
       undefined,
       null,
     );
+
     const before = view.result;
     onSuccess = latest;
     view.rerender(undefined);
@@ -2375,18 +2642,23 @@ describe("useAction", () => {
 
   it("tracks the inputs in flight and keeps the last data and error", async () => {
     const calls: ReturnType<typeof deferred>[] = [];
+
     const action = vi.fn((_input: { id: string }) => {
       const call = deferred();
       calls.push(call);
+
       return call.promise;
     });
+
     const onSuccess = vi.fn();
     const onError = vi.fn();
+
     const view = renderHook(
       () => useAction(action, { onSuccess, onError }),
       undefined,
       null,
     );
+
     expect(view.result.pending).toBe(false);
 
     const first = view.result.run({ id: "a" });
@@ -2425,6 +2697,7 @@ describe("useAction", () => {
       undefined,
       null,
     );
+
     await expect(view.result.run(undefined)).rejects.toThrow("offline");
     expect(view.result.pending).toBe(false);
   });
@@ -2434,6 +2707,7 @@ describe("useActionForm", () => {
   class FakeFormData extends FormData {
     constructor(form?: { fields: Record<string, string> }) {
       super();
+
       for (const [key, value] of Object.entries(form?.fields ?? {})) {
         this.append(key, value);
       }
@@ -2443,11 +2717,13 @@ describe("useActionForm", () => {
   const submit = (fields: Record<string, string>) => {
     const form = { fields, reset: vi.fn() };
     const event = { preventDefault: vi.fn(), currentTarget: form };
+
     return { form, event };
   };
 
   it("keeps the fields on a failure, maps field errors and resets on success", async () => {
     vi.stubGlobal("FormData", FakeFormData);
+
     try {
       const action = vi.fn((input: FormData) =>
         Promise.resolve<ActionResultOf<string>>(
@@ -2466,8 +2742,10 @@ describe("useActionForm", () => {
             : { ok: true, data: String(input.get("name")), error: null },
         ),
       );
+
       const onSuccess = vi.fn();
       const onError = vi.fn();
+
       const view = renderHook(
         () => useActionForm(action, { onSuccess, onError }),
         undefined,
@@ -2498,6 +2776,7 @@ describe("useActionForm", () => {
 
   it("can keep the fields after a success", async () => {
     vi.stubGlobal("FormData", FakeFormData);
+
     try {
       const view = renderHook(
         () =>
@@ -2508,6 +2787,7 @@ describe("useActionForm", () => {
         undefined,
         null,
       );
+
       const kept = submit({});
       view.result.formProps.onSubmit(kept.event as never);
       await flush();
@@ -2525,6 +2805,7 @@ describe("useActionForm", () => {
 
 describe("ai-chat hooks", () => {
   const AT = "2026-01-01T00:00:00Z";
+
   const chat = (id: string, extra: object = {}) => ({
     id,
     organization_id: "org-1",
@@ -2537,6 +2818,7 @@ describe("ai-chat hooks", () => {
     updated_at: AT,
     ...extra,
   });
+
   const message = (id: string, parent: string | null) => ({
     id,
     parent_id: parent,
@@ -2553,16 +2835,19 @@ describe("ai-chat hooks", () => {
     const { browser, client, emit } = fakeBrowser(signedIn(USER));
     let first = [chat("a"), chat("b")];
     let fail = false;
+
     const rpc = withRpc(client, (fn, args) => {
       if (fail) {
         throw new Error("denied");
       }
+
       switch (fn) {
         case "list_ai_chats": {
           return args["after"]
             ? { items: [chat("c")], next: null }
             : { items: first, next: "cursor" };
         }
+
         case "create_ai_chat": {
           return chat(
             "n",
@@ -2571,19 +2856,23 @@ describe("ai-chat hooks", () => {
               : {},
           );
         }
+
         case "update_ai_chat": {
           return chat("a", { title: "Renamed" });
         }
+
         default: {
           return true;
         }
       }
     });
+
     const view = renderHook(
       () => useAiChats({ organizationId: "org-1", search: "x", limit: 2 }),
       undefined,
       { client: browser },
     );
+
     await flush();
     await flush();
     expect(view.result.items?.map((item) => item.id)).toEqual(["a", "b"]);
@@ -2637,19 +2926,23 @@ describe("ai-chat hooks", () => {
   it("waits for a user, loads once without a topic and needs a tenant to create", async () => {
     const signedOut = fakeBrowser(SIGNED_OUT);
     const idle = withRpc(signedOut.client, () => ({ items: [], next: null }));
+
     const waiting = renderHook(() => useAiChats(), undefined, {
       client: signedOut.browser,
     });
+
     await flush();
     expect(idle).not.toHaveBeenCalled();
     expect(await waiting.result.create()).toBeUndefined();
     waiting.unmount();
 
     const once = fakeBrowser(signedIn(USER));
+
     const rpc = withRpc(once.client, () => ({
       items: [chat("a")],
       next: null,
     }));
+
     const view = renderHook(
       () =>
         useAiChats({
@@ -2662,6 +2955,7 @@ describe("ai-chat hooks", () => {
       undefined,
       { client: once.browser },
     );
+
     await flush();
     expect(view.result.items).toHaveLength(1);
     expect(rpc).toHaveBeenCalledWith("list_ai_chats", {
@@ -2680,6 +2974,7 @@ describe("ai-chat hooks", () => {
     answer: (fn: string, args: Record<string, unknown>) => unknown,
   ) {
     const held: (() => void)[] = [];
+
     const control = {
       hold: (_fn: string, _args: Record<string, unknown>) => false,
       release: () => {
@@ -2688,15 +2983,19 @@ describe("ai-chat hooks", () => {
         }
       },
     };
+
     const rpc = withRpc(client, async (fn, args) => {
       const value = answer(fn, args);
+
       if (control.hold(fn, args)) {
         await new Promise<void>((resume) => {
           held.push(resume);
         });
       }
+
       return value;
     });
+
     return { rpc, control };
   }
 
@@ -2704,18 +3003,23 @@ describe("ai-chat hooks", () => {
     const { browser, client, emit } = fakeBrowser(signedIn(USER));
     let first = [chat("a"), chat("b")];
     let offline = false;
+
     const { control } = heldRpc(client, (_fn, args) => {
       if (!args["after"]) {
         return { items: first, next: "cursor" };
       }
+
       if (offline) {
         throw new Error("offline");
       }
+
       return { items: [chat("c")], next: null };
     });
+
     const view = renderHook(() => useAiChats(), undefined, {
       client: browser,
     });
+
     await flush();
     offline = true;
     await view.result.loadMore();
@@ -2744,17 +3048,21 @@ describe("ai-chat hooks", () => {
 
   it("starts over when the query changes and drops the older query's page", async () => {
     const { browser, client } = fakeBrowser(signedIn(USER));
+
     const { rpc, control } = heldRpc(client, (_fn, args) => {
       const search = String(args["search"]);
+
       return args["after"]
         ? { items: [chat(`${search}-2`)], next: null }
         : { items: [chat(`${search}-1`)], next: "cursor" };
     });
+
     const view = renderHook<string, ReturnType<typeof useAiChats>>(
       (search) => useAiChats({ search, topic: null }),
       "x",
       { client: browser },
     );
+
     await flush();
     expect(view.result.items?.map((item) => item.id)).toEqual(["x-1"]);
 
@@ -2789,13 +3097,16 @@ describe("ai-chat hooks", () => {
 
   it("clears the chats on sign-out and drops answers for the old user", async () => {
     const { browser, client, emit, setAuth } = fakeBrowser(signedIn(USER));
+
     const { control } = heldRpc(client, () => ({
       items: [chat("a")],
       next: "cursor",
     }));
+
     const view = renderHook(() => useAiChats(), undefined, {
       client: browser,
     });
+
     await flush();
     expect(view.result.items).toHaveLength(1);
 
@@ -2821,16 +3132,19 @@ describe("ai-chat hooks", () => {
 
   it("clears the old path while another chat loads and ignores its answers", async () => {
     const { browser, client } = fakeBrowser(signedIn(USER));
+
     const { control } = heldRpc(client, (fn, args) =>
       fn === "switch_ai_branch"
         ? { leaf_id: "a2" }
         : [message(`${String(args["chat"])}-u`, null)],
     );
+
     const view = renderHook<string | null, ReturnType<typeof useAiChatTree>>(
       (id) => useAiChatTree(id, { topic: null }),
       "c1",
       { client: browser },
     );
+
     await flush();
     expect(view.result.path?.map((item) => item.id)).toEqual(["c1-u"]);
 
@@ -2858,27 +3172,34 @@ describe("ai-chat hooks", () => {
   it("follows a chat's branch and steps between siblings", async () => {
     const { browser, client, emit } = fakeBrowser(signedIn(USER));
     let path = [message("u1", null), message("a1", "u1")];
+
     let siblings = [
       { id: "a1", role: "assistant", created_at: AT },
       { id: "a2", role: "assistant", created_at: AT },
     ];
+
     let fail = false;
+
     const rpc = withRpc(client, (fn) => {
       if (fail) {
         throw new Error("gone");
       }
+
       switch (fn) {
         case "ai_message_path": {
           return path;
         }
+
         case "ai_message_siblings": {
           return siblings;
         }
+
         default: {
           return { leaf_id: "a2" };
         }
       }
     });
+
     const view = renderHook<string | null, ReturnType<typeof useAiChatTree>>(
       (id) => useAiChatTree(id),
       "c1",
@@ -2886,6 +3207,7 @@ describe("ai-chat hooks", () => {
         client: browser,
       },
     );
+
     await flush();
     await flush();
     expect(view.result.path?.map((item) => item.id)).toEqual(["u1", "a1"]);
@@ -2930,11 +3252,13 @@ describe("ai-chat hooks", () => {
   it("loads a chat once without a topic", async () => {
     const { browser, client } = fakeBrowser(signedIn(USER));
     withRpc(client, () => [message("u1", null)]);
+
     const view = renderHook(
       () => useAiChatTree("c1", { topic: null, schema: "api" }),
       undefined,
       { client: browser },
     );
+
     await flush();
     expect(view.result.path).toHaveLength(1);
     expect(client.channel).not.toHaveBeenCalled();
@@ -2943,12 +3267,15 @@ describe("ai-chat hooks", () => {
 
   it("reads the allowed models", async () => {
     const { browser, client } = fakeBrowser(signedIn(USER));
+
     const rpc = withRpc(client, () => [
       { model_id: "openai/gpt-5", provider: "openai", name: "GPT-5" },
     ]);
+
     const view = renderHook(() => useAiModels("org-1"), undefined, {
       client: browser,
     });
+
     await flush();
     expect(view.result.models?.map((model) => model.id)).toEqual([
       "openai/gpt-5",
@@ -2958,6 +3285,7 @@ describe("ai-chat hooks", () => {
       tenant: "org-1",
     });
     view.unmount();
+
     const none = renderHook(
       () => useAiModels(undefined, { schema: "api" }),
       undefined,
@@ -2965,6 +3293,7 @@ describe("ai-chat hooks", () => {
         client: browser,
       },
     );
+
     await flush();
     expect(rpc).toHaveBeenLastCalledWith("allowed_ai_models", { tenant: null });
     none.unmount();
@@ -2978,20 +3307,26 @@ describe("ai-chat hooks", () => {
       if (fail) {
         throw new Error("not yours");
       }
+
       switch (fn) {
         case "share_ai_chat": {
           shares = [{ id: "s1", leaf_id: "a1", created_at: AT }];
+
           return { id: "s1", token: "tok", leaf_id: "a1", created_at: AT };
         }
+
         case "revoke_ai_chat_share": {
           shares = [];
+
           return true;
         }
+
         default: {
           return shares;
         }
       }
     });
+
     const view = renderHook<string | null, ReturnType<typeof useAiShare>>(
       (id) => useAiShare(id),
       "c1",
@@ -2999,6 +3334,7 @@ describe("ai-chat hooks", () => {
         client: browser,
       },
     );
+
     await flush();
     expect(view.result.shares).toEqual([]);
     expect((await view.result.create())?.token).toBe("tok");
@@ -3029,6 +3365,7 @@ describe("usePresence", () => {
       untracked: number;
       left: boolean;
     }[] = [];
+
     const topic: PresenceTopic<
       "room:{roomId}",
       { name: string },
@@ -3045,17 +3382,21 @@ describe("usePresence", () => {
           untracked: 0,
           left: false,
         };
+
         joins.push(join);
         options.onStatus?.("subscribed");
+
         return {
           topic: "x",
           ready: Promise.resolve(),
           track: (state: unknown) => {
             join.tracked.push(state);
+
             return AsyncResult.from(async () => ok(undefined));
           },
           untrack: () => {
             join.untracked += 1;
+
             return AsyncResult.from(async () =>
               err(dbError("network", "down")),
             );
@@ -3067,16 +3408,19 @@ describe("usePresence", () => {
         } as never;
       },
     };
+
     return { topic, joins };
   }
 
   it("joins, tracks the state, re-tracks when it changes and leaves on unmount", async () => {
     const { browser, setAuth } = fakeBrowser(LOADING);
     const { topic, joins } = fakePresenceTopic();
+
     const initial: { roomId: string | null; name: string | null } = {
       roomId: "r1",
       name: "Ada",
     };
+
     const view = renderHook(
       (props: typeof initial) =>
         usePresence(topic, props.roomId ? { roomId: props.roomId } : null, {
@@ -3085,6 +3429,7 @@ describe("usePresence", () => {
       initial,
       { client: browser },
     );
+
     expect(joins).toHaveLength(0);
     expect(await view.result.track({ name: "x" })).toMatchObject({
       kind: "invalid_request",
@@ -3116,11 +3461,13 @@ describe("usePresence", () => {
 
   it("needs a client", () => {
     const { topic } = fakePresenceTopic();
+
     const view = renderHook(
       () => usePresence(topic, { roomId: "r" }),
       undefined,
       null,
     );
+
     expect(view.error?.message).toMatch(/usePresence needs/);
   });
 
@@ -3139,6 +3486,7 @@ describe("usePresence", () => {
 describe("useSignIn and useSignOut", () => {
   function fakeAuth() {
     let next: { error: { message: string } | null } = { error: null };
+
     const auth = {
       signInWithPassword: vi.fn(async () => next),
       signInWithOtp: vi.fn(async () => next),
@@ -3146,6 +3494,7 @@ describe("useSignIn and useSignOut", () => {
       signInWithOAuth: vi.fn(async () => next),
       signOut: vi.fn(async () => next),
     };
+
     return {
       client: { auth } as never,
       auth,
@@ -3158,11 +3507,13 @@ describe("useSignIn and useSignOut", () => {
   it("tracks pending and error and calls onSuccess", async () => {
     const { client, auth, fail } = fakeAuth();
     const onSuccess = vi.fn();
+
     const view = renderHook(
       () => useSignIn({ client, onSuccess }),
       undefined,
       null,
     );
+
     expect(view.result.pending).toBe(false);
     const call = view.result.password({ email: "a@b.c", password: "pw" });
     expect(view.result.pending).toBe(true);
@@ -3216,6 +3567,7 @@ describe("useDebouncedSearch", () => {
       undefined,
       null,
     );
+
     expect(view.result.term).toBeUndefined();
     view.result.setValue(" 5");
     expect(view.result.pending).toBe(true);
@@ -3239,9 +3591,11 @@ describe("useDebouncedSearch", () => {
 describe("useSignedUrl", () => {
   it("signs, re-signs before expiry, keeps the last url on errors and pauses", async () => {
     vi.useFakeTimers();
+
     try {
       let n = 0;
       let failing = false;
+
       const bucket = {
         signedUrl: vi.fn((_target: { id: string }) =>
           AsyncResult.from(async () =>
@@ -3251,13 +3605,16 @@ describe("useSignedUrl", () => {
           ),
         ),
       };
+
       const initial: { id: string | null } = { id: "a" };
+
       const view = renderHook(
         (props: typeof initial) =>
           useSignedUrl(bucket, props.id ? { id: props.id } : null, { ttl: 10 }),
         initial,
         null,
       );
+
       expect(view.result.loading).toBe(true);
       await vi.advanceTimersByTimeAsync(0);
       expect(view.result).toEqual({
@@ -3294,6 +3651,7 @@ describe("useUpload", () => {
   it("reports progress, success and errors, and aborts the previous upload", async () => {
     const signals: AbortSignal[] = [];
     let release: (() => void) | undefined;
+
     const bucket = {
       upload: vi.fn(
         (
@@ -3304,28 +3662,35 @@ describe("useUpload", () => {
           AsyncResult.from(async () => {
             signals.push(options!.signal!);
             options?.onProgress?.(0.5);
+
             if (target.id === "slow") {
               await new Promise<void>((resolve) => {
                 release = resolve;
               });
             }
+
             if (target.id === "bad") {
               return err(dbError("forbidden", "no"));
             }
+
             if (target.id === "throw") {
               throw new Error("boom");
             }
+
             return ok({ path: target.id });
           }),
       ),
     };
+
     const onSuccess = vi.fn();
     const onError = vi.fn();
+
     const view = renderHook(
       () => useUpload(bucket, { onSuccess, onError }),
       undefined,
       null,
     );
+
     expect(view.result.status).toBe("idle");
 
     const slow = view.result.upload({ id: "slow" }, "x");
@@ -3375,6 +3740,7 @@ describe("react/native", () => {
       })),
       signInWithIdToken: vi.fn(async () => ({ error: null })),
     };
+
     return { auth, client: { auth } as never };
   }
 
@@ -3382,14 +3748,17 @@ describe("react/native", () => {
     const { auth, client } = fakeNativeAuth();
     const onSuccess = vi.fn();
     let redirect = { type: "success", url: "app://cb?code=abc" };
+
     const browser = {
       openAuthSessionAsync: vi.fn(async () => redirect),
     };
+
     const view = renderHook(
       () => useOAuth({ browser, redirectTo: "app://cb", client, onSuccess }),
       undefined,
       null,
     );
+
     expect(await view.result.signIn("github")).toBeUndefined();
     expect(auth.exchangeCodeForSession).toHaveBeenCalledWith("abc");
     redirect = { type: "success", url: "app://cb#error_description=Denied" };
@@ -3407,26 +3776,33 @@ describe("react/native", () => {
   it("useAuthDeepLinks handles the initial URL and later links once each", async () => {
     const { auth, client } = fakeNativeAuth();
     const listeners = new Set<(event: { url: string }) => void>();
+
     const linking: LinkingLike = {
       getInitialURL: async () => "app://cb?code=first",
       addEventListener: (_type, listener) => {
         listeners.add(listener);
+
         return { remove: () => void listeners.delete(listener) };
       },
     };
+
     const onResult = vi.fn();
+
     const view = renderHook(
       () => useAuthDeepLinks(linking, { client, onResult }),
       undefined,
       null,
     );
+
     await flush();
     expect(view.result).toEqual({ type: "signed-in", via: "code" });
+
     for (const listener of listeners) {
       listener({ url: "app://home" });
       listener({ url: "app://cb?code=first" });
       listener({ url: "app://cb?token_hash=h&type=email" });
     }
+
     await flush();
     expect(auth.exchangeCodeForSession).toHaveBeenCalledOnce();
     expect(auth.verifyOtp).toHaveBeenCalledOnce();
@@ -3439,11 +3815,13 @@ describe("react/native", () => {
     const { browser, setAuth } = fakeBrowser(LOADING);
     const router = { replace: vi.fn() };
     const initial: { segments: readonly string[] } = { segments: ["(app)"] };
+
     const view = renderHook(
       (props) => useProtectedRoute({ segments: props.segments, router }),
       initial,
       { client: browser },
     );
+
     expect(view.result).toBe("loading");
     expect(router.replace).not.toHaveBeenCalled();
     setAuth(SIGNED_OUT);
@@ -3457,15 +3835,18 @@ describe("react/native", () => {
   it("accepts a real supabase-js client", () => {
     const asClient = (client: SupabaseClient): UseOAuthOptions["client"] =>
       client;
+
     expectTypeOf(asClient).returns.toEqualTypeOf<UseOAuthOptions["client"]>();
   });
 
   it("AuthGate picks the branch for the status", () => {
     const { browser, setAuth } = fakeBrowser(LOADING);
     const props = { fallback: "splash", signedOut: "sign-in", children: "app" };
+
     const view = renderHook(() => AuthGate(props), undefined, {
       client: browser,
     });
+
     expect(view.result).toBe("splash");
     setAuth(SIGNED_OUT);
     expect(view.result).toBe("sign-in");
@@ -3479,6 +3860,7 @@ describe("react/native", () => {
 describe("powersync/react", () => {
   function fakePowerSync() {
     const handlers = new Set<() => void>();
+
     const db = {
       execute: vi.fn(),
       getAll: vi.fn(),
@@ -3492,10 +3874,12 @@ describe("powersync/react", () => {
           handlers.add(handler.onChange);
           const remove = () => void handlers.delete(handler.onChange);
           options?.signal?.addEventListener("abort", remove);
+
           return remove;
         },
       ),
     } as unknown as PowerSyncDatabaseLike;
+
     return {
       db,
       change: () => {
@@ -3510,6 +3894,7 @@ describe("powersync/react", () => {
   it("useWatch reruns on changes, shares rows and restarts on deps", async () => {
     const { db, change, handlers } = fakePowerSync();
     let rows = [{ id: "a", name: "A" }];
+
     const query = vi.fn(async (search: string) =>
       ok(
         rows
@@ -3517,7 +3902,9 @@ describe("powersync/react", () => {
           .map((row) => ({ ...row })),
       ),
     );
+
     const initial = { search: "" };
+
     const view = renderHook(
       (props) =>
         useWatch({
@@ -3529,6 +3916,7 @@ describe("powersync/react", () => {
       initial,
       null,
     );
+
     expect(view.result.loading).toBe(true);
     await flush();
     expect(view.result.data).toEqual([{ id: "a", name: "A" }]);
@@ -3549,11 +3937,13 @@ describe("powersync/react", () => {
 
   it("useWatch refreshes on an interval without restarting on rerender", async () => {
     vi.useFakeTimers();
+
     try {
       const { db } = fakePowerSync();
       let runs = 0;
       const query = vi.fn(async () => ok((runs += 1)));
       const onChange = vi.spyOn(db, "onChange");
+
       const view = renderHook(
         () =>
           useWatch({
@@ -3565,6 +3955,7 @@ describe("powersync/react", () => {
         {},
         null,
       );
+
       await vi.advanceTimersByTimeAsync(0);
       expect(view.result.data).toBe(1);
       view.rerender({});
@@ -3581,11 +3972,13 @@ describe("powersync/react", () => {
     const { db } = fakePowerSync();
     const query = vi.fn(async () => err(dbError("unexpected", "disk full")));
     const initial = { enabled: false };
+
     const view = renderHook(
       (props) => useWatch({ db, query, tables: ["t"], enabled: props.enabled }),
       initial,
       null,
     );
+
     await flush();
     expect(query).not.toHaveBeenCalled();
     view.rerender({ enabled: true });
@@ -3596,10 +3989,12 @@ describe("powersync/react", () => {
 
   it("useSyncStatus re-renders only when a field changes", () => {
     const listeners = new Set<() => void>();
+
     let status: SyncStatusLike = {
       connected: false,
       dataFlowStatus: { uploading: false, downloading: false },
     };
+
     const db = {
       get currentStatus() {
         return status;
@@ -3607,9 +4002,11 @@ describe("powersync/react", () => {
       registerListener: (listener: { statusChanged?: () => void }) => {
         const notify = () => listener.statusChanged?.();
         listeners.add(notify);
+
         return () => void listeners.delete(notify);
       },
     };
+
     const view = renderHook(() => useSyncStatus(db), undefined, null);
     expect(view.result).toEqual({
       connected: false,
@@ -3621,9 +4018,11 @@ describe("powersync/react", () => {
     });
     const before = view.result;
     status = { ...status };
+
     for (const listener of listeners) {
       listener();
     }
+
     expect(view.result).toBe(before);
     const failure = new Error("upload failed");
     status = {
@@ -3635,9 +4034,11 @@ describe("powersync/react", () => {
         uploadError: failure,
       },
     };
+
     for (const listener of listeners) {
       listener();
     }
+
     expect(view.result).toMatchObject({
       connected: true,
       hasSynced: true,
@@ -3654,6 +4055,7 @@ describe("powersync/react", () => {
       },
       tables: { notes: async () => err(dbError("conflict", "newer")) },
     });
+
     const view = renderHook(() => useConflicts(connector), undefined, null);
     expect(view.result.changes).toEqual([]);
     await connector.uploadData({
@@ -3693,17 +4095,21 @@ describe("useSavedViews", () => {
       page: null,
       status: null,
     };
+
     const setUrlState = vi.fn((next: Record<string, unknown>) => {
       urlState = { ...urlState, ...next };
     });
+
     const save = vi.fn(async () => undefined);
     const remove = vi.fn(async () => undefined);
     const load = vi.fn(async () => views);
+
     const view = renderHook(
       () => useSavedViews({ load, save, remove, urlState, setUrlState }),
       undefined,
       null,
     );
+
     expect(view.result.views).toBeUndefined();
     await flush();
     expect(setUrlState).toHaveBeenCalledWith({
@@ -3740,10 +4146,12 @@ describe("useSavedViews", () => {
 
   it("leaves a URL with a query alone and reports load errors", async () => {
     const setUrlState = vi.fn();
+
     const load = vi
       .fn<() => Promise<typeof views>>()
       .mockResolvedValueOnce(views)
       .mockRejectedValueOnce(new Error("down"));
+
     const view = renderHook(
       () =>
         useSavedViews({
@@ -3754,6 +4162,7 @@ describe("useSavedViews", () => {
       undefined,
       null,
     );
+
     await flush();
     expect(setUrlState).not.toHaveBeenCalled();
     await view.result.refresh();
@@ -3780,15 +4189,20 @@ describe("useSavedViews", () => {
         density: "compact" as const,
       },
     };
+
     let urlState: Record<string, unknown> = { q: null, sort: null };
     let shown: Record<string, unknown> = {};
+
     const setUrlState = vi.fn((next: Record<string, unknown>) => {
       urlState = { ...urlState, ...next };
     });
+
     const onApplyState = vi.fn((state: Record<string, unknown>) => {
       shown = state;
     });
+
     const save = vi.fn(async () => undefined);
+
     const view = renderHook(
       () =>
         useSavedViews({
@@ -3802,6 +4216,7 @@ describe("useSavedViews", () => {
       undefined,
       null,
     );
+
     await flush();
     expect(onApplyState).toHaveBeenCalledWith(
       { columns: { visible: ["title"] }, density: "compact" },
@@ -3842,11 +4257,13 @@ describe("useSavedViews", () => {
       state: { query: { q: "mine" } },
       preference: { isDefault: true },
     };
+
     const slot = { ...views[1]!, preference: { isDefault: false } };
     const setUrlState = vi.fn();
     const duplicate = vi.fn(async () => undefined);
     const setPreference = vi.fn(async () => undefined);
     const load = vi.fn(async () => [slot, preferred]);
+
     const view = renderHook(
       () =>
         useSavedViews({
@@ -3859,6 +4276,7 @@ describe("useSavedViews", () => {
       undefined,
       null,
     );
+
     await flush();
     expect(setUrlState).toHaveBeenCalledWith({ q: "mine" });
     await view.result.duplicate("shared", "Copy", "user");
@@ -3879,11 +4297,13 @@ describe("useUndoStack", () => {
 
   it("keeps the newest tokens and applies them last in, first out", async () => {
     const apply = vi.fn(async () => undefined);
+
     const view = renderHook(
       () => useUndoStack({ apply, limit: 2 }),
       undefined,
       null,
     );
+
     const { push } = view.result;
     push(token("1"), "first");
     push(null, "no inverse");
@@ -3910,6 +4330,7 @@ describe("useUndoStack", () => {
     const apply = vi.fn(async () => {
       throw new Error("ROW_CHANGED_SINCE");
     });
+
     const view = renderHook(() => useUndoStack({ apply }), undefined, null);
     view.result.push(token("1"), "moved");
     expect(await view.result.undo()).toBe(false);

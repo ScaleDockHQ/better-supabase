@@ -15,10 +15,12 @@ import { tracedFetch } from "../../src/otel/index.ts";
 /** A synchronous context manager: enough for `fetch` calls made inside `context.with`. */
 function stackContextManager(): ContextManager {
   const stack: Context[] = [];
+
   const manager: ContextManager = {
     active: () => stack.at(-1) ?? ROOT_CONTEXT,
     with: (ctx, fn, thisArg, ...args) => {
       stack.push(ctx);
+
       try {
         return fn.call(thisArg, ...args);
       } finally {
@@ -29,6 +31,7 @@ function stackContextManager(): ContextManager {
     enable: () => manager,
     disable: () => manager,
   };
+
   return manager;
 }
 
@@ -36,15 +39,18 @@ function stackContextManager(): ContextManager {
 const w3c: TextMapPropagator = {
   inject(ctx, carrier, setter) {
     const span = trace.getSpanContext(ctx);
+
     if (!span) {
       return;
     }
+
     const flags = `0${(span.traceFlags & TraceFlags.SAMPLED).toString(16)}`;
     setter.set(
       carrier,
       "traceparent",
       `00-${span.traceId}-${span.spanId}-${flags}`,
     );
+
     if (span.traceState) {
       setter.set(carrier, "tracestate", span.traceState.serialize());
     }
@@ -63,6 +69,7 @@ function inSpan<T>(fn: () => T, traceFlags = TraceFlags.SAMPLED): T {
     spanId: SPAN_ID,
     traceFlags,
   });
+
   return context.with(trace.setSpan(context.active(), span), fn);
 }
 
@@ -78,10 +85,13 @@ describe("W3C Trace Context", () => {
 
   const capture = () => {
     const seen: Headers[] = [];
+
     const fetch = tracedFetch(async (_input, init) => {
       seen.push(new Headers(init?.headers));
+
       return new Response(null, { status: 204 });
     });
+
     return { fetch, seen };
   };
 

@@ -24,6 +24,7 @@ async function render(
   locals: object = {},
 ): Promise<Response> {
   const context = { request, locals };
+
   return bs.onRequest(context, () => page(context));
 }
 
@@ -36,15 +37,18 @@ describe("createAstro", () => {
           user: { id: USER },
         });
         const refused = await bs.guard(context, { roles: ["admin"] });
+
         return refused ?? new Response("page");
       },
     );
+
     expect(response.status).toBe(403);
 
     const anonymous = await render(
       await requestAs(undefined, { url: "https://app.test/notes" }),
       async (context) => (await bs.guard(context)) ?? new Response("page"),
     );
+
     expect(anonymous.status).toBe(303);
     expect(anonymous.headers.get("location")).toBe(
       "https://app.test/sign-in?next=%2Fnotes",
@@ -55,6 +59,7 @@ describe("createAstro", () => {
       async (context) =>
         (await bs.guard(context, { roles: ["admin"] })) ?? new Response("page"),
     );
+
     expect(await allowed.text()).toBe("page");
   });
 
@@ -65,6 +70,7 @@ describe("createAstro", () => {
       await expect(
         bs.require(context, { requireTenant: true }),
       ).rejects.toBeInstanceOf(Response);
+
       return new Response(null);
     });
   });
@@ -77,6 +83,7 @@ describe("createAstro", () => {
         data: { input: { title: "Hi" } },
         error: null,
       });
+
       return new Response(null);
     });
     await render(await requestAs(), async (context) => {
@@ -84,6 +91,7 @@ describe("createAstro", () => {
         ok: false,
         error: { kind: "unauthorized" },
       });
+
       return new Response(null);
     });
   });
@@ -102,6 +110,7 @@ describe("createImageService", () => {
   const service = createImageService({
     url: "https://abcdefghijklmnopqrst.supabase.co",
   });
+
   const avatar =
     "https://abcdefghijklmnopqrst.supabase.co/storage/v1/object/public/avatars/me.png";
 

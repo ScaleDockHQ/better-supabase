@@ -14,6 +14,7 @@ import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
 const body = (modules: AnyBlocksConfig = {}) =>
   moduleBody("inbox", { modules })!;
+
 const withJobs = (modules: AnyBlocksConfig = {}) =>
   renderModules(["inbox", "jobs"], { modules })
     .filter((file) => file.kind === "schema" && file.module === "inbox")
@@ -23,6 +24,7 @@ const withJobs = (modules: AnyBlocksConfig = {}) =>
 describe("inbox module", () => {
   it("owns its tables behind RLS", () => {
     const sql = body();
+
     for (const table of [
       "inboxes",
       "inbox_members",
@@ -42,6 +44,7 @@ describe("inbox module", () => {
         `alter table "better_supabase"."${table}" enable row level security;`,
       );
     }
+
     expect(sql).toContain("tenant_ids_with('inbox.read')");
   });
 
@@ -56,9 +59,11 @@ describe("inbox module", () => {
     expect(sql).toContain(`"enqueue_job"(queue => 'inbox_bot',`);
     expect(sql).toContain(`dedupe_key => 'inbox:' || v_conv."id"::text`);
     expect(sql).toContain(`"enqueue_job"(queue => 'inbox_outbound',`);
+
     const custom = withJobs({
       inbox: { options: { botQueue: "bots", outboundQueue: "out" } },
     });
+
     expect(custom).toContain(`"enqueue_job"(queue => 'bots',`);
     expect(custom).toContain(`"enqueue_job"(queue => 'out',`);
   });
@@ -69,6 +74,7 @@ describe("inbox module", () => {
 
   it("keeps webhook and delivery functions for the service role", () => {
     const sql = body();
+
     for (const signature of [
       '"record_inbound"(jsonb)',
       '"record_delivery"(uuid, text, text, text, text)',
@@ -80,6 +86,7 @@ describe("inbox module", () => {
         `grant execute on function "better_supabase".${signature} to service_role;`,
       );
     }
+
     expect(sql).toContain(
       'grant execute on function "better_supabase"."set_typing"(uuid, boolean, text) to authenticated, service_role;',
     );
@@ -89,6 +96,7 @@ describe("inbox module", () => {
     const keys = modulePermissionKeys({}, ["inbox"]).filter(
       (entry) => entry.module === "inbox",
     );
+
     expect(new Set(keys.map((entry) => entry.key))).toEqual(
       new Set(["inbox.read", "inbox.reply", "inbox.assign", "inbox.manage"]),
     );
@@ -133,8 +141,10 @@ describe("inbox module", () => {
   it("checks commands against the provider's operations, then the renamed module key", () => {
     const guard = (sql: string, fn: string): string => {
       const start = sql.indexOf(`"${fn}"(`);
+
       return sql.slice(start, sql.indexOf("$$;", start));
     };
+
     const sql = moduleBody("inbox", {
       modules: { inbox: { permissions: { reply: "support.reply" } } },
       accessProvider: {
@@ -146,6 +156,7 @@ describe("inbox module", () => {
         },
       },
     })!;
+
     const assign = guard(sql, "assign_conversation");
     expect(assign).toContain(
       `better_supabase.can('tenant', v_conv."tenant_id", 'tickets.assign')`,
@@ -153,11 +164,13 @@ describe("inbox module", () => {
     expect(assign).toContain(
       `(assignee = (select auth.uid()) and coalesce(better_supabase.can('tenant', v_conv."tenant_id", 'support.reply'), false))`,
     );
+
     for (const fn of ["set_conversation_status", "set_bot_mode"]) {
       expect(guard(sql, fn)).toContain(
         `better_supabase.can('tenant', v_conv."tenant_id", 'support.reply')`,
       );
     }
+
     expect(sql).not.toContain("tools.assign");
     expect(sql).not.toContain("'inbox.reply'");
   });

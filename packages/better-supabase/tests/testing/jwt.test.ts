@@ -5,6 +5,7 @@ import { localAuth, signTestJwt } from "../../src/testing/jwt.ts";
 
 const SECRET = "a-test-secret-that-is-at-least-32-characters";
 const USER = "11111111-1111-4111-8111-111111111111";
+
 const env = {
   url: "https://abcdefghijklmnopqrst.supabase.co",
   publishableKey: "sb_publishable_test",
@@ -26,6 +27,7 @@ describe("localAuth", () => {
     const auth = await resolve(
       await signTestJwt(SECRET, { sub: USER, tenant_id: "o1" }),
     );
+
     expect(auth).toMatchObject({
       kind: "user",
       user: { id: USER, role: "authenticated" },

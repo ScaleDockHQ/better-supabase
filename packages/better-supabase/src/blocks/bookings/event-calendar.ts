@@ -21,7 +21,9 @@ export function toEventCalendarBookings(
     if (booking.status === "cancelled") {
       return [];
     }
+
     const color = options.colorOf?.(booking);
+
     return [
       {
         id: booking.id,
@@ -42,17 +44,21 @@ export function slotsByDay(
   slots: readonly BookingSlot[],
 ): Map<string, BookingSlot[]> {
   const days = new Map<string, BookingSlot[]>();
+
   const sorted = slots.toSorted(
     (a, b) => a.startsAt.epochMilliseconds - b.startsAt.epochMilliseconds,
   );
+
   for (const slot of sorted) {
     const day = slot.localStart.toPlainDate().toString();
     const list = days.get(day);
+
     if (list === undefined) {
       days.set(day, [slot]);
     } else {
       list.push(slot);
     }
   }
+
   return days;
 }

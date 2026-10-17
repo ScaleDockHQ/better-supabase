@@ -35,6 +35,7 @@ describe("signatures", () => {
     const request = new Request("https://x.test", {
       headers: { authorization: "Bearer right" },
     });
+
     expect(verifySharedSecret(request, "right")).toBe(true);
     expect(verifySharedSecret(request, "wrong")).toBe(false);
   });

@@ -15,8 +15,10 @@ const changelogPath = join(
 export async function loadChangelog(): Promise<ChangelogRelease[]> {
   "use cache";
   cacheLife("max");
+
   if (!existsSync(changelogPath)) {
     return [];
   }
+
   return parseChangelog(readFileSync(changelogPath, "utf-8"));
 }

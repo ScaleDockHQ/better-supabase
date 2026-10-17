@@ -15,12 +15,14 @@ afterEach(() => {
 
 function fakeTarget() {
   const listeners = new Map<string, Set<(event: unknown) => void>>();
+
   return {
     addEventListener: vi.fn(
       (type: string, listener: (event: unknown) => void) => {
         if (!listeners.has(type)) {
           listeners.set(type, new Set());
         }
+
         listeners.get(type)!.add(listener);
       },
     ),
@@ -40,6 +42,7 @@ function fakeTarget() {
 
 function fakeStorageGlobal() {
   const items = new Map<string, string>();
+
   return {
     getItem: (key: string) => items.get(key) ?? null,
     setItem: (key: string, value: string) => void items.set(key, value),
@@ -90,6 +93,7 @@ describe("webStorage", () => {
         throw new DOMException("denied", "SecurityError");
       },
     });
+
     try {
       expect(await webStorage().get("a")).toBeNull();
     } finally {
@@ -104,6 +108,7 @@ describe("webKeyboard", () => {
     vi.stubGlobal("window", target);
     const run = vi.fn();
     const release = webKeyboard()({ key: "k", mod: true }, run);
+
     const press = (init: Record<string, unknown>) => {
       const preventDefault = vi.fn();
       target.dispatch("keydown", {
@@ -115,8 +120,10 @@ describe("webKeyboard", () => {
         preventDefault,
         ...init,
       });
+
       return preventDefault;
     };
+
     target.dispatch("keydown", {});
     target.dispatch("keydown", null);
     expect(press({ key: "j", metaKey: true })).not.toHaveBeenCalled();
@@ -146,6 +153,7 @@ describe("webFilePicker", () => {
   function fakeDocument() {
     const inputs: (ReturnType<typeof fakeTarget> & Record<string, unknown>)[] =
       [];
+
     return {
       inputs,
       createElement: () => {
@@ -156,7 +164,9 @@ describe("webFilePicker", () => {
           files: null as File[] | null,
           click: vi.fn(),
         });
+
         inputs.push(input);
+
         return input;
       },
     };
@@ -165,10 +175,12 @@ describe("webFilePicker", () => {
   it("resolves with the chosen files, or none on cancel", async () => {
     const doc = fakeDocument();
     vi.stubGlobal("document", doc);
+
     const picking = webFilePicker()({
       accept: ["image/*", ".pdf"],
       multiple: true,
     });
+
     const input = doc.inputs[0]!;
     expect(input).toMatchObject({
       type: "file",
@@ -208,6 +220,7 @@ describe("webDeepLinks", () => {
     const target = Object.assign(fakeTarget(), {
       location: { href: "https://app.test/a" },
     });
+
     vi.stubGlobal("window", target);
     const links = webDeepLinks();
     expect(await links.initial()).toBe("https://app.test/a");
@@ -234,14 +247,17 @@ describe("webDeepLinks", () => {
 describe("webPushToken", () => {
   function fakePush(permission: string, existing: unknown = null) {
     const subscribe = vi.fn(async (_options: unknown) => ({ endpoint: "new" }));
+
     const registration = {
       pushManager: { getSubscription: vi.fn(async () => existing), subscribe },
     };
+
     const requestPermission = vi.fn(async () => "granted");
     vi.stubGlobal("Notification", { permission, requestPermission });
     vi.stubGlobal("navigator", {
       serviceWorker: { ready: Promise.resolve(registration) },
     });
+
     return { subscribe, requestPermission, registration };
   }
 
@@ -251,9 +267,11 @@ describe("webPushToken", () => {
     expect(port.provider).toBe("webpush");
     expect(await port.token()).toBe(JSON.stringify({ endpoint: "new" }));
     expect(push.requestPermission).toHaveBeenCalled();
+
     const options = push.subscribe.mock.calls[0]?.[0] as {
       applicationServerKey: Uint8Array;
     };
+
     expect([...options.applicationServerKey]).toEqual([1, 2, 3, 251, 255]);
   });
 

@@ -33,6 +33,7 @@ describe("tags module", () => {
     })
       .map((file) => file.contents)
       .join("\n");
+
     expect(sql).toContain('delete from "public"."task_tags"');
     expect(sql).not.toContain('delete from "better_supabase"."taggings"');
   });
@@ -60,6 +61,7 @@ describe("tags module", () => {
         },
       },
     });
+
     expect(sql).not.toContain("rank_tag");
     expect(sql).not.toContain(`"rank"`);
   });
@@ -104,6 +106,7 @@ describe("tags module", () => {
         },
       },
     });
+
     expect(sql).toContain(`v_kind = any ('{label,topic}'::text[])`);
     expect(sql).toContain(
       `insert into "public"."task_labels" ("task_id", "label_id", "org_id", "linked_at")`,
@@ -144,6 +147,7 @@ describe("tags module", () => {
         },
       },
     });
+
     expect(plan?.steps.map((step) => step.sql).join("")).toBe("");
   });
 });

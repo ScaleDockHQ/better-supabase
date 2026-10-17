@@ -186,17 +186,21 @@ const DECISIONS: readonly ApprovalDecision["decision"][] = [
 
 function statusOf(value: unknown): ApprovalStatus {
   const status = STATUSES.find((item) => item === value);
+
   if (status === undefined) {
     throw new TypeError(`unknown approval status ${String(value)}`);
   }
+
   return status;
 }
 
 function decisionKind(value: unknown): ApprovalDecision["decision"] {
   const decision = DECISIONS.find((item) => item === value);
+
   if (decision === undefined) {
     throw new TypeError(`unknown approval decision ${String(value)}`);
   }
+
   return decision;
 }
 
@@ -213,6 +217,7 @@ function approversOf(value: unknown): ApprovalApprovers {
   const permission = optionalText(row["permission"]);
   const role = optionalText(row["role"]);
   const team = optionalText(row["team"]);
+
   return {
     ...(permission === undefined ? {} : { permission }),
     ...(role === undefined ? {} : { role }),
@@ -228,6 +233,7 @@ function requestOf(value: unknown, fn: string): ApprovalRequest {
   const requestedBy = optionalText(row["requestedBy"]);
   const reason = optionalText(row["reason"]);
   const payload = row["payload"];
+
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["organizationId"]),
@@ -258,6 +264,7 @@ function decisionOf(
   const approver = optionalText(value["approver"]);
   const delegateTo = optionalText(value["delegateTo"]);
   const comment = optionalText(value["comment"]);
+
   return {
     id: textOf(value["id"]),
     step: Number(value["step"]),
@@ -274,12 +281,15 @@ export function createApprovals<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: ApprovalsOptions<S>): Approvals<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const fields: BlockFields<F> = blockFields(
     options.fields,
     "approval request fields",
   );
+
   const one = (
     fn: string,
     args: Readonly<Record<string, unknown>>,
@@ -287,29 +297,37 @@ export function createApprovals<
     call(fn, args, (value) => value).andThen((value) =>
       withFields(fields, value, requestOf(value, fn)),
     );
+
   const approverOf = options.authorization?.approverOf;
+
   if (approverOf !== undefined && options.approver === undefined) {
     throw new TypeError(
       "createApprovals: authorization.approverOf needs the approver the transport runs as",
     );
   }
+
   const refused = dbError("forbidden", "not an approver for this step", {
     hint: "APPROVAL_FORBIDDEN",
   });
+
   /** Runs `then` once `approverOf` allows the caller on request `id`; the SQL check runs as well. */
   const asApprover = <T>(
     id: string,
     then: () => AsyncResult<T>,
   ): AsyncResult<T> => {
     const approver = options.approver;
+
     if (approverOf === undefined || approver === undefined) {
       return then();
     }
+
     return getRequest(id).andThen(async (request) => {
       if (!request.canDecide) {
         return err(refused);
       }
+
       let allowed = false;
+
       try {
         allowed = await approverOf(approver, {
           kind: `${request.subjectType}.${request.action}`,
@@ -322,13 +340,16 @@ export function createApprovals<
       } catch {
         allowed = false;
       }
+
       return allowed ? then() : err(refused);
     });
   };
+
   const getRequest = (id: string): AsyncResult<ApprovalRequestDetail & F> =>
     call("get_approval", { request_id: id }, (value) => value).andThen(
       (value) => {
         const row = recordOf(value, "get_approval");
+
         return withFields(fields, row, {
           ...requestOf(row, "get_approval"),
           canDecide: row["canDecide"] === true,
@@ -338,6 +359,7 @@ export function createApprovals<
         });
       },
     );
+
   const decide = (id: string, decision: string, comment?: string) =>
     asApprover(id, () =>
       one("decide_approval", {
@@ -346,6 +368,7 @@ export function createApprovals<
         comment: comment ?? null,
       }),
     );
+
   const client: Approvals<F> = {
     request: ({
       organizationId,
@@ -403,6 +426,7 @@ export function createApprovals<
         (value) => value === true,
       ),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "approvals",
     ...(options.logger ? { logger: options.logger } : {}),

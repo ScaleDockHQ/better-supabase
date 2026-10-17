@@ -16,6 +16,7 @@ export default function CustomerPage({
   params,
 }: PageProps<"/[locale]/customers/[id]">) {
   const t = useExtracted("customers");
+
   return (
     <>
       <Link

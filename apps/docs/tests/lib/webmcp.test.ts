@@ -10,20 +10,25 @@ const NAME = /^[A-Za-z0-9_.-]{1,128}$/u;
 
 function fakeFetch(routes: Record<string, Response>) {
   const calls: { url: string; init: RequestInit }[] = [];
+
   const fetcher = (url: string, init: RequestInit) => {
     calls.push({ url, init });
+
     return Promise.resolve(
       routes[url] ?? new Response("Not found", { status: 404 }),
     );
   };
+
   return { calls, fetcher };
 }
 
 function toolNamed(tools: readonly WebMcpTool[], name: string): WebMcpTool {
   const found = tools.find((tool) => tool.name === name);
+
   if (found === undefined) {
     throw new Error(`No tool ${name}`);
   }
+
   return found;
 }
 
@@ -34,6 +39,7 @@ describe("docsWebMcpTools", () => {
       "search_docs",
       "read_page",
     ]);
+
     for (const tool of tools) {
       expect(tool.name).toMatch(NAME);
       expect(tool.description).not.toBe("");
@@ -49,6 +55,7 @@ describe("docsWebMcpTools", () => {
         { url: "/docs/auth#verify", type: "heading", content: "Verify" },
       ]),
     });
+
     const search = toolNamed(docsWebMcpTools(fetcher), "search_docs");
     const result = await search.execute({ query: "verify token", limit: 1 });
     expect(result).toEqual({
@@ -72,6 +79,7 @@ describe("docsWebMcpTools", () => {
     const { calls, fetcher } = fakeFetch({
       "/docs/cli/gen.md": new Response("# gen"),
     });
+
     const read = toolNamed(docsWebMcpTools(fetcher), "read_page");
     const signal = new AbortController().signal;
     expect(
@@ -97,12 +105,15 @@ describe("registerDocsWebMcp", () => {
 
   it("registers every tool with the lifetime signal", async () => {
     const registered: { name: string; signal: AbortSignal }[] = [];
+
     const modelContext = {
       registerTool(tool: WebMcpTool, options: { signal: AbortSignal }) {
         registered.push({ name: tool.name, signal: options.signal });
+
         return Promise.resolve();
       },
     };
+
     const lifetime = new AbortController();
     const doc = { modelContext } as unknown as Document;
     expect(await registerDocsWebMcp(doc, lifetime.signal)).toBe(true);

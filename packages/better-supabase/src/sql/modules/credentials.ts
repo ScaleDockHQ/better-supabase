@@ -95,17 +95,21 @@ function credentialEvent(
 /** Whether an adopted table keeps secrets in Vault (`vaultId`) or in a column. */
 function vaultStorage(ctx: ModuleContext): boolean {
   const storage = ctx.text("secretStorage", "vault");
+
   if (storage !== "vault" && storage !== "column") {
     throw new TypeError(
       `blocks.credentials.options.secretStorage must be "vault" or "column", not "${storage}"`,
     );
   }
+
   const vault = storage === "vault";
+
   if (!ctx.has("secrets", vault ? "vaultId" : "secret")) {
     throw new TypeError(
       `blocks.credentials: secretStorage "${storage}" needs the secrets table's ${vault ? "vaultId" : "secret"} column`,
     );
   }
+
   return vault;
 }
 
@@ -126,6 +130,7 @@ function adoptedKey(
   const c = (logical: string): string => ctx.col("secrets", logical);
   const tenant = ctx.has("secrets", "tenant");
   const scope = ctx.has("secrets", "scope");
+
   const parse = [
     tenant
       ? `
@@ -147,12 +152,14 @@ function adoptedKey(
     v_name := substr(v_name, length(v_provider) + 2);
   end if;`,
   ].join("");
+
   const match = [
     `s.${c("provider")}::text = v_provider`,
     `s.${c("name")}::text = v_name`,
     ...(tenant ? [`s.${c("tenant")}::text is not distinct from v_tenant`] : []),
     ...(scope ? [`s.${c("scope")}::text is not distinct from v_scope`] : []),
   ].join(" and ");
+
   return {
     declare: `
   v_provider text := ${fn}.provider;
@@ -168,10 +175,13 @@ function adoptedKey(
 function vaultCleanup(ctx: ModuleContext, vault: boolean): string {
   const t = ctx.table("secrets");
   const trigger = ctx.trigger("credential_vault");
+
   if (!vault) {
     return `drop trigger if exists ${trigger} on ${t};`;
   }
+
   const id = ctx.col("secrets", "vaultId");
+
   return `
 create or replace function ${ctx.fn("drop_credential_vault_secret")}()
 returns trigger
@@ -198,35 +208,44 @@ function adopted(ctx: ModuleContext): string {
   const vault = vaultStorage(ctx);
   const t = ctx.table("secrets");
   const c = (logical: string): string => ctx.col("secrets", logical);
+
   const raw = (logical: string): string =>
     sqlString(c(logical).replaceAll('"', ""));
+
   const get = adoptedKey(ctx, "credential_get");
   const set = adoptedKey(ctx, "credential_set");
   const del = adoptedKey(ctx, "credential_delete");
+
   const keys = ["provider", "name", "tenant", "scope"].filter((logical) =>
     ctx.has("secrets", logical),
   );
+
   const variable: Readonly<Record<string, string>> = {
     provider: "v_provider",
     name: "v_name",
     tenant: "v_tenant",
     scope: "v_scope",
   };
+
   const stored = vault ? "v_vault" : "credential_set.secret";
   const value = vault ? c("vaultId") : c("secret");
+
   const touch = ctx.has("secrets", "updatedAt")
     ? `, ${c("updatedAt")} = now()`
     : "";
+
   const insertColumns = [
     ...keys.map(c),
     value,
     ...(ctx.has("secrets", "updatedAt") ? [c("updatedAt")] : []),
   ];
+
   const insertValues = [
     ...keys.map((logical) => `v_row.${c(logical)}`),
     stored,
     ...(ctx.has("secrets", "updatedAt") ? ["now()"] : []),
   ];
+
   const store = vault
     ? `
   if v_vault is null then
@@ -239,6 +258,7 @@ function adopted(ctx: ModuleContext): string {
     perform vault.update_secret(v_vault, credential_set.secret);
   end if;`
     : "";
+
   return `${schemaPreamble(ctx)}
 -- Third-party credentials live in the app's ${t}, ${
     vault ? "each row naming its Vault secret" : "each row holding its secret"
@@ -326,15 +346,19 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   if (!ctx.manages) {
     return adopted(ctx);
   }
+
   const renamed = Object.keys(ctx.config.columns["secrets"] ?? {});
+
   if (renamed.length > 0) {
     throw new TypeError(
       `blocks.credentials.columns.secrets: the managed module keeps credentials in Vault by name, so ${renamed.join(", ")} maps to nothing; adopt your own table with mode "adopt"`,
     );
   }
+
   const fn = (name: string): string => ctx.fn(name);
 
   return `${schemaPreamble(ctx)}

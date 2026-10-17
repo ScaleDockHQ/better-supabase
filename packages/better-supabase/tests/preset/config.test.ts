@@ -47,6 +47,7 @@ describe("expandPreset", () => {
       idType: "bigint",
       integrations: ["next"],
     });
+
     expect(expandPreset({ preset: code })).toEqual({
       preset: code,
       casing: "camel",
@@ -68,6 +69,7 @@ describe("expandPreset", () => {
       api: "api",
       access: "catalog",
     });
+
     const expanded = expandPreset({
       preset: code,
       casing: "snake",
@@ -77,6 +79,7 @@ describe("expandPreset", () => {
         tags: { mode: "managed" },
       },
     });
+
     expect(expanded.casing).toBe("snake");
     expect(expanded.sql).toEqual({ api: "api", schema: "app" });
     expect(expanded.blocks).toEqual({
@@ -112,8 +115,10 @@ describe("conventions", () => {
     const user = expandPreset({
       preset: encodePreset({ blocks: ["tags"], scope: "user" }),
     });
+
     expect(user.sql).toEqual({ scope: "user" });
     expect(user.blocks).toEqual({ tags: {} });
+
     const workspace = expandPreset({
       preset: encodePreset({
         blocks: ["organizations"],
@@ -121,6 +126,7 @@ describe("conventions", () => {
         api: "api",
       }),
     });
+
     expect(workspace.sql).toEqual({
       api: "api",
       naming: { tenant: "workspace" },

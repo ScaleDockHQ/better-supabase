@@ -23,11 +23,13 @@ describe("StatsCollector", () => {
   it("warns once a render goes idle over the budget", () => {
     vi.useFakeTimers();
     const log = logger();
+
     const collector = new StatsCollector({
       logger: log,
       warn: true,
       budget: { calls: 2, waves: 1 },
     });
+
     const recorder = collector.recorderFor("r1");
     expect(collector.recorderFor("r1")).toBe(recorder);
     recorder.begin("customers")();
@@ -43,12 +45,14 @@ describe("StatsCollector", () => {
   it("stays within budget quietly and forgets old requests", () => {
     vi.useFakeTimers();
     const log = logger();
+
     const collector = new StatsCollector({
       logger: log,
       warn: true,
       budget: { calls: 5 },
       maxEntries: 2,
     });
+
     collector.recorderFor("a").begin("customers")();
     collector.recorderFor("b");
     collector.recorderFor("c");
@@ -64,11 +68,13 @@ describe("sharedCollector", () => {
     vi.useFakeTimers();
     const strictLog = logger();
     const quietLog = logger();
+
     const strict = sharedCollector({
       logger: strictLog,
       warn: true,
       budget: { calls: 1 },
     });
+
     const quiet = sharedCollector({ logger: quietLog, warn: false });
     const strictRecorder = strict.recorderFor("shared-strict");
     strictRecorder.begin("customers")();

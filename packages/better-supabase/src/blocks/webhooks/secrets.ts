@@ -28,12 +28,14 @@ export function sqlSecretStore(
   options: { readonly schema?: string } = {},
 ): WebhookSecretStore {
   const schema = options.schema ?? DEFAULT_BLOCK_SCHEMA;
+
   return {
     apiVersion: 1,
     async secrets(endpointId) {
       const value = await transport.call(schema, "webhook_secrets", {
         endpoint: endpointId,
       });
+
       return Array.isArray(value)
         ? value.filter((entry): entry is string => typeof entry === "string")
         : [];
@@ -44,6 +46,7 @@ export function sqlSecretStore(
         overlap: rotateOptions.overlap,
         secret: rotateOptions.secret,
       });
+
       return String(value);
     },
   };

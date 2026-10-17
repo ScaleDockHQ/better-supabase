@@ -25,6 +25,7 @@ import {
 import { snapshotFixture as fixture } from "../fixtures/library.ts";
 
 const fixtureSnapshot = await parseSnapshot(fixture);
+
 // The fixture's own hook writes user_role; each test adds the hook it needs.
 const base: Snapshot = {
   ...fixtureSnapshot,
@@ -108,6 +109,7 @@ describe("hookGrantBlock", () => {
     const problems = hookGrantProblems(
       context(withHook([ungranted]), { config: OWN_HOOK }),
     );
+
     expect(problems.map((problem) => problem.fix)).toEqual([
       {
         kind: "provider",
@@ -123,6 +125,7 @@ describe("hookGrantBlock", () => {
 
   it("points at a grants migration the database has not applied", () => {
     const path = "supabase/migrations/2_authz_hook_grants.sql";
+
     const problems = hookGrantProblems(
       context(withHook([ungranted]), {
         config: OWN_HOOK,
@@ -134,6 +137,7 @@ describe("hookGrantBlock", () => {
         ],
       }),
     );
+
     expect(hookGrantBlock(problems, "migra").split("\n").at(-1)).toBe(
       `-- rbac.custom_access_token_hook(event jsonb) ([auth.hook.custom_access_token]): ${path} grants it; run \`supabase migration up\`.`,
     );
@@ -160,24 +164,30 @@ describe("BS308 tenant claim", () => {
       if (sql.includes("auth.users")) {
         return [{ event: user ? "{}" : null }] as R[];
       }
+
       if (sql.includes("pg_roles")) {
         return [{ member: true }] as R[];
       }
+
       if (sql.includes("as claims")) {
         if (claims instanceof Error) {
           throw claims;
         }
+
         return [{ claims }] as R[];
       }
+
       return [] as R[];
     },
   });
+
   const tenantConfig = resolveConfig(
     {
       blocks: { tenant: {}, access: { activeTenant: "claim" } },
     },
     "/project",
   );
+
   const run = (
     database: LiveDatabase,
     config = tenantConfig,
@@ -219,6 +229,7 @@ describe("BS308 tenant claim", () => {
       },
       "/project",
     );
+
     const empty = hookDatabase({});
     expect(await run(empty, resolver)).toEqual([]);
     expect(
@@ -242,6 +253,7 @@ describe("BS405 --as", () => {
         }),
         only("BS405"),
       );
+
     expect(await run()).toMatchObject([
       {
         severity: "info",
@@ -253,42 +265,51 @@ describe("BS405 --as", () => {
     expect(await run({ skipped: "a saved snapshot" })).toMatchObject([
       { message: expect.stringMatching(/--db-url-stdin\): a saved snapshot$/) },
     ]);
+
     const management: LiveDatabase = {
       describe: "api",
       session: false,
       query: () => Promise.resolve([]),
     };
+
     expect(await run(management)).toMatchObject([{ severity: "info" }]);
   });
 
   it("reports a hook call that fails, and rolls back", async () => {
     const queries: string[] = [];
+
     const database: LiveDatabase = {
       describe: "test",
       session: true,
       async query<R>(sql: string) {
         queries.push(sql);
+
         if (
           sql.includes("better_supabase.hook_event") &&
           sql.includes("auth.users")
         ) {
           return [{ event: "{}" }] as R[];
         }
+
         if (sql.includes("pg_roles")) {
           return [{ member: false }] as R[];
         }
+
         if (sql.includes("octet_length")) {
           throw new Error(
             "function rbac.custom_access_token_hook does not exist",
           );
         }
+
         return [] as R[];
       },
     };
+
     const findings = await runRules(
       context(withHook([hookFn()]), { database, hookUser: "u1" }),
       only("BS405"),
     );
+
     expect(findings).toMatchObject([
       {
         severity: "warning",
@@ -299,9 +320,11 @@ describe("BS405 --as", () => {
     ]);
     expect(queries).not.toContain("set local role supabase_auth_admin");
     expect(queries.at(-1)).toBe("rollback");
+
     const event = queries.find((sql) =>
       sql.includes("better_supabase.hook_event"),
     );
+
     expect(event).toContain("'amr', jsonb_build_array(");
     expect(event).toContain("'iss', 'https://doctor.invalid/auth/v1'");
   });
@@ -321,6 +344,7 @@ describe("BS405 --as", () => {
         ],
       },
     };
+
     const toml = `[auth.hook.send_email]\nenabled = true\nuri = "pg-functions://postgres/rbac/custom_access_token_hook"\n`;
     expect(
       await runRules(
@@ -345,15 +369,19 @@ describe("BS407", () => {
     expect(
       await runRules(context(withHook([hookFn()]), { config }), only("BS407")),
     ).toEqual([]);
+
     const lone = hookFn({
       source: "begin return jsonb_set(event, '{claims,roles}', r); end",
     });
+
     expect(
       await runRules(context(withHook([lone]), { config }), only("BS407")),
     ).toEqual([]);
+
     const writer = hookFn({
       source: "begin return jsonb_set(event, '{claims,memberships}', m); end",
     });
+
     expect(await runRules(context(withHook([writer])), only("BS407"))).toEqual(
       [],
     );
@@ -374,6 +402,7 @@ describe("BS410 HTTP auth hooks", () => {
         parser: "smol-toml",
       },
     });
+
   const secret = `v1,whsec_${btoa("k".repeat(32))}`;
 
   it("reports an HTTP hook and checks a secret read from env()", async () => {
@@ -382,6 +411,7 @@ enabled = true
 uri = "https://hooks.example.com/email"
 secrets = "env(SEND_EMAIL_HOOK_SECRET)"
 `;
+
     const unresolved = await runRules(httpContext(toml), only("BS410"));
     expect(unresolved).toMatchObject([
       {
@@ -392,16 +422,19 @@ secrets = "env(SEND_EMAIL_HOOK_SECRET)"
         location: { file: "supabase/config.toml", line: 1 },
       },
     ]);
+
     const interpolated = parseToml(
       toml.replace(
         "env(SEND_EMAIL_HOOK_SECRET)",
         `${secret}|v1,whsec_c2hvcnQ=`,
       ),
     );
+
     const findings = await runRules(
       httpContext(toml, interpolated),
       only("BS410"),
     );
+
     expect(findings.map((finding) => finding.severity)).toEqual([
       "info",
       "error",
@@ -426,6 +459,7 @@ uri = "http://127.0.0.1:3000/mfa"
 enabled = false
 uri = "https://off.example.com"
 `;
+
     const findings = await runRules(httpContext(toml), only("BS410"));
     expect(
       findings.map((finding) => [

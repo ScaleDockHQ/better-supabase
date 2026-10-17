@@ -26,6 +26,7 @@ export function InvitationList({
   const t = useExtracted("organization");
   const errorMessage = useErrorMessage();
   const format = useFormatter();
+
   const revoke = useAction(revokeInvitation, {
     onSuccess: () => {
       toast.success(t("Invitation revoked"));
@@ -34,8 +35,10 @@ export function InvitationList({
       toast.error(errorMessage(error));
     },
   });
+
   const revoking = (id: string) =>
     revoke.pendingInputs.some((input) => input.invitationId === id);
+
   if (invitations.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -43,6 +46,7 @@ export function InvitationList({
       </p>
     );
   }
+
   return (
     <ul className="divide-y" data-testid="invitations">
       {invitations.map((invitation) => (

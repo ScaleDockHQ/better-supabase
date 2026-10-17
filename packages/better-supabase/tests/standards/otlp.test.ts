@@ -22,6 +22,7 @@ describe(`OTLP/HTTP logs, JSON encoding (OTLP ${SPEC_PINS.otlp})`, () => {
         tenant: null,
       },
     );
+
     expect(encoded.headers["content-type"]).toBe("application/json");
     const request = JSON.parse(encoded.body);
     const record = request.resourceLogs[0].scopeLogs[0].logRecords[0];

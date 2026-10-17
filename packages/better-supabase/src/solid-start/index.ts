@@ -27,6 +27,7 @@ import { defaultExpose } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 
 export type { RefusalRedirects } from "../server/refusal.ts";
+
 export type { ActionResult } from "../server/kit.ts";
 
 /** The part of a SolidStart `FetchEvent` the integration reads and writes. */
@@ -123,19 +124,24 @@ export function createSolidStart<
   const server = createServer(betterSupabase, options);
   const expose = options.exposeErrors ?? defaultExpose();
   const run = beforeRoute([frameworkEntry(server, options, expose)]);
+
   type Locals = FrameworkLocals<M, F, E, C, P>;
 
   const eventOf = (): SolidFetchEvent => {
     const event = options.getRequestEvent();
+
     if (event === undefined || !("bs" in event.locals)) {
       throw new TypeError(
         'better-supabase: no request context; add createMiddleware(bs.middleware) in src/middleware.ts and call this inside a "use server" function',
       );
     }
+
     return event;
   };
+
   const scopeOf = (event: SolidFetchEvent): Locals => {
     const locals: object = event.locals;
+
     // SAFETY: onRequest put localsOf(contributions) on event.locals.
     return locals as Locals;
   };
@@ -146,22 +152,28 @@ export function createSolidStart<
         const env = options.platformEnv
           ? options.platformEnv(event)
           : event.nativeEvent?.context?.cloudflare?.env;
+
         const outcome = await run(event.request, env);
+
         if (!outcome.reached) {
           return outcome.response;
         }
+
         for (const cookie of outcome.headers.getSetCookie()) {
           event.response.headers.append("set-cookie", cookie);
         }
+
         for (const [name, value] of outcome.headers) {
           if (name !== "set-cookie") {
             event.response.headers.set(name, value);
           }
         }
+
         Object.assign(
           event.locals,
           localsOf<M, F, E, C, P>(outcome.contributions),
         );
+
         return;
       },
       onBeforeResponse: () => {
@@ -174,16 +186,19 @@ export function createSolidStart<
     require: async (requireOptions = {}) => {
       const event = eventOf();
       const scope = scopeOf(event);
+
       const caller = await requireCaller(
         scope.bs.auth,
         requireOptions,
         scope.tenant,
         options.authorizer,
       );
+
       if ("kind" in caller) {
         // oxlint-disable-next-line typescript/only-throw-error -- SolidStart sends a thrown Response from a server function as the answer.
         throw refusalResponse(caller, event.request, options, expose);
       }
+
       // SAFETY: requireTenant refused a missing tenant.
       return { ...scope, ...caller } as never;
     },
@@ -191,6 +206,7 @@ export function createSolidStart<
     action(actionOptions, fn) {
       return async (input) => {
         const scope = scopeOf(eventOf());
+
         const result = await runAction(
           scope.bs.auth,
           actionOptions,
@@ -202,6 +218,7 @@ export function createSolidStart<
             fn(parsed as never, { ...scope, ...caller } as never),
           options.authorizer,
         );
+
         // SAFETY: the settled data is what fn returned, unwrapped.
         return result as never;
       };

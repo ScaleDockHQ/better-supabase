@@ -34,10 +34,12 @@ export function keyValue(store: KeyValueStoreLike): KeyValue {
       remove: (key) => store.removeItem(key),
     };
   }
+
   return {
     get: (key) => Promise.resolve(store.getString(key) ?? null),
     set: (key, value) => {
       store.set(key, value);
+
       return Promise.resolve();
     },
     remove: (key) => {
@@ -46,6 +48,7 @@ export function keyValue(store: KeyValueStoreLike): KeyValue {
       } else {
         store.delete?.(key);
       }
+
       return Promise.resolve();
     },
   };

@@ -5,6 +5,7 @@ test("ticking comments switches on tenant and access, and the URL keeps the sele
   page,
 }) => {
   await page.goto("/create?preset=minimal");
+
   const block = (name: string) =>
     page.locator(`input[name="block"][value="${name}"]`);
 
@@ -14,10 +15,12 @@ test("ticking comments switches on tenant and access, and the URL keeps the sele
   await block("comments").check();
 
   await expect(block("comments")).toBeChecked();
+
   for (const name of ["tenant", "access"]) {
     await expect(block(name)).toBeChecked();
     await expect(block(name)).toBeDisabled();
   }
+
   await expect(page.getByText("Required by comments").first()).toBeVisible();
   await expect(page).toHaveURL(/\/create\?preset=[1-9A-Z][0-9A-Za-z]+$/);
   const code = new URL(page.url()).searchParams.get("preset") ?? "";

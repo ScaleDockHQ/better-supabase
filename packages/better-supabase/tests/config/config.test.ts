@@ -73,8 +73,10 @@ describe("resolveConfig access model", () => {
       { authorization: stubProvider, blocks: ["tenant", "access"] },
       "/app",
     );
+
     expect(listed.blocks.access?.model).toBe("provider");
     expect(listed.blockNames).toEqual(["tenant", "access"]);
+
     const keyed = resolveConfig(
       {
         authorization: stubProvider,
@@ -82,6 +84,7 @@ describe("resolveConfig access model", () => {
       },
       "/app",
     ).blocks.access;
+
     expect(keyed).toEqual({ idType: "uuid", model: "provider" });
   });
 
@@ -121,6 +124,7 @@ describe("resolveConfig sql defaults", () => {
       },
       "/app",
     );
+
     expect(blocks).toEqual({
       comments: { schema: "app", api: "api" },
       settings: { schema: "settings", api: "public_api" },
@@ -133,6 +137,7 @@ describe("resolveConfig sql defaults", () => {
       { sql: { api: "api" }, blocks: ["tags"] },
       "/app",
     );
+
     expect(blocks).toEqual({ tags: { api: "api" } });
     expect(blockNames).toEqual(["tags"]);
   });

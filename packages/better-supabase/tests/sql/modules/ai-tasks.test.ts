@@ -55,6 +55,7 @@ describe("ai-tasks module", () => {
 
   it("keeps the scheduler functions to the service role", () => {
     const sql = body();
+
     for (const name of [
       "claim_due_ai_tasks",
       "schedule_ai_tasks",

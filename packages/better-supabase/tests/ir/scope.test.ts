@@ -19,9 +19,11 @@ import { schema } from "../fixtures/generated-camel.ts";
 
 function table(key: string): TableMeta {
   const found = schema.meta.tables[key];
+
   if (!found) {
     throw new Error(`No fixture table ${key}`);
   }
+
   return found;
 }
 
@@ -47,9 +49,11 @@ function onNotes(
   where: Condition | undefined,
 ): Condition {
   const relation = customers.relations["notes"];
+
   if (!relation) {
     throw new Error("No notes relation");
   }
+
   return {
     kind: "relation",
     name: "notes",
@@ -62,9 +66,11 @@ function onNotes(
 
 function onOrganization(where: Condition | undefined): Condition {
   const relation = customers.relations["organization"];
+
   if (!relation) {
     throw new Error("No organization relation");
   }
+
   return {
     kind: "relation",
     name: "organization",
@@ -133,6 +139,7 @@ describe("scopeCondition", () => {
         onOrganization(undefined),
       ],
     };
+
     expect(scopeCondition(input, scopeFor)).toEqual({
       kind: "or",
       items: [
@@ -148,9 +155,11 @@ describe("scopeCondition", () => {
 
 const notesInclude = (overrides: Partial<Include> = {}): Include => {
   const relation = customers.relations["notes"];
+
   if (!relation) {
     throw new Error("No notes relation");
   }
+
   return {
     alias: "notes",
     relation,
@@ -170,20 +179,24 @@ describe("scopeSelection", () => {
       columns: [{ alias: "id", column: "id" }],
       includes: [],
     };
+
     expect(scopeSelection(selection, scopeFor)).toBe(selection);
   });
 
   it("scopes include filters and nested includes", () => {
     const customerRelation = notes.relations["customer"];
+
     if (!customerRelation) {
       throw new Error("No customer relation");
     }
+
     const nested: Include = {
       ...notesInclude(),
       alias: "customer",
       relation: customerRelation,
       target: customers,
     };
+
     const selection: Selection = {
       columns: [],
       includes: [
@@ -193,6 +206,7 @@ describe("scopeSelection", () => {
         }),
       ],
     };
+
     expect(scopeSelection(selection, scopeFor)).toEqual({
       columns: [],
       includes: [
@@ -207,10 +221,12 @@ describe("scopeSelection", () => {
 
 describe("scopeOperation", () => {
   const selection: Selection = { columns: [], includes: [notesInclude()] };
+
   const scopedSelection: Selection = {
     columns: [],
     includes: [notesInclude({ where: tenant })],
   };
+
   const id = column("id", "eq", "c1");
 
   it("scopes the root rows, filters and includes of a select", () => {
@@ -226,6 +242,7 @@ describe("scopeOperation", () => {
       head: false,
       single: undefined,
     };
+
     expect(scopeOperation(op, scopeFor)).toEqual({
       ...op,
       selection: scopedSelection,
@@ -240,6 +257,7 @@ describe("scopeOperation", () => {
       where: id,
       returning: undefined,
     };
+
     expect(scopeOperation(op, scopeFor, false)).toEqual(op);
   });
 
@@ -256,6 +274,7 @@ describe("scopeOperation", () => {
               returning: selection,
             }
           : { kind, table: customers, where: undefined, returning: selection };
+
       expect(scopeOperation(op, scopeFor)).toEqual({
         ...op,
         where: live,
@@ -272,6 +291,7 @@ describe("scopeOperation", () => {
       where: id,
       returning: undefined,
     };
+
     expect(scopeOperation(op, scopeFor)).toEqual({
       ...op,
       where: { kind: "and", items: [id, live] },
@@ -286,6 +306,7 @@ describe("scopeOperation", () => {
       onConflict: undefined,
       defaultToNull: false,
     } as const;
+
     expect(scopeOperation({ ...base, returning: selection }, scopeFor)).toEqual(
       {
         ...base,

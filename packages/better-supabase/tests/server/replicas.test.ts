@@ -18,11 +18,13 @@ import { schema } from "../fixtures/generated-camel.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 const READ_URL = "https://abcdefghijklmnopqrst-all.supabase.co";
+
 const env = {
   url: PROJECT_URL,
   publishableKey: "sb_publishable_test",
   jwksUrl: new URL(`${PROJECT_URL}/auth/v1/.well-known/jwks.json`),
 };
+
 const signer = await createTestSigner();
 
 afterEach(() => {
@@ -34,6 +36,7 @@ function recording(name: string, calls: string[], fail = false): Executor {
     name,
     execute: (op: Operation) => {
       calls.push(`${name}:${op.kind}`);
+
       return Promise.resolve(
         fail
           ? err({ kind: "conflict", message: "no", status: 409 } as never)
@@ -42,6 +45,7 @@ function recording(name: string, calls: string[], fail = false): Executor {
     },
     rpc: (fn, _args, context) => {
       calls.push(`${name}:rpc:${fn}:${context.get ? "get" : "post"}`);
+
       return Promise.resolve(ok(null));
     },
   };
@@ -55,11 +59,13 @@ describe("routedExecutor", () => {
   it("reads from the replica until a write succeeds", async () => {
     const calls: string[] = [];
     const state = replicaState();
+
     const executor = routedExecutor(
       recording("primary", calls),
       recording("replica", calls),
       state,
     );
+
     await executor.execute(select, context);
     await executor.rpc!(
       "stats",
@@ -87,11 +93,13 @@ describe("routedExecutor", () => {
   it("stays on the replica after a failed write and pins after a volatile rpc", async () => {
     const calls: string[] = [];
     const state = replicaState();
+
     const failing = routedExecutor(
       recording("primary", calls, true),
       recording("replica", calls),
       state,
     );
+
     await failing.execute(insert, context);
     expect(state.pinned).toBe(false);
     await failing.rpc!("touch", {}, { ...context, schema: "public" });
@@ -117,25 +125,32 @@ describe("routedExecutor", () => {
 describe("createServer read URL", () => {
   const hosts = () => {
     const seen: string[] = [];
+
     const fetch = vi.fn<typeof globalThis.fetch>((input, init) => {
       seen.push(`${init?.method ?? "GET"} ${new URL(String(input)).host}`);
+
       return Promise.resolve(
         Response.json(init?.method === "POST" ? [{ id: "c1" }] : []),
       );
     });
+
     vi.stubGlobal("fetch", fetch);
+
     return seen;
   };
 
   it("reads from SUPABASE_READ_URL and writes to the primary", async () => {
     const seen = hosts();
+
     const server = createServer(defineSupabase(schema), {
       env: { ...env, readUrl: READ_URL },
       auth: { jwks: signer.jwks as never },
     });
+
     const token = await signer.sign({
       sub: "11111111-1111-4111-8111-111111111111",
     });
+
     const request = (cookie?: string) =>
       new Request("https://app.test/", {
         headers: {
@@ -155,6 +170,7 @@ describe("createServer read URL", () => {
     const pinned = await server.context(
       request(`${PRIMARY_COOKIE}=${String(Date.now() + 5000)}`),
     );
+
     await pinned.db.customers.findMany({ select: ["id"] }).orThrow();
     expect(pinned.replica).toMatchObject({ pinned: true, wrote: false });
 
@@ -168,6 +184,7 @@ describe("createServer read URL", () => {
 
   it("reads from the primary with readUrl: false or no read URL", async () => {
     const seen = hosts();
+
     for (const options of [
       { env: { ...env, readUrl: READ_URL }, readUrl: false as const },
       { env },
@@ -177,6 +194,7 @@ describe("createServer read URL", () => {
       await ctx.db.customers.findMany({ select: ["id"] }).orThrow();
       expect(ctx.replica).toBeUndefined();
     }
+
     expect(seen).toEqual([
       "GET abcdefghijklmnopqrst.supabase.co",
       "GET abcdefghijklmnopqrst.supabase.co",

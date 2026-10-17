@@ -27,6 +27,7 @@ const instances = new Map<DurableAgent, DurableChat>();
 /** One durable chat per agent and process. */
 export function durable(agent: DurableAgent = "assistant"): DurableChat {
   let instance = instances.get(agent);
+
   if (instance === undefined) {
     instance = durableChat({
       assistant: assistant(),
@@ -39,6 +40,7 @@ export function durable(agent: DurableAgent = "assistant"): DurableChat {
     });
     instances.set(agent, instance);
   }
+
   return instance;
 }
 
@@ -55,6 +57,7 @@ export async function agentOf(request: Request): Promise<DurableAgent> {
       .json()
       .catch(() => null),
   );
+
   return body.success ? body.output.agent : "assistant";
 }
 

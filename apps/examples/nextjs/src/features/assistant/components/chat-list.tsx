@@ -20,6 +20,7 @@ export async function ChatList() {
     getExtracted("assistant"),
     getFormatter(),
   ]);
+
   if (chats.length === 0) {
     return (
       <Empty className="border">
@@ -35,6 +36,7 @@ export async function ChatList() {
       </Empty>
     );
   }
+
   return (
     <ul className="divide-y rounded-xl border">
       {chats.map((chat) => (

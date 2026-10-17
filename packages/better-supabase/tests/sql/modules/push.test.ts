@@ -35,6 +35,7 @@ describe("push module", () => {
 
   it("keeps token reads and pruning for the service role", () => {
     const sql = body();
+
     for (const signature of [
       '"push_tokens_for"(uuid[])',
       '"prune_push_tokens"(text[])',
@@ -46,6 +47,7 @@ describe("push module", () => {
         `grant execute on function "better_supabase".${signature} to service_role;`,
       );
     }
+
     expect(sql).toContain("hint = 'PUSH_FORBIDDEN'");
     expect(sql).toContain("hint = 'PUSH_TOO_MANY'");
     expect(sql.match(/security definer/g)).toHaveLength(4);

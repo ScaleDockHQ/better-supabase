@@ -128,6 +128,7 @@ function adoptXid(n: Names): string {
   if (!n.has("xid")) {
     return "";
   }
+
   return `
 alter table ${n.t} add column if not exists ${n.e("xid")} xid8 not null default pg_current_xact_id();
 create index if not exists outbox_events_xid_idx on ${n.t} (${n.e("xid")}, ${n.e("position")});`;
@@ -137,7 +138,9 @@ function tables(ctx: ModuleContext, n: Names): string {
   if (!ctx.manages) {
     return `${adoptXid(n)}${consumersTable(n)}`;
   }
+
   const samePosition = n.e("position") === n.e("id");
+
   const columns = [
     samePosition
       ? `${n.e("id")} bigint generated always as identity primary key`
@@ -157,14 +160,17 @@ function tables(ctx: ModuleContext, n: Names): string {
       ? `${n.e("xid")} xid8 not null default pg_current_xact_id()`
       : undefined,
   ].filter((line) => line !== undefined);
+
   const keyIndex = n.has("key")
     ? n.has("tenant")
       ? `\ncreate unique index if not exists outbox_events_key_idx on ${n.t} (${n.e("key")}, ${n.e("tenant")}) nulls not distinct where ${n.e("key")} is not null;`
       : `\ncreate unique index if not exists outbox_events_key_idx on ${n.t} (${n.e("key")}) where ${n.e("key")} is not null;`
     : "";
+
   const subjectIndex = n.has("subject")
     ? `\ncreate index if not exists outbox_events_subject_idx on ${n.t} (${n.e("subject")}, ${n.e("position")});`
     : "";
+
   return `
 create table if not exists ${n.t} (
   ${columns.join(",\n  ")}
@@ -182,6 +188,7 @@ ${consumersTable(n)}`;
 function eventJson(n: Names, row: string): string {
   const optional = (logical: string, key: string) =>
     n.has(logical) ? `,\n    '${key}', ${row}.${n.e(logical)}` : "";
+
   return `jsonb_build_object(
     'position', ${row}.${n.e("position")},
     'id', ${row}.${n.e("id")},
@@ -196,6 +203,7 @@ function emit(ctx: ModuleContext, n: Names): string {
     [n.e("type"), "event_type"],
     [n.e("payload"), "coalesce(payload, '{}')"],
   ];
+
   if (n.has("source")) {
     const fallback = ctx.text("defaultSource", "");
     insert.push([
@@ -203,21 +211,27 @@ function emit(ctx: ModuleContext, n: Names): string {
       fallback ? `coalesce(source, ${sqlString(fallback)})` : "source",
     ]);
   }
+
   if (n.has("subject")) {
     insert.push([n.e("subject"), "coalesce(subject, payload ->> 'subject')"]);
   }
+
   if (n.has("tenant")) {
     insert.push([n.e("tenant"), `tenant::${ctx.idType}`]);
   }
+
   if (n.has("key")) {
     insert.push([n.e("key"), "key"]);
   }
+
   if (n.has("actor")) {
     insert.push([n.e("actor"), "auth.uid()"]);
   }
+
   const sameTenant = n.has("tenant")
     ? ` and e.${n.e("tenant")} is not distinct from tenant::${ctx.idType}`
     : "";
+
   const existing = n.has("key")
     ? `
   if key is not null then
@@ -228,6 +242,7 @@ function emit(ctx: ModuleContext, n: Names): string {
     end if;
   end if;`
     : "";
+
   const retry = n.has("key")
     ? `
   if found_id is null then
@@ -236,7 +251,9 @@ function emit(ctx: ModuleContext, n: Names): string {
     where e.${n.e("key")} = key${sameTenant};
   end if;`
     : "";
+
   const roles = ctx.list("emitRoles", ["service_role"]);
+
   for (const role of roles) {
     if (!/^[a-z_][a-z0-9_]*$/.test(role)) {
       throw new TypeError(
@@ -244,7 +261,9 @@ function emit(ctx: ModuleContext, n: Names): string {
       );
     }
   }
+
   const signature = `${ctx.fn("emit_event")}(text, jsonb, text, text, text, text)`;
+
   return `
 -- create or replace can't change the return type of an earlier install.
 drop function if exists ${signature};
@@ -285,40 +304,53 @@ grant execute on function ${signature} to ${[...new Set(["service_role", ...role
 function consumers(ctx: ModuleContext, n: Names): string {
   const byXid = n.has("xid");
   const settle = ctx.text("settle", "5 seconds");
+
   if (!byXid && /^\s*0+(\.0+)?\s*[a-z]*\s*$/i.test(settle)) {
     throw new TypeError(
       "blocks.outbox.options.settle must be longer than zero: without the xid column it is how long a slow commit has to show up",
     );
   }
+
   const pos = (row: string) => `${row}.${n.e("position")}`;
+
   // (xid, position) when the xid column exists, else the position alone.
   const key = (row: string) =>
     byXid ? `(${row}.${n.e("xid")}, ${pos(row)})` : pos(row);
+
   const cursor = (row: string) =>
     byXid
       ? `(${row}.${n.k("cursorXid")}, ${row}.${n.k("cursor")})`
       : `${row}.${n.k("cursor")}`;
+
   const order = (row: string, direction = "") =>
     byXid
       ? `${row}.${n.e("xid")}${direction}, ${pos(row)}${direction}`
       : `${pos(row)}${direction}`;
+
   const settled = byXid
     ? `e.${n.e("xid")} < pg_snapshot_xmin(pg_current_snapshot())`
     : `e.${n.e("createdAt")} < now() - ${sqlString(settle)}::interval`;
+
   const xidOf = (row: string) => (byXid ? `${row}.${n.e("xid")}` : `'0'::xid8`);
+
   const matches = `(c.${n.k("types")} is null or exists (
         select 1 from unnest(c.${n.k("types")}) p
         where p = '*' or p = e.${n.e("type")}
           or (right(p, 2) = '.*' and starts_with(e.${n.e("type")}, left(p, -1)))
       ))`;
+
   const history = ctx.fn("outbox_history").split(".").at(-1);
+
   const subjectFilter = n.has("subject")
     ? `(${history}.subject is null or e.${n.e("subject")} = ${history}.subject)`
     : `${history}.subject is null`;
+
   const service = (fn: string, args: string) =>
     `revoke execute on function ${ctx.fn(fn)}(${args}) from public, anon, authenticated;
 grant execute on function ${ctx.fn(fn)}(${args}) to service_role;`;
+
   const retention = sqlString(ctx.text("retention", "30 days"));
+
   return `
 drop function if exists ${ctx.fn("purge_outbox")}(interval);
 -- The signature before purge_outbox could pass over idle consumers.
@@ -608,6 +640,7 @@ function tracking(ctx: ModuleContext): string {
   const trigger = ctx.trigger("outbox_events");
   const updateTrigger = ctx.trigger("outbox_events_update");
   const run = ctx.fn("outbox_row_event").replaceAll("%", "%%");
+
   return `
 -- A row trigger that emits <prefix>.created, .updated and .deleted with the
 -- row as payload. prefix defaults to the table name.
@@ -660,7 +693,9 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const n = names(ctx);
+
   return [
     `${schemaPreamble(ctx)}${tables(ctx, n)}`,
     emit(ctx, n),

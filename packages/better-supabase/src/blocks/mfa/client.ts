@@ -86,6 +86,7 @@ const toFactor = (raw: RawMfaFactor): MfaFactor => ({
 
 async function readAssurance(mfa: MfaApi): Promise<Result<MfaAssurance>> {
   const result = await authResult(() => mfa.getAuthenticatorAssuranceLevel());
+
   return result.ok
     ? ok({
         level: toAal(result.data.currentLevel),
@@ -96,6 +97,7 @@ async function readAssurance(mfa: MfaApi): Promise<Result<MfaAssurance>> {
 
 async function readFactors(mfa: MfaApi): Promise<Result<readonly MfaFactor[]>> {
   const result = await authResult(() => mfa.listFactors());
+
   return result.ok ? ok(result.data.all.map(toFactor)) : result;
 }
 
@@ -149,6 +151,7 @@ export function createMfaController(
   options: MfaControllerOptions,
 ): MfaController {
   const { mfa } = options;
+
   return defineController<MfaSnapshot, MfaActions>(
     {
       factors: undefined,
@@ -160,36 +163,48 @@ export function createMfaController(
     },
     (state) => {
       let ticket = 0;
+
       const refresh = async (): Promise<void> => {
         const request = ++ticket;
+
         const [factors, assurance] = await Promise.all([
           readFactors(mfa),
           readAssurance(mfa),
         ]);
+
         if (request !== ticket) {
           return;
         }
+
         if (!factors.ok) {
           state.set({ error: factors.error });
+
           return;
         }
+
         if (!assurance.ok) {
           state.set({ error: assurance.error });
+
           return;
         }
+
         state.set({ factors: factors.data, ...assurance.data });
       };
+
       const settle = async <T>(result: Result<T>): Promise<Result<T>> => {
         state.set(
           result.ok
             ? { pending: false }
             : { pending: false, error: result.error },
         );
+
         if (result.ok) {
           await refresh();
         }
+
         return result;
       };
+
       return {
         actions: {
           refresh,
@@ -198,6 +213,7 @@ export function createMfaController(
           },
           enroll: async (input) => {
             state.set({ pending: true, error: undefined });
+
             const result = await authResult(() =>
               mfa.enroll({
                 factorType: "totp",
@@ -209,6 +225,7 @@ export function createMfaController(
                   : { issuer: options.issuer }),
               }),
             );
+
             const enrolled: Result<MfaEnrollment> = result.ok
               ? ok({
                   factorId: result.data.id,
@@ -217,33 +234,43 @@ export function createMfaController(
                   uri: result.data.totp.uri,
                 })
               : result;
+
             if (enrolled.ok) {
               state.set({ enrollment: enrolled.data });
             }
+
             return settle(enrolled);
           },
           verify: async (code) => {
             const enrollment = state.get().enrollment;
+
             if (enrollment === undefined) {
               return err(
                 dbError("invalid_input", "Enrol a factor before verifying it"),
               );
             }
+
             state.set({ pending: true, error: undefined });
+
             const verified = await authResult(() =>
               mfa.challengeAndVerify({ factorId: enrollment.factorId, code }),
             );
+
             if (!verified.ok) {
               return settle<MfaAssurance>(err(verified.error));
             }
+
             state.set({ enrollment: undefined });
+
             return settle<MfaAssurance>(await readAssurance(mfa));
           },
           cancel: async () => {
             const enrollment = state.get().enrollment;
+
             if (enrollment === undefined) {
               return;
             }
+
             state.set({ enrollment: undefined, pending: true });
             await settle(
               await authResult(() =>
@@ -254,12 +281,14 @@ export function createMfaController(
           unenroll: async (factorId) => {
             state.set({ pending: true, error: undefined });
             const result = await authResult(() => mfa.unenroll({ factorId }));
+
             return settle(result.ok ? ok(true) : result);
           },
         },
         start: () =>
           whileSignedIn(options.auth, () => {
             void refresh();
+
             return;
           }),
       };
@@ -306,6 +335,7 @@ export function createStepUpController(
   options: StepUpControllerOptions,
 ): StepUpController {
   const { mfa } = options;
+
   return defineController<StepUpSnapshot, StepUpActions>(
     {
       factors: undefined,
@@ -317,32 +347,42 @@ export function createStepUpController(
     },
     (state) => {
       let ticket = 0;
+
       const assured = (assurance: MfaAssurance): Partial<StepUpSnapshot> => ({
         ...assurance,
         satisfied: assurance.level === "aal2",
       });
+
       const refresh = async (): Promise<void> => {
         const request = ++ticket;
+
         const [factors, assurance] = await Promise.all([
           readFactors(mfa),
           readAssurance(mfa),
         ]);
+
         if (request !== ticket) {
           return;
         }
+
         if (!factors.ok) {
           state.set({ error: factors.error });
+
           return;
         }
+
         if (!assurance.ok) {
           state.set({ error: assurance.error });
+
           return;
         }
+
         state.set({
           factors: factors.data.filter((factor) => factor.verified),
           ...assured(assurance.data),
         });
       };
+
       return {
         actions: {
           refresh,
@@ -351,30 +391,38 @@ export function createStepUpController(
           },
           verify: async (code, factorId) => {
             const id = factorId ?? state.get().factors?.[0]?.id;
+
             if (id === undefined) {
               const missing = dbError(
                 "invalid_input",
                 "No verified factor to challenge",
               );
+
               state.set({ error: missing });
+
               return err(missing);
             }
+
             state.set({ verifying: true, error: undefined });
+
             const verified = await authResult(() =>
               mfa.challengeAndVerify({ factorId: id, code }),
             );
+
             const result = verified.ok ? await readAssurance(mfa) : verified;
             state.set(
               result.ok
                 ? { verifying: false, ...assured(result.data) }
                 : { verifying: false, error: result.error },
             );
+
             return result;
           },
         },
         start: () =>
           whileSignedIn(options.auth, () => {
             void refresh();
+
             return;
           }),
       };

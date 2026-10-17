@@ -61,18 +61,22 @@ export function linkParams(url: string): ReadonlyMap<string, string> {
   const params = new Map<string, string>();
   const hash = url.indexOf("#");
   const query = url.indexOf("?");
+
   const parts = [
     query === -1 ? "" : url.slice(query + 1, hash > query ? hash : undefined),
     hash === -1 ? "" : url.slice(hash + 1),
   ];
+
   for (const part of parts) {
     for (const pair of part.split("&")) {
       if (pair === "") {
         continue;
       }
+
       const at = pair.indexOf("=");
       const name = at === -1 ? pair : pair.slice(0, at);
       const value = at === -1 ? "" : pair.slice(at + 1);
+
       try {
         params.set(
           decodeURIComponent(name.replaceAll("+", " ")),
@@ -83,6 +87,7 @@ export function linkParams(url: string): ReadonlyMap<string, string> {
       }
     }
   }
+
   return params;
 }
 
@@ -91,6 +96,7 @@ const settle = async (
   via: "code" | "tokens" | "otp",
 ): Promise<AuthLinkResult> => {
   const { error } = await reply;
+
   return error ? { type: "error", error } : { type: "signed-in", via };
 };
 
@@ -109,19 +115,25 @@ export function handleAuthDeepLink(
 ): Promise<AuthLinkResult> {
   const params = linkParams(url);
   const failure = params.get("error_description") ?? params.get("error");
+
   if (failure !== undefined) {
     const code = params.get("error_code") ?? params.get("error");
+
     return Promise.resolve({
       type: "error",
       error: { message: failure, ...(code ? { code } : {}) },
     });
   }
+
   const code = params.get("code");
+
   if (code) {
     return settle(supabase.auth.exchangeCodeForSession(code), "code");
   }
+
   const access = params.get("access_token");
   const refresh = params.get("refresh_token");
+
   if (access && refresh) {
     return settle(
       supabase.auth.setSession({
@@ -131,14 +143,17 @@ export function handleAuthDeepLink(
       "tokens",
     );
   }
+
   const tokenHash = params.get("token_hash");
   const type = params.get("type");
+
   if (tokenHash && type && isOtpType(type)) {
     return settle(
       supabase.auth.verifyOtp({ token_hash: tokenHash, type }),
       "otp",
     );
   }
+
   return Promise.resolve({ type: "none" });
 }
 
@@ -202,18 +217,23 @@ export async function signInWithOAuthBrowser(
         : {}),
     },
   });
+
   if (error) {
     return { type: "error", error };
   }
+
   if (!data.url) {
     return { type: "error", error: { message: "No OAuth URL was returned" } };
   }
+
   const session = await browser.openAuthSessionAsync(
     data.url,
     options.redirectTo,
   );
+
   if (session.type !== "success" || !session.url) {
     return { type: "none" };
   }
+
   return handleAuthDeepLink(supabase, session.url);
 }

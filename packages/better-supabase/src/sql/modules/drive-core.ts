@@ -63,6 +63,7 @@ export function driveCoreSql(kit: DriveKit): string {
     directGrant,
     siblings,
   } = kit;
+
   const tables = ctx.manages
     ? `create table if not exists ${T} (
   ${n("id")} uuid primary key default gen_random_uuid(),
@@ -111,6 +112,7 @@ ${lockTable(G, { read: false })}
     select x.${n("id")}, x.${n("parent")}, up.depth + 1 from ${T} x join up on x.${n("id")} = up.parent where up.depth < 256
   )
   select array_agg(up.id order by up.depth desc) from up`;
+
   const subtree = pathMode
     ? `  select x.${n("id")}, (length(x.${n("path")}) - length(replace(x.${n("path")}, '/', ''))) - (length(r.${n("path")}) - length(replace(r.${n("path")}, '/', '')))
   from ${T} r join ${T} x on x.${n("path")} like r.${n("path")} || '%'
@@ -182,21 +184,26 @@ create trigger ${ctx.trigger("drive_node_moved")}
   const grantColumns = typed
     ? `${g("tenant")}, ${g("node")}, ${g("principalType")}, ${g("principalId")}, ${g("role")}${expiring ? `, ${g("expiresAt")}` : ""}${ctx.has("grants", "createdBy") ? `, ${g("createdBy")}` : ""}`
     : `${g("tenant")}, ${g("node")}, ${g("user")}${teamColumn ? `, ${g("team")}` : ""}, ${g("role")}${expiring ? `, ${g("expiresAt")}` : ""}${ctx.has("grants", "createdBy") ? `, ${g("createdBy")}` : ""}`;
+
   // The team id comes from the teams table, so it has the adopted column's type.
   const teamValue =
     teams === undefined
       ? "null"
       : `case when v_type = 'team' then (select t.${teams.col("teams", "id")} from ${teams.table("teams")} t where t.${teams.col("teams", "id")}::text = drive_share.principal_id) end`;
+
   const grantValues = typed
     ? `v_node.${n("tenant")}, v_node.${n("id")}, v_type, drive_share.principal_id, drive_share.role${expiring ? ", drive_share.expires_at" : ""}${ctx.has("grants", "createdBy") ? ", auth.uid()" : ""}`
     : `v_node.${n("tenant")}, v_node.${n("id")}, case when v_type = 'user' then drive_share.principal_id::uuid end${teamColumn ? `, ${teamValue}` : ""}, drive_share.role${expiring ? ", drive_share.expires_at" : ""}${ctx.has("grants", "createdBy") ? ", auth.uid()" : ""}`;
+
   const samePrincipal = (alias: string): string =>
     `${principalType(alias)} = v_type and ${principalId(alias)} = drive_share.principal_id`;
+
   const principalTypes = typed
     ? "('user', 'team', 'role')"
     : teamColumn
       ? "('user', 'team')"
       : "('user')";
+
   const teamExists =
     teams === undefined
       ? "false"

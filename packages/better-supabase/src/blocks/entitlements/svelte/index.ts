@@ -13,7 +13,9 @@ import {
 import { createFeatureGateController } from "../client.ts";
 
 export type { BlockOptions } from "../../block-env.ts";
+
 export type { SvelteController } from "../../svelte-controller.ts";
+
 export type {
   FeatureGateActions,
   FeatureGateControllerOptions,

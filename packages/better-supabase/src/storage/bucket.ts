@@ -448,12 +448,15 @@ export function parseSize(value: string | number): number {
   if (typeof value === "number") {
     return value;
   }
+
   const match = /^\s*(\d+(?:\.\d+)?)\s*([a-z]*)\s*$/i.exec(value);
   // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- an empty unit means bytes.
   const unit = SIZE_UNITS[(match?.[2] || "b").toLowerCase()];
+
   if (!match || unit === undefined) {
     throw new TypeError(`Invalid size "${value}"`);
   }
+
   return Math.round(Number(match[1]) * unit);
 }
 
@@ -465,6 +468,7 @@ export function parseSize(value: string | number): number {
  */
 function segmentCheck(index: number, value: string): string {
   const equal = `split_part(name, '/', ${String(index)}) = ${value}`;
+
   return index === 1
     ? `name collate "C" >= (${value} || '/') and name collate "C" < (${value} || '0') and ${equal}`
     : equal;
@@ -472,8 +476,10 @@ function segmentCheck(index: number, value: string): string {
 
 function mimeAllowed(allowed: readonly string[], type: string): boolean {
   const base = type.split(";")[0]!.trim().toLowerCase();
+
   return allowed.some((entry) => {
     const pattern = entry.toLowerCase();
+
     return pattern.endsWith("/*")
       ? base.startsWith(pattern.slice(0, -1))
       : base === pattern;
@@ -490,6 +496,7 @@ function sizeLabel(bytes: number): string {
       return `${String(bytes / size)}${unit}`;
     }
   }
+
   return `${String(bytes)}B`;
 }
 
@@ -514,30 +521,39 @@ export function defineBucket<
 >(config: BucketConfig<P, Id>): Bucket<P, Id> {
   const layouts = pathLayouts(config.id, config.path, sqlString);
   const policy = config.policy ?? "none";
+
   const fileSizeLimit =
     config.fileSizeLimit === undefined
       ? undefined
       : parseSize(config.fileSizeLimit);
+
   const allowedMimeTypes = config.allowedMimeTypes;
   const versioning = config.versioning ?? false;
+
   if (config.lifecycle && !versioning) {
     throw new TypeError(
       `defineBucket("${config.id}"): lifecycle expires noncurrent versions, so it needs versioning: true`,
     );
   }
+
   const lifecycle = config.lifecycle
     ? lifecyclePayload(config.id, config.lifecycle)
     : undefined;
+
   const segmentFor = (param: string, kind: string): number =>
     layouts.segmentOf(param, kind);
+
   const tenantParam = config.tenant
     ? (config.tenant.param ?? "organizationId")
     : undefined;
+
   if (tenantParam !== undefined) {
     layouts.requireParam(tenantParam, "tenant.param");
   }
+
   const tenantClaim = config.tenant?.claim;
   const mode = typeof policy === "string" ? policy : "access";
+
   const accessCheck = ((): string | undefined => {
     switch (mode) {
       case "tenant": {
@@ -545,20 +561,26 @@ export function defineBucket<
           config.tenant?.param ?? "organizationId",
           "tenant",
         );
+
         const expression =
           config.tenant?.sql ??
           claimSql(config.tenant?.claim ?? tenantClaimPaths());
+
         return segmentCheck(index, `(${expression})`);
       }
+
       case "owner": {
         const index = segmentFor(config.owner?.param ?? "userId", "owner");
+
         return segmentCheck(index, "(select auth.uid())::text");
       }
+
       case "public":
       case "none":
       case "access": {
         return undefined;
       }
+
       default: {
         const unknown: never = mode;
         throw new TypeError(
@@ -567,6 +589,7 @@ export function defineBucket<
       }
     }
   })();
+
   const permission = policyChecks(config, policy, (kind) =>
     segmentFor(config.tenant?.param ?? "organizationId", kind),
   );
@@ -577,6 +600,7 @@ export function defineBucket<
       // the bucket's paths.
       return layouts.build(target) as StoragePath<Id>;
     }
+
     if (!layouts.match(target)) {
       throw new DbException(
         dbError(
@@ -585,6 +609,7 @@ export function defineBucket<
         ),
       );
     }
+
     // SAFETY: template.match accepted the path above.
     return target as StoragePath<Id>;
   };
@@ -604,6 +629,7 @@ export function defineBucket<
         { status: 413 },
       );
     }
+
     if (
       allowedMimeTypes &&
       file.type &&
@@ -613,6 +639,7 @@ export function defineBucket<
         status: 415,
       });
     }
+
     return undefined;
   };
 
@@ -651,6 +678,7 @@ export function defineBucket<
     sql() {
       const id = sqlString(config.id);
       const name = slug(config.id);
+
       const lines = [
         `-- better-supabase: bucket ${config.id} (${layouts.sources.join(", ")})`,
         "insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)",
@@ -662,6 +690,7 @@ export function defineBucket<
         "on conflict (id) do update set public = excluded.public, file_size_limit = excluded.file_size_limit,",
         "  allowed_mime_types = excluded.allowed_mime_types;",
       ];
+
       const policies: [
         string,
         string,
@@ -669,8 +698,10 @@ export function defineBucket<
         string | undefined,
         string | undefined,
       ][] = [];
+
       const inBucket = `bucket_id = ${id}`;
       const pathMatch = layouts.sqlMatch;
+
       if (accessCheck) {
         const using = `${inBucket} and ${accessCheck}`;
         const write = `${using} and ${pathMatch}`;
@@ -694,6 +725,7 @@ export function defineBucket<
         ]);
       } else if (permission) {
         const listing = `storage.allow_any_operation(array[${LIST_OPERATIONS.map(sqlString).join(", ")}])`;
+
         if (permission.list) {
           policies.push(
             [
@@ -720,6 +752,7 @@ export function defineBucket<
             undefined,
           ]);
         }
+
         const write = `${inBucket} and ${permission.write}`;
         policies.push(
           [
@@ -745,6 +778,7 @@ export function defineBucket<
           ],
         );
       }
+
       for (const [suffix, command, roles, using, withCheck] of policies) {
         const policyName = sqlIdent(`bs_${name}_${suffix}`);
         lines.push(
@@ -755,12 +789,14 @@ export function defineBucket<
           }${withCheck ? `\n  with check (${withCheck})` : ""};`,
         );
       }
+
       if (permission && !permission.list) {
         lines.push(
           "",
           `drop policy if exists ${sqlIdent(`bs_${name}_list`)} on storage.objects;`,
         );
       }
+
       return `${lines.join("\n")}\n`;
     },
     toml() {
@@ -768,16 +804,19 @@ export function defineBucket<
         `[storage.buckets.${config.id}]`,
         `public = ${String(bucket.public)}`,
       ];
+
       if (config.fileSizeLimit !== undefined) {
         lines.push(
           `file_size_limit = "${typeof config.fileSizeLimit === "number" ? sizeLabel(config.fileSizeLimit) : config.fileSizeLimit}"`,
         );
       }
+
       if (allowedMimeTypes) {
         lines.push(
           `allowed_mime_types = [${allowedMimeTypes.map((type) => JSON.stringify(type)).join(", ")}]`,
         );
       }
+
       return `${lines.join("\n")}\n`;
     },
     drift(actual) {
@@ -791,7 +830,9 @@ export function defineBucket<
           },
         ];
       }
+
       const issues: BucketDrift[] = [];
+
       if (actual.public !== bucket.public) {
         issues.push({
           field: "public",
@@ -800,6 +841,7 @@ export function defineBucket<
           message: `Bucket "${config.id}" public is ${String(actual.public)}`,
         });
       }
+
       if ((actual.fileSizeLimit ?? undefined) !== fileSizeLimit) {
         issues.push({
           field: "fileSizeLimit",
@@ -808,8 +850,10 @@ export function defineBucket<
           message: `Bucket "${config.id}" file size limit differs`,
         });
       }
+
       const sorted = (list: readonly string[] | null | undefined) =>
         list ? [...list].sort().join(",") : "";
+
       if (sorted(actual.allowedMimeTypes) !== sorted(allowedMimeTypes)) {
         issues.push({
           field: "allowedMimeTypes",
@@ -818,6 +862,7 @@ export function defineBucket<
           message: `Bucket "${config.id}" allowed MIME types differ`,
         });
       }
+
       if (
         actual.versioning !== undefined &&
         actual.versioning !== null &&
@@ -830,6 +875,7 @@ export function defineBucket<
           message: `Bucket "${config.id}" versioning is ${actual.versioning}`,
         });
       }
+
       if (
         actual.lifecycle !== undefined &&
         !sameLifecycle(lifecycle, actual.lifecycle)
@@ -841,6 +887,7 @@ export function defineBucket<
           message: `Bucket "${config.id}" lifecycle policy differs`,
         });
       }
+
       return issues;
     },
     apply: (client) =>
@@ -870,5 +917,6 @@ export function defineBucket<
         ),
       ),
   };
+
   return bucket;
 }

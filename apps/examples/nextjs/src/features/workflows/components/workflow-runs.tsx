@@ -32,14 +32,17 @@ import { statusVariant, workflowName } from "../workflow-labels";
 export function WorkflowRuns({ tenant }: { tenant: string | null }) {
   const t = useExtracted("workflows");
   const format = useFormatter();
+
   const { runs, status } = useWorkflowRuns({
     tenant,
     schema: "api",
     limit: 50,
   });
+
   if (runs === undefined) {
     return <WorkflowRunsSkeleton />;
   }
+
   if (runs.length === 0) {
     return (
       <Empty className="border">
@@ -55,6 +58,7 @@ export function WorkflowRuns({ tenant }: { tenant: string | null }) {
       </Empty>
     );
   }
+
   return (
     <div
       className="rounded-xl border"

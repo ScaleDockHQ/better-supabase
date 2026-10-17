@@ -11,48 +11,61 @@ export function delivery(ctx: ModuleContext, n: NotifyNames): string {
   if (!ctx.hasTable("deliveries")) {
     return "";
   }
+
   const d = (logical: string) => n.col("deliveries", logical);
   const r = (logical: string) => n.col("recipients", logical);
+
   const attempts = n.has("deliveries", "attempts")
     ? `, ${d("attempts")} = d.${d("attempts")} + 1`
     : "";
+
   const set: string[] = [`${d("status")} = v_status`];
+
   if (n.has("deliveries", "provider")) {
     set.push(
       `${d("provider")} = coalesce(complete_notification_delivery.provider, d.${d("provider")})`,
     );
   }
+
   if (n.has("deliveries", "providerMessageId")) {
     set.push(
       `${d("providerMessageId")} = coalesce(complete_notification_delivery.provider_message_id, d.${d("providerMessageId")})`,
     );
   }
+
   if (n.has("deliveries", "error")) {
     set.push(`${d("error")} = complete_notification_delivery.error`);
   }
+
   const templateKey = keepsTemplateKey(ctx);
+
   if (templateKey) {
     set.push(
       `${d("templateKey")} = coalesce(complete_notification_delivery.template_key, d.${d("templateKey")})`,
     );
   }
+
   const completeArgs = `uuid, text, text, text, text, integer${templateKey ? ", text" : ""}`;
+
   if (n.has("deliveries", "deliveredAt")) {
     set.push(
       `${d("deliveredAt")} = case when v_status = 'sent' then now() else d.${d("deliveredAt")} end`,
     );
   }
+
   set.push(
     `${d("attemptedAt")} = case when v_status = 'pending' then null else d.${d("attemptedAt")} end`,
   );
   const retries = n.has("deliveries", "attempts");
   const backoff = n.has("deliveries", "nextAttemptAt");
   const suppression = claimSuppression(ctx, n);
+
   if (backoff) {
     set.push(
       `${d("nextAttemptAt")} = case when v_status = 'pending' then now() + make_interval(secs => 1 + floor(random() * least(3600, 30 * power(2, ${retries ? `greatest(d.${d("attempts")}, 1) - 1` : "0"})))) else d.${d("nextAttemptAt")} end`,
     );
   }
+
   const lostLease = retries
     ? `
   -- A delivery whose lease ran out on its last attempt lost its worker.
@@ -64,6 +77,7 @@ export function delivery(ctx: ModuleContext, n: NotifyNames): string {
     and d.${d("attemptedAt")} < now() - claim_notification_deliveries.lease;
 `
     : "";
+
   const giveUp = retries
     ? `
   if v_status = 'pending' and exists (
@@ -74,6 +88,7 @@ export function delivery(ctx: ModuleContext, n: NotifyNames): string {
     v_status := 'failed';
   end if;`
     : "";
+
   return `
 drop function if exists ${ctx.fn("claim_notification_deliveries")}(text, integer, interval);
 drop function if exists ${ctx.fn("complete_notification_delivery")}(uuid, text, text, text, text);
@@ -154,6 +169,7 @@ grant execute on function ${ctx.fn("complete_notification_delivery")}(${complete
 export function purge(ctx: ModuleContext, n: NotifyNames): string {
   const e = (logical: string) => n.col("events", logical);
   const fn = ctx.fn("purge_notifications");
+
   return `
 -- Deletes up to batch notifications past their retention, with their recipients
 -- and deliveries, and returns how many. Run it until it returns less than batch.

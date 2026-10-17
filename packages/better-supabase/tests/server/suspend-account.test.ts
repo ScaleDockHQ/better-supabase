@@ -25,11 +25,14 @@ function setup(
   } = {},
 ) {
   const order: string[] = [];
+
   const queryRaw = vi.fn(async (text: string, params?: unknown[]) => {
     order.push("sessions");
+
     if (options.sqlError) {
       throw options.sqlError;
     }
+
     expect(params).toEqual([USER]);
     expect(text).toContain(
       "delete from auth.sessions where user_id = $1::uuid",
@@ -37,18 +40,24 @@ function setup(
     expect(text).toContain(
       "delete from auth.refresh_tokens where user_id = $1::text",
     );
+
     return [{ ended: options.ended ?? 2 }];
   });
+
   const sql = { queryRaw } as unknown as SqlClient;
+
   const updateUserById = vi.fn<UpdateUser>(async (_id, attributes) => {
     order.push(`ban:${attributes.ban_duration}`);
+
     return options.updateUser
       ? options.updateUser(_id, attributes)
       : { error: null };
   });
+
   const client = {
     auth: { admin: { updateUserById } },
   } as unknown as SupabaseClient;
+
   return { sql, queryRaw, updateUserById, client, order };
 }
 
@@ -76,6 +85,7 @@ describe("endSessions", () => {
         code: "42501",
       }),
     });
+
     expect(await endSessions(sql, USER)).toMatchObject({
       ok: false,
       error: { kind: "forbidden", table: "auth.sessions" },
@@ -133,6 +143,7 @@ describe("suspendAccount", () => {
         error: { message: "User not found", status: 404 },
       }),
     });
+
     expect(
       await suspendAccount(client, sql, USER, {
         suspended: true,
@@ -146,6 +157,7 @@ describe("suspendAccount", () => {
     const { sql, client, updateUserById } = setup({
       sqlError: new Error("connection reset"),
     });
+
     expect(
       await suspendAccount(client, sql, USER, { suspended: false }),
     ).toMatchObject({ ok: false, error: { kind: "unexpected" } });
@@ -160,6 +172,7 @@ describe("suspendAccount", () => {
         });
       },
     });
+
     expect(
       await suspendAccount(client, sql, USER, { suspended: true }),
     ).toMatchObject({ ok: false, error: { kind: "network" } });
@@ -182,6 +195,7 @@ describe("lastSignIns", () => {
       { user_id: USER, last_sign_in_at: new Date("2026-05-01T10:00:00Z") },
       { user_id: OTHER, last_sign_in_at: null },
     ]);
+
     const sql = { queryRaw } as unknown as SqlClient;
     const found = await lastSignIns(sql, [USER, OTHER, USER]).orThrow();
     expect(queryRaw).toHaveBeenCalledTimes(1);
@@ -200,6 +214,7 @@ describe("lastSignIns", () => {
     const queryRaw = vi.fn(async () => [
       { user_id: USER, last_sign_in_at: "2026-05-01T10:00:00.5+00:00" },
     ]);
+
     const sql = { queryRaw } as unknown as SqlClient;
     const found = await lastSignIns(sql, [USER]).orThrow();
     expect(found.get(USER)?.lastSignInAt?.toString()).toBe(
@@ -214,6 +229,7 @@ describe("lastSignIns", () => {
     const queryRaw = vi.fn(async () => {
       throw Object.assign(new Error("permission denied"), { code: "42501" });
     });
+
     const sql = { queryRaw } as unknown as SqlClient;
     expect(await lastSignIns(sql, [USER, "nope"])).toMatchObject({
       ok: false,

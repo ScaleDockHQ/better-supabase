@@ -35,6 +35,7 @@ export function useUsageMeter(options: UseUsageMeterOptions): UsageMeterState {
   const { supabase, auth } = useBlockEnv();
   const { organizationId, meters, schema } = options;
   const key = meters?.join("\n");
+
   return useController(
     () =>
       createUsageMeterController({

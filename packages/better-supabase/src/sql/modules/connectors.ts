@@ -145,22 +145,30 @@ function build(ctx: ModuleContext): string {
   const allowHttp = ctx.flag("allowHttp", false);
   const trustFirstUse = ctx.flag("trustFirstUse", true);
   const sessionTtl = ctx.text("sessionTtl", "1 hour");
+
   if (!INTERVAL.test(sessionTtl)) {
     throw new TypeError(
       'blocks.connectors.options.sessionTtl must be an interval such as "1 hour"',
     );
   }
+
   const urlPattern = allowHttp
     ? "^https?://"
     : "^(https://|http://(localhost|127[.]0[.]0[.]1)(:[0-9]+)?(/|$))";
+
   const extras = ctx.extraColumns("servers", RESERVED);
+
   const serverJson = (row: string): string =>
     withExtraFields(rowJson(SERVERS, v, row), row, extras);
+
   const grantJson = (row: string): string => rowJson(GRANTS, g, row);
+
   const isAdmin = (tenant: string): string =>
     `(${SERVICE_CALLER} or ${ctx.scope.can(tenant, manage)})`;
+
   const notFound = (server: string): string =>
     raise("connector % not found", "P0002", "CONNECTOR_NOT_FOUND", server);
+
   const serverEvent = (type: string, row: string, extra = ""): string =>
     ctx.record({
       type,
@@ -174,6 +182,7 @@ function build(ctx: ModuleContext): string {
         targetLabel: `${row}.${v.name}`,
       },
     });
+
   const grantEvent = (type: string, row: string): string =>
     ctx.record({
       type,

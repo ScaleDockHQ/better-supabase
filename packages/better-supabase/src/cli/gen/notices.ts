@@ -18,6 +18,7 @@ export async function generationNotices(
   warnings: readonly string[],
 ): Promise<string[]> {
   const typegen = typegenVersionNotice(await typegenVersion());
+
   return [
     ...((await oxfmtInstalled()) ? [] : [UNFORMATTED]),
     ...(typegen ? [typegen] : []),

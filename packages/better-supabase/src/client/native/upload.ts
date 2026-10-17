@@ -36,9 +36,11 @@ const TYPES: Readonly<Record<string, string>> = {
 export function contentTypeOf(uri: string): string | undefined {
   const path = uri.split(/[?#]/, 1)[0] ?? uri;
   const dot = path.lastIndexOf(".");
+
   if (dot === -1 || dot < path.lastIndexOf("/")) {
     return undefined;
   }
+
   return TYPES[path.slice(dot + 1).toLowerCase()];
 }
 
@@ -60,20 +62,26 @@ export function uploadFromUri<T, R>(
   options: UploadFromUriOptions = {},
 ): AsyncResult<R> {
   const { fetch: read = (value: string) => fetch(value), ...upload } = options;
+
   return AsyncResult.from(async () => {
     let body: ArrayBuffer;
     let type: string | undefined;
+
     try {
       const response = await read(uri);
+
       if (!response.ok) {
         return err(unreadable(uri, response.status));
       }
+
       type = response.headers.get("content-type") ?? undefined;
       body = await response.arrayBuffer();
     } catch (cause) {
       return err(toDbError(cause));
     }
+
     const contentType = upload.contentType ?? contentTypeOf(uri) ?? type;
+
     return bucket.upload(target, body, {
       ...upload,
       ...(contentType ? { contentType } : {}),

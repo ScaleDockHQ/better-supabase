@@ -35,6 +35,7 @@ describe("renderResult", () => {
       { code: 1, output: "context", error: "stale" },
       json,
     );
+
     expect(JSON.parse(rendered.stdout ?? "")).toMatchObject({
       code: "failed",
       detail: "stale",

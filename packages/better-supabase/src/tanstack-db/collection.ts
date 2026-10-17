@@ -66,6 +66,7 @@ function field(row: unknown, name: string): unknown {
   if (typeof row !== "object" || row === null || !(name in row)) {
     return undefined;
   }
+
   return Object.getOwnPropertyDescriptor(row, name)?.value;
 }
 
@@ -103,43 +104,56 @@ export function collectionOptions<
 ): CollectionConfig<Row> {
   const { query, queryClient } = options;
   const queryFn = query.queryFn;
+
   if (typeof queryFn !== "function") {
     throw new TypeError(
       `better-supabase: the "${table}" collection needs a query that runs, not skipToken`,
     );
   }
+
   const primaryKey = betterSupabase.meta.tables[table]?.primaryKey ?? [];
   const [single] = primaryKey;
+
   if (single === undefined) {
     throw new TypeError(
       `better-supabase: the "${table}" collection needs a table with a primary key`,
     );
   }
+
   const composite = primaryKey.length > 1;
+
   const idOf = (row: unknown): unknown =>
     composite
       ? Object.fromEntries(primaryKey.map((name) => [name, field(row, name)]))
       : field(row, single);
+
   const write = (method: "create" | "update" | "delete"): Write => {
     const resolved = typeof db === "function" ? db() : db;
+
     // SAFETY: Db is indexed by table key; the repository is checked below.
     const repository = resolved[table] as
       | Readonly<Record<string, Write | undefined>>
       | undefined;
+
     const fn = repository?.[method];
+
     if (!fn) {
       throw new TypeError(
         `better-supabase: ${table}.${method} is not available`,
       );
     }
+
     return fn;
   };
+
   const orThrow = async (result: AsyncResult<unknown>): Promise<void> => {
     const settled = await result;
+
     if (!settled.ok) {
       throw new DbException(settled.error);
     }
   };
+
   return {
     id: options.id ?? table,
     queryKey: query.queryKey,
@@ -149,18 +163,22 @@ export function collectionOptions<
     getKey: (row) => {
       if (!composite) {
         const id = field(row, single);
+
         return typeof id === "number" ? id : String(id);
       }
+
       return JSON.stringify(primaryKey.map((name) => field(row, name)));
     },
     onInsert: async ({ transaction }) => {
       const create = write("create");
+
       for (const mutation of transaction.mutations) {
         await orThrow(create(mutation.modified, { returning: false }));
       }
     },
     onUpdate: async ({ transaction }) => {
       const update = write("update");
+
       for (const mutation of transaction.mutations) {
         await orThrow(
           update(idOf(mutation.original), mutation.changes, {
@@ -171,6 +189,7 @@ export function collectionOptions<
     },
     onDelete: async ({ transaction }) => {
       const remove = write("delete");
+
       for (const mutation of transaction.mutations) {
         await orThrow(remove(idOf(mutation.original)));
       }

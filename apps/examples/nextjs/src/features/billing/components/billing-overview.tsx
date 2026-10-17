@@ -28,16 +28,20 @@ import { PlanPicker } from "./plan-picker";
 export async function CurrentPlan() {
   const session = await getSession();
   const organizationId = tenantOf(session);
+
   if (!organizationId) {
     return null;
   }
+
   const [subscription, plans, t, format] = await Promise.all([
     getSubscription(organizationId),
     getPlans(),
     getExtracted("billing"),
     getFormatter(),
   ]);
+
   const current = plans.find((plan) => plan.key === subscription?.planKey);
+
   return (
     <Card>
       <CardHeader>
@@ -76,14 +80,17 @@ export async function CurrentPlan() {
 export async function PlanGrid() {
   const session = await getSession();
   const organizationId = tenantOf(session);
+
   if (!organizationId) {
     return null;
   }
+
   const [plans, subscription, t] = await Promise.all([
     getPlans(),
     getSubscription(organizationId),
     getExtracted("billing"),
   ]);
+
   return (
     <>
       <PlanPicker

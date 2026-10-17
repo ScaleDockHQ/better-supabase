@@ -151,13 +151,17 @@ export function createServicePrincipals<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: ServicePrincipalsOptions<S>): ServicePrincipals<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const fields: BlockFields<F> = blockFields(
     options.fields,
     "service principal fields",
   );
+
   const { admin } = options;
+
   const client: ServicePrincipals<F> = {
     create: (organizationId, name, role, extra = {}) =>
       AsyncResult.from(async () => {
@@ -165,9 +169,11 @@ export function createServicePrincipals<
           extra.fields === undefined
             ? ok(undefined)
             : await fields.write({ ...extra.fields });
+
         if (!checked.ok) {
           return checked;
         }
+
         const created = await admin.createUser({
           email: `${crypto.randomUUID()}@service-principals.invalid`,
           email_confirm: true,
@@ -178,7 +184,9 @@ export function createServicePrincipals<
           },
           user_metadata: { name },
         });
+
         const user = created.data.user;
+
         if (created.error !== null || user === null) {
           return err(
             dbError(
@@ -187,6 +195,7 @@ export function createServicePrincipals<
             ),
           );
         }
+
         const registered = await call(
           "register_service_principal",
           {
@@ -200,6 +209,7 @@ export function createServicePrincipals<
           },
           (value) => {
             const row = recordOf(value, "register_service_principal");
+
             return {
               id: textOf(row["id"]),
               organizationId: textOf(row["tenant"]),
@@ -210,10 +220,13 @@ export function createServicePrincipals<
             };
           },
         );
+
         if (!registered.ok) {
           await admin.deleteUser(user.id);
+
           return err(registered.error);
         }
+
         return readFields(fields, registered.data);
       }),
     setRole: (id, role, extra = {}) =>
@@ -246,6 +259,7 @@ export function createServicePrincipals<
         })),
       ).andThen((principals) => readAllFields(fields, principals)),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "service-principals",
     ...(options.logger ? { logger: options.logger } : {}),

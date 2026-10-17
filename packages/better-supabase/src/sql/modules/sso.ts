@@ -168,54 +168,67 @@ interface Roles {
 function rolesFor(ctx: ModuleContext): Roles {
   const model = accessModel(ctx);
   const listed = model === "roles" || model === "catalog";
+
   if (!listed && ctx.option("roleOrder") === undefined) {
     throw new TypeError(
       `blocks.sso assigns membership roles. Under blocks.access.model "${model}" the roles are not in the config, so list the roles SCIM and auto-join may assign in blocks.sso.options.roleOrder, highest first`,
     );
   }
+
   const owner = ctx.installed("organizations")
     ? ctx.of("organizations").text("ownerRole", "owner")
     : "owner";
+
   const order = ctx.list(
     "roleOrder",
     listed ? roleNames(ctx).filter((role) => role !== owner) : [],
   );
+
   if (order.includes(owner)) {
     throw new TypeError(
       `blocks.sso.options.roleOrder must not include the owner role "${owner}"`,
     );
   }
+
   const fallback = ctx.text("defaultRole", "member");
   const where = "blocks.sso.options";
+
   if (!order.includes(fallback)) {
     throw new TypeError(
       `${where}.defaultRole "${fallback}" must be one of roleOrder (${order.join(", ")})`,
     );
   }
+
   const option = ctx.option("groupRoles") ?? {};
+
   if (typeof option !== "object" || Array.isArray(option)) {
     throw new TypeError(
       `${where}.groupRoles must map SCIM group names to roles`,
     );
   }
+
   const groups = Object.entries(option).map(([name, role]) => {
     if (typeof role !== "string" || !order.includes(role)) {
       throw new TypeError(
         `${where}.groupRoles["${name}"] must be one of roleOrder (${order.join(", ")})`,
       );
     }
+
     return [name.toLowerCase(), role] as const;
   });
+
   return { owner, order, fallback, groups };
 }
 
 function prefixOf(ctx: ModuleContext): string {
   const prefix = ctx.text("txtPrefix", "_better-supabase");
+
   if (!PREFIX.test(prefix)) {
     throw new TypeError(
       "blocks.sso.options.txtPrefix must start with an underscore and hold lowercase letters, digits or dashes",
     );
   }
+
   return prefix;
 }
 
@@ -223,6 +236,7 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const id = ctx.idType;
   const roles = rolesFor(ctx);
   const prefix = prefixOf(ctx);
@@ -240,8 +254,10 @@ function build(ctx: ModuleContext): string {
   const permissions = moduleOperations("sso");
   const key = ctx.permission("manage", permissions.manage);
   const can = (tenant: string): string => ctx.can("tenant", tenant, key);
+
   const actorCan = (tenant: string, actor: string): string =>
     `(${actor} is null or ${ctx.scope.canUser(actor, tenant, key)})`;
+
   const tenant = ctx.of("tenant");
   const m = tenant.table("memberships");
   const mt = tenant.col("memberships", "tenant");
@@ -249,14 +265,18 @@ function build(ctx: ModuleContext): string {
   const mr = tenant.col("memberships", "role");
   const roleName = roleNameOf(tenant, "mm");
   const assignable = `array[${roles.order.map(sqlString).join(", ")}]::text[]`;
+
   const groupValues =
     roles.groups.length === 0
       ? "select null::text as name, null::text as role where false"
       : `values ${roles.groups.map(([name, role]) => `(${sqlString(name)}, ${sqlString(role)})`).join(", ")}`;
+
   const recordName = (domain: string): string =>
     `${sqlString(`${prefix}.`)} || ${domain}`;
+
   const withRecord = (row: string): string =>
     `to_jsonb(${row}) - ${sqlString(ctx.col("domains", "token").replaceAll('"', ""))} || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', ${recordName(`${row}.${cd("domain")}`)}, 'value', 'better-supabase-domain-verification=' || ${row}.${cd("token")}))`;
+
   const memberEvent = (type: string, extra = ""): string =>
     ctx.record({
       type,
@@ -269,6 +289,7 @@ function build(ctx: ModuleContext): string {
         recordId: "v_user::text",
       },
     });
+
   const domainEvent = (type: string, actor: string): string =>
     ctx.record({
       type,
@@ -283,6 +304,7 @@ function build(ctx: ModuleContext): string {
         actor,
       },
     });
+
   const providerEvent = (type: string, actor: string): string =>
     ctx.record({
       type,
@@ -296,10 +318,13 @@ function build(ctx: ModuleContext): string {
         actor,
       },
     });
+
   const emailDomain = (email: string): string =>
     `lower(split_part(${email}, '@', 2))`;
+
   const verifiedFor = (tenantExpr: string, email: string): string =>
     `exists (select 1 from ${d} vd where vd.${cd("tenant")} = ${tenantExpr} and vd.${cd("verifiedAt")} is not null and vd.${cd("domain")} = ${emailDomain(email)})`;
+
   const serviceOnly = (what: string): string => `if not (${SERVICE_CALLER}) then
     ${fail("SSO_FORBIDDEN", `Only the service role ${what}`)}
   end if;`;

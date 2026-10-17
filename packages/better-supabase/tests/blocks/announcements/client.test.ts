@@ -20,10 +20,13 @@ const announcement = (id: string) => ({ id }) as unknown as Announcement;
 describe("createAnnouncementsController", () => {
   it("loads for the tenant, reloads on the topic and dismisses", async () => {
     const topic = fakeTopic();
+
     const listActive = vi.fn(() =>
       resolved([announcement("a1"), announcement("a2")]),
     );
+
     const dismiss = vi.fn(() => resolved(true));
+
     const { view, unmount } = mount(
       createAnnouncementsController({
         client: { listActive, dismiss },
@@ -32,6 +35,7 @@ describe("createAnnouncementsController", () => {
         organizationId: "org-1",
       }),
     );
+
     await flush();
     expect(listActive).toHaveBeenCalledWith("org-1");
     expect(view().items).toHaveLength(2);
@@ -57,12 +61,14 @@ describe("createAnnouncementsController", () => {
     const topic = fakeTopic();
     const answer = held([announcement("late")]);
     const listActive = vi.fn(() => answer.result);
+
     const controller = createAnnouncementsController({
       client: { listActive, dismiss: () => resolved(true) },
       auth: fakeAuth(),
       ports: { topic: topic.port },
       topic: null,
     });
+
     const first = mount(controller);
     await flush();
     expect(listActive).toHaveBeenCalledWith(null);

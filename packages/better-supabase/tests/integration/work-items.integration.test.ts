@@ -41,6 +41,7 @@ describe.skipIf(!live)("work items", () => {
 
   it("runs items through their team's pipeline with parents, assignees and a tree", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const owner = await s.user("owner");
       const dev = await s.user("dev");
@@ -53,9 +54,11 @@ describe.skipIf(!live)("work items", () => {
       const team = crypto.randomUUID();
 
       await s.as(pm);
+
       const epic = await items
         .create(org, { title: "Checkout v2", teamId: team, priority: 2 })
         .orThrow();
+
       expect(epic).toMatchObject({
         identifier: "TASK-1",
         state: "triage",
@@ -73,10 +76,12 @@ describe.skipIf(!live)("work items", () => {
         "done",
         "canceled",
       ]);
+
       const stage = (key: string): string =>
         pipeline?.stages.find((item) => item.key === key)?.id ?? "";
 
       const start = Temporal.Instant.from("2026-10-20T09:00:00Z");
+
       const api = await items
         .create(
           org,
@@ -90,11 +95,13 @@ describe.skipIf(!live)("work items", () => {
           [dev.id, pm.id],
         )
         .orThrow();
+
       const ui = await items
         .create(org, { title: "Payment UI", parentId: epic.id, teamId: team }, [
           dev.id,
         ])
         .orThrow();
+
       expect(api.assigneeIds.toSorted()).toEqual([dev.id, pm.id].toSorted());
 
       const result = await items
@@ -105,6 +112,7 @@ describe.skipIf(!live)("work items", () => {
           { workItemId: api.id, field: "priority", value: 9 },
         ])
         .orThrow();
+
       expect(result.accepted.map((item) => item.field)).toEqual([
         "stageId",
         "stageId",
@@ -124,27 +132,33 @@ describe.skipIf(!live)("work items", () => {
         ["Payment API", 1, 100],
         ["Payment UI", 1, 0],
       ]);
+
       const done = (
         await items.list(org, { states: ["completed"] }).orThrow()
       )[0];
+
       expect(done).toMatchObject({
         id: api.id,
         state: "completed",
         closeReason: "completed",
       });
       expect(done?.closedAt).toBeDefined();
+
       const canceled = (
         await items.list(org, { states: ["canceled"] }).orThrow()
       )[0];
+
       expect(canceled?.closeReason).toBe("not_planned");
       await items
         .update([
           { workItemId: api.id, field: "stageId", value: stage("in_progress") },
         ])
         .orThrow();
+
       const reopened = (
         await items.list(org, { search: "Payment API" }).orThrow()
       )[0];
+
       expect(reopened).toMatchObject({ state: "started" });
       expect(reopened?.closedAt).toBeUndefined();
       expect(
@@ -154,6 +168,7 @@ describe.skipIf(!live)("work items", () => {
       ).toEqual([api.id]);
 
       await s.as(owner);
+
       const link = await createRelations({ transport })
         .link({
           organizationId: org,
@@ -162,6 +177,7 @@ describe.skipIf(!live)("work items", () => {
           target: { type: "work_item", id: ui.id },
         })
         .orThrow();
+
       expect(link.created).toBe(true);
       await s.as(pm);
 
@@ -169,6 +185,7 @@ describe.skipIf(!live)("work items", () => {
         "(select count(*)::int from better_supabase.notification_events e join better_supabase.notification_recipients r on r.event_id = e.id where e.type = 'work_item.assigned' and r.user_id = $1)",
         [dev.id],
       );
+
       expect(assigned).toBe(2);
       expect(
         await s.value<number>(
@@ -180,6 +197,7 @@ describe.skipIf(!live)("work items", () => {
       const second = await items
         .create(org, { title: "Docs", teamId: team })
         .orThrow();
+
       await createRank({ transport })
         .move("work_item", second.id, { group: stage("todo") })
         .orThrow();
@@ -193,6 +211,7 @@ describe.skipIf(!live)("work items", () => {
 
   it("limits assignees, locks dates and keeps projects and iterations", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const owner = await s.user("owner");
       const dev = await s.user("dev");
@@ -202,6 +221,7 @@ describe.skipIf(!live)("work items", () => {
       const items = createWorkItems({ transport: sqlTransport(s.sql) });
 
       await s.as(owner);
+
       const project = await items
         .saveProject(org, {
           key: "pay",
@@ -210,7 +230,9 @@ describe.skipIf(!live)("work items", () => {
           startOn: Temporal.PlainDate.from("2026-10-01"),
         })
         .orThrow();
+
       expect(project).toMatchObject({ key: "PAY", status: "active" });
+
       const sprint = await items
         .saveIteration(org, {
           name: "Sprint 1",
@@ -218,6 +240,7 @@ describe.skipIf(!live)("work items", () => {
           endsOn: Temporal.PlainDate.from("2026-11-01"),
         })
         .orThrow();
+
       expect(
         hint(
           await items.saveIteration(org, {
@@ -232,6 +255,7 @@ describe.skipIf(!live)("work items", () => {
       expect(hint(await items.saveProject(org, { key: "X", name: "X" }))).toBe(
         "WORK_ITEM_FORBIDDEN",
       );
+
       const item = await items
         .create(
           org,
@@ -244,6 +268,7 @@ describe.skipIf(!live)("work items", () => {
           [dev.id],
         )
         .orThrow();
+
       expect(hint(await items.assign(item.id, [dev.id, other.id]))).toBe(
         "WORK_ITEM_ASSIGNEES_LIMIT",
       );
@@ -270,12 +295,14 @@ describe.skipIf(!live)("work items", () => {
         [item.id],
       );
       await s.as(dev);
+
       const locked = await items
         .update([
           { workItemId: item.id, field: "dueAt", value: null },
           { workItemId: item.id, field: "title", value: "Ledger v2" },
         ])
         .orThrow();
+
       expect(locked.rejected.map((change) => change.hint)).toEqual([
         "WORK_ITEM_LOCKED",
       ]);

@@ -115,21 +115,25 @@ export function createReactRouter<
   const expose = options.exposeErrors ?? defaultExpose();
   const run = around([frameworkEntry(server, options, expose)]);
   const key = options.createContext();
+
   type Locals = FrameworkLocals<M, F, E, C, P>;
 
   const locals = (args: ReactRouterArgs): Locals => {
     let value: unknown;
+
     try {
       // SAFETY: the key is the one this factory created; get only reads it.
       value = args.context.get(key as never);
     } catch {
       value = undefined;
     }
+
     if (typeof value !== "object" || value === null || !("bs" in value)) {
       throw new TypeError(
         "better-supabase: no context; add bs.middleware to the root route's middleware export",
       );
     }
+
     // SAFETY: the middleware sets Locals under this key.
     return value as Locals;
   };
@@ -139,12 +143,14 @@ export function createReactRouter<
 
     middleware(args, next) {
       bufferInPlace(args.request);
+
       return run(
         args.request,
         options.platformEnv?.(args),
         async (contributions) => {
           // SAFETY: the key is the one this factory created, for Locals.
           args.context.set(key as never, localsOf(contributions) as never);
+
           return withFlush(server, options.waitUntil, next);
         },
       );
@@ -155,19 +161,23 @@ export function createReactRouter<
     loader(loaderOptions, fn) {
       return async (args) => {
         const scope = locals(args);
+
         const caller = await requireCaller(
           scope.bs.auth,
           loaderOptions,
           scope.tenant,
           options.authorizer,
         );
+
         if ("kind" in caller) {
           // oxlint-disable-next-line typescript/only-throw-error -- React Router sends a thrown Response as the answer.
           throw refusalResponse(caller, args.request, options, expose);
         }
+
         // SAFETY: requireTenant refused a missing tenant.
         const ctx = { ...scope, ...caller } as never;
         const settled = await settle(() => fn(args, ctx));
+
         if (!settled.ok) {
           // oxlint-disable-next-line typescript/only-throw-error -- React Router renders a thrown Response in the ErrorBoundary.
           throw problemResponse(settled.error, {
@@ -175,6 +185,7 @@ export function createReactRouter<
             expose,
           });
         }
+
         // SAFETY: the settled data is what fn returned, unwrapped.
         return settled.data as never;
       };
@@ -183,6 +194,7 @@ export function createReactRouter<
     action(actionOptions, fn) {
       return async (args) => {
         const scope = locals(args);
+
         const result = await runAction(
           scope.bs.auth,
           actionOptions,
@@ -194,6 +206,7 @@ export function createReactRouter<
             fn(parsed as never, { ...scope, ...caller } as never, args),
           options.authorizer,
         );
+
         // SAFETY: the settled data is what fn returned, unwrapped.
         return result as never;
       };

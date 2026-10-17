@@ -239,14 +239,19 @@ const STATUSES: readonly BookingStatus[] = ["hold", "confirmed", "cancelled"];
 /** A booking row as `hold_booking`, `list_bookings` and the others return it. */
 export function bookingOf(value: unknown): Booking {
   const row = recordOf(value, "booking");
+
   const text = (key: string) => {
     const found = optionalText(row[key]);
+
     return found === undefined ? {} : { [key]: found };
   };
+
   const instant = (key: string) => {
     const found = optionalInstant(row[key]);
+
     return found === undefined ? {} : { [key]: found };
   };
+
   return {
     id: textOf(row["id"]),
     resourceId: textOf(row["resourceId"]),
@@ -268,6 +273,7 @@ export function bookingOf(value: unknown): Booking {
 
 function placedOf(value: unknown): PlacedBooking {
   const row = recordOf(value, "booking");
+
   return { ...bookingOf(row), accessToken: textOf(row["accessToken"]) };
 }
 
@@ -291,15 +297,18 @@ const idOf = (value: unknown): { readonly id: string } => ({
 /** The jsonb item a save takes: durations as ISO 8601 strings, undefined keys left out. */
 function itemOf(input: object): Record<string, unknown> {
   const item: Record<string, unknown> = {};
+
   for (const [key, value] of Object.entries(input)) {
     if (value === undefined) {
       continue;
     }
+
     item[key] =
       value !== null && typeof value === "object" && !Array.isArray(value)
         ? String(value)
         : value;
   }
+
   return item;
 }
 
@@ -314,9 +323,11 @@ export function createBookings<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: BookingsOptions<S>): Bookings<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const fields: BlockFields<F> = blockFields(options.fields, "booking fields");
+
   /** The customer object, with its extra fields validated. */
   const customerOf = (
     customer: BookingCustomer | undefined,
@@ -324,6 +335,7 @@ export function createBookings<
     AsyncResult.from(() =>
       fields.write(extraOf(customer ?? {}, CUSTOMER_KEYS)),
     ).map((extra) => ({ ...extra, ...itemOf(customer ?? {}) }));
+
   const one = (
     fn: string,
     args: Readonly<Record<string, unknown>>,
@@ -331,6 +343,7 @@ export function createBookings<
     call(fn, args, (value) => value).andThen((value) =>
       withFields(fields, value, bookingOf(value)),
     );
+
   const placed = (
     fn: string,
     args: Readonly<Record<string, unknown>>,
@@ -341,19 +354,23 @@ export function createBookings<
         withFields(fields, value, placedOf(value)),
       ),
     );
+
   const service = blockCall(
     options.service ?? options.transport,
     options.schema,
     options.mappers,
   );
+
   const expireHolds: Bookings["expireHolds"] = () =>
     service("expire_booking_holds", {}, Number);
+
   const change = (bookingId: string, accessToken: string, to: BookingStatus) =>
     one("public_change_booking", {
       booking: bookingId,
       access_token: accessToken,
       to_status: to,
     });
+
   const client: Bookings<F> = {
     saveResource: (organizationId, input) =>
       call(
@@ -439,6 +456,7 @@ export function createBookings<
       service: (token) =>
         call("public_booking_service", { token }, (value) => {
           const row = recordOf(value, "booking service");
+
           return {
             id: textOf(row["id"]),
             name: textOf(row["name"]),
@@ -476,6 +494,7 @@ export function createBookings<
         change(bookingId, accessToken, "cancelled"),
     },
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "bookings",
     ...(options.logger ? { logger: options.logger } : {}),

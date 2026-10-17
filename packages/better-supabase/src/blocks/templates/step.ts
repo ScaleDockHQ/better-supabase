@@ -62,19 +62,24 @@ export function templatesApplyStep(
 ): (call: GraphStepCall) => Promise<TemplatesApplyOutput> {
   return async (call) => {
     const template = call.config["template"];
+
     if (typeof template !== "string" || template === "") {
       throw new DbException(
         dbError("invalid_request", "templates.apply needs config.template"),
       );
     }
+
     if (call.tenant === undefined) {
       throw new DbException(
         dbError("invalid_request", "templates.apply needs a run with a tenant"),
       );
     }
+
     const values = call.config["values"];
+
     const client =
       typeof templates === "function" ? await templates(call) : templates;
+
     const applied = await client
       .apply(template, {
         into: call.tenant,
@@ -82,6 +87,7 @@ export function templatesApplyStep(
         key: `${call.runKey}:${call.node}`,
       })
       .orThrow();
+
     return {
       applicationId: applied.application.id,
       subject: applied.subject,

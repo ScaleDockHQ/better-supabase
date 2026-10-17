@@ -58,6 +58,7 @@ export function paginationWorkflows(
       .filter((table) => !options.tables || options.tables.includes(table))
       .flatMap((table): ModelWorkflow[] => {
         const list = resourceOf(operations, table, "list");
+
         if (
           !list?.parameters.some(
             (parameter) =>
@@ -66,7 +67,9 @@ export function paginationWorkflows(
         ) {
           return [];
         }
+
         const name = pascal(table);
+
         return [
           {
             id: `paginate${name}`,
@@ -145,10 +148,13 @@ export function createThenGetWorkflows(
         const create = resourceOf(operations, table, "create");
         const get = resourceOf(operations, table, "get");
         const key = get ? pathParameter(get) : undefined;
+
         if (!create || !get || key === undefined) {
           return [];
         }
+
         const name = pascal(table);
+
         return [
           {
             id: `createThenGet${name}`,
@@ -204,10 +210,13 @@ export interface AuthWorkflowOptions {
 export function authWorkflow(options: AuthWorkflowOptions): WorkflowSource {
   const signIn = options.signIn ?? "signIn";
   const pointer = options.tokenPointer ?? "/access_token";
+
   return (operations) => {
     const call = operations.find((operation) => operation.id === options.call);
+
     const pathParameters =
       call?.parameters.filter((parameter) => parameter.in === "path") ?? [];
+
     return [
       {
         id: options.id ?? `signInThen${pascal(options.call)}`,

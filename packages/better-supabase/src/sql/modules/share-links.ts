@@ -108,6 +108,7 @@ export function liveShareLink(
 ): string {
   const l = (column: string): string =>
     `${alias}.${links.col("links", column)}`;
+
   return `${l("tokenHash")} = ${sha256Hex(`convert_to(${token}, 'utf8')`)}
     and ${l("subjectType")} = ${subjectType}
     and ${l("revokedAt")} is null
@@ -121,11 +122,13 @@ export function liveShareLink(
 function versionCheck(ctx: ModuleContext): string {
   const refuse = (message: string): string =>
     fail("SHARE_VERSION_INVALID", message, "22023");
+
   if (!ctx.installed("versions") || !ctx.has("links", "versionId")) {
     return `if create_share_link.version_id is not null then
     ${refuse("install the versions module to share a version")}
   end if;`;
   }
+
   return `if create_share_link.version_id is not null then
     declare
       v_version jsonb := ${ctx.fn("get_version")}(create_share_link.version_id);
@@ -142,6 +145,7 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const links = ctx.table("links");
   const views = ctx.table("views");
   const state = ctx.table("state");
@@ -151,6 +155,7 @@ function build(ctx: ModuleContext): string {
   const extras = ctx.extraColumns("links", RESERVED);
   const extra = extraFieldsArg(extras);
   const linkId = ctx.col("links", "id");
+
   const tables = ctx.manages
     ? `create table if not exists ${links} (
   ${ctx.col("links", "id")} uuid primary key default gen_random_uuid(),
@@ -202,6 +207,7 @@ ${lockTable(state, { read: true })}
 }
 `
     : "";
+
   const chat = ctx.installed("ai-chat")
     ? `
 -- ai-chat sharing is this block. The old functions stay callable and write
@@ -276,6 +282,7 @@ end;
 $$;
 `
     : "";
+
   return `${schemaPreamble(ctx)}
 ${tables}
 drop function if exists ${ctx.fn("create_share_link")}(${ctx.idType}, text, text, text);
@@ -443,6 +450,7 @@ ${chat}
 
 function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   const extra = extraFieldsArg(ctx.extraColumns("links", RESERVED)).contract;
+
   return [
     {
       name: "create_share_link",

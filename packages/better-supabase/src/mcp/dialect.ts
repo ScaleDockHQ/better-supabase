@@ -25,13 +25,17 @@ export function toolDialects<
   convert?: (target: ToolSchemaTarget) => Json | undefined,
 ): (target: ToolSchemaTarget) => T {
   const built = new Map<ToolSchemaTarget, T>();
+
   return (target) => {
     const cached = built.get(target);
+
     if (cached) {
       return cached;
     }
+
     const input = convert?.(target);
     const lower = target === "draft-07";
+
     const result: T =
       input === undefined && !lower
         ? info
@@ -42,7 +46,9 @@ export function toolDialects<
               ? { outputSchema: toDraft07(info.outputSchema) }
               : {}),
           };
+
     built.set(target, result);
+
     return result;
   };
 }

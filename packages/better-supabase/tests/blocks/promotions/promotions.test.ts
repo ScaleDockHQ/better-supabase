@@ -9,11 +9,13 @@ import { money } from "../../../src/commerce/index.ts";
 
 function recorder(...results: unknown[]) {
   const calls: { fn: string; args: unknown }[] = [];
+
   return {
     calls,
     transport: {
       call(_schema: string, fn: string, args: unknown) {
         calls.push({ fn, args });
+
         return Promise.resolve(
           results.length > 1 ? results.shift() : results[0],
         );
@@ -133,11 +135,13 @@ describe("promotions block", () => {
 
   it("refuses a minimum in another currency than the discount", async () => {
     const { calls, transport } = recorder({ id: "p1" });
+
     const result = await createPromotions({ transport }).savePromotion("org", {
       name: "Mixed",
       discount: { kind: "fixed", amount: money(100n, "EUR") },
       minSubtotal: money(5000n, "USD"),
     });
+
     expect(result).toMatchObject({
       ok: false,
       error: { hint: "PROMOTIONS_INVALID" },
@@ -169,6 +173,7 @@ describe("promotions block", () => {
       ],
       null,
     );
+
     const promotions = createPromotions({ transport });
     expect(
       await promotions.createCodes("p1", { codes: ["save10"] }).orThrow(),
@@ -211,6 +216,7 @@ describe("promotions block", () => {
       { codeId: "k1", code: "SAVE10", promotionId: "p1" },
       true,
     );
+
     const promotions = createPromotions({ transport });
     expect(await promotions.applyCode("c1", "save10").orThrow()).toEqual({
       codeId: "k1",
@@ -227,17 +233,20 @@ describe("promotions block", () => {
   it("runs hooks around its methods", async () => {
     const { transport } = recorder(true);
     const seen: string[] = [];
+
     const promotions = createPromotions({
       transport,
       hooks: {
         setPromotionActive: {
           before: ([promotionId, active]) => {
             seen.push(`before ${promotionId}`);
+
             return [promotionId, active];
           },
         },
       },
     });
+
     await promotions.setPromotionActive("p1", true).orThrow();
     expect(seen).toEqual(["before p1"]);
   });

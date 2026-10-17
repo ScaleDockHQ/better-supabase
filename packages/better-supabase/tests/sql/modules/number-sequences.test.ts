@@ -43,6 +43,7 @@ describe("number sequences", () => {
         },
       },
     });
+
     expect(sql).toContain("to_char(next_number.at at time zone 'utc', 'YYYY')");
     expect(sql).toContain(
       "extract(month from next_number.at at time zone 'utc') >= 4",

@@ -25,12 +25,15 @@ function ticketOf(
   options: WrapOptions,
 ): Result<string | undefined> {
   const ticket = options.ticket ?? context?.["ticket"];
+
   if (ticket === undefined) {
     return ok(undefined);
   }
+
   if (typeof ticket === "string" && ticket !== "") {
     return ok(ticket);
   }
+
   return err(
     dbError("validation", "A job ticket is a non-empty string", {
       issues: [{ message: "Expected a non-empty string", path: ["ticket"] }],
@@ -49,14 +52,18 @@ function recordContext(
   options: WrapOptions = {},
 ): Result<JobContext | undefined> {
   const ticket = ticketOf(context, options);
+
   if (!ticket.ok) {
     return ticket;
   }
+
   if (!context) {
     return ok(ticket.data === undefined ? undefined : { ticket: ticket.data });
   }
+
   const claims = context.claims ?? {};
   const delegated = delegatedClaims(claims);
+
   if (!delegated.ok) {
     return err(
       dbError(
@@ -67,14 +74,18 @@ function recordContext(
       ),
     );
   }
+
   const cap = permissionCapOf(claims);
+
   if (cap === false) {
     return err(
       dbError("forbidden", "The job context has an invalid permission cap"),
     );
   }
+
   const tenant = tenantFrom(context, tenantPathsFor(undefined));
   const impersonator = impersonatorOf(claims);
+
   const recorded: JobContext = {
     ...(context.actor ? { actor: context.actor } : {}),
     ...(tenant === undefined ? {} : { tenant }),
@@ -83,6 +94,7 @@ function recordContext(
     ...(cap === undefined ? {} : { [PERMISSION_CAP_CLAIM]: cap }),
     ...(impersonator ? { act: impersonatorClaim(impersonator) } : {}),
   };
+
   if (
     !recorded.actor &&
     recorded.tenant === undefined &&
@@ -90,6 +102,7 @@ function recordContext(
   ) {
     return ok(undefined);
   }
+
   return ok(recorded);
 }
 
@@ -100,9 +113,11 @@ export function wrapPayload(
   options: WrapOptions = {},
 ): Result<unknown> {
   const recorded = recordContext(context, options);
+
   if (!recorded.ok) {
     return recorded;
   }
+
   return ok(
     recorded.data === undefined
       ? payload
@@ -117,9 +132,11 @@ export function withContext(
   options: WrapOptions = {},
 ): unknown {
   const wrapped = wrapPayload(payload, context, options);
+
   if (!wrapped.ok) {
     throw new TypeError(wrapped.error.message);
   }
+
   return wrapped.data;
 }
 
@@ -153,13 +170,16 @@ export function unwrap(stored: unknown): {
   ) {
     return { payload: stored, context: {} };
   }
+
   const recorded = isRecord(stored["context"]) ? stored["context"] : {};
   const { actor, tenant, ticket } = recorded;
+
   const claims = Object.fromEntries(
     DELEGATION_CLAIMS.filter(
       (key) => Object.hasOwn(recorded, key) && recorded[key] !== undefined,
     ).map((key) => [key, recorded[key]]),
   );
+
   return {
     payload: stored["payload"],
     context: {

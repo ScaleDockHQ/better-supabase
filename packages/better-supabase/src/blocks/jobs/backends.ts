@@ -227,6 +227,7 @@ async function dueOf(
   advance: (name: string, first: Temporal.Instant) => Promise<void>,
 ): Promise<DueSchedule[]> {
   const due: DueSchedule[] = [];
+
   for (const row of rows) {
     const schedule = {
       name: row.job_name,
@@ -235,20 +236,25 @@ async function dueOf(
       queue: row.queue,
       payload: row.payload,
     };
+
     if (row.next_run !== null) {
       due.push({ ...schedule, nextRun: toInstant(row.next_run) });
       continue;
     }
+
     const first = firstRun(row, now);
+
     if (first === undefined) {
       continue;
     }
+
     if (temporal().Instant.compare(first, now()) <= 0) {
       due.push({ ...schedule, nextRun: first });
     } else {
       await advance(row.job_name, first);
     }
   }
+
   return due;
 }
 
@@ -294,6 +300,7 @@ const onceOf = (
   if (!row) {
     throw new TypeError("enqueue_job_once returned no row");
   }
+
   return { id: Number(row.id), duplicate: row.duplicate };
 };
 
@@ -322,6 +329,7 @@ export function sqlQueueBackend(
           dedupe !== "waiting",
         ],
       );
+
       return Number(row!.id);
     },
     async sendOnce(queue, payload, delay, maxAttempts, dedupeKey) {
@@ -329,6 +337,7 @@ export function sqlQueueBackend(
         "select * from better_supabase.enqueue_job_once($1, $2, $3, $4, $5)",
         [queue, JSON.stringify(payload ?? {}), dedupeKey, delay, maxAttempts],
       );
+
       return onceOf(row);
     },
     read: (queue, lease, batch) =>
@@ -341,6 +350,7 @@ export function sqlQueueBackend(
         "select better_supabase.complete_job($1, $2, $3) as done",
         [job.queue, job.id, job.attempts],
       );
+
       return row?.done ?? false;
     },
     async fail(job, error, retryIn) {
@@ -348,6 +358,7 @@ export function sqlQueueBackend(
         "select better_supabase.fail_job($1, $2, $3, $4, $5) as status",
         [job.queue, job.id, job.attempts, error, retryIn ?? null],
       );
+
       return row?.status ?? null;
     },
     async extend(job, lease) {
@@ -355,6 +366,7 @@ export function sqlQueueBackend(
         "select better_supabase.extend_job_lease($1, $2, $3, $4) as extended",
         [job.queue, job.id, job.attempts, lease],
       );
+
       return row?.extended ?? false;
     },
     async replay(queue, id) {
@@ -362,6 +374,7 @@ export function sqlQueueBackend(
         "select better_supabase.replay_dead_job($1, $2) as id",
         [queue, id],
       );
+
       return row?.id === null || row?.id === undefined ? null : Number(row.id);
     },
     async stats(queue) {
@@ -369,6 +382,7 @@ export function sqlQueueBackend(
         "select * from better_supabase.job_queue_stats($1)",
         [queue],
       );
+
       return statsOf(row);
     },
     listDead: (queue, limit, before) =>
@@ -381,6 +395,7 @@ export function sqlQueueBackend(
         "select better_supabase.retry_dead_jobs($1, $2, $3) as retried",
         [queue, ids === undefined ? null : [...ids], limit],
       );
+
       return row?.retried ?? 0;
     },
     async purge(queue, args) {
@@ -389,10 +404,12 @@ export function sqlQueueBackend(
         batch: args.batch,
         dead_older_than: args.deadOlderThan,
       }).filter(([, value]) => value !== undefined);
+
       const [row] = await sql.queryRaw<{ purged: number }>(
         `select better_supabase.purge_job_archive(${["queue => $1", ...named.map(([name], index) => `${name} => $${String(index + 2)}`)].join(", ")}) as purged`,
         [queue, ...named.map(([, value]) => value)],
       );
+
       return row?.purged ?? 0;
     },
     async schedule(name, cron, queue, payload, timeZone, nextRun, tenant) {
@@ -414,6 +431,7 @@ export function sqlQueueBackend(
         "select * from better_supabase.list_schedules($1, $2)",
         [filter.prefix ?? null, filter.tenant ?? null],
       );
+
       return rows.map(scheduleInfo);
     },
     async unscheduleTenant(tenant) {
@@ -421,6 +439,7 @@ export function sqlQueueBackend(
         "select better_supabase.unschedule_tenant($1) as removed",
         [tenant],
       );
+
       return row?.removed ?? 0;
     },
     async unschedule(name) {
@@ -428,6 +447,7 @@ export function sqlQueueBackend(
         "select better_supabase.unschedule_job($1) as done",
         [name],
       );
+
       return row?.done ?? false;
     },
     async dueSchedules(lease, batch) {
@@ -435,6 +455,7 @@ export function sqlQueueBackend(
         "select * from better_supabase.claim_due_schedules($1, $2)",
         [lease, batch],
       );
+
       return dueOf(rows, now, async (name, first) => {
         await sql.queryRaw(
           "select better_supabase.advance_schedule($1, null, $2)",
@@ -447,6 +468,7 @@ export function sqlQueueBackend(
         "select better_supabase.advance_schedule($1, $2, $3) as advanced",
         [name, ran.toString(), next.toString()],
       );
+
       return row?.advanced ?? false;
     },
   };
@@ -510,14 +532,17 @@ export function transportRows<T>(fn: string, value: unknown): readonly T[] {
   if (value === null || value === undefined) {
     return [];
   }
+
   if (Array.isArray(value)) {
     // SAFETY: T is the row type the caller declares for this function's result.
     return value as T[];
   }
+
   if (isRecord(value)) {
     // SAFETY: T is the row type the caller declares for this function's result.
     return [value as T];
   }
+
   throw new TypeError(
     `${fn} returned ${typeof value}, not rows: pass a SqlClient instead of sqlTransport for set-returning functions`,
   );
@@ -543,6 +568,7 @@ export function transportQueueBackend(
 ): QueueBackend {
   const schema = options.schema ?? DEFAULT_BLOCK_SCHEMA;
   const now = options.now ?? nowInstant;
+
   const call = (fn: JobsFunction, ...args: unknown[]): Promise<unknown> =>
     transport.call(
       schema,
@@ -553,14 +579,19 @@ export function transportQueueBackend(
         ),
       ),
     );
+
   const rows = async <T>(fn: JobsFunction, ...args: unknown[]) =>
     transportRows<T>(fn, await call(fn, ...args));
+
   const bool = async (fn: JobsFunction, ...args: unknown[]) =>
     (await call(fn, ...args)) === true;
+
   const count = async (fn: JobsFunction, ...args: unknown[]) =>
     Number((await call(fn, ...args)) ?? 0);
+
   const id = (value: unknown): number | null =>
     value === null || value === undefined ? null : Number(value);
+
   return {
     apiVersion: 1,
     name: "transport",
@@ -577,9 +608,11 @@ export function transportQueueBackend(
           dedupe !== "waiting",
         ),
       );
+
       if (sent === null) {
         throw new TypeError("enqueue_job returned no id");
       }
+
       return sent;
     },
     sendOnce: async (queue, payload, delay, maxAttempts, dedupeKey) =>
@@ -607,6 +640,7 @@ export function transportQueueBackend(
         error,
         retryIn ?? null,
       );
+
       return status === "queued" || status === "dead" ? status : null;
     },
     extend: (job, lease) =>
@@ -685,23 +719,29 @@ export function sqlOnly(feature: string): never {
 export function pgmqPublicBackend(client: QueueRpcClient): QueueBackend {
   // Method parameters are bivariant, so the never parameters widen back.
   const untyped: UntypedQueueClient = client;
+
   const call = async <T>(
     fn: string,
     args: Readonly<Record<string, unknown>>,
   ): Promise<T> => {
     const { data, error } = await untyped.schema("pgmq_public").rpc(fn, args);
+
     if (error) {
       const message =
         typeof error === "object" && "message" in error
           ? String(error.message)
           : String(error);
+
       throw new Error(`pgmq_public.${fn}: ${message}`, { cause: error });
     }
+
     // SAFETY: T is the return type the caller declares for this pgmq_public function.
     return data as T;
   };
+
   const archive = (job: Job): Promise<boolean> =>
     call<boolean>("archive", { queue_name: job.queue, message_id: job.id });
+
   return {
     apiVersion: 1,
     name: "pgmq_public",
@@ -710,11 +750,13 @@ export function pgmqPublicBackend(client: QueueRpcClient): QueueBackend {
       if (dedupeKey !== undefined) {
         sqlOnly("dedupeKey");
       }
+
       const ids = await call<readonly (number | string)[]>("send", {
         queue_name: queue,
         message: { payload: payload ?? {}, max_attempts: maxAttempts },
         sleep_seconds: delay,
       });
+
       return Number(ids[0]);
     },
     async read(queue, lease, batch) {
@@ -727,7 +769,9 @@ export function pgmqPublicBackend(client: QueueRpcClient): QueueBackend {
           message: QueueMessageBody | null;
         }[]
       >("read", { queue_name: queue, sleep_seconds: lease, n: batch });
+
       const live = [];
+
       for (const row of rows) {
         // A message read past max_attempts lost its worker on the last attempt.
         if (row.read_ct > (row.message?.max_attempts ?? 5)) {
@@ -739,6 +783,7 @@ export function pgmqPublicBackend(client: QueueRpcClient): QueueBackend {
           live.push(row);
         }
       }
+
       return live.map((row) => ({
         id: row.msg_id,
         attempts: row.read_ct,
@@ -752,7 +797,9 @@ export function pgmqPublicBackend(client: QueueRpcClient): QueueBackend {
       if (job.attempts < job.maxAttempts) {
         return "queued";
       }
+
       await archive(job);
+
       return "dead";
     },
     extend: () => Promise.resolve(false),

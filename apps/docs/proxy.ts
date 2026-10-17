@@ -19,6 +19,7 @@ const NOT_FOUND_PATH = "/_not-found-docs";
  */
 export function proxy(request: NextRequest): NextResponse {
   const slug = docsPathSlug(request.nextUrl.pathname);
+
   if (slug === undefined) {
     return NextResponse.next();
   }
@@ -31,13 +32,16 @@ export function proxy(request: NextRequest): NextResponse {
     const target = [docsContentRoute, slug, "content.md"]
       .filter(Boolean)
       .join("/");
+
     const response = NextResponse.rewrite(new URL(target, request.url));
     response.headers.set("Vary", "Accept");
+
     return response;
   }
 
   const response = NextResponse.next();
   response.headers.set("Vary", "Accept");
+
   return response;
 }
 

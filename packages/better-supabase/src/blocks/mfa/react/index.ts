@@ -12,6 +12,7 @@ import { useBlockEnv } from "../../react-env.ts";
 import { createMfaController, createStepUpController } from "../client.ts";
 
 export type { MfaAssurance, MfaEnrollment, MfaFactor } from "../client.ts";
+
 export { needsStepUp } from "../client.ts";
 
 export interface UseMfaOptions {
@@ -35,6 +36,7 @@ export interface StepUpState extends StepUpSnapshot, StepUpActions {}
 export function useMfa(options: UseMfaOptions = {}): MfaState {
   const { supabase, auth } = useBlockEnv();
   const { issuer } = options;
+
   return useController(
     () =>
       createMfaController({
@@ -57,6 +59,7 @@ export function useMfa(options: UseMfaOptions = {}): MfaState {
  */
 export function useStepUp(): StepUpState {
   const { supabase, auth } = useBlockEnv();
+
   return useController(
     () => createStepUpController({ mfa: supabase.auth.mfa, auth }),
     [supabase, auth],

@@ -28,16 +28,20 @@ function params(list: string): string[] {
   let depth = 0;
   let quoted = false;
   let current = "";
+
   for (const char of list) {
     if (char === "'") {
       quoted = !quoted;
     }
+
     if (!quoted && char === "(") {
       depth += 1;
     }
+
     if (!quoted && char === ")") {
       depth -= 1;
     }
+
     if (!quoted && depth === 0 && char === ",") {
       out.push(current.trim());
       current = "";
@@ -45,9 +49,11 @@ function params(list: string): string[] {
       current += char;
     }
   }
+
   if (current.trim() !== "") {
     out.push(current.trim());
   }
+
   return out;
 }
 
@@ -66,6 +72,7 @@ function functions(sql: string): Map<string, string[]> {
 /** The argument counts of each `drop function if exists` of `name`. */
 function drops(sql: string, name: string): number[] {
   const escaped = name.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
   return [
     ...sql.matchAll(
       new RegExp(`drop function if exists ${escaped}\\(([^;]*)\\);`, "g"),
@@ -78,11 +85,13 @@ describe("the fields parameter of writes with extra columns", () => {
     const plain = render(module);
     const extra = render(module, { app_note: "text" });
     const before = functions(plain);
+
     const added = [...functions(extra)].filter(
       ([name, list]) =>
         list.at(-1) === "fields jsonb default null" &&
         before.get(name)?.at(-1) !== "fields jsonb default null",
     );
+
     for (const [name, list] of added) {
       expect(drops(plain, name), `${name} without extra columns`).toContain(
         list.length,

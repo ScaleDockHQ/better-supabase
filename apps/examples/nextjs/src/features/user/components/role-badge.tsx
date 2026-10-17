@@ -7,6 +7,7 @@ import { useRoleLabel } from "@/features/organization/use-role-label";
 
 export function RoleBadge({ role }: { role: Role }) {
   const roleLabel = useRoleLabel();
+
   return (
     <Badge
       variant={role === "member" ? "secondary" : "default"}

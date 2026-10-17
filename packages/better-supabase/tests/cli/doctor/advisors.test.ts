@@ -26,25 +26,30 @@ const SQL = "select 'lint' as name;";
 // vi.hoisted runs before the static imports, so it loads fs itself.
 const PINNED = vi.hoisted(async () => {
   const { readFile: read } = await import("node:fs/promises");
+
   const source = await read(
     new globalThis.URL("../../../src/cli/doctor/advisors.ts", import.meta.url),
     "utf-8",
   );
+
   return /SPLINTER_SHA256 =\s*"([0-9a-f]{64})"/.exec(source)![1]!;
 });
 
 vi.mock("node:crypto", async (importOriginal) => {
   const crypto = await importOriginal<typeof Crypto>();
   const pinned = await PINNED;
+
   return {
     ...crypto,
     createHash: (algorithm: string) => {
       const hash = crypto.createHash(algorithm);
       let input = "";
+
       return {
         update(data: string) {
           input += data;
           hash.update(data);
+
           return this;
         },
         digest: (encoding: "hex") =>
@@ -69,11 +74,13 @@ const lint = (name: string, categories: string[]): Lint => ({
 
 const recording = (result: unknown): Queryable & { texts: string[] } => {
   const texts: string[] = [];
+
   return {
     texts,
     // SAFETY: pg returns this shape (or one per statement) for the splinter query.
     query: (text: string) => {
       texts.push(text);
+
       return Promise.resolve(result as { rows: [] });
     },
   };
@@ -96,10 +103,12 @@ describe("splinterAdvisors", () => {
 
   it("refuses a download that does not match the pinned hash", async () => {
     const download = fakeFetch(() => ({ text: "drop table users;" }));
+
     const advisors = splinterAdvisors(recording({ rows: [] }), "local", {
       cacheDir,
       fetch: download.fetch,
     });
+
     expect(advisors.describe).toBe("local (splinter e74a9e3)");
     await expect(advisors.lints("security")).rejects.toThrow(
       `splinter.sql from ${URL} does not match the pinned hash; refusing to run it.`,
@@ -113,6 +122,7 @@ describe("splinterAdvisors", () => {
       cacheDir,
       fetch: fakeFetch(() => ({ status: 503 })).fetch,
     });
+
     await expect(advisors.lints("security")).rejects.toThrow(
       `Downloading splinter.sql failed (503) from ${URL}`,
     );
@@ -120,6 +130,7 @@ describe("splinterAdvisors", () => {
 
   it("caches a verified download and runs it read-only, once, per category", async () => {
     const download = fakeFetch(() => ({ text: SQL }));
+
     const db = recording([
       { rows: [], fields: [] },
       {
@@ -133,10 +144,12 @@ describe("splinterAdvisors", () => {
       },
       { rows: [], fields: [] },
     ]);
+
     const advisors = splinterAdvisors(db, "local", {
       cacheDir,
       fetch: download.fetch,
     });
+
     expect((await advisors.lints("security")).map((l) => l.name)).toEqual([
       "rls_disabled_in_public",
     ]);
@@ -150,11 +163,13 @@ describe("splinterAdvisors", () => {
     const offline = fakeFetch(() => {
       throw new Error("offline");
     });
+
     const again = splinterAdvisors(
       recording({ rows: [lint("a", ["SECURITY"])] }),
       "local",
       { cacheDir, fetch: offline.fetch },
     );
+
     expect((await again.lints("security")).map((l) => l.name)).toEqual(["a"]);
     expect(offline.calls).toEqual([]);
   });
@@ -164,14 +179,17 @@ describe("splinterAdvisors", () => {
       cacheDir,
       fetch: fakeFetch(() => ({ text: SQL })).fetch,
     });
+
     await first.lints("security");
     await writeFile(cached(), "drop table users;");
     const download = fakeFetch(() => ({ text: SQL }));
     const db = recording([{ rows: [lint("b", ["SECURITY"])] }]);
+
     const advisors = splinterAdvisors(db, "local", {
       cacheDir,
       fetch: download.fetch,
     });
+
     expect((await advisors.lints("security")).map((l) => l.name)).toEqual([
       "b",
     ]);
@@ -185,6 +203,7 @@ describe("splinterAdvisors", () => {
       cacheDir,
       fetch: fakeFetch(() => ({ text: SQL })).fetch,
     });
+
     expect(await advisors.lints("security")).toEqual([]);
   });
 });
@@ -199,12 +218,14 @@ describe("managementAdvisors", () => {
         ],
       },
     }));
+
     const advisors = managementAdvisors({
       projectRef: "abc",
       accessToken: "sbp_x",
       apiUrl: "http://api.test/",
       fetch: api.fetch,
     });
+
     expect(advisors.describe).toBe("project abc advisors (Management API)");
     expect((await advisors.lints("security")).map((l) => l.name)).toEqual([
       "s",
@@ -225,14 +246,17 @@ describe("managementAdvisors", () => {
       accessToken: "t",
       fetch: fakeFetch(() => ({ status: 403, text: "forbidden" })).fetch,
     });
+
     await expect(failing.lints("security")).rejects.toThrow(
       "Management API security advisors failed (403): forbidden",
     );
+
     const empty = managementAdvisors({
       projectRef: "abc",
       accessToken: "t",
       fetch: fakeFetch(() => ({ body: {} })).fetch,
     });
+
     await expect(empty.lints("performance")).rejects.toThrow(
       'Management API performance advisors returned no "lints".',
     );
@@ -260,6 +284,7 @@ describe("splinter exposed schemas", () => {
       await mkdtemp(join(tmpdir(), "better-supabase-splinter-")),
       "cache",
     );
+
     const db = recording({ rows: [] });
     await splinterAdvisors(db, "local", {
       cacheDir,

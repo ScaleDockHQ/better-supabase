@@ -27,12 +27,14 @@ import { envSchema, parseEnv, toServerEnv } from "../../src/env/index.ts";
 import { createTestSigner, signTestJwt } from "../../src/testing/jwt.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
+
 const env = {
   url: PROJECT_URL,
   publishableKey: "sb_publishable_test",
   secretKey: "sb_secret_test",
   jwksUrl: new URL(`${PROJECT_URL}/auth/v1/.well-known/jwks.json`),
 };
+
 const NAME = "sb-abcdefghijklmnopqrst-auth-token";
 const USER = "11111111-1111-4111-8111-111111111111";
 
@@ -44,6 +46,7 @@ function sessionFor(
   const exp = JSON.parse(
     atob(token.split(".")[1]!.replaceAll("-", "+").replaceAll("_", "/")),
   ).exp as number;
+
   return {
     access_token: token,
     refresh_token: refresh,
@@ -59,9 +62,11 @@ function cookieRequest(
   extra: Record<string, string> = {},
 ): Request {
   const writes = session ? writeSession([], NAME, session) : [];
+
   const cookie = writes
     .map((write) => `${write.name}=${encodeURIComponent(write.value)}`)
     .join("; ");
+
   return new Request("https://app.test/", {
     headers: { ...(cookie ? { cookie } : {}), ...extra },
   });
@@ -84,6 +89,7 @@ describe("session cookies", () => {
       token_type: "bearer",
       user: { id: USER, user_metadata: { bio: "é".repeat(2500) } },
     };
+
     const writes = writeSession([], NAME, big);
     expect(writes.length).toBeGreaterThan(1);
     expect(writes.map((write) => write.name)).toEqual(
@@ -104,6 +110,7 @@ describe("session cookies", () => {
         setAll: () => undefined,
       },
     });
+
     const { data } = await client.auth.getSession();
     expect(data.session?.access_token).toBe(big.access_token);
   });
@@ -114,10 +121,12 @@ describe("session cookies", () => {
       { name: `${NAME}.1`, value: "y" },
       { name: "other", value: "z" },
     ];
+
     const writes = writeSession(existing, NAME, {
       access_token: "t",
       refresh_token: "r",
     });
+
     expect(writes.map((write) => [write.name, write.options.maxAge])).toEqual([
       [`${NAME}.0`, 0],
       [`${NAME}.1`, 0],
@@ -141,12 +150,14 @@ describe("resolveAuth", async () => {
   it("verifies a Bearer token locally", async () => {
     const token = await signer.sign({ sub: USER, email: "a@b.c" });
     const fetchSpy = vi.fn<typeof fetch>();
+
     const { auth, cookies } = await resolveAuth(
       new Request("https://api.test/", {
         headers: { authorization: `Bearer ${token}` },
       }),
       { ...options, fetch: fetchSpy },
     );
+
     expect(auth).toMatchObject({
       kind: "user",
       source: "bearer",
@@ -162,10 +173,12 @@ describe("resolveAuth", async () => {
   it("verifies shared-secret tokens with jwtSecret and keeps the JWKS for tokens with a kid", async () => {
     const secret = "lite-secret-0123456789abcdef0123456789";
     const shared = await signTestJwt(secret, { sub: USER });
+
     const bearer = (token: string) =>
       new Request("https://api.test/", {
         headers: { authorization: `Bearer ${token}` },
       });
+
     const lite = { ...options, jwtSecret: secret };
     expect((await resolveAuth(bearer(shared), lite)).auth).toMatchObject({
       kind: "user",
@@ -189,12 +202,14 @@ describe("resolveAuth", async () => {
   it("rejects an invalid Bearer token instead of downgrading to anon", async () => {
     const other = await createTestSigner();
     const token = await other.sign({ sub: USER });
+
     const { auth } = await resolveAuth(
       new Request("https://api.test/", {
         headers: { authorization: `Bearer ${token}` },
       }),
       options,
     );
+
     expect(auth).toMatchObject({
       kind: "invalid",
       error: { kind: "unauthorized", status: 401 },
@@ -206,6 +221,7 @@ describe("resolveAuth", async () => {
       new Request("https://api.test/", {
         headers: { apikey: "sb_secret_test" },
       });
+
     expect((await resolveAuth(request(), options)).auth).toEqual({
       kind: "anon",
       reason: "none",
@@ -224,11 +240,13 @@ describe("resolveAuth", async () => {
       },
       secret: ["cron"],
     };
+
     const call = (apikey: string) =>
       resolveAuth(
         new Request("https://api.test/", { headers: { apikey } }),
         named,
       );
+
     expect((await call("sb_secret_cron")).auth).toEqual({
       kind: "service",
       keyName: "cron",
@@ -241,10 +259,12 @@ describe("resolveAuth", async () => {
 
   it("uses a fresh cookie session without network or cookie writes", async () => {
     const token = await signer.sign({ sub: USER });
+
     const resolution = await resolveAuth(cookieRequest(sessionFor(token)), {
       ...options,
       refresh: true,
     });
+
     expect(resolution.auth).toMatchObject({ kind: "user", source: "cookie" });
     expect(resolution.cookies).toEqual([]);
     expect(resolution.headers).toEqual({});
@@ -252,24 +272,29 @@ describe("resolveAuth", async () => {
 
   it("reports expired sessions where refreshing is not allowed", async () => {
     const token = await signer.sign({ sub: USER, expiresIn: -5 });
+
     const { auth } = await resolveAuth(
       cookieRequest(sessionFor(token)),
       options,
     );
+
     expect(auth).toEqual({ kind: "anon", reason: "expired" });
   });
 
   it("keeps a token inside the refresh leeway valid where refreshing is not allowed", async () => {
     const token = await signer.sign({ sub: USER, expiresIn: 30 });
+
     const { auth } = await resolveAuth(
       cookieRequest(sessionFor(token)),
       options,
     );
+
     expect(auth).toMatchObject({ kind: "user", source: "cookie" });
   });
 
   it("times out a hung refresh as a network failure and retries the next request", async () => {
     const stale = await signer.sign({ sub: USER, expiresIn: -5 });
+
     const hung = vi.fn<typeof fetch>(
       (_url, init) =>
         new Promise((_resolve, reject) => {
@@ -278,6 +303,7 @@ describe("resolveAuth", async () => {
           });
         }),
     );
+
     const request = () =>
       resolveAuth(cookieRequest(sessionFor(stale, "refresh-hung")), {
         ...options,
@@ -285,6 +311,7 @@ describe("resolveAuth", async () => {
         refreshTimeoutMs: 5,
         fetch: hung,
       });
+
     expect((await request()).auth).toEqual({
       kind: "anon",
       reason: "refresh_failed",
@@ -295,15 +322,18 @@ describe("resolveAuth", async () => {
 
   it("reuses a rejected refresh for parallel requests", async () => {
     const stale = await signer.sign({ sub: USER, expiresIn: 30 });
+
     const dead = vi.fn<typeof fetch>(async () =>
       Response.json({ msg: "Invalid Refresh Token" }, { status: 400 }),
     );
+
     const request = () =>
       resolveAuth(cookieRequest(sessionFor(stale, "refresh-reused-dead")), {
         ...options,
         refresh: true,
         fetch: dead,
       });
+
     await request();
     const again = await request();
     expect(again.auth).toEqual({ kind: "anon", reason: "signed_out" });
@@ -313,10 +343,12 @@ describe("resolveAuth", async () => {
   it("refreshes once for concurrent requests and writes cookies with no-store headers", async () => {
     const stale = await signer.sign({ sub: USER, expiresIn: 30 });
     const fresh = await signer.sign({ sub: USER });
+
     const fetchSpy = vi.fn<typeof fetch>(async () => {
       await new Promise((resolve) => {
         setTimeout(resolve, 10);
       });
+
       return Response.json({
         access_token: fresh,
         refresh_token: "refresh-2",
@@ -325,7 +357,9 @@ describe("resolveAuth", async () => {
         user: { id: USER },
       });
     });
+
     const session = sessionFor(stale, "refresh-concurrent");
+
     const [a, b] = await Promise.all([
       resolveAuth(cookieRequest(session), {
         ...options,
@@ -338,10 +372,12 @@ describe("resolveAuth", async () => {
         fetch: fetchSpy,
       }),
     ]);
+
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const [url, init] = fetchSpy.mock.calls[0]!;
     expect(url).toBe(`${PROJECT_URL}/auth/v1/token?grant_type=refresh_token`);
     expect(init?.headers).toMatchObject({ apikey: "sb_publishable_test" });
+
     for (const resolution of [a, b]) {
       expect(resolution.auth).toMatchObject({ kind: "user", token: fresh });
       expect(resolution.headers["Cache-Control"]).toContain("no-store");
@@ -367,6 +403,7 @@ describe("resolveAuth", async () => {
 
   it("clears the session when the refresh token is rejected, keeps the token on network errors", async () => {
     const stale = await signer.sign({ sub: USER, expiresIn: 30 });
+
     const rejected = await resolveAuth(
       cookieRequest(sessionFor(stale, "refresh-dead")),
       {
@@ -376,6 +413,7 @@ describe("resolveAuth", async () => {
           Response.json({ msg: "Invalid Refresh Token" }, { status: 400 }),
       },
     );
+
     expect(rejected.auth).toEqual({ kind: "anon", reason: "signed_out" });
     expect(rejected.sessionEnded).toBeUndefined();
     expect(rejected.cookies.every((write) => write.options.maxAge === 0)).toBe(
@@ -394,6 +432,7 @@ describe("resolveAuth", async () => {
           ),
       },
     );
+
     expect(banned).toMatchObject({
       sessionEnded: true,
       sessionEndedReason: "banned",
@@ -407,10 +446,12 @@ describe("resolveAuth", async () => {
         fetch: () => Promise.reject(new TypeError("fetch failed")),
       },
     );
+
     expect(offline.auth).toMatchObject({ kind: "user", source: "cookie" });
     expect(offline.cookies).toEqual([]);
 
     const expired = await signer.sign({ sub: USER, expiresIn: -5 });
+
     const lapsed = await resolveAuth(
       cookieRequest(sessionFor(expired, "refresh-offline-expired")),
       {
@@ -419,19 +460,23 @@ describe("resolveAuth", async () => {
         fetch: () => Promise.reject(new TypeError("fetch failed")),
       },
     );
+
     expect(lapsed.auth).toEqual({ kind: "anon", reason: "refresh_failed" });
     expect(lapsed.cookies).toEqual([]);
   });
 
   it("forwards the client IP on refresh only with a secret key", async () => {
     const stale = await signer.sign({ sub: USER, expiresIn: 30 });
+
     const fetchSpy = vi.fn<typeof fetch>(async () =>
       Response.json({ msg: "Invalid Refresh Token" }, { status: 400 }),
     );
+
     const request = (refresh: string) =>
       cookieRequest(sessionFor(stale, refresh), {
         "x-forwarded-for": "10.0.0.1, 2001:db8::1",
       });
+
     const secretEnv = { ...options, env, refresh: true, fetch: fetchSpy };
     await resolveAuth(request("ip-a"), secretEnv);
     expect(fetchSpy.mock.calls[0]![1]!.headers).toMatchObject({
@@ -459,6 +504,7 @@ describe("resolveAuth", async () => {
           headers: { "x-forwarded-for": value },
         }),
       );
+
     expect(ip("6.6.6.6 , 203.0.113.7 ")).toBe("203.0.113.7");
     expect(ip("203.0.113.7")).toBe("203.0.113.7");
     expect(ip("203.0.113.7, unknown")).toBeUndefined();
@@ -482,6 +528,7 @@ describe("resolveAuth", async () => {
         ],
       },
     );
+
     expect(auth).toEqual({ kind: "service", keyName: "partner" });
   });
 
@@ -498,6 +545,7 @@ describe("resolveAuth", async () => {
         },
       ],
     });
+
     expect(auth).toMatchObject({ kind: "invalid", reason: "token" });
   });
 
@@ -506,7 +554,9 @@ describe("resolveAuth", async () => {
       tenant_id: v.pipe(v.string(), v.uuid()),
       roles: v.optional(v.array(v.string()), []),
     });
+
     const TENANT = "22222222-2222-4222-8222-222222222222";
+
     const bearer = (token: string) =>
       new Request("https://api.test/", {
         headers: { authorization: `Bearer ${token}` },
@@ -514,10 +564,12 @@ describe("resolveAuth", async () => {
 
     it("validates verified claims and merges the output over the payload", async () => {
       const token = await signer.sign({ sub: USER, tenant_id: TENANT });
+
       const { auth } = await resolveAuth(bearer(token), {
         ...options,
         claims,
       });
+
       expect(auth).toMatchObject({
         kind: "user",
         claims: { sub: USER, tenant_id: TENANT, roles: [] },
@@ -526,11 +578,13 @@ describe("resolveAuth", async () => {
 
     it("resolves claims the schema rejects to invalid, also on memo hits", async () => {
       const token = await signer.sign({ sub: USER, tenant_id: "nope" });
+
       for (let i = 0; i < 2; i++) {
         const { auth } = await resolveAuth(bearer(token), {
           ...options,
           claims,
         });
+
         expect(auth).toMatchObject({
           kind: "invalid",
           reason: "claims",
@@ -546,8 +600,10 @@ describe("resolveAuth", async () => {
 
     it("runs the schemas once per token and schema pair", async () => {
       const token = await signer.sign({ sub: USER, tenant_id: TENANT });
+
       const counted = (schema: typeof claims) => {
         const validate = vi.fn(schema["~standard"].validate);
+
         return {
           validate,
           schema: {
@@ -556,14 +612,18 @@ describe("resolveAuth", async () => {
           } as typeof claims,
         };
       };
+
       const first = counted(claims);
+
       for (let i = 0; i < 3; i++) {
         const { auth } = await resolveAuth(bearer(token), {
           ...options,
           claims: first.schema,
         });
+
         expect(auth).toMatchObject({ kind: "user", source: "bearer" });
       }
+
       expect(first.validate).toHaveBeenCalledOnce();
       const second = counted(claims);
       await resolveAuth(bearer(token), { ...options, claims: second.schema });
@@ -573,10 +633,12 @@ describe("resolveAuth", async () => {
     it("never refreshes a cookie session whose claims fail", async () => {
       const token = await signer.sign({ sub: USER });
       const fetchSpy = vi.fn<typeof fetch>();
+
       const { auth, cookies } = await resolveAuth(
         cookieRequest(sessionFor(token, "refresh-claims")),
         { ...options, claims, refresh: true, fetch: fetchSpy },
       );
+
       expect(auth).toMatchObject({ kind: "invalid", reason: "claims" });
       expect(fetchSpy).not.toHaveBeenCalled();
       expect(cookies).toEqual([]);
@@ -585,11 +647,13 @@ describe("resolveAuth", async () => {
     it("validates users from custom resolvers", async () => {
       const token = await signer.sign({ sub: USER });
       const verified = await resolveAuth(bearer(token), options);
+
       const { auth } = await resolveAuth(new Request("https://api.test/"), {
         ...options,
         claims,
         resolvers: [{ name: "fixed", resolve: () => verified.auth }],
       });
+
       expect(auth).toMatchObject({ kind: "invalid", reason: "claims" });
     });
   });
@@ -599,10 +663,12 @@ describe("resolveAuth", async () => {
       display_name: v.string(),
       avatar_url: v.optional(v.pipe(v.string(), v.url())),
     });
+
     const bearer = (token: string) =>
       new Request("https://api.test/", {
         headers: { authorization: `Bearer ${token}` },
       });
+
     const logger = () => ({
       debug: vi.fn(),
       info: vi.fn(),
@@ -615,10 +681,12 @@ describe("resolveAuth", async () => {
         sub: USER,
         user_metadata: { display_name: "Ada", role: "admin" },
       });
+
       const { auth } = await resolveAuth(bearer(token), {
         ...options,
         userMetadata: profile,
       });
+
       expect(auth).toMatchObject({
         kind: "user",
         profile: { display_name: "Ada" },
@@ -631,20 +699,24 @@ describe("resolveAuth", async () => {
     it("leaves the profile undefined and warns once with issue paths only", async () => {
       const schema = v.object({ ...profile.entries });
       const log = logger();
+
       const token = await signer.sign({
         sub: USER,
         user_metadata: { display_name: 42, secret: "do-not-log" },
       });
+
       for (let i = 0; i < 2; i++) {
         const { auth } = await resolveAuth(bearer(token), {
           ...options,
           userMetadata: schema,
           logger: log,
         });
+
         expect(auth).toMatchObject({ kind: "user", user: { id: USER } });
         expect(auth).not.toHaveProperty("profile");
         expect(toSession(auth)).not.toHaveProperty("profile");
       }
+
       expect(log.warn).toHaveBeenCalledTimes(1);
       expect(log.warn).toHaveBeenCalledWith(expect.any(String), {
         paths: ["display_name"],
@@ -654,11 +726,13 @@ describe("resolveAuth", async () => {
 
     it("validates an empty object when the token has no user_metadata", async () => {
       const token = await signer.sign({ sub: USER });
+
       const { auth } = await resolveAuth(bearer(token), {
         ...options,
         userMetadata: v.object({ theme: v.optional(v.string(), "light") }),
         logger: logger(),
       });
+
       expect(auth).toMatchObject({ kind: "user", profile: { theme: "light" } });
     });
 
@@ -667,13 +741,16 @@ describe("resolveAuth", async () => {
         sub: USER,
         user_metadata: { display_name: "Ada" },
       });
+
       const verified = await resolveAuth(bearer(token), options);
       const forged = { ...verified.auth, profile: { display_name: "Eve" } };
+
       const { auth } = await resolveAuth(new Request("https://api.test/"), {
         ...options,
         userMetadata: profile,
         resolvers: [{ name: "fixed", resolve: () => forged }],
       });
+
       expect(auth).toMatchObject({ profile: { display_name: "Ada" } });
     });
 
@@ -682,11 +759,13 @@ describe("resolveAuth", async () => {
         sub: USER,
         user_metadata: { display_name: 42, tenant_id: "from-user" },
       });
+
       const { auth } = await resolveAuth(bearer(token), {
         ...options,
         userMetadata: profile,
         logger: logger(),
       });
+
       expect(auth.kind).toBe("user");
       expect(auth).not.toHaveProperty("claims.tenant_id");
     });
@@ -699,6 +778,7 @@ describe("env", () => {
       NEXT_PUBLIC_SUPABASE_URL: `${PROJECT_URL}/`,
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_x",
     });
+
     expect(result.env).toEqual({
       url: PROJECT_URL,
       publishableKey: "sb_publishable_x",
@@ -716,7 +796,9 @@ describe("env", () => {
       SUPABASE_URL: PROJECT_URL,
       SUPABASE_PUBLISHABLE_KEY: "sb_publishable_x",
     };
+
     const key = { kty: "EC", crv: "P-256", x: "x", y: "y" };
+
     for (const value of [
       JSON.stringify({ keys: [key] }),
       JSON.stringify([key]),
@@ -725,6 +807,7 @@ describe("env", () => {
       expect(result.env?.jwks).toEqual({ keys: [key] });
       expect(toServerEnv(result.env!).jwks).toEqual({ keys: [key] });
     }
+
     for (const [value, message] of [
       ["not json", 'must be JSON: {"keys":[...]} or [...]'],
       ["[]", "must hold at least one JSON Web Key with a kty"],
@@ -742,18 +825,22 @@ describe("env", () => {
   it("verifies with the inline env keys without fetching the JWKS URL", async () => {
     const signer = await createTestSigner();
     const token = await signer.sign({ sub: USER });
+
     const inline = parseEnv({
       SUPABASE_URL: PROJECT_URL,
       SUPABASE_PUBLISHABLE_KEY: "sb_publishable_x",
       SUPABASE_JWKS: JSON.stringify(signer.jwks),
     }).env!;
+
     const fetchSpy = vi.spyOn(globalThis, "fetch");
+
     const { auth } = await resolveAuth(
       new Request("https://api.test/", {
         headers: { authorization: `Bearer ${token}` },
       }),
       { env: inline },
     );
+
     expect(auth.kind).toBe("user");
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
@@ -761,11 +848,13 @@ describe("env", () => {
 
   it("reads named key maps and rejects malformed ones", () => {
     const base = { SUPABASE_URL: PROJECT_URL };
+
     const result = parseEnv({
       ...base,
       SUPABASE_PUBLISHABLE_KEYS: '{"default":"sb_publishable_x"}',
       SUPABASE_SECRET_KEYS: '{"default":"sb_secret_a","cron":"sb_secret_b"}',
     });
+
     expect(result.env).toMatchObject({
       publishableKey: "sb_publishable_x",
       secretKey: "sb_secret_a",
@@ -782,6 +871,7 @@ describe("env", () => {
         SUPABASE_PUBLISHABLE_KEY: "sb_publishable_x",
         SUPABASE_SECRET_KEYS: value,
       });
+
       expect(bad.issues).toEqual([
         {
           variables: ["SUPABASE_SECRET_KEYS"],
@@ -789,6 +879,7 @@ describe("env", () => {
         },
       ]);
     }
+
     expect(
       parseEnv({
         ...base,
@@ -808,6 +899,7 @@ describe("env", () => {
       SUPABASE_URL: "http://127.0.0.1:54321",
       SUPABASE_PUBLISHABLE_KEY: "sb_publishable_x",
     };
+
     const secret = "lite-secret-0123456789abcdef0123456789";
     expect(
       parseEnv({ ...base, SUPABASE_JWT_SECRET: secret }).env,
@@ -829,10 +921,13 @@ describe("env", () => {
       },
       { require: ["dbUrl"] },
     );
+
     expect(result.ok).toBe(false);
+
     const messages = result.issues!.map(
       (issue) => `${issue.variables[0]} ${issue.message}`,
     );
+
     expect(messages).toEqual([
       expect.stringMatching(/^SUPABASE_URL must use https/),
       expect.stringMatching(/^SUPABASE_PUBLISHABLE_KEY holds a secret key/),
@@ -847,6 +942,7 @@ describe("env", () => {
       SUPABASE_URL: "http://127.0.0.1:54321",
       SUPABASE_PUBLISHABLE_KEY: "sb_publishable_x",
     });
+
     expect(outcome).toMatchObject({ value: { url: "http://127.0.0.1:54321" } });
   });
 });
@@ -858,6 +954,7 @@ describe("problem details", () => {
       columns: ["kvk"],
       code: "23505",
     });
+
     const response = problemResponse(error, { instance: "/customers" });
     expect(response.status).toBe(409);
     expect(response.headers.get("content-type")).toBe(

@@ -35,6 +35,7 @@ export async function overwrite(
   if (args.force === true) {
     return true;
   }
+
   const existing = [
     ...new Set(
       files
@@ -42,9 +43,11 @@ export async function overwrite(
         .filter((path) => existsSync(resolve(root, path))),
     ),
   ];
+
   if (!prompts || existing.length === 0) {
     return false;
   }
+
   return prompts.confirm(
     `${existing.map((path) => display(base, resolve(root, path))).join(", ")} ${existing.length === 1 ? "exists" : "exist"}. Overwrite?`,
   );
@@ -60,25 +63,31 @@ export async function writeFiles(
   const dryRun = args["dry-run"] === true;
   const lines: string[] = [];
   const seen = new Set<string>();
+
   for (const file of files) {
     if (seen.has(file.path)) {
       continue;
     }
+
     seen.add(file.path);
     const path = resolve(root, file.path);
     const shown = display(base, path);
+
     if (existsSync(path) && !force) {
       lines.push(`Kept    ${shown} (exists)`);
       continue;
     }
+
     if (dryRun) {
       lines.push(`Would write ${shown}`);
       continue;
     }
+
     lines.push(
       `${(await writeIfChanged(path, file.contents)) ? "Wrote  " : "Same   "} ${shown}`,
     );
   }
+
   return lines;
 }
 
@@ -111,6 +120,7 @@ export function packagesFor(
     "@supabase/supabase-js",
     ...names.flatMap((name) => TEMPLATES[name].packages),
   ];
+
   return [...new Set(wanted)].filter((name) => !(name in project.dependencies));
 }
 

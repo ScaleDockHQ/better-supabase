@@ -11,11 +11,14 @@ export function commentMeta(comment: string | null | undefined): {
   if (!comment) {
     return {};
   }
+
   const deprecated = /^\s*@deprecated\b/m.test(comment);
+
   const description = comment
     .replaceAll(/^\s*@example\s+(.+?)\s*$/gm, "")
     .replaceAll(/^\s*@deprecated\b.*$/gm, "")
     .trim();
+
   return {
     ...(description ? { description } : {}),
     ...(deprecated ? { deprecated: true } : {}),

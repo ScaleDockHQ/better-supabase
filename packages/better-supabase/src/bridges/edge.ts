@@ -41,6 +41,7 @@ export function toEdge<const Entries extends readonly AnyEntry[]>(
 ): EdgeHandler {
   const EXECUTION = Symbol("toEdge.execution");
   const ENV = Symbol("toEdge.env");
+
   // SAFETY: widening to the constraint; the parameter type already validated the entries.
   const run = pipeline(entries as readonly AnyEntry[], (request, ctx) =>
     Promise.resolve(
@@ -55,6 +56,7 @@ export function toEdge<const Entries extends readonly AnyEntry[]>(
       ),
     ),
   );
+
   return (request, env, executionContext) =>
     run(request.body ? bufferRequest(request) : request, {
       ...seedContext(env),

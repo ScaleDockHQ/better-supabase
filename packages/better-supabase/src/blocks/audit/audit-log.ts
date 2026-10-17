@@ -222,11 +222,13 @@ export interface AuditReverted {
 
 function revertedOf(value: unknown): AuditReverted {
   const record = isRecord(value) ? value : {};
+
   const entries = Array.isArray(record["entries"])
     ? record["entries"].filter(
         (entry): entry is string => typeof entry === "string",
       )
     : [];
+
   return {
     reverted: typeof record["reverted"] === "number" ? record["reverted"] : 0,
     undo:
@@ -301,20 +303,26 @@ function recordOfEntry<Columns extends AuditColumns>(
 ): AuditRecord<Columns> {
   const row = isRecord(value) ? value : {};
   const text: Partial<Record<(typeof TEXT_KEYS)[number], string>> = {};
+
   for (const key of TEXT_KEYS) {
     const found = optionalText(row[key]);
+
     if (found !== undefined) {
       text[key] = found;
     }
   }
+
   const json = (key: string) => {
     const found = row[key];
+
     return isRecord(found) ? found : undefined;
   };
+
   const old = json("old");
   const next = json("new");
   const metadata = json("metadata");
   const columns = json("columns");
+
   return {
     id: textOf(row["id"]),
     occurredAt:
@@ -365,14 +373,19 @@ const many = (value: OneOrMany | undefined): readonly string[] | undefined =>
 /** `reveal_audit_entry`'s details, or one of `reveal_audit_entries`'. */
 function detailsOf(value: unknown, entryId: string): AuditDetails {
   const row = isRecord(value) ? value : {};
+
   const json = (key: string) => {
     const found = row[key];
+
     return isRecord(found) ? { [key]: found } : {};
   };
+
   const text = (key: string) => {
     const found = optionalText(row[key]);
+
     return found === undefined ? {} : { [key]: found };
   };
+
   return {
     entry: textOf(row["entry"] ?? entryId),
     ...json("old"),
@@ -402,6 +415,7 @@ export function createAudit<Columns extends AuditColumns = AuditColumns>(
     list: AuditListOptions = {},
   ): AsyncResult<AuditPage<Columns>> => {
     const limit = list.limit ?? 50;
+
     const filters = {
       for_tenants: many(list.organizationId),
       for_event_types: many(list.eventType),
@@ -417,7 +431,9 @@ export function createAudit<Columns extends AuditColumns = AuditColumns>(
       since: instantArg(list.since),
       until: instantArg(list.until),
     };
+
     const { cursor } = pageOf(list);
+
     const page = call(
       "list_audit_events",
       {
@@ -432,7 +448,9 @@ export function createAudit<Columns extends AuditColumns = AuditColumns>(
         const entries = (Array.isArray(value) ? value : []).map((entry) =>
           recordOfEntry<Columns>(entry),
         );
+
         const last = entries.at(-1);
+
         return {
           entries,
           next:
@@ -442,9 +460,11 @@ export function createAudit<Columns extends AuditColumns = AuditColumns>(
         };
       },
     );
+
     if (list.count !== true) {
       return page;
     }
+
     return page.andThen((data) =>
       call("count_audit_events", filters, (value) => ({
         ...data,
@@ -463,6 +483,7 @@ export function createAudit<Columns extends AuditColumns = AuditColumns>(
         new Map(
           (Array.isArray(value) ? value : []).map((row) => {
             const details = detailsOf(row, "");
+
             return [details.entry, details] as const;
           }),
         ),
@@ -473,13 +494,16 @@ export function createAudit<Columns extends AuditColumns = AuditColumns>(
   ): ReadableStream<Uint8Array> => {
     const format = exporting.format ?? "ndjson";
     const product = exporting.product;
+
     if (format === "ocsf" && !product) {
       throw new TypeError(
         "createAudit().export: the ocsf format needs product",
       );
     }
+
     const encoder = new TextEncoder();
     let before: AuditCursor | undefined;
+
     const {
       offset: start,
       columns,
@@ -487,45 +511,59 @@ export function createAudit<Columns extends AuditColumns = AuditColumns>(
       formatRow,
       ...filters
     } = exporting;
+
     const csv = {
       ...(columns === undefined ? {} : { columns }),
       ...(preamble === undefined ? {} : { preamble }),
       ...(formatRow === undefined ? {} : { formatRow }),
     };
+
     const reveals = format === "csv" && revealsDetails(columns);
     let offset = start;
     let header = format === "csv";
     let done = false;
+
     return new ReadableStream<Uint8Array>({
       async pull(controller) {
         if (done) {
           return;
         }
+
         const page = await list({
           ...filters,
           ...(before ? { cursor: before } : {}),
           ...(offset === undefined ? {} : { offset }),
           limit: exporting.batch ?? 500,
         });
+
         offset = undefined;
+
         if (!page.ok) {
           done = true;
           controller.error(new Error(page.error.message));
+
           return;
         }
+
         const { entries, next } = page.data;
         let text = "";
+
         if (format === "csv") {
           let details: ReadonlyMap<string, AuditDetails> | undefined;
+
           if (reveals && entries.length > 0) {
             const revealed = await revealPage(entries);
+
             if (!revealed.ok) {
               done = true;
               controller.error(new Error(revealed.error.message));
+
               return;
             }
+
             details = revealed.data;
           }
+
           text = csvPage(entries, csv, details, header);
           header = false;
         } else if (entries.length > 0) {
@@ -539,10 +577,13 @@ export function createAudit<Columns extends AuditColumns = AuditColumns>(
             )
             .join("\n")}\n`;
         }
+
         if (text.length > 0) {
           controller.enqueue(encoder.encode(text));
         }
+
         before = next;
+
         if (next === undefined) {
           done = true;
           controller.close();
@@ -597,9 +638,12 @@ export function createAudit<Columns extends AuditColumns = AuditColumns>(
     exportToStorage: (target) =>
       AsyncResult.from(async () => {
         const format = target.format ?? "ndjson";
+
         const contentType =
           format === "csv" ? "text/csv" : "application/x-ndjson";
+
         let body: Blob;
+
         try {
           body = new Blob(
             [await new Response(exportStream(target)).arrayBuffer()],
@@ -616,11 +660,14 @@ export function createAudit<Columns extends AuditColumns = AuditColumns>(
             ),
           );
         }
+
         const bucket = target.storage.from(target.bucket);
+
         const uploaded = await bucket.upload(target.path, body, {
           contentType,
           upsert: true,
         });
+
         if (uploaded.error) {
           return err(
             dbError("raised", "The export could not be stored", {
@@ -628,18 +675,23 @@ export function createAudit<Columns extends AuditColumns = AuditColumns>(
             }),
           );
         }
+
         let url: string | undefined;
+
         if (target.signedUrlTtl !== undefined && bucket.createSignedUrl) {
           const signed = await bucket.createSignedUrl(
             target.path,
             target.signedUrlTtl,
             { download: true },
           );
+
           url = signed.data?.signedUrl;
         }
+
         return ok({ path: target.path, url });
       }),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "audit",
     ...(options.logger ? { logger: options.logger } : {}),

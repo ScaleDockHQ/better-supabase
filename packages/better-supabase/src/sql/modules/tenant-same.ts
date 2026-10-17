@@ -31,24 +31,32 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 function entriesOf(ctx: ModuleContext): readonly SameTenant[] {
   const where = "blocks.tenant.options.sameTenant";
   const value = ctx.option("sameTenant");
+
   if (value === undefined) {
     return [];
   }
+
   if (!Array.isArray(value)) {
     throw new TypeError(
       `${where} must be a list of { table, column, references, tenant?, match?, through? }`,
     );
   }
+
   const fallback = ctx.col("memberships", "tenant").replaceAll('"', "");
+
   const ident = (at: string, name: unknown, otherwise?: string): string => {
     const resolved = name ?? otherwise;
+
     if (typeof resolved !== "string" || !IDENT.test(resolved)) {
       throw new TypeError(`${at} must be a lowercase column name`);
     }
+
     return resolved;
   };
+
   return value.map((entry: unknown, index): SameTenant => {
     const at = `${where}[${String(index)}]`;
+
     if (
       !isRecord(entry) ||
       typeof entry["table"] !== "string" ||
@@ -59,14 +67,18 @@ function entriesOf(ctx: ModuleContext): readonly SameTenant[] {
         `${at} must be { table: "schema.table", column: "<column>", references: "schema.table" | { table, column?, tenant?, where? }, tenant?, match?, through? }`,
       );
     }
+
     const references: Record<string, unknown> =
       typeof entry["references"] === "string"
         ? { table: entry["references"] }
         : entry["references"];
+
     if (typeof references["table"] !== "string") {
       throw new TypeError(`${at}.references.table must be "schema.table"`);
     }
+
     const condition = references["where"];
+
     if (
       condition !== undefined &&
       (typeof condition !== "string" || !condition.includes("{row}"))
@@ -75,22 +87,29 @@ function entriesOf(ctx: ModuleContext): readonly SameTenant[] {
         `${at}.references.where must be a condition on {row}`,
       );
     }
+
     const match = entry["match"] ?? {};
+
     if (!isRecord(match)) {
       throw new TypeError(
         `${at}.match must be { <column>: "<referenced column>" }`,
       );
     }
+
     const through = entry["through"] ?? {};
+
     if (!isRecord(through)) {
       throw new TypeError(
         `${at}.through must be { <column>: "schema.table" | { table, column? } }`,
       );
     }
+
     const pairs: (readonly [string, string])[] = [];
     const hops: Hop[] = [];
+
     for (const [own, referenced] of Object.entries(match)) {
       const dot = own.indexOf(".");
+
       if (dot === -1) {
         pairs.push([
           ident(`${at}.match`, own),
@@ -98,20 +117,24 @@ function entriesOf(ctx: ModuleContext): readonly SameTenant[] {
         ]);
         continue;
       }
+
       const via = ident(`${at}.match`, own.slice(0, dot));
       const column = ident(`${at}.match`, own.slice(dot + 1));
       const target = through[via];
+
       const hop: Record<string, unknown> | undefined =
         typeof target === "string"
           ? { table: target }
           : isRecord(target)
             ? target
             : undefined;
+
       if (hop === undefined || typeof hop["table"] !== "string") {
         throw new TypeError(
           `${at}.match.${own} reads ${via}, so ${at}.through.${via} must name the table ${via} references`,
         );
       }
+
       hops.push({
         via,
         table: quotedTable(hop["table"]),
@@ -120,7 +143,9 @@ function entriesOf(ctx: ModuleContext): readonly SameTenant[] {
         referenced: ident(`${at}.match.${own}`, referenced),
       });
     }
+
     const tenant = ident(`${at}.tenant`, entry["tenant"], fallback);
+
     return {
       table: quotedTable(entry["table"]),
       column: ident(`${at}.column`, entry["column"]),
@@ -151,9 +176,11 @@ function triggerName(column: string): string {
  */
 export function sameTenantSql(ctx: ModuleContext): string {
   const entries = entriesOf(ctx);
+
   if (entries.length === 0) {
     return "";
   }
+
   const triggers = entries.map((entry) => {
     const conditions = [
       ...(entry.where === undefined
@@ -164,10 +191,12 @@ export function sameTenantSql(ctx: ModuleContext): string {
           `p.${sqlIdent(hop.referenced)} is not distinct from (select h.${sqlIdent(hop.column)} from ${hop.table} h where h.${sqlIdent(hop.key)} = ($1).${sqlIdent(hop.via)})`,
       ),
     ];
+
     const condition =
       conditions.length > 1
         ? conditions.map((part) => `(${part})`).join(" and ")
         : conditions[0];
+
     const args = [
       entry.column,
       entry.tenant,
@@ -179,7 +208,9 @@ export function sameTenantSql(ctx: ModuleContext): string {
         : [condition ?? ""]),
       ...entry.match.flat(),
     ].map(sqlString);
+
     const name = triggerName(entry.column);
+
     const columns = [
       ...new Set([
         entry.column,
@@ -190,10 +221,12 @@ export function sameTenantSql(ctx: ModuleContext): string {
     ]
       .map(sqlIdent)
       .join(", ");
+
     return `drop trigger if exists ${name} on ${entry.table};
 create trigger ${name} before insert or update of ${columns} on ${entry.table}
   for each row execute function better_supabase.same_tenant(${args.join(", ")});`;
   });
+
   return `
 -- blocks.tenant.options.sameTenant: a row may reference only a row of
 -- its own tenant, whoever writes it (a client policy, the service role or an

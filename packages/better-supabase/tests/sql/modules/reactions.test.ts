@@ -19,6 +19,7 @@ describe("reactions module", () => {
     const sql = sqlOf(["reactions"], "reactions", {
       subjects: { doc: { table: "public.docs", idType: "uuid" } },
     });
+
     expect(sql).toContain(
       `when 'doc' then exists (select 1 from "public"."docs" s`,
     );
@@ -47,6 +48,7 @@ describe("reactions module", () => {
     const sql = sqlOf(["reactions"], "reactions", {
       modules: { reactions: { options: { topic: "emoji" } } },
     });
+
     expect(sql).toContain(`like 'emoji:%'`);
     expect(() =>
       sqlOf(["reactions"], "reactions", {

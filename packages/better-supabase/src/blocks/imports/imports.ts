@@ -27,6 +27,7 @@ export interface Imports {
 
 export function createImports(options: ImportsOptions): Imports {
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const client: Imports = {
     start: (organizationId, kind, mapping) =>
       call(
@@ -35,6 +36,7 @@ export function createImports(options: ImportsOptions): Imports {
         (value) => ({ id: textOf(recordOf(value, "start_import")["id"]) }),
       ),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "imports",
     ...(options.logger ? { logger: options.logger } : {}),

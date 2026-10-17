@@ -8,6 +8,7 @@ import { CustomerRows } from "./customer-rows";
 /** Web: the page the server loader read. */
 export function CustomerList() {
   const list = useLoaderData<typeof loader>();
+
   return (
     <CustomerRows
       rows={list.items}

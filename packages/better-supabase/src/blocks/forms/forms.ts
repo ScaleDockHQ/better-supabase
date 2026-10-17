@@ -53,11 +53,13 @@ export interface FormsOptions<
 }
 
 export type FormStatus = "draft" | "open" | "closed" | "archived";
+
 export type FormSubmissionStatus =
   | "draft"
   | "submitted"
   | "accepted"
   | "rejected";
+
 export type FormSubmissionSource = "member" | "public" | "service";
 
 /** A form. `F` types the extra columns the `fields` schema describes. */
@@ -213,12 +215,14 @@ const FORM_STATUSES: readonly FormStatus[] = [
   "closed",
   "archived",
 ];
+
 const SUBMISSION_STATUSES: readonly FormSubmissionStatus[] = [
   "draft",
   "submitted",
   "accepted",
   "rejected",
 ];
+
 const SOURCES: readonly FormSubmissionSource[] = [
   "member",
   "public",
@@ -237,6 +241,7 @@ function optional<K extends string, V>(
 
 function formOf(value: unknown, fn: string): Form {
   const row = recordOf(value, fn);
+
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["organizationId"]),
@@ -256,11 +261,13 @@ function definitionOf(value: unknown, fn: string): FormDefinition {
   if (!isFormDefinition(value)) {
     throw new TypeError(`${fn} returned a definition without steps`);
   }
+
   return value;
 }
 
 function versionOf(value: unknown, fn: string): FormVersion {
   const row = recordOf(value, fn);
+
   return {
     id: textOf(row["id"]),
     formId: textOf(row["formId"]),
@@ -275,6 +282,7 @@ function versionOf(value: unknown, fn: string): FormVersion {
 
 function submissionOf(value: unknown, fn: string): FormSubmission {
   const row = recordOf(value, fn);
+
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["organizationId"]),
@@ -304,14 +312,17 @@ export function createForms<S extends StandardSchemaV1 | undefined = undefined>(
   options: FormsOptions<S>,
 ): Forms<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const fields: BlockFields<F> = blockFields(options.fields, "form fields");
+
   const parsed = <T extends Form>(form: T): AsyncResult<T & Form<F>> =>
     AsyncResult.from(() => fields.read(form.fields)).map((value) => ({
       ...form,
       fields: value,
     }));
+
   /** `{ fields }` for a write that sets extra columns, checked first; `{}` otherwise. */
   const extra = (
     input: Readonly<Record<string, unknown>> | undefined,
@@ -321,6 +332,7 @@ export function createForms<S extends StandardSchemaV1 | undefined = undefined>(
       : AsyncResult.from(() => fields.write({ ...input })).map((valid) => ({
           fields: valid,
         }));
+
   const client: Forms<F> = {
     create: (input) =>
       extra(input.fields)
@@ -361,6 +373,7 @@ export function createForms<S extends StandardSchemaV1 | undefined = undefined>(
     get: (id) =>
       call("get_form", { form_id: id }, (value) => {
         const row = recordOf(value, "get_form");
+
         return {
           ...formOf(row, "get_form"),
           ...optional(
@@ -386,13 +399,17 @@ export function createForms<S extends StandardSchemaV1 | undefined = undefined>(
       ).andThen((forms) =>
         AsyncResult.from(async () => {
           const out: Form<F>[] = [];
+
           for (const form of forms) {
             const read = await parsed(form);
+
             if (!read.ok) {
               return read;
             }
+
             out.push(read.data);
           }
+
           return ok(out);
         }),
       ),
@@ -412,6 +429,7 @@ export function createForms<S extends StandardSchemaV1 | undefined = undefined>(
     getPublic: (token) =>
       call("get_public_form", { token }, (value) => {
         const row = recordOf(value, "get_public_form");
+
         return {
           id: textOf(row["id"]),
           title: textOf(row["title"]),
@@ -425,6 +443,7 @@ export function createForms<S extends StandardSchemaV1 | undefined = undefined>(
         { token, answers, bot_token: submit.botToken ?? null },
         (value) => {
           const row = recordOf(value, "submit_public_form");
+
           return {
             id: textOf(row["id"]),
             status: enumOrThrow(
@@ -465,6 +484,7 @@ export function createForms<S extends StandardSchemaV1 | undefined = undefined>(
         (value) => value === true,
       ),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "forms",
     ...(options.logger ? { logger: options.logger } : {}),

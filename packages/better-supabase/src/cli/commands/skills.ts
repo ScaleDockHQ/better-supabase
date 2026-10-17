@@ -59,9 +59,11 @@ function skillsRoot(): string {
     dirname(fileURLToPath(import.meta.resolve("better-supabase/package.json"))),
     "skills",
   );
+
   if (!existsSync(root)) {
     throw new Error("Could not find the better-supabase skills folder.");
   }
+
   return root;
 }
 
@@ -83,14 +85,17 @@ interface Skill {
 async function readTree(root: string, prefix = ""): Promise<SkillFile[]> {
   const files: SkillFile[] = [];
   const entries = await readdir(join(root, prefix), { withFileTypes: true });
+
   for (const entry of entries.sort((a, b) => byCodePoint(a.name, b.name))) {
     const path = prefix ? `${prefix}/${entry.name}` : entry.name;
+
     if (entry.isDirectory()) {
       files.push(...(await readTree(root, path)));
     } else if (entry.isFile()) {
       files.push({ path, contents: await readFile(join(root, path), "utf-8") });
     }
   }
+
   return files;
 }
 
@@ -98,13 +103,16 @@ export async function loadSkills(
   root: string = skillsRoot(),
 ): Promise<Skill[]> {
   const skills: Skill[] = [];
+
   for (const entry of (await readdir(root, { withFileTypes: true })).filter(
     (item) => item.isDirectory(),
   )) {
     const folder = join(root, entry.name);
+
     if (!existsSync(join(folder, "SKILL.md"))) {
       continue;
     }
+
     const tree = await readTree(folder);
     const main = tree.find((file) => file.path === "SKILL.md")!;
     const files = [main, ...tree.filter((file) => file !== main)];
@@ -116,6 +124,7 @@ export async function loadSkills(
       files,
     });
   }
+
   return skills.sort((a, b) => byCodePoint(a.name, b.name));
 }
 
@@ -126,6 +135,7 @@ export async function runSkills(
 ): Promise<CommandResult> {
   const [action] = args._;
   const skills = await loadSkills(args.from ?? skillsRoot());
+
   if (action === "list") {
     return {
       code: 0,
@@ -134,29 +144,36 @@ export async function runSkills(
         .join("\n"),
     };
   }
+
   if (action !== "install") {
     return {
       code: 2,
       error: `${action ? `Unknown skills action "${action}"` : "Name an action"}. Use \`skills list\` or \`skills install\`.`,
     };
   }
+
   const global = args.global === true;
   const base = global ? (env.HOME ?? homedir()) : config.root;
+
   const requested =
     args.agent === undefined
       ? [...(config.skills.agents ?? [])]
       : list(args.agent);
+
   const unknown = requested.filter((name) => !isAgent(name));
+
   if (unknown.length > 0) {
     return {
       code: 2,
       error: `Unknown agent ${unknown.join(", ")}. Use ${Object.keys(AGENT_DIRS).join(", ")}.`,
     };
   }
+
   // SAFETY: AGENT_DIRS is keyed by Agent, and Object.keys widens the keys to string.
   const detected = (Object.keys(AGENT_DIRS) as Agent[]).filter((agent) =>
     existsSync(join(base, AGENT_DIRS[agent].split("/")[0]!)),
   );
+
   const agents: Agent[] =
     requested.length > 0
       ? requested.filter(isAgent)
@@ -167,6 +184,7 @@ export async function runSkills(
   const check = args.check === true;
   const lines: string[] = [];
   const stale: string[] = [];
+
   const targets = agents.flatMap((agent) =>
     skills.flatMap((skill) =>
       skill.files.map((file) => ({
@@ -175,20 +193,27 @@ export async function runSkills(
       })),
     ),
   );
+
   for (const { file, relativePath } of targets) {
     const path = resolve(base, relativePath);
+
     const shown = global
       ? `~/${relativePath}`
       : display(config.root, relativePath);
+
     if (check) {
       const current = await readIfExists(path);
+
       if (!sameText(current, file.contents)) {
         stale.push(shown);
       }
+
       continue;
     }
+
     lines.push((await writeLine(path, file.contents, shown)).line);
   }
+
   if (check) {
     return stale.length === 0
       ? { code: 0, output: "Skills are up to date." }
@@ -197,6 +222,7 @@ export async function runSkills(
           error: `Out of date: ${stale.join(", ")}. Run \`better-supabase skills install\`.`,
         };
   }
+
   return { code: 0, output: lines.join("\n") };
 }
 

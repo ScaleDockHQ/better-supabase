@@ -20,6 +20,7 @@ import { API_SCHEMA } from "../lib/blocks";
  */
 export function ApiKeysTable({ personal = false }: { personal?: boolean }) {
   const [name, setName] = useState("");
+
   const { keys, created, creating, revoking, error, create, revoke, dismiss } =
     useApiKeys({ organizationId: tenantOf(useAuth()), schema: API_SCHEMA });
 
@@ -32,11 +33,13 @@ export function ApiKeysTable({ personal = false }: { personal?: boolean }) {
   if (keys === undefined) {
     return <ActivityIndicator />;
   }
+
   return (
     <View style={{ gap: 8 }}>
       <Text style={{ fontSize: 17, fontWeight: "600" }}>API keys</Text>
       {keys.map((key) => {
         const revoked = key.state === "revoked" || key.state === "expired";
+
         return (
           <View
             key={key.id}

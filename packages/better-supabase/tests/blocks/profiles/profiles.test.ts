@@ -10,6 +10,7 @@ function fake(results: Record<string, unknown>): BlockTransport {
   return {
     call(_schema, fn) {
       const value = results[fn];
+
       return value instanceof Error
         ? Promise.reject(value)
         : Promise.resolve(value ?? null);
@@ -25,6 +26,7 @@ describe("createProfiles", () => {
         update_my_profile: true,
       }),
     });
+
     expect(await profiles.mine().orThrow()).toEqual({
       full_name: "Ada",
       email: "ada@example.com",
@@ -36,10 +38,12 @@ describe("createProfiles", () => {
 
   it("types, parses and validates the fields the app adds", async () => {
     const calls: unknown[] = [];
+
     const profiles = createProfiles({
       transport: {
         call(_schema, fn, args) {
           calls.push([fn, args]);
+
           return Promise.resolve(
             fn === "my_profile"
               ? { id: "u1", locale: "nl", marketing_opt_in: "true" }
@@ -55,6 +59,7 @@ describe("createProfiles", () => {
         ),
       }),
     });
+
     const mine = await profiles.mine().orThrow();
     expect(mine).toEqual({ id: "u1", locale: "nl", marketing_opt_in: true });
     expect(mine?.locale).toBe("nl");
@@ -82,6 +87,7 @@ describe("createProfiles", () => {
         },
       },
     });
+
     expect(
       await profiles.updateMine({ email: "new@example.com" }),
     ).toMatchObject({ ok: false, error: { kind: "forbidden" } });

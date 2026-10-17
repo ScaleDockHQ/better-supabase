@@ -5,6 +5,7 @@ import { type InventoryNames, columns, guard } from "./inventory-stock.ts";
 
 const UUID =
   "'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'";
+
 const COUNT = "'^[1-9][0-9]{0,8}$'";
 
 /**
@@ -32,6 +33,7 @@ function linesVariantCheck(
 ): string {
   const catalog = ctx.of("catalog");
   const v = columns(catalog, "variants");
+
   return `if exists (
     select 1 from jsonb_array_elements(${lines}) e
     where not exists (select 1 from ${catalog.table("variants")} cv where cv.${v("id")} = (e ->> 'variantId')::uuid and cv.${v("tenant")} = ${tenant})
@@ -47,6 +49,7 @@ export function transferFunctions(
   if (!ctx.hasTable("transfers") || !ctx.hasTable("transferLines")) {
     return "";
   }
+
   const { fn } = names;
   const transfers = ctx.table("transfers");
   const lines = ctx.table("transferLines");
@@ -56,6 +59,7 @@ export function transferFunctions(
   const tl = columns(ctx, "transferLines");
   const m = columns(ctx, "movements");
   const l = columns(ctx, "locations");
+
   const load = (
     name: string,
   ): string => `select x.${t("tenant")} as tenant, x.${t("from")} as from_location, x.${t("to")} as to_location, x.${t("status")} as status
@@ -64,6 +68,7 @@ export function transferFunctions(
     ${fail("INVENTORY_TRANSFER_NOT_FOUND", "transfer not found", "P0002")}
   end if;
   ${guard(names.scope, names.manage, "v_row.tenant")}`;
+
   const move = (
     name: string,
     location: string,
@@ -73,6 +78,7 @@ export function transferFunctions(
     `insert into ${movements} (${m("tenant")}, ${m("variant")}, ${m("location")}, ${m("quantity")}, ${m("reason")}, ${m("referenceType")}, ${m("referenceId")})
   select v_row.tenant, x.${tl("variant")}, ${location}, ${sign}x.${tl("quantity")}, '${reason}', 'transfer', ${name}.transfer::text
   from ${lines} x where x.${tl("transfer")} = ${name}.transfer;`;
+
   const event = (type: string, name: string, status: string): string =>
     ctx.record({
       type,
@@ -81,11 +87,13 @@ export function transferFunctions(
       tenant: "v_row.tenant",
       audit: false,
     });
+
   const statusError = fail(
     "INVENTORY_TRANSFER_STATUS",
     "the transfer can't do this in its current status",
     "55000",
   );
+
   return `
 -- Drafts a transfer of stock between two locations of one organization.
 -- lines: [{ "variantId": uuid, "quantity": n }].
@@ -195,6 +203,7 @@ export function purchaseOrderFunctions(
   if (!ctx.hasTable("purchaseOrders") || !ctx.hasTable("purchaseOrderLines")) {
     return "";
   }
+
   const { fn } = names;
   const orders = ctx.table("purchaseOrders");
   const lines = ctx.table("purchaseOrderLines");
@@ -207,6 +216,7 @@ export function purchaseOrderFunctions(
   const m = columns(ctx, "movements");
   const l = columns(ctx, "locations");
   const currencyUnits = ctx.of("catalog").fn("currency_minor_units");
+
   const load = (
     name: string,
   ): string => `select x.${po("tenant")} as tenant, x.${po("location")} as location, x.${po("status")} as status,
@@ -216,6 +226,7 @@ export function purchaseOrderFunctions(
     ${fail("INVENTORY_PURCHASE_ORDER_NOT_FOUND", "purchase order not found", "P0002")}
   end if;
   ${guard(names.scope, names.purchase, "v_row.tenant")}`;
+
   const event = (type: string, name: string, status: string): string =>
     ctx.record({
       type,
@@ -224,11 +235,13 @@ export function purchaseOrderFunctions(
       tenant: "v_row.tenant",
       audit: false,
     });
+
   const statusError = fail(
     "INVENTORY_PURCHASE_ORDER_STATUS",
     "the purchase order can't do this in its current status",
     "55000",
   );
+
   return `
 -- Creates a draft purchase order (purchase_order null) or replaces a draft's
 -- fields and lines. lines: [{ "variantId": uuid, "quantity": n, "unitCost": "minor units" }].

@@ -19,16 +19,20 @@ interface Row {
 function store() {
   const rows: Row[] = [];
   const calls: [string, Record<string, unknown>][] = [];
+
   const owner = (args: Record<string, unknown>) =>
     `${String(args["owner_type"])}:${String(args["owner_id"])}`;
+
   const fns: Record<string, (args: Record<string, unknown>) => unknown> = {
     add_signing_key(args) {
       const previous = rows.find(
         (row) => row.owner === owner(args) && row.state === "active",
       );
+
       if (previous) {
         previous.state = "retired";
       }
+
       rows.push({
         owner: owner(args),
         kid: String(args["kid"]),
@@ -38,6 +42,7 @@ function store() {
         privateJwk: String(args["private_jwk"]),
         state: "active",
       });
+
       return {
         kid: args["kid"],
         alg: args["alg"],
@@ -48,6 +53,7 @@ function store() {
       const row = rows.find(
         (item) => item.owner === owner(args) && item.state === "active",
       );
+
       return row
         ? { kid: row.kid, alg: row.alg, privateKey: row.privateJwk }
         : null;
@@ -64,23 +70,28 @@ function store() {
       const row = rows.find(
         (item) => item.kid === args["kid"] && item.state === "active",
       );
+
       if (row) {
         row.state = "retired";
       }
+
       return row !== undefined;
     },
     delete_signing_keys: () => 0,
     purge_signing_keys: () => 0,
   };
+
   return {
     rows,
     calls,
     call(_schema: string, fn: string, args: Record<string, unknown>) {
       calls.push([fn, args]);
       const handler = fns[fn];
+
       if (!handler) {
         return Promise.reject(new Error(`unexpected ${fn}`));
       }
+
       return Promise.resolve(handler(args));
     },
   };
@@ -126,10 +137,12 @@ describe("signing-keys block", () => {
     const first = await keys.create(OWNER, "ES256").orThrow();
     const second = await keys.rotate(OWNER).orThrow();
     expect(second).toMatchObject({ alg: "ES256", retired: first.kid });
+
     const signed = await keys
       .signer(OWNER)
       .sign(new Uint8Array([1, 2, 3]))
       .orThrow();
+
     expect(signed).toMatchObject({ kid: second.kid, alg: "ES256" });
     expect(signed.signature).toHaveLength(64);
     const jwks = await keys.jwks(OWNER).orThrow();
@@ -140,6 +153,7 @@ describe("signing-keys block", () => {
     const result = await createSigningKeys({ transport: store() })
       .signer(OWNER)
       .sign(new Uint8Array([1]));
+
     expect(result.ok).toBe(false);
     expect(!result.ok && result.error.hint).toBe("SIGNING_KEY_MISSING");
   });
@@ -202,9 +216,11 @@ describe("signing-keys block", () => {
       privateJwk: "[]",
       state: "active",
     });
+
     const result = await createSigningKeys({ transport: t })
       .signer(OWNER)
       .signJwt({ sub: "u1" });
+
     expect(result.ok).toBe(false);
   });
 
@@ -212,6 +228,7 @@ describe("signing-keys block", () => {
     const keys = createSigningKeys({
       transport: { call: () => Promise.reject(new Error("down")) },
     });
+
     const response = await keys.jwksResponse(OWNER);
     expect(response.status).toBe(503);
     expect(response.headers.get("content-type")).toBe(

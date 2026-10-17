@@ -29,10 +29,12 @@ const live = await reachable();
 /** An in-memory bucket store keyed by path. */
 function memoryStorage() {
   const files = new Map<string, string>();
+
   const storage: LifecycleStorage = {
     from: () => ({
       upload: async (path, body) => {
         files.set(path, await body.text());
+
         return { data: { path }, error: null };
       },
       createSignedUrl: (path) =>
@@ -42,26 +44,31 @@ function memoryStorage() {
         }),
       list: (prefix = "") => {
         const entries = new Map<string, StorageEntry>();
+
         for (const path of files.keys()) {
           if (!path.startsWith(`${prefix}/`)) {
             continue;
           }
+
           const [name, ...rest] = path.slice(prefix.length + 1).split("/");
           entries.set(name!, {
             name: name!,
             id: rest.length > 0 ? null : path,
           });
         }
+
         return Promise.resolve({ data: [...entries.values()], error: null });
       },
       remove: (paths) => {
         for (const path of paths) {
           files.delete(path);
         }
+
         return Promise.resolve({ data: [], error: null });
       },
     }),
   };
+
   return { files, storage };
 }
 
@@ -71,6 +78,7 @@ describe.skipIf(!live)("data lifecycle", () => {
 
   it("exports a user's and an organization's rows to NDJSON files", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.rows(
         `create table if not exists public.bs_test_lifecycle (
@@ -114,9 +122,11 @@ describe.skipIf(!live)("data lifecycle", () => {
         status: "pending",
       });
       expect((await lifecycle.requestExport().orThrow()).id).toBe(mine.id);
+
       const denied = await lifecycle.requestExport({
         organizationId: organization,
       });
+
       expect(denied.ok ? undefined : denied.error.hint).toBe(
         "DATA_EXPORT_FORBIDDEN",
       );
@@ -125,33 +135,41 @@ describe.skipIf(!live)("data lifecycle", () => {
       ).toEqual([mine.id]);
 
       await s.asRole(owner);
+
       const theirs = await lifecycle
         .requestExport({ organizationId: organization })
         .orThrow();
+
       expect(theirs.subject).toBe("organization");
 
       await s.service();
       const memory = memoryStorage();
+
       const exporter = createDataExporter({
         transport: sqlTransport(s.sql),
         storage: memory.storage,
         pageSize: 2,
       });
+
       const ready = await exporter.run(mine.id).orThrow();
       expect(ready.status).toBe("ready");
       expect(ready.expiresAt).toBeDefined();
       expect(ready.files).toContain(
         `${mine.id}/public.bs_test_lifecycle.ndjson`,
       );
+
       const lines = memory.files
         .get(`${mine.id}/public.bs_test_lifecycle.ndjson`)!
         .trim()
         .split("\n")
         .map((line) => JSON.parse(line) as { name: string });
+
       expect(lines.map((row) => row.name).sort()).toEqual(["p1", "p2", "p3"]);
+
       const memberships = memory.files.get(
         `${mine.id}/better_supabase.memberships.ndjson`,
       )!;
+
       expect(memberships).toContain(member.id);
       expect(memberships).not.toContain(owner.id);
       expect((await exporter.run(mine.id)).ok).toBe(false);
@@ -165,18 +183,22 @@ describe.skipIf(!live)("data lifecycle", () => {
           data: { exportId: theirs.id },
         },
       ]);
+
       const events = await s.rows<{ type: string }>(
         "select type from better_supabase.outbox_events where type like 'data_export.%' order by position",
       );
+
       expect(events.map((event) => event.type)).toEqual([
         "data_export.requested",
         "data_export.requested",
         "data_export.completed",
         "data_export.completed",
       ]);
+
       const organizationFile = memory.files.get(
         `${theirs.id}/better_supabase.memberships.ndjson`,
       )!;
+
       expect(organizationFile).toContain(owner.id);
       expect(organizationFile).toContain(member.id);
 
@@ -184,18 +206,22 @@ describe.skipIf(!live)("data lifecycle", () => {
         "insert into storage.objects (bucket_id, name, metadata) values ('data-exports', $1, '{}')",
         [ready.files[0]],
       );
+
       const visible = () =>
         s.value<number>(
           "(select count(*)::int from storage.objects where bucket_id = 'data-exports')",
         );
+
       await s.asRole(member);
       expect(await visible()).toBe(1);
+
       const download = await createDataLifecycle({
         transport: sqlTransport(s.sql),
         storage: memory.storage,
       })
         .download(mine.id)
         .orThrow();
+
       expect(download.files.map((file) => file.table)).toContain(
         "public.bs_test_lifecycle",
       );
@@ -209,11 +235,13 @@ describe.skipIf(!live)("data lifecycle", () => {
 
   it("exports incoming webhooks without secrets and purges them with the tenant", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "webhooks-in", "data-lifecycle"]);
       const owner = await s.user("owner");
       const organization = await s.organization(owner);
       await s.as(owner);
+
       const created = await s.value<{
         id: string;
         secret: string;
@@ -222,41 +250,50 @@ describe.skipIf(!live)("data lifecycle", () => {
         "better_supabase.create_incoming_webhook($1, 'Form', 'standard-webhooks')",
         [organization],
       );
+
       await s.value(
         "better_supabase.rotate_incoming_webhook_secret($1, interval '1 hour')",
         [created.id],
       );
+
       const vaultCount = () =>
         s.value<number>(
           "(select count(*)::int from vault.secrets where name like 'webhook-in:' || $1 || ':%')",
           [created.id],
         );
+
       expect(await vaultCount()).toBe(2);
       const lifecycle = createDataLifecycle({ transport: sqlTransport(s.sql) });
+
       const requested = await lifecycle
         .requestExport({ organizationId: organization })
         .orThrow();
 
       await s.service();
       const memory = memoryStorage();
+
       const ready = await createDataExporter({
         transport: sqlTransport(s.sql),
         storage: memory.storage,
       })
         .run(requested.id)
         .orThrow();
+
       const path = `${requested.id}/better_supabase.incoming_webhooks.ndjson`;
       expect(ready.files).toContain(path);
+
       const [row] = memory.files
         .get(path)!
         .trim()
         .split("\n")
         .map((line) => JSON.parse(line) as Record<string, unknown>);
+
       expect(row).toMatchObject({
         id: created.id,
         name: "Form",
         tenant: organization,
       });
+
       for (const column of [
         "token_hash",
         "secret",
@@ -266,16 +303,19 @@ describe.skipIf(!live)("data lifecycle", () => {
       ]) {
         expect(row).not.toHaveProperty(column);
       }
+
       expect(memory.files.get(path)).not.toContain(created.secret);
 
       await s.rows(
         "insert into better_supabase.organization_deletions (organization_id, purge_after) values ($1, now() - interval '1 minute')",
         [organization],
       );
+
       const purged = await s.value<{ deleted: Record<string, number> }>(
         "better_supabase.purge_organization($1)",
         [organization],
       );
+
       expect(purged.deleted["better_supabase.incoming_webhooks"]).toBe(1);
       expect(await vaultCount()).toBe(0);
     } finally {
@@ -285,9 +325,11 @@ describe.skipIf(!live)("data lifecycle", () => {
 
   it("purges expired exports' files and rows", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "data-lifecycle"]);
       const owner = await s.user("owner");
+
       const [expired, current] = await s.rows<{ id: string }>(
         `insert into better_supabase.data_exports (subject, user_id, status, files, expires_at) values
            ('user', $1, 'ready', '{x/a.ndjson}', now() - interval '1 day'),
@@ -295,14 +337,17 @@ describe.skipIf(!live)("data lifecycle", () => {
          returning id`,
         [owner.id],
       );
+
       const memory = memoryStorage();
       memory.files.set("x/a.ndjson", "{}");
       memory.files.set("y/a.ndjson", "{}");
       await s.service();
+
       const purger = createOrganizationPurger({
         transport: sqlTransport(s.sql),
         storage: memory.storage,
       });
+
       expect(await purger.purgeExports().orThrow()).toBe(1);
       expect([...memory.files.keys()]).toEqual(["y/a.ndjson"]);
       expect(
@@ -321,6 +366,7 @@ describe.skipIf(!live)("data lifecycle", () => {
   it("anonymizes rows once their time is up, unless the condition holds", async () => {
     const s = await BlockSession.open(pool);
     const table = `public.bs_candidates_${crypto.randomUUID().slice(0, 8)}`;
+
     try {
       await s.client.query(`
         create table ${table} (
@@ -364,9 +410,11 @@ describe.skipIf(!live)("data lifecycle", () => {
         "DATA_ANONYMIZE_FORBIDDEN",
       );
       await s.service();
+
       const purger = createOrganizationPurger({
         transport: sqlTransport(s.sql),
       });
+
       expect(await purger.anonymizeDue({ limit: 1 }).orThrow()).toEqual({
         [table]: 1,
       });
@@ -405,6 +453,7 @@ describe.skipIf(!live)("data lifecycle", () => {
 
   it("purges an adopted tenant row last, retrying blocked tables", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.rows(
         `create table public.bs_test_teams (id uuid primary key);
@@ -443,10 +492,12 @@ describe.skipIf(!live)("data lifecycle", () => {
         ),
       );
       await s.service();
+
       const result = await s.value<{ deleted: Record<string, number> }>(
         "better_supabase.purge_organization($1)",
         [team],
       );
+
       expect(result.deleted).toMatchObject({
         "public.bs_test_tasks": 1,
         "public.bs_test_projects": 1,
@@ -470,6 +521,7 @@ describe.skipIf(!live)("data lifecycle", () => {
 
   it("lets a member holding the cancelDelete permission cancel while the tenant is disabled", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "data-lifecycle"], {
         modules: {
@@ -488,8 +540,10 @@ describe.skipIf(!live)("data lifecycle", () => {
         .orThrow();
 
       await s.asRole(viewer);
+
       const forbidden =
         await lifecycle.cancelOrganizationDeletion(organization);
+
       expect(forbidden.ok ? undefined : forbidden.error.hint).toBe(
         "ORGANIZATION_DELETION_FORBIDDEN",
       );
@@ -506,6 +560,7 @@ describe.skipIf(!live)("data lifecycle", () => {
 
   it("disables a tenant for the grace period, cancels and purges", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.rows(
         `create table if not exists public.bs_test_lifecycle (
@@ -548,24 +603,30 @@ describe.skipIf(!live)("data lifecycle", () => {
         [organization, owner.id],
       );
       const lifecycle = createDataLifecycle({ transport: sqlTransport(s.sql) });
+
       const disabled = async (): Promise<boolean> => {
         await s.service();
+
         return s.value<boolean>("better_supabase.tenant_disabled($1)", [
           organization,
         ]);
       };
 
       await s.asRole(admin);
+
       const forbidden =
         await lifecycle.requestOrganizationDeletion(organization);
+
       expect(forbidden.ok ? undefined : forbidden.error.hint).toBe(
         "ORGANIZATION_DELETION_FORBIDDEN",
       );
 
       await s.asRole(owner);
+
       const pending = await lifecycle
         .requestOrganizationDeletion(organization, { grace: "P14D" })
         .orThrow();
+
       expect(
         pending.purgeAfter.epochMilliseconds -
           pending.requestedAt.epochMilliseconds,
@@ -587,9 +648,11 @@ describe.skipIf(!live)("data lifecycle", () => {
       );
 
       await s.service();
+
       const purger = createOrganizationPurger({
         transport: sqlTransport(s.sql),
       });
+
       const early = await purger.purge(organization);
       expect(early.ok ? undefined : early.error.hint).toBe(
         "ORGANIZATION_DELETION_NOT_DUE",
@@ -617,6 +680,7 @@ describe.skipIf(!live)("data lifecycle", () => {
       memory.files.set(`${organization}/attachments/a2`, "y");
       memory.files.set("other/attachments/a3", "z");
       const cancelled: string[] = [];
+
       const purging = createOrganizationPurger({
         transport: sqlTransport(s.sql),
         storage: memory.storage,
@@ -625,11 +689,14 @@ describe.skipIf(!live)("data lifecycle", () => {
           cancelSubscription: (id) =>
             AsyncResult.from(() => {
               cancelled.push(id);
+
               return Promise.resolve(ok(undefined));
             }),
         },
       });
+
       await s.service();
+
       const events = async (): Promise<readonly string[]> =>
         (
           await s.rows<{ type: string }>(
@@ -637,6 +704,7 @@ describe.skipIf(!live)("data lifecycle", () => {
             [organization],
           )
         ).map((event) => event.type);
+
       expect((await events()).slice(-3)).toEqual([
         "organization.deletion_requested",
         "organization.deletion_cancelled",
@@ -668,6 +736,7 @@ describe.skipIf(!live)("data lifecycle", () => {
         ),
       ).toBe(1);
       expect(await events()).toEqual([]);
+
       const [purgedEvent] = await s.rows<{
         organization_id: string | null;
         payload: { organizationId: string };
@@ -675,6 +744,7 @@ describe.skipIf(!live)("data lifecycle", () => {
         "select organization_id, payload from better_supabase.outbox_events where type = 'organization.purged' and payload ->> 'organizationId' = $1",
         [organization],
       );
+
       expect(purgedEvent).toMatchObject({
         organization_id: null,
         payload: { organizationId: organization },
@@ -692,6 +762,7 @@ describe.skipIf(!live)("data lifecycle", () => {
   it("finds tenant tables by column, purges past restricting keys and lets platform staff delete", async () => {
     const s = await BlockSession.open(pool);
     const schema = `bs_auto_${crypto.randomUUID().slice(0, 8)}`;
+
     try {
       await s.rows(
         `create schema ${schema};
@@ -722,10 +793,12 @@ describe.skipIf(!live)("data lifecycle", () => {
       const owner = await s.user("owner");
       const staff = await s.user("staff");
       const organization = await s.organization(owner);
+
       const [project] = await s.rows<{ id: string }>(
         `insert into ${schema}.projects (organization_id) values ($1) returning id`,
         [organization],
       );
+
       await s.rows(
         `insert into ${schema}.tasks (organization_id, project_id) values ($1, $2), ($1, $2)`,
         [organization, project!.id],
@@ -734,10 +807,12 @@ describe.skipIf(!live)("data lifecycle", () => {
         organization,
       ]);
       await s.service();
+
       const tables = await s.rows<{ name: string }>(
         "select name from better_supabase.data_lifecycle_tables() where subject = 'organization' and name like $1 order by name",
         [`${schema}.%`],
       );
+
       expect(tables.map((row) => row.name)).toEqual([
         `${schema}.projects`,
         `${schema}.tasks`,
@@ -756,11 +831,13 @@ describe.skipIf(!live)("data lifecycle", () => {
         .orThrow();
 
       await s.service();
+
       const purged = await createOrganizationPurger({
         transport: sqlTransport(s.sql),
       })
         .purge(organization)
         .orThrow();
+
       expect(purged.deleted).toMatchObject({
         [`${schema}.projects`]: 1,
         [`${schema}.tasks`]: 2,
@@ -783,6 +860,7 @@ describe.skipIf(!live)("data lifecycle", () => {
 
   it("writes CSV exports", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "settings", "data-lifecycle"]);
       const owner = await s.user("owner");
@@ -794,11 +872,14 @@ describe.skipIf(!live)("data lifecycle", () => {
       );
       await s.asRole(owner);
       const lifecycle = createDataLifecycle({ transport: sqlTransport(s.sql) });
+
       const requested = await lifecycle
         .requestExport({ organizationId: organization })
         .orThrow();
+
       await s.service();
       const memory = memoryStorage();
+
       const done = await createDataExporter({
         transport: sqlTransport(s.sql),
         storage: memory.storage,
@@ -806,9 +887,11 @@ describe.skipIf(!live)("data lifecycle", () => {
       })
         .run(requested.id)
         .orThrow();
+
       const settings = done.files.find((file) =>
         file.endsWith("organization_settings.csv"),
       );
+
       expect(settings).toBeDefined();
       const csv = memory.files.get(settings!)!;
       const [header, row] = csv.split("\r\n");
@@ -822,6 +905,7 @@ describe.skipIf(!live)("data lifecycle", () => {
   });
   it("never exports API keys and still purges them with the tenant", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "api-keys", "data-lifecycle"]);
       const owner = await s.user("owner");
@@ -830,6 +914,7 @@ describe.skipIf(!live)("data lifecycle", () => {
       await createApiKeys({ transport: apiKeysTransport(s.sql) })
         .create({ name: "CI", organizationId: organization })
         .orThrow();
+
       const requested = await createDataLifecycle({
         transport: sqlTransport(s.sql),
       })
@@ -838,12 +923,14 @@ describe.skipIf(!live)("data lifecycle", () => {
 
       await s.service();
       const memory = memoryStorage();
+
       const ready = await createDataExporter({
         transport: sqlTransport(s.sql),
         storage: memory.storage,
       })
         .run(requested.id)
         .orThrow();
+
       expect(ready.files.some((file) => file.includes("api_keys"))).toBe(false);
       expect(
         await s.value<boolean>(
@@ -855,10 +942,12 @@ describe.skipIf(!live)("data lifecycle", () => {
         "insert into better_supabase.organization_deletions (organization_id, purge_after) values ($1, now() - interval '1 minute')",
         [organization],
       );
+
       const purged = await s.value<{ deleted: Record<string, number> }>(
         "better_supabase.purge_organization($1)",
         [organization],
       );
+
       expect(purged.deleted["better_supabase.api_keys"]).toBe(1);
     } finally {
       await s.close();
@@ -867,6 +956,7 @@ describe.skipIf(!live)("data lifecycle", () => {
 
   it("leaves credential refs out of exports and revokes the tenant's before the purge", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install([
         "organizations",
@@ -877,21 +967,26 @@ describe.skipIf(!live)("data lifecycle", () => {
       const owner = await s.user("owner");
       const organization = await s.organization(owner);
       await s.service();
+
       const vault = vaultCredentials({
         transport: credentialsTransport(s.sql),
       });
+
       const key = crypto.randomUUID().slice(0, 8);
+
       const serverRef = {
         provider: "vault",
         secret: `lc-server-${key}`,
         tenant: organization,
       };
+
       const grantRef = {
         provider: "vault",
         secret: `lc-grant-${key}`,
         scope: "user",
         tenant: organization,
       };
+
       const foreignRef = { provider: "vault", secret: `lc-foreign-${key}` };
       const user = { type: "user" as const, id: owner.id };
       await vault.set(serverRef, "server-token", { subject: { type: "app" } });
@@ -899,12 +994,14 @@ describe.skipIf(!live)("data lifecycle", () => {
       await vault.set(foreignRef, "foreign-token", {
         subject: { type: "app" },
       });
+
       const [server] = await s.rows<{ id: string }>(
         `insert into better_supabase.connector_servers (organization_id, name, url, auth_type, credential_ref)
          values ($1, 'Docs', 'https://mcp.test', 'header', $2), ($1, 'Wiki', 'https://wiki.test', 'header', $3)
          returning id`,
         [organization, serverRef, foreignRef],
       );
+
       await s.rows(
         "insert into better_supabase.connector_grants (user_id, server_id, organization_id, credential_ref) values ($1, $2, $3, $4)",
         [owner.id, server!.id, organization, grantRef],
@@ -912,21 +1009,27 @@ describe.skipIf(!live)("data lifecycle", () => {
 
       await s.asRole(owner);
       const lifecycle = createDataLifecycle({ transport: sqlTransport(s.sql) });
+
       const requested = await lifecycle
         .requestExport({ organizationId: organization })
         .orThrow();
+
       await s.service();
       const memory = memoryStorage();
+
       const ready = await createDataExporter({
         transport: sqlTransport(s.sql),
         storage: memory.storage,
       })
         .run(requested.id)
         .orThrow();
+
       const exported = ready.files.filter((file) =>
         file.includes("connector_"),
       );
+
       expect(exported).toHaveLength(2);
+
       for (const file of exported) {
         expect(memory.files.get(file)).not.toContain("credential_ref");
         expect(memory.files.get(file)).not.toContain(key);
@@ -941,12 +1044,14 @@ describe.skipIf(!live)("data lifecycle", () => {
         "insert into better_supabase.organization_deletions (organization_id, purge_after) values ($1, now() - interval '1 minute')",
         [organization],
       );
+
       const purged = await createOrganizationPurger({
         transport: sqlTransport(s.sql),
         credentials: vault,
       })
         .purge(organization)
         .orThrow();
+
       expect(purged.credentials.revoked).toBe(2);
       expect(purged.credentials.unrevoked).toEqual([
         {
@@ -960,13 +1065,16 @@ describe.skipIf(!live)("data lifecycle", () => {
       expect(purged.deleted).toMatchObject({
         "better_supabase.connector_servers": 2,
       });
+
       const token = async (
         ref: CredentialRef,
         subject: typeof user | { type: "app" },
       ): Promise<string | undefined> => {
         const result = await vault.getToken(ref, { subject });
+
         return result.ok ? result.data.token : result.error.kind;
       };
+
       expect(await token(serverRef, { type: "app" })).toBe("not_found");
       expect(await token(grantRef, user)).toBe("not_found");
       expect(await token(foreignRef, { type: "app" })).toBe("foreign-token");

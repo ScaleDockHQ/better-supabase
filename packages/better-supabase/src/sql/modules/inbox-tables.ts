@@ -41,6 +41,7 @@ export function inboxTables(q: InboxSql, sharedTeams = false): string {
   const mn = q.cols("mentions");
   const ie = q.cols("inbound");
   const tp = q.cols("templates");
+
   const T = {
     inboxes: q.t("inboxes"),
     members: q.t("members"),
@@ -58,10 +59,12 @@ export function inboxTables(q: InboxSql, sharedTeams = false): string {
     inbound: q.t("inbound"),
     templates: q.t("templates"),
   };
+
   const policy = (table: string, name: string, using: string): string =>
     `drop policy if exists ${name} on ${table};
 create policy ${name} on ${table} for select to authenticated
   using (${using});`;
+
   const botModes = list(["bot", "human", "paused"]);
 
   return `-- Inboxes: one per channel address (the in-app widget, a WhatsApp number, a
@@ -327,15 +330,19 @@ export function inboxHelpers(q: InboxSql): string {
   const ct = q.cols("contacts");
   const cv = q.cols("conversations");
   const ms = q.cols("messages");
+
   const policy = (table: string, name: string, using: string): string =>
     `drop policy if exists ${name} on ${table};
 create policy ${name} on ${table} for select to authenticated
   using (${using});`;
+
   const contactIds = `(select ${q.fn("inbox_contact_ids")}())`;
   const contactConversations = `(select ${q.fn("inbox_contact_conversation_ids")}())`;
+
   const internal = (signature: string, roles: string): string =>
     `revoke execute on function ${signature} from public, anon, authenticated;
 grant execute on function ${signature} to ${roles};`;
+
   return `create or replace function ${q.fn("inbox_contact_ids")}()
 returns setof uuid
 language sql
@@ -394,13 +401,16 @@ export function inboxRealtime(q: InboxSql): string {
   const ct = q.cols("contacts");
   const rd = q.cols("reads");
   const topic = topics(q);
+
   const send = (payload: string, event: string, to: string): string =>
     `perform realtime.send(${payload}, ${event}, ${to}, true);`;
+
   const ready = `to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null`;
   const org = sqlString(`${q.topic}:org:`);
   const prefix = sqlString(`${q.topic}:`);
   const receive = q.ctx.trigger("inbox_receive");
   const broadcast = q.ctx.trigger("inbox_broadcast");
+
   const allowed = `(
           ((select realtime.topic()) like ${sqlString(`${q.topic}:org:%`)}
             and substr((select realtime.topic()), ${String(q.topic.length + 6)}) in (select x::text from ${q.ctx.scope.ids(q.key("read"))} x))
@@ -408,6 +418,7 @@ export function inboxRealtime(q: InboxSql): string {
             and (select realtime.topic()) not like ${sqlString(`${q.topic}:org:%`)}
             and ${q.fn("inbox_conversation_allowed")}(substr((select realtime.topic()), ${String(q.topic.length + 2)})))
         )`;
+
   return `create or replace function ${q.fn("inbox_message_broadcast")}()
 returns trigger
 language plpgsql
@@ -533,9 +544,12 @@ export function inboxStorage(q: InboxSql): string {
   const read = q.ctx.trigger("inbox_files_read");
   const write = q.ctx.trigger("inbox_files_write");
   const bucket = sqlString(q.bucket);
+
   const check = (writing: boolean): string =>
     `bucket_id = ${bucket} and ${q.fn("inbox_file_allowed")}(name, ${String(writing)})`;
+
   const cv = q.cols("conversations");
+
   return `create or replace function ${q.fn("inbox_file_allowed")}(object_name text, write boolean default false)
 returns boolean
 language sql

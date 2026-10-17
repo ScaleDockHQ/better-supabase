@@ -25,11 +25,13 @@ import { schema } from "../fixtures/generated-camel.ts";
 import { memorySupportStore } from "../fixtures/support-store.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
+
 const env = {
   url: PROJECT_URL,
   publishableKey: "sb_publishable_test",
   jwksUrl: new URL(`${PROJECT_URL}/auth/v1/.well-known/jwks.json`),
 };
+
 const signer = await createTestSigner();
 
 // These tests cover sessions once allowed; tests/server/support-approval.test.ts
@@ -40,6 +42,7 @@ const supportSessions = (options: SupportOptions) =>
     ...options,
     policy: { approval: "none", ...options.policy },
   });
+
 const ADMIN = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const TARGET = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 
@@ -47,6 +50,7 @@ function fakePostgres(rules: Parameters<typeof fakeSql>[0] = []) {
   const fake = fakeSql(rules);
   const claims: SqlClaims[] = [];
   const sessions: (SessionOptions | undefined)[] = [];
+
   // SAFETY: the server only calls executorFor; the executor only calls queryRaw.
   const postgres = {
     admin: fake.sql,
@@ -54,14 +58,17 @@ function fakePostgres(rules: Parameters<typeof fakeSql>[0] = []) {
     executorFor: (value: SqlClaims, session?: SessionOptions) => {
       claims.push(value);
       sessions.push(session);
+
       return postgresExecutor(fake.sql);
     },
     asUser: (value: SqlClaims, session?: SessionOptions) => {
       claims.push(value);
       sessions.push(session);
+
       return fake.sql;
     },
   } as unknown as BetterPostgres;
+
   return { postgres, claims, sessions, fake };
 }
 
@@ -81,6 +88,7 @@ function setup(
   const betterSupabase = defineSupabase(schema);
   const events: BlockEvent[] = [];
   betterSupabase.events.on("block", (event) => events.push(event));
+
   const store = memorySupportStore({
     [TARGET]: {
       role: "authenticated",
@@ -88,7 +96,9 @@ function setup(
       organization: "o1",
     },
   });
+
   const pg = fakePostgres(rules);
+
   const server = createServer(betterSupabase, {
     env,
     auth: { jwks: signer.jwks as never },
@@ -96,6 +106,7 @@ function setup(
     support: supportSessions({ store }),
     ...options,
   });
+
   return { server, store, events, pg };
 }
 
@@ -119,10 +130,12 @@ describe("support sessions on the server", () => {
 
   it("fails every call without support options", async () => {
     const server = createServer(defineSupabase(schema), { env });
+
     const started = await server.support.start(admin(), {
       targetUserId: TARGET,
       reason: "r",
     });
+
     expect(started.error?.message).toMatch(/supportSessions\(\{ store \}\)/);
     expect((await server.support.stop(admin(), "s")).ok).toBe(false);
     expect((await server.support.revoke(admin(), "s")).ok).toBe(false);
@@ -145,7 +158,9 @@ describe("support sessions on the server", () => {
         policy: { maxTtl: 600 },
       }),
     });
+
     const codes = [];
+
     for (const [auth, input] of [
       [admin(), { targetUserId: TARGET }],
       [admin(), { targetUserId: ADMIN, reason: "r" }],
@@ -155,6 +170,7 @@ describe("support sessions on the server", () => {
       const result = await server.support.start(auth, input);
       codes.push(result.error?.code);
     }
+
     expect(codes).toEqual([
       "SUPPORT_REASON_REQUIRED",
       "SUPPORT_SELF",
@@ -165,15 +181,18 @@ describe("support sessions on the server", () => {
       Array.from({ length: 4 }, () => "support.denied"),
     );
     expect(events[0]?.data).toMatchObject({ denial: "policy" });
+
     const anon = await server.support.start(
       { kind: "anon", reason: "none" },
       { targetUserId: TARGET, reason: "r" },
     );
+
     expect(anon.error?.kind).toBe("unauthorized");
   });
 
   it("asks authorize, treating a throw as a deny", async () => {
     const calls: unknown[] = [];
+
     for (const authorize of [
       () => false,
       () => {
@@ -185,25 +204,30 @@ describe("support sessions on the server", () => {
           store: memorySupportStore(),
           authorize: (input) => {
             calls.push(input.targetUserId);
+
             return authorize();
           },
         }),
       });
+
       const result = await server.support.start(admin(), {
         targetUserId: TARGET,
         reason: "r",
       });
+
       expect(result.error).toMatchObject({
         kind: "forbidden",
         code: "SUPPORT_FORBIDDEN",
       });
       expect(events[0]?.data).toMatchObject({ denial: "authorize" });
     }
+
     expect(calls).toEqual([TARGET, TARGET]);
   });
 
   it("reports a refusal by the store's permission check", async () => {
     const store = memorySupportStore();
+
     const { server, events } = setup({
       support: supportSessions({
         store: {
@@ -215,16 +239,19 @@ describe("support sessions on the server", () => {
         },
       }),
     });
+
     const result = await server.support.start(admin(), {
       targetUserId: TARGET,
       reason: "r",
     });
+
     expect(result.error?.code).toBe("42501");
     expect(events[0]?.data).toMatchObject({ denial: "permission" });
   });
 
   it("runs the admin's requests as the target, read-only, until stopped", async () => {
     const { server, events, pg } = setup();
+
     const started = await server.support
       .start(admin(), {
         targetUserId: TARGET,
@@ -233,6 +260,7 @@ describe("support sessions on the server", () => {
         metadata: { ticket: 9 },
       })
       .orThrow();
+
     expect(started.session.readOnly).toBe(true);
     expect(started.cookie).toMatch(/^bs-support=[^;]+; Path=\/; Max-Age=1800;/);
     expect(events.at(-1)).toMatchObject({
@@ -283,11 +311,13 @@ describe("support sessions on the server", () => {
     const listed = await server.support
       .list(admin(), { adminId: ADMIN })
       .orThrow();
+
     expect(listed).toHaveLength(1);
 
     const stopped = await server.support
       .stop(admin(), started.session.id)
       .orThrow();
+
     expect(stopped.ended).toBe(true);
     expect(stopped.cookie).toContain("Max-Age=0");
     expect(events.at(-1)?.type).toBe("support.ended");
@@ -315,16 +345,21 @@ describe("support sessions on the server", () => {
         }),
       ],
     ]);
+
     const started = await server.support
       .start(admin(), { targetUserId: TARGET, reason: "ticket 9" })
       .orThrow();
+
     const ctx = await server.context(
       await request(`bs-support=${started.session.id}`),
     );
+
     expect(() => ctx.db.$client).toThrow(/support session/);
+
     const organizations = createOrganizations({
       transport: dbTransport(ctx.db, { schema: "api" }),
     });
+
     expect(await organizations.leave("o1")).toMatchObject({
       ok: false,
       error: { kind: "forbidden", hint: "ORGANIZATION_FORBIDDEN" },
@@ -345,14 +380,18 @@ describe("support sessions on the server", () => {
         claims: () => ({ role: "authenticated", custom: true }),
       }),
     });
+
     const { session } = await server.support
       .start(admin(), { targetUserId: TARGET, reason: "fix", readOnly: false })
       .orThrow();
+
     expect(session.readOnly).toBe(false);
+
     const ctx = await server.context(
       await request(`bs-support=${session.id}`),
       { tenant: "t1" },
     );
+
     await ctx.sql!.customers.findMany({ select: ["id"] }).orThrow();
     expect(pg.claims[0]).toMatchObject({ custom: true });
     expect(pg.sessions[0]).toEqual({
@@ -369,6 +408,7 @@ describe("support sessions on the server", () => {
 
   it("keeps a writable stored session read-only under the always policy", async () => {
     const { server, store } = setup();
+
     const session = await store.start({
       adminId: ADMIN,
       adminClaims: {},
@@ -378,9 +418,11 @@ describe("support sessions on the server", () => {
       readOnly: false,
       metadata: {},
     });
+
     const cookie = new Request("https://a.test/", {
       headers: { cookie: `bs-support=${session.id}` },
     });
+
     const active = await server.support.current(cookie, admin());
     expect(active?.session.readOnly).toBe(true);
     expect(active?.claims["act"]).toMatchObject({ read_only: true });
@@ -388,15 +430,18 @@ describe("support sessions on the server", () => {
 
   it("resolves a session id the app keeps in its own request context", async () => {
     const store = new AsyncLocalStorage<{ supportSessionId?: string }>();
+
     const { server, pg } = setup({
       support: supportSessions({
         store: memorySupportStore({ [TARGET]: { role: "authenticated" } }),
         sessionId: () => store.getStore()?.supportSessionId,
       }),
     });
+
     const { session } = await server.support
       .start(admin(), { targetUserId: TARGET, reason: "r" })
       .orThrow();
+
     const bare = new Request("https://a.test/");
     expect(server.support.sessionIdOf(bare)).toBeUndefined();
     await store.run({ supportSessionId: session.id }, async () => {
@@ -407,9 +452,11 @@ describe("support sessions on the server", () => {
     });
     expect(await server.support.resolve("", admin())).toBeUndefined();
     const active = await server.support.resolve(session.id, admin());
+
     if (!active) {
       throw new Error("no support session");
     }
+
     expect(active.session.targetUserId).toBe(TARGET);
     const auth = server.contextFor(admin(), { support: active }).auth;
     expect(auth.kind === "user" ? auth.user.id : undefined).toBe(TARGET);
@@ -428,6 +475,7 @@ describe("support sessions on the server", () => {
         },
       }),
     });
+
     expect(
       server.support.sessionIdOf(new Request("https://a.test/")),
     ).toBeUndefined();
@@ -436,21 +484,26 @@ describe("support sessions on the server", () => {
   it("loads the support session while the tenant resolver runs", async () => {
     let tenantDone = false;
     let supportStartedFirst = false;
+
     const { server, store } = setup({
       tenant: async () => {
         await new Promise((resolve) => {
           setTimeout(resolve, 20);
         });
         tenantDone = true;
+
         return "t1";
       },
     });
+
     const { session } = await server.support
       .start(admin(), { targetUserId: TARGET, reason: "r" })
       .orThrow();
+
     const get = store.get.bind(store);
     vi.spyOn(store, "get").mockImplementation((...args) => {
       supportStartedFirst = !tenantDone;
+
       return get(...args);
     });
     const ctx = await server.context(await request(`bs-support=${session.id}`));
@@ -463,12 +516,15 @@ describe("support sessions on the server", () => {
     const { server, store } = setup();
     const claims = vi.spyOn(store, "claims");
     const get = vi.spyOn(store, "get");
+
     const { session } = await server.support
       .start(admin(), { targetUserId: TARGET, reason: "r" })
       .orThrow();
+
     const cookie = new Request("https://a.test/", {
       headers: { cookie: `bs-support=${session.id}` },
     });
+
     claims.mockClear();
     await server.support.current(cookie, admin());
     await server.support.current(cookie, admin());
@@ -485,12 +541,15 @@ describe("support sessions on the server", () => {
         claims: v.object({ organization: v.literal("o2") }),
       },
     });
+
     const { session } = await server.support
       .start(admin(), { targetUserId: TARGET, reason: "r" })
       .orThrow();
+
     const cookie = new Request("https://a.test/", {
       headers: { cookie: `bs-support=${session.id}` },
     });
+
     expect(
       await server.support.current(cookie, admin({ act: { sub: "x" } })),
     ).toBeUndefined();
@@ -517,11 +576,13 @@ describe("support sessions on the server", () => {
 
   it("keeps the admin's own view when the store fails", async () => {
     const store = memorySupportStore();
+
     const { server } = setup({
       support: supportSessions({
         store: { ...store, get: () => Promise.reject(new Error("down")) },
       }),
     });
+
     const ctx = await server.context(await request("bs-support=x"));
     expect(ctx.support).toBeUndefined();
     expect(ctx.auth).toMatchObject({ user: { id: ADMIN } });
@@ -529,9 +590,11 @@ describe("support sessions on the server", () => {
 
   it("expires sessions past their expiry and reports each as ended", async () => {
     const { server, store, events } = setup();
+
     const started = await server.support
       .start(admin(), { targetUserId: TARGET, reason: "ticket 9" })
       .orThrow();
+
     expect(await server.support.expire().orThrow()).toEqual([]);
     store.sessions.set(started.session.id, {
       ...started.session,
@@ -555,9 +618,11 @@ describe("support sessions on the server", () => {
 
   it("serves expire as a cron route behind its secret", async () => {
     const { server, store } = setup();
+
     const started = await server.support
       .start(admin(), { targetUserId: TARGET, reason: "r" })
       .orThrow();
+
     store.sessions.set(started.session.id, {
       ...started.session,
       expiresAt: Temporal.Now.instant().subtract({ seconds: 1 }),
@@ -568,30 +633,37 @@ describe("support sessions on the server", () => {
     const route = server.support.expireRoute({ secret: "s3cret" });
     const url = "https://app.test/api/cron/support";
     expect((await route(new Request(url))).status).toBe(401);
+
     const response = await route(
       new Request(url, { headers: { authorization: "Bearer s3cret" } }),
     );
+
     expect(await response.json()).toEqual({ expired: 1 });
   });
 
   it("fails expire for a store without it, and when the store fails", async () => {
     const withoutExpire = memorySupportStore();
     delete (withoutExpire as { expire?: unknown }).expire;
+
     const { server } = setup({
       support: supportSessions({ store: withoutExpire }),
     });
+
     expect((await server.support.expire()).error).toMatchObject({
       kind: "unsupported",
       code: "SUPPORT_EXPIRE_UNSUPPORTED",
     });
     const route = server.support.expireRoute({ secret: "s" });
+
     const response = await route(
       new Request("https://app.test/cron", {
         method: "POST",
         headers: { authorization: "Bearer s" },
       }),
     );
+
     expect(response.status).toBe(501);
+
     const failing = setup({
       support: supportSessions({
         store: {
@@ -600,15 +672,18 @@ describe("support sessions on the server", () => {
         },
       }),
     });
+
     expect((await failing.server.support.expire()).error?.kind).toBe("timeout");
   });
 
   it("fails expire without support options", async () => {
     const server = createServer(defineSupabase(schema), { env });
     expect((await server.support.expire()).ok).toBe(false);
+
     const response = await server.support.expireRoute({ secret: "s" })(
       new Request("https://app.test/cron"),
     );
+
     expect(response.status).toBe(500);
   });
 
@@ -628,14 +703,18 @@ describe("support sessions on the server", () => {
       { env: { ...env, secretKey: "sb_secret_test" } },
       [["as visible", [{ visible: false }]]],
     );
+
     const normal = await server.context(await request());
     expect(normal.storage).toBeUndefined();
+
     const started = await server.support
       .start(admin(), { targetUserId: TARGET, reason: "ticket 9" })
       .orThrow();
+
     const ctx = await server.context(
       await request(`bs-support=${started.session.id}`),
     );
+
     const docs = ctx.storage!.from("docs");
     expect(ctx.storage).toBe(ctx.storage);
     expect(ctx.db.$storage).toBe(ctx.storage);
@@ -672,12 +751,15 @@ describe("support sessions on the server", () => {
         ],
       ],
     );
+
     const started = await server.support
       .start(admin(), { targetUserId: TARGET, reason: "fix", readOnly: false })
       .orThrow();
+
     const ctx = await server.context(
       await request(`bs-support=${started.session.id}`),
     );
+
     const docs = ctx.storage!.from("docs");
     expect((await docs.upload("o1/a.pdf", "x")).error).toMatchObject({
       status: 403,

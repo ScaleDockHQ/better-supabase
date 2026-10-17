@@ -78,6 +78,7 @@ const NAMES: ModuleNames = {
 
 /** A path under `/memories`: segments of letters, digits, dots, dashes, underscores and spaces. */
 const PATH_PATTERN = "^/memories(/[A-Za-z0-9._ -]+)*$";
+
 /** The namespaces a memory belongs to. */
 const SCOPES = "'user', 'agent', 'chat', 'project', 'organization'";
 
@@ -112,26 +113,33 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const embedding = embeddingColumn(ctx, layout);
   const config = sqlString(textSearchConfig(ctx));
   const maxContent = ctx.number("maxContent", 100_000);
+
   if (!Number.isInteger(maxContent) || maxContent < 1) {
     throw new TypeError(
       "blocks.memory.options.maxContent must be a positive whole number of characters",
     );
   }
+
   const chat = ctx.installed("ai-chat") ? ctx.of("ai-chat") : undefined;
+
   const chatReference = chat
     ? ` references ${chat.table("chats")} (${chat.col("chats", "id")}) on delete cascade`
     : "";
+
   const projectReference = chat
     ? ` references ${chat.table("projects")} (${chat.col("projects", "id")}) on delete cascade`
     : "";
+
   const temporaryCheck = chat
     ? `
   if exists (select 1 from ${chat.table("chats")} x where x.${chat.col("chats", "id")} = set_ai_message_embedding.chat_id and x.${chat.col("chats", "temporary")}) then
     return false;
   end if;`
     : "";
+
   const memoryJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${m.id}, 'organization_id', ${row}.${m.tenant}, 'owner_id', ${row}.${m.owner}, 'scope', ${row}.${m.scope}, 'agent_id', ${row}.${m.agent}, 'chat_id', ${row}.${m.chat}, 'project_id', ${row}.${m.project}, 'kind', ${row}.${m.kind}, 'path', ${row}.${m.path}, 'content', ${row}.${m.content}, 'version', ${row}.${m.version}, 'embedding_model', ${row}.${m.model}, 'source_message_id', ${row}.${m.sourceMessage}, 'created_at', ${row}.${m.createdAt}, 'updated_at', ${row}.${m.updatedAt})`;
+
   // Every command names its namespace in ns: {"scope", "agent_id",
   // "chat_id", "project_id"} and, for the service role, "owner_id". Organization memory
   // has no owner and only admins change it.
@@ -158,24 +166,30 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   end if;`
       : ""
   }`;
+
   const declare = `
   v_scope text;
   v_agent uuid;
   v_chat uuid;
   v_project uuid;
   v_owner uuid;`;
+
   const inNamespace = (row: string, tenant: string): string =>
     `${row}.${m.tenant} = ${tenant} and ${row}.${m.owner} is not distinct from v_owner and ${row}.${m.scope} = v_scope and ${row}.${m.agent} is not distinct from v_agent and ${row}.${m.chat} is not distinct from v_chat and ${row}.${m.project} is not distinct from v_project and ${row}.${m.supersededBy} is null`;
+
   const checkPath = (path: string): string => `
   if ${path} is null or length(${path}) > 500 or ${path} !~ ${sqlString(PATH_PATTERN)} or ${path} ~ ${sqlString(DOT_SEGMENT)} then
     ${raise("% is not a path under /memories", "22023", "MEMORY_PATH", path)}
   end if;`;
+
   const checkContent = (content: string): string => `
   if length(${content}) > ${String(maxContent)} then
     ${raise("memory content is limited to % characters", "22023", "MEMORY_TOO_LARGE", String(maxContent))}
   end if;`;
+
   const fileNotFound = (path: string): string =>
     raise("% not found", "P0002", "MEMORY_NOT_FOUND", path);
+
   const signature = (name: string, args: string): string =>
     `${fn(name)}(${args})`;
 
@@ -781,9 +795,11 @@ ${serviceGrant(signature("purge_memory_documents", "integer"))}`;
 function upgradeProjectScope(ctx: ModuleContext): string {
   const memories = ctx.table("memories");
   const chat = ctx.installed("ai-chat") ? ctx.of("ai-chat") : undefined;
+
   const reference = chat
     ? ` references ${chat.table("projects")} (${chat.col("projects", "id")}) on delete cascade`
     : "";
+
   return `alter table ${memories} add column if not exists ${ctx.col("memories", "project")} uuid${reference};
 ${replaceColumnCheck({
   table: memories,

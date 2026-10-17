@@ -48,15 +48,18 @@ const TEAMS = table("teams", [
   "created_at",
   "updated_at",
 ]);
+
 const MEMBERS = table("team_members", [
   "team_id",
   "user_id",
   "organization_id",
   "created_at",
 ]);
+
 const tables = () => Promise.resolve([TEAMS, MEMBERS]);
 
 const configPath = () => join(dir, "better-supabase.config.json");
+
 const readConfig = async (): Promise<unknown> =>
   JSON.parse(await readFile(configPath(), "utf-8"));
 
@@ -64,11 +67,13 @@ describe("adopt", () => {
   it("writes the proposed entry and shows the mapping and the diff", async () => {
     await writeFile(configPath(), json({ blocks: ["tags"] }));
     const config = resolveConfig({}, dir);
+
     const dry = await runAdopt(
       config,
       { block: "teams", "dry-run": true },
       { configFile: configPath(), tables },
     );
+
     expect(dry.code).toBe(0);
     expect(dry.output).toContain("    tenant       organization_id (guessed)");
     expect(dry.output).toContain('+    "teams": {');
@@ -80,6 +85,7 @@ describe("adopt", () => {
       { block: "teams", from: "public.teams" },
       { configFile: configPath(), tables },
     );
+
     expect(written.code).toBe(0);
     expect(written.output).toContain("Run `better-supabase sql sync`");
     expect(written.data).toMatchObject({ block: "teams", written: true });
@@ -96,16 +102,19 @@ describe("adopt", () => {
         },
       },
     });
+
     const again = await runAdopt(
       await loadConfig(dir, configPath()),
       { block: "teams" },
       { configFile: configPath(), tables },
     );
+
     expect(again.output).toContain("already holds this mapping");
   });
 
   it("writes nothing and exits 1 when something can't map", async () => {
     await writeFile(configPath(), json({}));
+
     const result = await runAdopt(
       resolveConfig({}, dir),
       { block: "teams" },
@@ -114,6 +123,7 @@ describe("adopt", () => {
         tables: () => Promise.resolve([table("teams", ["id"]), MEMBERS]),
       },
     );
+
     expect(result.code).toBe(1);
     expect(result.output).toContain(
       "  error  public.teams has no column for teams.tenant",
@@ -132,17 +142,20 @@ describe("adopt", () => {
     );
     const file = join(dir, "better-supabase.config.ts");
     await writeFile(file, "export default config;\n");
+
     const refused = await runAdopt(
       config,
       { block: "teams" },
       { configFile: file, tables },
     );
+
     expect(refused.code).toBe(1);
     expect(refused.error).toContain("Set blocks.teams in it yourself.");
   });
 
   it("reads the tables from a snapshot through the CLI", async () => {
     await writeFile(configPath(), json({}));
+
     const result = await run([
       "adopt",
       "teams",
@@ -151,6 +164,7 @@ describe("adopt", () => {
       "--cwd",
       dir,
     ]);
+
     expect(result.code).not.toBe(0);
     expect(result.stderr).toContain("Snapshot not found: missing.json");
   });
@@ -161,6 +175,7 @@ describe("apply --adopt", () => {
 
   it("adopts the blocks with existing tables and keeps the rest managed", async () => {
     await writeFile(configPath(), json({}));
+
     const result = await runApply(
       resolveConfig({}, dir),
       { preset, only: "blocks", adopt: true },
@@ -171,6 +186,7 @@ describe("apply --adopt", () => {
         reload: (root, file) => loadConfig(root, file),
       },
     );
+
     expect(result.code).toBe(0);
     expect(result.output).toContain("Adopting teams:");
     expect(result.data).toMatchObject({
@@ -194,11 +210,13 @@ describe("apply --adopt", () => {
 
   it("says when nothing is there to adopt", async () => {
     await writeFile(configPath(), json({}));
+
     const result = await runApply(
       resolveConfig({}, dir),
       { preset, adopt: true, "dry-run": true },
       { configFile: configPath(), now, tables: () => Promise.resolve([]) },
     );
+
     expect(result.code).toBe(0);
     expect(result.output).toContain(
       "No existing tables to adopt: every block stays managed.",
@@ -207,6 +225,7 @@ describe("apply --adopt", () => {
 
   it("writes nothing when a block's existing tables can't be adopted", async () => {
     await writeFile(configPath(), json({}));
+
     const result = await runApply(
       resolveConfig({}, dir),
       { preset, adopt: true },
@@ -216,6 +235,7 @@ describe("apply --adopt", () => {
         tables: () => Promise.resolve([table("teams", ["id"]), MEMBERS]),
       },
     );
+
     expect(result.code).toBe(1);
     expect(result.error).toContain("Nothing was written: teams has a table");
     expect(await readConfig()).toEqual({});

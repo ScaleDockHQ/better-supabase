@@ -10,13 +10,16 @@ async function call(
   result: unknown = null,
 ): Promise<{ readonly fn: string; readonly result: unknown }> {
   let seen: BlockTransportRequest | undefined;
+
   const value = await blockNames(naming).call(
     { schema: "better_supabase", fn, args: { organization: "o1" } },
     async (request) => {
       seen = request;
+
       return result;
     },
   );
+
   return { fn: seen?.fn ?? "", result: value };
 }
 
@@ -48,6 +51,7 @@ describe("blockNames", () => {
     const { result } = await call({ tenant: "workspace" }, "list_comments", [
       { id: "c1", workspace_id: "w1", data: { active_workspace_id: "w2" } },
     ]);
+
     expect(result).toEqual([
       {
         id: "c1",

@@ -19,9 +19,11 @@ export function suppressionsTable(ctx: ModuleContext, n: NotifyNames): string {
   if (!ctx.manages || !suppressing(ctx)) {
     return "";
   }
+
   const t = n.table("suppressions");
   const c = (logical: string) => n.col("suppressions", logical);
   const policy = sqlIdent("bs_notification_suppressions_read");
+
   return `
 create table if not exists ${t} (
   ${c("id")} uuid primary key default gen_random_uuid(),
@@ -52,7 +54,9 @@ export function claimSuppression(
   if (!suppressing(ctx)) {
     return { join: "", field: "" };
   }
+
   const c = (logical: string) => n.col("suppressions", logical);
+
   return {
     join: `
   left join ${n.table("suppressions")} s on s.${c("channel")} = l.${n.col("deliveries", "channel")} and s.${c("address")} = lower(u.email)`,
@@ -73,11 +77,13 @@ export function suppressionFunctions(
   if (!suppressing(ctx)) {
     return "";
   }
+
   const t = n.table("suppressions");
   const c = (logical: string) => n.col("suppressions", logical);
   const suppress = ctx.fn("suppress_notification_address");
   const unsuppress = ctx.fn("unsuppress_notification_address");
   const list = ctx.fn("list_notification_suppressions");
+
   return `
 -- Stops a channel from sending to an address after a bounce, a complaint
 -- or by hand. The first suppression wins; returns whether it is new.
@@ -160,6 +166,7 @@ export function suppressionContract(
   if (!suppressing(ctx)) {
     return [];
   }
+
   return [
     {
       name: "suppress_notification_address",

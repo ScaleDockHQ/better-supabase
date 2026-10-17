@@ -43,6 +43,7 @@ describe("better-result 3.0.1 round trip", () => {
       BetterResult,
       (error) => new AppError(error.kind),
     );
+
     expect(found.map((row) => row.id).unwrap()).toBe("c1");
 
     const load = async (): Promise<BetterResult<number, AppError>> =>
@@ -51,6 +52,7 @@ describe("better-result 3.0.1 round trip", () => {
         BetterResult,
         (error) => new AppError(error.kind),
       );
+
     const failed = await load();
     expect(failed.isErr()).toBe(true);
     expect(failed.mapError((error) => error.code).unwrapOr(0)).toBe(0);
@@ -59,6 +61,7 @@ describe("better-result 3.0.1 round trip", () => {
       err(dbError("not_found", "No customer c1")),
       BetterResult,
     );
+
     expect(plain.isErr() && plain.error.kind).toBe("not_found");
   });
 
@@ -68,13 +71,16 @@ describe("better-result 3.0.1 round trip", () => {
       BetterResult,
       (error) => new AppError(error.kind),
     );
+
     expect(failed.status).toBe("error");
+
     const back = fromBetterResult(failed, (error) =>
       dbError(
         "forbidden",
         error instanceof AppError ? error.code : String(error),
       ),
     );
+
     expect(back).toMatchObject({
       ok: false,
       error: { kind: "forbidden", message: "forbidden" },
@@ -89,10 +95,12 @@ class NotFound extends TaggedError("NotFound")<{
   message: string;
   error: DbError;
 }> {}
+
 class Conflict extends TaggedError("Conflict")<{
   message: string;
   error: DbError;
 }> {}
+
 class DbFailure extends TaggedError("DbFailure")<{ message: string }> {}
 
 describe("defineBetterResultErrors with TaggedError classes", () => {
@@ -105,16 +113,20 @@ describe("defineBetterResultErrors with TaggedError classes", () => {
   it("returns better-result values with tagged errors", async () => {
     const found: BetterResult<number, NotFound | Conflict | DbFailure> =
       toResult(ok(1));
+
     expect(found.unwrap()).toBe(1);
 
     const load = async (): Promise<
       BetterResult<number, NotFound | Conflict | DbFailure>
     > => toResult(AsyncResult.err(dbError("conflict", "duplicate key")));
+
     const failed = await load();
     expect(failed.isErr()).toBe(true);
+
     if (!failed.isErr()) {
       return;
     }
+
     expect(TaggedError.is(failed.error)).toBe(true);
     expect(
       matchError(failed.error, {
@@ -139,6 +151,7 @@ describe("withBetterResult over the runtime package's db", () => {
     { not_found: NotFound, conflict: Conflict },
     DbFailure,
   );
+
   const rowsOf = (rows: ExecuteResult["rows"]): Executor => ({
     name: "stub",
     execute: async () => ok({ rows, count: null }),
@@ -150,10 +163,12 @@ describe("withBetterResult over the runtime package's db", () => {
       betterSupabase.connect(rowsOf([{ id: "c1", name: "Acme" }])),
       toResult,
     );
+
     const found: BetterResult<
       { id: string; name: string },
       NotFound | Conflict | DbFailure
     > = await db.customers.findById("c1", { select: ["id", "name"] });
+
     expect(found.unwrap()).toEqual({ id: "c1", name: "Acme" });
 
     const counts = await db.$rpc("customer_note_counts", {});

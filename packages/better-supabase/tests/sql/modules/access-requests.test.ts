@@ -52,6 +52,7 @@ describe("access-requests module", () => {
       "access-requests",
       withOptions({ maxDuration: "P1D", roles: ["admin"], join: true }),
     );
+
     expect(sql).toContain(
       "v_duration := coalesce(request_access.duration, 'P1D'::interval);",
     );
@@ -64,6 +65,7 @@ describe("access-requests module", () => {
       modules: { access: { model: "provider" } },
       accessProvider: moduleProvider,
     });
+
     expect(sql).not.toContain(`insert into "better_supabase"."memberships"`);
     expect(sql).toContain("adapter grants the role from the event");
   });

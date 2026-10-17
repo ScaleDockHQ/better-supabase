@@ -2,6 +2,7 @@ export {
   postgresStreamStore,
   type PostgresStreamStoreOptions,
 } from "./postgres.ts";
+
 export type {
   StreamAppendResult,
   StreamOpenOptions,
@@ -10,6 +11,7 @@ export type {
   StreamStatus,
   StreamStore,
 } from "./store.ts";
+
 export {
   resumeFromStore,
   type ResumeFromStoreOptions,
@@ -18,9 +20,11 @@ export {
   type TeeToStoreOptions,
   writeToStore,
 } from "./tee.ts";
+
 export {
   dbTransport,
   rpcTransport,
   sqlTransport,
 } from "../core/block-transport.ts";
+
 export type { BlockTransport } from "../core/block-transport.ts";

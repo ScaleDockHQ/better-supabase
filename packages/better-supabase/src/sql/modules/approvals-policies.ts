@@ -37,8 +37,10 @@ export interface ApprovalPolicy {
 
 const KEY = /^[a-z][a-z0-9_-]*$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
 export const DURATION: RegExp =
   /^P(?=\d|T\d)(\d+Y)?(\d+M)?(\d+W)?(\d+D)?(T(?=\d)(\d+H)?(\d+M)?(\d+S)?)?$/;
+
 const WHERE = "blocks.approvals.options.policies";
 
 type Fields = Readonly<Record<string, unknown>>;
@@ -52,17 +54,23 @@ function approversOf(value: unknown, where: string): ApprovalApprovers {
       `${where}.approvers must be an object with permission, role, team or users`,
     );
   }
+
   const text = (key: string): string | undefined => {
     const item = value[key];
+
     if (item === undefined) {
       return undefined;
     }
+
     if (typeof item !== "string" || item.trim() === "") {
       throw new TypeError(`${where}.approvers.${key} must be a string`);
     }
+
     return item;
   };
+
   const users = value["users"];
+
   if (
     users !== undefined &&
     (!Array.isArray(users) ||
@@ -71,18 +79,22 @@ function approversOf(value: unknown, where: string): ApprovalApprovers {
   ) {
     throw new TypeError(`${where}.approvers.users must be a list of user ids`);
   }
+
   const permission = text("permission");
   const role = text("role");
   const team = text("team");
+
   const approvers: ApprovalApprovers = {
     ...(permission === undefined ? {} : { permission }),
     ...(role === undefined ? {} : { role }),
     ...(team === undefined ? {} : { team }),
     ...(Array.isArray(users) ? { users: users.map(String) } : {}),
   };
+
   if (Object.keys(approvers).length === 0) {
     throw new TypeError(`${where}.approvers names nobody`);
   }
+
   return approvers;
 }
 
@@ -90,17 +102,22 @@ function stepOf(value: unknown, where: string): ApprovalStep {
   if (!isFields(value)) {
     throw new TypeError(`${where} must be an object`);
   }
+
   const approvers = approversOf(value["approvers"], where);
   const required = value["required"] ?? 1;
+
   if (required === "all") {
     const only = Object.keys(approvers);
+
     if (only.length !== 1 || approvers.users === undefined) {
       throw new TypeError(
         `${where}.required "all" needs approvers.users and nothing else`,
       );
     }
+
     return { approvers, required: approvers.users.length };
   }
+
   if (
     typeof required !== "number" ||
     !Number.isInteger(required) ||
@@ -108,6 +125,7 @@ function stepOf(value: unknown, where: string): ApprovalStep {
   ) {
     throw new TypeError(`${where}.required must be a whole number or "all"`);
   }
+
   if (
     approvers.users !== undefined &&
     Object.keys(approvers).length === 1 &&
@@ -115,6 +133,7 @@ function stepOf(value: unknown, where: string): ApprovalStep {
   ) {
     throw new TypeError(`${where}.required is more than approvers.users`);
   }
+
   return { approvers, required };
 }
 
@@ -122,9 +141,11 @@ function runOf(value: unknown, where: string): ApprovalRun | undefined {
   if (value === undefined) {
     return undefined;
   }
+
   if (isFields(value) && typeof value["transition"] === "string") {
     return { kind: "transition", to: value["transition"] };
   }
+
   if (
     isFields(value) &&
     typeof value["queue"] === "string" &&
@@ -132,6 +153,7 @@ function runOf(value: unknown, where: string): ApprovalRun | undefined {
   ) {
     return { kind: "queue", queue: value["queue"] };
   }
+
   throw new TypeError(
     `${where}.run must be { transition: "<status>" } or { queue: "<queue>" }`,
   );
@@ -147,14 +169,19 @@ export function policyOf(
   if (!KEY.test(action)) {
     throw new TypeError(`${where} has an invalid name`);
   }
+
   if (!isFields(value)) {
     throw new TypeError(`${where} must be an object`);
   }
+
   const steps = value["steps"];
+
   if (!Array.isArray(steps) || steps.length === 0) {
     throw new TypeError(`${where}.steps must be a non-empty list`);
   }
+
   const expiresIn = value["expiresIn"];
+
   if (
     expiresIn !== undefined &&
     (typeof expiresIn !== "string" || !DURATION.test(expiresIn))
@@ -163,11 +190,15 @@ export function policyOf(
       `${where}.expiresIn must be an ISO 8601 duration such as P7D`,
     );
   }
+
   const selfApproval = value["selfApproval"] ?? false;
+
   if (typeof selfApproval !== "boolean") {
     throw new TypeError(`${where}.selfApproval must be a boolean`);
   }
+
   const run = runOf(value["run"], where);
+
   return {
     subjectType,
     action,
@@ -185,21 +216,26 @@ export function approvalPolicies(
   ctx: ModuleContext,
 ): readonly ApprovalPolicy[] {
   const raw = ctx.option("policies");
+
   if (raw === undefined) {
     return [];
   }
+
   if (!isFields(raw)) {
     throw new TypeError(`${WHERE} must be an object`);
   }
+
   return Object.entries(raw).flatMap(([subjectType, actions]) => {
     if (!KEY.test(subjectType)) {
       throw new TypeError(`${WHERE}.${subjectType} has an invalid name`);
     }
+
     if (!isFields(actions)) {
       throw new TypeError(
         `${WHERE}.${subjectType} must be an object of action to policy`,
       );
     }
+
     return Object.entries(actions).map(([action, value]) =>
       policyOf(subjectType, action, value),
     );
@@ -221,6 +257,7 @@ export function policyCase(policies: readonly ApprovalPolicy[]): string {
   if (policies.length === 0) {
     return "null::jsonb";
   }
+
   return `case approval_policy.subject_type || ':' || approval_policy.action
 ${policies
   .map(
@@ -239,21 +276,26 @@ export function validateRuns(
 ): void {
   for (const policy of policies) {
     const where = `blocks.approvals.options.policies.${policy.subjectType}.${policy.action}.run`;
+
     if (policy.run?.kind === "transition") {
       if (!ctx.installed("state-machine")) {
         throw new TypeError(`${where} needs the state-machine module`);
       }
+
       const machines = ctx.of("state-machine").option("machines");
+
       const names =
         typeof machines === "object" && machines !== null
           ? Object.keys(machines)
           : [];
+
       if (!names.includes(policy.subjectType)) {
         throw new TypeError(
           `${where}: "${policy.subjectType}" is not a state-machine machine`,
         );
       }
     }
+
     if (policy.run?.kind === "queue" && !ctx.installed("jobs")) {
       throw new TypeError(`${where} needs the jobs module`);
     }

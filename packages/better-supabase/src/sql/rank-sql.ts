@@ -11,6 +11,7 @@ export const RANK_KEY_PATTERN = "'^[0-9A-Za-z]*[1-9A-Za-z]$'";
 export function rankAfter(last: string): string {
   const alphabet = sqlString(RANK_ALPHABET);
   const run = `length(substring(${last} from '^z*'))`;
+
   return `case
     when ${last} is null then 'V'
     when ${run} = length(${last}) then ${last} || 'V'
@@ -31,12 +32,15 @@ export function rankBackfill(options: {
   readonly orderBy: string;
 }): string {
   const alphabet = sqlString(RANK_ALPHABET);
+
   const digit = (divisor: number): string =>
     `substr(${alphabet}, ((o.nth / ${divisor}) % 62)::integer + 1, 1)`;
+
   const partition =
     options.partition.length === 0
       ? ""
       : `partition by ${options.partition.join(", ")} `;
+
   return `with ordered as (
   select ${options.id} as row_id, row_number() over (${partition}order by ${options.orderBy}) as nth
   from ${options.table}

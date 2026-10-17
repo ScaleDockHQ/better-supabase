@@ -35,9 +35,11 @@ for (const locale of ["en", "nl"] as const) {
 
       test("a customer page serves its static shell", async ({ page }) => {
         await page.goto(`/${locale}/customers`);
+
         const href = await page
           .getByRole("link", { name: "Road Runner Inc" })
           .getAttribute("href");
+
         await instant(
           page,
           async () => {

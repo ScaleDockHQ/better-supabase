@@ -45,6 +45,7 @@ describe("gen --metadata", () => {
   ): Promise<Captured> => {
     const stdout: string[] = [];
     const stderr: string[] = [];
+
     const io: CliIo = {
       stdout: (text) => {
         stdout.push(text);
@@ -54,7 +55,9 @@ describe("gen --metadata", () => {
       },
       stdin: () => Promise.resolve(stdin),
     };
+
     const result = await run(["gen", ...args, "--cwd", root], { io });
+
     return {
       code: result.code,
       stdout: stdout.join(""),
@@ -88,10 +91,12 @@ describe("gen --metadata", () => {
   it("prints database.types.ts with --emit types, matching gen from the snapshot", async () => {
     const result = await gen(["--metadata", "-", "--emit", "types"]);
     expect(result.code).toBe(0);
+
     const config = resolveConfig(
       { casing: "camel", output: "src/db/generated.ts" },
       root,
     );
+
     const { files } = await render(config, snapshot);
     expect(result.stdout).toBe(
       files.find((file) => file.path === config.databaseTypesOutput)!.contents,
@@ -124,12 +129,14 @@ describe("gen --metadata", () => {
       ],
       [JSON.stringify({ version: 1, tables: [] }), /Invalid GeneratorMetadata/],
     ] as const;
+
     for (const [input, reason] of cases) {
       const result = await gen(["--metadata", "-"], input);
       expect(result.code).toBe(65);
       expect(result.stdout).toBe("");
       expect(result.stderr).toMatch(reason);
     }
+
     const missing = await gen(["--metadata", "nope.json"]);
     expect(missing.code).toBe(65);
     expect(missing.stderr).toMatch(/Could not read nope\.json/);
@@ -149,6 +156,7 @@ describe("gen --metadata", () => {
       [["--emit", "types"], /--emit only applies with --metadata/],
       [["--out", "x"], /--out only applies with --metadata/],
     ] as const;
+
     for (const [args, reason] of cases as readonly (readonly [
       readonly string[],
       RegExp,
@@ -166,6 +174,7 @@ describe("gen --metadata", () => {
     const result = await gen(["--metadata", "-", "--out", "out"]);
     expect(result.code).toBe(0);
     expect(result.stdout).toContain("out/generated.ts");
+
     for (const name of [
       "database.types.ts",
       "generated.ts",
@@ -174,6 +183,7 @@ describe("gen --metadata", () => {
     ]) {
       expect(existsSync(join(root, "out", name))).toBe(true);
     }
+
     expect(existsSync(join(root, "src"))).toBe(false);
     expect(
       existsSync(
@@ -193,6 +203,7 @@ describe("fromMetadata", () => {
     { casing: "camel", output: "src/db/generated.ts" },
     "/project",
   );
+
   const full = buildModel(snapshot, config);
   const partial = buildModel(fromMetadata(snapshot.generator), config);
 
@@ -219,24 +230,29 @@ describe("fromMetadata", () => {
           relation.meta.table,
         ]),
       }));
+
     expect(typed(partial)).toEqual(typed(full));
   });
 
   it("keeps single-column unique keys and CHECK unions under the default Postgres names", () => {
     const table = (model: typeof full, key: string) =>
       model.tables.find((entry) => entry.key === key)!;
+
     expect(table(partial, "organizations").meta.uniqueKeys).toEqual(
       table(full, "organizations").meta.uniqueKeys,
     );
+
     const status = (model: typeof full) =>
       table(model, "customers").columns.find((column) => column.db === "status")
         ?.values;
+
     expect(status(partial)).toEqual(["lead", "active", "archived"]);
     expect(status(partial)).toEqual(status(full));
   });
 
   it("gives views no unique keys, foreign keys or checks of their own", () => {
     const [table] = snapshot.generator.tables;
+
     const view = {
       id: 999_999,
       schema: table!.schema,
@@ -244,6 +260,7 @@ describe("fromMetadata", () => {
       comment: null,
       is_updatable: false,
     };
+
     const viewColumns = snapshot.generator.columns
       .filter((column) => column.table_id === table!.id)
       .map((column) => ({
@@ -254,11 +271,13 @@ describe("fromMetadata", () => {
         is_unique: true,
         check: "true",
       }));
+
     const built = fromMetadata({
       ...snapshot.generator,
       views: [view],
       columns: [...snapshot.generator.columns, ...viewColumns],
     });
+
     expect(
       built.extras.tables.find((entry) => entry.name === "customer_names"),
     ).toMatchObject({ uniques: [], foreignKeys: [], checks: [] });

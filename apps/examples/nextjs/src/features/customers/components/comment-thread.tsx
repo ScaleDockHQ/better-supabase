@@ -31,24 +31,30 @@ export function CommentThread({
   const fieldId = useId();
   const [body, setBody] = useState("");
   const [pending, setPending] = useState(false);
+
   const { comments, error, add } = useComments({
     organizationId,
     subjectType: "customer",
     subjectId: customerId,
     schema: blockConfig.comments.api,
   });
+
   const visible = comments?.filter((comment) => !comment.deletedAt);
 
   const submit = async (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     const text = body.trim();
+
     if (!text) {
       return;
     }
+
     setPending(true);
+
     if ((await add(text)).ok) {
       setBody("");
     }
+
     setPending(false);
   };
 

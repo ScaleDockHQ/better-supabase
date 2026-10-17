@@ -12,6 +12,7 @@ const fixed = {
   id: () => "evt-1",
   source: "/crm",
 };
+
 const time = Temporal.Instant.from("2026-01-01T00:00:00Z");
 
 describe("block CloudEvents", () => {
@@ -39,10 +40,12 @@ describe("block CloudEvents", () => {
       data: { invitationId: "i1", organizationId: "o1", actorId: "u1" },
       partitionkey: "o1",
     });
+
     const plain = blockCloudEvent(
       { type: "organization.created", data: { organizationId: "o1" }, time },
       { source: "/crm", typePrefix: "com.acme", now: () => time },
     );
+
     expect(plain.type).toBe("com.acme.organization.created");
     expect(plain).not.toHaveProperty("subject");
     expect(plain).not.toHaveProperty("partitionkey");
@@ -57,6 +60,7 @@ describe("block CloudEvents", () => {
         dataschema: ({ type }) => `https://crm.test/schemas/${type}.json`,
       },
     );
+
     expect(event.dataschema).toBe(
       "https://crm.test/schemas/dev.better-supabase.organization.created.json",
     );
@@ -65,11 +69,13 @@ describe("block CloudEvents", () => {
   it("forwards matching block events and reports sink failures", async () => {
     const events = new EventHub();
     const sent: CloudEvent[][] = [];
+
     const stop = forwardBlockEvents(
       { events },
       { send: (batch) => void sent.push([...batch]) },
       { ...fixed, types: ["support.*", "organization.created"] },
     );
+
     emitBlockEvent(events, "support.started", {
       sessionId: "s1",
       adminId: "a1",
@@ -109,12 +115,14 @@ describe("block CloudEvents", () => {
 
   it("logs sink failures without onError", async () => {
     const error = vi.fn();
+
     const events = new EventHub({
       debug: vi.fn(),
       info: vi.fn(),
       warn: vi.fn(),
       error,
     });
+
     forwardBlockEvents(
       { events },
       { send: () => Promise.reject(new Error("down")) },

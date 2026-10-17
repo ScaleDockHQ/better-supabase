@@ -18,6 +18,7 @@ export function generateStaticParams() {
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getExtracted("app");
+
   return {
     title: { default: "Acme Cloud", template: "%s · Acme Cloud" },
     description: t("A multi-tenant SaaS example built on better-supabase."),
@@ -33,6 +34,7 @@ export default async function LocaleLayout({
   children,
 }: LayoutProps<"/[locale]">) {
   const locale = await getLocale();
+
   return (
     <html
       lang={locale}

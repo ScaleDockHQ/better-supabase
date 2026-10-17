@@ -34,6 +34,7 @@ export function storageImageUrl(
   options: StorageImageOptions,
 ): (src: string, size: StorageImageSize) => string | undefined {
   const storage = `${options.url.replace(/\/+$/, "")}/storage/v1`;
+
   const publicPrefixes = [
     `${storage}/object/public/`,
     `${storage}/render/image/public/`,
@@ -43,31 +44,39 @@ export function storageImageUrl(
     const prefix = publicPrefixes.find((candidate) =>
       src.startsWith(candidate.prefix),
     );
+
     if (prefix === undefined) {
       return;
     }
+
     const source = new URL(src);
     const object = source.pathname.slice(prefix.length);
     const target = new URL(`${storage}/render/image/public/${object}`);
+
     for (const [key, value] of source.searchParams) {
       target.searchParams.set(key, value);
     }
+
     target.searchParams.set("width", String(clamp(size.width, 1, MAX_SIDE)));
+
     if (size.height !== undefined) {
       target.searchParams.set(
         "height",
         String(clamp(size.height, 1, MAX_SIDE)),
       );
     }
+
     if (size.quality !== undefined) {
       target.searchParams.set(
         "quality",
         String(clamp(size.quality, QUALITY.min, QUALITY.max)),
       );
     }
+
     if (options.resize) {
       target.searchParams.set("resize", options.resize);
     }
+
     return target.toString();
   };
 }

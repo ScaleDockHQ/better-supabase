@@ -17,6 +17,7 @@ describe("expandRule", () => {
       dtstart: utc("1997-09-02T09:00:00Z"),
       rrule: "FREQ=DAILY;COUNT=10",
     });
+
     expect(found).toHaveLength(10);
     expect(days(found)[0]).toBe("1997-09-02");
     expect(days(found)[9]).toBe("1997-09-11");
@@ -28,6 +29,7 @@ describe("expandRule", () => {
       dtstart: utc("1997-09-02T09:00:00Z"),
       rrule: "FREQ=DAILY;UNTIL=19970904T090000Z",
     });
+
     expect(days(found)).toEqual(["1997-09-02", "1997-09-03", "1997-09-04"]);
   });
 
@@ -36,6 +38,7 @@ describe("expandRule", () => {
       dtstart: utc("1997-09-02T09:00:00Z"),
       rrule: "FREQ=WEEKLY;BYDAY=TU,TH;COUNT=4",
     });
+
     expect(days(found)).toEqual([
       "1997-09-02",
       "1997-09-04",
@@ -49,6 +52,7 @@ describe("expandRule", () => {
       dtstart: utc("1997-09-05T09:00:00Z"),
       rrule: "FREQ=MONTHLY;BYDAY=1FR;COUNT=3",
     });
+
     expect(days(found)).toEqual(["1997-09-05", "1997-10-03", "1997-11-07"]);
   });
 
@@ -57,6 +61,7 @@ describe("expandRule", () => {
       dtstart: utc("1997-09-30T09:00:00Z"),
       rrule: "FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1;COUNT=2",
     });
+
     expect(days(found)).toEqual(["1997-09-30", "1997-10-31"]);
   });
 
@@ -67,6 +72,7 @@ describe("expandRule", () => {
       ),
       rrule: "FREQ=WEEKLY;COUNT=3",
     });
+
     expect(found.map((item) => item.hour)).toEqual([9, 9, 9]);
     expect(days(found)).toEqual(["2026-03-01", "2026-03-08", "2026-03-15"]);
   });
@@ -82,6 +88,7 @@ describe("expandRule", () => {
       dtstart: utc("1997-09-02T09:00:00Z"),
       rrule: "FREQ=DAILY;BYDAY=MO;COUNT=2",
     });
+
     expect(days(found)).toEqual(["1997-09-08", "1997-09-15"]);
   });
 
@@ -90,6 +97,7 @@ describe("expandRule", () => {
       dtstart: utc("1997-01-31T09:00:00Z"),
       rrule: "FREQ=YEARLY;BYMONTH=1;BYMONTHDAY=-1;COUNT=2",
     });
+
     expect(days(found)).toEqual(["1997-01-31", "1998-01-31"]);
   });
 
@@ -98,7 +106,9 @@ describe("expandRule", () => {
       dtstart: utc("1997-09-02T09:00:00Z"),
       columns: { frequency: "weekly", weekDays: [2], count: 2 },
     });
+
     expect(days(weekly)).toEqual(["1997-09-02", "1997-09-09"]);
+
     const monthly = expandRule({
       dtstart: utc("1997-09-05T09:00:00Z"),
       columns: {
@@ -108,6 +118,7 @@ describe("expandRule", () => {
         count: 1,
       },
     });
+
     expect(days(monthly)).toEqual(["1997-09-05"]);
   });
 
@@ -134,6 +145,7 @@ describe("expandRule", () => {
       dtstart: utc("1997-09-15T09:00:00Z"),
       columns: { frequency: "monthly", monthDay: 15, interval: 1, count: 2 },
     });
+
     expect(days(found)).toEqual(["1997-09-15", "1997-10-15"]);
   });
 });
@@ -153,11 +165,13 @@ describe("expandRule with a window", () => {
     const dtstart = amsterdam("2024-01-05T09:00:00+01:00");
     const from = Temporal.Instant.from("2026-02-10T00:00:00Z");
     const until = Temporal.Instant.from("2026-06-01T00:00:00Z");
+
     const all = expandRule({ dtstart, rrule, limit: 366 * 4 }).filter(
       (when) =>
         Temporal.Instant.compare(when.toInstant(), from) >= 0 &&
         Temporal.Instant.compare(when.toInstant(), until) < 0,
     );
+
     const windowed = expandRule({ dtstart, rrule, window: { from, until } });
     expect(windowed.map(String)).toEqual(all.map(String));
   });
@@ -171,6 +185,7 @@ describe("expandRule with a window", () => {
         until: Temporal.Instant.from("2026-04-10T00:00:00Z"),
       },
     });
+
     expect(found.map((when) => when.hour)).toEqual([9, 9, 9]);
     expect(found[1]?.offset).toBe("+02:00");
   });
@@ -184,6 +199,7 @@ describe("expandRule with a window", () => {
         until: Temporal.Instant.from("2026-02-01T00:00:00Z"),
       },
     });
+
     expect(days(found)).toEqual(["2026-01-08", "2026-01-09", "2026-01-10"]);
   });
 
@@ -196,6 +212,7 @@ describe("expandRule with a window", () => {
         until: Temporal.Instant.from("2030-01-03T00:00:00Z"),
       },
     });
+
     expect(days(found)).toEqual(["2030-01-01", "2030-01-02"]);
   });
 });

@@ -26,6 +26,7 @@ export interface ClaimPaths {
  */
 export function claimPaths(claims?: Partial<ClaimsMeta>): ClaimPaths {
   const resolved = { ...DEFAULT_CLAIMS, ...claims };
+
   return {
     tenant: tenantClaimPaths(resolved.tenant),
     features: resolved.features,
@@ -41,11 +42,14 @@ export function claimsOf(
   if (!meta?.claims) {
     return DEFAULT_CLAIMS;
   }
+
   let claims = claimsByMeta.get(meta);
+
   if (!claims) {
     claims = { ...DEFAULT_CLAIMS, ...meta.claims };
     claimsByMeta.set(meta, claims);
   }
+
   return claims;
 }
 
@@ -56,10 +60,12 @@ export function tenantClaimPaths(
   tenant: string = DEFAULT_CLAIMS.tenant,
 ): readonly [string, string] {
   let paths = tenantPaths.get(tenant);
+
   if (!paths) {
     paths = [tenant, `app_metadata.${tenant}`];
     tenantPaths.set(tenant, paths);
   }
+
   return paths;
 }
 
@@ -76,6 +82,7 @@ export function tenantPathsFor(
   if (typeof claim === "string") {
     return [claim];
   }
+
   return claim ?? tenantClaimPaths(claimsOf(meta).tenant);
 }
 
@@ -91,25 +98,32 @@ export function tenantFrom(
   if (typeof context.tenant === "string") {
     return context.tenant;
   }
+
   for (const path of paths) {
     const value = claimAt(context.claims, path);
+
     if (value !== undefined) {
       return value;
     }
   }
+
   return undefined;
 }
+
 /** Claim paths come from configuration, so this stays small. */
 const segmentsByPath = new Map<string, readonly string[]>();
 
 function segmentsOf(path: string): readonly string[] {
   let segments = segmentsByPath.get(path);
+
   if (!segments) {
     segments = path.split(".");
+
     if (segmentsByPath.size < 256) {
       segmentsByPath.set(path, segments);
     }
   }
+
   return segments;
 }
 
@@ -119,6 +133,7 @@ export function claimAt(
   path: string,
 ): string | undefined {
   let value: unknown = claims;
+
   for (const segment of segmentsOf(path)) {
     // SAFETY: the condition narrows value to a non-null object, and claims are JSON objects.
     value =
@@ -126,5 +141,6 @@ export function claimAt(
         ? (value as Record<string, unknown>)[segment]
         : undefined;
   }
+
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }

@@ -76,6 +76,7 @@ export interface Undo {
 export function createUndo(options: UndoOptions): Undo {
   const call = blockCall(options.transport, options.schema, options.mappers);
   const allowed = [...UNDO_FUNCTIONS, ...(options.allow ?? [])];
+
   const client: Undo = {
     apply: (token) => {
       if (!isUndoToken(token, allowed)) {
@@ -87,17 +88,21 @@ export function createUndo(options: UndoOptions): Undo {
           }),
         );
       }
+
       return AsyncResult.from(async () => {
         for (const step of token.calls) {
           const result = await call(step.fn, step.args, () => undefined);
+
           if (!result.ok) {
             return result;
           }
         }
+
         return ok(token.calls.length);
       });
     },
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "undo",
     ...(options.logger ? { logger: options.logger } : {}),

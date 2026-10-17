@@ -9,6 +9,7 @@ export {
   type SlaPolicyInput,
   type SlaState,
 } from "./sla.ts";
+
 export {
   extendBlock,
   withBlockHooks,
@@ -16,6 +17,7 @@ export {
   type BlockHooks,
   type BlockTransportMiddleware,
 } from "../../core/block-hooks.ts";
+
 export {
   dbTransport,
   rpcTransport,
@@ -23,6 +25,9 @@ export {
   type BlockTransport,
   type RpcClient,
 } from "../../core/block-transport.ts";
+
 export { slaBlock } from "./manifest.ts";
+
 export { slaEvents } from "./events.ts";
+
 export type { SlaEvents } from "./events.ts";

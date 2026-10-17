@@ -1,4 +1,5 @@
 export { createBulk } from "./bulk.ts";
+
 export type {
   Bulk,
   BulkActionArgs,
@@ -15,6 +16,9 @@ export type {
   BulkStatus,
   BuiltInBulkAction,
 } from "./bulk.ts";
+
 export { bulkBlock } from "./manifest.ts";
+
 export { bulkEvents } from "./events.ts";
+
 export type { BulkEvents } from "./events.ts";

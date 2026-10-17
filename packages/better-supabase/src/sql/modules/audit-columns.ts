@@ -5,11 +5,13 @@ export type AuditImpersonators = "show" | "hide";
 /** `blocks.audit.options.impersonators`: whether tenant readers see who impersonated. */
 export function impersonators(ctx: ModuleContext): AuditImpersonators {
   const value = ctx.text("impersonators", "show");
+
   if (value !== "show" && value !== "hide") {
     throw new TypeError(
       `blocks.audit.options.impersonators must be "show" or "hide", not "${value}"`,
     );
   }
+
   return value;
 }
 
@@ -41,8 +43,10 @@ export function hasColumn(
   if (!ctx.has(table, logical)) {
     return false;
   }
+
   if (ctx.manages || !ADDED_COLUMNS[table]?.includes(logical)) {
     return true;
   }
+
   return typeof ctx.config.columns[table]?.[logical] === "string";
 }

@@ -71,15 +71,19 @@ const sample = (kind: DbErrorKind): DbError =>
     : dbError(kind, `A ${kind} error`);
 
 const ajv = new Ajv2020({ strict: false });
+
 addFormats(ajv);
+
 const validProblem = ajv.compile(PROBLEM_SCHEMA);
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
+
 const env = {
   url: PROJECT_URL,
   publishableKey: "sb_publishable_test",
   jwksUrl: new URL(`${PROJECT_URL}/auth/v1/.well-known/jwks.json`),
 };
+
 const signer = await createTestSigner();
 const betterSupabase = defineSupabase(schema);
 
@@ -103,17 +107,22 @@ describe("RFC 9457 Problem Details", () => {
 
   it("uses one title per type, so the title stays the same for every occurrence (section 3.1.3)", () => {
     const titles = new Map<string, string>();
+
     for (const kind of KINDS) {
       const one = toProblem(sample(kind));
+
       const two = toProblem({
         ...sample(kind),
         message: "different occurrence",
       });
+
       expect(two.title).toBe(one.title);
+
       if (one.type !== "about:blank") {
         titles.set(one.type, one.title);
       }
     }
+
     expect(titles.size).toBe(KINDS.length - GENERIC.size);
   });
 
@@ -127,6 +136,7 @@ describe("RFC 9457 Problem Details", () => {
       429: "Too Many Requests",
       500: "Internal Server Error",
     };
+
     for (const kind of GENERIC) {
       const problem = toProblem(sample(kind));
       expect(problem).toMatchObject({
@@ -135,6 +145,7 @@ describe("RFC 9457 Problem Details", () => {
         kind,
       });
     }
+
     const moved = toProblem(dbError("not_found", "Gone", { status: 410 }));
     expect(moved.type).toBe("https://bettersupabase.com/problems/not-found");
   });
@@ -163,6 +174,7 @@ describe("RFC 9457 Problem Details", () => {
     for (const kind of KINDS) {
       expect(fromProblem(toProblem(sample(kind))).kind).toBe(kind);
     }
+
     expect(
       fromProblem({
         type: "about:blank",
@@ -178,6 +190,7 @@ describe("RFC 9457 Problem Details", () => {
       env,
       auth: { jwks: signer.jwks as never },
     });
+
     const app = new Hono<HonoEnv<Models, Functions, unknown>>()
       .onError(hono.onError)
       .use("/api/*", hono.middleware())
@@ -185,14 +198,18 @@ describe("RFC 9457 Problem Details", () => {
         "/api/x",
         hono.handler(() => err(dbError("conflict", "Taken"))),
       );
+
     const edge = createEdge(betterSupabase, {
       env,
       auth: { jwks: signer.jwks as never },
     });
+
     const serve = edge.handler(() => err(dbError("stale", "Changed")));
+
     const token = await signer.sign({
       sub: "11111111-1111-4111-8111-111111111111",
     });
+
     const responses = [
       await app.request("/api/x"),
       await app.request("/api/x", {
@@ -204,9 +221,11 @@ describe("RFC 9457 Problem Details", () => {
         }),
       ),
     ];
+
     expect(responses.map((response) => response.status)).toEqual([
       401, 409, 412,
     ]);
+
     for (const response of responses) {
       expect(response.headers.get("content-type")).toBe(PROBLEM_CONTENT_TYPE);
       const body = await response.json();

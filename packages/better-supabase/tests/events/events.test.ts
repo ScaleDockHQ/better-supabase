@@ -32,6 +32,7 @@ describe("CloudEvents", () => {
       rows: [{ id: "c1" }],
       context: {},
     } as const;
+
     expect(
       toCloudEvents(notice, {
         ...fixed,
@@ -39,23 +40,28 @@ describe("CloudEvents", () => {
       })[0],
     ).toMatchObject({ dataschema: "https://crm.test/schemas/row.json" });
     const seen: unknown[] = [];
+
     const [event] = toCloudEvents(notice, {
       ...fixed,
       dataschema: (context) => {
         seen.push(context);
+
         return context.table === "customers"
           ? `https://crm.test/schemas/${context.table}.json`
           : undefined;
       },
     });
+
     expect(event?.dataschema).toBe("https://crm.test/schemas/customers.json");
     expect(seen).toEqual([
       { type: "dev.better-supabase.row.created", table: "customers" },
     ]);
+
     const [none] = toCloudEvents(
       { ...notice, table: "notes" },
       { ...fixed, dataschema: () => undefined },
     );
+
     expect(none).not.toHaveProperty("dataschema");
     expect(toCloudEvents(notice, fixed)[0]).not.toHaveProperty("dataschema");
   });
@@ -70,6 +76,7 @@ describe("CloudEvents", () => {
       },
       { ...fixed, meta: schema.meta },
     );
+
     expect(events).toEqual([
       {
         specversion: "1.0",
@@ -87,10 +94,12 @@ describe("CloudEvents", () => {
         partitionkey: "org-1",
       },
     ]);
+
     const custom = toCloudEvents(
       { table: "notes", kind: "delete", rows: [{}], context: {} },
       { ...fixed, typePrefix: "com.acme" },
     );
+
     expect(custom[0]).toMatchObject({ type: "com.acme.row.deleted" });
     expect(custom[0]).not.toHaveProperty("subject");
   });
@@ -98,15 +107,18 @@ describe("CloudEvents", () => {
   it("forwards mutations to a sink", async () => {
     const betterSupabase = defineSupabase(schema);
     const sent: CloudEvent[][] = [];
+
     const stop = forwardMutations(
       betterSupabase,
       { send: (events) => void sent.push([...events]) },
       { ...fixed, filter: (n) => n.table === "customers" },
     );
+
     const { client } = capturingClient(() => ({
       status: 201,
       body: [{ id: "c9", organization_id: "o1", name: "N" }],
     }));
+
     const db = betterSupabase.connect(client);
     await db.customers.create({ organizationId: "o1", name: "N" }).orThrow();
     await db.notes.create({
@@ -126,9 +138,11 @@ describe("CloudEvents", () => {
   it("tracks sends in flight until they settle, failed ones too", async () => {
     const betterSupabase = defineSupabase(schema);
     let release: () => void = () => undefined;
+
     const late = new Promise<void>((resolve) => {
       release = resolve;
     });
+
     const delivered: string[] = [];
     const failures: unknown[] = [];
     forwardMutations(
@@ -136,27 +150,33 @@ describe("CloudEvents", () => {
       {
         send: async (events) => {
           await late;
+
           if (events[0]?.subject === "customers/c2") {
             throw new Error("down");
           }
+
           delivered.push(String(events[0]?.subject));
         },
       },
       { ...fixed, onError: (error) => failures.push(error) },
     );
     let id = 0;
+
     const { client } = capturingClient(() => ({
       status: 201,
       body: [{ id: `c${String(++id)}`, organization_id: "o1", name: "N" }],
     }));
+
     const db = betterSupabase.connect(client);
     await db.customers.create({ organizationId: "o1", name: "N" }).orThrow();
     await db.customers.create({ organizationId: "o1", name: "N" }).orThrow();
     expect(betterSupabase.events.pending).toBe(true);
     let flushed = false;
+
     const flush = betterSupabase.events.settled().then(() => {
       flushed = true;
     });
+
     await Promise.resolve();
     expect(flushed).toBe(false);
     release();
@@ -170,6 +190,7 @@ describe("CloudEvents", () => {
     const betterSupabase = defineSupabase(schema)
       .use(softDelete())
       .use(tenant());
+
     const sent: CloudEvent[] = [];
     forwardMutations(
       betterSupabase,
@@ -180,10 +201,12 @@ describe("CloudEvents", () => {
     betterSupabase.cache(cache);
     const notices: MutationNotice[] = [];
     betterSupabase.events.on("mutation", (notice) => notices.push(notice));
+
     const { client } = capturingClient(() => ({
       status: 204,
       headers: { "content-range": "*/1" },
     }));
+
     await betterSupabase
       .connect(client, { claims: { tenant_id: "org-1" } })
       .customers.delete("c1")
@@ -223,17 +246,22 @@ describe("CloudEvents", () => {
               }
             : op,
       });
+
     const intents = async (plugin: ReturnType<typeof archiving>) => {
       const betterSupabase = defineSupabase(schema).use(plugin);
       const notices: MutationNotice[] = [];
       betterSupabase.events.on("mutation", (notice) => notices.push(notice));
+
       const { client } = capturingClient(() => ({
         status: 204,
         headers: { "content-range": "*/1" },
       }));
+
       await betterSupabase.connect(client).tags.delete("t1").orThrow();
+
       return notices.map((notice) => [notice.kind, notice.intent]);
     };
+
     expect(await intents(archiving())).toEqual([["update", "update"]]);
     expect(await intents(archiving("softDelete"))).toEqual([
       ["update", "softDelete"],
@@ -247,18 +275,22 @@ describe("CloudEvents", () => {
         (event.rows[0] as Record<string, unknown>)["name"] = "changed";
       },
     });
+
     const betterSupabase = defineSupabase(schema).use(tamper);
     betterSupabase.events.on("mutation", (notice) => {
       (notice.rows[0] as Record<string, unknown>)["id"] = "other";
     });
+
     const { client } = capturingClient(() => ({
       status: 201,
       body: [{ id: "c1", name: "Acme", metadata: { tier: "pro" } }],
     }));
+
     const row = await betterSupabase
       .connect(client)
       .customers.create({ organizationId: "o1", name: "Acme" })
       .orThrow();
+
     expect(row).toMatchObject({ id: "c1", name: "Acme" });
   });
 
@@ -270,10 +302,12 @@ describe("CloudEvents", () => {
       { send: () => Promise.reject(new Error("down")) },
       { ...fixed, onError },
     );
+
     const { client } = capturingClient(() => ({
       status: 201,
       body: [{ id: "c1" }],
     }));
+
     await betterSupabase
       .connect(client)
       .customers.create({ organizationId: "o1", name: "N" })
@@ -293,8 +327,10 @@ describe("CloudEvents", () => {
       data: { x: 1 },
       datacontenttype: "application/json",
     };
+
     for (const mode of ["structured", "binary", "batch"] as const) {
       const [message] = toHttp([event], mode);
+
       const parsed = await fromHttp(
         new Request("http://x", {
           method: "POST",
@@ -302,8 +338,10 @@ describe("CloudEvents", () => {
           body: message!.body,
         }),
       );
+
       expect(parsed).toEqual([event]);
     }
+
     expect(toHttp([event], "binary")[0]?.headers).toMatchObject({
       "ce-id": "1",
       "ce-subject": "a b",
@@ -320,6 +358,7 @@ describe("CloudEvents", () => {
       data: { table: "ledger", row: { id: 9_007_199_254_740_993n } },
       datacontenttype: "application/json",
     };
+
     for (const mode of ["structured", "binary", "batch"] as const) {
       const [message] = toHttp([event], mode);
       expect(message?.body).toContain('"id":"9007199254740993"');
@@ -331,6 +370,7 @@ describe("CloudEvents", () => {
       async (_url: string | URL | Request, _init?: RequestInit) =>
         new Response(null, { status: 202 }),
     );
+
     await httpSink("http://sink", {
       fetch,
       headers: { authorization: "Bearer t" },
@@ -342,9 +382,11 @@ describe("CloudEvents", () => {
         "content-type": "application/cloudevents-batch+json",
       },
     });
+
     const failing = httpSink("http://sink", {
       fetch: async () => new Response(null, { status: 500 }),
     });
+
     await expect(
       failing.send([{ specversion: "1.0", id: "1", source: "/s", type: "t" }]),
     ).rejects.toThrow("Event sink responded 500");
@@ -360,6 +402,7 @@ describe("CloudEvents", () => {
           });
         }),
     });
+
     await expect(
       hanging.send([{ specversion: "1.0", id: "1", source: "/s", type: "t" }]),
     ).rejects.toThrow(/timed out|aborted/i);

@@ -38,6 +38,7 @@ import { loadNotificationCounts } from "../notifications-actions";
 
 async function loadCounts(): Promise<readonly NotificationCounts[]> {
   const result = await loadNotificationCounts({});
+
   return result.ok ? [result.data] : [];
 }
 
@@ -51,11 +52,13 @@ const unreadOf = (counts: readonly NotificationCounts[]): number =>
 function useUnreadCount() {
   const auth = useAuth();
   const userId = auth.user?.id;
+
   const { items, count, status } = useNotifications({
     topic: userId ? `notifications:${userId}` : null,
     load: loadCounts,
     count: unreadOf,
   });
+
   return { count: items === undefined ? undefined : count, status };
 }
 
@@ -66,6 +69,7 @@ function useUnreadCount() {
 export function UnreadBadge() {
   const t = useExtracted("notifications");
   const { count, status } = useUnreadCount();
+
   return (
     <Link
       href="/notifications"
@@ -117,17 +121,21 @@ export function NotificationBell({
   const supabase = useSupabase();
   const tenant = tenantOf(auth);
   const userId = auth.user?.id;
+
   const { items, count } = useNotifications({
     topic: userId ? `notifications:${userId}` : null,
     load: async () => {
       if (!tenant) {
         return [];
       }
+
       const result = await blocks(supabase).notifications.counts({ tenant });
+
       return result.ok ? [result.data] : [];
     },
     count: unreadOf,
   });
+
   return (
     <Pressable
       onPress={onPress}
@@ -191,6 +199,7 @@ import { loadNotifications } from "../notifications-actions";
 
 async function loadRows(): Promise<readonly NotificationRow[]> {
   const result = await loadNotifications({});
+
   return result.ok ? result.data : [];
 }
 
@@ -203,13 +212,16 @@ export function NotificationList() {
   const format = useFormatter();
   const auth = useAuth();
   const userId = auth.user?.id;
+
   const { items } = useNotifications({
     topic: userId ? `notifications:${userId}` : null,
     load: loadRows,
   });
+
   if (items === undefined) {
     return <NotificationListSkeleton />;
   }
+
   if (items.length === 0) {
     return (
       <Empty className="border">
@@ -225,6 +237,7 @@ export function NotificationList() {
       </Empty>
     );
   }
+
   return (
     <ul className="divide-y rounded-xl border">
       {items.map((notification) => (
@@ -279,22 +292,27 @@ export function NotificationList() {
   const supabase = useSupabase();
   const tenant = tenantOf(auth);
   const userId = auth.user?.id;
+
   const { items } = useNotifications({
     topic: userId ? `notifications:${userId}` : null,
     load: async () => {
       if (!tenant) {
         return [];
       }
+
       const result = await blocks(supabase).notifications.list({
         tenant,
         limit: 20,
       });
+
       return result.ok ? result.data : [];
     },
   });
+
   if (items === undefined) {
     return <ActivityIndicator />;
   }
+
   return (
     <FlatList
       data={items}
@@ -353,18 +371,23 @@ const API_SCHEMA = blockConfig.search.api;
 export function CommandSearch() {
   const t = useExtracted("search");
   const search = useCommandSearch({ schema: API_SCHEMA });
+
   const heading = (key: string) => {
     if (key === "favorites") {
       return t("Favorites");
     }
+
     if (key === "recents") {
       return t("Recent");
     }
+
     if (key === "customer") {
       return t("Customers");
     }
+
     return key;
   };
+
   return (
     <>
       <Button
@@ -457,12 +480,15 @@ function heading(key: string): string {
   if (key === "favorites") {
     return "Favorites";
   }
+
   if (key === "recents") {
     return "Recent";
   }
+
   if (key === "customer") {
     return "Customers";
   }
+
   return key;
 }
 
@@ -470,6 +496,7 @@ function heading(key: string): string {
 export function CommandSearch() {
   // Native has no Cmd+K, so the button opens it.
   const search = useCommandSearch({ schema: API_SCHEMA, shortcut: false });
+
   return (
     <>
       <Pressable
@@ -589,25 +616,31 @@ const API_SCHEMA = blockConfig.onboarding.api;
 export function OnboardingCard() {
   const t = useExtracted("dashboard");
   const organizationId = tenantOf(useAuth()) ?? null;
+
   const { progress } = useOnboarding(gettingStarted, {
     organizationId,
     schema: API_SCHEMA,
   });
+
   if (!organizationId) {
     return null;
   }
+
   if (progress === undefined) {
     return <OnboardingCardSkeleton />;
   }
+
   if (progress.done) {
     return null;
   }
+
   const titles = {
     customer: t("Add your first customer"),
     invite: t("Invite a teammate"),
     "api-key": t("Create an API key"),
     plan: t("Review your plan"),
   };
+
   return (
     <Card data-testid="onboarding">
       <CardHeader>
@@ -676,19 +709,24 @@ import { gettingStarted } from "../lib/onboarding";
 /** The organization's getting-started checklist; hidden once every step is done. */
 export function OnboardingChecklist() {
   const organizationId = tenantOf(useAuth()) ?? null;
+
   const { progress } = useOnboarding(gettingStarted, {
     organizationId,
     schema: API_SCHEMA,
   });
+
   if (!organizationId) {
     return null;
   }
+
   if (progress === undefined) {
     return <ActivityIndicator />;
   }
+
   if (progress.done) {
     return null;
   }
+
   return (
     <View style={{ gap: 8, padding: 16, borderWidth: 1, borderRadius: 12 }}>
       <Text style={{ fontSize: 17, fontWeight: "600" }}>Get started</Text>
@@ -765,24 +803,30 @@ export function CommentThread({
   const fieldId = useId();
   const [body, setBody] = useState("");
   const [pending, setPending] = useState(false);
+
   const { comments, error, add } = useComments({
     organizationId,
     subjectType: "customer",
     subjectId: customerId,
     schema: blockConfig.comments.api,
   });
+
   const visible = comments?.filter((comment) => !comment.deletedAt);
 
   const submit = async (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     const text = body.trim();
+
     if (!text) {
       return;
     }
+
     setPending(true);
+
     if ((await add(text)).ok) {
       setBody("");
     }
+
     setPending(false);
   };
 
@@ -864,6 +908,7 @@ export function CommentThread({ customerId }: { readonly customerId: string }) {
   const organizationId = tenantOf(useAuth());
   const [body, setBody] = useState("");
   const [pending, setPending] = useState(false);
+
   const { comments, error, add } = useComments({
     organizationId,
     subjectType: "customer",
@@ -873,19 +918,24 @@ export function CommentThread({ customerId }: { readonly customerId: string }) {
 
   const submit = async () => {
     const text = body.trim();
+
     if (!text) {
       return;
     }
+
     setPending(true);
+
     if ((await add(text)).ok) {
       setBody("");
     }
+
     setPending(false);
   };
 
   if (comments === undefined) {
     return <ActivityIndicator />;
   }
+
   return (
     <View style={{ flex: 1, gap: 12 }}>
       <FlatList
@@ -970,9 +1020,11 @@ function Mark({ name }: { name: string }) {
 
 async function loadOrganizations(): Promise<readonly OrganizationSummary[]> {
   const result = await loadMyOrganizations({});
+
   if (!result.ok) {
     throw new DbException(result.error);
   }
+
   return result.data;
 }
 
@@ -994,6 +1046,7 @@ export function OrganizationSwitcherMenu({
   const refreshSession = useRefreshSession();
   const [pending, startTransition] = useTransition();
   const [creating, setCreating] = useState(false);
+
   const { organizations, active, activeId, switchTo } = useOrganizations({
     load: loadOrganizations,
     initial,
@@ -1005,10 +1058,13 @@ export function OrganizationSwitcherMenu({
   const choose = (organization: OrganizationSummary) => {
     startTransition(async () => {
       const result = await switchTo(organization.id);
+
       if (!result.ok) {
         toast.error(errorMessage(result.error));
+
         return;
       }
+
       toast.success(t("Switched to {name}", { name: organization.name }));
     });
   };
@@ -1096,9 +1152,11 @@ import { API_SCHEMA } from "../lib/blocks";
 export function OrganizationSwitcher() {
   const { organizations, activeId, switching, error, switchTo } =
     useOrganizations({ schema: API_SCHEMA });
+
   if (organizations === undefined) {
     return <ActivityIndicator />;
   }
+
   return (
     <View style={{ gap: 4 }}>
       <Text style={{ fontSize: 17, fontWeight: "600" }}>Organizations</Text>
@@ -1164,9 +1222,11 @@ import { loadPlanCatalog, startCheckout } from "../billing-actions";
 
 async function loadCatalog(): Promise<PlanCatalog<PlanOption>> {
   const result = await loadPlanCatalog({});
+
   if (!result.ok) {
     throw new DbException(result.error);
   }
+
   return result.data;
 }
 
@@ -1185,6 +1245,7 @@ export function PlanPicker({
   const t = useExtracted("billing");
   const format = useFormatter();
   const errorMessage = useErrorMessage();
+
   const { plans, current, pending, choose } = usePlanPicker({
     load: loadCatalog,
     initial,
@@ -1193,6 +1254,7 @@ export function PlanPicker({
       window.location.assign(url);
     },
   });
+
   const price = (cents: number) =>
     cents === 0
       ? t("Free")
@@ -1202,29 +1264,36 @@ export function PlanPicker({
             currency: "USD",
           }),
         });
+
   const featureLabel = ({ key, value }: PlanOption["features"][number]) => {
     switch (key) {
       case "seats": {
         return t("{seats} seats", { seats: String(value) });
       }
+
       case "exports": {
         return t("CSV exports");
       }
+
       case "audit": {
         return t("Audit log");
       }
+
       case "sso": {
         return t("Single sign-on");
       }
+
       default: {
         return key;
       }
     }
   };
+
   return (
     <div className="grid gap-4 md:grid-cols-3">
       {(plans ?? initial.plans).map((plan) => {
         const active = plan.key === current;
+
         return (
           <Card key={plan.key} size="sm" data-testid="plan">
             <CardHeader>
@@ -1287,6 +1356,7 @@ const price = (cents: number) =>
  */
 export function PlanPicker() {
   const organizationId = tenantOf(useAuth());
+
   const { plans, current, pending, error, choose } = usePlanPicker({
     load: () =>
       organizationId
@@ -1297,14 +1367,17 @@ export function PlanPicker() {
       await WebBrowser.openBrowserAsync(url);
     },
   });
+
   if (plans === undefined) {
     return <ActivityIndicator />;
   }
+
   return (
     <View style={{ gap: 8 }}>
       <Text style={{ fontSize: 17, fontWeight: "600" }}>Plans</Text>
       {plans.map((plan) => {
         const active = plan.key === current;
+
         return (
           <Pressable
             key={plan.key}
@@ -1375,21 +1448,26 @@ export function UsageCard() {
   const t = useExtracted("dashboard");
   const format = useFormatter();
   const organizationId = tenantOf(useAuth()) ?? null;
+
   const { meters } = useUsageMeter({
     organizationId,
     meters: ["api.calls", "customers.created"],
     schema: API_SCHEMA,
   });
+
   if (!organizationId) {
     return null;
   }
+
   if (meters === undefined) {
     return <UsageCardSkeleton />;
   }
+
   const labels = new Map([
     ["api.calls", t("API calls")],
     ["customers.created", t("Customers added")],
   ]);
+
   return (
     <Card data-testid="usage">
       <CardHeader>
@@ -1460,17 +1538,21 @@ const labels = new Map([
 /** This period's usage per meter against the plan's quota. */
 export function UsageMeter() {
   const organizationId = tenantOf(useAuth()) ?? null;
+
   const { meters } = useUsageMeter({
     organizationId,
     meters: ["api.calls", "customers.created"],
     schema: API_SCHEMA,
   });
+
   if (!organizationId) {
     return null;
   }
+
   if (meters === undefined) {
     return <ActivityIndicator />;
   }
+
   return (
     <View style={{ gap: 12, padding: 16, borderWidth: 1, borderRadius: 12 }}>
       <Text style={{ fontSize: 17, fontWeight: "600" }}>Usage this period</Text>
@@ -1548,12 +1630,15 @@ export function FeatureGate({
 }) {
   const t = useExtracted("billing");
   const { allowed } = useFeatureGate(feature);
+
   if (allowed === undefined) {
     return <Skeleton className="h-8 w-28" aria-busy="true" />;
   }
+
   if (allowed) {
     return children;
   }
+
   return (
     <Link
       href="/settings/billing"
@@ -1588,12 +1673,15 @@ export function FeatureGate({
   readonly children: ReactNode;
 }) {
   const { allowed } = useFeatureGate(feature);
+
   if (allowed === undefined) {
     return <ActivityIndicator />;
   }
+
   if (allowed) {
     return children;
   }
+
   return (
     <View style={{ padding: 12, borderWidth: 1, borderRadius: 12 }}>
       <Text style={{ fontWeight: "600" }}>Not in your plan</Text>
@@ -1693,11 +1781,13 @@ function SettingControl({
         />
       );
     }
+
     case "choice": {
       const items = field.choices.map((choice) => ({
         value: String(choice),
         label: String(choice),
       }));
+
       return (
         <Select
           value={String(value)}
@@ -1705,6 +1795,7 @@ function SettingControl({
           disabled={disabled}
           onValueChange={(next) => {
             const choice = field.choices.find((each) => String(each) === next);
+
             if (choice !== undefined) {
               onChange(choice);
             }
@@ -1727,6 +1818,7 @@ function SettingControl({
         </Select>
       );
     }
+
     case "number":
     case "text":
     case "json": {
@@ -1744,8 +1836,10 @@ function SettingControl({
         />
       );
     }
+
     default: {
       const unknown: never = field.kind;
+
       return unknown;
     }
   }
@@ -1766,6 +1860,7 @@ function SettingsSection<E extends SettingEntries>({
   const t = useExtracted("settings");
   const errorMessage = useErrorMessage();
   const baseId = useId();
+
   return (
     <Card>
       <CardHeader>
@@ -1826,11 +1921,13 @@ export function SettingsLayout({
   const t = useExtracted("settings");
   const organizationId = tenantOf(useAuth()) ?? null;
   const user = useSettings(settings, { scope: "user", schema: API_SCHEMA });
+
   const organization = useSettings(settings, {
     scope: "organization",
     organizationId,
     schema: API_SCHEMA,
   });
+
   return (
     <div className="space-y-6" data-testid="settings-layout">
       <SettingsSection
@@ -1901,6 +1998,7 @@ function SettingControl({
         />
       );
     }
+
     case "choice": {
       return (
         <View style={{ flexDirection: "row", gap: 6 }}>
@@ -1927,6 +2025,7 @@ function SettingControl({
         </View>
       );
     }
+
     case "number":
     case "text":
     case "json": {
@@ -1943,8 +2042,10 @@ function SettingControl({
         />
       );
     }
+
     default: {
       const unknown: never = field.kind;
+
       return unknown;
     }
   }
@@ -1961,6 +2062,7 @@ function SettingsSection<E extends SettingEntries>({
   if (state.values === undefined) {
     return <ActivityIndicator />;
   }
+
   return (
     <View style={{ gap: 12 }}>
       <Text style={{ fontSize: 17, fontWeight: "600" }}>{title}</Text>
@@ -1991,11 +2093,13 @@ function SettingsSection<E extends SettingEntries>({
 export function SettingsLayout() {
   const organizationId = tenantOf(useAuth()) ?? null;
   const user = useSettings(settings, { scope: "user", schema: API_SCHEMA });
+
   const organization = useSettings(settings, {
     scope: "organization",
     organizationId,
     schema: API_SCHEMA,
   });
+
   return (
     <ScrollView contentContainerStyle={{ gap: 24, padding: 16 }}>
       <SettingsSection title="Your preferences" state={user} />
@@ -2058,9 +2162,11 @@ import { useRoleLabel } from "../use-role-label";
 
 async function loadOrganizationMembers(): Promise<readonly Member[]> {
   const result = await loadMembers({});
+
   if (!result.ok) {
     throw new DbException(result.error);
   }
+
   return result.data;
 }
 
@@ -2087,6 +2193,7 @@ export function MemberTable({
   const roleLabel = useRoleLabel();
   const errorMessage = useErrorMessage();
   const format = useFormatter();
+
   const { members, pending, setRole, remove } = useMembers({
     organizationId,
     load: loadOrganizationMembers,
@@ -2096,28 +2203,35 @@ export function MemberTable({
       await memberChanged({ userId });
     },
   });
+
   const assignable = assignableRoles(myRole);
+
   const roleItems = assignable.map((role) => ({
     value: role,
     label: roleLabel(role),
   }));
+
   // Nobody changes their own role or an owner's here; ownership moves by transfer.
   const editable = (member: Member) =>
     member.userId !== currentUserId &&
     member.role !== "owner" &&
     assignable.includes(member.role);
+
   const busy = (member: Member) => pending.includes(member.userId);
 
   const changeRole = async (member: Member, role: Role) => {
     const result = await setRole(member.userId, role);
+
     if (result.ok) {
       toast.success(t("Role updated"));
     } else {
       toast.error(errorMessage(result.error));
     }
   };
+
   const removeMember = async (member: Member) => {
     const result = await remove(member.userId);
+
     if (result.ok) {
       toast.success(t("Member removed"));
     } else {
@@ -2247,21 +2361,27 @@ import { API_SCHEMA } from "../lib/blocks";
  */
 export function MembersTable() {
   const auth = useAuth();
+
   const { members, pending, error, setRole, remove } = useMembers({
     organizationId: tenantOf(auth),
     schema: API_SCHEMA,
   });
+
   if (members === undefined) {
     return <ActivityIndicator />;
   }
+
   return (
     <View style={{ gap: 4 }}>
       <Text style={{ fontSize: 17, fontWeight: "600" }}>Members</Text>
       {members.map((member) => {
         const busy = pending.includes(member.userId);
+
         const editable =
           member.userId !== auth.user?.id && member.role !== "owner";
+
         const next = member.role === "admin" ? "member" : "admin";
+
         return (
           <View
             key={member.userId}
@@ -2378,10 +2498,12 @@ export function InviteMemberDialog({
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Role>("member");
+
   const roles = assignableRoles(myRole).map((each) => ({
     value: each,
     label: roleLabel(each),
   }));
+
   // The server renders the pending list; `invitationSent` renders it again.
   const { invite, inviting, sent, error, clear } = useInvitations({
     organizationId,
@@ -2392,7 +2514,9 @@ export function InviteMemberDialog({
       }
     },
   });
+
   const link = sent ? inviteLink(sent.token) : null;
+
   const message =
     error === undefined
       ? null
@@ -2411,6 +2535,7 @@ export function InviteMemberDialog({
       onOpenChange={(next) => {
         setOpen(next);
         setEmail("");
+
         if (!next) {
           clear();
         }
@@ -2543,6 +2668,7 @@ export function InviteDialog() {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<(typeof ROLES)[number]>("member");
+
   const { invitations, invite, inviting, sent, error, clear } = useInvitations({
     organizationId: tenantOf(useAuth()),
     schema: API_SCHEMA,
@@ -2694,6 +2820,7 @@ export function ApiKeyTable({
   const t = useExtracted("apiKeys");
   const errorMessage = useErrorMessage();
   const format = useFormatter();
+
   const { keys, created, creating, revoking, error, create, revoke, dismiss } =
     useApiKeys({
       organizationId,
@@ -2707,12 +2834,14 @@ export function ApiKeyTable({
 
   const revokeKey = async (id: string) => {
     const result = await revoke(id);
+
     if (result.ok) {
       toast.success(t("Key revoked"));
     } else {
       toast.error(errorMessage(result.error));
     }
   };
+
   const date = (value: Temporal.Instant | undefined) =>
     value
       ? format.dateTime(new Date(value.epochMilliseconds), {
@@ -2731,6 +2860,7 @@ export function ApiKeyTable({
       onClose={dismiss}
     />
   );
+
   if (keys === undefined) {
     return (
       <div className="grid gap-4">
@@ -2739,6 +2869,7 @@ export function ApiKeyTable({
       </div>
     );
   }
+
   return (
     <div className="grid gap-4">
       <div className="flex justify-end">{dialog}</div>
@@ -2841,6 +2972,7 @@ import { API_SCHEMA } from "../lib/blocks";
  */
 export function ApiKeysTable({ personal = false }: { personal?: boolean }) {
   const [name, setName] = useState("");
+
   const { keys, created, creating, revoking, error, create, revoke, dismiss } =
     useApiKeys({ organizationId: tenantOf(useAuth()), schema: API_SCHEMA });
 
@@ -2853,11 +2985,13 @@ export function ApiKeysTable({ personal = false }: { personal?: boolean }) {
   if (keys === undefined) {
     return <ActivityIndicator />;
   }
+
   return (
     <View style={{ gap: 8 }}>
       <Text style={{ fontSize: 17, fontWeight: "600" }}>API keys</Text>
       {keys.map((key) => {
         const revoked = key.state === "revoked" || key.state === "expired";
+
         return (
           <View
             key={key.id}
@@ -2967,17 +3101,21 @@ export function AuditLogTable({ organizationId }: { organizationId: string }) {
   const t = useExtracted("audit");
   const format = useFormatter();
   const errorMessage = useErrorMessage();
+
   const { entries, filters, hasMore, loading, error, setFilters, loadMore } =
     useAuditLog({ organizationId, schema: blockConfig.audit.api });
+
   const actors = new Map(
     (entries ?? []).flatMap((entry) =>
       entry.actorId ? [[entry.actorId, entry.actorLabel ?? entry.actorId]] : [],
     ),
   );
+
   const actions = choices(
     (entries ?? []).map((entry) => entry.eventType),
     filters.eventType,
   );
+
   const actorItems = [
     { value: ALL, label: t("Every actor") },
     ...choices([...actors.keys()], filters.actorId).map((id) => ({
@@ -2985,10 +3123,12 @@ export function AuditLogTable({ organizationId }: { organizationId: string }) {
       label: actors.get(id) ?? id,
     })),
   ];
+
   const actionItems = [
     { value: ALL, label: t("Every action") },
     ...actions.map((action) => ({ value: action, label: action })),
   ];
+
   const pick = (value: string | null): string | undefined =>
     value === null || value === ALL ? undefined : value;
 
@@ -3149,12 +3289,15 @@ function Chips({
 export function AuditLogTable() {
   const { entries, filters, hasMore, loading, error, setFilters, loadMore } =
     useAuditLog({ organizationId: tenantOf(useAuth()), schema: API_SCHEMA });
+
   const distinct = (values: readonly (string | undefined)[]) =>
     [...new Set(values.filter((value) => value !== undefined))].toSorted();
+
   const actors = distinct([
     ...(entries ?? []).map((entry) => entry.actorId),
     filters.actorId,
   ]);
+
   const actions = distinct([
     ...(entries ?? []).map((entry) => entry.eventType),
     filters.eventType,
@@ -3241,6 +3384,7 @@ export function TagInput({
   const listId = useId();
   const errorMessage = useErrorMessage();
   const [name, setName] = useState("");
+
   const { tags, available, pending, error, create, remove } = useTagInput({
     organizationId,
     subjectType: "customer",
@@ -3248,14 +3392,17 @@ export function TagInput({
     kind: "customer",
     schema: blockConfig.tags.api,
   });
+
   const applied = new Set(tags?.map((tag) => tag.id));
   const suggestions = available?.filter((tag) => !applied.has(tag.id)) ?? [];
 
   const submit = async (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
+
     if (!name.trim()) {
       return;
     }
+
     if ((await create(name)).ok) {
       setName("");
     }
@@ -3264,6 +3411,7 @@ export function TagInput({
   if (tags === undefined) {
     return <Skeleton className="h-16" />;
   }
+
   return (
     <div className="space-y-3">
       <ul className="flex flex-wrap gap-1.5" data-testid="tags">
@@ -3345,6 +3493,7 @@ import { API_SCHEMA } from "../lib/blocks";
  */
 export function TagInput({ customerId }: { readonly customerId: string }) {
   const [name, setName] = useState("");
+
   const { tags, available, pending, error, add, remove, create } = useTagInput({
     organizationId: tenantOf(useAuth()),
     subjectType: "customer",
@@ -3352,9 +3501,11 @@ export function TagInput({ customerId }: { readonly customerId: string }) {
     kind: "customer",
     schema: API_SCHEMA,
   });
+
   if (tags === undefined) {
     return <ActivityIndicator />;
   }
+
   const applied = new Set(tags.map((tag) => tag.id));
   const suggestions = (available ?? []).filter((tag) => !applied.has(tag.id));
 

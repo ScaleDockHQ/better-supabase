@@ -18,6 +18,7 @@ const table = (
   columns: Record<string, string>,
 ): ExistingTable => {
   const [schema, bare] = qualifiedName(name).split(".");
+
   return {
     schema: schema!,
     name: bare!,
@@ -79,9 +80,11 @@ describe("proposeAdoption", () => {
 
   it("assigns the tables in --from to the logical tables they match best", () => {
     const squads = { ...TEAMS, schema: "app", name: "squads" };
+
     const proposal = proposeAdoption("teams", [squads, MEMBERS], {
       from: ["app.squads"],
     });
+
     expect(proposal.entry.tables).toEqual({
       teams: "app.squads",
       members: "public.team_members",
@@ -95,16 +98,19 @@ describe("proposeAdoption", () => {
       created_at: "timestamptz",
       updated_at: "timestamptz",
     });
+
     const proposal = proposeAdoption("organizations", [organizations]);
     expect(proposal.errors).toEqual([]);
     expect(proposal.entry.columns?.["organizations"]).toMatchObject({
       createdBy: null,
       deletedAt: null,
     });
+
     const missing = proposeAdoption("teams", [
       table("teams", { id: "uuid", organization_id: "uuid" }),
       MEMBERS,
     ]);
+
     expect(missing.errors.join("\n")).toContain(
       "public.teams has no column for teams.name (name by default)",
     );
@@ -125,10 +131,13 @@ describe("proposeAdoption", () => {
         ),
       },
     ]);
+
     expect(proposal.entry.idType).toBe("bigint");
+
     const set = proposeAdoption("teams", [TEAMS, MEMBERS], {
       blocks: { teams: { idType: "uuid", options: {} } },
     });
+
     expect(set.entry.idType).toBe("uuid");
   });
 
@@ -163,6 +172,7 @@ describe("proposeAdoption", () => {
     const proposal = proposeAdoption("teams", [TEAMS, MEMBERS], {
       blocks: { teams: { options: { nope: true } } },
     });
+
     expect(proposal.errors).toEqual([
       expect.stringContaining('blocks.teams.options: unknown option "nope"'),
     ]);
@@ -172,6 +182,7 @@ describe("proposeAdoption", () => {
     const proposal = proposeAdoption("outbox", defaults("outbox"), {
       blocks: { outbox: { options: { defaultSource: "crm" } } },
     });
+
     expect(proposal.errors).toEqual([]);
     expect(proposal.warnings).toEqual([
       'blocks.outbox.options.defaultSource is "crm". It fills a source for events emitted without one.',
@@ -190,11 +201,13 @@ describe("hasDefaultTable", () => {
 describe("existingTables", () => {
   it("keeps tables and leaves out views", () => {
     const base = { schema: "public", columns: [] };
+
     // SAFETY: only the fields existingTables reads are set.
     const tables = [
       { ...base, name: "a", kind: "table" },
       { ...base, name: "b", kind: "view" },
     ] as unknown as CatalogTable[];
+
     expect(existingTables(tables).map((t) => t.name)).toEqual(["a"]);
   });
 });
@@ -207,6 +220,7 @@ describe("describeProposal", () => {
         MEMBERS,
       ]),
     );
+
     expect(lines).toContain("  teams: public.teams");
     expect(lines).toContain("    tenant       organization_id (guessed)");
     expect(lines).toContain("    name         null (not in the table)");

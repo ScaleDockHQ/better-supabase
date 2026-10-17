@@ -34,6 +34,7 @@ export type DocsPage = (typeof source)["$inferPage"];
 /** The internal route that serves a page's Markdown; `/docs/x.md` rewrites to it. */
 export function getPageMarkdownUrl(page: DocsPage) {
   const segments = [...page.slugs, "content.md"];
+
   return {
     segments,
     url: `/${[...docsContentRoute.split("/"), ...segments]
@@ -60,6 +61,7 @@ export function getPageSummaries(): readonly DocsPageSummary[] {
 /** OG image route for a page, served by `app/docs/og/[...slug]/route.tsx`. */
 export function getPageImage(page: DocsPage) {
   const segments = [...page.slugs, "image.png"];
+
   return { segments, url: `${docsRoute}/og/${segments.join("/")}` };
 }
 
@@ -67,9 +69,11 @@ export function getPageImage(page: DocsPage) {
 const docsLlms = llms(source, {
   async renderPage(page) {
     const description = page.data.description?.trim();
+
     const processed = await page.data.getText("processed", {
       components: markdownComponents,
     });
+
     return [
       `# ${page.data.title}`,
       description === undefined || description === ""
@@ -94,6 +98,7 @@ Every page below is Markdown. Add \`.md\` to a page URL, or send
 export async function getLLMIndex(): Promise<string> {
   "use cache";
   cacheLife("max");
+
   return formatLLMIndex(source.getPageTree(), {
     title: "better-supabase",
     summary:
@@ -122,6 +127,7 @@ export async function getLLMIndex(): Promise<string> {
 export async function getFullMarkdown(): Promise<string> {
   "use cache";
   cacheLife("max");
+
   return docsLlms.full();
 }
 
@@ -132,6 +138,7 @@ export async function getPageMarkdown(
   "use cache";
   cacheLife("max");
   const page = source.getPageByUrl(url);
+
   return page === undefined ? undefined : docsLlms.page(page);
 }
 

@@ -13,7 +13,9 @@ function chunks(body: ReadableStream<Uint8Array<ArrayBuffer>>) {
           if (!line.startsWith("data: ")) {
             continue;
           }
+
           const data = line.slice("data: ".length);
+
           if (data !== "[DONE]") {
             controller.enqueue(JSON.parse(data));
           }
@@ -33,28 +35,34 @@ describe("AI SDK UI message stream protocol", () => {
 
   it("createAssistant answers with the protocol's headers and frames", async () => {
     const { assistant, context, pending } = setup();
+
     const response = await assistant.respond(
       post({ id: "c1", message: userMessage() }),
       context,
     );
+
     for (const [name, value] of Object.entries(UI_MESSAGE_STREAM_HEADERS)) {
       expect(response.headers.get(name)).toBe(value);
     }
+
     const text = await response.clone().text();
     expect(text.trimEnd().endsWith("data: [DONE]")).toBe(true);
     const body = response.body;
     expect(body).not.toBeNull();
     let last;
+
     // SAFETY: the protocol's frames are UI message chunks; readUIMessageStream validates them.
     const stream = chunks(body!) as Parameters<
       typeof readUIMessageStream
     >[0]["stream"];
+
     for await (const message of readUIMessageStream({
       stream,
       terminateOnError: true,
     })) {
       last = message;
     }
+
     await Promise.all(pending);
     expect(last).toMatchObject({
       role: "assistant",
@@ -66,12 +74,14 @@ describe("AI SDK UI message stream protocol", () => {
 
   it("replays the same frames when the client reconnects", async () => {
     const { assistant, context, pending } = setup();
+
     const live = await (
       await assistant.respond(
         post({ id: "c1", message: userMessage() }),
         context,
       )
     ).text();
+
     await Promise.all(pending);
     const replay = await assistant.resume("c1", context);
     expect(replay.headers.get("x-vercel-ai-ui-message-stream")).toBe(

@@ -15,6 +15,7 @@ export function inboxServiceFunctions(q: InboxSql): string {
   const ct = q.cols("contacts");
   const T = (name: string): string => q.t(name);
   const service = q.service;
+
   const authed = (signature: string): string =>
     `revoke execute on function ${signature} from public, anon;
 grant execute on function ${signature} to authenticated, service_role;`;

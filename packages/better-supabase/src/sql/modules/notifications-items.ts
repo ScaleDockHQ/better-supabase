@@ -17,6 +17,7 @@ export function integerMutations(ctx: ModuleContext): string {
 export function changedJson(n: NotifyNames): string {
   const e = (logical: string) => n.col("events", logical);
   const r = (logical: string) => n.col("recipients", logical);
+
   return `select jsonb_build_object(
     'count', count(*),
     'items', coalesce(jsonb_agg(${itemJson(n)} order by rc.${r("createdAt")} desc, rc.${r("id")} desc) filter (where rc.${r("user")} = auth.uid()), '[]')
@@ -28,6 +29,7 @@ export function changedJson(n: NotifyNames): string {
 export function itemJson(n: NotifyNames): string {
   const e = (logical: string) => n.col("events", logical);
   const r = (logical: string) => n.col("recipients", logical);
+
   const pairs: [string, string][] = [
     ["id", `rc.${r("id")}`],
     ["event_id", `ev.${e("id")}`],
@@ -36,6 +38,7 @@ export function itemJson(n: NotifyNames): string {
     ["created_at", `rc.${r("createdAt")}`],
     ["read_at", `rc.${r("readAt")}`],
   ];
+
   const optional: [string, string, string][] = [
     ["tenant", "events", "tenant"],
     ["actor_id", "events", "actor"],
@@ -47,6 +50,7 @@ export function itemJson(n: NotifyNames): string {
     ["priority", "events", "priority"],
     ["resolved_at", "recipients", "resolvedAt"],
   ];
+
   for (const [key, table, logical] of optional) {
     if (n.has(table, logical)) {
       pairs.push([
@@ -55,6 +59,7 @@ export function itemJson(n: NotifyNames): string {
       ]);
     }
   }
+
   if (n.extras.length > 0) {
     pairs.push([
       "fields",
@@ -64,5 +69,6 @@ export function itemJson(n: NotifyNames): string {
       ),
     ]);
   }
+
   return `jsonb_build_object(${pairs.map(([key, value]) => `'${key}', ${value}`).join(", ")})`;
 }

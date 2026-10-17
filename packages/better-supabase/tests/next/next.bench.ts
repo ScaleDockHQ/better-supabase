@@ -13,9 +13,11 @@ const ISLANDS = 12;
 const RENDERS = 200;
 
 const signer = await createTestSigner();
+
 const token = await signer.sign({
   sub: "11111111-1111-4111-8111-111111111111",
 });
+
 const server = createServer(defineSupabase(schema), {
   env: {
     url: PROJECT_URL,
@@ -24,10 +26,12 @@ const server = createServer(defineSupabase(schema), {
   },
   auth: { jwks: signer.jwks as never },
 });
+
 const request = (): Request =>
   new Request("https://app.test/", {
     headers: { authorization: `Bearer ${token}` },
   });
+
 /** Four islands query; the other eight only read the session. */
 const readsData = (island: number): boolean => island % 3 === 0;
 
@@ -43,6 +47,7 @@ async function before(): Promise<void> {
 async function after(): Promise<void> {
   for (let island = 0; island < ISLANDS; island++) {
     const ctx = await server.context(request());
+
     if (readsData(island)) {
       void ctx.db;
     }
@@ -53,15 +58,19 @@ async function measure(render: () => Promise<void>): Promise<number> {
   for (let warm = 0; warm < 20; warm++) {
     await render();
   }
+
   const started = performance.now();
+
   for (let run = 0; run < RENDERS; run++) {
     await render();
   }
+
   return (performance.now() - started) / RENDERS;
 }
 
 const slow = await measure(before);
 const fast = await measure(after);
+
 console.table({
   before: {
     verifications: ISLANDS,
@@ -70,4 +79,5 @@ console.table({
   },
   after: { verifications: 1, clients: 4, "ms per render": fast.toFixed(2) },
 });
+
 console.log(`${(slow / fast).toFixed(1)}x faster`);

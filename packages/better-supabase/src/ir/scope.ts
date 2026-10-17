@@ -24,6 +24,7 @@ export function scopeCondition(
   if (!condition) {
     return undefined;
   }
+
   switch (condition.kind) {
     case "and":
     case "or": {
@@ -34,26 +35,32 @@ export function scopeCondition(
         ),
       };
     }
+
     case "not": {
       return {
         kind: "not",
         item: scopeCondition(condition.item, scopeFor) ?? condition.item,
       };
     }
+
     case "column": {
       return condition;
     }
+
     case "relation": {
       const inner = scopeCondition(condition.where, scopeFor);
       const scope = scopeFor(condition.target);
+
       if (!scope) {
         return { ...condition, where: inner };
       }
+
       switch (condition.quantifier) {
         case "some":
         case "none": {
           return { ...condition, where: and(inner, scope) };
         }
+
         case "every": {
           return inner
             ? {
@@ -63,14 +70,18 @@ export function scopeCondition(
               }
             : { ...condition, where: undefined };
         }
+
         default: {
           const exhaustive: never = condition.quantifier;
+
           return exhaustive;
         }
       }
     }
+
     default: {
       const exhaustive: never = condition;
+
       return exhaustive;
     }
   }
@@ -95,6 +106,7 @@ export function scopeSelection(
   if (selection.includes.length === 0) {
     return selection;
   }
+
   return {
     ...selection,
     includes: selection.includes.map((include) =>
@@ -114,6 +126,7 @@ export function scopeOperation(
   root = true,
 ): Operation {
   const own = root ? scopeFor(op.table) : undefined;
+
   switch (op.kind) {
     case "select": {
       return {
@@ -122,6 +135,7 @@ export function scopeOperation(
         where: and(scopeCondition(op.where, scopeFor), own),
       };
     }
+
     case "update":
     case "delete": {
       return {
@@ -132,6 +146,7 @@ export function scopeOperation(
           : undefined,
       };
     }
+
     case "insert": {
       return {
         ...op,
@@ -140,8 +155,10 @@ export function scopeOperation(
           : undefined,
       };
     }
+
     default: {
       const exhaustive: never = op;
+
       return exhaustive;
     }
   }

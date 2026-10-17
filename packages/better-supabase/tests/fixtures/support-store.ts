@@ -9,9 +9,11 @@ export function memorySupportStore(
 ): SupportSessionStore & { readonly sessions: Map<string, SupportSession> } {
   const sessions = new Map<string, SupportSession>();
   let next = 0;
+
   const running = (session: SupportSession) =>
     session.endedAt === undefined &&
     session.expiresAt.epochMilliseconds > Date.now();
+
   const endSession = (
     session: SupportSession,
     endedBy: NonNullable<SupportSession["endedBy"]>,
@@ -22,6 +24,7 @@ export function memorySupportStore(
       endedBy,
     });
   };
+
   return {
     apiVersion: 1,
     name: "memory",
@@ -32,8 +35,10 @@ export function memorySupportStore(
           endSession(session, "admin");
         }
       }
+
       next += 1;
       const startedAt = Temporal.Now.instant();
+
       const session: SupportSession = {
         id: `00000000-0000-4000-8000-${String(next).padStart(12, "0")}`,
         adminId: input.adminId,
@@ -45,21 +50,27 @@ export function memorySupportStore(
         expiresAt: startedAt.add({ seconds: input.ttlSeconds }),
         metadata: input.metadata,
       };
+
       sessions.set(session.id, session);
+
       return Promise.resolve(session);
     },
     get(sessionId, adminId) {
       const session = sessions.get(sessionId);
+
       return Promise.resolve(
         session?.adminId === adminId && running(session) ? session : undefined,
       );
     },
     end(sessionId, endedBy) {
       const session = sessions.get(sessionId);
+
       if (!session || session.endedAt !== undefined) {
         return Promise.resolve(false);
       }
+
       endSession(session, endedBy);
+
       return Promise.resolve(true);
     },
     list(filter = {}) {
@@ -79,6 +90,7 @@ export function memorySupportStore(
     },
     expire() {
       const expired: SupportSession[] = [];
+
       for (const session of sessions.values()) {
         if (
           session.endedAt === undefined &&
@@ -88,6 +100,7 @@ export function memorySupportStore(
           expired.push(sessions.get(session.id)!);
         }
       }
+
       return Promise.resolve(expired);
     },
     claims(targetUserId) {

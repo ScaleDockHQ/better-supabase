@@ -297,12 +297,15 @@ function maxRowsOf(payload: unknown): number | undefined {
   if (!isRecord(payload)) {
     return undefined;
   }
+
   const value = payload["maxRows"];
+
   return typeof value === "number" ? value : undefined;
 }
 
 function paymentRecordOf(value: unknown, currency: string): PaymentRecord {
   const row = recordOf(value, "record_payment");
+
   return {
     orderId: textOf(row["orderId"]),
     status: enumOrThrow(row["status"], ORDER_STATUSES, "order status"),
@@ -332,16 +335,21 @@ export function createOrders<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: OrdersOptions<S>): Orders<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const fields: BlockFields<F> = blockFields(options.fields, "order fields");
+
   const parsed = (result: AsyncResult<Order>): AsyncResult<Order<F>> =>
     result.andThen((order) => readFields(fields, order));
+
   const payments = options.payments
     ? paymentProviderOf(options.payments)
     : undefined;
+
   const tax = options.tax ? taxProviderOf(options.tax) : undefined;
   const logger = options.logger ?? console;
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const service = blockCall(
     options.service ?? options.transport,
     options.schema,
@@ -377,24 +385,32 @@ export function createOrders<
       if (!tax) {
         return ok(null);
       }
+
       const order = await loadOrder(orderId);
+
       if (!order.ok) {
         return order;
       }
+
       const { taxQuote, taxTransaction } = order.data;
+
       if (taxTransaction) {
         return ok(taxTransaction);
       }
+
       if (!taxQuote || order.data.invoiceNumber === null) {
         return ok(null);
       }
+
       const committed = await tax.commit(
         { quote: taxQuote, reference: order.data.number },
         { idempotencyKey: `tax:${orderId}` },
       );
+
       if (!committed.ok) {
         return committed;
       }
+
       const stored = await service(
         "set_order_tax_transaction",
         {
@@ -403,6 +419,7 @@ export function createOrders<
         },
         isTrue,
       );
+
       return stored.ok ? ok(committed.data) : stored;
     });
 
@@ -411,7 +428,9 @@ export function createOrders<
     if (!record.newlyPaid) {
       return;
     }
+
     const committed = await commitTax(record.orderId);
+
     if (!committed.ok) {
       logger.warn("orders: tax commit failed; retry with commitTax", {
         orderId: record.orderId,
@@ -426,15 +445,18 @@ export function createOrders<
   ): AsyncResult<PaymentRecord> =>
     recordPayment(orderId, payment).andThen(async (result) => {
       await afterPayment(result);
+
       return ok(result);
     });
 
   const taxCartOf = (cart: PricedCart, address: Address): TaxCart => {
     const inclusive = options.pricesIncludeTax === true;
+
     return {
       currency: cart.currency,
       lines: cart.lines.map((line) => {
         const category = categoryOf(line);
+
         return {
           id: line.id,
           amount: line.total,
@@ -474,18 +496,24 @@ export function createOrders<
         input.fields === undefined
           ? ok(undefined)
           : await fields.write({ ...input.fields });
+
       if (!checked.ok) {
         return checked;
       }
+
       const priced = await call("price_cart", { cart: cartId }, pricedCartOf);
+
       if (!priced.ok) {
         return priced;
       }
+
       const cart = priced.data;
+
       if (cart.status === "open") {
         if (cart.lines.length === 0) {
           return err(failure("ORDERS_CART_EMPTY", "the cart has no lines"));
         }
+
         if (cart.problems.length > 0) {
           return err(
             failure(
@@ -495,9 +523,12 @@ export function createOrders<
           );
         }
       }
+
       let quote: Record<string, unknown> | null = null;
+
       if (tax && cart.status === "open") {
         const address = cart.shippingAddress ?? cart.billingAddress;
+
         if (!address) {
           return err(
             failure(
@@ -506,12 +537,16 @@ export function createOrders<
             ),
           );
         }
+
         const quoted = await tax.quote(taxCartOf(cart, address));
+
         if (!quoted.ok) {
           return quoted;
         }
+
         quote = quoteToJson(quoted.data);
       }
+
       const placed = await parsed(
         service(
           "place_order",
@@ -525,15 +560,20 @@ export function createOrders<
           orderOf,
         ),
       );
+
       if (!placed.ok) {
         return placed;
       }
+
       const order = placed.data;
+
       if (order.status !== "pending_payment") {
         return ok({ order, payment: null });
       }
+
       if (order.total.amount === 0n) {
         const zero = money(0, order.currency);
+
         const free = await record(order.id, {
           id: `free:${order.id}`,
           provider: "none",
@@ -544,15 +584,20 @@ export function createOrders<
           reference: order.id,
           metadata: {},
         });
+
         if (!free.ok) {
           return free;
         }
+
         const paid = await loadOrder(order.id);
+
         return paid.ok ? ok({ order: paid.data, payment: null }) : paid;
       }
+
       if (!payments) {
         return ok({ order, payment: null });
       }
+
       const created = await payments.createPayment(
         {
           amount: order.total,
@@ -571,14 +616,19 @@ export function createOrders<
         },
         { idempotencyKey: `order:${order.id}:payment` },
       );
+
       if (!created.ok) {
         return created;
       }
+
       const stored = await record(order.id, created.data);
+
       if (!stored.ok) {
         return stored;
       }
+
       const current = await loadOrder(order.id);
+
       return current.ok
         ? ok({ order: current.data, payment: created.data })
         : current;
@@ -591,10 +641,13 @@ export function createOrders<
           failure("ORDERS_NO_PAYMENTS", "capture needs a payments provider"),
         );
       }
+
       const order = await loadOrder(orderId);
+
       if (!order.ok) {
         return order;
       }
+
       for (const payment of order.data.payments) {
         if (
           payment.status !== "authorized" ||
@@ -602,19 +655,24 @@ export function createOrders<
         ) {
           continue;
         }
+
         const captured = await payments.capture(
           payment.reference,
           {},
           { idempotencyKey: `capture:${payment.id}` },
         );
+
         if (!captured.ok) {
           return captured;
         }
+
         const stored = await record(orderId, captured.data);
+
         if (!stored.ok) {
           return stored;
         }
       }
+
       return loadOrder(orderId);
     });
 
@@ -633,10 +691,13 @@ export function createOrders<
       (value) => recordOf(value, "complete_refund"),
     ).andThen(async (row) => {
       const order = await loadOrder(textOf(row["orderId"]));
+
       if (!order.ok) {
         return order;
       }
+
       const { currency } = order.data;
+
       return ok({
         id: textOf(row["id"]),
         orderId: order.data.id,
@@ -657,12 +718,16 @@ export function createOrders<
     if (!tax || outcome.status !== "succeeded") {
       return { ...outcome, taxReversal: null };
     }
+
     const order = await loadOrder(outcome.orderId);
     const transaction = order.ok ? order.data.taxTransaction : undefined;
+
     if (!order.ok || !transaction) {
       return { ...outcome, taxReversal: null };
     }
+
     const whole = outcome.amount.amount >= order.data.total.amount;
+
     const reversed = await tax.reverse(
       {
         transaction,
@@ -679,13 +744,16 @@ export function createOrders<
       },
       { idempotencyKey: `tax-reverse:${outcome.id}` },
     );
+
     if (reversed.ok) {
       return { ...outcome, taxReversal: reversed.data };
     }
+
     logger.warn("orders: tax reversal failed", {
       refundId: outcome.id,
       error: reversed.error,
     });
+
     return { ...outcome, taxReversal: null };
   };
 
@@ -696,6 +764,7 @@ export function createOrders<
           failure("ORDERS_NO_PAYMENTS", "refunds need a payments provider"),
         );
       }
+
       const created = await call(
         "create_refund",
         {
@@ -706,12 +775,15 @@ export function createOrders<
         },
         (value) => recordOf(value, "create_refund"),
       );
+
       if (!created.ok) {
         return created;
       }
+
       const row = created.data;
       const refundId = textOf(row["id"]);
       const amount = moneyOf(row["amount"], textOf(row["currency"]));
+
       const providerRefund = await payments.refund(
         textOf(row["paymentReference"]),
         {
@@ -720,18 +792,23 @@ export function createOrders<
         },
         { idempotencyKey: `refund:${refundId}` },
       );
+
       if (!providerRefund.ok) {
         await completeRefund(refundId, "failed", null);
+
         return providerRefund;
       }
+
       const completed = await completeRefund(
         refundId,
         refundStatusOf(providerRefund.data.status),
         providerRefund.data.id,
       );
+
       if (!completed.ok) {
         return completed;
       }
+
       return ok(await reverseTax(completed.data));
     });
 
@@ -745,11 +822,13 @@ export function createOrders<
             reason: "no refund id",
           });
         }
+
         const completed = await completeRefund(
           null,
           event.type === "refund.succeeded" ? "succeeded" : "failed",
           event.refundId,
         );
+
         if (!completed.ok) {
           if (completed.error.hint === "ORDERS_REFUND_NOT_FOUND") {
             return ok({
@@ -758,25 +837,32 @@ export function createOrders<
               reason: "unknown refund",
             });
           }
+
           return completed;
         }
+
         return ok({
           event: event.id,
           kind: "refund",
           refund: await reverseTax(completed.data),
         });
       }
+
       let payment: Payment;
+
       if (payments?.get) {
         const fetched = await payments.get(event.paymentId);
+
         if (!fetched.ok) {
           return fetched;
         }
+
         payment = fetched.data;
       } else {
         if (event.amount === undefined) {
           return ok({ event: event.id, kind: "ignored", reason: "no amount" });
         }
+
         const status = PAYMENT_EVENT_STATUS[event.type];
         const zero = money(0, event.amount.currency);
         payment = {
@@ -790,11 +876,14 @@ export function createOrders<
           metadata: {},
         };
       }
+
       const orderId =
         payment.reference === ""
           ? (event.reference ?? null)
           : payment.reference;
+
       const stored = await record(orderId, payment);
+
       if (!stored.ok) {
         if (stored.error.hint === "ORDERS_ORDER_NOT_FOUND") {
           return ok({
@@ -803,8 +892,10 @@ export function createOrders<
             reason: "unknown order",
           });
         }
+
         return stored;
       }
+
       return ok({ event: event.id, kind: "payment", record: stored.data });
     });
 
@@ -816,18 +907,25 @@ export function createOrders<
             failure("ORDERS_NO_PAYMENTS", "webhooks need a payments provider"),
           );
         }
+
         const parsed = await payments.parseWebhook(input);
+
         if (!parsed.ok) {
           return parsed;
         }
+
         const outcomes: PaymentEventOutcome[] = [];
+
         for (const event of parsed.data) {
           const outcome = await handlePaymentEvent(event);
+
           if (!outcome.ok) {
             return outcome;
           }
+
           outcomes.push(outcome.data);
         }
+
         return ok(outcomes);
       },
     );
@@ -841,10 +939,13 @@ export function createOrders<
       if (!cancelled || !payments?.cancel) {
         return ok(cancelled);
       }
+
       const order = await loadOrder(orderId);
+
       if (!order.ok) {
         return ok(cancelled);
       }
+
       for (const payment of order.data.payments) {
         if (
           payment.provider !== payments.name ||
@@ -854,9 +955,11 @@ export function createOrders<
         ) {
           continue;
         }
+
         const released = await payments.cancel(payment.reference, {
           idempotencyKey: `cancel:${payment.id}`,
         });
+
         if (released.ok) {
           await recordPayment(orderId, released.data);
         } else {
@@ -867,6 +970,7 @@ export function createOrders<
           });
         }
       }
+
       return ok(cancelled);
     });
 
@@ -912,6 +1016,7 @@ export function createOrders<
         },
         (value) => {
           const row = recordOf(value, "create_cart");
+
           return { id: textOf(row["id"]), currency: textOf(row["currency"]) };
         },
       ),
@@ -921,6 +1026,7 @@ export function createOrders<
         { cart: cartId, variant: variantId, quantity },
         (value) => {
           const row = recordOf(value, "add_to_cart");
+
           return {
             lineId: textOf(row["lineId"]),
             quantity: Number(row["quantity"]),
@@ -933,6 +1039,7 @@ export function createOrders<
         { cart: cartId, variant: variantId, quantity },
         (value) => {
           const row = recordOf(value, "set_cart_line");
+
           return {
             lineId: nullableText(row["lineId"]),
             quantity: Number(row["quantity"]),
@@ -1019,6 +1126,7 @@ export function createOrders<
         },
         (value) => {
           const row = recordOf(value, "request_return");
+
           return { id: textOf(row["id"]), quantity: Number(row["quantity"]) };
         },
       ),
@@ -1052,6 +1160,7 @@ export function createOrders<
       await expireOrders(maxRowsOf(payload)).orThrow();
     },
   };
+
   return withBlockHooks(orders, options.hooks, {
     block: "orders",
     ...(options.logger ? { logger: options.logger } : {}),

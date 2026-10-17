@@ -30,14 +30,17 @@ export interface TopicPermissionSql {
  */
 export function topicPermissionSql(input: TopicPermissionSql): string {
   const { where, key, tenantSegment } = input;
+
   const tenant =
     tenantSegment === undefined ? undefined : segmentSql(tenantSegment);
+
   if (input.permitted !== undefined) {
     if (!isScopeName(input.scope)) {
       throw new TypeError(
         `${where}: invalid permission scope "${input.scope}"`,
       );
     }
+
     return `coalesce((${fillTemplate(
       `${where} authorization.functions.permitted`,
       input.permitted,
@@ -50,11 +53,13 @@ export function topicPermissionSql(input: TopicPermissionSql): string {
       },
     )}), false)`;
   }
+
   if (tenant === undefined) {
     throw new TypeError(
       `${where}: permission "${key}" needs the authorization provider's \`permitted\` template, or a tenant segment for the tenant check`,
     );
   }
+
   return accessCheck(where, {}, key, tenant);
 }
 
@@ -69,11 +74,13 @@ export type AnyTriggerValue =
 
 function columnSql(meta: TableMeta, column: string, where: string): string {
   const db = meta.columns[column]?.db;
+
   if (!db) {
     throw new TypeError(
       `defineTopic: no column for ${where} on "${meta.key}" ("${column}")`,
     );
   }
+
   return sqlIdent(db);
 }
 
@@ -88,22 +95,28 @@ export function triggerValueSql(
   if (typeof value === "string") {
     return `rec.${columnSql(meta, value, where)}`;
   }
+
   const joined = tables[value.from];
+
   if (!joined) {
     throw new TypeError(
       `defineTopic: unknown table "${value.from}" for ${where}`,
     );
   }
+
   const key =
     value.key ??
     (joined.primaryKey.length === 1 ? joined.primaryKey[0] : undefined);
+
   if (key === undefined) {
     throw new TypeError(
       `defineTopic: "${value.from}" has no single-column primary key; name its key for ${where}`,
     );
   }
+
   const alias = `j${String(depth)}`;
   const via = triggerValueSql(tables, meta, value.via, where, depth + 1);
+
   return `(select ${alias}.${columnSql(joined, value.select, where)} from ${sqlIdent(joined.schema)}.${sqlIdent(joined.name)} ${alias} where ${alias}.${columnSql(joined, key, where)} = ${via} limit 1)`;
 }
 
@@ -114,15 +127,18 @@ export function eventSql(
   if (event === undefined) {
     return "tg_op";
   }
+
   if (typeof event === "string") {
     return sqlString(event);
   }
+
   const cases = Object.entries(event)
     .filter((entry): entry is [string, string] => entry[1] !== undefined)
     .map(
       ([operation, name]) =>
         ` when ${sqlString(operation.toUpperCase())} then ${sqlString(name)}`,
     );
+
   return cases.length === 0
     ? "tg_op"
     : `case tg_op${cases.join("")} else tg_op end`;

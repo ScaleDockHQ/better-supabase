@@ -25,6 +25,7 @@ describe("createInboxController", () => {
     const topic = fakeTopic();
     let rows = ["a"];
     const onMessage = vi.fn();
+
     const { view, unmount } = mount(
       createInboxController({
         auth: fakeAuth(),
@@ -35,6 +36,7 @@ describe("createInboxController", () => {
         onMessage,
       }),
     );
+
     await flush();
     expect(view().items).toEqual(["a"]);
     expect(topic.open()).toEqual(["support:org:org-1"]);
@@ -58,6 +60,7 @@ describe("createInboxController", () => {
       }),
     ).unmount();
     expect(load).not.toHaveBeenCalled();
+
     const { view, unmount } = mount(
       createInboxController({
         auth: fakeAuth(),
@@ -66,6 +69,7 @@ describe("createInboxController", () => {
         load,
       }),
     );
+
     await flush();
     expect(view().error).toEqual(new Error("offline"));
     unmount();
@@ -77,6 +81,7 @@ describe("createConversationController", () => {
     vi.useFakeTimers();
     const topic = fakeTopic();
     let rows = ["m1"];
+
     const { view, unmount } = mount(
       createConversationController({
         auth: fakeAuth(),
@@ -86,6 +91,7 @@ describe("createConversationController", () => {
         typingMs: 20,
       }),
     );
+
     await vi.advanceTimersByTimeAsync(0);
     expect(view().items).toEqual(["m1"]);
     topic.emit("inbox:c1", "typing", { user_id: OTHER });
@@ -146,6 +152,7 @@ describe("createInboxWidgetController", () => {
     const open = vi.fn(async () => "c9");
     const send = vi.fn(async () => undefined);
     const load = vi.fn(async (id: string) => [`${id}:m`]);
+
     const { view, unmount } = mount(
       createInboxWidgetController({
         auth: fakeAuth(),
@@ -155,6 +162,7 @@ describe("createInboxWidgetController", () => {
         load,
       }),
     );
+
     await flush();
     expect(view()).toMatchObject({ conversationId: null, items: undefined });
     await view().submit("hello");
@@ -181,18 +189,21 @@ describe("createInboxWidgetController", () => {
     const topic = fakeTopic();
     const storage = memoryStorage({ widget: "c3" });
     const load = vi.fn(async () => ["x"]);
+
     const options = {
       auth: fakeAuth(),
       open: async () => "c4",
       send: async () => undefined,
       load,
     };
+
     const controller = createInboxWidgetController({
       ...options,
       ports: { topic: topic.port, storage },
       storageKey: "widget",
       topic: "support",
     });
+
     const first = mount(controller);
     await flush();
     expect(controller.getSnapshot().conversationId).toBe("c3");
@@ -209,6 +220,7 @@ describe("createInboxWidgetController", () => {
         storageKey: null,
       }),
     );
+
     await flush();
     expect(bare.view().conversationId).toBeNull();
     await bare.view().submit("hi");
@@ -220,6 +232,7 @@ describe("createInboxWidgetController", () => {
     const none = mount(
       createInboxWidgetController({ ...options, ports: { topic: topic.port } }),
     );
+
     await none.view().submit("hey");
     expect(none.view().conversationId).toBe("c4");
     none.unmount();

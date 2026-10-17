@@ -16,8 +16,10 @@ async function reachable(): Promise<boolean> {
     max: 1,
     connectionTimeoutMillis: 1000,
   });
+
   try {
     await pool.query("select 1");
+
     return true;
   } catch {
     return false;
@@ -31,6 +33,7 @@ const live = await reachable();
 const ADMIN = "00000000-0000-4000-8000-0000000000a1";
 const MEMBER = "00000000-0000-4000-8000-0000000000a2";
 const OTHER = crypto.randomUUID();
+
 const adminClaims = {
   sub: ADMIN,
   role: "authenticated",
@@ -73,6 +76,7 @@ describe.skipIf(!live)("support sessions against the local database", () => {
       admin: { id: ADMIN, claims: adminClaims },
       targets: [MEMBER, OTHER],
     });
+
     expect(report.checks.filter((check) => !check.ok)).toEqual([]);
   });
 
@@ -100,6 +104,7 @@ describe.skipIf(!live)("support sessions against the local database", () => {
       readOnly: true,
       metadata: {},
     });
+
     const target = await store.claims?.(MEMBER);
     const claims = supportClaims(session, target ?? {});
     const asTarget = postgres.asUser(claims, { readOnly: true });
@@ -107,6 +112,7 @@ describe.skipIf(!live)("support sessions against the local database", () => {
     const [who] = await asTarget.queryRaw<{ uid: string }>(
       "select auth.uid()::text as uid",
     );
+
     expect(who?.uid).toBe(MEMBER);
     await expect(
       asTarget.queryRaw(
@@ -119,10 +125,12 @@ describe.skipIf(!live)("support sessions against the local database", () => {
       await tx.queryRaw("select set_config('request.jwt.claims', $1, true)", [
         JSON.stringify(claims),
       ]);
+
       return tx.queryRaw<{ id: string }>(
         "select better_supabase.audit_event('support.viewed') as id",
       );
     });
+
     const [audited] = await postgres.admin.queryRaw<{
       actor_id: string;
       support_session_id: string;
@@ -130,6 +138,7 @@ describe.skipIf(!live)("support sessions against the local database", () => {
       "select actor_id::text, support_session_id::text from better_supabase.audit_events where id = $1",
       [row?.id],
     );
+
     expect(audited).toEqual({
       actor_id: MEMBER,
       support_session_id: session.id,
@@ -148,6 +157,7 @@ describe.skipIf(!live)("support sessions against the local database", () => {
         readOnly,
         metadata: {},
       });
+
     const member = { sub: MEMBER, role: "authenticated" };
     await postgres.admin.queryRaw(
       `update auth.users set raw_app_meta_data = coalesce(raw_app_meta_data, '{}') || '{"platform_permissions": ["support.view"]}' where id = $1`,
@@ -174,10 +184,12 @@ describe.skipIf(!live)("support sessions against the local database", () => {
     expect(await store.list({}, member)).toEqual([]);
     expect(await store.end(session.id, "revoked", member)).toBe(false);
     expect(await store.end(session.id, "expired", adminClaims)).toBe(true);
+
     const [ended] = await postgres.admin.queryRaw<{ ended_by: string }>(
       "select ended_by from better_supabase.support_sessions where id = $1",
       [session.id],
     );
+
     expect(ended?.ended_by).toBe("admin");
   });
 
@@ -191,6 +203,7 @@ describe.skipIf(!live)("support sessions against the local database", () => {
       readOnly: true,
       metadata: {},
     });
+
     const columns = (type: string) =>
       postgres.admin.queryRaw<{
         actor_id: string;
@@ -203,6 +216,7 @@ describe.skipIf(!live)("support sessions against the local database", () => {
          where event_type = $1 and metadata ->> 'session_id' = $2`,
         [type, session.id],
       );
+
     expect(await columns("support.started")).toEqual([
       {
         actor_id: ADMIN,

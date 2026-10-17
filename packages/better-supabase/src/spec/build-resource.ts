@@ -131,8 +131,10 @@ function docsOf(value: object | undefined): {
   if (!value) {
     return {};
   }
+
   const description = "description" in value ? value.description : undefined;
   const deprecated = "deprecated" in value ? value.deprecated : undefined;
+
   return {
     ...(typeof description === "string" && description !== ""
       ? { description }
@@ -154,16 +156,21 @@ export function jsonResponse(
 
 function mutableProperties(schema: Json): Record<string, Json> | undefined {
   const properties = schema["properties"];
+
   if (!isPlainObject(properties)) {
     return undefined;
   }
+
   const copy: Record<string, Json> = {};
+
   for (const [key, value] of Object.entries(properties)) {
     if (isPlainObject(value)) {
       copy[key] = { ...value };
     }
   }
+
   schema["properties"] = copy;
+
   return copy;
 }
 
@@ -212,18 +219,24 @@ export function createBuildContext<Ref>(
 ): BuildContext<Ref> {
   const prefix = options.extensionPrefix ?? "x-better-supabase-";
   const diagnostics: SpecDiagnostic[] = [];
+
   const report = (diagnostic: SpecDiagnostic): void => {
     diagnostics.push(diagnostic);
   };
+
   const base = (options.basePath ?? "").replace(/\/$/, "");
   const globalErrors = options.errors ?? DEFAULT_ERRORS;
+
   const schemas: Record<string, Json> = {
     Problem: structuredClone(PROBLEM_SCHEMA),
   };
+
   const responses: Record<string, ModelResponse> = {};
+
   for (const error of globalErrors) {
     responses[error.name] = errorResponse(error);
   }
+
   const operations: DraftOperation[] = [];
   const tags: ModelTag[] = [...(options.tags ?? [])];
   const served = new Map<string, ServedTable>();
@@ -233,11 +246,13 @@ export function createBuildContext<Ref>(
     if (tags.some((tag) => tag.name === name)) {
       return;
     }
+
     tags.push({ name, ...(description ? { description } : {}) });
   };
 
   const addComponent = (name: string, schema: Json): void => {
     const existing = schemas[name];
+
     if (existing && JSON.stringify(existing) !== JSON.stringify(schema)) {
       report({
         code: "component-conflict",
@@ -245,8 +260,10 @@ export function createBuildContext<Ref>(
         message: `Two different schemas are named "${name}"; the first one is kept`,
         pointer: `/components/schemas/${pointerToken(name)}`,
       });
+
       return;
     }
+
     schemas[name] = schema;
   };
 
@@ -260,17 +277,21 @@ export function createBuildContext<Ref>(
           severity: "error",
           message: `${where}: the authorizer has no key for this permission`,
         });
+
         return undefined;
       }
     }
+
     if (typeof ref === "string") {
       return ref;
     }
+
     report({
       code: "permission-unresolved",
       severity: "error",
       message: `${where}: a permission that is not a string needs an authorizer`,
     });
+
     return undefined;
   };
 
@@ -280,6 +301,7 @@ export function createBuildContext<Ref>(
     where: string,
   ) => {
     const result = convertStandard(standard, direction);
+
     if (!result) {
       report({
         code: "schema-unconvertible",
@@ -287,6 +309,7 @@ export function createBuildContext<Ref>(
         message: `${where}: the schema does not implement Standard JSON Schema, so the spec allows any value`,
       });
     }
+
     return result;
   };
 
@@ -297,9 +320,11 @@ export function createBuildContext<Ref>(
     operationId: string,
   ): JsonSchema => {
     const result = converted(standard, direction, `${operationId} ${role}`);
+
     if (!result) {
       return {};
     }
+
     const name = options.componentName
       ? options.componentName({
           kind: "schema",
@@ -309,10 +334,13 @@ export function createBuildContext<Ref>(
           operationId,
         })
       : result.name;
+
     if (!name) {
       return structuredClone(result.schema);
     }
+
     addComponent(name, structuredClone(result.schema));
+
     return schemaRef(name);
   };
 
@@ -323,16 +351,21 @@ export function createBuildContext<Ref>(
   ): ModelParameter[] => {
     const result = converted(standard, "input", where);
     const properties = result?.schema["properties"];
+
     if (!result || !isPlainObject(properties)) {
       return [];
     }
+
     const required = result.schema["required"];
     const requiredNames = Array.isArray(required) ? required : [];
+
     return Object.entries(properties).flatMap(([name, schema]) => {
       if (!isPlainObject(schema)) {
         return [];
       }
+
       const description = schema["description"];
+
       return [
         {
           name,
@@ -351,6 +384,7 @@ export function createBuildContext<Ref>(
     permission: boolean,
   ): Record<string, ModelResponseOrRef> => {
     const out: Record<string, ModelResponseOrRef> = {};
+
     for (const error of errors) {
       if (
         SCOPED_STATUSES.has(error.status) &&
@@ -358,20 +392,26 @@ export function createBuildContext<Ref>(
       ) {
         continue;
       }
+
       const status = String(error.status);
+
       if (Object.hasOwn(out, status)) {
         continue;
       }
+
       if (error.status === 403 && permission) {
         continue;
       }
+
       responses[error.name] ??= errorResponse(error);
       out[status] = { ref: error.name };
     }
+
     if (permission) {
       responses[PERMISSION_DENIED] ??= permissionDeniedResponse();
       out["403"] = { ref: PERMISSION_DENIED };
     }
+
     return out;
   };
 
@@ -382,13 +422,17 @@ export function createBuildContext<Ref>(
     if (!extend) {
       return undefined;
     }
+
     const all = extend["*"];
     const own = extend[name];
+
     if (!all && !own) {
       return undefined;
     }
+
     return mergeJson<JsonObject>(all ?? {}, own ?? {});
   };
+
   return {
     meta,
     options,
@@ -433,26 +477,32 @@ function resourceScope<Ref>(
     usedErrors,
     extendFor,
   } = ctx;
+
   const { authorizer } = options;
   let plan: ResourcePlan<Ref>;
+
   if (isPlanCarrier(input)) {
     plan = input.plan;
   } else {
     if (!meta.tables[key]) {
       throw new TypeError(`better-supabase/spec: unknown table "${key}"`);
     }
+
     plan = planResource(meta, key, input === true ? {} : input, authorizer);
   }
+
   const tableKey = plan.table;
   const table = plan.meta;
   const description = plan.description;
   const name = pascal(tableKey);
   const tableDocs = docsOf(table);
   const defs = tableSchemas(meta, options.json ?? {});
+
   const componentFor = (
     variant: "Row" | "Insert" | "Update" | "Page",
   ): string => {
     const defaultName = `${name}${variant}`;
+
     return (
       options.componentName?.({
         kind: "table",
@@ -462,37 +512,51 @@ function resourceScope<Ref>(
       }) ?? defaultName
     );
   };
+
   const components: ServedTable["components"] = {};
+
   for (const variant of ["Row", "Insert", "Update"] as const) {
     const def = defs[`${tableKey}${variant}`];
+
     if (!def) {
       continue;
     }
+
     const schema: Json = structuredClone(def);
+
     if (tableDocs.description && schema["description"] === undefined) {
       schema["description"] = tableDocs.description;
     }
+
     if (tableDocs.deprecated) {
       schema["deprecated"] = true;
     }
+
     const properties = mutableProperties(schema);
+
     for (const [column, property] of Object.entries(properties ?? {})) {
       const docs = docsOf(table.columns[column]);
+
       if (docs.description && property["description"] === undefined) {
         property["description"] = docs.description;
       }
+
       if (docs.deprecated) {
         property["deprecated"] = true;
       }
     }
+
     const examples = options.examples?.[tableKey];
+
     if (variant === "Row" && examples && examples.length > 0) {
       schema["examples"] = structuredClone(examples);
     }
+
     const componentName = componentFor(variant);
     components[variant] = componentName;
     addComponent(componentName, schema);
   }
+
   const rowName = components.Row ?? componentFor("Row");
   const cursor = plan.pagination === "cursor";
   const pageName = componentFor("Page");
@@ -503,10 +567,12 @@ function resourceScope<Ref>(
   const collection = `${base}${description.path ?? `/${tableKey}`}`;
   const keyParam = plan.keyParam;
   const rowProperties = defs[`${tableKey}Row`]?.["properties"];
+
   const keySchema =
     keyParam && isPlainObject(rowProperties)
       ? rowProperties[keyParam]
       : undefined;
+
   const idParameter: ModelParameter | undefined = keyParam
     ? {
         name: keyParam,
@@ -517,14 +583,17 @@ function resourceScope<Ref>(
           : { type: "string" },
       }
     : undefined;
+
   const item = keyParam ? `${collection}/{${keyParam}}` : undefined;
   const errors = description.errors ?? globalErrors;
   const servedTable: ServedTable = { table, components, operations: [] };
   served.set(tableKey, servedTable);
+
   const names = new Set<string>([
     ...plan.operations,
     ...plan.actions.map((action) => action.name),
   ]);
+
   for (const extendKey of Object.keys(description.extend ?? {})) {
     if (extendKey !== "*" && !names.has(extendKey)) {
       report({
@@ -546,13 +615,18 @@ function resourceScope<Ref>(
     > & { readonly extensions?: Json },
   ): void => {
     const defaultId = `${opName}${name}`;
+
     const id =
       options.operationId?.({ source, method, path, defaultId }) ?? defaultId;
+
     const ref = plan.permissions[opName];
+
     const permission =
       ref === undefined ? undefined : keyOf(ref, `${tableKey}.${opName}`);
+
     const extend = extendFor(description.extend, opName);
     const { extensions, ...rest } = fields;
+
     const operation: DraftOperation = {
       id,
       method,
@@ -572,6 +646,7 @@ function resourceScope<Ref>(
       ...(extend ? { extend } : {}),
       ...(tableDocs.deprecated ? { deprecated: true } : {}),
     };
+
     operations.push(operation);
     servedTable.operations.push(operation);
   };
@@ -581,24 +656,29 @@ function resourceScope<Ref>(
     fallback: JsonSchema,
   ): JsonSchema => {
     const output = description.output?.[operation];
+
     return output
       ? schemaOf(output, "output", "output", `${operation}${name}`)
       : fallback;
   };
+
   const resourceOp = (operation: ResourceOperation): OperationSource => ({
     kind: "resource",
     table: tableKey,
     operation,
   });
+
   const errorsFor = (operation: ResourceOperation) =>
     usedErrors(
       errors,
       OPERATION_STATUSES[operation],
       plan.permissions[operation] !== undefined,
     );
+
   const opExtension = (operation: string): Json => ({
     [`${prefix}operation`]: operation,
   });
+
   return {
     ctx,
     plan,
@@ -647,16 +727,20 @@ function addTableOperation<Ref>(
     errorsFor,
     opExtension,
   } = scope;
+
   const { schemaOf } = scope.ctx;
+
   switch (operation) {
     case "list": {
       const listOutput = description.output?.list;
+
       const pageRef = listOutput
         ? pageSchema(
             schemaOf(listOutput, "output", "item", `list${name}`),
             cursor,
           )
         : schemaRef(pageName);
+
       add("list", resourceOp("list"), "get", collection, {
         summary: `List ${tableKey}`,
         extensions: opExtension("list"),
@@ -670,10 +754,12 @@ function addTableOperation<Ref>(
       });
       break;
     }
+
     case "create": {
       const body = description.input?.create
         ? schemaOf(description.input.create, "input", "input", `create${name}`)
         : schemaRef(components.Insert ?? componentFor("Insert"));
+
       add("create", resourceOp("create"), "post", collection, {
         summary: `Create a ${tableKey} row`,
         extensions: opExtension("create"),
@@ -689,10 +775,12 @@ function addTableOperation<Ref>(
       });
       break;
     }
+
     case "get": {
       if (!item || !idParameter) {
         break;
       }
+
       add("get", resourceOp("get"), "get", item, {
         summary: `Get a ${tableKey} row`,
         extensions: opExtension("get"),
@@ -704,13 +792,16 @@ function addTableOperation<Ref>(
       });
       break;
     }
+
     case "update": {
       if (!item || !idParameter) {
         break;
       }
+
       const body = description.input?.update
         ? schemaOf(description.input.update, "input", "input", `update${name}`)
         : schemaRef(components.Update ?? componentFor("Update"));
+
       add("update", resourceOp("update"), "patch", item, {
         summary: `Update a ${tableKey} row`,
         extensions: opExtension("update"),
@@ -726,10 +817,12 @@ function addTableOperation<Ref>(
       });
       break;
     }
+
     case "delete": {
       if (!item || !idParameter) {
         break;
       }
+
       add("delete", resourceOp("delete"), "delete", item, {
         summary: `Delete a ${tableKey} row`,
         extensions: opExtension("delete"),
@@ -741,6 +834,7 @@ function addTableOperation<Ref>(
       });
       break;
     }
+
     default: {
       const unknown: never = operation;
       throw new TypeError(
@@ -757,17 +851,22 @@ function addAction<Ref>(
   const { tableKey, name, idParameter, collection, errors, add } = scope;
   const { prefix, schemaOf, objectParameters, usedErrors } = scope.ctx;
   const method = action.method.toLowerCase();
+
   if (!isMethod(method)) {
     throw new TypeError(`${tableKey}.actions.${action.name}: unknown method`);
   }
+
   const operationId = `${action.name}${name}`;
+
   const parameters: ModelParameter[] = [
     ...(action.params.length > 0 && idParameter ? [idParameter] : []),
     ...(action.query
       ? objectParameters(action.query, "query", `${operationId} query`)
       : []),
   ];
+
   const status = String(action.status ?? (action.output ? 200 : 204));
+
   const statuses = [
     ...(action.input || action.query ? [400] : []),
     401,
@@ -775,6 +874,7 @@ function addAction<Ref>(
     ...(action.params.length > 0 ? [404] : []),
     ...(action.input ? [422] : []),
   ];
+
   add(
     action.name,
     { kind: "action", table: tableKey, action: action.name },
@@ -819,9 +919,11 @@ export function buildResource<Ref>(
   input: ResourceInput<Ref>,
 ): void {
   const scope = resourceScope(ctx, key, input);
+
   for (const operation of scope.plan.operations) {
     addTableOperation(scope, operation);
   }
+
   for (const action of scope.plan.actions) {
     addAction(scope, action);
   }

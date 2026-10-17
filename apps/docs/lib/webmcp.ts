@@ -70,18 +70,24 @@ export function docsWebMcpTools(fetcher: Fetch = fetch): readonly WebMcpTool[] {
       annotations: { readOnlyHint: true },
       async execute(input, options) {
         const parsed = v.safeParse(SearchInput, input);
+
         if (!parsed.success) {
           return { error: "Pass a non-empty query and a limit from 1 to 25." };
         }
+
         const { query, limit = DEFAULT_LIMIT } = parsed.output;
+
         const response = await fetcher(
           `/api/search?query=${encodeURIComponent(query)}`,
           { signal: options?.signal ?? null },
         );
+
         const results = v.safeParse(SearchResults, await response.json());
+
         if (!response.ok || !results.success) {
           return { error: "Search is unavailable. Try again later." };
         }
+
         return {
           results: results.output.slice(0, limit).map((result) => ({
             url: result.url,
@@ -109,17 +115,22 @@ export function docsWebMcpTools(fetcher: Fetch = fetch): readonly WebMcpTool[] {
       annotations: { readOnlyHint: true },
       async execute(input, options) {
         const parsed = v.safeParse(PageInput, input);
+
         if (!parsed.success) {
           return { error: "Pass the page's url." };
         }
+
         const url = docsUrl(parsed.output.url);
+
         const response = await fetcher(markdownUrl(url), {
           signal: options?.signal ?? null,
           headers: { Accept: "text/markdown" },
         });
+
         if (!response.ok) {
           return { error: `No page at ${url}. Use search_docs to find one.` };
         }
+
         return { url, markdown: await response.text() };
       },
     },
@@ -138,11 +149,13 @@ export async function registerDocsWebMcp(
   if (!("modelContext" in doc) || !v.is(ModelContext, doc.modelContext)) {
     return false;
   }
+
   const context = doc.modelContext;
   await Promise.all(
     docsWebMcpTools(fetcher).map((tool) =>
       context.registerTool(tool, { signal }),
     ),
   );
+
   return true;
 }

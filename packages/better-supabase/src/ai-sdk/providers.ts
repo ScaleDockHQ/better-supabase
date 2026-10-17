@@ -31,19 +31,25 @@ export function byokOptions(
   keys: readonly ResolvedProviderKey[],
 ): GatewayOptions {
   const byok: Record<string, JSONValue[]> = {};
+
   for (const key of keys) {
     const { [BYOK_FIELD]: field, ...settings } = key.settings;
+
     const name =
       typeof field === "string" && field.length > 0 ? field : "apiKey";
+
     const entry: Record<string, JSONValue> = {};
+
     for (const [option, value] of Object.entries(settings)) {
       if (value !== undefined) {
         entry[option] = jsonOf(value);
       }
     }
+
     entry[name] = key.token;
     (byok[key.provider] ??= []).push(entry);
   }
+
   return Object.keys(byok).length === 0 ? {} : { byok };
 }
 
@@ -90,24 +96,31 @@ export function trackedSandbox(
   const every = options.every ?? 30_000;
   const now = options.now ?? Date.now;
   let last = Number.NEGATIVE_INFINITY;
+
   const touch = (): void => {
     const at = now();
+
     if (at - last < every) {
       return;
     }
+
     last = at;
     void options.sandboxes.touch(options.id);
   };
+
   return new Proxy(session, {
     get(target, property) {
       // SAFETY: the proxy only forwards reads of the session's own members.
       const value: unknown =
         target[property as keyof Experimental_SandboxSession];
+
       if (typeof value !== "function") {
         return value;
       }
+
       return (...args: unknown[]): unknown => {
         touch();
+
         return value.apply(target, args);
       };
     },

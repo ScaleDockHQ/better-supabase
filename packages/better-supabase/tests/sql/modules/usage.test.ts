@@ -27,12 +27,14 @@ describe("usage module", () => {
       } as never).find(
         (file) => file.module === "usage" && file.kind === "schema",
       )!.contents;
+
     const plans = {
       plans: {
         subscriptions: { table: "subs", tenant: "org_id", plan: "plan" },
         features: { table: "features", plan: "plan", feature: "key" },
       },
     };
+
     expect(render(plans)).toContain(
       "= any (better_supabase.tenant_plans(tenant))",
     );
@@ -53,6 +55,7 @@ describe("usage module", () => {
         active: "on",
       },
     });
+
     expect(sql).toContain(
       `jsonb_object_agg(m."slug"::text, jsonb_strip_nulls(jsonb_build_object('label', m."title"::text)))`,
     );
@@ -102,6 +105,7 @@ describe("usage module under the provider access model", () => {
         },
       },
     })!;
+
     expect(sql).toContain(
       "tenant::text in (select t.id::text from authz.member_ids(organization) as t(id))",
     );

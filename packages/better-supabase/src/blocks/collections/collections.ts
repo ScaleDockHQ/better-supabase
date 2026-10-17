@@ -34,6 +34,7 @@ import {
 
 /** Who sees a collection: its owner, a team, or the whole organization. */
 export const COLLECTION_SCOPES = ["user", "team", "tenant"] as const;
+
 export type CollectionScope = (typeof COLLECTION_SCOPES)[number];
 
 /** A record in `config.subjects`. */
@@ -222,6 +223,7 @@ const CREATE_KEYS: ReadonlySet<string> = new Set([
   "teamId",
   "description",
 ]);
+
 const RENAME_KEYS: ReadonlySet<string> = new Set(["name", "description"]);
 
 /** `{ [key]: value }`, or nothing when `value` is undefined. */
@@ -230,15 +232,18 @@ function optional<K extends string, V>(
   value: V | undefined,
 ): Partial<Record<K, V>> {
   const out: Partial<Record<K, V>> = {};
+
   if (value !== undefined) {
     out[key] = value;
   }
+
   return out;
 }
 
 function collectionOf(value: unknown): Collection {
   const row = recordOf(value, "collection");
   const archivedAt = optionalInstant(row["archivedAt"]);
+
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["organizationId"]),
@@ -258,6 +263,7 @@ function collectionOf(value: unknown): Collection {
 
 function entryOf(value: unknown): CollectionEntry {
   const row = recordOf(value, "collection entry");
+
   return {
     collectionId: textOf(row["collectionId"]),
     subjectType: textOf(row["subjectType"]),
@@ -272,6 +278,7 @@ function entryOf(value: unknown): CollectionEntry {
 
 function starOf(value: unknown): Star {
   const row = recordOf(value, "star");
+
   return {
     organizationId: textOf(row["organizationId"]),
     subjectType: textOf(row["subjectType"]),
@@ -288,6 +295,7 @@ function entryPage(
   limit: number | undefined,
 ): CollectionEntryPage {
   const last = rows.at(-1);
+
   return rows.length === (limit ?? 50) && last !== undefined
     ? { items: rows, next: { rank: last.rank, subjectId: last.subjectId } }
     : { items: rows };
@@ -302,11 +310,14 @@ export function createCollections<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: CollectionsOptions<S>): Collections<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const fields: BlockFields<F> = blockFields(
     options.fields,
     "collection fields",
   );
+
   const saved = (
     fn: string,
     args: Readonly<Record<string, unknown>>,
@@ -315,12 +326,14 @@ export function createCollections<
     AsyncResult.from(() => extraFieldsArg(fields, extra))
       .andThen((more) => call(fn, { ...args, ...more }, (value) => value))
       .andThen((value) => withFields(fields, value, collectionOf(value)));
+
   const subjectIds = (id: string, max: number | undefined) =>
     call(
       "collection_subject_ids",
       { collection: id, max_ids: max ?? null },
       (value) => [...stringsOf(value)],
     );
+
   const client: Collections<F> = {
     create: (organizationId, input) =>
       saved(
@@ -381,9 +394,11 @@ export function createCollections<
       ),
     reorder: (id, subjectId, neighbors) => {
       const key = rankBetweenResult(neighbors);
+
       if (!key.ok) {
         return AsyncResult.err(key.error);
       }
+
       return call(
         "rank_collection_entry",
         { collection: id, subject_id: subjectId, rank: key.data },
@@ -392,6 +407,7 @@ export function createCollections<
     },
     entries: (id, pageOptions = {}) => {
       const { limit, cursor } = pageOf(pageOptions);
+
       return call(
         "collection_entries",
         {
@@ -443,9 +459,11 @@ export function createCollections<
       ),
     reorderStar: (subject, neighbors) => {
       const key = rankBetweenResult(neighbors);
+
       if (!key.ok) {
         return AsyncResult.err(key.error);
       }
+
       return call(
         "rank_star",
         { subject_type: subject.type, subject_id: subject.id, rank: key.data },
@@ -453,6 +471,7 @@ export function createCollections<
       );
     },
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "collections",
     ...(options.logger ? { logger: options.logger } : {}),

@@ -52,6 +52,7 @@ describe.skipIf(!live)("signatures", () => {
 
   it("signs a frozen version in order, decides the approval step and detects edits", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const owner = await s.user("owner");
       const ada = await s.user("ada");
@@ -60,12 +61,15 @@ describe.skipIf(!live)("signatures", () => {
       await s.client.query(TABLES);
       await s.install(MODULES, layoutFor(ada.id));
       const tenant = await s.organization(owner, { member: ada, member2: bob });
+
       const rows = await s.rows<{ id: string }>(
         "insert into signatures_it.contracts (organization_id, body) values ($1, 'Terms v1') returning id",
         [tenant],
       );
+
       const contract = rows[0]!.id;
       const signatures = createSignatures({ transport: sqlTransport(s.sql) });
+
       const subject = {
         organizationId: tenant,
         subjectType: "contract",
@@ -73,10 +77,12 @@ describe.skipIf(!live)("signatures", () => {
       };
 
       await s.as(owner);
+
       const approval = await s.value<{ id: string }>(
         "better_supabase.request_approval($1, 'contract', $2, 'sign')",
         [tenant, contract],
       );
+
       expect(
         await signatures
           .request({ ...subject, signers: [ada.id, stranger.id] })
@@ -87,6 +93,7 @@ describe.skipIf(!live)("signatures", () => {
           .request({ ...subject, signers: [ada.id, ada.id] })
           .then(hint),
       ).toBe("SIGNATURE_SIGNERS_INVALID");
+
       const request = await signatures
         .request({
           ...subject,
@@ -96,16 +103,19 @@ describe.skipIf(!live)("signatures", () => {
           message: "Please sign the terms",
         })
         .orThrow();
+
       expect(request).toMatchObject({
         status: "pending",
         order: "sequential",
         signers: [ada.id, bob.id],
         approvalRequestId: approval.id,
       });
+
       const frozen = await s.rows<{ frozen: boolean }>(
         "select frozen from better_supabase.versions where id = $1",
         [request.versionId],
       );
+
       expect(frozen[0]?.frozen).toBe(true);
 
       await s.as(bob);
@@ -126,9 +136,11 @@ describe.skipIf(!live)("signatures", () => {
           })
           .then(hint),
       ).toBe("SIGNATURE_METHOD_INVALID");
+
       const first = await signatures
         .sign(request.id, { method: "typed", typedName: "Ada Lovelace" })
         .orThrow();
+
       expect(first).toMatchObject({
         signer: ada.id,
         method: "typed",
@@ -139,16 +151,20 @@ describe.skipIf(!live)("signatures", () => {
       expect(
         await signatures.sign(request.id, { method: "click" }).then(hint),
       ).toBe("SIGNATURE_ALREADY_SIGNED");
+
       const decided = await s.rows<{ status: string }>(
         "select status from better_supabase.approval_requests where id = $1",
         [approval.id],
       );
+
       expect(decided[0]?.status).toBe("approved");
 
       await s.as(bob);
+
       const second = await signatures
         .sign(request.id, { method: "click" })
         .orThrow();
+
       expect(second.requestStatus).toBe("completed");
       const detail = await signatures.get(request.id).orThrow();
       expect(detail.status).toBe("completed");
@@ -221,6 +237,7 @@ describe.skipIf(!live)("signatures", () => {
       const fresh = await signatures
         .request({ ...subject, signers: [ada.id] })
         .orThrow();
+
       await s.as(bob);
       expect(await signatures.get(fresh.id).then(hint)).toBe("ok");
       expect(await signatures.decline(fresh.id).then(hint)).toBe(
@@ -234,15 +251,18 @@ describe.skipIf(!live)("signatures", () => {
         "SIGNATURE_FORBIDDEN",
       );
       await s.as(ada);
+
       const declined = await signatures
         .decline(fresh.id, "Wrong terms")
         .orThrow();
+
       expect(declined.status).toBe("declined");
 
       const events = await s.rows<{ type: string }>(
         "select type from better_supabase.outbox_events where organization_id = $1 and type like 'signature.%' order by position",
         [tenant],
       );
+
       expect(events.map((row) => row.type)).toEqual([
         "signature.requested",
         "signature.signed",

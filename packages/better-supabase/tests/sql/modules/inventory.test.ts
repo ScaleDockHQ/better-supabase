@@ -61,6 +61,7 @@ describe("inventory module", () => {
         },
       },
     });
+
     expect(sql).toContain("reserve_stock");
     expect(sql).not.toContain("create_transfer");
     expect(sql).not.toContain("save_purchase_order");

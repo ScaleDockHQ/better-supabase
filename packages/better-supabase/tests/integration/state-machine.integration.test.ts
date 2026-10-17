@@ -81,6 +81,7 @@ describe.skipIf(!live)("state machine", () => {
 
   it("transitions only records the caller may update, and keeps a lifecycle", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.client.query(TABLES);
       const owner = await s.user("owner");
@@ -91,21 +92,25 @@ describe.skipIf(!live)("state machine", () => {
       const tenant = await s.organization(owner, { member, viewer });
       await s.organization(outsider);
       await s.service();
+
       const quote = (
         await s.rows<{ id: string }>(
           "insert into sm_it.quotes (organization_id) values ($1) returning id",
           [tenant],
         )
       )[0]!.id;
+
       const machine = createStateMachine<"quote">({
         transport: sqlTransport(s.sql),
       });
+
       const errorOf = async (
         result: PromiseLike<
           { ok: true } | { ok: false; error: { hint?: string | undefined } }
         >,
       ) => {
         const settled = await result;
+
         return settled.ok ? "ok" : settled.error.hint;
       };
 
@@ -194,10 +199,12 @@ describe.skipIf(!live)("state machine", () => {
       ).toBe(0);
 
       await s.service();
+
       const types = await s.rows<{ type: string }>(
         "select type from better_supabase.outbox_events where organization_id = $1 order by position",
         [tenant],
       );
+
       expect(types.map((row) => row.type)).toEqual(
         expect.arrayContaining([
           "status.changed",
@@ -215,6 +222,7 @@ describe.skipIf(!live)("state machine", () => {
         ),
       ).toBe("STATE_APPROVAL_REQUIRED");
       const approvals = createApprovals({ transport: sqlTransport(s.sql) });
+
       const request = await approvals
         .request({
           organizationId: tenant,
@@ -223,6 +231,7 @@ describe.skipIf(!live)("state machine", () => {
           action: "accept",
         })
         .orThrow();
+
       await s.asRole(owner);
       await approvals.approve(request.id).orThrow();
       await s.service();
@@ -239,18 +248,21 @@ describe.skipIf(!live)("state machine", () => {
 
   it("refuses transitions while paused and clears a pause that has ended", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.client.query(TABLES);
       const owner = await s.user("owner");
       await s.install(MODULES, layout(owner.id));
       const tenant = await s.organization(owner);
       await s.service();
+
       const quote = (
         await s.rows<{ id: string }>(
           "insert into sm_it.quotes (organization_id) values ($1) returning id",
           [tenant],
         )
       )[0]!.id;
+
       await s.asRole(owner);
       expect(
         await s.hint(
@@ -280,10 +292,12 @@ describe.skipIf(!live)("state machine", () => {
           [quote],
         ),
       ).toBe(true);
+
       const state = await s.value<{ paused: boolean }>(
         "better_supabase.status_state('quote', $1)",
         [quote],
       );
+
       expect(state.paused).toBe(false);
     } finally {
       await s.close();

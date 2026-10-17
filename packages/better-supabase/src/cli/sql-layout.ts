@@ -28,6 +28,7 @@ import {
 /** The folder the module data files sit next to, for the project's workflow. */
 export async function schemasDirOf(config: ResolvedConfig): Promise<string> {
   const toml = await readSupabaseToml(config.root);
+
   return declarativeSchemasDir(toml, sqlWorkflow(config, toml));
 }
 
@@ -37,6 +38,7 @@ async function schemaTexts(
 ): Promise<{ readonly text: string }[]> {
   const toml = await readSupabaseToml(config.root);
   const migrations = resolve(config.root, migrationsDir(config));
+
   const paths = [
     ...(await schemaPaths(config.root, toml, sqlWorkflow(config, toml))).files,
     ...(existsSync(migrations)
@@ -46,6 +48,7 @@ async function schemaTexts(
           .map((name) => join(migrations, name))
       : []),
   ];
+
   return Promise.all(
     paths.map(async (path) => ({
       text: await readFile(resolve(config.root, path), "utf-8"),
@@ -57,14 +60,17 @@ async function declarativeTexts(
   config: ResolvedConfig,
 ): Promise<{ readonly text: string }[]> {
   const toml = await readSupabaseToml(config.root);
+
   const { files } = await schemaPaths(
     config.root,
     toml,
     sqlWorkflow(config, toml),
   );
+
   if (files.length === 0) {
     return schemaTexts(config);
   }
+
   return Promise.all(
     files.map(async (path) => ({
       text: await readFile(resolve(config.root, path), "utf-8"),
@@ -105,20 +111,25 @@ export async function moduleLayoutFor(
         : {}),
     }).map((module) => module.name),
   );
+
   const adopted = adoptedColumnProblems(
     config.blocks,
     await declarativeTexts(config),
     config.schemas,
   );
+
   if (adopted.length > 0) {
     throw new TypeError(adopted.join("\n"));
   }
+
   const fromPolicies =
     resolved.has("grants") &&
     config.blocks["grants"]?.options?.["fromPolicies"] === true;
+
   const sessionPolicies =
     resolved.has("sessions") &&
     config.blocks["sessions"]?.options?.["policies"] === true;
+
   return {
     ...moduleLayout(
       config,
@@ -163,6 +174,7 @@ function vectorSchemaOf(sources: readonly { readonly text: string }[]): {
   vectorSchema?: string;
 } {
   const schema = extensionSchema(sources, "vector");
+
   return schema === undefined ? {} : { vectorSchema: schema };
 }
 
@@ -176,6 +188,7 @@ export function migrationsDir(config: ResolvedConfig): string {
   const root = resolve(config.root);
   let dir = resolve(root, config.sql.dir);
   let stop = root;
+
   while (
     dir !== stop &&
     !dir.startsWith(stop + sep) &&
@@ -183,14 +196,18 @@ export function migrationsDir(config: ResolvedConfig): string {
   ) {
     stop = dirname(stop);
   }
+
   for (;;) {
     if (existsSync(join(dir, "config.toml"))) {
       return relative(root, join(dir, "migrations")).replaceAll("\\", "/");
     }
+
     if (dir === stop || dirname(dir) === dir) {
       break;
     }
+
     dir = dirname(dir);
   }
+
   return "supabase/migrations";
 }

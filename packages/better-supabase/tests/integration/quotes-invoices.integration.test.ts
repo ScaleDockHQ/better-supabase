@@ -55,6 +55,7 @@ describe.skipIf(!live)("quotes and invoices", () => {
 
   it("turns a deal into a quote the customer accepts, then a deposit and a final invoice", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const owner = await s.user("owner");
       const rep = await s.user("rep");
@@ -65,9 +66,11 @@ describe.skipIf(!live)("quotes and invoices", () => {
       const invoices = createInvoices({ transport });
 
       await s.as(rep);
+
       const acme = await createParties({ transport })
         .saveCompany(org, { name: "Acme" })
         .orThrow();
+
       const deal = await createDeals({ transport })
         .create(org, {
           name: "Rollout",
@@ -77,6 +80,7 @@ describe.skipIf(!live)("quotes and invoices", () => {
           company: { type: "company", id: acme.id },
         })
         .orThrow();
+
       const quote = await quotes.fromDeal(deal.id).orThrow();
       expect(quote).toMatchObject({
         identifier: "Q-1",
@@ -166,17 +170,21 @@ describe.skipIf(!live)("quotes and invoices", () => {
         "INVOICE_ORIGIN_NOT_FOUND",
       );
       await s.as(owner);
+
       const deposit = await invoices
         .fromQuote(revised.id, { depositBps: 3000 })
         .orThrow();
+
       expect(deposit).toMatchObject({
         status: "draft",
         depositBps: 3000,
         totals: { subtotal: 312_000n, taxTotal: 65_520n, total: 377_520n },
       });
+
       const issuedDeposit = await invoices
         .issue(deposit.id, Temporal.PlainDate.from("2026-10-15"))
         .orThrow();
+
       expect(issuedDeposit).toMatchObject({
         identifier: "INV-1",
         status: "issued",
@@ -201,6 +209,7 @@ describe.skipIf(!live)("quotes and invoices", () => {
           reference: "bank-1",
         })
         .orThrow();
+
       expect(partly).toMatchObject({
         status: "partially_paid",
         balance: 380_880n,
@@ -215,11 +224,13 @@ describe.skipIf(!live)("quotes and invoices", () => {
             .orThrow()
         ).paidTotal,
       ).toBe(500_000n);
+
       const credit = await invoices
         .credit(issuedFinal.id, {
           lines: [{ description: "Goodwill", unitAmount: 80_880n }],
         })
         .orThrow();
+
       expect(credit).toMatchObject({
         kind: "credit_note",
         originalId: issuedFinal.id,
@@ -228,9 +239,11 @@ describe.skipIf(!live)("quotes and invoices", () => {
       expect((await invoices.issue(credit.id).orThrow()).identifier).toBe(
         "CN-1",
       );
+
       const paid = await invoices
         .recordPayment(issuedFinal.id, { amount: 300_000n })
         .orThrow();
+
       expect(paid).toMatchObject({
         status: "paid",
         balance: 0n,
@@ -249,6 +262,7 @@ describe.skipIf(!live)("quotes and invoices", () => {
       const aging = await invoices
         .aging(org, "EUR", Temporal.PlainDate.from("2026-12-20"))
         .orThrow();
+
       expect(aging).toMatchObject({
         days31To60: 377_520n,
         outstanding: 377_520n,
@@ -264,9 +278,11 @@ describe.skipIf(!live)("quotes and invoices", () => {
       expect(written.status).toBe("uncollectible");
 
       await s.as(owner);
+
       const lineage = await createRelations({ transport })
         .lineage(org, { type: "quote", id: quote.id })
         .orThrow();
+
       expect(lineage.origins).toEqual([
         expect.objectContaining({ type: "deal", id: deal.id }),
       ]);
@@ -277,6 +293,7 @@ describe.skipIf(!live)("quotes and invoices", () => {
 
   it("voids drafts, expires sent quotes and refuses quotes that aren't accepted", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const owner = await s.user("owner");
       await s.install(MODULES, layout);
@@ -296,6 +313,7 @@ describe.skipIf(!live)("quotes and invoices", () => {
           [{ description: "x", unitAmount: 100n }],
         )
         .orThrow();
+
       expect(hint(await invoices.fromQuote(quote.id))).toBe(
         "INVOICE_QUOTE_NOT_ACCEPTED",
       );
@@ -313,6 +331,7 @@ describe.skipIf(!live)("quotes and invoices", () => {
           ),
         ),
       ).toBe("QUOTE_EMPTY");
+
       const other = await quotes
         .create(
           org,
@@ -320,6 +339,7 @@ describe.skipIf(!live)("quotes and invoices", () => {
           [{ description: "x", unitAmount: 1n }],
         )
         .orThrow();
+
       await quotes.send(other.id).orThrow();
       await s.service();
       expect(await quotes.expire().orThrow()).toBe(1);
@@ -330,9 +350,11 @@ describe.skipIf(!live)("quotes and invoices", () => {
           { description: "x", unitAmount: 5n },
         ])
         .orThrow();
+
       const voided = await invoices.void(draft.id, "Duplicate").orThrow();
       expect(voided).toMatchObject({ status: "void", voidReason: "Duplicate" });
       expect(voided.identifier).toBeUndefined();
+
       const next = await invoices
         .issue(
           (
@@ -344,6 +366,7 @@ describe.skipIf(!live)("quotes and invoices", () => {
           ).id,
         )
         .orThrow();
+
       expect(next.identifier).toBe("INV-1");
       expect(hint(await invoices.recordPayment(draft.id, { amount: 1n }))).toBe(
         "INVOICE_NOT_PAYABLE",

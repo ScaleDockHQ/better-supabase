@@ -46,16 +46,20 @@ type Handler = (args: Record<string, unknown>) => unknown;
 
 function fakeTransport(handlers: Record<string, Handler>) {
   const calls: { fn: string; args: Record<string, unknown> }[] = [];
+
   const transport: BlockTransport = {
     call: (_schema, fn, args) => {
       calls.push({ fn, args });
       const handler = handlers[fn];
+
       if (!handler) {
         return Promise.reject(new Error(`unexpected ${fn}`));
       }
+
       return Promise.resolve(handler(args));
     },
   };
+
   return { transport, calls };
 }
 
@@ -64,6 +68,7 @@ describe("createAiTasks", () => {
     const { transport, calls } = fakeTransport({
       save_ai_task: () => taskRow(),
     });
+
     const tasks = createAiTasks({ transport, now: () => NOW });
     await tasks.create("o1", {
       title: "Digest",
@@ -101,11 +106,13 @@ describe("createAiTasks", () => {
   it("rejects bad schedules before calling the database", async () => {
     const { transport, calls } = fakeTransport({});
     const tasks = createAiTasks({ transport, now: () => NOW });
+
     const bad = await tasks.create("o1", {
       title: "x",
       prompt: "y",
       cron: "every tuesday",
     });
+
     expect(bad.ok ? undefined : bad.error.hint).toBe("AI_TASK_INVALID");
     const zoneOnly = await tasks.update("o1", "t1", { timezone: "UTC" });
     expect(zoneOnly.ok ? undefined : zoneOnly.error.message).toContain(
@@ -126,6 +133,7 @@ describe("createAiTasks", () => {
       list_ai_task_runs: () => [runRow({ status: "bogus", error: "boom" })],
       delete_ai_task: () => true,
     });
+
     const tasks = createAiTasks({ transport });
     const [task] = await tasks.list("o1", { all: true }).orThrow();
     expect(task?.lastRun).toMatchObject({ chatId: "c1", status: "completed" });
@@ -144,6 +152,7 @@ describe("createAiTasks", () => {
 
   it("ticks, schedules and drains runs", async () => {
     const outcomes: AiTaskOutcome[] = [];
+
     const service = fakeTransport({
       claim_due_ai_tasks: () => ({
         runs: [runRow(), runRow({ id: "r2" }), runRow({ id: "r3" })],
@@ -162,10 +171,12 @@ describe("createAiTasks", () => {
             },
       finish_ai_task_run: () => true,
     });
+
     const run = vi
       .fn()
       .mockResolvedValueOnce({ chatId: "c1" })
       .mockRejectedValueOnce(new Error("model down"));
+
     const tasks = createAiTasks({
       transport: fakeTransport({}).transport,
       service: service.transport,
@@ -173,6 +184,7 @@ describe("createAiTasks", () => {
       notify: (outcome) => outcomes.push(outcome),
       now: () => NOW,
     });
+
     expect(await tasks.drain({ batch: 5 }).orThrow()).toBe(2);
     expect(
       service.calls.find(({ fn }) => fn === "schedule_ai_tasks")?.args,
@@ -204,7 +216,9 @@ describe("createAiTasks", () => {
       }),
       finish_ai_task_run: () => true,
     });
+
     const send = vi.fn();
+
     const tasks = createAiTasks({
       transport: service.transport,
       run: vi.fn().mockRejectedValueOnce(new Error("model down")),
@@ -212,6 +226,7 @@ describe("createAiTasks", () => {
       notification: "ai_task.finished",
       now: () => NOW,
     });
+
     expect(await tasks.drain({ batch: 1 }).orThrow()).toBe(1);
     expect(send).toHaveBeenCalledWith("ai_task.finished", {
       recipients: ["u1"],
@@ -235,6 +250,7 @@ describe("createAiTasks", () => {
     const service = fakeTransport({
       claim_due_ai_tasks: () => ({ runs: [runRow()], unscheduled: [] }),
     });
+
     const tasks = createAiTasks({ transport: service.transport });
     const controller = new AbortController();
     controller.abort();
@@ -250,6 +266,7 @@ describe("createAiTasks", () => {
           : { ...runRow(), task: taskRow() },
       finish_ai_task_run: () => true,
     });
+
     const tasks = createAiTasks({ transport: service.transport });
     const job = tasks.runJob();
     await job({ run_id: "r1" }, {} as never, new AbortController().signal);
@@ -274,10 +291,12 @@ describe("createAiTasks", () => {
           : { ...runRow({ id: args["id"] }), task: taskRow() },
       finish_ai_task_run: () => true,
     });
+
     const result = await createAiTasks({
       transport: service.transport,
       run: () => Promise.resolve(),
     }).drain();
+
     expect(
       service.calls
         .filter(({ fn }) => fn === "finish_ai_task_run")
@@ -292,20 +311,25 @@ describe("createAiTasks", () => {
     const user = fakeTransport({
       save_ai_task: () => taskRow({ next_run_at: null }),
     });
+
     const service = fakeTransport({ schedule_ai_tasks: () => 1 });
+
     const tasks = createAiTasks({
       transport: user.transport,
       service: service.transport,
       now: () => NOW,
     });
+
     const task = await tasks.resume("o1", "t1").orThrow();
     expect(task.nextRunAt?.toString()).toBe("2026-01-02T09:00:00Z");
     expect(service.calls[0]?.args).toEqual({
       items: { items: [{ id: "t1", next_run_at: "2026-01-02T09:00:00Z" }] },
     });
+
     const paused = fakeTransport({
       save_ai_task: () => taskRow({ next_run_at: null, enabled: false }),
     });
+
     await createAiTasks({
       transport: paused.transport,
       service: service.transport,
@@ -318,10 +342,12 @@ describe("createAiTasks", () => {
       start_ai_task_run: () => ({ ...runRow(), task: taskRow() }),
       finish_ai_task_run: () => Promise.reject(new Error("db down")),
     });
+
     const result = await createAiTasks({
       transport: service.transport,
       run: () => Promise.resolve(),
     }).execute("r1");
+
     expect(result.ok).toBe(false);
   });
 });

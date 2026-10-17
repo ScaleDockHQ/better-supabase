@@ -9,16 +9,19 @@ import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
+
 const env = {
   url: PROJECT_URL,
   publishableKey: "sb_publishable_test",
   jwksUrl: new URL(`${PROJECT_URL}/auth/v1/.well-known/jwks.json`),
 };
+
 const USER = "11111111-1111-4111-8111-111111111111";
 const signer = await createTestSigner();
 
 describe("createEdge", () => {
   const betterSupabase = defineSupabase(schema);
+
   const bs = createEdge(betterSupabase, {
     env,
     auth: { jwks: signer.jwks as never },
@@ -44,10 +47,13 @@ describe("createEdge", () => {
     const serve = bs.handler((_request, ctx) =>
       ok({ id: ctx.auth.kind === "user" ? ctx.auth.user.id : null }),
     );
+
     const token = await signer.sign({ sub: USER });
+
     const response = await serve(
       await request("/hello", { token, origin: "https://app.test" }),
     );
+
     expect(await response.json()).toEqual({ id: USER });
     expect(response.headers.get("access-control-allow-origin")).toBe(
       "https://app.test",
@@ -57,6 +63,7 @@ describe("createEdge", () => {
     const anonymous = await serve(
       await request("/hello", { origin: "https://evil.test" }),
     );
+
     expect(anonymous.status).toBe(401);
     expect(anonymous.headers.get("access-control-allow-origin")).toBeNull();
 
@@ -66,6 +73,7 @@ describe("createEdge", () => {
         origin: "https://app.test",
       }),
     );
+
     expect(preflight.status).toBe(204);
     expect(preflight.headers.get("access-control-allow-headers")).toContain(
       "apikey",
@@ -76,6 +84,7 @@ describe("createEdge", () => {
     const token = await signer.sign({ sub: USER });
     const kept: Promise<unknown>[] = [];
     let release: () => void = () => undefined;
+
     const serve = bs.handler(() => {
       betterSupabase.events.track(
         new Promise<void>((resolve) => {
@@ -83,9 +92,11 @@ describe("createEdge", () => {
         }),
       );
     });
+
     const response = await serve(await request("/x", { token }), undefined, {
       waitUntil: (promise) => void kept.push(promise),
     });
+
     expect(response.status).toBe(204);
     expect(kept).toHaveLength(1);
     let done = false;
@@ -105,6 +116,7 @@ describe("createEdge", () => {
     expect(kept).toHaveLength(1);
 
     const global: Promise<unknown>[] = [];
+
     const deno = createEdge(betterSupabase, {
       env,
       auth: { jwks: signer.jwks as never },
@@ -116,6 +128,7 @@ describe("createEdge", () => {
         }),
       );
     });
+
     await deno(await request("/x", { token }));
     expect(global).toHaveLength(1);
     await global[0];
@@ -123,13 +136,17 @@ describe("createEdge", () => {
 
   it("maps thrown errors without leaking details", async () => {
     const token = await signer.sign({ sub: USER });
+
     const missing = bs.handler(() => {
       throw new DbException(dbError("not_found", "Gone"));
     });
+
     expect((await missing(await request("/x", { token }))).status).toBe(404);
+
     const crash = bs.handler(() => {
       throw new Error("secret detail");
     });
+
     const response = await crash(await request("/x", { token }));
     expect(response.status).toBe(500);
     expect(await response.text()).not.toContain("secret detail");
@@ -165,6 +182,7 @@ describe("createEdge", () => {
   it("routes resource requests that carry a body", async () => {
     const serve = bs.resources({ customers: true }, { basePath: "/api" });
     const token = await signer.sign({ sub: USER });
+
     const response = await serve(
       new Request("https://project.functions.test/api/customers/c1", {
         method: "PUT",
@@ -175,6 +193,7 @@ describe("createEdge", () => {
         body: JSON.stringify({ name: "Acme" }),
       }),
     );
+
     expect(response.status).toBe(405);
   });
 
@@ -184,9 +203,11 @@ describe("createEdge", () => {
       auth: { jwks: signer.jwks as never },
       cors: true,
     });
+
     const response = await open.handler(() => undefined)(
       await request("/x", { origin: "https://elsewhere.test" }),
     );
+
     expect(response.headers.get("access-control-allow-origin")).toBe("*");
     expect(response.headers.get("vary")).toBeNull();
   });
@@ -201,11 +222,13 @@ describe("bs.resources() actions", () => {
         ? { outcome: "granted" }
         : { outcome: "denied", reason: "CSV only" },
   });
+
   const bs = createEdge(defineSupabase(schema), {
     env,
     auth: { jwks: signer.jwks as never },
     authorizer,
   });
+
   const serve = bs.resources(
     {
       customers: {
@@ -223,6 +246,7 @@ describe("bs.resources() actions", () => {
     },
     { basePath: "/api" },
   );
+
   const post = async (path: string, body: unknown, token?: string) =>
     serve(
       new Request(`https://project.functions.test${path}`, {
@@ -237,18 +261,22 @@ describe("bs.resources() actions", () => {
 
   it("routes actions under the resource path and checks their permission", async () => {
     const token = await signer.sign({ sub: USER });
+
     const granted = await post(
       "/api/crm/customers/export",
       { format: "csv" },
       token,
     );
+
     expect(granted.status).toBe(200);
     expect(await granted.json()).toEqual({ data: { format: "csv" } });
+
     const denied = await post(
       "/api/crm/customers/export",
       { format: "pdf" },
       token,
     );
+
     expect(denied.status).toBe(403);
     expect(await denied.json()).toMatchObject({
       code: "PERMISSION_DENIED",

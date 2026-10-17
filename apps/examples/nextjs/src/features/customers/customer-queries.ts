@@ -14,6 +14,7 @@ import { bs } from "@/lib/supabase/server";
 export async function getCustomers() {
   "use cache: private";
   const { db, supabase } = await bs.cached();
+
   const page = await customerList
     .run(db, customerList.defaults, {
       select: ["id", "name", "status", "logoPath"],
@@ -24,9 +25,11 @@ export async function getCustomers() {
       },
     })
     .orThrow();
+
   // Public bucket: the URL is built locally, and `next/image` resizes it
   // through Storage (see `src/image-loader.ts`).
   const storage = logos.connect(supabase);
+
   return {
     ...page,
     items: page.items.map((customer) => ({
@@ -42,6 +45,7 @@ export async function getCustomers() {
 export async function getCustomer(id: string) {
   "use cache: private";
   const { db, supabase } = await bs.cached();
+
   const customer = await db.customers
     .findUnique({
       where: { id },
@@ -55,9 +59,11 @@ export async function getCustomer(id: string) {
       },
     })
     .orThrow();
+
   if (!customer) {
     return null;
   }
+
   return {
     ...customer,
     logoUrl: customer.logoPath

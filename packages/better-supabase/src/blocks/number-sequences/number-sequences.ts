@@ -34,6 +34,7 @@ export function createNumberSequences(
   options: NumberSequencesOptions,
 ): NumberSequences {
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const client: NumberSequences = {
     next: (organizationId, entity, at) =>
       call(
@@ -43,13 +44,16 @@ export function createNumberSequences(
           if (typeof value === "number" || typeof value === "bigint") {
             return String(value);
           }
+
           if (typeof value === "string") {
             return value;
           }
+
           throw new TypeError("next_number did not return a number");
         },
       ),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "number-sequences",
     ...(options.logger ? { logger: options.logger } : {}),

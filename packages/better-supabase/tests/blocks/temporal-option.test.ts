@@ -30,6 +30,7 @@ describe("the temporal option of block creators", () => {
   it("provides the namespace without touching globalThis", () => {
     const namespace = { ...Temporal };
     const before: unknown = globalThis.Temporal;
+
     const creators = [
       () => createAnnouncements({ transport, temporal: namespace }),
       () => createAudit({ transport, temporal: namespace }),
@@ -43,11 +44,13 @@ describe("the temporal option of block creators", () => {
           temporal: namespace,
         }),
     ];
+
     for (const create of creators) {
       provideTemporal(undefined);
       create();
       expect(providedTemporal()).toBe(namespace);
     }
+
     expect(globalThis.Temporal).toBe(before);
   });
 
@@ -56,6 +59,7 @@ describe("the temporal option of block creators", () => {
     onTestFinished(() => {
       vi.unstubAllGlobals();
     });
+
     const row = {
       id: "a1",
       title: "Maintenance",
@@ -71,10 +75,12 @@ describe("the temporal option of block creators", () => {
       created_at: "2026-01-01T00:00:00Z",
       updated_at: "2026-01-01T00:00:00Z",
     };
+
     const announcements = createAnnouncements({
       transport: { call: async () => [row] },
       temporal: Polyfill,
     });
+
     const [first] = await announcements.listActive().orThrow();
     expect(first?.startsAt).toBeInstanceOf(Polyfill.Instant);
     expect(first?.startsAt.toString()).toBe("2026-01-01T00:00:00Z");

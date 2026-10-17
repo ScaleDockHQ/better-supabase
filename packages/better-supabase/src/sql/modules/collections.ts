@@ -113,10 +113,12 @@ function tables(ctx: ModuleContext, names: CollectionNames): string {
   if (!ctx.manages) {
     return "";
   }
+
   const { t } = names;
   const co = (column: string): string => names.c("collections", column);
   const en = (column: string): string => names.c("entries", column);
   const fa = (column: string): string => names.c("favorites", column);
+
   return `
 create table if not exists ${t("collections")} (
   ${co("id")} uuid primary key default gen_random_uuid(),
@@ -172,6 +174,7 @@ function policies(names: CollectionNames): string {
   const co = (column: string): string => names.c("collections", column);
   const en = (column: string): string => names.c("entries", column);
   const fa = (column: string): string => names.c("favorites", column);
+
   return `
 -- A collection is visible to its owner, its team's members or the whole
 -- tenant. An entry is visible when its collection is and the caller can
@@ -218,14 +221,19 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const keys = moduleOperations("collections");
+
   const teams = ctx.installed("teams")
     ? `select t::text from ${ctx.of("teams").fn("team_ids_of")}((select auth.uid())) t`
     : "";
+
   const subjectTypes = registeredSubjects(ctx.subjects)
     .filter((subject) => subject.tenant !== undefined)
     .map((subject) => subject.type);
+
   const read = ctx.permission("read", keys.read);
+
   const names: CollectionNames = {
     scope: ctx.scope,
     fn: (name) => ctx.fn(name),
@@ -241,8 +249,10 @@ function build(ctx: ModuleContext): string {
     subjectTypes: `${sqlString(`{${subjectTypes.join(",")}}`)}::text[]`,
     maxIds: MAX_COLLECTION_IDS,
   };
+
   const en = (column: string): string => ctx.col("entries", column);
   const fa = (column: string): string => ctx.col("favorites", column);
+
   return `${schemaPreamble(ctx)}
 -- Favorites (a member's starred records, ranked for a sidebar) and lists
 -- (named, static collections of one subject type) on config.subjects records.
@@ -256,6 +266,7 @@ ${tables(ctx, names)}${ctx.manages ? policies(names) : ""}${collectionFunctions(
 
 function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   const extra = extraFieldsArg(collectionExtras(ctx)).contract;
+
   return [
     {
       name: "create_collection",

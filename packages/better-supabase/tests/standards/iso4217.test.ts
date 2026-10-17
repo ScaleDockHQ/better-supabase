@@ -12,13 +12,16 @@ const listOne = await readFile(
 
 const fromListOne = (): Record<string, number> => {
   const units: Record<string, number> = {};
+
   for (const [, entry] of listOne.matchAll(/<CcyNtry>([\s\S]*?)<\/CcyNtry>/g)) {
     const code = /<Ccy>([A-Z]{3})<\/Ccy>/.exec(entry ?? "")?.[1];
     const minor = /<CcyMnrUnts>(\d+)<\/CcyMnrUnts>/.exec(entry ?? "")?.[1];
+
     if (code !== undefined && minor !== undefined) {
       units[code] = Number(minor);
     }
   }
+
   return units;
 };
 

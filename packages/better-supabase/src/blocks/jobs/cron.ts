@@ -34,12 +34,14 @@ const MONTHS = [
   "nov",
   "dec",
 ];
+
 const WEEKDAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 
 /** Replaces `JAN` or `MON` style names with their numbers. */
 function named(text: string, names: readonly string[], first: number): string {
   return text.replaceAll(/[a-z]{3}/gi, (name) => {
     const index = names.indexOf(name.toLowerCase());
+
     return index === -1 ? name : String(index + first);
   });
 }
@@ -60,47 +62,58 @@ function field(
   max: number,
 ): number[] {
   const values = new Set<number>();
+
   for (const part of text.split(",")) {
     const match = /^(\*|\d+(?:-\d+)?)(?:\/(\d+))?$/.exec(part);
+
     if (!match) {
       throw invalid(expression, `"${part}" is not a cron field`);
     }
+
     const [, range = "", stepText] = match;
     const step = stepText === undefined ? 1 : Number(stepText);
     let from = min;
     let to = max;
+
     if (range !== "*") {
       const [start = "", end] = range.split("-");
       from = Number(start);
       to =
         end === undefined ? (stepText === undefined ? from : max) : Number(end);
     }
+
     if (step < 1 || from < min || to > max || from > to) {
       throw invalid(
         expression,
         `"${part}" is outside ${String(min)}-${String(max)}`,
       );
     }
+
     for (let value = from; value <= to; value += step) {
       values.add(value);
     }
   }
+
   return [...values].toSorted((a, b) => a - b);
 }
 
 function parse(expression: string): CronFields {
   const source = MACROS[expression.trim().toLowerCase()] ?? expression;
   const parts = source.trim().split(/\s+/);
+
   if (parts.length !== 5) {
     throw invalid(
       expression,
       "expected 5 fields (minute hour day month weekday)",
     );
   }
+
   const [minute = "", hour = "", day = "", monthText = "", weekdayText = ""] =
     parts;
+
   const month = named(monthText, MONTHS, 1);
   const weekday = named(weekdayText, WEEKDAYS, 0);
+
   return {
     minutes: field(expression, minute, 0, 59),
     hours: field(expression, hour, 0, 23),
@@ -121,17 +134,22 @@ function dayMatches(fields: CronFields, date: Temporal.PlainDate): boolean {
   if (!fields.months.has(date.month)) {
     return false;
   }
+
   const day = fields.days.has(date.day);
   const weekday = fields.weekdays.has(date.dayOfWeek);
+
   if (fields.daysRestricted && fields.weekdaysRestricted) {
     return day || weekday;
   }
+
   if (fields.daysRestricted) {
     return day;
   }
+
   if (fields.weekdaysRestricted) {
     return weekday;
   }
+
   return true;
 }
 
@@ -147,19 +165,23 @@ function firstRunOn(
     if (start && hour < start.hour) {
       continue;
     }
+
     for (const minute of fields.minutes) {
       if (hour === start?.hour && minute < start.minute) {
         continue;
       }
+
       const instant = date
         .toPlainDateTime({ hour, minute })
         .toZonedDateTime(timeZone, { disambiguation: "compatible" })
         .toInstant();
+
       if (temporal().Instant.compare(instant, after) > 0) {
         return instant;
       }
     }
   }
+
   return undefined;
 }
 
@@ -189,12 +211,16 @@ export function nextCronRun(
   after: Temporal.Instant,
 ): Temporal.Instant {
   const interval = INTERVAL.exec(expression.trim());
+
   if (interval) {
     const amount = Number(interval[1]);
+
     if (amount < 1) {
       throw invalid(expression, "the interval must be positive");
     }
+
     const unit = interval[2]!.toLowerCase();
+
     return after.add(
       unit === "second"
         ? { seconds: amount }
@@ -203,13 +229,17 @@ export function nextCronRun(
           : { hours: amount },
     );
   }
+
   const fields = parse(expression);
+
   const start = after
     .toZonedDateTimeISO(timeZone)
     .toPlainDateTime()
     .round({ smallestUnit: "minute", roundingMode: "floor" })
     .add({ minutes: 1 });
+
   let date = start.toPlainDate();
+
   for (let offset = 0; offset < SEARCH_DAYS; offset += 1) {
     const found =
       dayMatches(fields, date) &&
@@ -220,10 +250,13 @@ export function nextCronRun(
         timeZone,
         after,
       );
+
     if (found) {
       return found;
     }
+
     date = date.add({ days: 1 });
   }
+
   throw invalid(expression, "it never matches a date");
 }

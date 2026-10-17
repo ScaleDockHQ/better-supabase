@@ -135,6 +135,7 @@ function levelOf(setting: RuleSetting<unknown> | undefined): RuleLevel {
   if (setting === undefined) {
     return "off";
   }
+
   return typeof setting === "string" ? setting : setting[0];
 }
 
@@ -150,15 +151,18 @@ const depths = new WeakMap<Selection, number>();
 
 function includeDepth(selection: Selection): number {
   let depth = depths.get(selection);
+
   if (depth === undefined) {
     depth = computeIncludeDepth(selection);
     depths.set(selection, depth);
   }
+
   return depth;
 }
 
 function computeIncludeDepth(selection: Selection): number {
   let depth = 0;
+
   for (const include of selection.includes) {
     if (include.count !== undefined || include.aggregate !== undefined) {
       depth = Math.max(depth, 1);
@@ -166,6 +170,7 @@ function computeIncludeDepth(selection: Selection): number {
       depth = Math.max(depth, 1 + includeDepth(include.selection));
     }
   }
+
   return depth;
 }
 
@@ -173,6 +178,7 @@ const sensitiveByTable = new WeakMap<TableMeta, ReadonlySet<string>>();
 
 function sensitiveOf(table: TableMeta): ReadonlySet<string> {
   let sensitive = sensitiveByTable.get(table);
+
   if (!sensitive) {
     sensitive = new Set(
       lookupOf(table)
@@ -181,27 +187,32 @@ function sensitiveOf(table: TableMeta): ReadonlySet<string> {
     );
     sensitiveByTable.set(table, sensitive);
   }
+
   return sensitive;
 }
 
 function sensitiveColumns(selection: Selection, table: TableMeta): string[] {
   const found: string[] = [];
   const sensitive = sensitiveOf(table);
+
   if (sensitive.size > 0) {
     for (const column of selection.columns) {
       if (sensitive.has(column.column)) {
         found.push(`${table.key}.${column.column}`);
       }
     }
+
     for (const measure of selection.aggregate?.measures ?? []) {
       if (sensitive.has(measure.column)) {
         found.push(`${table.key}.${measure.column}`);
       }
     }
   }
+
   for (const include of selection.includes) {
     found.push(...sensitiveColumns(include.selection, include.target));
   }
+
   return found;
 }
 
@@ -214,6 +225,7 @@ function isBrowser(): boolean {
 }
 
 const TEXT_TYPES = new Set(["text", "varchar", "bpchar"]);
+
 const STORAGE_URL =
   /\/storage\/v1\/(?:object|render\/image)\/(?:public|sign|authenticated)\//;
 
@@ -222,6 +234,7 @@ const templatesBySchema = new WeakMap<SchemaMeta, readonly RegExp[]>();
 /** Bucket templates specific enough to identify a path: some literal text besides `/`. */
 function bucketTemplates(schema: SchemaMeta): readonly RegExp[] {
   let templates = templatesBySchema.get(schema);
+
   if (!templates) {
     templates = Object.values(schema.buckets ?? {})
       .flatMap((bucket) =>
@@ -245,6 +258,7 @@ function bucketTemplates(schema: SchemaMeta): readonly RegExp[] {
       );
     templatesBySchema.set(schema, templates);
   }
+
   return templates;
 }
 
@@ -253,6 +267,7 @@ const urlColumnsByTable = new WeakMap<TableMeta, readonly ColumnMeta[]>();
 /** Scalar text columns named `*_url`, the only ones the rule inspects. */
 function urlColumns(table: TableMeta): readonly ColumnMeta[] {
   let columns = urlColumnsByTable.get(table);
+
   if (!columns) {
     columns = lookupOf(table)
       .entries.map(([, column]) => column)
@@ -264,6 +279,7 @@ function urlColumns(table: TableMeta): readonly ColumnMeta[] {
       );
     urlColumnsByTable.set(table, columns);
   }
+
   return columns;
 }
 
@@ -273,29 +289,37 @@ function storedObjectColumn(
 ): string | undefined {
   const rows =
     op.kind === "insert" ? op.rows : op.kind === "update" ? [op.set] : [];
+
   if (rows.length === 0) {
     return undefined;
   }
+
   for (const column of urlColumns(op.table)) {
     if (!rows.some((row) => column.db in row)) {
       continue;
     }
+
     const path = `${column.db.slice(0, -4)}_path`;
+
     if (column.storage !== undefined) {
       return `"${column.db}" holds paths in bucket "${column.storage}"; name it "${path}"`;
     }
+
     const stored = rows.some((row) => {
       const value = row[column.db];
+
       return (
         typeof value === "string" &&
         (STORAGE_URL.test(value) ||
           bucketTemplates(schema).some((template) => template.test(value)))
       );
     });
+
     if (stored) {
       return `"${column.db}" is given a storage object; store its path in "${path}" and build URLs with signedUrl() or renderUrl()`;
     }
   }
+
   return undefined;
 }
 
@@ -309,12 +333,16 @@ function pinsPrimaryKey(
   if (!where || table.primaryKey.length === 0) {
     return false;
   }
+
   let columns = primaryColumnsByTable.get(table);
+
   if (!columns) {
     columns = table.primaryKey.map((name) => table.columns[name]?.db ?? name);
     primaryColumnsByTable.set(table, columns);
   }
+
   const pinned = new Set<string>();
+
   const visit = (condition: Condition): void => {
     if (condition.kind === "and") {
       condition.items.forEach(visit);
@@ -326,7 +354,9 @@ function pinsPrimaryKey(
       pinned.add(condition.column);
     }
   };
+
   visit(where);
+
   return columns.every((column) => pinned.has(column));
 }
 
@@ -336,6 +366,7 @@ function checks(rules: RuleSet): Record<RuleName, Check> {
   const maxLimit = optionOf(rules.maxLimit, 1000);
   const maxDepth = optionOf(rules.maxIncludeDepth, 3);
   const maxAffected = optionOf(rules.requireMaxAffected, 1000);
+
   return {
     noUnboundedFindMany: (op) =>
       op.kind === "select" &&
@@ -349,7 +380,9 @@ function checks(rules: RuleSet): Record<RuleName, Check> {
       if (op.kind !== "select" || op.limit === undefined) {
         return;
       }
+
       const limit = op.lookAhead === true ? op.limit - 1 : op.limit;
+
       return limit > maxLimit
         ? `limit ${limit} is above the maximum of ${maxLimit}`
         : undefined;
@@ -367,6 +400,7 @@ function checks(rules: RuleSet): Record<RuleName, Check> {
       const max = maxDepth;
       const selection = op.kind === "select" ? op.selection : op.returning;
       const depth = selection ? includeDepth(selection) : 0;
+
       return depth > max
         ? `includes nest ${depth} levels deep (maximum ${max})`
         : undefined;
@@ -375,14 +409,18 @@ function checks(rules: RuleSet): Record<RuleName, Check> {
       if (!op.table.flags.tenant || context.actor?.kind === "service") {
         return;
       }
+
       const claim = optionOf<string | undefined>(
         rules.requireTenantContext,
         undefined,
       );
+
       const paths = tenantPathsFor(claim, schema);
+
       if (tenantFrom(context, paths) !== undefined) {
         return;
       }
+
       return `"${op.table.key}" is tenant-scoped but the request has no tenant (context.tenant or claim ${paths.map((path) => `"${path}"`).join(" or ")})`;
     },
     noAdminInBrowser: (_op, { context }) =>
@@ -393,7 +431,9 @@ function checks(rules: RuleSet): Record<RuleName, Check> {
       if (options["sensitive"] === true || op.kind !== "select") {
         return;
       }
+
       const columns = sensitiveColumns(op.selection, op.table);
+
       return columns.length > 0
         ? `reads sensitive column(s) ${columns.join(", ")}; pass { sensitive: true } to allow`
         : undefined;
@@ -406,11 +446,13 @@ function checks(rules: RuleSet): Record<RuleName, Check> {
       if (op.kind !== "update" && op.kind !== "delete") {
         return;
       }
+
       if (op.maxAffected === undefined) {
         return pinsPrimaryKey(op.table, op.where)
           ? undefined
           : `${op.kind === "update" ? "updateMany" : "deleteMany"} without maxAffected can change every row its where matches`;
       }
+
       return op.maxAffected > maxAffected
         ? `maxAffected ${op.maxAffected} is above the maximum of ${maxAffected}`
         : undefined;
@@ -444,10 +486,12 @@ export function rules(
   const set = options.rules ?? recommended();
   const report = options.report ?? defaultReport;
   const all = checks(set);
+
   // SAFETY: checks() returns one entry per rule name, and Object.keys widens
   // the keys to string.
   const active = (Object.keys(all) as RuleName[]).flatMap((rule) => {
     const level = levelOf(set[rule]);
+
     return level === "off" ? [] : [{ rule, level, check: all[rule] }];
   });
 
@@ -458,9 +502,11 @@ export function rules(
     transformQuery(op, hook): Operation {
       for (const { rule, level, check } of active) {
         const message = check(op, hook);
+
         if (message === undefined) {
           continue;
         }
+
         const violation: RuleViolation = {
           rule,
           level,
@@ -468,7 +514,9 @@ export function rules(
           operation: op.kind,
           message,
         };
+
         report(violation);
+
         if (level === "error") {
           throw new DbException(
             dbError("invalid_request", `${rule}: ${message}`, {
@@ -477,6 +525,7 @@ export function rules(
           );
         }
       }
+
       return op;
     },
   });

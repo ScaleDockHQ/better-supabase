@@ -28,12 +28,15 @@ function fakeFetch(
   answer: () => Response = () => Response.json({ id: "re_1" }),
 ) {
   const requests: { url: string; init: RequestInit }[] = [];
+
   const fetcher = vi.fn(
     async (url: string | URL | Request, init?: RequestInit) => {
       requests.push({ url: String(url), init: init ?? {} });
+
       return answer();
     },
   );
+
   return { fetch: fetcher as unknown as typeof fetch, requests };
 }
 
@@ -50,11 +53,13 @@ const mail = (overrides: Partial<EmailMessage> = {}): EmailMessage => ({
 describe("resendTransport", () => {
   it("posts to /emails with the idempotency key and the mail headers", async () => {
     const { fetch, requests } = fakeFetch();
+
     const transport = resendTransport({
       apiKey: "re_test",
       baseUrl: "https://resend.test/",
       fetch,
     });
+
     expect(
       await transport.send(
         mail({ html: "<p>Hi</p>", replyTo: "s@acme.test" }),
@@ -104,10 +109,13 @@ describe("resendTransport", () => {
         { status: 422 },
       ),
     );
+
     const transport = resendTransport({ apiKey: "re_test", fetch });
+
     const failure = await Promise.resolve()
       .then(() => transport.send(mail(), { idempotencyKey: "d-3" }))
       .catch((error: unknown) => error);
+
     expect(failure).toBeInstanceOf(ResendError);
     expect(failure).toMatchObject({
       status: 422,
@@ -120,6 +128,7 @@ describe("resendTransport", () => {
     const { fetch } = fakeFetch(
       () => new Response("gateway", { status: 502, statusText: "Bad Gateway" }),
     );
+
     await expect(
       resendTransport({ apiKey: "re_test", fetch }).send(mail(), {
         idempotencyKey: "d-4",
@@ -129,9 +138,11 @@ describe("resendTransport", () => {
       code: undefined,
       message: /Bad Gateway/,
     });
+
     const offline = vi.fn(async () => {
       throw new TypeError("network down");
     });
+
     await expect(
       resendTransport({
         apiKey: "re_test",
@@ -146,15 +157,18 @@ describe("resendTransport", () => {
 
   it("passes the DeliveryTransport conformance kit", async () => {
     const { fetch, requests } = fakeFetch();
+
     const report = await testDeliveryTransport(
       resendTransport({ apiKey: "re_test", fetch }),
       {
         received: async () =>
           requests.map((request) => {
             const headers = request.init.headers as Record<string, string>;
+
             const body = JSON.parse(String(request.init.body)) as {
               headers: Record<string, string>;
             };
+
             return {
               idempotencyKey: headers["idempotency-key"] ?? "",
               headers: body.headers,
@@ -162,6 +176,7 @@ describe("resendTransport", () => {
           }),
       },
     );
+
     expect(report.checks.filter((check) => check.ok)).toHaveLength(5);
   });
 });
@@ -186,12 +201,15 @@ describe("testDeliveryTransport", () => {
       send: (message: EmailMessage) => {
         // @ts-expect-error -- a transport that mutates the message
         message.subject = "changed";
+
         return {};
       },
     } as unknown as DeliveryTransport;
+
     const failure = await testDeliveryTransport(broken).catch(
       (error: unknown) => error,
     );
+
     expect(failure).toBeInstanceOf(ConformanceError);
     expect(
       (failure as ConformanceError).report.checks.filter((check) => !check.ok),
@@ -303,6 +321,7 @@ describe("resendDeliveryEvent", () => {
       occurredAt: Temporal.Instant.from("2026-01-01T00:00:00Z"),
       detail: { link: "https://acme.test/t" },
     });
+
     for (const [type, kind] of [
       ["email.delivered", "delivered"],
       ["email.opened", "opened"],
@@ -350,11 +369,13 @@ describe("resendDeliveryEvent", () => {
 describe("resendWebhook", () => {
   const writer = (result: Result<boolean> = ok(true)) => {
     const written: SuppressInput[] = [];
+
     return {
       written,
       notifications: {
         suppress: (input: SuppressInput) => {
           written.push(input);
+
           return new AsyncResult(Promise.resolve(result));
         },
       },
@@ -364,12 +385,14 @@ describe("resendWebhook", () => {
   const signed = async (payload: unknown, prefix = "svix") => {
     const body = JSON.stringify(payload);
     const headers = await signWebhook(SECRET, { id: "msg_1", body });
+
     const renamed = Object.fromEntries(
       Object.entries(headers).map(([name, value]) => [
         name.replace(/^webhook/, prefix),
         value,
       ]),
     );
+
     return new Request("https://app.test/hooks/resend", {
       method: "POST",
       headers: renamed,
@@ -395,10 +418,12 @@ describe("resendWebhook", () => {
 
   it("accepts Standard Webhooks headers and a rotated secret list", async () => {
     const { written, notifications } = writer();
+
     const handle = resendWebhook({
       secret: ["whsec_b2xkIHNlY3JldCBrZXkgaGVyZQ==", SECRET],
       notifications,
     });
+
     expect((await handle(await signed(complaint, "webhook"))).status).toBe(204);
     expect(written).toHaveLength(1);
   });
@@ -406,26 +431,32 @@ describe("resendWebhook", () => {
   it("acknowledges other events without writing", async () => {
     const { written, notifications } = writer();
     const handle = resendWebhook({ secret: SECRET, notifications });
+
     const response = await handle(
       await signed({ type: "email.delivered", data: { to: ["c@acme.test"] } }),
     );
+
     expect(response.status).toBe(204);
     expect(written).toEqual([]);
   });
 
   it("refuses a bad signature, a wrong method and an oversized body", async () => {
     const { written, notifications } = writer();
+
     const handle = resendWebhook({
       secret: SECRET,
       notifications,
       maxBodyBytes: 64,
     });
+
     const good = await signed(complaint);
+
     const forged = new Request(good.url, {
       method: "POST",
       headers: good.headers,
       body: JSON.stringify({ ...complaint, data: { to: ["x@acme.test"] } }),
     });
+
     expect((await handle(forged)).status).toBe(401);
     expect(
       (await handle(new Request(good.url, { method: "GET" }))).status,
@@ -437,17 +468,20 @@ describe("resendWebhook", () => {
 
   it("refuses a replayed message id through seen", async () => {
     const { notifications } = writer();
+
     const handle = resendWebhook({
       secret: SECRET,
       notifications,
       seen: () => true,
     });
+
     expect((await handle(await signed(complaint))).status).toBe(409);
   });
 
   const tracker = (result: Result<RecordedDeliveryEvent | null> = ok(null)) => {
     const recorded: DeliveryEventInput[] = [];
     const base = writer();
+
     return {
       recorded,
       written: base.written,
@@ -455,6 +489,7 @@ describe("resendWebhook", () => {
         ...base.notifications,
         recordDeliveryEvent: (input: DeliveryEventInput) => {
           recorded.push(input);
+
           return new AsyncResult(Promise.resolve(result));
         },
       },
@@ -497,13 +532,16 @@ describe("resendWebhook", () => {
     const { notifications, written } = tracker(
       err(dbError("unexpected", "db down")),
     );
+
     const handle = resendWebhook({ secret: SECRET, notifications });
+
     const response = await handle(
       await signed({
         type: "email.complained",
         data: { email_id: "re_1", to: ["c@acme.test"] },
       }),
     );
+
     expect(response.status).toBe(500);
     expect(written).toEqual([]);
   });

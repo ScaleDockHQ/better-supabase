@@ -20,9 +20,11 @@ export type Validated<Entries extends readonly AnyEntry[]> = [
 /** The string keys of a pipeline context: every contribution, without the seed's symbols. */
 function contributionsOf(ctx: object): Record<string, unknown> {
   const contributions: Record<string, unknown> = {};
+
   for (const [key, value] of Object.entries(ctx)) {
     contributions[key] = value;
   }
+
   return contributions;
 }
 
@@ -43,11 +45,14 @@ export function bufferInPlace(request: Request): void {
   if (!request.body || request.bodyUsed) {
     return;
   }
+
   const readOnce = request.arrayBuffer.bind(request);
   let buffer: Promise<ArrayBuffer> | undefined;
   const arrayBuffer = (): Promise<ArrayBuffer> => (buffer ??= readOnce());
+
   const text = async (): Promise<string> =>
     new TextDecoder().decode(await arrayBuffer());
+
   const readers = {
     arrayBuffer,
     text,
@@ -60,6 +65,7 @@ export function bufferInPlace(request: Request): void {
       }).formData(),
     clone: (): Request => request,
   };
+
   for (const [name, value] of Object.entries(readers)) {
     Object.defineProperty(request, name, { value, configurable: true });
   }
@@ -90,6 +96,7 @@ export function around(entries: readonly AnyEntry[]): Around {
   const run = pipeline(entries, (_request, ctx) =>
     handoffOf<Downstream>(ctx, DOWNSTREAM)(contributionsOf(ctx)),
   );
+
   return (request, platform, downstream) =>
     run(request, { ...seedContext(platform), [DOWNSTREAM]: downstream });
 }
@@ -113,16 +120,20 @@ export function toResponse(
   if (value instanceof Response) {
     return value;
   }
+
   const options = {
     ...(init.status === undefined ? {} : { status: init.status }),
     ...(init.statusText === undefined ? {} : { statusText: init.statusText }),
     ...(init.headers === undefined ? {} : { headers: init.headers }),
   };
+
   if (value === undefined || value === null) {
     return new Response(null, { status: 204, ...options });
   }
+
   if (typeof value === "string") {
     return new Response(value, options);
   }
+
   return Response.json(value, options);
 }

@@ -50,16 +50,21 @@ describe("rank keys", () => {
 
   it("keeps a list ordered through many random inserts", () => {
     let seed = 7;
+
     const random = (): number => {
       seed = (seed * 1_103_515_245 + 12_345) % 2_147_483_648;
+
       return seed / 2_147_483_648;
     };
+
     const list: string[] = [];
+
     for (let step = 0; step < 2000; step += 1) {
       const at = Math.floor(random() * (list.length + 1));
       const key = rankBetween(list[at - 1] ?? null, list[at] ?? null);
       list.splice(at, 0, key);
     }
+
     expect(list.toSorted(byBytes)).toStrictEqual(list);
     expect(new Set(list).size).toBe(list.length);
   });
@@ -67,9 +72,11 @@ describe("rank keys", () => {
   it("grows by about one digit per insert at the same spot", () => {
     let key = rankBetween(null, null);
     const next = "W";
+
     for (let step = 0; step < 30; step += 1) {
       key = rankBetween(key, next);
     }
+
     expect(key.length).toBeLessThanOrEqual(32);
     expect(key < next).toBe(true);
   });

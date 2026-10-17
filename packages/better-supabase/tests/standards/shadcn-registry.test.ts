@@ -38,6 +38,7 @@ describe(`shadcn registry (shadcn ${VERSION})`, () => {
     const names = (json(REGISTRY)["items"] as { name: string }[]).map(
       (item) => `${item.name}.json`,
     );
+
     expect(items.map(([file]) => file).toSorted()).toEqual(names.toSorted());
   });
 

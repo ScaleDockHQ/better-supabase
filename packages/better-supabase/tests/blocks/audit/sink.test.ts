@@ -103,13 +103,16 @@ describe("auditEventOf for support events", () => {
       type: "invoice.sent",
       data: { sessionId: "s1", adminId: "a" },
     });
+
     expect(other).not.toHaveProperty("supportSessionId");
     expect(other).not.toHaveProperty("impersonatedBy");
+
     const denied = auditEventOf({
       ...base,
       type: "dev.better-supabase.support.denied",
       data: { adminId: "admin-1", targetUserId: "user-1" },
     });
+
     expect(denied).toMatchObject({ impersonatedBy: "admin-1" });
     expect(denied).not.toHaveProperty("supportSessionId");
     expect(denied).not.toHaveProperty("impersonationReason");
@@ -126,6 +129,7 @@ describe("auditSink", () => {
         ? AsyncResult.err<string>(dbError("network", "down"))
         : AsyncResult.ok("entry"),
     );
+
     const sink = auditSink(record);
     await sink.send([{ ...base, type: "good" }]);
     await expect(

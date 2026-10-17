@@ -27,6 +27,7 @@ export function SiteLink({ href, className, children }: SiteLinkProps) {
       </a>
     );
   }
+
   return (
     <Link href={href} className={className}>
       {children}

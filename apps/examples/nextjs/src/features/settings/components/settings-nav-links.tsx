@@ -9,34 +9,44 @@ import { type SettingsTabId, settingsTabs } from "../settings-tabs";
 
 function useTabLabel() {
   const t = useExtracted("settings");
+
   return (id: SettingsTabId): string => {
     switch (id) {
       case "profile": {
         return t("Profile");
       }
+
       case "preferences": {
         return t("Preferences");
       }
+
       case "security": {
         return t("Security");
       }
+
       case "organization": {
         return t("Organization");
       }
+
       case "members": {
         return t("Members");
       }
+
       case "billing": {
         return t("Billing");
       }
+
       case "apiKeys": {
         return t("API keys");
       }
+
       case "audit": {
         return t("Audit log");
       }
+
       default: {
         const unknown: never = id;
+
         return unknown;
       }
     }
@@ -52,6 +62,7 @@ export function SettingsNavLinks({
   const t = useExtracted("settings");
   const label = useTabLabel();
   const pathname = usePathname();
+
   return (
     <nav
       aria-label={t("Settings")}
@@ -61,6 +72,7 @@ export function SettingsNavLinks({
         .filter((tab) => visible.includes(tab.id))
         .map((tab) => {
           const active = pathname === tab.href;
+
           return (
             <Link
               key={tab.id}

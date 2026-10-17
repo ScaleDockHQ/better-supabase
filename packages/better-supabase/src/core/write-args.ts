@@ -11,9 +11,11 @@ export function maxAffectedOf(
   args: Readonly<Record<string, unknown>>,
 ): { maxAffected?: number } | { invalid: string } {
   const value = args["maxAffected"];
+
   if (value === undefined) {
     return {};
   }
+
   return typeof value === "number" && Number.isInteger(value) && value >= 0
     ? { maxAffected: value }
     : {
@@ -26,5 +28,6 @@ export function countOf(args: Readonly<Record<string, unknown>> | undefined): {
   count?: CountMode;
 } {
   const count = args?.["count"];
+
   return isCountMode(count) ? { count } : {};
 }

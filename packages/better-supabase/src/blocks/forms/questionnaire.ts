@@ -25,16 +25,21 @@ export function conditionHolds(
   if (condition === undefined) {
     return true;
   }
+
   if (!(condition.field in answers)) {
     return false;
   }
+
   const value = answers[condition.field];
+
   if ("equals" in condition) {
     return same(value, condition.equals);
   }
+
   if ("in" in condition) {
     return condition.in.some((item) => same(value, item));
   }
+
   return !(
     value === undefined ||
     EMPTY.has(value) ||
@@ -80,9 +85,11 @@ export function pruneAnswers(
   answers: FormAnswers,
 ): FormAnswers {
   const keep = visibleKeys(definition, answers);
+
   const next = Object.fromEntries(
     Object.entries(answers).filter(([key]) => keep.has(key)),
   );
+
   return Object.keys(next).length === Object.keys(answers).length
     ? next
     : pruneAnswers(definition, next);
@@ -95,8 +102,10 @@ export function stepIssues(
   answers: FormAnswers,
 ): readonly ValidationIssue[] {
   const keys = new Set(visibleFields(step, answers).map((field) => field.key));
+
   return validateAnswers(schema, answers).filter((issue) => {
     const key = issue.path?.[0];
+
     return typeof key === "string" && keys.has(key);
   });
 }
@@ -135,6 +144,7 @@ export function initialQuestionnaire(
 ): QuestionnaireState {
   const first =
     visibleSteps(form.definition, answers)[0] ?? form.definition.steps[0];
+
   return { step: first?.key ?? "", answers, completed: [], issues: [] };
 }
 
@@ -147,11 +157,14 @@ function stepAfterAnswer(
   const visible = new Set(
     visibleSteps(form.definition, answers).map((item) => item.key),
   );
+
   if (visible.has(step)) {
     return step;
   }
+
   const order = form.definition.steps.map((item) => item.key);
   const before = order.slice(0, Math.max(order.indexOf(step), 0)).toReversed();
+
   return (
     before.find((key) => visible.has(key)) ??
     order.find((key) => visible.has(key)) ??
@@ -171,17 +184,21 @@ export function questionnaireReducer(
 ): QuestionnaireState {
   const steps = visibleSteps(form.definition, state.answers);
   const index = steps.findIndex((step) => step.key === state.step);
+
   switch (action.type) {
     case "answer": {
       const answers = { ...state.answers };
+
       if (action.value === undefined) {
         delete answers[action.key];
       } else {
         answers[action.key] = action.value;
       }
+
       const issues = state.issues.filter(
         (issue) => issue.path?.[0] !== action.key,
       );
+
       return {
         ...state,
         step: stepAfterAnswer(form, state.step, answers),
@@ -189,19 +206,26 @@ export function questionnaireReducer(
         issues,
       };
     }
+
     case "next": {
       const current = steps[index];
+
       if (current === undefined) {
         return state;
       }
+
       const issues = stepIssues(form.schema, current, state.answers);
+
       if (issues.length > 0) {
         return { ...state, issues };
       }
+
       const completed = state.completed.includes(current.key)
         ? state.completed
         : [...state.completed, current.key];
+
       const following = steps[index + 1];
+
       return {
         ...state,
         step: following?.key ?? current.key,
@@ -209,26 +233,34 @@ export function questionnaireReducer(
         issues: [],
       };
     }
+
     case "back": {
       const previous = steps[index - 1];
+
       return previous === undefined
         ? state
         : { ...state, step: previous.key, issues: [] };
     }
+
     case "goTo": {
       const target = steps.findIndex((step) => step.key === action.step);
+
       const reachable =
         target !== -1 &&
         steps
           .slice(0, target)
           .every((step) => state.completed.includes(step.key));
+
       return reachable ? { ...state, step: action.step, issues: [] } : state;
     }
+
     case "reset": {
       return initialQuestionnaire(form, action.answers);
     }
+
     default: {
       const never: never = action;
+
       return never;
     }
   }
@@ -269,5 +301,6 @@ export function finishQuestionnaire(
   | { readonly ok: false; readonly issues: readonly ValidationIssue[] } {
   const answers = pruneAnswers(form.definition, state.answers);
   const issues = validateAnswers(form.schema, answers);
+
   return issues.length === 0 ? { ok: true, answers } : { ok: false, issues };
 }

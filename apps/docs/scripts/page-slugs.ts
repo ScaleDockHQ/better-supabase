@@ -16,6 +16,7 @@ export function readPageSlugs(dir: string = CONTENT_DIR): string[] {
   return readdirSync(dir, { recursive: true, encoding: "utf-8" })
     .flatMap((file) => {
       const slug = pageSlug(file);
+
       return slug === undefined ? [] : [slug];
     })
     .toSorted();

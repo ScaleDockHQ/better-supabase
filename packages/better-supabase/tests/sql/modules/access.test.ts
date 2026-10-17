@@ -44,9 +44,11 @@ const CATALOG: AccessBlockConfig = {
 describe("access module", () => {
   it("renders the roles model from the default roles", () => {
     const sql = SQL_MODULES["access"]!.sql;
+
     for (const role of Object.keys(DEFAULT_ROLES)) {
       expect(sql).toContain(`when '${role}' then array[`);
     }
+
     expect(sql).toContain(
       'better_supabase.role_grants(m."role", member_can.permission)',
     );
@@ -64,6 +66,7 @@ describe("access module", () => {
       platformClaim: "staff",
       options: { scope: "workspace" },
     });
+
     expect(sql).toContain("when 'lead' then array['projects.*']::text[]");
     expect(sql).toContain("when 'guest' then array[]::text[]");
     expect(sql).toContain("'staff'");
@@ -77,6 +80,7 @@ describe("access module", () => {
       tables: { memberships: "public.organization_users" },
       columns: { memberships: { tenant: "organization_id", role: "role_id" } },
     });
+
     expect(sql).not.toMatch(/create table/);
     expect(sql).toContain(
       'from "public"."organization_permission_overrides" o',
@@ -92,6 +96,7 @@ describe("access module", () => {
       model: "catalog",
       tables: { overrides: null, platformAssignments: null },
     });
+
     expect(sql).toContain(
       'create table if not exists "better_supabase"."roles"',
     );
@@ -112,10 +117,12 @@ describe("access module", () => {
     expect(sql).toContain(
       "-- The provider model: the authorization provider (stub) decides",
     );
+
     const custom = provider(
       { functions: { canAssign: "public.may_assign({tenant}, {role})" } },
       CALLER_ONLY,
     );
+
     expect(custom).toContain(
       "public.may_assign(can_assign.tenant, can_assign.role)",
     );
@@ -129,6 +136,7 @@ describe("access module", () => {
       modules: { access: { model: "provider", idType: "text" } },
       accessProvider: { ...PROVIDER, scope: "tenant", idType: "text" },
     })!;
+
     expect(sql).toContain("authz.ids_tenant(permission)");
     expect(sql).toContain("can(scope text, scope_id text, permission text)");
     expect(sql).not.toContain("ids_organization");
@@ -144,16 +152,19 @@ describe("access module", () => {
         active: ["active", "trial"],
       },
     };
+
     const sql = moduleBody("access", {
       modules: { access: { model: "provider" } },
       accessProvider: { ...PROVIDER, suspension },
     })!;
+
     expect(sql).toContain(
       `not exists (select 1 from "public"."organizations" t where t."id" = tenant_disabled.tenant and t."state"::text in ('active', 'trial'))`,
     );
     expect(sql).toContain(
       `not exists (select 1 from "public"."profiles" u where u."id" = user_disabled.user_id and u."banned_at" is null)`,
     );
+
     const explicit = moduleBody("access", {
       modules: {
         access: {
@@ -163,14 +174,17 @@ describe("access module", () => {
       },
       accessProvider: { ...PROVIDER, suspension },
     })!;
+
     expect(explicit).toContain(
       `exists (select 1 from "public"."accounts" u where u."owner" = user_disabled.user_id and u."disabled_at" is not null)`,
     );
     expect(explicit).toContain(`t."state"::text in ('active', 'trial')`);
+
     const roles = moduleBody("access", {
       modules: { access: { model: "roles" } },
       accessProvider: { ...PROVIDER, suspension },
     })!;
+
     expect(roles).not.toContain("banned_at");
   });
 
@@ -185,6 +199,7 @@ describe("access module", () => {
           },
         },
       });
+
     expect(() => render({})).toThrow(/needs disabledAt, status or both/);
     expect(() => render({ status: "state" })).toThrow(
       /needs the active values/,
@@ -206,6 +221,7 @@ describe("access module", () => {
     expect(provider()).toContain(
       "coalesce((authz.can_assign_for(can_assign_as.member, can_assign_as.tenant, can_assign_as.role)), false)",
     );
+
     const template = provider(
       {
         functions: {
@@ -214,9 +230,11 @@ describe("access module", () => {
       },
       CALLER_ONLY,
     );
+
     expect(template).toContain(
       "coalesce((app.can_assign_for(can_assign_as.member, can_assign_as.tenant, can_assign_as.role)), false)",
     );
+
     const custom = access({
       model: "custom",
       functions: {
@@ -227,6 +245,7 @@ describe("access module", () => {
         canAssignFor: "app.can_assign_for({user}, {tenant}, {role})",
       },
     });
+
     expect(custom).toContain(
       "create or replace function better_supabase.can_assign_as(member uuid, tenant uuid, role text)",
     );
@@ -246,16 +265,19 @@ describe("access module", () => {
     expect(partial).toContain("authz.ids_organization_for");
     expect(partial).not.toContain("is_platform_for");
     expect(partial).toContain("hint = 'ACCESS_CALLER_ONLY'");
+
     const invitations = moduleBody("invitations", {
       modules: { access: { model: "provider" } },
       accessProvider: PROVIDER,
     })!;
+
     expect(invitations).toContain(
       "better_supabase.can_user(invite.\"invited_by\", 'organization'",
     );
     expect(invitations).toContain(
       'better_supabase.can_assign_as(invite."invited_by"',
     );
+
     const notifications = (accessProvider: ModuleAccessProvider) =>
       renderModules(["notifications", "access"], {
         modules: { access: { model: "provider" } },
@@ -263,6 +285,7 @@ describe("access module", () => {
       }).find(
         (file) => file.module === "notifications" && file.kind === "schema",
       )!.contents;
+
     expect(notifications(CALLER_ONLY)).toContain(
       "recipients are not\n  -- filtered by their read permission",
     );
@@ -287,10 +310,12 @@ describe("access module", () => {
 
   it("raises 0A000 when the provider model is asked about another user", () => {
     const sql = provider({}, CALLER_ONLY);
+
     const caller = (name: string) =>
       sql
         .slice(sql.indexOf(`function better_supabase.${name}(`))
         .split("$$;")[0]!;
+
     for (const name of ["member_can", "can_user"]) {
       expect(caller(name)).toContain("language plpgsql");
       expect(caller(name)).toContain(
@@ -300,6 +325,7 @@ describe("access module", () => {
         "using errcode = '0A000', hint = 'ACCESS_CALLER_ONLY'",
       );
     }
+
     expect(sql).not.toContain("null::boolean");
     const roles = access({});
     expect(roles).not.toContain("ACCESS_CALLER_ONLY");
@@ -313,6 +339,7 @@ describe("access module", () => {
       sql
         .slice(sql.indexOf(`function better_supabase.${name}(`))
         .split("$$;")[0]!;
+
     const custom = access({
       model: "custom",
       functions: {
@@ -322,6 +349,7 @@ describe("access module", () => {
         canAssign: "public.may_assign({tenant}, {role})",
       },
     });
+
     for (const sql of [access({}), access(CATALOG), provider(), custom]) {
       expect(body(sql, "member_can")).toContain("tenant_disabled(tenant)");
       const deleting = body(sql, "member_can_while_deleting");
@@ -345,6 +373,7 @@ describe("access module", () => {
         permissionClaims: "public.permission_claims({user})",
       },
     });
+
     expect(sql).toContain(
       "public.authorize_scope('organization'::public.scope_type, tenant, permission)",
     );
@@ -374,12 +403,14 @@ describe("access module", () => {
     expect(provider({}, CALLER_ONLY)).toMatch(
       /or coalesce\(\(false\), false\)/,
     );
+
     const withTenant = renderModules(["tenant", "access"], {
       modules: { access: { model: "provider" } },
       accessProvider: CALLER_ONLY,
     })
       .map((file) => file.contents)
       .join("\n");
+
     expect(withTenant).not.toContain(
       "better_supabase.has_organization_role(can_assign.tenant, array['owner'])",
     );
@@ -388,9 +419,11 @@ describe("access module", () => {
 
   it("counts tenant overrides when the catalog model checks an assignment", () => {
     const sql = access({ model: "catalog" });
+
     const canAssign = sql.slice(
       sql.indexOf("function better_supabase.can_assign"),
     );
+
     expect(canAssign).toContain('"permission_overrides"');
     expect(canAssign).toContain("can_assign_as.tenant as");
   });
@@ -432,6 +465,7 @@ describe("access module with the provider's permissionsFor", () => {
         },
       },
     );
+
     expect(sql).toContain(
       "then coalesce((authz.permissions_for(member, tenant)), '{}'::text[])",
     );

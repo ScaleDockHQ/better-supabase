@@ -62,27 +62,36 @@ function keyPart(value: unknown): unknown {
   if (typeof value === "bigint") {
     return { $bigint: value.toString() };
   }
+
   if (Array.isArray(value)) {
     const items = value.map(keyPart);
+
     return items.some((item, index) => item !== value[index]) ? items : value;
   }
+
   if (isPlainObject(value)) {
     let copy: Record<string, unknown> | undefined;
+
     for (const [key, item] of Object.entries(value)) {
       const part = keyPart(item);
+
       if (part !== item) {
         copy ??= { ...value };
       }
+
       if (copy) {
         copy[key] = part;
       }
     }
+
     return copy ?? value;
   }
+
   return value;
 }
 
 export { invalidateTables };
+
 export type { BetterQueryMeta };
 
 export type QueryKeyOf<T> = DataTag<readonly unknown[], T, DbException>;
@@ -279,8 +288,10 @@ function withoutSignal(value: unknown): unknown {
   if (typeof value !== "object" || value === null) {
     return value;
   }
+
   // SAFETY: value is a non-null object here, and only the signal key is removed.
   const { signal: _signal, ...rest } = value as Record<string, unknown>;
+
   return rest;
 }
 
@@ -302,6 +313,7 @@ function specQuery(
 ) {
   const stale =
     runtime.staleTime === undefined ? {} : { staleTime: runtime.staleTime };
+
   if (isSkip(spec)) {
     return {
       queryKey: scoped(runtime, key ?? ["bs", "$skip"]),
@@ -310,6 +322,7 @@ function specQuery(
       ...stale,
     };
   }
+
   return {
     queryKey: scoped(
       runtime,
@@ -340,33 +353,43 @@ function tableQueries(
   // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- `spec` is generic over the schema; entries are looked up by table name.
   const tables = runtime.betterSupabase.spec as unknown as SpecTables;
   const specs = tables[table]!;
+
   const stale =
     runtime.staleTime === undefined ? {} : { staleTime: runtime.staleTime };
+
   const read =
     (method: string) =>
     (args?: unknown): unknown =>
       isSkip(args)
         ? specQuery(runtime, args, [...key, method, "$skip"])
         : specQuery(runtime, specs[method]!(withoutSignal(args)));
+
   const repo = (): AnyRepository => {
     // SAFETY: the db is indexed by table name, and a missing repository is checked below.
     const found = runtime.db()[table] as AnyRepository | undefined;
+
     if (!found) {
       throw new TypeError(`better-supabase: unknown table "${table}"`);
     }
+
     return found;
   };
+
   const call = (method: string, ...args: unknown[]): AsyncResult<unknown> => {
     const fn = repo()[method];
+
     if (!fn) {
       throw new TypeError(
         `better-supabase: ${table}.${method} is not available`,
       );
     }
+
     return fn(...args);
   };
+
   const [primaryKey, ...composite] =
     runtime.betterSupabase.meta.tables[table]?.primaryKey ?? [];
+
   /**
    * The `findById(id)` entry for a full row a write returned, so a detail
    * view opened next renders without a request. Only writes without read
@@ -380,21 +403,27 @@ function tableQueries(
     if (primaryKey === undefined || composite.length > 0) {
       return;
     }
+
     if (args && Object.keys(args).some((name) => name !== "override")) {
       return;
     }
+
     if (!isPlainObject(row)) {
       return;
     }
+
     const id = row[primaryKey];
+
     if (id === undefined || id === null) {
       return;
     }
+
     client.setQueryData(
       specQuery(runtime, specs["findById"]!(id, undefined)).queryKey,
       row,
     );
   };
+
   const mutation = (
     op: string,
     run: (variables: never) => AsyncResult<unknown>,
@@ -412,6 +441,7 @@ function tableQueries(
       if (seedArgs) {
         seed(context.client, data, seedArgs.args);
       }
+
       return invalidateTables(context.client, tables);
     },
   });
@@ -433,6 +463,7 @@ function tableQueries(
     infinite: (args: object, extras: InfiniteExtras = {}) => {
       // SAFETY: withoutSignal returns a copy of the object it received.
       const base = withoutSignal(args) as object;
+
       return {
         queryKey: scoped(runtime, [...key, "infinite", keyPart(base)]),
         queryFn: ({
@@ -461,6 +492,7 @@ function tableQueries(
     infinitePages: (args: { page?: number }, extras: InfiniteExtras = {}) => {
       // SAFETY: withoutSignal returns a copy of the object it received.
       const base = withoutSignal(args) as { page?: number };
+
       return {
         queryKey: scoped(runtime, [...key, "infinitePages", keyPart(base)]),
         queryFn: ({
@@ -541,8 +573,10 @@ export function createQueries<
     staleTime: options.staleTime,
     scope: options.scope,
   };
+
   const stale =
     options.staleTime === undefined ? {} : { staleTime: options.staleTime };
+
   // SAFETY: specQuery returns query options that prefetchQuery accepts; the
   // generics differ only by the erased schema.
   const queries: Record<string, unknown> = {
@@ -593,16 +627,19 @@ export function createQueries<
         ),
     }),
   };
+
   for (const table of Object.keys(betterSupabase.meta.tables)) {
     let built: Record<string, unknown> | undefined;
     Object.defineProperty(queries, table, {
       enumerable: true,
       get: () => {
         built ??= tableQueries(runtime, table);
+
         return built;
       },
     });
   }
+
   // SAFETY: queries has one entry per table and procedure, which is the shape
   // of BetterQueries<M, E, F>.
   return queries as BetterQueries<M, E, F>;

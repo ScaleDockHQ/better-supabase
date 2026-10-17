@@ -45,6 +45,7 @@ describe("encodePreset and decodePreset", () => {
           [field.key]: field.multi === true ? [value] : value,
           blocks: ["comments"],
         };
+
         expect(decodePreset(encodePreset(preset)).preset).toEqual(preset);
       }
     }
@@ -56,6 +57,7 @@ describe("encodePreset and decodePreset", () => {
       integrations: ["react", "next", "mcp"],
       blocks: [],
     };
+
     expect(decodePreset(encodePreset(preset)).preset.integrations).toEqual([
       "next",
       "mcp",
@@ -109,9 +111,11 @@ describe("encodePreset and decodePreset", () => {
     expect(() => decodePreset(code)).toThrow(
       "sets a casing value this better-supabase doesn't know",
     );
+
     const blockOffset = BigInt(
       PRESET_FIELDS.reduce((sum, field) => sum + field.bits, 0),
     );
+
     const beyond = `1${toBase62(1n << (blockOffset + BigInt(PRESET_BLOCKS.length)))}`;
     expect(() => decodePreset(beyond)).toThrow("sets a blocks value");
     const integrations = `1${toBase62(1n << (blockOffset - 1n))}`;
@@ -172,6 +176,7 @@ describe("older codes and tombstones", () => {
     blocks: ["tags", "comments"],
     version: 1,
   };
+
   const v2: PresetLayout = {
     fields: [
       ...v1.fields,
@@ -192,6 +197,7 @@ describe("older codes and tombstones", () => {
       { casing: "camel", blocks: ["tags", "comments"] },
       v1,
     );
+
     const decoded = decodePreset(code, v2);
     expect(decoded.version).toBe(1);
     expect(decoded.derived).toEqual(["api"]);
@@ -215,6 +221,7 @@ describe("older codes and tombstones", () => {
 describe("the frozen version 1 codes", () => {
   it("has one code per named preset", () => {
     expect(fixture.version).toBe(1);
+
     for (const name of PRESET_NAMES) {
       expect(fixture.codes.map((each) => each.name)).toContain(name);
     }
@@ -230,11 +237,14 @@ describe("the frozen version 1 codes", () => {
 function toBase62(value: bigint): string {
   const digits =
     "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+
   let out = "";
   let rest = value;
+
   do {
     out = digits.charAt(Number(rest % 62n)) + out;
     rest /= 62n;
   } while (rest > 0n);
+
   return out;
 }

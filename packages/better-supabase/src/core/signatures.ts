@@ -45,6 +45,7 @@ export type WebhookInput =
 /** Accepts `whsec_…`, `v1,whsec_…` (Supabase Auth hooks) or raw base64. */
 function secretBytes(secret: string): Uint8Array<ArrayBuffer> {
   const raw = secret.replace(/^v1,/, "").replace(/^whsec_/, "");
+
   try {
     return fromBase64(raw);
   } catch {
@@ -55,10 +56,12 @@ function secretBytes(secret: string): Uint8Array<ArrayBuffer> {
 /** Secrets come from configuration, so a handful of keys suffice. */
 // Typed from `crypto.subtle`, because `CryptoKey` is a value only under @types/node without the DOM lib.
 type ImportedKey = ReturnType<typeof crypto.subtle.importKey>;
+
 const keys = new Map<string, ImportedKey>();
 
 function keyFor(secret: string): ImportedKey {
   let key = keys.get(secret);
+
   if (!key) {
     key = crypto.subtle.importKey(
       "raw",
@@ -67,11 +70,13 @@ function keyFor(secret: string): ImportedKey {
       false,
       ["sign", "verify"],
     );
+
     if (keys.size < 16) {
       keys.set(secret, key);
       key.catch(() => keys.delete(secret));
     }
   }
+
   return key;
 }
 
@@ -82,6 +87,7 @@ const publicKeys = new Map<string, ImportedKey>();
 
 function publicKeyFor(key: string): ImportedKey {
   let imported = publicKeys.get(key);
+
   if (!imported) {
     imported = crypto.subtle.importKey(
       "raw",
@@ -90,11 +96,13 @@ function publicKeyFor(key: string): ImportedKey {
       false,
       ["verify"],
     );
+
     if (publicKeys.size < 16) {
       publicKeys.set(key, imported);
       imported.catch(() => publicKeys.delete(key));
     }
   }
+
   return imported;
 }
 
@@ -125,9 +133,11 @@ export function header(
   if (headers instanceof Headers) {
     return headers.get(name);
   }
+
   const found = Object.entries(headers).find(
     ([key]) => key.toLowerCase() === name,
   );
+
   return found?.[1] ?? null;
 }
 
@@ -146,6 +156,7 @@ export async function replayed(
   if (!options.seen || id === "") {
     return undefined;
   }
+
   try {
     if (!(await options.seen(id, until))) {
       return undefined;
@@ -159,6 +170,7 @@ export async function replayed(
       },
     );
   }
+
   return dbError("conflict", "Webhook was already received", {
     code: "WEBHOOK_REPLAYED",
   });
@@ -177,6 +189,7 @@ export async function signWebhook(
   const timestamp = String(
     Math.floor((message.timestamp ?? nowInstant()).epochMilliseconds / 1000),
   );
+
   return {
     "webhook-id": message.id,
     "webhook-timestamp": timestamp,
@@ -199,6 +212,7 @@ export async function verifyWebhook<T = unknown>(
   const id = header(headers, `${prefix}-id`);
   const timestamp = header(headers, `${prefix}-timestamp`);
   const signatures = header(headers, `${prefix}-signature`);
+
   if (!id || !timestamp || !signatures) {
     return err(
       unauthorized(
@@ -207,24 +221,32 @@ export async function verifyWebhook<T = unknown>(
       ),
     );
   }
+
   const seconds = Number(timestamp);
+
   if (!/^\d+$/.test(timestamp)) {
     return err(
       unauthorized("WEBHOOK_INVALID_TIMESTAMP", "Invalid webhook timestamp"),
     );
   }
+
   const namespace = optionalTemporal();
+
   if (namespace === undefined) {
     return err(temporalMissing());
   }
+
   const now =
     (options.now?.() ?? namespace.Now.instant()).epochMilliseconds / 1000;
+
   const tolerance = options.tolerance ?? 300;
+
   if (seconds < now - tolerance) {
     return err(
       unauthorized("WEBHOOK_TIMESTAMP_TOO_OLD", "Webhook timestamp is too old"),
     );
   }
+
   if (seconds > now + tolerance) {
     return err(
       unauthorized(
@@ -237,23 +259,28 @@ export async function verifyWebhook<T = unknown>(
   const body = input instanceof Request ? await input.text() : input.body;
   const content = encoder.encode(`${id}.${timestamp}.${body}`);
   const entries = signatures.split(" ").map((entry) => entry.split(","));
+
   const offered = (version: string) =>
     entries
       .filter(([name, value]) => name === version && value)
       .flatMap(([, value]) => decodeSignature(value!) ?? []);
+
   const symmetric = offered("v1");
   const asymmetric = offered("v1a");
   let valid = false;
   let malformed = false;
+
   for (const secret of typeof secrets === "string" ? [secrets] : secrets) {
     const isPublic = secret.startsWith(PUBLIC_KEY_PREFIX);
     let key: Awaited<ImportedKey>;
+
     try {
       key = await (isPublic ? publicKeyFor(secret) : keyFor(secret));
     } catch {
       malformed = true;
       continue;
     }
+
     for (const candidate of isPublic ? asymmetric : symmetric) {
       // crypto.subtle.verify compares HMACs in constant time.
       if (
@@ -268,6 +295,7 @@ export async function verifyWebhook<T = unknown>(
       }
     }
   }
+
   if (!valid && malformed) {
     return err(
       dbError(
@@ -279,6 +307,7 @@ export async function verifyWebhook<T = unknown>(
       ),
     );
   }
+
   if (!valid) {
     return err(
       unauthorized("WEBHOOK_INVALID_SIGNATURE", "Invalid webhook signature"),
@@ -286,6 +315,7 @@ export async function verifyWebhook<T = unknown>(
   }
 
   let payload: T;
+
   try {
     // SAFETY: the caller names the payload type T; the signature check above
     // proves the sender, not the shape.
@@ -293,14 +323,17 @@ export async function verifyWebhook<T = unknown>(
   } catch {
     return err(dbError("invalid_request", "Webhook body is not JSON"));
   }
+
   const replay = await replayed(
     options,
     id,
     namespace.Instant.fromEpochMilliseconds((seconds + tolerance) * 1000),
   );
+
   if (replay) {
     return err(replay);
   }
+
   return ok({
     id,
     timestamp: namespace.Instant.fromEpochMilliseconds(seconds * 1000),
@@ -317,5 +350,6 @@ export function verifySharedSecret(
 ): boolean {
   const value = request.headers.get(headerName) ?? "";
   const token = value.replace(/^Bearer\s+/i, "");
+
   return timingSafeEqual(token, secret);
 }

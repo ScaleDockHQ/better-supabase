@@ -57,6 +57,7 @@ export function skippedForMetadata(
   if (!snapshot.extras.fromMetadata || !EXTRAS_RULES.has(rule.code)) {
     return undefined;
   }
+
   return {
     code: rule.code,
     severity: "info",

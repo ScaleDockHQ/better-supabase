@@ -27,6 +27,7 @@ export function generateStaticParams() {
     pageSlugs,
     source.getPages().map((page) => page.slugs.join("/")),
   );
+
   return source.generateParams();
 }
 
@@ -35,11 +36,13 @@ export async function generateMetadata(
 ): Promise<Metadata> {
   const params = await props.params;
   const page = source.getPage(params.slug);
+
   if (!page) {
     notFound();
   }
 
   const image = siteUrl(getPageImage(page).url);
+
   return {
     title: page.data.title,
     description: page.data.description,

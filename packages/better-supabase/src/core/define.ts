@@ -98,16 +98,22 @@ function storageOf(source: DbSource): StorageApi {
   if (source.storage) {
     return source.storage;
   }
+
   const cached = clientStorage.get(source);
+
   if (cached) {
     return cached;
   }
+
   const client = source.client;
   const storage = isRecord(client) ? client["storage"] : undefined;
+
   if (isStorageApi(storage)) {
     clientStorage.set(source, storage);
+
     return storage;
   }
+
   throw new TypeError(
     "better-supabase: db.$storage needs a client with storage, or connect(executor, context, { storage })",
   );
@@ -137,6 +143,7 @@ export class BetterSupabase<
     events: EventHub = definitionEvents(options),
   ) {
     const names = new Set<string>();
+
     for (const plugin of plugins) {
       // oxlint-disable-next-line typescript/no-unnecessary-condition -- plugins from JavaScript can target another API version.
       if (plugin.apiVersion !== 1) {
@@ -144,25 +151,31 @@ export class BetterSupabase<
           `better-supabase: plugin "${plugin.name}" targets plugin API v${String(plugin.apiVersion)}; this version supports v1`,
         );
       }
+
       if (names.has(plugin.name)) {
         throw new TypeError(
           `better-supabase: plugin "${plugin.name}" is already installed`,
         );
       }
+
       names.add(plugin.name);
     }
+
     this.schema = schema;
     this.plugins = orderPlugins(plugins);
     this.options = options;
     this.events = events;
     const { temporal } = options;
+
     if (temporal !== undefined) {
       const previous = providedTemporal();
+
       if (previous !== undefined && previous !== temporal) {
         events.logger.warn(
           "defineSupabase got a different `temporal` namespace than the one already provided; decoded rows, jobs and webhooks in this process now use the newer one. Pass the same namespace to every definition.",
         );
       }
+
       provideTemporal(temporal);
     }
   }
@@ -174,9 +187,11 @@ export class BetterSupabase<
   /** The `now` option, else this definition's own `Temporal` clock. */
   #now(): () => Temporal.Instant {
     const { now, temporal } = this.options;
+
     if (now) {
       return now;
     }
+
     return temporal ? () => temporal.Now.instant() : nowInstant;
   }
 
@@ -282,6 +297,7 @@ export class BetterSupabase<
     // SAFETY: createSpecs builds one spec builder per table in meta, which is
     // the table set of M.
     this.#specs ??= createSpecs(this.meta) as Specs<M, E>;
+
     return this.#specs;
   }
 
@@ -321,6 +337,7 @@ export class BetterSupabase<
         );
       }
     }
+
     return new BetterSupabase(
       this.schema,
       this.plugins,
@@ -345,9 +362,11 @@ export class BetterSupabase<
         table,
       });
     };
+
     const invalidate = (target: CacheTarget): void => {
       try {
         const pending = adapter.invalidate(target);
+
         if (pending) {
           pending.catch((cause: unknown) => {
             report(cause, target.table);
@@ -357,14 +376,17 @@ export class BetterSupabase<
         report(cause, target.table);
       }
     };
+
     const offMutation = this.on("mutation", (notice) => {
       invalidate(cacheTargetOf(this.meta, notice));
     });
+
     const offRpc = this.on("rpc", (notice) => {
       for (const target of rpcCacheTargets(this.meta, notice)) {
         invalidate(target);
       }
     });
+
     return () => {
       offMutation();
       offRpc();
@@ -391,16 +413,20 @@ export class BetterSupabase<
     options: ConnectOptions = {},
   ): unknown {
     const client = isExecutor(source) ? undefined : source;
+
     const base =
       options.executor ??
       (isExecutor(source)
         ? source
         : postgrestExecutor(source, this.executorOptions()));
+
     const recorder = new StatsRecorder(options.stats);
+
     const tuning: RequestTuning = {
       ...(options.timeout === undefined ? {} : { timeout: options.timeout }),
       ...(options.retry === undefined ? {} : { retry: options.retry }),
     };
+
     return this.#db(
       { client, storage: options.storage },
       base,
@@ -418,6 +444,7 @@ export class BetterSupabase<
    */
   executorOptions(): PostgrestExecutorOptions {
     const { urlLengthLimit, postgrestVersion } = this.options;
+
     return {
       ...(urlLengthLimit === undefined ? {} : { urlLengthLimit }),
       ...(postgrestVersion === undefined ? {} : { postgrestVersion }),
@@ -430,10 +457,12 @@ export class BetterSupabase<
     plugins: readonly AnyPlugin[],
   ): RequestContext {
     let context = given;
+
     for (const plugin of plugins) {
       if (!plugin.context) {
         continue;
       }
+
       try {
         context = plugin.context(context, { schema: this.meta });
       } catch (cause) {
@@ -442,6 +471,7 @@ export class BetterSupabase<
         });
       }
     }
+
     return context;
   }
 
@@ -456,14 +486,17 @@ export class BetterSupabase<
   ): object {
     const context = this.#derive(given, plugins);
     let executor = base;
+
     for (const plugin of plugins) {
       if (plugin.wrapExecutor) {
         executor = plugin.wrapExecutor(executor);
       }
     }
+
     const wrapped = executor;
     executor = recordStats(executor, recorder);
     const errorMappers = this.#errorMappersFor(plugins);
+
     const runner = new OperationRunner({
       meta: this.meta,
       builder: builderFor(this.meta),
@@ -495,6 +528,7 @@ export class BetterSupabase<
         rpc(this.schema.meta, executor, errorMappers, tuning, name, rest)
           .map((data) => {
             const registered = this.options.rpc?.[name];
+
             if (registered) {
               this.events.emit("rpc", {
                 name,
@@ -502,12 +536,14 @@ export class BetterSupabase<
                 context,
               });
             }
+
             return data;
           })
           .mapError((error) => {
             if (events.has("error")) {
               events.emit("error", errorEvent(error));
             }
+
             return error;
           }),
       $with: (extra: RequestContext) =>
@@ -535,6 +571,7 @@ export class BetterSupabase<
             `better-supabase: unknown table "${name}". Known: ${Object.keys(this.meta.tables).join(", ")}`,
           );
         }
+
         return db[name];
       },
       $run: (spec: unknown, options?: { signal?: AbortSignal }) =>
@@ -546,10 +583,13 @@ export class BetterSupabase<
             Readonly<Record<string, unknown>> | undefined,
             { signal?: AbortSignal } | undefined,
           ];
+
           return readSet(target, values, options?.signal);
         }
+
         // SAFETY: the $many overloads take only options after a spec or a list of specs.
         const [options] = rest as [{ signal?: AbortSignal } | undefined];
+
         if (!Array.isArray(target)) {
           return AsyncResult.err(
             dbError(
@@ -558,6 +598,7 @@ export class BetterSupabase<
             ),
           );
         }
+
         return many(target, options?.signal, true);
       },
       $search: (name: string, args: SearchInput) =>
@@ -571,6 +612,7 @@ export class BetterSupabase<
     ): AsyncResult<unknown[]> =>
       AsyncResult.from(async () => {
         const invalid = specs.findIndex((spec) => !isQuerySpec(spec));
+
         if (invalid !== -1) {
           return err(
             dbError(
@@ -579,13 +621,16 @@ export class BetterSupabase<
             ),
           );
         }
+
         const active = usePlugins ? plugins : [];
         const batchSource = usePlugins ? wrapped : base;
         const batch = batchSource.batch?.bind(batchSource);
+
         const batching =
           batch && specs.length > 1
             ? batchingExecutor({ ...base, batch }, specs.length)
             : undefined;
+
         // SAFETY: #db returns the repositories indexed by table name, plus the $ methods.
         const target = (
           batching
@@ -601,6 +646,7 @@ export class BetterSupabase<
               ? db
               : this.#db(source, base, given, NO_PLUGINS, recorder, tuning)
         ) as Record<string, unknown>;
+
         const results = await Promise.all(
           specs.map(async (spec) => {
             try {
@@ -610,13 +656,17 @@ export class BetterSupabase<
             }
           }),
         );
+
         const data: unknown[] = [];
+
         for (const result of results) {
           if (!result.ok) {
             return result;
           }
+
           data.push(result.data);
         }
+
         return ok(data);
       });
 
@@ -627,6 +677,7 @@ export class BetterSupabase<
     ): AsyncResult<Record<string, unknown>> =>
       AsyncResult.from(async () => {
         const problems = checkParams(set, values);
+
         if (problems.length > 0) {
           return err(
             dbError(
@@ -635,24 +686,30 @@ export class BetterSupabase<
             ),
           );
         }
+
         const keys = Object.keys(set.specs);
         const { specs: bound, noCaller } = bindParams(set, values, context);
+
         if (base.batch || !executor.rpc) {
           if (noCaller) {
             return err(noCaller);
           }
+
           const result = await many(
             keys.map((key) => bound[key]),
             signal,
             false,
           );
+
           if (!result.ok) {
             return result;
           }
+
           return ok(
             Object.fromEntries(keys.map((key, i) => [key, result.data[i]])),
           );
         }
+
         const called = await executor.rpc(
           set.functionName,
           { p: values ?? {} },
@@ -663,19 +720,23 @@ export class BetterSupabase<
             ...(signal ? { signal } : {}),
           },
         );
+
         if (!called.ok) {
           return called;
         }
+
         return this.#decodeReadSet(source, context, set, bound, called.data);
       });
 
     const throwAs = this.options.throwAs;
+
     if (throwAs) {
       for (const name of ["$rpc", "$run", "$many", "$search"]) {
         // SAFETY: these $ methods are functions on every db this method builds.
         db[name] = mapThrows(db[name] as AnyMethod, throwAs);
       }
     }
+
     return db;
   }
 
@@ -696,10 +757,12 @@ export class BetterSupabase<
       string,
       { rows?: Record<string, unknown>[] | null; count?: number | null }
     >;
+
     // The specs run one at a time, so one decoding db serves them all: its
     // executor answers with the rows of the spec being decoded.
     let rows: Record<string, unknown>[] = [];
     let count: number | null = null;
+
     const stub: Executor = {
       name: "read-set",
       execute: (op) => {
@@ -709,15 +772,18 @@ export class BetterSupabase<
               err(dbError("multiple_rows", `Expected one ${op.table.key} row`)),
             );
           }
+
           if (rows.length === 0 && op.single === "one") {
             return Promise.resolve(
               err(dbError("not_found", `No ${op.table.key} row matched`)),
             );
           }
         }
+
         return Promise.resolve(ok({ rows, count }));
       },
     };
+
     // SAFETY: #db returns the repositories indexed by table name, plus the $ methods.
     const decoder = this.#db(
       source,
@@ -731,9 +797,12 @@ export class BetterSupabase<
         this.events.now,
       )),
     ) as Record<string, unknown>;
+
     const out: Record<string, unknown> = {};
+
     for (const [key, spec] of Object.entries(specs)) {
       const entry = payload[key];
+
       if (!entry) {
         return err(
           dbError(
@@ -742,19 +811,24 @@ export class BetterSupabase<
           ),
         );
       }
+
       rows = entry.rows ?? [];
       count = entry.count ?? null;
       const result = await runSpec(decoder, spec, undefined);
+
       if (!result.ok) {
         return result;
       }
+
       out[key] = result.data;
     }
+
     return ok(out);
   }
 
   #errorMappersFor(plugins: readonly AnyPlugin[]): readonly ErrorMapper[] {
     let mappers = this.#errorMappers.get(plugins);
+
     if (!mappers) {
       mappers = [
         ...(this.options.errors ?? []),
@@ -764,6 +838,7 @@ export class BetterSupabase<
       ];
       this.#errorMappers.set(plugins, mappers);
     }
+
     return mappers;
   }
 
@@ -771,16 +846,21 @@ export class BetterSupabase<
     if (this.#tables) {
       return this.#tables;
     }
+
     const tables = {};
     const throwAs = this.options.throwAs;
+
     const build = (state: DbState, key: string): Record<string, unknown> => {
       let repository = state.repositories.get(key);
+
       if (repository) {
         return repository;
       }
+
       // SAFETY: the prototype only defines getters for keys of meta.tables.
       const table = this.meta.tables[key]!;
       repository = this.#repository(state.runner, key, table, state.plugins);
+
       if (throwAs) {
         for (const [name, method] of Object.entries(repository)) {
           if (typeof method === "function" && name !== "extend") {
@@ -789,19 +869,25 @@ export class BetterSupabase<
           }
         }
       }
+
       state.repositories.set(key, repository);
+
       return repository;
     };
+
     for (const key of Object.keys(this.meta.tables)) {
       Object.defineProperty(tables, key, {
         enumerable: true,
         get(this: object) {
           const state = dbStates.get(this);
+
           return state ? build(state, key) : undefined;
         },
       });
     }
+
     this.#tables = tables;
+
     return tables;
   }
 
@@ -812,6 +898,7 @@ export class BetterSupabase<
     plugins: readonly AnyPlugin[],
   ): Record<string, unknown> {
     const repository = createRepository(runner, table);
+
     for (const plugin of plugins) {
       // SAFETY: a repository is a map of methods; plugins receive it untyped.
       const methods = plugin.repository?.({
@@ -820,24 +907,29 @@ export class BetterSupabase<
           Record<string, (...args: never[]) => unknown>
         >,
       });
+
       if (!methods) {
         continue;
       }
+
       for (const [name, method] of Object.entries(methods)) {
         if (name in repository) {
           throw new TypeError(
             `better-supabase: plugin "${plugin.name}" redefines "${key}.${name}"`,
           );
         }
+
         repository[name] = method;
       }
     }
+
     repository["extend"] = (
       build: (base: Record<string, unknown>) => Record<string, unknown>,
     ) => ({
       ...repository,
       ...build(repository),
     });
+
     return repository;
   }
 }
@@ -856,6 +948,7 @@ const dbStates = new WeakMap<object, DbState>();
 function mapThrows(method: AnyMethod, throwAs: ThrowMapper): AnyMethod {
   return function mapped(this: unknown, ...args) {
     const value = method.apply(this, args);
+
     return value instanceof AsyncResult
       ? withErrorMapper(value, throwAs)
       : value;
@@ -875,16 +968,20 @@ function runSpec(
       ),
     );
   }
+
   // SAFETY: isQuerySpec checked the spec, so db[spec.table] is a repository or undefined.
   const repository = db[spec.table] as
     | Record<string, (...args: unknown[]) => AsyncResult<unknown>>
     | undefined;
+
   const method = repository?.[spec.method];
+
   if (!method) {
     return AsyncResult.err(
       dbError("invalid_request", `Unknown table "${spec.table}" in QuerySpec`),
     );
   }
+
   if (containsPlaceholder(spec.args)) {
     return AsyncResult.err(
       dbError(
@@ -893,12 +990,15 @@ function runSpec(
       ),
     );
   }
+
   const args = [...spec.args];
+
   if (signal) {
     const index = spec.method === "findById" ? 1 : 0;
     // SAFETY: the options argument of a repository method is an object or undefined.
     args[index] = { ...(args[index] as object | undefined), signal };
   }
+
   return method(...args);
 }
 
@@ -925,6 +1025,7 @@ function rpc(
       | undefined
     ),
   ];
+
   return AsyncResult.from(async () => {
     if (!executor.rpc) {
       return err(
@@ -934,18 +1035,23 @@ function rpc(
         ),
       );
     }
+
     const tuning: RequestTuning = {
       ...defaults,
       ...(options?.timeout === undefined ? {} : { timeout: options.timeout }),
       ...(options?.retry === undefined ? {} : { retry: options.retry }),
     };
+
     const invalid = invalidTuning(tuning);
+
     if (invalid) {
       return err(dbError("invalid_request", invalid));
     }
+
     const limit = deadline(options?.signal, tuning.timeout);
     const schema = options?.schema ?? "public";
     const fn = rpcFunction(meta, name, schema, args ?? {});
+
     const context = {
       schema,
       errorMappers,
@@ -953,21 +1059,27 @@ function rpc(
       ...(tuning.retry === undefined ? {} : { retry: tuning.retry }),
       ...(fn ? { function: fn } : {}),
     };
+
     let result: Result<unknown>;
+
     try {
       result = await executor.rpc(name, args ?? {}, context);
     } finally {
       limit.clear();
     }
+
     if (!result.ok && limit.timedOut()) {
       return err(
         dbError("timeout", `The request timed out after ${tuning.timeout} ms`),
       );
     }
+
     if (!result.ok) {
       return result;
     }
+
     let data = result.data;
+
     if (options?.raw !== true) {
       try {
         data = decodeRpcResult(meta, fn, data);
@@ -975,13 +1087,17 @@ function rpc(
         if (cause instanceof DbException) {
           return err(cause.error);
         }
+
         throw cause;
       }
     }
+
     if (!options?.returns) {
       return ok(data);
     }
+
     const checked = await validate(options.returns, data, `${name}() result`);
+
     return checked.ok ? ok(checked.data) : checked;
   });
 }

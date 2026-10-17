@@ -15,6 +15,7 @@ import { SQL_MODULES } from "../../src/sql/registry.ts";
 
 const BLOCKS_DIR = join(import.meta.dirname, "../../src/blocks");
 const SRC_DIR = join(import.meta.dirname, "../../src");
+
 const RECIPES = join(
   import.meta.dirname,
   "../../../../scripts/build-recipes.ts",
@@ -22,6 +23,7 @@ const RECIPES = join(
 
 /** Blocks whose creator is not `create<Name>(options)`. */
 const CREATOR_NAME: readonly string[] = [];
+
 /** Blocks with a TypeScript side but no `create`, or a positional creator. */
 const NO_CREATOR: readonly string[] = [
   // Controllers over supabase.auth (MFA factors, OAuth consent and grants);
@@ -29,10 +31,13 @@ const NO_CREATOR: readonly string[] = [
   "mfa",
   "sessions",
 ];
+
 /** Blocks whose creator doesn't wrap its client with `withBlockHooks`. */
 const NO_HOOKS: readonly string[] = [];
+
 /** Blocks with calls that skip `blockCall`. */
 const NO_BLOCK_CALL: readonly string[] = [];
+
 /** Blocks with managed tables that take no `extraColumns` or `fields`. */
 const NO_FIELDS: readonly string[] = [
   // Cache entries keyed by a request hash; nothing for an app to extend.
@@ -93,6 +98,7 @@ const NO_FIELDS: readonly string[] = [
   // Engines write the run registry; per-run data goes in `attributes`.
   "workflows",
 ];
+
 /** Blocks that build a sibling block's client. */
 const SIBLING_CLIENTS: readonly string[] = [];
 
@@ -118,9 +124,11 @@ const DIRS = new Map(
 /** The directory a manifest lives in. */
 const dirOf = (block: AnyBlock): string => {
   const dir = DIRS.get(block.name);
+
   if (dir === undefined) {
     throw new Error(`No manifest.ts names "${block.name}"`);
   }
+
   return dir;
 };
 
@@ -138,12 +146,16 @@ const withoutComments = (source: string): string =>
 /** The block's own code: its creator's file, or every file of a one-block directory. */
 const sourcesOf = (block: AnyBlock): string => {
   const dir = dirOf(block);
+
   const files = readdirSync(dir).filter(
     (file) => file.endsWith(".ts") && !OWN_FILES.has(file),
   );
+
   const shared =
     BLOCK_MANIFESTS.filter((other) => dirOf(other) === dir).length > 1;
+
   const creator = block.create?.name;
+
   const picked =
     shared && creator !== undefined
       ? files.filter((file) =>
@@ -152,6 +164,7 @@ const sourcesOf = (block: AnyBlock): string => {
           ),
         )
       : files;
+
   return picked
     .map((file) => withoutComments(readFileSync(join(dir, file), "utf-8")))
     .join("\n");
@@ -179,11 +192,13 @@ const moduleNames = (name: string) => SQL_MODULES[name]?.names;
 describe("block manifests", () => {
   it("installs every SQL module through exactly one block", () => {
     const owners = new Map<string, string[]>();
+
     for (const block of BLOCK_MANIFESTS) {
       for (const module of block.sql) {
         owners.set(module, [...(owners.get(module) ?? []), block.name]);
       }
     }
+
     expect(
       Object.keys(SQL_MODULES).filter(
         (module) => owners.get(module)?.length !== 1,
@@ -204,22 +219,28 @@ describe("block manifests", () => {
       block.sql.flatMap((module) => {
         const keys = [...(moduleNames(module)?.options ?? [])].sort();
         const schema = block.options[module];
+
         if (keys.length === 0) {
           return schema === undefined ? [] : [`${module}: has no options`];
         }
+
         if (schema === undefined) {
           return [`${module}: no options schema`];
         }
+
         const unknown = schema["~standard"].validate({ notAnOption: 1 });
         const declared = Object.keys(schema.specs).sort();
+
         if (JSON.stringify(declared) !== JSON.stringify(keys)) {
           return [`${module}: declares ${declared.join(", ")}`];
         }
+
         return "issues" in unknown && unknown.issues !== undefined
           ? []
           : [`${module}: accepts unknown options`];
       }),
     );
+
     expect(mismatched).toEqual([]);
   });
 
@@ -227,6 +248,7 @@ describe("block manifests", () => {
     expect(Object.keys(BLOCK_OPTION_SCHEMAS).sort()).toEqual(
       Object.keys(SQL_MODULES).sort(),
     );
+
     const differing = BLOCK_MANIFESTS.flatMap((block) =>
       Object.entries(block.options).flatMap(([module, schema]) =>
         Object.entries(BLOCK_OPTION_SCHEMAS).some(
@@ -236,11 +258,13 @@ describe("block manifests", () => {
           : [module],
       ),
     );
+
     expect(differing).toEqual([]);
   });
 
   it("lists the recipes that name the block", () => {
     const source = readFileSync(RECIPES, "utf-8");
+
     const named = [
       ...source.matchAll(
         /slug: "([a-z-]+)",\s*title: "[^"]*",\s*block: "([a-z-]+)"/g,
@@ -249,16 +273,20 @@ describe("block manifests", () => {
         /\[\s*"([a-z-]+)",\s*"[^"]+",\s*"([a-z-]+)",\s*"[^"]* [^"]*",\s*\]/g,
       ),
     ].map((match) => `${match[2]}: ${match[1]}`);
+
     const owner = (module: string) =>
       BLOCK_MANIFESTS.find((block) => block.sql.includes(module))?.name ??
       module;
+
     const listed = BLOCK_MANIFESTS.flatMap((block) =>
       block.recipes.map((slug) => `${block.name}: ${slug}`),
     );
+
     expect(
       named
         .map((entry) => {
           const [module = "", slug = ""] = entry.split(": ");
+
           return `${owner(module)}: ${slug}`;
         })
         .sort(),
@@ -297,6 +325,7 @@ describe("the block contract", () => {
     expect(
       failing(withCreator, (block) => {
         const source = sourcesOf(block);
+
         return (
           block.sql.length === 0 ||
           (source.includes("blockCall(") && !source.includes("transport.call("))
@@ -310,9 +339,11 @@ describe("the block contract", () => {
       failing(withCreator, (block) =>
         block.sql.every((module) => {
           const names = moduleNames(module);
+
           if (Object.keys(names?.tables ?? {}).length === 0) {
             return true;
           }
+
           return (
             (names?.options ?? []).includes("extraColumns") &&
             sourcesOf(block).includes("blockFields(")
@@ -325,12 +356,14 @@ describe("the block contract", () => {
   it("has its own event map with every event its SQL records", () => {
     const missing = BLOCK_MANIFESTS.flatMap((block) => {
       const own = new Set(block.events.types);
+
       return block.sql.flatMap((module) =>
         Object.keys(moduleNames(module)?.events ?? {})
           .filter((type) => !own.has(type))
           .map((type) => `${block.name}: ${type}`),
       );
     });
+
     expect(missing).toEqual([]);
   });
 
@@ -339,16 +372,19 @@ describe("the block contract", () => {
       .filter((file) => file.endsWith(".ts") && !file.endsWith("events.ts"))
       .map((file) => readFileSync(join(SRC_DIR, file), "utf-8"))
       .join("\n");
+
     const unused = BLOCK_MANIFESTS.flatMap((block) => {
       const recorded = new Set(
         block.sql.flatMap((module) =>
           Object.keys(moduleNames(module)?.events ?? {}),
         ),
       );
+
       return block.events.types
         .filter((type) => !recorded.has(type) && !code.includes(`"${type}"`))
         .map((type) => `${block.name}: ${type}`);
     });
+
     expect(unused).toEqual([]);
   });
 
@@ -357,6 +393,7 @@ describe("the block contract", () => {
     expect(
       failing(withCreator, (block) => {
         const source = sourcesOf(block);
+
         return creators.every(
           (creator) =>
             creator === block.create?.name ||

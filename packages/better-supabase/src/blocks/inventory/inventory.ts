@@ -26,6 +26,7 @@ import {
 } from "../shared.ts";
 
 export const LOCATION_KINDS = ["warehouse", "store", "virtual"] as const;
+
 export type LocationKind = (typeof LOCATION_KINDS)[number];
 
 /** The reasons `adjustStock` accepts. Counts, sales and transfers write their own. */
@@ -36,6 +37,7 @@ export const ADJUST_REASONS = [
   "return",
   "receipt",
 ] as const;
+
 export type AdjustReason = (typeof ADJUST_REASONS)[number];
 
 export const PURCHASE_ORDER_STATUSES = [
@@ -45,6 +47,7 @@ export const PURCHASE_ORDER_STATUSES = [
   "received",
   "cancelled",
 ] as const;
+
 export type PurchaseOrderStatus = (typeof PURCHASE_ORDER_STATUSES)[number];
 
 export interface InventoryOptions<
@@ -226,6 +229,7 @@ const isTrue = (value: unknown): boolean => value === true;
 
 function stockChangeOf(value: unknown): StockChange {
   const row = recordOf(value, "adjust_stock");
+
   return {
     movementId: textOf(row["movementId"]),
     onHand: Number(row["onHand"]),
@@ -243,7 +247,9 @@ function maxRowsOf(payload: unknown): number | undefined {
   if (!isRecord(payload)) {
     return undefined;
   }
+
   const value = payload["maxRows"];
+
   return typeof value === "number" ? value : undefined;
 }
 
@@ -251,16 +257,19 @@ function purchaseLines(
   input: PurchaseOrderInput,
 ): readonly Record<string, unknown>[] | string {
   const lines: Record<string, unknown>[] = [];
+
   for (const line of input.lines) {
     if (line.unitCost.currency !== input.currency) {
       return `a line costs ${line.unitCost.currency}, the order is in ${input.currency}`;
     }
+
     lines.push({
       variantId: line.variantId,
       quantity: line.quantity,
       unitCost: line.unitCost.amount.toString(),
     });
   }
+
   return lines;
 }
 
@@ -269,16 +278,20 @@ export function createInventory<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: InventoryOptions<S>): Inventory<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const fields: BlockFields<F> = blockFields(options.fields, "location fields");
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const service = blockCall(
     options.service ?? options.transport,
     options.schema,
     options.mappers,
   );
+
   const expireReservations: Inventory["expireReservations"] = (maxRows) =>
     service("expire_reservations", { max_rows: maxRows ?? null }, Number);
+
   const inventory: Inventory<F> = {
     saveLocation: (organizationId, input) =>
       AsyncResult.from(() =>
@@ -299,6 +312,7 @@ export function createInventory<
             },
             (value) => {
               const row = recordOf(value, "save_location");
+
               return {
                 id: textOf(row["id"]),
                 code: textOf(row["code"]),
@@ -310,6 +324,7 @@ export function createInventory<
         )
         .andThen((saved): AsyncResult<SavedLocation<F>> => {
           const { fields: extra, ...rest } = saved;
+
           return extra === undefined
             ? AsyncResult.ok(rest)
             : AsyncResult.from(() => fields.read(extra)).map((value) => ({
@@ -344,6 +359,7 @@ export function createInventory<
         },
         (value) => {
           const row = recordOf(value, "count_stock");
+
           return {
             movementId: optionalText(row["movementId"]) ?? null,
             delta: Number(row["delta"]),
@@ -374,6 +390,7 @@ export function createInventory<
         },
         (value) => {
           const row = recordOf(value, "reserve_stock");
+
           return {
             id: textOf(row["id"]),
             expiresAt: requiredInstant(row["expiresAt"], "expiresAt"),
@@ -411,6 +428,7 @@ export function createInventory<
       call("cancel_transfer", { transfer: transferId }, isTrue),
     savePurchaseOrder: (organizationId, input) => {
       const lines = purchaseLines(input);
+
       if (typeof lines === "string") {
         return AsyncResult.err(
           dbError("invalid_request", lines, {
@@ -418,6 +436,7 @@ export function createInventory<
           }),
         );
       }
+
       return call(
         "save_purchase_order",
         {
@@ -448,6 +467,7 @@ export function createInventory<
         },
         (value) => {
           const row = recordOf(value, "receive_purchase_order");
+
           return {
             status: enumOrThrow(
               row["status"],
@@ -468,6 +488,7 @@ export function createInventory<
       await expireReservations(maxRowsOf(payload)).orThrow();
     },
   };
+
   return withBlockHooks(inventory, options.hooks, {
     block: "inventory",
     ...(options.logger ? { logger: options.logger } : {}),

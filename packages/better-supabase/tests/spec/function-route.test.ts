@@ -26,6 +26,7 @@ function described<T>(
 }
 
 const betterSupabase = defineSupabase(schema);
+
 const bs = createEdge(betterSupabase, {
   env: {
     url: PROJECT_URL,
@@ -33,15 +34,18 @@ const bs = createEdge(betterSupabase, {
     jwksUrl: new URL(`${PROJECT_URL}/auth/v1/.well-known/jwks.json`),
   },
 });
+
 const input = described<{ email: string }>({
   type: "object",
   properties: { email: { type: "string" } },
   required: ["email"],
 });
+
 const output = described<{ sent: boolean }>({
   type: "object",
   properties: { sent: { type: "boolean" } },
 });
+
 const sendInvite = defineFunction(bs, {
   input,
   output,
@@ -76,6 +80,7 @@ describe("functionRoute", () => {
         }),
       ],
     });
+
     expect(api.diagnostics).toEqual([]);
     expect(api.openapi().document.paths).toMatchObject({
       "/functions/v1/send-invite": {

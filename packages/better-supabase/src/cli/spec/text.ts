@@ -19,10 +19,13 @@ export function documentText(
   serialization: SpecSerialization,
 ): string {
   const json = serializeDocument(document);
+
   if (serialization === "json") {
     return json;
   }
+
   const plain: unknown = JSON.parse(json);
+
   return stringify(plain, {
     version: "1.2",
     lineWidth: 0,
@@ -41,9 +44,12 @@ export function parseAs(
 ): unknown {
   if (serialization === "yaml") {
     const value: unknown = parse(text, { version: "1.2" });
+
     return value;
   }
+
   const value: unknown = JSON.parse(text);
+
   return value;
 }
 

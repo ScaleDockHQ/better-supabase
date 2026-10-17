@@ -38,6 +38,7 @@ export function useInbox<T>(options: UseInboxOptions<T>): InboxListState<T> {
   const { auth, ports } = useBlockEnv();
   const latest = useLatest(options);
   const { organizationId, topic } = options;
+
   return useController(
     () =>
       createInboxController<T>({
@@ -77,6 +78,7 @@ export function useConversation<T>(
   const { auth, ports } = useBlockEnv();
   const latest = useLatest(options);
   const { conversationId, topic, typingMs } = options;
+
   return useController(
     () =>
       createConversationController<T>({
@@ -123,6 +125,7 @@ export function useInboxWidget<T>(
   const { auth, ports } = useBlockEnv();
   const latest = useLatest(options);
   const { storageKey, topic } = options;
+
   return useController(
     () =>
       createInboxWidgetController<T>({

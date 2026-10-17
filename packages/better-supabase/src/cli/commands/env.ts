@@ -50,31 +50,39 @@ async function readStatus(
   env: CliEnv,
 ): Promise<StackStatus> {
   const from = args.from;
+
   if (from) {
     const status = parseStackStatus(
       await readFile(resolve(config.root, from), "utf-8"),
     );
+
     if (!status) {
       throw new Error(`${from} holds no supabase status JSON.`);
     }
+
     return status;
   }
+
   const result = await readStackStatus(config.root, env);
+
   if (!result.ok) {
     throw new Error(
       `supabase status failed (${result.code}). Is the local stack running (supabase start)?`,
     );
   }
+
   return result.status;
 }
 
 const text = (status: StackStatus, ...keys: string[]): string | undefined => {
   for (const key of keys) {
     const value = status[key];
+
     if (typeof value === "string" && value.length > 0) {
       return value;
     }
   }
+
   return undefined;
 };
 
@@ -84,28 +92,37 @@ export function mergeEnv(
   values: Readonly<Record<string, string>>,
 ): string {
   const pending = new Map(Object.entries(values));
+
   const lines =
     current.length > 0 ? current.replace(/\n$/, "").split("\n") : [];
+
   const merged = lines.map((line) => {
     const key = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=/.exec(
       line,
     )?.[1];
+
     if (!key || !pending.has(key)) {
       return line;
     }
+
     const value = pending.get(key)!;
     pending.delete(key);
+
     return `${key}=${value}`;
   });
+
   if (pending.size > 0) {
     if (merged.length > 0 && merged.at(-1) !== "") {
       merged.push("");
     }
+
     merged.push("# Local Supabase stack (better-supabase env)");
+
     for (const [key, value] of pending) {
       merged.push(`${key}=${value}`);
     }
   }
+
   return `${merged.join("\n")}\n`;
 }
 
@@ -117,6 +134,7 @@ export async function runEnv(
   const status = await readStatus(config, args, env);
   const project = await detectProject(config.root);
   const prefixFlag = args.prefix ?? config.env.prefix;
+
   const prefix =
     prefixFlag === undefined
       ? publicPrefix(project)
@@ -127,6 +145,7 @@ export async function runEnv(
   const url = text(status, "API_URL");
   const publishableKey = text(status, "PUBLISHABLE_KEY", "ANON_KEY");
   const secretKey = text(status, "SECRET_KEY", "SERVICE_ROLE_KEY");
+
   if (!url || !publishableKey) {
     return {
       code: 1,
@@ -134,18 +153,24 @@ export async function runEnv(
         "supabase status has no API_URL or publishable key. Is the stack running?",
     };
   }
+
   const values: Record<string, string> = {
     [`${prefix}SUPABASE_URL`]: url,
     [`${prefix}SUPABASE_PUBLISHABLE_KEY`]: publishableKey,
   };
+
   if (secretKey) {
     values["SUPABASE_SECRET_KEY"] = secretKey;
   }
+
   const dbUrl = text(status, "DB_URL");
+
   if (dbUrl) {
     values["SUPABASE_DB_URL"] = dbUrl;
   }
+
   const jwtSecret = text(status, "JWT_SECRET");
+
   if (jwtSecret) {
     values["SUPABASE_JWT_SECRET"] = jwtSecret;
   }
@@ -162,6 +187,7 @@ export async function runEnv(
   const out = args.out ?? config.env.output;
   const path = resolve(config.root, out);
   const current = (await readIfExists(path)) ?? "";
+
   const { line } = await writeLine(
     path,
     mergeEnv(current, values),
@@ -169,13 +195,17 @@ export async function runEnv(
     `: ${Object.keys(values).join(", ")}`,
     { mode: 0o600 },
   );
+
   const lines = [line];
+
   if (!text(status, "PUBLISHABLE_KEY")) {
     lines.push(
       "Warning: this Supabase CLI prints only legacy JWT keys. Upgrade it to get sb_publishable_/sb_secret_ keys.",
     );
   }
+
   const gitignore = resolve(config.root, ".gitignore");
+
   const ignored =
     existsSync(gitignore) &&
     (await readFile(gitignore, "utf-8"))
@@ -185,11 +215,13 @@ export async function runEnv(
           line.trim(),
         ),
       );
+
   if (!ignored) {
     lines.push(
       `Warning: add ${out} to .gitignore; it contains the secret key.`,
     );
   }
+
   return { code: 0, output: lines.join("\n") };
 }
 

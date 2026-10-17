@@ -15,14 +15,17 @@ describe.skipIf(!url || !secretKey)(
       const db = defineSupabase(schema).connect(
         createClient(url!, secretKey!, { auth: { persistSession: false } }),
       );
+
       const customers = createCustomersService(db);
 
       const organization = await db.organizations
         .findFirst({ select: ["id"] })
         .orThrow();
+
       if (!organization) {
         return;
       }
+
       for (const filter of [
         {},
         { q: "a", types: ["business"] as const, sortBy: "updatedAt" as const },
@@ -38,17 +41,22 @@ describe.skipIf(!url || !secretKey)(
         const result = await customers.listCustomers(organization.id, filter);
         expect(result).toMatchObject({ ok: true });
       }
+
       const page = await customers
         .listCustomers(organization.id, { size: 5 })
         .orThrow();
+
       for (const row of page.items) {
         expect(Array.isArray(row.customerTags)).toBe(true);
         expect(row.customerContacts.length).toBeLessThanOrEqual(1);
       }
+
       const first = page.items[0];
+
       const detail = first
         ? await customers.getCustomer(organization.id, first.id).orThrow()
         : undefined;
+
       expect(detail?.id).toBe(first?.id);
     });
   },

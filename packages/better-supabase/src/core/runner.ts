@@ -86,12 +86,15 @@ export function optionsOf(args: Args | undefined): CallOptions {
   if (!args) {
     return NO_OPTIONS;
   }
+
   let options: Record<string, unknown> | undefined;
+
   for (const key in args) {
     if (!KNOWN_KEYS.has(key) && Object.hasOwn(args, key)) {
       (options ??= {})[key] = args[key];
     }
   }
+
   return options ?? NO_OPTIONS;
 }
 
@@ -106,6 +109,7 @@ const hooksByPlugins = new WeakMap<readonly AnyPlugin[], Hooks>();
 
 function hooksOf(plugins: readonly AnyPlugin[]): Hooks {
   let hooks = hooksByPlugins.get(plugins);
+
   if (!hooks) {
     hooks = {
       transformQuery: plugins.filter((plugin) => plugin.transformQuery),
@@ -114,6 +118,7 @@ function hooksOf(plugins: readonly AnyPlugin[]): Hooks {
     };
     hooksByPlugins.set(plugins, hooks);
   }
+
   return hooks;
 }
 
@@ -128,6 +133,7 @@ function isThenable<T>(value: T | PromiseLike<T>): value is PromiseLike<T> {
 
 export function signalOf(args: Args | undefined): AbortSignal | undefined {
   const signal = args?.["signal"];
+
   return signal instanceof AbortSignal ? signal : undefined;
 }
 
@@ -140,6 +146,7 @@ function mutationKind(op: MutationOp): MutationKind {
   if (op.kind === "insert") {
     return op.onConflict ? "upsert" : "insert";
   }
+
   return op.kind;
 }
 
@@ -176,42 +183,53 @@ export class OperationRunner {
   ): Promise<Result<ExecuteResult>> {
     const { runtime } = this;
     const hooks = this.#hooks;
+
     if ("invalid" in tuning) {
       return this.fail(op.table, dbError("invalid_request", tuning.invalid));
     }
+
     const { timeout, retry } = { ...runtime.tuning, ...tuning };
     const invalid = invalidTuning({ timeout, retry });
+
     if (invalid) {
       return this.fail(op.table, dbError("invalid_request", invalid));
     }
+
     let current = op;
+
     if (hooks.transformQuery.length > 0 || hooks.beforeMutation.length > 0) {
       const hook = this.hookArgs(op.table, options, signal);
       let active = "";
+
       try {
         for (const plugin of hooks.transformQuery) {
           active = `plugin "${plugin.name}" transformQuery`;
           current = plugin.transformQuery!(current, hook);
         }
+
         if (current.kind !== "select") {
           let mutation: MutationOp = current;
+
           for (const plugin of hooks.beforeMutation) {
             active = `plugin "${plugin.name}" beforeMutation`;
             const next = plugin.beforeMutation!(mutation, hook);
             mutation = isThenable(next) ? await next : next;
           }
+
           current = mutation;
         }
       } catch (cause) {
         if (cause instanceof DbException) {
           return this.fail(op.table, cause.error);
         }
+
         return this.fail(op.table, {
           ...toDbError(cause),
           details: `${active} threw`,
         });
       }
     }
+
     // PostgREST answers an empty PATCH with no rows, which reads as not_found.
     if (current.kind === "update" && Object.keys(current.set).length === 0) {
       return this.fail(
@@ -226,9 +244,12 @@ export class OperationRunner {
     const timed = runtime.events.has("query");
     const started = timed ? performance.now() : 0;
     const executed = await this.#execute(current, signal, timeout, retry);
+
     const selection =
       current.kind === "select" ? current.selection : current.returning;
+
     let result: Result<ExecuteResult> = executed;
+
     if (executed.ok && selection && needsDecoding(selection)) {
       try {
         result = ok({
@@ -239,17 +260,20 @@ export class OperationRunner {
         if (cause instanceof DbException) {
           return this.fail(op.table, cause.error);
         }
+
         throw cause;
       }
     }
 
     const rows = result.ok ? result.data.rows.length : 0;
+
     const truncated =
       current.kind === "select" &&
       current.limit === undefined &&
       current.single === undefined &&
       !current.head &&
       rows >= runtime.maxRows;
+
     if (truncated && !runtime.truncatedTables.has(op.table.key)) {
       runtime.truncatedTables.add(op.table.key);
       runtime.events.logger.warn(
@@ -257,6 +281,7 @@ export class OperationRunner {
         { table: op.table.key, maxRows: runtime.maxRows },
       );
     }
+
     if (timed) {
       runtime.events.emit("query", {
         table: op.table.key,
@@ -267,6 +292,7 @@ export class OperationRunner {
         truncated,
       });
     }
+
     if (!result.ok) {
       return this.fail(op.table, result.error);
     }
@@ -274,6 +300,7 @@ export class OperationRunner {
     if (current.kind !== "select") {
       await this.afterMutation(current, result.data);
     }
+
     return result;
   }
 
@@ -289,10 +316,13 @@ export class OperationRunner {
   ): Promise<Result<ExecuteResult>> {
     const { timeout, retry } = this.runtime.tuning ?? NO_TUNING;
     const invalid = invalidTuning({ timeout, retry });
+
     if (invalid) {
       return this.fail(table, dbError("invalid_request", invalid));
     }
+
     const executed = await this.#execute(op, signal, timeout, retry);
+
     return executed.ok
       ? executed
       : this.fail(table, { ...executed.error, table: table.key });
@@ -305,22 +335,27 @@ export class OperationRunner {
     retry: RequestTuning["retry"],
   ): Promise<Result<ExecuteResult>> {
     const limit = deadline(signal, timeout);
+
     const context: ExecuteContext = {
       errorMappers: this.runtime.errorMappers,
       ...(limit.signal ? { signal: limit.signal } : {}),
       ...(retry === undefined ? {} : { retry }),
     };
+
     let executed: Result<ExecuteResult>;
+
     try {
       executed = await this.runtime.executor.execute(op, context);
     } finally {
       limit.clear();
     }
+
     if (!executed.ok && limit.timedOut()) {
       return err(
         dbError("timeout", `The request timed out after ${timeout} ms`),
       );
     }
+
     return executed;
   }
 
@@ -331,13 +366,16 @@ export class OperationRunner {
     const { runtime } = this;
     const plugins = this.#hooks.afterMutation;
     const listening = runtime.events.has("mutation");
+
     if (plugins.length === 0 && !listening) {
       return;
     }
+
     const kind = mutationKind(op);
     const rows = cloneRows(data.rows);
     const keys = keysOf(op, rows);
     const { tenant } = runtime.context;
+
     const event: MutationEvent = {
       table: op.table,
       kind,
@@ -347,9 +385,11 @@ export class OperationRunner {
       ...(tenant === undefined ? {} : { tenant }),
       context: runtime.context,
     };
+
     for (const plugin of plugins) {
       try {
         const pending = plugin.afterMutation!(event);
+
         if (isThenable(pending)) {
           await pending;
         }
@@ -360,6 +400,7 @@ export class OperationRunner {
         );
       }
     }
+
     if (listening) {
       runtime.events.emit("mutation", {
         table: op.table.key,
@@ -375,9 +416,11 @@ export class OperationRunner {
 
   fail<T>(table: TableMeta, error: DbError): Result<T> {
     const withTable = error.table ? error : { ...error, table: table.key };
+
     if (this.runtime.events.has("error")) {
       this.runtime.events.emit("error", errorEvent(withTable, table.key));
     }
+
     return err(withTable);
   }
 }

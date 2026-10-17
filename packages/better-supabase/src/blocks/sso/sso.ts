@@ -96,6 +96,7 @@ export interface Sso {
 
 function recordOfDomain(value: unknown): DomainRecord {
   const row = recordOf(value, "organization_domains.record");
+
   return {
     type: "TXT",
     name: textOf(row["name"]),
@@ -105,6 +106,7 @@ function recordOfDomain(value: unknown): DomainRecord {
 
 function domainOf(value: unknown): OrganizationDomain {
   const row = recordOf(value, "organization_domains");
+
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["organization_id"]),
@@ -120,6 +122,7 @@ function domainOf(value: unknown): OrganizationDomain {
 
 function providerOf(value: unknown): SsoProvider {
   const row = recordOf(value, "organization_sso_providers");
+
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["organization_id"]),
@@ -134,6 +137,7 @@ function ssoDomainOf(value: unknown): SsoDomain | undefined {
   if (!isRecord(value)) {
     return undefined;
   }
+
   return {
     domain: textOf(value["domain"]),
     organizationId: textOf(value["organizationId"]),
@@ -146,6 +150,7 @@ function ssoDomainOf(value: unknown): SsoDomain | undefined {
 export function createSso(options: SsoOptions): Sso {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const client: Sso = {
     addDomain: (organizationId, domain) =>
       call(
@@ -192,6 +197,7 @@ export function createSso(options: SsoOptions): Sso {
       ),
     domainFor: (email) => call("sso_domain_for", { email }, ssoDomainOf),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "sso",
     ...(options.logger ? { logger: options.logger } : {}),
@@ -217,30 +223,39 @@ const TXT = 16;
 export function dohResolver(options: DohResolverOptions = {}): TxtResolver {
   const endpoint = options.endpoint ?? "https://cloudflare-dns.com/dns-query";
   const fetcher = options.fetch ?? fetch;
+
   return async (name, signal) => {
     const url = new URL(endpoint);
     url.searchParams.set("name", name);
     url.searchParams.set("type", "TXT");
+
     const response = await fetcher(url, {
       headers: { accept: "application/dns-json" },
       ...(signal ? { signal } : {}),
     });
+
     if (!response.ok) {
       throw new Error(`DNS lookup of ${name} failed with ${response.status}`);
     }
+
     const body: unknown = await response.json();
+
     if (!isRecord(body)) {
       throw new Error(`DNS lookup of ${name} returned no JSON`);
     }
+
     if (body["Status"] === NXDOMAIN) {
       return [];
     }
+
     if (body["Status"] !== 0) {
       throw new Error(
         `DNS lookup of ${name} failed with status ${String(body["Status"])}`,
       );
     }
+
     const answers = Array.isArray(body["Answer"]) ? body["Answer"] : [];
+
     return answers
       .filter((answer) => isRecord(answer) && answer["type"] === TXT)
       .map((answer) =>
@@ -254,6 +269,7 @@ function txtValue(data: string): string {
   const parts = [...data.matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((match) =>
     (match[1] ?? "").replaceAll(/\\(.)/g, "$1"),
   );
+
   return parts.length === 0 ? data : parts.join("");
 }
 
@@ -321,21 +337,27 @@ function authStatusError(status: number, message: string): DbError {
   if (status === 400 || status === 422) {
     return dbError("invalid_input", message);
   }
+
   if (status === 401) {
     return dbError("unauthorized", message);
   }
+
   if (status === 403) {
     return dbError("forbidden", message);
   }
+
   if (status === 404) {
     return dbError("not_found", message);
   }
+
   if (status === 409) {
     return dbError("conflict", message);
   }
+
   if (status === 429) {
     return dbError("rate_limited", message);
   }
+
   return dbError("network", message);
 }
 
@@ -352,6 +374,7 @@ export function createSsoAdmin(options: SsoAdminOptions): SsoAdmin {
   ): AsyncResult<Record<string, unknown>> =>
     AsyncResult.from(async (): Promise<Result<Record<string, unknown>>> => {
       const admin = options.auth;
+
       if (!admin) {
         return err(
           dbError(
@@ -360,8 +383,10 @@ export function createSsoAdmin(options: SsoAdminOptions): SsoAdmin {
           ),
         );
       }
+
       const fetcher = admin.fetch ?? fetch;
       let response: Response;
+
       try {
         response = await fetcher(
           `${admin.url.replace(/\/+$/, "")}/auth/v1/admin/sso/providers${path}`,
@@ -378,19 +403,23 @@ export function createSsoAdmin(options: SsoAdminOptions): SsoAdmin {
       } catch (cause) {
         return err(dbError("network", errorText(cause)));
       }
+
       const text = await response.text();
       let json: unknown;
+
       try {
         json = text.length > 0 ? JSON.parse(text) : {};
       } catch {
         json = {};
       }
+
       if (!response.ok) {
         const message = isRecord(json)
           ? (optionalText(json["msg"]) ??
             optionalText(json["message"]) ??
             optionalText(json["error_description"]))
           : undefined;
+
         return err(
           authStatusError(
             response.status,
@@ -398,6 +427,7 @@ export function createSsoAdmin(options: SsoAdminOptions): SsoAdmin {
           ),
         );
       }
+
       return ok(isRecord(json) ? json : {});
     });
 
@@ -448,12 +478,14 @@ export function createSsoAdmin(options: SsoAdminOptions): SsoAdmin {
       { provider: providerId, actor: actor.actorId ?? null },
       (value) => (isRecord(value) ? providerOf(value) : undefined),
     );
+
   const missing = (): Result<never> =>
     err(
       dbError("not_found", "No SSO provider has this id", {
         hint: "SSO_PROVIDER_NOT_FOUND",
       }),
     );
+
   const path = (providerId: string): string =>
     `/${encodeURIComponent(providerId)}`;
 
@@ -469,13 +501,16 @@ export function createSsoAdmin(options: SsoAdminOptions): SsoAdmin {
             }),
           );
         }
+
         if (found.verifiedAt === undefined) {
           let values: readonly string[];
+
           try {
             values = await resolver(found.record.name, request.signal);
           } catch (cause) {
             return err(dbError("network", errorText(cause)));
           }
+
           if (!values.includes(found.record.value)) {
             return err(
               dbError(
@@ -486,6 +521,7 @@ export function createSsoAdmin(options: SsoAdminOptions): SsoAdmin {
             );
           }
         }
+
         return call(
           "verify_organization_domain",
           { id: domainId, actor: request.actorId ?? null },
@@ -505,6 +541,7 @@ export function createSsoAdmin(options: SsoAdminOptions): SsoAdmin {
         .andThen(() => auth("POST", "", providerBody(input)))
         .andThen(async (created) => {
           const providerId = textOf(created["id"]);
+
           const recorded = await register(
             organizationId,
             providerId,
@@ -512,9 +549,11 @@ export function createSsoAdmin(options: SsoAdminOptions): SsoAdmin {
             input.metadataUrl,
             actor,
           );
+
           if (!recorded.ok) {
             await auth("DELETE", path(providerId));
           }
+
           return recorded;
         }),
     updateSamlProvider: (providerId, input, actor = {}) =>
@@ -522,6 +561,7 @@ export function createSsoAdmin(options: SsoAdminOptions): SsoAdmin {
         if (found === undefined) {
           return missing();
         }
+
         const checked = await call(
           "check_sso_provider",
           {
@@ -531,21 +571,26 @@ export function createSsoAdmin(options: SsoAdminOptions): SsoAdmin {
           },
           () => undefined,
         );
+
         if (!checked.ok) {
           return checked;
         }
+
         const updated = await auth(
           "PUT",
           path(providerId),
           providerBody(input),
         );
+
         if (!updated.ok) {
           return updated;
         }
+
         const metadataUrl =
           input.metadataXml === undefined
             ? (input.metadataUrl ?? found.metadataUrl)
             : undefined;
+
         return register(
           found.organizationId,
           providerId,
@@ -559,10 +604,13 @@ export function createSsoAdmin(options: SsoAdminOptions): SsoAdmin {
         if (found === undefined) {
           return ok(undefined);
         }
+
         const deleted = await auth("DELETE", path(providerId));
+
         if (!deleted.ok && deleted.error.kind !== "not_found") {
           return deleted;
         }
+
         return call(
           "unregister_sso_provider",
           { provider: providerId, actor: actor.actorId ?? null },

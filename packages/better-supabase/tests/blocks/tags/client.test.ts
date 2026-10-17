@@ -21,25 +21,32 @@ const tag = (id: string, name: string): Tag => ({
 
 function setup(organizationId: string | null = "org-1") {
   const auth = fakeAuth();
+
   const forSubject = vi.fn(
     (_organizationId: string, _subjectType: string, _subjectId: string) =>
       resolved<readonly Tag[]>([tag("t1", "VIP")]),
   );
+
   const list = vi.fn((_organizationId: string, _kind?: string) =>
     resolved<readonly Tag[]>([tag("t1", "VIP"), tag("t2", "Churn")]),
   );
+
   const tagFn = vi.fn(
     (_organizationId: string, _type: string, _id: string, _tagId: string) =>
       resolved(true),
   );
+
   const untag = vi.fn(
     (_organizationId: string, _type: string, _id: string, _tagId: string) =>
       resolved(true),
   );
+
   const create = vi.fn((_organizationId: string, _kind: string, name: string) =>
     resolved<Tag>({ id: "t3", name, slug: name.toLowerCase(), fields: {} }),
   );
+
   const onChanged = vi.fn();
+
   const controller = createTagInputController({
     client: { forSubject, list, tag: tagFn, untag, create },
     auth,
@@ -49,6 +56,7 @@ function setup(organizationId: string | null = "org-1") {
     kind: "customer",
     onChanged,
   });
+
   return { forSubject, list, tagFn, untag, create, onChanged, controller };
 }
 

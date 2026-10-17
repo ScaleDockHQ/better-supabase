@@ -5,21 +5,25 @@ import { SIGNUP } from "./fixtures.ts";
 
 function transport(results: Record<string, (args: unknown) => unknown>) {
   const calls: [string, unknown][] = [];
+
   return {
     calls,
     call(schema: string, fn: string, args: unknown) {
       expect(schema).toBe("app");
       calls.push([fn, args]);
       const result = results[fn];
+
       if (!result) {
         return Promise.reject(new Error(`unexpected ${fn}`));
       }
+
       return Promise.resolve(result(args));
     },
   };
 }
 
 const AT = "2026-10-01T00:00:00Z";
+
 const FORM = {
   id: "f1",
   organizationId: "o",
@@ -32,6 +36,7 @@ const FORM = {
   createdAt: AT,
   updatedAt: AT,
 };
+
 const VERSION = {
   id: "v1",
   formId: "f1",
@@ -41,6 +46,7 @@ const VERSION = {
   createdBy: "u1",
   createdAt: AT,
 };
+
 const SUBMISSION = {
   id: "s1",
   organizationId: "o",
@@ -69,10 +75,13 @@ describe("forms client", () => {
       get_form_version: () => VERSION,
       list_forms: () => [FORM],
     });
+
     const forms = createForms({ transport: fake, schema: "app" });
+
     const created = await forms
       .create({ organizationId: "o", key: "signup", title: "Sign up" })
       .orThrow();
+
     expect(created).toMatchObject({ status: "draft", createdBy: "u1" });
     expect(created.currentVersionId).toBeUndefined();
     expect(created.description).toBeUndefined();
@@ -108,6 +117,7 @@ describe("forms client", () => {
       list_forms: () => [],
       list_form_submissions: () => [],
     });
+
     const forms = createForms({ transport: fake, schema: "app" });
     expect((await forms.get("f1").orThrow()).version).toBeUndefined();
     await forms.list("o").orThrow();
@@ -134,7 +144,9 @@ describe("forms client", () => {
       }),
       delete_form_submission: () => true,
     });
+
     const forms = createForms({ transport: fake, schema: "app" });
+
     const submitted = await forms
       .submit(
         "f1",
@@ -147,6 +159,7 @@ describe("forms client", () => {
         },
       )
       .orThrow();
+
     expect(submitted).toMatchObject({
       subjectType: "lead",
       respondentId: "u2",
@@ -157,6 +170,7 @@ describe("forms client", () => {
     expect(submitted.submittedAt?.toString()).toBe(AT);
     await forms.submit("f1", {}).orThrow();
     expect((await forms.getSubmission("s1").orThrow()).id).toBe("s1");
+
     const page = await forms
       .listSubmissions("f1", {
         status: "submitted",
@@ -164,6 +178,7 @@ describe("forms client", () => {
         before: Temporal.Instant.from(AT),
       })
       .orThrow();
+
     expect(page).toHaveLength(1);
     const reviewed = await forms.review("s1", "accepted").orThrow();
     expect(reviewed.reviewedBy).toBe("u1");
@@ -204,6 +219,7 @@ describe("forms client", () => {
 
   it("reads and submits public forms", async () => {
     const { createdBy: _, ...publicVersion } = VERSION;
+
     const fake = transport({
       get_public_form: () => ({
         id: "f1",
@@ -217,13 +233,16 @@ describe("forms client", () => {
         submittedAt: AT,
       }),
     });
+
     const forms = createForms({ transport: fake, schema: "app" });
     const form = await forms.getPublic("tok").orThrow();
     expect(form).toMatchObject({ id: "f1", description: "Join us" });
     expect("createdBy" in form.version).toBe(false);
+
     const sent = await forms
       .submitPublic("tok", { name: "Ada" }, { botToken: "t" })
       .orThrow();
+
     expect(sent.submittedAt?.toString()).toBe(AT);
     await forms.submitPublic("tok", {}).orThrow();
     expect(fake.calls.slice(1)).toEqual([
@@ -239,6 +258,7 @@ describe("forms client", () => {
     const fake = transport({
       get_form_version: () => ({ ...VERSION, definition: { fields: [] } }),
     });
+
     const forms = createForms({ transport: fake, schema: "app" });
     const result = await forms.getVersion("v1");
     expect(result.ok).toBe(false);
@@ -247,12 +267,14 @@ describe("forms client", () => {
   it("runs hooks around a method", async () => {
     const fake = transport({ delete_form_submission: () => false });
     const after = vi.fn();
+
     const forms = createForms({
       transport: fake,
       schema: "app",
       hooks: { deleteSubmission: { after } },
       logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
     });
+
     expect(await forms.deleteSubmission("s1").orThrow()).toBe(false);
     expect(after).toHaveBeenCalledOnce();
   });

@@ -48,6 +48,7 @@ describe("invoices module", () => {
     expect(sql).toContain("'INV-' || v_seq::text");
     expect(sql).toContain("'CN-' || v_seq::text");
     expect(sql).not.toContain("invoice_from_quote");
+
     const numbered = body(
       "invoices",
       {
@@ -61,6 +62,7 @@ describe("invoices module", () => {
       },
       ["number-sequences"],
     );
+
     expect(numbered).toContain("format_assigned_number('{yyyy}-{n}'");
   });
 

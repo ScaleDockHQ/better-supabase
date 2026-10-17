@@ -49,10 +49,12 @@ describe.skipIf(!live)("block fields", () => {
 
   it("agents", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "agents"], extraColumns("agents"));
       const owner = await s.user("owner");
       const tenant = await s.organization(owner);
+
       const agents = createAgents({
         transport: sqlTransport(s.sql),
         fields: Fields,
@@ -64,13 +66,17 @@ describe.skipIf(!live)("block fields", () => {
           .create(tenant, { slug: "bad", name: "Bad", priority: 0 })
           .then(kind),
       ).toBe("validation");
+
       const created = await agents
         .create(tenant, { slug: "writer", name: "Writer", label: "blog" })
         .orThrow();
+
       expect(created).toMatchObject({ label: "blog", priority: null });
+
       const updated = await agents
         .update(tenant, created.id, { priority: 2 })
         .orThrow();
+
       expect(updated).toMatchObject({ label: "blog", priority: 2 });
       expect(await agents.get(created.id).orThrow()).toMatchObject({
         priority: 2,
@@ -84,10 +90,12 @@ describe.skipIf(!live)("block fields", () => {
 
   it("ai-chat", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "ai-chat"], extraColumns("ai-chat"));
       const owner = await s.user("owner");
       const tenant = await s.organization(owner);
+
       const chat = createAiChat({
         transport: sqlTransport(s.sql),
         fields: Fields,
@@ -97,13 +105,17 @@ describe.skipIf(!live)("block fields", () => {
       expect(await chat.chats.create(tenant, { priority: 0 }).then(kind)).toBe(
         "validation",
       );
+
       const created = await chat.chats
         .create(tenant, { title: "Plan", label: "work" })
         .orThrow();
+
       expect(created).toMatchObject({ title: "Plan", label: "work" });
+
       const updated = await chat.chats
         .update(created.id, { priority: 3 })
         .orThrow();
+
       expect(updated).toMatchObject({ label: "work", priority: 3 });
       expect(await chat.chats.get(created.id).orThrow()).toMatchObject({
         priority: 3,
@@ -117,6 +129,7 @@ describe.skipIf(!live)("block fields", () => {
 
   it("ai-files", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "ai-files"], {
         modules: {
@@ -130,6 +143,7 @@ describe.skipIf(!live)("block fields", () => {
       });
       const owner = await s.user("owner");
       const tenant = await s.organization(owner);
+
       const storage: AiFileStorage = {
         from: () => ({
           createSignedUploadUrl: (path) =>
@@ -146,6 +160,7 @@ describe.skipIf(!live)("block fields", () => {
           remove: () => Promise.resolve({ data: [], error: null }),
         }),
       };
+
       const files = createAiFiles({
         transport: sqlTransport(s.sql),
         storage,
@@ -163,6 +178,7 @@ describe.skipIf(!live)("block fields", () => {
           })
           .then(kind),
       ).toBe("validation");
+
       const { file } = await files.files
         .upload(tenant, {
           filename: "a.png",
@@ -171,6 +187,7 @@ describe.skipIf(!live)("block fields", () => {
           label: "logo",
         })
         .orThrow();
+
       expect(file).toMatchObject({ filename: "a.png", label: "logo" });
       expect(await files.files.get(file.id).orThrow()).toMatchObject({
         label: "logo",
@@ -183,6 +200,7 @@ describe.skipIf(!live)("block fields", () => {
 
   it("ai-tasks", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(
         ["organizations", "agents", "ai-tasks"],
@@ -190,6 +208,7 @@ describe.skipIf(!live)("block fields", () => {
       );
       const owner = await s.user("owner");
       const tenant = await s.organization(owner);
+
       const tasks = createAiTasks({
         transport: sqlTransport(s.sql),
         fields: Fields,
@@ -200,9 +219,11 @@ describe.skipIf(!live)("block fields", () => {
       expect(
         await tasks.create(tenant, { ...task, priority: 0 }).then(kind),
       ).toBe("validation");
+
       const created = await tasks
         .create(tenant, { ...task, label: "daily" })
         .orThrow();
+
       expect(created).toMatchObject({ title: "Digest", label: "daily" });
       const paused = await tasks.pause(tenant, created.id).orThrow();
       expect(paused).toMatchObject({ enabled: false, label: "daily" });
@@ -216,6 +237,7 @@ describe.skipIf(!live)("block fields", () => {
 
   it("announcements", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(
         ["organizations", "announcements"],
@@ -223,6 +245,7 @@ describe.skipIf(!live)("block fields", () => {
       );
       const member = await s.user("member");
       await s.organization(await s.user("owner"), { member });
+
       const announcements = createAnnouncements({
         transport: sqlTransport(s.sql),
         fields: Fields,
@@ -232,13 +255,17 @@ describe.skipIf(!live)("block fields", () => {
       expect(
         await announcements.publish({ title: "Bad", priority: 0 }).then(kind),
       ).toBe("validation");
+
       const published = await announcements
         .publish({ title: "Release", label: "product" })
         .orThrow();
+
       expect(published).toMatchObject({ title: "Release", label: "product" });
+
       const updated = await announcements
         .update(published.id, { priority: 2 })
         .orThrow();
+
       expect(updated).toMatchObject({ label: "product", priority: 2 });
       const [managed] = await announcements.list().orThrow();
       expect(managed).toMatchObject({ priority: 2 });
@@ -253,10 +280,12 @@ describe.skipIf(!live)("block fields", () => {
 
   it("api-keys", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "api-keys"], extraColumns("api-keys"));
       const owner = await s.user("owner");
       const tenant = await s.organization(owner);
+
       const keys = createApiKeys({
         transport: sqlTransport(s.sql),
         fields: Fields,
@@ -268,9 +297,11 @@ describe.skipIf(!live)("block fields", () => {
           .create({ name: "Bad", organizationId: tenant, priority: 0 })
           .then(kind),
       ).toBe("validation");
+
       const { key, token } = await keys
         .create({ name: "CI", organizationId: tenant, label: "deploys" })
         .orThrow();
+
       expect(key).toMatchObject({ name: "CI", label: "deploys" });
       const rotated = await keys.rotate(key.id).orThrow();
       expect(rotated.key).toMatchObject({ label: "deploys" });
@@ -289,6 +320,7 @@ describe.skipIf(!live)("block fields", () => {
 
   it("approvals", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "approvals"], {
         modules: {
@@ -305,10 +337,12 @@ describe.skipIf(!live)("block fields", () => {
       const owner = await s.user("owner");
       const member = await s.user("member");
       const tenant = await s.organization(owner, { member });
+
       const approvals = createApprovals({
         transport: sqlTransport(s.sql),
         fields: Fields,
       });
+
       const input = {
         organizationId: tenant,
         subjectType: "doc",
@@ -321,9 +355,11 @@ describe.skipIf(!live)("block fields", () => {
           .request({ ...input, subjectId: "d0", priority: 0 })
           .then(kind),
       ).toBe("validation");
+
       const request = await approvals
         .request({ ...input, subjectId: "d1", label: "launch" })
         .orThrow();
+
       expect(request).toMatchObject({ status: "pending", label: "launch" });
       expect(await approvals.get(request.id).orThrow()).toMatchObject({
         label: "launch",
@@ -341,6 +377,7 @@ describe.skipIf(!live)("block fields", () => {
 
   it("attachments", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "attachments"], {
         modules: {
@@ -358,6 +395,7 @@ describe.skipIf(!live)("block fields", () => {
       });
       const owner = await s.user("owner");
       const tenant = await s.organization(owner);
+
       const attachments = createAttachments({
         transport: sqlTransport(s.sql),
         storage: {
@@ -382,6 +420,7 @@ describe.skipIf(!live)("block fields", () => {
           priority: v.pipe(v.number(), v.minValue(1)),
         }),
       });
+
       const file = {
         organizationId: tenant,
         name: "a.pdf",
@@ -393,9 +432,11 @@ describe.skipIf(!live)("block fields", () => {
       expect(
         await attachments.upload({ ...file, priority: 0 }).then(kind),
       ).toBe("validation");
+
       const { attachment } = await attachments
         .upload({ ...file, label: "contract" })
         .orThrow();
+
       expect(attachment).toMatchObject({ label: "contract", priority: 1 });
       const [listed] = await attachments.list(tenant).orThrow();
       expect(listed).toMatchObject({ label: "contract", priority: 1 });
@@ -409,45 +450,55 @@ describe.skipIf(!live)("block fields", () => {
 
   it("bookings", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "bookings"], extraColumns("bookings"));
       const owner = await s.user("owner");
       const tenant = await s.organization(owner);
+
       const bookings = createBookings({
         transport: sqlTransport(s.sql),
         fields: Fields,
       });
 
       await s.as(owner);
+
       const { id: resource } = await bookings
         .saveResource(tenant, { name: "Ann", kind: "staff", tz: "UTC" })
         .orThrow();
+
       await bookings
         .setAvailability(resource, [
           { weekday: 1, start: "09:00", end: "12:00" },
         ])
         .orThrow();
+
       const { id: service } = await bookings
         .saveService(tenant, { name: "Call", duration: "PT30M" })
         .orThrow();
+
       const startsAt = Temporal.Instant.from("2030-03-04T09:00:00Z");
       expect(
         await bookings
           .hold(service, resource, startsAt, { name: "Ada", priority: 0 })
           .then(kind),
       ).toBe("validation");
+
       const held = await bookings
         .hold(service, resource, startsAt, { name: "Ada", label: "vip" })
         .orThrow();
+
       expect(held).toMatchObject({ customerName: "Ada", label: "vip" });
       const confirmed = await bookings.confirm(held.id).orThrow();
       expect(confirmed).toMatchObject({ status: "confirmed", label: "vip" });
+
       const [listed] = await bookings
         .list(tenant, {
           from: Temporal.Instant.from("2030-03-04T00:00:00Z"),
           until: Temporal.Instant.from("2030-03-05T00:00:00Z"),
         })
         .orThrow();
+
       expect(listed).toMatchObject({ label: "vip", priority: null });
     } finally {
       await s.close();
@@ -456,37 +507,46 @@ describe.skipIf(!live)("block fields", () => {
 
   it("calendar", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "calendar"], extraColumns("calendar"));
       const owner = await s.user("owner");
       const tenant = await s.organization(owner);
+
       const calendar = createCalendar({
         transport: sqlTransport(s.sql),
         fields: Fields,
       });
 
       await s.as(owner);
+
       const { id: calendarId } = await calendar
         .createCalendar(tenant, "Team")
         .orThrow();
+
       const event = {
         title: "Standup",
         startsAt: Temporal.Instant.from("2030-03-04T09:00:00Z"),
         endsAt: Temporal.Instant.from("2030-03-04T09:15:00Z"),
       };
+
       expect(
         await calendar.save(calendarId, { ...event, priority: 0 }).then(kind),
       ).toBe("validation");
+
       const { id } = await calendar
         .save(calendarId, { ...event, label: "daily" })
         .orThrow();
+
       await calendar.save(calendarId, { id, priority: 2 }).orThrow();
+
       const [listed] = await calendar
         .events([calendarId], {
           from: Temporal.Instant.from("2030-03-04T00:00:00Z"),
           until: Temporal.Instant.from("2030-03-05T00:00:00Z"),
         })
         .orThrow();
+
       expect(listed).toMatchObject({
         title: "Standup",
         label: "daily",
@@ -499,10 +559,12 @@ describe.skipIf(!live)("block fields", () => {
 
   it("catalog", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "catalog"], extraColumns("catalog"));
       const owner = await s.user("owner");
       const tenant = await s.organization(owner);
+
       const catalog = createCatalog({
         transport: sqlTransport(s.sql),
         fields: Fields,
@@ -514,13 +576,17 @@ describe.skipIf(!live)("block fields", () => {
           .createProduct(tenant, { title: "Mug", priority: 0 })
           .then(kind),
       ).toBe("validation");
+
       const created = await catalog
         .createProduct(tenant, { title: "Mug", label: "kitchen" })
         .orThrow();
+
       expect(created).toMatchObject({ slug: "mug", label: "kitchen" });
+
       const updated = await catalog
         .updateProduct(tenant, created.id, { title: "Mug", priority: 5 })
         .orThrow();
+
       expect(updated).toMatchObject({ label: "kitchen", priority: 5 });
     } finally {
       await s.close();
@@ -529,6 +595,7 @@ describe.skipIf(!live)("block fields", () => {
 
   it("collections", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.client.query(
         "create table if not exists public.block_fields_memos (id uuid primary key default gen_random_uuid(), organization_id uuid not null)",
@@ -541,6 +608,7 @@ describe.skipIf(!live)("block fields", () => {
       });
       const owner = await s.user("owner");
       const tenant = await s.organization(owner);
+
       const collections = createCollections({
         transport: sqlTransport(s.sql),
         fields: Fields,
@@ -551,13 +619,17 @@ describe.skipIf(!live)("block fields", () => {
       expect(
         await collections.create(tenant, { ...input, priority: 0 }).then(kind),
       ).toBe("validation");
+
       const created = await collections
         .create(tenant, { ...input, label: "later" })
         .orThrow();
+
       expect(created).toMatchObject({ name: "Reading", label: "later" });
+
       const renamed = await collections
         .rename(created.id, { priority: 3 })
         .orThrow();
+
       expect(renamed).toMatchObject({ label: "later", priority: 3 });
       const [listed] = await collections.list(tenant).orThrow();
       expect(listed).toMatchObject({ label: "later", priority: 3 });
@@ -568,33 +640,41 @@ describe.skipIf(!live)("block fields", () => {
 
   it("comments", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "comments"], extraColumns("comments"));
       const owner = await s.user("owner");
       const tenant = await s.organization(owner);
+
       const comments = createComments({
         transport: sqlTransport(s.sql),
         fields: Fields,
       });
 
       await s.asRole(owner);
+
       const input = {
         organizationId: tenant,
         subjectType: "project",
         subjectId: "p1",
         body: "Looks good",
       };
+
       expect(
         await comments.create({ ...input, fields: { priority: 0 } }).then(kind),
       ).toBe("validation");
+
       const created = await comments
         .create({ ...input, fields: { label: "review" } })
         .orThrow();
+
       expect(created.fields).toMatchObject({ label: "review", priority: null });
       expect(created.editedAt).toBeUndefined();
+
       const edited = await comments
         .edit(created.id, { body: "Looks great", fields: { priority: 2 } })
         .orThrow();
+
       expect(edited).toMatchObject({
         body: "Looks great",
         fields: { label: "review", priority: 2 },
@@ -608,6 +688,7 @@ describe.skipIf(!live)("block fields", () => {
 
   it("connectors", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(
         ["organizations", "connectors"],
@@ -615,6 +696,7 @@ describe.skipIf(!live)("block fields", () => {
       );
       const owner = await s.user("owner");
       const tenant = await s.organization(owner);
+
       const connectors = createConnectors({
         transport: sqlTransport(s.sql),
         fields: Fields,
@@ -627,13 +709,17 @@ describe.skipIf(!live)("block fields", () => {
           .create(tenant, { ...input, fields: { priority: 0 } })
           .then(kind),
       ).toBe("validation");
+
       const created = await connectors.servers
         .create(tenant, { ...input, fields: { label: "code" } })
         .orThrow();
+
       expect(created.fields).toMatchObject({ label: "code", priority: null });
+
       const updated = await connectors.servers
         .update(tenant, created.id, { enabled: false, fields: { priority: 4 } })
         .orThrow();
+
       expect(updated).toMatchObject({
         enabled: false,
         fields: { label: "code", priority: 4 },

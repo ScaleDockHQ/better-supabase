@@ -64,22 +64,27 @@ describe.skipIf(!live)("promotions module in Postgres", () => {
       "better_supabase.save_product($1, null, $2, null, null, 'physical')",
       [tenant, sku],
     );
+
     await call("better_supabase.set_product_status($1, 'active')", [
       product.id,
     ]);
+
     const variant = await call<{ id: string }>(
       "better_supabase.save_variant($1, null, $2, '{}'::uuid[], null, null, 500, false, false)",
       [product.id, sku],
     );
+
     await call(
       "better_supabase.set_price($1, 'EUR', $2, null, null, null, null)",
       [variant.id, amount],
     );
+
     return { product: product.id, variant: variant.id };
   };
 
   const promotion = async (data: Record<string, unknown>): Promise<string> => {
     await session.as(owner);
+
     return (
       await call<{ id: string }>(
         "better_supabase.save_promotion($1, null, $2)",
@@ -103,10 +108,12 @@ describe.skipIf(!live)("promotions module in Postgres", () => {
   /** A fresh open cart for `user` with two tees and a mug (5000 EUR). */
   const cart = async (user: TestUser, email = user.email): Promise<string> => {
     await session.as(user);
+
     const created = await call<{ id: string }>(
       "better_supabase.create_cart($1, 'EUR', null, $2)",
       [tenant, email],
     );
+
     await session.client.query(
       "delete from better_supabase.cart_promotion_codes where cart_id = $1",
       [created.id],
@@ -128,6 +135,7 @@ describe.skipIf(!live)("promotions module in Postgres", () => {
       created.id,
       rate,
     ]);
+
     return created.id;
   };
 
@@ -139,6 +147,7 @@ describe.skipIf(!live)("promotions module in Postgres", () => {
 
   const place = async (cartId: string): Promise<{ id: string }> => {
     await session.service();
+
     return call<{ id: string }>(
       "better_supabase.place_order($1, null, null, null)",
       [cartId],
@@ -201,6 +210,7 @@ describe.skipIf(!live)("promotions module in Postgres", () => {
       automatic: true,
       stackable: true,
     });
+
     const fixed = await promotion({
       name: "5 off",
       kind: "fixed",
@@ -210,6 +220,7 @@ describe.skipIf(!live)("promotions module in Postgres", () => {
       stackable: true,
       priority: 10,
     });
+
     await codes(fixed, ["save5"]);
     const id = await cart(shopper);
     expect(await apply(id, " Save5 ")).toMatchObject({ code: "SAVE5" });
@@ -235,17 +246,20 @@ describe.skipIf(!live)("promotions module in Postgres", () => {
 
   it("keeps a non-stackable promotion alone and reports the code that loses", async () => {
     await reset();
+
     const best = await promotion({
       name: "VIP 20%",
       kind: "percentage",
       percent: "20",
       priority: 5,
     });
+
     const weaker = await promotion({
       name: "Welcome 5%",
       kind: "percentage",
       percent: "5",
     });
+
     await promotion({
       name: "Auto 1%",
       kind: "percentage",
@@ -290,26 +304,32 @@ describe.skipIf(!live)("promotions module in Postgres", () => {
   it("scopes discounts to products, categories with their children, and collections", async () => {
     await reset();
     await session.as(owner);
+
     const apparel = await call<{ id: string }>(
       "better_supabase.save_category($1, null, null, 'Apparel', null, null)",
       [tenant],
     );
+
     const tees = await call<{ id: string }>(
       "better_supabase.save_category($1, null, $2, 'Tees', null, null)",
       [tenant, apparel.id],
     );
+
     await call("better_supabase.set_product_categories($1, $2)", [
       tee.product,
       [tees.id],
     ]);
+
     const kitchen = await call<{ id: string }>(
       "better_supabase.save_collection($1, null, 'Kitchen', null, 'manual', null)",
       [tenant],
     );
+
     await call("better_supabase.add_to_collection($1, $2, null)", [
       kitchen.id,
       mug.product,
     ]);
+
     const byCategory = await promotion({
       name: "Apparel 50%",
       kind: "percentage",
@@ -319,6 +339,7 @@ describe.skipIf(!live)("promotions module in Postgres", () => {
       automatic: true,
       stackable: true,
     });
+
     await promotion({
       name: "Kitchen 1 off",
       kind: "fixed",
@@ -364,12 +385,14 @@ describe.skipIf(!live)("promotions module in Postgres", () => {
 
   it("frees shipping and reports a minimum the cart doesn't reach", async () => {
     await reset();
+
     const free = await promotion({
       name: "Free shipping",
       kind: "free_shipping",
       currency: "EUR",
       minSubtotal: "4000",
     });
+
     await codes(free, ["SHIPFREE"]);
     const id = await cart(shopper);
     await apply(id, "SHIPFREE");
@@ -392,6 +415,7 @@ describe.skipIf(!live)("promotions module in Postgres", () => {
 
   it("redeems inside checkout, enforces limits and releases on cancel", async () => {
     await reset();
+
     const once = await promotion({
       name: "One per customer",
       kind: "fixed",
@@ -400,12 +424,14 @@ describe.skipIf(!live)("promotions module in Postgres", () => {
       perCustomerLimit: 1,
       stackable: true,
     });
+
     await codes(once, ["ONCE"]);
     await codes(once, ["SINGLE"], 1);
     const first = await cart(shopper);
     await apply(first, "SINGLE");
     expect((await price(first)).discountTotal).toBe("1000");
     const order = await place(first);
+
     const redemptions = await session.rows<{
       status: string;
       amount: string;
@@ -414,13 +440,16 @@ describe.skipIf(!live)("promotions module in Postgres", () => {
       "select status, amount::text, customer_id from better_supabase.promotion_redemptions where order_id = $1",
       [order.id],
     );
+
     expect(redemptions).toEqual([
       { status: "redeemed", amount: "1000", customer_id: shopper.id },
     ]);
+
     const events = await session.rows<{ data: Record<string, unknown> }>(
       "select payload as data from better_supabase.outbox_events where organization_id = $1 and type = 'promotion.redeemed'",
       [tenant],
     );
+
     expect(events.at(-1)?.data).toMatchObject({
       promotionId: once,
       code: "SINGLE",
@@ -467,11 +496,13 @@ describe.skipIf(!live)("promotions module in Postgres", () => {
 
   it("moves a cart's codes when carts merge", async () => {
     await reset();
+
     const welcome = await promotion({
       name: "Welcome",
       kind: "percentage",
       percent: "10",
     });
+
     await codes(welcome, ["MERGE10"]);
     const anonymous = await cart(other, "merge@example.test");
     await apply(anonymous, "MERGE10");
@@ -497,11 +528,13 @@ describe.skipIf(!live)("promotions module in Postgres", () => {
       ]),
     ).toBe("PROMOTIONS_FORBIDDEN");
     await session.as(owner);
+
     const invalid = async (data: Record<string, unknown>): Promise<string> =>
       session.hint("better_supabase.save_promotion($1, null, $2)", [
         tenant,
         JSON.stringify(data),
       ]);
+
     for (const data of [
       { name: "x", kind: "bogus" },
       { name: "x", kind: "percentage", percent: "150" },
@@ -527,15 +560,20 @@ describe.skipIf(!live)("promotions module in Postgres", () => {
       endsAt: "2026-01-01T00:00:00Z",
       startsAt: "2025-12-01T00:00:00Z",
     });
+
     await codes(ended, ["ENDED"]);
+
     const generated = await call<{ code: string }[]>(
       "better_supabase.create_promotion_codes($1, null, 3, 'bf-', null)",
       [ended],
     );
+
     expect(generated).toHaveLength(3);
+
     for (const entry of generated) {
       expect(entry.code).toMatch(/^BF-[A-HJ-NP-Z2-9]{8}$/);
     }
+
     expect(
       await session.hint(
         "better_supabase.create_promotion_codes($1, $2, null, null, null)",
@@ -578,10 +616,12 @@ describe.skipIf(!live)("promotions module in Postgres", () => {
     expect(await call("better_supabase.delete_promotion($1)", [ended])).toBe(
       true,
     );
+
     const used = await session.rows<{ promotion_id: string }>(
       "select promotion_id from better_supabase.promotion_redemptions where tenant_id = $1 limit 1",
       [tenant],
     );
+
     expect(
       await session.hint("better_supabase.delete_promotion($1)", [
         used[0]?.promotion_id,

@@ -23,6 +23,7 @@ import {
 } from "./stripe-shared.ts";
 
 type Params = Readonly<Record<string, unknown>>;
+
 type RequestOptions = { readonly idempotencyKey?: string };
 
 /** A PaymentIntent, as far as the adapter reads it. */
@@ -132,12 +133,15 @@ const REFERENCE = "better_supabase_reference";
 function paymentOf(name: string, intent: StripePaymentIntent): Payment {
   const amount = fromStripeAmount(intent.amount, intent.currency);
   const charge = intent.latest_charge;
+
   const refunded =
     typeof charge === "object" && charge !== null
       ? (charge.amount_refunded ?? 0)
       : 0;
+
   const { [REFERENCE]: reference = "", ...metadata } = intent.metadata ?? {};
   const redirect = intent.next_action?.redirect_to_url?.url;
+
   return {
     id: intent.id,
     provider: name,
@@ -178,27 +182,37 @@ export function stripePaymentEvents(event: unknown): readonly PaymentEvent[] {
   const type = text(envelope["type"]);
   const object = objectOf(objectOf(envelope["data"])["object"]);
   const created = envelope["created"];
+
   if (id === undefined || type === undefined || typeof created !== "number") {
     return [];
   }
+
   const occurredAt = temporal().Instant.fromEpochMilliseconds(created * 1000);
   const currency = text(object["currency"]);
+
   const amountOf = (key: string): Money | undefined => {
     const value = object[key];
+
     return currency === undefined || typeof value !== "number"
       ? undefined
       : fromStripeAmount(value, currency);
   };
+
   const mapped = EVENTS[type];
+
   if (mapped !== undefined) {
     const paymentId = text(object["id"]);
+
     if (paymentId === undefined) {
       return [];
     }
+
     const reference = text(objectOf(object["metadata"])[REFERENCE]);
+
     const amount = amountOf(
       mapped === "payment.succeeded" ? "amount_received" : "amount",
     );
+
     return [
       {
         id,
@@ -210,12 +224,14 @@ export function stripePaymentEvents(event: unknown): readonly PaymentEvent[] {
       },
     ];
   }
+
   if (type.startsWith("refund.")) {
     const status = object["status"];
     const intent = object["payment_intent"];
     const paymentId = text(intent) ?? text(objectOf(intent)["id"]);
     const refundId = text(object["id"]);
     const amount = amountOf("amount");
+
     if (
       paymentId === undefined ||
       refundId === undefined ||
@@ -223,6 +239,7 @@ export function stripePaymentEvents(event: unknown): readonly PaymentEvent[] {
     ) {
       return [];
     }
+
     return [
       {
         id,
@@ -234,6 +251,7 @@ export function stripePaymentEvents(event: unknown): readonly PaymentEvent[] {
       },
     ];
   }
+
   return [];
 }
 
@@ -247,6 +265,7 @@ export function stripePayments(
 ): PaymentProvider {
   const name = options.name ?? "stripe";
   const client = lazyStripe<StripePaymentsClient>(options.stripe);
+
   const extra = options.paymentIntent ?? {
     automatic_payment_methods: { enabled: true },
   };
@@ -258,11 +277,15 @@ export function stripePayments(
     if (value === undefined) {
       return ok(undefined);
     }
+
     const problem = invalidPaymentAmount(value);
+
     if (problem) {
       return err(problem);
     }
+
     const intent = await (await client()).paymentIntents.retrieve(paymentId);
+
     if (intent.currency.toUpperCase() !== value.currency) {
       return err(
         dbError(
@@ -272,6 +295,7 @@ export function stripePayments(
         ),
       );
     }
+
     return toStripeAmount(value);
   };
 
@@ -281,14 +305,19 @@ export function stripePayments(
     createPayment: (input, call = {}) =>
       stripeResult(async () => {
         const problem = invalidPaymentAmount(input.amount);
+
         if (problem) {
           return err(problem);
         }
+
         const amount = toStripeAmount(input.amount);
+
         if (!amount.ok) {
           return amount;
         }
+
         const stripe = await client();
+
         const intent = await stripe.paymentIntents.create(
           {
             ...extra,
@@ -306,14 +335,17 @@ export function stripePayments(
           },
           idempotency(call.idempotencyKey),
         );
+
         return ok(paymentOf(name, intent));
       }),
     capture: (paymentId, input = {}, call = {}) =>
       stripeResult(async () => {
         const amount = await sameCurrency(paymentId, input.amount);
+
         if (!amount.ok) {
           return amount;
         }
+
         const intent = await (
           await client()
         ).paymentIntents.capture(
@@ -326,14 +358,17 @@ export function stripePayments(
           },
           idempotency(call.idempotencyKey),
         );
+
         return ok(paymentOf(name, intent));
       }),
     refund: (paymentId, input = {}, call = {}) =>
       stripeResult(async () => {
         const amount = await sameCurrency(paymentId, input.amount);
+
         if (!amount.ok) {
           return amount;
         }
+
         const refund = await (
           await client()
         ).refunds.create(
@@ -346,6 +381,7 @@ export function stripePayments(
           },
           idempotency(call.idempotencyKey),
         );
+
         return ok(refundOf(refund, paymentId));
       }),
     cancel: (paymentId, call = {}) =>
@@ -357,6 +393,7 @@ export function stripePayments(
           { ...EXPAND },
           idempotency(call.idempotencyKey),
         );
+
         return ok(paymentOf(name, intent));
       }),
     get: (paymentId) =>
@@ -381,9 +418,11 @@ export function stripePayments(
             ? {}
             : { tolerance: options.tolerance },
         );
+
         if (!verified.ok) {
           return verified;
         }
+
         return ok(stripePaymentEvents(verified.data.payload));
       }),
   };

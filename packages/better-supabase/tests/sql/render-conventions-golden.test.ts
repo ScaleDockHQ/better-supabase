@@ -42,11 +42,13 @@ const CONVENTIONS: readonly Convention[] = [
 
 function render(module: string, layout: ModuleLayout): string {
   let files;
+
   try {
     files = renderModules([module], layout);
   } catch (cause) {
     return `-- ==== throws\n-- ${cause instanceof Error ? cause.message : String(cause)}\n`;
   }
+
   return files
     .filter((file) => file.module === module)
     .map((file) => `-- ==== ${file.kind} ${file.path}\n${file.contents}`)

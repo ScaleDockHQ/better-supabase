@@ -10,12 +10,14 @@ import { createConnectors } from "../../../src/blocks/connectors/index.ts";
 import { AsyncResult } from "../../../src/core/result.ts";
 
 const AT = "2026-01-01T00:00:00Z";
+
 const CAPABILITIES = {
   userSubjects: true,
   authorization: false,
   revoke: true,
   inbound: false,
 };
+
 const REF = { provider: "vault", secret: "mcp:s1", scope: "user" };
 
 const grantRow = (overrides: Record<string, unknown> = {}) => ({
@@ -52,21 +54,26 @@ type Handler = (args: Record<string, unknown>) => unknown;
 
 function fakeTransport(handlers: Record<string, Handler>) {
   const calls: { fn: string; args: Record<string, unknown> }[] = [];
+
   const transport: BlockTransport = {
     call: (_schema, fn, args) => {
       calls.push({ fn, args });
       const handler = handlers[fn];
+
       if (!handler) {
         return Promise.reject(new Error(`unexpected ${fn}`));
       }
+
       return Promise.resolve(handler(args));
     },
   };
+
   return { transport, calls };
 }
 
 function fakeCredentials() {
   const revoked: { ref: CredentialRef; subject: unknown }[] = [];
+
   const credentials: CredentialProvider = {
     apiVersion: 1,
     name: "fake",
@@ -74,9 +81,11 @@ function fakeCredentials() {
     capabilities: () => CAPABILITIES,
     revoke: (ref, options) => {
       revoked.push({ ref, subject: options.subject });
+
       return AsyncResult.ok(true);
     },
   };
+
   return { credentials, revoked };
 }
 
@@ -99,6 +108,7 @@ describe("createConnectors", () => {
       get_connector: (args) => (args["id"] === "gone" ? null : serverRow()),
       save_connector_server: () => serverRow(),
     });
+
     const connectors = createConnectors({ transport });
     const [first, second] = await connectors.servers.list("o1").orThrow();
     expect(first?.grant?.credentialRef).toEqual(REF);
@@ -148,10 +158,12 @@ describe("createConnectors", () => {
   it("gets another user's grant with the service role", async () => {
     const user = fakeTransport({});
     const service = fakeTransport({ get_connector: () => serverRow() });
+
     const connectors = createConnectors({
       transport: user.transport,
       service: service.transport,
     });
+
     await connectors.servers.get("s1", { ownerId: "u2" });
     expect(user.calls).toEqual([]);
     expect(service.calls[0]?.args).toEqual({ id: "s1", owner: "u2" });
@@ -159,6 +171,7 @@ describe("createConnectors", () => {
 
   it("revokes credentials when grants go away", async () => {
     const { credentials, revoked } = fakeCredentials();
+
     const { transport } = fakeTransport({
       delete_connector_server: () => [
         grantRow(),
@@ -178,6 +191,7 @@ describe("createConnectors", () => {
               }),
             },
     });
+
     const connectors = createConnectors({ transport, credentials });
     expect(await connectors.servers.remove("s1").orThrow()).toBe(2);
     expect(revoked.map(({ subject }) => subject)).toEqual([
@@ -206,6 +220,7 @@ describe("createConnectors", () => {
       delete_connector_server: () => [grantRow()],
       revoke_connector_grant: () => grantRow(),
     });
+
     const connectors = createConnectors({ transport });
     expect(await connectors.servers.remove("s1").orThrow()).toBe(1);
     expect(await connectors.grants.revoke("g1").orThrow()).toBe(true);
@@ -220,13 +235,16 @@ describe("createConnectors", () => {
       revoke: () =>
         AsyncResult.err({ kind: "network", message: "down" } as never),
     };
+
     const { transport } = fakeTransport({
       delete_connector_server: () => [grantRow()],
     });
+
     const removed = await createConnectors({
       transport,
       credentials,
     }).servers.remove("s1");
+
     expect(removed.ok).toBe(false);
   });
 
@@ -234,9 +252,11 @@ describe("createConnectors", () => {
     const { transport } = fakeTransport({
       expiring_connector_grants: () => [grantRow({ credential_ref: null })],
     });
+
     const result = await createConnectors({ transport }).grants.expiring(
       Temporal.Instant.from(AT),
     );
+
     expect(result.ok ? undefined : result.error.message).toContain(
       "without a ref",
     );
@@ -260,6 +280,7 @@ describe("createConnectors", () => {
         args["fingerprint"] === "new" ? "bogus" : "approved",
       decide_connector_fingerprint: () => true,
     });
+
     const connectors = createConnectors({ transport });
     const at = Temporal.Instant.from(AT);
     expect(

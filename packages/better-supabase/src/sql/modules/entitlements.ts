@@ -20,6 +20,7 @@ const entitlementsSql = (
   const m = memberships(layout);
   const id = layout.entitlementsProvider?.idType ?? m.idType;
   const source = layout.entitlements?.source ?? "stripe-sync";
+
   if (source === "custom") {
     return `${SCHEMA}
 grant usage on schema better_supabase to supabase_auth_admin;
@@ -35,6 +36,7 @@ revoke execute on function better_supabase.feature_claims(uuid) from public, ano
 grant execute on function better_supabase.feature_claims(uuid) to service_role, supabase_auth_admin;
 reset check_function_bodies;`;
   }
+
   if (typeof source === "object") {
     return `${SCHEMA}
 grant usage on schema better_supabase to supabase_auth_admin;
@@ -44,6 +46,7 @@ ${layout.entitlementsProvider ? providerEntitlementChecks(claims, layout.entitle
 revoke execute on function better_supabase.feature_claims(uuid) from public, anon, authenticated;
 grant execute on function better_supabase.feature_claims(uuid) to service_role, supabase_auth_admin;`;
   }
+
   return `${SCHEMA}
 grant usage on schema better_supabase to supabase_auth_admin;
 
@@ -90,12 +93,15 @@ function planEntitlements(
   const subs = plans.subscriptions;
   const features = plans.features;
   const active = subs.activeStatuses ?? ["active", "trialing"];
+
   const status = subs.status
     ? `\n      and s.${sqlIdent(subs.status)}::text = any (array[${active.map(sqlString).join(", ")}]::text[])`
     : "";
+
   const included = features.included
     ? `\n      and f.${sqlIdent(features.included)}`
     : "";
+
   return `
 -- Feature keys of the tenant's active plan (entitlements.source.plans):
 -- ${subs.table} gives the plan, ${features.table} its features.
@@ -145,10 +151,13 @@ function planEntitlementValue(
 ): string {
   const subs = plans.subscriptions;
   const features = plans.features;
+
   if (features.value === undefined) {
     return booleanEntitlementValue(id);
   }
+
   const value = `to_jsonb(f.${sqlIdent(features.value)})`;
+
   return `
 -- The value of a feature for the tenant (entitlements.source.plans.features.value):
 -- the largest number when several active plans set it, else the first

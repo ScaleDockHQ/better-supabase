@@ -6,6 +6,7 @@ import { createHono, type RateLimiter } from "../../src/hono/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
+
 const env = {
   url: PROJECT_URL,
   publishableKey: "sb_publishable_test",
@@ -14,10 +15,12 @@ const env = {
 
 describe("createHono().rateLimit", () => {
   const counts = new Map<string, number>();
+
   const limiter: RateLimiter = {
     check: async (_scope, key) => {
       const used = (counts.get(key) ?? 0) + 1;
       counts.set(key, used);
+
       return ok(
         used <= 1
           ? { allowed: true, remaining: 0, retryAfter: 0 }
@@ -25,7 +28,9 @@ describe("createHono().rateLimit", () => {
       );
     },
   };
+
   const bs = createHono(defineSupabase(schema), { env });
+
   const app = bs
     .app()
     .use(
@@ -43,6 +48,7 @@ describe("createHono().rateLimit", () => {
     const first = await app.request("/api/ping", {
       headers: { "x-api-key": "k1" },
     });
+
     expect(first.status).toBe(200);
     expect(first.headers.get("ratelimit")).toBe('"api";r=0');
     expect(first.headers.has("ratelimit-policy")).toBe(false);
@@ -50,6 +56,7 @@ describe("createHono().rateLimit", () => {
     const refused = await app.request("/api/ping", {
       headers: { "x-api-key": "k1" },
     });
+
     expect(refused.status).toBe(429);
     expect(refused.headers.get("content-type")).toContain(
       "application/problem+json",
@@ -62,6 +69,7 @@ describe("createHono().rateLimit", () => {
     const raw = await app.request("/api/raw", {
       headers: { "x-api-key": "k2" },
     });
+
     expect(raw.headers.get("ratelimit")).toBe('"api";r=0');
     const anonymous = await app.request("/api/ping");
     expect(anonymous.status).toBe(200);

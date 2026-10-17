@@ -23,6 +23,7 @@ export const ORDER_STATUSES = [
   "cancelled",
   "refunded",
 ] as const;
+
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
 export const FULFILLMENT_STATUSES = [
@@ -31,12 +32,15 @@ export const FULFILLMENT_STATUSES = [
   "delivered",
   "cancelled",
 ] as const;
+
 export type FulfillmentStatus = (typeof FULFILLMENT_STATUSES)[number];
 
 export const RETURN_STATUSES = ["requested", "received", "rejected"] as const;
+
 export type ReturnStatus = (typeof RETURN_STATUSES)[number];
 
 export const REFUND_STATUSES = ["pending", "succeeded", "failed"] as const;
+
 export type OrderRefundStatus = (typeof REFUND_STATUSES)[number];
 
 const PAYMENT_STATUSES = [
@@ -287,13 +291,17 @@ function addressOf(value: unknown): Address | undefined {
   if (!isRecord(value) || typeof value["country"] !== "string") {
     return undefined;
   }
+
   const fields: { -readonly [K in keyof Address]?: string } = {};
+
   for (const key of ADDRESS_FIELDS) {
     const entry = value[key];
+
     if (typeof entry === "string") {
       fields[key] = entry;
     }
   }
+
   return { ...fields, country: value["country"] };
 }
 
@@ -304,6 +312,7 @@ function shippingOf(
   if (!isRecord(value)) {
     return undefined;
   }
+
   return {
     rateId: textOf(value["rateId"]),
     name: textOf(value["name"]),
@@ -318,9 +327,11 @@ function promotionsOf(
   if (!Array.isArray(value)) {
     return [];
   }
+
   return value.filter(isRecord).map((entry) => {
     const code = optionalText(entry["code"]);
     const kind = enumOrThrow(entry["kind"], PROMOTION_KINDS, "promotion kind");
+
     return {
       promotionId: textOf(entry["promotionId"]),
       name: textOf(entry["name"]),
@@ -336,12 +347,14 @@ function problemsOf(value: unknown): readonly CartProblem[] {
   if (!Array.isArray(value)) {
     return [];
   }
+
   return value.filter(isRecord).map((entry) => {
     const lineId = optionalText(entry["lineId"]);
     const variantId = optionalText(entry["variantId"]);
     const code = optionalText(entry["code"]);
     const promotionId = optionalText(entry["promotionId"]);
     const reason = optionalText(entry["reason"]);
+
     return {
       problem: textOf(entry["problem"]),
       ...(lineId === undefined ? {} : { lineId }),
@@ -361,6 +374,7 @@ export function pricedCartOf(value: unknown): PricedCart {
   const shippingAddress = addressOf(row["shippingAddress"]);
   const billingAddress = addressOf(row["billingAddress"]);
   const shipping = shippingOf(row["shipping"], currency);
+
   return {
     id: textOf(row["cartId"]),
     organizationId: textOf(row["organizationId"]),
@@ -376,6 +390,7 @@ export function pricedCartOf(value: unknown): PricedCart {
     ...(billingAddress === undefined ? {} : { billingAddress }),
     lines: recordsOf(row["lines"], "orders").map((line) => {
       const previous = line["previousUnitAmount"];
+
       return {
         id: textOf(line["id"]),
         variantId: textOf(line["variantId"]),
@@ -435,6 +450,7 @@ function taxLineToJson(line: TaxLine): Record<string, unknown> {
 function taxLineOf(value: Record<string, unknown>, currency: string): TaxLine {
   const jurisdiction = optionalText(value["jurisdiction"]);
   const taxCategory = optionalText(value["taxCategory"]);
+
   return {
     lineId: textOf(value["lineId"]),
     taxable: moneyOf(value["taxable"], currency),
@@ -465,8 +481,10 @@ function quoteOf(value: unknown): TaxQuote | undefined {
   if (!isRecord(value) || typeof value["quoteId"] !== "string") {
     return undefined;
   }
+
   const currency = textOf(value["currency"]);
   const expiresAt = optionalInstant(value["expiresAt"]);
+
   return {
     id: value["quoteId"],
     provider: textOf(value["provider"]),
@@ -495,7 +513,9 @@ function transactionOf(value: unknown): TaxTransaction | undefined {
   if (!isRecord(value) || typeof value["id"] !== "string") {
     return undefined;
   }
+
   const currency = textOf(value["currency"]);
+
   return {
     id: value["id"],
     reference: textOf(value["reference"]),
@@ -518,6 +538,7 @@ const when = (
   value: unknown,
 ): Record<string, Temporal.Instant> => {
   const instant = optionalInstant(value);
+
   return instant === undefined ? {} : { [key]: instant };
 };
 
@@ -530,6 +551,7 @@ export function orderOf(value: unknown): Order {
   const shipping = shippingOf(row["shipping"], currency);
   const taxQuote = quoteOf(row["tax"]);
   const taxTransaction = transactionOf(row["taxTransaction"]);
+
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["organizationId"]),
@@ -645,12 +667,15 @@ export function refundedTaxLines(
     if (total.amount === 0n) {
       return value;
     }
+
     const part = (value.amount * amount.amount) / total.amount;
+
     return money(
       part > value.amount ? value.amount : part,
       transaction.currency,
     );
   };
+
   return transaction.lines.map((line) => ({
     lineId: line.lineId,
     amount: share(line.taxable),

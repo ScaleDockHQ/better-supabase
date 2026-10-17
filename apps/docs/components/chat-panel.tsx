@@ -23,19 +23,25 @@ function toolStep(part: Part): string | undefined {
   if (!isToolUIPart(part)) {
     return undefined;
   }
+
   const done = part.state === "output-available";
   const failed = part.state === "output-error";
   const name = getToolName(part);
+
   if (name === "search_docs") {
     const input = v.safeParse(SearchInput, part.input);
     const query = input.success ? ` for "${input.output.query}"` : "";
+
     return `${done || failed ? "Searched" : "Searching"} the docs${query}`;
   }
+
   if (name === "read_page") {
     const input = v.safeParse(PageInput, part.input);
     const url = input.success ? ` ${input.output.url}` : "";
+
     return `${done || failed ? "Read" : "Reading"}${url}`;
   }
+
   return undefined;
 }
 
@@ -43,23 +49,29 @@ function MessageParts({ parts }: { parts: readonly Part[] }) {
   const nodes = [];
   let text = "";
   let after = "start";
+
   const flush = () => {
     if (text !== "") {
       nodes.push(<span key={`text-${after}`}>{text}</span>);
     }
+
     text = "";
   };
+
   for (const part of parts) {
     if (part.type === "text") {
       text += part.text;
       continue;
     }
+
     if (!isToolUIPart(part)) {
       continue;
     }
+
     flush();
     after = part.toolCallId;
     const step = toolStep(part);
+
     if (step !== undefined) {
       nodes.push(
         <span
@@ -71,7 +83,9 @@ function MessageParts({ parts }: { parts: readonly Part[] }) {
       );
     }
   }
+
   flush();
+
   return nodes;
 }
 
@@ -84,9 +98,11 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const text = input.trim();
+
     if (text === "" || busy) {
       return;
     }
+
     void sendMessage({ text });
     setInput("");
   }

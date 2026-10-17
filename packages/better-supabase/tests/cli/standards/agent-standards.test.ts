@@ -16,15 +16,18 @@ const json = async (path: string): Promise<Record<string, unknown>> =>
 /** The YAML frontmatter as flat `key: value` pairs (the spec's fields are scalars or one map). */
 function frontmatter(markdown: string): Record<string, string> {
   const block = /^---\n([^]*?)\n---\n/.exec(markdown);
+
   if (!block) {
     throw new Error("SKILL.md has no frontmatter");
   }
+
   return Object.fromEntries(
     block[1]!
       .split("\n")
       .filter((line) => /^[a-z-]+:/.test(line))
       .map((line) => {
         const at = line.indexOf(":");
+
         return [line.slice(0, at), line.slice(at + 1).trim()];
       }),
   );
@@ -53,9 +56,11 @@ describe("Agent Skills", () => {
     const fields = frontmatter(
       await readFile(join(SKILLS, folder, "SKILL.md"), "utf-8"),
     );
+
     for (const key of Object.keys(fields)) {
       expect(SPEC_FIELDS).toContain(key);
     }
+
     expect(fields["name"]).toBe(folder);
     expect(fields["name"]).toMatch(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
     expect(fields["name"]!.length).toBeLessThanOrEqual(64);
@@ -66,9 +71,11 @@ describe("Agent Skills", () => {
 
   it.each(folders)("%s links only to files that exist", async (folder) => {
     const body = await readFile(join(SKILLS, folder, "SKILL.md"), "utf-8");
+
     const links = [
       ...body.matchAll(/\]\((?!https?:|#|mailto:)([^)#\s]+)/g),
     ].map((match) => match[1]!);
+
     expect(
       links.filter((link) => !existsSync(join(SKILLS, folder, link))),
     ).toEqual([]);
@@ -84,22 +91,27 @@ describe("Agent Skills", () => {
 
   it("the Claude and Cursor plugin manifests expose the same skills", async () => {
     const claude = await json(join(REPO, ".claude-plugin/plugin.json"));
+
     const paths = (claude["skills"] as string[]).map((path) =>
       resolve(REPO, path),
     );
+
     expect(paths.toSorted()).toEqual(
       folders.map((folder) => join(SKILLS, folder)).toSorted(),
     );
     const cursor = await json(join(REPO, ".cursor-plugin/plugin.json"));
     expect(resolve(REPO, cursor["skills"] as string)).toBe(SKILLS);
+
     const marketplace = await json(
       join(REPO, ".claude-plugin/marketplace.json"),
     );
+
     const [plugin] = marketplace["plugins"] as {
       name: string;
       version: string;
       source: string;
     }[];
+
     expect(plugin!.name).toBe(claude["name"]);
     expect(
       existsSync(join(REPO, plugin!.source, ".claude-plugin/plugin.json")),
@@ -108,9 +120,11 @@ describe("Agent Skills", () => {
 
   it("plugin, marketplace and server.json versions match the package version", async () => {
     const { version } = await json(join(PACKAGE, "package.json"));
+
     const marketplace = await json(
       join(REPO, ".claude-plugin/marketplace.json"),
     );
+
     expect(
       (await json(join(REPO, ".claude-plugin/plugin.json")))["version"],
     ).toBe(version);
@@ -135,9 +149,11 @@ describe("AGENTS.md", () => {
 
   it("links only to repo files that exist", async () => {
     const agents = await readFile(join(REPO, "AGENTS.md"), "utf-8");
+
     const links = [...agents.matchAll(/\]\((?!https?:|#)([^)#\s]+)/g)].map(
       (match) => match[1]!,
     );
+
     expect(links.length).toBeGreaterThan(0);
     expect(links.filter((link) => !existsSync(join(REPO, link)))).toEqual([]);
   });
@@ -155,10 +171,12 @@ describe("llms.txt", () => {
     const text = JSON.stringify(vercel);
     expect(text).toContain('"/llms.txt"');
     expect(text).toContain('"/llms-full.txt"');
+
     const marketing = await readFile(
       join(REPO, "apps/marketing/next.config.ts"),
       "utf-8",
     );
+
     expect(marketing).toContain('"/llms.txt"');
     expect(marketing).toContain('"/llms-full.txt"');
   });

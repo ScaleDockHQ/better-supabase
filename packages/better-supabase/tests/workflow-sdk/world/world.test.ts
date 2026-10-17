@@ -6,6 +6,7 @@ const inner = vi.fn(
   async (_request: Request): Promise<Response> =>
     new Response("{}", { status: 200 }),
 );
+
 const baseClose = vi.fn(async () => undefined);
 const reenqueue = vi.fn(async () => undefined);
 
@@ -16,6 +17,7 @@ vi.mock("@workflow/world-postgres", () => ({
     close: baseClose,
   }),
 }));
+
 vi.mock("@workflow/world", () => ({
   reenqueueActiveRuns: reenqueue,
 }));
@@ -43,16 +45,21 @@ function fakePool(replies: Record<string, (params: unknown[]) => unknown[]>): {
   queries: Query[];
 } {
   const queries: Query[] = [];
+
   const query = vi.fn(async (text: string, params: unknown[] = []) => {
     const fn = text.includes("vault.decrypted_secrets")
       ? "vault"
       : (/"?([a-z_]+)"?\(/.exec(text.replace(/^select \* from /, ""))?.[1] ??
         "");
+
     queries.push({ fn, params });
     const reply = replies[fn];
+
     return { rows: reply === undefined ? [] : reply(params) };
   });
+
   const end = vi.fn(async () => undefined);
+
   // SAFETY: the World only calls query and end on its pool.
   return { pool: { query, end } as unknown as Pool, queries };
 }
@@ -73,6 +80,7 @@ const ENV_KEYS = [
   "WORKFLOW_LOCAL_BASE_URL",
   "PORT",
 ] as const;
+
 const saved: Record<string, string | undefined> = {};
 
 beforeEach(() => {
@@ -80,12 +88,14 @@ beforeEach(() => {
     saved[key] = process.env[key];
     delete process.env[key];
   }
+
   inner.mockClear();
   reenqueue.mockClear();
 });
 
 afterEach(() => {
   vi.unstubAllEnvs();
+
   for (const key of ENV_KEYS) {
     if (saved[key] === undefined) {
       delete process.env[key];
@@ -93,6 +103,7 @@ afterEach(() => {
       process.env[key] = saved[key];
     }
   }
+
   vi.unstubAllGlobals();
 });
 
@@ -219,9 +230,11 @@ describe("options", () => {
 describe("createSupabaseWorld", () => {
   it("stores messages in the jobs queue and polls them to the flow route", async () => {
     const jobs: unknown[] = [];
+
     const { pool, queries } = fakePool({
       enqueue_job: (params) => {
         jobs.push(JSON.parse(String(params[1])));
+
         return [{ enqueue_job: 1 }];
       },
       claim_jobs: () =>
@@ -233,16 +246,20 @@ describe("createSupabaseWorld", () => {
       complete_job: () => [{ complete_job: true }],
       vault: () => [],
     });
+
     const fetch = vi.fn(async (_url: string, _init: RequestInit) =>
       Response.json({ timeoutSeconds: 5 }, { status: 200 }),
     );
+
     vi.stubGlobal("fetch", fetch);
+
     const world = createSupabaseWorld({
       pool,
       flowUrl: "https://app.test/flow",
       deliverySecret: "sec",
       pollInterval: 10,
     });
+
     await world.close();
 
     const { messageId } = await world.queue(
@@ -250,6 +267,7 @@ describe("createSupabaseWorld", () => {
       { runId: "wrun_1", bytes: new Uint8Array([0, 1]) } as never,
       { idempotencyKey: "k1", delaySeconds: 1.2, headers: { "x-h": "v" } },
     );
+
     expect(messageId).toMatch(/^msg_/);
     const enqueue = queries.find((query) => query.fn === "enqueue_job");
     expect(enqueue?.params.slice(2)).toEqual([2, 73, "k1", false]);
@@ -271,16 +289,20 @@ describe("createSupabaseWorld", () => {
   it("polls in the background once a message is queued, and survives a failed claim", async () => {
     const jobs: unknown[] = [];
     let claims = 0;
+
     const { pool, queries } = fakePool({
       enqueue_job: (params) => {
         jobs.push(JSON.parse(String(params[1])));
+
         return [{ enqueue_job: 1 }];
       },
       claim_jobs: () => {
         claims += 1;
+
         if (claims === 1) {
           throw new Error("claim failed");
         }
+
         return jobs.splice(0).map((payload, index) => ({
           id: index + 1,
           attempts: 1,
@@ -290,8 +312,10 @@ describe("createSupabaseWorld", () => {
       complete_job: () => [{ complete_job: true }],
       vault: () => [],
     });
+
     const fetch = vi.fn(async () => new Response("{}", { status: 200 }));
     vi.stubGlobal("fetch", fetch);
+
     const world = createSupabaseWorld({
       pool,
       flowUrl: "https://app.test/flow",
@@ -317,6 +341,7 @@ describe("createSupabaseWorld", () => {
       fail_job: () => [{ fail_job: "retry" }],
       vault: () => [],
     });
+
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => new Response("boom", { status: 500 })),
@@ -341,6 +366,7 @@ describe("createSupabaseWorld", () => {
       fail_job: () => [],
       vault: () => [],
     });
+
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => {
@@ -357,20 +383,26 @@ describe("createSupabaseWorld", () => {
 
   it("reports the messages of a batch it could not store", async () => {
     let calls = 0;
+
     const { pool } = fakePool({
       enqueue_job: () => {
         calls += 1;
+
         if (calls === 2) {
           throw new Error("full");
         }
+
         return [];
       },
     });
+
     const world = createSupabaseWorld({ pool, delivery: "pg_net" });
+
     const results = await world.queueBatch!("__wkf_step_x", [
       { message: { a: 1 } as never },
       { message: { a: 2 } as never },
     ]);
+
     expect(results[0]?.messageId).toMatch(/^msg_/);
     expect(results[1]).toEqual({
       messageId: null,
@@ -388,11 +420,13 @@ describe("createSupabaseWorld", () => {
       fail_job: () => [],
       extend_job_lease: () => [],
     });
+
     const world = createSupabaseWorld({ pool, delivery: "pg_net" });
     const handler = world.createQueueHandler("__wkf_workflow_", async () => {});
     const body = JSON.stringify(stored(1));
     const job = "workflow_deliveries:7:1";
     const signed = await signDelivery("sec", job, body);
+
     const request = (headers: Record<string, string>, text = body) =>
       new Request("https://app.test/flow", {
         method: "POST",
@@ -403,6 +437,7 @@ describe("createSupabaseWorld", () => {
     const ok = await handler(
       request({ "x-bs-job": job, "x-bs-signature": signed }),
     );
+
     expect(ok.status).toBe(200);
     const forwarded = inner.mock.calls[0]![0];
     expect(forwarded.headers.get("x-vqs-message-id")).toBe("msg_1");
@@ -431,9 +466,11 @@ describe("createSupabaseWorld", () => {
       ).status,
     ).toBe(400);
     expect((await handler(request({}))).status).toBe(401);
+
     const plain = await handler(
       request({ "x-bs-signature": await signDelivery("sec", "", "{}") }, "{}"),
     );
+
     expect(plain.status).toBe(200);
 
     inner.mockRejectedValueOnce(new Error("crash"));
@@ -452,6 +489,7 @@ describe("createSupabaseWorld", () => {
   it("passes unsigned requests through in poll mode without a secret only in development and test", async () => {
     const unsigned = () =>
       new Request("https://app.test/flow", { method: "POST", body: "{}" });
+
     for (const mode of ["development", "test"]) {
       vi.stubEnv("NODE_ENV", mode);
       const { pool } = fakePool({ vault: () => [] });
@@ -460,6 +498,7 @@ describe("createSupabaseWorld", () => {
       expect((await handler(unsigned())).status).toBe(200);
       await world.close();
     }
+
     for (const mode of ["production", ""]) {
       vi.stubEnv("NODE_ENV", mode);
       inner.mockClear();
@@ -482,11 +521,13 @@ describe("createSupabaseWorld", () => {
 
   it("derives run keys from the Vault key and re-enqueues active runs on start", async () => {
     const master = Buffer.alloc(32, 3).toString("base64");
+
     const { pool } = fakePool({
       vault: (params) =>
         params[0] === "workflow_encryption_key" ? [{ secret: master }] : [],
       claim_jobs: () => [],
     });
+
     const world = createSupabaseWorld({ pool, pollInterval: 10 });
     const key = await world.getEncryptionKeyForRun!("wrun_1");
     expect(key).toEqual(await deriveRunKey(parseMasterKey(master), "wrun_1"));
@@ -507,23 +548,28 @@ describe("createSupabaseWorld", () => {
   it("fails closed on an unreadable Vault and reads it again next time", async () => {
     let broken = true;
     const master = Buffer.alloc(32, 3).toString("base64");
+
     const { pool, queries } = fakePool({
       vault: (params) => {
         if (broken) {
           throw new Error("permission denied for schema vault");
         }
+
         return params[0] === "workflow_encryption_key"
           ? [{ secret: master }]
           : [{ secret: "sec" }];
       },
     });
+
     const world = createSupabaseWorld({ pool });
     await expect(world.getEncryptionKeyForRun!("wrun_1")).rejects.toThrow(
       "permission denied",
     );
     const handler = world.createQueueHandler("__wkf_step_", async () => {});
+
     const unsigned = () =>
       new Request("https://app.test/flow", { method: "POST", body: "{}" });
+
     const response = await handler(unsigned());
     expect(response.status).toBe(503);
     expect(inner).not.toHaveBeenCalled();
@@ -550,6 +596,7 @@ describe("createSupabaseWorld", () => {
         throw new Error("vault down");
       },
     });
+
     const fetch = vi.fn(async () => new Response("{}", { status: 200 }));
     vi.stubGlobal("fetch", fetch);
     const world = createSupabaseWorld({ pool, flowUrl: "https://app.test/f" });
@@ -563,6 +610,7 @@ describe("createSupabaseWorld", () => {
 
   it("aborts a delivery the flow route doesn't answer within the timeout", async () => {
     vi.useFakeTimers();
+
     try {
       const { pool, queries } = fakePool({
         claim_jobs: () => [
@@ -572,6 +620,7 @@ describe("createSupabaseWorld", () => {
         extend_job_lease: () => [],
         vault: () => [],
       });
+
       let seen: AbortSignal | undefined;
       vi.stubGlobal(
         "fetch",
@@ -585,18 +634,22 @@ describe("createSupabaseWorld", () => {
             }),
         ),
       );
+
       const world = createSupabaseWorld({
         pool,
         flowUrl: "https://app.test/f",
         lease: 10,
         deliveryTimeout: 20,
       });
+
       const delivered = world.deliverOnce();
       await vi.advanceTimersByTimeAsync(19_000);
       expect(seen?.aborted).toBe(false);
+
       const extended = queries.filter(
         (query) => query.fn === "extend_job_lease",
       ).length;
+
       expect(extended).toBeGreaterThan(0);
       await vi.advanceTimersByTimeAsync(1000);
       await delivered;

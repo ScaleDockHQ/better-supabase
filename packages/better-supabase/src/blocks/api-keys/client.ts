@@ -73,6 +73,7 @@ export function createApiKeysController(
   options: ApiKeysControllerOptions,
 ): ApiKeysController {
   const { client, organizationId } = options;
+
   return defineController<ApiKeysSnapshot, ApiKeysActions>(
     {
       keys: undefined,
@@ -83,18 +84,22 @@ export function createApiKeysController(
     },
     (state) => {
       let ticket = 0;
+
       const refresh = async (): Promise<void> => {
         const request = ++ticket;
         const result = await client.list(organizationId ?? undefined);
+
         if (request !== ticket) {
           return;
         }
+
         state.set(
           result.ok
             ? { keys: newestFirst(result.data), error: undefined }
             : { error: result.error },
         );
       };
+
       const changed = async (change: ApiKeyChange): Promise<void> => {
         try {
           await options.onChanged?.(change);
@@ -102,6 +107,7 @@ export function createApiKeysController(
           state.set({ error: toDbError(cause) });
         }
       };
+
       return {
         actions: {
           refresh,
@@ -110,18 +116,22 @@ export function createApiKeysController(
           },
           create: async (draft) => {
             state.set({ creating: true, created: undefined, error: undefined });
+
             const result = await client.create(
               organizationId === null ? draft : { ...draft, organizationId },
             );
+
             state.set(
               result.ok
                 ? { creating: false, created: result.data }
                 : { creating: false, error: result.error },
             );
+
             if (result.ok) {
               await refresh();
               await changed({ kind: "created", key: result.data.key });
             }
+
             return result;
           },
           revoke: async (id) => {
@@ -134,16 +144,19 @@ export function createApiKeysController(
               revoking: current.revoking.filter((each) => each !== id),
               ...(result.ok ? {} : { error: result.error }),
             }));
+
             if (result.ok) {
               await refresh();
               await changed({ kind: "revoked", id });
             }
+
             return result;
           },
         },
         start: () =>
           whileSignedIn(options.auth, () => {
             void refresh();
+
             return;
           }),
       };

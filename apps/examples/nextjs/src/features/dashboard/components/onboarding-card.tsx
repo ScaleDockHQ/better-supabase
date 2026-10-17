@@ -28,25 +28,31 @@ const API_SCHEMA = blockConfig.onboarding.api;
 export function OnboardingCard() {
   const t = useExtracted("dashboard");
   const organizationId = tenantOf(useAuth()) ?? null;
+
   const { progress } = useOnboarding(gettingStarted, {
     organizationId,
     schema: API_SCHEMA,
   });
+
   if (!organizationId) {
     return null;
   }
+
   if (progress === undefined) {
     return <OnboardingCardSkeleton />;
   }
+
   if (progress.done) {
     return null;
   }
+
   const titles = {
     customer: t("Add your first customer"),
     invite: t("Invite a teammate"),
     "api-key": t("Create an API key"),
     plan: t("Review your plan"),
   };
+
   return (
     <Card data-testid="onboarding">
       <CardHeader>

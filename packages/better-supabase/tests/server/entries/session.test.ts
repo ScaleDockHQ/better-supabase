@@ -22,6 +22,7 @@ function cookieRequest(token: string, refresh: string): Request {
   })
     .map((write) => `${write.name}=${encodeURIComponent(write.value)}`)
     .join("; ");
+
   return new Request("https://app.test/", { headers: { cookie } });
 }
 
@@ -30,6 +31,7 @@ describe("withSession onAuthOutage", () => {
     const fetch = vi.fn<typeof globalThis.fetch>(async () => {
       throw new TypeError("fetch failed");
     });
+
     const server = createServer(defineSupabase(schema), {
       env: {
         url: PROJECT_URL,
@@ -39,11 +41,14 @@ describe("withSession onAuthOutage", () => {
       auth: { jwks: signer.jwks as never, fetch },
       prefetchJwks: false,
     });
+
     const onAuthOutage = vi.fn(
       () =>
         new Response("down", { status: 503, headers: { "retry-after": "5" } }),
     );
+
     const handler = vi.fn(() => Promise.resolve(new Response("ok")));
+
     const run = pipeline(
       [withSession(serverCore(server), { refresh: true, onAuthOutage })],
       handler,

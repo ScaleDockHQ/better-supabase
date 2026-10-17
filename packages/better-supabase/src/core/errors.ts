@@ -138,6 +138,7 @@ export function dbError<K extends DbErrorKind>(
     message,
     status: STATUS[kind],
   };
+
   if (extra) {
     for (const [key, value] of Object.entries(extra)) {
       if (value !== undefined) {
@@ -145,6 +146,7 @@ export function dbError<K extends DbErrorKind>(
       }
     }
   }
+
   // SAFETY: the loop above copied the detail fields for K onto the error.
   // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the fields were copied from the detail map for K above.
   return error as unknown as DbErrorOf<K>;
@@ -169,9 +171,11 @@ export function dbErrorOf(value: unknown): DbError | undefined {
   if (value instanceof DbException) {
     return value.error;
   }
+
   if (value instanceof Error && isDbError(value.cause)) {
     return value.cause;
   }
+
   return isDbError(value) ? value : undefined;
 }
 
@@ -183,9 +187,11 @@ function constraintGuard<K extends "conflict" | "check" | "foreign_key">(
     constraint?: NoInfer<C>,
   ): error is DbErrorOf<K> & { readonly constraint: C } => {
     const found = dbErrorOf(error);
+
     if (found?.kind !== kind) {
       return false;
     }
+
     // SAFETY: found.kind === kind, and every kind that takes a constraint has
     // the constraint field.
     return (
@@ -241,6 +247,7 @@ const CONSTRAINT_IN_MESSAGE = /constraint "([^"]+)"/;
 const KEY_COLUMNS_IN_DETAILS = /^Key \(([^)]+)\)=/;
 const COLUMN_IN_MESSAGE = /column "([^"]+)"/;
 const RETRY_AFTER = /retry after (\d+)/i;
+
 const PERMISSION_DENIED =
   /^permission denied for (table|view|sequence|function|schema) (\S+)/;
 
@@ -257,6 +264,7 @@ function constraintOf(raw: RawDbError): string | undefined {
 
 /** The hint `better_supabase.check_json_schema()` raises with (the `jsonb-schemas` module). */
 const JSON_SCHEMA_HINT = "JSON_SCHEMA_INVALID";
+
 /** The prefix of the `jsonb-schemas` check constraints and triggers. */
 const JSON_SCHEMA_CONSTRAINT = "bs_json_";
 const JSON_SCHEMA_COLUMN = /^[\w$]+\.([\w$]+) does not match its JSON Schema/;
@@ -270,14 +278,17 @@ function jsonSchemaIssues(raw: RawDbError): readonly ValidationIssue[] {
   const column = raw.column ?? JSON_SCHEMA_COLUMN.exec(raw.message ?? "")?.[1];
   const path = column === undefined ? {} : { path: [column] };
   let errors: unknown;
+
   try {
     errors = JSON.parse(raw.details ?? "");
   } catch {
     errors = undefined;
   }
+
   const messages = Array.isArray(errors)
     ? errors.filter((entry): entry is string => typeof entry === "string")
     : [];
+
   return messages.length > 0
     ? messages.map((message) => ({ message, ...path }))
     : [{ message: "The value does not match its JSON Schema", ...path }];
@@ -285,6 +296,7 @@ function jsonSchemaIssues(raw: RawDbError): readonly ValidationIssue[] {
 
 function columnsOf(raw: RawDbError): readonly string[] | undefined {
   const match = KEY_COLUMNS_IN_DETAILS.exec(raw.details ?? "");
+
   return match?.[1]?.split(",").map((column) => column.trim());
 }
 
@@ -294,15 +306,19 @@ function optional(raw: RawDbError): {
   hint?: string;
 } {
   const out: { code?: string; details?: string; hint?: string } = {};
+
   if (raw.code) {
     out.code = raw.code;
   }
+
   if (raw.details) {
     out.details = raw.details;
   }
+
   if (raw.hint) {
     out.hint = raw.hint;
   }
+
   return out;
 }
 
@@ -316,16 +332,21 @@ function permissionsOf(details: string | undefined): {
   if (details === undefined || !details.startsWith("{")) {
     return {};
   }
+
   let parsed: unknown;
+
   try {
     parsed = JSON.parse(details);
   } catch {
     return {};
   }
+
   if (typeof parsed !== "object" || parsed === null) {
     return {};
   }
+
   const permissions = "permissions" in parsed ? parsed.permissions : undefined;
+
   return Array.isArray(permissions) &&
     permissions.every((key) => typeof key === "string")
     ? { permissions }
@@ -353,12 +374,15 @@ export function mapDbError(
   mappers: readonly ErrorMapper[] = [],
 ): DbError {
   const fallback = mapBuiltin(raw);
+
   for (const mapper of mappers) {
     const mapped = mapper(raw, fallback);
+
     if (mapped) {
       return mapped;
     }
   }
+
   return fallback;
 }
 
@@ -380,28 +404,37 @@ function mapBuiltin(raw: RawDbError): DbError {
       const extra: DbErrorKinds["conflict"] = {};
       const constraint = constraintOf(raw);
       const columns = columnsOf(raw);
+
       if (constraint) {
         extra.constraint = constraint;
       }
+
       if (columns) {
         extra.columns = columns;
       }
+
       return dbError("conflict", message, { ...base, ...extra });
     }
+
     case "23503": {
       const extra: DbErrorKinds["foreign_key"] = {};
       const constraint = constraintOf(raw);
       const columns = columnsOf(raw);
+
       if (constraint) {
         extra.constraint = constraint;
       }
+
       if (columns) {
         extra.columns = columns;
       }
+
       return dbError("foreign_key", message, { ...base, ...extra });
     }
+
     case "23514": {
       const constraint = constraintOf(raw);
+
       if (
         base.hint === JSON_SCHEMA_HINT ||
         constraint?.startsWith(JSON_SCHEMA_CONSTRAINT)
@@ -411,43 +444,53 @@ function mapBuiltin(raw: RawDbError): DbError {
           issues: jsonSchemaIssues(raw),
         });
       }
+
       return dbError("check", message, {
         ...base,
         ...(constraint ? { constraint } : {}),
       });
     }
+
     case "23502": {
       const column = raw.column ?? COLUMN_IN_MESSAGE.exec(message)?.[1];
+
       return dbError("not_null", message, {
         ...base,
         ...(column ? { column } : {}),
       });
     }
+
     case "23P01": {
       const constraint = constraintOf(raw);
+
       return dbError("exclusion", message, {
         ...base,
         ...(constraint ? { constraint } : {}),
       });
     }
+
     case "42501": {
       const object = PERMISSION_DENIED.exec(message);
       const postgrestHint = base.hint?.startsWith("Grant the required");
+
       if (!object || (base.hint && !postgrestHint)) {
         return dbError("forbidden", message, {
           ...base,
           ...permissionsOf(base.details),
         });
       }
+
       const advice =
         object[1] === "table" || object[1] === "view"
           ? `Supabase no longer grants new tables to the Data API roles: add ${object[2]} to \`expose\` and run \`better-supabase sql add grants\`. \`better-supabase doctor\` (BS106) lists every missing grant.`
           : `Supabase no longer grants new objects to the Data API roles automatically; grant ${object[1] === "function" ? "execute" : "usage"} on ${object[1]} ${object[2]} to the role that needs it.`;
+
       return dbError("forbidden", message, {
         ...base,
         hint: postgrestHint ? `${base.hint} ${advice}` : advice,
       });
     }
+
     case "25006": {
       return dbError(
         "forbidden",
@@ -461,43 +504,54 @@ function mapBuiltin(raw: RawDbError): DbError {
         },
       );
     }
+
     case "P0001": {
       return dbError("raised", message, base);
     }
+
     case "P0002": {
       return dbError("not_found", message, base);
     }
+
     case "57014": {
       return dbError("timeout", message, base);
     }
+
     case "40001":
     case "40P01": {
       return dbError("serialization", message, base);
     }
+
     case "PGRST116": {
       return /multiple|more than one/i.test(raw.details ?? message)
         ? dbError("multiple_rows", message, base)
         : dbError("not_found", message, base);
     }
+
     case "PGRST301":
     case "PGRST302":
     case "PGRST303": {
       return dbError("unauthorized", message, base);
     }
+
     case "PGRST124": {
       return dbError("max_affected", message, base);
     }
+
     case "22P02": {
       if (message.includes(MAX_AFFECTED_MARKER)) {
         const affected = MAX_AFFECTED_COUNT.exec(message)?.[1];
+
         return dbError(
           "max_affected",
           `The write affects ${affected ?? "more"} rows, more than maxAffected allows`,
           { code: "22P02" },
         );
       }
+
       break;
     }
+
     case "PGRST123": {
       return dbError("invalid_request", message, {
         ...base,
@@ -506,20 +560,24 @@ function mapBuiltin(raw: RawDbError): DbError {
           "PostgREST aggregates are off. Run `alter role authenticator set pgrst.db_aggregates_enabled = 'true'; notify pgrst, 'reload config';` (see BS210), or use better-supabase/postgres.",
       });
     }
+
     case "BS429":
     case "PT429": {
       const seconds = RETRY_AFTER.exec(raw.details ?? "")?.[1];
+
       return dbError("rate_limited", message, {
         ...base,
         ...(seconds ? { retryAfter: Number(seconds) } : {}),
       });
     }
+
     case "BSQ29": {
       return dbError("quota_exceeded", message, {
         ...base,
         ...quotaDetails(raw.details),
       });
     }
+
     default: {
       break;
     }
@@ -528,12 +586,15 @@ function mapBuiltin(raw: RawDbError): DbError {
   if (code.startsWith("22")) {
     return dbError("invalid_input", message, base);
   }
+
   if (code.startsWith("PGRST1") || code.startsWith("PGRST2")) {
     return dbError("invalid_request", message, base);
   }
+
   if (code.startsWith("08") || /fetch failed|network/i.test(message)) {
     return dbError("network", message, base);
   }
+
   return dbError("unexpected", message, base);
 }
 
@@ -544,20 +605,24 @@ function quotaDetails(details: string | null | undefined): {
   retryAfter?: number;
 } {
   let parsed: unknown;
+
   try {
     parsed = JSON.parse(details ?? "");
   } catch {
     return {};
   }
+
   if (typeof parsed !== "object" || parsed === null) {
     return {};
   }
+
   // SAFETY: parsed is a non-null object, and each field read is type-checked below.
   const record = parsed as Record<string, unknown>;
   const field = (key: string): unknown => record[key];
   const meter = field("meter");
   const limit = field("limit");
   const retryAfter = field("retry_after");
+
   return {
     ...(typeof meter === "string" ? { meter } : {}),
     ...(typeof limit === "number" ? { limit } : {}),

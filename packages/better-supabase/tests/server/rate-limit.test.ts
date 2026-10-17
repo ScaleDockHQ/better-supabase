@@ -11,6 +11,7 @@ function limiter(remaining: number[]): RateLimiter {
   return {
     check: vi.fn(async () => {
       const left = remaining.shift() ?? -1;
+
       return ok(
         left >= 0
           ? { allowed: true, remaining: left, retryAfter: 0 }
@@ -28,11 +29,14 @@ describe("rateLimitGate", () => {
       key: (key) => key,
       rule: { max: 5, period: "1 minute" },
     });
+
     const outcome = await gate("k");
     expect(outcome.kind).toBe("allow");
+
     if (outcome.kind !== "allow") {
       return;
     }
+
     expect(outcome.headers.get("ratelimit")).toBe('"api";r=4');
     expect(outcome.headers.get("ratelimit-policy")).toBe('"api";q=5;w=60');
   });
@@ -44,11 +48,14 @@ describe("rateLimitGate", () => {
       policy: "per-key",
       key: (key) => key,
     });
+
     const outcome = await gate("k");
     expect(outcome.kind).toBe("deny");
+
     if (outcome.kind !== "deny") {
       return;
     }
+
     expect(outcome.error).toMatchObject({
       kind: "rate_limited",
       retryAfter: 13,
@@ -62,19 +69,23 @@ describe("rateLimitGate", () => {
     const failing: RateLimiter = {
       check: async () => err(dbError("network", "Down")),
     };
+
     const skip = rateLimitGate<string | undefined>({
       limiter: failing,
       scope: "api",
       key: (key) => key,
       failOpen: true,
     });
+
     expect((await skip(undefined)).kind).toBe("skip");
     expect((await skip("k")).kind).toBe("skip");
+
     const strict = rateLimitGate<string>({
       limiter: failing,
       scope: "api",
       key: (key) => key,
     });
+
     const outcome = await strict("k");
     expect(outcome.kind === "deny" && outcome.error.kind).toBe("network");
   });

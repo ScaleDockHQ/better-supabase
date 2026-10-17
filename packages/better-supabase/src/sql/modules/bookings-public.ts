@@ -57,20 +57,25 @@ export const live = (p: Parts, alias: string): string =>
 /** The calendar event that mirrors a confirmed booking, when the resource has a calendar. */
 export function calendarMirror(p: Parts, op: "confirm" | "cancel"): string {
   const { ctx } = p;
+
   if (!ctx.installed("calendar") || !ctx.has("resources", "calendar")) {
     return "";
   }
+
   if (!ctx.has("bookings", "calendarEvent")) {
     return "";
   }
+
   const c = ctx.of("calendar");
   const events = c.table("events");
   const e = (column: string) => c.col("events", column);
+
   if (op === "cancel") {
     return `if v_booking.${p.b("calendarEvent")} is not null then
     delete from ${events} where ${e("id")} = v_booking.${p.b("calendarEvent")};
   end if;`;
   }
+
   const subject =
     c.has("events", "subjectType") && c.has("events", "subjectId")
       ? {
@@ -78,6 +83,7 @@ export function calendarMirror(p: Parts, op: "confirm" | "cancel"): string {
           values: `, 'booking', v_booking.${p.b("id")}::text`,
         }
       : { columns: "", values: "" };
+
   return `select r.${p.r("calendar")}, r.${p.r("tz")}, sv.${p.s("name")} into v_calendar, v_tz, v_title
   from ${p.resources} r join ${p.services} sv on sv.${p.s("id")} = v_booking.${p.b("service")}
   where r.${p.r("id")} = v_booking.${p.b("resource")};
@@ -93,29 +99,36 @@ export function calendarMirror(p: Parts, op: "confirm" | "cancel"): string {
 /** The reminders rule and reminders of a confirmed booking, for its customer. */
 export function reminderMirror(p: Parts, op: "confirm" | "cancel"): string {
   const { ctx } = p;
+
   if (!ctx.installed("reminders")) {
     return "";
   }
+
   const m = ctx.of("reminders");
   const rules = m.table("rules");
   const reminders = m.table("reminders");
   const u = (column: string) => m.col("rules", column);
   const n = (column: string) => m.col("reminders", column);
   const id = `v_booking.${p.b("id")}::text`;
+
   const remove = `delete from ${reminders} where ${n("subjectType")} = 'booking' and ${n("subjectId")} = ${id};
   delete from ${rules} where ${u("subjectType")} = 'booking' and ${u("subjectId")} = ${id};`;
+
   if (op === "cancel") {
     return remove;
   }
+
   const rrule = m.has("rules", "rrule")
     ? { column: `, ${u("rrule")}`, value: ", 'FREQ=DAILY;COUNT=1'" }
     : { column: "", value: "" };
+
   const offsets = ctx.has("services", "reminderOffsets")
     ? `insert into ${reminders} (${n("tenant")}, ${n("subjectType")}, ${n("subjectId")}, ${n("user")}, ${n("offsetMinutes")})
   select v_booking.${p.b("tenant")}, 'booking', ${id}, v_booking.${p.b("customerUser")}, o
   from ${p.services} sv, unnest(sv.${p.s("reminderOffsets")}) o
   where sv.${p.s("id")} = v_booking.${p.b("service")};`
     : "";
+
   return `${remove}
   insert into ${rules} (${u("tenant")}, ${u("subjectType")}, ${u("subjectId")}, ${u("dtstart")}, ${u("tzid")}${rrule.column})
   select v_booking.${p.b("tenant")}, 'booking', ${id}, lower(v_booking.${p.b("during")}), r.${p.r("tz")}${rrule.value}
@@ -128,6 +141,7 @@ function rateLimit(p: Parts, link: string): string {
   if (!p.ctx.installed("rate-limit")) {
     return "";
   }
+
   return `select l.allowed, l.retry_after into v_allowed, v_retry
   from better_supabase.hit_rate_limit(
     '${RATE_SCOPE}',
@@ -152,16 +166,20 @@ export const slotsJson = (
 
 export function publicBooking(p: Parts): string {
   const { ctx, r, s } = p;
+
   if (!ctx.installed("share-links")) {
     return "";
   }
+
   const fn = (name: string) => ctx.fn(name);
   const links = ctx.of("share-links");
   const l = (column: string) => `l.${links.col("links", column)}`;
+
   const anon = (
     signature: string,
   ) => `revoke all on function ${signature} from public;
 grant execute on function ${signature} to anon, authenticated, service_role;`;
+
   const resolve = (
     token: string,
   ) => `if ${token} is null or ${token} !~ '^[0-9a-f]{32,128}$' then
@@ -179,12 +197,14 @@ grant execute on function ${signature} to anon, authenticated, service_role;`;
     ${fail("BOOKING_LINK_INVALID", "unknown or expired booking link", "P0002")}
   end if;
   ${rateLimit(p, "v_link")}`;
+
   const declares = `v_link uuid;
   v_subject text;
   v_link_tenant text;
   v_service uuid;
   v_allowed boolean;
   v_retry integer;`;
+
   return `
 -- Public booking through a share link to a service (subjectType
 -- "booking_service"): the token is the credential, hashed before the lookup.

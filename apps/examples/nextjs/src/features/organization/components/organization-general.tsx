@@ -20,19 +20,24 @@ import { OrganizationForm } from "./organization-form";
 export async function OrganizationGeneral() {
   const session = await getSession();
   const organizationId = tenantOf(session);
+
   if (!organizationId) {
     return null;
   }
+
   const [organizations, t] = await Promise.all([
     getMyOrganizations(),
     getExtracted("organization"),
   ]);
+
   const organization = organizations.find(
     (entry) => entry.id === organizationId,
   );
+
   if (!organization) {
     return null;
   }
+
   return (
     <>
       <Card>

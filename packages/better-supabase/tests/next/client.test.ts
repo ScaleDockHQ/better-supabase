@@ -52,10 +52,13 @@ describe("useSessionChange", () => {
 
   it("refreshes the token before the change when asked", async () => {
     const order: string[] = [];
+
     const refreshSession = vi.fn(async () => {
       order.push("token");
+
       return { error: null };
     });
+
     const go = useSessionChange(
       async () => {
         order.push("changed");
@@ -63,6 +66,7 @@ describe("useSessionChange", () => {
       undefined,
       { refreshToken: { auth: { refreshSession } } },
     );
+
     await go("/en");
     expect(order).toEqual(["token", "changed"]);
     expect(mocks.refresh).toHaveBeenCalledOnce();
@@ -72,6 +76,7 @@ describe("useSessionChange", () => {
         auth: { refreshSession: async () => ({ error: new Error("expired") }) },
       },
     });
+
     await expect(failing()).rejects.toThrow("expired");
   });
 });

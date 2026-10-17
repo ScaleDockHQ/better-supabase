@@ -58,12 +58,14 @@ export function CustomerTable({
   const [query, setQuery] = useState("");
   const needle = query.trim().toLowerCase();
   const search = useCustomerSearch(needle);
+
   // Until the search answers, the first page filters locally.
   const rows = (needle === "" ? customers : (search.data ?? customers)).filter(
     (customer) =>
       (status === null || customer.status === status) &&
       (needle === "" || customer.name.toLowerCase().includes(needle)),
   );
+
   return (
     <div
       className="space-y-4"

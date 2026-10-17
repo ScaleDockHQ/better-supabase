@@ -55,6 +55,7 @@ export function testWebhookSigner(
 ): Promise<ConformanceReport> {
   const body = JSON.stringify({ type: "conformance.check", data: { n: 1 } });
   const now = temporal().Now.instant();
+
   return conform(`WebhookSigner "${signer.name}"`, [
     [
       "has apiVersion 1",
@@ -132,6 +133,7 @@ export function testWebhookTransport(
     type: "conformance.check",
     id: crypto.randomUUID(),
   });
+
   return conform(`WebhookTransport "${transport.name}"`, [
     [
       "has apiVersion 1",
@@ -159,6 +161,7 @@ export function testWebhookTransport(
             body,
           }),
         );
+
         expect(
           Number.isInteger(response.status) &&
             response.status >= 100 &&
@@ -218,9 +221,11 @@ export function testWebhookSecretStore(
         const first = await store.rotate!(options.endpointId, {
           overlap: "1 hour",
         });
+
         const second = await store.rotate!(options.endpointId, {
           overlap: "1 hour",
         });
+
         expect(
           typeof first === "string" && first.length > 0,
           "rotate must return the new secret",

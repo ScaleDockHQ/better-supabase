@@ -83,6 +83,7 @@ function keyEvent(event: unknown): KeyEventLike | undefined {
   ) {
     return undefined;
   }
+
   // SAFETY: an event with a string `key` is a KeyboardEvent, which carries the modifier flags and preventDefault.
   return event as KeyEventLike;
 }
@@ -116,11 +117,13 @@ export function webStorage(kind: "local" | "session" = "local"): StoragePort {
   ): Promise<T> => {
     try {
       const storage = storageOf(kind);
+
       return Promise.resolve(storage ? apply(storage) : fallback);
     } catch {
       return Promise.resolve(fallback);
     }
   };
+
   return {
     get: (key) => run((storage) => storage.getItem(key), null),
     set: (key, value) =>
@@ -138,11 +141,14 @@ export function webStorage(kind: "local" | "session" = "local"): StoragePort {
 export function webKeyboard(): KeyboardPort {
   return (shortcut, run) => {
     const target = browser().window;
+
     if (!target) {
       return () => undefined;
     }
+
     const onKey = (raw: unknown): void => {
       const event = keyEvent(raw);
+
       if (
         event === undefined ||
         event.key.toLowerCase() !== shortcut.key.toLowerCase() ||
@@ -152,10 +158,13 @@ export function webKeyboard(): KeyboardPort {
       ) {
         return;
       }
+
       event.preventDefault();
       run();
     };
+
     target.addEventListener("keydown", onKey);
+
     return () => {
       target.removeEventListener("keydown", onKey);
     };
@@ -177,16 +186,21 @@ export function webFilePicker(): FilePickerPort {
   return (options = {}) =>
     new Promise((resolve) => {
       const page = browser().document;
+
       if (!page) {
         resolve([]);
+
         return;
       }
+
       const input = page.createElement("input");
       input.type = "file";
       input.multiple = options.multiple ?? false;
+
       if (options.accept) {
         input.accept = options.accept.join(",");
       }
+
       input.addEventListener("change", () => {
         resolve([...(input.files ?? [])].map(pickedFile));
       });
@@ -203,14 +217,18 @@ export function webDeepLinks(): DeepLinkPort {
     initial: () => Promise.resolve(browser().window?.location.href ?? null),
     subscribe: (listener) => {
       const target = browser().window;
+
       if (!target) {
         return () => undefined;
       }
+
       const onChange = (): void => {
         listener(target.location.href);
       };
+
       target.addEventListener("popstate", onChange);
       target.addEventListener("hashchange", onChange);
+
       return () => {
         target.removeEventListener("popstate", onChange);
         target.removeEventListener("hashchange", onChange);
@@ -229,6 +247,7 @@ export interface WebPushTokenOptions {
 function keyBytes(base64url: string): Uint8Array<ArrayBuffer> {
   const base64 = base64url.replaceAll("-", "+").replaceAll("_", "/");
   const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+
   return Uint8Array.from(atob(padded), (char) => char.codePointAt(0) ?? 0);
 }
 
@@ -242,23 +261,30 @@ export function webPushToken(options: WebPushTokenOptions): PushTokenPort {
     token: async ({ request = true } = {}) => {
       const notification = browser().Notification;
       const worker = browser().navigator?.serviceWorker;
+
       if (!notification || !worker) {
         return null;
       }
+
       let permission = notification.permission;
+
       if (permission === "default" && request) {
         permission = await notification.requestPermission();
       }
+
       if (permission !== "granted") {
         return null;
       }
+
       const registration = await (options.registration?.() ?? worker.ready);
+
       const subscription =
         (await registration.pushManager.getSubscription()) ??
         (await registration.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: keyBytes(options.vapidPublicKey),
         }));
+
       return JSON.stringify(subscription);
     },
   };

@@ -17,16 +17,19 @@ interface Call {
 
 function recorder(results: Record<string, unknown>) {
   const calls: Call[] = [];
+
   const transport = {
     call(schema: string, fn: string, args: Readonly<Record<string, unknown>>) {
       expect(schema).toBe("app");
       calls.push({ fn, args });
       const result = results[fn];
+
       return result instanceof Error
         ? Promise.reject(result)
         : Promise.resolve(result);
     },
   };
+
   return { calls, bookings: createBookings({ transport, schema: "app" }) };
 }
 
@@ -69,6 +72,7 @@ describe("bookings client", () => {
       new URL("../../sql/__golden__/bookings.sql", import.meta.url),
       "utf-8",
     );
+
     expect(sql).toContain(`queue => '${BOOKING_EXPIRE_QUEUE}'`);
   });
 
@@ -78,6 +82,7 @@ describe("bookings client", () => {
       save_booking_service: { id: "s1", created: true },
       set_booking_availability: 2,
     });
+
     expect(
       await bookings
         .saveResource("o1", {
@@ -128,6 +133,7 @@ describe("bookings client", () => {
       add_booking_exception: { id: "e1" },
       delete_booking_exception: true,
     });
+
     await bookings
       .addException("r1", {
         startsAt: at("2030-03-04T08:00:00Z"),
@@ -146,9 +152,11 @@ describe("bookings client", () => {
 
   it("parses slots with their local start", async () => {
     const { calls, bookings } = recorder({ available_slots: [SLOT] });
+
     const [slot] = await bookings
       .availableSlots("s1", range, { tz: "Europe/Amsterdam" })
       .orThrow();
+
     expect(slot?.startsAt.toString()).toBe("2030-03-04T08:00:00Z");
     expect(slot?.localStart.toString()).toBe("2030-03-04T09:00:00");
     expect(slot?.seats).toBe(1);
@@ -168,9 +176,11 @@ describe("bookings client", () => {
       cancel_booking: { ...BOOKING, status: "cancelled", cancelReason: "ill" },
       list_bookings: [BOOKING],
     });
+
     const held = await bookings
       .hold("s1", "r1", at("2030-03-04T08:00:00Z"), { name: "Bo" })
       .orThrow();
+
     expect(held.accessToken).toHaveLength(48);
     expect(held.status).toBe("hold");
     expect(held.holdExpiresAt?.toString()).toBe("2030-03-04T07:10:00Z");
@@ -193,10 +203,12 @@ describe("bookings client", () => {
   it("fills in a missing seat count and cancel reason", async () => {
     const { seat: _seat, ...seatless } = BOOKING;
     const { seats: _seats, ...open } = SLOT;
+
     const { calls, bookings } = recorder({
       cancel_booking: { ...seatless, status: "cancelled" },
       available_slots: [open],
     });
+
     expect((await bookings.cancel("b1").orThrow()).seat).toBe(1);
     expect(calls[0]?.args).toEqual({ booking: "b1", reason: null });
     const [slot] = await bookings.availableSlots("s1", range).orThrow();
@@ -206,20 +218,24 @@ describe("bookings client", () => {
   it("runs the expire job on the service transport", async () => {
     const userCalls: string[] = [];
     const serviceCalls: string[] = [];
+
     const bookings = createBookings({
       transport: {
         call: (_schema, fn) => {
           userCalls.push(fn);
+
           return Promise.resolve(0);
         },
       },
       service: {
         call: (_schema, fn) => {
           serviceCalls.push(fn);
+
           return Promise.resolve(3);
         },
       },
     });
+
     expect(await bookings.expireHolds().orThrow()).toBe(3);
     await bookings.job({}, {} as never, new AbortController().signal);
     expect(serviceCalls).toEqual([
@@ -241,6 +257,7 @@ describe("bookings client", () => {
       public_hold_booking: { ...BOOKING, accessToken: "a".repeat(48) },
       public_change_booking: { ...BOOKING, status: "cancelled" },
     });
+
     const service = await bookings.public.service("tok").orThrow();
     expect(service.resources[0]?.name).toBe("Ann");
     await bookings.public.slots("tok", range).orThrow();
@@ -270,6 +287,7 @@ describe("bookings client", () => {
         hint: "BOOKING_SLOT_UNAVAILABLE",
       }),
     });
+
     const result = await bookings.hold("s1", "r1", at("2030-03-04T08:00:00Z"));
     expect(result.ok ? undefined : result.error.kind).toBe("exclusion");
   });
@@ -284,11 +302,14 @@ describe("booking adapters", () => {
         { ...BOOKING, id: "b3", status: "cancelled" },
       ],
     });
+
     const rows = await bookings.list("o1", range).orThrow();
+
     const events = toEventCalendarBookings(rows, {
       colorOf: (booking) =>
         booking.status === "confirmed" ? "emerald" : undefined,
     });
+
     expect(
       events.map((event) => [event.id, event.title, event.resourceId]),
     ).toEqual([
@@ -316,9 +337,11 @@ describe("booking adapters", () => {
         },
       ],
     });
+
     const days = slotsByDay(
       await bookings.availableSlots("s1", range).orThrow(),
     );
+
     expect([...days.keys()]).toEqual(["2030-03-04", "2030-03-05"]);
     expect(
       days.get("2030-03-05")?.map((slot) => slot.localStart.toString()),

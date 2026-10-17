@@ -29,6 +29,7 @@ async function setUp(s: BlockSession) {
   const member = await s.user("member");
   const outsider = await s.user("outsider");
   const tenant = await s.organization(owner, { member });
+
   return { owner, member, outsider, tenant };
 }
 
@@ -38,13 +39,16 @@ describe.skipIf(!live)("ai-chat module", () => {
 
   it("stores a branching tree, edits and regenerates as siblings", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const { owner, outsider, tenant } = await setUp(s);
       await s.as(owner);
+
       const chat = await s.value<{ id: string }>(
         "better_supabase.create_ai_chat($1, $2)",
         [tenant, { title: "Plans" }],
       );
+
       const append = (message: object, trigger?: string, id?: string) =>
         s.value<{
           message_id: string;
@@ -100,11 +104,13 @@ describe.skipIf(!live)("ai-chat module", () => {
       ).toEqual([{ type: "ai_chat_message.completed" }]);
 
       await s.as(owner);
+
       const second = await append({
         id: "u2",
         role: "user",
         parts: text("More"),
       });
+
       expect(second.parent_id).toBe("a1");
 
       const edited = await append(
@@ -112,12 +118,15 @@ describe.skipIf(!live)("ai-chat module", () => {
         "submit-message",
         "u2",
       );
+
       expect(edited).toMatchObject({ message_id: "u2b", parent_id: "a1" });
+
       const sameId = await append({
         id: "u2b",
         role: "user",
         parts: text("Other"),
       });
+
       expect(sameId.message_id).not.toBe("u2b");
       expect(sameId.parent_id).toBe("a1");
 
@@ -125,6 +134,7 @@ describe.skipIf(!live)("ai-chat module", () => {
         "better_supabase.ai_message_path($1)",
         [chat.id],
       );
+
       expect(path.map((m) => m.id)).toEqual(["u1", "a1", sameId.message_id]);
       expect(path[2]).toMatchObject({ sibling_count: 3, sibling_index: 2 });
 
@@ -146,10 +156,12 @@ describe.skipIf(!live)("ai-chat module", () => {
         parent_id: "u1",
         created: false,
       });
+
       const siblings = await s.value<{ id: string }[]>(
         "better_supabase.ai_message_siblings($1, 'u2')",
         [chat.id],
       );
+
       expect(siblings.map((m) => m.id)).toEqual([
         "u2",
         "u2b",
@@ -186,17 +198,21 @@ describe.skipIf(!live)("ai-chat module", () => {
 
   it("lists, searches and pages the caller's chats", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const { owner, member, tenant } = await setUp(s);
       await s.as(owner);
       const ids: string[] = [];
+
       for (const title of ["Alpha", "Beta", "Gamma"]) {
         const chat = await s.value<{ id: string }>(
           "better_supabase.create_ai_chat($1, $2)",
           [tenant, { title }],
         );
+
         ids.push(chat.id);
       }
+
       await s.value("better_supabase.create_ai_chat($1, $2)", [
         tenant,
         { title: "Scratch", is_temporary: true },
@@ -205,11 +221,14 @@ describe.skipIf(!live)("ai-chat module", () => {
         ids[0],
         { id: "m1", role: "user", parts: text("pelicans fly") },
       ]);
+
       const page = await s.value<{
         items: { id: string }[];
         next: string | null;
       }>("better_supabase.list_ai_chats($1, size => 2)", [tenant]);
+
       expect(page.items.map((c) => c.id)).toEqual([ids[0], ids[2]]);
+
       const rest = await s.value<{
         items: { id: string }[];
         next: string | null;
@@ -217,14 +236,17 @@ describe.skipIf(!live)("ai-chat module", () => {
         tenant,
         page.next,
       ]);
+
       expect(rest).toEqual({
         items: [expect.objectContaining({ id: ids[1] })],
         next: null,
       });
+
       const found = await s.value<{ items: { title: string }[] }>(
         "better_supabase.list_ai_chats($1, search => 'pelicans')",
         [tenant],
       );
+
       expect(found.items.map((c) => c.title)).toEqual(["Alpha"]);
       expect(
         (
@@ -239,9 +261,11 @@ describe.skipIf(!live)("ai-chat module", () => {
         ids[1],
         { pinned: true, archived: true, title: "Beta 2" },
       ]);
+
       const archived = await s.value<{
         items: { title: string; pinned: boolean }[];
       }>("better_supabase.list_ai_chats($1, archived => true)", [tenant]);
+
       expect(archived.items).toEqual([
         expect.objectContaining({ title: "Beta 2", pinned: true }),
       ]);
@@ -287,19 +311,24 @@ describe.skipIf(!live)("ai-chat module", () => {
 
   it("claims one stream per chat and stops it", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const { owner, outsider, tenant } = await setUp(s);
       await s.as(owner);
+
       const chat = await s.value<{ id: string }>(
         "better_supabase.create_ai_chat($1)",
         [tenant],
       );
+
       await s.service();
       await s.value("better_supabase.stream_open('s1', $1)", [owner.id]);
+
       const claim = await s.value<{ claimed: boolean; run_id: string }>(
         "better_supabase.claim_ai_chat_stream($1, 's1', 'openai/gpt-5')",
         [chat.id],
       );
+
       expect(claim.claimed).toBe(true);
       expect(
         await s.value("better_supabase.claim_ai_chat_stream($1, 's2')", [
@@ -372,13 +401,16 @@ describe.skipIf(!live)("ai-chat module", () => {
 
   it("decides approvals once and answers questions", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const { owner, member, tenant } = await setUp(s);
       await s.as(owner);
+
       const chat = await s.value<{ id: string }>(
         "better_supabase.create_ai_chat($1)",
         [tenant],
       );
+
       await s.service();
       await s.value("better_supabase.record_ai_tool_approval($1, $2)", [
         chat.id,
@@ -389,10 +421,12 @@ describe.skipIf(!live)("ai-chat module", () => {
           input: { to: "a@b.c" },
         },
       ]);
+
       const input = await s.value<{ id: string }>(
         "better_supabase.open_ai_pending_input($1, $2)",
         [chat.id, { question: "Which plan?", schema: { type: "string" } }],
       );
+
       await s.as(member);
       expect(
         await s.hint("better_supabase.decide_ai_tool_approval('ap1', true)"),
@@ -454,13 +488,16 @@ describe.skipIf(!live)("ai-chat module", () => {
 
   it("shares a branch by token and rates replies", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const { owner, tenant } = await setUp(s);
       await s.as(owner);
+
       const chat = await s.value<{ id: string }>(
         "better_supabase.create_ai_chat($1, $2)",
         [tenant, { title: "Shared" }],
       );
+
       expect(await s.hint("better_supabase.share_ai_chat($1)", [chat.id])).toBe(
         "AI_MESSAGE_NOT_FOUND",
       );
@@ -474,10 +511,12 @@ describe.skipIf(!live)("ai-chat module", () => {
         { id: "a1", role: "assistant", parts: text("Hello") },
       ]);
       await s.as(owner);
+
       const share = await s.value<{ id: string; token: string }>(
         "better_supabase.share_ai_chat($1)",
         [chat.id],
       );
+
       expect(share.token).toMatch(/^[0-9a-f]{64}$/);
       expect(
         await s.rows(
@@ -487,10 +526,12 @@ describe.skipIf(!live)("ai-chat module", () => {
       ).toEqual([]);
 
       await s.asRole("anon");
+
       const shared = await s.value<{
         chat: { title: string };
         messages: { id: string; native?: unknown }[];
       }>("better_supabase.get_shared_ai_chat($1)", [share.token]);
+
       expect(shared.chat.title).toBe("Shared");
       expect(shared.messages.map((m) => m.id)).toEqual(["u1", "a1"]);
       expect(
@@ -533,6 +574,7 @@ describe.skipIf(!live)("ai-chat module", () => {
 
   it("filters the model catalog and records moderation", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const { owner, member, tenant } = await setUp(s);
       await s.service();
@@ -592,15 +634,18 @@ describe.skipIf(!live)("ai-chat module", () => {
         "better_supabase.save_ai_project(null, $1, $2)",
         [tenant, { name: "Research", instructions: "Be brief" }],
       );
+
       await s.value("better_supabase.save_ai_project($1, $2, $3)", [
         project.id,
         tenant,
         { pinned: true },
       ]);
+
       const chat = await s.value<{ project_id: string }>(
         "better_supabase.create_ai_chat($1, $2)",
         [tenant, { project_id: project.id }],
       );
+
       expect(chat.project_id).toBe(project.id);
       expect(
         await s.value<{ pinned: boolean }[]>(
@@ -617,13 +662,16 @@ describe.skipIf(!live)("ai-chat module", () => {
   });
   it("drives the block client over both transports", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const { owner, tenant } = await setUp(s);
       const user = sqlTransport(s.sql);
       let caller: TestUser = owner;
+
       const service: BlockTransport = {
         async call(schema, fn, args) {
           await s.service();
+
           try {
             return await user.call(schema, fn, args);
           } finally {
@@ -631,12 +679,14 @@ describe.skipIf(!live)("ai-chat module", () => {
           }
         },
       };
+
       const ai = createAiChat({ transport: user, service });
       caller = owner;
       await s.as(owner);
 
       const chat = await ai.chats.create(tenant, { title: "Plans" }).orThrow();
       expect(chat).toMatchObject({ title: "Plans", visibility: "private" });
+
       const appended = await ai.messages
         .appendUser(chat.id, {
           id: "u1",
@@ -644,6 +694,7 @@ describe.skipIf(!live)("ai-chat module", () => {
           parts: [{ type: "text", text: "Hi" }],
         })
         .orThrow();
+
       expect(appended).toEqual({
         messageId: "u1",
         parentId: undefined,
@@ -653,6 +704,7 @@ describe.skipIf(!live)("ai-chat module", () => {
       const claim = await ai.runs
         .claim(chat.id, "stream-1", { model: "openai/gpt-5" })
         .orThrow();
+
       expect(claim.claimed).toBe(true);
       await ai.messages
         .saveAssistant(
@@ -691,6 +743,7 @@ describe.skipIf(!live)("ai-chat module", () => {
           input: { q: "x" },
         })
         .orThrow();
+
       expect(approval.decision).toBe("pending");
       expect(
         (await ai.approvals.decide("ap-1", false, "no").orThrow()).decision,
@@ -708,6 +761,7 @@ describe.skipIf(!live)("ai-chat module", () => {
       const input = await ai.inputs
         .open(chat.id, { question: "Which?" })
         .orThrow();
+
       expect(
         (await ai.inputs.answer(input.id, "this one").orThrow()).answer,
       ).toBe("this one");
@@ -744,14 +798,17 @@ describe.skipIf(!live)("ai-chat module", () => {
           score: 0.5,
         })
         .orThrow();
+
       expect(event.score).toBe(0.5);
       expect(await ai.moderation.list(tenant).orThrow()).toHaveLength(1);
 
       const page = await ai.chats.list({ organizationId: tenant }).orThrow();
       expect(page.items.map((item) => item.id)).toEqual([chat.id]);
+
       const missing = await ai.chats.get(
         "00000000-0000-0000-0000-000000000000",
       );
+
       expect(missing.ok ? undefined : missing.error.kind).toBe("not_found");
     } finally {
       await s.close();

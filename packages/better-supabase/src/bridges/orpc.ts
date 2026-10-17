@@ -52,8 +52,10 @@ export function toOrpc<const Entries extends readonly AnyEntry[]>(
       // SAFETY: the pipeline accumulated exactly the entries' contributions onto ctx.
       context: { ...(ctx as Contributions<Entries>), request },
     });
+
     return response ?? new Response("Not found", { status: 404 });
   });
+
   return (request, env) =>
     run(request.body ? bufferRequest(request) : request, seedContext(env));
 }

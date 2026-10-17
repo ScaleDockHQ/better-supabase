@@ -14,6 +14,7 @@ describe("ai-cache module", () => {
       'create table if not exists "better_supabase"."ai_cache_entries" (',
     );
     expect(sql).not.toMatch(/to authenticated/);
+
     for (const name of [
       "ai_cache_get",
       "ai_cache_set",
@@ -32,6 +33,7 @@ describe("ai-cache module", () => {
     const sql = body({
       "ai-cache": { options: { maxTtl: 3600, maxBytes: 2048 } },
     });
+
     expect(sql).toContain("least(ai_cache_set.ttl, 3600)");
     expect(sql).toContain("<= 2048");
   });

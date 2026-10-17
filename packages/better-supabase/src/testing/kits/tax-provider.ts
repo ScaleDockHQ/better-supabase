@@ -42,28 +42,35 @@ export function testTaxProvider(
   const currency = options.currency ?? "EUR";
   const { address, taxCategory } = options;
   const expectTax = options.expectTax ?? true;
+
   const line = (id: string, minor: bigint, inclusive = false) => ({
     id,
     amount: money(minor, currency),
     inclusive,
     ...(taxCategory === undefined ? {} : { taxCategory }),
   });
+
   const cart = (overrides: Partial<TaxCart> = {}): TaxCart => ({
     currency,
     address,
     lines: [line("a", 10_000n), line("b", 2500n)],
     ...overrides,
   });
+
   const reference = (): string => `conformance-${crypto.randomUUID()}`;
+
   const committed = async () => {
     const quote = await provider.quote(cart()).orThrow();
+
     return provider.commit({ quote, reference: reference() }).orThrow();
   };
+
   const addsUp = (quote: TaxQuote): void => {
     expect(
       quote.totalTax.amount === sum(quote.lines.map((each) => each.tax)),
       "totalTax is not the sum of the lines' tax",
     );
+
     for (const each of quote.lines) {
       expect(isRate(each.rate), `line ${each.lineId} has rate "${each.rate}"`);
       expect(
@@ -86,16 +93,20 @@ export function testTaxProvider(
       "refuses a cart that mixes currencies or has no country",
       async () => {
         const other = currency === "USD" ? "EUR" : "USD";
+
         const mixed = await provider.quote(
           cart({ lines: [{ id: "a", amount: money(100n, other) }] }),
         );
+
         expect(
           kindOf(mixed) === "invalid_input",
           `mixed currencies gave ${kindOf(mixed)}`,
         );
+
         const nowhere = await provider.quote(
           cart({ address: { ...address, country: "" } }),
         );
+
         expect(
           kindOf(nowhere) === "invalid_input",
           `no country gave ${kindOf(nowhere)}`,
@@ -131,6 +142,7 @@ export function testTaxProvider(
         const quote = await provider
           .quote(cart({ lines: [line("a", 12_100n, true)] }))
           .orThrow();
+
         const only = quote.lines[0];
         expect(only?.inclusive === true, "the line is not inclusive");
         expect(
@@ -145,6 +157,7 @@ export function testTaxProvider(
         const quote = await provider
           .quote(cart({ shipping: { amount: money(500n, currency) } }))
           .orThrow();
+
         expect(
           quote.lines.at(-1)?.lineId === SHIPPING_LINE,
           "the last line is not shipping",
@@ -158,6 +171,7 @@ export function testTaxProvider(
         const quote = await provider
           .quote(cart({ customer: { exempt: true } }))
           .orThrow();
+
         expect(
           quote.totalTax.amount === 0n,
           `totalTax is ${String(quote.totalTax.amount)}`,
@@ -169,9 +183,11 @@ export function testTaxProvider(
       async () => {
         const quote = await provider.quote(cart()).orThrow();
         const ref = reference();
+
         const transaction = await provider
           .commit({ quote, reference: ref })
           .orThrow();
+
         expect(transaction.id.length > 0, "the transaction has no id");
         expect(transaction.reference === ref, "the reference changed");
         expect(
@@ -184,9 +200,11 @@ export function testTaxProvider(
       "reverses a whole sale",
       async () => {
         const sale = await committed();
+
         const reversal = await provider
           .reverse({ transaction: sale, reference: reference() })
           .orThrow();
+
         expect(
           reversal.totalTax.amount === -sale.totalTax.amount,
           `reversed ${String(reversal.totalTax.amount)} of ${String(sale.totalTax.amount)}`,
@@ -199,18 +217,22 @@ export function testTaxProvider(
         const sale = await committed();
         const sold = sale.lines[0];
         expect(sold !== undefined, "the sale has no lines");
+
         const part = {
           lineId: sold.lineId,
           amount: money(sold.taxable.amount / 2n, currency),
           tax: money(sold.tax.amount / 2n, currency),
         };
+
         const reversal = await provider
           .reverse({ transaction: sale, reference: reference(), lines: [part] })
           .orThrow();
+
         expect(
           reversal.totalTax.amount === -part.tax.amount,
           `reversed ${String(reversal.totalTax.amount)}`,
         );
+
         const tooMuch = await provider.reverse({
           transaction: sale,
           reference: reference(),
@@ -218,15 +240,18 @@ export function testTaxProvider(
             { ...part, amount: money(sold.taxable.amount + 1n, currency) },
           ],
         });
+
         expect(
           kindOf(tooMuch) === "invalid_input",
           `reversing more than was sold gave ${kindOf(tooMuch)}`,
         );
+
         const unknown = await provider.reverse({
           transaction: sale,
           reference: reference(),
           lines: [{ ...part, lineId: "conformance-unknown" }],
         });
+
         expect(
           kindOf(unknown) === "invalid_input",
           `an unknown line gave ${kindOf(unknown)}`,

@@ -55,6 +55,7 @@ const ID_TYPE: RegExp = /^[a-z][a-z0-9_ ]{0,62}$/;
 /** `s.<id> = <value>`, comparing on the id column's own type when it is known. */
 export function subjectIdMatches(subject: Subject, value: string): string {
   const column = `s.${sqlIdent(subject.id ?? "id")}`;
+
   return subject.idType === undefined
     ? `${column}::text = ${value}`
     : `${column} = (${value})::${subject.idType}`;
@@ -66,6 +67,7 @@ function fromRegistry(
   extraKeys: readonly string[],
 ): Record<string, unknown> {
   const read = entry.permissions?.["read"];
+
   return {
     table: entry.table,
     ...(entry.id !== undefined && { id: entry.id }),
@@ -97,22 +99,26 @@ function rawSubjects(
   const registry = ctx.subjects;
   const raw = ctx.option("subjects");
   const tenantless = allow.tenantless === true;
+
   if (raw === undefined) {
     if (allow.fallback === false) {
       return {};
     }
+
     return Object.fromEntries(
       Object.entries(registry)
         .filter(([, entry]) => tenantless || entry.tenant !== false)
         .map(([type, entry]) => [type, fromRegistry(entry, extraKeys)]),
     );
   }
+
   if (Array.isArray(raw)) {
     if (raw.length === 0) {
       throw new TypeError(
         `${where}: list at least one config.subjects type, or pass an object of subject type to { table, ... }`,
       );
     }
+
     return Object.fromEntries(
       raw.map((type: unknown) => {
         if (typeof type !== "string" || !Object.hasOwn(registry, type)) {
@@ -120,20 +126,24 @@ function rawSubjects(
             `${where}: "${String(type)}" is not a subject type in config.subjects. Types: ${Object.keys(registry).join(", ") || "none"}`,
           );
         }
+
         return [type, fromRegistry(registry[type]!, extraKeys)];
       }),
     );
   }
+
   if (!isObject(raw)) {
     throw new TypeError(
       `${where}: pass a list of config.subjects types, or an object of subject type to { table, id?, tenant?, permission?, cascade? }`,
     );
   }
+
   return Object.fromEntries(
     Object.entries(raw).map(([type, entry]) => {
       const registered = Object.hasOwn(registry, type)
         ? registry[type]
         : undefined;
+
       return [
         type,
         registered && isObject(entry)
@@ -160,15 +170,18 @@ export function subjectsOption(
 ): readonly [string, Subject][] {
   const where = `blocks.${ctx.module}.options.subjects`;
   const raw = rawSubjects(ctx, where, extraKeys, allow);
+
   return Object.entries(raw).map(([type, entry]): [string, Subject] => {
     if (!SUBJECT_TYPE.test(type)) {
       throw new TypeError(
         `${where}: "${type}" must be lowercase letters, digits and underscores`,
       );
     }
+
     if (!isObject(entry) || typeof entry["table"] !== "string") {
       throw new TypeError(`${where}.${type} needs a table`);
     }
+
     for (const key of Object.keys(entry)) {
       if (!BASE_KEYS.has(key) && !extraKeys.includes(key)) {
         throw new TypeError(
@@ -176,35 +189,47 @@ export function subjectsOption(
         );
       }
     }
+
     const text = (key: string): string | undefined => {
       const value = entry[key];
+
       if (value === undefined) {
         return undefined;
       }
+
       if (typeof value !== "string") {
         throw new TypeError(`${where}.${type}.${key} must be a string`);
       }
+
       return value;
     };
+
     const cascade = entry["cascade"];
+
     if (cascade !== undefined && typeof cascade !== "boolean") {
       throw new TypeError(`${where}.${type}.cascade must be true or false`);
     }
+
     const id = text("id");
     const idType = text("idType");
+
     if (idType !== undefined && !ID_TYPE.test(idType)) {
       throw new TypeError(
         `${where}.${type}.idType must be a type name such as uuid, text or bigint`,
       );
     }
+
     const tenantless = entry["tenant"] === false;
+
     if (tenantless && allow.tenantless !== true) {
       throw new TypeError(
         `${where}.${type}.tenant can't be false: this module keeps a tenant on every row`,
       );
     }
+
     const tenant = tenantless ? false : text("tenant");
     const permission = text("permission");
+
     return [
       type,
       {
@@ -257,26 +282,34 @@ function subjectTableBinding(
   },
 ): SubjectTableBinding | undefined {
   const raw = subject.extra[key];
+
   if (raw === undefined) {
     return undefined;
   }
+
   const where = `blocks.${ctx.module}.options.subjects.${type}.${key}`;
+
   if (!isObject(raw) || typeof raw["table"] !== "string") {
     throw new TypeError(`${where} needs { table, ${spec.columns.join(", ")} }`);
   }
+
   let schema: string;
   let table: string;
+
   try {
     [schema, table] = splitTable(raw["table"]);
   } catch {
     throw new TypeError(`${where}.table must be "table" or "schema.table"`);
   }
+
   if (!COLUMN_NAME.test(schema) || !COLUMN_NAME.test(table)) {
     throw new TypeError(`${where}.table must be "table" or "schema.table"`);
   }
+
   const columns: Record<string, string> = {};
   const optional = new Set(spec.optional);
   const known = new Set([...spec.columns, ...optional, "table"]);
+
   for (const name of Object.keys(raw)) {
     if (!known.has(name)) {
       throw new TypeError(
@@ -284,23 +317,31 @@ function subjectTableBinding(
       );
     }
   }
+
   for (const name of spec.columns) {
     const value = raw[name];
+
     if (typeof value !== "string" || !COLUMN_NAME.test(value)) {
       throw new TypeError(`${where}.${name} must be a column name`);
     }
+
     columns[name] = value;
   }
+
   for (const name of optional) {
     const value = raw[name];
+
     if (value === undefined) {
       continue;
     }
+
     if (typeof value !== "string" || !COLUMN_NAME.test(value)) {
       throw new TypeError(`${where}.${name} must be a column name`);
     }
+
     columns[name] = value;
   }
+
   return {
     type,
     key,
@@ -323,6 +364,7 @@ export function subjectTableBindings(
 ): readonly SubjectTableBinding[] {
   return subjects.flatMap(([type, subject]) => {
     const binding = subjectTableBinding(ctx, type, subject, key, spec);
+
     return binding === undefined ? [] : [binding];
   });
 }
@@ -340,14 +382,17 @@ export function subjectReadable(
   if (subjects.length === 0) {
     return "true";
   }
+
   return `case ${args.type}\n${subjects
     .map(([type, subject]) => {
       if (subject.tenant === false) {
         return `    when ${sqlString(type)} then exists (select 1 from ${qualifiedTable(subject.table)} s where ${subjectIdMatches(subject, args.id)})`;
       }
+
       const extra = subject.permission
         ? ` and ${ctx.scope.can(args.tenant, sqlString(subject.permission))}`
         : "";
+
       return `    when ${sqlString(type)} then exists (select 1 from ${qualifiedTable(subject.table)} s where ${subjectIdMatches(subject, args.id)} and ${ctx.scope.eq(`s.${sqlIdent(subject.tenant ?? ctx.naming.rename("organization_id"))}`, args.tenant)})${extra}`;
     })
     .join("\n")}\n    else false\n  end`;
@@ -364,21 +409,27 @@ export function subjectCascades(
   remove: string,
 ): string {
   const cascading = subjects.filter(([, subject]) => subject.cascade);
+
   if (cascading.length === 0) {
     return "";
   }
+
   const name = `${ctx.module.replaceAll("-", "_")}_subject_deleted`;
   const fn = ctx.fn(name);
+
   const triggers = cascading.map(([type, subject]) => {
     const trigger = sqlIdent(
       `bs_${ctx.module.replaceAll("-", "_")}_${type}_cascade`.slice(0, 63),
     );
+
     const table = qualifiedTable(subject.table);
+
     return `drop trigger if exists ${trigger} on ${table};
 create trigger ${trigger}
   after delete on ${table}
   for each row execute function ${fn}(${sqlString(type)}, ${sqlString(subject.id ?? "id")});`;
   });
+
   return `
 -- options.subjects with cascade: deleting a subject row deletes its ${ctx.module} rows.
 create or replace function ${fn}()
@@ -437,15 +488,18 @@ export function subjectAccess<A extends string>(
   const { subjects, actions, permission, provider } = options;
   const where = `blocks.${ctx.module}.options.subjects`;
   const allowed: ReadonlySet<string> = new Set(actions);
+
   const entries = subjects.map(([type, subject]) => {
     const keys = new Map<string, string>();
     const raw = subject.extra["permissions"];
+
     if (raw !== undefined) {
       if (!isObject(raw)) {
         throw new TypeError(
           `${where}.${type}.permissions must be { ${actions.map((action) => `${action}?`).join(", ")} }`,
         );
       }
+
       for (const [key, value] of Object.entries(raw)) {
         if (
           !allowed.has(key) ||
@@ -456,14 +510,18 @@ export function subjectAccess<A extends string>(
             `${where}.${type}.permissions.${key}: use ${actions.slice(0, -1).join(", ")} and ${actions.at(-1) ?? ""} with a permission key`,
           );
         }
+
         keys.set(key, value);
       }
     }
+
     return { type, keys, scope: subjectScope(ctx, provider, type, subject) };
   });
+
   const keyed = (action: A) =>
     entries.flatMap((entry) => {
       const key = entry.keys.get(action);
+
       return key === undefined && entry.scope === undefined
         ? []
         : [
@@ -474,6 +532,7 @@ export function subjectAccess<A extends string>(
             },
           ];
     });
+
   const onRecord = (
     scope: string | undefined,
     id: string,
@@ -486,6 +545,7 @@ export function subjectAccess<A extends string>(
           provider.functions.idsWith,
           { permission: key, scope },
         )} as t(id))`;
+
   const branches = (
     action: A,
     type: string,
@@ -493,30 +553,40 @@ export function subjectAccess<A extends string>(
     check: (key: string) => string,
   ): string => {
     const list = keyed(action);
+
     const parts = list.map(
       (entry) =>
         `(${type} = ${sqlString(entry.type)} and (${check(entry.key)}${onRecord(entry.scope, id, entry.key)}))`,
     );
+
     parts.push(
       `(not coalesce(${type} in (${list.map((entry) => sqlString(entry.type)).join(", ")}), false) and ${check(permission(action))})`,
     );
+
     return `(${parts.join(" or ")})`;
   };
+
   const scoped = entries.some((entry) => entry.scope !== undefined);
+
   const can = (tenant: string, key: string): string =>
     ctx.can("tenant", tenant, key);
+
   return {
     canOn(tenant, type, id, action) {
       const list = keyed(action);
+
       if (list.length === 0) {
         return can(tenant, permission(action));
       }
+
       if (scoped) {
         return branches(action, type, id, (key) => can(tenant, key));
       }
+
       const cases = list.map(
         (entry) => `when ${sqlString(entry.type)} then ${entry.key}`,
       );
+
       return ctx.scope.can(
         tenant,
         `case ${type} ${cases.join(" ")} else ${permission(action)} end`,
@@ -526,15 +596,18 @@ export function subjectAccess<A extends string>(
       if (keyed(action).length === 0) {
         return ctx.scope.check(tenant, permission(action));
       }
+
       return branches(action, type, id, (key) => ctx.scope.check(tenant, key));
     },
     keyFor(type, action) {
       const cases = entries.flatMap((entry) => {
         const key = entry.keys.get(action);
+
         return key === undefined
           ? []
           : [`when ${sqlString(entry.type)} then ${sqlString(key)}`];
       });
+
       return cases.length === 0
         ? permission(action)
         : `case ${type} ${cases.join(" ")} else ${permission(action)} end`;
@@ -550,22 +623,28 @@ function subjectScope(
   subject: Subject,
 ): string | undefined {
   const scope = subject.extra["scope"];
+
   if (scope === undefined) {
     return undefined;
   }
+
   const where = `blocks.${ctx.module}.options.subjects.${type}.scope`;
+
   if (typeof scope !== "string") {
     throw new TypeError(`${where} must be the name of a provider scope`);
   }
+
   if (accessModel(ctx) !== "provider" || provider === undefined) {
     throw new TypeError(
       `${where} needs blocks.access.model "provider" and an authorization provider that declares the scope`,
     );
   }
+
   if (scope === provider.scope || !(provider.scopes ?? []).includes(scope)) {
     throw new TypeError(
       `${where}: "${scope}" is not a scope ${provider.name} declares below its tenant scope "${provider.scope}". Scopes: ${(provider.scopes ?? []).filter((name) => name !== provider.scope).join(", ") || "none"}`,
     );
   }
+
   return scope;
 }

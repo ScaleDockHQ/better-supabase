@@ -12,10 +12,13 @@ function adminInBuilderExecutor(context: DoctorContext): FindingInput[] {
     if (!BUILDER_EXECUTOR.test(file.text)) {
       return [];
     }
+
     const line = lineOf(file.text, ADMIN_CALL);
+
     if (line === undefined) {
       return [];
     }
+
     return [
       {
         message: `${file.path} runs workflow-builder steps and calls admin(), which bypasses RLS for every step. Resolve the publisher's claims with builder.versions.runAs(call.version) in each step and query as them, so a demoted publisher's workflow stops.`,

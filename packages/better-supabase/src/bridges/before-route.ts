@@ -28,13 +28,17 @@ export function beforeRoute(
   entries: readonly AnyEntry[],
 ): (request: Request, env: unknown) => Promise<BeforeRoute> {
   const run = around(entries);
+
   return async (request, env) => {
     let contributions: Record<string, unknown> | undefined;
     const marker = new Response(null);
+
     const response = await run(request, env, (handed) => {
       contributions = handed;
+
       return Promise.resolve(marker);
     });
+
     return contributions === undefined
       ? { reached: false, response }
       : { reached: true, contributions, headers: response.headers };

@@ -108,12 +108,15 @@ function build(ctx: ModuleContext): string {
   const use = ctx.permission("use", permissions.use);
   const manage = ctx.permission("manage", permissions.manage);
   const pollEvery = ctx.number("pollEvery", 60);
+
   if (!Number.isInteger(pollEvery) || pollEvery < 1) {
     throw new TypeError(
       "blocks.ai-providers.options.pollEvery must be a whole number of seconds",
     );
   }
+
   const keyJson = (row: string): string => rowJson(KEYS, k, row);
+
   const keyEvent = (type: string, row: string): string =>
     ctx.record({
       type,
@@ -127,8 +130,10 @@ function build(ctx: ModuleContext): string {
         targetLabel: `${row}.${k.provider} || '/' || ${row}.${k.name}`,
       },
     });
+
   const batchJson = (row: string): string => rowJson(BATCHES, b, row);
   const itemJson = (row: string): string => rowJson(ITEMS, i, row);
+
   const refCheck = (column: string): string =>
     `check (jsonb_typeof(${column}) = 'object' and ${column} ? 'provider')`;
 
@@ -496,7 +501,9 @@ function upgradeSandboxes(ctx: ModuleContext): string {
   if (ctx.installed("ai-chat")) {
     return "";
   }
+
   const table = `${ctx.schema}.ai_sandboxes`;
+
   return `do $$
 begin
   if to_regclass(${sqlString(table)}) is not null and exists (select 1 from ${table}) then

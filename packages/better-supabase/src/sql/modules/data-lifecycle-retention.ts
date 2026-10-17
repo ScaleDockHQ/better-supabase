@@ -95,11 +95,13 @@ export function retentionSql(ctx: ModuleContext): string {
   const cp = (logical: string): string => ctx.col("policies", logical);
   const ch = (logical: string): string => ctx.col("holds", logical);
   const fn = (name: string): string => ctx.fn(name);
+
   // A tenant's plans come from the entitlements module; a tenant id that
   // isn't of its id type (an outbox row's text tenant) has no plan.
   const planId = ctx.installed("entitlements")
     ? ctx.of("entitlements").idType
     : undefined;
+
   const plans = planId
     ? `if pg_input_is_valid(retention_for.tenant, ${sqlString(planId)}) then
       select min(x.${cp("keep")}) into v_keep from ${p} x
@@ -110,6 +112,7 @@ export function retentionSql(ctx: ModuleContext): string {
       end if;
     end if;`
     : "";
+
   const holdEvent = (type: string): string =>
     ctx.record({
       type,

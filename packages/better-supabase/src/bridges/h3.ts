@@ -46,14 +46,18 @@ export function toH3<const Entries extends readonly AnyEntry[]>(
   options: ToH3Options<Partial<Contributions<Entries>>> = {},
 ): H3Middleware<Partial<Contributions<Entries>>> {
   const run = around(entries);
+
   return (event, next) => {
     bufferInPlace(event.req);
+
     const env = options.env
       ? options.env(event)
       : event.context.cloudflare?.env;
+
     return run(event.req, env, async (contributions) => {
       Object.assign(event.context, contributions);
       const value = await next();
+
       return toResponse(value, {
         status: event.res?.status,
         statusText: event.res?.statusText,

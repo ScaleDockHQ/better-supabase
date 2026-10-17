@@ -38,9 +38,11 @@ function Mark({ name }: { name: string }) {
 
 async function loadOrganizations(): Promise<readonly OrganizationSummary[]> {
   const result = await loadMyOrganizations({});
+
   if (!result.ok) {
     throw new DbException(result.error);
   }
+
   return result.data;
 }
 
@@ -62,6 +64,7 @@ export function OrganizationSwitcherMenu({
   const refreshSession = useRefreshSession();
   const [pending, startTransition] = useTransition();
   const [creating, setCreating] = useState(false);
+
   const { organizations, active, activeId, switchTo } = useOrganizations({
     load: loadOrganizations,
     initial,
@@ -73,10 +76,13 @@ export function OrganizationSwitcherMenu({
   const choose = (organization: OrganizationSummary) => {
     startTransition(async () => {
       const result = await switchTo(organization.id);
+
       if (!result.ok) {
         toast.error(errorMessage(result.error));
+
         return;
       }
+
       toast.success(t("Switched to {name}", { name: organization.name }));
     });
   };

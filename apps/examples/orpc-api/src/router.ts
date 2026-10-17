@@ -71,6 +71,7 @@ export const router = {
       .input(v.object({ id: v.pipe(v.string(), v.uuid()) }))
       .handler(async ({ context, input }) => {
         await bs.unwrap(context.db.customers.delete(input.id));
+
         return { deleted: true };
       }),
   },

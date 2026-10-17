@@ -112,9 +112,12 @@ export function fakeTransport(answers: Readonly<Record<string, unknown>>): {
       if (!(fn in answers)) {
         throw new Error(`unexpected ${fn}`);
       }
+
       const answer = answers[fn];
+
       return typeof answer === "function" ? answer(args) : answer;
     },
   );
+
   return { transport: { call }, call };
 }

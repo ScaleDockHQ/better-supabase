@@ -16,6 +16,7 @@ export default function WorkflowRunPage({
   params,
 }: PageProps<"/[locale]/workflows/[run]">) {
   const t = useExtracted("workflows");
+
   return (
     <>
       <Link

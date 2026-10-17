@@ -16,6 +16,7 @@ const hit = (subjectType: string, subjectId: string): SearchHit =>
     title: subjectId,
     url: null,
   }) as unknown as SearchHit;
+
 const user = (subjectId: string): SearchUserItem =>
   // SAFETY: as above.
   ({
@@ -38,6 +39,7 @@ function fakeClient() {
 beforeEach(() => {
   vi.useFakeTimers();
 });
+
 afterEach(() => {
   vi.useRealTimers();
 });
@@ -46,6 +48,7 @@ describe("createCommandSearchController", () => {
   it("opens on mod+K, lists favorites and recents, and searches after the debounce", async () => {
     const client = fakeClient();
     const keyboard = fakeKeyboard();
+
     const { view, unmount } = mount(
       createCommandSearchController({
         // SAFETY: the fake has the methods the controller calls.
@@ -57,6 +60,7 @@ describe("createCommandSearchController", () => {
         listLimit: 3,
       }),
     );
+
     keyboard.press({ key: "k", mod: true });
     expect(view().open).toBe(true);
     await vi.advanceTimersByTimeAsync(0);
@@ -91,9 +95,11 @@ describe("createCommandSearchController", () => {
 
   it("drops overtaken answers, keeps hits on a failed query and reports list errors", async () => {
     const client = fakeClient();
+
     const { view, unmount } = mount(
       createCommandSearchController({ client, debounceMs: 0 }),
     );
+
     view().setOpen(true);
     view().setOpen(true);
     view().setQuery("first");

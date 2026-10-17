@@ -5,6 +5,7 @@ import type { FunctionMeta, SchemaMeta } from "../../src/schema/types.ts";
 import { decodeRpcResult, rpcFunction } from "../../src/core/rpc-result.ts";
 
 const base = { returnsSet: false, volatility: "stable" } as const;
+
 const area: FunctionMeta = {
   name: "area",
   schema: "public",
@@ -28,6 +29,7 @@ const area: FunctionMeta = {
     { ...base, args: [{ name: "w", type: "int4" }], returns: "int4" },
   ],
 };
+
 const meta: SchemaMeta = {
   version: 1,
   casing: "camel",

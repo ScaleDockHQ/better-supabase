@@ -35,15 +35,20 @@ export function refusalTarget(
       : isAalRefusal(error)
         ? redirects.mfa
         : undefined;
+
   if (page === undefined) {
     return undefined;
   }
+
   const url = new URL(request.url);
   const target = new URL(page, url);
+
   if (target.pathname === url.pathname) {
     return undefined;
   }
+
   target.searchParams.set("next", `${url.pathname}${url.search}`);
+
   return target;
 }
 
@@ -55,12 +60,14 @@ export function refusalResponse(
   expose: boolean,
 ): Response {
   const target = refusalTarget(error, request, redirects);
+
   if (target) {
     return new Response(null, {
       status: 303,
       headers: { location: target.href },
     });
   }
+
   return problemResponse(error, {
     instance: new URL(request.url).pathname,
     expose,
@@ -93,9 +100,11 @@ export async function routeRefusal(
     locals.tenant,
     options.authorizer,
   );
+
   if (!("kind" in caller)) {
     return undefined;
   }
+
   return refusalResponse(
     caller,
     request,
@@ -115,9 +124,11 @@ export function errorResponse(
   options: { readonly expose?: boolean } = {},
 ): Response | undefined {
   const found = dbErrorOf(cause);
+
   if (!found) {
     return undefined;
   }
+
   return problemResponse(found, {
     instance: new URL(request.url).pathname,
     expose: options.expose ?? defaultExpose(),
@@ -127,13 +138,16 @@ export function errorResponse(
 /** Reads the guard's view of a request's contributions; throws without `withBetterSupabase`. */
 export function guardedLocals(contributions: object): GuardedLocals {
   const bs: unknown = "bs" in contributions ? contributions.bs : undefined;
+
   if (typeof bs !== "object" || bs === null || !("auth" in bs)) {
     throw new Error(
       "better-supabase: the route guard needs withBetterSupabase(server) in the entries",
     );
   }
+
   const tenant: unknown =
     "tenant" in contributions ? contributions.tenant : undefined;
+
   return {
     // SAFETY: withBetterSupabase is the only entry that contributes `bs.auth`, and it is an AuthState.
     bs: bs as GuardedLocals["bs"],

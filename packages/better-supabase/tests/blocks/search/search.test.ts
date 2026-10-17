@@ -11,11 +11,13 @@ import { err, ok } from "../../../src/core/result.ts";
 
 function recorder(results: Record<string, unknown> = {}) {
   const calls: { fn: string; args: unknown }[] = [];
+
   return {
     calls,
     transport: {
       call(_schema: string, fn: string, args: unknown) {
         calls.push({ fn, args });
+
         return Promise.resolve(results[fn] ?? null);
       },
     },
@@ -93,6 +95,7 @@ describe("search block", () => {
       search_touch: true,
       search_star: true,
     });
+
     const search = createSearch({ transport });
     const [recent] = await search.recents().orThrow();
     expect(recent?.openedAt?.toString()).toBe("2026-10-01T10:00:00Z");
@@ -112,15 +115,18 @@ describe("search block", () => {
 
   it("maintains the index through the service transport", async () => {
     const member = recorder();
+
     const service = recorder({
       search_refresh: true,
       search_remove: false,
       search_reindex: "4",
     });
+
     const search = createSearch({
       transport: member.transport,
       service: service.transport,
     });
+
     expect(await search.refresh("note", "n1").orThrow()).toBe(true);
     expect(await search.remove("note", "n1").orThrow()).toBe(false);
     expect(await search.reindex().orThrow()).toBe(4);
@@ -139,18 +145,23 @@ describe("search block", () => {
       { subjectType: "note", subjectId: "n1", contentHash: "h1", text: "a" },
       { subjectType: "note", subjectId: "n2", contentHash: "h2", text: "b" },
     ];
+
     const { calls, transport } = recorder({
       search_pending_embeddings: pending,
       search_set_embedding: true,
     });
+
     const search = createSearch({ transport });
     const texts: string[][] = [];
+
     const stored = await search
       .embedPending((values) => {
         texts.push([...values]);
+
         return Promise.resolve(values.map((_, index) => [index, 1]));
       }, 10)
       .orThrow();
+
     expect(stored).toBe(2);
     expect(texts).toEqual([["a", "b"]]);
     expect(calls.map((call) => call.args)).toEqual([
@@ -174,11 +185,13 @@ describe("search block", () => {
     const empty = createSearch({
       transport: recorder({ search_pending_embeddings: [] }).transport,
     });
+
     expect(
       await empty
         .embedPending(() => Promise.reject(new Error("unused")))
         .orThrow(),
     ).toBe(0);
+
     const short = createSearch({
       transport: recorder({
         search_pending_embeddings: [
@@ -186,6 +199,7 @@ describe("search block", () => {
         ],
       }).transport,
     });
+
     const result = await short.embedPending(() => Promise.resolve([]));
     expect(result.ok ? undefined : result.error.message).toContain(
       "embed returned 0 vectors for 1 texts",
@@ -194,6 +208,7 @@ describe("search block", () => {
 
   it("runs block hooks around the methods", async () => {
     const seen: string[] = [];
+
     const search = createSearch({
       transport: recorder({ search_touch: true }).transport,
       hooks: {
@@ -204,6 +219,7 @@ describe("search block", () => {
         },
       },
     });
+
     await search.touch("note", "n1").orThrow();
     expect(seen).toEqual(["before note/n1"]);
   });
@@ -213,6 +229,7 @@ describe("searchSink", () => {
   const index = () => {
     const calls: string[] = [];
     let failure: { hint?: string; message: string } | undefined;
+
     return {
       calls,
       fail(next: { hint?: string; message: string }) {
@@ -221,10 +238,12 @@ describe("searchSink", () => {
       search: {
         remove: (type: string, id: string) => {
           calls.push(`remove ${type}/${id}`);
+
           return Promise.resolve(failure ? err(failure as never) : ok(true));
         },
         refresh: (type: string, id: string) => {
           calls.push(`refresh ${type}/${id}`);
+
           return Promise.resolve(failure ? err(failure as never) : ok(true));
         },
       },
@@ -253,10 +272,12 @@ describe("searchSink", () => {
 
   it("maps custom events and prefixes", async () => {
     const target = index();
+
     const sink = searchSink(target.search as never, {
       on: { "doc.archived": "remove" },
       typePrefix: "com.acme",
     });
+
     await sink.send([
       event("com.acme.doc.archived", { subjectType: "doc", subjectId: "d1" }),
     ]);
@@ -266,10 +287,12 @@ describe("searchSink", () => {
   it("skips unknown subject types and throws on other errors", async () => {
     const target = index();
     const sink = searchSink(target.search as never);
+
     const trashed = event("dev.better-supabase.subject.trashed", {
       subjectType: "note",
       subjectId: "n1",
     });
+
     target.fail({ hint: "SEARCH_SUBJECT_UNKNOWN", message: "unknown" });
     await sink.send([trashed]);
     target.fail({ message: "boom" });

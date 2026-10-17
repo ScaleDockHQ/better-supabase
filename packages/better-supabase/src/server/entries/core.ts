@@ -61,6 +61,7 @@ export function registerCore(server: object, core: AnyCore): void {
 /** Copies the registration from `from` to `to` (`extendServer` builds a new object). */
 export function shareCore(from: object, to: object): void {
   const core = cores.get(from);
+
   if (core) {
     cores.set(to, core);
   }
@@ -78,11 +79,13 @@ export function serverCore<
   context(request: Request): Promise<ServerContext<M, F, E, C, P>>;
 }): ServerCore<M, F, E, C, P> {
   const core = cores.get(server);
+
   if (!core) {
     throw new TypeError(
       "better-supabase: this server was not built by createServer(); pass the definition or a server from createServer",
     );
   }
+
   // SAFETY: the registry maps each server to the core createServer built for it, with the same generics.
   return core as ServerCore<M, F, E, C, P>;
 }
@@ -123,6 +126,7 @@ export function startSupportLookup<
   if (session.auth.kind !== "user" || supportLookups.has(session)) {
     return;
   }
+
   const lookup = core.support(request, session.auth);
   // withSupport awaits and reports a failure; a pipeline without it must not leave it unhandled.
   lookup.catch(() => undefined);

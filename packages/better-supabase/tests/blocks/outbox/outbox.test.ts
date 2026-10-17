@@ -35,18 +35,22 @@ function fakeSql(replies: Record<string, unknown[]>): {
   calls: Call[];
 } {
   const calls: Call[] = [];
+
   const sql: SqlClient = {
     async queryRaw<T>(text: string, params: unknown[] = []): Promise<T[]> {
       const fn = /\."([a-z_]+)"\(/.exec(text)?.[1] ?? "";
       calls.push({ fn, args: params });
       const queue = replies[fn];
       const value = queue && queue.length > 0 ? queue.shift() : null;
+
       if (value instanceof Error) {
         throw value;
       }
+
       return [{ value }] as T[];
     },
   };
+
   return { sql, calls };
 }
 
@@ -57,11 +61,13 @@ describe("createOutbox", () => {
     const { sql, calls } = fakeSql({
       emit_event: ["0199a7c4-0000-7000-8000-000000000007"],
     });
+
     const outbox = createOutbox({
       transport: sqlTransport(sql),
       ...OPTIONS,
       schema: "app",
     });
+
     const result = await outbox.emit(
       "invoice.paid",
       { id: 1 },
@@ -70,6 +76,7 @@ describe("createOutbox", () => {
         key: "inv-1",
       },
     );
+
     expect(result).toMatchObject({
       ok: true,
       data: "0199a7c4-0000-7000-8000-000000000007",
@@ -82,21 +89,25 @@ describe("createOutbox", () => {
 
   it("calls the functions with named arguments over a transport", async () => {
     const calls: { schema: string; fn: string; args: unknown }[] = [];
+
     const replies: Record<string, unknown[]> = {
       emit_event: ["e1"],
       outbox_claim: [[row(1)]],
       outbox_ack: [true],
     };
+
     const outbox = createOutbox({
       transport: {
         call: async (schema, fn, args) => {
           calls.push({ schema, fn, args });
+
           return replies[fn]?.shift() ?? null;
         },
       },
       ...OPTIONS,
       schema: "events",
     });
+
     expect((await outbox.emit("invoice.paid", { id: 1 })).data).toBe("e1");
     expect(calls[0]).toEqual({
       schema: "events",
@@ -132,11 +143,13 @@ describe("createOutbox", () => {
       code: "P0002",
       hint: "OUTBOX_UNKNOWN_CONSUMER",
     });
+
     const { sql, calls } = fakeSql({
       outbox_register: [0],
       outbox_unregister: [true],
       purge_outbox: [failure, 3],
     });
+
     const outbox = createOutbox({ transport: sqlTransport(sql), ...OPTIONS });
     expect(
       await outbox.register("billing", {
@@ -161,17 +174,21 @@ describe("createOutbox", () => {
       outbox_claim: [[row(1), row(2)], [row(3)]],
       outbox_ack: [true, true],
     });
+
     const sent: CloudEvent[] = [];
+
     const outbox = createOutbox({
       transport: sqlTransport(sql),
       ...OPTIONS,
       typePrefix: "com.crm",
     });
+
     const result = await outbox.relay(
       "crm",
       { send: (events) => void sent.push(...events) },
       { batch: 2, owner: "w1" },
     );
+
     expect(result).toEqual({ delivered: 3 });
     expect(sent.map((event) => event.id)).toEqual(["1", "2", "3"]);
     expect(sent[0]).toMatchObject({
@@ -195,8 +212,10 @@ describe("createOutbox", () => {
       outbox_claim: [[row(1)], [row(2)]],
       outbox_ack: [true, true, true],
     });
+
     const seen: OutboxEvent[] = [];
     const outbox = createOutbox({ transport: sqlTransport(sql), ...OPTIONS });
+
     const result = await outbox.consume(
       "search",
       async (events) => {
@@ -204,6 +223,7 @@ describe("createOutbox", () => {
       },
       { owner: "w1" },
     );
+
     expect(result).toEqual({ delivered: 1 });
     expect(seen[0]).toMatchObject({
       position: 1,
@@ -216,6 +236,7 @@ describe("createOutbox", () => {
       "w1",
       1,
     ]);
+
     const failed = await outbox.consume(
       "search",
       () => {
@@ -223,6 +244,7 @@ describe("createOutbox", () => {
       },
       { owner: "w1" },
     );
+
     expect(failed.error?.message).toContain("index down");
   });
 
@@ -231,7 +253,9 @@ describe("createOutbox", () => {
       outbox_claim: [[row(1), row(2)]],
       outbox_fail: ["retrying"],
     });
+
     const outbox = createOutbox({ transport: sqlTransport(sql), ...OPTIONS });
+
     const result = await outbox.relay(
       "crm",
       {
@@ -241,6 +265,7 @@ describe("createOutbox", () => {
       },
       { owner: "w1" },
     );
+
     expect(result.delivered).toBe(0);
     expect(result.error?.message).toContain("receiver down");
     expect(result.deadLettered).toBeUndefined();
@@ -256,6 +281,7 @@ describe("createOutbox", () => {
       outbox_claim: [[row(7)]],
       outbox_fail: ["dead"],
     });
+
     const result = await createOutbox({
       transport: sqlTransport(sql),
       ...OPTIONS,
@@ -266,6 +292,7 @@ describe("createOutbox", () => {
       },
       { owner: "w1", maxAttempts: 3, maxBackoff: "1 minute" },
     );
+
     expect(result).toMatchObject({ delivered: 0, deadLettered: 1 });
     expect(calls.at(-1)).toEqual({
       fn: "outbox_fail",
@@ -291,6 +318,7 @@ describe("createOutbox", () => {
       ],
       purge_outbox: [4],
     });
+
     const outbox = createOutbox({ transport: sqlTransport(sql), ...OPTIONS });
     const letters = await outbox.deadLetters("crm");
     expect(letters.data).toHaveLength(1);
@@ -320,23 +348,27 @@ describe("createOutbox", () => {
         }),
       ],
     });
+
     const result = await createOutbox({
       transport: sqlTransport(sql),
       ...OPTIONS,
     }).relay("crm", {
       send: () => undefined,
     });
+
     expect(result.error).toMatchObject({ hint: "OUTBOX_UNKNOWN_CONSUMER" });
   });
 
   it("reads history", async () => {
     const { sql, calls } = fakeSql({ outbox_history: [[row(4), { bad: 1 }]] });
+
     const result = await createOutbox({
       transport: sqlTransport(sql),
       ...OPTIONS,
     }).history({
       subject: "organizations/4",
     });
+
     expect(result.data?.map((event) => event.position)).toEqual([4]);
     expect(result.data?.[0]?.createdAt.toString()).toBe("2026-01-01T00:00:00Z");
     expect(calls[0]!.args).toEqual(["organizations/4", null, 0, 100]);
@@ -358,6 +390,7 @@ describe("createOutbox", () => {
       },
       OPTIONS,
     );
+
     expect(Object.keys(event).sort()).toEqual([
       "data",
       "datacontenttype",
@@ -383,6 +416,7 @@ describe("createOutbox", () => {
       actorId: "u1",
       createdAt: Temporal.Instant.from("2026-01-01T00:00:00Z"),
     };
+
     const event = outboxCloudEvent({ ...base, payload: { n: 1 } }, OPTIONS);
     expect(event.data).toEqual({ n: 1 });
     expect(event).not.toHaveProperty("actorid");
@@ -408,6 +442,7 @@ describe("relayRoute", () => {
 
   it("checks the method and the bearer secret", async () => {
     const { sql } = fakeSql({});
+
     const route = createOutbox({
       transport: sqlTransport(sql),
       ...OPTIONS,
@@ -415,6 +450,7 @@ describe("relayRoute", () => {
       secret: "s",
       consumers: {},
     });
+
     expect((await route(request("PUT"))).status).toBe(405);
     expect((await route(request("GET", "wrong"))).status).toBe(401);
   });
@@ -424,8 +460,10 @@ describe("relayRoute", () => {
       outbox_claim: [[row(1)], [row(3)], [row(2)]],
       outbox_ack: [true, true, true],
     });
+
     const errors: string[] = [];
     const actors: (string | null)[] = [];
+
     const route = createOutbox({
       transport: sqlTransport(sql),
       ...OPTIONS,
@@ -444,6 +482,7 @@ describe("relayRoute", () => {
       },
       onError: (_, consumer) => errors.push(consumer),
     });
+
     const response = await route(request("POST"));
     const body = await response.json();
     expect(body).toMatchObject({
@@ -465,7 +504,9 @@ describe("createOutbox subscribers", () => {
       outbox_claim: [[row(1), row(2, "invoice.paid"), row(3)]],
       outbox_ack: [true],
     });
+
     const asked: { type: string; principal: string; kind?: string }[] = [];
+
     const outbox = createOutbox({
       transport: sqlTransport(sql),
       ...OPTIONS,
@@ -473,9 +514,11 @@ describe("createOutbox subscribers", () => {
         for (const subscriber of subscribers) {
           asked.push({ type: event.type, ...subscriber });
         }
+
         return event.type === "invoice.paid" ? [] : subscribers;
       },
     });
+
     const seen: number[] = [];
     expect(
       await outbox.consume("search", (events) => {
@@ -496,12 +539,15 @@ describe("createOutbox subscribers", () => {
       outbox_claim: [[row(1)]],
       outbox_ack: [true],
     });
+
     let handled = 0;
+
     const outbox = createOutbox({
       transport: sqlTransport(sql),
       ...OPTIONS,
       authorization: { delivery: { subscribers: () => [] } },
     });
+
     expect(
       await outbox.consume("search", () => {
         handled += 1;
@@ -515,6 +561,7 @@ describe("createOutbox subscribers", () => {
       outbox_claim: [[row(1)]],
       outbox_fail: ["dead"],
     });
+
     const outbox = createOutbox({
       transport: sqlTransport(sql),
       ...OPTIONS,
@@ -522,6 +569,7 @@ describe("createOutbox subscribers", () => {
         throw new Error("provider down");
       },
     });
+
     const result = await outbox.consume("search", () => undefined);
     expect(result).toMatchObject({ delivered: 0, deadLettered: 1 });
     expect(result.error?.message).toBe("provider down");

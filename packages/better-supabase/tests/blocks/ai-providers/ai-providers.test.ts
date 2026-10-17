@@ -12,16 +12,19 @@ import { AsyncResult } from "../../../src/core/result.ts";
 
 const AT = "2026-01-01T00:00:00Z";
 const REF = { provider: "vault", name: "ai:o1:anthropic", tenant: "o1" };
+
 const OLD_REF = {
   provider: "vault",
   name: "ai:o1:anthropic:old",
   tenant: "o1",
 };
+
 const FOREIGN_REF = {
   provider: "vault",
   name: "ai:o2:anthropic",
   tenant: "o2",
 };
+
 const signal = new AbortController().signal;
 
 const keyRow = (overrides: Record<string, unknown> = {}) => ({
@@ -64,26 +67,32 @@ type Handler = (args: Record<string, unknown>) => unknown;
 
 function fakeTransport(handlers: Record<string, Handler>) {
   const calls: { fn: string; args: Record<string, unknown> }[] = [];
+
   const transport: BlockTransport = {
     call: (_schema, fn, args) => {
       calls.push({ fn, args });
       const handler = handlers[fn];
+
       if (!handler) {
         return Promise.reject(new Error(`unexpected ${fn}`));
       }
+
       return Promise.resolve(handler(args));
     },
   };
+
   return { transport, calls };
 }
 
 function fakeCredentials(tokens: Record<string, string> = {}) {
   const revoked: CredentialRef[] = [];
+
   const credentials: CredentialProvider = {
     apiVersion: 1,
     name: "fake",
     getToken: (ref) => {
       const token = tokens[String(ref["name"])];
+
       return token === undefined
         ? AsyncResult.err(dbError("not_found", "no credential"))
         : AsyncResult.ok({
@@ -100,9 +109,11 @@ function fakeCredentials(tokens: Record<string, string> = {}) {
     revoke: (ref, options) => {
       expect(options.subject).toEqual({ type: "app" });
       revoked.push(ref);
+
       return AsyncResult.ok(true);
     },
   };
+
   return { credentials, revoked };
 }
 
@@ -114,28 +125,35 @@ describe("createAiProviders keys", () => {
         keyRow({ id: "k2", settings: null, enabled: false, created_by: null }),
       ],
     });
+
     const keys = await createAiProviders({ transport })
       .keys.list("o1")
       .orThrow();
+
     expect(keys.map((key) => [key.id, key.enabled, key.settings])).toEqual([
       ["k1", true, { region: "eu" }],
       ["k2", false, {}],
     ]);
+
     const bad = fakeTransport({
       list_ai_provider_keys: () => [keyRow({ credential_ref: "x" })],
     });
+
     const result = await createAiProviders({
       transport: bad.transport,
     }).keys.list("o1");
+
     expect(result.ok).toBe(false);
   });
 
   it("revokes the credential a save replaces, but not the same one", async () => {
     const { credentials, revoked } = fakeCredentials();
     let replaced: unknown = OLD_REF;
+
     const { transport, calls } = fakeTransport({
       save_ai_provider_key: () => ({ key: keyRow(), replaced }),
     });
+
     const providers = createAiProviders({ transport, credentials });
     await providers.keys
       .save("o1", { provider: "anthropic", credentialRef: REF })
@@ -159,6 +177,7 @@ describe("createAiProviders keys", () => {
 
   it("revokes on remove and on removeAll", async () => {
     const { credentials, revoked } = fakeCredentials();
+
     const { transport } = fakeTransport({
       delete_ai_provider_key: (args) => (args["id"] === "k1" ? keyRow() : null),
       delete_ai_provider_keys: () => [
@@ -166,6 +185,7 @@ describe("createAiProviders keys", () => {
         keyRow({ id: "k2", credential_ref: OLD_REF }),
       ],
     });
+
     const providers = createAiProviders({ transport, credentials });
     expect(await providers.keys.remove("k1").orThrow()).toBe(true);
     expect(await providers.keys.remove("gone").orThrow()).toBe(false);
@@ -177,10 +197,12 @@ describe("createAiProviders keys", () => {
     const { credentials, revoked } = fakeCredentials({
       "ai:o2:anthropic": "sk-2",
     });
+
     const { transport } = fakeTransport({
       ai_provider_keys_for: () => [keyRow({ credential_ref: FOREIGN_REF })],
       delete_ai_provider_key: () => keyRow({ credential_ref: FOREIGN_REF }),
     });
+
     const providers = createAiProviders({ transport, credentials });
     const resolved = await providers.keys.resolve("o1");
     expect(!resolved.ok && resolved.error.hint).toBe("CREDENTIAL_REF_FOREIGN");
@@ -192,6 +214,7 @@ describe("createAiProviders keys", () => {
     const { transport } = fakeTransport({
       delete_ai_provider_key: () => keyRow(),
     });
+
     expect(
       await createAiProviders({ transport }).keys.remove("k1").orThrow(),
     ).toBe(true);
@@ -201,14 +224,17 @@ describe("createAiProviders keys", () => {
     const { credentials } = fakeCredentials({ "ai:o1:anthropic": "sk-1" });
     const user = fakeTransport({});
     const service = fakeTransport({ ai_provider_keys_for: () => [keyRow()] });
+
     const providers = createAiProviders({
       transport: user.transport,
       service: service.transport,
       credentials,
     });
+
     const keys = await providers.keys
       .resolve("o1", { providers: ["anthropic"], signal })
       .orThrow();
+
     expect(keys).toEqual([
       {
         provider: "anthropic",
@@ -229,12 +255,15 @@ describe("createAiProviders keys", () => {
     const { transport } = fakeTransport({
       ai_provider_keys_for: () => [keyRow()],
     });
+
     const none = await createAiProviders({ transport }).keys.resolve("o1");
     expect(!none.ok && none.error.hint).toBe("AI_PROVIDER_KEY_UNRESOLVED");
+
     const missing = await createAiProviders({
       transport,
       credentials: fakeCredentials().credentials,
     }).keys.resolve("o1");
+
     expect(!missing.ok && missing.error.kind).toBe("not_found");
     const empty = fakeTransport({ ai_provider_keys_for: () => [] });
     expect(
@@ -275,7 +304,9 @@ describe("createAiProviders batches", () => {
         },
       ],
     });
+
     const { batches } = createAiProviders({ transport });
+
     const recorded = await batches
       .record("o1", {
         provider: "openai",
@@ -289,6 +320,7 @@ describe("createAiProviders batches", () => {
         expiresAt: Temporal.Instant.from("2026-01-02T00:00:00Z"),
       })
       .orThrow();
+
     expect(recorded.counts).toEqual({ total: 2, pending: 2 });
     expect(calls[0]?.args["fields"]).toEqual({
       user_id: "u1",
@@ -303,13 +335,17 @@ describe("createAiProviders batches", () => {
     expect(calls[1]?.args["fields"]).toEqual({});
     expect((await batches.get("b1").orThrow())?.status).toBe("failed");
     expect(await batches.get("b2").orThrow()).toBeUndefined();
+
     const listed = await batches
       .list("o1", { status: "completed", limit: 5 })
       .orThrow();
+
     expect(listed[0]).toMatchObject({ resultsSaved: true, counts: {} });
+
     const items = await batches
       .items("b1", { cursor: "r0", limit: 2 })
       .orThrow();
+
     expect(items.map((item) => [item.status, item.output, item.error])).toEqual(
       [
         ["succeeded", { text: "a" }, undefined],
@@ -324,10 +360,12 @@ describe("createAiProviders batches", () => {
       update_ai_batch: () => batchRow({ status: "completed" }),
       save_ai_batch_items: () => 1,
     });
+
     const { batches } = createAiProviders({
       transport: fakeTransport({}).transport,
       service: service.transport,
     });
+
     expect(
       await batches.due({ batch: 5, leaseSeconds: 30 }).orThrow(),
     ).toHaveLength(1);

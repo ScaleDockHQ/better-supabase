@@ -21,6 +21,7 @@ export function fromCatalog(catalog: Catalog): Snapshot {
       ...catalog.tables.map((table) => table.schema),
     ]),
   ].sort();
+
   const meta: Mutable<GeneratorMetadata> = {
     version: 1,
     schemas: schemas.map((name, index) => ({
@@ -40,9 +41,11 @@ export function fromCatalog(catalog: Catalog): Snapshot {
   };
 
   const typeIds = new Map<string, number>();
+
   const typeId = (schema: string, name: string): number => {
     const key = `${schema}.${name}`;
     let id = typeIds.get(key);
+
     if (id === undefined) {
       id = 2_000_000 + typeIds.size;
       typeIds.set(key, id);
@@ -57,11 +60,14 @@ export function fromCatalog(catalog: Catalog): Snapshot {
         type_relation_id: null,
       });
     }
+
     return id;
   };
+
   const enums = new Map(
     catalog.enums.map((entry) => [`${entry.schema}.${entry.name}`, entry]),
   );
+
   for (const entry of catalog.enums) {
     const id = typeId(entry.schema, entry.name);
     const type = meta.types.find((candidate) => candidate.id === id)!;
@@ -108,6 +114,7 @@ export function fromCatalog(catalog: Catalog): Snapshot {
 
   catalog.tables.forEach((table, index) => {
     const id = table.id || 1_000_000 + index;
+
     if (table.kind === "table") {
       meta.tables.push({
         id,
@@ -133,9 +140,11 @@ export function fromCatalog(catalog: Catalog): Snapshot {
         comment: table.comment,
       });
     }
+
     for (const [position, entry] of table.columns.entries()) {
       meta.columns.push(column(table, id, entry, position));
     }
+
     for (const name of table.primaryKey) {
       meta.primaryKeys.push({
         schema: table.schema,
@@ -144,6 +153,7 @@ export function fromCatalog(catalog: Catalog): Snapshot {
         table_id: id,
       });
     }
+
     for (const fk of table.foreignKeys) {
       meta.relationships.push({
         foreign_key_name: fk.name,
@@ -164,8 +174,10 @@ export function fromCatalog(catalog: Catalog): Snapshot {
       entry.id,
     ]),
   );
+
   const argType = (schema: string, udt: string): number =>
     typeId(enums.has(`${schema}.${udt}`) ? schema : "pg_catalog", udt);
+
   catalog.functions.forEach((fn: CatalogFunction, index) => {
     const args: GeneratorMetadata["functions"][number]["args"] = [
       ...fn.args.map((arg) => ({
@@ -184,6 +196,7 @@ export function fromCatalog(catalog: Catalog): Snapshot {
         has_default: false,
       })),
     ];
+
     meta.functions.push({
       id: 3_000_000 + index,
       schema: fn.schema,

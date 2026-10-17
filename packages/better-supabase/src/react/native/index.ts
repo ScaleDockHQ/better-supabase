@@ -67,11 +67,13 @@ function useClientOf<C>(explicit: C | undefined, hook: string): C {
   // SAFETY: the provider's supabase-js client has every auth method the
   // structural client types name.
   const client = explicit ?? (context?.client.supabase as C | undefined);
+
   if (!client) {
     throw new Error(
       `better-supabase: ${hook} needs <BetterSupabaseProvider client={bs}> or { client: supabase }`,
     );
   }
+
   return client;
 }
 
@@ -93,11 +95,13 @@ export function useOAuth(options: UseOAuthOptions): OAuth {
   const latest = useRef(options);
   // oxlint-disable-next-line react/refs -- latest-ref pattern; the react peer range predates useEffectEvent.
   latest.current = options;
+
   const calls = useMemo(
     () => ({
       signIn: (provider: Provider) =>
         run(async () => {
           const { browser, redirectTo, scopes, queryParams } = latest.current;
+
           const result = await signInWithOAuthBrowser(
             client,
             browser,
@@ -108,9 +112,11 @@ export function useOAuth(options: UseOAuthOptions): OAuth {
               ...(queryParams ? { queryParams } : {}),
             },
           );
+
           if (result.type === "error") {
             return { error: result.error };
           }
+
           return NOT_FINISHED;
         }),
       idToken: (credentials: {
@@ -132,6 +138,7 @@ export function useOAuth(options: UseOAuthOptions): OAuth {
     }),
     [client, run],
   );
+
   return { ...state, ...calls };
 }
 
@@ -175,23 +182,29 @@ export function useAuthDeepLinks(
   useEffect(() => {
     let active = true;
     const seen = new Set<string>();
+
     const handle = (url: string | null) => {
       if (!url || seen.has(url)) {
         return;
       }
+
       seen.add(url);
       void handleAuthDeepLink(client, url).then((result) => {
         if (!active || result.type === "none") {
           return;
         }
+
         setLast(result);
         latest.current.onResult?.(result);
       });
     };
+
     void linking.getInitialURL().then(handle);
+
     const subscription = linking.addEventListener("url", ({ url }) => {
       handle(url);
     });
+
     return () => {
       active = false;
       subscription.remove();
@@ -237,6 +250,7 @@ export function useProtectedRoute(
     if (status === "loading") {
       return;
     }
+
     if (status === "signed-out" && !isPublic) {
       router.replace(signInHref);
     } else if (status === "signed-in" && isPublic) {
@@ -262,11 +276,14 @@ export interface AuthGateProps {
  */
 export function AuthGate(props: AuthGateProps): ReactNode {
   const { status } = useAuth();
+
   if (status === "loading") {
     return props.fallback ?? null;
   }
+
   if (status === "signed-out") {
     return props.signedOut ?? null;
   }
+
   return props.children ?? null;
 }

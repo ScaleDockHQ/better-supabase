@@ -55,6 +55,7 @@ describe("defineCliCommand", () => {
       "--cwd",
       "app",
     ]);
+
     expect(list(String(args["only"]))).toEqual(["a", "b"]);
     expect(args["check"]).toBe(true);
     expect(args["cwd"]).toBe("app");
@@ -62,6 +63,7 @@ describe("defineCliCommand", () => {
 
   it("rejects a run without the context run() passes", () => {
     expect(() => cliContext(undefined)).toThrow(/run\(\)/);
+
     const context = {
       cwd: "/",
       config: resolveConfig({}, "/"),
@@ -70,6 +72,7 @@ describe("defineCliCommand", () => {
       json: false,
       signal: undefined,
     };
+
     expect(cliContext(context)).toBe(context);
   });
 

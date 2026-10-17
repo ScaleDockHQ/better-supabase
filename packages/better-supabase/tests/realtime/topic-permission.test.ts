@@ -15,6 +15,7 @@ const FUNCTIONS = {
   permitted:
     "app.permitted({permission}, {resource}, {id}, {tenant}, '{scope}')",
 };
+
 const topicSegment = (index: number) =>
   `split_part((select realtime.topic()), ':', ${String(index)})`;
 
@@ -60,6 +61,7 @@ describe("defineTopic({ permission })", () => {
         },
       },
     );
+
     expect(comments.sql({ functions: FUNCTIONS })).toContain(
       `app.permitted('comments.read', 'post', ${topicSegment(4)}, ${topicSegment(2)}, 'project')`,
     );
@@ -69,6 +71,7 @@ describe("defineTopic({ permission })", () => {
     const doc = defineTopic("doc:{docId}", {
       permission: "docs.read",
     });
+
     expect(doc.sql({ functions: FUNCTIONS })).toContain(
       `app.permitted('docs.read', 'docs', ${topicSegment(2)}, null::text, 'tenant')`,
     );
@@ -102,6 +105,7 @@ describe("defineTopic({ permission })", () => {
     const sql = defineTopic("organization:{organizationId}:feed").sql({
       functions: FUNCTIONS,
     });
+
     expect(sql).not.toContain("app.permitted");
     expect(sql).not.toContain("tenant_ids_with");
   });
@@ -115,6 +119,7 @@ describe("allowedSubscribers", () => {
     payload: {},
     subject: "post/1",
   };
+
   const people = [
     { principal: "u1" },
     { principal: "u2", kind: "user" as const },
@@ -143,11 +148,13 @@ describe("allowedSubscribers", () => {
       { principal: "stranger" },
       "junk",
     ];
+
     const result = await allowedSubscribers(
       leaky as unknown as SubscriberPolicy,
       event,
       people,
     );
+
     expect(result).toEqual({ ok: true, allowed: [people[0]] });
   });
 
@@ -175,6 +182,7 @@ describe("allowedSubscribers", () => {
 describe("topic.fanOut", () => {
   function fakeClient(fail?: string) {
     const sent: { topic: string; event: string; payload: unknown }[] = [];
+
     const client = {
       getChannels: () => [],
       channel: (topic: string) => ({
@@ -183,13 +191,16 @@ describe("topic.fanOut", () => {
           if (topic.endsWith(`:${fail ?? "-"}`)) {
             return { success: false, status: 500, error: "down" };
           }
+
           sent.push({ topic, event, payload });
+
           return { success: true };
         },
       }),
       removeChannel: async () => "ok" as const,
       realtime: { setAuth: async () => undefined },
     };
+
     return { client: client as unknown as RealtimeClient, sent };
   }
 
@@ -200,7 +211,9 @@ describe("topic.fanOut", () => {
     payload: { postId: "p1" },
     subject: "post/p1",
   };
+
   const subscribers = [{ principal: "u1" }, { principal: "u2" }];
+
   const inbox = (subscriberPolicy?: SubscriberPolicy) =>
     defineTopic("inbox:{userId}", {
       events: { created: title },
@@ -213,8 +226,10 @@ describe("topic.fanOut", () => {
     const policy = vi.fn<SubscriberPolicy>((_event, all) =>
       all.filter((subscriber) => subscriber.principal === "u2"),
     );
+
     const topicPolicy = policy as unknown as SubscriberPolicy;
     const { client, sent } = fakeClient();
+
     const result = await inbox(topicPolicy)
       .fanOut(client, {
         subscribers,
@@ -224,6 +239,7 @@ describe("topic.fanOut", () => {
         source,
       })
       .orThrow();
+
     expect(policy).toHaveBeenCalledWith(source, subscribers);
     expect(result).toEqual({
       sent: [subscribers[1]],
@@ -261,6 +277,7 @@ describe("topic.fanOut", () => {
         },
       }),
     };
+
     const result = await inbox()
       .fanOut(client, {
         subscribers,
@@ -271,11 +288,13 @@ describe("topic.fanOut", () => {
         server,
       })
       .orThrow();
+
     expect(result.sent).toEqual([subscribers[0]]);
   });
 
   it("sends to no one when the policy throws", async () => {
     const { client, sent } = fakeClient();
+
     const result = await inbox(() => {
       throw new Error("down");
     }).fanOut(client, {
@@ -285,6 +304,7 @@ describe("topic.fanOut", () => {
       payload: { title: "Hi" },
       source,
     });
+
     expect(result.ok).toBe(false);
     expect(result.error).toMatchObject({
       kind: "forbidden",
@@ -295,9 +315,11 @@ describe("topic.fanOut", () => {
 
   it("refuses an event with a subject under hooks without a policy", async () => {
     const { client, sent } = fakeClient();
+
     const server = {
       authorization: defineAuthorizationHooks({ apiVersion: 1, name: "test" }),
     };
+
     const result = await inbox().fanOut(client, {
       subscribers,
       values: (subscriber) => ({ userId: subscriber.principal }),
@@ -306,10 +328,12 @@ describe("topic.fanOut", () => {
       source,
       server,
     });
+
     expect(!result.ok && result.error.hint).toBe(
       "REALTIME_SUBSCRIBER_POLICY_REQUIRED",
     );
     expect(sent).toEqual([]);
+
     const tenantWide = await inbox()
       .fanOut(client, {
         subscribers,
@@ -320,11 +344,13 @@ describe("topic.fanOut", () => {
         server,
       })
       .orThrow();
+
     expect(tenantWide.sent).toEqual(subscribers);
   });
 
   it("collects failed sends and keeps going", async () => {
     const { client, sent } = fakeClient("u1");
+
     const result = await inbox()
       .fanOut(client, {
         subscribers,
@@ -334,6 +360,7 @@ describe("topic.fanOut", () => {
         source,
       })
       .orThrow();
+
     expect(result.sent).toEqual([subscribers[1]]);
     expect(result.failed).toHaveLength(1);
     expect(result.failed[0]?.subscriber).toBe(subscribers[0]);

@@ -25,20 +25,26 @@ describe.skipIf(!live)("drive recipe", () => {
         "document",
         DOCUMENT,
       );
+
       const watchers = await watching(s);
+
       const { shareLinks, tags, rank } = createBlocks(
         { transport: sqlTransport(s.sql) },
         { shareLinks: shareLinksBlock, tags: tagsBlock, rank: rankBlock },
       );
 
       await s.as(owner);
+
       const link = await shareLinks
         .create(organizationId, "document", subjectId, "viewer")
         .orThrow();
+
       expect(link.token).not.toBe("");
+
       const label = await tags
         .create(organizationId, "document", "Finance")
         .orThrow();
+
       await tags.tag(organizationId, "document", subjectId, label.id).orThrow();
       await rank.move("document", subjectId, { group: "archive" }).orThrow();
 

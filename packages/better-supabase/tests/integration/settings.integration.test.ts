@@ -37,16 +37,19 @@ describe.skipIf(!live)("settings", () => {
 
   it("reaches the module through API schema wrappers", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "settings"], {
         modules: { settings: { api: "bs_settings_api" } },
       });
       const member = await s.user("member");
+
       const client = createSettings({
         settings,
         transport: sqlTransport(s.sql),
         schema: "bs_settings_api",
       });
+
       await s.asRole(member);
       expect(await client.setUser("theme", "dark").orThrow()).toBe("dark");
       expect(await client.getUser("theme").orThrow()).toBe("dark");
@@ -66,6 +69,7 @@ describe.skipIf(!live)("settings", () => {
 
   it("keeps user settings private and checks organization permissions", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "jsonb-schemas", "settings"], {
         modules: { settings: { options: { schemas: settings } } },
@@ -74,6 +78,7 @@ describe.skipIf(!live)("settings", () => {
       const member = await s.user("member");
       const outsider = await s.user("outsider");
       const organization = await s.organization(owner, { member });
+
       const client = createSettings({
         settings,
         transport: sqlTransport(s.sql),
@@ -110,14 +115,18 @@ describe.skipIf(!live)("settings", () => {
       // The pg_jsonschema check rejects what the schema rejects, and the
       // trigger's errors map to a validation error.
       await s.service();
+
       const insert = `insert into better_supabase.organization_settings (organization_id, key, value)
            values ('${organization}', 'seats', '"many"')`;
+
       expect(await s.hint(insert)).toBe("JSON_SCHEMA_INVALID");
       await s.client.query("savepoint json");
+
       const raw = await s.client.query(insert).then(
         () => undefined,
         (error: unknown) => fromPgError(error),
       );
+
       await s.client.query("rollback to savepoint json");
       expect(mapDbError(raw!)).toMatchObject({
         kind: "validation",
@@ -144,16 +153,19 @@ describe.skipIf(!live)("settings", () => {
 
   it("records who set a setting on its first write, without a column default", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "settings"]);
       await s.rows(
         "alter table better_supabase.user_settings alter column updated_by drop default",
       );
       const member = await s.user("member");
+
       const client = createSettings({
         settings,
         transport: sqlTransport(s.sql),
       });
+
       await s.asRole(member);
       await client.setUser("theme", "dark").orThrow();
       await s.service();
@@ -185,17 +197,21 @@ describe.skipIf(!live)("settings", () => {
         banner: { schema: toStandardJsonSchema(v.string()), default: "" },
       },
     });
+
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["jsonb-schemas", "settings"], {
         modules: { settings: { options: { schemas: platform } } },
       });
       const staff = await s.user("staff");
       const user = await s.user("user");
+
       const client = createSettings({
         settings: platform,
         transport: sqlTransport(s.sql),
       });
+
       const as = (who: typeof user, permissions: string[] = []) =>
         s.asRole(who, { platform_permissions: permissions });
 

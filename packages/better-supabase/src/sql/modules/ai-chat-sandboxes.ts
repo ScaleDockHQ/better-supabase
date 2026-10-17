@@ -11,6 +11,7 @@ const HARNESS_SANDBOX_PROVIDER = "harness";
 
 function sandboxJson(names: AiChatNames, row: string): string {
   const s = names.c.sandboxes;
+
   const keys = [
     ["id", s.id],
     ["organization_id", s.tenant],
@@ -30,6 +31,7 @@ function sandboxJson(names: AiChatNames, row: string): string {
     ["created_at", s.createdAt],
     ["updated_at", s.updatedAt],
   ] as const;
+
   return `jsonb_build_object(${keys.map(([key, column]) => `'${key}', ${row}.${column}`).join(", ")})`;
 }
 
@@ -48,6 +50,7 @@ export function sandboxTable(
   const { t, perm } = names;
   const s = names.c.sandboxes;
   const sandboxes = t.sandboxes;
+
   return `-- Sandboxes and provider containers a chat started, harness sessions'
 -- included, so one idle-stop claim stops the ones nobody used for
 -- idle_seconds or past expires_at.
@@ -89,6 +92,7 @@ create policy ai_sandboxes_read on ${sandboxes} for select to authenticated
 export function harnessSandbox(names: AiChatNames, row: string): string {
   const s = names.c.sandboxes;
   const h = names.c.harness;
+
   return `(select y.${s.sandbox} from ${names.t.sandboxes} y where y.${s.chat} = ${row}.${h.chat} and y.${s.harness} = ${row}.${h.harness} and y.${s.status} <> 'stopped' order by y.${s.lastUsedAt} desc limit 1)`;
 }
 
@@ -102,6 +106,7 @@ export function harnessSandboxSave(names: AiChatNames, fields: string): string {
   const h = names.c.harness;
   const ch = names.c.chats;
   const sandboxes = names.t.sandboxes;
+
   return `
   if ${fields} ? 'sandbox_id' then
     if nullif(${fields} ->> 'sandbox_id', '') is null then
@@ -140,6 +145,7 @@ export function sandboxFunctions(
   const h = names.c.harness;
   const sandboxes = names.t.sandboxes;
   const json = (row: string): string => sandboxJson(names, row);
+
   return `-- Records a sandbox or container the app started, or marks a known one used
 -- (service role). fields: user_id, chat_id, harness_id, container_id,
 -- metadata, idle_seconds, expires_at.
@@ -321,6 +327,7 @@ export function upgradeSandboxes(
   const harness = names.t.harness;
   // The ai-chat 1 column, which the current layout no longer names.
   const sandbox = "sandbox_id";
+
   return `${sandboxTable(
     ctx,
     names,

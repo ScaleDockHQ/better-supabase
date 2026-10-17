@@ -16,6 +16,7 @@ const notifications = createNotifications({
 
 async function loadCounts(): Promise<readonly NotificationCounts[]> {
   const result = await notifications.counts();
+
   return result.ok ? [result.data] : [];
 }
 
@@ -31,10 +32,12 @@ const unreadOf = (counts: readonly NotificationCounts[]): number =>
 export function useUnreadCount() {
   const auth = useAuth();
   const userId = auth.user?.id;
+
   const { items, count, status } = useNotifications({
     topic: userId ? `notifications:${userId}` : null,
     load: loadCounts,
     count: unreadOf,
   });
+
   return { count: items === undefined ? undefined : count, status };
 }

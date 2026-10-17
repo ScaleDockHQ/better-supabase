@@ -78,6 +78,7 @@ function aiProviders(): AiProviders {
   if (providersInstance) {
     return providersInstance;
   }
+
   const service = serviceTransport();
   providersInstance = createAiProviders({
     transport: service,
@@ -85,6 +86,7 @@ function aiProviders(): AiProviders {
     credentials: vaultCredentials({ transport: service, schema: API_SCHEMA }),
     ...generatedOptions(blockConfig["ai-providers"]),
   });
+
   return providersInstance;
 }
 
@@ -96,10 +98,13 @@ async function withTenantKeys<T extends { readonly gateway: object }>(
   if (demoMode()) {
     return providerOptions;
   }
+
   const keys = await aiProviders().keys.resolve(organizationId);
+
   if (!keys.ok || keys.data.length === 0) {
     return providerOptions;
   }
+
   return {
     ...providerOptions,
     gateway: { ...providerOptions.gateway, ...byokOptions(keys.data) },
@@ -146,6 +151,7 @@ export function assistant(): ReturnType<typeof createAssistant> {
     defaultModel: DEFAULT_MODEL,
     run: async ({ model, messages, abortSignal, providerOptions, context }) => {
       const scope = requestScopes.get(context);
+
       return streamText({
         model: languageModel(model),
         instructions: scope
@@ -163,6 +169,7 @@ export function assistant(): ReturnType<typeof createAssistant> {
       });
     },
   });
+
   return assistantInstance;
 }
 
@@ -178,6 +185,7 @@ export function assistantContext(
     organizationId,
     waitUntil: after,
   };
+
   const memories = memory(supabase);
   requestScopes.set(context, {
     files: aiFiles(supabase),
@@ -187,5 +195,6 @@ export function assistantContext(
     },
     instructions: (base) => withMemory(base, memories, organizationId),
   });
+
   return context;
 }

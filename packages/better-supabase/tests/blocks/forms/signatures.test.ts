@@ -4,21 +4,25 @@ import { createSignatures } from "../../../src/blocks/forms/index.ts";
 
 function transport(results: Record<string, (args: unknown) => unknown>) {
   const calls: [string, unknown][] = [];
+
   return {
     calls,
     call(schema: string, fn: string, args: unknown) {
       expect(schema).toBe("better_supabase");
       calls.push([fn, args]);
       const result = results[fn];
+
       if (!result) {
         return Promise.reject(new Error(`unexpected ${fn}`));
       }
+
       return Promise.resolve(result(args));
     },
   };
 }
 
 const AT = "2026-10-01T00:00:00Z";
+
 const REQUEST = {
   id: "r1",
   organizationId: "o",
@@ -35,6 +39,7 @@ const REQUEST = {
   createdAt: AT,
   completedAt: null,
 };
+
 const SIGNATURE = {
   id: "s1",
   requestId: "r1",
@@ -72,7 +77,9 @@ describe("signatures client", () => {
       }),
       list_signature_requests: () => [REQUEST],
     });
+
     const signatures = createSignatures({ transport: fake });
+
     const subject = {
       organizationId: "o",
       subjectType: "contract",
@@ -82,6 +89,7 @@ describe("signatures client", () => {
     const request = await signatures
       .request({ ...subject, signers: ["u1", "u2"] })
       .orThrow();
+
     expect(request).toMatchObject({
       id: "r1",
       order: "sequential",
@@ -103,6 +111,7 @@ describe("signatures client", () => {
     const signed = await signatures
       .sign("r1", { method: "typed", typedName: "Ada" })
       .orThrow();
+
     expect(signed).toMatchObject({
       method: "typed",
       typedName: "Ada",
@@ -236,6 +245,7 @@ describe("signatures client", () => {
         }),
       }),
     });
+
     const detail = await signatures.get("r1").orThrow();
     expect(detail.signers).toEqual([]);
     expect(detail.verification).toEqual({
@@ -252,6 +262,7 @@ describe("signatures client", () => {
         get_signature_request: () => ({ ...REQUEST, status: "lost" }),
       }),
     });
+
     expect((await signatures.get("r1")).ok).toBe(false);
   });
 });

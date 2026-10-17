@@ -14,8 +14,10 @@ export async function reachable(): Promise<boolean> {
     max: 1,
     connectionTimeoutMillis: 1000,
   });
+
   try {
     await pool.query("select 1");
+
     return true;
   } catch {
     return false;
@@ -44,6 +46,7 @@ export class BlockSession {
   static async open(pool: Pool): Promise<BlockSession> {
     const client = await pool.connect();
     await client.query("begin");
+
     return new BlockSession(client);
   }
 
@@ -74,6 +77,7 @@ export class BlockSession {
        values ($1, $2, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now())`,
       [id, email],
     );
+
     return { id, email };
   }
 
@@ -84,22 +88,27 @@ export class BlockSession {
   ): Promise<string> {
     await this.as(owner);
     const slug = `org-${crypto.randomUUID().slice(0, 8)}`;
+
     const id = await this.value<string>(
       "better_supabase.create_organization($1)",
       [{ name: slug, slug }],
     );
+
     await this.service();
+
     for (const [role, user] of Object.entries(members)) {
       await this.client.query(
         "insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, $3)",
         [id, user.id, role.replace(/\d+$/, "")],
       );
     }
+
     return id;
   }
 
   async as(user: TestUser | "anon", extra: object = {}): Promise<void> {
     await this.client.query("reset role");
+
     const claims =
       user === "anon"
         ? { role: "anon" }
@@ -109,6 +118,7 @@ export class BlockSession {
             email: user.email,
             ...extra,
           };
+
     await this.client.query(
       "select set_config('request.jwt.claims', $1, true)",
       [JSON.stringify(claims)],
@@ -129,6 +139,7 @@ export class BlockSession {
    */
   async clear(tables: readonly string[]): Promise<void> {
     await this.client.query("reset role");
+
     for (const table of tables) {
       await this.client.query(`delete from ${table}`);
     }
@@ -147,11 +158,13 @@ export class BlockSession {
       `select ${sql} as value`,
       params,
     );
+
     return rows[0]!.value;
   }
 
   async rows<T>(sql: string, params: unknown[] = []): Promise<T[]> {
     const { rows } = await this.client.query(sql, params);
+
     // SAFETY: the test names the row shape of its own query.
     return rows as T[];
   }
@@ -159,6 +172,7 @@ export class BlockSession {
   /** The hint (or message) of the error `sql` raises, rolled back to a savepoint. */
   async hint(sql: string, params: unknown[] = []): Promise<string> {
     await this.client.query("savepoint attempt");
+
     try {
       await this.client.query(
         sql.startsWith("select") ||
@@ -172,9 +186,12 @@ export class BlockSession {
     } catch (error) {
       await this.client.query("rollback to savepoint attempt");
       const { hint, message } = error as { hint?: string; message: string };
+
       return hint ?? message;
     }
+
     await this.client.query("release savepoint attempt");
+
     return "no error";
   }
 
@@ -187,11 +204,13 @@ export class BlockSession {
    */
   get sql(): SqlClient {
     const raw = this.savepointed();
+
     return {
       queryRaw: <T>(text: string, params?: unknown[]): Promise<T[]> => {
         const run = () => raw.queryRaw<T>(text, params);
         const result = this.queue.then(run, run);
         this.queue = result.catch(() => undefined);
+
         return result;
       },
     };
@@ -199,12 +218,15 @@ export class BlockSession {
 
   private savepointed(): SqlClient {
     const client = this.client;
+
     return {
       async queryRaw<T>(text: string, params?: unknown[]): Promise<T[]> {
         await client.query("savepoint block_call");
+
         try {
           const { rows } = await client.query(text, params);
           await client.query("release savepoint block_call");
+
           // SAFETY: the caller names the row shape of its own query.
           return rows as T[];
         } catch (error) {

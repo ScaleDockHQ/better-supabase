@@ -8,6 +8,7 @@ describe("jsonResponse", () => {
       { n: 2n },
       { status: 201, headers: { "content-type": "application/vnd.api+json" } },
     );
+
     expect(response.status).toBe(201);
     expect(response.headers.get("content-type")).toBe(
       "application/vnd.api+json",

@@ -141,6 +141,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const requests = ctx.table("requests");
   const decisions = ctx.table("decisions");
   const c = (column: string): string => ctx.col("requests", column);
@@ -150,42 +151,51 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const manage = ctx.permission("manage", OPERATIONS["approvals.manage"]);
   const policies = approvalPolicies(ctx);
   validateRuns(ctx, policies);
+
   const provider = approverCheck(ctx, layout, {
     kind: { sql: `v_req.${c("subjectType")} || '.' || v_req.${c("action")}` },
     subject: `v_req.${c("subjectId")}::text`,
     tenant: `v_req.${c("tenant")}`,
     requester: `v_req.${c("requestedBy")}`,
   });
+
   const subjects = subjectsOption(ctx);
   const fn = (name: string): string => ctx.fn(name);
+
   const timesheets =
     ctx.installed("time-tracking") && ctx.of("time-tracking").mode !== "custom"
       ? ctx.of("time-tracking")
       : undefined;
+
   const ownSubjects =
     timesheets === undefined
       ? sqlString(ACCESS_REQUEST_SUBJECT)
       : `${sqlString(ACCESS_REQUEST_SUBJECT)}, ${sqlString(TIMESHEET_SUBJECT)}`;
+
   const aiChat =
     ctx.installed("ai-chat") && ctx.of("ai-chat").mode !== "custom"
       ? ctx.of("ai-chat")
       : undefined;
+
   const support =
     ctx.installed("support-sessions") &&
     ctx.of("support-sessions").mode !== "custom" &&
     ctx.of("support-sessions").hasTable("requests")
       ? ctx.of("support-sessions")
       : undefined;
+
   // Requests their module decides: only the requester, an eligible approver
   // and the service role read them, never every reader of the tenant.
   const linked = [
     ...(aiChat === undefined ? [] : [AI_TOOL_SUBJECT]),
     ...(support === undefined ? [] : [SUPPORT_REQUEST_SUBJECT]),
   ];
+
   const linkedRow = (column: string): string =>
     linked.length === 0
       ? "false"
       : `${column} in (${linked.map((type) => sqlString(type)).join(", ")})`;
+
   const declared = (row: string): string =>
     `(${row}.${c("subjectType")} ${timesheets === undefined ? `= ${ownSubjects}` : `in (${ownSubjects})`} or ${subjectReadable(
       ctx,
@@ -196,14 +206,19 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
         tenant: `${row}.${c("tenant")}`,
       },
     )})`;
+
   const readable = (row: string): string =>
     linked.length === 0
       ? declared(row)
       : `(not ${linkedRow(`${row}.${c("subjectType")}`)} and ${declared(row)})`;
+
   const extras = ctx.extraColumns("requests", REQUEST_KEYS);
+
   const json = (row: string): string =>
     `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'subjectType', ${row}.${c("subjectType")}, 'subjectId', ${row}.${c("subjectId")}, 'action', ${row}.${c("action")}, 'status', ${row}.${c("status")}, 'step', ${row}.${c("step")}, 'steps', ${row}.${c("policy")} -> 'steps', 'requestedBy', ${row}.${c("requestedBy")}, 'reason', ${row}.${c("reason")}, 'payload', ${row}.${c("payload")}, 'expiresAt', ${row}.${c("expiresAt")}, 'decidedAt', ${row}.${c("decidedAt")}, 'createdAt', ${row}.${c("createdAt")}${extraFieldsJson(row, extras)})`;
+
   const requestArgs = `${ctx.idType}, text, text, text, text, jsonb`;
+
   const record = (event: string, row: string, audit: boolean): string =>
     ctx.record({
       type: event,
@@ -219,11 +234,13 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
           }
         : false,
     });
+
   const members = ctx.of("tenant");
   const mu = members.col("memberships", "user");
   const mt = members.col("memberships", "tenant");
   const mr = members.col("memberships", "role");
   const memberIdsFor = providerMembers(ctx, layout).idsFor;
+
   const delegateMember =
     memberIdsFor === undefined
       ? `exists (
@@ -233,14 +250,17 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
       : `v_req.${c("tenant")}::text in (
     select t.id::text from ${memberIdsFor("delegate_approval.to_user")} as t(id)
   )`;
+
   const teams =
     ctx.installed("teams") && ctx.of("teams").mode !== "custom"
       ? ctx.of("teams")
       : undefined;
+
   const teamMatch = (member: string): string =>
     teams === undefined
       ? "false"
       : `exists (select 1 from ${teams.table("members")} tm where tm.${teams.col("members", "team")}::text = v_approvers ->> 'team' and tm.${teams.col("members", "user")} = ${member})`;
+
   const teamMembers =
     teams === undefined
       ? ""
@@ -248,11 +268,13 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
       union
       select tm.${teams.col("members", "user")} from ${teams.table("members")} tm
       where tm.${teams.col("members", "team")}::text = v_approvers ->> 'team'`;
+
   const notFound = fail(
     "APPROVAL_NOT_FOUND",
     "approval request not found",
     "P0002",
   );
+
   const queues = [
     ...new Set(
       policies.flatMap((policy) =>
@@ -260,6 +282,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
       ),
     ),
   ];
+
   const queueRun =
     queues.length === 0
       ? ""
@@ -275,6 +298,7 @@ ${queues
       else null;
     end case;
   end if;`;
+
   const transitionRun = policies.some(
     (policy) => policy.run?.kind === "transition",
   )
@@ -285,12 +309,14 @@ ${queues
     perform set_config('better_supabase.approval', '', true);
   end if;`
     : "";
+
   const accessRun = ctx.installed("access-requests")
     ? `
   if v_req.${c("subjectType")} = ${sqlString(ACCESS_REQUEST_SUBJECT)} then
     perform ${ctx.of("access-requests").fn("grant_access_request")}(v_req.${c("subjectId")}::uuid);
   end if;`
     : "";
+
   const timesheetRun =
     timesheets === undefined
       ? ""
@@ -298,7 +324,9 @@ ${queues
   if v_req.${c("subjectType")} = ${sqlString(TIMESHEET_SUBJECT)} then
     perform ${timesheets.fn("approve_timesheet")}(v_req.${c("subjectId")}::uuid);
   end if;`;
+
   const lastComment = `(select x.${d("comment")} from ${decisions} x where x.${d("request")} = v_req.${c("id")} order by x.${d("createdAt")} desc, x.${d("id")} desc limit 1)`;
+
   const aiRun =
     aiChat === undefined
       ? ""
@@ -306,6 +334,7 @@ ${queues
   if v_req.${c("subjectType")} = ${sqlString(AI_TOOL_SUBJECT)} then
     perform ${aiChat.fn("apply_ai_tool_approval")}(v_req.${c("subjectId")}, true, ${lastComment});
   end if;`;
+
   const supportRun =
     support === undefined
       ? ""
@@ -313,6 +342,7 @@ ${queues
   if v_req.${c("subjectType")} = ${sqlString(SUPPORT_REQUEST_SUBJECT)} then
     perform ${support.fn("apply_support_approval")}(v_req.${c("subjectId")}::uuid, auth.uid());
   end if;`;
+
   const linkedReject = `${
     aiChat === undefined
       ? ""
@@ -328,6 +358,7 @@ ${queues
       perform ${support.fn("close_support_request")}(v_req.${c("subjectId")}::uuid);
     end if;`
   }`;
+
   const linkedEligible = `${
     aiChat === undefined
       ? ""
@@ -343,6 +374,7 @@ ${queues
     return ${support.fn("support_request_approvable")}(v_req.${c("subjectId")}::uuid);
   end if;`
   }`;
+
   const notifyBody = ctx.installed("notifications")
     ? `
   select * into v_req from ${requests} r where r.${c("id")} = approval_notify.request_id;
@@ -402,6 +434,7 @@ ${queues
   )}`
     : `
   null;`;
+
   const tables = ctx.manages
     ? `create table if not exists ${requests} (
   ${c("id")} uuid primary key default gen_random_uuid(),
@@ -447,6 +480,7 @@ create policy "approval_decisions_read" on ${decisions} for select to authentica
   using (${ctx.scope.check(d("tenant"), read)});
 `
     : "";
+
   return `${schemaPreamble(ctx)}
 ${tables}
 -- The policy a new request snapshots, from options.policies.
@@ -950,6 +984,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   const extra = extraFieldsArg(
     ctx.extraColumns("requests", REQUEST_KEYS),
   ).contract;
+
   return [
     {
       name: "request_approval",

@@ -35,13 +35,16 @@ const ENTRY_PAYLOAD = [
   "userId",
   "startedAt",
 ] as const;
+
 const RECORDED_PAYLOAD = [
   ...ENTRY_PAYLOAD,
   "seconds",
   "billable",
   "rate",
 ] as const;
+
 const UPDATED_PAYLOAD = [...RECORDED_PAYLOAD, "previousStartedAt"] as const;
+
 const TIMESHEET_PAYLOAD = [
   "organizationId",
   "id",
@@ -119,14 +122,17 @@ const RESERVED = ["fields"] as const;
 
 function weekTimeZone(ctx: ModuleContext): string {
   const raw = ctx.option("timeZone") ?? "UTC";
+
   if (typeof raw !== "string" || raw.length === 0) {
     throw new TypeError(`${WHERE}.timeZone must be an IANA time zone`);
   }
+
   try {
     Intl.DateTimeFormat("en", { timeZone: raw });
   } catch {
     throw new TypeError(`${WHERE}.timeZone: "${raw}" is not a time zone`);
   }
+
   return raw;
 }
 
@@ -144,12 +150,15 @@ function timesheetPolicy(ctx: ModuleContext): string {
       },
     ],
   };
+
   const policy = policyOf(TIMESHEET_SUBJECT, "approve", raw, `${WHERE}.policy`);
+
   if (policy.run !== undefined) {
     throw new TypeError(
       `${WHERE}.policy.run is not allowed; the final approval locks the week`,
     );
   }
+
   return policySnapshot(policy);
 }
 
@@ -157,12 +166,15 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const approvals = ctx.of("approvals");
+
   if (approvals.mode === "custom") {
     throw new TypeError(
       "blocks.time-tracking needs the approvals tables; approvals can't be in custom mode",
     );
   }
+
   const entries = ctx.table("entries");
   const timesheets = ctx.table("timesheets");
   const e = (column: string): string => ctx.col("entries", column);
@@ -178,22 +190,28 @@ function build(ctx: ModuleContext): string {
   const zone = sqlString(weekTimeZone(ctx));
   const policy = timesheetPolicy(ctx);
   const members = ctx.of("tenant");
+
   const isMember = (tenant: string, user: string): string =>
     `exists (select 1 from ${members.table("memberships")} m where m.${members.col("memberships", "tenant")} = ${tenant} and m.${members.col("memberships", "user")} = ${user})`;
+
   const forbidden = (message: string): string =>
     fail("TIME_FORBIDDEN", message);
+
   const entryNotFound = fail(
     "TIME_ENTRY_NOT_FOUND",
     "time entry not found",
     "P0002",
   );
+
   const timesheetNotFound = fail(
     "TIMESHEET_NOT_FOUND",
     "timesheet not found",
     "P0002",
   );
+
   const extras = ctx.extraColumns("entries", RESERVED);
   const extra = extraFieldsArg(extras);
+
   const setExtras = (source: string): string =>
     writeExtraColumns(
       entries,
@@ -202,14 +220,19 @@ function build(ctx: ModuleContext): string {
       `x.${e("id")} = v_row.${e("id")}`,
       "v_row",
     );
+
   const seconds = (row: string): string =>
     `case when ${row}.${e("endedAt")} is null then null else extract(epoch from ${row}.${e("endedAt")} - ${row}.${e("startedAt")})::bigint end`;
+
   const entryJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${e("id")}, 'organizationId', ${row}.${e("tenant")}, 'userId', ${row}.${e("user")}, 'subjectType', ${row}.${e("subjectType")}, 'subjectId', ${row}.${e("subjectId")}, 'startedAt', ${row}.${e("startedAt")}, 'endedAt', ${row}.${e("endedAt")}, 'seconds', ${seconds(row)}, 'billable', ${row}.${e("billable")}, 'rate', ${row}.${e("rate")}, 'note', ${row}.${e("note")}, 'createdAt', ${row}.${e("createdAt")}, 'updatedAt', ${row}.${e("updatedAt")}${extraFieldsJson(row, extras)})`;
+
   const status = (row: string, approval: string): string =>
     `case when ${row}.${t("approvedAt")} is not null then 'approved' when ${approval}.${a("status")} = 'pending' then 'submitted' when ${approval}.${a("status")} = 'rejected' then 'rejected' else 'open' end`;
+
   const timesheetJson = (row: string, approval: string): string =>
     `jsonb_build_object('id', ${row}.${t("id")}, 'organizationId', ${row}.${t("tenant")}, 'userId', ${row}.${t("user")}, 'week', ${row}.${t("week")}, 'status', ${status(row, approval)}, 'approvalId', ${row}.${t("approval")}, 'note', ${row}.${t("note")}, 'submittedAt', ${row}.${t("submittedAt")}, 'approvedAt', ${row}.${t("approvedAt")}, 'createdAt', ${row}.${t("createdAt")})`;
+
   const entryRecord = (
     type: string,
     row: string,
@@ -223,6 +246,7 @@ function build(ctx: ModuleContext): string {
       tenant: `${row}.${e("tenant")}`,
       audit: false,
     });
+
   const timesheetRecord = (
     type: string,
     row: string,
@@ -240,6 +264,7 @@ function build(ctx: ModuleContext): string {
         summary: `${sqlString(summary)} || ' for the week of ' || ${row}.${t("week")}::text`,
       },
     });
+
   const subjectCheck = (
     tenant: string,
     type: string,
@@ -250,6 +275,7 @@ function build(ctx: ModuleContext): string {
   if ${type} is not null and not (${SERVICE_CALLER} or ${subjectReadable(ctx, subjects, { type, id, tenant })}) then
     ${forbidden("not allowed to track time on this record")}
   end if;`;
+
   const overlap = (row: string): string => `if exists (
     select 1 from ${entries} x
     where x.${e("tenant")} = ${row}.${e("tenant")} and x.${e("user")} = ${row}.${e("user")} and x.${e("id")} <> ${row}.${e("id")}
@@ -257,14 +283,17 @@ function build(ctx: ModuleContext): string {
   ) then
     ${fail("TIME_ENTRY_OVERLAP", "this time overlaps another entry", "23P01")}
   end if;`;
+
   const save = (row: string): string =>
     ctx.hook("before_time_entry_save", [
       ["uuid", `${row}.${e("id")}`],
       [ctx.idType, `${row}.${e("tenant")}`],
       ["uuid", `${row}.${e("user")}`],
     ]);
+
   const saved = (row: string): string =>
     ctx.hook("after_time_entry_save", [["uuid", `${row}.${e("id")}`]]);
+
   const tables = ctx.manages
     ? `create extension if not exists btree_gist with schema extensions;
 
@@ -320,6 +349,7 @@ create policy "timesheets_read" on ${timesheets} for select to authenticated
   using (${t("user")} = (select auth.uid()) or ${ctx.scope.check(t("tenant"), read)});
 `
     : "";
+
   return `${schemaPreamble(ctx)}
 ${tables}
 -- The Monday of the week an instant falls in, in options.timeZone.
@@ -843,6 +873,7 @@ ${userGrant(`${fn("list_timesheets")}(${ctx.idType}, uuid, text, integer, date)`
 
 function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   const extra = extraFieldsArg(ctx.extraColumns("entries", RESERVED)).contract;
+
   return [
     {
       name: "start_timer",

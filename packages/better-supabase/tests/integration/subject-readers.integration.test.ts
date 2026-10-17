@@ -11,6 +11,7 @@ describe.skipIf(!live)("can_subject_for", () => {
 
   it("answers for another user through the subject's read key", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.rows(
         `create table public.bs_memos (
@@ -35,16 +36,20 @@ describe.skipIf(!live)("can_subject_for", () => {
       const organization = await s.organization(owner, { admin });
 
       await s.service();
+
       const [row] = await s.rows<{ id: string }>(
         "insert into public.bs_memos (organization_id, title) values ($1, 'Plan') returning id",
         [organization],
       );
+
       const memo = row!.id;
+
       const canRead = (user: string, type = "memo") =>
         s.value<boolean>(
           "better_supabase.can_subject_for($1, $2, $3, 'read')",
           [user, type, memo],
         );
+
       expect(await canRead(owner.id)).toBe(true);
       expect(await canRead(admin.id)).toBe(false);
       expect(await canRead(outsider.id)).toBe(false);

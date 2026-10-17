@@ -59,45 +59,56 @@ interface SequenceEntity {
 
 function sequences(ctx: ModuleContext): readonly SequenceEntity[] {
   const raw = ctx.option("entities");
+
   if (raw === undefined) {
     return [];
   }
+
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     throw new TypeError(
       "blocks.number-sequences.options.entities must be an object of entity name to { period, format }",
     );
   }
+
   return Object.entries(raw).map(([name, entry]) => entity(name, entry));
 }
 
 function entity(name: string, entry: unknown): SequenceEntity {
   const where = `blocks.number-sequences.options.entities.${name}`;
+
   if (!ENTITY.test(name)) {
     throw new TypeError(
       `${where}: "${name}" must be lowercase letters, digits and underscores`,
     );
   }
+
   if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
     throw new TypeError(`${where} must be an object`);
   }
+
   const record = recordOf(entry);
   const period = record["period"];
+
   const fiscal =
     typeof period === "object" && period !== null && !Array.isArray(period)
       ? recordOf(period)["fiscalYearStartMonth"]
       : undefined;
+
   const kind =
     period === "none" || period === "year" || period === "month"
       ? period
       : fiscal === undefined
         ? undefined
         : "fiscal";
+
   if (kind === undefined) {
     throw new TypeError(
       `${where}.period must be "none", "year", "month" or { fiscalYearStartMonth }`,
     );
   }
+
   const fiscalMonth = kind === "fiscal" ? Number(fiscal) : 1;
+
   if (
     kind === "fiscal" &&
     (!Number.isInteger(fiscalMonth) || fiscalMonth < 1 || fiscalMonth > 12)
@@ -106,34 +117,45 @@ function entity(name: string, entry: unknown): SequenceEntity {
       `${where}.period.fiscalYearStartMonth must be an integer from 1 to 12`,
     );
   }
+
   const format = record["format"];
+
   if (typeof format !== "string" || format.length === 0 || format.length > 80) {
     throw new TypeError(`${where}.format must be a short template`);
   }
+
   const table = record["table"];
   const column = record["column"];
+
   if (table !== undefined && typeof table !== "string") {
     throw new TypeError(`${where}.table must be "schema.table"`);
   }
+
   if (
     column !== undefined &&
     (typeof column !== "string" || !ENTITY.test(column))
   ) {
     throw new TypeError(`${where}.column must be a column name`);
   }
+
   if ((table === undefined) !== (column === undefined)) {
     throw new TypeError(`${where} needs both table and column, or neither`);
   }
+
   const tenantColumn = record["tenantColumn"] ?? "tenant_id";
+
   if (typeof tenantColumn !== "string" || !ENTITY.test(tenantColumn)) {
     throw new TypeError(`${where}.tenantColumn must be a column name`);
   }
+
   const assignOn = record["assignOn"] ?? "true";
+
   if (typeof assignOn !== "string" || !PREDICATE.test(assignOn)) {
     throw new TypeError(
       `${where}.assignOn must be a boolean expression over new, such as new.status = 'sent'`,
     );
   }
+
   return {
     name,
     period: kind,
@@ -149,29 +171,37 @@ function entity(name: string, entry: unknown): SequenceEntity {
 
 function recordOf(value: object): Record<string, unknown> {
   const record: Record<string, unknown> = {};
+
   for (const [key, item] of Object.entries(value)) {
     record[key] = item;
   }
+
   return record;
 }
 
 function periodSql(item: SequenceEntity, at: string): string {
   const stamp = `${at} at time zone 'utc'`;
+
   switch (item.period) {
     case "none": {
       return "''";
     }
+
     case "year": {
       return `to_char(${stamp}, 'YYYY')`;
     }
+
     case "month": {
       return `to_char(${stamp}, 'YYYY-MM')`;
     }
+
     case "fiscal": {
       return `case when extract(month from ${stamp}) >= ${String(item.fiscalMonth)} then to_char(${stamp}, 'YYYY') else (extract(year from ${stamp})::int - 1)::text end`;
     }
+
     default: {
       const never: never = item.period;
+
       return never;
     }
   }
@@ -181,6 +211,7 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const table = ctx.table("sequences");
   const tenant = ctx.col("sequences", "tenant");
   const entityCol = ctx.col("sequences", "entity");
@@ -190,6 +221,7 @@ function build(ctx: ModuleContext): string {
   const updatedAt = ctx.col("sequences", "updatedAt");
   const fn = ctx.fn("next_number");
   const items = sequences(ctx);
+
   const periodCase =
     items.length === 0
       ? "''"
@@ -199,6 +231,7 @@ function build(ctx: ModuleContext): string {
               `    when ${sqlString(item.name)} then ${periodSql(item, "next_number.at")}`,
           )
           .join("\n")}\n    else null\n  end`;
+
   const tables = ctx.manages
     ? `create table if not exists ${table} (
   ${tenant} ${ctx.idType} not null,
@@ -212,10 +245,12 @@ function build(ctx: ModuleContext): string {
 ${lockTable(table)}
 `
     : "";
+
   const triggers = items
     .filter((item) => item.table !== undefined && item.column !== undefined)
     .map((item) => trigger(ctx, item))
     .join("\n");
+
   return `${schemaPreamble(ctx)}
 -- Gapless numbers. next_number locks the sequence row inside the caller's
 -- transaction, so a rollback releases the number. Clients get a number
@@ -302,12 +337,15 @@ ${triggers}`;
 function trigger(ctx: ModuleContext, item: SequenceEntity): string {
   const table = item.table;
   const column = item.column;
+
   if (table === undefined || column === undefined) {
     return "";
   }
+
   const target = quotedTable(table);
   const col = sqlIdent(column);
   const fn = sqlIdent(`bs_assign_number_${item.name}`);
+
   return `
 create or replace function better_supabase.${fn}()
 returns trigger

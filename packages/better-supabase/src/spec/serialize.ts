@@ -18,26 +18,35 @@ function normalize(
       `better-supabase/spec: ${String(value)} at "${pointer}" has no JSON form`,
     );
   }
+
   if (Array.isArray(value)) {
     return value.map((item: unknown, index) =>
       normalize(item, sortKeys, `${pointer}/${index}`),
     );
   }
+
   if (!isPlainObject(value)) {
     return value;
   }
+
   const keys = Object.keys(value);
+
   if (sortKeys) {
     keys.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
   }
+
   const out: Record<string, unknown> = {};
+
   for (const key of keys) {
     const entry = value[key];
+
     if (entry === undefined) {
       continue;
     }
+
     out[key] = normalize(entry, sortKeys, `${pointer}/${key}`);
   }
+
   return out;
 }
 
@@ -51,6 +60,7 @@ export function serializeDocument(
   options: SerializeOptions = {},
 ): string {
   const { indent = 2, sortKeys = false } = options;
+
   return `${JSON.stringify(normalize(document, sortKeys, ""), null, indent)}\n`;
 }
 
@@ -71,9 +81,11 @@ const encoded = new WeakMap<object, Map<string, Encoded>>();
 
 function base64url(bytes: ArrayBuffer): string {
   let binary = "";
+
   for (const byte of new Uint8Array(bytes)) {
     binary += String.fromCodePoint(byte);
   }
+
   return btoa(binary)
     .replaceAll("+", "-")
     .replaceAll("/", "_")
@@ -82,20 +94,26 @@ function base64url(bytes: ArrayBuffer): string {
 
 function encode(document: object, indent: number): Encoded {
   let byIndent = encoded.get(document);
+
   if (!byIndent) {
     byIndent = new Map();
     encoded.set(document, byIndent);
   }
+
   const key = String(indent);
   let hit = byIndent.get(key);
+
   if (!hit) {
     const body = serializeDocument(document, { indent });
+
     const etag = crypto.subtle
       .digest("SHA-256", new TextEncoder().encode(body))
       .then((digest) => `"${base64url(digest)}"`);
+
     hit = { body, etag };
     byIndent.set(key, hit);
   }
+
   return hit;
 }
 
@@ -123,20 +141,27 @@ export async function specResponse(
     contentType = "application/json",
     indent = 2,
   } = options;
+
   const method = request?.method.toUpperCase() ?? "GET";
+
   if (method !== "GET" && method !== "HEAD") {
     return methodNotAllowed(["GET", "HEAD"]);
   }
+
   const { body, etag } = encode(document, indent);
   const tag = await etag;
+
   const headers = {
     "cache-control": cacheControl,
     etag: tag,
   };
+
   const ifNoneMatch = request?.headers.get("if-none-match");
+
   if (ifNoneMatch && matches(ifNoneMatch, tag)) {
     return new Response(null, { status: 304, headers });
   }
+
   return new Response(method === "HEAD" ? null : body, {
     status: 200,
     headers: { ...headers, "content-type": contentType },

@@ -15,9 +15,11 @@ import { schema } from "../fixtures/generated-camel.ts";
 import { stackUrl } from "./stack-env.ts";
 
 const url = stackUrl();
+
 const publishableKey =
   process.env["SUPABASE_PUBLISHABLE_KEY"] ??
   "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";
+
 const secretKey =
   process.env["SUPABASE_SECRET_KEY"] ??
   "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -32,6 +34,7 @@ async function reachable(): Promise<boolean> {
       headers: { apikey: publishableKey },
       signal: AbortSignal.timeout(1000),
     });
+
     return response.status < 500;
   } catch {
     return false;
@@ -42,10 +45,12 @@ const live = await reachable();
 
 describe.skipIf(!live)("typed Edge Functions against the local stack", () => {
   const betterSupabase = defineSupabase(schema);
+
   const env = parseEnv({
     SUPABASE_URL: url,
     SUPABASE_PUBLISHABLE_KEY: publishableKey,
   }).env!;
+
   const bs = createEdge(betterSupabase, { env });
 
   // The same function as apps/examples/edge/supabase/functions/create-customer.
@@ -70,12 +75,14 @@ describe.skipIf(!live)("typed Edge Functions against the local stack", () => {
     global: {
       fetch: (input, init) => {
         const request = new Request(input, init);
+
         return new URL(request.url).pathname === "/functions/v1/create-customer"
           ? createCustomer(request)
           : fetch(request);
       },
     },
   });
+
   const fns = functions<{
     "create-customer": ContractOf<typeof createCustomer>;
   }>(supabase);
@@ -83,6 +90,7 @@ describe.skipIf(!live)("typed Edge Functions against the local stack", () => {
   const admin = betterSupabase.connect(
     createClient(url, secretKey, { auth: { persistSession: false } }),
   );
+
   const created: string[] = [];
   afterAll(async () => {
     if (created.length > 0) {
@@ -98,6 +106,7 @@ describe.skipIf(!live)("typed Edge Functions against the local stack", () => {
 
   it("creates the row as the caller and returns the typed output", async () => {
     const name = `Function ${String(Date.now())}`;
+
     const row = await fns
       .invoke(
         "create-customer",
@@ -105,6 +114,7 @@ describe.skipIf(!live)("typed Edge Functions against the local stack", () => {
         await as(ACME),
       )
       .orThrow();
+
     created.push(row.id);
     expect(row).toMatchObject({ name, organizationId: ACME });
   });
@@ -115,6 +125,7 @@ describe.skipIf(!live)("typed Edge Functions against the local stack", () => {
       { name: "Not mine", organizationId: ACME },
       await as(OTHER),
     );
+
     expect(crossTenant.ok ? undefined : crossTenant.error.kind).toBe(
       "forbidden",
     );
@@ -124,6 +135,7 @@ describe.skipIf(!live)("typed Edge Functions against the local stack", () => {
       { name: " ", organizationId: ACME },
       await as(ACME),
     );
+
     expect(invalid.ok ? undefined : invalid.error).toMatchObject({
       kind: "validation",
       status: 422,

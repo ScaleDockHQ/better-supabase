@@ -27,15 +27,19 @@ function fakeUsage(fail = false) {
     entries: readonly UsageEntry[];
     options: unknown;
   }[] = [];
+
   const usage: Pick<Usage, "recordMany"> = {
     recordMany: (organizationId, entries, options) => {
       if (fail) {
         return AsyncResult.err(dbError("network", "down"));
       }
+
       rows.push({ organizationId, entries, options });
+
       return AsyncResult.ok({ recorded: entries.length } as never);
     },
   };
+
   return { usage, rows };
 }
 
@@ -98,6 +102,7 @@ describe("meterTelemetry", () => {
 
   it("meters embeddings and reranks on custom meters", async () => {
     const { usage, rows } = fakeUsage();
+
     const telemetry = {
       integrations: meterTelemetry({
         usage,
@@ -106,6 +111,7 @@ describe("meterTelemetry", () => {
         source: "test",
       }),
     };
+
     await embed({
       model: new MockEmbeddingModelV4({
         doEmbed: async () => ({
@@ -162,6 +168,7 @@ describe("spendReconciliation", () => {
   it("records yesterday's spend per tenant once", async () => {
     const { usage, rows } = fakeUsage();
     const params: unknown[] = [];
+
     const handler = spendReconciliation({
       usage,
       credentialType: "system",
@@ -169,6 +176,7 @@ describe("spendReconciliation", () => {
       gateway: {
         getSpendReport: async (input) => {
           params.push(input);
+
           return {
             results: [
               { tag: "org:o1", totalCost: 0.0123456, requestCount: 4 },
@@ -180,6 +188,7 @@ describe("spendReconciliation", () => {
         },
       },
     });
+
     const report = await handler(undefined, job, signal);
     expect(params).toEqual([
       {

@@ -76,14 +76,18 @@ const DOCS = "https://bettersupabase.com/docs/plugins/lint";
 
 function methodName(node: CallExpression): string | undefined {
   const callee = node.callee;
+
   if (callee.type !== "MemberExpression") {
     return undefined;
   }
+
   // SAFETY: the type check above narrows the callee to a MemberExpression.
   const member = callee as MemberExpression;
+
   if (member.computed || member.property.type !== "Identifier") {
     return undefined;
   }
+
   // SAFETY: the type check above narrows the property to an Identifier.
   return (member.property as Identifier).name;
 }
@@ -92,14 +96,18 @@ function methodName(node: CallExpression): string | undefined {
 function receiverName(node: CallExpression): string | undefined {
   // SAFETY: callers only pass calls whose callee methodName resolved, which is a MemberExpression.
   const callee = node.callee as MemberExpression;
+
   if (callee.object.type !== "MemberExpression") {
     return undefined;
   }
+
   // SAFETY: the type check above narrows the object to a MemberExpression.
   const receiver = callee.object as MemberExpression;
+
   if (receiver.computed || receiver.property.type !== "Identifier") {
     return undefined;
   }
+
   // SAFETY: the type check above narrows the property to an Identifier.
   return (receiver.property as Identifier).name;
 }
@@ -112,15 +120,19 @@ function keyName(property: Property): string | undefined {
   if (property.computed) {
     return undefined;
   }
+
   if (property.key.type === "Identifier") {
     // SAFETY: the type check above narrows the key to an Identifier.
     return (property.key as Identifier).name;
   }
+
   if (property.key.type === "Literal") {
     // SAFETY: the type check above narrows the key to a Literal.
     const value = (property.key as Literal).value;
+
     return typeof value === "string" ? value : undefined;
   }
+
   return undefined;
 }
 
@@ -131,25 +143,33 @@ function keyName(property: Property): string | undefined {
 // SAFETY: the type check above narrows first to an ObjectExpression.
 function argsOf(node: CallExpression): ReadonlyMap<string, Node> | undefined {
   const [first] = node.arguments;
+
   if (first === undefined) {
     return new Map();
   }
+
   if (first.type !== "ObjectExpression") {
     return undefined;
   }
+
   const keys = new Map<string, Node>();
+
   for (const property of (first as ObjectExpression).properties) {
     if (property.type !== "Property") {
       return undefined;
     }
+
     // SAFETY: the type check above narrows property to a Property.
     const name = keyName(property as Property);
+
     if (name === undefined) {
       return undefined;
     }
+
     // SAFETY: the type check above narrows property to a Property.
     keys.set(name, (property as Property).value);
   }
+
   return keys;
 }
 
@@ -157,8 +177,10 @@ function numberOf(node: Node | undefined): number | undefined {
   if (node?.type !== "Literal") {
     return undefined;
   }
+
   // SAFETY: the type check above narrows node to a Literal.
   const value = (node as Literal).value;
+
   return typeof value === "number" ? value : undefined;
 }
 
@@ -221,7 +243,9 @@ export const rules: Readonly<Record<RuleId, RuleModule>> = {
         if (methodName(node) !== "findMany") {
           return;
         }
+
         const args = argsOf(node);
+
         if (args && !args.has("limit")) {
           context.report({ node, messageId: "unbounded" });
         }
@@ -237,7 +261,9 @@ export const rules: Readonly<Record<RuleId, RuleModule>> = {
         if (methodName(node) !== "deleteMany") {
           return;
         }
+
         const args = argsOf(node);
+
         if (args && !args.has("where")) {
           context.report({ node, messageId: "missing" });
         }
@@ -252,13 +278,17 @@ export const rules: Readonly<Record<RuleId, RuleModule>> = {
       // SAFETY: the rule schema declares this options object, and the linter validates it.
       const option = context.options[0] as { max?: number } | undefined;
       const max = option?.max ?? 1000;
+
       return {
         CallExpression(node) {
           const method = methodName(node);
+
           if (method === undefined || !FIND_METHODS.has(method)) {
             return;
           }
+
           const limit = numberOf(argsOf(node)?.get("limit"));
+
           if (limit !== undefined && limit > max) {
             context.report({
               node,
@@ -286,7 +316,9 @@ export const rules: Readonly<Record<RuleId, RuleModule>> = {
         if (methodName(node) !== "findMany") {
           return;
         }
+
         const args = argsOf(node);
+
         if (args?.has("offset") && !args.has("orderBy")) {
           context.report({ node, messageId: "unordered" });
         }
@@ -305,20 +337,27 @@ export const rules: Readonly<Record<RuleId, RuleModule>> = {
       const option = context.options[0] as
         | { tables?: readonly string[]; strict?: boolean }
         | undefined;
+
       const large = new Set((option?.tables ?? []).map(tableKey));
+
       return {
         CallExpression(node) {
           if (methodName(node) !== "findMany") {
             return;
           }
+
           const table = receiverName(node);
+
           if (table === undefined) {
             return;
           }
+
           if (!option?.strict && !large.has(tableKey(table))) {
             return;
           }
+
           const args = argsOf(node);
+
           if (args && !args.has("limit")) {
             context.report({ node, messageId: "unbounded", data: { table } });
           }
@@ -348,22 +387,31 @@ export const rules: Readonly<Record<RuleId, RuleModule>> = {
       // SAFETY: the rule schema declares this options object, and the linter validates it.
       const option = context.options[0] as { max?: number } | undefined;
       const max = option?.max ?? 1000;
+
       return {
         CallExpression(node) {
           const method = methodName(node);
+
           if (method !== "updateMany" && method !== "deleteMany") {
             return;
           }
+
           const args = argsOf(node);
+
           if (!args) {
             return;
           }
+
           const bound = args.get("maxAffected");
+
           if (bound === undefined) {
             context.report({ node, messageId: "missing", data: { method } });
+
             return;
           }
+
           const value = numberOf(bound);
+
           if (value !== undefined && value > max) {
             context.report({
               node,
@@ -411,6 +459,7 @@ export const plugin: {
     },
   },
 };
+
 plugin.configs.recommended.plugins["better-supabase"] = plugin;
 
 export default plugin;

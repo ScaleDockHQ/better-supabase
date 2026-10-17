@@ -6,6 +6,7 @@ import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const betterSupabase = defineSupabase(schema);
+
 const list = defineListQuery(betterSupabase, "customers", {
   search: ["name", "kvk"],
   facets: { status: "status", kvk: "kvk" },
@@ -22,6 +23,7 @@ describe("defineListQuery", () => {
     const result = list.parse(
       new URLSearchParams("q=  road  &status=active,lead&status=active&page=2"),
     );
+
     expect(result).toEqual({
       ok: true,
       value: {
@@ -52,6 +54,7 @@ describe("defineListQuery", () => {
     const result = list.parse(
       new URLSearchParams(`sort=oldest&page=0&size=500&status=bogus,${UNSET}`),
     );
+
     expect(result.issues?.map((issue) => issue.path)).toEqual([
       ["sort"],
       ["page"],
@@ -70,6 +73,7 @@ describe("defineListQuery", () => {
       sort: "name",
       facets: { kvk: [UNSET, "1001"] },
     }).value!;
+
     const params = list.toSearchParams(query);
     expect(params.toString()).toBe("q=a%2Cb&sort=name&kvk=__unset__%2C1001");
     expect(list.parse(params).value).toEqual({
@@ -86,17 +90,21 @@ describe("defineListQuery", () => {
         ? { "content-range": "0-0/1" }
         : {},
     }));
+
     const db = betterSupabase.connect(client);
+
     const query = list.parse({
       q: "o,(x)",
       facets: { status: ["active"], kvk: [UNSET, "1001"] },
     }).value!;
+
     const page = await list
       .run(db, query, {
         select: ["id", "name"],
         where: { organizationId: "org-1" },
       })
       .orThrow();
+
     expect(page).toEqual({
       items: [{ id: "c1", name: "Acme" }],
       page: { number: 1, size: 25, total: 1, pages: 1, hasMore: false },
@@ -121,8 +129,10 @@ describe("defineListQuery", () => {
       facetCounts: true,
       count: "planned",
     });
+
     const { client, requests } = capturingClient((request) => {
       const select = request.params.get("select");
+
       if (select?.startsWith("status")) {
         return {
           body: [
@@ -131,6 +141,7 @@ describe("defineListQuery", () => {
           ],
         };
       }
+
       if (select?.startsWith("kvk")) {
         return {
           body: [
@@ -139,16 +150,21 @@ describe("defineListQuery", () => {
           ],
         };
       }
+
       return { body: [{ id: "c1" }], headers: { "content-range": "0-0/1" } };
     });
+
     const db = betterSupabase.connect(client);
+
     const query = faceted.parse({
       q: "acme",
       facets: { status: ["active"] },
     }).value!;
+
     const page = await faceted
       .run(db, query, { select: ["id"], where: { organizationId: "org-1" } })
       .orThrow();
+
     expect(page.facetCounts).toEqual({
       status: { active: 5, lead: 9, archived: 0 },
       kvk: { "1001": 3, [UNSET]: 2 },
@@ -163,6 +179,7 @@ describe("defineListQuery", () => {
     expect(statusRequest!.params.get("status")).toBeNull();
     expect(statusRequest!.params.get("limit")).toBe("101");
     expect(kvkRequest!.params.get("status")).toBe("in.(active)");
+
     for (const request of [statusRequest, kvkRequest]) {
       expect(request!.params.get("organization_id")).toBe("eq.org-1");
       expect(request!.params.toString()).toContain("acme");
@@ -179,6 +196,7 @@ describe("defineListQuery", () => {
       defaultSort: "name",
       facetCounts: true,
     });
+
     const { client } = capturingClient((request) =>
       request.params.get("select")?.includes("count()")
         ? {
@@ -190,10 +208,12 @@ describe("defineListQuery", () => {
           }
         : { body: [] },
     );
+
     const result = await faceted.run(
       betterSupabase.connect(client),
       faceted.defaults,
     );
+
     expect(result.ok).toBe(false);
   });
 
@@ -237,10 +257,13 @@ describe("defineListQuery", () => {
     const outcome = await list.schema["~standard"].validate({ sort: "name" });
     expect(outcome).toMatchObject({ value: { sort: "name" } });
     const created: unknown[] = [];
+
     const parsers = list.nuqs((spec) => {
       created.push(spec);
+
       return { spec };
     });
+
     expect(Object.keys(parsers)).toEqual([
       "q",
       "sort",
@@ -362,6 +385,7 @@ describe("defineListQuery", () => {
       sorts: { name: { name: "asc" } },
       defaultSort: "name",
     });
+
     expect(fts.args(fts.parse({ q: "road" }).value!)).toMatchObject({
       where: { name: { search: { query: "road", config: "dutch" } } },
       count: "planned",
@@ -372,11 +396,13 @@ describe("defineListQuery", () => {
       name: "q",
       description: "Full-text search (web search syntax).",
     });
+
     const plain = defineListQuery(betterSupabase, "customers", {
       search: { fts: "name" },
       sorts: { name: { name: "asc" } },
       defaultSort: "name",
     });
+
     expect(plain.args(plain.parse({ q: "road" }).value!)).toMatchObject({
       where: { name: { search: "road" } },
     });
@@ -386,13 +412,16 @@ describe("defineListQuery", () => {
       sorts: { name: { name: "asc" } },
       defaultSort: "name",
     });
+
     expect(none.args(none.parse({ q: "road" }).value!)).not.toHaveProperty(
       "where",
     );
+
     const unsearchable = defineListQuery(betterSupabase, "customers", {
       sorts: { name: { name: "asc" } },
       defaultSort: "name",
     });
+
     expect(unsearchable.openapi.map((parameter) => parameter.name)).toEqual([
       "sort",
       "page",
@@ -442,13 +471,16 @@ describe("defineListQuery", () => {
       defaultSort: "name",
       facetCounts: true,
     });
+
     const { client, requests } = capturingClient(() => ({
       body: [{ id: "c1" }],
       headers: { "content-range": "0-0/1" },
     }));
+
     const page = await counted
       .run(betterSupabase.connect(client), counted.defaults)
       .orThrow();
+
     expect(page.facetCounts).toEqual({});
     expect(page.items).toEqual([{ id: "c1" }]);
     expect(requests).toHaveLength(1);
@@ -461,13 +493,16 @@ describe("defineListQuery", () => {
       defaultSort: "name",
       facetCounts: true,
     });
+
     const { client } = capturingClient((request) => {
       const select = request.params.get("select");
+
       if (select?.startsWith("status")) {
         return {
           body: [{ status: "lead", _count: 2 }, { status: "active" }],
         };
       }
+
       if (select?.startsWith("kvk")) {
         return {
           body: [
@@ -476,12 +511,16 @@ describe("defineListQuery", () => {
           ],
         };
       }
+
       return { body: [], headers: { "content-range": "*/0" } };
     });
+
     const query = faceted.parse({ facets: { kvk: [UNSET] } }).value!;
+
     const page = await faceted
       .run(betterSupabase.connect(client), query)
       .orThrow();
+
     expect(page.facetCounts).toEqual({
       status: { lead: 2, active: 0, archived: 0 },
       kvk: { [UNSET]: 2, "9": 7 },
@@ -496,8 +535,10 @@ describe("defineListQuery", () => {
       facetCounts: true,
       facetLimit: 2,
     });
+
     const { client, requests } = capturingClient((request) => {
       const select = request.params.get("select");
+
       if (select?.startsWith("kvk")) {
         return {
           body: [
@@ -507,19 +548,25 @@ describe("defineListQuery", () => {
           ],
         };
       }
+
       if (select?.startsWith("status")) {
         return { body: [{ status: "lead", _count: 4 }] };
       }
+
       return { body: [], headers: { "content-range": "*/0" } };
     });
+
     const page = await faceted
       .run(betterSupabase.connect(client), faceted.defaults)
       .orThrow();
+
     expect(page.facetCounts.kvk).toEqual({ "3": 7, "1": 2 });
     expect(page.facetCountsTruncated).toEqual(["kvk"]);
+
     const kvkRequest = requests.find((request) =>
       request.params.get("select")?.startsWith("kvk"),
     );
+
     expect(kvkRequest!.params.get("order")).toBe("count.desc,kvk.asc");
     expect(kvkRequest!.params.get("limit")).toBe("3");
   });
@@ -532,6 +579,7 @@ describe("defineListQuery", () => {
       pageSize: 1,
       maxPageSize: 2,
     });
+
     expect(cursorList.pagination).toBe("cursor");
     expect(cursorList.parse({ page: 2 }).issues).toEqual([
       { message: "This list pages with `after`, not `page`", path: ["page"] },
@@ -556,10 +604,13 @@ describe("defineListQuery", () => {
         { id: "c2", name: "Beta" },
       ],
     }));
+
     const db = betterSupabase.connect(client);
+
     const page = await cursorList
       .run(db, first, { select: ["id", "name"] })
       .orThrow();
+
     expect(page.items).toEqual([{ id: "c1", name: "Acme" }]);
     expect(page.hasMore).toBe(true);
     expect(last().headers.get("prefer") ?? "").not.toContain("count");
@@ -567,6 +618,7 @@ describe("defineListQuery", () => {
     const next = cursorList.parse(
       cursorList.toSearchParams({ after: page.nextCursor! }),
     ).value!;
+
     expect(next.after).toBe(page.nextCursor);
     await cursorList.run(db, next, { select: ["id", "name"] }).orThrow();
     expect(last().params.get("or")).toBe(

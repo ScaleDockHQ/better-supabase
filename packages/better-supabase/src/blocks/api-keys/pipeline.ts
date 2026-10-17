@@ -39,14 +39,17 @@ function withApiKeyAuth<F extends object>(
   options: WithApiKeyOptions<F>,
 ): SingleKeyEntry<"auth", Record<never, never>, ApiKeyAuth> {
   const resolver = apiKeyResolver(options);
+
   return defineMiddleware<"auth", undefined, Record<never, never>, ApiKeyAuth>({
     key: "auth",
     run: () => async (request) => {
       const instance = new URL(request.url).pathname;
       const state = await resolver.resolve(request);
+
       if (state?.kind === "apiKey") {
         return { auth: state };
       }
+
       return problemResponse(
         state?.kind === "invalid"
           ? state.error

@@ -24,6 +24,7 @@ describe("specReferenceHtml", () => {
       title: "<CRM> & co",
       config: { theme: "</script><script>alert(1)" },
     });
+
     expect(html).toContain("<title>&lt;CRM&gt; &amp; co</title>");
     expect(html).toContain("Scalar.createApiReference");
     expect(html).not.toContain("</script><script>alert");
@@ -35,8 +36,10 @@ describe("specReferenceHtml", () => {
       ui: "swagger",
       assets: "https://unpkg.com/",
     });
+
     expect(cdn).toContain("https://unpkg.com/swagger-ui-dist@");
     expect(cdn).not.toContain("integrity=");
+
     const local = specReferenceHtml({
       specUrl: "/o.json",
       ui: "elements",
@@ -47,6 +50,7 @@ describe("specReferenceHtml", () => {
       nonce: "abc",
       config: { hideTryIt: true, layout: "stacked", basePath: undefined },
     });
+
     expect(local).toContain('<script src="/docs/elements.js" nonce="abc">');
     expect(local).toContain(
       '<link rel="stylesheet" href="/docs/elements.css" nonce="abc">',
@@ -88,13 +92,16 @@ describe("specReference", () => {
       { specUrl: "/o.json", cacheControl: "public, max-age=60" },
       new Request("https://x.test/docs", { method: "HEAD" }),
     );
+
     expect(head.headers.get("cache-control")).toBe("public, max-age=60");
     expect(head.headers.get("content-security-policy")).toBeNull();
     expect(await head.text()).toBe("");
+
     const post = specReference(
       { specUrl: "/o.json" },
       new Request("https://x.test/docs", { method: "POST" }),
     );
+
     expect(post.status).toBe(405);
     expect(post.headers.get("allow")).toBe("GET, HEAD");
   });
@@ -105,6 +112,7 @@ describe("specReference", () => {
       ui: "redoc",
       assets: { scripts: ["/redoc.js"] },
     });
+
     expect(policy).toContain("script-src 'nonce-n';");
     expect(policy).not.toContain("jsdelivr");
   });
@@ -138,6 +146,7 @@ describe("scalarPreset", () => {
       defaultScopes: ["read"],
       environments: { production: { variables: {} } },
     });
+
     expect(result).not.toBe(document);
     expect(result).toMatchObject({
       "x-scalar-environments": { production: { variables: {} } },

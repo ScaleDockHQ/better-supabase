@@ -35,15 +35,20 @@ import {
 import { createServer, extendServer } from "../server/server.ts";
 
 export type { GuardOptions, MiddlewareOptions } from "../server/respond.ts";
+
 export type { BlockRequireOptions } from "../server/kit.ts";
+
 export type {
   RateLimiter,
   RateLimitRouteOptions,
   RateLimitVerdict,
   RouteRateLimitRule,
 } from "../server/rate-limit.ts";
+
 export { toHono } from "../bridges/hono.ts";
+
 export type { HonoBridge } from "../bridges/hono.ts";
+
 export type {
   ActionArgs,
   ResourceAction,
@@ -51,6 +56,7 @@ export type {
   ResourceHooks,
   ResourceRouteOptions,
 } from "../server/resource-types.ts";
+
 export { defineAction } from "../server/resource-execute.ts";
 
 /** Hono `Env` with the request's better-supabase context in `c.var`. */
@@ -165,11 +171,13 @@ function contextOf<M extends AnyModels, F extends AnyFunctions, E, C, P>(
 ): ServerContext<M, F, E, C, P> {
   // SAFETY: the middleware stores the ServerContext for this app's generics under "bs".
   const ctx = c.get("bs") as ServerContext<M, F, E, C, P> | undefined;
+
   if (!ctx) {
     throw new TypeError(
       "better-supabase: no context on this request; add app.use(bs.middleware()) first",
     );
   }
+
   return ctx;
 }
 
@@ -193,11 +201,14 @@ export function createHono<
     if (cause instanceof HTTPException) {
       return cause.getResponse();
     }
+
     const instance = new URL(c.req.url).pathname;
     const thrown = dbErrorOf(cause);
+
     if (thrown) {
       return problemResponse(thrown, { instance, expose });
     }
+
     return unexpectedResponse(cause, { instance, expose });
   };
 
@@ -207,8 +218,10 @@ export function createHono<
     if (options.waitUntil) {
       return options.waitUntil;
     }
+
     try {
       const executionContext = c.executionCtx;
+
       return (promise) => {
         executionContext.waitUntil(promise);
       };
@@ -244,6 +257,7 @@ export function createHono<
           c.set("tenant", tenant);
         },
       );
+
       return async (c, next) => {
         try {
           await run(c, next);
@@ -257,25 +271,30 @@ export function createHono<
       (requireOptions = {}) =>
       async (c, next) => {
         const ctx = contextOf(c);
+
         const caller = await requireCaller(
           ctx.auth,
           requireOptions,
           c.get("tenant"),
           options.authorizer,
         );
+
         if ("kind" in caller) {
           return problemResponse(caller, {
             instance: new URL(c.req.url).pathname,
             expose,
           });
         }
+
         return next();
       },
 
     rateLimit(rateLimitOptions) {
       const gate = rateLimitGate(rateLimitOptions);
+
       return async (c, next) => {
         const outcome = await gate(c);
+
         if (outcome.kind === "deny") {
           return problemResponse(outcome.error, {
             instance: new URL(c.req.url).pathname,
@@ -284,12 +303,15 @@ export function createHono<
             format: rateLimitOptions.problem,
           });
         }
+
         await next();
+
         if (outcome.kind === "allow") {
           for (const [name, value] of outcome.headers) {
             c.header(name, value);
           }
         }
+
         return;
       };
     },
@@ -297,6 +319,7 @@ export function createHono<
     handler(fn, handlerOptions = {}) {
       return (c) => {
         const ctx = contextOf(c);
+
         return respond(() => fn(c, ctx), {
           instance: new URL(c.req.url).pathname,
           expose,
@@ -312,8 +335,10 @@ export function createHono<
         resourceOptions,
         options.authorizer,
       );
+
       const { keyParam } = resource;
       const app = new Hono<HonoEnv<M, F, E, C, P>>();
+
       const serve =
         (template: readonly string[]) =>
         (c: Context<HonoEnv<M, F, E, C, P>>): Promise<Response> =>
@@ -327,7 +352,9 @@ export function createHono<
             ),
             { instance: new URL(c.req.url).pathname, expose },
           );
+
       app.all("/", serve([]));
+
       // Before `/:id`, so `/export` is the action and not an id.
       for (const action of resource.plan.actions) {
         app.all(
@@ -335,9 +362,11 @@ export function createHono<
           serve(action.segments),
         );
       }
+
       if (keyParam) {
         app.all(`/:${keyParam}`, serve([`{${keyParam}}`]));
       }
+
       return app;
     },
   });

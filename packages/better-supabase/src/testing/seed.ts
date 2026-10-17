@@ -54,12 +54,16 @@ function arrayLiteral(values: readonly unknown[]): string {
     if (value === null) {
       return "NULL";
     }
+
     if (Array.isArray(value)) {
       return arrayLiteral(value);
     }
+
     const text = temporalText(value) ?? String(value);
+
     return `"${text.replaceAll(/[\\"]/g, "\\$&")}"`;
   });
+
   return `{${items.join(",")}}`;
 }
 
@@ -67,40 +71,51 @@ function literal(value: unknown, column: ColumnMeta, where: string): string {
   if (value === null) {
     return "null";
   }
+
   if (column.json) {
     return quote(JSON.stringify(value));
   }
+
   if (Array.isArray(value)) {
     return quote(arrayLiteral(value));
   }
+
   const temporalValue = temporalText(value);
+
   if (temporalValue !== undefined) {
     return quote(temporalValue);
   }
+
   const kind = typeof value;
+
   switch (kind) {
     case "string": {
       // SAFETY: kind is typeof value, so this case only runs for strings.
       return quote(value as string);
     }
+
     case "boolean":
     case "bigint": {
       return String(value);
     }
+
     case "number": {
       if (!Number.isFinite(value)) {
         throw new TypeError(
           `${where}: ${String(value)} is not a finite number`,
         );
       }
+
       return String(value);
     }
+
     case "object":
     case "function":
     case "symbol":
     case "undefined": {
       throw new TypeError(`${where}: unsupported value of type ${kind}`);
     }
+
     default: {
       const unreachable: never = kind;
       throw new TypeError(
@@ -116,11 +131,14 @@ const ident = (name: string): string => `"${name.replaceAll('"', '""')}"`;
 function order(meta: SchemaMeta, keys: readonly string[]): string[] {
   const sorted: string[] = [];
   const visiting = new Set<string>();
+
   const visit = (key: string): void => {
     if (sorted.includes(key) || visiting.has(key)) {
       return;
     }
+
     visiting.add(key);
+
     for (const relation of Object.values(meta.tables[key]?.relations ?? {})) {
       if (
         relation.direction === "forward" &&
@@ -130,12 +148,15 @@ function order(meta: SchemaMeta, keys: readonly string[]): string[] {
         visit(relation.table);
       }
     }
+
     visiting.delete(key);
     sorted.push(key);
   };
+
   for (const key of keys) {
     visit(key);
   }
+
   return sorted;
 }
 
@@ -144,27 +165,35 @@ function statement(
   rows: Readonly<Record<string, Record<string, unknown>>>,
 ): string | undefined {
   const entries = Object.entries(rows);
+
   if (entries.length === 0) {
     return undefined;
   }
+
   const columns: string[] = [];
+
   for (const [, row] of entries) {
     for (const [key, value] of Object.entries(row)) {
       if (value === undefined || columns.includes(key)) {
         continue;
       }
+
       const column = table.columns[key];
+
       if (!column) {
         throw new TypeError(`seed ${table.key}: unknown column "${key}"`);
       }
+
       if (column.generated) {
         throw new TypeError(
           `seed ${table.key}: "${key}" is a generated column`,
         );
       }
+
       columns.push(key);
     }
   }
+
   const values = entries.map(([name, row]) => {
     const cells = columns.map((key) =>
       row[key] === undefined
@@ -175,10 +204,13 @@ function statement(
             `seed ${table.key}.${name}.${key}`,
           ),
     );
+
     return `  (${cells.join(", ")})`;
   });
+
   const target = `${ident(table.schema)}.${ident(table.name)}`;
   const list = columns.map((key) => ident(table.columns[key]!.db)).join(", ");
+
   return `insert into ${target} (${list}) values\n${values.join(",\n")}\non conflict do nothing;`;
 }
 
@@ -204,19 +236,24 @@ export function defineSeed<
   fixtures: S & ExactSeed<M, S>,
 ): Seed<S> {
   const meta = betterSupabase.meta;
+
   const statements = (): string[] => {
     const keys = Object.keys(fixtures).filter(
       (key) => fixtures[key] !== undefined,
     );
+
     for (const key of keys) {
       const table = meta.tables[key];
+
       if (!table) {
         throw new TypeError(`seed: unknown table "${key}"`);
       }
+
       if (table.kind === "view") {
         throw new TypeError(`seed: "${key}" is a view`);
       }
     }
+
     return order(meta, keys).flatMap((key) => {
       // SAFETY: the loop above rejected unknown tables, and each fixture maps
       // row names to rows.
@@ -224,9 +261,11 @@ export function defineSeed<
         meta.tables[key]!,
         fixtures[key] as Readonly<Record<string, Record<string, unknown>>>,
       );
+
       return sql ? [sql] : [];
     });
   };
+
   return {
     [SEED]: true,
     rows: fixtures,

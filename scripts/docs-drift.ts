@@ -25,6 +25,7 @@ const DoctorReport = v.object({
     }),
   }),
 });
+
 const PackageExports = v.object({ exports: v.record(v.string(), v.unknown()) });
 const Meta = v.object({ pages: v.optional(v.array(v.string()), []) });
 
@@ -40,10 +41,13 @@ function doctorCodes(): string[] {
     DoctorReport,
     join(library, "schemas/doctor-report-v1.json"),
   ).properties.findings.items.properties.code.enum;
+
   const page = readFileSync(join(docs, "cli/doctor.mdx"), "utf-8");
+
   const headings = new Set(
     [...page.matchAll(/^### (BS\d{3})$/gmu)].map((match) => match[1]),
   );
+
   return [
     ...codes
       .filter((code) => !headings.has(code))
@@ -60,9 +64,11 @@ function doctorCodes(): string[] {
 function markdownFiles(dir: string, extension: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name);
+
     if (statSync(path).isDirectory()) {
       return markdownFiles(path, extension);
     }
+
     return name.endsWith(extension) ? [path] : [];
   });
 }
@@ -78,6 +84,7 @@ function readmeImports(readme: string): string[] {
     if (!line.startsWith("|")) {
       return [];
     }
+
     return line
       .split("|")
       .map((cell) => cell.trim())
@@ -100,28 +107,35 @@ function subpaths(): string[] {
     PackageExports,
     join(library, "package.json"),
   );
+
   const imports = readmeImports(
     readFileSync(join(library, "README.md"), "utf-8"),
   );
+
   const pages = markdownFiles(docs, ".mdx").map((file) =>
     readFileSync(file, "utf-8"),
   );
+
   const entries = Object.keys(exportsMap)
     .filter((key) => !key.includes("*") && key !== "./package.json")
     .map((key) =>
       key === "." ? "better-supabase" : `better-supabase/${key.slice(2)}`,
     );
+
   return entries.flatMap((entry) => {
     const quoted = `"${entry}"`;
     const problems: string[] = [];
+
     if (!inTable(entry, imports)) {
       problems.push(
         `${entry} is missing from the README subpath and blocks tables`,
       );
     }
+
     if (!pages.some((page) => page.includes(quoted))) {
       problems.push(`no docs page imports from ${quoted}`);
     }
+
     return problems;
   });
 }
@@ -138,22 +152,30 @@ function isPageEntry(entry: string): boolean {
 function metaFiles(dir: string): string[] {
   const problems: string[] = [];
   const names = readdirSync(dir);
+
   const children = names.flatMap((name) => {
     if (statSync(join(dir, name)).isDirectory()) {
       problems.push(...metaFiles(join(dir, name)));
+
       return [name];
     }
+
     return name.endsWith(".mdx") ? [name.slice(0, -".mdx".length)] : [];
   });
+
   const where = relative(docs, dir) || ".";
   const metaPath = join(dir, "meta.json");
+
   if (!existsSync(metaPath)) {
     return [...problems, `${where} has no meta.json`];
   }
+
   const listed = readJson(Meta, metaPath).pages.filter(isPageEntry);
+
   if (listed.length === 0) {
     return [...problems, `${where}/meta.json has no explicit pages order`];
   }
+
   return [
     ...problems,
     ...listed
@@ -177,18 +199,23 @@ interface CodeBlock {
 function titledBlocks(text: string): CodeBlock[] {
   const lines = text.split("\n");
   const blocks: CodeBlock[] = [];
+
   for (let index = 0; index < lines.length; index += 1) {
     const open = /^(\s*)```\w*.*\btitle="([^"]+)"/u.exec(lines[index] ?? "");
+
     if (!open) {
       continue;
     }
+
     const indent = open[1] ?? "";
     const body: string[] = [];
     let end = index + 1;
+
     while (end < lines.length && lines[end]?.trim() !== "```") {
       body.push((lines[end] ?? "").slice(indent.length));
       end += 1;
     }
+
     blocks.push({
       title: open[2] ?? "",
       body: body.join("\n"),
@@ -196,6 +223,7 @@ function titledBlocks(text: string): CodeBlock[] {
     });
     index = end;
   }
+
   return blocks;
 }
 
@@ -209,10 +237,12 @@ function naming(): string[] {
     ...markdownFiles(docs, ".mdx"),
     ...markdownFiles(join(library, "skills"), ".md"),
   ];
+
   return files.flatMap((file) =>
     titledBlocks(readFileSync(file, "utf-8")).flatMap((block) => {
       const where = `${relative(root, file)}:${String(block.line)}`;
       const problems: string[] = [];
+
       if (
         /lib\/supabase\/(?:server|client)\.ts$/u.test(block.title) &&
         block.body.includes("defineSupabase(")
@@ -221,6 +251,7 @@ function naming(): string[] {
           `${where} defines betterSupabase in ${block.title}; it belongs in src/lib/supabase/index.ts (concepts/naming.mdx)`,
         );
       }
+
       if (
         block.title.endsWith("lib/supabase/server.ts") &&
         block.body.includes("createNext(") &&
@@ -230,6 +261,7 @@ function naming(): string[] {
           `${where} creates bs with createNext in ${block.title} without starting with import "server-only" (concepts/naming.mdx)`,
         );
       }
+
       return problems;
     }),
   );
@@ -241,12 +273,15 @@ const problems = [
   ...metaFiles(docs),
   ...naming(),
 ];
+
 for (const problem of problems) {
   console.error(`docs drift: ${problem}`);
 }
+
 if (problems.length > 0) {
   exit(1);
 }
+
 console.log(
   "docs drift: doctor codes, subpaths, meta.json and lib/supabase naming match the code",
 );

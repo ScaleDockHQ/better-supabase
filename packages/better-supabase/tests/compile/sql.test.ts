@@ -14,17 +14,21 @@ import { schema } from "../fixtures/generated-camel.ts";
 
 function table(key: string): TableMeta {
   const found = schema.meta.tables[key];
+
   if (!found) {
     throw new Error(`No fixture table ${key}`);
   }
+
   return found;
 }
 
 function relation(from: TableMeta, name: string): RelationMeta {
   const found = from.relations[name];
+
   if (!found) {
     throw new Error(`No relation ${name} on ${from.key}`);
   }
+
   return found;
 }
 
@@ -88,9 +92,11 @@ const pathCol = (
 
 function rows(op: SelectOp): { text: string; params: readonly unknown[] } {
   const plan = compileSql(op);
+
   if (!plan.rows) {
     throw new Error("Expected a rows query");
   }
+
   return plan.rows;
 }
 
@@ -101,8 +107,10 @@ function invalid(fn: () => unknown): string {
     if (error instanceof DbException && error.kind === "invalid_request") {
       return error.message;
     }
+
     throw error;
   }
+
   throw new Error("Expected an invalid_request DbException");
 }
 
@@ -216,6 +224,7 @@ describe("compileSql column conditions", () => {
         },
       },
     };
+
     expect(
       rows(select({ table: searchable, where: col("search", "fts", "acme") })),
     ).toEqual({
@@ -365,6 +374,7 @@ describe("compileSql boolean conditions", () => {
 
 describe("compileSql relation conditions", () => {
   const notesOf = relation(customers, "notes");
+
   const on = (
     quantifier: "some" | "none" | "every",
     where: Condition | undefined,
@@ -376,6 +386,7 @@ describe("compileSql relation conditions", () => {
     quantifier,
     where,
   });
+
   const from = `select 1 from "public"."notes" as t1 where t1."customer_id" = t0."id" and t1."organization_id" = t0."organization_id"`;
 
   it.each<[string, Condition, string, unknown[]]>([
@@ -434,6 +445,7 @@ describe("compileSql relation conditions", () => {
       ...notesOf,
       references: ["nope", "organizationId"],
     };
+
     expect(
       invalid(() =>
         compileSql(
@@ -453,6 +465,7 @@ describe("compileSql selections", () => {
       ],
       includes: [],
     };
+
     expect(rows(select({ selection })).text).toBe(
       `select json_build_object('it''s', t0."id"::text, 'name', t0."name") as row from "public"."customers" as t0`,
     );
@@ -476,6 +489,7 @@ describe("compileSql selections", () => {
         ],
       },
     };
+
     expect(rows(select({ selection })).text).toBe(
       `select json_build_object('status', t0."status", '_count', count(*), '_sum_id', sum(t0."id")::text, '_max_name', max(t0."name")) as row from "public"."customers" as t0 group by t0."status"`,
     );
@@ -487,6 +501,7 @@ describe("compileSql selections", () => {
       includes: [],
       aggregate: { count: true, measures: [] },
     };
+
     expect(
       rows(
         select({
@@ -512,6 +527,7 @@ describe("compileSql selections", () => {
         measures: [{ fn: "avg", key: "_avg_id", alias: "id", column: "id" }],
       },
     };
+
     expect(rows(select({ selection })).text).toBe(
       `select json_build_object('_avg_id', avg(t0."id")) as row from "public"."customers" as t0`,
     );
@@ -522,11 +538,14 @@ describe("compileSql selections", () => {
       alias: `c${index}`,
       column: "id",
     }));
+
     const text = rows(select({ selection: { columns, includes: [] } })).text;
     const pair = (index: number) => `'c${index}', t0."id"`;
+
     const first = Array.from({ length: 50 }, (_, index) => pair(index)).join(
       ", ",
     );
+
     expect(text).toBe(
       `select (jsonb_build_object(${first}) || jsonb_build_object(${pair(50)}))::json as row from "public"."customers" as t0`,
     );
@@ -538,6 +557,7 @@ describe("compileSql includes", () => {
     select({
       selection: { columns: [{ alias: "id", column: "id" }], includes },
     });
+
   const prefix = `select json_build_object('id', t0."id", `;
   const suffix = `) as row from "public"."customers" as t0`;
   const join = `t1."customer_id" = t0."id" and t1."organization_id" = t0."organization_id"`;
@@ -616,6 +636,7 @@ describe("compileSql includes", () => {
     const op = withInclude(
       include({ required: true, where: col("body", "eq", "x") }),
     );
+
     expect(rows({ ...op, where: col("name", "eq", "Acme") })).toEqual({
       text: `${prefix}'notes', (select coalesce(json_agg(s.r order by s.o), '[]'::json) from (select json_build_object('id', t2."id") as r, row_number() over () as o from "public"."notes" as t2 where t2."customer_id" = t0."id" and t2."organization_id" = t0."organization_id" and t2."body" = $3) as s)${suffix} where t0."name" = $1 and exists (select 1 from "public"."notes" as t1 where ${join} and t1."body" = $2)`,
       params: ["Acme", "x", "x"],
@@ -629,6 +650,7 @@ describe("compileSql includes", () => {
       target: organizations,
       required: true,
     });
+
     const op = withInclude(
       include({
         selection: {
@@ -637,6 +659,7 @@ describe("compileSql includes", () => {
         },
       }),
     );
+
     expect(rows(op).text).toBe(
       `${prefix}'notes', (select coalesce(json_agg(s.r order by s.o), '[]'::json) from (select json_build_object('id', t1."id", 'organization', (select json_build_object('id', t3."id") from "public"."organizations" as t3 where t3."id" = t1."organization_id" limit 1)) as r, row_number() over () as o from "public"."notes" as t1 where ${join} and exists (select 1 from "public"."organizations" as t2 where t2."id" = t1."organization_id")) as s)${suffix}`,
     );
@@ -742,7 +765,9 @@ describe("compileSql inserts", () => {
       defaultToNull: false,
       ...overrides,
     });
+
   const into = `insert into "public"."customers" as t0`;
+
   const counted = (statement: string) =>
     `with m as (${statement}) select count(*)::int as count from m`;
 
@@ -764,6 +789,7 @@ describe("compileSql inserts", () => {
       name: `c${index}`,
       organization_id: "o1",
     }));
+
     const plan = insert({ rows, returning: idOnly });
     const statements = [plan, ...(plan.chunks ?? [])];
     expect(statements.map((entry) => entry.rows?.params.length)).toEqual([
@@ -1061,6 +1087,7 @@ describe("compileSql json columns", () => {
       },
     },
   };
+
   const parts = [[{ type: "text", text: "hi" }]];
 
   it.each<[string, unknown, unknown]>([

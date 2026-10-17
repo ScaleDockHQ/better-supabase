@@ -10,14 +10,17 @@ function transport(
   results: Record<string, (args: Record<string, unknown>) => unknown>,
 ) {
   const calls: [string, Record<string, unknown>][] = [];
+
   return {
     calls,
     call(_schema: string, fn: string, args: Record<string, unknown>) {
       calls.push([fn, args]);
       const result = results[fn];
+
       if (!result) {
         return Promise.reject(new Error(`unexpected ${fn}`));
       }
+
       return Promise.resolve(result(args));
     },
   };
@@ -54,12 +57,14 @@ describe("employees block", () => {
       create_employee: () => EMPLOYEE,
       employee_from_application: () => ({ ...EMPLOYEE, status: "preboarding" }),
     });
+
     const employees = createEmployees({
       transport: t,
       fields: v.object({
         shoe_size: v.pipe(v.string(), v.transform(Number)),
       }),
     });
+
     const mia = await employees
       .create("o", {
         name: "Mia",
@@ -67,6 +72,7 @@ describe("employees block", () => {
         fields: { shoe_size: "42" as unknown as number },
       })
       .orThrow();
+
     expect(mia).toMatchObject({
       organizationId: "o",
       userId: "u1",
@@ -84,6 +90,7 @@ describe("employees block", () => {
     const hired = await employees
       .fromApplication("a1", { jobTitle: "Lead" })
       .orThrow();
+
     expect(hired.status).toBe("preboarding");
     expect(t.calls.map(([fn, args]) => [fn, args])).toEqual([
       [
@@ -103,6 +110,7 @@ describe("employees block", () => {
       name: "Bo",
       fields: { shoe_size: 42 },
     });
+
     expect(bad).toMatchObject({ ok: false, error: { kind: "validation" } });
     expect(t.calls).toHaveLength(2);
   });
@@ -114,6 +122,7 @@ describe("employees block", () => {
       }),
       fields: v.object({ shoe_size: v.string() }),
     });
+
     expect(await employees.create("o", { name: "Mia" })).toMatchObject({
       ok: false,
       error: { kind: "validation" },
@@ -135,10 +144,12 @@ describe("employees block", () => {
         ],
       }),
     });
+
     const employees = createEmployees({
       transport: t,
       fields: v.object({ shoe_size: v.number() }),
     });
+
     const result = await employees
       .update([
         { employeeId: "e1", field: "endDate", value: date("2026-12-31") },
@@ -146,6 +157,7 @@ describe("employees block", () => {
         { employeeId: "e3", field: "shoe_size", value: 43 },
       ])
       .orThrow();
+
     expect(result).toEqual({
       accepted: [{ employeeId: "e1", field: "endDate" }],
       rejected: [
@@ -165,9 +177,11 @@ describe("employees block", () => {
         { employeeId: "e3", field: "shoe_size", value: 43 },
       ],
     });
+
     const bad = await employees.update([
       { employeeId: "e3", field: "shoe_size", value: "big" },
     ]);
+
     expect(bad).toMatchObject({ ok: false, error: { kind: "validation" } });
     expect(t.calls).toHaveLength(1);
   });
@@ -188,10 +202,13 @@ describe("employees block", () => {
         { ...EMPLOYEE, id: "e2", depth: "1", direct_reports: "0" },
       ],
     });
+
     const employees = createEmployees({ transport: t });
+
     const gone = await employees
       .offboard("e1", { endDate: date("2026-12-31"), reason: "Moved" })
       .orThrow();
+
     expect(gone).toMatchObject({
       status: "offboarded",
       offboardReason: "Moved",
@@ -206,9 +223,11 @@ describe("employees block", () => {
     ]);
     expect(chart[0]?.fields).toEqual({ shoe_size: "42" });
     await employees.orgChart("o", "e1").orThrow();
+
     const reports = await employees
       .reportsOf("e1", { indirect: true })
       .orThrow();
+
     expect(reports[0]).toMatchObject({ id: "e2", depth: 1, directReports: 0 });
     await employees.reportsOf("e1").orThrow();
     expect(t.calls.map(([, args]) => args)).toEqual([
@@ -228,6 +247,7 @@ describe("employees block", () => {
       }),
       fields: v.object({ shoe_size: v.number() }),
     });
+
     expect(await employees.orgChart("o")).toMatchObject({
       ok: false,
       error: { kind: "validation" },
@@ -286,6 +306,7 @@ describe("employees block", () => {
         starts_on: "2026-01-01",
       }),
     });
+
     const employees = createEmployees({ transport: t });
     expect(await employees.privateDetails("e1").orThrow()).toMatchObject({
       nationalId: "123",
@@ -293,6 +314,7 @@ describe("employees block", () => {
       emergencyContacts: [{ name: "Tom", relation: "partner" }],
     });
     expect(await employees.privateDetails("none").orThrow()).toBeUndefined();
+
     const saved = await employees
       .savePrivateDetails("e1", {
         birthDate: date("1990-04-01"),
@@ -300,6 +322,7 @@ describe("employees block", () => {
         address: null,
       })
       .orThrow();
+
     expect(saved).toEqual({ employeeId: "e1", emergencyContacts: [] });
     await employees.savePrivateDetails("e1", { phone: null }).orThrow();
 
@@ -343,6 +366,7 @@ describe("employees block", () => {
         employee_contracts: () => [{ id: "c1", employee_id: "e1" }],
       }),
     });
+
     expect((await employees.contracts("e1")).ok).toBe(false);
   });
 

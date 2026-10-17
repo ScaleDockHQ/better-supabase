@@ -15,22 +15,26 @@ import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
+
 const env = {
   url: PROJECT_URL,
   publishableKey: "sb_publishable_test",
   jwksUrl: new URL(`${PROJECT_URL}/auth/v1/.well-known/jwks.json`),
 };
+
 const USER = "11111111-1111-4111-8111-111111111111";
 const ENDPOINT = "https://tools.test/mcp";
 const signer = await createTestSigner();
 
 describe("createMcp", () => {
   const betterSupabase = defineSupabase(schema);
+
   const list = defineListQuery(betterSupabase, "customers", {
     search: ["name"],
     sorts: { name: { name: "asc" } },
     defaultSort: "name",
   });
+
   const mcp = createMcp(betterSupabase, {
     env,
     auth: { jwks: signer.jwks as never },
@@ -68,6 +72,7 @@ describe("createMcp", () => {
   ) => {
     const token =
       init.token === undefined ? await signer.sign({ sub: USER }) : init.token;
+
     return mcp.fetch(
       new Request(ENDPOINT, {
         method: "POST",
@@ -81,6 +86,7 @@ describe("createMcp", () => {
       }),
     );
   };
+
   const result = async (method: string, params?: unknown) =>
     (
       (await (await rpc({ jsonrpc: "2.0", id: 1, method, params })).json()) as {
@@ -93,15 +99,18 @@ describe("createMcp", () => {
       { jsonrpc: "2.0", id: 1, method: "initialize" },
       { token: null },
     );
+
     expect(response.status).toBe(401);
     expect(response.headers.get("www-authenticate")).toBe(
       'Bearer resource_metadata="https://tools.test/.well-known/oauth-protected-resource/mcp"',
     );
+
     const metadata = await mcp.fetch(
       new Request(
         "https://tools.test/.well-known/oauth-protected-resource/mcp",
       ),
     );
+
     expect(await metadata.json()).toEqual({
       resource: "https://tools.test/mcp",
       authorization_servers: [`${PROJECT_URL}/auth/v1`],
@@ -118,6 +127,7 @@ describe("createMcp", () => {
       allowedHosts: ["tools.test", "localhost"],
       resourceDocumentation: "https://tools.test/docs/mcp",
     });
+
     const post = (host: string | undefined) =>
       strict.fetch(
         new Request(ENDPOINT, {
@@ -129,6 +139,7 @@ describe("createMcp", () => {
           body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }),
         }),
       );
+
     expect((await post("evil.test")).status).toBe(403);
     expect((await post(undefined)).status).toBe(403);
     expect((await post("localhost:3000")).status).toBe(401);
@@ -139,6 +150,7 @@ describe("createMcp", () => {
         "https://tools.test/.well-known/oauth-protected-resource/mcp",
       ),
     );
+
     expect(await metadata.json()).toMatchObject({
       resource_documentation: "https://tools.test/docs/mcp",
     });
@@ -157,6 +169,7 @@ describe("createMcp", () => {
       serverInfo: { name: "crm", version: "1.0.0" },
       instructions: expect.stringContaining("Customer"),
     });
+
     const { tools } = (await result("tools/list")) as {
       tools: {
         name: string;
@@ -164,6 +177,7 @@ describe("createMcp", () => {
         annotations?: unknown;
       }[];
     };
+
     expect(tools.map((tool) => tool.name)).toEqual([
       "customers_list",
       "customers_get",
@@ -208,10 +222,12 @@ describe("createMcp", () => {
       content: [{ type: "text", text: JSON.stringify({ id: USER }) }],
       structuredContent: { id: USER },
     });
+
     const invalid = await result("tools/call", {
       name: "echo",
       arguments: { message: "" },
     });
+
     expect(invalid).toMatchObject({
       isError: true,
       structuredContent: {
@@ -219,10 +235,12 @@ describe("createMcp", () => {
         issues: [{ path: ["message"] }],
       },
     });
+
     const badKey = await result("tools/call", {
       name: "customers_get",
       arguments: {},
     });
+
     expect(badKey).toMatchObject({
       isError: true,
       structuredContent: { kind: "invalid_input" },
@@ -321,6 +339,7 @@ describe("createMcp", () => {
       cacheScope: "private",
       resultType: "complete",
     });
+
     const call = await (
       await modern(
         3,
@@ -329,6 +348,7 @@ describe("createMcp", () => {
         { "mcp-name": `=?base64?${btoa("whoami")}?=` },
       )
     ).json();
+
     expect(call.result).toMatchObject({
       structuredContent: { id: USER },
       resultType: "complete",
@@ -345,6 +365,7 @@ describe("createMcp", () => {
       { name: "whoami" },
       { "mcp-name": "echo" },
     );
+
     expect(mismatch.status).toBe(400);
     expect(await mismatch.json()).toMatchObject({ error: { code: -32_020 } });
     expect(
@@ -352,10 +373,12 @@ describe("createMcp", () => {
         await modern(2, "tools/list", {}, { "mcp-method": "tools/call" })
       ).json(),
     ).toMatchObject({ error: { code: -32_020 } });
+
     const unsupported = await rpc(
       { jsonrpc: "2.0", id: 3, method: "tools/list" },
       { headers: { "mcp-protocol-version": "1999-01-01" } },
     );
+
     expect(unsupported.status).toBe(400);
     expect(await unsupported.json()).toMatchObject({
       error: {
@@ -363,6 +386,7 @@ describe("createMcp", () => {
         data: { requested: "1999-01-01", supported: expect.any(Array) },
       },
     });
+
     const noMeta = await rpc(
       { jsonrpc: "2.0", id: 4, method: "tools/list" },
       {
@@ -372,6 +396,7 @@ describe("createMcp", () => {
         },
       },
     );
+
     expect(noMeta.status).toBe(400);
     expect(await noMeta.json()).toMatchObject({ error: { code: -32_602 } });
   });
@@ -385,6 +410,7 @@ describe("createMcp", () => {
       allow: ["service"],
       advertisedScopes: ["openid", "crm.read", "offline_access"],
     });
+
     const response = await scoped.fetch(
       new Request(ENDPOINT, {
         method: "POST",
@@ -395,6 +421,7 @@ describe("createMcp", () => {
         body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
       }),
     );
+
     expect(response.status).toBe(403);
     const challenge = response.headers.get("www-authenticate") ?? "";
     expect(challenge).toMatch(/^Bearer error="insufficient_scope", /);
@@ -402,17 +429,21 @@ describe("createMcp", () => {
     expect(challenge).toContain(
       'resource_metadata="https://tools.test/.well-known/oauth-protected-resource/mcp"',
     );
+
     const anonymous = await scoped.fetch(
       new Request(ENDPOINT, { method: "POST", body: "{}" }),
     );
+
     expect(anonymous.headers.get("www-authenticate")).toContain(
       'scope="openid crm.read"',
     );
+
     const metadata = await scoped.fetch(
       new Request(
         "https://tools.test/.well-known/oauth-protected-resource/mcp",
       ),
     );
+
     expect(await metadata.json()).toMatchObject({
       scopes_supported: ["openid", "crm.read"],
     });
@@ -427,6 +458,7 @@ describe("createMcp", () => {
       advertisedScopes: ["openid"],
       requiredScopes: ["crm.read"],
     });
+
     const call = async (claims: Record<string, unknown>) =>
       scoped.fetch(
         new Request(ENDPOINT, {
@@ -438,6 +470,7 @@ describe("createMcp", () => {
           body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }),
         }),
       );
+
     const denied = await call({ client_id: "agent", scope: "openid" });
     expect(denied.status).toBe(403);
     expect(denied.headers.get("www-authenticate")).toContain(
@@ -457,6 +490,7 @@ describe("createMcp", () => {
       version: "1.0.0",
       aal: "aal2",
     });
+
     const response = await strict.fetch(
       new Request(ENDPOINT, {
         method: "POST",
@@ -467,6 +501,7 @@ describe("createMcp", () => {
         body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }),
       }),
     );
+
     expect(response.status).toBe(403);
     expect(response.headers.get("www-authenticate")).toBeNull();
   });
@@ -476,11 +511,13 @@ describe("createMcp", () => {
       "fetch",
       vi.fn(async () => new Response("down", { status: 500 })),
     );
+
     const offline = createMcp(betterSupabase, {
       env: { ...env, jwksUrl: new URL(`${PROJECT_URL}/mcp-down/jwks.json`) },
       name: "crm",
       version: "1.0.0",
     });
+
     const response = await offline.fetch(
       new Request(ENDPOINT, {
         method: "POST",
@@ -491,6 +528,7 @@ describe("createMcp", () => {
         body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }),
       }),
     );
+
     vi.unstubAllGlobals();
     expect(response.status).toBe(503);
     expect(response.headers.get("www-authenticate")).toBeNull();
@@ -499,6 +537,7 @@ describe("createMcp", () => {
 
   it("authorizes calls and filters lists with per-tool hooks", async () => {
     const seen: { tool: string; meta: unknown; args: unknown }[] = [];
+
     const guarded = createMcp(betterSupabase, {
       env,
       auth: { jwks: signer.jwks as never },
@@ -539,22 +578,28 @@ describe("createMcp", () => {
         const meta = tool.meta as
           | { permission?: string; scope?: string }
           | undefined;
+
         seen.push({ tool: tool.info.name, meta: tool.meta, args });
+
         if (tool.info.name === "tags_list") {
           return { allowed: false, reason: "No tags for you" };
         }
+
         if (meta?.permission === "notes.purge") {
           return { allowed: false, reason: "Only owners may purge notes" };
         }
+
         if (meta?.scope) {
           return { allowed: false, scopes: ["notes.read", meta.scope] };
         }
+
         return { allowed: true };
       },
       visible: (ctx, tool) =>
         ctx.auth.kind === "user" &&
         (tool.meta as { hidden?: boolean } | undefined)?.hidden !== true,
     });
+
     const send = async (method: string, params?: unknown) =>
       guarded.fetch(
         new Request(ENDPOINT, {
@@ -570,6 +615,7 @@ describe("createMcp", () => {
     const listed = (await (await send("tools/list")).json()) as {
       result: { tools: { name: string; meta?: unknown }[] };
     };
+
     expect(listed.result.tools.map((tool) => tool.name)).toEqual([
       "tags_list",
       "read_notes",
@@ -584,6 +630,7 @@ describe("createMcp", () => {
         arguments: { limit: "5" },
       })
     ).json()) as { result: unknown };
+
     expect(allowed.result).toMatchObject({ structuredContent: { limit: 5 } });
     expect(seen.at(-1)).toEqual({
       tool: "read_notes",
@@ -594,12 +641,14 @@ describe("createMcp", () => {
     const invalid = (await (
       await send("tools/call", { name: "read_notes", arguments: {} })
     ).json()) as { result: unknown };
+
     expect(invalid.result).toMatchObject({ isError: true });
     expect(seen).toHaveLength(1);
 
     const refused = (await (
       await send("tools/call", { name: "purge_notes", arguments: {} })
     ).json()) as { result: unknown };
+
     expect(refused.result).toMatchObject({
       isError: true,
       structuredContent: {
@@ -612,6 +661,7 @@ describe("createMcp", () => {
       name: "export_notes",
       arguments: {},
     });
+
     expect(challenged.status).toBe(403);
     expect(challenged.headers.get("www-authenticate")).toContain(
       'Bearer error="insufficient_scope", error_description="Not allowed to call export_notes", scope="openid notes.read notes.export"',
@@ -621,6 +671,7 @@ describe("createMcp", () => {
     const hidden = (await (
       await send("tools/call", { name: "secret", arguments: {} })
     ).json()) as { error: { code: number; message: string } };
+
     expect(hidden.error).toMatchObject({
       code: -32_602,
       message: 'Unknown tool "secret"',
@@ -629,6 +680,7 @@ describe("createMcp", () => {
     const table = (await (
       await send("tools/call", { name: "tags_list", arguments: { page: 2 } })
     ).json()) as { result: unknown };
+
     expect(seen.at(-1)).toEqual({
       tool: "tags_list",
       meta: undefined,
@@ -643,6 +695,7 @@ describe("createMcp", () => {
     const direct = await guarded.call("export_notes", {}, {
       auth: { kind: "user" },
     } as never);
+
     expect(direct).toMatchObject({
       isError: true,
       structuredContent: { kind: "forbidden" },
@@ -663,6 +716,7 @@ describe("createMcp table tool meta", () => {
   it("passes each operation's meta to visible and authorize", async () => {
     const betterSupabase = defineSupabase(schema);
     const seen: [string, unknown][] = [];
+
     const mcp = createMcp(betterSupabase, {
       env,
       auth: { jwks: signer.jwks as never },
@@ -676,9 +730,11 @@ describe("createMcp table tool meta", () => {
       },
       visible: (_ctx, tool) => {
         seen.push([tool.info.name, tool.meta]);
+
         return tool.meta !== undefined;
       },
     });
+
     const response = await mcp.fetch(
       new Request(ENDPOINT, {
         method: "POST",
@@ -689,9 +745,11 @@ describe("createMcp table tool meta", () => {
         body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
       }),
     );
+
     const { result } = (await response.json()) as {
       result: { tools: { name: string }[] };
     };
+
     expect(result.tools.map((tool) => tool.name)).toEqual(["tags_list"]);
     expect(seen).toEqual([
       ["tags_list", { permission: "tags.read" }],
@@ -702,6 +760,7 @@ describe("createMcp table tool meta", () => {
   it("reuses a token's visible list but checks visible on every call", async () => {
     const betterSupabase = defineSupabase(schema);
     let checks = 0;
+
     const mcp = createMcp(betterSupabase, {
       env,
       auth: { jwks: signer.jwks as never },
@@ -710,10 +769,13 @@ describe("createMcp table tool meta", () => {
       resources: { tags: { operations: ["list"] } },
       visible: () => {
         checks++;
+
         return checks === 1;
       },
     });
+
     const token = await signer.sign({ sub: USER });
+
     const send = (method: string, params?: unknown) =>
       mcp.fetch(
         new Request(ENDPOINT, {
@@ -725,24 +787,30 @@ describe("createMcp table tool meta", () => {
           body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
         }),
       );
+
     const names = async () => {
       const { result } = (await (await send("tools/list")).json()) as {
         result: { tools: { name: string }[] };
       };
+
       return result.tools.map((tool) => tool.name);
     };
+
     expect(await names()).toEqual(["tags_list"]);
     expect(await names()).toEqual(["tags_list"]);
     expect(checks).toBe(1);
+
     const called = (await (
       await send("tools/call", { name: "tags_list", arguments: {} })
     ).json()) as { error?: { message: string } };
+
     expect(called.error?.message).toBe('Unknown tool "tags_list"');
     expect(checks).toBe(2);
   });
 
   it("rebuilds cached visible lists after a tool is registered", async () => {
     const betterSupabase = defineSupabase(schema);
+
     const mcp = createMcp(betterSupabase, {
       env,
       auth: { jwks: signer.jwks as never },
@@ -751,7 +819,9 @@ describe("createMcp table tool meta", () => {
       resources: { tags: { operations: ["list"] } },
       visible: () => true,
     });
+
     const token = await signer.sign({ sub: USER });
+
     const names = async () => {
       const response = await mcp.fetch(
         new Request(ENDPOINT, {
@@ -763,11 +833,14 @@ describe("createMcp table tool meta", () => {
           body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
         }),
       );
+
       const { result } = (await response.json()) as {
         result: { tools: { name: string }[] };
       };
+
       return result.tools.map((tool) => tool.name);
     };
+
     expect(await names()).toEqual(["tags_list"]);
     mcp.tool({ name: "echo", description: "Echo.", run: () => null });
     expect(await names()).toEqual(["tags_list", "echo"]);
@@ -777,6 +850,7 @@ describe("createMcp table tool meta", () => {
 describe("createMcp cursor lists", () => {
   it("describes cursor pagination in the list tool schemas", async () => {
     const betterSupabase = defineSupabase(schema);
+
     const mcp = createMcp(betterSupabase, {
       env,
       auth: { jwks: signer.jwks as never },
@@ -786,6 +860,7 @@ describe("createMcp cursor lists", () => {
         tags: { operations: ["list"], pagination: "cursor", maxPageSize: 10 },
       },
     });
+
     const response = await mcp.fetch(
       new Request(ENDPOINT, {
         method: "POST",
@@ -796,6 +871,7 @@ describe("createMcp cursor lists", () => {
         body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
       }),
     );
+
     const { result } = (await response.json()) as {
       result: {
         tools: {
@@ -804,6 +880,7 @@ describe("createMcp cursor lists", () => {
         }[];
       };
     };
+
     expect(result.tools[0]?.inputSchema).toMatchObject({
       properties: {
         after: { type: "string" },
@@ -832,6 +909,7 @@ describe("createMcp on Supabase Edge Functions", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
   });
+
   const mcp = createMcp(defineSupabase(schema), {
     env: { ...env, url: "http://kong:8000" },
     auth: { jwks: signer.jwks as never },
@@ -839,43 +917,54 @@ describe("createMcp on Supabase Edge Functions", () => {
     version: "1.0.0",
     allowedHosts: ["abcdefghijklmnopqrst.supabase.co"],
   });
+
   const PUBLIC = `${PROJECT_URL}/functions/v1/mcp`;
 
   it("advertises the public function URL and the suffix metadata route", async () => {
     vi.stubEnv("SUPABASE_FUNCTION_SLUG", "mcp");
+
     const response = await mcp.fetch(
       edgeRequest("/mcp", { method: "POST", body: "{}" }),
     );
+
     expect(response.status).toBe(401);
     expect(response.headers.get("www-authenticate")).toBe(
       `Bearer resource_metadata="${PUBLIC}/oauth-protected-resource"`,
     );
+
     const metadata = await mcp.fetch(
       edgeRequest("/mcp/oauth-protected-resource"),
     );
+
     expect(await metadata.json()).toEqual({
       resource: PUBLIC,
       authorization_servers: [`${PROJECT_URL}/auth/v1`],
       bearer_methods_supported: ["header"],
     });
+
     const preflight = await mcp.fetch(
       edgeRequest("/mcp/oauth-protected-resource", { method: "OPTIONS" }),
     );
+
     expect(preflight.status).toBe(204);
     expect(preflight.headers.get("access-control-allow-origin")).toBe("*");
   });
 
   it("restores /functions/v1 from the path without a slug, and prefers SUPABASE_PUBLIC_URL", async () => {
     vi.stubEnv("SB_EXECUTION_ID", "exec-1");
+
     const metadata = await mcp.fetch(
       edgeRequest("/mcp/oauth-protected-resource"),
     );
+
     expect(await metadata.json()).toMatchObject({ resource: PUBLIC });
 
     vi.stubEnv("SUPABASE_PUBLIC_URL", "https://api.example.com/");
+
     const custom = await mcp.fetch(
       edgeRequest("/mcp/oauth-protected-resource"),
     );
+
     expect(await custom.json()).toMatchObject({
       resource: "https://api.example.com/functions/v1/mcp",
       authorization_servers: ["https://api.example.com/auth/v1"],
@@ -884,6 +973,7 @@ describe("createMcp on Supabase Edge Functions", () => {
 
   it("keeps a custom port and checks allowedHosts against X-Forwarded-Host", async () => {
     vi.stubEnv("SUPABASE_FUNCTION_SLUG", "mcp");
+
     const local = await mcp.fetch(
       edgeRequest("/mcp/oauth-protected-resource", {
         headers: {
@@ -893,10 +983,12 @@ describe("createMcp on Supabase Edge Functions", () => {
         },
       }),
     );
+
     expect(await local.json()).toMatchObject({
       resource: "http://127.0.0.1:54321/functions/v1/mcp",
       authorization_servers: ["http://127.0.0.1:54321/auth/v1"],
     });
+
     const allowed = await mcp.fetch(
       edgeRequest("/mcp", {
         method: "POST",
@@ -904,7 +996,9 @@ describe("createMcp on Supabase Edge Functions", () => {
         headers: { host: "localhost:8081" },
       }),
     );
+
     expect(allowed.status).toBe(401);
+
     const other = await mcp.fetch(
       edgeRequest("/mcp", {
         method: "POST",
@@ -912,6 +1006,7 @@ describe("createMcp on Supabase Edge Functions", () => {
         headers: { "x-forwarded-host": "evil.test" },
       }),
     );
+
     expect(other.status).toBe(403);
   });
 
@@ -926,18 +1021,21 @@ describe("createMcp on Supabase Edge Functions", () => {
         },
       }),
     );
+
     expect(response.status).toBe(403);
   });
 });
 
 describe("createMcp CORS", () => {
   const betterSupabase = defineSupabase(schema);
+
   const open = createMcp(betterSupabase, {
     env,
     auth: { jwks: signer.jwks as never },
     name: "crm",
     version: "1.0.0",
   });
+
   const listed = createMcp(betterSupabase, {
     env,
     auth: { jwks: signer.jwks as never },
@@ -945,6 +1043,7 @@ describe("createMcp CORS", () => {
     version: "1.0.0",
     allowedOrigins: ["https://claude.test"],
   });
+
   const preflight = (origin: string) =>
     new Request(ENDPOINT, {
       method: "OPTIONS",
@@ -965,6 +1064,7 @@ describe("createMcp CORS", () => {
     expect(response.headers.get("access-control-allow-headers")).toContain(
       "Mcp-Protocol-Version",
     );
+
     const challenge = await open.fetch(
       new Request(ENDPOINT, {
         method: "POST",
@@ -972,6 +1072,7 @@ describe("createMcp CORS", () => {
         headers: { origin: "https://app.test" },
       }),
     );
+
     expect(challenge.status).toBe(401);
     expect(challenge.headers.get("access-control-allow-origin")).toBe("*");
     expect(challenge.headers.get("access-control-expose-headers")).toBe(
@@ -999,6 +1100,7 @@ describe("createMcp CORS", () => {
       version: "1.0.0",
       cors: false,
     });
+
     const response = await closed.fetch(preflight("https://app.test"));
     expect(response.status).toBe(405);
     expect(response.headers.get("allow")).toBe("POST");
@@ -1009,6 +1111,7 @@ describe("createMcp CORS", () => {
 describe("tool schemas per protocol version", () => {
   const betterSupabase = defineSupabase(schema);
   const calls: string[] = [];
+
   const throwsForDraft07 = {
     "~standard": {
       version: 1,
@@ -1017,9 +1120,11 @@ describe("tool schemas per protocol version", () => {
       jsonSchema: {
         input: ({ target }: { target: string }) => {
           calls.push(target);
+
           if (target !== "draft-2020-12") {
             throw new Error("unsupported");
           }
+
           return {
             type: "object",
             properties: { pair: { prefixItems: [{ type: "string" }] } },
@@ -1029,6 +1134,7 @@ describe("tool schemas per protocol version", () => {
       },
     },
   } as never;
+
   const mcp = createMcp(betterSupabase, {
     env,
     auth: { jwks: signer.jwks as never },
@@ -1085,6 +1191,7 @@ describe("tool schemas per protocol version", () => {
         }),
       }),
     );
+
     const { result } = (await response.json()) as {
       result: {
         tools: {
@@ -1094,6 +1201,7 @@ describe("tool schemas per protocol version", () => {
         }[];
       };
     };
+
     return new Map(result.tools.map((tool) => [tool.name, tool]));
   };
 
@@ -1128,6 +1236,7 @@ describe("tool schemas per protocol version", () => {
 
   it("sends 2020-12 schemas to 2025-11-25 and 2026-07-28 clients", async () => {
     const legacy = await list({ "mcp-protocol-version": "2025-11-25" });
+
     const modern = await list(
       {
         "mcp-protocol-version": MCP_PROTOCOL_VERSION,
@@ -1138,6 +1247,7 @@ describe("tool schemas per protocol version", () => {
         "io.modelcontextprotocol/clientCapabilities": {},
       },
     );
+
     for (const tools of [legacy, modern]) {
       expect(tools.get("pair")?.inputSchema).toMatchObject({
         properties: { pair: { prefixItems: expect.any(Array) } },
@@ -1151,14 +1261,18 @@ describe("tool schemas per protocol version", () => {
 
   it("builds each dialect once", async () => {
     const before = calls.length;
+
     for (const version of ["2025-06-18", "2025-03-26", "2025-11-25"]) {
       await list({ "mcp-protocol-version": version });
       await list({ "mcp-protocol-version": version });
     }
+
     const after = calls.length;
+
     for (const version of ["2025-06-18", "2025-11-25"]) {
       await list({ "mcp-protocol-version": version });
     }
+
     expect(calls.length).toBe(after);
     expect(after - before).toBeLessThanOrEqual(2);
     expect(
@@ -1174,6 +1288,7 @@ describe("tool schemas per protocol version", () => {
       jsonSchemaTarget: "draft-07",
       run: () => ({}),
     });
+
     expect(tool.info.inputSchema).toMatchObject({
       properties: { pair: { items: [{ type: "string" }] } },
     });

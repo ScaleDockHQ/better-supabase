@@ -20,6 +20,7 @@ export function assistantBody(
   },
 ): Record<string, unknown> {
   const message = request.messages.findLast((entry) => entry.role === "user");
+
   return {
     ...config.body,
     ...request.body,

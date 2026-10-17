@@ -65,8 +65,10 @@ export interface DriveOptions<
 }
 
 export type DriveNodeKind = "folder" | "file";
+
 /** What happens when the name is taken in the folder. */
 export type DriveConflict = "fail" | "rename" | "replace";
+
 export type DrivePrincipalType = "user" | "team" | "role";
 
 /** A file's stored content, from its current attachment. */
@@ -320,6 +322,7 @@ function fileOf(value: unknown): DriveFile | undefined {
   if (!isRecord(value)) {
     return undefined;
   }
+
   return {
     mimeType: textOf(value["mimeType"]),
     size: Number(value["size"]),
@@ -330,6 +333,7 @@ function fileOf(value: unknown): DriveFile | undefined {
 
 function nodeOf(value: unknown, fn: string): DriveNode {
   const row = recordOf(value, fn);
+
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["organizationId"]),
@@ -355,6 +359,7 @@ const nodesOf = (value: unknown, fn: string): DriveNode[] =>
 
 function grantOf(value: unknown, fn: string): DriveGrant {
   const row = recordOf(value, fn);
+
   return {
     id: textOf(row["id"]),
     nodeId: textOf(row["nodeId"]),
@@ -370,6 +375,7 @@ function grantOf(value: unknown, fn: string): DriveGrant {
 
 function batchOf(value: unknown, fn: string): DriveBatch {
   const row = recordOf(value, fn);
+
   return {
     id: textOf(row["id"]),
     batchId: textOf(row["batchId"]),
@@ -379,6 +385,7 @@ function batchOf(value: unknown, fn: string): DriveBatch {
 
 function revisionOf(value: unknown): DriveRevision {
   const row = recordOf(value, "drive_revisions");
+
   return {
     id: textOf(row["id"]),
     number: Number(row["number"]),
@@ -396,6 +403,7 @@ function revisionOf(value: unknown): DriveRevision {
 
 function binEntryOf(value: unknown): DriveBinEntry {
   const row = recordOf(value, "drive_bin");
+
   return {
     ...batchOf(row, "drive_bin"),
     node: nodeOf(row["node"], "drive_bin"),
@@ -409,6 +417,7 @@ function linkOf(value: unknown): DriveLinkView {
   const row = recordOf(value, "drive_link");
   const link = recordOf(row["link"], "drive_link");
   const object = isRecord(row["object"]) ? row["object"] : undefined;
+
   return {
     link: {
       id: textOf(link["id"]),
@@ -482,34 +491,48 @@ async function parseNodes(
 ): Promise<Result<unknown>> {
   if (Array.isArray(value)) {
     const out: unknown[] = [];
+
     for (const item of value) {
       const parsed = await parseNodes(fields, item);
+
       if (!parsed.ok) {
         return parsed;
       }
+
       out.push(parsed.data);
     }
+
     return ok(out);
   }
+
   if (!isRecord(value)) {
     return ok(value);
   }
+
   const extra = value["fields"];
+
   if (isNode(value) && isRecord(extra)) {
     const parsed = await fields.read({ ...extra });
+
     return parsed.ok ? ok({ ...value, fields: parsed.data }) : parsed;
   }
+
   const out: Record<string, unknown> = { ...value };
+
   for (const key of ["node", "children"]) {
     if (value[key] === undefined) {
       continue;
     }
+
     const parsed = await parseNodes(fields, value[key]);
+
     if (!parsed.ok) {
       return parsed;
     }
+
     out[key] = parsed.data;
   }
+
   return ok(out);
 }
 
@@ -522,25 +545,31 @@ function withFields<F extends object>(
   fields: BlockFields<object>,
 ): Drive<F> {
   const out: Drive = { ...client };
+
   for (const method of NODE_METHODS) {
     // SAFETY: every listed method returns an AsyncResult; the arguments are
     // passed through unchanged.
     const original = client[method] as (
       ...args: unknown[]
     ) => AsyncResult<unknown>;
+
     const wrapped = (...args: unknown[]): AsyncResult<unknown> => {
       const input = args[1];
+
       const extra =
         (method === "createFolder" || method === "upload") && isRecord(input)
           ? input["fields"]
           : undefined;
+
       const checked = isRecord(extra)
         ? AsyncResult.from(() => fields.write({ ...extra })).map(() => true)
         : AsyncResult.ok(true);
+
       return checked
         .andThen(() => original.apply(client, args))
         .andThen((value) => parseNodes(fields, value));
     };
+
     Object.defineProperty(out, method, {
       value: wrapped,
       enumerable: true,
@@ -548,6 +577,7 @@ function withFields<F extends object>(
       writable: true,
     });
   }
+
   // SAFETY: `out` has every member of `client`, and the node methods return
   // the same shapes with `fields` parsed by the schema F describes.
   return out as Drive<F>;
@@ -558,27 +588,32 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
   options: DriveOptions<S>,
 ): Drive<FieldsOf<S>> {
   applyTemporal(options);
+
   const fields: BlockFields<object> = blockFields(
     options.fields,
     "drive node fields",
   );
+
   const call = blockCall(options.transport, options.schema, options.mappers);
   const storage = options.storage;
   const attachments = options.attachments;
 
   const signed = (fn: string) => (value: unknown) => {
     const row = recordOf(value, fn);
+
     return {
       node: nodeOf(row["node"], fn),
       attachment: attachmentOf(row["attachment"]),
     };
   };
+
   const withUploadUrl = (
     pending: () => AsyncResult<{ node: DriveNode; attachment: Attachment }>,
   ): AsyncResult<DriveUpload> => {
     if (storage === undefined) {
       return AsyncResult.err(noStorage());
     }
+
     return pending().andThen(({ node, attachment }) =>
       stored(
         storage.from(attachment.bucket).createSignedUploadUrl(attachment.path),
@@ -590,6 +625,7 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
       })),
     );
   };
+
   const page = (
     fn: string,
     args: Record<string, unknown>,
@@ -710,6 +746,7 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
       if (attachments === undefined) {
         return AsyncResult.err(noAttachments());
       }
+
       return client.get(id).andThen((node) =>
         node.attachmentId === undefined
           ? Promise.resolve(
@@ -786,18 +823,23 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
         if (storage === undefined || objects.length === 0) {
           return ok(objects);
         }
+
         const buckets = Map.groupBy(objects, (object) => object.bucket);
+
         for (const [bucket, inBucket] of buckets) {
           const removed = await stored(
             storage.from(bucket).remove(inBucket.map((object) => object.path)),
           );
+
           if (!removed.ok) {
             return removed;
           }
         }
+
         return ok(objects);
       }),
   };
+
   return withBlockHooks(
     withFields<FieldsOf<S>>(client, fields),
     options.hooks,

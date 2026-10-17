@@ -10,6 +10,7 @@ import { SettingsLayout } from "./settings-layout";
  */
 export async function Preferences() {
   const session = await getSession();
+
   return (
     <SettingsLayout canEditOrganization={can(session, "settings.update")} />
   );

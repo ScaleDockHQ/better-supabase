@@ -58,13 +58,17 @@ export function managementTarget(
   if (source.dbUrl) {
     return undefined;
   }
+
   const projectRef =
     source.projectRef ??
     (config.source.dbUrl ? undefined : config.source.projectRef);
+
   if (!projectRef) {
     return undefined;
   }
+
   const accessToken = config.source.accessToken ?? env.SUPABASE_ACCESS_TOKEN;
+
   if (!accessToken) {
     throw new CliError(
       "missing_value",
@@ -72,6 +76,7 @@ export function managementTarget(
       { flag: "SUPABASE_ACCESS_TOKEN" },
     );
   }
+
   return {
     projectRef,
     accessToken,
@@ -94,22 +99,28 @@ export async function openSource(
   if (source.dbUrl) {
     return pgSource(source.dbUrl, open, source.signal);
   }
+
   const target = managementTarget(config, env, source);
+
   if (target) {
     return managementSource({
       ...target,
       ...(source.signal ? { signal: source.signal } : {}),
     });
   }
+
   if (!config.source.dbUrl && config.source.lite !== false) {
     const toml = await readSupabaseToml(config.root);
+
     const driver =
       liteDriverOf(toml) ??
       (config.source.lite === true ? "sqlite-postgres" : undefined);
+
     if (driver) {
       return liteSource(config.root, toml, driver, open);
     }
   }
+
   return pgSource(await databaseUrl(config, env), open, source.signal);
 }
 
@@ -139,29 +150,37 @@ export async function loadSnapshot(
   shared?: () => Promise<IntrospectionSource>,
 ): Promise<Snapshot> {
   const path = snapshotFile(config, source);
+
   if (path) {
     return readSnapshotFile(resolve(config.root, path), path);
   }
+
   const [tomlRead, opened] = await Promise.allSettled([
     readSupabaseToml(config.root),
     shared ? shared() : openSource(config, env, source, open),
   ]);
+
   if (tomlRead.status === "rejected") {
     if (opened.status === "fulfilled" && !shared) {
       await opened.value.close().catch(() => undefined);
     }
+
     throw tomlRead.reason;
   }
+
   if (opened.status === "rejected") {
     throw opened.reason;
   }
+
   const toml = tomlRead.value;
   const db = opened.value;
   const hooks = toml ? pgFunctionHooks(toml.document) : [];
   const schemas = [...config.schemas, ...EXTRA_SCHEMAS];
+
   try {
     const read = (): Promise<Snapshot> =>
       introspect(db.queryable, schemas, { hooks });
+
     return await (source.cache
       ? cachedIntrospect(config.root, db, [schemas, hooks], read)
       : read());
@@ -179,6 +198,7 @@ async function readSnapshotFile(
   if (!existsSync(absolute)) {
     throw new Error(`Snapshot not found: ${label}`);
   }
+
   return parseSnapshot(JSON.parse(await readFile(absolute, "utf-8")), label);
 }
 
@@ -189,11 +209,13 @@ export async function parseSnapshot(
 ): Promise<Snapshot> {
   // SAFETY: every field is checked below before the document is returned as a Snapshot.
   const doc = data as Partial<Snapshot> | null;
+
   if (!doc || typeof doc !== "object" || doc.version !== 2) {
     throw new Error(
       `${label} is not a version 2 snapshot. Run \`better-supabase introspect\` to refresh it.`,
     );
   }
+
   if (
     !Array.isArray(doc.schemas) ||
     !doc.extras ||
@@ -201,18 +223,22 @@ export async function parseSnapshot(
   ) {
     throw new Error(`${label} is missing "schemas" or "extras".`);
   }
+
   let generator;
+
   try {
     generator = await validateGeneratorMetadata(doc.generator);
   } catch (cause) {
     if (cause instanceof TypegenMissingError) {
       throw cause;
     }
+
     throw new Error(
       `${label} has invalid "generator" metadata: ${errorText(cause)}`,
       { cause },
     );
   }
+
   return {
     version: 2,
     schemas: doc.schemas,
@@ -234,5 +260,6 @@ export async function parseSnapshot(
 
 export function serializeSnapshot(snapshot: Snapshot): string {
   const { $schema: _ignored, ...rest } = snapshot;
+
   return `${JSON.stringify({ $schema: SNAPSHOT_SCHEMA_URL, ...rest }, null, 2)}\n`;
 }

@@ -26,7 +26,9 @@ describe("engagements fields", () => {
       engagements_of: () => [ROW, ROW],
       next_engagement: () => null,
     });
+
     const engagements = createEngagements({ transport: t, fields: Fields });
+
     const logged = await engagements
       .log(
         "o",
@@ -34,6 +36,7 @@ describe("engagements fields", () => {
         [{ type: "deal", id: "d1" }],
       )
       .orThrow();
+
     expect(logged.fields.sentiment).toBe("positive");
     expect(t.calls[0]?.[1]["attrs"]).toEqual({
       type: "call",
@@ -52,10 +55,12 @@ describe("engagements fields", () => {
 
   it("refuses a bad field before the call", async () => {
     const t = fieldsTransport({ update_engagement: () => ROW });
+
     const updated = await createEngagements({
       transport: t,
       fields: Fields,
     }).update("e1", { fields: { sentiment: "angry" as never } });
+
     expect(updated.ok ? undefined : updated.error.kind).toBe("validation");
     expect(t.calls).toEqual([]);
   });

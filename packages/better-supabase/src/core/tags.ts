@@ -18,6 +18,7 @@ export function tagFor(
   if (id !== undefined) {
     return `bs:${table}:${String(id)}`;
   }
+
   return options.tenant === undefined
     ? `bs:${table}`
     : `bs:${table}@${options.tenant}`;
@@ -31,12 +32,15 @@ export function tagFor(
 export function cacheTagsOf(target: CacheTarget): string[] {
   const tenant = { tenant: target.tenant ?? "*" };
   const tags: string[] = [];
+
   for (const table of target.tables) {
     tags.push(tagFor(table), tagFor(table, undefined, tenant));
   }
+
   for (const id of target.ids) {
     tags.push(tagFor(target.table, id));
   }
+
   return tags;
 }
 

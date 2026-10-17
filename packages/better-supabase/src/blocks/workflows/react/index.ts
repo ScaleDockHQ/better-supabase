@@ -43,6 +43,7 @@ export function useWorkflowRuns(
 ): WorkflowRunsState {
   const { supabase, auth, ports } = useBlockEnv();
   const { schema, tenant, definition, status, limit } = options;
+
   return useController(
     () =>
       createWorkflowRunsController({
@@ -78,6 +79,7 @@ export function useWorkflowRun(
 ): WorkflowRunState {
   const { supabase, auth, ports } = useBlockEnv();
   const { schema } = options;
+
   return useController(
     () =>
       createWorkflowRunController({

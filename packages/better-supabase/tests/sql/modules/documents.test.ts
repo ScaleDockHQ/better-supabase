@@ -52,6 +52,7 @@ describe("documents module", () => {
       "documents",
       withOptions({ topic: "docs", maxUpdateBytes: 2048, compactAfter: 10 }),
     );
+
     expect(sql).toContain("like 'docs:%'");
     expect(sql).toContain("if length(v_bytes) > 2048 then");
     expect(sql).toContain("if v_since = 10 then");

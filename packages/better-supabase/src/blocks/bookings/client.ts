@@ -62,6 +62,7 @@ export function createAvailableSlotsController(
   const { client, serviceId, tz, resourceId, token } = options;
   let range = options.range;
   let ticket = 0;
+
   return defineController<AvailableSlotsSnapshot, AvailableSlotsActions>(
     { slots: undefined, days: NO_DAYS, error: undefined, loading: true },
     (state) => {
@@ -69,10 +70,12 @@ export function createAvailableSlotsController(
         const request = ++ticket;
         state.set({ loading: true });
         const time = temporal();
+
         const span = {
           from: time.Instant.fromEpochMilliseconds(range.start.getTime()),
           until: time.Instant.fromEpochMilliseconds(range.end.getTime()),
         };
+
         const result =
           token === undefined
             ? await client.availableSlots(serviceId, span, {
@@ -84,9 +87,11 @@ export function createAvailableSlotsController(
                 span,
                 tz === undefined ? {} : { tz },
               );
+
         if (request !== ticket) {
           return;
         }
+
         state.set(
           result.ok
             ? {
@@ -98,6 +103,7 @@ export function createAvailableSlotsController(
             : { error: result.error, loading: false },
         );
       };
+
       return {
         actions: {
           refresh,
@@ -105,6 +111,7 @@ export function createAvailableSlotsController(
             if (sameRange(range, next)) {
               return;
             }
+
             range = next;
             void refresh();
           },
@@ -127,16 +134,21 @@ export function createAvailableSlotsController(
                       email: customer?.email ?? "",
                     },
                   );
+
             if (!result.ok) {
               state.set({ error: result.error });
+
               return;
             }
+
             await refresh();
+
             return result.data;
           },
         },
         start: () => {
           void refresh();
+
           return;
         },
       };

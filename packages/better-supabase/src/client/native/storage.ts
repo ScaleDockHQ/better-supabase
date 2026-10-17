@@ -50,10 +50,12 @@ const UNSAFE = /[^\w.-]/g;
 /** FNV-1a, enough to tell apart keys that map to the same safe name. */
 function hashOf(text: string): string {
   let hash = 0x81_1c_9d_c5;
+
   for (const char of text) {
     hash ^= char.codePointAt(0) ?? 0;
     hash = Math.imul(hash, 0x01_00_01_93);
   }
+
   return (hash >>> 0).toString(36);
 }
 
@@ -64,6 +66,7 @@ function hashOf(text: string): string {
  */
 export function safeKey(key: string): string {
   const safe = key.replaceAll(UNSAFE, "_");
+
   return safe === key ? key : `${safe}-${hashOf(key)}`;
 }
 
@@ -95,20 +98,26 @@ export function secureStorage(
 ): AuthStorage {
   const size = options.chunkSize ?? 1800;
   const extra = options.storeOptions;
+
   const get = (key: string) =>
     extra ? store.getItemAsync(key, extra) : store.getItemAsync(key);
+
   const set = (key: string, value: string) =>
     extra
       ? store.setItemAsync(key, value, extra)
       : store.setItemAsync(key, value);
+
   const remove = (key: string) =>
     extra ? store.deleteItemAsync(key, extra) : store.deleteItemAsync(key);
+
   if (!Number.isInteger(size) || size < 1) {
     throw new TypeError(
       "better-supabase: chunkSize must be a positive integer",
     );
   }
+
   const countKey = (key: string): string => `${safeKey(key)}.chunks`;
+
   const chunkKey = (key: string, slot: Slot, index: number): string =>
     `${safeKey(key)}.${index}${slot}`;
 
@@ -117,6 +126,7 @@ export function secureStorage(
   ): Promise<{ readonly count: number; readonly slot: Slot }> => {
     const raw = await get(countKey(key));
     const match = raw === null ? null : POINTER.exec(raw);
+
     return match
       ? { count: Number(match[1]), slot: match[2] === "b" ? "b" : "" }
       : { count: 0, slot: "b" };
@@ -135,19 +145,23 @@ export function secureStorage(
   };
 
   const queues = new Map<string, Promise<void>>();
+
   /** Runs `task` after every earlier operation on `key` settled. */
   const serial = <T>(key: string, task: () => Promise<T>): Promise<T> => {
     const run = (queues.get(key) ?? Promise.resolve()).then(task);
+
     const settled = run.then(
       () => undefined,
       () => undefined,
     );
+
     queues.set(key, settled);
     void settled.then(() => {
       if (queues.get(key) === settled) {
         queues.delete(key);
       }
     });
+
     return run;
   };
 
@@ -155,28 +169,35 @@ export function secureStorage(
     getItem: (key) =>
       serial(key, async () => {
         const { count, slot } = await pointerOf(key);
+
         if (count === 0) {
           return null;
         }
+
         const chunks = await Promise.all(
           Array.from({ length: count }, (_, index) =>
             get(chunkKey(key, slot, index)),
           ),
         );
+
         if (chunks.some((chunk) => chunk === null)) {
           return null;
         }
+
         return chunks.join("");
       }),
     setItem: (key, value) =>
       serial(key, async () => {
         const chunks: string[] = [];
+
         for (let start = 0; start < value.length; start += size) {
           chunks.push(value.slice(start, start + size));
         }
+
         if (chunks.length === 0) {
           chunks.push("");
         }
+
         const previous = await pointerOf(key);
         const slot: Slot = previous.slot === "b" ? "" : "b";
         await Promise.all(

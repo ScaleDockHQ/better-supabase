@@ -12,13 +12,16 @@ export async function reachable(): Promise<boolean> {
   if (dbUrl === undefined) {
     return false;
   }
+
   const pool = new Pool({
     connectionString: dbUrl,
     max: 1,
     connectionTimeoutMillis: 1000,
   });
+
   try {
     await pool.query("select 1");
+
     return true;
   } catch {
     return false;
@@ -37,6 +40,7 @@ export function presetFiles(
 ) {
   const config = resolveConfig({ preset }, process.cwd());
   const files = renderModules(config.blockNames, moduleLayout(config));
+
   return [
     ...files.filter((file) => file.kind === "schema"),
     ...files.filter((file) => file.kind === "data"),
@@ -57,9 +61,11 @@ export async function installAndRollBack(
   body: (client: PoolClient) => Promise<void>,
 ): Promise<void> {
   const client = await pool.connect();
+
   try {
     for (let attempt = 1; ; attempt += 1) {
       await client.query("begin");
+
       try {
         await client.query(
           "select pg_advisory_xact_lock(hashtext('better-supabase:validation-install'))",
@@ -68,14 +74,17 @@ export async function installAndRollBack(
         break;
       } catch (error) {
         await client.query("rollback");
+
         if (!(error instanceof DatabaseError) || error.code !== "40P01") {
           throw error;
         }
+
         if (attempt === 5) {
           throw error;
         }
       }
     }
+
     await body(client);
   } finally {
     await client.query("rollback");

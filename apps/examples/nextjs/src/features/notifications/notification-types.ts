@@ -23,9 +23,11 @@ export function renderNotification(item: NotificationItem): RenderedText {
   if (item.type === "test.sent" && v.is(TestSent, item.data)) {
     return { title: item.data.title };
   }
+
   if (item.type === "workflow.message" && v.is(WorkflowMessage, item.data)) {
     return { title: item.data.title };
   }
+
   return { title: item.summary ?? item.type };
 }
 

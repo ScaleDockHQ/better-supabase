@@ -53,6 +53,7 @@ export interface ErrorEvent {
 export function errorEvent(error: DbError, table?: string): ErrorEvent {
   // SAFETY: cloneValue keeps the shape of the plain DbError object.
   const copy = deepFreeze(cloneValue(error) as DbError);
+
   return table === undefined ? { error: copy } : { table, error: copy };
 }
 
@@ -117,6 +118,7 @@ export interface BetterSupabaseEvents {
 }
 
 export type EventName = keyof BetterSupabaseEvents;
+
 export type EventHandler<K extends EventName> = (
   event: BetterSupabaseEvents[K],
 ) => void;
@@ -149,11 +151,14 @@ export class EventHub {
 
   on<K extends EventName>(name: K, handler: EventHandler<K>): () => void {
     let set = this.#handlers.get(name);
+
     if (!set) {
       set = new Set();
       this.#handlers.set(name, set);
     }
+
     set.add(handler);
+
     if (
       set.size > HANDLER_WARNING &&
       !this.#warned.has(name) &&
@@ -164,6 +169,7 @@ export class EventHub {
         `${set.size} "${name}" handlers are registered; call the function on() returns to remove one you no longer need`,
       );
     }
+
     return () => {
       set.delete(handler);
     };
@@ -183,6 +189,7 @@ export class EventHub {
       () => undefined,
       () => undefined,
     );
+
     this.#pending.add(settled);
     void settled.then(() => this.#pending.delete(settled));
   }
@@ -199,9 +206,11 @@ export class EventHub {
 
   emit<K extends EventName>(name: K, event: BetterSupabaseEvents[K]): void {
     const set = this.#handlers.get(name);
+
     if (!set) {
       return;
     }
+
     for (const handler of set) {
       try {
         // SAFETY: on() files each handler under its event name, so this set

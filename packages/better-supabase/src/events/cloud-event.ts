@@ -24,6 +24,7 @@ export function stripTypePrefix(
   typePrefix: string = DEFAULT_TYPE_PREFIX,
 ): string {
   const prefix = `${typePrefix.replace(/\.$/, "")}.`;
+
   return type.startsWith(prefix) ? type.slice(prefix.length) : type;
 }
 
@@ -62,6 +63,7 @@ export function dataschemaOf(
     typeof options.dataschema === "function"
       ? options.dataschema(event)
       : options.dataschema;
+
   return uri === undefined ? {} : { dataschema: uri };
 }
 
@@ -80,6 +82,7 @@ export function blockCloudEvent(
   options: CloudEventOptions,
 ): CloudEvent {
   const type = `${options.typePrefix ?? DEFAULT_TYPE_PREFIX}.${event.type}`;
+
   return {
     specversion: "1.0",
     id: options.id?.() ?? crypto.randomUUID(),
@@ -114,6 +117,7 @@ export function forwardBlockEvents(
   options: ForwardBlockOptions,
 ): () => void {
   const types = options.types;
+
   return betterSupabase.events.on("block", (event) => {
     if (
       types &&
@@ -125,7 +129,9 @@ export function forwardBlockEvents(
     ) {
       return;
     }
+
     const events = [blockCloudEvent(event, options)];
+
     const report = (error: unknown) => {
       (
         options.onError ??
@@ -134,6 +140,7 @@ export function forwardBlockEvents(
         })
       )(error, events);
     };
+
     try {
       betterSupabase.events.track(
         Promise.resolve(sink.send(events)).catch(report),

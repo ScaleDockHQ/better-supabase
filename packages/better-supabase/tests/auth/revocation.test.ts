@@ -7,12 +7,15 @@ const SESSION = "22222222-2222-4222-8222-222222222222";
 
 function lookup(active: boolean | undefined) {
   const calls: unknown[][] = [];
+
   const sql: SessionLookup = {
     queryRaw: <T>(text: string, params?: unknown[]) => {
       calls.push([text, params]);
+
       return Promise.resolve((active === undefined ? [] : [{ active }]) as T[]);
     },
   };
+
   return { sql, calls };
 }
 

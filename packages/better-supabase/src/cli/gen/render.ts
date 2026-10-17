@@ -51,20 +51,26 @@ export async function render(
   options: RenderOptions = {},
 ): Promise<Rendered> {
   const model = buildModel(snapshot, config);
+
   const runtime = options.runtimeImport
     ? { runtimeImport: options.runtimeImport }
     : {};
+
   const output = resolve(config.root, config.output);
+
   const typegenOptions = {
     schemas: config.schemas,
     postgrestVersion: config.postgrestVersion,
   };
+
   const databaseTypes = await cachedDatabaseTypes(
     config.root,
     [typegenOptions, await oxfmtInstalled(), snapshot.generator],
     () => generateDatabaseTypes(snapshot.generator, typegenOptions),
   );
+
   const metaFiles = metaPaths(config.output);
+
   const main = emitModule(model, {
     databaseTypesImport: importPath(
       output,
@@ -75,26 +81,34 @@ export async function render(
     ...(options.inlineMeta ? { inlineMeta: true } : {}),
     ...runtime,
   });
+
   const meta = emitMeta(model, {
     types: `./${basename(metaFiles.dts)}`,
     ...runtime,
   });
+
   const files: GeneratedFile[] = [
     { path: config.databaseTypesOutput, contents: databaseTypes },
     { path: config.output, contents: main },
     { path: metaFiles.js, contents: meta.js },
     { path: metaFiles.dts, contents: meta.dts },
   ];
+
   const blockConfig = emitBlockConfig(config, runtime);
+
   if (blockConfig) {
     files.push(blockConfig);
   }
+
   const owners = new Map(
     files.map((file) => [resolve(config.root, file.path), "gen"]),
   );
+
   let view: GeneratorModel | undefined;
+
   for (const generator of config.generators) {
     let extra: readonly GeneratedFile[];
+
     try {
       extra = await generator.generate({
         meta: model.meta,
@@ -113,23 +127,29 @@ export async function render(
         { cause },
       );
     }
+
     for (const file of extra) {
       const path = resolve(config.root, file.path);
       const inside = relative(config.root, path);
+
       if (inside === "" || inside.startsWith("..") || isAbsolute(inside)) {
         throw new Error(
           `generator "${generator.name}" wrote ${file.path}, which is outside the project root`,
         );
       }
+
       const owner = owners.get(path);
+
       if (owner !== undefined) {
         throw new Error(
           `generator "${generator.name}" wrote ${file.path}, which ${owner === "gen" ? "better-supabase gen writes" : `generator "${owner}" also writes`}`,
         );
       }
+
       owners.set(path, generator.name);
       files.push(file);
     }
   }
+
   return { files, warnings: model.warnings };
 }

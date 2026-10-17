@@ -63,11 +63,14 @@ describe.skipIf(!live)("realtime topic permission", () => {
     await s.client.query("select set_config('realtime.topic', $1, true)", [
       topic,
     ]);
+
     const count = await s.value<string>(
       "(select count(*) from realtime.messages where topic = $1)",
       [topic],
     );
+
     await s.client.query("reset role");
+
     return Number(count);
   };
 
@@ -76,6 +79,7 @@ describe.skipIf(!live)("realtime topic permission", () => {
       `perm_${RUN}:{organizationId}:audits:{auditId}`,
       { permission: "audit.read" },
     );
+
     await s.client.query(audits.sql());
     const topic = audits.topic({ organizationId: tenant, auditId: "a1" });
 
@@ -98,9 +102,11 @@ describe.skipIf(!live)("realtime topic permission", () => {
       `insert into ${SCHEMA}.grants values ($1, 'posts.read', 'posts', 'p1', $2)`,
       [holder.id, tenant],
     );
+
     const posts = defineTopic(`perm_${RUN}:{organizationId}:posts:{postId}`, {
       permission: "posts.read",
     });
+
     await s.client.query(
       posts.sql({
         functions: {

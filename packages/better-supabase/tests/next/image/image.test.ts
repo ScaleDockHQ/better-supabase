@@ -50,10 +50,12 @@ describe("createImageLoader", () => {
     ]) {
       expect(loader({ src, width: 640 })).toBe(src);
     }
+
     const fallback = createImageLoader({
       url: URL_BASE,
       fallback: ({ src, width }) => `${src}?w=${width}`,
     });
+
     expect(fallback({ src: "/logo.png", width: 96 })).toBe("/logo.png?w=96");
   });
 });

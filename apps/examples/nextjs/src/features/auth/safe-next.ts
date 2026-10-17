@@ -5,6 +5,7 @@
  */
 export function safeNext(fallback: string): string {
   const next = new URLSearchParams(window.location.search).get("next");
+
   // Browsers read `/\host` like `//host`, another origin.
   return next && /^\/(?![/\\])/.test(next) ? next : fallback;
 }

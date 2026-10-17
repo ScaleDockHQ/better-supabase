@@ -39,14 +39,17 @@ import { tenantNameClashes } from "../packages/better-supabase/src/sql/tenant-cl
 const ROOT = join(import.meta.dirname, "..");
 const PACKAGE_JSON = join(ROOT, "packages/better-supabase/package.json");
 const DOCS_BLOCKS = join(ROOT, "apps/docs/content/docs/blocks");
+
 export const CATALOG_FILE: string = join(
   ROOT,
   "apps/marketing/lib/catalog.json",
 );
+
 export const PRESET_CATALOG_FILE: string = join(
   ROOT,
   "packages/better-supabase/src/preset/catalog.generated.ts",
 );
+
 const BLOCKS_SRC = join(ROOT, "packages/better-supabase/src/blocks");
 
 export const CATEGORIES = [
@@ -104,11 +107,13 @@ export interface Catalog {
 /** The category of the block whose manifest installs the module. */
 function categoryOf(name: string): Category {
   const block = BLOCK_MANIFESTS.find((each) => each.sql.includes(name));
+
   if (block === undefined) {
     throw new Error(
       `build-catalog: no block manifest installs the "${name}" module; add it to one's \`sql\`.`,
     );
   }
+
   return CATEGORY_TITLES[block.category];
 }
 
@@ -116,19 +121,23 @@ function categoryOf(name: string): Category {
 function docsPages(): ReadonlyMap<string, string> {
   const index = readFileSync(join(DOCS_BLOCKS, "index.mdx"), "utf-8");
   const pages = new Map<string, string>();
+
   for (const line of index.split("\n")) {
     const row = /^\| \[[^\]]+\]\((\/docs\/[^)]+)\)\s*\|[^|]*\|([^|]*)\|/.exec(
       line,
     );
+
     if (!row?.[1] || row[2] === undefined) {
       continue;
     }
+
     for (const match of row[2].matchAll(/`([a-z0-9-]+)`/g)) {
       if (match[1] && !pages.has(match[1])) {
         pages.set(match[1], row[1]);
       }
     }
   }
+
   return pages;
 }
 
@@ -136,6 +145,7 @@ function docsPage(name: string, pages: ReadonlyMap<string, string>): string {
   if (existsSync(join(DOCS_BLOCKS, `${name}.mdx`))) {
     return `/docs/blocks/${name}`;
   }
+
   return pages.get(name) ?? "/docs/blocks/sql";
 }
 
@@ -162,6 +172,7 @@ function exportsOf(): ReadonlyMap<string, string> {
     packageJsonSchema,
     JSON.parse(readFileSync(PACKAGE_JSON, "utf-8")),
   );
+
   return new Map(
     Object.entries(exports).map(([subpath, source]) => [
       subpath,
@@ -182,29 +193,35 @@ function eventsOf(module: SqlModule): readonly string[] {
     [module.name, "outbox"],
     [module.name, "outbox", "organizations"],
   ];
+
   for (const names of attempts) {
     try {
       const sql = renderModules(names)
         .filter((file) => file.module === module.name)
         .map((file) => file.contents)
         .join("\n");
+
       const types = [...sql.matchAll(/emit_event\(\s*'([^']+)'/g)].flatMap(
         (match) => (match[1] ? [match[1]] : []),
       );
+
       return [...new Set(types)].toSorted();
     } catch {
       continue;
     }
   }
+
   return [];
 }
 
 export function buildCatalog(): Catalog {
   const exports = exportsOf();
   const pages = docsPages();
+
   const blocks = Object.values(SQL_MODULES).map((module): CatalogBlock => {
     const subpath = `./blocks/${module.name}`;
     const reactSource = exports.get(`${subpath}/react`);
+
     return {
       name: module.name,
       title: module.title,
@@ -227,6 +244,7 @@ export function buildCatalog(): Catalog {
       docs: docsPage(module.name, pages),
     };
   });
+
   return { categories: CATEGORIES, blocks };
 }
 
@@ -251,6 +269,7 @@ function manifestExports(): ReadonlyMap<
   { name: string; folder: string }
 > {
   const registry = readFileSync(join(BLOCKS_SRC, "registry.ts"), "utf-8");
+
   const folders = new Map(
     [
       ...registry.matchAll(
@@ -260,19 +279,24 @@ function manifestExports(): ReadonlyMap<
       [...imported.matchAll(/\w+/g)].map(([name]) => [name, folder] as const),
     ),
   );
+
   const list = /BLOCK_MANIFESTS[^=]*= \[([^\]]*)\]/.exec(registry)?.[1] ?? "";
+
   const names = [...list.matchAll(/(\w+),/g)].flatMap((match) =>
     match[1] ? [match[1]] : [],
   );
+
   if (names.length !== BLOCK_MANIFESTS.length) {
     throw new Error(
       `build-catalog: read ${String(names.length)} names from BLOCK_MANIFESTS in registry.ts, but it holds ${String(BLOCK_MANIFESTS.length)} manifests.`,
     );
   }
+
   return new Map(
     BLOCK_MANIFESTS.flatMap((block, index) => {
       const name = names[index] ?? "";
       const folder = folders.get(name);
+
       return folder === undefined ? [] : [[block, { name, folder }]];
     }),
   );
@@ -285,12 +309,15 @@ function presetManifest(
 ): PresetCatalogManifest {
   const subpath = `./blocks/${exported?.folder ?? block.name}`;
   const source = exports.get(subpath);
+
   const index =
     source === undefined || source === ""
       ? ""
       : readFileSync(join(ROOT, source), "utf-8");
+
   const reexported =
     exported !== undefined && new RegExp(`\\b${exported.name}\\b`).test(index);
+
   return {
     name: block.name,
     sql: block.sql,
@@ -322,25 +349,31 @@ function presetBlock(module: SqlModule): PresetCatalogBlock {
   const manifest = BLOCK_MANIFESTS.find((each) =>
     each.sql.includes(module.name),
   );
+
   if (manifest === undefined) {
     throw new Error(
       `build-catalog: no block manifest installs the "${module.name}" module; add it to one's \`sql\`.`,
     );
   }
+
   const requires = module.dependencies?.({}) ?? module.requires;
+
   const byAccess = Object.fromEntries(
     ACCESS_MODELS.flatMap((model) => {
       const needs = module.dependencies?.({
         modules: { access: { model } },
       });
+
       return needs === undefined || needs.join(",") === requires.join(",")
         ? []
         : [[model, needs]];
     }),
   );
+
   const clashes = PRESET_TENANT_NAMES.filter(
     (tenant) => tenantNameClashes(module, tenant, SQL_MODULES).length > 0,
   );
+
   let block: PresetCatalogBlock = {
     name: module.name,
     title: module.title,
@@ -349,12 +382,15 @@ function presetBlock(module: SqlModule): PresetCatalogBlock {
     integrates: module.integrates ?? [],
     manifest: manifest.name,
   };
+
   if (module.scopes !== undefined) {
     block = { ...block, scopes: module.scopes };
   }
+
   if (clashes.length > 0) {
     block = { ...block, tenantNameClashes: clashes };
   }
+
   return Object.keys(byAccess).length === 0
     ? block
     : { ...block, requiresByAccess: byAccess };
@@ -397,6 +433,7 @@ function glueItems(): PresetGlueItem[] {
     registrySchema,
     JSON.parse(readFileSync(REGISTRY_FILE, "utf-8")),
   );
+
   return items.map((item) => {
     const glue = {
       name: item.name,
@@ -406,6 +443,7 @@ function glueItems(): PresetGlueItem[] {
       platforms: item.meta.platforms,
       targets: item.files.map((file) => file.target ?? file.path),
     } satisfies PresetGlueItem;
+
     return item.meta.preset === undefined
       ? glue
       : { ...glue, preset: item.meta.preset };
@@ -415,6 +453,7 @@ function glueItems(): PresetGlueItem[] {
 export function buildPresetCatalog(): PresetCatalog {
   const exports = exportsOf();
   const found = manifestExports();
+
   return {
     blocks: Object.values(SQL_MODULES).map(presetBlock),
     manifests: BLOCK_MANIFESTS.map((block) =>
@@ -438,6 +477,7 @@ export function formatPresetCatalog(catalog: PresetCatalog): string {
 if (import.meta.main) {
   try {
     const preset = formatPresetCatalog(buildPresetCatalog());
+
     if (argv.includes("--check")) {
       if (readFileSync(PRESET_CATALOG_FILE, "utf-8") !== preset) {
         console.error(

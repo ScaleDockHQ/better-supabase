@@ -194,6 +194,7 @@ function claimString(
   key: string,
 ): string | undefined {
   const value = claims[key];
+
   return typeof value === "string" ? value : undefined;
 }
 
@@ -232,6 +233,7 @@ export function createMcpAuth<
   const verified = new WeakSet<object>();
   const allow = options.allow ?? ["user"];
   const scopes = options.requiredScopes ?? [];
+
   const advertised = (options.advertisedScopes ?? []).filter(
     (scope) => scope !== "offline_access",
   );
@@ -239,6 +241,7 @@ export function createMcpAuth<
   const urls = discovery(options, () => server.env.url);
   const { metadataUrl } = urls;
   const cors = options.cors ?? true;
+
   const metadata = (request: Request): Response =>
     Response.json(
       {
@@ -256,10 +259,13 @@ export function createMcpAuth<
   const verifier: OAuthTokenVerifier = {
     async verifyAccessToken(token) {
       const auth = await resolveToken(server, token);
+
       if (auth.kind !== "user") {
         throw new OAuthError("invalid_token", "The access token is not valid");
       }
+
       const denied = guard(auth, allow, options.aal, scopes);
+
       if (denied) {
         throw new OAuthError(
           denied.kind === "unauthorized"
@@ -268,8 +274,10 @@ export function createMcpAuth<
           denied.message,
         );
       }
+
       verified.add(auth);
       const exp = auth.claims.exp;
+
       return {
         token,
         clientId:
@@ -294,16 +302,21 @@ export function createMcpAuth<
   ): Promise<ServerContext<M, F, E, C, P>> => {
     const info = ctx.http?.authInfo;
     const state = info?.extra?.[MCP_AUTH_STATE_KEY];
+
     if (isUserState<C, P>(state, verified)) {
       return server.contextFor(state);
     }
+
     if (info?.token) {
       const auth = await resolveToken(server, info.token);
+
       const allowed =
         auth.kind === "user" &&
         guard(auth, allow, options.aal, scopes) === undefined;
+
       return server.contextFor(allowed ? auth : anon);
     }
+
     return server.contextFor(anon);
   };
 
@@ -315,11 +328,14 @@ export function createMcpAuth<
           ? metadataPreflight()
           : metadata(request);
       }
+
       if (cors && request.method === "OPTIONS") {
         return endpointPreflight(request);
       }
+
       const response = await answer(handler, request);
       flushEvents(server, options.waitUntil);
+
       return cors ? withCors(response, request) : response;
     };
 
@@ -328,20 +344,25 @@ export function createMcpAuth<
     request: Request,
   ): Promise<Response> => {
     const header = request.headers.get("authorization");
+
     if (!header && allow.includes("anon")) {
       return handler.fetch(request);
     }
+
     const resourceMetadataUrl = metadataUrl(request);
+
     try {
       const authInfo = await verifyBearerToken(header, {
         verifier,
         resourceMetadataUrl,
       });
+
       return await handler.fetch(request, { authInfo });
     } catch (error) {
       if (!(error instanceof OAuthError)) {
         throw error;
       }
+
       return bearerAuthChallengeResponse(error, {
         resourceMetadataUrl,
         ...(scopes.length > 0 || advertised.length > 0
@@ -377,6 +398,7 @@ export function withBetterSupabaseMcp<
   auth: Pick<BetterMcpAuth<M, F, E, C, P>, "contextOf">,
 ): BetterMcpServer<S, M, F, E, C, P> {
   const register = server.registerTool.bind(server);
+
   const registerTool = (
     name: string,
     config: BetterToolConfig<StandardSchemaWithJSON | undefined, undefined>,
@@ -391,14 +413,17 @@ export function withBetterSupabaseMcp<
         const ctx = params.at(-1) as McpContext;
         const bs = await auth.contextOf(ctx);
         const extended = withExtra(ctx, { db: bs.db, auth: bs.auth, bs });
+
         return cb(...params.slice(0, -1), extended);
       },
     );
+
   Object.defineProperty(server, "registerTool", {
     value: registerTool,
     configurable: true,
     writable: true,
   });
+
   // SAFETY: registerTool is replaced above with the wrapper BetterMcpServer describes.
   // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- S's own registerTool type does not overlap the wrapper's; the property was replaced above.
   return server as unknown as BetterMcpServer<S, M, F, E, C, P>;

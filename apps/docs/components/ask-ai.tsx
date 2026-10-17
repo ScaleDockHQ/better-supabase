@@ -15,6 +15,7 @@ const ChatPanel = dynamic(loadPanel, { ssr: false });
 /** A floating panel that answers questions from the docs pages. */
 export function AskAI() {
   const [open, setOpen] = useState(false);
+
   if (!open) {
     return (
       <button
@@ -35,6 +36,7 @@ export function AskAI() {
       </button>
     );
   }
+
   return (
     <ChatPanel
       onClose={() => {

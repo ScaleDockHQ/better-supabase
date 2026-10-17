@@ -26,6 +26,7 @@ async function timed(
     type: "timing",
     description: `${label}: ${String(ms)} ms`,
   });
+
   return ms;
 }
 
@@ -47,6 +48,7 @@ test.beforeAll(async ({ browser }) => {
   const context = await browser.newContext({
     storageState: users.admin.storageState,
   });
+
   const page = await context.newPage();
   await page.goto("/en", { waitUntil: "commit" });
   await expect(visibleTestId(page, "workspace-summary")).toBeVisible({
@@ -61,6 +63,7 @@ test("the login page is static", async ({ page }) => {
     load(page, "/en/login"),
     field(page, "Email"),
   );
+
   expect(ms).toBeLessThan(instantMs);
 });
 
@@ -92,22 +95,26 @@ test.describe("owner", () => {
     page,
   }) => {
     const roadRunner = page.getByRole("link", { name: "Road Runner Inc" });
+
     const first = await timed(
       "customers first load",
       load(page, "/en/customers"),
       roadRunner,
     );
+
     expect(first).toBeGreaterThanOrEqual(slowMs);
 
     await clickSidebar(page, "Dashboard", "/en")();
     await expect(visibleTestId(page, "workspace-summary")).toBeVisible({
       timeout: fetchDelayMs * 5,
     });
+
     const warm = await timed(
       "customers warm visit",
       clickSidebar(page, "Customers", "/en/customers"),
       roadRunner,
     );
+
     expect(warm).toBeLessThan(instantMs);
 
     const reloaded = await timed("customers reload", reload(page), roadRunner);
@@ -166,23 +173,27 @@ test.describe("the shared plan catalog", () => {
     const admin = await browser.newContext({
       storageState: users.admin.storageState,
     });
+
     const adminPage = await admin.newPage();
     await timed(
       "plans first load",
       load(adminPage, "/en/settings/billing"),
       visibleTestId(adminPage, "plan").first(),
     );
+
     const reloaded = await timed(
       "plans reload",
       reload(adminPage),
       visibleTestId(adminPage, "plan").first(),
     );
+
     expect(reloaded).toBeLessThan(instantMs);
     await admin.close();
 
     const member = await browser.newContext({
       storageState: users.member.storageState,
     });
+
     const memberPage = await member.newPage();
     const start = performance.now();
     await memberPage.goto("/en/settings/billing", { waitUntil: "commit" });

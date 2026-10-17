@@ -59,7 +59,9 @@ export function moduleLayout(
       if (!entry.schema) {
         return [];
       }
+
       const dot = key.lastIndexOf(".");
+
       return [
         {
           table: key.slice(0, dot),

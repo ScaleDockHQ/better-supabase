@@ -15,12 +15,15 @@ const entry = (id: string, extra: Record<string, unknown> = {}) => ({
 
 function fake(pages: unknown[][], fail = false) {
   const calls: [string, Record<string, unknown>][] = [];
+
   const transport: BlockTransport = {
     async call(_schema, fn, args) {
       calls.push([fn, { ...args }]);
+
       if (fail) {
         throw Object.assign(new Error("denied"), { code: "42501" });
       }
+
       if (fn === "reveal_audit_entry") {
         return {
           entry: args["entry"],
@@ -30,35 +33,43 @@ function fake(pages: unknown[][], fail = false) {
           metadata: "not an object",
         };
       }
+
       if (fn === "count_audit_events") {
         return "3";
       }
+
       if (fn === "revert_audit_entries") {
         return {
           reverted: (args["entries"] as string[]).length,
           entries: (args["entries"] as string[]).length > 1 ? ["9", 10] : [],
         };
       }
+
       if (fn === "reveal_audit_entries") {
         return (args["entries"] as string[])
           .filter((id) => id !== "1")
           .map((id) => ({ entry: id, ip: `10.0.0.${id}` }));
       }
+
       return pages.shift() ?? [];
     },
   };
+
   return { transport, calls };
 }
 
 describe("createAudit", () => {
   it("records an event with audit_event and returns the entry id", async () => {
     const calls: [string, Record<string, unknown>][] = [];
+
     const transport: BlockTransport = {
       call(_schema, fn, args) {
         calls.push([fn, { ...args }]);
+
         return Promise.resolve(42);
       },
     };
+
     const id = await createAudit({ transport })
       .record({
         eventType: "invoice.sent",
@@ -71,6 +82,7 @@ describe("createAudit", () => {
         impersonationReason: "ticket 9",
       })
       .orThrow();
+
     expect(id).toBe("42");
     expect(calls).toEqual([
       [
@@ -103,13 +115,16 @@ describe("createAudit", () => {
       ],
       [entry("0")],
     ]);
+
     const audit = createAudit<{ ticket_id: string }>({
       transport,
       schema: "api",
     });
+
     const page = await audit
       .list({ organizationId: "org", limit: 2 })
       .orThrow();
+
     expect(page.entries[0]).toMatchObject({
       id: "2",
       changed: ["title"],
@@ -140,6 +155,7 @@ describe("createAudit", () => {
   it("filters on several values, searches, sorts and counts", async () => {
     const { transport, calls } = fake([[entry("1")]]);
     const audit = createAudit({ transport });
+
     const counted = await audit
       .list({
         organizationId: ["a", "b"],
@@ -154,6 +170,7 @@ describe("createAudit", () => {
         count: true,
       })
       .orThrow();
+
     expect(calls.map(([fn]) => fn)).toEqual([
       "list_audit_events",
       "count_audit_events",
@@ -177,9 +194,11 @@ describe("createAudit", () => {
   it("opens page N by offset, with a total, and starts an export there", async () => {
     const { transport, calls } = fake([[entry("3")], [entry("2")], []]);
     const audit = createAudit({ transport });
+
     const page = await audit
       .list({ organizationId: "org", limit: 1, offset: 2, count: true })
       .orThrow();
+
     expect(page).toMatchObject({ total: 3, entries: [{ id: "3" }] });
     expect(calls[0]![1]).toMatchObject({ skip: 2, max_items: 1 });
     await new Response(audit.export({ offset: 1, batch: 1 })).text();
@@ -228,6 +247,7 @@ describe("createAudit", () => {
       [entry("2"), entry("1")],
       [entry("0", { summary: "=1" })],
     ];
+
     const text = (format: "ndjson" | "csv" | "ocsf") =>
       new Response(
         createAudit({ transport: fake(pages()).transport }).export({
@@ -236,14 +256,17 @@ describe("createAudit", () => {
           product: { name: "Example" },
         }),
       ).text();
+
     expect((await text("ndjson")).trim().split("\n")).toHaveLength(3);
     const csv = await text("csv");
     expect(csv.split("\r\n")).toHaveLength(5);
     expect(csv).toContain("'=1");
+
     const ocsf = JSON.parse((await text("ocsf")).split("\n")[0]!) as Record<
       string,
       unknown
     >;
+
     expect(ocsf["class_uid"]).toBe(6003);
     expect(() =>
       createAudit({ transport: fake([]).transport }).export({
@@ -265,6 +288,7 @@ describe("createAudit", () => {
       ],
       [entry("0", { columns: { ticket_id: "t0" } })],
     ]);
+
     const csv = await new Response(
       createAudit<{ ticket_id: string }>({ transport }).export({
         format: "csv",
@@ -282,6 +306,7 @@ describe("createAudit", () => {
         }),
       }),
     ).text();
+
     expect(csv.split("\r\n")).toEqual([
       "Audit export",
       "'=org",
@@ -297,6 +322,7 @@ describe("createAudit", () => {
         .map(([, args]) => args["entries"]),
     ).toEqual([["2", "1"], ["0"]]);
     const plain = fake([[entry("1")]]);
+
     const header = (
       await new Response(
         createAudit({ transport: plain.transport }).export({
@@ -304,18 +330,22 @@ describe("createAudit", () => {
         }),
       ).text()
     ).split("\r\n")[0];
+
     expect(header).toBe(
       "id,occurredAt,op,eventType,category,outcome,actorId,actorLabel,actorRole,actorKind,tenant,tenantLabel,table,record,targetType,targetLabel,summary,changed,source,requestId,correlationId,impersonatedBy,metadata",
     );
     expect(plain.calls.map(([fn]) => fn)).toEqual(["list_audit_events"]);
+
     const failing: BlockTransport = {
       async call(_schema, fn) {
         if (fn === "reveal_audit_entries") {
           throw Object.assign(new Error("not allowed"), { code: "42501" });
         }
+
         return [entry("1")];
       },
     };
+
     await expect(
       new Response(
         createAudit({ transport: failing }).export({
@@ -329,11 +359,13 @@ describe("createAudit", () => {
   it("stores an export and reports upload failures", async () => {
     const audit = (fail = false) =>
       createAudit({ transport: fake([[entry("1")]], fail).transport });
+
     const storage = (error: unknown) => ({
       from: () => ({
         upload: async () => ({ data: null, error }),
       }),
     });
+
     expect(
       await audit()
         .exportToStorage({

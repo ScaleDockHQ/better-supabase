@@ -14,13 +14,16 @@ export const GET = bs.route(
     if (!hasEntitlement(session, organizationId, "audit")) {
       return err(dbError("forbidden", "The audit log is not in your plan"));
     }
+
     if (!hasEntitlement(session, organizationId, "exports")) {
       return err(dbError("forbidden", "CSV exports are not in your plan"));
     }
+
     const stream = blocks(supabase).audit.export({
       organizationId,
       format: "csv",
     });
+
     return new Response(stream, {
       headers: {
         "content-type": "text/csv; charset=utf-8",

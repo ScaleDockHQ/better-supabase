@@ -81,6 +81,7 @@ const answers = {
 
 function setup(options: { verify?: boolean; streams?: boolean } = {}) {
   const { transport, call } = fakeTransport(answers);
+
   const adapter = inboxAdapter({
     inbox: createInbox({ transport }),
     userName: "helper",
@@ -96,7 +97,9 @@ function setup(options: { verify?: boolean; streams?: boolean } = {}) {
         }
       : {}),
   });
+
   const chat = createMockChatInstance();
+
   return { adapter, chat, call };
 }
 
@@ -124,6 +127,7 @@ selfMessageContract({
   setup: async () => {
     const { adapter, chat } = setup({ verify: true });
     await adapter.initialize(chat);
+
     return { adapter, chat };
   },
   makeOtherMessageRequest: () => job("m1"),
@@ -145,10 +149,12 @@ describe("inboxAdapter", () => {
     expect((await denied.adapter.handleWebhook(job("m1"))).status).toBe(401);
     const open = setup({ verify: true });
     await open.adapter.initialize(open.chat);
+
     const bad = (body: string) =>
       open.adapter.handleWebhook(
         new Request("https://app.test", { method: "POST", body }),
       );
+
     expect((await bad("nope")).status).toBe(400);
     expect((await bad("{}")).status).toBe(400);
   });
@@ -160,9 +166,11 @@ describe("inboxAdapter", () => {
     ).rejects.toThrow(/initialize/);
     await adapter.initialize(chat);
     const processMessage = vi.spyOn(chat, "processMessage");
+
     for (const id of ["note", "other", "missing", "self"]) {
       await adapter.dispatch({ conversation_id: "c1", message_id: id });
     }
+
     expect(processMessage).not.toHaveBeenCalled();
     await adapter.dispatch({ conversation_id: "c1", message_id: "m1" });
     expect(processMessage).toHaveBeenCalledWith(
@@ -174,9 +182,11 @@ describe("inboxAdapter", () => {
 
   it("posts, edits, deletes and reacts as the bot", async () => {
     const { adapter, call } = setup();
+
     const posted = await adapter.postMessage("inbox:c1", {
       markdown: "**hi**",
     });
+
     expect(posted).toMatchObject({ id: "sent", threadId: "inbox:c1" });
     await adapter.postMessage("inbox:c1", "plain");
     await adapter.postMessage("inbox:c1", { raw: "raw" });
@@ -195,9 +205,11 @@ describe("inboxAdapter", () => {
     await adapter.startTyping("inbox:c1");
     await adapter.endTyping?.("inbox:c1");
     await adapter.markAsRead?.("inbox:c1", "m1");
+
     const sends = call.mock.calls
       .filter(([, fn]) => fn === "send_message")
       .map(([, , args]) => args["input"]);
+
     expect(sends.map((args) => [args["body"], args["format"]])).toEqual([
       ["**hi**", "markdown"],
       ["plain", "text"],
@@ -208,16 +220,20 @@ describe("inboxAdapter", () => {
       author_type: "bot",
       metadata: { author_name: "helper" },
     });
+
     const reacts = call.mock.calls
       .filter(([, fn]) => fn === "react_to_message")
       .map(([, , args]) => args);
+
     expect(reacts).toMatchObject([
       { present: true, actor: "helper" },
       { emoji: "👍", present: false },
     ]);
+
     const typing = call.mock.calls
       .filter(([, fn]) => fn === "set_typing")
       .map(([, , args]) => args["typing"]);
+
     expect(typing).toEqual([true, false]);
   });
 
@@ -230,10 +246,12 @@ describe("inboxAdapter", () => {
       isBot: false,
       isMe: false,
     });
+
     const page = await adapter.fetchMessages("inbox:c1", {
       limit: 3,
       cursor: AT,
     });
+
     expect(page.messages.map((message) => message.id)).toEqual(["a", "c"]);
     expect(page.nextCursor).toBe(AT);
     const last = page.messages[1];
@@ -273,6 +291,7 @@ describe("inboxAdapter", () => {
         status: "complete" as const,
       };
     }
+
     const plain = setup();
     const posted = await plain.adapter.stream?.("inbox:c1", source());
     expect(posted?.raw.body).toBe("Hello");
@@ -284,6 +303,7 @@ describe("inboxAdapter", () => {
     async function* empty() {
       yield " ";
     }
+
     expect(await plain.adapter.stream?.("inbox:c1", empty())).toBeNull();
 
     const controller = new AbortController();
@@ -307,12 +327,15 @@ function identitySetup(target: IdentityTarget | null) {
   const { transport } = fakeTransport({ get_message: messageRow });
   const principalByIdentity = vi.fn(() => target);
   const ticketFor = vi.fn((userId: string) => `ticket:${userId}`);
+
   const adapter = inboxAdapter({
     inbox: createInbox({ transport }),
     identities: { principalByIdentity, ticketFor },
   });
+
   const seen: (string | undefined)[] = [];
   const messages: Message<InboxMessage>[] = [];
+
   const chat = {
     processMessage: (
       _adapter: unknown,
@@ -321,11 +344,14 @@ function identitySetup(target: IdentityTarget | null) {
     ) => {
       seen.push(adapter.ticketOf(message));
       messages.push(message);
+
       return Promise.resolve();
     },
   };
+
   // SAFETY: dispatch only calls processMessage on the instance.
   void adapter.initialize(chat as unknown as ChatInstance);
+
   return { adapter, principalByIdentity, ticketFor, seen, messages };
 }
 
@@ -337,6 +363,7 @@ describe("inboxAdapter identities", () => {
       kind: "user",
       userId: "u1",
     });
+
     await adapter.dispatch(linkedJob);
     expect(principalByIdentity).toHaveBeenCalledWith(inboxIdentityOf("ct1"));
     expect(ticketFor).toHaveBeenCalledWith("u1");
@@ -360,6 +387,7 @@ describe("inboxAdapter identities", () => {
       kind: "user",
       userId: "u1",
     });
+
     await adapter.dispatch(linkedJob);
     expect(seen).toEqual(["ticket:u1"]);
     const [message] = messages;

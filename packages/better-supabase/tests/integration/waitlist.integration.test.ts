@@ -11,6 +11,7 @@ const live = await reachable();
 
 const signUp = (s: BlockSession, email: string, metadata: object = {}) => {
   const id = crypto.randomUUID();
+
   return s
     .rows(
       `insert into auth.users (id, email, aud, role, instance_id, raw_user_meta_data)
@@ -32,6 +33,7 @@ describe.skipIf(!live)("waitlist", () => {
 
   it("queues, approves and admits addresses", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "outbox", "waitlist"]);
       const tag = crypto.randomUUID().slice(0, 8);
@@ -42,9 +44,11 @@ describe.skipIf(!live)("waitlist", () => {
       await s.as("anon");
       const waitlist = createWaitlist({ transport: sqlTransport(s.sql) });
       const place = await waitlist.join(` ${first.toUpperCase()} `).orThrow();
+
       const next = await waitlist
         .join(second, { referrer: "friend", metadata: { plan: "team" } })
         .orThrow();
+
       expect(next.position).toBe((place.position ?? 0) + 1);
       expect(await waitlist.join(first).orThrow()).toEqual(place);
       expect(
@@ -59,9 +63,11 @@ describe.skipIf(!live)("waitlist", () => {
         allowed: false,
         reason: "waiting",
       });
+
       const entries = await waitlist
         .entries({ afterPosition: 0, limit: 500 })
         .orThrow();
+
       const entry = entries.find((e) => e.email === second);
       expect(entry).toMatchObject({
         referrer: "friend",
@@ -119,6 +125,7 @@ describe.skipIf(!live)("waitlist", () => {
 
   it("tells a caller nothing about an address beyond a place in line", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "waitlist"]);
       const tag = crypto.randomUUID().slice(0, 8);
@@ -128,13 +135,17 @@ describe.skipIf(!live)("waitlist", () => {
       const waitlist = createWaitlist({ transport: sqlTransport(s.sql) });
 
       await s.as("anon");
+
       for (const email of [approved, joined, rejected]) {
         await waitlist.join(email).orThrow();
       }
+
       await s.service();
       const entries = await waitlist.entries({ limit: 500 }).orThrow();
+
       const idOf = (email: string) =>
         entries.find((entry) => entry.email === email)!.id;
+
       await waitlist.approve(idOf(approved)).orThrow();
       await waitlist.approve(idOf(joined)).orThrow();
       await waitlist.reject(idOf(rejected)).orThrow();
@@ -143,9 +154,11 @@ describe.skipIf(!live)("waitlist", () => {
 
       for (const caller of ["anon", await s.user("someone")] as const) {
         await s.as(caller);
+
         const fresh = await waitlist
           .join(`fresh-${crypto.randomUUID().slice(0, 8)}@example.test`)
           .orThrow();
+
         for (const email of [approved, joined, rejected]) {
           expect(await waitlist.join(email).orThrow()).toEqual({
             status: "waiting",
@@ -160,6 +173,7 @@ describe.skipIf(!live)("waitlist", () => {
 
   it("creates, redeems and limits invite codes", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "outbox", "waitlist"]);
       const owner = await s.user("owner");
@@ -187,9 +201,11 @@ describe.skipIf(!live)("waitlist", () => {
           .createCode({ organizationId: tenant, code: "short" })
           .then((r) => !r.ok && r.error.hint),
       ).toBe("WAITLIST_CODE_INVALID");
+
       const { code, invite } = await waitlist
         .createCode({ organizationId: tenant, role: "admin", maxUses: 2 })
         .orThrow();
+
       expect(invite).toMatchObject({
         prefix: code.slice(0, 4),
         uses: 0,
@@ -227,6 +243,7 @@ describe.skipIf(!live)("waitlist", () => {
           name: "Ada",
         },
       );
+
       expect(
         await s.value(
           "(select role from better_supabase.memberships where organization_id = $1 and user_id = $2)",
@@ -267,9 +284,11 @@ describe.skipIf(!live)("waitlist", () => {
         await waitlist.redeem(code).then((r) => !r.ok && r.error.hint),
       ).toBe("WAITLIST_CODE_INVALID");
       await s.as(owner);
+
       const viewerCode = await waitlist
         .createCode({ organizationId: tenant, role: "viewer" })
         .orThrow();
+
       await s.as(late);
       expect(await waitlist.redeem(viewerCode.code).orThrow()).toEqual({
         organizationId: tenant,
@@ -277,6 +296,7 @@ describe.skipIf(!live)("waitlist", () => {
       });
 
       await s.service();
+
       const failed = await signUp(
         s,
         `bad-${crypto.randomUUID().slice(0, 8)}@example.test`,
@@ -284,6 +304,7 @@ describe.skipIf(!live)("waitlist", () => {
           invite_code: code,
         },
       );
+
       expect(
         await s.value(
           "(select raw_user_meta_data from auth.users where id = $1)",

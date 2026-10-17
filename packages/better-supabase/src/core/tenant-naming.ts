@@ -24,9 +24,11 @@ function pluralOf(word: string): string {
   if (/[^aeiou]y$/.test(word)) {
     return `${word.slice(0, -1)}ies`;
   }
+
   if (/(s|x|z|ch|sh)$/.test(word)) {
     return `${word}es`;
   }
+
   return `${word}s`;
 }
 
@@ -40,8 +42,10 @@ export function tenantNames(name: string = DEFAULT_TENANT_NAME): TenantNames {
       `sql.naming.tenant: "${name}" is not a lowercase identifier (letters, digits and underscores)`,
     );
   }
+
   const plural = pluralOf(name);
   const renamed = name !== DEFAULT_TENANT_NAME;
+
   return {
     singular: name,
     plural,

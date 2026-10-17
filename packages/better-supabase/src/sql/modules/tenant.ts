@@ -45,10 +45,13 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 /** The tenant module's `roleThrough` option, quoted; `undefined` when unset. */
 export function roleThrough(tenant: ModuleContext): RoleThrough | undefined {
   const value = tenant.option("roleThrough");
+
   if (value === undefined) {
     return undefined;
   }
+
   const where = "blocks.tenant.options.roleThrough";
+
   if (
     !isRecord(value) ||
     typeof value["table"] !== "string" ||
@@ -62,16 +65,20 @@ export function roleThrough(tenant: ModuleContext): RoleThrough | undefined {
       `${where} must be { table: "schema.table", id: "<key column>", column: "<role name column>", tenant?: "<tenant column>", where?: "<condition on {row}>" }`,
     );
   }
+
   if (tenant.manages) {
     throw new TypeError(
       `${where} describes an adopted memberships table; the managed one stores role names. Set blocks.tenant.mode to "adopt".`,
     );
   }
+
   const ref = columnRef(`${where}.table`, `${value["table"]}.${value["id"]}`);
   const problem = sharedRolesProblem(tenant);
+
   if (problem) {
     throw new TypeError(problem);
   }
+
   return {
     table: ref.table,
     id: ref.column,
@@ -94,6 +101,7 @@ export function roleThroughTable(
   tenant: ModuleContext,
 ): { readonly table: string; readonly where: boolean } | undefined {
   const value = tenant.option("roleThrough");
+
   if (
     !isRecord(value) ||
     typeof value["table"] !== "string" ||
@@ -101,6 +109,7 @@ export function roleThroughTable(
   ) {
     return undefined;
   }
+
   try {
     return {
       table: columnRef("roleThrough", `${value["table"]}.${value["id"]}`).table,
@@ -119,12 +128,15 @@ export function roleThroughTable(
  */
 export function sharedRolesProblem(tenant: ModuleContext): string | undefined {
   const own = roleThroughTable(tenant);
+
   if (!own || own.where) {
     return undefined;
   }
+
   if (providerPlatformRoles(tenant)?.through?.table !== own.table) {
     return undefined;
   }
+
   return `blocks.tenant.options.roleThrough.where: ${own.table} also holds the platform roles (blocks.invitations.options.platformRoles.through), so name the tenant roles with a condition such as "{row}.scope = 'organization'". A roleThrough from the authorization provider's roleSources has no where; set blocks.tenant.options.roleThrough in the config.`;
 }
 
@@ -137,16 +149,19 @@ function roleScope(ctx: ModuleContext): string {
   if (ctx.manages) {
     return "";
   }
+
   const m = ctx.table("memberships");
   const role = ctx.col("memberships", "role");
   const through = roleThrough(ctx);
   const fn = ctx.fn("membership_role_scope");
+
   if (!through?.where) {
     return `
 drop trigger if exists ${ctx.trigger("role_scope")} on ${m};
 drop function if exists ${fn}();
 `;
   }
+
   return `
 -- blocks.tenant.options.roleThrough.where names the tenant roles. Every
 -- write to ${m} stores one of them, whoever writes it: a client policy, the
@@ -178,13 +193,17 @@ create trigger ${ctx.trigger("role_scope")} before insert or update of ${role} o
 /** A stored role value (a key or a role id) as the role name. */
 export function roleNameFrom(tenant: ModuleContext, value: string): string {
   const through = roleThrough(tenant);
+
   if (through) {
     return `(select r.${through.column}::text from ${through.table} r where r.${through.id}::text = (${value})::text)`;
   }
+
   if (accessModel(tenant) !== "catalog") {
     return value;
   }
+
   const access = tenant.of("access");
+
   return `(select r.${access.col("roles", "key")} from ${access.table("roles")} r where r.${access.col("roles", "id")} = ${value})`;
 }
 
@@ -201,10 +220,13 @@ function currentTenant(ctx: ModuleContext): string {
   const user = ctx.col("memberships", "user");
   const claim = `nullif(${jwtClaim(ctx.claims.tenant)}, '')`;
   const source = activeTenantSource(ctx);
+
   const member = (value: string): string =>
     `(select m.${tenant}::text from ${m} m where m.${tenant}::text = ${value} and m.${user} = auth.uid() limit 1)`;
+
   let requested: string;
   let comment: string;
+
   if (source === "claim") {
     comment = `-- The top-level \`${ctx.claims.tenant}\` claim (custom access token hook) or
 -- \`app_metadata.${ctx.claims.tenant}\` (switch_organization), while the caller is
@@ -225,6 +247,7 @@ function currentTenant(ctx: ModuleContext): string {
       "blocks.access.activeTenant.profileColumn",
       source.profileColumn,
     );
+
     const key = sqlIdent(source.key ?? "id");
     comment = `-- The \`${ctx.claims.tenant}\` claim, then ${source.profileColumn}, while the
 -- caller is still a member.`;
@@ -233,6 +256,7 @@ function currentTenant(ctx: ModuleContext): string {
     ${member(`(select p.${profile.column}::text from ${profile.table} p where p.${key} = auth.uid())`)}
   )`;
   }
+
   return `
 ${comment}
 create or replace function better_supabase.current_tenant_id()
@@ -261,10 +285,12 @@ function clearClaim(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const m = ctx.table("memberships");
   const tenant = ctx.col("memberships", "tenant");
   const user = ctx.col("memberships", "user");
   const key = sqlString(ctx.claims.tenant);
+
   return `
 
 create or replace function better_supabase.clear_tenant_claim()
@@ -298,10 +324,13 @@ export function providerMembers(
 ): { readonly ids?: string; readonly idsFor?: (user: string) => string } {
   const provider =
     accessModel(ctx) === "provider" ? layout.accessProvider : undefined;
+
   if (provider === undefined) {
     return {};
   }
+
   const { memberIds, memberIdsFor } = provider.functions;
+
   return {
     ...(memberIds === undefined
       ? {}
@@ -334,10 +363,12 @@ function tenantSql(ctx: ModuleContext, layout: ModuleLayout): string {
   const active = activeMembership(ctx, "m");
   const disabledAt = membershipDisabledAt(ctx);
   const members = providerMembers(ctx, layout);
+
   const inProvider = (column: string): string =>
     members.ids === undefined
       ? ""
       : `\n    and ${column} in (select p.id from ${members.ids} as p(id))`;
+
   const memberIdsBody =
     members.ids === undefined
       ? `  select m.${tenant}
@@ -359,6 +390,7 @@ function tenantSql(ctx: ModuleContext, layout: ModuleLayout): string {
     and ${role} = any (member_organization_ids.roles)
     and not better_supabase.user_disabled(m.${user})
     and not better_supabase.tenant_disabled(m.${tenant})${active}${inProvider(`m.${tenant}`)}`;
+
   const hasRoleBody =
     members.ids === undefined
       ? `  select exists (
@@ -373,10 +405,12 @@ function tenantSql(ctx: ModuleContext, layout: ModuleLayout): string {
       : `  select has_organization_role.organization in (
     select ${ctx.fn("member_organization_ids")}(has_organization_role.roles)
   )`;
+
   const memberRoleFilter =
     members.idsFor === undefined
       ? ""
       : ` and m.${tenant} in (select p.id from ${members.idsFor("organization_member_role.member")} as p(id))`;
+
   const claimJson =
     ctx.text("claimFormat", "array") === "map"
       ? `coalesce(jsonb_object_agg(m.${tenant}::text, ${role}), '{}'::jsonb)`
@@ -385,6 +419,7 @@ function tenantSql(ctx: ModuleContext, layout: ModuleLayout): string {
       'id', m.${tenant},
       'roles', jsonb_build_array(${role})
     ) order by m.${createdAt}, m.${tenant}), '[]'::jsonb)`;
+
   const table = ctx.manages
     ? `
 create table if not exists ${m} (
@@ -410,6 +445,7 @@ grant all on ${m} to service_role;
     : `
 -- Adopted: ${m} belongs to the app (blocks.tenant.tables.memberships).
 `;
+
   const policy = ctx.manages
     ? `
 drop policy if exists bs_memberships_read on ${m};
@@ -418,13 +454,16 @@ create policy bs_memberships_read on ${m}
   using (${user} = (select auth.uid()) or ${tenant} in (select ${ctx.scope.members()}));
 `
     : "";
+
   // The access module defines tenant_disabled and user_disabled when it is
   // installed. Its file, the catalog's roles table and the managed
   // organizations table sort after this one; the bodies are checked when
   // they first run instead.
   const accessHelpers = accessDefinesDisabledHelpers(ctx);
+
   const deferBodies =
     model === "catalog" || accessHelpers || disabledHelpersNeedLaterTables(ctx);
+
   return `${schemaPreamble(ctx)}
 grant usage on schema better_supabase to supabase_auth_admin;
 ${deferBodies ? "set check_function_bodies = off;\n" : ""}${table}${roleScope(ctx)}${sameTenantSql(ctx)}${accessHelpers ? "" : disabledHelpers(ctx)}

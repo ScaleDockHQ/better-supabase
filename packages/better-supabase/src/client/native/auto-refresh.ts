@@ -36,10 +36,13 @@ export function autoRefreshOnForeground(
       void supabase.auth.stopAutoRefresh();
     }
   };
+
   if (appState.currentState === "active") {
     apply("active");
   }
+
   const subscription = appState.addEventListener("change", apply);
+
   return () => {
     subscription.remove();
     void supabase.auth.stopAutoRefresh();

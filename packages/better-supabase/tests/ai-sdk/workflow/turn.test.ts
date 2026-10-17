@@ -24,20 +24,25 @@ function controlled<T>(): Controlled<T> {
   const queue: T[] = [];
   let wake: (() => void) | undefined;
   let resolveFirst: (value: T) => void = () => undefined;
+
   const first = new Promise<T>((resolve) => {
     resolveFirst = resolve;
   });
+
   const next = async (): Promise<IteratorResult<T>> => {
     if (queue.length === 0) {
       await new Promise<void>((resolve) => {
         wake = resolve;
       });
     }
+
     return { done: false, value: queue.shift()! };
   };
+
   const hook: DurableHook<T> = Object.assign(first, {
     [Symbol.asyncIterator]: () => ({ next }),
   });
+
   return {
     hook,
     push(value) {
@@ -115,17 +120,22 @@ function harness(
 ): Harness {
   const stop = controlled<object>();
   const turn = controlled<{ streamId: string; runId: string }>();
+
   const tokens = new Map<string, DurableHook<unknown>>([
     [durableStopToken("wrun"), stop.hook],
     [durableTurnToken("wrun"), turn.hook],
   ]);
+
   const calls: { name: string; input: unknown }[] = [];
   const agentArgs: DurableAgentArgs[] = [];
   const namespaces: string[] = [];
+
   const step = vi.fn(async (name: string, stepInput: unknown) => {
     calls.push({ name, input: stepInput });
+
     return name === "decisions" ? decisions() : undefined;
   });
+
   return {
     stop,
     turn,
@@ -140,10 +150,12 @@ function harness(
           tokens.get(token) as DurableHook<T>,
         getWritable: ({ namespace }) => {
           namespaces.push(namespace);
+
           return new WritableStream<ModelCallStreamPart>();
         },
         agent: (args) => {
           agentArgs.push(args);
+
           return agent(args);
         },
         // SAFETY: the fake answers `decisions` with decisions and the rest with nothing.
@@ -166,6 +178,7 @@ describe("durableTurn", () => {
       ],
       totalUsage: usage,
     }));
+
     await expect(h.run()).resolves.toEqual({
       status: "completed",
       messageId: "m1",
@@ -203,9 +216,11 @@ describe("durableTurn", () => {
 
   it("waits for the approvals and continues in a new segment", async () => {
     let pass = 0;
+
     const h = harness(
       async (args) => {
         pass += 1;
+
         return pass === 1
           ? { messages: [...args.messages, asking], steps: [] }
           : {
@@ -229,6 +244,7 @@ describe("durableTurn", () => {
       },
       () => [{ approvalId: "approval-t1", approved: true, reason: "ok" }],
     );
+
     const running = h.run();
     await vi.waitFor(() => {
       expect(h.calls).toHaveLength(3);
@@ -305,15 +321,18 @@ describe("durableTurn", () => {
 
   it("keeps waiting while decisions are missing", async () => {
     let reads = 0;
+
     const h = harness(
       async (args) => ({ messages: [...args.messages, asking], steps: [] }),
       () => {
         reads += 1;
+
         return reads === 1
           ? []
           : [{ approvalId: "approval-t1", approved: false }];
       },
     );
+
     const running = h.run();
     await vi.waitFor(() => {
       expect(h.calls).toHaveLength(3);
@@ -339,9 +358,11 @@ describe("durableTurn", () => {
   it("releases a claimed segment that a later resume replaces", async () => {
     let reads = 0;
     let pass = 0;
+
     const h = harness(
       async (args) => {
         pass += 1;
+
         return {
           messages: [...args.messages, pass === 1 ? asking : answer("No.")],
           steps: [],
@@ -349,11 +370,13 @@ describe("durableTurn", () => {
       },
       () => {
         reads += 1;
+
         return reads === 1
           ? []
           : [{ approvalId: "approval-t1", approved: false }];
       },
     );
+
     const running = h.run();
     await vi.waitFor(() => {
       expect(h.calls).toHaveLength(3);
@@ -368,9 +391,11 @@ describe("durableTurn", () => {
       segments: 2,
     });
     expect(h.namespaces).toEqual(["s1", "s3"]);
+
     const released = h.calls
       .filter((call) => call.name === "release")
       .map((call) => (call.input as { streamId: string }).streamId);
+
     expect(released).toEqual(["s1", "s2", "s3"]);
   });
 
@@ -379,6 +404,7 @@ describe("durableTurn", () => {
       messages: [...args.messages, asking],
       steps: [],
     }));
+
     const running = h.run();
     await vi.waitFor(() => {
       expect(h.calls).toHaveLength(3);
@@ -400,6 +426,7 @@ describe("durableTurn", () => {
           });
         }),
     );
+
     const running = h.run();
     await vi.waitFor(() => {
       expect(h.agentArgs).toHaveLength(1);
@@ -414,6 +441,7 @@ describe("durableTurn", () => {
     const h = harness(async () => {
       throw new Error("model down");
     });
+
     await expect(h.run()).resolves.toMatchObject({ status: "failed" });
     expect(h.calls[0]?.input).toMatchObject({ status: "error" });
     expect(h.calls[1]?.input).toMatchObject({

@@ -34,16 +34,19 @@ function build(ctx: ModuleContext): string {
   const entries = ctx.table("entries");
   const maxTtl = ctx.number("maxTtl", 7 * 24 * 60 * 60);
   const maxBytes = ctx.number("maxBytes", 1024 * 1024);
+
   if (!Number.isInteger(maxTtl) || maxTtl < 1) {
     throw new TypeError(
       "blocks.ai-cache.options.maxTtl must be a whole number of seconds",
     );
   }
+
   if (!Number.isInteger(maxBytes) || maxBytes < 1) {
     throw new TypeError(
       "blocks.ai-cache.options.maxBytes must be a whole number of bytes",
     );
   }
+
   const entryJson = (row: string): string => rowJson(ENTRIES, e, row);
 
   return `${schemaPreamble(ctx)}

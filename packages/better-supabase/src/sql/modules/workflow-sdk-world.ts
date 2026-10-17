@@ -10,6 +10,7 @@ import {
 } from "./workflow-sdk-world-ddl.generated.ts";
 
 export const WORKFLOW_DELIVERY_MODES = ["poll", "pg_net"] as const;
+
 export type WorkflowDeliveryMode = (typeof WORKFLOW_DELIVERY_MODES)[number];
 
 /** The Vault secret names the pg_net dispatcher reads. */
@@ -23,11 +24,13 @@ export const WORKFLOW_DELIVERY_QUEUE = "workflow_deliveries";
 
 function deliveryModeOf(ctx: ModuleContext): WorkflowDeliveryMode {
   const mode = ctx.text("delivery", "poll");
+
   if (mode !== "poll" && mode !== "pg_net") {
     throw new TypeError(
       `blocks.workflow-sdk-world.options.delivery must be "poll" or "pg_net", got "${mode}"`,
     );
   }
+
   return mode;
 }
 
@@ -35,11 +38,13 @@ const IDENT = /^[a-z_][a-z0-9_]{0,40}$/;
 
 function deliveryQueueOf(ctx: ModuleContext): string {
   const queue = ctx.text("queue", WORKFLOW_DELIVERY_QUEUE);
+
   if (!IDENT.test(queue)) {
     throw new TypeError(
       `blocks.workflow-sdk-world.options.queue: "${queue}" is not a queue name`,
     );
   }
+
   return queue;
 }
 
@@ -49,6 +54,7 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const fn = (name: string): string => ctx.fn(name);
   const workflows = ctx.of("workflows");
   const record = workflows.fn("record_workflow_run");
@@ -213,7 +219,9 @@ function data(ctx: ModuleContext): string {
   if (ctx.mode === "custom" || deliveryModeOf(ctx) !== "pg_net") {
     return "";
   }
+
   const schedule = ctx.text("schedule", "1 seconds");
+
   return `-- Delivers workflow messages through pg_net every ${schedule} when pg_cron is installed.
 do $$
 begin

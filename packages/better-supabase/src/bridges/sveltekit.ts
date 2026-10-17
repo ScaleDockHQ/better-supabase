@@ -33,10 +33,13 @@ export function toSvelteKit<const Entries extends readonly AnyEntry[]>(
   entries: Entries & Validated<Entries>,
 ): SvelteKitHandle<Partial<Contributions<Entries>>> {
   const run = around(entries);
+
   return ({ event, resolve }) => {
     bufferInPlace(event.request);
+
     return run(event.request, event.platform?.env, async (contributions) => {
       Object.assign(event.locals, contributions);
+
       return resolve(event);
     });
   };

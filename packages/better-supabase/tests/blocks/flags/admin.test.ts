@@ -19,18 +19,23 @@ const row = {
 describe("createFlags", () => {
   it("calls the staff functions with database names", async () => {
     const calls: [string, string, Record<string, unknown>][] = [];
+
     const transport: BlockTransport = {
       call: (schema, fn, args) => {
         calls.push([schema, fn, { ...args }]);
+
         if (fn === "list_flags") {
           return Promise.resolve([row]);
         }
+
         if (fn === "save_flag") {
           return Promise.resolve(row);
         }
+
         return Promise.resolve(true);
       },
     };
+
     const admin = createFlags({ transport, schema: "app" });
     expect((await admin.list().orThrow())[0]).toMatchObject({
       key: "beta",
@@ -77,6 +82,7 @@ describe("createFlags", () => {
     const admin = createFlags({
       transport: { call: () => Promise.resolve(null) },
     });
+
     expect(await admin.save("x", {}).orThrow()).toBeUndefined();
     expect(await admin.remove("x").orThrow()).toBe(false);
   });

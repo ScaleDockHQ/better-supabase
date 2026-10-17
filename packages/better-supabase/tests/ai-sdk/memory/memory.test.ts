@@ -22,6 +22,7 @@ import { AsyncResult, err, ok } from "../../../src/core/result.ts";
 import { SPEC_PINS } from "../../../src/core/spec-pins.ts";
 
 const okResult = <T>(value: T) => AsyncResult.from(async () => ok(value));
+
 const failed = (message: string) =>
   AsyncResult.from(async () => err(dbError("forbidden", message)));
 
@@ -31,9 +32,11 @@ function fakeMemory(over: Partial<Record<string, unknown>> = {}) {
   const run = vi.fn((_org: string, command: MemoryCommand) =>
     command.command === "delete" ? failed("no such file") : okResult("done"),
   );
+
   const search = vi.fn(() =>
     okResult([{ id: "m1", content: "Likes tea", score: 1, similarity: 0.9 }]),
   );
+
   const saveExtracted = vi.fn(
     (
       _org: string,
@@ -43,6 +46,7 @@ function fakeMemory(over: Partial<Record<string, unknown>> = {}) {
         facts.map((fact) => ({ content: fact }) as unknown as MemoryRecord),
       ),
   );
+
   const memory = {
     run,
     archival: { search },
@@ -50,6 +54,7 @@ function fakeMemory(over: Partial<Record<string, unknown>> = {}) {
     saveExtracted,
     ...over,
   };
+
   // SAFETY: the adapters call only these members.
   return { memory: memory as unknown as Memory, run, search, saveExtracted };
 }
@@ -84,16 +89,20 @@ describe("anthropicMemory", () => {
   it("backs the provider's pinned memory tool with the block", async () => {
     const { memory } = fakeMemory();
     let execute: ((input: MemoryCommand) => Promise<string>) | undefined;
+
     const provided: Tool = tool({
       inputSchema: jsonSchema<MemoryCommand>({}),
       execute: (input) => execute?.(input) ?? Promise.resolve(""),
     });
+
     const tools = {
       memory_20250818: vi.fn((opts: { execute: typeof execute & {} }) => {
         execute = opts.execute;
+
         return provided;
       }),
     };
+
     expect(anthropicMemory(tools, memory, "org")).toBe(provided);
     expect(tools.memory_20250818).toHaveBeenCalledOnce();
     expect(SPEC_PINS.anthropicMemoryTool).toBe("20250818");
@@ -128,6 +137,7 @@ describe("recallTool", () => {
     const { memory: failing } = fakeMemory({
       archival: { search: () => failed("denied") },
     });
+
     await expect(
       recallTool(failing, "org").execute?.({ query: "q" }, options),
     ).rejects.toThrow("denied");
@@ -185,11 +195,13 @@ describe("extractMemories", () => {
 
   it("saves the facts the model finds for the owner", async () => {
     const { memory, saveExtracted } = fakeMemory();
+
     const handler = extractMemories({
       model: factModel(["Likes tea", "Works at Acme", "Third"]),
       memory,
       maxFacts: 2,
     });
+
     const saved = await handler(
       {
         organization_id: "org",
@@ -202,6 +214,7 @@ describe("extractMemories", () => {
       job,
       new AbortController().signal,
     );
+
     expect(saved).toBe(2);
     expect(saveExtracted).toHaveBeenCalledWith(
       "org",
@@ -213,11 +226,13 @@ describe("extractMemories", () => {
 
   it("throws when saving fails", async () => {
     const { memory } = fakeMemory({ saveExtracted: () => failed("db down") });
+
     const handler = extractMemories({
       model: factModel([]),
       memory,
       instructions: "Find facts.",
     });
+
     await expect(
       handler(
         { organization_id: "org", owner_id: "u1", text: "hi" },

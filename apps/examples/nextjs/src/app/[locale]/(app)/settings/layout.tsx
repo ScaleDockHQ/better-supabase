@@ -11,6 +11,7 @@ export default function SettingsLayout({
   children,
 }: LayoutProps<"/[locale]/settings">) {
   const t = useExtracted("settings");
+
   return (
     <>
       <PageHeader

@@ -20,15 +20,18 @@ const betterSupabase = defineSupabase(schema);
 
 function fakeDb() {
   const queries: Parameters<Executor["execute"]>[0][] = [];
+
   const executor: Executor = {
     name: "fake",
     execute: (query) => {
       queries.push(query);
+
       return Promise.resolve(
         ok({ rows: [{ id: "c1", name: "Acme" }], count: 1 }),
       );
     },
   };
+
   return { db: betterSupabase.connect(executor), queries };
 }
 
@@ -44,9 +47,11 @@ const json = (method: string, body: unknown): RequestInit => ({
 describe("defineResource", () => {
   it("serves CRUD with the status codes createOpenApi documents", async () => {
     const { db, queries } = fakeDb();
+
     const customers = defineResource(betterSupabase, "customers", {
       select: ["id", "name"],
     });
+
     expect(customers.keyParam).toBe("id");
 
     const list = await customers.handle(
@@ -54,6 +59,7 @@ describe("defineResource", () => {
       db,
       undefined,
     );
+
     expect(list.status).toBe(200);
     expect(await list.json()).toMatchObject({
       items: [{ id: "c1" }],
@@ -68,6 +74,7 @@ describe("defineResource", () => {
       db,
       undefined,
     );
+
     expect(created.status).toBe(201);
 
     expect(
@@ -102,6 +109,7 @@ describe("defineResource", () => {
 
   it("rejects bad bodies, paging and methods", async () => {
     const { db, queries } = fakeDb();
+
     const customers = defineResource(betterSupabase, "customers", {
       operations: ["list", "get", "create"],
       input: {
@@ -111,21 +119,25 @@ describe("defineResource", () => {
         }),
       },
     });
+
     const invalid = await customers.handle(
       request("/customers", json("POST", { name: "x", organizationId: "o1" })),
       db,
       undefined,
     );
+
     expect(invalid.status).toBe(422);
     expect(await invalid.json()).toMatchObject({
       kind: "validation",
       issues: [{ path: ["name"] }],
     });
+
     const notJson = await customers.handle(
       request("/customers", { method: "POST", body: "[1]" }),
       db,
       undefined,
     );
+
     expect(notJson.status).toBe(400);
     expect(await notJson.json()).toMatchObject({
       kind: "invalid_input",
@@ -135,11 +147,13 @@ describe("defineResource", () => {
       (await customers.handle(request("/customers?size=999"), db, undefined))
         .status,
     ).toBe(422);
+
     const deleting = await customers.handle(
       request("/customers/c1", { method: "DELETE" }),
       db,
       "c1",
     );
+
     expect(deleting.status).toBe(405);
     expect(deleting.headers.get("allow")).toBe("GET");
     expect(queries).toEqual([]);
@@ -148,6 +162,7 @@ describe("defineResource", () => {
   it("refuses cross-site form posts that ride on the session cookie", async () => {
     const { db, queries } = fakeDb();
     const customers = defineResource(betterSupabase, "customers");
+
     const post = (headers: Record<string, string>) =>
       customers.handle(
         request("/customers", {
@@ -158,11 +173,13 @@ describe("defineResource", () => {
         db,
         undefined,
       );
+
     const forged = await post({
       origin: "https://evil.test",
       "content-type": "text/plain",
       cookie: "sb-session=x",
     });
+
     expect(forged.status).toBe(403);
     expect(await forged.json()).toMatchObject({ code: "CROSS_SITE_REQUEST" });
     expect(queries).toHaveLength(0);
@@ -179,18 +196,22 @@ describe("defineResource", () => {
 
   it("runs a list definition for GET collection requests", async () => {
     const { db, queries } = fakeDb();
+
     const list = defineListQuery(betterSupabase, "customers", {
       search: ["name"],
       sorts: { name: { name: "asc" } },
       defaultSort: "name",
       pageSize: 10,
     });
+
     const customers = defineResource(betterSupabase, "customers", { list });
+
     const response = await customers.handle(
       request("/customers?q=acme&sort=name"),
       db,
       undefined,
     );
+
     expect(response.status).toBe(200);
     expect(queries[0]).toMatchObject({ kind: "select", limit: 11 });
     expect(
@@ -204,14 +225,18 @@ describe("defineResource", () => {
 
   it("pages the default list by cursor", async () => {
     const { db, queries } = fakeDb();
+
     const customers = defineResource(betterSupabase, "customers", {
       pagination: "cursor",
       maxPageSize: 5,
     });
+
     expect(customers.pagination).toBe("cursor");
+
     const first = await customers.execute(db, "list", {
       query: new URLSearchParams("size=1"),
     });
+
     expect(first.ok && first.data).toMatchObject({
       items: [{ id: "c1" }],
       hasMore: false,
@@ -219,9 +244,11 @@ describe("defineResource", () => {
     });
     expect(queries[0]).toMatchObject({ kind: "select", limit: 2 });
     expect((queries[0] as { count?: unknown }).count).toBeUndefined();
+
     const rejected = await customers.execute(db, "list", {
       query: { page: 2, after: 3, size: 9 },
     });
+
     expect(!rejected.ok && rejected.error).toMatchObject({
       kind: "validation",
       issues: [
@@ -232,20 +259,24 @@ describe("defineResource", () => {
     });
     const offset = defineResource(betterSupabase, "customers");
     expect(offset.pagination).toBe("offset");
+
     const mixed = await offset.execute(db, "list", {
       query: { after: "x", page: 0 },
     });
+
     expect(!mixed.ok && mixed.error).toMatchObject({
       issues: [
         { message: "This list pages with `page`", path: ["after"] },
         { message: "Must be a positive integer", path: ["page"] },
       ],
     });
+
     const list = defineListQuery(betterSupabase, "customers", {
       sorts: { name: { name: "asc" } },
       defaultSort: "name",
       pagination: "cursor",
     });
+
     expect(
       defineResource(betterSupabase, "customers", { list }).pagination,
     ).toBe("cursor");
@@ -262,23 +293,28 @@ function authorizerOf(
   decide: (request: AuthorizationRequest) => AuthorizationOutcome,
 ) {
   const requests: AuthorizationRequest[] = [];
+
   const authorizer = defineAuthorizer({
     name: "test",
     key: (ref: string) => ref,
     evaluate: (request) => {
       requests.push(request);
+
       return decide(request);
     },
   });
+
   return { authorizer, requests };
 }
 
 function userDb() {
   const queries: Parameters<Executor["execute"]>[0][] = [];
+
   const executor: Executor = {
     name: "fake",
     execute: (query) => {
       queries.push(query);
+
       return Promise.resolve(
         ok({
           rows: [
@@ -290,11 +326,13 @@ function userDb() {
       );
     },
   };
+
   const db = betterSupabase.connect(executor, {
     actor: { kind: "user", id: "u1", role: "authenticated" },
     tenant: "o1",
     claims: { scope: "read write" },
   });
+
   return { db, queries };
 }
 
@@ -302,6 +340,7 @@ describe("defineResource actions", () => {
   it("routes collection, item and action paths through serve()", async () => {
     const { db } = fakeDb();
     const seen: unknown[] = [];
+
     const customers = defineResource(betterSupabase, "customers", {
       actions: {
         send: defineAction({
@@ -311,6 +350,7 @@ describe("defineResource actions", () => {
           status: 202,
           handler: (ctx, { id, data }) => {
             seen.push([ctx.table, id, data.subject, ctx.request?.method]);
+
             return ok({ queued: true });
           },
         }),
@@ -327,6 +367,7 @@ describe("defineResource actions", () => {
         },
       },
     });
+
     expect(customers.plan.actions.map((action) => action.name)).toEqual([
       "send",
       "export",
@@ -338,6 +379,7 @@ describe("defineResource actions", () => {
       db,
       "c1/send",
     );
+
     expect(sent.status).toBe(202);
     expect(await sent.json()).toEqual({ queued: true });
     expect(seen).toEqual([["customers", "c1", "Hi", "POST"]]);
@@ -347,6 +389,7 @@ describe("defineResource actions", () => {
       db,
       ["export"],
     );
+
     expect(await exported.json()).toEqual({ query: { format: "csv" } });
     expect(
       (
@@ -372,13 +415,16 @@ describe("defineResource actions", () => {
       db,
       "c1/send",
     );
+
     expect(wrong.status).toBe(405);
     expect(wrong.headers.get("allow")).toBe("POST");
+
     const invalid = await customers.serve(
       request("/customers/c1/send", json("POST", { subject: 1 })),
       db,
       "c1/send",
     );
+
     expect(invalid.status).toBe(422);
     expect(
       (await customers.serve(request("/customers/a/b/c"), db, "a/b/c")).status,
@@ -401,6 +447,7 @@ describe("defineResource actions", () => {
 
   it("turns a throwing handler into an unexpected error", async () => {
     const { db } = fakeDb();
+
     const customers = defineResource(betterSupabase, "customers", {
       actions: {
         boom: {
@@ -417,6 +464,7 @@ describe("defineResource actions", () => {
         },
       },
     });
+
     const boom = await customers.action(db, "boom");
     expect(!boom.ok && boom.error).toMatchObject({
       kind: "unexpected",
@@ -433,16 +481,19 @@ describe("defineResource hooks", () => {
   it("runs before and after hooks around the repository", async () => {
     const { db, queries } = fakeDb();
     const calls: string[] = [];
+
     const customers = defineResource(betterSupabase, "customers", {
       hooks: {
         authorize: (_ctx, operation) => {
           calls.push(`authorize:${operation}`);
+
           return ok(undefined);
         },
         beforeCreate: (_ctx, data) => ok({ ...data, name: data.name.trim() }),
         beforeUpdate: (_ctx, data) => ok({ ...data, name: "Changed" }),
         beforeDelete: () => {
           calls.push("beforeDelete");
+
           return ok(undefined);
         },
         afterGet: (_ctx, row) => ok({ id: row.id, extra: true }),
@@ -451,9 +502,11 @@ describe("defineResource hooks", () => {
         afterUpdate: (_ctx, row) => ok({ updated: row.id }),
       },
     });
+
     const created = await customers.execute(db, "create", {
       data: { name: "  Acme ", organizationId: "o1" },
     });
+
     expect(created).toMatchObject({ ok: true, data: { created: "c1" } });
     expect(queries[0]).toMatchObject({ kind: "insert" });
     expect(JSON.stringify(queries[0])).toContain('"Acme"');
@@ -480,11 +533,13 @@ describe("defineResource hooks", () => {
 
   it("stops on an error Result and maps throws and plain values to unexpected", async () => {
     const { db, queries } = fakeDb();
+
     const denied = defineResource(betterSupabase, "customers", {
       hooks: {
         authorize: () => err(dbError("forbidden", "Not yours")),
       },
     });
+
     const response = await denied.handle(request("/customers"), db, undefined);
     expect(response.status).toBe(403);
     expect(queries).toHaveLength(0);
@@ -496,17 +551,21 @@ describe("defineResource hooks", () => {
         },
       },
     });
+
     const thrown = await throwing.execute(db, "create", {
       data: { name: "A", organizationId: "o1" },
     });
+
     expect(!thrown.ok && thrown.error).toMatchObject({
       kind: "unexpected",
       message: "The beforeCreate hook failed",
     });
+
     const plain = defineResource(betterSupabase, "customers", {
       // @ts-expect-error hooks return a Result
       hooks: { afterGet: () => ({ id: "c1" }) },
     });
+
     const value = await plain.execute(db, "get", { id: "c1" });
     expect(!value.ok && value.error.message).toBe(
       "The afterGet hook must return a Result",
@@ -518,25 +577,30 @@ describe("defineResource hooks", () => {
 describe("defineResource permissions", () => {
   it("checks the permission with the fetched row before update", async () => {
     const { db, queries } = userDb();
+
     const { authorizer, requests } = authorizerOf((request) =>
       request.resource.properties?.["organizationId"] === "o1"
         ? { outcome: "granted" }
         : { outcome: "denied", reason: "Wrong organization" },
     );
+
     const customers = defineResource(
       betterSupabase,
       "customers",
       { permissions: { update: "customers.update", get: "customers.read" } },
       authorizer,
     );
+
     expect(customers.plan.permissions).toEqual({
       update: "customers.update",
       get: "customers.read",
     });
+
     const updated = await customers.execute(db, "update", {
       id: "c1",
       data: { name: "B" },
     });
+
     expect(updated.ok).toBe(true);
     expect(queries.map((query) => query.kind)).toEqual(["select", "update"]);
     expect(requests[0]).toEqual({
@@ -568,10 +632,12 @@ describe("defineResource permissions", () => {
 
   it("denies before the repository writes and fails closed", async () => {
     const { db, queries } = userDb();
+
     const { authorizer } = authorizerOf(() => ({
       outcome: "denied",
       reason: "No",
     }));
+
     const customers = defineResource(
       betterSupabase,
       "customers",
@@ -580,19 +646,23 @@ describe("defineResource permissions", () => {
       },
       authorizer,
     );
+
     const deleted = await customers.handle(
       request("/customers/c1", { method: "DELETE" }),
       db,
       "c1",
     );
+
     expect(deleted.status).toBe(403);
     expect(await deleted.json()).toMatchObject({
       code: "PERMISSION_DENIED",
       permission: "customers.delete",
     });
+
     const created = await customers.execute(db, "create", {
       data: { name: "N", organizationId: "o1" },
     });
+
     expect(!created.ok && created.error.code).toBe("PERMISSION_DENIED");
     expect(queries.map((query) => query.kind)).toEqual(["select"]);
 
@@ -608,26 +678,32 @@ describe("defineResource permissions", () => {
         },
       }),
     );
+
     const failed = await throwing.execute(db, "create", {
       data: { name: "N", organizationId: "o1" },
     });
+
     expect(!failed.ok && failed.error.kind).toBe("forbidden");
 
     const unset = defineResource(betterSupabase, "customers", {
       permissions: { create: "customers.create" },
     });
+
     const missing = await unset.execute(db, "create", {
       data: { name: "N", organizationId: "o1" },
     });
+
     expect(!missing.ok && missing.error.code).toBe("PERMISSION_DENIED");
   });
 
   it("answers 403 APPROVAL_REQUIRED with the approval id", async () => {
     const { db, queries } = userDb();
+
     const { authorizer } = authorizerOf(() => ({
       outcome: "approval-required",
       approval: { id: "apr_1" },
     }));
+
     const customers = defineResource(
       betterSupabase,
       "customers",
@@ -643,11 +719,13 @@ describe("defineResource permissions", () => {
       },
       authorizer,
     );
+
     const response = await customers.serve(
       request("/customers/c1/refund", { method: "POST" }),
       db,
       "c1/refund",
     );
+
     expect(response.status).toBe(403);
     expect(await response.json()).toMatchObject({
       code: "APPROVAL_REQUIRED",
@@ -660,12 +738,14 @@ describe("defineResource permissions", () => {
   it("filters list rows with one batch and keeps the request order", async () => {
     const { db } = userDb();
     const batches: AuthorizationRequest[][] = [];
+
     const authorizer = defineAuthorizer({
       name: "batch",
       key: (ref: string) => ref,
       evaluate: () => ({ outcome: "denied" as const }),
       evaluations: (requests) => {
         batches.push([...requests]);
+
         return Promise.resolve(
           requests.map((request) =>
             request.resource.id === "c2"
@@ -675,12 +755,14 @@ describe("defineResource permissions", () => {
         );
       },
     });
+
     const customers = defineResource(
       betterSupabase,
       "customers",
       { permissions: { list: "customers.read" } },
       authorizer,
     );
+
     const listed = await customers.execute(db, "list", {});
     expect(listed.ok && listed.data).toMatchObject({ items: [{ id: "c2" }] });
     expect(batches).toHaveLength(1);
@@ -692,6 +774,7 @@ describe("defineResource permissions", () => {
     const unset = defineResource(betterSupabase, "customers", {
       permissions: { list: "customers.read" },
     });
+
     const refused = await unset.execute(db, "list", {});
     expect(!refused.ok && refused.error.kind).toBe("forbidden");
   });
@@ -704,12 +787,14 @@ describe("defineResource permissions", () => {
         operation === "list" || operation === "get" ? "read" : "write",
       evaluate: () => ({ outcome: "granted" }),
     });
+
     const all = defineResource(
       betterSupabase,
       "customers",
       { permissions: true },
       typed,
     );
+
     expect(all.plan.permissions).toMatchObject({
       list: "read",
       delete: "write",

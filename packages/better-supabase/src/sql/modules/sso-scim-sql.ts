@@ -26,18 +26,21 @@ export function scimSql(names: ScimSqlNames): string {
   const u = names.users;
   const g = names.groups;
   const gm = names.members;
+
   const userJson = (alias: string): string =>
     `to_jsonb(${alias}.*) || jsonb_build_object('groups', (
       select coalesce(jsonb_agg(jsonb_build_object('value', sg.${cg("id")}, 'display', sg.${cg("displayName")}) order by sg.${cg("displayName")}), '[]'::jsonb)
       from ${gm} sm join ${g} sg on sg.${cg("id")} = sm.${cm("group")}
       where sm.${cm("member")} = ${alias}.${cu("id")}
     ))`;
+
   const groupJson = (alias: string): string =>
     `to_jsonb(${alias}.*) || jsonb_build_object('members', (
       select coalesce(jsonb_agg(jsonb_build_object('value', su.${cu("id")}, 'display', coalesce(su.${cu("displayName")}, su.${cu("userName")})) order by su.${cu("userName")}), '[]'::jsonb)
       from ${gm} sm join ${u} su on su.${cu("id")} = sm.${cm("member")}
       where sm.${cm("group")} = ${alias}.${cg("id")}
     ))`;
+
   return `-- SCIM storage for the SCIM handler (service role). Rows come back as
 -- jsonb; users carry their groups and groups their members.
 create or replace function ${fn("scim_list_users")}(tenant ${id})
@@ -315,6 +318,7 @@ export function scimSyncLogSql(
 ): string {
   const id = ctx.idType;
   const fn = (name: string): string => ctx.fn(name);
+
   return `-- One row per SCIM write: what the identity provider asked for and how it
 -- went. sqlScimSyncLog writes it through scim_log_sync.
 create table if not exists ${SCIM_SYNC_LOG} (

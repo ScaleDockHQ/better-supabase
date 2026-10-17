@@ -20,6 +20,7 @@ async function teamSchema(s: BlockSession): Promise<string> {
       primary key (organization_id, user_id)
     );
   `);
+
   return schema;
 }
 
@@ -48,6 +49,7 @@ describe.skipIf(!live)("membership suspension", () => {
 
   it("keeps the role and takes away every permission until resumed", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const schema = await teamSchema(s);
       await s.install(["organizations"], layout(schema));
@@ -55,10 +57,12 @@ describe.skipIf(!live)("membership suspension", () => {
       const admin = await s.user("admin");
       const member = await s.user("member");
       await s.as(owner);
+
       const organization = await s.value<string>(
         `${schema}.create_organization($1)`,
         [{ name: "Suspend", slug: `suspend-${owner.id.slice(0, 8)}` }],
       );
+
       await s.service();
       await s.client.query(
         `insert into ${schema}.team_members (organization_id, user_id, role) values ($1, $2, 'admin'), ($1, $3, 'member')`,
@@ -78,11 +82,13 @@ describe.skipIf(!live)("membership suspension", () => {
           member.id,
         ]),
       ).toBe(false);
+
       const listed = await s.rows<{
         user_id: string;
         role: string;
         disabled_at: Date | null;
       }>(`select * from ${schema}.list_members($1)`, [organization]);
+
       const suspended = listed.find((row) => row.user_id === member.id);
       expect(suspended?.role).toBe("member");
       expect(suspended?.disabled_at).toBeInstanceOf(Date);
@@ -102,9 +108,11 @@ describe.skipIf(!live)("membership suspension", () => {
       expect(
         await s.rows("select * from better_supabase.member_organization_ids()"),
       ).toEqual([]);
+
       const mine = await s.rows<{ disabled_at: Date | null }>(
         `select * from ${schema}.list_my_organizations()`,
       );
+
       expect(mine).toHaveLength(1);
       expect(mine[0]?.disabled_at).toBeInstanceOf(Date);
 
@@ -129,6 +137,7 @@ describe.skipIf(!live)("membership suspension", () => {
 
   it("refuses self, the last owner, members above the caller and suspended new owners", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const schema = await teamSchema(s);
       await s.install(["organizations"], layout(schema));
@@ -136,10 +145,12 @@ describe.skipIf(!live)("membership suspension", () => {
       const admin = await s.user("admin");
       const member = await s.user("member");
       await s.as(owner);
+
       const organization = await s.value<string>(
         `${schema}.create_organization($1)`,
         [{ name: "Guarded", slug: `guarded-${owner.id.slice(0, 8)}` }],
       );
+
       await s.service();
       await s.client.query(
         `insert into ${schema}.team_members (organization_id, user_id, role) values ($1, $2, 'admin'), ($1, $3, 'member')`,
@@ -198,12 +209,14 @@ describe.skipIf(!live)("membership suspension", () => {
         `update ${schema}.team_members set role = 'admin' where organization_id = $1 and user_id = $2`,
         [organization, owner.id],
       );
+
       const failure = await s.client
         .query("set constraints all immediate")
         .then(
           () => "no error",
           (error: unknown) => (error as { hint?: string }).hint,
         );
+
       await s.client.query("rollback to savepoint deferred");
       expect(failure).toBe("ORGANIZATION_OWNER_REQUIRED");
     } finally {
@@ -213,9 +226,11 @@ describe.skipIf(!live)("membership suspension", () => {
 
   it("ends every session and refresh token of a user", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const user = await s.user("signed-in");
       const other = await s.user("other");
+
       for (const owner of [user, user, other]) {
         const session = crypto.randomUUID();
         await s.client.query(
@@ -227,14 +242,17 @@ describe.skipIf(!live)("membership suspension", () => {
           [crypto.randomUUID(), owner.id, session],
         );
       }
+
       expect(await endSessions(s.sql, user.id).orThrow()).toEqual({
         userId: user.id,
         ended: 2,
       });
+
       const left = await s.rows<{ user_id: string }>(
         "select user_id::text from auth.refresh_tokens where user_id in ($1, $2)",
         [user.id, other.id],
       );
+
       expect(left).toEqual([{ user_id: other.id }]);
     } finally {
       await s.close();

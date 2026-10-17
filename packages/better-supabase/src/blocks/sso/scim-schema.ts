@@ -5,10 +5,13 @@ export const SCIM_GROUP = "urn:ietf:params:scim:schemas:core:2.0:Group";
 export const SCIM_LIST = "urn:ietf:params:scim:api:messages:2.0:ListResponse";
 export const SCIM_ERROR = "urn:ietf:params:scim:api:messages:2.0:Error";
 export const SCIM_PATCH = "urn:ietf:params:scim:api:messages:2.0:PatchOp";
+
 export const SCIM_SEARCH =
   "urn:ietf:params:scim:api:messages:2.0:SearchRequest";
+
 const SCIM_SERVICE_PROVIDER_CONFIG =
   "urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig";
+
 const SCIM_RESOURCE_TYPE = "urn:ietf:params:scim:schemas:core:2.0:ResourceType";
 const SCIM_SCHEMA = "urn:ietf:params:scim:schemas:core:2.0:Schema";
 

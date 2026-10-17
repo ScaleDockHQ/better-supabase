@@ -10,6 +10,7 @@ import { err, type Result } from "../core/result.ts";
  */
 export function refusingExecutor(error: DbError): Executor {
   const refuse = <T>(): Result<T> => err(error);
+
   return {
     name: "refused",
     // `db.$search` then reports the refusal and not an unsupported executor.

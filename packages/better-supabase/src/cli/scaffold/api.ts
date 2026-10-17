@@ -38,12 +38,15 @@ function importFrom(
   to: string,
 ): string {
   let path = posix.relative(posix.dirname(from), to);
+
   if (!path.startsWith(".")) {
     path = `./${path}`;
   }
+
   if (context.tsExtensions) {
     return path;
   }
+
   return path.replace(/\.tsx?$/, "").replace(/^(\.\.?\/.+)\/index$/, "$1");
 }
 
@@ -51,12 +54,14 @@ const quote = (value: string): string => JSON.stringify(value);
 
 function generatedModule(context: ScaffoldContext): string {
   const names = context.tables.map(quote).join(", ");
+
   const resources = context.tables
     .map(
       (table) =>
         `  ${/^[A-Za-z_$][\w$]*$/.test(table) ? table : quote(table)}: true,`,
     )
     .join("\n");
+
   return `${GENERATED_HEADER}
 
 /** The tables served as REST resources and documented in the API model. */
@@ -76,6 +81,7 @@ function apiModule(
   generated: string,
 ): string {
   const lib = join(context.srcDir, "lib", "supabase", "index.ts");
+
   return `import { defineApi } from 'better-supabase/spec';
 
 import { betterSupabase } from '${importFrom(context, path, lib)}';
@@ -102,6 +108,7 @@ function nextFiles(context: ScaffoldContext, api: string): ScaffoldFile[] {
   const resources = join(routeDir, "[...path]", "route.ts");
   const spec = join(routeDir, "openapi.json", "route.ts");
   const server = join(context.srcDir, "lib", "supabase", "server.ts");
+
   return [
     {
       path: resources,
@@ -130,6 +137,7 @@ export const GET = (request: Request) => specResponse(document, request);
 function honoFiles(context: ScaffoldContext, api: string): ScaffoldFile[] {
   const path = join(context.srcDir, `${context.name}-routes.ts`);
   const server = join(context.srcDir, "server.ts");
+
   return [
     {
       path,
@@ -163,6 +171,7 @@ export function scaffoldApiFiles(context: ScaffoldContext): ScaffoldFile[] {
   const lib = join(context.srcDir, "lib");
   const generated = join(lib, `${context.name}.generated.ts`);
   const api = join(lib, `${context.name}.ts`);
+
   const shared: ScaffoldFile[] = [
     { path: generated, generated: true, contents: generatedModule(context) },
     {
@@ -171,13 +180,16 @@ export function scaffoldApiFiles(context: ScaffoldContext): ScaffoldFile[] {
       contents: apiModule(context, api, generated),
     },
   ];
+
   switch (context.framework) {
     case "next": {
       return [...shared, ...nextFiles(context, api)];
     }
+
     case "hono": {
       return [...shared, ...honoFiles(context, api)];
     }
+
     default: {
       const unknown: never = context.framework;
       throw new Error(`Unknown framework: ${String(unknown)}`);
@@ -192,18 +204,22 @@ export function scaffoldNextSteps(
 ): string[] {
   const api = join(context.srcDir, "lib", `${context.name}.ts`);
   const steps: string[] = [];
+
   if (context.framework === "hono") {
     steps.push(
       `Mount the routes in ${join(context.srcDir, "server.ts")}: \`.route('/', apiRoutes(bs))\`.`,
     );
   }
+
   if (specsEntry !== api) {
     steps.push(
       `Set \`specs: { entry: '${api}' }\` in better-supabase.config.ts, so \`better-supabase spec emit\` reads the API model.`,
     );
   }
+
   steps.push(
     `Describe the resources in ${api}; \`scaffold api\` only rewrites ${context.name}.generated.ts.`,
   );
+
   return steps;
 }

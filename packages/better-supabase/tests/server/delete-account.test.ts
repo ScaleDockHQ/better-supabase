@@ -19,11 +19,14 @@ const documents = defineBucket({
   path: "{userId}/{file}",
   policy: "owner",
 });
+
 const shared = defineBucket({
   id: "shared",
   path: "{organizationId}/{userId}/{file}",
 });
+
 const logos = defineBucket({ id: "logos", path: "{organizationId}/{file}" });
+
 const avatars = defineBucket({
   id: "avatars",
   path: "people/{memberId}/{file}",
@@ -44,17 +47,21 @@ function setup(
     files: options.files ?? {},
     ...(options.fail ? { fail: options.fail } : {}),
   });
+
   const deleteUser = vi.fn<DeleteUser>(
     options.deleteUser ?? (async () => ({ error: null })),
   );
+
   // SAFETY: deleteAccount reads `storage` and `auth.admin.deleteUser` only.
   const client = {
     storage: storage.client.storage,
     auth: { admin: { deleteUser } },
   } as unknown as SupabaseClient;
+
   const betterSupabase = defineSupabase(schema);
   const notices: MutationNotice[] = [];
   betterSupabase.on("mutation", (notice) => notices.push(notice));
+
   return {
     betterSupabase,
     storage,
@@ -87,7 +94,9 @@ describe("deleteAccount", () => {
         [`avatars/people/${USER}/me.png`]: "m",
       },
     });
+
     const context = { actor: { id: "admin", kind: "user" as const } };
+
     const result = await deleteAccount(betterSupabase, service, USER, {
       buckets: [documents, shared, logos, avatars],
       cascades: ["customers", "notes"],
@@ -122,13 +131,17 @@ describe("deleteAccount", () => {
 
   it("removes objects in batches of 1000", async () => {
     const files: Record<string, string> = {};
+
     for (let index = 0; index < 1001; index += 1) {
       files[`documents/${USER}/${String(index).padStart(4, "0")}.txt`] = "x";
     }
+
     const { betterSupabase, storage, service } = setup({ files });
+
     const result = await deleteAccount(betterSupabase, service, USER, {
       buckets: [documents],
     });
+
     expect(result.ok && result.data.removed).toEqual({ documents: 1001 });
     const removes = storage.calls.filter((call) => call.method === "remove");
     expect(removes.map((call) => (call.args[0] as string[]).length)).toEqual([
@@ -153,9 +166,11 @@ describe("deleteAccount", () => {
     const { betterSupabase, deleteUser, notices, service } = setup({
       fail: { list: storageError("denied", { statusCode: "403" }) },
     });
+
     const result = await deleteAccount(betterSupabase, service, USER, {
       buckets: [documents],
     });
+
     expect(result).toMatchObject({
       ok: false,
       error: { kind: "forbidden", table: "documents" },
@@ -169,9 +184,11 @@ describe("deleteAccount", () => {
       files: { [`documents/${USER}/a.txt`]: "a" },
       fail: { remove: storageError("boom", { statusCode: "500" }) },
     });
+
     const result = await deleteAccount(betterSupabase, service, USER, {
       buckets: [documents],
     });
+
     expect(result).toMatchObject({ ok: false, error: { kind: "network" } });
     expect(deleteUser).toHaveBeenCalledOnce();
     expect(storage.calls.map((call) => call.method)).toEqual([
@@ -182,22 +199,27 @@ describe("deleteAccount", () => {
 
   it("keeps the objects and returns the database's own error when it refuses the delete", async () => {
     const id = "00000000-0000-4000-8000-000000000042";
+
     const refused = {
       status: 500,
       code: "unexpected_failure",
       message: "Database error deleting user",
     };
+
     const queries: string[] = [];
+
     const probe = (error: unknown) => ({
       async queryRaw<T>(text: string): Promise<T[]> {
         queries.push(text);
         throw error;
       },
     });
+
     const { betterSupabase, storage, service } = setup({
       files: { [`documents/${id}/a.txt`]: "a" },
       deleteUser: async () => ({ error: refused }),
     });
+
     const result = await deleteAccount(betterSupabase, service, id, {
       buckets: [documents],
       sql: probe(
@@ -207,6 +229,7 @@ describe("deleteAccount", () => {
         }),
       ),
     });
+
     expect(result).toMatchObject({
       ok: false,
       error: {
@@ -228,17 +251,23 @@ describe("deleteAccount", () => {
         }),
       ),
     });
+
     expect(!passes.ok && passes.error.hint).toContain("BS406");
     queries.length = 0;
+
     const notUuid = await deleteAccount(betterSupabase, service, USER, {
       sql: probe(new Error("unused")),
     });
+
     expect(!notUuid.ok && notUuid.error.kind).toBe("conflict");
     expect(queries).toEqual([]);
+
     const opaque = await deleteAccount(betterSupabase, service, id, {
       sql: probe("not a pg error"),
     });
+
     expect(!opaque.ok && opaque.error.hint).toContain("BS406");
+
     const generic = setup({
       deleteUser: async () => ({
         error: {
@@ -248,6 +277,7 @@ describe("deleteAccount", () => {
         },
       }),
     });
+
     expect(
       await deleteAccount(generic.betterSupabase, generic.service, id, {
         sql: probe(
@@ -259,20 +289,24 @@ describe("deleteAccount", () => {
       }),
     ).toMatchObject({ ok: false, error: { hint: "OWNER_REQUIRED" } });
     queries.length = 0;
+
     const missing = setup({
       deleteUser: async () => ({
         error: { code: "user_not_found", message: "User not found" },
       }),
     });
+
     expect(
       await deleteAccount(missing.betterSupabase, missing.service, id, {
         sql: probe(new Error("unused")),
       }),
     ).toMatchObject({ ok: false, error: { kind: "not_found" } });
     expect(queries).toEqual([]);
+
     const mapped = await deleteAccount(betterSupabase, service, id, {
       sql: probe(dbError("check", "blocked", { hint: "OWNER_REQUIRED" })),
     });
+
     expect(!mapped.ok && mapped.error).toMatchObject({
       kind: "check",
       hint: "OWNER_REQUIRED",
@@ -284,11 +318,14 @@ describe("deleteAccount", () => {
     const { betterSupabase, storage, deleteUser, service } = setup({
       files: { [`documents/${USER}/a.txt`]: "a" },
     });
+
     const controller = new AbortController();
+
     const ok = await deleteAccount(betterSupabase, service, USER, {
       buckets: [documents],
       signal: controller.signal,
     });
+
     expect(ok.ok).toBe(true);
     expect(storage.calls[0]?.method).toBe("list");
 
@@ -296,10 +333,13 @@ describe("deleteAccount", () => {
       buckets: [documents],
       signal: AbortSignal.abort(),
     });
+
     expect(!aborted.ok && aborted.error.kind).toBe("aborted");
+
     const noBuckets = await deleteAccount(betterSupabase, service, USER, {
       signal: AbortSignal.abort(),
     });
+
     expect(!noBuckets.ok && noBuckets.error.kind).toBe("aborted");
     expect(deleteUser).toHaveBeenCalledOnce();
   });
@@ -317,6 +357,7 @@ describe("deleteAccount", () => {
     const { betterSupabase, notices, service } = setup({
       deleteUser: async () => ({ error }),
     });
+
     const result = await deleteAccount(betterSupabase, service, USER);
     expect(result).toMatchObject({
       ok: false,
@@ -335,6 +376,7 @@ describe("deleteAccount", () => {
         },
       }),
     });
+
     const result = await deleteAccount(betterSupabase, service, USER);
     expect(result).toMatchObject({
       ok: false,
@@ -347,6 +389,7 @@ describe("deleteAccount", () => {
     const thrown = setup({
       deleteUser: () => Promise.reject(new Error("socket hang up")),
     });
+
     expect(
       await deleteAccount(thrown.betterSupabase, thrown.service, USER),
     ).toMatchObject({
@@ -363,9 +406,11 @@ describe("deleteAccount", () => {
     });
 
     const original = dbError("forbidden", "blocked");
+
     const passthrough = setup({
       deleteUser: async () => ({ error: original }),
     });
+
     expect(
       await deleteAccount(
         passthrough.betterSupabase,

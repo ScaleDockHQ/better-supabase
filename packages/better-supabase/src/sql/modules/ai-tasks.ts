@@ -80,43 +80,57 @@ function build(ctx: ModuleContext): string {
   const manage = ctx.permission("manage", permissions.manage);
   const maxPrompt = ctx.number("maxPrompt", 20_000);
   const queue = ctx.text("queue", "ai_task_run");
+
   if (!QUEUE.test(queue)) {
     throw new TypeError(
       "blocks.ai-tasks.options.queue must be a lowercase queue name of at most 47 characters",
     );
   }
+
   const staleAfter = ctx.text("staleAfter", "30 minutes");
+
   if (!INTERVAL.test(staleAfter)) {
     throw new TypeError(
       'blocks.ai-tasks.options.staleAfter must be an interval such as "30 minutes"',
     );
   }
+
   const agents = ctx.installed("agents") ? ctx.of("agents") : undefined;
+
   const agentReference = agents
     ? ` references ${agents.table("agents")} (${agents.col("agents", "id")}) on delete set null`
     : "";
+
   const chat = ctx.installed("ai-chat") ? ctx.of("ai-chat") : undefined;
+
   const chatOwned = chat
     ? `exists (select 1 from ${chat.table("chats")} c where c.${chat.col("chats", "id")} = v_chat and c.${chat.col("chats", "owner")} = v_row.${t.user} and c.${chat.col("chats", "tenant")} = v_row.${t.tenant})`
     : "false";
+
   const agentUsable = agents
     ? `exists (select 1 from ${agents.table("agents")} g where g.${agents.col("agents", "id")} = v_agent and g.${agents.col("agents", "tenant")} = v_row.${t.tenant} and (g.${agents.col("agents", "owner")} = v_row.${t.user} or g.${agents.col("agents", "publishedAt")} is not null))`
     : "false";
+
   const extras = ctx.extraColumns("tasks", [
     ...Object.values(TASKS),
     "last_run",
     "fields",
   ]);
+
   const taskJson = (row: string): string =>
     withExtraFields(rowJson(TASKS, t, row), row, extras);
+
   const runJson = (row: string): string => rowJson(RUNS, r, row);
+
   const enqueue = (run: string): string =>
     ctx.installed("jobs")
       ? `
     ${ctx.enqueue(queue, `jsonb_build_object('run_id', ${run})`, `'ai-task:' || ${run}::text`)}`
       : "";
+
   const mayEdit = (row: string): string =>
     `(${SERVICE_CALLER} or ${row}.${t.user} = auth.uid() or ${ctx.scope.can(`${row}.${t.tenant}`, manage)})`;
+
   const notFound = raise(
     "task % not found",
     "P0002",
@@ -421,6 +435,7 @@ ${serviceGrant(`${fn("finish_ai_task_run")}(uuid, boolean, text, uuid)`)}`;
 function upgradeRunStates(ctx: ModuleContext): string {
   const runs = ctx.table("runs");
   const status = ctx.col("runs", "status");
+
   return `${replaceColumnCheck({
     table: runs,
     column: status,

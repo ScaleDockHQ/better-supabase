@@ -18,6 +18,7 @@ function fakePage(
 ): BudgetPage {
   let listener: ((response: BudgetResponse) => void) | undefined;
   let onFailed: ((request: BudgetRequest) => void) | undefined;
+
   const respond = (
     id: string,
     path: string,
@@ -31,16 +32,21 @@ function fakePage(
     }),
     finished: () => Promise.resolve(null),
   });
+
   const aborted = (id: string, path: string): BudgetResponse => {
     const request = { headers: () => ({}) };
+
     const response: BudgetResponse = {
       ...respond(id, path),
       request: () => request,
       finished: () => new Promise(() => {}),
     };
+
     listener?.(response);
+
     return response;
   };
+
   return {
     on: (
       event: string,
@@ -62,8 +68,10 @@ function fakePage(
     reload: () => {
       if (during) {
         during(aborted, (request) => onFailed?.(request));
+
         return Promise.resolve();
       }
+
       listener?.(respond("doc", "/customers"));
       listener?.(respond("rsc", "/customers?_rsc=1"));
       listener?.(
@@ -75,12 +83,14 @@ function fakePage(
         headers: () => ({}),
         finished: () => Promise.resolve(null),
       });
+
       return Promise.resolve();
     },
     request: {
       get: (url) => {
         const id = new URL(url).searchParams.get("id")!;
         const stats = renders[id];
+
         return Promise.resolve({
           ok: () => stats !== undefined,
           status: () => (stats ? 200 : 404),
@@ -104,6 +114,7 @@ describe("expectDbBudget", () => {
       fakePage({ doc: stats(3, 1), rsc: stats(1, 1) }),
       { maxCalls: 3, maxWaves: 1 },
     );
+
     expect(
       renders.map((render) => [render.requestId, render.stats.calls]),
     ).toEqual([
@@ -125,6 +136,7 @@ describe("expectDbBudget", () => {
 
   it("stops waiting when the browser aborts a streamed response", async () => {
     const started = Date.now();
+
     const renders = await expectDbBudget(
       fakePage({ early: stats(1, 1), late: stats(2, 1) }, (respond, fail) => {
         fail(respond("early", "/customers?_rsc=1").request());
@@ -135,6 +147,7 @@ describe("expectDbBudget", () => {
       }),
       { maxCalls: 2, timeoutMs: 5000 },
     );
+
     expect(renders.map((render) => render.requestId)).toEqual([
       "early",
       "late",
@@ -147,6 +160,7 @@ describe("expectDbBudget", () => {
       ...fakePage({}),
       reload: () => Promise.resolve(),
     };
+
     await expect(
       expectDbBudget(empty, { maxCalls: 0, requireRequest: false }),
     ).resolves.toEqual([]);

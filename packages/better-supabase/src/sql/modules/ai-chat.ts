@@ -420,6 +420,7 @@ const CHAT_KEYS: readonly string[] = [
 ];
 
 const TOPIC = /^[a-z][a-z0-9_-]{0,30}$/;
+
 const INTERVAL =
   /^\d{1,6} (?:second|minute|hour|day|week)s?(?: \d{1,6} (?:second|minute|hour|day|week)s?)*$/;
 
@@ -429,11 +430,13 @@ function topicOption(
   fallback: string,
 ): string {
   const value = ctx.text(name, fallback);
+
   if (!TOPIC.test(value)) {
     throw new TypeError(
       `blocks.ai-chat.options.${name} must be a lowercase name of at most 31 characters`,
     );
   }
+
   return value;
 }
 
@@ -443,21 +446,25 @@ function intervalOption(
   fallback: string,
 ): string {
   const value = ctx.text(name, fallback);
+
   if (!INTERVAL.test(value)) {
     throw new TypeError(
       `blocks.ai-chat.options.${name} must be an interval such as "1 day" or "10 minutes"`,
     );
   }
+
   return value;
 }
 
 function sandboxIdleAfter(ctx: ModuleContext): number {
   const value = ctx.number("sandboxIdleAfter", 600);
+
   if (!Number.isInteger(value) || value < 1) {
     throw new TypeError(
       "blocks.ai-chat.options.sandboxIdleAfter must be a whole number of seconds",
     );
   }
+
   return value;
 }
 
@@ -465,11 +472,13 @@ function namesOf(ctx: ModuleContext): AiChatNames {
   const permissions = moduleOperations("ai-chat");
   const topic = topicOption(ctx, "topic", "ai-chat");
   const listTopic = topicOption(ctx, "listTopic", "ai-chats");
+
   if (topic === listTopic) {
     throw new TypeError(
       "blocks.ai-chat.options.topic and listTopic must differ",
     );
   }
+
   return {
     c: {
       projects: columnsOf(ctx, "projects", PROJECTS),
@@ -538,9 +547,11 @@ function tables(ctx: ModuleContext, names: AiChatNames): string {
   const md = c.moderation;
   const rs = c.steps;
   const hs = c.harness;
+
   const partTypes = AI_MESSAGE_PART_TYPES.map(
     (type) => `@.type == "${type}"`,
   ).join(" || ");
+
   const textParts = `jsonb_path_query_array(${m.parts}, '$[*] ? (@.type == "text").text')`;
   const visible = ctx.scope.check(ch.tenant, perm.read);
 
@@ -858,6 +869,7 @@ function realtime(ctx: ModuleContext, names: AiChatNames): string {
   const chatReceive = ctx.trigger("ai_chat_receive");
   const listReceive = ctx.trigger("ai_chats_receive");
   const prefix = `${names.topic}:`;
+
   return `-- A chat's readers join ${names.topic}:{chatId}; each user joins
 -- ${names.listTopic}:{userId} for their sidebar. Payloads carry ids only.
 do $$
@@ -886,7 +898,9 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const names = namesOf(ctx);
+
   return `${schemaPreamble(ctx)}
 ${tables(ctx, names)}
 
@@ -907,6 +921,7 @@ function contract(): readonly ModuleContractFunction[] {
     args: readonly string[],
     returns = "jsonb",
   ): ModuleContractFunction => ({ name, args, returns });
+
   return [
     fn("ai_chat_can_read", ["uuid"], "boolean"),
     fn("create_ai_chat", ["{id}", "jsonb"]),
@@ -999,6 +1014,7 @@ function contract(): readonly ModuleContractFunction[] {
 function upgradeRunStates(ctx: ModuleContext): string {
   const runs = ctx.table("runs");
   const status = ctx.col("runs", "status");
+
   return `${replaceColumnCheck({
     table: runs,
     column: status,

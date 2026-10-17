@@ -12,17 +12,20 @@ import { renderHook } from "../../../fixtures/hook-runtime.ts";
 const rpc = vi.hoisted(() => {
   const calls: { schema: string; fn: string; args: unknown }[] = [];
   const results = new Map<string, unknown>();
+
   const client = {
     schema: (schema: string) => ({
       rpc: async (fn: string, args: unknown) => {
         calls.push({ schema, fn, args });
         const result = results.get(fn);
+
         return result instanceof Error
           ? { data: null, error: result }
           : { data: result ?? null, error: null };
       },
     }),
   };
+
   return { calls, results, client };
 });
 
@@ -34,6 +37,7 @@ vi.mock("react", async (importOriginal) => ({
 
 // SAFETY: the hooks read only `supabase` from the client.
 const client = { supabase: rpc.client } as unknown as ClientLike;
+
 const provide = (): void => {
   BetterSupabaseProvider({ client });
 };
@@ -81,6 +85,7 @@ describe("useAvailableSlots", () => {
   it("loads a service's slots by day and holds one", async () => {
     rpc.results.set("available_slots", [SLOT]);
     rpc.results.set("hold_booking", BOOKING);
+
     const view = renderHook(
       useAvailableSlots,
       {
@@ -92,6 +97,7 @@ describe("useAvailableSlots", () => {
       },
       provide,
     );
+
     expect(view.result.loading).toBe(true);
     await settle(view);
     expect(view.result.slots).toHaveLength(1);
@@ -114,6 +120,7 @@ describe("useAvailableSlots", () => {
   it("loads and holds through a share-link token", async () => {
     rpc.results.set("public_available_slots", [SLOT]);
     rpc.results.set("public_hold_booking", BOOKING);
+
     const view = renderHook(
       useAvailableSlots,
       {
@@ -123,6 +130,7 @@ describe("useAvailableSlots", () => {
       },
       provide,
     );
+
     await settle(view);
     const placed = await view.result.hold(view.result.slots![0]!);
     expect(placed?.accessToken).toBe("t".repeat(48));
@@ -138,11 +146,13 @@ describe("useAvailableSlots", () => {
       "available_slots",
       Object.assign(new Error("service not found"), { code: "P0002" }),
     );
+
     const view = renderHook(
       useAvailableSlots,
       { serviceId: "s1", range },
       provide,
     );
+
     await settle(view);
     expect(view.result.slots).toBeUndefined();
     expect(view.result.error?.message).toBe("service not found");
@@ -164,11 +174,13 @@ describe("useAvailableSlots", () => {
 
   it("drops a load that finishes after the range changed", async () => {
     rpc.results.set("available_slots", [SLOT]);
+
     const view = renderHook(
       useAvailableSlots,
       { serviceId: "s1", range },
       provide,
     );
+
     view.rerender({ serviceId: "s2", range });
     await settle(view);
     expect(rpc.calls.at(-1)?.args).toMatchObject({ service: "s2" });

@@ -23,6 +23,7 @@ describe.skipIf(!live)("inbox module", () => {
 
   async function claim(s: BlockSession, queue: string) {
     await s.service();
+
     return s.rows<{ message: { payload: Record<string, unknown> } }>(
       "select message from better_supabase.claim_jobs($1, 30, 10)",
       [queue],
@@ -31,6 +32,7 @@ describe.skipIf(!live)("inbox module", () => {
 
   it("lets a visitor and staff talk, with notes kept from the visitor", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(MODULES);
       const owner = await s.user("owner");
@@ -41,6 +43,7 @@ describe.skipIf(!live)("inbox module", () => {
       const inbox = createInbox({ transport: sqlTransport(s.sql) });
 
       await s.asRole(owner);
+
       const widget = await inbox.inboxes
         .create({
           tenant: org,
@@ -49,12 +52,15 @@ describe.skipIf(!live)("inbox module", () => {
           settings: { widget: true },
         })
         .orThrow();
+
       expect(widget).toMatchObject({ channel: "in_app", botMode: "bot" });
 
       await s.asRole(visitor);
+
       const opened = await inbox.conversations
         .open(widget.id, { message: "Where is my invoice?" })
         .orThrow();
+
       expect(opened).toMatchObject({
         status: "open",
         botMode: "bot",
@@ -77,9 +83,11 @@ describe.skipIf(!live)("inbox module", () => {
       await inbox.messages
         .note(opened.id, "Check the billing page", { mentions: [owner.id] })
         .orThrow();
+
       const reply = await inbox.messages
         .send(opened.id, { body: "It is under Billing." })
         .orThrow();
+
       expect(reply).toMatchObject({
         authorType: "agent",
         direction: "outbound",
@@ -123,9 +131,11 @@ describe.skipIf(!live)("inbox module", () => {
       expect(
         (await inbox.conversations.get(opened.id).orThrow())?.contactReadAt,
       ).not.toBeNull();
+
       const toViewer = await inbox.conversations.assign(opened.id, {
         assigneeId: viewer.id,
       });
+
       expect(toViewer.ok).toBe(false);
       expect(
         (
@@ -138,17 +148,21 @@ describe.skipIf(!live)("inbox module", () => {
       expect(
         (await inbox.conversations.reopen(opened.id).orThrow()).status,
       ).toBe("open");
+
       const types = (await inbox.conversations.events(opened.id).orThrow()).map(
         (event) => event.type,
       );
+
       expect(types).toEqual(
         expect.arrayContaining(["opened", "handoff", "assigned", "status"]),
       );
 
       await s.asRole(member);
+
       const ownHelp = await inbox.conversations
         .open(widget.id, { message: "Staff need help too" })
         .orThrow();
+
       expect(ownHelp.contact?.userId).toBe(member.id);
       const [asked] = await inbox.messages.list(ownHelp.id).orThrow();
       expect(asked).toMatchObject({
@@ -178,12 +192,14 @@ describe.skipIf(!live)("inbox module", () => {
 
   it("records channel messages once and tracks their deliveries", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(MODULES);
       const owner = await s.user("owner");
       const org = await s.organization(owner);
       const inbox = createInbox({ transport: sqlTransport(s.sql) });
       await s.asRole(owner);
+
       const whatsapp = await inbox.inboxes
         .create({
           tenant: org,
@@ -194,6 +210,7 @@ describe.skipIf(!live)("inbox module", () => {
         .orThrow();
 
       await s.service();
+
       const stored = await inbox.inbound
         .store({
           adapter: "whatsapp",
@@ -203,6 +220,7 @@ describe.skipIf(!live)("inbox module", () => {
           inboxId: whatsapp.id,
         })
         .orThrow();
+
       expect(stored.duplicate).toBe(false);
       expect(
         (
@@ -226,6 +244,7 @@ describe.skipIf(!live)("inbox module", () => {
         contact: { externalId: "+3199", name: "Ada" },
         message: { body: "Hi", externalId: "wamid.in1" },
       };
+
       const first = await inbox.inbound.record(input).orThrow();
       expect(first).toMatchObject({
         created: true,
@@ -238,9 +257,11 @@ describe.skipIf(!live)("inbox module", () => {
       });
 
       await s.asRole(owner);
+
       const reply = await inbox.messages
         .send(first.conversationId, { body: "Hello Ada" })
         .orThrow();
+
       const [outbound] = await claim(s, "inbox_outbound");
       expect(outbound?.message.payload).toMatchObject({ message_id: reply.id });
 
@@ -272,6 +293,7 @@ describe.skipIf(!live)("inbox module", () => {
           deliveredByCaller: true,
         })
         .orThrow();
+
       expect(mirrored.authorType).toBe("bot");
       expect(await claim(s, "inbox_outbound")).toEqual([]);
       await s.rows(
@@ -292,6 +314,7 @@ describe.skipIf(!live)("chat-sdk-state module", () => {
 
   it("passes the StateAdapter kit as the service role", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["chat-sdk-state"]);
       await s.service();
@@ -306,12 +329,14 @@ describe.skipIf(!live)("chat-sdk-state module", () => {
 
   it("revokes the credentials an install drops", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "chat-sdk-state"]);
       const owner = await s.user("owner");
       const org = await s.organization(owner);
       await s.service();
       const revoked: unknown[] = [];
+
       const credentials: CredentialProvider = {
         apiVersion: 1,
         name: "fake",
@@ -324,13 +349,16 @@ describe.skipIf(!live)("chat-sdk-state module", () => {
         }),
         revoke: (ref) => {
           revoked.push(ref);
+
           return AsyncResult.ok(true);
         },
       };
+
       const installations = createChatInstallations({
         transport: sqlTransport(s.sql),
         credentials,
       });
+
       const ref = (secret: string) => ({ provider: "vault", secret });
       await installations
         .install({

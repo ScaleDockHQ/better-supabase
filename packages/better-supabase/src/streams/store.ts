@@ -101,30 +101,39 @@ export function pollingRead(
   let next = options.from;
   let woken = false;
   let resolveWait: (() => void) | undefined;
+
   const wake = (): void => {
     woken = true;
     resolveWait?.();
   };
+
   let unsubscribe: (() => void) | undefined;
+
   const stop = (): void => {
     unsubscribe?.();
     unsubscribe = undefined;
     options.signal?.removeEventListener("abort", wake);
   };
+
   const wait = (): Promise<void> =>
     new Promise<void>((resolve) => {
       if (woken || options.signal?.aborted) {
         resolve();
+
         return;
       }
+
       const timer = setTimeout(done, options.pollMs);
+
       function done(): void {
         clearTimeout(timer);
         resolveWait = undefined;
         resolve();
       }
+
       resolveWait = done;
     });
+
   return new ReadableStream<string>({
     start() {
       options.signal?.addEventListener("abort", wake, { once: true });
@@ -135,27 +144,37 @@ export function pollingRead(
         if (options.signal?.aborted) {
           stop();
           controller.close();
+
           return;
         }
+
         woken = false;
         const page = await options.fetch(next);
+
         if (!page.ok) {
           stop();
           controller.error(page.error);
+
           return;
         }
+
         for (const chunk of page.data.chunks) {
           controller.enqueue(chunk);
         }
+
         next = page.data.next;
+
         if (page.data.done) {
           stop();
           controller.close();
+
           return;
         }
+
         if (page.data.chunks.length > 0) {
           return;
         }
+
         await wait();
       }
     },

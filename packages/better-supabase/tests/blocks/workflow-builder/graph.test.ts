@@ -31,6 +31,7 @@ describe("durationMs", () => {
     expect(durationMs("2m")).toBe(120_000);
     expect(durationMs("1h")).toBe(3_600_000);
     expect(durationMs("1d")).toBe(86_400_000);
+
     for (const bad of [0, -1, Number.NaN, "0s", "1w", "soon", null, {}]) {
       expect(durationMs(bad)).toBeUndefined();
     }
@@ -42,6 +43,7 @@ describe("conditions", () => {
     input: { email: "a@x.test", tags: ["vip", { n: 1 }] },
     results: { lookup: { plan: "pro", seats: 5 } },
   };
+
   const holds = (op: WorkflowCondition["op"], path: string, value?: unknown) =>
     evaluateCondition({ path, op, value }, scope);
 
@@ -111,8 +113,10 @@ describe("validateGraph", () => {
       nodes: [{ id, kind: "trigger" }],
       edges: [],
     });
+
     expect(validateGraph(graphWith("start_1-a"))).toEqual([]);
     expect(validateGraph(graphWith("x".repeat(100)))).toEqual([]);
+
     for (const id of ["a\u2028b", "a\u2029b", "a b", "a.b", "x".repeat(101)]) {
       expect(validateGraph(graphWith(id))).toContain(
         "Every node has an id of 1 to 100 letters, digits, underscores or hyphens",
@@ -171,6 +175,7 @@ describe("validateGraph", () => {
         { id: "3", source: "b", target: "a" },
       ],
     };
+
     expect(validateGraph(cyclic)).toEqual(["The graph has a cycle"]);
     expect(topologicalOrder(graphOf(cyclic))).toBeUndefined();
   });
@@ -235,6 +240,7 @@ describe("graph parsing and diffs", () => {
         { id: "e8", source: "isPro", target: "log", branch: "false" },
       ],
     };
+
     expect(diffGraphs(GRAPH, after)).toEqual({
       nodes: { added: ["log"], removed: ["nudge"], changed: ["welcome"] },
       edges: { added: ["isPro->log:false"], removed: ["isPro->nudge:false"] },
@@ -266,6 +272,7 @@ describe("executeGraph", () => {
   it("waits on the request id requestApproval returns", async () => {
     const runtime = fakeRuntime("pro", { approved: false });
     const calls: unknown[] = [];
+
     const results = await executeGraph(
       GRAPH,
       { email: "a@x.test" },
@@ -274,10 +281,12 @@ describe("executeGraph", () => {
         version: "v1",
         requestApproval: async (call) => {
           calls.push(call);
+
           return "5f0c1b2e-request";
         },
       },
     );
+
     expect(calls).toEqual([
       {
         node: "ok",
@@ -320,6 +329,7 @@ describe("executeGraph", () => {
         version: "v1",
         step: async (call) => {
           versions.push(call.version);
+
           return runtime.step(call);
         },
       },
@@ -333,6 +343,7 @@ describe("executeGraph", () => {
         ...runtime,
         step: async (call) => {
           unversioned.push(call.version);
+
           return runtime.step(call);
         },
       },
@@ -342,6 +353,7 @@ describe("executeGraph", () => {
 
   it("returns stubs in a test run without calling steps, sleeps or hooks", async () => {
     const runtime = fakeRuntime("free", undefined);
+
     const results = await executeGraph(
       GRAPH,
       {},
@@ -350,6 +362,7 @@ describe("executeGraph", () => {
         stubs: { lookup: { plan: "pro" } },
       },
     );
+
     expect(runtime.log).toEqual([]);
     expect(results).toMatchObject({
       lookup: { plan: "pro" },
@@ -376,16 +389,20 @@ describe("executeGraph", () => {
         { id: "2", source: "b", target: "deal" },
       ],
     };
+
     const calls: GraphStepCall[] = [];
+
     const runtime = {
       ...fakeRuntime("", undefined),
       tenant: "t1",
       subject: { type: "deal", id: "d1" },
       step: async (call: GraphStepCall) => {
         calls.push(call);
+
         return "done";
       },
     };
+
     expect(
       await executeGraph(graph, 1, { ...runtime, triggerNode: "b" }),
     ).toEqual({ b: 1, deal: true });

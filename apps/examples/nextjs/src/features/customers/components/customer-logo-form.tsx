@@ -22,12 +22,15 @@ export function CustomerLogoForm({ customerId }: { customerId: string }) {
   const t = useExtracted("customers");
   const fieldId = useId();
   const errorMessage = useErrorMessage();
+
   const form = useActionForm(uploadCustomerLogo, {
     onSuccess: () => {
       toast.success(t("Logo updated"));
     },
   });
+
   const error = form.error === undefined ? null : errorMessage(form.error);
+
   return (
     <form {...form.formProps} className="space-y-3">
       <input type="hidden" name="customerId" value={customerId} />

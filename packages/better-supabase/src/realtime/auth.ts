@@ -13,6 +13,7 @@ export async function refreshRealtimeAuth(
   if (manualToken(client.realtime)) {
     return;
   }
+
   await client.realtime.setAuth();
 }
 
@@ -21,7 +22,9 @@ function manualToken(realtime: object): boolean {
   if (!("_isManualToken" in realtime)) {
     return false;
   }
+
   // oxlint-disable-next-line no-underscore-dangle -- realtime-js names its internal check this way.
   const check = realtime._isManualToken;
+
   return typeof check === "function" && check.call(realtime) === true;
 }

@@ -55,47 +55,63 @@ export function watch<T>(
       "better-supabase: watch() needs a PowerSync database with onChange()",
     );
   }
+
   const refresh = options.refresh ?? {};
+
   if (refresh.onReconnect && !db.registerListener) {
     throw new TypeError(
       "better-supabase: watch() refresh.onReconnect needs a PowerSync database with registerListener()",
     );
   }
+
   const signal = options.signal;
+
   if (signal?.aborted) {
     return () => undefined;
   }
+
   const controller = new AbortController();
+
   const stop = (): void => {
     controller.abort();
   };
+
   signal?.addEventListener("abort", stop, { once: true });
   let latest = 0;
   let previous: Result<T> | undefined;
   const sharing = options.structuralSharing ?? true;
+
   const rerun = async (): Promise<void> => {
     latest += 1;
     const run = latest;
     let result: Result<T>;
+
     try {
       result = await query();
     } catch (cause) {
       result = err(toDbError(cause));
     }
+
     if (run !== latest || controller.signal.aborted) {
       return;
     }
+
     if (sharing) {
       const shared = shareStructure(previous, result);
+
       if (shared === previous) {
         return;
       }
+
       result = shared;
     }
+
     previous = result;
     options.onResult(result);
   };
+
   void rerun();
+
   const unsubscribe = db.onChange(
     { onChange: rerun },
     {
@@ -106,6 +122,7 @@ export function watch<T>(
         : { throttleMs: options.throttleMs }),
     },
   );
+
   const timer =
     refresh.everyMs === undefined
       ? undefined
@@ -113,26 +130,33 @@ export function watch<T>(
           if (db.currentStatus?.connected === false) {
             return;
           }
+
           void rerun();
         }, refresh.everyMs);
+
   let connected = db.currentStatus?.connected ?? true;
+
   const unlisten =
     refresh.onReconnect && db.registerListener
       ? db.registerListener({
           statusChanged: (status) => {
             const reconnected = status.connected && !connected;
             connected = status.connected;
+
             if (reconnected) {
               void rerun();
             }
           },
         })
       : undefined;
+
   const cleanup = (): void => {
     clearInterval(timer);
     unlisten?.();
   };
+
   controller.signal.addEventListener("abort", cleanup, { once: true });
+
   return () => {
     signal?.removeEventListener("abort", stop);
     stop();
@@ -152,9 +176,11 @@ export function sqliteTables(
 ): string[] {
   return keys.map((key) => {
     const table = betterSupabase.meta.tables[key];
+
     if (!table) {
       throw new TypeError(`better-supabase: unknown table "${key}"`);
     }
+
     return options.tableName ? options.tableName(table) : table.name;
   });
 }

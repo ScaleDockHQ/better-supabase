@@ -117,15 +117,18 @@ export interface Documents {
 
 function seqOf(value: unknown, name: string): number {
   const seq = typeof value === "string" ? Number(value) : value;
+
   if (typeof seq !== "number" || !Number.isSafeInteger(seq) || seq < 0) {
     throw new TypeError(`${name} must be a sequence number`);
   }
+
   return seq;
 }
 
 function stateOf(value: unknown, fn: string): DocumentState {
   const row = recordOf(value, fn);
   const snapshot = optionalText(row["snapshot"]);
+
   return {
     snapshotSeq: seqOf(row["snapshotSeq"] ?? 0, "snapshotSeq"),
     updates: recordsOf(row["updates"], fn).map((item) => ({
@@ -138,6 +141,7 @@ function stateOf(value: unknown, fn: string): DocumentState {
 
 function openedOf(value: unknown): OpenedDocument {
   const row = recordOf(value, "open_document");
+
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["organizationId"]),
@@ -155,6 +159,7 @@ function openedOf(value: unknown): OpenedDocument {
 function versionOf(value: Record<string, unknown>): DocumentVersion {
   const label = optionalText(value["label"]);
   const createdBy = optionalText(value["createdBy"]);
+
   return {
     id: textOf(value["id"]),
     number: seqOf(value["number"], "number"),
@@ -168,6 +173,7 @@ function versionOf(value: Record<string, unknown>): DocumentVersion {
 export function createDocuments(options: DocumentsOptions): Documents {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const client: Documents = {
     open: (ref) =>
       call(
@@ -212,6 +218,7 @@ export function createDocuments(options: DocumentsOptions): Documents {
         },
         (value) => {
           const row = recordOf(value, "save_document_version");
+
           return {
             id: textOf(row["id"]),
             number: seqOf(row["number"], "number"),
@@ -241,6 +248,7 @@ export function createDocuments(options: DocumentsOptions): Documents {
           (Array.isArray(value) ? value : []).map((id: unknown) => textOf(id)),
       ),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "documents",
     ...(options.logger ? { logger: options.logger } : {}),

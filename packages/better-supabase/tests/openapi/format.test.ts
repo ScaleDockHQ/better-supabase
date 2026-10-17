@@ -269,6 +269,7 @@ describe("openapiFormat: fragments and extend", () => {
         },
       ],
     });
+
     const { document, diagnostics } = fragmented.openapi();
     expect(document.info.description).toBe("Added");
     expect(document.paths["/notes/{id}"]?.["get"]).toMatchObject({
@@ -290,6 +291,7 @@ describe("openapiFormat: fragments and extend", () => {
       info: { title: "CRM", version: "1.0.0" },
       fragments: [{ paths: [] }],
     });
+
     expect(() => broken.openapi()).toThrow("removed a required document field");
   });
 });
@@ -312,9 +314,11 @@ describe("openapiFormat: security profiles", () => {
 
   it("emits profiles in 3.3-preview only", () => {
     const diagnostics: unknown[] = [];
+
     const ctx = {
       report: (diagnostic: unknown) => diagnostics.push(diagnostic),
     };
+
     const preview = openapiFormat.lower(profileModel(), "3.3-preview", ctx);
     expect(preview.components.securitySchemes["agents"]).toMatchObject({
       type: "profile",
@@ -344,6 +348,7 @@ describe("openapiFormat lint", () => {
   const lint = (patch: (document: Record<string, unknown>) => void) => {
     const document = structuredClone(api.openapi().document);
     patch(document as unknown as Record<string, unknown>);
+
     return (openapiFormat.lint?.(document, "3.1") ?? []).map(
       (diagnostic) => diagnostic.code,
     );
@@ -360,6 +365,7 @@ describe("openapiFormat lint", () => {
           string,
           Record<string, Record<string, unknown>>
         >;
+
         paths["/notes"]!["get"]!["operationId"] = "getNotes";
         paths["/notes"]!["get"]!["security"] = [{ nope: [] }];
         paths["/x/{a}"] = {
@@ -388,6 +394,7 @@ describe("openapiFormat lint", () => {
       delete document["components"];
       document["security"] = [{ bearer: [] }];
     });
+
     expect(new Set(codes)).toEqual(
       new Set(["security-unresolved", "ref-unresolved"]),
     );
@@ -416,6 +423,7 @@ describe("createOpenApi", () => {
 
   it("passes transform and overlays through and reports findings", () => {
     const heard: string[] = [];
+
     const document = createOpenApi(betterSupabase, {
       ...options,
       version: "3.3-preview",
@@ -424,6 +432,7 @@ describe("createOpenApi", () => {
       applyOverlays: (doc) => ({ document: doc }),
       onDiagnostic: (diagnostic) => heard.push(diagnostic.code),
     });
+
     expect(document["x-t"]).toBe(1);
     expect(heard).toEqual(["preview-version"]);
   });
@@ -443,6 +452,7 @@ describe("lowering", () => {
     const before: readonly ModelOperation[] = structuredClone(
       api.model.operations,
     );
+
     api.openapi({ version: "3.0" });
     expect(api.model.operations).toEqual(before);
   });

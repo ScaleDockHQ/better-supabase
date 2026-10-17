@@ -22,6 +22,7 @@ describe("entitlementMembers", () => {
     const fake = fakeSql([
       ["entitlement_members", [{ user_id: "u1" }, { user_id: "u2" }]],
     ]);
+
     expect(
       await entitlementMembers(fake.sql, event("cus_1")).orThrow(),
     ).toEqual(["u1", "u2"]);
@@ -42,6 +43,7 @@ describe("entitlementMembers", () => {
 
   it("returns no members without a query for payloads without a customer", async () => {
     const fake = fakeSql();
+
     for (const payload of [
       null,
       "evt",
@@ -52,6 +54,7 @@ describe("entitlementMembers", () => {
     ]) {
       expect(await entitlementMembers(fake.sql, payload).orThrow()).toEqual([]);
     }
+
     expect(fake.calls).toHaveLength(0);
   });
 
@@ -62,6 +65,7 @@ describe("entitlementMembers", () => {
         { throws: pgError("42883", "function does not exist") },
       ],
     ]);
+
     const result = await entitlementMembers(fake.sql, event("cus_1"));
     expect(result.ok).toBe(false);
     expect(result.error?.message).toBe("function does not exist");

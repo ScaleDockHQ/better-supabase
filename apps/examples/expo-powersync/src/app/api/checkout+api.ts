@@ -15,9 +15,11 @@ const Body = v.object({ plan: v.string() });
 export const POST = bs.handler(
   async (request) => {
     const body = v.safeParse(Body, await request.json());
+
     if (!body.success) {
       return err(dbError("invalid_input", "Pass a plan"));
     }
+
     return err(
       dbError(
         "unsupported",

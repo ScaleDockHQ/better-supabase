@@ -18,6 +18,7 @@ describe("the preset catalog", () => {
     const manifests = new Set(
       PRESET_CATALOG.manifests.map((manifest) => manifest.name),
     );
+
     for (const block of PRESET_CATALOG.blocks) {
       expect(manifests).toContain(block.manifest);
     }
@@ -45,6 +46,7 @@ describe("PRESET_FIELDS", () => {
     const integrations = PRESET_FIELDS.find(
       (field) => field.key === "integrations",
     );
+
     expect(integrations?.values).toEqual(
       expect.arrayContaining([...INTEGRATION_NAMES]),
     );

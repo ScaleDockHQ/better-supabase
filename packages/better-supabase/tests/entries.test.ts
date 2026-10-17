@@ -131,9 +131,11 @@ describe("subpath entries", () => {
     async (subpath) => {
       const file = new URL(`../src/${entryOf(subpath)}.ts`, import.meta.url);
       const module = (await import(file.href)) as Record<string, unknown>;
+
       const { values } = (api as Record<string, { values: string[] }>)[
         subpath
       ]!;
+
       expect(values.filter((name) => module[name] === undefined)).toEqual([]);
     },
   );
@@ -143,12 +145,14 @@ describe("subpath entries", () => {
       new URL(`../src/${entry}/index.ts`, import.meta.url),
       "utf-8",
     );
+
     const statements = source
       .replace(/^"use client";$/m, "")
       .replaceAll(/\/\*[\s\S]*?\*\/|^\s*\/\/.*$/gm, "")
       .split(/;\s*\n/)
       .map((statement) => statement.trim())
       .filter(Boolean);
+
     for (const statement of statements) {
       expect(statement).toMatch(
         /^export\s+(type\s+)?(\*|\{[^}]*\})\s+from\s+"[^"]+"$/,
@@ -161,15 +165,19 @@ describe("the source export condition", () => {
   it("adds only the source path to the published exports", () => {
     const published: Record<string, unknown> =
       packageJson.publishConfig.exports;
+
     const withoutSource = Object.fromEntries(
       Object.entries(packageJson.exports).map(([key, value]) => {
         if (typeof value === "string") {
           return [key, value];
         }
+
         const { "@better-supabase/source": _, ...rest } = value;
+
         return [key, rest];
       }),
     );
+
     expect(withoutSource).toEqual(published);
   });
 
@@ -179,6 +187,7 @@ describe("the source export condition", () => {
       if (typeof value === "string") {
         return;
       }
+
       expect(value["@better-supabase/source"]).toBe(
         value.default.replace(/^\.\/dist\//, "./src/").replace(/\.js$/, ".ts"),
       );

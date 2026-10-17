@@ -12,12 +12,17 @@ export {
   type WaitlistPlace,
   type WaitlistStatus,
 } from "./waitlist.ts";
+
 export {
   dbTransport,
   rpcTransport,
   sqlTransport,
 } from "../../core/block-transport.ts";
+
 export type { BlockTransport } from "../../core/block-transport.ts";
+
 export { waitlistBlock } from "./manifest.ts";
+
 export { waitlistEvents } from "./events.ts";
+
 export type { WaitlistEvents } from "./events.ts";

@@ -33,27 +33,34 @@ export function ResetPasswordForm() {
   const fieldId = useId();
   const supabase = useSupabase();
   const changeSession = useSessionChange(sessionChanged, useRouter());
+
   const [error, submit, pending] = useActionState(
     async (_previous: string | null, form: FormData) => {
       const password = String(form.get("password"));
+
       if (password !== String(form.get("confirm"))) {
         return t("The passwords don't match.");
       }
+
       const { error: updateError } = await supabase.auth.updateUser({
         password,
       });
+
       if (updateError) {
         return updateError.code === "session_not_found" ||
           updateError.name === "AuthSessionMissingError"
           ? t("This link has expired. Ask for a new one.")
           : updateError.message;
       }
+
       toast.success(t("Password changed"));
       await changeSession("/");
+
       return null;
     },
     null,
   );
+
   return (
     <Card>
       <CardHeader className="text-center">

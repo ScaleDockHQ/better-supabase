@@ -26,9 +26,11 @@ export async function PermissionGate({
   children: ReactNode;
 }) {
   const [session, t] = await Promise.all([getSession(), getExtracted("user")]);
+
   if (can(session, permission)) {
     return children;
   }
+
   return (
     <Empty role="alert" className="border">
       <EmptyHeader>

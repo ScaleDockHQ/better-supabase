@@ -49,10 +49,12 @@ export function driveFilesSql(kit: DriveKit): string {
     touch,
     siblings,
   } = kit;
+
   const purgeObjects =
     A === undefined
       ? "'[]'::jsonb"
       : `(select coalesce(jsonb_agg(jsonb_build_object('bucket', pa.${a("bucket")}, 'path', pa.${a("path")})), '[]'::jsonb) from ${A} pa where pa.${a("subjectType")} = ${typeLit} and pa.${a("subjectId")} = old.${n("id")}::text and pa.${a("uploadedAt")} is not null)`;
+
   const purgeCleanup = [
     A === undefined
       ? ""
@@ -626,6 +628,7 @@ alter table ${T} drop constraint if exists bs_drive_nodes_attachment;
 alter table ${T} add constraint bs_drive_nodes_attachment foreign key (${n("attachment")}) references ${A} (${a("id")}) on delete set null;
 `
       : "";
+
   const fileNodeJson =
     A === undefined
       ? ""
@@ -641,6 +644,7 @@ as $$
 $$;
 revoke execute on function ${fn("drive_node_json")}(${T}) from public, anon, authenticated;
 `;
+
   const late = `${schemaPreamble(own)}
 ${attachmentKey}${fileNodeJson}
 -- Before a node is deleted for good, its stored objects go into
@@ -680,5 +684,6 @@ create trigger ${ctx.trigger("drive_node_purged")}
   after delete on ${T}
   for each row execute function ${fn("drive_node_purged")}();
 ${fileFunctions}${revisionFunctions}${binFunctions}${stateFunctions}${linkFunction}`;
+
   return late;
 }

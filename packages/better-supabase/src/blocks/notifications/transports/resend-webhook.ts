@@ -42,7 +42,9 @@ const instantOf = (value: unknown): Temporal.Instant | undefined => {
   if (typeof value !== "string") {
     return undefined;
   }
+
   const { Instant } = temporal();
+
   try {
     return Instant.from(value);
   } catch {
@@ -63,28 +65,37 @@ export function resendDeliveryEvent(
   if (!isRecord(event) || !isRecord(event["data"])) {
     return undefined;
   }
+
   const type = event["type"];
+
   const kind =
     typeof type === "string" && Object.hasOwn(RESEND_KINDS, type)
       ? RESEND_KINDS[type]
       : undefined;
+
   const data = event["data"];
   const emailId = data["email_id"];
+
   if (kind === undefined || typeof emailId !== "string" || emailId === "") {
     return undefined;
   }
+
   const bounce = isRecord(data["bounce"]) ? data["bounce"] : undefined;
   const click = isRecord(data["click"]) ? data["click"] : undefined;
   const detail: Record<string, unknown> = {};
+
   for (const key of ["type", "subType", "message"] as const) {
     if (typeof bounce?.[key] === "string") {
       detail[key === "type" ? "bounceType" : key] = bounce[key];
     }
   }
+
   if (typeof click?.["link"] === "string") {
     detail["link"] = click["link"];
   }
+
   const occurredAt = instantOf(event["created_at"]);
+
   return {
     provider: "resend",
     providerMessageId: emailId,
@@ -120,35 +131,44 @@ export function resendSuppressions(
   if (!isRecord(event) || !isRecord(event["data"])) {
     return [];
   }
+
   const data = event["data"];
   const bounce = isRecord(data["bounce"]) ? data["bounce"] : undefined;
   let reason: SuppressInput["reason"];
+
   switch (event["type"]) {
     case "email.bounced": {
       if (bounce?.["type"] === "Transient") {
         return [];
       }
+
       reason = "bounce";
       break;
     }
+
     case "email.complained": {
       reason = "complaint";
       break;
     }
+
     default: {
       return [];
     }
   }
+
   const to = Array.isArray(data["to"]) ? data["to"] : [data["to"]];
   const detail: Record<string, unknown> = {};
+
   if (typeof data["email_id"] === "string") {
     detail["emailId"] = data["email_id"];
   }
+
   for (const key of ["type", "subType", "message"] as const) {
     if (typeof bounce?.[key] === "string") {
       detail[key === "type" ? "bounceType" : key] = bounce[key];
     }
   }
+
   return to
     .filter(
       (address): address is string =>
@@ -176,11 +196,14 @@ export function resendWebhook(
 ): (request: Request) => Promise<Response> {
   const limit = options.maxBodyBytes ?? 256 * 1024;
   const format = options.problem;
+
   return async (request) => {
     if (request.method !== "POST") {
       return methodNotAllowed(["POST"]);
     }
+
     const body = await readBodyCapped(request, limit);
+
     if (body === undefined) {
       return problemResponse(
         {
@@ -192,34 +215,42 @@ export function resendWebhook(
         { format },
       );
     }
+
     const verified = await verifyWebhook(
       { headers: request.headers, body },
       options.secret,
       options,
     );
+
     if (!verified.ok) {
       return problemResponse(verified.error, { format });
     }
+
     const delivery = resendDeliveryEvent(
       verified.data.payload,
       verified.data.id,
     );
+
     if (delivery !== undefined && options.notifications.recordDeliveryEvent) {
       const recorded =
         await options.notifications.recordDeliveryEvent(delivery);
+
       if (!recorded.ok) {
         return problemResponse(recorded.error, { format });
       }
     }
+
     for (const input of resendSuppressions(
       verified.data.payload,
       verified.data.id,
     )) {
       const written = await options.notifications.suppress(input);
+
       if (!written.ok) {
         return problemResponse(written.error, { format });
       }
     }
+
     return new Response(null, { status: 204 });
   };
 }

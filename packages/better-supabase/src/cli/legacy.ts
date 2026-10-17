@@ -23,6 +23,7 @@ const ARRAY_FLAGS = new Set([
   "with",
   "explain",
 ]);
+
 const BOOLEAN_FLAGS = new Set([
   "check",
   "watch",
@@ -46,27 +47,35 @@ const BOOLEAN_FLAGS = new Set([
 function parseArgs(argv: readonly string[]): ParsedArgs {
   const flags: Record<string, FlagValue> = {};
   const positionals: string[] = [];
+
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
+
     if (token === undefined) {
       continue;
     }
+
     if (token === "--") {
       positionals.push(...argv.slice(index + 1));
       break;
     }
+
     if (token === "-h") {
       flags["help"] = true;
       continue;
     }
+
     if (token.startsWith("--")) {
       const body = token.slice(2);
       const eq = body.indexOf("=");
+
       if (eq !== -1) {
         setFlag(flags, body.slice(0, eq), body.slice(eq + 1));
         continue;
       }
+
       const next = argv[index + 1];
+
       if (
         !BOOLEAN_FLAGS.has(body) &&
         next !== undefined &&
@@ -76,11 +85,14 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
         index += 1;
         continue;
       }
+
       flags[body] = true;
       continue;
     }
+
     positionals.push(token);
   }
+
   return { command: positionals[0], rest: positionals.slice(1), flags };
 }
 
@@ -91,14 +103,18 @@ function setFlag(
 ): void {
   if (ARRAY_FLAGS.has(name)) {
     const current = flags[name];
+
     const pieces = value
       .split(",")
       .map((item) => item.trim())
       .filter(Boolean);
+
     flags[name] =
       typeof current === "object" ? [...current, ...pieces] : pieces;
+
     return;
   }
+
   flags[name] = value;
 }
 
@@ -129,6 +145,7 @@ export function legacyCommand(
     run: ({ rawArgs, data }) => {
       const parsed = parseArgs([name, ...rawArgs]);
       const context = cliContext(data);
+
       return command({ ...context, env: { ...context.env }, args: parsed });
     },
   });

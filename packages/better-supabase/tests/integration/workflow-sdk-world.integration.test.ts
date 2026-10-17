@@ -37,8 +37,10 @@ async function createRun(
       attributes,
     },
   });
+
   const runId = result.run.runId;
   created.push(runId);
+
   return runId;
 }
 
@@ -46,6 +48,7 @@ beforeAll(async () => {
   if (!live) {
     return;
   }
+
   await installWorld(pool);
   world = createSupabaseWorld({ pool });
 });
@@ -56,14 +59,17 @@ afterAll(async () => {
       "delete from better_supabase.workflow_runs where external_id = any($1)",
       [created],
     );
+
     for (const table of ["events", "steps", "hooks", "waits", "runs"]) {
       await pool.query(
         `delete from workflow.workflow_${table} where ${table === "runs" ? "id" : "run_id"} = any($1)`,
         [created],
       );
     }
+
     await world.close();
   }
+
   await pool.end();
 });
 
@@ -88,6 +94,7 @@ describe.skipIf(!live)("Supabase World", () => {
       [WORKFLOW_ATTRIBUTES.tenant]: ACME,
       customer: "c_1",
     });
+
     expect(await mirrored(runId)).toMatchObject({
       engine: "workflow-sdk",
       status: "queued",
@@ -102,6 +109,7 @@ describe.skipIf(!live)("Supabase World", () => {
       [WORKFLOW_ATTRIBUTES.tenant]: FOREIGN_TENANT,
       [WORKFLOW_ATTRIBUTES.actor]: ADMIN,
     });
+
     expect(await mirrored(runId)).toMatchObject({ tenant: null, actor: ADMIN });
   });
 
@@ -109,7 +117,9 @@ describe.skipIf(!live)("Supabase World", () => {
     const runId = await createRun("workflow//./keyed//keyed", {
       [WORKFLOW_ATTRIBUTES.key]: KEY,
     });
+
     const analytics = world.analytics;
+
     if (analytics === undefined) {
       throw new Error("no analytics");
     }
@@ -117,6 +127,7 @@ describe.skipIf(!live)("Supabase World", () => {
     const runs = await analytics.runs.list({
       attributes: { [WORKFLOW_ATTRIBUTES.key]: KEY },
     });
+
     expect(runs.data.map((run) => run.runId)).toEqual([runId]);
     expect(runs.hasMore).toBe(false);
 
@@ -124,6 +135,7 @@ describe.skipIf(!live)("Supabase World", () => {
       workflowName: "workflow//./keyed//keyed",
       pagination: { limit: 1 },
     });
+
     expect(byName.data).toHaveLength(1);
 
     const keys = await analytics.attributes.list({});
@@ -184,21 +196,26 @@ describe.skipIf(!live)("Supabase World", () => {
       runId,
       pagination: { limit: 2, sortOrder: "asc" },
     });
+
     expect(page.data.map((event) => event.eventType)).toEqual([
       "run_created",
       "run_started",
     ]);
     expect(page.hasMore).toBe(true);
+
     const next = await analytics.events.list({
       runId,
       pagination: { limit: 2, sortOrder: "asc", cursor: page.cursor! },
     });
+
     expect(next.data[0]?.eventType).toBe("step_created");
     expect(next.data[0]?.stepName).toBe("send");
+
     const step = await analytics.events.list({
       runId,
       correlationId: STEP,
     });
+
     expect(step.data).toHaveLength(1);
     const event = await analytics.events.get(runId, step.data[0]!.eventId);
     expect(event.correlationId).toBe(STEP);
@@ -209,11 +226,13 @@ describe.skipIf(!live)("Supabase World", () => {
       'workflow step "nope" not found',
     );
     const now = new Date();
+
     const windowed = await analytics.runs.list({
       workflowName: "workflow//./parts//parts",
       startTime: new Date(now.getTime() - 60_000).toISOString(),
       endTime: new Date(now.getTime() + 60_000).toISOString(),
     });
+
     expect(windowed.data.map((run) => run.runId)).toContain(runId);
   });
 
@@ -221,6 +240,7 @@ describe.skipIf(!live)("Supabase World", () => {
     const runId = await createRun("workflow//./once//once", {
       [WORKFLOW_ATTRIBUTES.key]: `${KEY}:once`,
     });
+
     const run = await startFor(
       { tenant: ACME },
       async () => {
@@ -229,6 +249,7 @@ describe.skipIf(!live)("Supabase World", () => {
       [],
       { idempotencyKey: `${KEY}:once`, world },
     );
+
     expect(run.runId).toBe(runId);
   });
 });

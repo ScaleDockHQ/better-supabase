@@ -15,8 +15,10 @@ export function docsUrl(input: string): string {
     .split(/[?#]/u)[0]!
     .replace(/\.mdx?$/u, "")
     .replace(/\/+$/u, "");
+
   const parts = path.split("/").filter((part) => part.length > 0);
   const slugs = parts[0] === "docs" ? parts.slice(1) : parts;
+
   return `${docsRoute}${slugs.length > 0 ? `/${slugs.join("/")}` : ""}`;
 }
 

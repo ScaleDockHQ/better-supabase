@@ -4,7 +4,9 @@ export function isPlainObject(
   if (typeof value !== "object" || value === null) {
     return false;
   }
+
   const proto: unknown = Object.getPrototypeOf(value);
+
   return proto === Object.prototype || proto === null;
 }
 
@@ -16,13 +18,17 @@ export function cloneValue(value: unknown): unknown {
   if (Array.isArray(value)) {
     return value.map(cloneValue);
   }
+
   if (isPlainObject(value)) {
     const copy: Record<string, unknown> = {};
+
     for (const [key, item] of Object.entries(value)) {
       copy[key] = cloneValue(item);
     }
+
     return copy;
   }
+
   return value;
 }
 
@@ -32,7 +38,9 @@ export function deepFreeze<T>(value: T): T {
     for (const item of Object.values(value)) {
       deepFreeze(item);
     }
+
     Object.freeze(value);
   }
+
   return value;
 }

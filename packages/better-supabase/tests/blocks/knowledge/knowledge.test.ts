@@ -32,13 +32,16 @@ type Handler = (args: Record<string, unknown>) => unknown;
 
 function fakeTransport(handlers: Record<string, Handler>) {
   const calls: { fn: string; args: Record<string, unknown> }[] = [];
+
   const transport: BlockTransport = {
     call: (_schema, fn, args) => {
       calls.push({ fn, args });
       const handler = handlers[fn];
+
       if (!handler) {
         return Promise.reject(new Error(`unexpected ${fn}`));
       }
+
       try {
         return Promise.resolve(handler(args));
       } catch (cause) {
@@ -46,6 +49,7 @@ function fakeTransport(handlers: Record<string, Handler>) {
       }
     },
   };
+
   return { transport, calls };
 }
 
@@ -53,11 +57,13 @@ const embedder = (
   model = "m1",
 ): Embedder & { readonly batches: string[][] } => {
   const batches: string[][] = [];
+
   return {
     model,
     batches,
     embed: (values) => {
       batches.push([...values]);
+
       return Promise.resolve(values.map((_, index) => [index, 0.5]));
     },
   };
@@ -67,18 +73,22 @@ describe("chunk", () => {
   it("breaks at paragraphs, lines, sentences and words", () => {
     expect(chunk("")).toEqual([]);
     expect(chunk("short text")).toEqual([{ content: "short text", tokens: 3 }]);
+
     const paragraphs = chunk("aaaa aaaa\n\nbbbb bbbb", {
       size: 12,
       overlap: 0,
     });
+
     expect(paragraphs.map((c) => c.content)).toEqual([
       "aaaa aaaa",
       "bbbb bbbb",
     ]);
+
     const words = chunk("one two three four five six", {
       size: 10,
       overlap: 4,
     });
+
     expect(words.map((c) => c.content)).toEqual([
       "one two",
       "two three",
@@ -113,11 +123,13 @@ describe("createKnowledge", () => {
       ],
       delete_knowledge_document: () => true,
     });
+
     const knowledge = createKnowledge({ transport, embedder: embedder() });
 
     const created = await knowledge.documents
       .create("o1", { title: "Notes", scope: "user", metadata: { a: 1 } })
       .orThrow();
+
     expect(created).toMatchObject({
       id: "d1",
       scope: "user",
@@ -132,6 +144,7 @@ describe("createKnowledge", () => {
     const ingested = await knowledge.ingest
       .text("o1", { title: "Notes", text: "hello world" })
       .orThrow();
+
     expect(ingested.chunkCount).toBe(2);
     expect(calls.at(-1)).toEqual({
       fn: "write_knowledge_chunks",
@@ -149,9 +162,11 @@ describe("createKnowledge", () => {
     expect(missing.ok ? undefined : missing.error.hint).toBe(
       "KNOWLEDGE_NOT_FOUND",
     );
+
     const listed = await knowledge.documents
       .list("o1", { scope: "user", scopeId: "u1", limit: 5 })
       .orThrow();
+
     expect(listed.map((d) => [d.scope, d.status])).toEqual([
       ["user", "pending"],
       ["user", "failed"],
@@ -173,18 +188,21 @@ describe("createKnowledge", () => {
         documentRow({ file_id: args["file_id"], title: args["title"] }),
       write_knowledge_chunks: () => documentRow({ file_id: "f1" }),
     });
+
     const file = (mediaType: string): AiFile =>
       ({
         id: "f1",
         filename: "notes.md",
         mediaType,
       }) as AiFile;
+
     const read = vi.fn((fileId: string) =>
       AsyncResult.ok({
         file: file(fileId === "pdf" ? "application/pdf" : "text/markdown"),
         data: new TextEncoder().encode("# Notes"),
       }),
     );
+
     // SAFETY: the block calls only files.read.
     const files = { files: { read } } as unknown as AiFiles;
     const knowledge = createKnowledge({ transport, files });
@@ -208,6 +226,7 @@ describe("createKnowledge", () => {
       "o1",
       "f1",
     );
+
     expect(noFiles.ok ? undefined : noFiles.error.hint).toBe(
       "KNOWLEDGE_NO_FILES",
     );
@@ -219,25 +238,31 @@ describe("createKnowledge", () => {
       { idx: 1, content: "b", hash: "hb" },
       { idx: 2, content: "c", hash: "hc" },
     ];
+
     const { transport: service, calls } = fakeTransport({
       pending_knowledge_chunks: (args) =>
         pending.slice(0, Number(args["batch"])),
       set_knowledge_embeddings: (args) => {
         const items = (args["embeddings"] as { items: { idx: number }[] })
           .items;
+
         pending = pending.filter(
           (row) => !items.some((item) => item.idx === row.idx),
         );
+
         return pending.length;
       },
     });
+
     const model = embedder();
+
     const knowledge = createKnowledge({
       transport: service,
       service,
       embedder: model,
       batchSize: 2,
     });
+
     expect(await knowledge.process("d1").orThrow()).toBe(0);
     expect(model.batches).toEqual([["a", "b"], ["c"]]);
     expect(
@@ -263,6 +288,7 @@ describe("createKnowledge", () => {
       ],
       set_knowledge_embeddings: () => 0,
     });
+
     for (const vectors of [
       [[1, 2]],
       [[1, 2], [3]],
@@ -276,11 +302,13 @@ describe("createKnowledge", () => {
         transport,
         embedder: { model: "m1", embed: () => Promise.resolve(vectors) },
       }).process("d1");
+
       expect(result.ok ? undefined : result.error).toMatchObject({
         kind: "invalid_input",
         hint: "EMBEDDING_INVALID",
       });
     }
+
     expect(calls.some((c) => c.fn === "set_knowledge_embeddings")).toBe(false);
   });
 
@@ -289,6 +317,7 @@ describe("createKnowledge", () => {
       pending_knowledge_chunks: () => [{ idx: 0, content: "a", hash: "old" }],
       set_knowledge_embeddings: () => 1,
     });
+
     const knowledge = createKnowledge({ transport, embedder: embedder() });
     expect(await knowledge.process("d1").orThrow()).toBe(1);
     expect(
@@ -301,25 +330,31 @@ describe("createKnowledge", () => {
       pending_knowledge_chunks: () => [{ idx: 0, content: "a" }],
       set_knowledge_embeddings: () => 3,
     });
+
     const controller = new AbortController();
+
     const knowledge = createKnowledge({
       transport,
       embedder: {
         model: "m1",
         embed: (values) => {
           controller.abort();
+
           return Promise.resolve(values.map(() => [1]));
         },
       },
     });
+
     expect(
       await knowledge.process("d1", { signal: controller.signal }).orThrow(),
     ).toBe(3);
     const bare = await createKnowledge({ transport }).process("d1");
     expect(bare.ok ? undefined : bare.error.hint).toBe("KNOWLEDGE_NO_EMBEDDER");
+
     const broken = await createKnowledge({
       transport: fakeTransport({}).transport,
     }).process("d1");
+
     expect(broken.ok).toBe(false);
   });
 
@@ -330,11 +365,14 @@ describe("createKnowledge", () => {
         args["document_id"] === "d1" ? [] : [{ idx: 0, content: "x" }],
       fail_knowledge_document: () => true,
     });
+
     const embed = vi.fn(() => Promise.reject(new Error("down")));
+
     const knowledge = createKnowledge({
       transport,
       embedder: { model: "m1", embed },
     });
+
     expect(await knowledge.drain({ batch: 5 }).orThrow()).toBe(1);
     expect(embed).toHaveBeenCalledTimes(3);
     expect(calls.find((c) => c.fn === "fail_knowledge_document")?.args).toEqual(
@@ -343,16 +381,19 @@ describe("createKnowledge", () => {
         error: "down",
       },
     );
+
     const flaky = vi
       .fn()
       .mockRejectedValueOnce(new Error("blip"))
       .mockResolvedValue([[1]]);
+
     const retried = fakeTransport({
       pending_knowledge_documents: () => ["d3"],
       pending_knowledge_chunks: () => [{ idx: 0, content: "x", hash: "h" }],
       set_knowledge_embeddings: () => 0,
       fail_knowledge_document: () => true,
     });
+
     expect(
       await createKnowledge({
         transport: retried.transport,
@@ -369,10 +410,12 @@ describe("createKnowledge", () => {
     expect(await knowledge.drain({ signal: controller.signal }).orThrow()).toBe(
       0,
     );
+
     const empty = createKnowledge({
       transport: fakeTransport({ pending_knowledge_documents: () => null })
         .transport,
     });
+
     expect(await empty.drain().orThrow()).toBe(0);
   });
 
@@ -381,6 +424,7 @@ describe("createKnowledge", () => {
       pending_knowledge_chunks: () => [{ idx: 0, content: "x" }],
       fail_knowledge_document: () => true,
     });
+
     const knowledge = createKnowledge({
       transport,
       embedder: {
@@ -388,6 +432,7 @@ describe("createKnowledge", () => {
         embed: () => Promise.reject(new Error("quota")),
       },
     });
+
     const handler = knowledge.embedJob();
     const signal = new AbortController().signal;
     // SAFETY: the handler reads only attempts and maxAttempts.
@@ -405,6 +450,7 @@ describe("createKnowledge", () => {
       transport: fakeTransport({ pending_knowledge_chunks: () => [] })
         .transport,
     }).embedJob();
+
     await expect(
       Promise.resolve(done({ document_id: "d1" }, job(1), signal)),
     ).resolves.toBeUndefined();
@@ -419,12 +465,15 @@ describe("createKnowledge", () => {
       title: "Notes",
       score: 0.03,
     };
+
     const { transport, calls } = fakeTransport({
       knowledge_search: () => [hit],
       reembed_knowledge: () => 4,
     });
+
     const model = embedder();
     const knowledge = createKnowledge({ transport, embedder: model });
+
     const hits = await knowledge
       .search("o1", "hello", {
         scopes: [{ scope: "organization" }],
@@ -432,6 +481,7 @@ describe("createKnowledge", () => {
         filter: { topic: "a" },
       })
       .orThrow();
+
     expect(hits).toEqual([
       {
         documentId: "d1",

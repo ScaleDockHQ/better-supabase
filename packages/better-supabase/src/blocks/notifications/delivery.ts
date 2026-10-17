@@ -83,37 +83,48 @@ export function mailHeaders(
   const headers: Record<string, string> = {
     "Auto-Submitted": "auto-generated",
   };
+
   if (category !== "notification" || unsubscribe === undefined) {
     return headers;
   }
+
   const targets: string[] = [];
+
   if (unsubscribe.url !== undefined) {
     if (!URL.canParse(unsubscribe.url)) {
       throw new TypeError(
         `The unsubscribe URL "${unsubscribe.url}" is not a URL`,
       );
     }
+
     if (new URL(unsubscribe.url).protocol !== "https:") {
       throw new TypeError(
         `The unsubscribe URL "${unsubscribe.url}" must use https (RFC 8058)`,
       );
     }
+
     targets.push(`<${unsubscribe.url}>`);
   }
+
   if (unsubscribe.mailto !== undefined) {
     if (!/^mailto:[^\s<>]+$/i.test(unsubscribe.mailto)) {
       throw new TypeError(
         `The unsubscribe address "${unsubscribe.mailto}" must be a mailto: URI`,
       );
     }
+
     targets.push(`<${unsubscribe.mailto}>`);
   }
+
   if (targets.length === 0) {
     return headers;
   }
+
   headers["List-Unsubscribe"] = targets.join(", ");
+
   if (unsubscribe.url !== undefined) {
     headers["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click";
   }
+
   return headers;
 }

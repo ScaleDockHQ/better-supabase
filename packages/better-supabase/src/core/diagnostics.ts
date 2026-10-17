@@ -18,6 +18,7 @@ function logDiagnostics(events: EventHub): void {
       }
     },
   };
+
   events.on("query", (event) => {
     logger.debug(
       `${event.operation} ${event.table} ${event.ok ? "ok" : "failed"} in ${String(Math.round(event.durationMs))}ms`,
@@ -64,8 +65,10 @@ export function definitionEvents(options: {
   readonly now?: () => Temporal.Instant;
 }): EventHub {
   const events = new EventHub(options.logger ?? consoleLogger, options.now);
+
   if (options.diagnostics === true) {
     logDiagnostics(events);
   }
+
   return events;
 }

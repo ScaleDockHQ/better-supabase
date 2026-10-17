@@ -156,6 +156,7 @@ export function defineSettings<
   const organization = spec.organization ?? ({} as O);
   // SAFETY: as above.
   const platform = spec.platform ?? ({} as P);
+
   return { schemas: { user, organization, platform } };
 }
 
@@ -167,9 +168,11 @@ export function createSettings<
 >(options: SettingsOptions<U, O, P>): Settings<U, O, P> {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const { user, organization, platform } = (
     options.settings ?? defineSettings<U, O, P>({})
   ).schemas;
+
   function getUser(): AsyncResult<SettingValues<U>>;
   function getUser<K extends keyof U & string>(
     key: K,
@@ -177,6 +180,7 @@ export function createSettings<
   function getUser(key?: string): AsyncResult<unknown> {
     return reader(user, call, "get_user_settings", {}, key);
   }
+
   function getOrganization(
     organizationId: string,
   ): AsyncResult<SettingValues<O>>;
@@ -196,6 +200,7 @@ export function createSettings<
       key,
     );
   }
+
   function getPlatform(): AsyncResult<SettingValues<P>>;
   function getPlatform<K extends keyof P & string>(
     key: K,
@@ -203,6 +208,7 @@ export function createSettings<
   function getPlatform(key?: string): AsyncResult<unknown> {
     return reader(platform, call, "get_platform_settings", {}, key);
   }
+
   const client: Settings<U, O, P> = {
     getUser,
     setUser: (key, value) =>
@@ -244,6 +250,7 @@ export function createSettings<
     resetPlatform: (key) =>
       remover(platform, call, "reset_platform_setting", {}, key),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "settings",
     ...(options.logger ? { logger: options.logger } : {}),
@@ -257,9 +264,11 @@ async function merged(
 ): Promise<Record<string, unknown>> {
   const values = isRecord(stored) ? stored : {};
   const out: Record<string, unknown> = {};
+
   for (const [key, entry] of Object.entries(entries)) {
     out[key] = await readValue(entry, values[key]);
   }
+
   return out;
 }
 
@@ -270,7 +279,9 @@ async function readValue(
   if (stored === undefined) {
     return entry.default;
   }
+
   const parsed = await validate(entry.schema, stored);
+
   return parsed.ok ? parsed.data : entry.default;
 }
 
@@ -291,8 +302,10 @@ function reader(
   if (key !== undefined && !(key in entries)) {
     return unknownSetting(key);
   }
+
   return call(fn, args, async (stored) => {
     const values = await merged(entries, stored);
+
     return key === undefined ? values : values[key];
   });
 }
@@ -307,9 +320,11 @@ function writer(
   value: unknown,
 ): AsyncResult<unknown> {
   const entry = entries[key];
+
   if (!entry) {
     return unknownSetting(key);
   }
+
   return AsyncResult.from(() =>
     validate(entry.schema, value, `setting "${key}"`),
   ).andThen((output) =>
@@ -327,5 +342,6 @@ function remover(
   if (!(key in entries)) {
     return unknownSetting(key);
   }
+
   return call(fn, { ...args, key }, (removed) => removed === true);
 }

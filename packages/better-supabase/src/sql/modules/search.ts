@@ -52,22 +52,26 @@ const REGCONFIG = /^[a-z_][a-z0-9_]{0,62}$/;
 /** The text search configuration (`options.config`), default `simple`. */
 function configOf(ctx: ModuleContext): string {
   const config = ctx.text("config", "simple");
+
   if (!REGCONFIG.test(config)) {
     throw new TypeError(
       "blocks.search.options.config must be a text search configuration name such as simple or english",
     );
   }
+
   return config;
 }
 
 /** The embedding size (`options.dimensions`), or 0 when the index keeps none. */
 function dimensionsOf(ctx: ModuleContext): number {
   const dimensions = ctx.number("dimensions", 0);
+
   if (!Number.isInteger(dimensions) || dimensions < 0 || dimensions > 16_000) {
     throw new TypeError(
       "blocks.search.options.dimensions must be the embedding size, a whole number up to 16000",
     );
   }
+
   return dimensions;
 }
 
@@ -84,6 +88,7 @@ function searchedSubjects(ctx: ModuleContext): readonly RegisteredSubject[] {
 /** The columns whose change re-indexes a row. */
 function watchedColumns(subject: RegisteredSubject): readonly string[] {
   const { config } = subject;
+
   const names = [
     config.id ?? "id",
     config.tenant === false ? undefined : (config.tenant ?? "organization_id"),
@@ -92,6 +97,7 @@ function watchedColumns(subject: RegisteredSubject): readonly string[] {
     config.deletedAt,
     ...[...(config.url ?? "").matchAll(/\{([^}]*)\}/g)].map((m) => m[1]),
   ];
+
   return [
     ...new Set(names.filter((name): name is string => name !== undefined)),
   ];
@@ -101,16 +107,20 @@ function refreshBranch(subject: RegisteredSubject): string {
   const { config } = subject;
   const title = config.search?.title ?? config.title ?? "";
   const body = config.search?.body ?? [];
+
   const bodySql =
     body.length === 0
       ? "null"
       : `nullif(concat_ws(E'\\n', ${body.map((name) => `s.${sqlIdent(name)}::text`).join(", ")}), '')`;
+
   const url =
     config.url === undefined ? "null" : urlExpression(config.url, "s");
+
   const deleted =
     config.deletedAt === undefined
       ? ""
       : `\n        and s.${sqlIdent(config.deletedAt)} is null`;
+
   return `    when ${sqlString(subject.type)} then
       select s.${subject.tenant ?? sqlIdent("organization_id")}, s.${sqlIdent(title)}::text, ${bodySql}, ${url}
         into v_tenant, v_title, v_body, v_url
@@ -124,10 +134,12 @@ function triggers(
   subjects: readonly RegisteredSubject[],
 ): string {
   const fn = ctx.fn("search_index_row");
+
   return subjects
     .map((subject) => {
       const trigger = sqlIdent(`bs_search_${subject.type}_index`.slice(0, 63));
       const columns = watchedColumns(subject).map(sqlIdent).join(", ");
+
       return `drop trigger if exists ${trigger} on ${subject.qualified};
 create trigger ${trigger}
   after insert or delete or update of ${columns} on ${subject.qualified}
@@ -149,10 +161,13 @@ function searchFunction(ctx: ModuleContext, names: SearchNames): string {
   const subjects = ctx.of("subjects");
   const canSubject = subjects.fn("can_subject");
   const normalize = ctx.fn("search_normalize");
+
   const embeddingArg = vector
     ? `, query_embedding ${vector}.vector default null`
     : "";
+
   const embeddingType = vector ? `, ${vector}.vector` : "";
+
   const fused = vector
     ? `vector_hits as materialized (
       select d.${c("subjectType")} as subject_type, d.${c("subjectId")} as subject_id,
@@ -177,6 +192,7 @@ function searchFunction(ctx: ModuleContext, names: SearchNames): string {
     : `fused as (
       select t.subject_type, t.subject_id, t.score from text_hits t
     )`;
+
   return `
 -- Full-text and trigram matches (plus nearest embeddings when the query
 -- carries one, fused by reciprocal rank), as the caller: the policy keeps
@@ -272,25 +288,31 @@ function userStateFunctions(
   const title = subjects.fn("subject_title");
   const url = subjects.fn("subject_url");
   const fn = (name: string): string => ctx.fn(name);
+
   const rows = state
     ? `select s.${state.col("subjectType")}, s.${state.col("subjectId")}, s.${state.col("starredAt")}, s.${state.col("lastOpenedAt")}
   from ${state.table} s
   where s.${state.col("user")} = auth.uid()`
     : "select null::text, null::text, null::timestamptz, null::timestamptz where false";
+
   const upsert = (set: "opened" | "starred"): string => {
     if (!state) {
       return "return false;";
     }
+
     const keys = `${state.col("subjectType")}, ${state.col("subjectId")}, ${state.col("user")}`;
+
     const value =
       set === "opened"
         ? `${state.col("lastOpenedAt")}) values (search_touch.subject_type, search_touch.subject_id, auth.uid(), now())
   on conflict (${keys}) do update set ${state.col("lastOpenedAt")} = now();`
         : `${state.col("starredAt")}) values (search_star.subject_type, search_star.subject_id, auth.uid(), case when search_star.starred then now() end)
   on conflict (${keys}) do update set ${state.col("starredAt")} = case when search_star.starred then coalesce(st.${state.col("starredAt")}, now()) end;`;
+
     return `insert into ${state.table} as st (${keys}, ${value}
   return true;`;
   };
+
   const list = (
     name: "search_recents" | "search_favorites",
     at: "opened_at" | "starred_at",
@@ -321,6 +343,7 @@ as $$
   ) x
 $$;
 ${userGrant(`${fn(name)}(integer, text[])`)}`;
+
   return `
 -- The caller's own rows of the share-links per-user state. The lists below
 -- run as the caller, so can_subject sees what they can read.
@@ -377,6 +400,7 @@ function embeddingFunctions(
 ): string {
   const { docs, c } = names;
   const fn = (name: string): string => ctx.fn(name);
+
   return `
 -- Documents whose text changed since their embedding was set (or that have
 -- none), for a job that embeds them and calls search_set_embedding.
@@ -428,6 +452,7 @@ function vectorOf(
   if (dimensionsOf(ctx) === 0 || !ctx.installed("vector-search")) {
     return undefined;
   }
+
   return sqlIdent(vectorSchemaOf(layout));
 }
 
@@ -435,20 +460,25 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const docs = ctx.table("documents");
   const c = (column: string): string => ctx.col("documents", column);
   const config = configOf(ctx);
   const dimensions = dimensionsOf(ctx);
+
   const vector = ctx.has("documents", "embedding")
     ? vectorOf(ctx, layout)
     : undefined;
+
   const read = ctx.permission("read", OPERATIONS["search.read"]);
   const subjects = searchedSubjects(ctx);
   const names: SearchNames = { docs, c, config, vector };
   const fn = (name: string): string => ctx.fn(name);
+
   const shareLinks = ctx.installed("share-links")
     ? ctx.of("share-links")
     : undefined;
+
   const state =
     shareLinks?.hasTable("state") === true
       ? {
@@ -456,6 +486,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
           col: (column: string) => shareLinks.col("state", column),
         }
       : undefined;
+
   const tables = ctx.manages
     ? `create table if not exists ${docs} (
   ${c("tenant")} ${ctx.idType} not null,
@@ -480,10 +511,12 @@ create policy "search_documents_read" on ${docs} for select to authenticated
   using (${ctx.scope.check(c("tenant"), read)});
 `
     : "";
+
   const cases =
     subjects.length === 0
       ? "    when '' then null;"
       : subjects.map(refreshBranch).join("\n");
+
   return `${schemaPreamble(ctx)}
 create extension if not exists pg_trgm with schema extensions;
 create extension if not exists unaccent with schema extensions;
@@ -638,6 +671,7 @@ ${vector ? embeddingFunctions(ctx, names, vector) : ""}
 
 function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   const embedded = dimensionsOf(ctx) > 0 && ctx.installed("vector-search");
+
   return [
     {
       name: "search",

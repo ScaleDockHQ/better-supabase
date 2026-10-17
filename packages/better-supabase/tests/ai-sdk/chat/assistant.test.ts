@@ -10,14 +10,17 @@ describe("createAssistant", () => {
   it("stores the turn, streams the answer and records its usage", async () => {
     const enqueueCostBackfill = vi.fn(async () => undefined);
     const onFinish = vi.fn();
+
     const { assistant, context, fake, pending, run } = setup({
       enqueueCostBackfill,
       onFinish,
     });
+
     const response = await assistant.respond(
       post({ id: "c1", message: userMessage() }),
       context,
     );
+
     expect(response.status).toBe(200);
     expect(response.headers.get("x-vercel-ai-ui-message-stream")).toBe("v1");
     const body = await response.text();
@@ -85,19 +88,23 @@ describe("createAssistant", () => {
 
   it("replays the stored stream and answers 204 when nothing runs", async () => {
     const { assistant, context, fake, pending } = setup();
+
     const first = await assistant.respond(
       post({ id: "c1", messages: [userMessage()] }),
       context,
     );
+
     const live = await first.text();
     await Promise.all(pending);
     const replay = await assistant.resume("c1", context);
     expect(replay.status).toBe(200);
     expect(await replay.text()).toBe(live);
     const chat = fake.raw.get("c1");
+
     if (chat) {
       fake.raw.set("c1", { ...chat, activeStreamId: undefined });
     }
+
     expect((await assistant.resume("c1", context)).status).toBe(204);
     expect((await assistant.resume("nope", context)).status).toBe(204);
     const done = await assistant.resume("c1", context, { fromIdx: 0 });
@@ -106,16 +113,20 @@ describe("createAssistant", () => {
 
   it("resumes past the end with 204 and passes the signal", async () => {
     const { assistant, context, pending } = setup();
+
     const first = await assistant.respond(
       post({ id: "c1", message: userMessage() }),
       context,
     );
+
     await first.text();
     await Promise.all(pending);
+
     const after = await assistant.resume("c1", context, {
       fromIdx: 10_000,
       signal: new AbortController().signal,
     });
+
     expect(after.status).toBe(204);
   });
 
@@ -152,6 +163,7 @@ describe("createAssistant", () => {
       )
     ).text();
     await Promise.all(pending);
+
     const response = await assistant.respond(
       post({
         id: "c1",
@@ -161,6 +173,7 @@ describe("createAssistant", () => {
       }),
       context,
     );
+
     await response.text();
     await Promise.all(pending);
     expect(fake.saved).toHaveLength(2);
@@ -168,8 +181,10 @@ describe("createAssistant", () => {
 
   it("rejects bad requests", async () => {
     const { assistant, context } = setup();
+
     const status = async (body: unknown) =>
       (await assistant.respond(post(body), context)).status;
+
     expect(await status("{")).toBe(400);
     expect(await status([])).toBe(400);
     expect(await status({ id: "" })).toBe(400);
@@ -187,10 +202,12 @@ describe("createAssistant", () => {
   it("checks the model against the catalog", async () => {
     const fake = fakeChats({ models: ["anthropic/claude", "openai/gpt-5"] });
     const { assistant, context, pending, run } = setup({}, fake);
+
     const refused = await assistant.respond(
       post({ id: "c1", message: userMessage(), model: "x/unknown" }),
       context,
     );
+
     expect(refused.status).toBe(403);
     await (
       await assistant.respond(
@@ -253,25 +270,32 @@ describe("createAssistant", () => {
       .mockResolvedValueOnce({ action: "block", category: "pii", score: 0.9 })
       .mockResolvedValueOnce({ action: "flag", category: "tone" })
       .mockResolvedValueOnce({ action: "allow", category: "none" });
+
     const { assistant, context, fake } = setup({ moderate });
+
     const blocked = await assistant.respond(
       post({ id: "c1", message: userMessage() }),
       context,
     );
+
     expect(blocked.status).toBe(403);
     expect(await blocked.json()).toMatchObject({
       code: "AI_MODERATION_BLOCKED",
     });
+
     const flagged = await assistant.respond(
       post({ id: "c1", message: userMessage() }),
       context,
     );
+
     expect(flagged.status).toBe(200);
     await flagged.text();
+
     const allowed = await assistant.respond(
       post({ id: "c1", message: userMessage("u2") }),
       context,
     );
+
     await allowed.text();
     expect(fake.moderated).toEqual([
       expect.objectContaining({ action: "block", score: 0.9, stage: "input" }),
@@ -284,10 +308,12 @@ describe("createAssistant", () => {
       quota: async () =>
         dbError("quota_exceeded", "used up", { meter: "ai", retryAfter: 9 }),
     });
+
     const response = await assistant.respond(
       post({ id: "c1", message: userMessage() }),
       context,
     );
+
     expect(response.status).toBe(429);
     expect(response.headers.get("retry-after")).toBe("9");
     expect(run).not.toHaveBeenCalled();
@@ -304,10 +330,12 @@ describe("createAssistant", () => {
 
   it("answers 409 while another answer runs", async () => {
     const { assistant, context } = setup({}, fakeChats({ claimed: false }));
+
     const response = await assistant.respond(
       post({ id: "c1", message: userMessage() }),
       context,
     );
+
     expect(response.status).toBe(409);
   });
 
@@ -317,10 +345,12 @@ describe("createAssistant", () => {
         throw new Error("no key");
       },
     });
+
     const response = await assistant.respond(
       post({ id: "c1", message: userMessage() }),
       context,
     );
+
     expect(response.status).toBe(500);
     expect(fake.released).toEqual([
       {
@@ -336,6 +366,7 @@ describe("createAssistant", () => {
       {},
       fakeChats({ getError: dbError("forbidden", "no") }),
     );
+
     expect(
       (
         await assistant.respond(
@@ -356,13 +387,16 @@ describe("createAssistant", () => {
 
   it("prepares a turn without answering it", async () => {
     const { assistant, context, fake, run } = setup();
+
     const turn = await assistant.prepare(
       { id: "c1", message: userMessage() },
       context,
     );
+
     if (turn instanceof Response) {
       throw new TypeError("expected a turn");
     }
+
     expect(turn.chat.id).toBe("c1");
     expect(turn.model).toBe("openai/gpt-5");
     expect(turn.parentId).toBe("u1");

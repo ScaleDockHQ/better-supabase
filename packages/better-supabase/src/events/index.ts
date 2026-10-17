@@ -12,6 +12,7 @@ import { nowInstant } from "../core/temporal.ts";
 import { dataschemaOf } from "./cloud-event.ts";
 
 export { blockCloudEvent, forwardBlockEvents } from "./cloud-event.ts";
+
 export type {
   CloudEvent,
   CloudEventOptions,
@@ -40,13 +41,17 @@ function subjectOf(
   row: Readonly<Record<string, unknown>>,
 ): string | undefined {
   const key = meta?.tables[table]?.primaryKey;
+
   if (!key || key.length === 0) {
     return undefined;
   }
+
   const values = key.map((column) => row[column]);
+
   if (values.some((value) => value === undefined || value === null)) {
     return undefined;
   }
+
   return `${table}/${values.map((value) => encodeURIComponent(String(value))).join(",")}`;
 }
 
@@ -62,16 +67,20 @@ export function toCloudEvents(
   options: CloudEventOptions & { readonly meta?: SchemaMeta },
 ): CloudEvent<RowEventData>[] {
   const intent = notice.intent ?? notice.kind;
+
   const type = options.typePrefix
     ? `${options.typePrefix}.row.${ROW_EVENT_TYPES[intent].split(".").at(-1)!}`
     : ROW_EVENT_TYPES[intent];
+
   const time = (options.now ?? nowInstant)().toString();
   const tenant = notice.tenant ?? notice.context.tenant;
   const rows = notice.rows.length > 0 ? notice.rows : (notice.keys ?? []);
   const actorId = notice.context.actor?.id;
   const dataschema = dataschemaOf(options, { type, table: notice.table });
+
   return rows.map((row) => {
     const subject = subjectOf(options.meta, notice.table, row);
+
     return {
       specversion: "1.0",
       id: options.id?.() ?? crypto.randomUUID(),
@@ -109,13 +118,16 @@ export function forwardMutations(
     if (options.filter && !options.filter(notice)) {
       return;
     }
+
     const events = toCloudEvents(notice, {
       ...options,
       meta: betterSupabase.meta,
     });
+
     if (events.length === 0) {
       return;
     }
+
     const report = (error: unknown) => {
       (
         options.onError ??
@@ -124,6 +136,7 @@ export function forwardMutations(
         })
       )(error, events);
     };
+
     try {
       betterSupabase.events.track(
         Promise.resolve(sink.send(events)).catch(report),
@@ -149,6 +162,7 @@ export function toHttp(
   const list: readonly CloudEvent[] = Array.isArray(events)
     ? events
     : [events as CloudEvent];
+
   switch (mode) {
     case "batch": {
       return [
@@ -158,15 +172,18 @@ export function toHttp(
         },
       ];
     }
+
     case "structured": {
       return list.map((event) => ({
         headers: { "content-type": STRUCTURED },
         body: JSON.stringify(event, jsonReplacer),
       }));
     }
+
     case "binary": {
       return list.map((event) => {
         const headers: Record<string, string> = {};
+
         for (const [key, value] of Object.entries(event)) {
           if (
             key === "data" ||
@@ -175,12 +192,15 @@ export function toHttp(
           ) {
             continue;
           }
+
           headers[`ce-${key}`] = encodeURIComponent(String(value)).replaceAll(
             "%20",
             " ",
           );
         }
+
         headers["content-type"] = event.datacontenttype ?? "application/json";
+
         return {
           headers,
           body:
@@ -190,6 +210,7 @@ export function toHttp(
         };
       });
     }
+
     default: {
       const unknown: never = mode;
       throw new TypeError(`Unknown CloudEvents mode ${String(unknown)}`);
@@ -201,8 +222,10 @@ export function isCloudEvent(value: unknown): value is CloudEvent {
   if (typeof value !== "object" || value === null) {
     return false;
   }
+
   // SAFETY: value is a non-null object here, and every field is checked below.
   const event = value as Record<string, unknown>;
+
   return (
     event["specversion"] === "1.0" &&
     typeof event["id"] === "string" &&
@@ -215,38 +238,50 @@ export function isCloudEvent(value: unknown): value is CloudEvent {
 export async function fromHttp(request: Request): Promise<CloudEvent[]> {
   const contentType = request.headers.get("content-type") ?? "";
   const text = await request.text();
+
   if (contentType.startsWith(BATCH)) {
     const parsed: unknown = JSON.parse(text);
+
     if (!Array.isArray(parsed) || !parsed.every(isCloudEvent)) {
       throw new TypeError("Invalid CloudEvents batch");
     }
+
     return parsed;
   }
+
   if (contentType.startsWith(STRUCTURED)) {
     const parsed: unknown = JSON.parse(text);
+
     if (!isCloudEvent(parsed)) {
       throw new TypeError("Invalid CloudEvent");
     }
+
     return [parsed];
   }
+
   const event: Record<string, unknown> = {};
+
   for (const [key, value] of request.headers) {
     if (key.startsWith("ce-")) {
       event[key.slice(3)] = decodeURIComponent(value);
     }
   }
+
   if (contentType) {
     event["datacontenttype"] = contentType;
   }
+
   if (text) {
     // SAFETY: JSON.parse returns any; this keeps the event data unknown.
     event["data"] = contentType.includes("json")
       ? (JSON.parse(text) as unknown)
       : text;
   }
+
   if (!isCloudEvent(event)) {
     throw new TypeError("Request is not a CloudEvent");
   }
+
   return [event];
 }
 
@@ -266,6 +301,7 @@ export function httpSink(
   options: HttpSinkOptions = {},
 ): EventSink {
   const send = options.fetch ?? fetch;
+
   return {
     async send(events) {
       for (const message of toHttp(events, options.mode ?? "batch")) {
@@ -277,6 +313,7 @@ export function httpSink(
             options.timeoutMs ?? HTTP_SINK_TIMEOUT_MS,
           ),
         });
+
         if (!response.ok) {
           throw new Error(`Event sink responded ${String(response.status)}`);
         }
@@ -295,6 +332,7 @@ export {
   mergeEvents,
   onBlockEvent,
 } from "../core/block-events.ts";
+
 export type {
   AgentEventData,
   AiChatEventData,

@@ -95,14 +95,17 @@ export type RateLimitOptions = RateLimitSource & RateLimitSettings;
  */
 export function createRateLimit(options: RateLimitOptions): RateLimit {
   applyTemporal(options);
+
   const call =
     options.transport === undefined
       ? blockCall(sqlTransport(options.sql), undefined, options.mappers)
       : blockCall(options.transport, options.schema, options.mappers);
+
   const hit =
     options.transport === undefined
       ? overSql(options.sql)
       : overTransport(call);
+
   const client: RateLimit = {
     purge: (purgeOptions = {}) =>
       call("purge_rate_limits", { batch: purgeOptions.batch }, (value) =>
@@ -118,6 +121,7 @@ export function createRateLimit(options: RateLimitOptions): RateLimit {
           ),
         );
       }
+
       return hit(
         scope,
         key,
@@ -126,10 +130,12 @@ export function createRateLimit(options: RateLimitOptions): RateLimit {
       );
     },
   };
+
   const hooked = withBlockHooks(client, options.hooks, {
     block: "rate-limit",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
   return hooked;
 }
 
@@ -153,6 +159,7 @@ const overTransport =
       },
       (value) => {
         const row = isRecord(value) ? value : {};
+
         return {
           allowed: row["allowed"] === true,
           remaining: Number(row["remaining"] ?? 0),
@@ -179,6 +186,7 @@ export async function hitRateLimit(
     max,
     period,
   ]);
+
   return {
     allowed: row?.allowed ?? false,
     remaining: row?.remaining ?? 0,
@@ -201,6 +209,7 @@ export function rateLimited(
   } = {},
 ): Response {
   const retryAfter = Math.max(1, Math.ceil(decision.retryAfter));
+
   return problemResponse(
     dbError(
       "rate_limited",

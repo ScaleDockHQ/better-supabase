@@ -40,11 +40,13 @@ export function SessionProvider(props: SessionProviderProps): ReactNode {
  */
 export function useSession<C = unknown, P = unknown>(): AuthSession<C, P> {
   const promise = useContext(SessionContext);
+
   if (!promise) {
     throw new Error(
       "better-supabase: useSession() needs <SessionProvider sessionPromise={...}>",
     );
   }
+
   // SAFETY: the provider receives `bs.session()` from the same `betterSupabase`, whose schemas fix `C` and `P`.
   return use(promise) as AuthSession<C, P>;
 }

@@ -67,6 +67,7 @@ describe.skipIf(!live)("trash", () => {
 
   it("trashes a subject with its children, restores, lists and purges", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.client.query(TABLES);
       await s.install(["organizations", "outbox", "trash"], layout);
@@ -78,16 +79,19 @@ describe.skipIf(!live)("trash", () => {
       const trash = createTrash({ transport: sqlTransport(s.sql) });
 
       await s.service();
+
       const projects = await s.rows<{ id: string }>(
         `insert into trash_it.projects (organization_id, name, slug) values ($1, 'Launch', 'launch'), ($1, 'Archive', 'archive') returning id`,
         [tenant],
       );
+
       const project = projects[0]!.id;
       const other = projects[1]!.id;
       await s.client.query(
         `insert into trash_it.tasks (organization_id, project_id, title) values ($1, $2, 'Write'), ($1, $2, 'Ship'), ($1, null, 'Loose')`,
         [tenant, project],
       );
+
       const liveTasks = (): Promise<number> =>
         s.value<number>(
           "(select count(*)::int from trash_it.tasks where deleted_at is null)",
@@ -184,10 +188,12 @@ describe.skipIf(!live)("trash", () => {
           [project],
         ),
       ).toBe(0);
+
       const events = await s.rows<{ type: string }>(
         "select type from better_supabase.outbox_events where organization_id = $1 and type like 'subject.%' order by position",
         [tenant],
       );
+
       expect(new Set(events.map((event) => event.type))).toEqual(
         new Set(["subject.trashed", "subject.restored", "subject.purged"]),
       );

@@ -22,15 +22,18 @@ export function queryFromUrlState(
   state: ListUrlState,
 ): ListQueryInput<string, string> {
   const facets: Record<string, readonly string[]> = {};
+
   for (const [key, value] of Object.entries(state)) {
     if (!RESERVED.has(key) && isStrings(value) && value.length > 0) {
       facets[key] = value;
     }
   }
+
   const q = state["q"];
   const sort = state["sort"];
   const size = state["size"];
   const filter = state["filter"];
+
   return {
     ...(typeof q === "string" && q !== "" && { q }),
     ...(typeof sort === "string" && { sort }),
@@ -51,35 +54,43 @@ export function urlStateFromQuery(
 ): Record<string, unknown> {
   const facets: Readonly<Record<string, readonly string[] | undefined>> =
     query?.facets ?? {};
+
   const next: Record<string, unknown> = {};
+
   for (const key of keys) {
     switch (key) {
       case "q": {
         next[key] = query?.q ?? null;
         break;
       }
+
       case "sort": {
         next[key] = query?.sort ?? null;
         break;
       }
+
       case "size": {
         next[key] = query?.size ?? null;
         break;
       }
+
       case "filter": {
         next[key] = query?.filter ?? null;
         break;
       }
+
       case "page":
       case "after": {
         next[key] = null;
         break;
       }
+
       default: {
         next[key] = facets[key]?.length ? facets[key] : null;
       }
     }
   }
+
   return next;
 }
 
@@ -87,6 +98,7 @@ function canonical(value: unknown): unknown {
   if (Array.isArray(value)) {
     return value.map(canonical);
   }
+
   if (typeof value === "object" && value !== null) {
     return Object.fromEntries(
       Object.entries(value)
@@ -95,12 +107,14 @@ function canonical(value: unknown): unknown {
         .map(([key, item]) => [key, canonical(item)]),
     );
   }
+
   return value;
 }
 
 /** A view's state without `query`: the part `onApplyState` shows. */
 export function displayStateOf(state: SavedViewState): SavedViewDisplayState {
   const { query: _query, ...display } = state;
+
   return display;
 }
 
@@ -111,6 +125,7 @@ export function sameDisplayState(
 ): boolean {
   const strip = (state: SavedViewState | undefined): unknown =>
     canonical(state ? displayStateOf(state) : {});
+
   return JSON.stringify(strip(a)) === JSON.stringify(strip(b));
 }
 
@@ -125,13 +140,17 @@ export function sameQuery(
     if (!query) {
       return {};
     }
+
     const { page: _page, after: _after, facets, ...rest } = query;
+
     const kept = Object.entries(facets ?? {}).filter(
       ([, values]) => values !== undefined && values.length > 0,
     );
+
     return canonical(
       kept.length > 0 ? { ...rest, facets: Object.fromEntries(kept) } : rest,
     );
   };
+
   return JSON.stringify(strip(a)) === JSON.stringify(strip(b));
 }

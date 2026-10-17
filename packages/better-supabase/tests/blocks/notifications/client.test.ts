@@ -30,6 +30,7 @@ describe("createNotificationsController", () => {
     const topic = fakeTopic();
     let rows = [item("b"), item("a", "2026-01-01")];
     const onMessage = vi.fn();
+
     const controller = createNotificationsController<Item>({
       auth,
       ports: { topic: topic.port },
@@ -39,6 +40,7 @@ describe("createNotificationsController", () => {
       sort: (x, y) => x.id.localeCompare(y.id),
       onMessage,
     });
+
     expect(controller.getSnapshot().items).toBeUndefined();
     const { view, unmount } = mount(controller);
     await flush();
@@ -66,9 +68,11 @@ describe("createNotificationsController", () => {
   it("waits for a user, joins no topic for null and keeps load errors", async () => {
     const auth = fakeAuth(SIGNED_OUT);
     const topic = fakeTopic();
+
     const load = vi.fn(async (): Promise<readonly Item[]> => {
       throw new Error("offline");
     });
+
     const { view, unmount } = mount(
       createNotificationsController<Item>({
         auth,
@@ -78,6 +82,7 @@ describe("createNotificationsController", () => {
         count: (items) => items.length * 10,
       }),
     );
+
     await flush();
     expect(load).not.toHaveBeenCalled();
     auth.set(signedIn(OTHER));

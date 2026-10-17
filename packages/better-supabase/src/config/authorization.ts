@@ -238,9 +238,12 @@ export function providerApiProblem(provider: {
   readonly apiVersion?: unknown;
 }): string | undefined {
   const version = provider.apiVersion;
+
   if (version === 1) {
     return undefined;
   }
+
   const name = typeof provider.name === "string" ? provider.name : "provider";
+
   return `authorization "${name}" targets authorization provider API ${String(version)}; this better-supabase supports 1. Upgrade better-supabase or use a release of the provider for API 1.`;
 }

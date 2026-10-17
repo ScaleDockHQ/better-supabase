@@ -36,23 +36,29 @@ export function activityReads(ctx: ModuleContext): ActivityReads {
     auditSetup: "",
     auditBranch: "",
   };
+
   if (!ctx.installed("subjects")) {
     return none;
   }
+
   const registry = registeredSubjects(ctx.subjects);
+
   if (registry.length === 0) {
     return none;
   }
+
   const a = (logical: string): string => ctx.col("activity", logical);
   const readable = ctx.fn("activity_subject_readable");
   const types = `${sqlString(`{${registry.map((subject) => subject.type).join(",")}}`)}::text[]`;
   const audit = ctx.installed("audit") ? ctx.of("audit") : undefined;
+
   const auditOn =
     audit !== undefined &&
     audit.mode !== "custom" &&
     audit.flag("readPolicy", false) &&
     hasColumn(audit, "log", "table") &&
     hasColumn(audit, "log", "record");
+
   return {
     // PL/pgSQL resolves can_subject when it runs: the subjects module
     // installs after this one.
@@ -97,17 +103,21 @@ ${registry.map((subject) => `      when ${sqlString(subject.type)} then ${sqlStr
 function auditBranch(ctx: ModuleContext, audit: ModuleContext): string {
   const a = (logical: string): string =>
     sqlString(ctx.col("activity", logical).replaceAll('"', ""));
+
   const l = (logical: string): string => `l.${audit.col("log", logical)}`;
   const has = (logical: string): boolean => hasColumn(audit, "log", logical);
   const op = has("op") ? l("op") : "null::text";
+
   const type = has("eventType")
     ? `coalesce(${l("eventType")}, 'audit.' || ${op})`
     : `'audit.' || coalesce(${op}, 'event')`;
+
   const data = [
     `'op', ${op}`,
     ...(has("changed") ? [`'changed', to_jsonb(${l("changed")})`] : []),
     `'table', ${l("table")}`,
   ];
+
   const entry = [
     `${a("id")}, ${l("id")}::text`,
     `${a("tenant")}, ${l("tenant")}`,
@@ -121,6 +131,7 @@ function auditBranch(ctx: ModuleContext, audit: ModuleContext): string {
     `${a("occurredAt")}, ${l("occurredAt")}`,
     `'source', 'audit'`,
   ];
+
   return `
     union all
     (select jsonb_build_object(${entry.join(", ")}) as entry,

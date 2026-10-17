@@ -6,6 +6,7 @@ import { workflowOf } from "./shared.ts";
 /** `config.toml` when the project runs the pg-delta workflow. */
 function pgdeltaToml(context: DoctorContext): SupabaseToml | undefined {
   const toml = context.configToml;
+
   return toml !== undefined && workflowOf(context) === "pg-delta"
     ? toml
     : undefined;
@@ -29,10 +30,13 @@ const lineAt = (text: string, index: number): number =>
  */
 function pgdeltaSchemaFiles(context: DoctorContext): readonly TextFile[] {
   const toml = pgdeltaToml(context);
+
   if (toml === undefined) {
     return [];
   }
+
   const schemas = `${declarativeSchemasDir(toml, "pg-delta")}/`;
+
   return (context.sqlFiles ?? []).filter(
     (file) =>
       file.path.startsWith(schemas) && !/^-- @bs-module /m.test(file.text),
@@ -56,6 +60,7 @@ const EXECUTES = /\b(execute|perform)\b/i;
 function bulkGrants(context: DoctorContext): FindingInput[] {
   return pgdeltaSchemaFiles(context).flatMap((file) => {
     const text = withoutComments(file.text);
+
     return [...text.matchAll(BULK_GRANT)]
       .filter((match) => API_ROLES.test(match[3]!))
       .map((match) => ({
@@ -69,12 +74,15 @@ function bulkGrants(context: DoctorContext): FindingInput[] {
 function catalogLoops(context: DoctorContext): FindingInput[] {
   return pgdeltaSchemaFiles(context).flatMap((file) => {
     const text = withoutComments(file.text);
+
     return [...text.matchAll(DO_BLOCK)].flatMap((match) => {
       const body = match[2]!;
       const catalog = CATALOG.exec(body);
+
       if (!catalog || !EXECUTES.test(body)) {
         return [];
       }
+
       return [
         {
           message: `${file.path} has a do block that reads ${catalog[1]} to create objects. pg-delta runs a do block with no dependency position, before the tables it looks for exist, so it creates nothing and the diff never sees its objects. Write the statements it would generate (one trigger, grant or policy per table) as static SQL, or call a per-table function such as better_supabase.audit('<table>') or track_updated_at('<table>') once per table.`,
@@ -96,17 +104,22 @@ const CREATE_EXTENSION =
  */
 function missingExtensions(context: DoctorContext): FindingInput[] {
   const toml = pgdeltaToml(context);
+
   if (toml === undefined) {
     return [];
   }
+
   const schemas = `${declarativeSchemasDir(toml, "pg-delta")}/`;
   const files = context.sqlFiles ?? [];
+
   const migrations = files.filter((file) =>
     file.path.startsWith(`${toml.dir}/migrations/`),
   );
+
   if (migrations.length === 0) {
     return [];
   }
+
   const created = new Set(
     migrations.flatMap((file) =>
       [...withoutComments(file.text).matchAll(CREATE_EXTENSION)].map((match) =>
@@ -114,18 +127,24 @@ function missingExtensions(context: DoctorContext): FindingInput[] {
       ),
     ),
   );
+
   const seen = new Set<string>();
+
   return files
     .filter((file) => file.path.startsWith(schemas))
     .flatMap((file) => {
       const text = withoutComments(file.text);
+
       return [...text.matchAll(CREATE_EXTENSION)].flatMap((match) => {
         const name = match[1]!.toLowerCase();
+
         if (created.has(name) || seen.has(name)) {
           return [];
         }
+
         seen.add(name);
         const module = /^-- @bs-module /m.test(file.text);
+
         return [
           {
             message: `${file.path} creates the extension ${name}, but no migration creates it. pg-delta can leave an extension that owns its own schema out of the generated migration, and a database built from the migrations then lacks it. ${module ? "Run `better-supabase sql sync`: it writes the extension into a migration that runs before the schema migration." : `Add \`create extension if not exists ${name};\` to a migration that runs before the one that uses it.`}`,

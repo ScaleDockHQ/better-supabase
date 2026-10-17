@@ -44,6 +44,7 @@ describe("specResponse", () => {
 
   it("answers 304 to a matching If-None-Match", async () => {
     const etag = (await specResponse(document)).headers.get("etag") ?? "";
+
     for (const header of [etag, `W/${etag}`, `"other", ${etag}`, "*"]) {
       const response = await specResponse(
         document,
@@ -51,16 +52,19 @@ describe("specResponse", () => {
           headers: { "if-none-match": header },
         }),
       );
+
       expect(response.status).toBe(304);
       expect(response.headers.get("etag")).toBe(etag);
       expect(await response.text()).toBe("");
     }
+
     const miss = await specResponse(
       document,
       new Request("https://api.test/openapi.json", {
         headers: { "if-none-match": '"other"' },
       }),
     );
+
     expect(miss.status).toBe(200);
   });
 
@@ -69,13 +73,16 @@ describe("specResponse", () => {
       document,
       new Request("https://api.test/openapi.json", { method: "HEAD" }),
     );
+
     expect(head.status).toBe(200);
     expect(head.headers.get("etag")).toBeTruthy();
     expect(await head.text()).toBe("");
+
     const post = await specResponse(
       document,
       new Request("https://api.test/openapi.json", { method: "POST" }),
     );
+
     expect(post.status).toBe(405);
     expect(post.headers.get("allow")).toBe("GET, HEAD");
   });
@@ -86,6 +93,7 @@ describe("specResponse", () => {
       contentType: "application/openapi+json",
       indent: 0,
     });
+
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.headers.get("content-type")).toBe(
       "application/openapi+json",

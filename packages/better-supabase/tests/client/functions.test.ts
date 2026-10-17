@@ -18,6 +18,7 @@ import { schema } from "../fixtures/generated-camel.ts";
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 const USER = "11111111-1111-4111-8111-111111111111";
 const signer = await createTestSigner();
+
 const bs = createEdge(defineSupabase(schema), {
   env: {
     url: PROJECT_URL,
@@ -35,10 +36,12 @@ const sendInvite = defineFunction(bs, {
     by: ctx.auth.kind === "user" ? ctx.auth.user.id : "nobody",
   }),
 });
+
 const echo = defineFunction(bs, {
   input: v.string(),
   handler: (input) => input.toUpperCase(),
 });
+
 const ping = defineFunction(bs, {
   input: v.optional(v.object({})),
   handler: () => undefined,
@@ -72,9 +75,11 @@ function client(fail?: Error) {
         if (fail) {
           return Promise.reject(fail);
         }
+
         const request = new Request(input, init);
         const name = new URL(request.url).pathname.split("/").at(-1) ?? "";
         const handler = handlers[name];
+
         return handler
           ? handler(request)
           : Promise.resolve(new Response("not found", { status: 404 }));
@@ -104,6 +109,7 @@ describe("functions()", () => {
     const invite = await fns
       .invoke("send-invite", { email: "ada@acme.test" }, asUser)
       .orThrow();
+
     expectTypeOf(invite).toEqualTypeOf<{ email: string; by: string }>();
     expect(invite).toEqual({ email: "ada@acme.test", by: USER });
 
@@ -115,9 +121,11 @@ describe("functions()", () => {
   it("returns the function's Problem Details as its DbError", async () => {
     const result = await fns.invoke("send-invite", { email: "nope" }, asUser);
     expect(result.ok).toBe(false);
+
     if (result.ok) {
       return;
     }
+
     expect(result.error).toMatchObject({ kind: "validation", status: 422 });
 
     const anonymous = await fns.invoke("send-invite", { email: "a@b.test" });
@@ -132,10 +140,13 @@ describe("functions()", () => {
   it("maps relay, network, abort and plain HTTP failures", async () => {
     const loose =
       functions<Record<string, { input: unknown; output: unknown }>>(client());
+
     const kind = async (result: PromiseLike<Result<unknown>>) => {
       const settled = await result;
+
       return settled.ok ? undefined : settled.error.kind;
     };
+
     expect(await kind(loose.invoke("relay"))).toBe("network");
     expect(await kind(loose.invoke("plain"))).toBe("unexpected");
     const plain = await loose.invoke("plain");
@@ -147,16 +158,19 @@ describe("functions()", () => {
     const aborted = functions<Contracts>(
       client(new DOMException("aborted", "AbortError")),
     );
+
     expect(await kind(aborted.invoke("ping"))).toBe("aborted");
 
     const slow = functions<Contracts>(
       client(new DOMException("slow", "TimeoutError")),
     );
+
     expect(await kind(slow.invoke("ping"))).toBe("timeout");
   });
 
   it("keeps a content type the caller sets", async () => {
     const seen: string[] = [];
+
     const host = {
       functions: {
         invoke: (
@@ -164,13 +178,16 @@ describe("functions()", () => {
           options?: { headers?: Record<string, string> },
         ) => {
           seen.push(JSON.stringify(options?.headers));
+
           return Promise.resolve({ data: null, error: new Error("nope") });
         },
       },
     };
+
     const result = await functions<Contracts>(host).invoke("echo", "x", {
       headers: { "Content-Type": "text/plain" },
     });
+
     expect(seen).toEqual(['{"Content-Type":"text/plain"}']);
     expect(result.ok ? undefined : result.error).toMatchObject({
       kind: "unexpected",

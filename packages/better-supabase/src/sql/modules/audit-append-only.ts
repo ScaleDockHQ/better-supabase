@@ -7,13 +7,16 @@ export function appendOnly(ctx: ModuleContext): string {
   const log = ctx.table("log");
   const trigger = ctx.trigger("audit_append_only");
   const truncate = ctx.trigger("audit_no_truncate");
+
   if (!ctx.flag("appendOnly", ctx.manages)) {
     return `drop trigger if exists ${trigger} on ${log};
 drop trigger if exists ${truncate} on ${log};`;
   }
+
   const purge = sqlString(
     `better_supabase.purge_audit_log(interval, integer, ${ctx.idType}, boolean)`,
   );
+
   return `-- Entries are append-only. purge_audit_log deletes old ones: it runs as its
 -- owner and sets better_supabase.audit_purge, and a role that only sets the
 -- setting is not the owner.

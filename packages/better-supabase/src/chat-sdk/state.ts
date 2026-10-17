@@ -34,6 +34,7 @@ export interface SupabaseState extends StateAdapter {
 const wrap = (value: unknown): { readonly v: unknown } => ({
   v: value === undefined ? null : value,
 });
+
 const unwrap = (stored: unknown): unknown =>
   isRecord(stored) && "v" in stored ? stored["v"] : stored;
 
@@ -41,7 +42,9 @@ function lockOf(value: unknown): Lock | null {
   if (!isRecord(value)) {
     return null;
   }
+
   const expires = value["expires_at"];
+
   return {
     threadId: String(value["thread_id"]),
     token: String(value["token"]),
@@ -59,10 +62,13 @@ function queueEntryOf(value: unknown): QueueEntry | null {
   if (!isRecord(value)) {
     return null;
   }
+
   const message: unknown = value["message"];
+
   if (!isSerializedMessage(message)) {
     return null;
   }
+
   return {
     enqueuedAt: Number(value["enqueuedAt"]),
     expiresAt: Number(value["expiresAt"]),
@@ -82,11 +88,13 @@ export function createSupabaseState(
   options: SupabaseStateOptions,
 ): SupabaseState {
   const prefix = options.keyPrefix ?? "chat-sdk";
+
   const call = blockCall(
     options.transport,
     options.schema ?? DEFAULT_BLOCK_SCHEMA,
     options.mappers,
   );
+
   const run = <T>(
     fn: string,
     args: Readonly<Record<string, unknown>>,
@@ -144,6 +152,7 @@ export function createSupabaseState(
         if (!isRecord(value)) {
           return null;
         }
+
         // SAFETY: the caller names the type it stored under this key.
         return unwrap(value["value"]) as T;
       }),
@@ -176,6 +185,7 @@ export function createSupabaseState(
         if (!Array.isArray(value)) {
           return [];
         }
+
         // SAFETY: the caller names the type it appended under this key.
         return value.map(unwrap) as T[];
       }),

@@ -7,6 +7,7 @@ export {
   type VaultOAuthProvider,
   type VaultOAuthProviderOptions,
 } from "./oauth.ts";
+
 export {
   connectAll,
   type ConnectAllResult,
@@ -14,6 +15,7 @@ export {
   connectTools,
   type ConnectToolsOptions,
 } from "./mcp.ts";
+
 export {
   type McpToolSchemas,
   SUPABASE_MCP_URL,
@@ -21,6 +23,7 @@ export {
   type SupabaseMcp,
   type SupabaseMcpOptions,
 } from "./supabase.ts";
+
 export type {
   SupabaseMcpFeature,
   SupabaseMcpScope,

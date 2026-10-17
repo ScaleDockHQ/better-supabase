@@ -88,17 +88,21 @@ export function useOrganizations(
   const { supabase, auth } = useBlockEnv();
   const latest = useLatest(options);
   const { schema, claim } = options;
+
   const view = useController(() => {
     const client = createOrganizations({
       transport: rpcTransport(supabase),
       ...(schema === undefined ? {} : { schema }),
     });
+
     const { initial, activeId } = latest.current;
+
     return createOrganizationsController<{ readonly id: string }>({
       client,
       auth,
       load: async () => {
         const { load } = latest.current;
+
         return load ? load() : client.mine().orThrow();
       },
       ...(initial === undefined ? {} : { initial }),
@@ -106,10 +110,12 @@ export function useOrganizations(
       ...(claim === undefined ? {} : { claim }),
       onSwitched: async (result) => {
         const { onSwitched } = latest.current;
+
         if (onSwitched) {
           await onSwitched(result);
         } else if (result.refresh) {
           const { error } = await supabase.auth.refreshSession();
+
           if (error) {
             throw error;
           }
@@ -117,9 +123,11 @@ export function useOrganizations(
       },
     });
   }, [supabase, auth, schema, claim, latest]).view;
+
   const active = view.organizations?.find(
     (organization) => organization.id === view.activeId,
   );
+
   return { ...view, active };
 }
 
@@ -168,18 +176,22 @@ export function useMembers(
   const { supabase, auth } = useBlockEnv();
   const latest = useLatest(options);
   const { organizationId, schema } = options;
+
   return useController(() => {
     const client = createOrganizations({
       transport: rpcTransport(supabase),
       ...(schema === undefined ? {} : { schema }),
     });
+
     const { initial } = latest.current;
+
     return createMembersController<MemberRow>({
       client,
       auth,
       organizationId: organizationId ?? null,
       load: async (id) => {
         const { load } = latest.current;
+
         return load ? load(id) : client.members(id).orThrow();
       },
       ...(initial === undefined ? {} : { initial }),
@@ -230,18 +242,22 @@ export function useInvitations(
   const { supabase, auth } = useBlockEnv();
   const latest = useLatest(options);
   const { organizationId, schema } = options;
+
   return useController(() => {
     const client = createOrganizations({
       transport: rpcTransport(supabase),
       ...(schema === undefined ? {} : { schema }),
     });
+
     const { initial } = latest.current;
+
     return createInvitationsController<{ readonly id: string }>({
       client,
       auth,
       organizationId: organizationId ?? null,
       load: async (id) => {
         const { load } = latest.current;
+
         return load ? load(id) : client.invitations(id).orThrow();
       },
       ...(initial === undefined ? {} : { initial }),

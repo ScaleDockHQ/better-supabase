@@ -25,10 +25,12 @@ export const ClientContext: SolidContext<Context | undefined> = createContext<
 /** What `<BetterSupabaseProvider>` provides. */
 export function useContext(): Context {
   const context = useSolidContext(ClientContext);
+
   if (!context) {
     throw new Error(
       "better-supabase: wrap your app in <BetterSupabaseProvider client={bs}>",
     );
   }
+
   return context;
 }

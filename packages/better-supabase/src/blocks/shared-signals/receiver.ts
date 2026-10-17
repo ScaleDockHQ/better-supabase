@@ -135,8 +135,10 @@ const rejected = (
 
 function wellKnown(issuer: string): string {
   const parsed = new URL(issuer);
+
   const path =
     parsed.pathname === "/" ? "" : parsed.pathname.replace(/\/$/, "");
+
   return `${parsed.origin}/.well-known/ssf-configuration${path}`;
 }
 
@@ -147,18 +149,22 @@ function wellKnown(issuer: string): string {
  */
 export function createSsfReceiver(options: SsfReceiverOptions): SsfReceiver {
   applyTemporal(options);
+
   const call = blockCall(
     options.service ?? options.transport,
     options.schema,
     options.mappers,
   );
+
   const http = options.fetch ?? fetch;
   const cacheMs = (options.cacheSeconds ?? 300) * 1000;
   const maxBody = options.maxBodyBytes ?? 65_536;
   const logger = options.logger ?? consoleLogger;
+
   let metadata:
     | { readonly value: Record<string, unknown>; readonly at: number }
     | undefined;
+
   let keys: { readonly value: Jwks; readonly at: number } | undefined;
 
   const getJson = async (
@@ -166,15 +172,19 @@ export function createSsfReceiver(options: SsfReceiverOptions): SsfReceiver {
     init: RequestInit = {},
   ): Promise<Result<unknown>> => {
     let response: Response;
+
     try {
       const headers = new Headers(init.headers);
+
       if (!headers.has("accept")) {
         headers.set("accept", "application/json");
       }
+
       response = await http(url, { ...init, headers });
     } catch (cause) {
       return err(dbError("network", `${url}: ${errorText(cause)}`));
     }
+
     if (!response.ok) {
       return err(
         dbError(
@@ -183,11 +193,14 @@ export function createSsfReceiver(options: SsfReceiverOptions): SsfReceiver {
         ),
       );
     }
+
     if (response.status === 204) {
       return ok(null);
     }
+
     try {
       const value: unknown = await response.json();
+
       return ok(value);
     } catch {
       return err(dbError("unexpected", `${url} did not answer JSON`));
@@ -199,10 +212,13 @@ export function createSsfReceiver(options: SsfReceiverOptions): SsfReceiver {
       if (metadata && Date.now() - metadata.at < cacheMs) {
         return ok(metadata.value);
       }
+
       const fetched = await getJson(wellKnown(options.issuer));
+
       if (!fetched.ok) {
         return fetched;
       }
+
       if (
         !isRecord(fetched.data) ||
         fetched.data["issuer"] !== options.issuer
@@ -217,7 +233,9 @@ export function createSsfReceiver(options: SsfReceiverOptions): SsfReceiver {
           ),
         );
       }
+
       metadata = { value: fetched.data, at: Date.now() };
+
       return ok(fetched.data);
     });
 
@@ -229,37 +247,49 @@ export function createSsfReceiver(options: SsfReceiverOptions): SsfReceiver {
           : options.jwks,
       );
     }
+
     if (keys && !refresh && Date.now() - keys.at < cacheMs) {
       return ok(keys.value);
     }
+
     // A refresh for an unknown kid waits 30 seconds between fetches.
     if (keys && refresh && Date.now() - keys.at < 30_000) {
       return ok(keys.value);
     }
+
     const meta = await discover();
+
     if (!meta.ok) {
       return meta;
     }
+
     const uri = meta.data["jwks_uri"];
+
     if (typeof uri !== "string") {
       return err(
         dbError("unexpected", "The transmitter metadata has no jwks_uri"),
       );
     }
+
     const fetched = await getJson(uri);
+
     if (!fetched.ok) {
       return fetched;
     }
+
     keys = { value: jwksOf(fetched.data), at: Date.now() };
+
     return ok(keys.value);
   };
 
   const verify = async (token: string) => {
     for (const refresh of [false, true]) {
       const found = await jwks(refresh);
+
       if (!found.ok) {
         return failure("invalid_key", found.error.message);
       }
+
       const verified = await verifySet(token, {
         jwks: found.data,
         issuer: options.issuer,
@@ -268,6 +298,7 @@ export function createSsfReceiver(options: SsfReceiverOptions): SsfReceiver {
           ? {}
           : { criticalSubjectMembers: options.criticalSubjectMembers }),
       });
+
       if (
         verified.ok ||
         verified.err !== "invalid_key" ||
@@ -276,27 +307,35 @@ export function createSsfReceiver(options: SsfReceiverOptions): SsfReceiver {
         return verified;
       }
     }
+
     return failure("invalid_key", "No transmitter key verifies the SET");
   };
 
   const receive: SsfReceiver["receive"] = async (token) => {
     const verified = await verify(token);
+
     if (!verified.ok) {
       return verified;
     }
+
     const { set } = verified;
+
     const fresh = await call(
       "record_ssf_received",
       { issuer: set.issuer, jti: set.jti },
       (value) => value === true,
     );
+
     if (!fresh.ok) {
       throw new Error(fresh.error.message, { cause: fresh.error });
     }
+
     if (!fresh.data) {
       return { ok: true, set, duplicate: true };
     }
+
     const handler = options.handlers?.[set.type] ?? options.handlers?.["*"];
+
     try {
       await handler?.(set);
     } catch (cause) {
@@ -307,6 +346,7 @@ export function createSsfReceiver(options: SsfReceiverOptions): SsfReceiver {
       );
       throw cause;
     }
+
     return { ok: true, set, duplicate: false };
   };
 
@@ -314,6 +354,7 @@ export function createSsfReceiver(options: SsfReceiverOptions): SsfReceiver {
     if (request.method !== "POST") {
       return new Response(null, { status: 405, headers: { allow: "POST" } });
     }
+
     if (
       options.authorization !== undefined &&
       request.headers.get("authorization") !== options.authorization
@@ -324,22 +365,28 @@ export function createSsfReceiver(options: SsfReceiverOptions): SsfReceiver {
         401,
       );
     }
+
     const type = (request.headers.get("content-type") ?? "")
       .split(";")[0]
       ?.trim()
       .toLowerCase();
+
     if (type !== SET_CONTENT_TYPE) {
       return rejected(
         "invalid_request",
         `The content type must be ${SET_CONTENT_TYPE}`,
       );
     }
+
     const token = await readBodyCapped(request, maxBody);
+
     if (token === undefined) {
       return rejected("invalid_request", "The SET is too large");
     }
+
     try {
       const result = await receive(token.trim());
+
       return result.ok
         ? new Response(null, { status: 202 })
         : rejected(result.err, result.description);
@@ -347,6 +394,7 @@ export function createSsfReceiver(options: SsfReceiverOptions): SsfReceiver {
       logger.error("shared-signals: a SET handler failed", {
         error: errorText(cause),
       });
+
       return new Response(null, { status: 500 });
     }
   };
@@ -358,6 +406,7 @@ export function createSsfReceiver(options: SsfReceiverOptions): SsfReceiver {
       let setErrs: Record<string, { err: string; description: string }> = {};
       let more = true;
       const maxRequests = pollOptions.maxRequests ?? 10;
+
       for (let request = 0; request < maxRequests && more; request += 1) {
         const response = await getJson(pollOptions.endpoint, {
           method: "POST",
@@ -372,19 +421,24 @@ export function createSsfReceiver(options: SsfReceiverOptions): SsfReceiver {
             ...(Object.keys(setErrs).length === 0 ? {} : { setErrs }),
           }),
         });
+
         if (!response.ok) {
           return response;
         }
+
         const body = isRecord(response.data) ? response.data : {};
         const sets = isRecord(body["sets"]) ? body["sets"] : {};
         ack = [];
         setErrs = {};
+
         for (const [jti, token] of Object.entries(sets)) {
           if (typeof token !== "string") {
             continue;
           }
+
           try {
             const result = await receive(token);
+
             if (result.ok) {
               ack.push(jti);
               totals.received += result.duplicate ? 0 : 1;
@@ -402,8 +456,10 @@ export function createSsfReceiver(options: SsfReceiverOptions): SsfReceiver {
             totals.failed += 1;
           }
         }
+
         more = body["moreAvailable"] === true;
       }
+
       if (ack.length > 0 || Object.keys(setErrs).length > 0) {
         const final = await getJson(pollOptions.endpoint, {
           method: "POST",
@@ -418,10 +474,12 @@ export function createSsfReceiver(options: SsfReceiverOptions): SsfReceiver {
             ...(Object.keys(setErrs).length === 0 ? {} : { setErrs }),
           }),
         });
+
         if (!final.ok) {
           return final;
         }
       }
+
       return ok({ ...totals, moreAvailable: more });
     });
 
@@ -429,6 +487,7 @@ export function createSsfReceiver(options: SsfReceiverOptions): SsfReceiver {
     const endpoint = (key: string): AsyncResult<string> =>
       discover().andThen((meta) => {
         const value = meta[key];
+
         return Promise.resolve(
           typeof value === "string"
             ? ok(value)
@@ -437,6 +496,7 @@ export function createSsfReceiver(options: SsfReceiverOptions): SsfReceiver {
               ),
         );
       });
+
     const send = (
       key: string,
       method: string,
@@ -460,8 +520,10 @@ export function createSsfReceiver(options: SsfReceiverOptions): SsfReceiver {
           },
         ),
       );
+
     const record = (value: unknown): Readonly<Record<string, unknown>> =>
       isRecord(value) ? value : {};
+
     return {
       create: (request) =>
         send("configuration_endpoint", "POST", {
@@ -481,8 +543,10 @@ export function createSsfReceiver(options: SsfReceiverOptions): SsfReceiver {
         }).andThen((value) => {
           const config = record(value);
           const aud = config["aud"];
+
           const audience =
             typeof aud === "string" ? [aud] : Array.isArray(aud) ? aud : [];
+
           return Promise.resolve(
             audience.includes(options.audience)
               ? ok(config)
@@ -512,6 +576,7 @@ export function createSsfReceiver(options: SsfReceiverOptions): SsfReceiver {
       verify: (streamId, state) =>
         endpoint("verification_endpoint").andThen(async (url) => {
           let response: Response;
+
           try {
             response = await http(url, {
               method: "POST",
@@ -524,9 +589,11 @@ export function createSsfReceiver(options: SsfReceiverOptions): SsfReceiver {
           } catch (cause) {
             return err(dbError("network", errorText(cause)));
           }
+
           if (response.status === 429) {
             return ok(false);
           }
+
           return response.ok
             ? ok(true)
             : err(
@@ -557,6 +624,7 @@ export function createSsfReceiver(options: SsfReceiverOptions): SsfReceiver {
         Number,
       ),
   };
+
   return withBlockHooks(receiver, options.hooks, {
     block: "shared-signals",
     logger,

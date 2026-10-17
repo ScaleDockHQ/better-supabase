@@ -70,38 +70,45 @@ export function createOnboardingController<
   const { client, checklist } = options;
   const organizationId = options.organizationId ?? null;
   const ready = checklist.scope === "user" || organizationId !== null;
+
   // SAFETY: ChecklistSubject is [organizationId] for organization checklists and [] for user ones.
   const subject = (
     checklist.scope === "organization" && organizationId !== null
       ? [organizationId]
       : []
   ) as ChecklistSubject<Scope>;
+
   return defineController<OnboardingSnapshot<Id>, OnboardingActions<Id>>(
     { progress: undefined, error: undefined },
     (state) => {
       const refresh = async (): Promise<void> => {
         const run = state.run();
         const result = await client.progress(checklist, ...subject);
+
         if (run !== state.run()) {
           return;
         }
+
         state.set(
           result.ok
             ? { progress: result.data, error: undefined }
             : { error: result.error },
         );
       };
+
       const change = async (
         action: "complete" | "reset",
         step: Id,
       ): Promise<void> => {
         const result = await client[action](checklist, step, ...subject);
+
         if (result.ok) {
           await refresh();
         } else {
           state.set({ error: result.error });
         }
       };
+
       return {
         actions: {
           refresh,
@@ -112,6 +119,7 @@ export function createOnboardingController<
           ready
             ? whileSignedIn(options.auth, () => {
                 void refresh();
+
                 return;
               })
             : undefined,

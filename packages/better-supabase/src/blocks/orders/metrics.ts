@@ -30,12 +30,14 @@ export function orderMetrics(options: OrderMetricsOptions): OrderMetrics {
     tenant: "tenant_id",
     ...(options.tz === undefined ? {} : { tz: options.tz }),
   };
+
   const paid = {
     ...shared,
     timeColumn: "paid_at",
     where: { currency: options.currency },
     unit: options.currency,
   };
+
   return [
     defineMetric({
       key: "orders",

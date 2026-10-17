@@ -138,11 +138,13 @@ function names(
   fallback: readonly string[],
 ): string {
   const list = ctx.list(option, fallback);
+
   if (list.length === 0 || list.some((item) => !NAME.test(item))) {
     throw new TypeError(
       `blocks.deals.options.${option} must be a non-empty list of lowercase names`,
     );
   }
+
   return `${sqlString(`{${list.join(",")}}`)}::text[]`;
 }
 
@@ -150,16 +152,19 @@ function tables(ctx: ModuleContext, n: DealNames): string {
   if (!ctx.manages) {
     return "";
   }
+
   const { t, c } = n;
   const d = (column: string): string => c("deals", column);
   const k = (column: string): string => c("contacts", column);
   const m = (column: string): string => c("members", column);
   const canSubject = ctx.of("subjects").fn("can_subject");
+
   const visible = n.readAll
     ? ctx.scope.check(d("tenant"), n.read)
     : `${ctx.scope.check(d("tenant"), n.read)} and (${d("owner")} = (select auth.uid())
       or ${ctx.scope.check(d("tenant"), n.manage)}
       or exists (select 1 from ${t("members")} x where x.${m("deal")} = ${d("id")} and x.${m("user")} = (select auth.uid())))`;
+
   return `
 create table if not exists ${t("deals")} (
   ${d("id")} uuid primary key default gen_random_uuid(),
@@ -260,10 +265,13 @@ using (${m("user")} = (select auth.uid()) or ${ctx.scope.check(m("tenant"), n.re
 function guard(ctx: ModuleContext, n: DealNames): string {
   const { t, c } = n;
   const d = (column: string): string => c("deals", column);
+
   const payload = (extra: string): string =>
     `jsonb_build_object('organizationId', new.${d("tenant")}, 'dealId', new.${d("id")}, 'subjectType', 'deal', 'subjectId', new.${d("id")}::text, 'name', new.${d("name")}${extra})`;
+
   const subject = `'deals/' || new.${d("id")}::text`;
   const tenant = `new.${d("tenant")}::text`;
+
   const outcomeNotify = ctx.installed("notifications")
     ? `
     ${ctx.notify(
@@ -280,12 +288,14 @@ function guard(ctx: ModuleContext, n: DealNames): string {
       { indent: "    " },
     )}`
     : "";
+
   const watchOwner = watchSql(ctx, {
     tenant: `new.${d("tenant")}`,
     user: `new.${d("owner")}`,
     subjectType: "'deal'",
     subjectId: `new.${d("id")}::text`,
   });
+
   const locked = Object.values({
     name: d("name"),
     companyType: d("companyType"),
@@ -313,6 +323,7 @@ function guard(ctx: ModuleContext, n: DealNames): string {
   })
     .map((column) => `new.${column} is distinct from old.${column}`)
     .join("\n      or ");
+
   return `
 create or replace function better_supabase.bs_deal_guard()
 returns trigger
@@ -373,8 +384,10 @@ function build(ctx: ModuleContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
+
   const keys = moduleOperations("deals");
   const readAll = ctx.flag("readAll", true);
+
   const n: DealNames = {
     fn: (name) => ctx.fn(name),
     t: (table) => ctx.table(table),
@@ -391,6 +404,7 @@ function build(ctx: ModuleContext): string {
     service: "(auth.role() = 'service_role')",
     extras: ctx.extraColumns("deals", ["contacts", "members"]),
   };
+
   return `${schemaPreamble(ctx)}
 -- Deals on pipelines: an amount in minor units, a company and contacts, a
 -- forecast call, close-date slips, a next step and line items.

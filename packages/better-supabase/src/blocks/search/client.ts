@@ -69,10 +69,12 @@ export function createCommandSearchController(
   const list = { limit: listLimit, ...(types ? { types } : {}) };
   let open = false;
   let query = "";
+
   let answer: { readonly q: string; readonly hits: readonly SearchHit[] } = {
     q: "",
     hits: EMPTY,
   };
+
   let recents: readonly SearchUserItem[] = EMPTY;
   let favorites: readonly SearchUserItem[] = EMPTY;
   let error: DbError | undefined;
@@ -83,6 +85,7 @@ export function createCommandSearchController(
   const view = (): CommandSearchSnapshot => {
     const trimmed = query.trim();
     const results = trimmed === "" ? EMPTY : answer.hits;
+
     return {
       open,
       query,
@@ -107,35 +110,46 @@ export function createCommandSearchController(
       const show = (): void => {
         state.set(view());
       };
+
       const loadLists = async (): Promise<void> => {
         const request = ++listTicket;
+
         const [recent, starred] = await Promise.all([
           client.recents(list),
           client.favorites(list),
         ]);
+
         if (request !== listTicket) {
           return;
         }
+
         if (recent.ok) {
           recents = recent.data;
         }
+
         if (starred.ok) {
           favorites = starred.data;
         }
+
         const failed = recent.ok ? (starred.ok ? undefined : starred) : recent;
+
         if (failed) {
           error = failed.error;
         }
+
         show();
       };
+
       const schedule = (): void => {
         const request = ++ticket;
         clearTimeout(timer);
         timer = undefined;
         const trimmed = query.trim();
+
         if (!open || trimmed === "") {
           return;
         }
+
         timer = setTimeout(() => {
           timer = undefined;
           void client
@@ -148,6 +162,7 @@ export function createCommandSearchController(
               if (request !== ticket) {
                 return;
               }
+
               if (result.ok) {
                 answer = { q: trimmed, hits: result.data };
                 error = undefined;
@@ -155,23 +170,29 @@ export function createCommandSearchController(
                 answer = { ...answer, q: trimmed };
                 error = result.error;
               }
+
               show();
             });
         }, debounceMs);
       };
+
       const setOpen = (next: boolean): void => {
         if (next === open) {
           return;
         }
+
         open = next;
+
         if (open) {
           void loadLists();
         } else {
           listTicket += 1;
         }
+
         schedule();
         show();
       };
+
       return {
         actions: {
           setOpen,
@@ -179,11 +200,14 @@ export function createCommandSearchController(
             if (next === query) {
               return;
             }
+
             const before = query.trim();
             query = next;
+
             if (query.trim() !== before) {
               schedule();
             }
+
             show();
           },
           select: async (item) => {
@@ -192,6 +216,7 @@ export function createCommandSearchController(
             schedule();
             show();
             const result = await client.touch(item.subjectType, item.subjectId);
+
             if (!result.ok) {
               error = result.error;
               show();
@@ -203,11 +228,14 @@ export function createCommandSearchController(
               item.subjectId,
               starred,
             );
+
             if (!result.ok) {
               error = result.error;
               show();
+
               return;
             }
+
             await loadLists();
           },
         },
@@ -215,6 +243,7 @@ export function createCommandSearchController(
           const release = options.keyboard?.({ key: "k", mod: true }, () => {
             setOpen(!open);
           });
+
           return () => {
             release?.();
             clearTimeout(timer);

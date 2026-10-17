@@ -27,9 +27,11 @@ const betterSupabase = defineSupabase(schema);
 
 function table(key: string): TableMeta {
   const found = schema.meta.tables[key];
+
   if (!found) {
     throw new Error(`No fixture table ${key}`);
   }
+
   return found;
 }
 
@@ -51,6 +53,7 @@ const list = defineListQuery(betterSupabase, "customers", {
 });
 
 let ids = 0;
+
 function rule(
   path: string,
   operator: string,
@@ -58,6 +61,7 @@ function rule(
   negated?: boolean,
 ): FilterRule {
   ids += 1;
+
   return {
     id: `r${String(ids)}`,
     type: "rule",
@@ -73,6 +77,7 @@ function group(
   combinator: "and" | "or" = "and",
 ): FilterQuery {
   ids += 1;
+
   return { id: `g${String(ids)}`, type: "group", combinator, rules };
 }
 
@@ -96,6 +101,7 @@ const now = Temporal.Instant.from("2026-10-13T22:30:00Z");
 describe("filter operators", () => {
   it("matches ReUI's operator table for every shared type", () => {
     const catalog: Record<string, readonly { value: string }[]> = reui.catalog;
+
     for (const type of [
       "text",
       "number",
@@ -111,6 +117,7 @@ describe("filter operators", () => {
         })),
       );
     }
+
     expect(FILTER_OPERATORS.relation).toEqual(FILTER_OPERATORS.select);
   });
 });
@@ -136,6 +143,7 @@ describe("filter fields", () => {
       fields: { status: "Status" },
       options: { status: { lead: "Lead" } },
     });
+
     const byKey = Object.fromEntries(fields.map((field) => [field.id, field]));
     expect(byKey["name"]).toMatchObject({
       id: "name",
@@ -170,11 +178,14 @@ describe("parsing filter trees", () => {
       group([], "or"),
       group([rule("status", "is_any_of", ["lead", "active"])], "or"),
     ]);
+
     const result = list.parse({ filter: tree });
     expect(result.ok).toBe(true);
+
     if (!result.ok) {
       return;
     }
+
     expect(result.value.filter?.rules).toHaveLength(2);
 
     expect(
@@ -199,14 +210,17 @@ describe("parsing filter trees", () => {
 
   it("caps depth and rule count", () => {
     let deep: FilterQuery = group([rule("name", "contains", "a")]);
+
     for (let level = 0; level < 4; level += 1) {
       deep = group([deep]);
     }
+
     expect(list.parse({ filter: deep }).ok).toBe(false);
 
     const wide = group(
       Array.from({ length: 51 }, () => rule("name", "contains", "a")),
     );
+
     expect(list.parse({ filter: wide }).ok).toBe(false);
 
     const issues: { message: string }[] = [];
@@ -224,11 +238,14 @@ describe("parsing filter trees", () => {
       rule("name", "contains", "café"),
       rule("archivedAt", "is_after", { relative: { unit: "day", offset: -7 } }),
     ]);
+
     const parsed = list.parse({ filter: tree });
     expect(parsed.ok).toBe(true);
+
     if (!parsed.ok) {
       return;
     }
+
     const params = list.toSearchParams(parsed.value);
     const encoded = params.get("filter") ?? "";
     expect(encoded).toMatch(/^[A-Za-z0-9_-]+$/);
@@ -256,6 +273,7 @@ describe("parsing filter trees", () => {
       sorts: { name: { name: "asc" } },
       defaultSort: "name",
     });
+
     expect(
       plain.parse({ filter: group([rule("name", "contains", "a")]) }).ok,
     ).toBe(false);
@@ -279,6 +297,7 @@ describe("compiling filter trees", () => {
       ]),
       fields,
     );
+
     expect(where).toEqual({
       AND: [
         { name: { contains: "acme" } },
@@ -305,6 +324,7 @@ describe("compiling filter trees", () => {
     const tree = group([
       rule("createdAt", "is", { relative: { unit: "day", offset: -1 } }),
     ]);
+
     expect(
       filterWhere(tree, fields, { now, timeZone: "Europe/Amsterdam" }),
     ).toEqual({
@@ -313,6 +333,7 @@ describe("compiling filter trees", () => {
     expect(filterWhere(tree, fields, { now })).toEqual({
       createdAt: { gte: "2026-10-12T00:00:00Z", lt: "2026-10-13T00:00:00Z" },
     });
+
     const between = filterWhere(
       group([
         rule("createdAt", "between", [
@@ -323,6 +344,7 @@ describe("compiling filter trees", () => {
       fields,
       { now },
     );
+
     expect(between).toEqual({
       createdAt: { gte: "2026-01-01T00:00:00Z", lt: "2026-02-01T00:00:00Z" },
     });
@@ -339,10 +361,13 @@ describe("compiling filter trees", () => {
       },
       { timeZone: "UTC" },
     );
+
     expect(parsed.ok).toBe(true);
+
     if (!parsed.ok) {
       return;
     }
+
     expect(list.args(parsed.value, { now }).where).toEqual({
       archivedAt: { lt: "2026-10-13T00:00:00Z" },
     });
@@ -359,6 +384,7 @@ describe("compiling filter trees", () => {
       ),
       fields,
     );
+
     const op = selectOf(where);
 
     const postgrest = compilePostgrest(op);
@@ -389,6 +415,7 @@ describe("compiling filter trees", () => {
         },
       },
     };
+
     const multi = filterFieldsOf(tagged, { labels: { type: "multiselect" } });
     expect(
       filterWhere(
@@ -412,10 +439,12 @@ describe("describing the filter parameter", () => {
     expect(list.openapi.find((param) => param.name === "filter")).toMatchObject(
       { in: "query", schema: { type: "string" } },
     );
+
     const json = list.jsonSchema as {
       properties: Record<string, unknown>;
       $defs: Record<string, unknown>;
     };
+
     expect(json.properties["filter"]).toEqual({ $ref: "#/$defs/filterGroup" });
     expect(Object.keys(json.$defs)).toEqual(
       expect.arrayContaining(["filterGroup", "filterRule"]),

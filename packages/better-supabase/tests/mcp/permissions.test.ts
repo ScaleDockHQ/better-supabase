@@ -16,15 +16,18 @@ import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
+
 const env = {
   url: PROJECT_URL,
   publishableKey: "sb_publishable_test",
   jwksUrl: new URL(`${PROJECT_URL}/auth/v1/.well-known/jwks.json`),
 };
+
 const USER = "11111111-1111-4111-8111-111111111111";
 const signer = await createTestSigner();
 
 type Ref = "export" | "invite" | "purge";
+
 const decide = (request: AuthorizationRequest<Ref>) =>
   request.action === "export"
     ? ({ outcome: "granted" } as const)
@@ -38,12 +41,14 @@ describe("permittedTools", () => {
       async (requests: readonly AuthorizationRequest<Ref>[]) =>
         requests.map(decide),
     );
+
     const authorizer = defineAuthorizer<Ref>({
       name: "test",
       key: (ref) => ref,
       evaluate: decide,
       evaluations,
     });
+
     const shown = await permittedTools(
       authorizer,
       [
@@ -54,6 +59,7 @@ describe("permittedTools", () => {
       ],
       undefined,
     );
+
     expect(shown).toEqual([true, true, false, true]);
     expect(evaluations).toHaveBeenCalledTimes(2);
     expect(
@@ -72,6 +78,7 @@ describe("permittedTools", () => {
         undefined,
       ),
     ).toEqual([false]);
+
     const throwing = defineAuthorizer({
       name: "test",
       key: () => {
@@ -79,6 +86,7 @@ describe("permittedTools", () => {
       },
       evaluate: () => ({ outcome: "granted" }),
     });
+
     expect(
       await permittedTools(
         throwing,
@@ -96,6 +104,7 @@ describe("toolPermission", () => {
       "mcp.tool.blank": { permission: "" },
       "ai.tool.open": { permission: "ignored" },
     };
+
     expect(toolPermission(operations, "export", "export")).toBe(
       "reports.export",
     );
@@ -112,6 +121,7 @@ describe("toolPermission", () => {
       "invoices.void": { permission: "billing.manage" },
       "mcp.tool.void": { permission: "ignored" },
     };
+
     expect(toolPermission(operations, "void", "x", "invoices.void")).toBe(
       "billing.manage",
     );
@@ -122,17 +132,20 @@ describe("toolPermission", () => {
 describe("checkTool", () => {
   it("passes the arguments as the resource's properties", async () => {
     const evaluate = vi.fn(() => ({ outcome: "granted" }) as const);
+
     const authorizer = defineAuthorizer({
       name: "test",
       key: String,
       evaluate,
     });
+
     const result = await checkTool(
       authorizer,
       { info: { name: "send" }, permission: "send" },
       { to: "a" },
       {},
     );
+
     expect(result.ok).toBe(true);
     expect(
       (await checkTool(authorizer, { info: { name: "open" } }, {}, {})).ok,
@@ -159,6 +172,7 @@ describe("createMcp authorizer", () => {
     key: (ref) => ref,
     evaluate: decide,
   });
+
   const mcp = createMcp(defineSupabase(schema), {
     env,
     auth: { jwks: signer.jwks as never },
@@ -179,6 +193,7 @@ describe("createMcp authorizer", () => {
       run: () => ({ invited: true }),
     })
     .tool({ name: "open", description: "Open.", run: () => "ok" });
+
   const send = async (method: string, params?: unknown) =>
     (await (
       await mcp.fetch(
@@ -214,6 +229,7 @@ describe("createMcp authorizer", () => {
 
   it("takes a tool's permission from the operations table first", async () => {
     const keyed: string[] = [];
+
     const swapped = createMcp(defineSupabase(schema), {
       env,
       auth: { jwks: signer.jwks as never },
@@ -223,6 +239,7 @@ describe("createMcp authorizer", () => {
         name: "test",
         key: (ref) => {
           keyed.push(ref);
+
           return ref;
         },
         evaluate: decide,
@@ -246,6 +263,7 @@ describe("createMcp authorizer", () => {
         run: () => ({ invited: true }),
       })
       .tool({ name: "open", description: "Open.", run: () => "ok" });
+
     const response = await swapped.fetch(
       new Request("https://tools.test/mcp", {
         method: "POST",
@@ -256,9 +274,11 @@ describe("createMcp authorizer", () => {
         body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
       }),
     );
+
     const { result } = (await response.json()) as {
       result: { tools: { name: string }[] };
     };
+
     expect(result.tools.map((tool) => tool.name)).toEqual([]);
     expect(new Set(keyed)).toEqual(new Set(["purge", "invite"]));
   });

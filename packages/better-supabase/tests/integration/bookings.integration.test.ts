@@ -17,6 +17,7 @@ const monday = {
   from: at("2030-03-04T00:00:00Z"),
   until: at("2030-03-05T00:00:00Z"),
 };
+
 const weekdays = ([1, 2, 3, 4, 5] as const).map((weekday) => ({
   weekday,
   start: "09:00",
@@ -122,14 +123,17 @@ describe.skipIf(!live)("bookings block in Postgres", () => {
       "2030-03-04T10:30:00Z",
     ]);
     expect(slots[0]?.localStart.toString()).toBe("2030-03-04T09:00:00");
+
     const tokyo = await bookings
       .availableSlots(serviceId, monday, { tz: "Asia/Tokyo" })
       .orThrow();
+
     expect(tokyo[0]?.localStart.toString()).toBe("2030-03-04T17:00:00");
 
     const badZone = await bookings.availableSlots(serviceId, monday, {
       tz: "Mars/Base",
     });
+
     expect(badZone.ok ? undefined : badZone.error.hint).toBe(
       "BOOKING_TZ_INVALID",
     );
@@ -137,6 +141,7 @@ describe.skipIf(!live)("bookings block in Postgres", () => {
 
   it("closes slots for an exception and opens them again when it is deleted", async () => {
     await session.as(owner);
+
     const { id } = await bookings
       .addException(resourceId, {
         startsAt: at("2030-03-04T08:00:00Z"),
@@ -144,6 +149,7 @@ describe.skipIf(!live)("bookings block in Postgres", () => {
         reason: "Dentist",
       })
       .orThrow();
+
     const closed = await bookings.availableSlots(serviceId, monday).orThrow();
     expect(closed.map((slot) => slot.startsAt.toString())).toEqual([
       "2030-03-04T10:00:00Z",
@@ -157,9 +163,11 @@ describe.skipIf(!live)("bookings block in Postgres", () => {
 
   it("holds a slot, blocks its buffer, and refuses a double booking", async () => {
     await session.as(member);
+
     const held = await bookings
       .hold(serviceId, resourceId, at("2030-03-04T08:00:00Z"), { name: "Bo" })
       .orThrow();
+
     expect(held.status).toBe("hold");
     expect(held.customerEmail).toBe(member.email);
     expect(held.holdExpiresAt).toBeDefined();
@@ -175,6 +183,7 @@ describe.skipIf(!live)("bookings block in Postgres", () => {
       resourceId,
       at("2030-03-04T08:00:00Z"),
     );
+
     expect(again.ok ? undefined : again.error.hint).toBe(
       "BOOKING_SLOT_UNAVAILABLE",
     );
@@ -184,9 +193,11 @@ describe.skipIf(!live)("bookings block in Postgres", () => {
 
   it("enforces the exclusion constraint even for direct writes", async () => {
     await session.service();
+
     const insert = `insert into bookings_it.bookings
       (tenant_id, resource_id, service_id, seat, during, blocked, status)
       values ($1, $2, $3, 1, tstzrange($4, $5), tstzrange($4, $5), 'confirmed')`;
+
     await session.rows(insert, [
       org,
       resourceId,
@@ -194,6 +205,7 @@ describe.skipIf(!live)("bookings block in Postgres", () => {
       "2030-03-05T08:00:00Z",
       "2030-03-05T08:30:00Z",
     ]);
+
     const clash = await session.hint(insert, [
       org,
       resourceId,
@@ -201,19 +213,23 @@ describe.skipIf(!live)("bookings block in Postgres", () => {
       "2030-03-05T08:15:00Z",
       "2030-03-05T08:45:00Z",
     ]);
+
     expect(clash).toMatch(/bookings_no_overlap/);
   });
 
   it("books as many overlapping seats as the capacity allows", async () => {
     await session.as(owner);
+
     const room = (
       await bookings
         .saveResource(org, { name: "Studio", kind: "room", capacity: 2 })
         .orThrow()
     ).id;
+
     await bookings
       .setAvailability(room, [{ weekday: 1, start: "08:00", end: "09:00" }])
       .orThrow();
+
     const yoga = (
       await bookings
         .saveService(org, {
@@ -223,13 +239,17 @@ describe.skipIf(!live)("bookings block in Postgres", () => {
         })
         .orThrow()
     ).id;
+
     const start = at("2030-03-04T08:00:00Z");
+
     const first = await bookings
       .hold(yoga, room, start, { name: "A" }, { confirm: true })
       .orThrow();
+
     const second = await bookings
       .hold(yoga, room, start, { name: "B" }, { confirm: true })
       .orThrow();
+
     expect([first.seat, second.seat].toSorted((a, b) => a - b)).toEqual([1, 2]);
     const third = await bookings.hold(yoga, room, start, { name: "C" });
     expect(third.ok ? undefined : third.error.hint).toBe(
@@ -239,19 +259,23 @@ describe.skipIf(!live)("bookings block in Postgres", () => {
 
   it("expires stale holds through the job and frees the slot", async () => {
     await session.as(member);
+
     const held = await bookings
       .hold(serviceId, resourceId, at("2030-03-04T09:00:00Z"))
       .orThrow();
+
     await session.service();
     await session.rows(
       "update bookings_it.bookings set hold_expires_at = now() - interval '1 second' where id = $1",
       [held.id],
     );
     expect(await bookings.expireHolds().orThrow()).toBe(1);
+
     const [row] = await session.rows<{ status: string }>(
       "select status from bookings_it.bookings where id = $1",
       [held.id],
     );
+
     expect(row?.status).toBe("cancelled");
 
     await session.asRole(member);
@@ -261,20 +285,26 @@ describe.skipIf(!live)("bookings block in Postgres", () => {
 
   it("mirrors a confirmed booking into the calendar and reminders, and removes it on cancel", async () => {
     await session.as(member);
+
     const held = await bookings
       .hold(serviceId, resourceId, at("2030-03-04T10:00:00Z"), { name: "Cy" })
       .orThrow();
+
     await bookings.confirm(held.id).orThrow();
     await session.service();
+
     const events = await session.rows<{ title: string }>(
       "select title from bookings_it.calendar_events where uid = $1",
       [`booking-${held.id}`],
     );
+
     expect(events.map((event) => event.title)).toEqual(["Cy"]);
+
     const reminders = await session.rows<{ offset_minutes: number }>(
       "select offset_minutes from better_supabase.reminders where subject_type = 'booking' and subject_id = $1",
       [held.id],
     );
+
     expect(reminders.map((reminder) => reminder.offset_minutes)).toEqual([60]);
 
     await session.as(member);
@@ -299,6 +329,7 @@ describe.skipIf(!live)("bookings block in Postgres", () => {
 
   it("takes guest bookings through a share link, with an access token and a rate limit", async () => {
     await session.as(owner);
+
     const link = await session.value<{ id: string; token: string }>(
       "better_supabase.create_share_link($1, 'booking_service', $2, 'view')",
       [org, serviceId],
@@ -317,6 +348,7 @@ describe.skipIf(!live)("bookings block in Postgres", () => {
       slots[0]!.startsAt,
       { name: "Guest", email: "nope" },
     );
+
     expect(noEmail.ok ? undefined : noEmail.error.hint).toBe(
       "BOOKING_CUSTOMER_INVALID",
     );
@@ -327,21 +359,26 @@ describe.skipIf(!live)("bookings block in Postgres", () => {
         email: "guest@example.test",
       })
       .orThrow();
+
     const wrong = await bookings.public.confirm(held.id, "0".repeat(48));
     expect(wrong.ok ? undefined : wrong.error.hint).toBe("BOOKING_FORBIDDEN");
+
     const confirmed = await bookings.public
       .confirm(held.id, held.accessToken)
       .orThrow();
+
     expect(confirmed.status).toBe("confirmed");
 
     const bad = await bookings.public.service("0".repeat(64));
     expect(bad.ok ? undefined : bad.error.hint).toBe("BOOKING_LINK_INVALID");
 
     await session.as(owner);
+
     const fresh = await session.value<{ token: string }>(
       "better_supabase.create_share_link($1, 'booking_service', $2, 'view')",
       [org, serviceId],
     );
+
     await session.service();
     await session.value("better_supabase.set_rate_limit('bookings.public', 1)");
     await session.as("anon");

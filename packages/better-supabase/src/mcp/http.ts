@@ -3,8 +3,10 @@ import { fromSupabaseUrl } from "@supabase/server/oauth-protected-resource";
 
 /** The RFC 9728 well-known prefix. The Supabase Edge Functions gateway never routes it to a function. */
 const WELL_KNOWN = "/.well-known/oauth-protected-resource";
+
 /** The path suffix `withOAuthProtectedResource` serves, reachable through `/functions/v1/<slug>`. */
 const SUFFIX = "/oauth-protected-resource";
+
 /** The prefix the Edge Functions gateway strips before the function sees the request. */
 const EDGE_PREFIX = "/functions/v1";
 
@@ -27,20 +29,26 @@ function onEdgeFunctions(): boolean {
 /** The public origin: `SUPABASE_PUBLIC_URL`, else the gateway's `X-Forwarded-*` headers. */
 function edgeOrigin(request: Request): string {
   const publicUrl = getEnv("SUPABASE_PUBLIC_URL");
+
   if (publicUrl) {
     return trim(publicUrl);
   }
+
   const url = new URL(request.url);
   const host = request.headers.get("x-forwarded-host") ?? url.hostname;
+
   const proto = (
     request.headers.get("x-forwarded-proto") ?? url.protocol.slice(0, -1)
   ).toLowerCase();
+
   const port = host.includes(":")
     ? ""
     : (request.headers.get("x-forwarded-port") ?? url.port);
+
   const standard =
     (proto === "https" && port === "443") ||
     (proto === "http" && port === "80");
+
   return `${proto}://${host}${port && !standard ? `:${port}` : ""}`;
 }
 
@@ -48,26 +56,32 @@ function stripMetadata(pathname: string): string {
   if (pathname.startsWith(WELL_KNOWN)) {
     return pathname.slice(WELL_KNOWN.length);
   }
+
   if (pathname.endsWith(SUFFIX)) {
     return pathname.slice(0, -SUFFIX.length);
   }
+
   return pathname;
 }
 
 function edgePath(request: Request): string {
   const slug = getEnv("SUPABASE_FUNCTION_SLUG");
+
   if (slug) {
     return `${EDGE_PREFIX}/${slug}`;
   }
+
   return trim(`${EDGE_PREFIX}${stripMetadata(new URL(request.url).pathname)}`);
 }
 
 /** A request for the RFC 9728 metadata, at the well-known prefix or the `{resource}/oauth-protected-resource` suffix. */
 export function isMetadataRequest(request: Request): boolean {
   const { pathname } = new URL(request.url);
+
   if (pathname === WELL_KNOWN || pathname.startsWith(`${WELL_KNOWN}/`)) {
     return true;
   }
+
   return pathname.endsWith(SUFFIX) && request.method !== "POST";
 }
 
@@ -99,20 +113,26 @@ export function discovery(
     if (typeof options.resource === "function") {
       return options.resource(request);
     }
+
     if (options.resource) {
       return options.resource;
     }
+
     if (onEdgeFunctions()) {
       return `${edgeOrigin(request)}${edgePath(request)}`;
     }
+
     const url = new URL(request.url);
+
     return trim(`${url.origin}${stripMetadata(url.pathname)}`);
   };
+
   return {
     resource,
     metadataUrl: (request) => {
       const target = new URL(resource(request));
       const path = trim(target.pathname);
+
       return onEdgeFunctions()
         ? `${target.origin}${path}${SUFFIX}`
         : `${target.origin}${WELL_KNOWN}${path}`;
@@ -121,6 +141,7 @@ export function discovery(
       if (options.authorizationServers) {
         return options.authorizationServers;
       }
+
       return onEdgeFunctions()
         ? [`${edgeOrigin(request)}/auth/v1`]
         : [fromSupabaseUrl(supabaseUrl())];
@@ -130,6 +151,7 @@ export function discovery(
       const forwarded = onEdgeFunctions()
         ? request.headers.get("x-forwarded-host")
         : null;
+
       return forwarded ?? request.headers.get("host");
     },
   };
@@ -177,28 +199,35 @@ export function withCors(
   allowedOrigins?: readonly string[],
 ): Response {
   const origin = request.headers.get("origin");
+
   const allow = allowedOrigins
     ? origin && allowedOrigins.includes(origin)
       ? origin
       : null
     : "*";
+
   const apply = (headers: Headers): void => {
     if (allow && !headers.has("access-control-allow-origin")) {
       headers.set("access-control-allow-origin", allow);
+
       if (allow !== "*") {
         headers.append("vary", "Origin");
       }
     }
+
     if (!headers.has("access-control-expose-headers")) {
       headers.set("access-control-expose-headers", "WWW-Authenticate");
     }
   };
+
   try {
     apply(response.headers);
+
     return response;
   } catch {
     const headers = new Headers(response.headers);
     apply(headers);
+
     return new Response(response.body, {
       status: response.status,
       statusText: response.statusText,

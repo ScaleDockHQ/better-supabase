@@ -116,6 +116,7 @@ describe("toOpenApi30Schema", () => {
 describe("lowerDocumentSchemas30", () => {
   it("lowers every schema position", () => {
     const nullable = { type: ["string", "null"] };
+
     const lowered = lowerDocumentSchemas30({
       paths: {
         "/a/{id}": {
@@ -146,6 +147,7 @@ describe("lowerDocumentSchemas30", () => {
         parameters: { P: { schema: nullable } },
       },
     });
+
     const expected = { type: "string", nullable: true };
     expect(lowered).toEqual({
       paths: {

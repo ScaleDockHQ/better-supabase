@@ -8,13 +8,16 @@ export function fakeConnect(client: PgQueryable): {
 } {
   const urls: string[] = [];
   let closed = 0;
+
   return {
     connect: (url) => {
       urls.push(url);
+
       return Promise.resolve({
         client,
         close: () => {
           closed += 1;
+
           return Promise.resolve();
         },
         describe: url.replace(/:[^:@/]+@/, ":***@"),

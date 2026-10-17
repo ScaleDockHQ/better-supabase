@@ -229,12 +229,14 @@ const PERIODS: ReadonlySet<string> = new Set([
 
 const periodOf = (value: unknown): UsagePeriod => {
   const text = textOf(value);
+
   // SAFETY: checked against the periods the usage_quotas check allows.
   return PERIODS.has(text) ? (text as UsagePeriod) : "month";
 };
 
 function recordedOf(value: unknown): UsageRecorded {
   const row = recordOf(value, "record_usage");
+
   return {
     recorded: row["recorded"] === true,
     today: numberOf(row["today"]),
@@ -251,6 +253,7 @@ const perMeter = (value: unknown): Readonly<Record<string, number>> =>
 
 function statusOf(value: unknown): UsageStatus {
   const row = recordOf(value, "usage_status");
+
   return {
     meter: textOf(row["meter"]),
     used: numberOf(row["used"]),
@@ -271,6 +274,7 @@ function meterInfo(row: Readonly<Record<string, unknown>>): UsageMeterInfo {
   const unit = optionalText(row["unit"]);
   const category = optionalText(row["category"]);
   const label = optionalText(row["label"]);
+
   return {
     ...(unit === undefined ? {} : { unit }),
     ...(category === undefined ? {} : { category }),
@@ -282,6 +286,7 @@ function meterInfo(row: Readonly<Record<string, unknown>>): UsageMeterInfo {
 export function createUsage(options: UsageOptions): Usage {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const args = (
     organizationId: string,
     meter: string,
@@ -295,6 +300,7 @@ export function createUsage(options: UsageOptions): Usage {
     metadata: record.metadata,
     actor: record.actor,
   });
+
   const batch =
     (check: boolean) =>
     (
@@ -320,6 +326,7 @@ export function createUsage(options: UsageOptions): Usage {
         },
         (value) => {
           const row = recordOf(value, "record_usage_batch");
+
           return {
             recorded: row["recorded"] === true,
             today: perMeter(row["today"]),
@@ -327,11 +334,13 @@ export function createUsage(options: UsageOptions): Usage {
           };
         },
       );
+
   const current = (
     organizationId: string,
     meter: string,
   ): AsyncResult<UsageStatus> =>
     call("usage_status", { tenant: organizationId, meter }, statusOf);
+
   const purge =
     (fn: string) =>
     (purgeOptions: PurgeUsageOptions = {}): AsyncResult<number> =>
@@ -346,8 +355,10 @@ export function createUsage(options: UsageOptions): Usage {
         },
         (value) => Number(value ?? 0),
       );
+
   const purgeHistory = purge("purge_usage_history");
   const purgeEvents = purge("purge_usage_events");
+
   const client: Usage = {
     purgeHistory,
     purgeEvents,
@@ -401,6 +412,7 @@ export function createUsage(options: UsageOptions): Usage {
     meters: () =>
       call("usage_meters", {}, (value) => {
         const row = isRecord(value) ? value : {};
+
         return Object.fromEntries(
           Object.entries(row).map(([meter, info]) => [
             meter,
@@ -409,6 +421,7 @@ export function createUsage(options: UsageOptions): Usage {
         );
       }),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "usage",
     ...(options.logger ? { logger: options.logger } : {}),
@@ -474,6 +487,7 @@ export async function reportUsageToStripe(
   const entitlements = blockCall(options.transport, DEFAULT_BLOCK_SCHEMA);
   const stripe = await lazyStripe(options.stripe)();
   const customers = new Map<string, string | undefined>();
+
   const customerOf =
     options.customer ??
     (async (organizationId: string) =>
@@ -482,12 +496,15 @@ export async function reportUsageToStripe(
         { tenant: organizationId },
         optionalText,
       ).orThrow());
+
   const limit = options.batch ?? 500;
   const skipMeters = new Set<string>();
   const skipTenants = new Set<string>();
+
   /** Sends the meter event when there is a delta, then marks the total; `true` when it sent one. */
   const send = async (pending: PendingReport): Promise<boolean> => {
     const { organizationId, meter, day, value, delta, identifier } = pending;
+
     if (delta > 0) {
       await stripe.billing.meterEvents.create(
         {
@@ -504,16 +521,20 @@ export async function reportUsageToStripe(
         { idempotencyKey: identifier },
       );
     }
+
     await call(
       "mark_usage_reported",
       { tenant: organizationId, meter, day, value },
       () => undefined,
     ).orThrow();
+
     return delta > 0;
   };
+
   let reported = 0;
   let skipped = 0;
   let handled = 0;
+
   for (;;) {
     const rows = await call(
       "unreported_usage",
@@ -524,12 +545,17 @@ export async function reportUsageToStripe(
       },
       (value) => recordsOf(value, "unreported_usage"),
     ).orThrow();
+
     let passedOver = false;
+
     const eventNameOf = (meter: string): string | undefined =>
       options.eventName ? options.eventName(meter) : meter;
+
     const lookups = new Set<string>();
+
     for (const row of rows) {
       const organizationId = textOf(row["organization_id"]);
+
       if (
         !customers.has(organizationId) &&
         !skipTenants.has(organizationId) &&
@@ -538,6 +564,7 @@ export async function reportUsageToStripe(
         lookups.add(organizationId);
       }
     }
+
     await eachLimit(
       [...lookups],
       REPORT_CONCURRENCY,
@@ -546,33 +573,41 @@ export async function reportUsageToStripe(
       },
     );
     const sends: PendingReport[] = [];
+
     for (const row of rows) {
       const organizationId = textOf(row["organization_id"]);
       const meter = textOf(row["meter"]);
+
       if (skipMeters.has(meter) || skipTenants.has(organizationId)) {
         skipped += 1;
         continue;
       }
+
       const eventName = eventNameOf(meter);
+
       if (eventName === undefined) {
         skipMeters.add(meter);
         skipped += 1;
         passedOver = true;
         continue;
       }
+
       const customer = customers.get(organizationId);
+
       if (customer === undefined) {
         skipTenants.add(organizationId);
         skipped += 1;
         passedOver = true;
         continue;
       }
+
       handled += 1;
       const day = textOf(row["day"]).slice(0, 10);
       const value = numberOf(row["value"]);
       const previous = numberOf(row["reported_value"]);
       const included = optionalNumber(row["included"]);
       const before = numberOf(row["window_before"] ?? 0);
+
       const delta =
         options.overage === true && row["unlimited"] === true
           ? 0
@@ -580,6 +615,7 @@ export async function reportUsageToStripe(
             ? Math.max(0, before + value - included) -
               Math.max(0, before + previous - included)
             : value - previous;
+
       const identifier = `${organizationId}:${meter}:${day}:${String(value)}`;
       sends.push({
         organizationId,
@@ -592,14 +628,17 @@ export async function reportUsageToStripe(
         identifier,
       });
     }
+
     const sent: boolean[] = [];
     await eachLimit(sends, REPORT_CONCURRENCY, async (pending, index) => {
       sent[index] = await send(pending);
     });
     reported += sent.filter(Boolean).length;
+
     if (!passedOver || handled >= limit || rows.length === 0) {
       break;
     }
   }
+
   return { reported, skipped };
 }

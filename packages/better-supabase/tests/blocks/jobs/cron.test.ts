@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { assertCron, nextCronRun } from "../../../src/blocks/jobs/cron.ts";
 
 const at = (iso: string) => Temporal.Instant.from(iso);
+
 const next = (cron: string, after: string, zone = "UTC") =>
   nextCronRun(cron, zone, at(after)).toString();
 

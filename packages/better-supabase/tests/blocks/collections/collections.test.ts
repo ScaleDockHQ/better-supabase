@@ -6,14 +6,17 @@ function transport(
   results: Record<string, (args: Record<string, unknown>) => unknown>,
 ) {
   const calls: [string, Record<string, unknown>][] = [];
+
   return {
     calls,
     call(_schema: string, fn: string, args: Record<string, unknown>) {
       calls.push([fn, args]);
       const result = results[fn];
+
       if (!result) {
         return Promise.reject(new Error(`unexpected ${fn}`));
       }
+
       return Promise.resolve(result(args));
     },
   };
@@ -58,6 +61,7 @@ const STAR = {
 describe("collections block", () => {
   it("creates a list and reads its row", async () => {
     const t = transport({ create_collection: () => LIST });
+
     const list = await createCollections({ transport: t })
       .create("o", {
         name: "Key accounts",
@@ -66,6 +70,7 @@ describe("collections block", () => {
         teamId: "t1",
       })
       .orThrow();
+
     expect(t.calls[0]).toEqual([
       "create_collection",
       {
@@ -99,6 +104,7 @@ describe("collections block", () => {
       description: "Q4",
       archivedAt: "2026-10-15T09:00:00Z",
     };
+
     const t = transport({
       create_collection: () => LIST,
       rename_collection: () => archived,
@@ -106,6 +112,7 @@ describe("collections block", () => {
       list_collections: () => [LIST, archived],
       collections_of: () => [LIST],
     });
+
     const collections = createCollections({ transport: t });
     await collections.create("o", { name: "x", subjectType: "company" });
     expect(t.calls[0]?.[1]).toMatchObject({ scope: "user", team: null });
@@ -155,6 +162,7 @@ describe("collections block", () => {
           : [ENTRY("c", "s")],
       collection_subject_ids: () => ["b", "a"],
     });
+
     const collections = createCollections({ transport: t });
     expect(await collections.add("c1", ["a", "b"]).orThrow()).toEqual({
       added: ["a"],
@@ -175,9 +183,11 @@ describe("collections block", () => {
     expect(first.next).toEqual({ rank: "k", subjectId: "b" });
     expect(first.items[0]).toMatchObject({ title: "Company a", addedBy: "u1" });
     expect(first.items[0]?.url).toBeUndefined();
+
     const second = await collections
       .entries("c1", { limit: 2, cursor: first.next! })
       .orThrow();
+
     expect(second.next).toBeUndefined();
     expect(t.calls.at(-1)?.[1]).toEqual({
       collection: "c1",
@@ -213,6 +223,7 @@ describe("collections block", () => {
       starred_subjects: () => [STAR, { ...STAR, title: null, url: null }],
       rank_star: () => true,
     });
+
     const collections = createCollections({ transport: t });
     const deal = { type: "deal", id: "d1" };
     const star = await collections.star("o", deal).orThrow();

@@ -44,10 +44,12 @@ const files = execFileSync(
   .filter((file) => file !== "" && existsSync(file));
 
 const findings: string[] = [];
+
 for (const file of files) {
   if (allowed.has(file)) {
     continue;
   }
+
   readFileSync(file, "utf-8")
     .split("\n")
     .forEach((line, index) => {
@@ -60,10 +62,12 @@ for (const file of files) {
 for (const finding of findings) {
   console.error(`${finding}: names PermDock or one of its shapes`);
 }
+
 if (findings.length > 0) {
   console.error(
     `\n${findings.length} finding(s). Describe the AuthorizationProvider interface instead (AGENTS.md invariant 15).`,
   );
   exit(1);
 }
+
 console.log(`Checked ${files.length} files: no PermDock references.`);

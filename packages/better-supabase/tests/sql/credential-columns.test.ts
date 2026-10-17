@@ -37,16 +37,20 @@ const NOT_CREDENTIALS: Readonly<Record<string, readonly string[]>> = {
 };
 
 const SENSITIVE = /token|secret|api_?key/;
+
 const CREATE_TABLE =
   /create table(?: if not exists)?\s+([\w."]+)\s*\(([\s\S]*?)\n\);/gi;
+
 const ADD_COLUMN = /add column(?: if not exists)?\s+"?(\w+)"?/gi;
 
 /** `table.column` for every column a module's SQL creates or adds. */
 function columnsOf(sql: string): string[] {
   const columns: string[] = [];
+
   for (const [, table, body] of sql.matchAll(CREATE_TABLE)) {
     for (const line of body!.split("\n")) {
       const name = /^\s*"?([a-z_][a-z0-9_]*)"?\s+[a-z]/i.exec(line)?.[1];
+
       if (
         name !== undefined &&
         !/^(constraint|primary|unique|check|foreign|exclude|like)$/i.test(name)
@@ -55,9 +59,11 @@ function columnsOf(sql: string): string[] {
       }
     }
   }
+
   for (const [, name] of sql.matchAll(ADD_COLUMN)) {
     columns.push(`?.${name}`);
   }
+
   return columns;
 }
 
@@ -65,6 +71,7 @@ function columnsOf(sql: string): string[] {
 function credentialColumns(sql: string): string[] {
   return columnsOf(sql).filter((column) => {
     const name = column.slice(column.lastIndexOf(".") + 1);
+
     return (
       SENSITIVE.test(name) && !name.endsWith("_hash") && !KNOWN.has(column)
     );
@@ -94,6 +101,7 @@ alter table public.grants add column if not exists api_key text;`),
         const refs = Object.entries(table.columns)
           .filter(([, column]) => column === "credential_ref")
           .map(([key]) => key);
+
         expect(
           table.lifecycle?.credentials ?? [],
           `${name}.${logical}`,

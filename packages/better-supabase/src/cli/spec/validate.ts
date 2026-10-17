@@ -27,6 +27,7 @@ function enginesOf(): { readonly draft7: Ajv; readonly draft2020: Ajv2020 } {
     draft2020.addFormat("media-range", true);
     engines = { draft7, draft2020 };
   }
+
   return engines;
 }
 
@@ -40,18 +41,23 @@ function fromDraft04(node: unknown, root = true): void {
     for (const item of node) {
       fromDraft04(item, false);
     }
+
     return;
   }
+
   if (!isJson(node)) {
     return;
   }
+
   if (root) {
     delete node["$schema"];
+
     if (typeof node["id"] === "string") {
       node["$id"] = node["id"];
       delete node["id"];
     }
   }
+
   for (const [bound, exclusive] of [
     ["minimum", "exclusiveMinimum"],
     ["maximum", "exclusiveMaximum"],
@@ -59,6 +65,7 @@ function fromDraft04(node: unknown, root = true): void {
     if (typeof node[exclusive] !== "boolean") {
       continue;
     }
+
     if (node[exclusive] && typeof node[bound] === "number") {
       node[exclusive] = node[bound];
       delete node[bound];
@@ -66,6 +73,7 @@ function fromDraft04(node: unknown, root = true): void {
       delete node[exclusive];
     }
   }
+
   for (const [key, value] of Object.entries(node)) {
     if (key !== "enum" && key !== "const" && key !== "default") {
       fromDraft04(value, false);
@@ -80,10 +88,12 @@ function fromDraft04(node: unknown, root = true): void {
  */
 function staticDynamicRefs(schema: Json): void {
   const anchors = new Map<string, string>();
+
   const find = (node: unknown, pointer: string): void => {
     if (!isJson(node) && !Array.isArray(node)) {
       return;
     }
+
     for (const [key, value] of Object.entries(node)) {
       if (key === "$dynamicAnchor" && typeof value === "string") {
         anchors.set(value, `#${pointer}`);
@@ -92,27 +102,35 @@ function staticDynamicRefs(schema: Json): void {
       }
     }
   };
+
   const rewrite = (node: unknown): void => {
     if (Array.isArray(node)) {
       for (const item of node) {
         rewrite(item);
       }
+
       return;
     }
+
     if (!isJson(node)) {
       return;
     }
+
     const dynamic = node["$dynamicRef"];
+
     const target =
       typeof dynamic === "string" ? anchors.get(dynamic.slice(1)) : undefined;
+
     if (target !== undefined) {
       delete node["$dynamicRef"];
       node["$ref"] = target;
     }
+
     for (const value of Object.values(node)) {
       rewrite(value);
     }
   };
+
   find(schema, "");
   rewrite(schema);
 }
@@ -126,9 +144,11 @@ const META_SCHEMA = /^https?:\/\/json-schema\.org\/draft-07\/schema#?$/;
  */
 function dropBundledMetaSchemas(schema: Json): void {
   const definitions = schema["definitions"];
+
   if (!isJson(definitions)) {
     return;
   }
+
   for (const [key, value] of Object.entries(definitions)) {
     if (
       isJson(value) &&
@@ -144,29 +164,37 @@ const compiled = new Map<string, Promise<ValidateFunction>>();
 
 async function compile(official: OfficialSchema): Promise<ValidateFunction> {
   const loaded = await official.load();
+
   if (!isJson(loaded)) {
     throw new TypeError(`The vendored schema ${official.id} is not an object`);
   }
+
   const schema = structuredClone(loaded);
   const { draft7, draft2020 } = enginesOf();
+
   if (official.dialect === "2020-12") {
     staticDynamicRefs(schema);
+
     return draft2020.compile(schema);
   }
+
   if (official.dialect === "draft-04") {
     fromDraft04(schema);
   } else {
     dropBundledMetaSchemas(schema);
   }
+
   return draft7.compile(schema);
 }
 
 function validatorFor(official: OfficialSchema): Promise<ValidateFunction> {
   let hit = compiled.get(official.id);
+
   if (!hit) {
     hit = compile(official);
     compiled.set(official.id, hit);
   }
+
   return hit;
 }
 
@@ -175,6 +203,7 @@ function describe(error: ErrorObject): string {
     .filter(([, value]) => typeof value !== "object")
     .map(([key, value]) => `${key}: ${String(value)}`)
     .join(", ");
+
   return `${error.message ?? "is invalid"}${params ? ` (${params})` : ""}`;
 }
 
@@ -189,6 +218,7 @@ export async function validateDocument(
   document: unknown,
 ): Promise<SpecDiagnostic[]> {
   const official = officialSchema(format, version);
+
   if (!official) {
     return [
       {
@@ -198,18 +228,24 @@ export async function validateDocument(
       },
     ];
   }
+
   const validate = await validatorFor(official);
+
   if (validate(document)) {
     return [];
   }
+
   const seen = new Set<string>();
   const diagnostics: SpecDiagnostic[] = [];
+
   for (const error of validate.errors ?? []) {
     const message = describe(error);
     const key = `${error.instancePath}\u0000${message}`;
+
     if (seen.has(key)) {
       continue;
     }
+
     seen.add(key);
     diagnostics.push({
       code: "schema-invalid",
@@ -218,9 +254,11 @@ export async function validateDocument(
       pointer: error.instancePath,
     });
   }
+
   if (diagnostics.length <= MAX_ERRORS) {
     return diagnostics;
   }
+
   return [
     ...diagnostics.slice(0, MAX_ERRORS),
     {

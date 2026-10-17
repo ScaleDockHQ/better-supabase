@@ -14,13 +14,16 @@ export async function reachable(): Promise<boolean> {
   if (dbUrl === undefined) {
     return false;
   }
+
   const pool = new Pool({
     connectionString: dbUrl,
     max: 1,
     connectionTimeoutMillis: 1000,
   });
+
   try {
     await pool.query("select 1");
+
     return true;
   } catch {
     return false;
@@ -33,6 +36,7 @@ export async function reachable(): Promise<boolean> {
 export function moduleFiles(recipe: Recipe) {
   const config = resolveConfig(recipe.config, process.cwd());
   const files = renderModules(config.blockNames, moduleLayout(config));
+
   return [
     ...files.filter((file) => file.kind === "schema"),
     ...files.filter((file) => file.kind === "data"),
@@ -72,6 +76,7 @@ export class Session {
        values ($1, $2, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now())`,
       [id, email],
     );
+
     return { id, email };
   }
 
@@ -83,6 +88,7 @@ export class Session {
        values ($1, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', true)`,
       [id],
     );
+
     return { id, email: "", anonymous: true };
   }
 
@@ -93,17 +99,21 @@ export class Session {
   ): Promise<string> {
     await this.as(owner);
     const slug = `org-${crypto.randomUUID().slice(0, 8)}`;
+
     const id = await this.value<string>(
       "better_supabase.create_organization($1)",
       [{ name: slug, slug }],
     );
+
     await this.service();
+
     for (const member of members) {
       await this.client.query(
         "insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, 'member')",
         [id, member.id],
       );
     }
+
     return id;
   }
 
@@ -152,6 +162,7 @@ export class Session {
       `select ${sql} as value`,
       [...params],
     );
+
     return rows[0]!.value;
   }
 
@@ -165,16 +176,21 @@ export class Session {
   /** The hint of the error `sql` raises, rolled back to a savepoint. */
   async hint(sql: string, params: readonly unknown[] = []): Promise<string> {
     await this.client.query("savepoint attempt");
+
     try {
       await this.client.query(`select ${sql}`, [...params]);
     } catch (error) {
       await this.client.query("rollback to savepoint attempt");
+
       if (!(error instanceof DatabaseError)) {
         throw error;
       }
+
       return error.hint ?? error.message;
     }
+
     await this.client.query("release savepoint attempt");
+
     return "no error";
   }
 
@@ -193,11 +209,13 @@ export class Session {
 
   private sqlClient(asService: boolean): SqlClient {
     const client = this.client;
+
     const run = async <T>(
       text: string,
       params: readonly unknown[],
     ): Promise<T[]> => {
       await client.query("savepoint call");
+
       try {
         const caller = asService
           ? (
@@ -206,20 +224,26 @@ export class Session {
               )
             ).rows[0]
           : undefined;
+
         if (caller) {
           await this.service();
         }
+
         const { rows } = await client.query(text, [...params]);
+
         if (caller) {
           await client.query(
             "select set_config('request.jwt.claims', $1, true)",
             [caller.claims],
           );
+
           if (caller.role === "authenticated") {
             await client.query("set local role authenticated");
           }
         }
+
         await client.query("release savepoint call");
+
         // SAFETY: callers name the row shape of the query they send.
         return rows as T[];
       } catch (error) {
@@ -227,10 +251,12 @@ export class Session {
         throw error;
       }
     };
+
     return {
       queryRaw: <T>(text: string, params: readonly unknown[] = []) => {
         const result = this.queue.then(() => run<T>(text, params));
         this.queue = result.catch(() => undefined);
+
         return result;
       },
     };
@@ -244,6 +270,7 @@ export async function withRecipe(
   body: (session: Session) => Promise<void>,
 ): Promise<void> {
   const client = await pool.connect();
+
   try {
     await install(client, migration(recipe));
     await body(new Session(client));
@@ -261,18 +288,22 @@ export async function withRecipe(
 async function install(client: PoolClient, sql: string): Promise<void> {
   for (let attempt = 1; ; attempt += 1) {
     await client.query("begin");
+
     try {
       // validation-centrakit installs blocks on the same database; concurrent installs deadlock.
       await client.query(
         "select pg_advisory_xact_lock(hashtext('better-supabase:validation-install'))",
       );
       await client.query(sql);
+
       return;
     } catch (error) {
       await client.query("rollback");
+
       if (!(error instanceof DatabaseError) || error.code !== "40P01") {
         throw error;
       }
+
       if (attempt === 5) {
         throw error;
       }

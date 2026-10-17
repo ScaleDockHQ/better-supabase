@@ -18,6 +18,7 @@ describe("useQuestionnaire", () => {
   it("renders the controller and calls the latest onSubmit", async () => {
     const first = vi.fn();
     const latest = vi.fn();
+
     const view = renderHook<
       Parameters<typeof useQuestionnaire>[0],
       ReturnType<typeof useQuestionnaire>
@@ -26,6 +27,7 @@ describe("useQuestionnaire", () => {
       initialAnswers: { name: "Ada" },
       onSubmit: first,
     });
+
     expect(view.result.answers).toEqual({ name: "Ada" });
     view.result.setAnswer("email", "ada@example.com");
     expect(view.result.answers).toEqual({

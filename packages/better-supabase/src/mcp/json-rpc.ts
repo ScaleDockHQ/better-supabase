@@ -47,9 +47,11 @@ export const isObject = (value: unknown): value is Json =>
 /** An `Mcp-Name` value, decoding the `=?base64?...?=` sentinel. */
 export function headerName(value: string): string {
   const encoded = /^=\?base64\?(.*)\?=$/.exec(value)?.[1];
+
   if (encoded === undefined) {
     return value;
   }
+
   try {
     return base64ToText(encoded);
   } catch {

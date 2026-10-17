@@ -70,6 +70,7 @@ const loadConnect = (): Promise<unknown> =>
 
 function connectRef(ref: CredentialRef): Result<VercelConnectRef> {
   const { connector, installationId, scopes } = ref;
+
   if (ref.provider !== "vercel-connect" || typeof connector !== "string") {
     return err(
       dbError(
@@ -79,6 +80,7 @@ function connectRef(ref: CredentialRef): Result<VercelConnectRef> {
       ),
     );
   }
+
   return ok({
     provider: "vercel-connect",
     connector,
@@ -97,6 +99,7 @@ function connectRef(ref: CredentialRef): Result<VercelConnectRef> {
 function connectError(cause: unknown): Result<never> {
   const name = cause instanceof Error ? cause.name : "";
   const message = cause instanceof Error ? cause.message : String(cause);
+
   switch (name) {
     case "UserAuthorizationRequiredError": {
       return err(
@@ -105,6 +108,7 @@ function connectError(cause: unknown): Result<never> {
         }),
       );
     }
+
     case "ConnectorInstallationRequiredError": {
       return err(
         dbError("forbidden", message, {
@@ -112,11 +116,13 @@ function connectError(cause: unknown): Result<never> {
         }),
       );
     }
+
     case "NoValidTokenError": {
       return err(
         dbError("not_found", message, { hint: "CREDENTIAL_NOT_FOUND" }),
       );
     }
+
     default: {
       return err(dbError("network", message));
     }
@@ -131,6 +137,7 @@ export function vercelConnectCredentials(
   options: VercelConnectCredentialsOptions = {},
 ): CredentialProvider {
   let loaded: Promise<VercelConnectModule> | undefined;
+
   const connect = (): Promise<VercelConnectModule> =>
     (loaded ??= (options.load ?? loadConnect)().then((value) => {
       if (!isModule(value)) {
@@ -139,8 +146,10 @@ export function vercelConnectCredentials(
           "vercelConnectCredentials needs the @vercel/connect package: pnpm add @vercel/connect",
         );
       }
+
       return value;
     }));
+
   const connectOptions: ConnectOptions =
     options.vercelToken === undefined
       ? {}
@@ -162,12 +171,16 @@ export function vercelConnectCredentials(
         ),
       );
     }
+
     const parsed = connectRef(ref);
+
     if (!parsed.ok) {
       return AsyncResult.err(parsed.error);
     }
+
     return AsyncResult.from(async () => {
       const module = await connect();
+
       try {
         return ok(await fn(module, parsed.data));
       } catch (cause) {
@@ -184,6 +197,7 @@ export function vercelConnectCredentials(
   ): ConnectTokenParams => {
     const chosen = scopes ?? parsed.scopes;
     const installation = installationId ?? parsed.installationId;
+
     return {
       subject,
       ...(installation === undefined ? {} : { installationId: installation }),
@@ -209,7 +223,9 @@ export function vercelConnectCredentials(
             ),
             connectOptions,
           );
+
           const temporal = optionalTemporal();
+
           return {
             token: response.token,
             ...(temporal === undefined
@@ -239,6 +255,7 @@ export function vercelConnectCredentials(
           params(parsed, startOptions.subject, startOptions.scopes, undefined),
           { ...connectOptions, callbackUrl: startOptions.redirectUri },
         );
+
         return { url };
       });
     },
@@ -254,6 +271,7 @@ export function vercelConnectCredentials(
           },
           connectOptions,
         );
+
         return true;
       });
     },

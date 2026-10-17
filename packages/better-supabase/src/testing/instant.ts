@@ -69,10 +69,12 @@ type Instant = <T>(
  */
 async function loadInstant(): Promise<Instant | undefined> {
   const specifier = "@next/playwright";
+
   try {
     // SAFETY: @next/playwright exports `instant` with this signature; the
     // catch covers a missing install.
     const module = (await import(specifier)) as { instant: Instant };
+
     return module.instant;
   } catch {
     return undefined;
@@ -81,6 +83,7 @@ async function loadInstant(): Promise<Instant | undefined> {
 
 async function assertUnderLock(expectation: InstantExpectation): Promise<void> {
   const timeout = expectation.timeoutMs ?? 5000;
+
   for (const locator of expectation.visible) {
     try {
       await locator.waitFor({ state: "visible", timeout });
@@ -91,8 +94,10 @@ async function assertUnderLock(expectation: InstantExpectation): Promise<void> {
       );
     }
   }
+
   for (const locator of expectation.absent ?? []) {
     const count = await locator.count();
+
     if (count > 0) {
       throw new Error(
         `expectInstant: ${String(locator)} matched ${count} elements under the instant() lock. It should stream in after the navigation.`,
@@ -112,11 +117,13 @@ export async function expectInstant(
   expectation: InstantExpectation,
 ): Promise<readonly MeasuredRender[]> {
   const instant = await loadInstant();
+
   if (!instant) {
     throw new Error(
       "expectInstant: install @next/playwright as a dev dependency (pnpm add -D @next/playwright).",
     );
   }
+
   const run = (): Promise<void> =>
     instant(
       page,
@@ -128,13 +135,16 @@ export async function expectInstant(
         ? undefined
         : { baseURL: expectation.baseURL },
     );
+
   if (
     expectation.maxCalls === undefined &&
     expectation.maxWaves === undefined
   ) {
     await run();
+
     return [];
   }
+
   return expectDbBudget(page, {
     during: run,
     ...(expectation.settleMs === undefined

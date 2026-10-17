@@ -16,6 +16,7 @@ export async function OrganizationSwitcher() {
     getSession(),
     getMyOrganizations(),
   ]);
+
   return (
     <SidebarMenu>
       <SidebarMenuItem>

@@ -19,15 +19,19 @@ export function tenantOf<C, P>(
   claim?: string,
 ): string | undefined {
   const claims = claimsOf(session);
+
   if (claims === undefined) {
     return undefined;
   }
+
   for (const path of tenantClaimPaths(claim)) {
     const value = claimAt(claims, path);
+
     if (value !== undefined) {
       return value;
     }
   }
+
   return undefined;
 }
 
@@ -37,5 +41,6 @@ function claimsOf<C, P>(
   if ("kind" in session) {
     return session.kind === "user" ? session.claims : undefined;
   }
+
   return session.status === "signed-in" ? session.claims : undefined;
 }

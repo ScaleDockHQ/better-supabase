@@ -55,6 +55,7 @@ describe("validateDocument", () => {
       info: { title: "CRM" },
       paths: {},
     });
+
     expect(diagnostics[0]).toMatchObject({
       code: "schema-invalid",
       severity: "error",
@@ -79,6 +80,7 @@ describe("validateDocument", () => {
         "/x": { get: { responses: { "200": { description: "ok" } }, nope: 1 } },
       },
     });
+
     expect(
       diagnostics.some((diagnostic) => diagnostic.code === "schema-invalid"),
     ).toBe(true);
@@ -91,11 +93,13 @@ describe("validateDocument", () => {
         { get: { responses: 1 } },
       ]),
     );
+
     const diagnostics = await validateDocument("openapi", "3.1", {
       openapi: "3.1.2",
       info,
       paths,
     });
+
     expect(diagnostics).toHaveLength(51);
     expect(diagnostics.at(-1)?.message).toMatch(/more schema errors not shown/);
   });
@@ -112,15 +116,19 @@ describe("vendored schemas", () => {
   it("match the copies the standards tests pin in SOURCES.md", async () => {
     const vendored = join(import.meta.dirname, "../../../src/cli/spec/schemas");
     const pinned = join(import.meta.dirname, "../../standards/schemas");
+
     const files = (await readdir(vendored)).filter((file) =>
       file.endsWith(".json"),
     );
+
     expect(files).toHaveLength(OFFICIAL_SCHEMAS.size);
+
     for (const file of files) {
       const [copy, original] = await Promise.all([
         readFile(join(vendored, file), "utf-8"),
         readFile(join(pinned, file), "utf-8"),
       ]);
+
       expect({ file, same: copy === original }).toEqual({ file, same: true });
     }
   });

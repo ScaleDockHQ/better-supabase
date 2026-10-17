@@ -13,11 +13,13 @@ describe.skipIf(!live)("memory module", () => {
 
   it("runs the memory tool commands on the caller's own files", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "memory"]);
       const owner = await s.user("owner");
       const member = await s.user("member");
       const tenant = await s.organization(owner, { member });
+
       const memory = createMemory({
         transport: sqlTransport(s.sql),
         maxRender: 120,
@@ -72,18 +74,22 @@ describe.skipIf(!live)("memory module", () => {
         "e",
         "E",
       );
+
       expect(ambiguous.ok ? undefined : ambiguous.error.hint).toBe(
         "MEMORY_AMBIGUOUS",
       );
+
       const missing = await memory.core.strReplace(
         tenant,
         "/memories/prefs.md",
         "coffee",
         "tea",
       );
+
       expect(missing.ok ? undefined : missing.error.hint).toBe(
         "MEMORY_NO_MATCH",
       );
+
       const stale = await memory.core.write(
         tenant,
         "/memories/prefs.md",
@@ -91,6 +97,7 @@ describe.skipIf(!live)("memory module", () => {
         {},
         { expectedVersion: 1 },
       );
+
       expect(stale.ok ? undefined : stale.error.hint).toBe("MEMORY_CONFLICT");
       const escape = await memory.core.write(tenant, "/memories/../etc", "x");
       expect(escape.ok ? undefined : escape.error.hint).toBe("MEMORY_PATH");
@@ -129,18 +136,22 @@ describe.skipIf(!live)("memory module", () => {
           .view(tenant, "/memories/policy.md", { scope: "organization" })
           .orThrow(),
       ).toMatchObject({ type: "file", content: "Answer in English." });
+
       const denied = await memory.core.write(
         tenant,
         "/memories/policy.md",
         "x",
         { scope: "organization" },
       );
+
       expect(denied.ok ? undefined : denied.error.hint).toBe(
         "MEMORY_FORBIDDEN",
       );
+
       const noAgent = await memory.core.view(tenant, "/memories", {
         scope: "agent",
       });
+
       expect(noAgent.ok ? undefined : noAgent.error.hint).toBe(
         "MEMORY_NAMESPACE",
       );
@@ -162,6 +173,7 @@ describe.skipIf(!live)("memory module", () => {
 
   it("saves, finds and dedupes archival facts and recalls messages", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "ai-chat", "memory"]);
       const owner = await s.user("owner");
@@ -170,21 +182,26 @@ describe.skipIf(!live)("memory module", () => {
       const memory = createMemory({ transport: sqlTransport(s.sql), embedder });
 
       await s.asRole(owner);
+
       const fact = await memory.archival
         .save(tenant, "The user has a dog named Rex.")
         .orThrow();
+
       expect(fact).toMatchObject({
         kind: "archival",
         embeddingModel: "words-v1",
       });
+
       const hits = await memory.archival
         .search(tenant, "what is the dog called")
         .orThrow();
+
       expect(hits[0]).toMatchObject({ id: fact.id });
       expect(hits[0]!.similarity).toBeGreaterThan(0);
 
       await s.service();
       const ns = { ownerId: owner.id };
+
       const saved = await memory
         .saveExtracted(
           tenant,
@@ -192,6 +209,7 @@ describe.skipIf(!live)("memory module", () => {
           ns,
         )
         .orThrow();
+
       expect(saved.map((record) => record.content)).toEqual([
         "The user lives in Utrecht.",
       ]);
@@ -211,6 +229,7 @@ describe.skipIf(!live)("memory module", () => {
         "update better_supabase.memories set embedding = null where id = $1",
         [fact.id],
       );
+
       const editing = createMemory({
         transport: sqlTransport(s.sql),
         embedder: {
@@ -220,10 +239,12 @@ describe.skipIf(!live)("memory module", () => {
               "update better_supabase.memories set content = 'The user has a cat.' where id = $1",
               [fact.id],
             );
+
             return embedder.embed(values, options);
           },
         },
       });
+
       expect(await editing.embedPending().orThrow()).toBe(0);
       expect(
         await s.value<boolean>(
@@ -234,15 +255,19 @@ describe.skipIf(!live)("memory module", () => {
       expect(await memory.embedPending().orThrow()).toBe(1);
 
       await s.asRole(owner);
+
       const chat = await s.value<{ id: string }>(
         "better_supabase.create_ai_chat($1, $2)",
         [tenant, { title: "Pets" }],
       );
+
       const secret = await s.value<{ id: string }>(
         "better_supabase.create_ai_chat($1, $2)",
         [tenant, { title: "Secret", is_temporary: true }],
       );
+
       await s.service();
+
       const index = (chatId: string, messageId: string, text: string) =>
         memory.recall
           .index({
@@ -253,15 +278,18 @@ describe.skipIf(!live)("memory module", () => {
             text,
           })
           .orThrow();
+
       expect(await index(chat.id, "m1", "my dog Rex loves the beach")).toBe(
         true,
       );
       expect(await index(secret.id, "m2", "my dog Rex is sick")).toBe(false);
 
       await s.asRole(owner);
+
       const recalled = await memory.recall
         .search(tenant, "dog beach")
         .orThrow();
+
       expect(recalled).toMatchObject([{ chatId: chat.id, messageId: "m1" }]);
       expect(
         await memory.recall
@@ -280,6 +308,7 @@ describe.skipIf(!live)("memory module", () => {
 
   it("writes documents only at the version the caller read", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "memory"]);
       const owner = await s.user("owner");
@@ -294,21 +323,29 @@ describe.skipIf(!live)("memory module", () => {
       expect(await memory.documents.read("scope", "/a.md").orThrow()).toBe(
         undefined,
       );
+
       const first = await memory.documents
         .write("scope", "/a.md", "one", { expectedVersion: null })
         .orThrow();
+
       expect(first).toEqual({ content: "one", version: "1" });
+
       const again = await memory.documents.write("scope", "/a.md", "two", {
         expectedVersion: null,
       });
+
       expect(again.error?.hint).toBe("MEMORY_DOCUMENT_CONFLICT");
+
       const second = await memory.documents
         .write("scope", "/a.md", "two", { expectedVersion: "1" })
         .orThrow();
+
       expect(second.version).toBe("2");
+
       const stale = await memory.documents.write("scope", "/a.md", "three", {
         expectedVersion: "1",
       });
+
       expect(stale.error?.hint).toBe("MEMORY_DOCUMENT_CONFLICT");
       expect(await memory.documents.read("other", "/a.md").orThrow()).toBe(
         undefined,

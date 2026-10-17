@@ -38,16 +38,20 @@ import {
 
 const KINDS = ["webhook", "schedule", "event", "manual"] as const;
 const Kind = v.picklist(KINDS);
+
 type Kind = v.InferOutput<typeof Kind>;
 
 const summary = (trigger: TriggerRow): string => {
   const { cron, type } = trigger.config;
+
   if (v.is(v.string(), cron)) {
     return cron;
   }
+
   if (v.is(v.string(), type)) {
     return type;
   }
+
   return "";
 };
 
@@ -63,16 +67,20 @@ export function TriggerSheet({
   const errorMessage = useErrorMessage();
   const [kind, setKind] = useState<Kind>("webhook");
   const [webhookUrl, setWebhookUrl] = useState<string | null>(null);
+
   const onError = (error: Parameters<typeof errorMessage>[0]) => {
     toast.error(errorMessage(error));
   };
+
   const save = useAction(saveTrigger, {
     onError,
     onSuccess: () => {
       toast.success(t("Trigger saved"));
     },
   });
+
   const remove = useAction(removeTrigger, { onError });
+
   const rotate = useAction(rotateWebhookToken, {
     onError,
     onSuccess: (token) => {
@@ -81,12 +89,14 @@ export function TriggerSheet({
       );
     },
   });
+
   const labels = {
     webhook: t("Webhook"),
     schedule: t("Schedule"),
     event: t("Event"),
     manual: t("Manual"),
   } satisfies Record<Kind, string>;
+
   return (
     <Sheet>
       <SheetTrigger render={<Button variant="outline" size="sm" />}>

@@ -18,8 +18,10 @@ async function reachable(): Promise<boolean> {
     max: 1,
     connectionTimeoutMillis: 1000,
   });
+
   try {
     await pool.query("select 1");
+
     return true;
   } catch {
     return false;
@@ -44,7 +46,9 @@ async function normalize(source: string): Promise<string> {
     semi: false,
     printWidth: 80,
   });
+
   expect(errors).toEqual([]);
+
   return code
     .replace(
       /\n {2}\/\/ Allows to automatically[^\n]*\n[^\n]*\n {2}__InternalSupabase: \{\n[^\n]*\n {2}\}\n/,
@@ -63,10 +67,12 @@ describe.skipIf(!live)("database.types.ts parity", () => {
       repoRoot,
       process.env,
     );
+
     expect({ code: cli.code, stderr: cli.stderr }).toMatchObject({ code: 0 });
 
     const db = await pgSource(dbUrl);
     let ours: string;
+
     try {
       const snapshot = await introspect(db.queryable, ["public"]);
       ours = await generateDatabaseTypes(snapshot.generator, {
@@ -76,6 +82,7 @@ describe.skipIf(!live)("database.types.ts parity", () => {
     } finally {
       await db.close();
     }
+
     expect(await normalize(ours)).toBe(await normalize(cli.stdout));
   }, 120_000);
 });

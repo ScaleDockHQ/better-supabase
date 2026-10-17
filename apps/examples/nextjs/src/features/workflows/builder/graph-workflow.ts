@@ -21,12 +21,14 @@ export async function graphExecutor(
   meta: { readonly runKey: string },
 ): ReturnType<typeof executeGraph> {
   "use workflow";
+
   return executeGraph(graph, input, {
     runKey: meta.runKey,
     step: (call) => {
       if (!isStep(call.step)) {
         throw new Error(`Unknown step ${call.step}`);
       }
+
       return graphSteps[call.step](call);
     },
     sleep: (ms) => sleep(ms),

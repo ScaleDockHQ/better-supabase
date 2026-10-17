@@ -125,8 +125,10 @@ export type Specs<M extends AnyModels, E> = {
 
 export function createSpecs(meta: SchemaMeta): Record<string, unknown> {
   const specs: Record<string, unknown> = {};
+
   for (const table of Object.keys(meta.tables)) {
     const methods: Record<string, unknown> = {};
+
     for (const method of READ_METHODS) {
       methods[method] = (...args: unknown[]): QuerySpec => ({
         v: 1,
@@ -135,16 +137,20 @@ export function createSpecs(meta: SchemaMeta): Record<string, unknown> {
         args: trimUndefined(args),
       });
     }
+
     specs[table] = methods;
   }
+
   return specs;
 }
 
 function trimUndefined(args: readonly unknown[]): unknown[] {
   const out = [...args];
+
   while (out.length > 0 && out.at(-1) === undefined) {
     out.pop();
   }
+
   return out;
 }
 
@@ -152,8 +158,10 @@ export function isQuerySpec(value: unknown): value is QuerySpec {
   if (typeof value !== "object" || value === null) {
     return false;
   }
+
   // SAFETY: value is a non-null object here, and every field is checked below.
   const spec = value as Partial<QuerySpec>;
+
   // includes only compares values, so a missing method is safe to look up.
   return (
     spec.v === 1 &&
@@ -168,6 +176,7 @@ function specOptions(
   spec: QuerySpec,
 ): Readonly<Record<string, unknown>> | undefined {
   const value = spec.method === "findById" ? spec.args[1] : spec.args[0];
+
   // SAFETY: value is a non-null object, the shape of a read method's options argument.
   return typeof value === "object" && value !== null
     ? (value as Record<string, unknown>)
@@ -183,6 +192,7 @@ function specOptions(
 export function specTables(meta: SchemaMeta, spec: QuerySpec): string[] {
   const table = meta.tables[spec.table];
   const args = specOptions(spec);
+
   // Most specs read one table; skip building the query for them (this runs
   // on every render of a TanStack Query hook).
   if (
@@ -192,28 +202,37 @@ export function specTables(meta: SchemaMeta, spec: QuerySpec): string[] {
   ) {
     return [spec.table];
   }
+
   const key = specKey(spec);
   let byKey = tablesByMeta.get(meta);
+
   if (!byKey) {
     byKey = new Map();
     tablesByMeta.set(meta, byKey);
   }
+
   const known = key === undefined ? undefined : byKey.get(key);
+
   if (known) {
     return [...known];
   }
+
   let tables: string[];
+
   try {
     tables = readTables(meta, spec);
   } catch {
     tables = [spec.table];
   }
+
   if (key !== undefined) {
     if (byKey.size >= SPEC_CACHE_SIZE) {
       byKey.clear();
     }
+
     byKey.set(key, tables);
   }
+
   return [...tables];
 }
 
@@ -237,13 +256,16 @@ function touchesRelations(table: TableMeta, where: unknown): boolean {
   if (typeof where !== "object" || where === null) {
     return false;
   }
+
   if (Array.isArray(where)) {
     return where.some((item) => touchesRelations(table, item));
   }
+
   for (const [key, value] of Object.entries(where)) {
     if (key in table.relations) {
       return true;
     }
+
     if (
       (key === "AND" || key === "OR" || key === "NOT") &&
       touchesRelations(table, value)
@@ -251,6 +273,7 @@ function touchesRelations(table: TableMeta, where: unknown): boolean {
       return true;
     }
   }
+
   return false;
 }
 
@@ -258,10 +281,12 @@ function readTables(meta: SchemaMeta, spec: QuerySpec): string[] {
   const builder = builderFor(meta);
   const table = tableMeta(meta, spec.table);
   const args = specOptions(spec);
+
   const counts =
     spec.method === "count" ||
     spec.method === "exists" ||
     spec.method === "aggregate";
+
   return touchedTables({
     kind: "select",
     table,

@@ -12,21 +12,27 @@ import { API_SCHEMA } from "../lib/blocks";
  */
 export function MembersTable() {
   const auth = useAuth();
+
   const { members, pending, error, setRole, remove } = useMembers({
     organizationId: tenantOf(auth),
     schema: API_SCHEMA,
   });
+
   if (members === undefined) {
     return <ActivityIndicator />;
   }
+
   return (
     <View style={{ gap: 4 }}>
       <Text style={{ fontSize: 17, fontWeight: "600" }}>Members</Text>
       {members.map((member) => {
         const busy = pending.includes(member.userId);
+
         const editable =
           member.userId !== auth.user?.id && member.role !== "owner";
+
         const next = member.role === "admin" ? "member" : "admin";
+
         return (
           <View
             key={member.userId}

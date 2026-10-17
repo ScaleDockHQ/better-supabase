@@ -29,6 +29,7 @@ import { withServerTiming } from "../../src/server/entries/timing.ts";
 import { server, signer, USER } from "../fixtures/test-server.ts";
 
 const closers: (() => Promise<void>)[] = [];
+
 afterEach(async () => {
   await Promise.all(closers.splice(0).map((close) => close()));
 });
@@ -49,6 +50,7 @@ async function listen(
       }),
   );
   const { port } = http.address() as AddressInfo;
+
   return `http://127.0.0.1:${port}`;
 }
 
@@ -68,6 +70,7 @@ describe("toWebHeaders", () => {
       "x-many": ["a", "b"],
       skipped: undefined,
     });
+
     expect([...headers]).toEqual([
       ["accept", "text/html"],
       ["x-many", "a, b"],
@@ -86,11 +89,13 @@ describe("toNodeHandler", () => {
         }),
       ),
     );
+
     const response = await fetch(`${url}/notes`, {
       method: "POST",
       headers: await bearer(),
       body: "hello",
     });
+
     expect(await response.json()).toEqual({ kind: "user", body: "hello" });
     expect(response.headers.get("server-timing")).toMatch(/dur=/);
   });
@@ -102,6 +107,7 @@ describe("toNodeHandler", () => {
         () => "ok",
       ),
     );
+
     expect((await fetch(url)).status).toBe(401);
   });
 });
@@ -116,12 +122,14 @@ describe("toExpress", () => {
   ) =>
     listen((req, res) => {
       const response = Object.assign(res, { locals: {} });
+
       const fail = (error: unknown): void => {
         problemErrorHandler({ expose: true })(error, req, response, () => {
           res.statusCode = 500;
           res.end("unhandled");
         });
       };
+
       toExpress(entries)(req, response, (error) => {
         if (error) {
           fail(error);
@@ -136,6 +144,7 @@ describe("toExpress", () => {
       const bs = res.locals["bs"] as { auth: { kind: string } };
       res.end(bs.auth.kind);
     });
+
     expect(await (await fetch(url, { headers: await bearer() })).text()).toBe(
       "user",
     );
@@ -143,6 +152,7 @@ describe("toExpress", () => {
 
   it("guards a route and maps thrown DbExceptions", async () => {
     const admins = guard({ roles: ["admin"] });
+
     const url = await app((req, res, next) => {
       admins(req, res, () => {
         if (req.url === "/throw") {
@@ -154,15 +164,18 @@ describe("toExpress", () => {
         }
       });
     });
+
     expect((await fetch(url, { headers: await bearer("member") })).status).toBe(
       403,
     );
     expect(
       await (await fetch(url, { headers: await bearer("admin") })).text(),
     ).toBe("admin");
+
     const conflict = await fetch(`${url}/throw`, {
       headers: await bearer("admin"),
     });
+
     expect(conflict.status).toBe(409);
     expect(conflict.headers.get("content-type")).toBe(
       "application/problem+json",
@@ -179,6 +192,7 @@ describe("toExpress", () => {
         () => res.end("route"),
       );
     });
+
     expect((await fetch(url)).status).toBe(401);
   });
 });
@@ -187,6 +201,7 @@ function fakeReply(raw: ServerResponse): FastifyReplyLike & {
   readonly state: { status: number; payload: unknown; sent: boolean };
 } {
   const state = { status: 200, payload: undefined as unknown, sent: false };
+
   const reply = {
     raw,
     state,
@@ -195,19 +210,23 @@ function fakeReply(raw: ServerResponse): FastifyReplyLike & {
     },
     code(status: number) {
       state.status = status;
+
       return reply;
     },
     header(name: string, value: string | readonly string[]) {
       raw.setHeader(name, value);
+
       return reply;
     },
     getHeader: (name: string) => raw.getHeader(name),
     send(payload?: unknown) {
       state.payload = payload;
       state.sent = true;
+
       return reply;
     },
   };
+
   return reply;
 }
 
@@ -216,6 +235,7 @@ describe("toFastify", () => {
     const hook = toFastify(entries);
     const admins = fastifyGuard({ roles: ["admin"] });
     const seen: { kind?: string; status?: number } = {};
+
     const url = await listen((req, res) => {
       const request: FastifyRequestLike = { raw: req };
       const reply = fakeReply(res);
@@ -229,6 +249,7 @@ describe("toFastify", () => {
         res.end(reply.state.sent ? "refused" : "admin");
       })();
     });
+
     expect(
       await (await fetch(url, { headers: await bearer("admin") })).text(),
     ).toBe("admin");
@@ -239,6 +260,7 @@ describe("toFastify", () => {
 
   it("sends the entries' short circuit as the reply", async () => {
     const hook = toFastify([withBetterSupabase(server, { allow: ["user"] })]);
+
     const url = await listen((req, res) => {
       const reply = fakeReply(res);
       void hook({ raw: req }, reply).then(() => {
@@ -246,6 +268,7 @@ describe("toFastify", () => {
         res.end();
       });
     });
+
     expect((await fetch(url)).status).toBe(401);
   });
 });
@@ -264,6 +287,7 @@ function fakeKoa(req: IncomingMessage, res: ServerResponse): KoaContextLike {
       return {
         get: (name: string) => {
           const value = res.getHeader(name);
+
           return value === undefined
             ? ""
             : typeof value === "number"
@@ -279,6 +303,7 @@ describe("toKoa", () => {
   it("puts the contributions on ctx.state, guards and maps DbExceptions", async () => {
     const middleware = toKoa(entries, { expose: true });
     const admins = koaGuard({ roles: ["admin"] });
+
     const url = await listen((req, res) => {
       const ctx = fakeKoa(req, res);
       void middleware(ctx, () =>
@@ -286,9 +311,11 @@ describe("toKoa", () => {
           if (req.url === "/throw") {
             throw new DbException(dbError("conflict", "Taken"));
           }
+
           const bs = ctx.state["bs"] as { auth: { kind: string } };
           ctx.status = 200;
           ctx.body = bs.auth.kind;
+
           return Promise.resolve();
         }),
       ).then(() => {
@@ -300,6 +327,7 @@ describe("toKoa", () => {
         );
       });
     });
+
     expect(
       await (await fetch(url, { headers: await bearer("admin") })).text(),
     ).toBe("user");
@@ -324,6 +352,7 @@ describe("toKoa", () => {
         getHeader: () => undefined,
       } as unknown as ServerResponse,
     );
+
     await expect(
       toKoa(entries)(ctx, () => Promise.reject(new Error("boom"))),
     ).rejects.toThrow("boom");

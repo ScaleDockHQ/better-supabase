@@ -169,6 +169,7 @@ export function defineBlock<
   definition: BlockDefinition<Name, Options, Client, M, C, P>,
 ): Block<Name, Options, Client, M, C, P> {
   const { create, consumes, provides, ...rest } = definition;
+
   return blockOf(
     {
       ...rest,

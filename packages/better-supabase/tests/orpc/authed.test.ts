@@ -22,6 +22,7 @@ const me = bs
   .handler(({ context }) =>
     context.auth.kind === "user" ? context.auth.user.id : null,
   );
+
 const admin = bs
   .authed({
     authorize: (session) =>
@@ -29,6 +30,7 @@ const admin = bs
       session.claims.app_metadata?.["role"] === "admin",
   })
   .handler(() => "ok");
+
 const scoped = bs.authed({ requireTenant: true }).handler(() => "ok");
 
 const failureOf = (promise: Promise<unknown>) =>
@@ -44,6 +46,7 @@ describe("bs.authed()", () => {
     const anonymous = await failureOf(
       call(me, undefined, { context: { request: await requestAs() } }),
     );
+
     expect(anonymous).toBeInstanceOf(ORPCError);
     expect(anonymous).toMatchObject({ code: "UNAUTHORIZED" });
 
@@ -52,11 +55,13 @@ describe("bs.authed()", () => {
         context: { request: await requestAs({ role: "admin" }) },
       }),
     ).toBe("ok");
+
     const member = await failureOf(
       call(admin, undefined, {
         context: { request: await requestAs({ role: "member" }) },
       }),
     );
+
     expect(member).toMatchObject({
       code: "FORBIDDEN",
       data: { code: "NOT_AUTHORIZED" },
@@ -69,6 +74,7 @@ describe("bs.authed()", () => {
         context: { request: await requestAs({ role: "member" }) },
       }),
     );
+
     expect(failure).toMatchObject({
       code: "FORBIDDEN",
       data: { code: "NO_TENANT" },
@@ -84,15 +90,19 @@ describe("bs.authed()", () => {
         roles: { authenticated: ["reports:read"] },
       }),
     });
+
     const context = async () => ({
       request: await requestAs({ role: "member" }),
     });
+
     const read = guarded
       .authed({ permission: "reports:read" })
       .handler(() => "ok");
+
     const write = guarded
       .authed({ permission: "reports:write" })
       .handler(() => "ok");
+
     const admins = guarded.authed({ roles: ["admin"] }).handler(() => "ok");
 
     expect(await call(read, undefined, { context: await context() })).toBe(

@@ -23,9 +23,11 @@ export function builderPublisherSql(s: BuilderSql): string {
     principal,
     callable,
   } = s;
+
   const revoked = (message: string): string =>
     `raise exception ${message}
         using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_REVOKED';`;
+
   return `-- The permissions the step nodes of graph need, sorted and distinct: the
 -- provider's workflow.node.<step> operation, else the operation the library
 -- step names (the provider's key for it, else the name itself), else

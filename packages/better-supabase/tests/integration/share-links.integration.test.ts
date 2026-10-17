@@ -50,9 +50,11 @@ describe.skipIf(!live)("share-links block in Postgres", () => {
 
   it("refuses an expiry in the past and stops resolving after one", async () => {
     await session.as(owner);
+
     const past = await links.create(org, "doc", "d1", {
       expiresAt: Temporal.Now.instant().subtract({ minutes: 1 }),
     });
+
     expect(past.ok ? undefined : past.error.hint).toBe("SHARE_EXPIRY_INVALID");
     const link = await links.create(org, "doc", "d1").orThrow();
     await session.service();
@@ -84,6 +86,7 @@ describe.skipIf(!live)("share-links block in Postgres", () => {
 
   it("records views for members only", async () => {
     await session.as(outsider);
+
     const refused = await links.recordView(
       org,
       "doc",
@@ -91,6 +94,7 @@ describe.skipIf(!live)("share-links block in Postgres", () => {
       "user",
       outsider.id,
     );
+
     expect(refused.ok ? undefined : refused.error.hint).toBe("SHARE_FORBIDDEN");
     await session.as(owner);
     expect(

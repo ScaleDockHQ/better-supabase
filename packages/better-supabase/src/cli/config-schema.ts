@@ -11,8 +11,10 @@ import { GEN_TASKS, INTEGRATIONS } from "./names.ts";
 
 const strings = v.array(v.string());
 const stringRecord = v.record(v.string(), v.string());
+
 const EXPOSE_PRIVILEGE =
   /^(?:select|insert|update|delete|(?:select|insert|update)\s*\(\s*[a-z_][a-z0-9_$]*(?:\s*,\s*[a-z_][a-z0-9_$]*)*\s*\))$/;
+
 const privileges = v.array(
   v.pipe(
     v.string(),
@@ -22,6 +24,7 @@ const privileges = v.array(
     ),
   ),
 );
+
 const pluginFlag = v.union([v.boolean(), v.record(v.string(), v.unknown())]);
 
 const isGenerator = (value: unknown): boolean =>
@@ -113,10 +116,12 @@ const accessBlock = v.strictObject({
 });
 
 const SCOPE_NAME = /^[a-z][a-z0-9_]*$/;
+
 const scopeName = v.pipe(
   v.string(),
   v.regex(SCOPE_NAME, "Use lower case letters, digits and _"),
 );
+
 const membershipScope = v.union([
   v.strictObject({ column: v.string() }),
   v.strictObject({ value: v.string() }),
@@ -269,6 +274,7 @@ const checkedAuthorization = v.pipe(
     if (!dataset.typed) {
       return;
     }
+
     for (const problem of scopeProblems(dataset.value)) {
       addIssue({ message: problem });
     }
@@ -605,21 +611,28 @@ const ConfigSchema = v.strictObject({
 export function configIssues(value: unknown): string[] {
   if (typeof value === "object" && value !== null && "authorization" in value) {
     const provider = value.authorization;
+
     const problem =
       typeof provider === "object" && provider !== null
         ? providerApiProblem(provider)
         : undefined;
+
     if (problem !== undefined) {
       const { authorization: _, ...rest } = value;
+
       return [`authorization.apiVersion: ${problem}`, ...configIssues(rest)];
     }
   }
+
   const result = v.safeParse(ConfigSchema, value);
+
   if (result.success) {
     return [];
   }
+
   return result.issues.map((issue) => {
     const path = v.getDotPath(issue);
+
     return path ? `${path}: ${issue.message}` : issue.message;
   });
 }

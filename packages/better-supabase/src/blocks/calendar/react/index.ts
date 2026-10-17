@@ -39,6 +39,7 @@ export interface CalendarState
 export function useCalendar(options: UseCalendarOptions): CalendarState {
   const { supabase } = useBlockEnv();
   const { schema, range } = options;
+
   const client = useMemo(
     () =>
       createCalendar({
@@ -47,8 +48,10 @@ export function useCalendar(options: UseCalendarOptions): CalendarState {
       }),
     [supabase, schema],
   );
+
   const ids = options.calendarIds.join(",");
   const { resourceOf, readOnly } = options;
+
   const { controller, view } = useController(
     () =>
       createCalendarController({
@@ -60,6 +63,7 @@ export function useCalendar(options: UseCalendarOptions): CalendarState {
       }),
     [client, ids, resourceOf, readOnly],
   );
+
   const from = range.start.getTime();
   const until = range.end.getTime();
   useEffect(() => {
@@ -68,5 +72,6 @@ export function useCalendar(options: UseCalendarOptions): CalendarState {
       end: new Date(until),
     });
   }, [controller, from, until]);
+
   return useMemo(() => ({ ...view, client }), [view, client]);
 }

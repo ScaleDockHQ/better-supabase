@@ -223,6 +223,7 @@ const numberOf = (value: unknown): number | undefined =>
 
 function entryOf(value: unknown, fn: string): TimeEntry {
   const row = recordOf(value, fn);
+
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["organizationId"]),
@@ -243,6 +244,7 @@ function entryOf(value: unknown, fn: string): TimeEntry {
 
 function timesheetOf(value: unknown, fn: string): Timesheet {
   const row = recordOf(value, fn);
+
   return {
     organizationId: textOf(row["organizationId"]),
     userId: textOf(row["userId"]),
@@ -258,6 +260,7 @@ function timesheetOf(value: unknown, fn: string): Timesheet {
 
 function totalsOf(value: unknown): TimesheetTotals {
   const row = isRecord(value) ? value : {};
+
   return {
     seconds: numberOf(row["seconds"]) ?? 0,
     billableSeconds: numberOf(row["billableSeconds"]) ?? 0,
@@ -267,25 +270,32 @@ function totalsOf(value: unknown): TimesheetTotals {
 
 function patchOf(patch: TimeEntryPatch<object>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
+
   if (patch.startedAt !== undefined) {
     out["startedAt"] = patch.startedAt.toString();
   }
+
   if (patch.endedAt !== undefined) {
     out["endedAt"] = patch.endedAt.toString();
   }
+
   if (patch.subject !== undefined) {
     out["subjectType"] = patch.subject?.subjectType ?? null;
     out["subjectId"] = patch.subject?.subjectId ?? null;
   }
+
   if (patch.billable !== undefined) {
     out["billable"] = patch.billable;
   }
+
   if (patch.rate !== undefined) {
     out["rate"] = patch.rate;
   }
+
   if (patch.note !== undefined) {
     out["note"] = patch.note;
   }
+
   return out;
 }
 
@@ -294,12 +304,15 @@ export function createTimeTracking<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: TimeTrackingOptions<S>): TimeTracking<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const fields: BlockFields<F> = blockFields(
     options.fields,
     "time entry fields",
   );
+
   const client: TimeTracking<F> = {
     start: (organizationId, entry = {}) =>
       fields.args(entry.fields).andThen((checked) =>
@@ -394,6 +407,7 @@ export function createTimeTracking<
         },
         (value) => {
           const row = recordOf(value, "get_timesheet");
+
           return {
             ...timesheetOf(row, "get_timesheet"),
             entries: recordsOf(row["entries"], "get_timesheet").map((item) =>
@@ -431,6 +445,7 @@ export function createTimeTracking<
           ),
       ),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "time-tracking",
     ...(options.logger ? { logger: options.logger } : {}),

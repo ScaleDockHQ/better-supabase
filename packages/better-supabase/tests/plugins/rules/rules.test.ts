@@ -17,6 +17,7 @@ import { schema } from "../../fixtures/generated-camel.ts";
 function withReport(set = strict()) {
   const violations: RuleViolation[] = [];
   const plugin = rules({ rules: set, report: (v) => violations.push(v) });
+
   return { plugin, violations };
 }
 
@@ -59,6 +60,7 @@ describe("rules()", () => {
       limit: 10,
       orderBy: { name: "asc" },
     });
+
     expect(fine.error).toBeNull();
     await db.customers.findById("c1");
     await db.customers.count();
@@ -68,9 +70,11 @@ describe("rules()", () => {
   it("reports warnings without failing the call", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { client, requests } = capturingClient();
+
     const db = defineSupabase(schema)
       .use(rules({ rules: recommended() }))
       .connect(client, context);
+
     const result = await db.customers.findMany();
     expect(result.error).toBeNull();
     expect(requests).toHaveLength(1);
@@ -83,10 +87,12 @@ describe("rules()", () => {
   it("sees the query before other plugins scope it", async () => {
     const { plugin, violations } = withReport(safe());
     const { client } = capturingClient();
+
     const db = defineSupabase(schema)
       .use(tenant({ onMissing: "skip" }))
       .use(plugin)
       .connect(client);
+
     const result = await db.customers.findMany({ limit: 1 });
     expect(result.error?.message).toContain("requireTenantContext");
     expect(violations[0]).toMatchObject({
@@ -97,9 +103,11 @@ describe("rules()", () => {
 
     const claims = db.$with({ claims: { tenant_id: "org-1" } });
     expect((await claims.customers.findMany({ limit: 1 })).error).toBeNull();
+
     const service = db.$with({
       actor: { id: "service", kind: "service" },
     });
+
     expect((await service.customers.findMany({ limit: 1 })).error).toBeNull();
   });
 
@@ -108,11 +116,13 @@ describe("rules()", () => {
     vi.stubGlobal("document", {});
     const { plugin } = withReport(safe());
     const { client } = capturingClient();
+
     const db = defineSupabase(schema)
       .use(plugin)
       .connect(client, {
         actor: { id: "service", kind: "service" },
       });
+
     const result = await db.tags.findMany({ limit: 1 });
     expect(result.error?.message).toContain("noAdminInBrowser");
   });
@@ -120,6 +130,7 @@ describe("rules()", () => {
   it("guards sensitive columns unless the call opts in", async () => {
     const meta = schema.meta;
     const contacts = meta.tables["contacts"]!;
+
     const marked = defineSchema({
       ...meta,
       tables: {
@@ -133,11 +144,14 @@ describe("rules()", () => {
         },
       },
     });
+
     const { plugin } = withReport(safe());
     const { client } = capturingClient();
+
     const db = defineSupabase({ ...schema, meta: marked.meta })
       .use(plugin)
       .connect(client, context);
+
     const denied = await db.contacts.findMany({ limit: 1 });
     expect(denied.error?.message).toContain("contacts.email");
     const named = await db.contacts.findMany({ select: ["id"], limit: 1 });
@@ -149,10 +163,12 @@ describe("rules()", () => {
       status: 201,
       body: [{ id: "k" }],
     }));
+
     const written = await defineSupabase({ ...schema, meta: marked.meta })
       .use(plugin)
       .connect(writes, context)
       .contacts.create({ organizationId: "org-1", email: "a@b.c" });
+
     expect(written.error).toBeNull();
     const select = last().params.get("select") ?? "";
     expect(select.split(",")).not.toContain("email");
@@ -164,6 +180,7 @@ describe("rules()", () => {
       ...strict(),
       maxLimit: ["error", 10],
     });
+
     const { client } = capturingClient();
     const db = defineSupabase(schema).use(plugin).connect(client, context);
     expect(
@@ -179,18 +196,21 @@ describe("rules()", () => {
     const claims = defineSupabase(schema)
       .use(plugin)
       .connect(client, { claims: { app_metadata: { tenant_id: "org-1" } } });
+
     expect((await claims.customers.findMany({ limit: 1 })).error).toBeNull();
     expect(violations).toEqual([]);
   });
 
   it("runs before other pre plugins whatever the use() order", async () => {
     const { plugin, violations } = withReport();
+
     const early = definePlugin({
       name: "early",
       enforce: "pre",
       transformQuery: (op) =>
         op.kind === "select" ? { ...op, limit: undefined } : op,
     });
+
     const { client } = capturingClient();
     await defineSupabase(schema)
       .use(early)
@@ -203,6 +223,7 @@ describe("rules()", () => {
   it("orders by enforce, not by name", () => {
     const named = (name: string, enforce?: "first" | "pre" | "post") =>
       definePlugin({ name, ...(enforce ? { enforce } : {}) });
+
     const order = orderPlugins([
       named("rules"),
       named("late", "post"),
@@ -210,6 +231,7 @@ describe("rules()", () => {
       named("rewriter", "pre"),
       rules(),
     ]).map((plugin) => `${plugin.name}:${plugin.enforce ?? "normal"}`);
+
     expect(order).toEqual([
       "checker:first",
       "rules:first",
@@ -223,6 +245,7 @@ describe("rules()", () => {
     const meta = schema.meta;
     const customers = meta.tables["customers"]!;
     const text = { type: "text", nullable: true, hasDefault: false } as const;
+
     const marked = defineSchema({
       ...meta,
       tables: {
@@ -237,13 +260,17 @@ describe("rules()", () => {
         },
       },
     });
+
     const { plugin, violations } = withReport(recommended());
     const { client } = capturingClient();
+
     const db = defineSupabase({ ...schema, meta: marked.meta })
       .use(plugin)
       .connect(client, context);
+
     const write = (set: Record<string, string>) =>
       db.customers.update("c1", set);
+
     await write({ logoUrl: "o1/c1/logo/1.webp" });
     await write({
       logoUrl:
@@ -278,6 +305,7 @@ describe("rules()", () => {
   it("recognizes paths of every bucket template, including rest placeholders", async () => {
     const meta = schema.meta;
     const customers = meta.tables["customers"]!;
+
     const marked = defineSchema({
       ...meta,
       buckets: {
@@ -306,11 +334,14 @@ describe("rules()", () => {
         },
       },
     });
+
     const { plugin, violations } = withReport(recommended());
     const { client } = capturingClient();
+
     const db = defineSupabase({ ...schema, meta: marked.meta })
       .use(plugin)
       .connect(client, context);
+
     await db.customers.update("c1", { fileUrl: "o1/exports/e1.zip" } as never);
     await db.customers.update("c1", { fileUrl: "o1/archive/a/b.pdf" } as never);
     await db.customers.update("c1", { fileUrl: "o1/other/b.pdf" } as never);
@@ -353,9 +384,11 @@ describe("rules()", () => {
   it("caps maxAffected with the rule's option and stays off in recommended()", async () => {
     const strictCap = withReport({ requireMaxAffected: ["error", 10] });
     const { client } = capturingClient(() => ({ status: 204 }));
+
     const capped = defineSupabase(schema)
       .use(strictCap.plugin)
       .connect(client, context);
+
     expect(
       (
         await capped.tags.deleteMany({
@@ -365,9 +398,11 @@ describe("rules()", () => {
       ).error?.kind,
     ).toBe("invalid_request");
     const loose = withReport(recommended());
+
     const db = defineSupabase(schema)
       .use(loose.plugin)
       .connect(client, context);
+
     await db.tags.deleteMany({ where: { color: "red" } });
     expect(loose.violations).toEqual([]);
   });
@@ -393,6 +428,7 @@ describe("db.$table and db.$withoutPlugins", () => {
   it("drops plugins, including executor wrappers", async () => {
     const wrapped = vi.fn();
     const { client, requests } = capturingClient();
+
     const db = defineSupabase(schema)
       .use(rules({ rules: strict(), report: () => {} }))
       .use(
@@ -402,12 +438,14 @@ describe("db.$table and db.$withoutPlugins", () => {
             name: "wrap",
             execute: (op, ctx) => {
               wrapped();
+
               return executor.execute(op, ctx);
             },
           }),
         }),
       )
       .connect(client, context);
+
     expect((await db.tags.findMany()).error?.kind).toBe("invalid_request");
     const raw = db.$withoutPlugins();
     expect((await raw.tags.findMany()).error).toBeNull();

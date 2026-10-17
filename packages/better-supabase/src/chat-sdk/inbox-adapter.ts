@@ -101,6 +101,7 @@ export function conversationIdOf(threadId: string): string {
   if (!threadId.startsWith(PREFIX) || threadId.length === PREFIX.length) {
     throw new Error(`"${threadId}" is not an inbox thread id`);
   }
+
   return threadId.slice(PREFIX.length);
 }
 
@@ -111,12 +112,15 @@ function bodyOf(message: AdapterPostableMessage): {
   if (typeof message === "string") {
     return { body: message, format: "text" };
   }
+
   if ("raw" in message) {
     return { body: message.raw, format: "text" };
   }
+
   if ("markdown" in message) {
     return { body: message.markdown, format: "markdown" };
   }
+
   return { body: converter.renderPostable(message), format: "markdown" };
 }
 
@@ -126,9 +130,11 @@ const emojiOf = (value: EmojiValue | string): string =>
 function attachmentsOf(message: InboxMessage): Attachment[] {
   return message.attachments.flatMap((file) => {
     const url = file.url;
+
     if (url === undefined) {
       return [];
     }
+
     const type = file.contentType?.startsWith("image/")
       ? "image"
       : file.contentType?.startsWith("video/")
@@ -136,6 +142,7 @@ function attachmentsOf(message: InboxMessage): Attachment[] {
         : file.contentType?.startsWith("audio/")
           ? "audio"
           : "file";
+
     return [
       {
         type,
@@ -173,6 +180,7 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
   const userName = options.userName ?? "bot";
   let chat: ChatInstance | undefined;
   const tickets = new Map<string, string>();
+
   const ticketJobs =
     options.identities === undefined
       ? undefined
@@ -183,11 +191,14 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
 
   const parseMessage = (raw: InboxMessage): Message<InboxMessage> => {
     const isBot = raw.authorType === "bot" || raw.authorType === "system";
+
     const userId =
       raw.authorType === "bot" ? userName : (raw.authorId ?? raw.authorType);
+
     const name =
       optionalText(raw.metadata["author_name"]) ??
       (raw.authorType === "contact" ? "visitor" : userId);
+
     return new Message<InboxMessage>({
       id: raw.id,
       threadId: `${PREFIX}${raw.conversationId}`,
@@ -251,7 +262,9 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
     if (!chat) {
       throw new Error("inboxAdapter: initialize() has not run");
     }
+
     const message = await inbox.messages.get(job.message_id).orThrow();
+
     if (
       message?.conversationId !== job.conversation_id ||
       message.authorType !== "contact" ||
@@ -259,16 +272,20 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
     ) {
       return;
     }
+
     const parsed = parseMessage(message);
+
     if (ticketJobs !== undefined && message.authorId !== null) {
       const { result } = await ticketJobs.enqueue(
         inboxIdentityOf(message.authorId),
         parsed,
       );
+
       if (result !== undefined) {
         tickets.set(message.id, result);
       }
     }
+
     try {
       await chat.processMessage(
         adapter,
@@ -287,6 +304,7 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
     lockScope: "thread",
     initialize: (instance) => {
       chat = instance;
+
       return Promise.resolve();
     },
     encodeThreadId: (conversationId) => `${PREFIX}${conversationId}`,
@@ -301,12 +319,15 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
       if (!options.verify || !(await options.verify(request))) {
         return new Response("unauthorized", { status: 401 });
       }
+
       let job: unknown;
+
       try {
         job = await request.json();
       } catch {
         return new Response("invalid JSON", { status: 400 });
       }
+
       if (
         !isRecord(job) ||
         typeof job["conversation_id"] !== "string" ||
@@ -316,14 +337,17 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
           status: 400,
         });
       }
+
       await dispatch({
         conversation_id: job["conversation_id"],
         message_id: job["message_id"],
       });
+
       return new Response("ok", { status: 200 });
     },
     postMessage: (threadId, message) => {
       const { body, format } = bodyOf(message);
+
       return post(threadId, body, format);
     },
     editMessage: async (_threadId, messageId, message) =>
@@ -358,6 +382,7 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
     },
     fetchMessage: async (threadId, messageId) => {
       const message = await inbox.messages.get(messageId).orThrow();
+
       return message && message.conversationId === conversationIdOf(threadId)
         ? parseMessage(message)
         : null;
@@ -367,18 +392,22 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
       fetchOptions: FetchOptions = {},
     ): Promise<FetchResult<InboxMessage>> => {
       const limit = fetchOptions.limit ?? 50;
+
       const before =
         fetchOptions.cursor === undefined
           ? undefined
           : toInstant(fetchOptions.cursor);
+
       const page = await inbox.messages
         .list(conversationIdOf(threadId), {
           limit,
           ...(before === undefined ? {} : { cursor: before }),
         })
         .orThrow();
+
       const visible = page.filter((message) => message.kind === "message");
       const oldest = page[0];
+
       return {
         messages: visible.map(parseMessage),
         ...(oldest !== undefined && page.length >= limit
@@ -390,6 +419,7 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
       const conversation = await inbox.conversations
         .get(conversationIdOf(threadId))
         .orThrow();
+
       return {
         id: threadId,
         channelId: "inbox",
@@ -411,33 +441,42 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
       let text = "";
       const chunks = textOnly(source);
       const store = options.streams;
+
       const streamId = store
         ? `${PREFIX}${conversationId}:${randomToken(9)}`
         : undefined;
+
       const readable = new ReadableStream<string>({
         async start(controller) {
           for await (const chunk of chunks) {
             if (streamOptions?.signal?.aborted) {
               break;
             }
+
             text += chunk;
             controller.enqueue(chunk);
           }
+
           controller.close();
         },
       });
+
       if (store && streamId) {
         await writeToStore(store, streamId, readable);
       } else {
         const reader = readable.getReader();
+
         while (!(await reader.read()).done) {
           // Every chunk is read so the producer can finish.
         }
       }
+
       await inbox.conversations.typing(conversationId, false, userName);
+
       if (text.trim().length === 0) {
         return null;
       }
+
       return post(
         threadId,
         text,
@@ -446,5 +485,6 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
       );
     },
   };
+
   return adapter;
 }

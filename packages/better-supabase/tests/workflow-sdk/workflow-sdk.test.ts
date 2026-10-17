@@ -7,21 +7,27 @@ const start = vi.fn(
     runId: "wrun_new",
   }),
 );
+
 const getRun = vi.fn((runId: string) => ({ runId }));
+
 const getHookByToken = vi.fn(async (_token: string) => ({
   token: "t",
   runId: "wrun_1",
   metadata: Promise.resolve<unknown>({}),
 }));
+
 const listRuns = vi.fn(
   async (_params: unknown): Promise<{ data: { runId: string }[] }> => ({
     data: [],
   }),
 );
+
 const world = { analytics: { runs: { list: listRuns } } };
 
 vi.mock("workflow/api", () => ({ start, getRun, getHookByToken }));
+
 vi.mock("workflow/runtime", () => ({ getWorld: async () => world }));
+
 vi.mock("workflow", () => ({ createHook: vi.fn(), sleep: vi.fn() }));
 
 const {
@@ -86,6 +92,7 @@ describe("context", () => {
       ...user,
       claims: { client_id: "mcp", scope: "posts:read", email: "x@y.z" },
     };
+
     expect(workflowContext(delegated)).toEqual({
       ...user,
       claims: { client_id: "mcp", scope: "posts:read" },
@@ -111,6 +118,7 @@ describe("startFor", () => {
       idempotencyKey: "k1",
       attributes: { plan: "pro", "bs.actor": "spoofed" },
     });
+
     expect(run.runId).toBe("wrun_new");
     expect(listRuns).toHaveBeenCalledWith({
       attributes: { "bs.key": "k1" },
@@ -177,6 +185,7 @@ describe("startFor", () => {
 });
 
 const publisher = { publisher: "p1", permissions: ["invoice.approve"] };
+
 const asPublisher = {
   actor: { id: "p1", kind: "user" as const },
   tenant: "t1",
@@ -192,6 +201,7 @@ describe("workflowStarter", () => {
         args: (call, context) => [context, ...(call.input as unknown[])],
       },
     );
+
     expect(
       await starter({
         source: "schedule",
@@ -225,6 +235,7 @@ describe("workflowStarter", () => {
       actor: "u1",
       idempotencyKey: "schedule:s1:x",
     };
+
     await expect(workflowStarter({ approve })(call)).rejects.toThrow(
       "needs a runAs publisher",
     );
@@ -282,15 +293,18 @@ describe("authorizeHook", () => {
       { actor: { id: "owner", kind: "user" }, tenant: "t1" },
       "invoice.approve",
     );
+
     const hook = () => ({
       token: "t",
       runId: "wrun_1",
       metadata: Promise.resolve<unknown>(metadata),
     });
+
     const can = vi.fn(
       async (tenant: string, permission: string) =>
         tenant === "t1" && permission === "invoice.approve",
     );
+
     getHookByToken.mockResolvedValueOnce(hook());
     await expect(authorizeHook("t", user, { can })).resolves.toBeDefined();
     expect(can).toHaveBeenCalledWith("t1", "invoice.approve");
@@ -308,9 +322,11 @@ describe("authorizeHook", () => {
       runId: "wrun_1",
       metadata: Promise.resolve<unknown>("not an object"),
     });
+
     const error = await authorizeHook("t", user, { can }).catch(
       (cause: unknown) => cause,
     );
+
     expect(error).toMatchObject({ status: 403, name: "HookForbiddenError" });
   });
 });
@@ -321,6 +337,7 @@ describe("startOnEvent", () => {
       types: ["invoice.*"],
       runAs: publisher,
     });
+
     await handler([
       event(),
       event({ id: "e2", type: "customer.created" }),
@@ -356,28 +373,34 @@ describe("startOnEvent", () => {
       runAs: (entry) => (entry.id === "e1" ? publisher : null),
       world: world as never,
     });
+
     await handler([event({ type: "anything" }), event({ id: "e2" })]);
     expect(start).toHaveBeenCalledOnce();
     expect(start.mock.calls[0]?.[1]).toEqual(["e1"]);
+
     const exact = startOnEvent(approve, {
       types: ["invoice.paid"],
       runAs: publisher,
     });
+
     await exact([event({ type: "invoice.paidx" })]);
     expect(start).toHaveBeenCalledOnce();
   });
 
   it("records a ticket per event and passes the publisher's context to args", async () => {
     const seen: unknown[] = [];
+
     const handler = startOnEvent(approve, {
       types: ["*"],
       runAs: publisher,
       ticket: (entry) => (entry.id === "e1" ? `ticket:${entry.id}` : undefined),
       args: (entry, context): [string] => {
         seen.push(context);
+
         return [entry.id];
       },
     });
+
     await handler([event(), event({ id: "e2" })]);
     expect(seen).toEqual([
       { ...asPublisher, ticket: "ticket:e1" },
@@ -402,12 +425,15 @@ describe("protectWebHandler", () => {
   it("answers 401 without a session and 403 without the permission", async () => {
     const handler = vi.fn(async () => new Response("ok"));
     const answers: (boolean | undefined)[] = [undefined, false, true];
+
     const protectedHandler = protectWebHandler(handler, "workflow.read", {
       can: (_request, permission) => {
         expect(permission).toBe("workflow.read");
+
         return answers.shift();
       },
     });
+
     const request = new Request("https://app.test/_workflow");
     const unauthorized = await protectedHandler(request);
     expect(unauthorized.status).toBe(401);

@@ -25,6 +25,7 @@ function authInterrupt(fn: () => never): never {
       throw cause;
     }
   }
+
   notFound();
 }
 
@@ -33,12 +34,15 @@ export function interrupt(error: DbError): never {
   if (error.kind === "unauthorized") {
     authInterrupt(unauthorized);
   }
+
   if (error.kind === "forbidden") {
     authInterrupt(forbidden);
   }
+
   if (error.kind === "not_found") {
     notFound();
   }
+
   throw new DbException(error);
 }
 
@@ -62,7 +66,9 @@ export function rethrowNextControlFlow(error: unknown): void {
   if (typeof error !== "object" || error === null) {
     return;
   }
+
   const digest = "digest" in error ? error.digest : undefined;
+
   if (
     (typeof digest === "string" &&
       NEXT_DIGESTS.has(digest.split(";", 1)[0] ?? "")) ||
@@ -73,6 +79,7 @@ export function rethrowNextControlFlow(error: unknown): void {
     // oxlint-disable-next-line typescript/only-throw-error -- React's postpone signal is not an Error, and Next needs the original value.
     throw error;
   }
+
   if ("cause" in error) {
     rethrowNextControlFlow(error.cause);
   }

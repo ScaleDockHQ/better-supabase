@@ -13,6 +13,7 @@ export async function DefinitionList() {
     getExtracted("workflows"),
     getFormatter(),
   ]);
+
   if (definitions.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -20,6 +21,7 @@ export async function DefinitionList() {
       </p>
     );
   }
+
   return (
     <ul className="divide-y rounded-xl border" data-testid="definition-list">
       {definitions.map((definition) => (

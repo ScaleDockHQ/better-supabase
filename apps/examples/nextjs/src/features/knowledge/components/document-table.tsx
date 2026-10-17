@@ -23,18 +23,23 @@ import { removeDocument } from "../knowledge-actions";
 
 function StatusBadge({ status }: { status: DocumentRow["status"] }) {
   const t = useExtracted("knowledge");
+
   switch (status) {
     case "pending": {
       return <Badge variant="secondary">{t("Embedding")}</Badge>;
     }
+
     case "ready": {
       return <Badge variant="outline">{t("Ready")}</Badge>;
     }
+
     case "failed": {
       return <Badge variant="destructive">{t("Failed")}</Badge>;
     }
+
     default: {
       const unknown: never = status;
+
       return unknown;
     }
   }
@@ -48,11 +53,13 @@ export function DocumentTable({
   const t = useExtracted("knowledge");
   const format = useFormatter();
   const errorMessage = useErrorMessage();
+
   const remove = useAction(removeDocument, {
     onError: (error) => {
       toast.error(errorMessage(error));
     },
   });
+
   if (documents.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -60,6 +67,7 @@ export function DocumentTable({
       </p>
     );
   }
+
   return (
     <Table data-testid="documents">
       <TableHeader>

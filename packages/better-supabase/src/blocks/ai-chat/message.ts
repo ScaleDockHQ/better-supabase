@@ -121,6 +121,7 @@ const ROLES: ReadonlySet<string> = new Set<AiMessageRole>([
 ]);
 
 type Issue = StandardSchemaV1.Issue;
+
 type Path = readonly PropertyKey[];
 
 interface Field {
@@ -192,18 +193,23 @@ function checkField(
     case "any": {
       return;
     }
+
     case "boolean": {
       if (typeof value !== "boolean") {
         issues.push({ message: "Expected a boolean", path });
       }
+
       return;
     }
+
     case "object": {
       if (!isRecord(value)) {
         issues.push({ message: "Expected an object", path });
       }
+
       return;
     }
+
     case "string": {
       if (typeof value !== "string") {
         issues.push({ message: "Expected a string", path });
@@ -213,10 +219,13 @@ function checkField(
           path,
         });
       }
+
       return;
     }
+
     default: {
       const unreachable: never = field.kind;
+
       return unreachable;
     }
   }
@@ -225,26 +234,35 @@ function checkField(
 function checkPart(value: unknown, path: Path, issues: Issue[]): void {
   if (!isRecord(value)) {
     issues.push({ message: "Expected a part object", path });
+
     return;
   }
+
   const type = value["type"];
+
   if (!isPartType(type)) {
     issues.push({
       message: `Expected a part type: ${AI_MESSAGE_PART_TYPES.join(", ")}`,
       path: [...path, "type"],
     });
+
     return;
   }
+
   const fields = FIELDS[type];
+
   for (const [key, entry] of Object.entries(value)) {
     if (key === "type") {
       continue;
     }
+
     if (key === "providerMetadata") {
       checkField(entry, { kind: "object" }, [...path, key], issues);
       continue;
     }
+
     const field = fields[key];
+
     if (field === undefined) {
       issues.push({
         message: `Unknown ${type} part field`,
@@ -254,6 +272,7 @@ function checkPart(value: unknown, path: Path, issues: Issue[]): void {
       checkField(entry, field, [...path, key], issues);
     }
   }
+
   for (const [key, field] of Object.entries(fields)) {
     if (field.required === true && value[key] === undefined) {
       issues.push({ message: "Required", path: [...path, key] });
@@ -263,25 +282,32 @@ function checkPart(value: unknown, path: Path, issues: Issue[]): void {
 
 function checkMessage(value: unknown): readonly Issue[] {
   const issues: Issue[] = [];
+
   if (!isRecord(value)) {
     return [{ message: "Expected a message object" }];
   }
+
   for (const key of Object.keys(value)) {
     if (!["id", "role", "parts", "metadata"].includes(key)) {
       issues.push({ message: "Unknown message field", path: [key] });
     }
   }
+
   if (typeof value["id"] !== "string" || value["id"].length === 0) {
     issues.push({ message: "Expected a non-empty id", path: ["id"] });
   }
+
   const role = value["role"];
+
   if (typeof role !== "string" || !ROLES.has(role)) {
     issues.push({
       message: "Expected system, user, assistant or tool",
       path: ["role"],
     });
   }
+
   const parts = value["parts"];
+
   if (Array.isArray(parts)) {
     for (const [index, part] of parts.entries()) {
       checkPart(part, ["parts", index], issues);
@@ -289,9 +315,11 @@ function checkMessage(value: unknown): readonly Issue[] {
   } else {
     issues.push({ message: "Expected a parts array", path: ["parts"] });
   }
+
   if (value["metadata"] !== undefined && !isRecord(value["metadata"])) {
     issues.push({ message: "Expected an object", path: ["metadata"] });
   }
+
   return issues;
 }
 
@@ -305,6 +333,7 @@ export const aiMessageSchema: StandardSchemaV1<unknown, AiMessage> = {
     vendor: "better-supabase",
     validate(value) {
       const issues = checkMessage(value);
+
       // SAFETY: checkMessage found no issue, so value has the AiMessage shape.
       return issues.length > 0 ? { issues } : { value: value as AiMessage };
     },

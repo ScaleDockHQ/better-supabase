@@ -60,6 +60,7 @@ const branches = (kind: WorkflowNodeKind): boolean =>
 
 function GraphNode({ data, selected }: NodeProps<GraphFlowNode>) {
   const Icon = ICONS[data.kind];
+
   return (
     <div
       className={cn(
@@ -116,6 +117,7 @@ function toFlowNode(node: WorkflowGraphNode, index: number): GraphFlowNode {
     label: node.label ?? node.step ?? node.kind,
     config: node.config ?? {},
   };
+
   return {
     id: node.id,
     type: "graph",
@@ -134,6 +136,7 @@ export function toFlow(graph: WorkflowGraph) {
         source: edge.source,
         target: edge.target,
       };
+
       return edge.branch === undefined
         ? flowEdge
         : { ...flowEdge, sourceHandle: edge.branch, label: edge.branch };
@@ -161,17 +164,20 @@ export function fromFlow(
           y: Math.round(node.position.y),
         },
       };
+
       return node.data.step === undefined
         ? graphNode
         : { ...graphNode, step: node.data.step };
     }),
     edges: edges.map((edge) => {
       const branch = branchOf(edge.sourceHandle);
+
       const graphEdge = {
         id: edge.id,
         source: edge.source,
         target: edge.target,
       };
+
       return branch === undefined ? graphEdge : { ...graphEdge, branch };
     }),
   };

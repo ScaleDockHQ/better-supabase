@@ -51,6 +51,7 @@ export function collectionFunctions(
   const co = (column: string): string => names.c("collections", column);
   const extras = collectionExtras(ctx);
   const createArgs = `${ctx.idType}, text, text, text, text, text`;
+
   const setExtras = (source: string, id: string): string =>
     writeExtraColumns(
       t("collections"),
@@ -58,21 +59,26 @@ export function collectionFunctions(
       source,
       `x.${co("id")} = ${id}`,
     );
+
   const en = (column: string): string => names.c("entries", column);
+
   // `subject_collections_read` for a row a security definer function has read.
   const maySee = (alias: string): string =>
     `(${SERVICE} or (${ctx.scope.can(`${alias}.${co("tenant")}`, names.read)} and (
       (${alias}.${co("scope")} = 'user' and ${alias}.${co("owner")} = auth.uid())
       or (${alias}.${co("scope")} = 'team' and ${names.inTeam(`${alias}.${co("team")}`)})
       or ${alias}.${co("scope")} = 'tenant')))`;
+
   // Renaming and archiving: the owner of a personal list, or collections.share.
   const mayManage = (alias: string): string =>
     `(${SERVICE}
     or (${alias}.${co("scope")} = 'user' and ${alias}.${co("owner")} = auth.uid() and ${ctx.scope.can(`${alias}.${co("tenant")}`, names.write)})
     or (${alias}.${co("scope")} <> 'user' and ${ctx.scope.can(`${alias}.${co("tenant")}`, names.share)}))`;
+
   // Adding, removing and ordering entries: anyone who sees the list and holds collections.write.
   const mayFill = (alias: string): string =>
     `(${SERVICE} or (${maySee(alias)} and ${ctx.scope.can(`${alias}.${co("tenant")}`, names.write)}))`;
+
   const json = (alias: string): string =>
     `jsonb_build_object(
     'id', ${alias}.${co("id")},
@@ -87,6 +93,7 @@ export function collectionFunctions(
     'createdBy', ${alias}.${co("createdBy")},
     'createdAt', ${alias}.${co("createdAt")},
     'updatedAt', ${alias}.${co("updatedAt")}${extraFieldsJson(alias, extras)})`;
+
   const entryRecord = (event: string): string =>
     ctx.record({
       type: event,
@@ -95,11 +102,13 @@ export function collectionFunctions(
       tenant: `v_row.${co("tenant")}::text`,
       audit: false,
     });
+
   const load = (arg: string, lock: boolean): string => `
   select * into v_row from ${t("collections")} where ${co("id")} = ${arg}${lock ? " for update" : ""};
   if not found or not ${maySee("v_row")} then
     ${fail("COLLECTION_NOT_FOUND", "collection not found", "P0002")}
   end if;`;
+
   const fillable = `
   if not ${mayFill("v_row")} then
     ${fail("COLLECTION_FORBIDDEN", "not allowed to change this collection's entries")}
@@ -107,10 +116,12 @@ export function collectionFunctions(
   if v_row.${co("archivedAt")} is not null then
     ${fail("COLLECTION_ARCHIVED", "the collection is archived", "55000")}
   end if;`;
+
   const tooMany = (arg: string): string => `
   if cardinality(${arg}) > ${String(names.maxIds)} then
     ${fail("COLLECTION_TOO_MANY", `at most ${String(names.maxIds)} ids per call`, "22023")}
   end if;`;
+
   return `
 -- A list of one subject type, owned by the caller (scope user), a team
 -- they belong to, or the whole tenant. Shared scopes need collections.share.
@@ -438,6 +449,7 @@ export function starFunctions(
 ): string {
   const { t, fn } = names;
   const fa = (column: string): string => names.c("favorites", column);
+
   const json = (alias: string): string =>
     `jsonb_build_object(
       'subjectType', ${alias}.${fa("subjectType")},
@@ -445,6 +457,7 @@ export function starFunctions(
       'organizationId', ${alias}.${fa("tenant")},
       'rank', ${alias}.${fa("rank")},
       'starredAt', ${alias}.${fa("createdAt")})`;
+
   return `
 -- Stars a record the caller can read, at the end of their favorites. A
 -- record already starred keeps its place.

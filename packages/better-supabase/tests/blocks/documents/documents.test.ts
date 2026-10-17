@@ -4,15 +4,18 @@ import { createDocuments } from "../../../src/blocks/documents/index.ts";
 
 function transport(results: Record<string, (args: unknown) => unknown>) {
   const calls: [string, unknown][] = [];
+
   return {
     calls,
     call(schema: string, fn: string, args: unknown) {
       expect(schema).toBe("app");
       calls.push([fn, args]);
       const result = results[fn];
+
       if (!result) {
         return Promise.reject(new Error(`unexpected ${fn}`));
       }
+
       return Promise.resolve(result(args));
     },
   };
@@ -41,10 +44,13 @@ describe("documents client", () => {
       pull_document_updates: () => ({ updates: [] }),
       compact_document: () => true,
     });
+
     const documents = createDocuments({ transport: fake, schema: "app" });
+
     const opened = await documents
       .open({ organizationId: "o", subjectType: "project", subjectId: "p1" })
       .orThrow();
+
     expect(opened).toMatchObject({
       id: "d1",
       canWrite: true,
@@ -93,6 +99,7 @@ describe("documents client", () => {
       ],
       get_document_version: () => "AQI=",
     });
+
     const documents = createDocuments({ transport: fake, schema: "app" });
     expect(
       await documents.saveVersion("d1", new Uint8Array([1])).orThrow(),
@@ -113,6 +120,7 @@ describe("documents client", () => {
     const fake = transport({
       documents_to_compact: () => ["d1", "d2"],
     });
+
     const documents = createDocuments({ transport: fake, schema: "app" });
     expect(await documents.toCompact().orThrow()).toEqual(["d1", "d2"]);
     await documents.toCompact({ minUpdates: 10, limit: 5 }).orThrow();
@@ -127,6 +135,7 @@ describe("documents client", () => {
       push_document_update: () => -1,
       documents_to_compact: () => null,
     });
+
     const documents = createDocuments({ transport: fake, schema: "app" });
     const pushed = await documents.push("d1", new Uint8Array([1]));
     expect(pushed.error).toBeDefined();

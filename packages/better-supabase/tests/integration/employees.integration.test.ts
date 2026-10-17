@@ -28,6 +28,7 @@ const MODULES = [
   "hiring",
   "employees",
 ];
+
 const layout: ModuleLayout = {
   subjects: {
     ...partiesSubjects(),
@@ -52,19 +53,23 @@ describe.skipIf(!live)("employees", () => {
 
   it("keeps an org chart, private details, contracts and offboarding", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const owner = await s.user("owner");
       const lead = await s.user("lead");
       const colleague = await s.user("colleague");
       const outsider = await s.user("outsider");
       await s.install(MODULES, layout);
+
       const org = await s.organization(owner, {
         viewer: lead,
         member: colleague,
       });
+
       const employees = createEmployees({ transport: sqlTransport(s.sql) });
 
       await s.as(owner);
+
       const ceo = await employees
         .create(org, {
           name: "Grace",
@@ -73,14 +78,17 @@ describe.skipIf(!live)("employees", () => {
           startDate: date("2020-01-01"),
         })
         .orThrow();
+
       expect(ceo).toMatchObject({
         status: "active",
         employmentType: "employee",
         userId: owner.id,
       });
+
       const mia = await employees
         .create(org, { name: "Mia", userId: lead.id, managerId: ceo.id })
         .orThrow();
+
       const sam = await employees
         .create(org, {
           name: "Sam",
@@ -89,6 +97,7 @@ describe.skipIf(!live)("employees", () => {
           startDate: Temporal.Now.plainDateISO().add({ days: 30 }),
         })
         .orThrow();
+
       expect(sam.status).toBe("preboarding");
       expect(sam.userId).toBeUndefined();
       expect(
@@ -110,6 +119,7 @@ describe.skipIf(!live)("employees", () => {
           { employeeId: mia.id, field: "endDate", value: date("2019-01-01") },
         ])
         .orThrow();
+
       expect(changes.accepted).toEqual([
         { employeeId: sam.id, field: "jobTitle" },
         { employeeId: mia.id, field: "endDate" },
@@ -150,6 +160,7 @@ describe.skipIf(!live)("employees", () => {
         ["Mia", 1],
         ["Sam", 2],
       ]);
+
       const details = await employees
         .savePrivateDetails(mia.id, {
           iban: "nl91 abna 0417 1643 00",
@@ -157,6 +168,7 @@ describe.skipIf(!live)("employees", () => {
           emergencyContacts: [{ name: "Tom", relation: "partner" }],
         })
         .orThrow();
+
       expect(details).toMatchObject({
         iban: "NL91ABNA0417164300",
         emergencyContacts: [{ name: "Tom", relation: "partner" }],
@@ -175,6 +187,7 @@ describe.skipIf(!live)("employees", () => {
           salaryPeriod: "year",
         })
         .orThrow();
+
       expect(first).toMatchObject({ salary: 5_400_000n, currency: "EUR" });
       await employees
         .addContract(mia.id, {
@@ -231,9 +244,11 @@ describe.skipIf(!live)("employees", () => {
       ).toBe(1);
 
       await s.as(owner);
+
       const gone = await employees
         .offboard(mia.id, { endDate: date("2026-12-31"), reason: "Moved" })
         .orThrow();
+
       expect(gone).toMatchObject({
         status: "offboarded",
         offboardReason: "Moved",
@@ -248,9 +263,11 @@ describe.skipIf(!live)("employees", () => {
       expect(
         (await employees.privateDetails(mia.id).orThrow())?.offboardedAt,
       ).toBeDefined();
+
       const rehired = await employees
         .update([{ employeeId: mia.id, field: "status", value: "active" }])
         .orThrow();
+
       expect(rehired.accepted).toHaveLength(1);
       const back = await employees.orgChart(org, mia.id).orThrow();
       expect(back[0]).toMatchObject({ status: "active", depth: 0 });
@@ -263,6 +280,7 @@ describe.skipIf(!live)("employees", () => {
         "select type, payload from better_supabase.outbox_events where organization_id = $1 and type like 'employee.%' order by created_at, id",
         [org],
       );
+
       expect(new Set(events.map((row) => row.type))).toEqual(
         new Set([
           "employee.created",
@@ -281,6 +299,7 @@ describe.skipIf(!live)("employees", () => {
 
   it("makes one employee from a hired application", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const owner = await s.user("owner");
       await s.install(MODULES, layout);
@@ -290,6 +309,7 @@ describe.skipIf(!live)("employees", () => {
       const employees = createEmployees({ transport });
 
       await s.as(owner);
+
       const job = await hiring
         .saveJob(org, {
           title: "Backend engineer",
@@ -297,9 +317,11 @@ describe.skipIf(!live)("employees", () => {
           status: "open",
         })
         .orThrow();
+
       const ada = await createParties({ transport })
         .savePerson(org, { name: "Ada" })
         .orThrow();
+
       const application = await hiring.apply(job.id, { id: ada.id }).orThrow();
       expect(hint(await employees.fromApplication(application.id))).toBe(
         "EMPLOYEE_APPLICATION_NOT_HIRED",
@@ -309,6 +331,7 @@ describe.skipIf(!live)("employees", () => {
       const hired = await employees
         .fromApplication(application.id, { startDate: date("2026-11-01") })
         .orThrow();
+
       expect(hired).toMatchObject({
         name: "Ada",
         jobTitle: "Backend engineer",

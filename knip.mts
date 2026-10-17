@@ -8,10 +8,12 @@ const serverExample = {
   ignore: exampleIgnore,
   ignoreDependencies: ["@supabase/server"],
 };
+
 const edgeExample = {
   ...serverExample,
   entry: ["better-supabase.config.ts", "supabase/functions/*/index.ts"],
 };
+
 const browserExample = {
   entry: ["better-supabase.config.ts"],
   ignore: exampleIgnore,

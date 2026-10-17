@@ -11,6 +11,7 @@ import { schema } from "../fixtures/generated-camel.ts";
 
 function memoryStore() {
   const values = new Map<string, string>();
+
   return {
     values,
     getItemAsync: (key: string) => Promise.resolve(values.get(key) ?? null),
@@ -18,11 +19,14 @@ function memoryStore() {
       if (!/^[\w.-]+$/.test(key)) {
         throw new Error(`invalid key ${key}`);
       }
+
       values.set(key, value);
+
       return Promise.resolve();
     },
     deleteItemAsync: (key: string) => {
       values.delete(key);
+
       return Promise.resolve();
     },
   };
@@ -45,6 +49,7 @@ describe("better-supabase/client/native", () => {
         new URL(`../../src/client/${file}`, import.meta.url),
         "utf-8",
       );
+
       expect(source).not.toContain("@supabase/ssr");
     }
   });
@@ -89,20 +94,25 @@ describe("secureStorage", () => {
   it("passes the store options to every call", async () => {
     const store = memoryStore();
     const calls: unknown[] = [];
+
     const spy = {
       getItemAsync: (key: string, options?: unknown) => {
         calls.push(options);
+
         return store.getItemAsync(key);
       },
       setItemAsync: (key: string, value: string, options?: unknown) => {
         calls.push(options);
+
         return store.setItemAsync(key, value);
       },
       deleteItemAsync: (key: string, options?: unknown) => {
         calls.push(options);
+
         return store.deleteItemAsync(key);
       },
     };
+
     const storeOptions = { keychainAccessible: 0 };
     const storage = secureStorage(spy, { storeOptions });
     await storage.setItem("k", "v");
@@ -125,10 +135,12 @@ describe("secureStorage", () => {
     const store = memoryStore();
     const storage = secureStorage(store, { chunkSize: 4 });
     await storage.setItem("k", "abcdefghij");
+
     const [, read] = await Promise.all([
       storage.setItem("k", "12345678"),
       storage.getItem("k"),
     ]);
+
     expect(["abcdefghij", "12345678"]).toContain(read);
     expect(await storage.getItem("k")).toBe("12345678");
   });
@@ -141,11 +153,14 @@ describe("secureStorage", () => {
     let writes = 0;
     store.setItemAsync = (key, value) => {
       writes += 1;
+
       if (writes === 2) {
         return Promise.reject(new Error("keychain locked"));
       }
+
       return set(key, value);
     };
+
     await expect(storage.setItem("k", "12345678")).rejects.toThrow(/keychain/);
     expect(await storage.getItem("k")).toBe("abcdefghij");
 

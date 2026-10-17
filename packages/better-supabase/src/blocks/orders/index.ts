@@ -21,12 +21,14 @@ export {
   type ReturnStatus,
   type ShippingOption,
 } from "./codecs.ts";
+
 export {
   ORDER_METRIC_EVENTS,
   orderMetrics,
   type OrderMetrics,
   type OrderMetricsOptions,
 } from "./metrics.ts";
+
 export {
   createOrders,
   type CartDetails,
@@ -44,6 +46,7 @@ export {
   type ShippingRateInput,
   type TrackingInput,
 } from "./orders.ts";
+
 export {
   extendBlock,
   withBlockHooks,
@@ -51,6 +54,7 @@ export {
   type BlockHooks,
   type BlockTransportMiddleware,
 } from "../../core/block-hooks.ts";
+
 export {
   dbTransport,
   rpcTransport,
@@ -58,6 +62,9 @@ export {
   type BlockTransport,
   type RpcClient,
 } from "../../core/block-transport.ts";
+
 export { ordersBlock } from "./manifest.ts";
+
 export { ordersEvents } from "./events.ts";
+
 export type { OrdersEvents } from "./events.ts";

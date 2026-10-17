@@ -44,6 +44,7 @@ export async function resolveChatAuthor(
   const resolve =
     options.principalByIdentity ??
     options.server?.authorization?.identities?.principalByIdentity;
+
   return resolve ? ((await resolve(identity)) ?? null) : null;
 }
 
@@ -89,13 +90,17 @@ export function botJobs<P, R>(options: BotJobsOptions<P, R>): BotJobs<P, R> {
   return {
     async enqueue(identity, payload) {
       const author = await resolveChatAuthor(identity, options);
+
       if (author?.kind !== "user") {
         return { result: await options.enqueue(payload, {}), author };
       }
+
       const ticket = await options.ticketFor(author.userId);
+
       if (typeof ticket !== "string" || ticket === "") {
         throw new TypeError("botJobs: ticketFor returned an empty ticket");
       }
+
       return { result: await options.enqueue(payload, { ticket }), author };
     },
   };
@@ -155,30 +160,39 @@ export function chatActions(
   return async (action) => {
     const hook =
       options.onAction ?? options.server?.authorization?.chat?.onAction;
+
     let author: IdentityTarget | null;
+
     try {
       author = await resolveChatAuthor(action.author, options);
     } catch {
       return { allowed: false, reason: "error" };
     }
+
     if (author === null) {
       return { allowed: false, reason: "unlinked" };
     }
+
     if (!hook) {
       return { allowed: false, reason: "unhandled" };
     }
+
     let decision: Awaited<ReturnType<ChatActionHook>>;
+
     try {
       decision = await hook(action, author);
     } catch {
       return { allowed: false, reason: "error" };
     }
+
     if (decision === undefined) {
       return { allowed: false, reason: "unhandled" };
     }
+
     if (!decision.allowed) {
       return { allowed: false, reason: "refused" };
     }
+
     switch (author.kind) {
       case "user": {
         return decision.userId === undefined ||
@@ -186,11 +200,13 @@ export function chatActions(
           ? { allowed: true, author, userId: author.userId }
           : { allowed: false, reason: "refused" };
       }
+
       case "contact": {
         return decision.userId === undefined
           ? { allowed: true, author }
           : { allowed: true, author, userId: decision.userId };
       }
+
       default: {
         const unknown: never = author;
         throw new TypeError(`unknown identity target ${String(unknown)}`);
@@ -221,6 +237,7 @@ export function approvalLink(
   const url = new URL(page);
   url.searchParams.set("kind", request.kind);
   url.searchParams.set("subject", request.subject);
+
   return url.toString();
 }
 
@@ -232,6 +249,7 @@ export function approvalPrompt(options: ApprovalPromptOptions): {
   readonly markdown: string;
 } {
   const link = `[${escapeLabel(options.label ?? "Review the request")}](${approvalLink(options.page, options.request).replaceAll(")", "%29")})`;
+
   return {
     markdown: options.text === undefined ? link : `${options.text}\n\n${link}`,
   };

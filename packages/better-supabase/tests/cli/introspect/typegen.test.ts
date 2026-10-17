@@ -17,6 +17,7 @@ import { moduleSnapshotFixture as fixture } from "../fixtures/library.ts";
 const generator = await validateGeneratorMetadata(fixture.generator);
 
 type TypeRow = GeneratorMetadata["types"][number];
+
 const type = (
   id: number,
   schema: string,
@@ -105,6 +106,7 @@ describe("readGeneratorMetadata", () => {
         ],
       ],
     ]);
+
     const metadata = await readGeneratorMetadata(db.pg, ["public"]);
     expect(
       db.texts().some((text) => text.includes("p.proargnames as names")),
@@ -123,9 +125,11 @@ describe("readGeneratorMetadata queries", () => {
     const db = fakeSql();
     await readGeneratorMetadata(db.pg, ["public"]);
     const texts = db.texts();
+
     const positions = texts.findIndex((text) =>
       text.includes("p.proargnames as names"),
     );
+
     expect(positions).toBeGreaterThanOrEqual(0);
     expect(positions).toBeLessThan(texts.length - 1);
   });
@@ -138,6 +142,7 @@ describe("orderArgsByPosition", () => {
     type_id: typeId,
     has_default: false,
   });
+
   const fn = (args: ReturnType<typeof arg>[]) => ({
     ...generator.functions[0]!,
     id: 40_000,
@@ -148,25 +153,31 @@ describe("orderArgsByPosition", () => {
   it("restores declaration order for unnamed arguments", () => {
     const shuffled = fn([arg("", 20), arg("", 10)]);
     const metadata = { ...generator, functions: [shuffled] };
+
     const ordered = orderArgsByPosition(metadata, [
       { id: "40000", types: ["10", "20"], names: null },
     ]);
+
     expect(ordered.functions[0]!.args.map((entry) => entry.type_id)).toEqual([
       10, 20,
     ]);
+
     const twice = orderArgsByPosition(
       { ...generator, functions: [fn([arg("", 10), arg("", 20)])] },
       [{ id: 40_000, types: [10, 20], names: null }],
     );
+
     expect(twice.functions[0]!.args).toEqual(ordered.functions[0]!.args);
   });
 
   it("keeps arguments it can't place and functions it has no row for", () => {
     const named = fn([arg("b", 20), arg("a", 10), arg("", 30)]);
     const metadata = { ...generator, functions: [named] };
+
     const ordered = orderArgsByPosition(metadata, [
       { id: 40_000, types: [10, 20], names: ["a", "b"] },
     ]);
+
     expect(ordered.functions[0]!.args.map((entry) => entry.name)).toEqual([
       "a",
       "b",
@@ -179,6 +190,7 @@ describe("orderArgsByPosition", () => {
 describe("stabilizeMetadata", () => {
   it("maps views, foreign tables, types and function references to name-derived ids", () => {
     const base = structuredClone(generator);
+
     const metadata: GeneratorMetadata = {
       ...base,
       tables: [],
@@ -229,6 +241,7 @@ describe("stabilizeMetadata", () => {
         },
       ],
     };
+
     const { metadata: stable, ids } = stabilizeMetadata(metadata);
     expect(Object.fromEntries(ids)).toEqual({
       40_002: 1_000_000,
@@ -282,6 +295,7 @@ describe("restrictSchemas", () => {
   it("keeps only the listed schemas", () => {
     const only = restrictSchemas(generator, ["public"]);
     expect(only.schemas.map((schema) => schema.name)).toEqual(["public"]);
+
     for (const list of [
       only.tables,
       only.columns,
@@ -292,6 +306,7 @@ describe("restrictSchemas", () => {
       expect(list.length).toBeGreaterThan(0);
       expect(list.every((entry) => entry.schema === "public")).toBe(true);
     }
+
     expect(only.tables.length).toBeLessThan(generator.tables.length);
     expect(restrictSchemas(generator, []).tables).toEqual([]);
   });
@@ -305,13 +320,16 @@ describe("restrictSchemas", () => {
       is_updatable: false,
       is_populated: true,
     });
+
     const metadata = {
       ...generator,
       views: [relation("public", "v"), relation("private", "v")],
       materializedViews: [relation("private", "m"), relation("public", "m")],
       foreignTables: [relation("private", "f"), relation("public", "f")],
     } as GeneratorMetadata;
+
     const only = restrictSchemas(metadata, ["public"]);
+
     for (const list of [
       only.views,
       only.materializedViews,

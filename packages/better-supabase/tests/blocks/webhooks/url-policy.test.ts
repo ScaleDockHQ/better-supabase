@@ -70,6 +70,7 @@ describe("publicUrl", () => {
     "rebind.example.com": ["93.184.215.14", "10.0.0.5"],
     "empty.example.com": [],
   };
+
   const allow = publicUrl({ resolve: async (host) => dns[host] ?? [] });
   const check = (url: string) => allow(new URL(url));
 
@@ -91,10 +92,12 @@ describe("publicUrl", () => {
   it("rejects plain HTTP and credentials in the URL", async () => {
     expect(await check("http://hooks.example.com/in")).toBe(false);
     expect(await check("https://user:pass@hooks.example.com/in")).toBe(false);
+
     const http = publicUrl({
       resolve: async (host) => dns[host] ?? [],
       allowHttp: true,
     });
+
     expect(await http(new URL("http://hooks.example.com/in"))).toBe(true);
     expect(await http(new URL("ftp://hooks.example.com/in"))).toBe(false);
   });
@@ -104,6 +107,7 @@ describe("publicUrl", () => {
       resolve: false,
       allowHosts: ["Receiver.Internal"],
     });
+
     expect(await trusted(new URL("http://receiver.internal:8080/in"))).toBe(
       true,
     );
@@ -122,6 +126,7 @@ describe("publicUrl", () => {
     const builtin = vi
       .spyOn(process, "getBuiltinModule")
       .mockImplementation(() => undefined);
+
     try {
       expect(() => publicUrl()).toThrow("needs a resolve option");
       expect(publicUrl({ resolve: false })).toBeTypeOf("function");

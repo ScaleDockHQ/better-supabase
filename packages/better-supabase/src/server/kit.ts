@@ -58,6 +58,7 @@ export interface AuthorizedContext<C, P, R extends boolean> {
 export type ActionInput<S> = S extends StandardSchemaV1
   ? StandardSchemaV1.InferInput<S> | FormData
   : unknown;
+
 export type ActionParsed<S> = S extends StandardSchemaV1
   ? StandardSchemaV1.InferOutput<S>
   : unknown;
@@ -98,10 +99,12 @@ export interface BlockRequireOptions<
 /** `FormData` as a plain object; repeated keys become arrays. */
 export function formDataObject(form: FormData): Record<string, unknown> {
   const out: Record<string, unknown> = {};
+
   for (const key of new Set(form.keys())) {
     const values = form.getAll(key);
     out[key] = values.length > 1 ? values : values[0];
   }
+
   return out;
 }
 
@@ -115,6 +118,7 @@ function callerResource(input: unknown): AuthorizationResource {
   if (input === undefined || input instanceof Request) {
     return { type: "route" };
   }
+
   if (
     typeof input !== "object" ||
     input === null ||
@@ -123,6 +127,7 @@ function callerResource(input: unknown): AuthorizationResource {
   ) {
     return { type: "action" };
   }
+
   // SAFETY: a plain object input is JSON-like data, which properties hold.
   return {
     type: "action",
@@ -148,16 +153,19 @@ export async function authorizeCaller<I, C, P>(
   | DbError
 > {
   const session = toSession(auth);
+
   if (checks.requireTenant && tenant === undefined) {
     return dbError("forbidden", "Choose an organization first", {
       code: "NO_TENANT",
     });
   }
+
   if (checks.roles && !hasRole(auth, checks.roles, checks.roleClaim)) {
     return dbError("forbidden", "You do not have the role this needs", {
       code: "MISSING_ROLE",
     });
   }
+
   if (checks.permission !== undefined) {
     const permitted = await checkPermission({
       authorizer,
@@ -168,15 +176,18 @@ export async function authorizeCaller<I, C, P>(
         ...(tenant === undefined ? {} : { tenant }),
       },
     });
+
     if (!permitted.ok) {
       return permitted.error;
     }
   }
+
   if (checks.authorize && !(await checks.authorize(session, input))) {
     return dbError("forbidden", "You are not allowed to do this", {
       code: "NOT_AUTHORIZED",
     });
   }
+
   return { session, tenant };
 }
 
@@ -191,6 +202,7 @@ export async function requireCaller<C, P>(
   | DbError
 > {
   const denied = guard(auth, options.allow, options.aal, options.scopes);
+
   return (
     denied ?? authorizeCaller(auth, options, undefined, tenant, authorizer)
   );
@@ -217,18 +229,24 @@ export async function runAction<C, P>(
   authorizer?: AnyAuthorizer,
 ): Promise<ActionResult<unknown>> {
   const denied = guard(auth, options.allow, options.aal, options.scopes);
+
   if (denied) {
     return actionError(denied);
   }
+
   let parsed: unknown =
     input instanceof FormData ? formDataObject(input) : input;
+
   if (options.input) {
     const checked = await validate(options.input, parsed, "input");
+
     if (!checked.ok) {
       return actionError(checked.error);
     }
+
     parsed = checked.data;
   }
+
   const caller = await authorizeCaller(
     auth,
     options,
@@ -236,10 +254,13 @@ export async function runAction<C, P>(
     tenant,
     authorizer,
   );
+
   if ("kind" in caller) {
     return actionError(caller);
   }
+
   const settled = await settle(() => body(parsed, caller));
+
   return settled.ok
     ? { ok: true, data: settled.data, error: null }
     : actionError(settled.error);
@@ -251,10 +272,13 @@ export function rolesAt(
   path: string,
 ): readonly string[] {
   const single = claimAt(claims, path);
+
   if (single !== undefined) {
     return [single];
   }
+
   let value: unknown = claims;
+
   for (const segment of path.split(".")) {
     // SAFETY: the condition narrows value to a non-null object, and claims are JSON objects.
     value =
@@ -262,6 +286,7 @@ export function rolesAt(
         ? (value as Record<string, unknown>)[segment]
         : undefined;
   }
+
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
     : [];
@@ -276,6 +301,8 @@ export function hasRole(
   if (auth.kind !== "user") {
     return false;
   }
+
   const held = rolesAt(auth.claims, path);
+
   return roles.some((role) => held.includes(role));
 }

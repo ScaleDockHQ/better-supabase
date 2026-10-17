@@ -47,8 +47,10 @@ export function usePlanPicker<P extends { readonly key: string } = PlanOption>(
 ): PlanPickerState<P> {
   const { auth } = useBlockEnv();
   const latest = useLatest(options);
+
   const view = useController(() => {
     const { initial } = latest.current;
+
     return createPlanPickerController<P>({
       auth,
       load: () => latest.current.load(),
@@ -57,6 +59,8 @@ export function usePlanPicker<P extends { readonly key: string } = PlanOption>(
       open: (url) => latest.current.open(url),
     });
   }, [auth, latest]).view;
+
   const active = view.plans?.find((plan) => plan.key === view.current);
+
   return { ...view, active };
 }

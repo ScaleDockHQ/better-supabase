@@ -15,15 +15,19 @@ const CREATE_EVENT_TRIGGER =
  */
 export function eventTriggersOf(body: string): ModuleEventTrigger[] {
   const seen = new Set<string>();
+
   return [...body.matchAll(CREATE_EVENT_TRIGGER)].flatMap(
     ([statement, quoted = ""]): ModuleEventTrigger[] => {
       const name = quoted.startsWith('"')
         ? quoted.slice(1, -1)
         : quoted.toLowerCase();
+
       if (seen.has(name)) {
         return [];
       }
+
       seen.add(name);
+
       return [
         {
           name,

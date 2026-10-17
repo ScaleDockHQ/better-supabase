@@ -18,16 +18,19 @@ export function testAuthorizationHooks(
   hooks: AuthorizationHooks,
 ): Promise<ConformanceReport> {
   const stranger = crypto.randomUUID();
+
   const event = {
     type: "conformance.checked",
     tenant: crypto.randomUUID(),
     actorId: stranger,
     payload: {},
   };
+
   const subscribers = [
     { principal: crypto.randomUUID(), kind: "user" as const },
     { principal: crypto.randomUUID(), kind: "service" as const },
   ];
+
   const subset = async (
     policy: NonNullable<
       NonNullable<AuthorizationHooks["delivery"]>["subscribers"]
@@ -35,21 +38,25 @@ export function testAuthorizationHooks(
     where: string,
   ): Promise<void> => {
     const kept = await policy(event, subscribers);
+
     for (const entry of kept) {
       expect(
         subscribers.includes(entry),
         `${where} returned a subscriber it was not given`,
       );
     }
+
     expect(
       (await policy(event, [])).length === 0,
       `${where} returned subscribers from an empty list`,
     );
   };
+
   const supportStart = (
     extra: Readonly<Record<string, unknown>>,
   ): SupportAuthorizeInput => {
     const now = Math.floor(Date.now() / 1000);
+
     const claims = {
       sub: stranger,
       role: "authenticated",
@@ -59,6 +66,7 @@ export function testAuthorizationHooks(
       iat: now,
       ...extra,
     };
+
     return {
       admin: {
         kind: "user",
@@ -74,6 +82,7 @@ export function testAuthorizationHooks(
       metadata: {},
     };
   };
+
   const {
     delivery,
     identities,
@@ -83,6 +92,7 @@ export function testAuthorizationHooks(
     chat,
     delegation,
   } = hooks;
+
   return conform(`AuthorizationHooks "${hooks.name}"`, [
     [
       "targets API v1 and has a name",
@@ -110,6 +120,7 @@ export function testAuthorizationHooks(
           kind: "email",
           value: `${stranger}@conformance.invalid`,
         });
+
         expect(found === null, "an address nobody linked resolved to someone");
       },
     ],
@@ -125,6 +136,7 @@ export function testAuthorizationHooks(
             requester: stranger,
           },
         );
+
         expect(!allowed, "approverOf allowed the requester");
       },
     ],
@@ -144,6 +156,7 @@ export function testAuthorizationHooks(
           permissions: ["conformance.write"],
           claims: { sub: stranger, role: "authenticated" },
         });
+
         expect(!allowed, "mayPublish allowed a publisher nobody knows");
       },
     ],
@@ -155,6 +168,7 @@ export function testAuthorizationHooks(
           tenant: event.tenant,
           permissions: ["conformance.read"],
         });
+
         expect(
           claims === null,
           "runAs returned claims for an unknown publisher",
@@ -171,6 +185,7 @@ export function testAuthorizationHooks(
           },
           null,
         );
+
         expect(
           decided === undefined || !decided.allowed,
           "onAction allowed an author with no identity link",
@@ -193,6 +208,7 @@ export function testAuthorizationHooks(
         const decision = await hooks.support!.authorize(
           supportStart({ user_role: "admin", app_role: "admin" }),
         );
+
         expect(
           typeof decision !== "object" || decision.approvedBy !== stranger,
           "support.authorize named the admin as their own approver",
@@ -208,6 +224,7 @@ export function testAuthorizationHooks(
           clientId: "conformance",
           scopes: [],
         });
+
         expect(
           keys.length === 0,
           "delegation.permissions granted keys to a token with no scopes",

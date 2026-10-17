@@ -391,15 +391,18 @@ function conversationCursor(
 
 function compact(value: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
+
   for (const [key, item] of Object.entries(value)) {
     if (item === undefined) {
       continue;
     }
+
     out[key] =
       isRecord(item) && Object.getPrototypeOf(item) === Object.prototype
         ? compact(item)
         : item;
   }
+
   return out;
 }
 
@@ -410,11 +413,13 @@ function compact(value: Record<string, unknown>): Record<string, unknown> {
  */
 export function createInbox(options: InboxOptions): Inbox {
   applyTemporal(options);
+
   const call = blockCall(
     options.transport,
     options.schema ?? DEFAULT_BLOCK_SCHEMA,
     options.mappers,
   );
+
   const startArg = (input: StartConversationInput): Record<string, unknown> =>
     compact({
       contact:
@@ -432,6 +437,7 @@ export function createInbox(options: InboxOptions): Inbox {
           ? input.message
           : input.message && messageArg(input.message),
     });
+
   const setStatus = (
     conversationId: string,
     status: ConversationStatus,
@@ -446,6 +452,7 @@ export function createInbox(options: InboxOptions): Inbox {
       },
       conversationOf,
     );
+
   const setBotMode = (
     conversationId: string,
     mode: BotMode,
@@ -456,6 +463,7 @@ export function createInbox(options: InboxOptions): Inbox {
       { conversation: conversationId, mode, reason },
       conversationOf,
     );
+
   const send = (
     conversationId: string,
     input: MessageInput,
@@ -506,6 +514,7 @@ export function createInbox(options: InboxOptions): Inbox {
       createTeam: (tenant, name) =>
         call("create_inbox_team", { tenant, name }, (value) => {
           const row = recordOf(value, "create_inbox_team");
+
           return { id: textOf(row["id"]), name: textOf(row["name"]) };
         }),
       setTeamMember: (teamId, userId, present = true) =>
@@ -579,6 +588,7 @@ export function createInbox(options: InboxOptions): Inbox {
             if (typeof value !== "string" && !(value instanceof Date)) {
               throw new TypeError("mark_conversation_read returned no time");
             }
+
             return toInstant(value);
           },
         ),
@@ -710,6 +720,7 @@ export function createInbox(options: InboxOptions): Inbox {
           },
           (value) => {
             const row = recordOf(value, "store_inbound_event");
+
             return {
               id: textOf(row["id"]),
               duplicate: row["duplicate"] === true,
@@ -745,6 +756,7 @@ export function createInbox(options: InboxOptions): Inbox {
     purgeContact: (contactId) =>
       call("purge_contact", { contact: contactId }, purgedOf),
   };
+
   const {
     inboxes,
     contacts,
@@ -755,6 +767,7 @@ export function createInbox(options: InboxOptions): Inbox {
     inbound,
     ...hooks
   } = options.hooks ?? {};
+
   const groups = {
     inboxes,
     contacts,
@@ -764,7 +777,9 @@ export function createInbox(options: InboxOptions): Inbox {
     templates,
     inbound,
   };
+
   const logger = options.logger ? { logger: options.logger } : {};
+
   return withBlockHooks(
     {
       ...client,

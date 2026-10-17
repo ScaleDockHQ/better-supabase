@@ -33,6 +33,7 @@ const instant = (value: unknown): Temporal.Instant =>
 
 export function memoryOf(value: unknown): MemoryRecord {
   const row = recordOf(value, "memories");
+
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["organization_id"]),
@@ -55,6 +56,7 @@ export function memoryOf(value: unknown): MemoryRecord {
 export function hitOf(value: unknown): MemoryHit {
   const row = recordOf(value, "memory_search");
   const similarity = row["similarity"];
+
   return {
     ...memoryOf(row),
     score: Number(row["score"]),
@@ -66,6 +68,7 @@ export function viewOf(value: unknown): MemoryView | undefined {
   if (!isRecord(value)) {
     return undefined;
   }
+
   if (value["type"] === "file") {
     return {
       type: "file",
@@ -74,6 +77,7 @@ export function viewOf(value: unknown): MemoryView | undefined {
       version: Number(value["version"]),
     };
   }
+
   return {
     type: "directory",
     path: textOf(value["path"]),
@@ -86,6 +90,7 @@ export function viewOf(value: unknown): MemoryView | undefined {
 
 export function documentOf(value: unknown): MemoryDocument {
   const row = recordOf(value, "memory_document");
+
   return { content: textOf(row["content"]), version: textOf(row["version"]) };
 }
 

@@ -32,29 +32,35 @@ export function credentialRouter(
   options: { readonly name?: string } = {},
 ): CredentialProvider {
   const byName = new Map<string, CredentialProvider>();
+
   for (const provider of providers) {
     if (byName.has(provider.name)) {
       throw new TypeError(
         `credentialRouter got two providers named "${provider.name}"`,
       );
     }
+
     byName.set(provider.name, credentialProviderOf(provider));
   }
+
   const unknown = (ref: CredentialRef): DbError =>
     dbError(
       "invalid_input",
       `No credential provider named "${ref.provider}" is configured`,
       { hint: "CREDENTIAL_PROVIDER_UNKNOWN" },
     );
+
   const route = <T>(
     ref: CredentialRef,
     then: (provider: CredentialProvider) => AsyncResult<T>,
   ): AsyncResult<T> => {
     const provider = byName.get(ref.provider);
+
     return provider === undefined
       ? AsyncResult.err(unknown(ref))
       : then(provider);
   };
+
   return {
     apiVersion: 1,
     name: options.name ?? "router",
@@ -120,11 +126,14 @@ export function revokeIfConfigured(
   if (provider === undefined) {
     return AsyncResult.ok(false);
   }
+
   if ("tenant" in options && !credentialRefInTenant(ref, options.tenant)) {
     return AsyncResult.ok(false);
   }
+
   if (!provider.capabilities(ref).revoke) {
     return AsyncResult.ok(false);
   }
+
   return provider.revoke(ref, { subject: options.subject });
 }

@@ -63,6 +63,7 @@ describe("hasEntitlement", () => {
         { scope: "tenant", id: ACME, roles: [], entitlements: ["exports"] },
       ],
     });
+
     expect(hasEntitlement(seats, ACME, "exports")).toBe(false);
   });
 

@@ -9,15 +9,19 @@ function paintLine(line: string, paint: Paint): string {
   if (line.startsWith("---") || line.startsWith("+++")) {
     return paint("bold", line);
   }
+
   if (line.startsWith("@@")) {
     return paint("cyan", line);
   }
+
   if (line.startsWith("+")) {
     return paint("green", line);
   }
+
   if (line.startsWith("-")) {
     return paint("red", line);
   }
+
   return line;
 }
 
@@ -42,10 +46,13 @@ export function fileDiff(
       (line) =>
         line !== "" && !line.startsWith("=====") && !line.startsWith("Index:"),
     );
+
   const shown = lines
     .slice(0, DIFF_LINES)
     .map((line) => paintLine(line, paint));
+
   const hidden = lines.length - shown.length;
+
   return [
     ...shown,
     ...(hidden > 0 ? [paint("dim", `... ${hidden} more diff lines`)] : []),

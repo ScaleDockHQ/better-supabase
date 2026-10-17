@@ -22,10 +22,13 @@ const count = (emoji: string, reacted: boolean): ReactionCount => ({
 
 function setup(topicName?: string | null) {
   const topic = fakeTopic();
+
   const summary = vi.fn((_org: string, _type: string, ids: readonly string[]) =>
     resolved(Object.fromEntries(ids.map((id) => [id, [count("+1", false)]]))),
   );
+
   const react = vi.fn(() => resolved([count("+1", true)]));
+
   const controller = createReactionsController({
     client: { summary, react },
     auth: fakeAuth(),
@@ -35,6 +38,7 @@ function setup(topicName?: string | null) {
     subjectIds: ["c1"],
     ...(topicName === undefined ? {} : { topic: topicName }),
   });
+
   return { topic, summary, react, controller };
 }
 

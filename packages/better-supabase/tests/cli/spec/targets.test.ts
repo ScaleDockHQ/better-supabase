@@ -23,6 +23,7 @@ const error = (run: () => unknown): TargetError => {
       return cause;
     }
   }
+
   throw new Error("expected a TargetError");
 };
 
@@ -66,6 +67,7 @@ describe("resolveTargets", () => {
       { format: "openapi", version: "3.0", output: "legacy.json" },
       { format: "openapi", version: "3.2", output: "next.json" },
     ];
+
     expect(
       resolveTargets(outputs, registry, { version: "3.0" })[0]?.output,
     ).toBe("legacy.json");

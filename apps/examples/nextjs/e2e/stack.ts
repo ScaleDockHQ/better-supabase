@@ -20,10 +20,12 @@ export function stackStatus(): Readonly<Record<string, string>> {
         stdio: ["ignore", "pipe", "ignore"],
       },
     );
+
     const status = v.parse(
       Status,
       JSON.parse(stdout.slice(stdout.indexOf("{"))),
     );
+
     return Object.fromEntries(
       Object.entries(status).flatMap(([key, value]) =>
         v.is(v.string(), value) ? [[key, value]] : [],

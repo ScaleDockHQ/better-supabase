@@ -18,13 +18,17 @@ function literal(value: unknown): string {
   if (Array.isArray(value)) {
     return `[${value.map(literal).join(", ")}]`;
   }
+
   if (typeof value === "object" && value !== null) {
     const entries = Object.entries(value);
+
     if (entries.length === 0) {
       return "{}";
     }
+
     return `{ ${entries.map(([name, each]) => `${key(name)}: ${literal(each)}`).join(", ")} }`;
   }
+
   return JSON.stringify(value);
 }
 
@@ -34,35 +38,44 @@ function literal(value: unknown): string {
  */
 export function presetConfigSource(resolved: ResolvedPreset): string {
   const config = presetConfig(resolved);
+
   const lines = [
     'import { defineConfig } from "better-supabase/config";',
     "",
     `// ${CREATE_URL}?preset=${encodePreset(resolved.preset)}`,
     "export default defineConfig({",
   ];
+
   if (config.casing !== undefined) {
     lines.push(`  casing: ${literal(config.casing)},`);
   }
+
   if (config.sql !== undefined) {
     lines.push(`  sql: ${literal(config.sql)},`);
   }
+
   if (config.integrations !== undefined) {
     lines.push(`  integrations: ${literal(config.integrations)},`);
   }
+
   if (resolved.preset.access === "provider") {
     lines.push(
       "  // The provider access model reads roles from your authorization",
       "  // library: set `authorization` to its adapter.",
     );
   }
+
   lines.push("  blocks: {");
   const entries = Object.entries(config.blocks);
+
   for (const block of resolved.blocks) {
     const entry = entries.find(([name]) => name === block.name)?.[1] ?? {};
     const note = block.selected ? "" : ` // ${block.reason}`;
     lines.push(`    ${key(block.name)}: ${literal(entry)},${note}`);
   }
+
   lines.push("  },", "});", "");
+
   return lines.join("\n");
 }
 
@@ -82,6 +95,7 @@ export function presetBlocksSource(
       ? []
       : [{ name: manifest.name, ...manifest.client }],
   );
+
   return [
     "import {",
     "  type RpcClient,",
@@ -123,9 +137,12 @@ export function presetGlue(
   catalog: PresetCatalog = PRESET_CATALOG,
 ): readonly PresetGlueItem[] {
   const { preset } = resolved;
+
   const platforms =
     preset.platforms === "both" ? ["web", "native"] : [preset.platforms];
+
   const installed = new Set(resolved.blocks.map((block) => block.name));
+
   return catalog.glue.filter(
     (item) =>
       item.preset === undefined &&

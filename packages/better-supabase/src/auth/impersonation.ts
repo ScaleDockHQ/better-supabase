@@ -35,6 +35,7 @@ export function impersonatorClaim(
 ): Readonly<Record<string, unknown>> {
   const reason =
     impersonator.reason === undefined ? {} : { reason: impersonator.reason };
+
   return impersonator.kind === "support"
     ? {
         kind: "support",
@@ -56,20 +57,25 @@ export function impersonatorOf(
 ): Impersonator | undefined {
   const outcome = actorOf(claims);
   const actor = outcome.ok ? outcome.actor : undefined;
+
   if (actor === undefined) {
     return undefined;
   }
+
   switch (actor.kind) {
     case "oauth-client":
     case "agent": {
       return undefined;
     }
+
     case "support":
     case "impersonation": {
       return { ...actor };
     }
+
     default: {
       const unreachable: never = actor;
+
       return unreachable;
     }
   }
@@ -89,6 +95,7 @@ export function userContext(
   claims: Readonly<Record<string, unknown>>,
 ): RequestContext {
   const impersonator = impersonatorOf(claims);
+
   const actor: Actor = {
     id: user.id,
     kind: "user",
@@ -96,5 +103,6 @@ export function userContext(
     ...(user.email ? { email: user.email } : {}),
     ...(impersonator ? { impersonator: impersonator.id } : {}),
   };
+
   return { actor, claims };
 }

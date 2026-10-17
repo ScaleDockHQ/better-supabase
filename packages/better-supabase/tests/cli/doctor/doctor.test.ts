@@ -63,13 +63,16 @@ function snapshot(
   const copy = structuredClone(toCatalog(base)) as {
     -readonly [K in keyof Catalog]: Catalog[K];
   };
+
   const tables = copy.tables as CatalogTable[];
   const functions = copy.functions as CatalogFunction[];
   change(tables, functions);
+
   return fromCatalog(copy);
 }
 
 const edit = <T>(value: T): { -readonly [K in keyof T]: T[K] } => value;
+
 const table = (tables: CatalogTable[], name: string) =>
   edit(tables.find((entry) => entry.name === name)!);
 
@@ -116,6 +119,7 @@ describe("doctor rules", () => {
     const catalog = structuredClone(toCatalog(base)) as {
       -readonly [K in keyof Catalog]: Catalog[K];
     };
+
     catalog.realtime = ["public.tags", "public.customers"];
     table(catalog.tables as CatalogTable[], "tags").replicaIdentity = "NOTHING";
     edit(table(catalog.tables as CatalogTable[], "notes").triggers).push({
@@ -125,16 +129,19 @@ describe("doctor rules", () => {
       level: "statement",
       function: "better_supabase.broadcast_changes",
     });
+
     const ctx = context(fromCatalog(catalog), {
       config: resolveConfig(
         { realtime: { tables: ["customers", "public.notes", "missing"] } },
         "/project",
       ),
     });
+
     const findings = await runRules(
       ctx,
       RULES.filter((rule) => rule.code === "BS305" || rule.code === "BS306"),
     );
+
     expect(findings.map((finding) => finding.target)).toEqual([
       "public.customers",
       "missing",
@@ -153,10 +160,12 @@ describe("doctor rules", () => {
         check: "true",
       });
     });
+
     const [finding, ...rest] = await runRules(
       context(snap),
       RULES.filter((rule) => rule.code === "BS103"),
     );
+
     expect(rest).toEqual([]);
     expect(finding).toMatchObject({
       target: "public.notes.anyone",
@@ -172,6 +181,7 @@ describe("doctor rules", () => {
         { role: "PUBLIC", privileges: ["SELECT"] },
       ];
     });
+
     const only = RULES.filter((rule) => rule.code === "BS106");
     const plain = await runRules(context(snap), only);
     expect(plain.map((finding) => finding.target)).toEqual([
@@ -197,6 +207,7 @@ describe("doctor rules", () => {
       }),
       only,
     );
+
     expect(exposed.map((finding) => finding.target)).toEqual([
       "public.notes:authenticated",
       "public.organizations:anon",
@@ -215,7 +226,9 @@ describe("doctor rules", () => {
         { role: "PUBLIC", privileges: ["SELECT"] },
       ];
     });
+
     const only = RULES.filter((rule) => rule.code === "BS106");
+
     const findings = await runRules(
       context(snap, {
         config: resolveConfig(
@@ -230,6 +243,7 @@ describe("doctor rules", () => {
       }),
       only,
     );
+
     expect(findings.map((finding) => finding.target)).toEqual([
       "public.notes:anon",
       "public.notes:authenticated",
@@ -253,6 +267,7 @@ describe("doctor rules", () => {
       check: null,
       functions: [],
     });
+
     const snap = snapshot((tables) => {
       table(tables, "tags").policies = [
         policy("tags_read", "select", "organization_id = current_tenant_id()"),
@@ -262,10 +277,12 @@ describe("doctor rules", () => {
         policy("organizations_read", "select", "id = current_tenant_id()"),
       ];
     });
+
     const only = RULES.filter((rule) => rule.code === "BS107");
     const findings = await runRules(context(snap), only);
     expect(findings.map((finding) => finding.target)).toEqual(["public.tags"]);
     expect(findings[0]!.message).toContain("no update, delete policy");
+
     const serviceRole = await runRules(
       context(snap, {
         config: resolveConfig(
@@ -275,24 +292,29 @@ describe("doctor rules", () => {
       }),
       only,
     );
+
     expect(serviceRole).toEqual([]);
   });
 
   describe("self-grant columns (BS213)", () => {
     const only = RULES.filter((rule) => rule.code === "BS213");
+
     type MutableTable = {
       -readonly [
         K in keyof Snapshot["extras"]["tables"][number]
       ]: Snapshot["extras"]["tables"][number][K];
     };
+
     const withTable = (
       name: string,
       change: (table: MutableTable) => void,
     ): Snapshot => {
       const snap = structuredClone(base);
       change(snap.extras.tables.find((t) => t.name === name) as MutableTable);
+
       return snap;
     };
+
     const updatePolicy = {
       name: "bs_memberships_update_own",
       command: "update" as const,
@@ -310,6 +332,7 @@ describe("doctor rules", () => {
           { role: "authenticated", privileges: ["SELECT", "UPDATE"] },
         ];
       });
+
       const findings = await runRules(context(snap), only);
       expect(findings).toHaveLength(1);
       expect(findings[0]).toMatchObject({
@@ -332,6 +355,7 @@ describe("doctor rules", () => {
     it("leaves out a single-column primary key and a column pinned to the request's tenant", async () => {
       const pinned =
         "org_id = ( SELECT better_supabase.current_tenant_id() AS current_tenant_id)";
+
       const snap = withTable("memberships", (memberships) => {
         memberships.primaryKey = ["user_id"];
         memberships.policies = [
@@ -342,6 +366,7 @@ describe("doctor rules", () => {
           { role: "authenticated", privileges: ["SELECT", "UPDATE"] },
         ];
       });
+
       const findings = await runRules(context(snap), only);
       expect(findings[0]?.message).toContain("authenticated may update role.");
       expect(findings[0]?.message).toContain(
@@ -352,6 +377,7 @@ describe("doctor rules", () => {
     it("keeps a tenant column that an or lets the caller write elsewhere", async () => {
       const loose =
         "org_id = ( SELECT better_supabase.current_tenant_id() AS current_tenant_id) or true";
+
       const snap = withTable("memberships", (memberships) => {
         memberships.policies = [
           ...memberships.policies,
@@ -361,6 +387,7 @@ describe("doctor rules", () => {
           { role: "authenticated", privileges: ["SELECT", "UPDATE"] },
         ];
       });
+
       const findings = await runRules(context(snap), only);
       expect(findings[0]?.message).toContain(
         "authenticated may update org_id, role, user_id",
@@ -374,12 +401,15 @@ describe("doctor rules", () => {
           { role: "authenticated", privileges: ["SELECT", "UPDATE"] },
         ];
       });
+
       const subjects = {
         membership: { table: "better_supabase.memberships", deletedAt: "role" },
       };
+
       const softDelete = {
         config: resolveConfig({ subjects }, "/project"),
       };
+
       const findings = await runRules(context(snap, softDelete), only);
       expect(findings[0]?.message).toContain(
         "authenticated may update org_id, user_id.",
@@ -396,6 +426,7 @@ describe("doctor rules", () => {
           "/project",
         ),
       };
+
       const kept = await runRules(context(snap, listed), only);
       expect(kept[0]?.message).toContain(
         "authenticated may update org_id, role, user_id",
@@ -414,6 +445,7 @@ describe("doctor rules", () => {
           },
         ];
       });
+
       const findings = await runRules(context(snap), only);
       expect(findings[0]?.message).toContain("authenticated may update role.");
       expect(findings[0]?.message).toContain(
@@ -428,6 +460,7 @@ describe("doctor rules", () => {
           { column: "role", role: "PUBLIC", privileges: ["UPDATE"] },
         ];
       });
+
       const findings = await runRules(context(snap), only);
       expect(findings[0]?.message).toContain("authenticated may update role.");
       expect(findings[0]?.message).toContain(
@@ -446,12 +479,15 @@ describe("doctor rules", () => {
           },
         ];
       });
+
       expect(await runRules(context(revoked), only)).toEqual([]);
+
       const noPolicy = withTable("memberships", (memberships) => {
         memberships.grants = [
           { role: "authenticated", privileges: ["SELECT", "UPDATE"] },
         ];
       });
+
       expect(await runRules(context(noPolicy), only)).toEqual([]);
     });
 
@@ -466,6 +502,7 @@ describe("doctor rules", () => {
           "/project",
         ),
       };
+
       const findings = await runRules(context(base, provider), only);
       expect(findings.map((finding) => finding.target)).toEqual([
         "public.contacts",
@@ -492,6 +529,7 @@ describe("doctor rules", () => {
           },
         ];
       });
+
       expect(await runRules(context(revoked, provider), only)).toEqual([]);
     });
   });
@@ -509,10 +547,12 @@ describe("doctor rules", () => {
         functions: [],
       });
     });
+
     const findings = await runRules(
       context(snap),
       RULES.filter((rule) => rule.code === "BS108"),
     );
+
     expect(findings).toMatchObject([
       {
         code: "BS108",
@@ -533,15 +573,18 @@ describe("doctor rules", () => {
         oneToOne: false,
         onUpdate: "no action",
       } as const;
+
       edit(table(tables, "notes").foreignKeys).push(
         { ...key, name: "notes_created_by_fkey", onDelete: "no action" },
         { ...key, name: "notes_updated_by_fkey", onDelete: "set null" },
       );
     });
+
     const findings = await runRules(
       context(snap),
       RULES.filter((rule) => rule.code === "BS406"),
     );
+
     expect(findings).toMatchObject([
       {
         code: "BS406",
@@ -568,11 +611,14 @@ describe("doctor rules", () => {
       cache_key: "rls_disabled_in_public_public_customers",
       ...overrides,
     });
+
     const requested: string[] = [];
+
     const advisors: AdvisorSource = {
       describe: "test",
       lints: (category) => {
         requested.push(category);
+
         return Promise.resolve(
           category === "security"
             ? [lint({})]
@@ -590,9 +636,11 @@ describe("doctor rules", () => {
         );
       },
     };
+
     const advisorRules = RULES.filter((rule) =>
       ["BS100", "BS200"].includes(rule.code),
     );
+
     const findings = await runRules(context(base, { advisors }), advisorRules);
     expect(requested).toEqual(["security", "performance"]);
     expect(findings).toEqual([
@@ -617,10 +665,12 @@ describe("doctor rules", () => {
       context(base, { advisors: { skipped: "offline" } }),
       advisorRules,
     );
+
     expect(skipped.map((finding) => finding.severity)).toEqual([
       "info",
       "info",
     ]);
+
     const failing = await runRules(
       context(base, {
         advisors: {
@@ -630,6 +680,7 @@ describe("doctor rules", () => {
       }),
       advisorRules,
     );
+
     expect(failing[0]).toMatchObject({
       severity: "warning",
       message: expect.stringContaining("boom"),
@@ -643,6 +694,7 @@ describe("doctor rules", () => {
         (index) => index.columns[0] !== "organization_id",
       );
     });
+
     // Without the index, the foreign key to organizations has none either.
     expect(await codes(context(snap))).toEqual(["BS204", "BS216"]);
   });
@@ -652,6 +704,7 @@ describe("doctor rules", () => {
       ...base,
       extras: { ...base.extras, roleSettings: { authenticator: settings } },
     });
+
     const sources = [
       { path: "src/a.ts", text: "db.customers.findMany()\n" },
       {
@@ -659,10 +712,12 @@ describe("doctor rules", () => {
         text: "const x = 1;\nawait db.orders.aggregate({ _count: true });\n",
       },
     ];
+
     const off = await runRules(
       context(withSettings({}), { sources }),
       RULES.filter((rule) => rule.code === "BS210"),
     );
+
     expect(off).toMatchObject([
       {
         code: "BS210",
@@ -670,9 +725,11 @@ describe("doctor rules", () => {
         message: expect.stringContaining("pgrst.db_aggregates_enabled"),
       },
     ]);
+
     const include = [
       { path: "src/c.tsx", text: "include: { _sum: { invoices: {} } }" },
     ];
+
     expect(
       await codes(context(withSettings({}), { sources: include }), "BS210"),
     ).toEqual(["BS210"]);
@@ -697,6 +754,7 @@ describe("doctor rules", () => {
       settings: {},
       ...overrides,
     });
+
     const withFunctions = (
       snap: Snapshot,
       functions: ExtrasFunction[],
@@ -709,6 +767,7 @@ describe("doctor rules", () => {
         ...(roleSettings ? { roleSettings } : {}),
       },
     });
+
     const memberPolicy = (name: string, using: string) => ({
       name,
       command: "select" as const,
@@ -728,10 +787,12 @@ describe("doctor rules", () => {
           ),
         ];
       });
+
       const findings = await runRules(
         context(withFunctions(snap, [helper({})])),
         RULES.filter((rule) => rule.code === "BS205"),
       );
+
       expect(findings).toMatchObject([
         {
           code: "BS205",
@@ -741,10 +802,12 @@ describe("doctor rules", () => {
           object: { kind: "policy", name: "customers_member" },
         },
       ]);
+
       // Inlinable SQL helpers, and calls without a column, are fine.
       const sql = withFunctions(snap, [
         helper({ language: "sql", securityDefiner: false }),
       ]);
+
       expect(await codes(context(sql), "BS205")).toEqual([]);
       // Postgres never inlines security definer functions or ones with `set`.
       const definer = withFunctions(snap, [helper({ language: "sql" })]);
@@ -760,6 +823,7 @@ describe("doctor rules", () => {
           ),
         },
       ]);
+
       const pinned = withFunctions(snap, [
         helper({
           language: "sql",
@@ -767,6 +831,7 @@ describe("doctor rules", () => {
           settings: { search_path: '""' },
         }),
       ]);
+
       expect(
         await runRules(
           context(pinned),
@@ -777,6 +842,7 @@ describe("doctor rules", () => {
           message: expect.stringContaining("a function with `set search_path`"),
         },
       ]);
+
       const constant = snapshot((tables) => {
         table(tables, "customers").policies = [
           memberPolicy(
@@ -785,6 +851,7 @@ describe("doctor rules", () => {
           ),
         ];
       });
+
       expect(
         await codes(context(withFunctions(constant, [helper({})])), "BS205"),
       ).toEqual([]);
@@ -792,6 +859,7 @@ describe("doctor rules", () => {
 
     it("flags security definer helpers used in many policies (BS206)", async () => {
       const names = ["customers", "notes", "tags", "contacts", "locations"];
+
       const snap = snapshot((tables) => {
         for (const name of names) {
           table(tables, name).policies = [
@@ -799,23 +867,29 @@ describe("doctor rules", () => {
           ];
         }
       });
+
       const five = withFunctions(snap, [helper({})]);
       expect(await codes(context(five), "BS206")).toEqual([]);
+
       const tight = context(five, {
         config: resolveConfig({ doctor: { policyHelperLimit: 4 } }, "/p"),
       });
+
       const [finding] = await runRules(
         tight,
         RULES.filter((rule) => rule.code === "BS206"),
       );
+
       expect(finding).toMatchObject({
         target: "private.is_member",
         message: expect.stringContaining("used in 5 policies"),
         object: { kind: "function", schema: "private", name: "is_member" },
       });
+
       const invoker = withFunctions(snap, [
         helper({ language: "sql", securityDefiner: false }),
       ]);
+
       expect(
         await codes(context(invoker, { config: tight.config }), "BS206"),
       ).toEqual([]);
@@ -832,10 +906,12 @@ describe("doctor rules", () => {
           check: null,
         });
       });
+
       const findings = await runRules(
         context(snap),
         RULES.filter((rule) => rule.code === "BS207"),
       );
+
       expect(findings).toMatchObject([
         {
           target: "public.notes",
@@ -844,6 +920,7 @@ describe("doctor rules", () => {
           ),
         },
       ]);
+
       const lint = {
         name: "multiple_permissive_policies",
         title: "Multiple Permissive Policies",
@@ -856,13 +933,16 @@ describe("doctor rules", () => {
         metadata: { schema: "public", name: "notes", type: "table" },
         cache_key: "multiple_permissive_policies_public_notes",
       } satisfies Lint;
+
       const advisors: AdvisorSource = {
         describe: "test",
         lints: () => Promise.resolve([lint]),
       };
+
       const both = RULES.filter((rule) =>
         ["BS200", "BS207"].includes(rule.code),
       );
+
       expect(await codes(context(snap, { advisors }), undefined)).not.toContain(
         "BS207",
       );
@@ -875,11 +955,13 @@ describe("doctor rules", () => {
       expect(await codes(context(snap, { advisors }), "BS207")).toEqual([
         "BS207",
       ]);
+
       // An advisor that fails leaves the finding to BS207.
       const failing: AdvisorSource = {
         describe: "test",
         lints: () => Promise.reject(new Error("offline")),
       };
+
       expect(
         (await runRules(context(snap, { advisors: failing }), both)).map(
           (finding) => finding.code,
@@ -898,13 +980,16 @@ describe("doctor rules", () => {
 
     it("asks the advisor source once per category", async () => {
       let calls = 0;
+
       const advisors: AdvisorSource = {
         describe: "test",
         lints: () => {
           calls += 1;
+
           return Promise.resolve([]);
         },
       };
+
       await runRules(
         context(
           snapshot(() => {}),
@@ -924,6 +1009,7 @@ describe("doctor rules", () => {
           "pgrst.db_hoisted_tx_settings": "default_transaction_isolation",
         },
       };
+
       const slow = helper({
         schema: "public",
         name: "report",
@@ -931,10 +1017,12 @@ describe("doctor rules", () => {
         language: "sql",
         settings: { statement_timeout: "60s" },
       });
+
       const findings = await runRules(
         context(withFunctions(base, [slow], roles)),
         RULES.filter((rule) => rule.code === "BS211"),
       );
+
       expect(findings).toMatchObject([
         {
           severity: "info",
@@ -947,10 +1035,12 @@ describe("doctor rules", () => {
           object: { kind: "function", name: "report" },
         },
       ]);
+
       const hoisted = {
         ...roles,
         authenticator: { statement_timeout: "8s" },
       };
+
       expect(
         await codes(context(withFunctions(base, [slow], hoisted)), "BS211"),
       ).toEqual(["BS211"]);
@@ -979,6 +1069,7 @@ describe("doctor rules", () => {
           ],
         ],
       ];
+
       const database: LiveDatabase = {
         describe: "test",
         session: true,
@@ -987,9 +1078,11 @@ describe("doctor rules", () => {
             (answers.find(([pattern]) => pattern.test(sql))?.[1] ?? []) as R[],
           ),
       };
+
       const live = RULES.filter((rule) =>
         ["BS208", "BS209"].includes(rule.code),
       );
+
       const withoutStats = await runRules(context(base, { database }), live);
       expect(withoutStats).toMatchObject([
         {
@@ -999,10 +1092,12 @@ describe("doctor rules", () => {
           ),
         },
       ]);
+
       const withStats = await runRules(
         context(base, { database, stats: true }),
         live,
       );
+
       expect(withStats[1]).toMatchObject({
         code: "BS209",
         message: expect.stringContaining("81.3 ms mean over 5000 calls"),
@@ -1041,6 +1136,7 @@ describe("doctor rules", () => {
           ],
         },
       });
+
       expect(summary).toEqual({
         nodes: [
           "Seq Scan on notes 4.10 ms ×1",
@@ -1056,11 +1152,13 @@ describe("doctor rules", () => {
     it("needs a direct connection for --explain (BS212)", async () => {
       const explain = { tables: ["customers"], claims: { role: "anon" } };
       const rule = RULES.filter((entry) => entry.code === "BS212");
+
       const database: LiveDatabase = {
         describe: "management",
         session: false,
         query: () => Promise.resolve([]),
       };
+
       expect(
         await runRules(context(base, { database, explain }), rule),
       ).toMatchObject([
@@ -1078,6 +1176,7 @@ describe("doctor rules", () => {
 enabled = true
 uri = "pg-functions://postgres/rbac/custom_access_token_hook"
 `;
+
     const hookFn = (
       overrides: Partial<ExtrasHookFunction> = {},
     ): ExtrasHookFunction => ({
@@ -1093,6 +1192,7 @@ uri = "pg-functions://postgres/rbac/custom_access_token_hook"
       schemaUsage: ["supabase_auth_admin"],
       ...overrides,
     });
+
     const withHook = (functions: ExtrasHookFunction[]): Snapshot => ({
       ...base,
       extras: {
@@ -1107,11 +1207,13 @@ uri = "pg-functions://postgres/rbac/custom_access_token_hook"
         ],
       },
     });
+
     const hookContext = (
       snap: Snapshot,
       extra: Partial<DoctorContext> = {},
     ): DoctorContext =>
       context(snap, { configToml: toml(HOOK_TOML), ...extra });
+
     const only = (code: string) => RULES.filter((rule) => rule.code === code);
 
     it("parses pg-functions hooks from config.toml", () => {
@@ -1172,6 +1274,7 @@ uri = "https://example.com/hook"
         ),
         only("BS404"),
       );
+
       expect(findings).toHaveLength(1);
       expect(findings[0]).toMatchObject({
         code: "BS404",
@@ -1191,32 +1294,39 @@ uri = "https://example.com/hook"
 
     it("points the provider's hook at its grants command, and an applied-later migration at migration up (BS404)", async () => {
       const ungranted = withHook([hookFn({ execute: [], schemaUsage: [] })]);
+
       const hookFile = {
         path: "supabase/schemas/040_hook.sql",
         text: "-- authz: access token hook\ncreate or replace function rbac.custom_access_token_hook(event jsonb)",
       };
+
       const [provider] = await runRules(
         hookContext(ungranted, { ...AUTHZ, sqlFiles: [hookFile] }),
         only("BS404"),
       );
+
       expect(provider?.message).toContain(
         "It is the hook of the authorization provider (stub), so let the provider write the grants: `authz hook grants`.",
       );
       expect(provider?.message).not.toContain("grant usage");
+
       const [plain] = await runRules(
         hookContext(ungranted, { sqlFiles: [hookFile] }),
         only("BS404"),
       );
+
       expect(plain?.message).toContain("grant usage");
 
       const grantsFile = {
         path: "supabase/migrations/20261001000001_hook_grants.sql",
         text: "-- authz: hook grants\ngrant execute on function rbac.custom_access_token_hook(jsonb) to supabase_auth_admin;",
       };
+
       const [migration] = await runRules(
         hookContext(ungranted, { ...AUTHZ, sqlFiles: [hookFile, grantsFile] }),
         only("BS404"),
       );
+
       expect(migration?.message).toContain(
         `${grantsFile.path} grants it, so the database is behind the migrations`,
       );
@@ -1226,19 +1336,24 @@ uri = "https://example.com/hook"
       const PGDELTA = toml(
         `${HOOK_TOML}\n[experimental.pgdelta]\nenabled = true\n`,
       );
+
       const ungranted = withHook([hookFn({ execute: [], schemaUsage: [] })]);
+
       const hookFile = {
         path: "supabase/schemas/040_hook.sql",
         text: "create or replace function rbac.custom_access_token_hook(event jsonb)",
       };
+
       const grantedHookFile = {
         ...hookFile,
         text: `${hookFile.text} returns jsonb language plpgsql as $$ begin return event; end $$;\ngrant usage on schema rbac to supabase_auth_admin;\ngrant execute on function rbac.custom_access_token_hook(jsonb) to supabase_auth_admin;`,
       };
+
       const grantsMigration = {
         path: "supabase/migrations/20261001000001_hook_grants.sql",
         text: "-- authz: hook grants\ngrant execute on function rbac.custom_access_token_hook(jsonb) to supabase_auth_admin;",
       };
+
       const message = async (
         sqlFiles: NonNullable<DoctorContext["sqlFiles"]>,
         configToml?: SupabaseToml,
@@ -1288,6 +1403,7 @@ uri = "https://example.com/hook"
             ),
             "pg-delta",
           );
+
         expect(
           block(
             [
@@ -1324,6 +1440,7 @@ uri = "https://example.com/hook"
       const ungranted = withHook([
         hookFn({ execute: ["anon"], schemaUsage: [] }),
       ]);
+
       const [finding] = await runRules(
         hookContext(ungranted, {
           configToml: toml(
@@ -1332,6 +1449,7 @@ uri = "https://example.com/hook"
         }),
         only("BS404"),
       );
+
       expect(finding?.message).toContain(
         "Add to the schema file that defines the function, then run `supabase db schema declarative sync`",
       );
@@ -1355,6 +1473,7 @@ uri = "https://example.com/hook"
       const problems = hookGrantProblems(
         hookContext(withHook([hookFn({ execute: ["anon"], schemaUsage: [] })])),
       );
+
       expect(hookGrantBlock(problems, "migra")).toBe(
         [
           "-- Auth hook grants (better-supabase doctor --fix-grants).",
@@ -1396,6 +1515,7 @@ uri = "https://example.com/hook"
         ),
         only("BS405"),
       );
+
       expect(findings).toMatchObject([
         {
           code: "BS405",
@@ -1407,6 +1527,7 @@ uri = "https://example.com/hook"
 
     it("measures the claims the hook returns with --as (BS405)", async () => {
       const USER_ID = "11111111-1111-4111-8111-111111111111";
+
       const run = async (
         bytes: number | null,
         user = true,
@@ -1418,20 +1539,24 @@ uri = "https://example.com/hook"
         } = {},
       ) => {
         const queries: string[] = [];
+
         const database: LiveDatabase = {
           describe: "test",
           session: true,
           async query<R>(sql: string) {
             queries.push(sql);
+
             if (
               sql.includes("better_supabase.hook_event") &&
               sql.includes("auth.users")
             ) {
               return (user ? [{ event: "{}" }] : []) as R[];
             }
+
             if (sql.includes("pg_roles")) {
               return [{ member: true }] as R[];
             }
+
             if (sql.includes("octet_length")) {
               return [
                 {
@@ -1442,15 +1567,19 @@ uri = "https://example.com/hook"
                 },
               ] as R[];
             }
+
             return [] as R[];
           },
         };
+
         const findings = await runRules(
           hookContext(base, { database, hookUser: USER_ID, ...extra }),
           only("BS405"),
         );
+
         return { findings, queries };
       };
+
       const big = await run(4096);
       expect(big.findings).toMatchObject([
         {
@@ -1489,10 +1618,12 @@ uri = "https://example.com/hook"
           target: expect.stringMatching(/:claims$/),
         },
       ]);
+
       const custom = resolveConfig(
         { doctor: { claimsLimit: 512 } },
         "/project",
       );
+
       expect((await run(600, true, { config: custom })).findings).toMatchObject(
         [{ message: expect.stringContaining("limit 512") }],
       );
@@ -1528,6 +1659,7 @@ uri = "https://example.com/hook"
         source:
           "begin claims := jsonb_set(claims, '{memberships}', better_supabase.membership_claims(uid)); end",
       });
+
       expect(await codes(hookContext(withHook([moduleHook])), "BS407")).toEqual(
         [],
       );
@@ -1545,26 +1677,31 @@ uri = "https://example.com/hook"
     it("leaves registered claims and the provider's own hook alone (BS407)", async () => {
       const withProviderHook = (source: string) =>
         codes(hookContext(withHook([hookFn({ source })]), AUTHZ), "BS407");
+
       expect(
         await withProviderHook(
           "begin return jsonb_set(event, '{claims,features}', better_supabase.feature_claims(uid)); end",
         ),
       ).toEqual([]);
+
       const generated = hookFn({
         name: "access_token_hook",
         schema: "authz",
         source:
           "begin claims := jsonb_set(claims, '{memberships}', held); claims := jsonb_set(claims, '{tenant_id}', t); end",
       });
+
       expect(
         await runRules(
           hookContext(withHook([generated]), AUTHZ),
           only("BS407"),
         ),
       ).toEqual([]);
+
       const marked = hookFn({
         source: "begin claims := jsonb_set(claims, '{memberships}', held); end",
       });
+
       expect(
         await runRules(
           hookContext(withHook([marked]), {
@@ -1587,6 +1724,7 @@ uri = "https://example.com/hook"
           hookContext(withHook([hookFn({ source })]), { ...AUTHZ, ...extra }),
           only("BS407"),
         );
+
       expect(
         await findings(
           "begin claims := claims || jsonb_build_object('memberships', m, 'tenant_id', t); end",
@@ -1621,6 +1759,7 @@ uri = "https://example.com/hook"
   describe("shared roles table (BS324)", () => {
     const only = RULES.filter((rule) => rule.code === "BS324");
     const through = { table: "public.roles", id: "id", column: "key" };
+
     const run = (tenantWhere?: string, platformWhere?: string) =>
       runRules(
         context(base, {
@@ -1692,6 +1831,7 @@ uri = "https://example.com/hook"
         check: null,
       });
     });
+
     const ctx = context(snap, {
       config: resolveConfig(
         {
@@ -1707,10 +1847,12 @@ uri = "https://example.com/hook"
         "/project",
       ),
     });
+
     const findings = await runRules(
       ctx,
       RULES.filter((rule) => ["BS301", "BS302"].includes(rule.code)),
     );
+
     // customer-logos differs in public, size limit and MIME types; avatars is missing.
     expect(findings.map((finding) => finding.code)).toEqual([
       "BS301",
@@ -1728,10 +1870,12 @@ uri = "https://example.com/hook"
     const configToml = toml(
       "[api]\nport = 1\n\n[auth]\njwt_expiry = 7200\nenable_refresh_token_rotation = true\nrefresh_token_reuse_interval = 0\n\n[db]\nport = 2\n",
     );
+
     const findings = await runRules(
       context(base, { configToml }),
       RULES.filter((rule) => rule.code.startsWith("BS4")),
     );
+
     expect(
       findings.map((finding) => [finding.code, finding.location?.line]),
     ).toEqual([
@@ -1739,9 +1883,11 @@ uri = "https://example.com/hook"
       ["BS402", 5],
       ["BS403", 4],
     ]);
+
     const fine = toml(
       '[auth]\nsigning_keys_path = "./signing_keys.json"\nrefresh_token_reuse_interval = 10\n',
     );
+
     expect(await codes(context(base, { configToml: fine }))).toEqual([]);
   });
 
@@ -1763,10 +1909,12 @@ uri = "https://example.com/hook"
         '[storage]\nenabled = true\n\n[storage.buckets.customer-logos]\npublic = true\nfile_size_limit = "1MiB"\nallowed_mime_types = ["image/webp"] # logos\n',
       ),
     });
+
     const findings = await runRules(
       ctx,
       RULES.filter((rule) => rule.code === "BS302"),
     );
+
     expect(
       findings
         .filter(
@@ -1808,10 +1956,12 @@ uri = "https://example.com/hook"
       { path: ".env", text: "SUPABASE_DB_URL=postgresql://u:p@h/db\n" },
       { path: "apps/web/.env.example", text: "SUPABASE_SECRET_KEY=\n" },
     ];
+
     const findings = await runRules(
       context(base, { envFiles, gitignore: "# env\n.env*.local\n" }),
       RULES.filter((rule) => rule.code.startsWith("BS5")),
     );
+
     expect(
       findings.map((finding) => [
         finding.code,
@@ -1845,6 +1995,7 @@ describe("doctor formats", () => {
       help: "https://bettersupabase.com/docs/cli/doctor#bs403",
     },
   ];
+
   const options = {
     rules: RULES,
     version: "1.0.0",
@@ -1861,6 +2012,7 @@ describe("doctor formats", () => {
         results: Record<string, unknown>[];
       }[];
     };
+
     expect(sarif.version).toBe("2.1.0");
     const [runEntry] = sarif.runs;
     expect(runEntry!.tool.driver.rules.map((rule) => rule.id)).toEqual(
@@ -1898,13 +2050,16 @@ describe("doctor formats", () => {
       ...options,
       format: "github",
     }).split("\n");
+
     expect(github[0]).toBe(
       "::error file=supabase/schemas/x.sql,line=3,title=BS103 Policy allows anonymous writes::public.x has RLS disabled, really: 100%25 (https://bettersupabase.com/docs/cli/doctor#bs103)",
     );
     expect(github[1]).toMatch(/^::notice title=BS403/);
+
     const json = JSON.parse(
       formatReport(findings, { ...options, format: "json" }),
     ) as Record<string, unknown>;
+
     expect(json).toMatchObject({
       $schema:
         "https://unpkg.com/better-supabase/schemas/doctor-report-v1.json",
@@ -1920,6 +2075,7 @@ describe("doctor formats", () => {
       ...options,
       format: "text",
     }).split("\n");
+
     expect(lines[0]).toMatch(/^error\s+BS103 /);
     expect(lines[3]).toMatch(/^info\s+BS403 /);
   });
@@ -1956,6 +2112,7 @@ describe("doctor command", () => {
         (index) => index.columns[0] !== "organization_id",
       );
     });
+
     await write("snapshot.json", JSON.stringify(snap));
     await write(
       "supabase/migrations/001_init.sql",
@@ -1981,10 +2138,13 @@ describe("doctor command", () => {
       "--cwd",
       dir,
     ]);
+
     expect(result.code).toBe(1);
+
     const report = JSON.parse(result.stdout) as {
       findings: { code: string; location?: unknown }[];
     };
+
     expect(
       report.findings.find((finding) => finding.code === "BS103")?.location,
     ).toEqual({
@@ -2001,6 +2161,7 @@ describe("doctor command", () => {
       "--cwd",
       dir,
     ]);
+
     expect(warnings.code).toBe(0);
     expect(warnings.stdout).toContain("BS204");
     expect(
@@ -2055,6 +2216,7 @@ describe("doctor command", () => {
       "--cwd",
       dir,
     ]);
+
     expect(sarif.stdout).toContain("Wrote doctor.sarif: 1 errors");
     expect(
       JSON.parse(await readFile(join(dir, "doctor.sarif"), "utf-8")),
@@ -2072,6 +2234,7 @@ describe("doctor command", () => {
         check: "true",
       });
     });
+
     await mkdir(join(dir, ".git"));
     await write("packages/db/snapshot.json", JSON.stringify(snap));
     await write("supabase/config.toml", "[db]\nport = 54322\n");
@@ -2109,6 +2272,7 @@ describe("doctor command", () => {
         text: '\ncreate policy "Tenant read" on public.x',
       },
     ];
+
     expect(
       locate(files, { kind: "function", schema: "public", name: "do_it" }),
     ).toEqual({ file: "supabase/schemas/a.sql", line: 1 });
@@ -2127,6 +2291,7 @@ describe("doctor command", () => {
         text: 'create policy "read own" on public.notes\nfor select;\ncreate policy "read own"\n  on only "public"."tags" for select;',
       },
     ];
+
     const policy = (table: string) =>
       locate(files, {
         kind: "policy",
@@ -2134,6 +2299,7 @@ describe("doctor command", () => {
         name: "read own",
         table,
       });
+
     expect(policy("notes")).toEqual({
       file: "supabase/schemas/policies.sql",
       line: 1,
@@ -2153,9 +2319,11 @@ describe("doctor command", () => {
       ),
       "utf-8",
     );
+
     for (const code of RULE_CODES) {
       expect(docs).toContain(`### ${code}`);
     }
+
     const schema = JSON.parse(
       await readFile(
         new URL(
@@ -2168,6 +2336,7 @@ describe("doctor command", () => {
         findings: { items: { properties: { code: { enum: string[] } } } };
       };
     };
+
     expect(schema.properties.findings.items.properties.code.enum).toEqual(
       RULE_CODES,
     );

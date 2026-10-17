@@ -72,11 +72,13 @@ export function createDataExporter(options: DataExporterOptions): DataExporter {
   const call = blockCall(options.transport, options.schema);
   const pageSize = options.pageSize ?? 1000;
   const concurrency = options.concurrency ?? 4;
+
   if (!Number.isInteger(concurrency) || concurrency < 1) {
     throw new TypeError(
       "createDataExporter: concurrency must be a whole number above zero",
     );
   }
+
   const prefix = `${options.typePrefix ?? "dev.better-supabase"}.`;
 
   const write = async (
@@ -86,21 +88,27 @@ export function createDataExporter(options: DataExporterOptions): DataExporter {
   ): Promise<Result<readonly string[]>> => {
     const bucket = options.storage.from(claimed.bucket);
     const csv = options.format === "csv";
+
     const exportTable = async (table: string): Promise<Result<string>> => {
       const lines: string[] = [];
       const records: Record<string, unknown>[] = [];
       let after: string | undefined;
+
       do {
         signal?.throwIfAborted();
+
         const page = await call(
           "data_export_rows",
           { id: claimed.id, table_name: table, after, page_size: pageSize },
           (value) => recordOf(value, "data_export_rows"),
         );
+
         if (!page.ok) {
           return page;
         }
+
         const rows = Array.isArray(page.data["rows"]) ? page.data["rows"] : [];
+
         for (const row of rows) {
           if (csv) {
             records.push(isRecord(row) ? row : { value: row });
@@ -108,10 +116,13 @@ export function createDataExporter(options: DataExporterOptions): DataExporter {
             lines.push(JSON.stringify(row));
           }
         }
+
         after = optionalText(page.data["after"]);
       } while (after !== undefined);
+
       const path = `${claimed.id}/${table}.${csv ? "csv" : "ndjson"}`;
       const contentType = csv ? "text/csv" : "application/x-ndjson";
+
       const body = new Blob(
         csv
           ? records.length === 0
@@ -122,36 +133,46 @@ export function createDataExporter(options: DataExporterOptions): DataExporter {
             : [`${lines.join("\n")}\n`],
         { type: contentType },
       );
+
       const uploaded = await stored(
         bucket.upload(path, body, { contentType, upsert: true }),
       );
+
       return uploaded.ok ? ok(path) : uploaded;
     };
+
     const files: string[] = [];
     let failed: Result<readonly string[]> | undefined;
     let next = 0;
     let stopped = false;
+
     const worker = async (): Promise<void> => {
       while (!stopped && failed === undefined && next < tables.length) {
         const index = next;
         next += 1;
         let written: Result<string>;
+
         try {
           written = await exportTable(tables[index]!);
         } catch (cause) {
           stopped = true;
           throw cause;
         }
+
         if (!written.ok) {
           failed ??= written;
+
           return;
         }
+
         files[index] = written.data;
       }
     };
+
     await Promise.all(
       Array.from({ length: Math.min(concurrency, tables.length) }, worker),
     );
+
     return failed ?? ok(files);
   };
 
@@ -168,8 +189,10 @@ export function createDataExporter(options: DataExporterOptions): DataExporter {
             }),
           );
         }
+
         const claimed = exportOf(value);
         let written: Result<readonly string[]>;
+
         try {
           written = await write(claimed, stringsOf(value["tables"]), signal);
         } catch (cause) {
@@ -179,14 +202,17 @@ export function createDataExporter(options: DataExporterOptions): DataExporter {
             }),
           );
         }
+
         if (!written.ok) {
           await call(
             "fail_data_export",
             { id: claimed.id, error: written.error.message },
             () => undefined,
           );
+
           return written;
         }
+
         return call(
           "complete_data_export",
           { id: claimed.id, files: written.data },
@@ -197,9 +223,11 @@ export function createDataExporter(options: DataExporterOptions): DataExporter {
 
   const settle = async (ran: AsyncResult<DataExport>): Promise<void> => {
     const result = await ran;
+
     if (result.ok || result.error.hint === "DATA_EXPORT_NOT_FOUND") {
       return;
     }
+
     await ran.orThrow();
   };
 
@@ -214,10 +242,13 @@ export function createDataExporter(options: DataExporterOptions): DataExporter {
           const type = event.type.startsWith(prefix)
             ? event.type.slice(prefix.length)
             : event.type;
+
           if (type !== "data_export.requested" || !isRecord(event.data)) {
             continue;
           }
+
           const id = optionalText(event.data["exportId"]);
+
           if (id !== undefined) {
             await settle(run(id));
           }

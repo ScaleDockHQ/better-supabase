@@ -26,15 +26,18 @@ const GRANTED = {
 
 function transport(results: Record<string, (args: unknown) => unknown>) {
   const calls: [string, unknown][] = [];
+
   return {
     calls,
     call(schema: string, fn: string, args: unknown) {
       expect(schema).toBe("app");
       calls.push([fn, args]);
       const result = results[fn];
+
       if (!result) {
         return Promise.reject(new Error(`unexpected ${fn}`));
       }
+
       return Promise.resolve(result(args));
     },
   };
@@ -59,7 +62,9 @@ describe("access requests client", () => {
       ],
       end_access: () => ({ ...GRANTED, status: "ended" }),
     });
+
     const access = createAccessRequests({ transport: fake, schema: "app" });
+
     const requested = await access
       .request({
         organizationId: "o",
@@ -68,6 +73,7 @@ describe("access requests client", () => {
         duration: temporal().Duration.from({ hours: 2 }),
       })
       .orThrow();
+
     expect(requested).toMatchObject({
       status: "pending",
       approvalId: "a1",
@@ -89,6 +95,7 @@ describe("access requests client", () => {
         before: temporal().Instant.from("2026-10-02T00:00:00Z"),
       })
       .orThrow();
+
     expect(listed[1]).not.toHaveProperty("reason");
     expect(listed[1]).not.toHaveProperty("duration");
     expect(listed[1]!.endedAt?.toString()).toBe("2026-09-01T01:00:00Z");
@@ -129,6 +136,7 @@ describe("access requests client", () => {
     const fake = transport({
       request_access: () => ({ ...PENDING, status: "lost" }),
     });
+
     const access = createAccessRequests({ transport: fake, schema: "app" });
     const result = await access.request({ organizationId: "o", role: "admin" });
     expect(result.ok).toBe(false);

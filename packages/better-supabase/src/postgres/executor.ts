@@ -57,28 +57,37 @@ export function fromPgError(error: unknown): RawDbError | undefined {
   if (!isPgError(error)) {
     return undefined;
   }
+
   const raw: { -readonly [K in keyof RawDbError]: RawDbError[K] } = {};
+
   if (error.code !== undefined) {
     raw.code = error.code;
   }
+
   if (error.message !== undefined) {
     raw.message = error.message;
   }
+
   if (error.detail !== undefined) {
     raw.details = error.detail;
   }
+
   if (error.hint !== undefined) {
     raw.hint = error.hint;
   }
+
   if (error.constraint !== undefined) {
     raw.constraint = error.constraint;
   }
+
   if (error.column !== undefined) {
     raw.column = error.column;
   }
+
   if (error.table !== undefined) {
     raw.table = error.table;
   }
+
   return raw;
 }
 
@@ -95,20 +104,25 @@ async function run(
         )
       ).map((entry) => entry.row)
     : [];
+
   let count: number | null = null;
+
   if (plan.count) {
     const [first] = await client.queryRaw<{ count: number }>(plan.count.text, [
       ...plan.count.params,
     ]);
+
     count = first?.count ?? 0;
   } else if (op.kind !== "select") {
     count = rows.length;
   }
+
   for (const next of plan.chunks ?? []) {
     const more = await run(client, next, op);
     rows.push(...more.rows);
     count = (count ?? 0) + (more.count ?? 0);
   }
+
   return { rows, count };
 }
 
@@ -124,6 +138,7 @@ async function run(
  */
 export function postgresExecutor(client: SqlClient): Executor {
   const signatures: SignatureCache = new Map();
+
   return {
     name: "postgres",
     functionSources: true,
@@ -134,22 +149,28 @@ export function postgresExecutor(client: SqlClient): Executor {
       if (!client.transaction) {
         return Promise.all(ops.map((op) => executeOn(client, op, context)));
       }
+
       try {
         return await client.transaction(async (scoped) => {
           const results: Result<ExecuteResult>[] = [];
+
           for (const op of ops) {
             const result = await executeOn(scoped, op, context);
+
             if (!result.ok) {
               throw new BatchFailed();
             }
+
             results.push(result);
           }
+
           return results;
         });
       } catch (cause) {
         if (!(cause instanceof BatchFailed)) {
           throw cause;
         }
+
         // A failed statement aborts the transaction; run each on its own so
         // every operation still gets its own result.
         return Promise.all(ops.map((op) => executeOn(client, op, context)));
@@ -166,22 +187,28 @@ async function executeOn(
   context: ExecuteContext,
 ): Promise<Result<ExecuteResult>> {
   let plan: SqlPlan;
+
   try {
     plan = compileSql(op);
   } catch (cause) {
     return err(toDbError(cause));
   }
+
   if (plan.never) {
     return ok({ rows: [], count: 0 });
   }
+
   if (context.signal?.aborted) {
     return err(dbError("aborted", "The request was aborted"));
   }
+
   // Rows and their count read one snapshot, and chunks commit together.
   const together =
     plan.chunks !== undefined ||
     (plan.rows !== undefined && plan.count !== undefined);
+
   let result: ExecuteResult;
+
   try {
     result =
       together && client.transaction
@@ -189,9 +216,11 @@ async function executeOn(
         : await run(client, plan, op);
   } catch (cause) {
     const raw = fromPgError(cause);
+
     const error = raw
       ? mapDbError(raw, context.errorMappers)
       : toDbError(cause);
+
     return err(
       withMaxAffected(
         error,
@@ -201,14 +230,17 @@ async function executeOn(
       ),
     );
   }
+
   if (op.kind === "select" && op.single) {
     if (result.rows.length > 1) {
       return err(dbError("multiple_rows", `Expected one ${op.table.key} row`));
     }
+
     if (result.rows.length === 0 && op.single === "one") {
       return err(dbError("not_found", `No ${op.table.key} row matched`));
     }
   }
+
   return ok(result);
 }
 
@@ -237,6 +269,7 @@ async function signatureOf(
   cache: SignatureCache,
 ): Promise<FunctionSignature | undefined> {
   const fn = context.function;
+
   if (fn) {
     return {
       returnsSet: fn.returnsSet,
@@ -249,15 +282,20 @@ async function signatureOf(
       outputOnly: NO_NAMES,
     };
   }
+
   const key = `${context.schema}.${name}`;
   const cached = cache.get(key);
+
   if (cached) {
     return cached;
   }
+
   const found = await lookUp(client, name, context.schema);
+
   if (found) {
     cache.set(key, found);
   }
+
   return found;
 }
 
@@ -276,33 +314,42 @@ async function lookUp(
     "select p.proretset as returns_set, p.prorettype = 'pg_catalog.void'::pg_catalog.regtype as returns_void, p.proargnames as arg_names, p.proargmodes::text[] as arg_modes, (select array_agg(t.typname::text order by a.ordinality) from unnest(p.proargtypes::oid[]) with ordinality as a(oid, ordinality) join pg_catalog.pg_type t on t.oid = a.oid) as arg_types from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace where n.nspname = $1 and p.proname = $2 limit 1",
     [schema, name],
   );
+
   if (!found) {
     return undefined;
   }
+
   const json = new Set<string>();
   const outputOnly = new Set<string>();
+
   if (found.arg_names && found.arg_types) {
     const modes = found.arg_modes;
+
     for (const [index, mode] of (modes ?? []).entries()) {
       const argName = found.arg_names[index];
+
       if ((mode === "o" || mode === "t") && argName) {
         outputOnly.add(argName);
       }
     }
+
     // Input parameters are modes i, v and b; no modes means all are inputs.
     const inputIndexes = modes
       ? modes.flatMap((mode, index) =>
           mode === "i" || mode === "v" || mode === "b" ? [index] : [],
         )
       : found.arg_names.map((_, index) => index);
+
     for (const [position, index] of inputIndexes.entries()) {
       const argName = found.arg_names[index];
       const type = found.arg_types[position];
+
       if (argName != null && type !== undefined && JSON_TYPES.has(type)) {
         json.add(argName);
       }
     }
   }
+
   return {
     returnsSet: found.returns_set,
     returnsVoid: found.returns_void,
@@ -315,18 +362,23 @@ function argValue(value: unknown, json: boolean): unknown {
   if (value === null) {
     return null;
   }
+
   if (json) {
     return JSON.stringify(value);
   }
+
   if (typeof value === "bigint") {
     return value.toString();
   }
+
   if (Array.isArray(value)) {
     return value.map((item) => argValue(item, false));
   }
+
   if (isPlainObject(value)) {
     return JSON.stringify(value);
   }
+
   if (
     typeof value === "object" &&
     !(value instanceof Date) &&
@@ -334,6 +386,7 @@ function argValue(value: unknown, json: boolean): unknown {
   ) {
     return String(value);
   }
+
   return value;
 }
 
@@ -347,8 +400,10 @@ async function callFunction(
   if (context.signal?.aborted) {
     return err(dbError("aborted", "The request was aborted"));
   }
+
   try {
     const signature = await signatureOf(client, name, context, cache);
+
     if (!signature) {
       return err(
         mapDbError(
@@ -360,31 +415,42 @@ async function callFunction(
         ),
       );
     }
+
     const params: unknown[] = [];
+
     const named = Object.entries(args)
       .filter(
         ([key, value]) => value !== undefined && !signature.outputOnly.has(key),
       )
       .map(([key, value]) => {
         params.push(argValue(value, signature.json.has(key)));
+
         return `${quoteIdent(key)} => $${String(params.length)}`;
       });
+
     const call = `${quoteIdent(context.schema)}.${quoteIdent(name)}(${named.join(", ")})`;
+
     if (signature.returnsVoid) {
       await client.queryRaw(`select ${call}`, params);
+
       return ok(null);
     }
+
     const rows = await client.queryRaw<{ value: unknown }>(
       `select to_json(bs_call) as value from ${call} as bs_call`,
       params,
     );
+
     const values = rows.map((row) => row.value);
+
     return ok(signature.returnsSet ? values : (values[0] ?? null));
   } catch (cause) {
     const raw = fromPgError(cause);
+
     if (raw?.code && CHANGED_FUNCTION.has(raw.code)) {
       cache.delete(`${context.schema}.${name}`);
     }
+
     return err(raw ? mapDbError(raw, context.errorMappers) : toDbError(cause));
   }
 }

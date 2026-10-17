@@ -75,10 +75,12 @@ const answer = {
 /** A model that calls tool `a` once, then answers. */
 function callingModel(): MockLanguageModelV4 {
   let calls = 0;
+
   return new MockLanguageModelV4({
     modelId: "openai/gpt-5",
     doGenerate: () => {
       calls += 1;
+
       return Promise.resolve(calls === 1 ? toolCall : answer);
     },
   });
@@ -100,6 +102,7 @@ function runtime(
   model: MockLanguageModelV4 = callingModel(),
 ) {
   const { tools, execute } = toolA();
+
   return {
     model,
     execute,
@@ -119,6 +122,7 @@ describe("agentRunContext", () => {
       userId: "u1",
       organizationId: "o2",
     });
+
     expect(context).toEqual({
       userId: "u1",
       organizationId: "o2",
@@ -158,6 +162,7 @@ describe("agentToolOperation", () => {
         meta: { risk: "high" as const, effects: ["external" as const] },
       },
     };
+
     expect(
       agentToolOperation("send_email", operations, {
         send_email: "email.send",
@@ -186,6 +191,7 @@ describe("agentToolOperation", () => {
       "invoices.void": { permission: "billing.manage" },
       "ai.tool.void": { permission: "ignored" },
     };
+
     expect(
       agentToolOperation("void", operations, {}, { void: "invoices.void" }),
     ).toEqual({ operation: "invoices.void", permission: "billing.manage" });
@@ -226,10 +232,13 @@ describe("createAgentRuntime authorizeModel", () => {
     expect(model.doGenerateCalls).toHaveLength(2);
 
     let calls = 0;
+
     const once = vi.fn(() => {
       calls += 1;
+
       return calls === 1;
     });
+
     const refused = runtime({ authorizeModel: once });
     await expect(refused.agent.generate({ prompt: "Hi" })).rejects.toThrow(
       "openai/gpt-5",
@@ -239,11 +248,13 @@ describe("createAgentRuntime authorizeModel", () => {
 
   it("reads a model given as a string id", async () => {
     const check = vi.fn(() => false);
+
     const run = createAgentRuntime({
       agent: agent(),
       model: () => "anthropic/claude-sonnet-4.5",
       authorizeModel: check,
     });
+
     await expect(run.generate({ prompt: "Hi" })).rejects.toBeInstanceOf(
       DbException,
     );
@@ -267,9 +278,11 @@ describe("createAgentRuntime gateway options", () => {
         options: { user: "model-said", order: ["anthropic"] },
       },
     });
+
     await run.generate({ prompt: "Hi" });
     expect(execute).toHaveBeenCalledOnce();
     expect(model.doGenerateCalls).toHaveLength(2);
+
     for (const call of model.doGenerateCalls) {
       expect(call.providerOptions?.["gateway"]).toEqual({
         order: ["anthropic"],
@@ -281,12 +294,14 @@ describe("createAgentRuntime gateway options", () => {
 
   it("sends no user without a caller", async () => {
     const model = callingModel();
+
     const run = createAgentRuntime({
       agent: agent(),
       model: () => model,
       tools: toolA().tools,
       gateway: {},
     });
+
     await run.generate({ prompt: "Hi" });
     expect(model.doGenerateCalls[0]?.providerOptions?.["gateway"]).toEqual({
       tags: ["org:o1", "feature:agent", "agent:a1"],
@@ -302,11 +317,13 @@ describe("createAgentRuntime run context", () => {
       prompt: "Hi",
       runtimeContext: { userId: "a1", actor: { kind: "user", id: "x" } },
     } as Parameters<typeof run.generate>[0]);
+
     const seen = (
       approve.mock.calls[0] as unknown as [
         { runtimeContext: Record<string, unknown> },
       ]
     )[0].runtimeContext;
+
     expect(seen).toMatchObject({
       userId: "u1",
       organizationId: "o2",
@@ -325,12 +342,15 @@ describe("createAgentRuntime results filter", () => {
       title: documentId,
       score: 1,
     });
+
     const search = vi.fn(() => AsyncResult.ok([hit("public"), hit("hidden")]));
     // SAFETY: the search tool calls only `search`.
     const knowledge = { search } as unknown as Knowledge;
+
     const results = vi.fn((hits: readonly KnowledgeHit[]) =>
       hits.filter((item) => item.documentId !== "hidden"),
     );
+
     const run = createAgentRuntime({
       agent: agent({ knowledgeScopes: [{ scope: "organization" }] }),
       model: () => callingModel(),
@@ -338,10 +358,12 @@ describe("createAgentRuntime results filter", () => {
       caller: { userId: "u1" },
       results,
     });
+
     const output = await run.tools["search_knowledge"]?.execute?.(
       { query: "q" },
       { toolCallId: "c1", messages: [], context: {} },
     );
+
     expect(output).toEqual({
       results: [{ id: "public#0", title: "public", content: "public" }],
     });
@@ -363,11 +385,13 @@ describe("createAgentRuntime tool operations", () => {
 
   it("checks the provider's permission over the tool's own", async () => {
     const authorizeTool = vi.fn(() => true);
+
     const { agent: run, execute } = runtime({
       operations,
       permissions: { a: "docs.write" },
       authorizeTool,
     });
+
     await run.generate({ prompt: "Hi" });
     expect(authorizeTool).toHaveBeenCalledWith(
       "docs.write_all",
@@ -403,10 +427,12 @@ describe("createAgentRuntime tool operations", () => {
 
   it("runs a public tool without a check", async () => {
     const authorizeTool = vi.fn(() => false);
+
     const { agent: run, execute } = runtime({
       permissions: { a: false },
       authorizeTool,
     });
+
     await run.generate({ prompt: "Hi" });
     expect(authorizeTool).not.toHaveBeenCalled();
     expect(execute).toHaveBeenCalledOnce();
@@ -420,6 +446,7 @@ describe("createAgentRuntime tool operations", () => {
       authorizeTool: () => true,
       toolApproval: () => "approved",
     });
+
     const result = await run.generate({ prompt: "Hi" });
     expect(result.content.map((part) => part.type)).toContain(
       "tool-approval-request",

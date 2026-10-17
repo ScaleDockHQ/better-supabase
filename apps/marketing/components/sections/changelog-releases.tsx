@@ -6,6 +6,7 @@ import { site } from "@/lib/site";
 /** The release timeline, read from the package changelog at build time. */
 export async function ChangelogReleases() {
   const releases = await loadChangelog();
+
   return releases.length === 0 ? (
     <div className="flex flex-col items-start gap-4 rounded-xl border border-border bg-card p-6">
       <p className="text-sm font-semibold">No releases yet</p>

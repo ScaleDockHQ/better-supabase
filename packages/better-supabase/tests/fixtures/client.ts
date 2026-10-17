@@ -24,12 +24,14 @@ export function capturingClient(respond: Responder = () => ({ body: [] })): {
   last: () => CapturedRequest;
 } {
   const requests: CapturedRequest[] = [];
+
   const fetch = async (
     input: RequestInfo | URL,
     init?: RequestInit,
   ): Promise<Response> => {
     const url = new URL(input instanceof Request ? input.url : String(input));
     const headers = new Headers(init?.headers);
+
     const request: CapturedRequest = {
       method: init?.method ?? "GET",
       path: url.pathname,
@@ -37,9 +39,11 @@ export function capturingClient(respond: Responder = () => ({ body: [] })): {
       headers,
       body: typeof init?.body === "string" ? JSON.parse(init.body) : undefined,
     };
+
     requests.push(request);
     const answer = respond(request);
     const status = answer.status ?? 200;
+
     return new Response(
       status === 204 ? null : JSON.stringify(answer.body ?? []),
       {
@@ -48,18 +52,22 @@ export function capturingClient(respond: Responder = () => ({ body: [] })): {
       },
     );
   };
+
   const client = createClient("http://localhost:54321", "sb_publishable_test", {
     global: { fetch },
     auth: { persistSession: false, autoRefreshToken: false },
   });
+
   return {
     client,
     requests,
     last: () => {
       const request = requests.at(-1);
+
       if (!request) {
         throw new Error("No request captured");
       }
+
       return request;
     },
   };

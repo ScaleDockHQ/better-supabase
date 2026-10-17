@@ -22,6 +22,7 @@ export interface TestQueueBackendOptions {
 
 function claimedJob(queue: string, row: QueueMessageRow): Job {
   const instant = temporal().Instant.fromEpochMilliseconds(0);
+
   return {
     id: Number(row.id),
     queue,
@@ -46,10 +47,13 @@ export function testQueueBackend(
   options: TestQueueBackendOptions,
 ): Promise<ConformanceReport> {
   const { queue } = options;
+
   const claimOne = async (): Promise<Job | undefined> => {
     const [row] = await backend.read(queue, 30, 1);
+
     return row && claimedJob(queue, row);
   };
+
   return conform(`QueueBackend "${backend.name}"`, [
     hasName(backend),
     [
@@ -124,6 +128,7 @@ export function testQueueBackend(
             same(dead.message?.payload, { n: 3 }),
             "listDead must return the newest dead letter first",
           );
+
           if (backend.retryDead) {
             expect(
               (await backend.retryDead(queue, [Number(dead.id)], 10)) === 1,

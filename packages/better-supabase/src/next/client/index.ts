@@ -44,18 +44,23 @@ export function useSessionChange(
   const nextRouter = useRouter();
   const used = router ?? nextRouter;
   const refresher = options.refreshToken;
+
   return useCallback(
     async (to?: string): Promise<void> => {
       if (refresher) {
         const { error } = await refresher.auth.refreshSession();
+
         if (error) {
           throw error;
         }
       }
+
       await changed();
+
       if (to !== undefined) {
         used.push(to);
       }
+
       used.refresh();
     },
     [changed, used, refresher],

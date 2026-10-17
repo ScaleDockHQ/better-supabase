@@ -27,10 +27,12 @@ function ownCart(
   options: { readonly lock?: boolean; readonly readers?: string } = {},
 ): string {
   const c = columns(ctx, "carts");
+
   const readers =
     options.readers === undefined
       ? ""
       : ` or ${ctx.scope.can("v_cart.tenant", options.readers)}`;
+
   return `select x.${c("tenant")} as tenant, x.${c("user")} as owner, x.${c("status")} as status,
     x.${c("currency")} as currency, x.${c("priceList")} as price_list, x.${c("shippingAddress")} as shipping_address
   into v_cart from ${ctx.table("carts")} x where x.${c("id")} = ${id}${options.lock ? " for update" : ""};
@@ -50,6 +52,7 @@ function sellable(ctx: ModuleContext, variant: string): string {
   const catalog = ctx.of("catalog");
   const v = columns(catalog, "variants");
   const p = columns(catalog, "products");
+
   return `if not exists (
     select 1 from ${catalog.table("variants")} cv join ${catalog.table("products")} cp on cp.${p("id")} = cv.${v("product")}
     where cv.${v("id")} = ${variant} and cv.${v("tenant")} = v_cart.tenant and cp.${p("status")} = 'active'
@@ -67,6 +70,7 @@ export function shippingRateFunctions(
   const s = columns(ctx, "shippingRates");
   const units = ctx.of("catalog").fn("currency_minor_units");
   const amount = (key: string): string => amountOf(`(data ->> '${key}')`);
+
   return `
 -- Creates or updates a shipping rate: a flat amount, plus an amount per
 -- started kilogram for weight rates, free from an order subtotal when
@@ -150,18 +154,23 @@ function totalsFunction(ctx: ModuleContext, names: OrdersNames): string {
   const c = columns(ctx, "carts");
   const cl = columns(ctx, "cartLines");
   const s = columns(ctx, "shippingRates");
+
   const kind = catalog.has("products", "kind")
     ? `cp.${p("kind")}`
     : "'physical'::text";
+
   const weight = catalog.has("variants", "weight")
     ? `cv.${v("weight")}`
     : "null::integer";
+
   const title = catalog.has("variants", "title")
     ? `concat_ws(' / ', cp.${p("title")}, nullif(cv.${v("title")}, ''))`
     : `cp.${p("title")}`;
+
   const promotions = ctx.installed("promotions")
     ? ctx.of("promotions").fn("cart_discounts")
     : undefined;
+
   const discounts =
     promotions === undefined
       ? ""
@@ -173,6 +182,7 @@ function totalsFunction(ctx: ModuleContext, names: OrdersNames): string {
     v_free := coalesce((v_promo ->> 'freeShipping')::boolean, false);
     v_problems := v_problems || coalesce(v_promo -> 'problems', '[]'::jsonb);
   end if;`;
+
   return `
 -- A cart's lines at today's catalog prices, its discounts, shipping and the
 -- problems that keep it from checkout. Refreshes each line's price
@@ -284,12 +294,15 @@ export function cartFunctions(ctx: ModuleContext, names: OrdersNames): string {
   const cl = columns(ctx, "cartLines");
   const s = columns(ctx, "shippingRates");
   const catalog = ctx.of("catalog");
+
   const moveCodes = ctx.installed("promotions")
     ? `
       perform ${ctx.of("promotions").fn("move_cart_codes")}(v_from.id, v_to);`
     : "";
+
   const lists =
     catalog.hasTable("priceLists") && catalog.has("prices", "priceList");
+
   const priceListCheck = lists
     ? `if create_cart.price_list is not null then
     if not (auth.role() = 'service_role' or ${ctx.scope.can("create_cart.tenant", names.manage)}) then
@@ -302,6 +315,7 @@ export function cartFunctions(ctx: ModuleContext, names: OrdersNames): string {
     : `if create_cart.price_list is not null then
     ${fail("ORDERS_PRICE_LIST_NOT_FOUND", "the catalog has no price lists", "P0002")}
   end if;`;
+
   return `${totalsFunction(ctx, names)}
 -- The caller's open cart in an organization and currency, created on first
 -- use. Every signed-in user can have one, anonymous sign-ins included;

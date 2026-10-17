@@ -45,16 +45,20 @@ const PLACEHOLDER = /\{(\.\.\.)?([A-Za-z_][A-Za-z0-9_]*)\}/g;
 function parseSegment(segment: string): Part[] {
   const parts: Part[] = [];
   let last = 0;
+
   for (const match of segment.matchAll(PLACEHOLDER)) {
     if (match.index > last) {
       parts.push({ kind: "literal", text: segment.slice(last, match.index) });
     }
+
     parts.push({ kind: match[1] ? "rest" : "param", name: match[2]! });
     last = match.index + match[0].length;
   }
+
   if (last < segment.length) {
     parts.push({ kind: "literal", text: segment.slice(last) });
   }
+
   return parts;
 }
 
@@ -70,10 +74,12 @@ export function parseTemplate(
   const segments = source.split(separator).map(parseSegment);
   const params: string[] = [];
   let rest: string | undefined;
+
   for (const [position, segment] of segments.entries()) {
     if (segment.length === 0) {
       throw new TypeError(`Template "${source}" has an empty segment`);
     }
+
     for (let index = 1; index < segment.length; index++) {
       if (
         segment[index]!.kind !== "literal" &&
@@ -82,29 +88,36 @@ export function parseTemplate(
         throw new TypeError(`Template "${source}" has adjacent placeholders`);
       }
     }
+
     for (const part of segment) {
       if (part.kind === "literal") {
         continue;
       }
+
       if (part.kind === "rest") {
         if (!options.rest) {
           throw new TypeError(
             `Template "${source}" uses {...${part.name}}, which is not supported here`,
           );
         }
+
         if (segment.length !== 1 || position !== segments.length - 1) {
           throw new TypeError(
             `Template "${source}": {...${part.name}} must be the whole last segment`,
           );
         }
+
         rest = part.name;
       }
+
       if (params.includes(part.name)) {
         throw new TypeError(`Template "${source}" repeats {${part.name}}`);
       }
+
       params.push(part.name);
     }
   }
+
   if (
     /[{}]/.test(
       segments
@@ -119,6 +132,7 @@ export function parseTemplate(
   const sep = escapeRegex(separator);
   const valueClass = `[^${separator === "/" ? "/" : sep}]+`;
   const restClass = `${valueClass}(?:${sep}${valueClass})*`;
+
   const regexFor = (withNames: boolean): string =>
     segments
       .map((segment) =>
@@ -127,12 +141,15 @@ export function parseTemplate(
             if (part.kind === "literal") {
               return escapeRegex(part.text);
             }
+
             const pattern = part.kind === "rest" ? restClass : valueClass;
+
             return withNames ? `(?<${part.name}>${pattern})` : pattern;
           })
           .join(""),
       )
       .join(sep);
+
   const matcher = new RegExp(`^${regexFor(true)}$`);
 
   const valueProblem = (name: string, value: string): string | undefined =>
@@ -141,19 +158,24 @@ export function parseTemplate(
       : value.includes(separator)
         ? `contains "${separator}"`
         : validate(name, value);
+
   const restProblem = (name: string, value: string): string | undefined => {
     if (value === "") {
       return "is empty";
     }
+
     for (const part of value.split(separator)) {
       const problem =
         part === "" ? "has an empty segment" : validate(name, part);
+
       if (problem) {
         return problem;
       }
     }
+
     return undefined;
   };
+
   const render = (name: string, raw: string | number | undefined): string => {
     if (
       raw === undefined ||
@@ -163,16 +185,21 @@ export function parseTemplate(
         dbError("invalid_input", `Missing value for {${name}}`),
       );
     }
+
     const value = String(raw);
+
     const problem =
       rest === name ? restProblem(name, value) : valueProblem(name, value);
+
     if (problem) {
       throw new DbException(
         dbError("invalid_input", `Value for {${name}} ${problem}`),
       );
     }
+
     return value;
   };
+
   const renderSegment = (
     segment: readonly Part[],
     values: Readonly<Record<string, string | number | undefined>>,
@@ -194,21 +221,28 @@ export function parseTemplate(
       segments.map((segment) => renderSegment(segment, values)).join(separator),
     match(value) {
       const found = matcher.exec(value);
+
       if (!found?.groups) {
         return found ? {} : null;
       }
+
       const out: Record<string, string> = {};
+
       for (const name of params) {
         const part = found.groups[name]!;
+
         if (rest === name ? restProblem(name, part) : validate(name, part)) {
           return null;
         }
+
         out[name] = part;
       }
+
       return out;
     },
     prefix(values, maxSegments = segments.length) {
       const out: string[] = [];
+
       for (const segment of segments.slice(0, maxSegments)) {
         if (
           segment.some(
@@ -218,8 +252,10 @@ export function parseTemplate(
         ) {
           break;
         }
+
         out.push(renderSegment(segment, values));
       }
+
       return out.join(separator);
     },
     segmentOf(name) {
@@ -229,6 +265,7 @@ export function parseTemplate(
           segment[0]!.kind === "param" &&
           segment[0]!.name === name,
       );
+
       return index === -1 ? undefined : index + 1;
     },
     sqlPattern: `^${regexFor(false)}$`,
@@ -255,11 +292,14 @@ export function slug(value: string): string {
 /** SQL for the JWT claim at a dotted path, or the first set one of several (`coalesce`). */
 export function claimSql(claim: string | readonly string[]): string {
   const paths = typeof claim === "string" ? [claim] : claim;
+
   const expressions = paths.map((path) => {
     const keys = path.split(".");
     const last = keys.pop()!;
+
     return `(select auth.jwt())${keys.map((key) => ` -> ${sqlString(key)}`).join("")} ->> ${sqlString(last)}`;
   });
+
   return expressions.length === 1
     ? expressions[0]!
     : `coalesce(${expressions.join(", ")})`;

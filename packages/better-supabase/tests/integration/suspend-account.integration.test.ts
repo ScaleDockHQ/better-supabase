@@ -8,9 +8,11 @@ import { stackDbUrl, stackUrl } from "./stack-env.ts";
 
 const url = stackUrl();
 const dbUrl = stackDbUrl();
+
 const publishableKey =
   process.env["SUPABASE_PUBLISHABLE_KEY"] ??
   "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";
+
 const secretKey =
   process.env["SUPABASE_SECRET_KEY"] ??
   "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -21,6 +23,7 @@ async function reachable(): Promise<boolean> {
       headers: { apikey: publishableKey },
       signal: AbortSignal.timeout(1000),
     });
+
     return response.ok;
   } catch {
     return false;
@@ -31,6 +34,7 @@ describe.skipIf(!(await reachable()))("suspendAccount", () => {
   const service = createClient(url, secretKey, {
     auth: { persistSession: false },
   });
+
   const postgres = createPostgres({ connectionString: dbUrl, max: 1 });
   const userIds: string[] = [];
 
@@ -38,28 +42,36 @@ describe.skipIf(!(await reachable()))("suspendAccount", () => {
     for (const id of userIds) {
       await service.auth.admin.deleteUser(id);
     }
+
     await postgres.end();
   });
 
   async function signedIn(): Promise<{ userId: string; token: string }> {
     const email = `suspend-${crypto.randomUUID()}@example.test`;
     const password = `pw-${crypto.randomUUID()}`;
+
     const { data, error } = await service.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
     });
+
     if (error) {
       throw error;
     }
+
     userIds.push(data.user.id);
+
     const client = createClient(url, publishableKey, {
       auth: { persistSession: false },
     });
+
     const signIn = await client.auth.signInWithPassword({ email, password });
+
     if (signIn.error) {
       throw signIn.error;
     }
+
     return { userId: data.user.id, token: signIn.data.session.access_token };
   }
 

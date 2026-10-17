@@ -37,10 +37,12 @@ describe.skipIf(!live)("SaaS blocks on CentraKit tables", () => {
 
   async function organization(s: Session): Promise<string> {
     await s.as("service");
+
     const { rows } = await s.client.query<{ id: string }>(
       "insert into centrakit.organizations (name, slug) values ('Acme', $1) returning id",
       [`acme-${crypto.randomUUID().slice(0, 8)}`],
     );
+
     return rows[0]!.id;
   }
 
@@ -65,10 +67,12 @@ describe.skipIf(!live)("SaaS blocks on CentraKit tables", () => {
   it("creates a team", async () => {
     await withCentraKit(pool, async (s) => {
       const org = await organization(s);
+
       const created = await s.value<{ id: string }>(
         "better_supabase.create_team($1::uuid, 'Ops', '')",
         [org],
       );
+
       expect(created.id).toEqual(expect.any(String));
     });
   });
@@ -76,10 +80,12 @@ describe.skipIf(!live)("SaaS blocks on CentraKit tables", () => {
   it("creates a tag", async () => {
     await withCentraKit(pool, async (s) => {
       const org = await organization(s);
+
       const created = await s.value<{ id: string }>(
         "better_supabase.create_tag($1::uuid, 'task', 'Urgent', null, null)",
         [org],
       );
+
       expect(created.id).toEqual(expect.any(String));
     });
   });
@@ -98,10 +104,12 @@ describe.skipIf(!live)("SaaS blocks on CentraKit tables", () => {
   it("saves a field definition", async () => {
     await withCentraKit(pool, async (s) => {
       const org = await organization(s);
+
       const saved = await s.value<{ id: string }>(
         "better_supabase.save_field_definition($1::uuid, 'asset', 'serial', 'Serial', 'text', false)",
         [org],
       );
+
       expect(saved.id).toEqual(expect.any(String));
     });
   });
@@ -109,10 +117,12 @@ describe.skipIf(!live)("SaaS blocks on CentraKit tables", () => {
   it("creates a share link and returns the token once", async () => {
     await withCentraKit(pool, async (s) => {
       const org = await organization(s);
+
       const link = await s.value<{ id: string; token: string }>(
         "better_supabase.create_share_link($1::uuid, 'file', $2, 'view')",
         [org, crypto.randomUUID()],
       );
+
       expect(link.token).toEqual(expect.any(String));
       expect(link.id).toEqual(expect.any(String));
     });
@@ -121,10 +131,12 @@ describe.skipIf(!live)("SaaS blocks on CentraKit tables", () => {
   it("saves a reminder", async () => {
     await withCentraKit(pool, async (s) => {
       const org = await organization(s);
+
       const saved = await s.value<{ id: string }>(
         "better_supabase.save_reminder($1::uuid, 'task', $2, 15)",
         [org, crypto.randomUUID()],
       );
+
       expect(saved.id).toEqual(expect.any(String));
     });
   });
@@ -132,10 +144,12 @@ describe.skipIf(!live)("SaaS blocks on CentraKit tables", () => {
   it("starts an import run", async () => {
     await withCentraKit(pool, async (s) => {
       const org = await organization(s);
+
       const started = await s.value<{ id: string }>(
         "better_supabase.start_import($1::uuid, 'people', '{}'::jsonb)",
         [org],
       );
+
       expect(started.id).toEqual(expect.any(String));
     });
   });

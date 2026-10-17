@@ -26,6 +26,7 @@ const prompts: Prompter = {
         stop = prompter.spinner(message);
       }
     });
+
     return () => {
       stopped = true;
       stop?.();
@@ -34,9 +35,11 @@ const prompts: Prompter = {
 };
 
 const controller = new AbortController();
+
 process.once("SIGINT", () => {
   controller.abort();
 });
+
 process.once("SIGTERM", () => {
   controller.abort();
 });

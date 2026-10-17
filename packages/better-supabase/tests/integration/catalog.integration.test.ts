@@ -65,10 +65,12 @@ describe.skipIf(!live)("catalog module in Postgres", () => {
         [tenant],
       ),
     ).toBe("CATALOG_SLUG_TAKEN");
+
     const events = await session.rows<{ type: string }>(
       "select type from better_supabase.outbox_events where organization_id = $1 order by position",
       [tenant],
     );
+
     expect(events.map((event) => event.type)).toContain("product.created");
   });
 
@@ -86,6 +88,7 @@ describe.skipIf(!live)("catalog module in Postgres", () => {
   it("builds variants from one value per option and refuses duplicates", async () => {
     await session.as(owner);
     const product = await saveProduct("Tee");
+
     const size = await call<{
       id: string;
       values: { id: string; value: string }[];
@@ -93,18 +96,22 @@ describe.skipIf(!live)("catalog module in Postgres", () => {
       "better_supabase.save_product_option($1, null, 'Size', array['S', 'M'])",
       [product.id],
     );
+
     const color = await call<{
       id: string;
       values: { id: string; value: string }[];
     }>("better_supabase.save_product_option($1, null, 'Color', array['Red'])", [
       product.id,
     ]);
+
     const [small, medium] = size.values;
     const [red] = color.values;
+
     const variant = await call<Saved>(
       "better_supabase.save_variant($1, null, 'TEE-S-RED', $2::uuid[], null, null, null, null, null)",
       [product.id, [small!.id, red!.id]],
     );
+
     expect(variant.rank).toBe("V");
     expect(
       await session.hint(
@@ -173,6 +180,7 @@ describe.skipIf(!live)("catalog module in Postgres", () => {
 
     it("stores bigint minor units and emits price changes", async () => {
       await session.as(owner);
+
       const first = await call<{
         id: string;
         amount: string;
@@ -181,7 +189,9 @@ describe.skipIf(!live)("catalog module in Postgres", () => {
         "better_supabase.set_price($1, 'EUR', '1299', null, null, null, null)",
         [variant],
       );
+
       expect(first).toMatchObject({ amount: "1299", previousAmount: null });
+
       const large = await call<{
         id: string;
         amount: string;
@@ -190,15 +200,18 @@ describe.skipIf(!live)("catalog module in Postgres", () => {
         "better_supabase.set_price($1, 'EUR', '900719925474099300', null, null, null, null)",
         [variant],
       );
+
       expect(large).toMatchObject({
         id: first.id,
         amount: "900719925474099300",
         previousAmount: "1299",
       });
+
       const events = await session.rows<{ payload: Record<string, unknown> }>(
         "select payload from better_supabase.outbox_events where type = 'catalog.price_changed' and organization_id = $1 order by position",
         [tenant],
       );
+
       expect(events.at(-1)?.payload).toMatchObject({
         variantId: variant,
         currency: "EUR",
@@ -241,10 +254,12 @@ describe.skipIf(!live)("catalog module in Postgres", () => {
 
     it("resolves a price list price before the base price", async () => {
       await session.as(owner);
+
       const list = await call<Saved>(
         "better_supabase.save_price_list($1, null, 'Wholesale', 'b2b')",
         [tenant],
       );
+
       await call(
         "better_supabase.set_price($1, 'GBP', '1000', null, null, null, null)",
         [variant],
@@ -276,14 +291,17 @@ describe.skipIf(!live)("catalog module in Postgres", () => {
 
   it("keeps the category tree free of cycles", async () => {
     await session.as(owner);
+
     const apparel = await call<Saved>(
       "better_supabase.save_category($1, null, null, 'Apparel', null, null)",
       [tenant],
     );
+
     const shirts = await call<Saved>(
       "better_supabase.save_category($1, null, $2, 'Shirts', null, null)",
       [tenant, apparel.id],
     );
+
     expect(
       await session.hint("better_supabase.move_category($1, $2, 'V')", [
         apparel.id,
@@ -304,10 +322,12 @@ describe.skipIf(!live)("catalog module in Postgres", () => {
 
   it("ranks manual collections and stores rule collections as filter trees", async () => {
     await session.as(owner);
+
     const manual = await call<Saved>(
       "better_supabase.save_collection($1, null, 'Summer', null, 'manual', null)",
       [tenant],
     );
+
     const first = await saveProduct("Sandal");
     const second = await saveProduct("Sunhat");
     expect(
@@ -322,16 +342,19 @@ describe.skipIf(!live)("catalog module in Postgres", () => {
         second.id,
       ]),
     ).toBe("k");
+
     const rule = {
       id: "root",
       type: "group",
       combinator: "and",
       rules: [{ id: "r1", field: "kind", operator: "is", value: "physical" }],
     };
+
     const smart = await call<Saved>(
       "better_supabase.save_collection($1, null, 'Physical', null, 'rule', $2::jsonb)",
       [tenant, JSON.stringify(rule)],
     );
+
     expect(
       await session.hint("better_supabase.add_to_collection($1, $2, null)", [
         smart.id,
@@ -348,10 +371,12 @@ describe.skipIf(!live)("catalog module in Postgres", () => {
 
   it("shows members the tenant's catalog through RLS", async () => {
     await session.asRole(owner);
+
     const own = await session.rows<{ id: string }>(
       "select id from better_supabase.products where tenant_id = $1",
       [tenant],
     );
+
     expect(own.length).toBeGreaterThan(0);
     await session.asRole(member);
     expect(
@@ -367,10 +392,12 @@ describe.skipIf(!live)("catalog module in Postgres", () => {
     await session.as(owner);
     const shown = await saveProduct("Public Lamp");
     await saveProduct("Hidden Lamp");
+
     const variant = await call<Saved>(
       "better_supabase.save_variant($1, null, 'LAMP-1', null, null, null, null, null, null)",
       [shown.id],
     );
+
     await call(
       "better_supabase.set_price($1, 'EUR', '4999', null, null, null, null)",
       [variant.id],
@@ -390,10 +417,12 @@ describe.skipIf(!live)("catalog module in Postgres", () => {
       ]),
     ).toBe(true);
     await session.asRole("anon");
+
     const visible = await session.rows<{ id: string }>(
       "select id from better_supabase.products where tenant_id = $1",
       [tenant],
     );
+
     expect(visible.map((row) => row.id)).toEqual([shown.id]);
     expect(
       await call<{ amount: string }>(
