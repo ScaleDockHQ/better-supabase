@@ -28,6 +28,7 @@ export default defineConfig({
 
 ```ts
 import { createDeals } from "better-supabase/blocks/deals";
+import { money } from "better-supabase/commerce";
 
 const deals = createDeals({ transport });
 const deal = await deals
@@ -36,8 +37,7 @@ const deal = await deals
     {
       name: "Growth plan, 60 seats",
       closeOn: Temporal.PlainDate.from("2026-11-30"),
-      amount: 4_800_000n,
-      currency: "EUR",
+      amount: money(4_800_000n, "EUR"),
       company: { type: "company", id: acmeId },
       motion: "new_logo",
     },
@@ -47,6 +47,8 @@ const deal = await deals
 ```
 
 A deal needs a name and a close date. It gets a number per organization and an identifier such as `DEAL-1`, or the format of a `deal` entity in [number-sequences](/docs/blocks/number-sequences). Its company and contacts are records in `config.subjects` (the parties types `company` and `person` by default, or set `options.company` and `options.contact`). Each must be in the organization and readable by the caller (`DEAL_COMPANY_FORBIDDEN`, `DEAL_CONTACT_FORBIDDEN`), so an app can point deals at its own customers table.
+
+Amounts are `Money` values from [commerce](/docs/concepts/commerce): a `bigint` of minor units with its ISO 4217 currency. The database functions send them as text, so they stay exact past 2^53. A deal created without a `currency` takes the currency of its amount. Every amount on a deal, its lines and its forecast target must be in the deal's currency: the client returns `CURRENCY_MISMATCH` before calling the database, an unknown code returns `CURRENCY_INVALID`, and an `amount` change in `update` in another currency is rejected with `DEAL_CURRENCY_MISMATCH`. Changing the `currency` field keeps the amounts and lines as they are, in the new currency.
 
 `update(changes)` applies a batch of cell edits, `{ dealId, field, value }`, each on its own. A change that fails is returned in `rejected` with its hint and reason, and the others stay applied, the shape a data grid's batched edit needs:
 
@@ -103,7 +105,7 @@ A deal moves stage when `stageId` changes, through an edit or a board drag with 
 
 `setContacts` replaces the contacts, with one primary. `setMembers` replaces the deal team; each member watches the deal and, with `options.readAll: false`, can see it. Without `readAll` (the default is `true`), a member sees only deals they own or are on, and `deals.manage` sees all.
 
-`setLines(dealId, lines)` replaces the line items: a description, a quantity, a unit amount in minor units, a discount and a tax rate in basis points, and an optional product reference. It returns the totals, and with `amountSource: "line_items"` the deal's amount follows the lines' subtotal. A locked deal's lines don't change.
+`setLines(dealId, lines)` replaces the line items: a description, a quantity, a unit amount as `Money`, a discount and a tax rate in basis points, and an optional product reference. It returns the totals, and with `amountSource: "line_items"` the deal's amount follows the lines' subtotal. A locked deal's lines don't change.
 
 ## Forecast and review
 
@@ -113,7 +115,7 @@ const call = await deals
     since: Temporal.PlainDate.from("2026-10-01"),
     until: Temporal.PlainDate.from("2026-12-31"),
     currency: "EUR",
-    target: 60_000_000n,
+    target: money(60_000_000n, "EUR"),
   })
   .orThrow();
 // { won, commit, bestCase, pipeline, notCalled, omit, later, attainment, gap, owners }
@@ -140,16 +142,20 @@ The ReUI CRM Pipeline Workspace sends every gesture through one `actions.write(w
 
 ## Errors
 
-| Hint                    | Cause                                                        |
-| ----------------------- | ------------------------------------------------------------ |
-| `DEAL_FORBIDDEN`        | the caller lacks `deals.write`                               |
-| `DEAL_ATTRS_INVALID`    | a missing name or close date, or a field with a bad value    |
-| `DEAL_NOT_FOUND`        | no deal the caller can edit                                  |
-| `DEAL_FIELD_UNKNOWN`    | `update` names a field it doesn't write                      |
-| `DEAL_OUTCOME_INVALID`  | close as `won` or `lost`                                     |
-| `DEAL_STAGE_MISSING`    | the pipeline has no stage for that outcome                   |
-| `DEAL_CHANGES_INVALID`  | `changes` isn't a list                                       |
-| `DEAL_CONTACTS_INVALID` | contacts aren't a list, or name two primaries                |
-| `DEAL_MEMBERS_INVALID`  | members aren't a list                                        |
-| `LINES_RECORD_INVALID`  | no such deal, or it is locked                                |
-| `LINES_INVALID`         | a line lacks a description, a positive quantity or an amount |
+| Hint                     | Cause                                                                       |
+| ------------------------ | --------------------------------------------------------------------------- |
+| `DEAL_FORBIDDEN`         | the caller lacks `deals.write`                                              |
+| `DEAL_ATTRS_INVALID`     | a missing name or close date, or a field with a bad value                   |
+| `DEAL_NOT_FOUND`         | no deal the caller can edit                                                 |
+| `DEAL_FIELD_UNKNOWN`     | `update` names a field it doesn't write                                     |
+| `DEAL_OUTCOME_INVALID`   | close as `won` or `lost`                                                    |
+| `DEAL_STAGE_MISSING`     | the pipeline has no stage for that outcome                                  |
+| `DEAL_CHANGES_INVALID`   | `changes` isn't a list                                                      |
+| `DEAL_CONTACTS_INVALID`  | contacts aren't a list, or name two primaries                               |
+| `DEAL_MEMBERS_INVALID`   | members aren't a list                                                       |
+| `LINES_RECORD_INVALID`   | no such deal, or it is locked                                               |
+| `LINES_INVALID`          | a line lacks a description, a positive quantity or an amount                |
+| `DEAL_CURRENCY_MISMATCH` | an `amount` or `existingAmount` change isn't in the deal's currency         |
+| `CURRENCY_MISMATCH`      | an amount isn't in the record's currency; returned before any database call |
+| `CURRENCY_INVALID`       | the currency isn't an ISO 4217 code                                         |
+| `LINES_CURRENCY`         | a line sent straight to SQL isn't in the record's currency                  |

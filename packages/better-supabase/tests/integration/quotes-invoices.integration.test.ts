@@ -454,6 +454,46 @@ describe.skipIf(!live)("quotes and invoices", () => {
         .orThrow();
 
       expect(next.identifier).toBe("INV-1");
+
+      const sqlHint = async (sql: string, params: unknown[]) => {
+        await s.client.query("savepoint probe");
+
+        try {
+          await s.client.query(sql, params);
+
+          return "none";
+        } catch (error) {
+          return error instanceof Error && "hint" in error
+            ? error.hint
+            : "none";
+        } finally {
+          await s.client.query("rollback to savepoint probe");
+        }
+      };
+
+      const open = await invoices
+        .create(org, { title: "Open" }, [
+          { description: "x", unitAmount: eur(5n) },
+        ])
+        .orThrow();
+
+      expect(
+        await sqlHint(
+          "select better_supabase.set_invoice_lines($1, $2::jsonb)",
+          [
+            open.id,
+            JSON.stringify([
+              { description: "x", unitAmount: "5", currency: "USD" },
+            ]),
+          ],
+        ),
+      ).toBe("LINES_CURRENCY");
+      expect(
+        await sqlHint(
+          "select better_supabase.record_invoice_payment($1, 1, 'USD', null, null, null)",
+          [next.id],
+        ),
+      ).toBe("INVOICE_CURRENCY_MISMATCH");
       expect(
         hint(await invoices.recordPayment(draft.id, { amount: eur(1n) })),
       ).toBe("INVOICE_NOT_PAYABLE");

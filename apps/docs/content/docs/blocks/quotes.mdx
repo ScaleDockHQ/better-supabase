@@ -15,6 +15,7 @@ The module needs `tenant`, `access` and `subjects`.
 
 ```ts
 import { createQuotes } from "better-supabase/blocks/quotes";
+import { money } from "better-supabase/commerce";
 
 const quotes = createQuotes({ transport });
 const quote = await quotes.fromDeal(dealId).orThrow();
@@ -23,12 +24,12 @@ await quotes
     {
       description: "Licences",
       quantity: 10,
-      unitAmount: 100_000n,
+      unitAmount: money(100_000n, "EUR"),
       taxRateBps: 2100,
     },
     {
       description: "Setup",
-      unitAmount: 50_000n,
+      unitAmount: money(50_000n, "EUR"),
       discountBps: 2000,
       taxRateBps: 2100,
     },
@@ -51,6 +52,8 @@ const { token } = await quotes.send(quote.id).orThrow();
 | `withdrawn`            | a newer revision replaced it                                                |
 
 `create` gives a quote the next number (`Q-12`, or the format of a `quote` entity in [number-sequences](/docs/blocks/number-sequences)) and a valid-until date `options.validDays` (default 30) from today. Its company and contact are records in `config.subjects` (the parties types `company` and `person` by default), checked like a deal's (`QUOTE_COMPANY_FORBIDDEN`).
+
+Unit amounts and totals are `Money` values from [commerce](/docs/concepts/commerce), sent to the database as text so they stay exact past 2^53. Every line must be in the quote's currency (`CURRENCY_MISMATCH`, checked before the database call), and a quote created without a `currency` takes the currency of its lines. An unknown code returns `CURRENCY_INVALID`.
 
 `send` needs at least one line (`QUOTE_EMPTY`). It returns the link's token once; only its hash is stored. `revise(quoteId)` makes a new draft with the same number, the next revision, the same lines and a fresh valid-until date, and withdraws the old one unless it was accepted, which also ends its link.
 
@@ -115,17 +118,20 @@ The module calls `before_quote_send(quote uuid)`, `after_quote_send(quote uuid)`
 
 ## Errors
 
-| Hint                     | Cause                                                |
-| ------------------------ | ---------------------------------------------------- |
-| `QUOTE_FORBIDDEN`        | the caller lacks `quotes.write`                      |
-| `QUOTE_ATTRS_INVALID`    | a missing title or a field with a bad value          |
-| `QUOTE_NOT_FOUND`        | no quote the caller can edit                         |
-| `QUOTE_NOT_EDITABLE`     | the quote was sent; revise it                        |
-| `QUOTE_EMPTY`            | a quote without lines can't be sent                  |
-| `QUOTE_NOT_OPEN`         | the quote doesn't take an answer now                 |
-| `QUOTE_NOT_SENT`         | a draft is edited, not revised                       |
-| `QUOTE_ALREADY_REVISED`  | the quote already has a newer revision               |
-| `QUOTE_DECISION_INVALID` | answer `accepted`, `rejected` or `changes_requested` |
-| `QUOTE_LINK_INVALID`     | the link is unknown or was withdrawn                 |
-| `QUOTE_NAME_REQUIRED`    | the customer's answer needs a name                   |
-| `QUOTE_ORIGIN_NOT_FOUND` | no deal the caller can quote                         |
+| Hint                     | Cause                                                                    |
+| ------------------------ | ------------------------------------------------------------------------ |
+| `QUOTE_FORBIDDEN`        | the caller lacks `quotes.write`                                          |
+| `QUOTE_ATTRS_INVALID`    | a missing title or a field with a bad value                              |
+| `QUOTE_NOT_FOUND`        | no quote the caller can edit                                             |
+| `QUOTE_NOT_EDITABLE`     | the quote was sent; revise it                                            |
+| `QUOTE_EMPTY`            | a quote without lines can't be sent                                      |
+| `QUOTE_NOT_OPEN`         | the quote doesn't take an answer now                                     |
+| `QUOTE_NOT_SENT`         | a draft is edited, not revised                                           |
+| `QUOTE_ALREADY_REVISED`  | the quote already has a newer revision                                   |
+| `QUOTE_DECISION_INVALID` | answer `accepted`, `rejected` or `changes_requested`                     |
+| `QUOTE_LINK_INVALID`     | the link is unknown or was withdrawn                                     |
+| `QUOTE_NAME_REQUIRED`    | the customer's answer needs a name                                       |
+| `QUOTE_ORIGIN_NOT_FOUND` | no deal the caller can quote                                             |
+| `CURRENCY_MISMATCH`      | a line isn't in the record's currency; returned before any database call |
+| `CURRENCY_INVALID`       | the currency isn't an ISO 4217 code                                      |
+| `LINES_CURRENCY`         | a line sent straight to SQL isn't in the record's currency               |

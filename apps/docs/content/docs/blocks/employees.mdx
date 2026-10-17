@@ -112,7 +112,7 @@ The three tables declare their tenant to `data-lifecycle`, so an organization ex
 
 ## Contracts
 
-`addContract(employeeId, { startsOn, endsOn, hoursPerWeek, salary, currency, salaryPeriod, note })` appends to the employee's contract history. Salary is a `bigint` in minor units of its currency, and `salaryPeriod` is `hour`, `week`, `month` or `year`. A new contract starts after the latest one (`EMPLOYEE_CONTRACT_OVERLAP`), which ends the day before; rows are never edited. `contracts(employeeId)` returns them, the newest first. Adding one needs `employees.write` and `employees.view_sensitive`.
+`addContract(employeeId, { startsOn, endsOn, hoursPerWeek, salary, salaryPeriod, note })` appends to the employee's contract history. `salary` is a `Money` value from [commerce](/docs/concepts/commerce), such as `money(5_400_000n, "EUR")`, which carries its currency and is sent as text so it stays exact past 2^53, and `salaryPeriod` is `hour`, `week`, `month` or `year`. A new contract starts after the latest one (`EMPLOYEE_CONTRACT_OVERLAP`), which ends the day before; rows are never edited. `contracts(employeeId)` returns them, the newest first. Adding one needs `employees.write` and `employees.view_sensitive`.
 
 ## Adopting a table
 

@@ -50,7 +50,9 @@ rows[0].organizationId;
 `{ raw: true }` skips the decoding and returns database names, typed as
 `unknown`. PostgREST sends `int8` as a JSON number in function results, so
 values above 2^53 lose precision before a `bigint` codec sees them; cast
-them to `text` in the function when they can be that large.
+them to `text` in the function when they can be that large. The blocks'
+own functions return every `int8` as text for this reason, and their
+clients read it back as a `bigint` or a `Money`.
 
 ## What stays in database names
 
