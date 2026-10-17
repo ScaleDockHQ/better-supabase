@@ -1,11 +1,18 @@
 // Checks the docs against the code: every doctor code has a heading on the
 // doctor page, every subpath is in the README table and on a docs page, and
-// every `meta.json` lists exactly the pages in its folder, and every titled
-// `lib/supabase/*` code block in the docs and skills follows the Naming page.
+// every `meta.json` lists exactly the pages in its folder, every titled
+// `lib/supabase/*` code block in the docs and skills follows the Naming page,
+// and no doc, skill, example or rule uses a name the Naming page retired.
 // The CLI commands
 // and flags are checked by `packages/better-supabase/tests/cli/docs-drift.test.ts`, which
 // runs with the package's unit tests. Run with `node scripts/docs-drift.ts`.
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import {
+  existsSync,
+  globSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+} from "node:fs";
 import { join, relative } from "node:path";
 import { cwd, exit } from "node:process";
 import * as v from "valibot";
@@ -62,15 +69,9 @@ function doctorCodes(): string[] {
 }
 
 function markdownFiles(dir: string, extension: string): string[] {
-  return readdirSync(dir).flatMap((name) => {
-    const path = join(dir, name);
-
-    if (statSync(path).isDirectory()) {
-      return markdownFiles(path, extension);
-    }
-
-    return name.endsWith(extension) ? [path] : [];
-  });
+  return globSync(`**/*${extension}`, { cwd: dir }).map((file) =>
+    join(dir, file),
+  );
 }
 
 /**
@@ -267,11 +268,64 @@ function naming(): string[] {
   );
 }
 
+/** Names and paths the Naming page retired, with what replaced them. */
+const RETIRED: readonly (readonly [RegExp, string])[] = [
+  [
+    /(?<![\w.$])sb\.\w/u,
+    "`sb.` (the instance is `bs`, the definition `betterSupabase`)",
+  ],
+  [/lib\/supabase\.ts\b/u, "`lib/supabase.ts` (now `lib/supabase/index.ts`)"],
+  [
+    /supabase\.server\.ts\b/u,
+    "`supabase.server.ts` (now `lib/supabase/server.ts`)",
+  ],
+  [/\bcreateBrowser\b/u, "`createBrowser` (now `createClient`)"],
+];
+
+/** The pages whose job is to name the retired forms. */
+const RENAMES = ["concepts/naming.mdx", "migration/"];
+
+const IGNORED = [
+  "**/node_modules/**",
+  "**/.next/**",
+  "**/.expo/**",
+  "**/dist/**",
+];
+
+function retiredNames(): string[] {
+  const files = [
+    ...globSync("apps/docs/content/docs/**/*.mdx", { cwd: root }).filter(
+      (file) =>
+        !RENAMES.some((page) =>
+          relative(docs, join(root, file)).startsWith(page),
+        ),
+    ),
+    ...globSync("packages/better-supabase/skills/**/*.md", { cwd: root }),
+    ...globSync(".agents/rules/*.mdc", { cwd: root }),
+    ...globSync("apps/examples/**/*.{ts,tsx,md}", {
+      cwd: root,
+      exclude: IGNORED,
+    }),
+  ];
+
+  return files.flatMap((file) =>
+    readFileSync(join(root, file), "utf-8")
+      .split("\n")
+      .flatMap((text, index) =>
+        RETIRED.filter(([pattern]) => pattern.test(text)).map(
+          ([, name]) =>
+            `${file}:${String(index + 1)} uses the retired ${name} (concepts/naming.mdx)`,
+        ),
+      ),
+  );
+}
+
 const problems = [
   ...doctorCodes(),
   ...subpaths(),
   ...metaFiles(docs),
   ...naming(),
+  ...retiredNames(),
 ];
 
 for (const problem of problems) {
@@ -283,5 +337,5 @@ if (problems.length > 0) {
 }
 
 console.log(
-  "docs drift: doctor codes, subpaths, meta.json and lib/supabase naming match the code",
+  "docs drift: doctor codes, subpaths, meta.json and lib/supabase naming match the code, with no retired names",
 );

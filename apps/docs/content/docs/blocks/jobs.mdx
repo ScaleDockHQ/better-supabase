@@ -225,7 +225,7 @@ for a token no client acts with, and for a delegated token only when its
 `permissions` only narrows it:
 
 ```ts
-await sb.forContext(job.context, { permissions: ["posts.write"] });
+await bs.forContext(job.context, { permissions: ["posts.write"] });
 ```
 
 A context whose `act` chain or delegation claims are malformed is refused:
