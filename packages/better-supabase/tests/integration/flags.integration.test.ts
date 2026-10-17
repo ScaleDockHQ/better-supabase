@@ -8,6 +8,7 @@ import {
   type FlagContext,
   sqlTransport,
 } from "../../src/blocks/flags/index.ts";
+import { expiredFlagsQuery } from "../../src/sql/index.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
@@ -383,6 +384,40 @@ describe.skipIf(!live)("flags", () => {
           [globex],
         ),
       ).toBe("on");
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("finds the flags past expires_at that doctor reports", async () => {
+    const s = await BlockSession.open(pool);
+
+    const layout = {
+      modules: {
+        flags: {
+          options: {
+            extraColumns: { expires_at: "timestamptz", owner: "text" },
+          },
+        },
+      },
+    };
+
+    try {
+      await s.install(["flags"], layout);
+      await s.rows(`insert into better_supabase.flags (key, expires_at, owner, archived) values
+        ('expired', now() - interval '1 day', 'growth', false),
+        ('archived', now() - interval '1 day', 'growth', true),
+        ('current', now() + interval '1 day', null, false),
+        ('open', null, null, false)`);
+
+      const query = expiredFlagsQuery(layout, ["flags"]);
+
+      expect(query).toBeDefined();
+      expect(
+        (await s.rows<{ key: string; owner: string }>(query ?? "")).map(
+          ({ key, owner }) => ({ key, owner }),
+        ),
+      ).toEqual([{ key: "expired", owner: "growth" }]);
     } finally {
       await s.close();
     }

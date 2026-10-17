@@ -943,6 +943,16 @@ whole months. Postgres can't convert a table in place. Copy the entries into
 a partitioned table and swap the names in a maintenance window, or turn the
 option off.
 
+### BS336
+
+**Warning: flag past its expiry.** The flags table has an `expires_at` column
+(`blocks.flags.options.extraColumns`), and a flag on the live database that
+isn't archived has an `expires_at` in the past. A release flag that outlives
+its rollout keeps a dead branch in the code. Remove its checks, then archive
+the flag (`flags.save(key, { archived: true })`), or move `expires_at` when
+the flag stays. The finding names the `owner` column when the table has one.
+See [owner and expiry](/docs/blocks/flags#owner-and-expiry).
+
 ## Auth config
 
 ### BS401

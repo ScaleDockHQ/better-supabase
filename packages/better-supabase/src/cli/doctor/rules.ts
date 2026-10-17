@@ -25,6 +25,7 @@ import { advisorRule } from "./advisor-rules.ts";
 import { AUTHORIZATION_RULES } from "./authorization.ts";
 import { COOKIE_RULES } from "./cookies.ts";
 import { DEPENDENCY_RULES } from "./dependencies.ts";
+import { FLAG_RULES } from "./flags.ts";
 import { HOOK_RULES } from "./hooks.ts";
 import { LITE_RULES } from "./lite.ts";
 import { LIVE_RULES } from "./live.ts";
@@ -1128,6 +1129,7 @@ export const RULES: readonly Rule[] = [
   ...LITE_RULES,
   ...DEPENDENCY_RULES,
   ...WORKFLOW_BUILDER_RULES,
+  ...FLAG_RULES,
 ].sort((a, b) => byCodePoint(a.code, b.code));
 
 export const RULE_CODES: readonly string[] = RULES.map((rule) => rule.code);

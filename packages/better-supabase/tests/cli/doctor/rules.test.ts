@@ -1100,6 +1100,96 @@ describe("audit registrations of dropped tables (BS322)", () => {
   });
 });
 
+describe("flags past their expiry (BS336)", () => {
+  const withExpiry = (extraColumns: Record<string, string>) => ({
+    blocks: { flags: { options: { extraColumns } } },
+  });
+
+  const live = (
+    config: Parameters<typeof context>[2],
+    rows: Record<string, unknown>[] | Error,
+    queries: string[] = [],
+  ): Parameters<typeof run>[1] =>
+    context(
+      base,
+      {
+        database: {
+          describe: "test",
+          session: true,
+          query: <R>(sql: string) => {
+            queries.push(sql);
+
+            return rows instanceof Error
+              ? Promise.reject(rows)
+              : Promise.resolve(rows as R[]);
+          },
+        },
+      },
+      config,
+    );
+
+  it("reports each expired flag with its owner", async () => {
+    const queries: string[] = [];
+
+    const findings = await run(
+      "BS336",
+      live(
+        withExpiry({ expires_at: "timestamptz", owner: "text" }),
+        [
+          {
+            key: "new-nav",
+            expires_at: "2026-01-01 00:00:00+00",
+            owner: "growth",
+          },
+          {
+            key: "dark-mode",
+            expires_at: "2026-02-01 00:00:00+00",
+            owner: null,
+          },
+        ],
+        queries,
+      ),
+    );
+
+    expect(queries[0]).toContain('f."owner"::text as owner');
+    expect(queries[0]).toContain('not f."archived"');
+    expect(findings).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        target: "flags:new-nav",
+        message: expect.stringContaining(
+          'Flag "new-nav" expired on 2026-01-01 00:00:00+00 (owner: growth)',
+        ),
+      }),
+      expect.objectContaining({
+        target: "flags:dark-mode",
+        message: expect.not.stringContaining("owner:"),
+      }),
+    ]);
+  });
+
+  it("skips projects without the column, the module or a database, and a failed query", async () => {
+    const rows = [{ key: "a", expires_at: "2026-01-01", owner: null }];
+
+    expect(
+      await run("BS336", live(withExpiry({ owner: "text" }), rows)),
+    ).toEqual([]);
+    expect(await run("BS336", live({ blocks: ["audit"] }, rows))).toEqual([]);
+    expect(
+      await run(
+        "BS336",
+        live(withExpiry({ expires_at: "timestamptz" }), new Error("denied")),
+      ),
+    ).toEqual([]);
+    expect(
+      await run(
+        "BS336",
+        context(base, {}, withExpiry({ expires_at: "timestamptz" })),
+      ),
+    ).toEqual([]);
+  });
+});
+
 describe("adopted tables without a mapped column (BS330)", () => {
   const credentials = {
     blocks: {

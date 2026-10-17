@@ -7143,6 +7143,7 @@
       "contractSignature",
       "customContracts",
       "declaredTables",
+      "expiredFlagsQuery",
       "extensionSchema",
       "isModuleIdType",
       "migrationOptionUses",
