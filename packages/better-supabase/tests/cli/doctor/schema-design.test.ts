@@ -286,4 +286,57 @@ describe("schema design rules", () => {
 
     expect(await run(exact, "BS222")).toEqual([]);
   });
+
+  it("flags exposed functions returning an int8 or numeric scalar (BS223)", async () => {
+    const template = base.generator.functions[0]!;
+
+    const fn = (
+      name: string,
+      returnType: string,
+      extra: Partial<typeof template> = {},
+    ) => ({
+      ...template,
+      name,
+      schema: "public",
+      return_type: returnType,
+      identity_argument_types: "",
+      is_set_returning_function: false,
+      ...extra,
+    });
+
+    const snap: Snapshot = {
+      ...base,
+      generator: {
+        ...base.generator,
+        functions: [
+          fn("total_cents", "bigint"),
+          fn("scores", "numeric", { is_set_returning_function: true }),
+          fn("ids", "bigint[]", { identity_argument_types: "p uuid" }),
+          fn("label", "text"),
+          fn("rows", "record"),
+          fn("hidden_total", "bigint", { schema: "private" }),
+        ],
+      },
+    };
+
+    expect(await run(context(snap), "BS223")).toMatchObject([
+      {
+        target: "public.total_cents",
+        severity: "info",
+        message: expect.stringContaining(
+          "public.total_cents() returns bigint, which PostgREST sends as a JSON number",
+        ),
+      },
+      {
+        target: "public.scores",
+        message: expect.stringContaining("returns setof numeric"),
+      },
+      {
+        target: "public.ids",
+        message: expect.stringContaining(
+          "public.ids(p uuid) returns bigint[], which PostgREST sends as a JSON number and `$rpc` can't cast. Return it as text (`returns text[]`",
+        ),
+      },
+    ]);
+  });
 });

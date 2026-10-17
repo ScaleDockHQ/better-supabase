@@ -554,6 +554,19 @@ limit, and `numeric` columns, which usually hold exact amounts. Set
 in `better-supabase.config.ts` ([codecs](/docs/cli/config#options)), or add BS222
 to `doctor.ignore` when the values stay small.
 
+### BS223
+
+**Info: function returns an int8 or numeric scalar.** PostgREST sends a
+function's scalar `int8` or `numeric` result, or an array of them, as a JSON
+number, so a value past 2^53 (about 15 to 17 significant digits) loses
+precision before any codec sees it. `db.$rpc` casts the codec columns of
+table and record results to text ([function
+results](/docs/concepts/casing#function-results)), but a scalar has no column
+to cast. Return it as text (`returns text`, `select total::text`) when it can
+grow that large, or add BS223 to `doctor.ignore` when it stays small. Doctor
+can't see inside a `json` or `jsonb` result: cast large numbers to text when
+you build it.
+
 ## Drift
 
 ### BS301

@@ -8,7 +8,13 @@ import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 import { configFor } from "../gen/shared.ts";
 import { splinterTables } from "./advisor-rules.ts";
 import { escape, withoutStrings } from "./rls.ts";
-import { catalogOf, exposed, qualified, tableObject } from "./shared.ts";
+import {
+  catalogOf,
+  exposed,
+  exposedSchemas,
+  qualified,
+  tableObject,
+} from "./shared.ts";
 
 /** Whether the first `columns.length` columns of a non-partial index are exactly `columns`, in any order. */
 const covers = (index: CatalogIndex, columns: readonly string[]): boolean =>
@@ -49,6 +55,9 @@ const DIRECT_URL =
 /** Files that show the app runs on serverless or edge functions. */
 const SERVERLESS =
   /\bexport\s+(?:const\s+runtime|async\s+function\s+(?:GET|POST|PUT|PATCH|DELETE)|default\s+\{\s*(?:async\s+)?fetch)\b|\bDeno\.serve\(/;
+
+/** `format_type` names of scalar results that a JSON number can't hold exactly. */
+const WIDE_RESULT = /^(?:bigint|numeric)(?:\[\])?$/;
 
 function lines(file: TextFile): { line: number; text: string }[] {
   return file.text
@@ -352,6 +361,27 @@ export const SCHEMA_DESIGN_RULES: readonly Rule[] = [
           },
         ];
       });
+    },
+  },
+  {
+    code: "BS223",
+    severity: "info",
+    title: "Function returns an int8 or numeric scalar",
+    description:
+      "PostgREST sends a scalar `int8` or `numeric` function result as a JSON number, which loses precision past 2^53 (or 15 to 17 significant digits) before any codec sees it. `$rpc` casts codec columns of table and record results to text, but a scalar has no column to cast. Return it as `text` when it can be that large.",
+    check: (context) => {
+      const schemas = exposedSchemas(context);
+
+      return context.snapshot.generator.functions
+        .filter(
+          (fn) =>
+            schemas.includes(fn.schema) && WIDE_RESULT.test(fn.return_type),
+        )
+        .map((fn) => ({
+          message: `${fn.schema}.${fn.name}(${fn.identity_argument_types}) returns ${fn.is_set_returning_function ? "setof " : ""}${fn.return_type}, which PostgREST sends as a JSON number and \`$rpc\` can't cast. Return it as text (\`returns ${fn.return_type.replace("bigint", "text").replace("numeric", "text")}\`, \`select total::text\`) when it can pass 2^53, or add BS223 to \`doctor.ignore\` when it stays small.`,
+          target: `${fn.schema}.${fn.name}`,
+          object: { kind: "function", schema: fn.schema, name: fn.name },
+        }));
     },
   },
 ];
