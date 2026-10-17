@@ -16,6 +16,7 @@ import type { SpecTarget, TargetFilter } from "../spec/targets.ts";
 
 import { SPEC_UIS, specReferenceHtml } from "../../spec/index.ts";
 import { defineCliCommand } from "../command.ts";
+import { fileDiff } from "../diff.ts";
 import { errorText, failedResult } from "../errors.ts";
 import { writeAtomic } from "../introspect/cache.ts";
 import { display, sameText, writeIfChanged } from "../io.ts";
@@ -179,10 +180,8 @@ interface Settled {
   readonly stale: boolean;
 }
 
-async function compare(path: string, expected: string): Promise<boolean> {
-  const current = existsSync(path) ? await readFile(path, "utf-8") : undefined;
-
-  return sameText(current, expected);
+async function onDisk(path: string): Promise<string | undefined> {
+  return existsSync(path) ? readFile(path, "utf-8") : undefined;
 }
 
 async function settle(
@@ -247,18 +246,21 @@ async function settle(
 
       for (const file of files) {
         const path = resolve(root, file.path);
+        const name = display(root, file.path);
+        const current = await onDisk(path);
 
-        if (await compare(path, file.text)) {
-          lines.push(`${display(root, file.path)} is up to date.`);
+        if (sameText(current, file.text)) {
+          lines.push(`${name} is up to date.`);
           continue;
         }
 
         stale = true;
-        const missing = !existsSync(path);
+        lines.push(fileDiff(name, current, file.text));
+        const missing = current === undefined;
         diagnostics.push({
           code: missing ? "output-missing" : "output-stale",
           severity: "error",
-          message: `${display(root, file.path)} ${missing ? "does not exist" : "is out of date"}. Run \`better-supabase spec emit\`.`,
+          message: `${name} ${missing ? "does not exist" : "is out of date"}. Run \`better-supabase spec emit\`.`,
         });
       }
 

@@ -196,4 +196,29 @@ describe("connect", () => {
       "postgres: socket closed. Is the local stack running",
     );
   });
+
+  it("doesn't suggest supabase start for a remote host", async () => {
+    const pg = fakePg(new Error("connect ECONNREFUSED 10.0.0.5:5432"));
+
+    const failure = await connect(
+      "postgresql://postgres:secret@db.example.com:5432/postgres",
+      async () => pg,
+    ).catch((error: unknown) => error);
+
+    expect((failure as Error).message).toBe(
+      "Could not connect to postgresql://postgres:***@db.example.com:5432/postgres: connect ECONNREFUSED 10.0.0.5:5432.",
+    );
+  });
+
+  it("doesn't suggest supabase start when the local stack rejects the password", async () => {
+    const pg = fakePg(
+      new Error('password authentication failed for user "postgres"'),
+    );
+
+    const failure = await connect(URL, async () => pg).catch(
+      (error: unknown) => error,
+    );
+
+    expect((failure as Error).message).not.toContain("supabase start");
+  });
 });

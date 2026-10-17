@@ -11,6 +11,7 @@ import type { CommandResult } from "../io.ts";
 
 import { defineCliCommand, list } from "../command.ts";
 import { byCodePoint } from "../compare.ts";
+import { fileDiff } from "../diff.ts";
 import { writeLine } from "../files.ts";
 import { display, readIfExists, sameText } from "../io.ts";
 
@@ -184,6 +185,7 @@ export async function runSkills(
   const check = args.check === true;
   const lines: string[] = [];
   const stale: string[] = [];
+  const diffs: string[] = [];
 
   const targets = agents.flatMap((agent) =>
     skills.flatMap((skill) =>
@@ -206,6 +208,7 @@ export async function runSkills(
 
       if (!sameText(current, file.contents)) {
         stale.push(shown);
+        diffs.push(fileDiff(shown, current, file.contents));
       }
 
       continue;
@@ -219,6 +222,7 @@ export async function runSkills(
       ? { code: 0, output: "Skills are up to date." }
       : {
           code: 1,
+          output: diffs.join("\n"),
           error: `Out of date: ${stale.join(", ")}. Run \`better-supabase skills install\`.`,
         };
   }

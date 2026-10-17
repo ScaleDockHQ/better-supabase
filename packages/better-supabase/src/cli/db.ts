@@ -108,10 +108,14 @@ export async function connect(
   } catch (cause) {
     await close().catch(() => undefined);
     const message = errorText(cause);
-    throw new Error(
-      `Could not connect to ${redact(url)}: ${message}. Is the local stack running (supabase start)?`,
-      { cause },
-    );
+
+    const hint = localStackDown(url, message)
+      ? " Is the local stack running (supabase start)?"
+      : "";
+
+    throw new Error(`Could not connect to ${redact(url)}: ${message}.${hint}`, {
+      cause,
+    });
   }
 
   options.signal?.addEventListener("abort", onAbort, { once: true });
@@ -126,6 +130,28 @@ export async function connect(
     },
     describe: redact(url),
   };
+}
+
+const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
+
+const UNREACHABLE =
+  /ECONNREFUSED|ECONNRESET|Connection terminated|socket closed|connection closed/i;
+
+/**
+ * Whether a failure looks like a local stack that isn't running: a loopback
+ * host that refused or dropped the connection. A remote host, a bad password
+ * or a TLS error has another cause, so `supabase start` would mislead.
+ */
+function localStackDown(url: string, message: string): boolean {
+  let host: string;
+
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    return false;
+  }
+
+  return LOOPBACK.has(host) && UNREACHABLE.test(message);
 }
 
 function redact(url: string): string {

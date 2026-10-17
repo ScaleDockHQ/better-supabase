@@ -670,7 +670,12 @@ export const seed = defineSeed(defineSupabase(schema), {
       join(dir, "supabase/seeds/000_better_supabase.sql"),
       "-- hand written\n",
     );
-    expect((await run(["seed", "--check", "--cwd", dir])).code).toBe(1);
+    const drift = await run(["seed", "--check", "--cwd", dir]);
+    expect(drift.code).toBe(1);
+    expect(drift.stdout).toContain(
+      "--- supabase/seeds/000_better_supabase.sql",
+    );
+    expect(drift.stdout).toContain("--- hand written");
     const refused = await run(["seed", "--cwd", dir]);
     expect(refused.code).toBe(1);
     expect(refused.stderr).toContain("not written by better-supabase");
@@ -715,19 +720,20 @@ describe("openapi emit", () => {
       ).code,
     ).toBe(0);
     await writeFile(join(dir, "openapi.json"), "{}\n");
-    expect(
-      (
-        await run([
-          "openapi",
-          "emit",
-          "--check",
-          "--entry",
-          "openapi.mjs",
-          "--cwd",
-          dir,
-        ])
-      ).code,
-    ).toBe(1);
+
+    const drift = await run([
+      "openapi",
+      "emit",
+      "--check",
+      "--entry",
+      "openapi.mjs",
+      "--cwd",
+      dir,
+    ]);
+
+    expect(drift.code).toBe(1);
+    expect(drift.stdout).toContain("-{}");
+    expect(drift.stdout).toContain('+  "openapi": "3.1.0",');
     expect(
       (await run(["openapi", "emit", "--entry", "bad.mjs", "--cwd", dir])).code,
     ).toBe(1);
@@ -774,9 +780,12 @@ describe("skills", () => {
       join(dir, ".cursor/skills/better-supabase/SKILL.md"),
       "old",
     );
-    expect(
-      (await run(["skills", "install", "--check", "--cwd", dir])).code,
-    ).toBe(1);
+    const drift = await run(["skills", "install", "--check", "--cwd", dir]);
+    expect(drift.code).toBe(1);
+    expect(drift.stdout).toContain(
+      "--- .cursor/skills/better-supabase/SKILL.md\ton disk",
+    );
+    expect(drift.stdout).toContain("-old");
 
     const agents = await run([
       "skills",

@@ -18,10 +18,25 @@ describe("cli files", () => {
       output: "a.txt is up to date.",
     });
     const stale = staleResult(await fileState(root, "a.txt", "y\n"), "cmd");
-    expect(stale).toEqual({
+    expect(stale).toMatchObject({
       code: 1,
       error: "a.txt is out of date. Run `cmd`.",
     });
+    expect(stale.output?.split("\n")).toEqual([
+      "--- a.txt\ton disk",
+      "+++ a.txt\tgenerated",
+      "@@ -1,1 +1,1 @@",
+      "-x\r",
+      "+y",
+    ]);
+
+    const missing = staleResult(
+      await fileState(root, "none.txt", "z\n"),
+      "cmd",
+    );
+
+    expect(missing.output).toContain("--- none.txt\tmissing");
+    expect(missing.output).toContain("+z");
   });
 
   it("writes once, then reports Unchanged", async () => {

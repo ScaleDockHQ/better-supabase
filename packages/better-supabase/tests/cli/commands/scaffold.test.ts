@@ -201,6 +201,7 @@ describe("scaffold from the config", () => {
     const stale = await gen("--check");
     expect(stale.code).toBe(1);
     expect(stale.stderr).toContain("Out of date: src/lib/api.generated.ts");
+    expect(stale.stdout).toContain("+++ src/lib/api.generated.ts\tgenerated");
 
     const written = await gen();
     expect(written.stderr).toBe("");

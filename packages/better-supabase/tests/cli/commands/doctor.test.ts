@@ -82,6 +82,13 @@ describe("doctor command", () => {
     );
   });
 
+  it("rejects --claims without --explain instead of ignoring it", async () => {
+    expect(await doctor(["--claims", '{"role":"authenticated"}'])).toEqual({
+      code: 2,
+      error: "--claims plans a query, so it needs --explain <table>.",
+    });
+  });
+
   it("reads the snapshot and the live checks over one connection, then closes it", async () => {
     const db = fakeSql([TEMP_FILES]);
     const open = fakeConnect(db.pg);

@@ -241,6 +241,8 @@ describe("spec check", () => {
     const stale = await spec("check");
     expect(stale.code).toBe(1);
     expect(stale.stdout).toContain("output-stale");
+    expect(stale.stdout).toContain("--- openapi.json\ton disk");
+    expect(stale.stdout).toContain("-{}");
     expect(stale.stderr).toContain("out of date");
   });
 
