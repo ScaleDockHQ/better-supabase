@@ -276,6 +276,50 @@ describe("createOutbox", () => {
     });
   });
 
+  it("records a failed attempt when a consume handler returns a failed Result", async () => {
+    const { sql, calls } = fakeSql({
+      outbox_claim: [[row(1), row(2)]],
+      outbox_fail: ["retrying"],
+    });
+
+    const result = await createOutbox({
+      transport: sqlTransport(sql),
+      ...OPTIONS,
+    }).consume(
+      "billing-seats",
+      () => ({
+        ok: false,
+        error: { kind: "conflict", message: "Seat count changed" },
+      }),
+      { owner: "w1" },
+    );
+
+    expect(result.delivered).toBe(0);
+    expect(result.error).toMatchObject({
+      kind: "conflict",
+      message: "Seat count changed",
+    });
+    expect(calls.map((call) => call.fn)).not.toContain("outbox_ack");
+    expect(calls.at(-1)?.fn).toBe("outbox_fail");
+  });
+
+  it("records a failed attempt when the failed Result carries a plain error", async () => {
+    const { sql } = fakeSql({
+      outbox_claim: [[row(1)]],
+      outbox_fail: ["retrying"],
+    });
+
+    const result = await createOutbox({
+      transport: sqlTransport(sql),
+      ...OPTIONS,
+    }).consume("billing-seats", () => ({ ok: false, error: "offline" }), {
+      owner: "w1",
+    });
+
+    expect(result.delivered).toBe(0);
+    expect(result.error?.message).toContain("offline");
+  });
+
   it("names the one claimed event so it can go to the dead letters", async () => {
     const { sql, calls } = fakeSql({
       outbox_claim: [[row(7)]],

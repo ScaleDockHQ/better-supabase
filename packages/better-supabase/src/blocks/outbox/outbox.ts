@@ -16,6 +16,7 @@ import {
 } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { cronRoute } from "../../core/cron-route.ts";
+import { DbException } from "../../core/db-exception.ts";
 import { type AsyncResult, toDbError } from "../../core/result.ts";
 import { DEFAULT_TYPE_PREFIX } from "../../events/cloud-event.ts";
 import {
@@ -460,7 +461,28 @@ export function createOutbox(options: OutboxOptions): Outbox {
         handed = await permitted(consumer, events);
 
         if (handed.length > 0) {
-          await handler(handed);
+          const outcome: unknown = await handler(handed);
+
+          if (
+            typeof outcome === "object" &&
+            outcome !== null &&
+            "ok" in outcome &&
+            outcome.ok === false &&
+            "error" in outcome
+          ) {
+            const { error } = outcome;
+
+            if (
+              typeof error === "object" &&
+              error !== null &&
+              "kind" in error
+            ) {
+              // SAFETY: a failed Result carries a DbError, which has a kind field.
+              throw new DbException(error as DbError);
+            }
+
+            throw new Error(String(error));
+          }
         }
       } catch (cause) {
         const error = toDbError(cause);

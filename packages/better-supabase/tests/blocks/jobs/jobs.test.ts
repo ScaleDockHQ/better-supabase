@@ -223,6 +223,27 @@ describe("createJobs over pgmq_public", () => {
     ).toThrow("at most 47");
   });
 
+  it("calls the jobs wrappers in the schema when client has a schema", async () => {
+    const { client, calls } = fakeClient(({ fn }) =>
+      fn === "enqueue_job" ? "9" : true,
+    );
+
+    const jobs = createJobs({ client, schema: "api", queues });
+    expect(
+      await jobs.enqueue("emails", { to: "a@example.com" }).orThrow(),
+    ).toBe(9);
+    expect(await jobs.extend(sampleJob({ id: 9 }), 30).orThrow()).toBe(true);
+    expect((await jobs.unschedule("nightly")).error?.kind).not.toBe(
+      "invalid_request",
+    );
+    expect(calls.map(({ schema, fn }) => [schema, fn])).toEqual([
+      ["api", "enqueue_job"],
+      ["api", "extend_job_lease"],
+      ["api", "unschedule_job"],
+    ]);
+    expect(calls.some((call) => call.schema === "pgmq_public")).toBe(false);
+  });
+
   it("goes through supabase-js as POST /rpc on the pgmq_public schema", async () => {
     const { client, requests } = capturingClient(({ path }) =>
       path.endsWith("/send") ? { body: ["41"] } : { body: true },
@@ -1793,6 +1814,7 @@ describe("drain and work", () => {
           [messageRow(3, { to: "a@example.com" })],
         ),
       ],
+      ["complete_job", [{ done: true }]],
     ]);
 
     const outcomes: unknown[] = [{ ok: true, data: 1 }, { ok: false }, "sent"];
@@ -1865,10 +1887,11 @@ describe("drain and work", () => {
       .catch((error: unknown) => error);
 
     expect(failure).toBeInstanceOf(TypeError);
-    expect((failure as Error).message).toBe(
-      "permission denied for function claim_jobs",
-    );
-    expect((failure as Error).cause).toMatchObject({ kind: "forbidden" });
+    expect((failure as Error).message).toBe("permission denied");
+    expect((failure as Error).cause).toMatchObject({
+      kind: "forbidden",
+      details: "permission denied for function claim_jobs",
+    });
   });
 
   it("retries a transient claim error with backoff", async () => {
@@ -1880,6 +1903,7 @@ describe("drain and work", () => {
           [messageRow(1, { to: "a@example.com" })],
         ),
       ],
+      ["complete_job", [{ done: true }]],
     ]);
 
     const stop = new AbortController();
@@ -1927,6 +1951,7 @@ describe("drain and work", () => {
           [messageRow(2, { to: "b@example.com" })],
         ),
       ],
+      ["complete_job", [{ done: true }]],
     ]);
 
     let started = 0;
@@ -2008,22 +2033,26 @@ describe("drain and work", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it("beats at least once a second for short leases, and ignores a failed extend", async () => {
+  it("beats at least once a second for short leases, and aborts the job when an extend fails", async () => {
     vi.useFakeTimers();
     let finish!: () => void;
+    let signal!: AbortSignal;
+    const errors: DbError[] = [];
 
     const fake = fakeSql([
       ["claim_jobs", sequence([messageRow(9, { to: "a@example.com" })])],
       ["extend_job_lease", { throws: new Error("connection reset") }],
+      ["complete_job", [{ done: true }]],
     ]);
 
     const draining = createJobs({ sql: fake.sql, queues }).drain(
       "emails",
-      () =>
+      (_payload, _job, aborted) =>
         new Promise<void>((resolve) => {
+          signal = aborted;
           finish = resolve;
         }),
-      { lease: 1 },
+      { lease: 1, onError: (error) => errors.push(error) },
     );
 
     await vi.advanceTimersByTimeAsync(999);
@@ -2034,8 +2063,32 @@ describe("drain and work", () => {
     expect(fake.texts().filter((text) => text.includes("extend"))).toHaveLength(
       1,
     );
+    expect(signal.aborted).toBe(true);
     finish();
-    expect(await draining).toEqual({ succeeded: 1, failed: 0 });
+    expect(await draining).toEqual({ succeeded: 0, failed: 1 });
+    expect(errors.map((error) => error.code)).toEqual(["JOB_LEASE_LOST"]);
+    expect(
+      fake.texts().filter((text) => /complete_job|fail_job/.test(text)),
+    ).toEqual([]);
+  });
+
+  it("reports a job whose completion finds the lease lost as failed, without failing it", async () => {
+    const errors: DbError[] = [];
+
+    const fake = fakeSql([
+      ["claim_jobs", sequence([messageRow(4, { to: "a@example.com" })])],
+      ["complete_job", [{ done: false }]],
+    ]);
+
+    const result = await createJobs({ sql: fake.sql, queues }).drain(
+      "emails",
+      () => undefined,
+      { onError: (error) => errors.push(error) },
+    );
+
+    expect(result).toEqual({ succeeded: 0, failed: 1 });
+    expect(errors.map((error) => error.code)).toEqual(["JOB_LEASE_LOST"]);
+    expect(fake.texts().some((text) => text.includes("fail_job"))).toBe(false);
   });
 
   it("polls an empty queue every pollInterval until the signal aborts", async () => {
@@ -2044,6 +2097,7 @@ describe("drain and work", () => {
 
     const fake = fakeSql([
       ["claim_jobs", sequence([], [messageRow(1, { to: "a@example.com" })])],
+      ["complete_job", [{ done: true }]],
     ]);
 
     const claims = () =>
@@ -2342,12 +2396,13 @@ describe("createIdempotency", () => {
     expect(scopes[4]).toBe("");
   });
 
-  it("fingerprints the method, path and body, with a fixed scope", async () => {
+  it("fingerprints the method, path, query and body, with a fixed scope", async () => {
     const fake = fakeSql([
       [
         "begin_idempotent",
         [{ state: "started", status_code: null, response: null, holder: "h1" }],
       ],
+      ["complete_idempotent", [{ done: true }]],
     ]);
 
     const idempotency = createIdempotency({ sql: fake.sql, scope: "acme" });
@@ -2365,7 +2420,7 @@ describe("createIdempotency", () => {
 
     const digest = await crypto.subtle.digest(
       "SHA-256",
-      new TextEncoder().encode('POST /payments\n{"amount":10}'),
+      new TextEncoder().encode('POST /payments?x=1\n{"amount":10}'),
     );
 
     const hex = Array.from(new Uint8Array(digest), (byte) =>
@@ -2383,6 +2438,54 @@ describe("createIdempotency", () => {
         contentType: "text/plain;charset=UTF-8",
       }),
     ]);
+  });
+
+  it("answers a conflict when the lock expired before the response was saved", async () => {
+    const fake = fakeSql([
+      [
+        "begin_idempotent",
+        [{ state: "started", status_code: null, response: null, holder: "h1" }],
+      ],
+      ["complete_idempotent", [{ done: false }]],
+    ]);
+
+    const response = await createIdempotency({ sql: fake.sql }).handle(
+      new Request("https://api.test/payments", {
+        method: "POST",
+        headers: { "idempotency-key": "k1" },
+        body: "{}",
+      }),
+      () => new Response("created", { status: 201 }),
+    );
+
+    expect(response.status).toBe(409);
+    expect(response.headers.get("retry-after")).toBe("1");
+    expect(await response.json()).toMatchObject({
+      code: "IDEMPOTENCY_KEY_LOST",
+    });
+  });
+
+  it("answers with a problem when the response cannot be saved", async () => {
+    const fake = fakeSql([
+      [
+        "begin_idempotent",
+        [{ state: "started", status_code: null, response: null, holder: "h1" }],
+      ],
+      ["complete_idempotent", { throws: pgError("08006", "connection lost") }],
+    ]);
+
+    const response = await createIdempotency({ sql: fake.sql }).handle(
+      new Request("https://api.test/payments", {
+        method: "POST",
+        headers: { "idempotency-key": "k1" },
+      }),
+      () => new Response("created", { status: 201 }),
+    );
+
+    expect(response.status).not.toBe(201);
+    expect(response.headers.get("content-type")).toBe(
+      "application/problem+json",
+    );
   });
 
   it("replays a stored response without a content type as 200", async () => {
@@ -2987,6 +3090,54 @@ describe("createWebhookInbox", () => {
       );
       await vi.advanceTimersByTimeAsync(10_000);
       expect(renewals()).toBe(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("aborts the handler and leaves the message alone when a renewal finds the lease gone", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+
+    try {
+      const fake = fakeSql([
+        [
+          "claim_webhooks",
+          sequence(
+            rowsOf({
+              id: 1,
+              source: "crm",
+              message_id: "m1",
+              event_type: null,
+              payload: {},
+              headers: {},
+              attempts: 1,
+              received_at: "2026-01-01T00:00:00Z",
+            }),
+          ),
+        ],
+        ["extend_webhook", sequence([{ value: 4 }], [{ value: null }])],
+      ]);
+
+      let signal: AbortSignal | undefined;
+
+      const result = await createWebhookInbox({
+        transport: sqlTransport(fake.sql),
+        source: "crm",
+      }).process(
+        async (_message, aborted) => {
+          signal = aborted;
+          await vi.advanceTimersByTimeAsync(2500);
+        },
+        { lease: 4 },
+      );
+
+      expect(signal?.aborted).toBe(true);
+      expect(result).toEqual({ succeeded: 0, failed: 0 });
+      expect(
+        fake
+          .texts()
+          .filter((text) => /complete_webhook|fail_webhook/.test(text)),
+      ).toEqual([]);
     } finally {
       vi.useRealTimers();
     }

@@ -132,7 +132,8 @@ time within one budget, since each has its own cursor and lease.
 the handler the outbox rows instead of CloudEvents: `type`, `payload`,
 `tenant`, `subject`, `key`, `actorId`, `position` and `createdAt`. Use it for
 consumers in your own app, such as search indexing or notifications, that need
-the actor. A handler that throws leaves the batch for the next run.
+the actor. A handler that throws or returns a failed `Result` leaves the
+batch for the next run.
 
 ```ts
 await outbox.consume("search", async (events) => {

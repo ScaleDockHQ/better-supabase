@@ -115,7 +115,10 @@ await jobs.work(
   crashes, the lease ends and another worker picks the job up. On pgmq the
   lease is extended with `pgmq.set_vt`. `job.attempts` is pgmq's `read_ct`;
   a worker whose lease was taken over gets `false` from
-  `complete` instead of finishing someone else's job.
+  `complete` instead of finishing someone else's job. When an extension
+  fails or finds the lease gone, the handler's `signal` aborts and the
+  worker neither completes nor fails that job; `onError` gets a `conflict`
+  with code `JOB_LEASE_LOST` and the job counts as failed.
 - An idle worker polls after `pollInterval` (1 second), then doubles the wait
   after each empty poll up to `maxPollInterval` (30 seconds). The next claimed
   job resets it.
@@ -546,8 +549,8 @@ const jobs = createJobs({ backend, queues: { send_email: schema } });
 ### Without a database connection
 
 Where there's no direct connection, such as an Edge Function without a pooler
-URL, pass a service-role Supabase client instead. Jobs then go through the
-`pgmq_public` RPCs, which you turn on in the dashboard under Integrations, Queues, "Expose
+URL, pass a service-role Supabase client instead. Without `schema`, jobs go
+through the `pgmq_public` RPCs, which you turn on in the dashboard under Integrations, Queues, "Expose
 Queues via PostgREST".
 
 ```ts
@@ -593,6 +596,18 @@ const idempotency = createIdempotency({ transport, schema: "api" });
 await withLease(transport, "nightly-report", run, { schema: "api" });
 ```
 
+For jobs alone, `client` with `schema` does the same: `createJobs` builds the
+`rpcTransport` itself and calls the wrappers in that schema. A `client`
+without `schema` stays on `pgmq_public`.
+
+```ts
+const jobs = createJobs({
+  client: createClient(url, secretKey),
+  schema: "api",
+  queues: { send_email: schema },
+});
+```
+
 `createIdempotency` and `withLease` call the functions in `better_supabase`
 unless you pass `schema`, which an `rpcTransport` with its own `schema`
 option ignores. Keep the wrappers service-only: the module functions are
@@ -616,13 +631,14 @@ export const POST = (request: Request) =>
   );
 ```
 
-| Situation                                         | Response                                               |
-| ------------------------------------------------- | ------------------------------------------------------ |
-| First request                                     | The handler's response, stored                         |
-| Same key and same body                            | The stored response, with `idempotency-replayed: true` |
-| Same key while the first request is still running | `409` with `Retry-After`                               |
-| Same key and a different body                     | `422` with code `IDEMPOTENCY_KEY_REUSED`               |
-| Handler throws or returns a 5xx                   | The key is released, so the client can retry           |
+| Situation                                         | Response                                                 |
+| ------------------------------------------------- | -------------------------------------------------------- |
+| First request                                     | The handler's response, stored                           |
+| Same key and same body                            | The stored response, with `idempotency-replayed: true`   |
+| Same key while the first request is still running | `409` with `Retry-After`                                 |
+| Same key and a different body                     | `422` with code `IDEMPOTENCY_KEY_REUSED`                 |
+| Handler throws or returns a 5xx                   | The key is released, so the client can retry             |
+| The lock ran out before the response was stored   | `409` with code `IDEMPOTENCY_KEY_LOST` and `Retry-After` |
 
 Pass a service SQL connection as `sql`, or a service-role `transport` such
 as the `rpcTransport` above. `hooks` runs your code around `begin`,
@@ -630,7 +646,9 @@ as the `rpcTransport` above. `hooks` runs your code around `begin`,
 [extending blocks](/docs/extending/blocks#hooks)); `handle` calls them
 through the hooks.
 
-The fingerprint is a SHA-256 of the method, path and body. Set
+The fingerprint is a SHA-256 of the method, path, query string and body.
+The lock (`lock`, one minute by default) isn't renewed while the handler
+runs, so set it longer than your slowest handler. Set
 `required: true` to reject requests that have no key. The error responses
 are Problem Details; pass `problem` to answer in your app's error format
 instead (see [Problem Details](/docs/auth/problems#your-own-error-format)).
@@ -755,7 +773,9 @@ seconds) set how many messages one claim takes and how long they stay with
 the worker. While a handler runs, a heartbeat renews its message's lease
 every half lease. A worker whose lease ran out and was taken by another
 claim can't complete, fail or checkpoint that message: the inbox checks the
-attempt it claimed, and skips a message whose lease it can't renew.
+attempt it claimed, and skips a message whose lease it can't renew. The
+handler gets an `AbortSignal` as its second argument, which aborts when a
+renewal fails; the worker then leaves the message for the next claim.
 
 ```ts title="app/api/inbox/route.ts"
 export const GET = async () =>

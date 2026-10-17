@@ -276,7 +276,8 @@ export function createIdempotency(options: IdempotencyOptions): Idempotency {
     release: (key, holder, scope = "") => calls.release(scope, key, holder),
     async handle(request, handler) {
       const key = request.headers.get(headerName);
-      const instance = new URL(request.url).pathname;
+      const url = new URL(request.url);
+      const instance = url.pathname;
 
       if (!key) {
         return options.required
@@ -310,7 +311,7 @@ export function createIdempotency(options: IdempotencyOptions): Idempotency {
       const body = await request.clone().text();
 
       const fingerprint = await sha256(
-        `${request.method} ${instance}\n${body}`,
+        `${request.method} ${instance}${url.search}\n${body}`,
       );
 
       const started = await hooked.begin(key, fingerprint, scope);
@@ -400,7 +401,29 @@ export function createIdempotency(options: IdempotencyOptions): Idempotency {
         contentType: response.headers.get("content-type"),
       };
 
-      await hooked.complete(key, holder, response.status, stored, scope);
+      const completed = await hooked.complete(
+        key,
+        holder,
+        response.status,
+        stored,
+        scope,
+      );
+
+      if (!completed.ok || !completed.data) {
+        // The lock expired and another request took the key, or the store
+        // failed: this response was never saved, so a retry must not be
+        // told it was.
+        return problemResponse(
+          completed.ok
+            ? dbError(
+                "conflict",
+                "The idempotency key's lock expired before the response was saved",
+                { code: "IDEMPOTENCY_KEY_LOST" },
+              )
+            : completed.error,
+          { instance, format, headers: { "retry-after": "1" } },
+        );
+      }
 
       return response;
     },

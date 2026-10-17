@@ -55,7 +55,7 @@ function store() {
           String(body),
         );
 
-        return [];
+        return [{ done: true }];
       },
     ],
     [
@@ -63,7 +63,7 @@ function store() {
       ({ values: [scope, key] }) => {
         rows.delete(`${String(scope)}:${String(key)}`);
 
-        return [];
+        return [{ done: true }];
       },
     ],
   ]);

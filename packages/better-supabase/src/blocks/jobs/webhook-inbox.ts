@@ -236,10 +236,15 @@ export interface WebhookInbox<F extends object = Record<never, never>> {
    * Processes stored messages until none are ready, or until `budgetMs`
    * is spent. A message whose lease another claim took over is skipped,
    * and its outcome is not counted. A message whose extra columns the
-   * `fields` schema rejects fails without reaching the handler.
+   * `fields` schema rejects fails without reaching the handler. The signal
+   * aborts when the lease can't be renewed; the message is then neither
+   * completed nor failed by this worker.
    */
   process<T = unknown>(
-    handler: (message: WebhookInboxMessage<T, F>) => unknown,
+    handler: (
+      message: WebhookInboxMessage<T, F>,
+      signal: AbortSignal,
+    ) => unknown,
     options?: WebhookInboxProcessOptions,
   ): Promise<DrainResult>;
   /** A tenant's messages of this source, newest first. */
@@ -564,10 +569,20 @@ export function createWebhookInbox<
             continue;
           }
 
-          const stopHeartbeat = leaseHeartbeat(
-            leaseSeconds,
-            () => void extend().catch(() => undefined),
-          );
+          const controller = new AbortController();
+
+          const stopHeartbeat = leaseHeartbeat(leaseSeconds, () => {
+            extend().then(
+              (renewed) => {
+                if (renewed === undefined) {
+                  controller.abort();
+                }
+              },
+              () => {
+                controller.abort();
+              },
+            );
+          });
 
           try {
             const parsed = await fields.read(
@@ -605,7 +620,11 @@ export function createWebhookInbox<
                 ),
             };
 
-            const outcome: unknown = await handler(message);
+            const outcome: unknown = await handler(message, controller.signal);
+
+            if (controller.signal.aborted) {
+              continue;
+            }
 
             if (
               typeof outcome === "object" &&
@@ -633,6 +652,10 @@ export function createWebhookInbox<
               succeeded += 1;
             }
           } catch (cause) {
+            if (controller.signal.aborted) {
+              continue;
+            }
+
             await must(
               "fail_webhook",
               { inbox_id: id, worker, error: errorText(cause), attempt },
