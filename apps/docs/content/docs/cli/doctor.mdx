@@ -149,9 +149,10 @@ rows. Restrict the policy to `authenticated` and check ownership.
 
 ### BS106
 
-**Error: table not granted to the Data API.** Supabase no longer grants new
-tables to `anon` and `authenticated` (new projects from May 30, 2026, existing
-projects from October 30, 2026). Without a grant, every request fails with
+**Error: table not granted to the Data API.** Hosted projects grant new
+tables to `anon` and `authenticated` unless the project turns default
+privileges off (`auto_expose_new_tables = false` locally). Without a grant,
+every request fails with
 `42501` before RLS runs. Tables listed in [`expose`](/docs/guides/data-api-grants)
 need exactly the privileges listed; other tables in the generated schemas need
 `select` for `authenticated`, except tables with RLS on and no permissive

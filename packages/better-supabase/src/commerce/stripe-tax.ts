@@ -218,13 +218,24 @@ function lineOf(
   behavior: string,
   taxCategory: string | undefined,
   breakdown: readonly StripeTaxBreakdown[] | null | undefined,
-): TaxLine {
+): Result<TaxLine> {
   const inclusive = behavior === "inclusive";
-  const tax = fromStripeAmount(amountTax, currency);
-  const gross = fromStripeAmount(amount, currency);
+  const taxed = fromStripeAmount(amountTax, currency);
+  const grossed = fromStripeAmount(amount, currency);
+
+  if (!taxed.ok) {
+    return taxed;
+  }
+
+  if (!grossed.ok) {
+    return grossed;
+  }
+
+  const tax = taxed.data;
+  const gross = grossed.data;
   const jurisdiction = jurisdictionOf(breakdown);
 
-  return {
+  return ok({
     lineId,
     taxable: inclusive
       ? { amount: gross.amount - tax.amount, currency: gross.currency }
@@ -234,7 +245,7 @@ function lineOf(
     inclusive,
     ...(jurisdiction === undefined ? {} : { jurisdiction }),
     ...(taxCategory === undefined ? {} : { taxCategory }),
-  };
+  });
 }
 
 const addressOf = (address: TaxAddress): Params => ({
@@ -373,8 +384,10 @@ export function stripeTax(options: StripeTaxOptions): TaxProvider {
           cart.lines.map((line) => [line.id, line.taxCategory]),
         );
 
-        const lines = stripeLines.map((line) =>
-          lineOf(
+        const lines: TaxLine[] = [];
+
+        for (const line of stripeLines) {
+          const mapped = lineOf(
             line.reference,
             calculation.currency,
             line.amount,
@@ -382,23 +395,33 @@ export function stripeTax(options: StripeTaxOptions): TaxProvider {
             line.tax_behavior,
             categories.get(line.reference),
             line.tax_breakdown,
-          ),
-        );
+          );
+
+          if (!mapped.ok) {
+            return mapped;
+          }
+
+          lines.push(mapped.data);
+        }
 
         const shipping = calculation.shipping_cost;
 
         if (shipping && cart.shipping) {
-          lines.push(
-            lineOf(
-              SHIPPING_LINE,
-              calculation.currency,
-              shipping.amount,
-              shipping.amount_tax,
-              shipping.tax_behavior,
-              cart.shipping.taxCategory,
-              shipping.tax_breakdown,
-            ),
+          const mapped = lineOf(
+            SHIPPING_LINE,
+            calculation.currency,
+            shipping.amount,
+            shipping.amount_tax,
+            shipping.tax_behavior,
+            cart.shipping.taxCategory,
+            shipping.tax_breakdown,
           );
+
+          if (!mapped.ok) {
+            return mapped;
+          }
+
+          lines.push(mapped.data);
         }
 
         const totalTax = lines.reduce(

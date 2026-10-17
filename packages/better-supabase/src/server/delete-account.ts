@@ -200,13 +200,17 @@ export function deleteAccount<
     }
 
     options.signal?.throwIfAborted();
+    // A retry after the Auth user was deleted still clears their objects, and
+    // doesn't announce the delete a second time.
+    let alreadyGone = false;
 
     try {
       const { error } = await client.auth.admin.deleteUser(userId);
+      const failure = error ? fromAuthError(error) : undefined;
 
-      if (error) {
-        const failure = fromAuthError(error);
-
+      if (failure?.kind === "not_found") {
+        alreadyGone = true;
+      } else if (failure) {
         // GoTrue reports a refused delete as "Database error deleting user",
         // or only as an unexpected failure (500).
         const refusal =
@@ -239,6 +243,10 @@ export function deleteAccount<
       }
 
       removed[bucket.id] = paths.length;
+    }
+
+    if (alreadyGone) {
+      return ok({ userId, removed });
     }
 
     const context = options.context ?? {};

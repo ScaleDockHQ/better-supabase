@@ -6,7 +6,10 @@ import type { MutationNotice } from "../../src/core/events.ts";
 
 import { defineSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
-import { deleteAccount } from "../../src/server/delete-account.ts";
+import {
+  deleteAccount,
+  fromAuthError,
+} from "../../src/server/delete-account.ts";
 import { defineBucket } from "../../src/storage/index.ts";
 import { fakeStorage, storageError } from "../fixtures/fake-storage.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -291,6 +294,7 @@ describe("deleteAccount", () => {
     queries.length = 0;
 
     const missing = setup({
+      files: { [`documents/${id}/left.txt`]: "l" },
       deleteUser: async () => ({
         error: { code: "user_not_found", message: "User not found" },
       }),
@@ -299,9 +303,15 @@ describe("deleteAccount", () => {
     expect(
       await deleteAccount(missing.betterSupabase, missing.service, id, {
         sql: probe(new Error("unused")),
+        buckets: [documents],
       }),
-    ).toMatchObject({ ok: false, error: { kind: "not_found" } });
+    ).toMatchObject({
+      ok: true,
+      data: { userId: id, removed: { documents: 1 } },
+    });
     expect(queries).toEqual([]);
+    expect(missing.storage.files.size).toBe(0);
+    expect(missing.notices).toEqual([]);
 
     const mapped = await deleteAccount(betterSupabase, service, id, {
       sql: probe(dbError("check", "blocked", { hint: "OWNER_REQUIRED" })),
@@ -345,8 +355,28 @@ describe("deleteAccount", () => {
   });
 
   it.each([
-    [{ code: "user_not_found", message: "User not found" }, "not_found"],
-    [{ status: 404, message: "missing" }, "not_found"],
+    { code: "user_not_found", message: "User not found" },
+    { status: 404, message: "missing" },
+  ])(
+    "maps the Auth error %j to not_found, which deleteAccount treats as deleted",
+    async (error) => {
+      expect(fromAuthError(error)).toMatchObject({
+        kind: "not_found",
+        table: "auth.users",
+      });
+
+      const { betterSupabase, notices, service } = setup({
+        deleteUser: async () => ({ error }),
+      });
+
+      expect(await deleteAccount(betterSupabase, service, USER)).toMatchObject({
+        ok: true,
+      });
+      expect(notices).toEqual([]);
+    },
+  );
+
+  it.each([
     [{ status: 500, message: "Database error deleting user" }, "conflict"],
     [{ status: 401, message: "no" }, "unauthorized"],
     [{ status: 403, message: "no" }, "forbidden"],

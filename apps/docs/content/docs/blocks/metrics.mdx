@@ -72,20 +72,26 @@ blocks: {
 },
 ```
 
-| Key          | Default           | What it sets                                                                  |
-| ------------ | ----------------- | ----------------------------------------------------------------------------- |
-| `key`        | required          | The metric's name, lowercase with underscores                                 |
-| `table`      | required          | The source table, as `table` or `schema.table`                                |
-| `measure`    | required          | `"count"`, `{ sum: column }` or `{ avg: column }`                             |
-| `timeColumn` | required          | The timestamp that places a row in a bucket                                   |
-| `dimensions` | none              | Columns a read can filter or group by                                         |
-| `tenant`     | `organization_id` | The tenant column                                                             |
-| `tz`         | `UTC`             | The IANA time zone buckets start in                                           |
-| `where`      | none              | Column to value; only matching rows count                                     |
-| `rollup`     | `["day"]`         | The grains stored in `metric_points`, or `false` to read the table every time |
-| `permission` | `metrics.read`    | The key a read checks in the tenant                                           |
-| `label`      | none              | A display name `definitions()` returns                                        |
-| `unit`       | none              | A display unit such as `EUR`                                                  |
+| Key              | Default           | What it sets                                                                  |
+| ---------------- | ----------------- | ----------------------------------------------------------------------------- |
+| `key`            | required          | The metric's name, lowercase with underscores                                 |
+| `table`          | required          | The source table, as `table` or `schema.table`                                |
+| `measure`        | required          | `"count"`, `{ sum: column }` or `{ avg: column }`                             |
+| `timeColumn`     | required          | The timestamp that places a row in a bucket                                   |
+| `dimensions`     | none              | Columns a read can filter or group by                                         |
+| `tenant`         | `organization_id` | The tenant column                                                             |
+| `tz`             | `UTC`             | The IANA time zone buckets start in                                           |
+| `where`          | none              | Column to value; only matching rows count                                     |
+| `includeDeleted` | `false`           | Counts rows of a subject table whose `deletedAt` column is set                |
+| `rollup`         | `["day"]`         | The grains stored in `metric_points`, or `false` to read the table every time |
+| `permission`     | `metrics.read`    | The key a read checks in the tenant                                           |
+| `label`          | none              | A display name `definitions()` returns                                        |
+| `unit`           | none              | A display unit such as `EUR`                                                  |
+
+A metric over a table that a [`config.subjects`](/docs/blocks/sql#subject-registry)
+entry with a `deletedAt` column points at counts live rows only: the module
+adds `deletedAt is null` unless `where` names that column or the metric sets
+`includeDeleted: true`.
 
 `window` (default `3 days`) is how far back the periodic rollup
 re-aggregates, so late and edited rows land in their buckets.

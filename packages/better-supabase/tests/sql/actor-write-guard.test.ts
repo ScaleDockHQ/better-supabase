@@ -107,6 +107,49 @@ describe("actor write guard", () => {
     expect(unguardedWrites(sql)).toEqual([]);
   });
 
+  it("gives authenticated no permissive for-all policy, which would skip the guard", () => {
+    const sql = renderModules(
+      Object.values(SQL_MODULES)
+        .filter((module) => module.target === "schema")
+        .map((module) => module.name),
+    )
+      .map((file) => file.contents)
+      .join("\n");
+
+    const permissive = [...sql.matchAll(/create\s+policy\b[\s\S]*?;/gi)]
+      .map((match) => match[0])
+      .filter(
+        (statement) =>
+          /\bfor\s+all\b/i.test(statement) &&
+          !/\bas\s+restrictive\b/i.test(statement) &&
+          /\bto\s+[^;]*\bauthenticated\b/i.test(statement),
+      );
+
+    expect(permissive).toEqual([]);
+  });
+
+  it("guards the split own-row policies on settings and notifications", () => {
+    const sql = renderModules(["settings", "notifications"])
+      .map((file) => file.contents)
+      .join("\n");
+
+    for (const name of [
+      "user_settings_own_update",
+      "bs_notification_subscriptions_own_insert",
+      "bs_notification_preferences_own_delete",
+    ]) {
+      const statement = new RegExp(`create policy "?${name}"?[^;]*;`, "i").exec(
+        sql,
+      )?.[0];
+
+      expect(statement).toContain("actor_may_write()");
+    }
+
+    expect(
+      /create policy "?user_settings_own_read"?[^;]*;/i.exec(sql)?.[0],
+    ).not.toContain("actor_may_write()");
+  });
+
   it("keeps the session functions on the allowlist", () => {
     expect([...WRITE_GUARD_ALLOWLIST].toSorted()).toEqual([
       "check_request",

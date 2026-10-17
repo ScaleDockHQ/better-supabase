@@ -486,14 +486,21 @@ function mapBuiltin(raw: RawDbError): DbError {
         });
       }
 
+      // The object name and PostgREST's GRANT recipe stay in `details`, which
+      // Problem Details never sends to the client.
       const advice =
         object[1] === "table" || object[1] === "view"
-          ? `Supabase no longer grants new tables to the Data API roles: add ${object[2]} to \`expose\` and run \`better-supabase sql add grants\`. \`better-supabase doctor\` (BS106) lists every missing grant.`
-          : `Supabase no longer grants new objects to the Data API roles automatically; grant ${object[1] === "function" ? "execute" : "usage"} on ${object[1]} ${object[2]} to the role that needs it.`;
+          ? `The Data API role has no grant on this ${object[1]}, as on a project with default privileges turned off: add it to \`expose\` and run \`better-supabase sql add grants\`. \`better-supabase doctor\` (BS106) lists every missing grant.`
+          : `The Data API role has no ${object[1] === "function" ? "execute" : "usage"} grant on this ${object[1]}; grant it to the role that needs it.`;
 
-      return dbError("forbidden", message, {
+      const details = [message, base.details, postgrestHint ? base.hint : ""]
+        .filter(Boolean)
+        .join("\n");
+
+      return dbError("forbidden", "permission denied", {
         ...base,
-        hint: postgrestHint ? `${base.hint} ${advice}` : advice,
+        details,
+        hint: advice,
       });
     }
 

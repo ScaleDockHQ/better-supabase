@@ -29,7 +29,9 @@ prints legacy keys.
 `--out <file>` writes another file than `.env.local` (`env.output` in the
 config sets it for every run, and `env.prefix` the prefix), and `--from <file>`
 reads saved `supabase status -o json` output instead of running the
-Supabase CLI.
+Supabase CLI. Both paths must stay inside the project root: `env` refuses an
+absolute path elsewhere or one that climbs out with `..`, so the secret key
+never lands outside the project.
 
 The Supabase CLI's native stack (`[experimental] stack = true` in
 `supabase/config.toml`, or `SUPABASE_EXPERIMENTAL_STACK=1`) runs without a

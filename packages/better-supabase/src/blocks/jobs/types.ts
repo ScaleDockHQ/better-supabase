@@ -487,14 +487,22 @@ export interface JobsOptions<
   readonly backend?: QueueBackend;
   /** A service SQL connection (`postgres.admin`, `ctx.sql`), for the full feature set. */
   readonly sql?: SqlClient;
-  /** A service-role Supabase client, through the `pgmq_public` RPCs. */
+  /**
+   * A service-role Supabase client. With `schema`, it calls the wrappers
+   * `blocks.jobs.api` writes into that schema, for the full feature set over
+   * the Data API. Without, it goes through the `pgmq_public` RPCs.
+   */
   readonly client?: QueueRpcClient;
   /**
    * A service-role `rpcTransport` over the wrappers `blocks.jobs.api`
    * writes, for the full feature set over the Data API.
    */
   readonly transport?: BlockTransport;
-  /** The schema of the functions over `transport`. Default `better_supabase`. */
+  /**
+   * The schema of the functions over `transport`, or over `client` (which
+   * then uses the wrappers instead of `pgmq_public`). Default
+   * `better_supabase` for `transport`.
+   */
   readonly schema?: string;
   /** Error mappers that run before the built-in ones, over `transport`. */
   readonly mappers?: readonly ErrorMapper[];

@@ -762,6 +762,39 @@ export const revokeTable = (table: string): string =>
   `revoke all on ${table} from anon, authenticated;`;
 
 /**
+ * One policy per command for rows `authenticated` owns. A permissive `for all`
+ * policy would also grant writes on its own, so the read-only actor check
+ * (which wraps only insert, update and delete policies) could never refuse
+ * them. `legacy` is the name of the `for all` policy this replaces.
+ */
+export function ownRowPolicies(options: {
+  readonly table: string;
+  readonly legacy: string;
+  readonly name: (command: "read" | "insert" | "update" | "delete") => string;
+  readonly using: string;
+  readonly check: string;
+}): string {
+  const { table, legacy, name, using, check } = options;
+
+  const create = (
+    command: "read" | "insert" | "update" | "delete",
+    body: string,
+  ): string => `drop policy if exists ${sqlIdent(name(command))} on ${table};
+create policy ${sqlIdent(name(command))} on ${table} ${body};`;
+
+  return [
+    `drop policy if exists ${sqlIdent(legacy)} on ${table};`,
+    create("read", `for select to authenticated using (${using})`),
+    create("insert", `for insert to authenticated with check (${check})`),
+    create(
+      "update",
+      `for update to authenticated using (${using}) with check (${check})`,
+    ),
+    create("delete", `for delete to authenticated using (${using})`),
+  ].join("\n");
+}
+
+/**
  * SQL that turns on RLS for a table the module manages, takes it from `anon`
  * and `authenticated` and gives it to the service role. `read` grants
  * `select` back to `authenticated`, for tables its policies expose.

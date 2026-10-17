@@ -76,6 +76,22 @@ function credentialColumns(ctx: ModuleContext): readonly CredentialColumn[] {
 }
 
 /**
+ * Raises `ORGANIZATION_LEGAL_HOLD` while a hold covers the tenant. The purger
+ * calls `organization_credential_refs` before it cancels billing, revokes
+ * credentials or removes files, so the check runs there as well as in
+ * `purge_organization`.
+ */
+export function refuseHeldTenant(ctx: ModuleContext, tenant: string): string {
+  return `if exists (
+    select 1 from ${ctx.table("holds")} x
+    where x.${ctx.col("holds", "releasedAt")} is null
+      and (x.${ctx.col("holds", "tenant")} is null or x.${ctx.col("holds", "tenant")} = ${tenant})
+  ) then
+    ${fail("ORGANIZATION_LEGAL_HOLD", "A legal hold covers this organization, so it can't be purged", "P0001")}
+  end if;`;
+}
+
+/**
  * `data_lifecycle_credentials()` and `organization_credential_refs(tenant)`,
  * which list the refs in the rows a due purge deletes for the purger to
  * revoke first.
@@ -140,6 +156,7 @@ begin
   ) then
     ${fail("ORGANIZATION_DELETION_NOT_DUE", "No due deletion for this organization", "P0002")}
   end if;
+  ${refuseHeldTenant(ctx, "organization_credential_refs.tenant")}
   for v_entry in
     select c.name, c.tbl, c.col, c.user_col, t.col as tenant_col
     from ${fn("data_lifecycle_credentials")}() c

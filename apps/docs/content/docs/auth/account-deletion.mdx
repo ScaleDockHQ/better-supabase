@@ -256,8 +256,9 @@ Auth reports such a refusal only as a generic failure, so with
 `postgres`) the delete is replayed in a statement that is rolled back, and
 the database's own error comes back instead, with its SQLSTATE and hint
 (`ORGANIZATION_OWNER_REQUIRED`). If removing objects fails after the user is
-deleted, the error names the bucket; remove the rest with the bucket's
-`remove`.
+deleted, the error names the bucket. Call `deleteAccount` again: when Auth
+reports the user already gone, it removes the listed objects and returns
+`ok` without announcing the delete a second time.
 
 ## Errors
 
@@ -265,7 +266,6 @@ deleted, the error names the bucket; remove the rest with the bucket's
 | -------------- | --------------------------------------------------------------------------------- |
 | `conflict`     | A foreign key to `auth.users` blocks the delete (`hint` points at BS406)          |
 | database kinds | With `sql`, the database's own refusal, with its `hint` and `table: "auth.users"` |
-| `not_found`    | No user with that id                                                              |
 | `network`      | Auth or Storage is unreachable                                                    |
 | Storage kinds  | A list or remove failed, with `table` set to the bucket id                        |
 

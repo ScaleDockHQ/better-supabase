@@ -648,7 +648,8 @@ describe("writes", () => {
     expect(denied.error).toMatchObject({
       kind: "forbidden",
       status: 403,
-      hint: expect.stringContaining("add tags to `expose`"),
+      message: "permission denied",
+      hint: expect.stringContaining("add it to `expose`"),
     });
 
     const rls = await sbCamel

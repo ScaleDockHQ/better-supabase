@@ -408,7 +408,8 @@ and `is_held(kind, tenant)`.
 
 A hold without `organizationId` covers every tenant, and one without `kind`
 covers every kind. While a hold covers a tenant, `purge_organization` stops
-with `ORGANIZATION_LEGAL_HOLD`. Placing and releasing a hold emit
+with `ORGANIZATION_LEGAL_HOLD`, and the purger stops before it cancels
+billing, revokes credentials or removes files. Placing and releasing a hold emit
 `legal_hold.placed` and `legal_hold.released`. When `data-lifecycle` isn't
 installed, each purge keeps its plain `older_than` and nothing is held.
 

@@ -259,6 +259,30 @@ describe("stripePayments", () => {
     });
   });
 
+  it("refuses a PaymentIntent whose ISK amounts have a fraction of a krona", async () => {
+    const { provider, intents } = setup();
+
+    const payment = await provider
+      .createPayment({ amount: money(1000n, "ISK"), reference: "r" })
+      .orThrow();
+
+    const intent = intents.get(payment.id)!;
+
+    for (const change of [
+      { amount: 100_050 },
+      { amount_received: 50 },
+      { refunded: 50 },
+    ]) {
+      intents.set(payment.id, { ...intent, ...change });
+
+      const result = await provider.get!(payment.id);
+
+      expect(result.ok ? undefined : result.error.hint).toBe(
+        "STRIPE_AMOUNT_PRECISION",
+      );
+    }
+  });
+
   it("passes extra PaymentIntent parameters instead of the default", async () => {
     const fake = fakeStripe();
 
@@ -586,9 +610,31 @@ describe("Stripe amounts", () => {
     });
     expect(toStripeAmount(money(1231n, "IQD")).ok).toBe(true);
     expect(toStripeAmount(money(2n ** 60n, "EUR")).ok).toBe(false);
-    expect(fromStripeAmount(50_000, "isk")).toEqual(money(500n, "ISK"));
-    expect(fromStripeAmount(5, "mga")).toEqual(money(500n, "MGA"));
-    expect(fromStripeAmount(1999, "eur")).toEqual(money(1999n, "EUR"));
+    expect(fromStripeAmount(50_000, "isk")).toMatchObject({
+      ok: true,
+      data: money(500n, "ISK"),
+    });
+    expect(fromStripeAmount(5, "mga")).toMatchObject({
+      ok: true,
+      data: money(500n, "MGA"),
+    });
+    expect(fromStripeAmount(1999, "eur")).toMatchObject({
+      ok: true,
+      data: money(1999n, "EUR"),
+    });
+  });
+
+  it("refuses a Stripe amount that would lose a fraction of a minor unit", () => {
+    for (const [amount, currency] of [
+      [50_050, "isk"],
+      [199, "ugx"],
+      [19.5, "eur"],
+    ] as const) {
+      expect(fromStripeAmount(amount, currency)).toMatchObject({
+        ok: false,
+        error: { kind: "invalid_input", hint: "STRIPE_AMOUNT_PRECISION" },
+      });
+    }
   });
 });
 

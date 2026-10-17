@@ -1,8 +1,25 @@
-import { resolve } from "node:path";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 
 import type { CommandResult } from "./io.ts";
 
 import { display, readIfExists, sameText, writeIfChanged } from "./io.ts";
+
+/**
+ * `path` resolved under `root`, or an error when it leaves the root (an
+ * absolute path elsewhere, or one that climbs out with `..`).
+ */
+export function insideRoot(root: string, path: string, flag: string): string {
+  const resolved = resolve(root, path);
+  const inside = relative(root, resolved);
+
+  if (inside === ".." || inside.startsWith(`..${sep}`) || isAbsolute(inside)) {
+    throw new Error(
+      `${flag} ${path} is outside the project root ${root}. Run the command from the project that owns the file.`,
+    );
+  }
+
+  return resolved;
+}
 
 /** What a generated file looks like on disk next to what the command would write. */
 export interface FileState {

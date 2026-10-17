@@ -56,9 +56,14 @@ revoke all on "better_supabase"."user_settings" from anon, authenticated;
 grant select, insert, update, delete on "better_supabase"."user_settings" to authenticated;
 grant all on "better_supabase"."user_settings" to service_role;
 drop policy if exists "user_settings_own" on "better_supabase"."user_settings";
-create policy "user_settings_own" on "better_supabase"."user_settings" for all to authenticated
-  using ("user_id" = (select auth.uid()))
-  with check ("user_id" = (select auth.uid()));
+drop policy if exists "user_settings_own_read" on "better_supabase"."user_settings";
+create policy "user_settings_own_read" on "better_supabase"."user_settings" for select to authenticated using ("user_id" = (select auth.uid()));
+drop policy if exists "user_settings_own_insert" on "better_supabase"."user_settings";
+create policy "user_settings_own_insert" on "better_supabase"."user_settings" for insert to authenticated with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists "user_settings_own_update" on "better_supabase"."user_settings";
+create policy "user_settings_own_update" on "better_supabase"."user_settings" for update to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write())) with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists "user_settings_own_delete" on "better_supabase"."user_settings";
+create policy "user_settings_own_delete" on "better_supabase"."user_settings" for delete to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
 create table if not exists "better_supabase"."organization_settings" (
   "organization_id" uuid not null,
@@ -345,9 +350,14 @@ revoke all on "better_supabase"."user_settings" from anon, authenticated;
 grant select, insert, update, delete on "better_supabase"."user_settings" to authenticated;
 grant all on "better_supabase"."user_settings" to service_role;
 drop policy if exists "user_settings_own" on "better_supabase"."user_settings";
-create policy "user_settings_own" on "better_supabase"."user_settings" for all to authenticated
-  using ("user_id" = (select auth.uid()))
-  with check ("user_id" = (select auth.uid()));
+drop policy if exists "user_settings_own_read" on "better_supabase"."user_settings";
+create policy "user_settings_own_read" on "better_supabase"."user_settings" for select to authenticated using ("user_id" = (select auth.uid()));
+drop policy if exists "user_settings_own_insert" on "better_supabase"."user_settings";
+create policy "user_settings_own_insert" on "better_supabase"."user_settings" for insert to authenticated with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists "user_settings_own_update" on "better_supabase"."user_settings";
+create policy "user_settings_own_update" on "better_supabase"."user_settings" for update to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write())) with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists "user_settings_own_delete" on "better_supabase"."user_settings";
+create policy "user_settings_own_delete" on "better_supabase"."user_settings" for delete to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
 create table if not exists "better_supabase"."organization_settings" (
   "organization_id" uuid not null,
@@ -708,9 +718,14 @@ revoke all on "app_private"."user_settings" from anon, authenticated;
 grant select, insert, update, delete on "app_private"."user_settings" to authenticated;
 grant all on "app_private"."user_settings" to service_role;
 drop policy if exists "user_settings_own" on "app_private"."user_settings";
-create policy "user_settings_own" on "app_private"."user_settings" for all to authenticated
-  using ("user_id" = (select auth.uid()))
-  with check ("user_id" = (select auth.uid()));
+drop policy if exists "user_settings_own_read" on "app_private"."user_settings";
+create policy "user_settings_own_read" on "app_private"."user_settings" for select to authenticated using ("user_id" = (select auth.uid()));
+drop policy if exists "user_settings_own_insert" on "app_private"."user_settings";
+create policy "user_settings_own_insert" on "app_private"."user_settings" for insert to authenticated with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists "user_settings_own_update" on "app_private"."user_settings";
+create policy "user_settings_own_update" on "app_private"."user_settings" for update to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write())) with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists "user_settings_own_delete" on "app_private"."user_settings";
+create policy "user_settings_own_delete" on "app_private"."user_settings" for delete to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
 create table if not exists "app_private"."organization_settings" (
   "organization_id" uuid not null,
@@ -997,9 +1012,14 @@ revoke all on "better_supabase"."user_settings" from anon, authenticated;
 grant select, insert, update, delete on "better_supabase"."user_settings" to authenticated;
 grant all on "better_supabase"."user_settings" to service_role;
 drop policy if exists "user_settings_own" on "better_supabase"."user_settings";
-create policy "user_settings_own" on "better_supabase"."user_settings" for all to authenticated
-  using ("user_id" = (select auth.uid()))
-  with check ("user_id" = (select auth.uid()));
+drop policy if exists "user_settings_own_read" on "better_supabase"."user_settings";
+create policy "user_settings_own_read" on "better_supabase"."user_settings" for select to authenticated using ("user_id" = (select auth.uid()));
+drop policy if exists "user_settings_own_insert" on "better_supabase"."user_settings";
+create policy "user_settings_own_insert" on "better_supabase"."user_settings" for insert to authenticated with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists "user_settings_own_update" on "better_supabase"."user_settings";
+create policy "user_settings_own_update" on "better_supabase"."user_settings" for update to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write())) with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists "user_settings_own_delete" on "better_supabase"."user_settings";
+create policy "user_settings_own_delete" on "better_supabase"."user_settings" for delete to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
 create table if not exists "better_supabase"."organization_settings" (
   "organization_id" uuid not null,

@@ -291,6 +291,67 @@ describe.skipIf(!live)("quotes and invoices", () => {
     }
   });
 
+  it("rounds line totals half away from zero in numeric, past 2^53", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      const owner = await s.user("owner");
+      await s.install(MODULES, layout);
+      const org = await s.organization(owner);
+      const transport = sqlTransport(s.sql);
+      const quotes = createQuotes({ transport });
+      const invoices = createInvoices({ transport });
+      await s.as(owner);
+
+      const large = 9_007_199_254_740_993n;
+
+      const invoice = await invoices
+        .create(org, { title: "Precision" }, [
+          { description: "Half", unitAmount: 1n, taxRateBps: 5000 },
+          { description: "Hours", quantity: 1.2345, unitAmount: 1999n },
+          { description: "Large", unitAmount: large },
+        ])
+        .orThrow();
+
+      // A row result sends int8 as a JSON number, so read the stored totals
+      // as text to check them past 2^53.
+      const [stored] = await s.sql.queryRaw<Record<string, string>>(
+        "select subtotal::text, tax_total::text, total::text from better_supabase.invoices where id = $1",
+        [invoice.id],
+      );
+
+      expect(stored).toEqual({
+        subtotal: String(1n + 2468n + large),
+        tax_total: "1",
+        total: String(2n + 2468n + large),
+      });
+
+      const quote = await quotes
+        .create(
+          org,
+          {
+            title: "Large",
+            validUntil: Temporal.Now.plainDateISO().add({ days: 30 }),
+          },
+          [{ description: "Large", unitAmount: large }],
+        )
+        .orThrow();
+
+      const { token } = await quotes.send(quote.id).orThrow();
+      await s.as("anon");
+      await quotes.respond(token, "accepted", { name: "Els" }).orThrow();
+      await s.as(owner);
+
+      const deposit = await invoices
+        .fromQuote(quote.id, { depositBps: 3000 })
+        .orThrow();
+
+      expect(deposit.totals.subtotal).toBe(2_702_159_776_422_298n);
+    } finally {
+      await s.close();
+    }
+  });
+
   it("voids drafts, expires sent quotes and refuses quotes that aren't accepted", async () => {
     const s = await BlockSession.open(pool);
 

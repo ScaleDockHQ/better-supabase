@@ -1,6 +1,5 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
-import type { BlockTransport } from "../../core/block-transport.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
 import type {
   ClaimOptions,
@@ -25,6 +24,10 @@ import {
   type Budget,
 } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import {
+  type BlockTransport,
+  rpcTransport,
+} from "../../core/block-transport.ts";
 import { tenantFrom, tenantPathsFor } from "../../core/claims.ts";
 import { cronRoute } from "../../core/cron-route.ts";
 import {
@@ -69,6 +72,9 @@ import { unwrap, wrapPayload } from "./envelope.ts";
 
 /** Transient claim errors in a row a lane retries, with backoff, before the loop throws. */
 const CLAIM_RETRIES = 3;
+
+/** The abort reason of a job whose lease couldn't be extended. */
+const LEASE_LOST: unique symbol = Symbol("lease lost");
 
 const TRANSIENT: ReadonlySet<DbError["kind"]> = new Set([
   "network",
@@ -143,6 +149,16 @@ function backendOf(
     return sqlQueueBackend(options.sql, now);
   }
 
+  if (options.client && options.schema) {
+    return transportQueueBackend(
+      mappedTransport(
+        rpcTransport(options.client, { schema: options.schema }),
+        options.mappers,
+      ),
+      { now, schema: options.schema },
+    );
+  }
+
   if (options.client) {
     return pgmqPublicBackend(options.client);
   }
@@ -167,7 +183,8 @@ const later = (a: Temporal.Instant, b: Temporal.Instant): Temporal.Instant =>
  *
  * Pass a service SQL connection (`postgres.admin`, `ctx.sql`) for the full
  * feature set, a service-role `rpcTransport` over the wrappers
- * `blocks.jobs.api` writes for the same features over the Data API, a
+ * `blocks.jobs.api` writes for the same features over the Data API (or a
+ * service-role Supabase client with `schema` set to that schema), a
  * service-role Supabase client to go through the `pgmq_public` RPCs, or any
  * `QueueBackend`. Queue names are lowercase letters, digits and underscores.
  */
@@ -230,25 +247,47 @@ export function createJobs<const Q extends QueueSchemas>(
   /**
    * Extends the lease of every job in `held` at half the lease, so jobs
    * waiting their turn in a claimed batch don't expire before they run.
+   * A job whose lease can't be extended is aborted: another worker may
+   * already hold it.
    */
   const heartbeat = (
-    held: ReadonlySet<Job>,
+    held: ReadonlyMap<Job, AbortController>,
     lease: number,
   ): (() => void) | undefined =>
     transport.leases
       ? leaseHeartbeat(lease, () => {
-          for (const job of held) {
-            void run(() => transport.extend(job, lease));
+          for (const [job, controller] of held) {
+            void run(() => transport.extend(job, lease)).then((extended) => {
+              if (!extended.ok || !extended.data) {
+                controller.abort(LEASE_LOST);
+              }
+            });
           }
         })
       : undefined;
+
+  const leaseLost = (job: Job, workOptions: WorkOptions): false => {
+    workOptions.onError?.(
+      dbError(
+        "conflict",
+        `The lease on job ${String(job.id)} in "${job.queue}" was lost, so another worker may run it`,
+        { code: "JOB_LEASE_LOST" },
+      ),
+      job,
+    );
+
+    return false;
+  };
 
   const handle = async (
     job: Job,
     handler: JobHandler<unknown>,
     workOptions: WorkOptions,
+    controller: AbortController = new AbortController(),
   ): Promise<boolean> => {
-    const controller = new AbortController();
+    if (controller.signal.reason === LEASE_LOST) {
+      return leaseLost(job, workOptions);
+    }
 
     try {
       const payload = await validate(
@@ -286,10 +325,25 @@ export function createJobs<const Q extends QueueSchemas>(
         throw (outcome as { error: unknown }).error;
       }
 
-      await complete(job);
+      if (controller.signal.reason === LEASE_LOST) {
+        return leaseLost(job, workOptions);
+      }
 
-      return true;
+      const completed = await complete(job);
+
+      if (!completed.ok) {
+        // The job stays claimed until its lease runs out, then runs again.
+        workOptions.onError?.(completed.error, job);
+
+        return false;
+      }
+
+      return completed.data || leaseLost(job, workOptions);
     } catch (cause) {
+      if (controller.signal.reason === LEASE_LOST) {
+        return leaseLost(job, workOptions);
+      }
+
       controller.abort();
       await fail(job, cause);
       // SAFETY: repositories only reject with DbError objects, which carry a kind field.
@@ -368,12 +422,16 @@ export function createJobs<const Q extends QueueSchemas>(
         }
 
         wait = firstWait;
-        const held = new Set(claimed.data);
+
+        const held = new Map(
+          claimed.data.map((job) => [job, new AbortController()] as const),
+        );
+
         const stopHeartbeat = heartbeat(held, lease);
 
         try {
           for (const job of claimed.data) {
-            if (await handle(job, handler, workOptions)) {
+            if (await handle(job, handler, workOptions, held.get(job))) {
               succeeded += 1;
             } else {
               failed += 1;

@@ -20,6 +20,7 @@ import { autoTablesOf, autoTablesSql } from "./data-lifecycle-auto-tables.ts";
 import {
   CREDENTIALS_CONTRACT,
   credentialsSql,
+  refuseHeldTenant,
 } from "./data-lifecycle-credentials.ts";
 import {
   entries,
@@ -621,13 +622,7 @@ begin
   if v_row.${cd("tenant")} is null or v_row.${cd("purgeAfter")} > now() then
     ${fail("ORGANIZATION_DELETION_NOT_DUE", "No due deletion for this organization", "P0002")}
   end if;
-  if exists (
-    select 1 from ${ctx.table("holds")} x
-    where x.${ctx.col("holds", "releasedAt")} is null
-      and (x.${ctx.col("holds", "tenant")} is null or x.${ctx.col("holds", "tenant")} = purge_organization.tenant)
-  ) then
-    ${fail("ORGANIZATION_LEGAL_HOLD", "A legal hold covers this organization, so it can't be purged", "P0001")}
-  end if;
+  ${refuseHeldTenant(ctx, "purge_organization.tenant")}
   ${ctx.hook("on_organization_purge", [[id, "purge_organization.tenant"]])}
   -- Tables go in reverse order; a table whose rows another table still
   -- references (a restricting foreign key) waits for a later pass.

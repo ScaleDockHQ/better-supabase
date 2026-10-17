@@ -387,6 +387,13 @@ begin
   ) then
     raise exception 'No due deletion for this organization' using errcode = 'P0002', hint = 'ORGANIZATION_DELETION_NOT_DUE';
   end if;
+  if exists (
+    select 1 from "better_supabase"."legal_holds" x
+    where x."released_at" is null
+      and (x."workspace_id" is null or x."workspace_id" = workspace_credential_refs.tenant)
+  ) then
+    raise exception 'A legal hold covers this organization, so it can''t be purged' using errcode = 'P0001', hint = 'ORGANIZATION_LEGAL_HOLD';
+  end if;
   for v_entry in
     select c.name, c.tbl, c.col, c.user_col, t.col as tenant_col
     from "better_supabase"."data_lifecycle_credentials"() c

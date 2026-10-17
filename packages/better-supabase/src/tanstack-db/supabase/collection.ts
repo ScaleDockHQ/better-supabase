@@ -10,6 +10,7 @@ import type { AsyncResult } from "../../core/result.ts";
 import type { AnyFunctions, AnyModels, TableKey } from "../../schema/types.ts";
 
 import { DbException } from "../../core/db-exception.ts";
+import { tableClient } from "./table-client.ts";
 
 type LabsConfig<Schema extends StandardSchemaV1> = ReturnType<
   typeof supabaseCollectionOptions<Schema>
@@ -25,7 +26,7 @@ export type SupabaseCollectionConfig<Schema extends StandardSchemaV1> = {
 };
 
 interface BaseOptions<Schema extends StandardSchemaV1> {
-  /** The row schema, in database column names: `customersRow` from `standardSchema()`, `zod()` or `valibot()`. */
+  /** The row schema, in the configured casing: `customersRow` from `standardSchema()`, `zod()` or `valibot()`. */
   readonly schema: Schema;
   /** Applies inserts, updates and deletes from other clients through Realtime `postgres_changes`. */
   readonly realtime?: boolean;
@@ -71,9 +72,8 @@ function field(row: unknown, name: string): unknown {
 /**
  * A TanStack DB collection on `@supabase-labs/tanstack-db`: live queries load
  * on demand through PostgREST, Realtime keeps them current, and writes go
- * through the table's repository by default. Rows use database column names,
- * so the schema must use `casing: "snake"`, and the table must live in the
- * `public` schema, which is the one the Realtime listener watches.
+ * through the table's repository by default. Rows use the configured casing,
+ * and requests and Realtime listeners run in the table's own schema.
  *
  * ```ts
  * const customers = createCollection(
@@ -98,24 +98,10 @@ export function supabaseCollection<
   table: T,
   options: SupabaseCollectionOptions<M, F, E, Schema>,
 ): SupabaseCollectionConfig<Schema> {
-  const { meta } = betterSupabase;
-
-  if (meta.casing !== "snake") {
-    throw new TypeError(
-      `better-supabase: supabaseCollection() needs casing: "snake"; @supabase-labs/tanstack-db reads and writes database column names. Use collectionOptions() with camel casing.`,
-    );
-  }
-
-  const tableMeta = meta.tables[table];
+  const tableMeta = betterSupabase.meta.tables[table];
 
   if (!tableMeta) {
     throw new TypeError(`better-supabase: unknown table "${table}"`);
-  }
-
-  if (tableMeta.schema !== "public") {
-    throw new TypeError(
-      `better-supabase: supabaseCollection() supports tables in the public schema; "${tableMeta.schema}.${tableMeta.name}" is not.`,
-    );
   }
 
   const primaryKey = tableMeta.primaryKey;
@@ -129,12 +115,12 @@ export function supabaseCollection<
 
   const labs = supabaseCollectionOptions({
     tableName: tableMeta.name,
-    // SAFETY: with snake casing the primary key names are the row's keys.
+    // SAFETY: primary key names are app names, the row's keys.
     keys: [...primaryKey] as Parameters<
       typeof supabaseCollectionOptions<Schema>
     >[0]["keys"],
     schema: options.schema,
-    supabase,
+    supabase: tableClient(supabase, tableMeta),
     ...(options.queryClient ? { queryClient: options.queryClient } : {}),
     ...(options.realtime === undefined ? {} : { realtime: options.realtime }),
     ...(options.realtimeUseFilter === undefined
@@ -209,8 +195,8 @@ export function supabaseCollection<
         continue;
       }
 
-      // SAFETY: the repository returns the inserted row in database column
-      // names (snake casing) with no codec columns, the collection's row shape.
+      // SAFETY: the repository returns the inserted row in the configured
+      // casing with no codec columns, the collection's row shape.
       mutation.modified = row as typeof mutation.modified;
       // Awaiting a sync write inside the mutation function deadlocks: sync
       // commits queue behind it.

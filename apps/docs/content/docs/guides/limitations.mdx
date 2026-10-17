@@ -47,9 +47,11 @@ relations you show.
 
 ## Jobs over PostgREST
 
-The [jobs block](/docs/blocks/jobs) prefers a direct connection. Its PostgREST
-transport uses the `pgmq_public` functions, which can send, read and
-archive. It can't:
+The [jobs block](/docs/blocks/jobs) prefers a direct connection. Over the Data
+API, set `blocks.jobs.api` and pass `client` with `schema` (often `api`): jobs
+then call the wrappers in that schema and keep the full feature set. A
+`client` without `schema` uses the `pgmq_public` functions, which can send,
+read and archive. It can't:
 
 - deduplicate: `dedupeKey` fails with `invalid_request`,
 - schedule or unschedule cron jobs: both fail with `invalid_request`,
@@ -57,7 +59,8 @@ archive. It can't:
 - record `lastError` or back off: a failed job reappears when its lease
   runs out, and is archived as dead after `maxAttempts`.
 
-Workers that need these run on the server with `createPostgres()`.
+Workers that need these run on the server with `createPostgres()`, or over the
+wrappers with `client` and `schema`.
 
 ## Acting as a user without Postgres
 

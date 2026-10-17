@@ -39,6 +39,12 @@ export interface MetricDefinition<
   /** Column equalities every counted row meets. */
   readonly where?: Readonly<Record<string, MetricWhereValue>>;
   /**
+   * Counts rows of a subject table whose `deletedAt` column is set. By
+   * default the SQL module adds `deletedAt is null` unless `where` names
+   * that column.
+   */
+  readonly includeDeleted?: boolean;
+  /**
    * The grains `metric_points` keeps, default `["day"]`. `false` queries the
    * table directly, for small tables.
    */
@@ -194,6 +200,13 @@ function assertMetric(
         );
       }
     }
+  }
+
+  if (
+    value["includeDeleted"] !== undefined &&
+    typeof value["includeDeleted"] !== "boolean"
+  ) {
+    throw new TypeError(`${at}.includeDeleted must be a boolean`);
   }
 
   for (const name of ["label", "unit"] as const) {

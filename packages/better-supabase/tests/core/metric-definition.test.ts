@@ -49,6 +49,7 @@ describe("defineMetric", () => {
     [{ ...base, where: { a: {} } }, "where.a must be"],
     [{ ...base, where: { a: Number.NaN } }, "where.a must be"],
     [{ ...base, label: 1 }, "label must be a string"],
+    [{ ...base, includeDeleted: "yes" }, "includeDeleted must be a boolean"],
     [{ ...base, tenant: "Org" }, "tenant must be a column"],
     [{ ...base, tz: "" }, "tz must be an IANA time zone"],
     [{ ...base, tz: "Mars/Olympus" }, "is not an IANA time zone"],

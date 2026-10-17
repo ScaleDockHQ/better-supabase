@@ -151,7 +151,14 @@ revoke all on "better_supabase"."notification_subscriptions" from anon, authenti
 grant select, insert, update, delete on "better_supabase"."notification_subscriptions" to authenticated;
 grant all on "better_supabase"."notification_subscriptions" to service_role;
 drop policy if exists "bs_notification_subscriptions_own" on "better_supabase"."notification_subscriptions";
-create policy "bs_notification_subscriptions_own" on "better_supabase"."notification_subscriptions" for all to authenticated using ("user_id" = (select auth.uid())) with check ("user_id" = (select auth.uid()));
+drop policy if exists "bs_notification_subscriptions_own_read" on "better_supabase"."notification_subscriptions";
+create policy "bs_notification_subscriptions_own_read" on "better_supabase"."notification_subscriptions" for select to authenticated using ("user_id" = (select auth.uid()));
+drop policy if exists "bs_notification_subscriptions_own_insert" on "better_supabase"."notification_subscriptions";
+create policy "bs_notification_subscriptions_own_insert" on "better_supabase"."notification_subscriptions" for insert to authenticated with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists "bs_notification_subscriptions_own_update" on "better_supabase"."notification_subscriptions";
+create policy "bs_notification_subscriptions_own_update" on "better_supabase"."notification_subscriptions" for update to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write())) with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists "bs_notification_subscriptions_own_delete" on "better_supabase"."notification_subscriptions";
+create policy "bs_notification_subscriptions_own_delete" on "better_supabase"."notification_subscriptions" for delete to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
 create table if not exists "better_supabase"."notification_preferences" (
   "id" uuid primary key default gen_random_uuid(),
@@ -172,7 +179,14 @@ revoke all on "better_supabase"."notification_preferences" from anon, authentica
 grant select, insert, update, delete on "better_supabase"."notification_preferences" to authenticated;
 grant all on "better_supabase"."notification_preferences" to service_role;
 drop policy if exists "bs_notification_preferences_own" on "better_supabase"."notification_preferences";
-create policy "bs_notification_preferences_own" on "better_supabase"."notification_preferences" for all to authenticated using ("user_id" = (select auth.uid())) with check ("user_id" = (select auth.uid()));
+drop policy if exists "bs_notification_preferences_own_read" on "better_supabase"."notification_preferences";
+create policy "bs_notification_preferences_own_read" on "better_supabase"."notification_preferences" for select to authenticated using ("user_id" = (select auth.uid()));
+drop policy if exists "bs_notification_preferences_own_insert" on "better_supabase"."notification_preferences";
+create policy "bs_notification_preferences_own_insert" on "better_supabase"."notification_preferences" for insert to authenticated with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists "bs_notification_preferences_own_update" on "better_supabase"."notification_preferences";
+create policy "bs_notification_preferences_own_update" on "better_supabase"."notification_preferences" for update to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write())) with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists "bs_notification_preferences_own_delete" on "better_supabase"."notification_preferences";
+create policy "bs_notification_preferences_own_delete" on "better_supabase"."notification_preferences" for delete to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
 create table if not exists "better_supabase"."notification_suppressions" (
   "id" uuid primary key default gen_random_uuid(),
@@ -1340,7 +1354,14 @@ revoke all on "better_supabase"."notification_subscriptions" from anon, authenti
 grant select, insert, update, delete on "better_supabase"."notification_subscriptions" to authenticated;
 grant all on "better_supabase"."notification_subscriptions" to service_role;
 drop policy if exists "bs_notification_subscriptions_own" on "better_supabase"."notification_subscriptions";
-create policy "bs_notification_subscriptions_own" on "better_supabase"."notification_subscriptions" for all to authenticated using ("user_id" = (select auth.uid())) with check ("user_id" = (select auth.uid()) and ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('notifications.read'))));
+drop policy if exists "bs_notification_subscriptions_own_read" on "better_supabase"."notification_subscriptions";
+create policy "bs_notification_subscriptions_own_read" on "better_supabase"."notification_subscriptions" for select to authenticated using ("user_id" = (select auth.uid()));
+drop policy if exists "bs_notification_subscriptions_own_insert" on "better_supabase"."notification_subscriptions";
+create policy "bs_notification_subscriptions_own_insert" on "better_supabase"."notification_subscriptions" for insert to authenticated with check (("user_id" = (select auth.uid()) and ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('notifications.read')))) and (select better_supabase.actor_may_write()));
+drop policy if exists "bs_notification_subscriptions_own_update" on "better_supabase"."notification_subscriptions";
+create policy "bs_notification_subscriptions_own_update" on "better_supabase"."notification_subscriptions" for update to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write())) with check (("user_id" = (select auth.uid()) and ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('notifications.read')))) and (select better_supabase.actor_may_write()));
+drop policy if exists "bs_notification_subscriptions_own_delete" on "better_supabase"."notification_subscriptions";
+create policy "bs_notification_subscriptions_own_delete" on "better_supabase"."notification_subscriptions" for delete to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
 create table if not exists "better_supabase"."notification_preferences" (
   "id" uuid primary key default gen_random_uuid(),
@@ -1361,7 +1382,14 @@ revoke all on "better_supabase"."notification_preferences" from anon, authentica
 grant select, insert, update, delete on "better_supabase"."notification_preferences" to authenticated;
 grant all on "better_supabase"."notification_preferences" to service_role;
 drop policy if exists "bs_notification_preferences_own" on "better_supabase"."notification_preferences";
-create policy "bs_notification_preferences_own" on "better_supabase"."notification_preferences" for all to authenticated using ("user_id" = (select auth.uid())) with check ("user_id" = (select auth.uid()) and ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('notifications.read'))));
+drop policy if exists "bs_notification_preferences_own_read" on "better_supabase"."notification_preferences";
+create policy "bs_notification_preferences_own_read" on "better_supabase"."notification_preferences" for select to authenticated using ("user_id" = (select auth.uid()));
+drop policy if exists "bs_notification_preferences_own_insert" on "better_supabase"."notification_preferences";
+create policy "bs_notification_preferences_own_insert" on "better_supabase"."notification_preferences" for insert to authenticated with check (("user_id" = (select auth.uid()) and ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('notifications.read')))) and (select better_supabase.actor_may_write()));
+drop policy if exists "bs_notification_preferences_own_update" on "better_supabase"."notification_preferences";
+create policy "bs_notification_preferences_own_update" on "better_supabase"."notification_preferences" for update to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write())) with check (("user_id" = (select auth.uid()) and ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('notifications.read')))) and (select better_supabase.actor_may_write()));
+drop policy if exists "bs_notification_preferences_own_delete" on "better_supabase"."notification_preferences";
+create policy "bs_notification_preferences_own_delete" on "better_supabase"."notification_preferences" for delete to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
 create table if not exists "better_supabase"."notification_suppressions" (
   "id" uuid primary key default gen_random_uuid(),
@@ -2604,7 +2632,14 @@ revoke all on "app_private"."notification_subscriptions" from anon, authenticate
 grant select, insert, update, delete on "app_private"."notification_subscriptions" to authenticated;
 grant all on "app_private"."notification_subscriptions" to service_role;
 drop policy if exists "bs_notification_subscriptions_own" on "app_private"."notification_subscriptions";
-create policy "bs_notification_subscriptions_own" on "app_private"."notification_subscriptions" for all to authenticated using ("user_id" = (select auth.uid())) with check ("user_id" = (select auth.uid()));
+drop policy if exists "bs_notification_subscriptions_own_read" on "app_private"."notification_subscriptions";
+create policy "bs_notification_subscriptions_own_read" on "app_private"."notification_subscriptions" for select to authenticated using ("user_id" = (select auth.uid()));
+drop policy if exists "bs_notification_subscriptions_own_insert" on "app_private"."notification_subscriptions";
+create policy "bs_notification_subscriptions_own_insert" on "app_private"."notification_subscriptions" for insert to authenticated with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists "bs_notification_subscriptions_own_update" on "app_private"."notification_subscriptions";
+create policy "bs_notification_subscriptions_own_update" on "app_private"."notification_subscriptions" for update to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write())) with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists "bs_notification_subscriptions_own_delete" on "app_private"."notification_subscriptions";
+create policy "bs_notification_subscriptions_own_delete" on "app_private"."notification_subscriptions" for delete to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
 create table if not exists "app_private"."notification_preferences" (
   "id" uuid primary key default gen_random_uuid(),
@@ -2625,7 +2660,14 @@ revoke all on "app_private"."notification_preferences" from anon, authenticated;
 grant select, insert, update, delete on "app_private"."notification_preferences" to authenticated;
 grant all on "app_private"."notification_preferences" to service_role;
 drop policy if exists "bs_notification_preferences_own" on "app_private"."notification_preferences";
-create policy "bs_notification_preferences_own" on "app_private"."notification_preferences" for all to authenticated using ("user_id" = (select auth.uid())) with check ("user_id" = (select auth.uid()));
+drop policy if exists "bs_notification_preferences_own_read" on "app_private"."notification_preferences";
+create policy "bs_notification_preferences_own_read" on "app_private"."notification_preferences" for select to authenticated using ("user_id" = (select auth.uid()));
+drop policy if exists "bs_notification_preferences_own_insert" on "app_private"."notification_preferences";
+create policy "bs_notification_preferences_own_insert" on "app_private"."notification_preferences" for insert to authenticated with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists "bs_notification_preferences_own_update" on "app_private"."notification_preferences";
+create policy "bs_notification_preferences_own_update" on "app_private"."notification_preferences" for update to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write())) with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists "bs_notification_preferences_own_delete" on "app_private"."notification_preferences";
+create policy "bs_notification_preferences_own_delete" on "app_private"."notification_preferences" for delete to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
 create table if not exists "app_private"."notification_suppressions" (
   "id" uuid primary key default gen_random_uuid(),
@@ -3793,7 +3835,14 @@ revoke all on "better_supabase"."notification_subscriptions" from anon, authenti
 grant select, insert, update, delete on "better_supabase"."notification_subscriptions" to authenticated;
 grant all on "better_supabase"."notification_subscriptions" to service_role;
 drop policy if exists "bs_notification_subscriptions_own" on "better_supabase"."notification_subscriptions";
-create policy "bs_notification_subscriptions_own" on "better_supabase"."notification_subscriptions" for all to authenticated using ("user_id" = (select auth.uid())) with check ("user_id" = (select auth.uid()));
+drop policy if exists "bs_notification_subscriptions_own_read" on "better_supabase"."notification_subscriptions";
+create policy "bs_notification_subscriptions_own_read" on "better_supabase"."notification_subscriptions" for select to authenticated using ("user_id" = (select auth.uid()));
+drop policy if exists "bs_notification_subscriptions_own_insert" on "better_supabase"."notification_subscriptions";
+create policy "bs_notification_subscriptions_own_insert" on "better_supabase"."notification_subscriptions" for insert to authenticated with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists "bs_notification_subscriptions_own_update" on "better_supabase"."notification_subscriptions";
+create policy "bs_notification_subscriptions_own_update" on "better_supabase"."notification_subscriptions" for update to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write())) with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists "bs_notification_subscriptions_own_delete" on "better_supabase"."notification_subscriptions";
+create policy "bs_notification_subscriptions_own_delete" on "better_supabase"."notification_subscriptions" for delete to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
 create table if not exists "better_supabase"."notification_preferences" (
   "id" uuid primary key default gen_random_uuid(),
@@ -3814,7 +3863,14 @@ revoke all on "better_supabase"."notification_preferences" from anon, authentica
 grant select, insert, update, delete on "better_supabase"."notification_preferences" to authenticated;
 grant all on "better_supabase"."notification_preferences" to service_role;
 drop policy if exists "bs_notification_preferences_own" on "better_supabase"."notification_preferences";
-create policy "bs_notification_preferences_own" on "better_supabase"."notification_preferences" for all to authenticated using ("user_id" = (select auth.uid())) with check ("user_id" = (select auth.uid()));
+drop policy if exists "bs_notification_preferences_own_read" on "better_supabase"."notification_preferences";
+create policy "bs_notification_preferences_own_read" on "better_supabase"."notification_preferences" for select to authenticated using ("user_id" = (select auth.uid()));
+drop policy if exists "bs_notification_preferences_own_insert" on "better_supabase"."notification_preferences";
+create policy "bs_notification_preferences_own_insert" on "better_supabase"."notification_preferences" for insert to authenticated with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists "bs_notification_preferences_own_update" on "better_supabase"."notification_preferences";
+create policy "bs_notification_preferences_own_update" on "better_supabase"."notification_preferences" for update to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write())) with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+drop policy if exists "bs_notification_preferences_own_delete" on "better_supabase"."notification_preferences";
+create policy "bs_notification_preferences_own_delete" on "better_supabase"."notification_preferences" for delete to authenticated using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
 create table if not exists "better_supabase"."notification_suppressions" (
   "id" uuid primary key default gen_random_uuid(),

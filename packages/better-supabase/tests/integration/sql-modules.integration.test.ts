@@ -2236,6 +2236,17 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       expect((await idempotency.handle(request(), handler)).status).toBe(201);
       const replay = await idempotency.handle(request(), handler);
       expect(replay.headers.get("idempotency-replayed")).toBe("true");
+
+      const otherQuery = await idempotency.handle(
+        new Request("https://api.test/orders?dry_run=1", {
+          method: "POST",
+          headers: { "idempotency-key": `rpc-${RUN}` },
+          body: "{}",
+        }),
+        handler,
+      );
+
+      expect(otherQuery.status).toBe(422);
       expect(await idempotency.purge().orThrow()).toBeGreaterThanOrEqual(0);
 
       const lease = await withLease(

@@ -113,8 +113,10 @@ export async function POST(request: Request) {
 Stripe counts a few currencies differently from ISO 4217. `toStripeAmount`
 and `fromStripeAmount` convert: `ISK` and `UGX` are sent with two decimals,
 `MGA` with none, and `BHD`, `JOD`, `KWD`, `OMR` and `TND` must be a multiple
-of 10 minor units. An amount Stripe can't take exactly is `invalid_input`
-with the hint `STRIPE_AMOUNT_PRECISION`, never rounded.
+of 10 minor units. Both return a `Result`. An amount Stripe can't take
+exactly, or a Stripe amount with a fraction of a minor unit (an `ISK` amount
+that isn't a multiple of 100), is `invalid_input` with the hint
+`STRIPE_AMOUNT_PRECISION`, never rounded.
 
 ## Tax
 

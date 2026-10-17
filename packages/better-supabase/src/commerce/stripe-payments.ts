@@ -130,39 +130,65 @@ const EVENTS: Readonly<Record<string, PaymentEventType>> = {
 
 const REFERENCE = "better_supabase_reference";
 
-function paymentOf(name: string, intent: StripePaymentIntent): Payment {
-  const amount = fromStripeAmount(intent.amount, intent.currency);
+function paymentOf(name: string, intent: StripePaymentIntent): Result<Payment> {
   const charge = intent.latest_charge;
 
-  const refunded =
+  const refundedAmount =
     typeof charge === "object" && charge !== null
       ? (charge.amount_refunded ?? 0)
       : 0;
 
+  const amount = fromStripeAmount(intent.amount, intent.currency);
+
+  const captured = fromStripeAmount(
+    intent.amount_received ?? 0,
+    intent.currency,
+  );
+
+  const refunded = fromStripeAmount(refundedAmount, intent.currency);
+
+  if (!amount.ok) {
+    return amount;
+  }
+
+  if (!captured.ok) {
+    return captured;
+  }
+
+  if (!refunded.ok) {
+    return refunded;
+  }
+
   const { [REFERENCE]: reference = "", ...metadata } = intent.metadata ?? {};
   const redirect = intent.next_action?.redirect_to_url?.url;
 
-  return {
+  return ok({
     id: intent.id,
     provider: name,
     status: STATUS[intent.status] ?? "failed",
-    amount,
-    captured: fromStripeAmount(intent.amount_received ?? 0, intent.currency),
-    refunded: fromStripeAmount(refunded, intent.currency),
+    amount: amount.data,
+    captured: captured.data,
+    refunded: refunded.data,
     reference,
     ...(intent.client_secret ? { clientSecret: intent.client_secret } : {}),
     ...(redirect ? { redirectUrl: redirect } : {}),
     metadata,
-  };
+  });
 }
 
-function refundOf(refund: StripeRefund, paymentId: string): Refund {
-  return {
+function refundOf(refund: StripeRefund, paymentId: string): Result<Refund> {
+  const amount = fromStripeAmount(refund.amount, refund.currency);
+
+  if (!amount.ok) {
+    return amount;
+  }
+
+  return ok({
     id: refund.id,
     paymentId,
-    amount: fromStripeAmount(refund.amount, refund.currency),
+    amount: amount.data,
     status: REFUND_STATUS[refund.status ?? "pending"] ?? "pending",
-  };
+  });
 }
 
 const objectOf = (value: unknown): Readonly<Record<string, unknown>> =>
@@ -193,9 +219,13 @@ export function stripePaymentEvents(event: unknown): readonly PaymentEvent[] {
   const amountOf = (key: string): Money | undefined => {
     const value = object[key];
 
-    return currency === undefined || typeof value !== "number"
-      ? undefined
-      : fromStripeAmount(value, currency);
+    if (currency === undefined || typeof value !== "number") {
+      return undefined;
+    }
+
+    const parsed = fromStripeAmount(value, currency);
+
+    return parsed.ok ? parsed.data : undefined;
   };
 
   const mapped = EVENTS[type];
@@ -336,7 +366,7 @@ export function stripePayments(
           idempotency(call.idempotencyKey),
         );
 
-        return ok(paymentOf(name, intent));
+        return paymentOf(name, intent);
       }),
     capture: (paymentId, input = {}, call = {}) =>
       stripeResult(async () => {
@@ -359,7 +389,7 @@ export function stripePayments(
           idempotency(call.idempotencyKey),
         );
 
-        return ok(paymentOf(name, intent));
+        return paymentOf(name, intent);
       }),
     refund: (paymentId, input = {}, call = {}) =>
       stripeResult(async () => {
@@ -382,7 +412,7 @@ export function stripePayments(
           idempotency(call.idempotencyKey),
         );
 
-        return ok(refundOf(refund, paymentId));
+        return refundOf(refund, paymentId);
       }),
     cancel: (paymentId, call = {}) =>
       stripeResult(async () => {
@@ -394,19 +424,17 @@ export function stripePayments(
           idempotency(call.idempotencyKey),
         );
 
-        return ok(paymentOf(name, intent));
+        return paymentOf(name, intent);
       }),
     get: (paymentId) =>
       stripeResult(async () =>
-        ok(
-          paymentOf(
-            name,
-            await (
-              await client()
-            ).paymentIntents.retrieve(paymentId, {
-              ...EXPAND,
-            }),
-          ),
+        paymentOf(
+          name,
+          await (
+            await client()
+          ).paymentIntents.retrieve(paymentId, {
+            ...EXPAND,
+          }),
         ),
       ),
     parseWebhook: (input) =>

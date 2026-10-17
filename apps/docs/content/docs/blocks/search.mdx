@@ -123,8 +123,9 @@ is skipped.
 ## Embeddings
 
 With `dimensions` set and `vector-search` installed, the index keeps an
-embedding per document and clears it when the text changes. A job embeds what
-is pending, through any function that returns one vector per text, such as the
+embedding per document and clears it when the text changes. A partial index
+on `updated_at` covers the documents without an embedding, so finding the
+pending ones stays fast on a large index. A job embeds what is pending, through any function that returns one vector per text, such as the
 AI SDK's `embedMany`:
 
 ```ts

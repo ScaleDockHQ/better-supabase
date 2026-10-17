@@ -62,14 +62,40 @@ export function toStripeAmount(value: Money): Result<number> {
   return ok(Number(amount));
 }
 
-/** `Money` from a Stripe `amount` and its lowercase currency. */
-export function fromStripeAmount(amount: number, currency: string): Money {
+/**
+ * `Money` from a Stripe `amount` and its lowercase currency, or the error
+ * when the amount has a fraction of the currency's minor unit (an ISK or UGX
+ * amount that isn't a multiple of 100).
+ */
+export function fromStripeAmount(
+  amount: number,
+  currency: string,
+): Result<Money> {
   const code = currency.toUpperCase();
   const shift = stripeDecimals(code) - minorUnits(code);
   const scale = 10n ** BigInt(Math.abs(shift));
-  const value = BigInt(Math.trunc(amount));
 
-  return money(shift < 0 ? value * scale : value / scale, code);
+  if (!Number.isSafeInteger(amount)) {
+    return err(
+      dbError("invalid_input", `Stripe sent a fractional ${code} amount`, {
+        hint: "STRIPE_AMOUNT_PRECISION",
+      }),
+    );
+  }
+
+  const value = BigInt(amount);
+
+  if (shift > 0 && value % scale !== 0n) {
+    return err(
+      dbError(
+        "invalid_input",
+        `Stripe sent a ${code} amount with a fraction of a minor unit`,
+        { hint: "STRIPE_AMOUNT_PRECISION" },
+      ),
+    );
+  }
+
+  return ok(money(shift < 0 ? value * scale : value / scale, code));
 }
 
 /**

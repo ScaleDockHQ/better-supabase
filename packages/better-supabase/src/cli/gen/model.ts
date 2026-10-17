@@ -460,6 +460,20 @@ function toTableModels(
 ): TableModel[] {
   const { config, keyOf, optionsOf } = ctx;
   const flagsConfig = config.plugins;
+  const subjectDeletedAt = new Map<string, { db: string; source: string }>();
+
+  for (const [type, subject] of Object.entries(config.subjects)) {
+    if (subject.deletedAt !== undefined) {
+      const table = subject.table.includes(".")
+        ? subject.table
+        : `public.${subject.table}`;
+
+      subjectDeletedAt.set(table, {
+        db: subject.deletedAt,
+        source: `subjects.${type}.deletedAt`,
+      });
+    }
+  }
 
   const tableModels: TableModel[] = tables.map(
     ({ table, casing, columns, byDb }) => {
@@ -489,21 +503,30 @@ function toTableModels(
         };
       } = {};
 
-      if (flagsConfig.softDelete) {
-        const db = flagsConfig.softDelete.column;
-        const column = byDb.get(db);
+      const subjectColumn = subjectDeletedAt.get(id);
 
-        if (column) {
-          const udt = column.snapshot.udt;
+      const softDelete =
+        subjectColumn !== undefined && byDb.has(subjectColumn.db)
+          ? subjectColumn
+          : flagsConfig.softDelete
+            ? {
+                db: flagsConfig.softDelete.column,
+                source: "plugins.softDelete.column",
+              }
+            : undefined;
 
-          if (column.snapshot.isArray || !SOFT_DELETE_UDTS.has(udt)) {
-            throw new TypeError(
-              `plugins.softDelete.column: ${table.schema}.${table.name}.${db} is ${udt}, but softDelete() writes a timestamp. Use timestamptz or timestamp.`,
-            );
-          }
+      const softDeleteColumn = softDelete && byDb.get(softDelete.db);
 
-          flags.softDelete = column.app;
+      if (softDelete && softDeleteColumn) {
+        const udt = softDeleteColumn.snapshot.udt;
+
+        if (softDeleteColumn.snapshot.isArray || !SOFT_DELETE_UDTS.has(udt)) {
+          throw new TypeError(
+            `${softDelete.source}: ${id}.${softDelete.db} is ${udt}, but softDelete() writes a timestamp. Use timestamptz or timestamp.`,
+          );
         }
+
+        flags.softDelete = softDeleteColumn.app;
       }
 
       if (flagsConfig.timestamps) {

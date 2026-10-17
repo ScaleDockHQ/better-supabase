@@ -8,8 +8,8 @@ better-supabase has two ways to build a TanStack DB collection.
 [`@supabase-labs/tanstack-db`](https://www.npmjs.com/package/@supabase-labs/tanstack-db):
 live queries load on demand through PostgREST and Realtime keeps them
 current. `better-supabase/tanstack-db` loads a collection through one of
-your [query options](/docs/frontend/query) instead, works with camel casing
-and needs no other package.
+your [query options](/docs/frontend/query) instead and needs no other
+package.
 
 ## With @supabase-labs/tanstack-db
 
@@ -50,10 +50,13 @@ repository decodes values that the synced rows keep raw. Pass
 `writes: "direct"` (and no `db`) to keep the package's own handlers, which
 write through the supabase client.
 
-The package reads and writes database column names and listens to the
-`public` schema, so `supabaseCollection()` throws for a schema with
-`casing: "camel"` and for tables in other schemas. Use
-`collectionOptions()` for those.
+Rows keep the configured casing. With `casing: "camel"`,
+`supabaseCollection()` renames filters, sort columns, request bodies and
+Realtime payloads between app names and column names, so live queries and
+`schema` use `organizationId` while PostgREST sees `organization_id`.
+Requests and Realtime listeners run in the table's own schema, so a table
+in `better_supabase` or another exposed schema works the same as one in
+`public`.
 
 For Realtime, add each table to the publication in a migration:
 
