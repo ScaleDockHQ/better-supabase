@@ -38,8 +38,8 @@ const kit: SvelteKitHelpers = {
   redirect: (status, location) => {
     throw new Redirect(status, location);
   },
-  error: (status, body) => {
-    throw new HttpError(status, body);
+  error: (status, message) => {
+    throw new HttpError(status, { message });
   },
   fail: (status, data) => ({ status, data }),
 };

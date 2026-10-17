@@ -28,6 +28,30 @@ function contributionsOf(ctx: object): Record<string, unknown> {
   return contributions;
 }
 
+/**
+ * The Cloudflare bindings Nitro 3 (H3 2, SolidStart 2) puts on the request
+ * itself, at `request.runtime.cloudflare.env`.
+ */
+export function nitroCloudflareEnv(request: Request): unknown {
+  if (!("runtime" in request) || !isRecord(request.runtime)) {
+    return undefined;
+  }
+
+  const { cloudflare } = request.runtime;
+
+  if (!isRecord(cloudflare)) {
+    return undefined;
+  }
+
+  const { env } = cloudflare;
+
+  return env;
+}
+
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null;
+}
+
 /** The per-request value a bridge seeds under `key`. */
 export function handoffOf<T>(ctx: object, key: symbol): T {
   // SAFETY: every bridge seeds its own symbol with its own handoff type before the fold runs.

@@ -1,12 +1,18 @@
 import type { AnyEntry, Contributions } from "@supabase/middleware";
 
-import { around, bufferInPlace, toResponse, type Validated } from "./shared.ts";
+import {
+  around,
+  bufferInPlace,
+  nitroCloudflareEnv,
+  toResponse,
+  type Validated,
+} from "./shared.ts";
 
 /** The part of an H3 2 event the bridge reads and writes. */
 export interface H3Event<Context extends object> {
   readonly req: Request;
   readonly context: Context & {
-    /** Nitro's Cloudflare presets put the bindings here. */
+    /** Where Nitro 2's Cloudflare presets put the bindings. */
     readonly cloudflare?: { readonly env?: unknown } | undefined;
   };
   /** The status and headers a handler set with `event.res`, kept on a plain return value. */
@@ -20,7 +26,11 @@ export interface H3Event<Context extends object> {
 }
 
 export interface ToH3Options<Context extends object> {
-  /** The host's env object for `getEnv`; defaults to `event.context.cloudflare.env`. */
+  /**
+   * The host's env object for `getEnv`. Defaults to the Cloudflare bindings:
+   * `event.req.runtime.cloudflare.env` (Nitro 3), then
+   * `event.context.cloudflare.env`.
+   */
   readonly env?: (event: H3Event<Context>) => unknown;
 }
 
@@ -52,7 +62,7 @@ export function toH3<const Entries extends readonly AnyEntry[]>(
 
     const env = options.env
       ? options.env(event)
-      : event.context.cloudflare?.env;
+      : (nitroCloudflareEnv(event.req) ?? event.context.cloudflare?.env);
 
     return run(event.req, env, async (contributions) => {
       Object.assign(event.context, contributions);

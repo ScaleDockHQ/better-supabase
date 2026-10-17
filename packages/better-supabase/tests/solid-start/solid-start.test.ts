@@ -109,11 +109,14 @@ describe("createSolidStart", () => {
   });
 
   it("reads the env from the native event's Cloudflare bindings", async () => {
+    const request = await requestAs();
+    Object.assign(request, { runtime: { cloudflare: { env: {} } } });
+
     const event: SolidFetchEvent = {
-      request: await requestAs(),
+      request,
       response: { headers: new Headers() },
       locals: {},
-      nativeEvent: { context: { cloudflare: { env: {} } } },
+      nativeEvent: { req: request },
     };
 
     expect(await bs.middleware.onRequest(event)).toBeUndefined();

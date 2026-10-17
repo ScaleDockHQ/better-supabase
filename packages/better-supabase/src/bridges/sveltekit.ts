@@ -10,11 +10,11 @@ export interface SvelteKitEvent<Locals extends object> {
 }
 
 /** SvelteKit's `Handle`, typed structurally so the package does not import `@sveltejs/kit`. */
-export type SvelteKitHandle<Locals extends object> = (input: {
-  readonly event: SvelteKitEvent<Locals>;
-  readonly resolve: (
-    event: SvelteKitEvent<Locals>,
-  ) => Response | Promise<Response>;
+export type SvelteKitHandle<Locals extends object> = <
+  Event extends SvelteKitEvent<Locals>,
+>(input: {
+  readonly event: Event;
+  readonly resolve: (event: Event) => Response | Promise<Response>;
 }) => Promise<Response>;
 
 /**

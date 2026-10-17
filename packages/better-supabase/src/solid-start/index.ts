@@ -5,6 +5,7 @@ import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { BetterServer } from "../server/server-types.ts";
 
 import { beforeRoute } from "../bridges/before-route.ts";
+import { nitroCloudflareEnv } from "../bridges/shared.ts";
 import { flushEvents } from "../server/adapter.ts";
 import {
   type FrameworkLocals,
@@ -35,14 +36,8 @@ export interface SolidFetchEvent {
   readonly request: Request;
   readonly response: { readonly headers: Headers };
   readonly locals: Record<string, unknown>;
-  /** The H3 event; Nitro's Cloudflare presets put the bindings on its context. */
-  readonly nativeEvent?:
-    | {
-        readonly context?:
-          | { readonly cloudflare?: { readonly env?: unknown } | undefined }
-          | undefined;
-      }
-    | undefined;
+  /** The H3 2 event; Nitro 3's Cloudflare preset puts the bindings on its request. */
+  readonly nativeEvent?: { readonly req: Request } | undefined;
 }
 
 export interface SolidStartOptions extends FrameworkOptions {
@@ -151,7 +146,7 @@ export function createSolidStart<
       onRequest: async (event) => {
         const env = options.platformEnv
           ? options.platformEnv(event)
-          : event.nativeEvent?.context?.cloudflare?.env;
+          : event.nativeEvent && nitroCloudflareEnv(event.nativeEvent.req);
 
         const outcome = await run(event.request, env);
 

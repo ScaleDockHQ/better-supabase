@@ -17,7 +17,9 @@ function responseOf(result: object): Response | undefined {
 /** The arguments TanStack Start passes to a `.server()` callback. */
 export interface TanStackStartServerArgs<Context, Result> {
   readonly request: Request;
-  readonly next: (options: { readonly context: Context }) => Promise<Result>;
+  readonly next: (options: {
+    readonly context: Context;
+  }) => Promise<Result> | Result;
 }
 
 export interface ToTanStackStartOptions {

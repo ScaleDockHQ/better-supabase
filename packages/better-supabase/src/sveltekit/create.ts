@@ -44,7 +44,7 @@ export interface SvelteKitFailure<T> {
  * a `fail()` with the status.
  */
 export interface SvelteKitHelpers {
-  error(status: number, body: { readonly message: string }): never;
+  error(status: number, message: string): never;
   redirect(status: 303, location: string): never;
   fail(
     status: number,
@@ -170,9 +170,10 @@ export function createSvelteKit<
         options.kit.redirect(303, target.pathname + target.search);
       }
 
-      options.kit.error(error.status, {
-        message: toProblem(error, { expose }).detail ?? error.message,
-      });
+      options.kit.error(
+        error.status,
+        toProblem(error, { expose }).detail ?? error.message,
+      );
     }
 
     throw new DbException(error);

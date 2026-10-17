@@ -28,8 +28,10 @@ export interface NuxtLike {
   readonly options: {
     readonly betterSupabase?: NuxtModuleOptions | undefined;
     nitro: {
-      virtual?: Record<string, string | (() => string)>;
-      handlers?: NitroHandlerLike[];
+      // Nitro 2 and 3 type these entries differently; the module only
+      // appends its own, so it reads them as unknown.
+      virtual?: Record<string, unknown>;
+      handlers?: unknown[];
     };
   };
   hook(name: "imports:extend", fn: (imports: NuxtImportLike[]) => void): void;
@@ -76,10 +78,13 @@ function setup(inline: NuxtModuleOptions | undefined, nuxt: NuxtLike): void {
       ...nitro.virtual,
       [MIDDLEWARE_ID]: middlewareSource(options.server),
     };
-    nitro.handlers = [
-      ...(nitro.handlers ?? []),
-      { handler: MIDDLEWARE_ID, middleware: true },
-    ];
+
+    const middleware: NitroHandlerLike = {
+      handler: MIDDLEWARE_ID,
+      middleware: true,
+    };
+
+    nitro.handlers = [...(nitro.handlers ?? []), middleware];
   }
 
   if (options.composables ?? true) {
