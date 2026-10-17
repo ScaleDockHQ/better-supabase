@@ -8,7 +8,7 @@ export const GRANTS: SqlModule = {
   names: { tables: {}, options: ["fromPolicies"] },
   title: "Data API grants",
   description:
-    "Writes the complete Data API privileges of the tables and functions in the `expose` config for anon, authenticated and service_role, or derives table grants from the policies. Supabase no longer grants new tables to the Data API roles automatically.",
+    "Writes the complete Data API privileges of the tables and functions in the `expose` config for anon, authenticated and service_role, or derives table grants from the policies. A project with default privileges turned off grants new tables to no Data API role.",
   requires: [],
   target: "schema",
   sql: `-- List tables and functions in \`expose\` (better-supabase.config.ts); \`sql sync\` rewrites the grants below.

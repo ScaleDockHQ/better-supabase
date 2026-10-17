@@ -89,8 +89,8 @@ export interface BetterSupabaseConfig {
   /**
    * Data API grants, keyed by `table` or `schema.table`, and function
    * `execute` grants, keyed by `name(argument types)` or
-   * `schema.name(argument types)`. Supabase no longer grants new tables to
-   * `anon` and `authenticated` automatically; the `grants` SQL module writes
+   * `schema.name(argument types)`. A project with default privileges turned
+   * off grants new tables to no Data API role; the `grants` SQL module writes
    * these as the complete privilege set (it revokes what is not listed), and
    * doctor (BS106) checks them. Tables not listed need `select, insert,
    * update, delete` for `authenticated` (`select` for views).

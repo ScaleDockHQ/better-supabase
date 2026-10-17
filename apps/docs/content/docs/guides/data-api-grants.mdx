@@ -1,16 +1,19 @@
 ---
 title: Data API grants
-description: Grant new tables to the Data API roles now that Supabase no longer does it for you.
+description: Declare which tables the Data API roles reach, for projects that don't grant new tables automatically.
 ---
 
-Supabase used to grant every new table in `public` to `anon`, `authenticated`
-and `service_role`, so RLS was the only gate. That default is going away: new
-projects stopped getting it on May 30, 2026, and existing projects lose it for
-new tables on October 30, 2026. A table without a grant fails every Data API
-request with `42501 permission denied for table ...`, before any policy runs.
+Hosted Supabase projects grant every new table in `public` to `anon`,
+`authenticated` and `service_role` through default privileges, so RLS is the
+only gate. A project can turn those default privileges off, and locally
+`[api] auto_expose_new_tables = false` in `supabase/config.toml` does the same.
+Then a table without a grant fails every Data API request with
+`42501 permission denied for table ...`, before any policy runs.
 
 Tables that already exist keep their grants. The tables you add after the
-cutover are the ones that break.
+default privileges are off are the ones that break. Declaring grants also
+keeps the Data API surface to the tables you list, whichever default the
+project has.
 
 ## Declare what each role reaches
 
@@ -140,20 +143,22 @@ table. `tables: { internal_x: { exclude: true } }` also silences BS106, and
 also leaves the table out of the generated models.
 
 If `supabase/config.toml` sets `[api] auto_expose_new_tables = false`, the
-finding says so: that's the local equivalent of the new hosted default, and
-it's the setting to use locally so you hit missing grants before production
-does.
+finding says so: that's the local opt-out of automatic grants, and it's the
+setting to use locally so you hit missing grants before production does.
 
 ## At runtime
 
-A missing grant comes back as a `forbidden` `DbError` (status 403). Its
-`hint` keeps PostgREST's `GRANT ...` suggestion and adds a pointer to
-`expose`, so the log line tells you what to fix:
+A missing grant comes back as a `forbidden` `DbError` (status 403) whose
+`message` is `permission denied`. The table name and PostgREST's `GRANT ...`
+suggestion stay in `details`, which Problem Details responses never send to
+the client. The `hint` points at `expose` without naming the table:
 
 ```ts
 const { error } = await db.pricingPlans.findMany();
 // error.kind === 'forbidden'
-// error.hint === 'Grant the required privileges ... Supabase no longer grants new tables ... add pricing_plans to `expose` ...'
+// error.message === 'permission denied'
+// error.details === 'permission denied for table pricing_plans\nGrant the required privileges ...'
+// error.hint === 'The Data API role has no grant on this table ... add it to `expose` ...'
 ```
 
 RLS violations (`new row violates row-level security policy`) are also

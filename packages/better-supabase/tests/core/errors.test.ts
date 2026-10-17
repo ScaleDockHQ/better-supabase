@@ -13,6 +13,7 @@ import {
   mapDbError,
   statusOf,
 } from "../../src/core/errors.ts";
+import { toProblem } from "../../src/core/problem.ts";
 
 describe("dbError", () => {
   it("sets the default status and drops undefined extras", () => {
@@ -660,7 +661,7 @@ describe("mapDbError", () => {
       [
         "a table without a hint",
         { code: "42501", message: "permission denied for table customers" },
-        "Supabase no longer grants new tables to the Data API roles: add customers to `expose` and run `better-supabase sql add grants`. `better-supabase doctor` (BS106) lists every missing grant.",
+        "The Data API role has no grant on this table, as on a project with default privileges turned off: add it to `expose` and run `better-supabase sql add grants`. `better-supabase doctor` (BS106) lists every missing grant.",
       ],
       [
         "a view with the PostgREST hint",
@@ -669,7 +670,7 @@ describe("mapDbError", () => {
           message: "permission denied for view active_customers",
           hint: "Grant the required privileges to the current role.",
         },
-        "Grant the required privileges to the current role. Supabase no longer grants new tables to the Data API roles: add active_customers to `expose` and run `better-supabase sql add grants`. `better-supabase doctor` (BS106) lists every missing grant.",
+        "The Data API role has no grant on this view, as on a project with default privileges turned off: add it to `expose` and run `better-supabase sql add grants`. `better-supabase doctor` (BS106) lists every missing grant.",
       ],
       [
         "a function",
@@ -677,12 +678,12 @@ describe("mapDbError", () => {
           code: "42501",
           message: "permission denied for function search_notes",
         },
-        "Supabase no longer grants new objects to the Data API roles automatically; grant execute on function search_notes to the role that needs it.",
+        "The Data API role has no execute grant on this function; grant it to the role that needs it.",
       ],
       [
         "a schema",
         { code: "42501", message: "permission denied for schema private" },
-        "Supabase no longer grants new objects to the Data API roles automatically; grant usage on schema private to the role that needs it.",
+        "The Data API role has no usage grant on this schema; grant it to the role that needs it.",
       ],
       [
         "an object with an app hint",
@@ -710,6 +711,23 @@ describe("mapDbError", () => {
         code: "42501",
       });
       expect(mapped.hint).toBe(hint);
+    });
+
+    it("keeps the object name and PostgREST's recipe out of the client message", () => {
+      const mapped = mapDbError({
+        code: "42501",
+        message: "permission denied for view active_customers",
+        hint: "Grant the required privileges to the current role with: GRANT SELECT ON public.active_customers TO anon;",
+      });
+
+      expect(mapped.message).toBe("permission denied");
+      expect(mapped.hint).not.toContain("active_customers");
+      expect(mapped.details).toBe(
+        "permission denied for view active_customers\nGrant the required privileges to the current role with: GRANT SELECT ON public.active_customers TO anon;",
+      );
+      expect(JSON.stringify(toProblem(mapped))).not.toContain(
+        "active_customers",
+      );
     });
 
     it("reads the permission keys a refusal names in its detail", () => {
