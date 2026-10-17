@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { defineSupabase } from "../../src/core/define.ts";
+import { defineSchema } from "../../src/index.ts";
 import { defineApi } from "../../src/spec/api.ts";
 import { buildApiModel } from "../../src/spec/build.ts";
+import meta from "../fixtures/generated-camel.meta.js";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const betterSupabase = defineSupabase(schema);
@@ -172,6 +174,109 @@ describe("buildApiModel: dataApi", () => {
 
     expect(built.model.operations.map((entry) => entry.id)).toEqual([
       "dataApiSelectNotes",
+    ]);
+  });
+
+  it("documents every table and function with true", () => {
+    const built = buildApiModel(betterSupabase, {
+      info,
+      supabaseUrl,
+      dataApi: { tables: true, functions: true },
+    });
+
+    const rpcs = built.model.operations.filter(
+      (entry) =>
+        entry.source.kind === "data-api" && entry.source.operation === "rpc",
+    );
+
+    expect(built.diagnostics).toEqual([]);
+    expect(
+      built.model.operations.filter(
+        (entry) =>
+          entry.source.kind === "data-api" &&
+          entry.source.operation === "select",
+      ).length,
+    ).toBe(Object.keys(schema.meta.tables).length);
+    expect(rpcs.length).toBe(Object.keys(schema.meta.functions).length);
+  });
+
+  it("maps Postgres types the way PostgREST writes them", () => {
+    const typed = defineSupabase(
+      defineSchema({
+        ...meta,
+        functions: {
+          typed: {
+            name: "typed",
+            schema: "public",
+            args: [
+              { name: "p_tags", type: "_text" },
+              { name: "p_kind", type: "note_kind" },
+              { name: "p_score", type: "float8" },
+              { name: "p_done", type: "bool" },
+              { name: "p_at", type: "timestamptz" },
+              { name: "p_on", type: "date" },
+              { name: "p_data", type: "jsonb" },
+            ],
+            returns: "customers",
+            returnsSet: false,
+            volatility: "stable",
+          },
+          missing_table: {
+            name: "missing_table",
+            schema: "public",
+            args: [],
+            returns: "record",
+            returnsSet: false,
+            volatility: "stable",
+            result: { table: "nope" },
+          },
+        },
+      }),
+    );
+
+    const built = buildApiModel(typed, {
+      info,
+      supabaseUrl,
+      dataApi: { functions: ["typed", "missing_table"] },
+    });
+
+    const rpc = operation(built.model, "dataApiRpcTyped");
+
+    expect(
+      rpc.requestBody?.content["application/json"]?.schema?.["properties"],
+    ).toEqual({
+      p_tags: { type: "array", items: { type: "string" } },
+      p_kind: { type: "string", enum: ["call", "meeting", "email"] },
+      p_score: { type: "number" },
+      p_done: { type: "boolean" },
+      p_at: { type: "string", format: "date-time" },
+      p_on: { type: "string", format: "date" },
+      p_data: {},
+    });
+    expect(rpc.responses["200"]).toMatchObject({
+      content: {
+        "application/json": {
+          schema: { $ref: "#/components/schemas/DataApiCustomersRow" },
+        },
+      },
+    });
+    expect(
+      operation(built.model, "dataApiRpcMissingTable").responses["200"],
+    ).toMatchObject({ content: { "application/json": { schema: {} } } });
+  });
+
+  it("reports operations for an unknown table", () => {
+    const built = buildApiModel(betterSupabase, {
+      info,
+      supabaseUrl,
+      dataApi: { operations: { nope: ["select"] } },
+    });
+
+    expect(built.diagnostics).toEqual([
+      expect.objectContaining({
+        code: "data-api-table-unknown",
+        message: 'dataApi.operations: no table or view "nope"',
+      }),
     ]);
   });
 
