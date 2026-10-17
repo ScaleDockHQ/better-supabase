@@ -935,6 +935,9 @@ importers:
       oxlint:
         specifier: 'catalog:'
         version: 1.88.0(oxlint-tsgolint@7.0.2004)
+      portless:
+        specifier: 'catalog:'
+        version: 0.15.8
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -1427,6 +1430,9 @@ importers:
       oxlint:
         specifier: 'catalog:'
         version: 1.88.0(oxlint-tsgolint@7.0.2004)
+      portless:
+        specifier: 'catalog:'
+        version: 0.15.8
       typescript:
         specifier: 'catalog:'
         version: 7.0.2

@@ -5,9 +5,23 @@
       "script": "dev:portless",
       "proxy": false
     },
-    "apps/docs": { "name": "docs", "script": "dev:portless", "proxy": false },
+    "apps/docs": {
+      "name": "docs",
+      "script": "dev:portless",
+      "proxy": false
+    },
     "apps/examples/nextjs": {
       "name": "example",
+      "script": "dev:portless",
+      "proxy": false
+    },
+    "apps/examples/eve": {
+      "name": "eve",
+      "script": "dev:portless",
+      "proxy": false
+    },
+    "apps/examples/vite-react": {
+      "name": "vite-react",
       "script": "dev:portless",
       "proxy": false
     }

@@ -28,16 +28,18 @@ vercel link           # maintainers: link the scaledock team's project
 pnpm env:pull         # maintainers: hosted keys in .env.local
 pnpm supabase:start   # native stack; writes its URLs to .env.development.local
 pnpm env:local        # local stack and Portless URLs in .env.development.local
-pnpm dev:portless     # docs, marketing and the Next.js example over HTTPS
+pnpm dev:portless     # docs, marketing and the examples over HTTPS
 ```
 
 The first `pnpm dev:portless` asks to trust the Portless certificate authority. The apps are then served on stable HTTPS URLs:
 
-| App             | URL                           |
-| --------------- | ----------------------------- |
-| Marketing       | `https://www.localhost`       |
-| Docs            | `https://docs.localhost/docs` |
-| Next.js example | `https://example.localhost`   |
+| App             | URL                            |
+| --------------- | ------------------------------ |
+| Marketing       | `https://www.localhost`        |
+| Docs            | `https://docs.localhost/docs`  |
+| Next.js example | `https://example.localhost`    |
+| eve example     | `https://eve.localhost`        |
+| Vite example    | `https://vite-react.localhost` |
 
 The seed creates two users in the Acme organization, both with the password `password123`: `admin@acme.test` (role `admin`) and `member@acme.test` (role `member`).
 
@@ -46,7 +48,7 @@ The seed creates two users in the Acme organization, both with the password `pas
 | Command                  | What it does                                                              |
 | ------------------------ | ------------------------------------------------------------------------- |
 | `pnpm run verify`        | Format check, lint, prose, typecheck, boundaries, tests, doctor and audit |
-| `pnpm dev:portless`      | Docs, marketing and the Next.js example on `.localhost` URLs              |
+| `pnpm dev:portless`      | Docs, marketing and the examples on `.localhost` URLs                     |
 | `pnpm run build`         | `turbo run build`                                                         |
 | `pnpm run test`          | Unit and type tests                                                       |
 | `pnpm typecheck:matrix`  | Published types against TypeScript 6 and 7                                |

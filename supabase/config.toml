@@ -45,10 +45,13 @@ allowed_mime_types = [
 
 [auth]
 enabled = true
-# The nextjs example under `pnpm dev:portless`, and under `pnpm dev`.
+# The nextjs example under `pnpm dev:portless`, and under `pnpm dev`. The eve
+# and Vite examples also sign in under `pnpm dev:portless`.
 site_url = "https://example.localhost"
 additional_redirect_urls = [
   "https://example.localhost/**",
+  "https://eve.localhost/**",
+  "https://vite-react.localhost/**",
   "http://localhost:3100/**",
   "http://127.0.0.1:3100/**",
 ]

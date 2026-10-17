@@ -38,11 +38,13 @@ what it checks.
 (`portless.json`). The first run asks to trust the Portless certificate
 authority.
 
-| App             | URL                           |
-| --------------- | ----------------------------- |
-| Marketing       | `https://www.localhost`       |
-| Docs            | `https://docs.localhost/docs` |
-| Next.js example | `https://example.localhost`   |
+| App             | URL                            |
+| --------------- | ------------------------------ |
+| Marketing       | `https://www.localhost`        |
+| Docs            | `https://docs.localhost/docs`  |
+| Next.js example | `https://example.localhost`    |
+| eve example     | `https://eve.localhost`        |
+| Vite example    | `https://vite-react.localhost` |
 
 The seed (`supabase/seed.sql`) creates two Acme users with the password
 `password123`: `admin@acme.test` (role `admin`) and `member@acme.test` (role
