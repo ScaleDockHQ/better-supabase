@@ -12,7 +12,7 @@ import { asyncapiFormat } from "./format.ts";
 
 export { asyncapiFormat } from "./format.ts";
 
-export { CLOUD_EVENT_TRAIT } from "../spec/events.ts";
+export { CLOUD_EVENT_TRAIT, topicsFrom } from "../spec/events.ts";
 
 export type {
   BlockEventSchema,

@@ -33,6 +33,8 @@ import { formatRegistry } from "../spec/formats.ts";
 import { renderTarget } from "../spec/render.ts";
 import { TargetError, resolveTargets } from "../spec/targets.ts";
 import { fieldOf, parseAs } from "../spec/text.ts";
+import { undocumentedTopics } from "../spec/topics.ts";
+import { loadTopics } from "../topics.ts";
 import {
   modifiedTime,
   onceReporter,
@@ -111,7 +113,7 @@ const ARGS = {
   watch: {
     type: "boolean",
     description:
-      "With emit, render again whenever the entry, the config or an overlay changes",
+      "With emit, render again whenever the entry, the config, an overlay or a topic module changes",
   },
   interval: {
     type: "string",
@@ -335,8 +337,33 @@ export async function runSpec(options: SpecRunOptions): Promise<CommandResult> {
     validate: options.action === "validate",
   };
 
-  const rendered = await Promise.all(
-    targets.map((target) => renderTarget(target, context)),
+  const policies = config.realtime.policies;
+  let topicFindings: readonly SpecDiagnostic[] = [];
+
+  if (
+    policies !== undefined &&
+    entry.api !== undefined &&
+    targets.some((target) => target.format.id === "asyncapi")
+  ) {
+    try {
+      topicFindings = undocumentedTopics(
+        entry.api.model,
+        await loadTopics(root, policies.from),
+      );
+    } catch (cause) {
+      return {
+        code: 1,
+        error: `Could not load the topics of realtime.policies.from: ${errorText(cause)}`,
+      };
+    }
+  }
+
+  const rendered = (
+    await Promise.all(targets.map((target) => renderTarget(target, context)))
+  ).map((result) =>
+    result.target.format.id === "asyncapi" && topicFindings.length > 0
+      ? { ...result, diagnostics: [...result.diagnostics, ...topicFindings] }
+      : result,
   );
 
   const outputs: ManifestOutput[] = [];
@@ -399,7 +426,7 @@ export async function runSpec(options: SpecRunOptions): Promise<CommandResult> {
   };
 }
 
-/** The files a render reads: the config, the entry, its overlays and the generated module. */
+/** The files a render reads: the config, the entry, its overlays, the generated module and the topic modules. */
 function watchedFiles(
   options: SpecRunOptions,
   configFile: string | undefined,
@@ -412,6 +439,9 @@ function watchedFiles(
     resolve(config.root, config.output),
     ...config.specs.outputs.flatMap((output) =>
       (output.overlays ?? []).map((path) => resolve(config.root, path)),
+    ),
+    ...(config.realtime.policies?.from ?? []).map((path) =>
+      resolve(config.root, path),
     ),
   ];
 }

@@ -33,6 +33,8 @@ export type {
   TriggerValue,
 } from "./topic.ts";
 
+export type { RealtimeStatus } from "../core/realtime-status.ts";
+
 export type { TemplateParams, TemplateValues } from "../core/template.ts";
 
 export type { AccessPolicySql, AccessTopicPolicy } from "../schema/types.ts";

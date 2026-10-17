@@ -8,7 +8,9 @@ import { uiPath } from "../../../src/cli/commands/spec.ts";
 import { run } from "../../../src/cli/run.ts";
 import { fails, formatDiagnostics } from "../../../src/cli/spec/diagnostics.ts";
 import { defineSupabase } from "../../../src/core/define.ts";
+import { defineTopic } from "../../../src/realtime/topic.ts";
 import { defineApi } from "../../../src/spec/api.ts";
+import { topicsFrom } from "../../../src/spec/events.ts";
 import { schema } from "../../fixtures/generated-camel.ts";
 
 const api = defineApi(defineSupabase(schema), {
@@ -18,6 +20,7 @@ const api = defineApi(defineSupabase(schema), {
 
 declare global {
   var specApiFixture: unknown;
+  var specTopicsFixture: unknown;
 }
 
 let dir = "";
@@ -320,6 +323,61 @@ describe("spec arguments", () => {
     ]);
 
     expect(absent.stderr).toContain("Could not load");
+  });
+
+  it("warns about realtime.policies topics the AsyncAPI document leaves out", async () => {
+    const room = defineTopic("room:{roomId}");
+    const board = defineTopic("board:{boardId}");
+    globalThis.specTopicsFixture = { room, board };
+    globalThis.specApiFixture = defineApi(defineSupabase(schema), {
+      info: { title: "CRM", version: "1.0.0" },
+      events: { tables: false, topics: topicsFrom({ room }) },
+    });
+    await writeFile(
+      join(dir, "topics.mjs"),
+      "export const { room, board } = globalThis.specTopicsFixture;\n",
+    );
+    await writeFile(
+      join(dir, "better-supabase.config.mjs"),
+      "export default { realtime: { policies: { from: ['topics.mjs'], output: 'topics.sql' } }, specs: { outputs: [{ format: 'asyncapi' }, { format: 'openapi' }] } };\n",
+    );
+
+    const result = await spec("emit", "--json");
+
+    const manifest = await readJson(
+      "node_modules/.cache/better-supabase/specs/diagnostics.json",
+    );
+
+    expect(result.code).toBe(0);
+
+    // SAFETY: the manifest follows spec-manifest-v1.
+    const outputs = manifest["outputs"] as {
+      format: string;
+      diagnostics: { code: string; message: string }[];
+    }[];
+
+    const asyncapi = outputs.find((output) => output.format === "asyncapi");
+    const openapi = outputs.find((output) => output.format === "openapi");
+    expect(
+      asyncapi?.diagnostics.filter(
+        (diagnostic) => diagnostic.code === "asyncapi-topic-undocumented",
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining(
+          "board:{boardId} (`board` in topics.mjs)",
+        ),
+      }),
+    ]);
+    expect(
+      openapi?.diagnostics.some(
+        (diagnostic) => diagnostic.code === "asyncapi-topic-undocumented",
+      ),
+    ).toBe(false);
+
+    const strict = await spec("check", "--fail-on", "warning");
+    expect(strict.code).toBe(1);
+    expect(strict.stdout).toContain("asyncapi-topic-undocumented");
   });
 
   it("emits a finished document export and flags another version", async () => {

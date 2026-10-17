@@ -2218,6 +2218,7 @@
       "PresenceSchema",
       "PresenceSubscription",
       "RealtimeClient",
+      "RealtimeStatus",
       "RowChange",
       "SubjectReadersOptions",
       "SubscribeOptions",
@@ -6869,7 +6870,8 @@
       "specReference",
       "specReferenceCsp",
       "specReferenceHtml",
-      "specResponse"
+      "specResponse",
+      "topicsFrom"
     ],
     "types": [
       "* from ./model.ts",
@@ -6885,6 +6887,7 @@
       "DocumentFormat",
       "DocumentOf",
       "EnrichHooks",
+      "EventsOptions",
       "FormatVersion",
       "FunctionRouteOptions",
       "LowerContext",
@@ -6908,6 +6911,7 @@
       "SpecResponseOptions",
       "SpecUi",
       "SpecUiAssets",
+      "TopicInput",
       "VersionOf",
       "VersionStatus"
     ]
@@ -6948,7 +6952,8 @@
       "ASYNCAPI_FILE_NAME",
       "asyncapiFormat",
       "CLOUD_EVENT_TRAIT",
-      "createAsyncApi"
+      "createAsyncApi",
+      "topicsFrom"
     ],
     "types": [
       "AnyAsyncApiDocument",
