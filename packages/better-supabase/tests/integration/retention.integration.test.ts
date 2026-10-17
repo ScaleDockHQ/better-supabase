@@ -2,9 +2,11 @@ import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import {
+  createOrganizationPurger,
   createRetention,
   sqlTransport,
 } from "../../src/blocks/data-lifecycle/index.ts";
+import { AsyncResult } from "../../src/core/result.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
@@ -143,6 +145,30 @@ describe.skipIf(!live)("retention policies and legal holds", () => {
       expect(
         await s.hint("select better_supabase.purge_organization($1)", [tenant]),
       ).toBe("ORGANIZATION_LEGAL_HOLD");
+      expect(
+        await s.hint(
+          "select better_supabase.organization_credential_refs($1)",
+          [tenant],
+        ),
+      ).toBe("ORGANIZATION_LEGAL_HOLD");
+
+      const cancelled: string[] = [];
+
+      const refused = await createOrganizationPurger({
+        transport: sqlTransport(s.sql),
+        billing: {
+          cancelSubscription: (id) => {
+            cancelled.push(id);
+
+            return AsyncResult.ok(null);
+          },
+        },
+      }).purge(tenant);
+
+      expect(refused.ok ? undefined : refused.error.hint).toBe(
+        "ORGANIZATION_LEGAL_HOLD",
+      );
+      expect(cancelled).toEqual([]);
     } finally {
       await s.close();
     }
