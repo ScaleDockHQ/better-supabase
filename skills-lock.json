@@ -265,6 +265,12 @@
       "skillPath": "skills/http-semantics/SKILL.md",
       "computedHash": "58102d332b607fde7c7414e5bc60b29547c0893a4d7d56b962c2c0aba070362b"
     },
+    "improve": {
+      "source": "shadcn/improve",
+      "sourceType": "github",
+      "skillPath": "skills/improve/SKILL.md",
+      "computedHash": "39a9358732dcff385e9e4d3e60b4547856f834e54a58b35e455aa9bd49928c13"
+    },
     "json-canonicalization": {
       "source": "ScaleDockHQ/scaledock-skills",
       "sourceType": "github",
