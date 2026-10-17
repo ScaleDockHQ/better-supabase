@@ -7,7 +7,7 @@ import { SQL_MODULES } from "../../src/sql/registry.ts";
 import { renderModules } from "../../src/sql/render.ts";
 
 const source = (path: string): string =>
-  readFileSync(new URL(path, import.meta.url), "utf8");
+  readFileSync(new URL(path, import.meta.url), "utf-8");
 
 /** Every block's event types. */
 const MAP_TYPES = [

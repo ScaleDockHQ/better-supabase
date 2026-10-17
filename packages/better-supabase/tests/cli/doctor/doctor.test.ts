@@ -960,7 +960,7 @@ describe("doctor rules", () => {
       const answers: [RegExp, Record<string, unknown>[]][] = [
         [
           /pg_stat_database/,
-          [{ temp_files: 3, temp_bytes: 3145728, work_mem: "4MB" }],
+          [{ temp_files: 3, temp_bytes: 3_145_728, work_mem: "4MB" }],
         ],
         [/pg_extension/, [{ schema: "extensions" }]],
         [
@@ -1783,7 +1783,7 @@ uri = "https://example.com/hook"
         '# c\n[db]\nport = 54_322\n[auth.email]\nenable_confirmations = false\nsite_url = "http://x" # note\nredirects = ["a", \'b\']\n[storage.buckets."my-bucket"]\npublic = true\n',
       ),
     ).toEqual({
-      db: { port: 54322 },
+      db: { port: 54_322 },
       auth: {
         email: {
           enable_confirmations: false,
@@ -2053,7 +2053,7 @@ describe("doctor command", () => {
     ]);
     expect(sarif.stdout).toContain("Wrote doctor.sarif: 1 errors");
     expect(
-      JSON.parse(await readFile(join(dir, "doctor.sarif"), "utf8")),
+      JSON.parse(await readFile(join(dir, "doctor.sarif"), "utf-8")),
     ).toMatchObject({ version: "2.1.0" });
   });
 
@@ -2147,7 +2147,7 @@ describe("doctor command", () => {
         "../../../../../apps/docs/content/docs/cli/doctor.mdx",
         import.meta.url,
       ),
-      "utf8",
+      "utf-8",
     );
     for (const code of RULE_CODES) expect(docs).toContain(`### ${code}`);
     const schema = JSON.parse(
@@ -2155,7 +2155,7 @@ describe("doctor command", () => {
         new URL(
           import.meta.resolve("better-supabase/schemas/doctor-report-v1.json"),
         ),
-        "utf8",
+        "utf-8",
       ),
     ) as {
       properties: {

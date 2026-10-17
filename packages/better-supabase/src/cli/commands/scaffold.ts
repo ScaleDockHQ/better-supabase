@@ -161,7 +161,7 @@ export async function runScaffold(
       lines.push(`Kept ${file.path} (yours)`);
       continue;
     }
-    const current = exists ? await readFile(path, "utf8") : undefined;
+    const current = exists ? await readFile(path, "utf-8") : undefined;
     if (current !== undefined && !current.startsWith(GENERATED_HEADER))
       return {
         code: 1,

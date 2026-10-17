@@ -18,7 +18,7 @@ const SCHEMAS = new URL(
   import.meta.resolve("better-supabase/schemas/config-v1.json"),
 );
 const load = async (name: string): Promise<Schema> =>
-  JSON.parse(await readFile(new URL(name, SCHEMAS), "utf8")) as Schema;
+  JSON.parse(await readFile(new URL(name, SCHEMAS), "utf-8")) as Schema;
 
 const typeOf = (value: unknown): string => {
   if (value === null) return "null";
@@ -160,7 +160,7 @@ describe("shipped JSON Schemas", () => {
   it("match the snapshot the examples and type tests generate from", async () => {
     const shared = await readFile(
       new URL("../../../../supabase/snapshot.json", import.meta.url),
-      "utf8",
+      "utf-8",
     );
     expect(JSON.parse(shared)).toEqual(fixture);
   });

@@ -6,6 +6,7 @@ import type {
   RelationMeta,
   TableMeta,
 } from "../../index.ts";
+import type { GeneratorMetadata } from "../introspect/typegen.ts";
 import type {
   Catalog,
   CatalogColumn,
@@ -13,7 +14,6 @@ import type {
 } from "../introspect/types.ts";
 
 import { toCamel } from "../../index.ts";
-import { type GeneratorMetadata } from "../introspect/typegen.ts";
 
 export interface ColumnModel {
   readonly app: string;

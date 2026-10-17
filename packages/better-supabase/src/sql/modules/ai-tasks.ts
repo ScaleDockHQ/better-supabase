@@ -78,7 +78,7 @@ function build(ctx: ModuleContext): string {
   const permissions = moduleOperations("ai-tasks");
   const create = ctx.permission("create", permissions.create);
   const manage = ctx.permission("manage", permissions.manage);
-  const maxPrompt = ctx.number("maxPrompt", 20000);
+  const maxPrompt = ctx.number("maxPrompt", 20_000);
   const queue = ctx.text("queue", "ai_task_run");
   if (!QUEUE.test(queue)) {
     throw new TypeError(

@@ -34,7 +34,7 @@ describe("cli files", () => {
     expect((await writeLine(path, "hi", "sub/b.txt")).line).toBe(
       "Unchanged sub/b.txt",
     );
-    expect(await readFile(path, "utf8")).toBe("hi");
+    expect(await readFile(path, "utf-8")).toBe("hi");
     expect(await readIfExists(join(root, "none"))).toBeUndefined();
   });
 });

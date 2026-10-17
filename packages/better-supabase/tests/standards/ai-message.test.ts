@@ -14,7 +14,7 @@ import { validate } from "../../src/core/standard.ts";
 const schema = JSON.parse(
   await readFile(
     new URL("../../schemas/ai-message-v1.json", import.meta.url),
-    "utf8",
+    "utf-8",
   ),
 ) as Record<string, unknown>;
 const ajv = new Ajv2020({ strict: true, allErrors: true });

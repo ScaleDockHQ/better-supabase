@@ -1,5 +1,6 @@
+import type { PresetName } from "better-supabase/preset";
+
 import { resolveConfig } from "better-supabase/config";
-import { type PresetName } from "better-supabase/preset";
 import { moduleLayout, renderModules } from "better-supabase/sql";
 import { DatabaseError, Pool, type PoolClient } from "pg";
 

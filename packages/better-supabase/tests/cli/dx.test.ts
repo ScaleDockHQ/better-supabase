@@ -80,17 +80,17 @@ describe("init and add", () => {
       });
     }
     expect(
-      await readFile(join(dir, "src/lib/supabase/index.ts"), "utf8"),
+      await readFile(join(dir, "src/lib/supabase/index.ts"), "utf-8"),
     ).toContain("from './generated'");
     expect(
-      await readFile(join(dir, "src/lib/supabase/client.ts"), "utf8"),
+      await readFile(join(dir, "src/lib/supabase/client.ts"), "utf-8"),
     ).toContain("process.env.NEXT_PUBLIC_SUPABASE_URL!");
     expect(init.stdout).toContain(
       "pnpm add better-supabase @supabase/supabase-js @supabase/ssr",
     );
     expect(init.stdout).not.toContain("pnpm add -D pg");
     expect(
-      await readFile(join(dir, "src/lib/supabase/generated.ts"), "utf8"),
+      await readFile(join(dir, "src/lib/supabase/generated.ts"), "utf-8"),
     ).toBe("// generated\n");
 
     await writeFile(join(dir, "src/proxy.ts"), "// mine\n");
@@ -102,7 +102,9 @@ describe("init and add", () => {
     const again = await run(["init", "--cwd", dir]);
     expect(again.stderr).toBe("");
     expect(again.stdout).toContain("Kept    src/proxy.ts (exists)");
-    expect(await readFile(join(dir, "src/proxy.ts"), "utf8")).toBe("// mine\n");
+    expect(await readFile(join(dir, "src/proxy.ts"), "utf-8")).toBe(
+      "// mine\n",
+    );
   });
 
   it("points --lite at Supabase Lite's CLI and the lite backend", async () => {
@@ -173,7 +175,7 @@ describe("init and add", () => {
     ]);
     expect(again.code).toBe(0);
     expect(
-      await readFile(join(dir, "apps/web/src/lib/supabase/index.ts"), "utf8"),
+      await readFile(join(dir, "apps/web/src/lib/supabase/index.ts"), "utf-8"),
     ).toContain("from '../../db/generated'");
 
     const here = await run([
@@ -194,13 +196,13 @@ describe("init and add", () => {
     expect(dry.stdout).toContain(
       "Would enable pg-delta in supabase/config.toml",
     );
-    expect(await readFile(join(dir, "supabase/config.toml"), "utf8")).toBe(
+    expect(await readFile(join(dir, "supabase/config.toml"), "utf-8")).toBe(
       "[api]\nport = 54321\n",
     );
 
     const init = await run(["init", "--cwd", dir]);
     expect(init.stdout).toContain("Enabled pg-delta in supabase/config.toml");
-    expect(await readFile(join(dir, "supabase/config.toml"), "utf8")).toBe(
+    expect(await readFile(join(dir, "supabase/config.toml"), "utf-8")).toBe(
       "[api]\nport = 54321\n\n[experimental.pgdelta]\nenabled = true\n",
     );
 
@@ -217,11 +219,11 @@ describe("init and add", () => {
     const init = await run(["init", "--workflow", "migrations", "--cwd", dir]);
     expect(init.code).toBe(0);
     expect(init.stdout).not.toContain("pg-delta");
-    expect(await readFile(join(dir, "supabase/config.toml"), "utf8")).toBe(
+    expect(await readFile(join(dir, "supabase/config.toml"), "utf-8")).toBe(
       toml,
     );
     expect(
-      await readFile(join(dir, "better-supabase.config.ts"), "utf8"),
+      await readFile(join(dir, "better-supabase.config.ts"), "utf-8"),
     ).toContain("sql: { workflow: 'migrations' },");
   });
 
@@ -233,7 +235,9 @@ describe("init and add", () => {
     expect(init.stdout).toContain(
       "Kept    supabase/config.toml (pg-delta is off;",
     );
-    expect(await readFile(join(dir, "supabase/config.toml"), "utf8")).toBe(off);
+    expect(await readFile(join(dir, "supabase/config.toml"), "utf-8")).toBe(
+      off,
+    );
   });
 
   it("adds integrations with their dependencies", async () => {
@@ -298,7 +302,7 @@ describe("templates", () => {
     const generated = (
       await readFile(
         join(packageRoot, "tests/fixtures/generated-camel.ts"),
-        "utf8",
+        "utf-8",
       )
     )
       .replaceAll('"../../src/index.ts"', '"better-supabase"')
@@ -308,14 +312,14 @@ describe("templates", () => {
         async (name) => ({
           path: `src/lib/supabase/${name.replace("generated-camel", "generated")}`,
           contents: (
-            await readFile(join(packageRoot, "tests/fixtures", name), "utf8")
+            await readFile(join(packageRoot, "tests/fixtures", name), "utf-8")
           ).replaceAll('"../../src/index.ts"', '"better-supabase"'),
         }),
       ),
     );
     const databaseTypes = await readFile(
       join(packageRoot, "tests/fixtures/database.types.ts"),
-      "utf8",
+      "utf-8",
     );
     try {
       for (const file of [
@@ -419,7 +423,7 @@ describe("env", () => {
     expect(result.stdout).toContain("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY");
     expect(result.stdout).not.toContain("sb_secret_test");
     expect(result.stdout).not.toContain("Warning");
-    const written = await readFile(join(dir, ".env.local"), "utf8");
+    const written = await readFile(join(dir, ".env.local"), "utf-8");
     expect(written).toMatch(
       /^OTHER=1\nNEXT_PUBLIC_SUPABASE_URL=http:\/\/127\.0\.0\.1:54321\n/,
     );
@@ -507,7 +511,7 @@ describe("keys", () => {
     expect(first.stdout).toContain('signing_keys_path = "./signing_keys.json"');
     const path = join(dir, "supabase/signing_keys.json");
     expect((await stat(path)).mode & 0o777).toBe(0o600);
-    const [key] = JSON.parse(await readFile(path, "utf8")) as JsonWebKey[];
+    const [key] = JSON.parse(await readFile(path, "utf-8")) as JsonWebKey[];
     expect(first.stdout).not.toContain(key!.d!);
     const imported = await crypto.subtle.importKey(
       "jwk",
@@ -526,7 +530,7 @@ describe("keys", () => {
     expect((await run(["keys", "--cwd", dir])).code).toBe(1);
     const rotated = await run(["keys", "--rotate", "--cwd", dir]);
     expect(rotated.stdout).toContain("1 older key kept");
-    const keys = JSON.parse(await readFile(path, "utf8")) as { kid: string }[];
+    const keys = JSON.parse(await readFile(path, "utf-8")) as { kid: string }[];
     expect(keys).toHaveLength(2);
     expect(keys[1]!.kid).toBe((key as { kid: string }).kid);
   });
@@ -578,7 +582,7 @@ export const chrome = defineReadSet(betterSupabase, 'chrome', { params: { organi
       dir,
       "supabase/schemas/900_better_supabase_14_read_sets.sql",
     );
-    const sql = await readFile(path, "utf8");
+    const sql = await readFile(path, "utf-8");
     expect(sql).toContain(
       "create or replace function public.rs_chrome(p jsonb)",
     );
@@ -619,7 +623,7 @@ export const seed = defineSeed(defineSupabase(schema), {
     );
     const sql = await readFile(
       join(dir, "supabase/seeds/000_better_supabase.sql"),
-      "utf8",
+      "utf-8",
     );
     expect(sql.indexOf('"organizations"')).toBeLessThan(
       sql.indexOf('"customers"'),
@@ -657,7 +661,7 @@ describe("openapi emit", () => {
     ]);
     expect(emit.stdout).toContain("Wrote openapi.json");
     expect(
-      JSON.parse(await readFile(join(dir, "openapi.json"), "utf8")),
+      JSON.parse(await readFile(join(dir, "openapi.json"), "utf-8")),
     ).toMatchObject({ openapi: "3.1.0" });
     expect(
       (
@@ -772,7 +776,7 @@ describe("flags from the config", () => {
       (await run(["env", "--from", "status.json", "--cwd", dir])).code,
     ).toBe(0);
     expect(
-      await readFile(join(dir, ".env.development.local"), "utf8"),
+      await readFile(join(dir, ".env.development.local"), "utf-8"),
     ).toContain("VITE_SUPABASE_URL=http://127.0.0.1:54321");
     expect(existsSync(join(dir, ".env.local"))).toBe(false);
     await run([
@@ -784,9 +788,9 @@ describe("flags from the config", () => {
       "--cwd",
       dir,
     ]);
-    expect(await readFile(join(dir, ".env.development.local"), "utf8")).toMatch(
-      /^SUPABASE_URL=/m,
-    );
+    expect(
+      await readFile(join(dir, ".env.development.local"), "utf-8"),
+    ).toMatch(/^SUPABASE_URL=/m);
   });
 
   it("writes the signing key to keys.output", async () => {
@@ -808,7 +812,7 @@ describe("flags from the config", () => {
     await project({ hono: "4" });
     expect((await run(["init", "--with", "mcp", "--cwd", dir])).code).toBe(0);
     expect(
-      await readFile(join(dir, "better-supabase.config.ts"), "utf8"),
+      await readFile(join(dir, "better-supabase.config.ts"), "utf-8"),
     ).toContain("integrations: ['hono', 'mcp'],");
 
     await rm(join(dir, "better-supabase.config.ts"));

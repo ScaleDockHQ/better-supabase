@@ -24,7 +24,7 @@ async function closure(entry: string) {
   const visit = async (file: string): Promise<void> => {
     if (files.has(file)) return;
     files.add(file);
-    const source = await readFile(file, "utf8");
+    const source = await readFile(file, "utf-8");
     for (const match of source.matchAll(SPECIFIER)) {
       const specifier = (match[1] ?? match[2] ?? match[3])!;
       if (specifier.startsWith(".")) {
@@ -41,7 +41,7 @@ async function closure(entry: string) {
 async function domOffenders(files: ReadonlySet<string>): Promise<string[]> {
   const offenders: string[] = [];
   for (const file of files) {
-    const code = (await readFile(file, "utf8")).replace(NOISE, "");
+    const code = (await readFile(file, "utf-8")).replace(NOISE, "");
     code.split("\n").forEach((line, index) => {
       if (DOM_GLOBAL.test(line))
         offenders.push(`${relative(SRC, file)}:${index + 1}: ${line.trim()}`);

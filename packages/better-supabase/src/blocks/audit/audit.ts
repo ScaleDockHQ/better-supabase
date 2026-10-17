@@ -1,5 +1,6 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { BetterSupabase } from "../../core/define.ts";
+import type { AsyncResult } from "../../core/result.ts";
 import type { WhereInput } from "../../ir/args.ts";
 import type { ListDefinition, ListQueryConfig } from "../../list/list-query.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
@@ -11,7 +12,6 @@ import type {
 } from "../../schema/types.ts";
 
 import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
-import { type AsyncResult } from "../../core/result.ts";
 import { SPEC_PINS } from "../../core/spec-pins.ts";
 import { sqlIdent } from "../../core/template.ts";
 import { temporal } from "../../core/temporal-required.ts";

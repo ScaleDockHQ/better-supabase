@@ -120,10 +120,10 @@ declare
 begin
   ${READ_ONLY_GUARD}
   select * into v_node from ${T} x where x.${n("id")} = drive_upload_revision.node${live("x")};
-  if not found or not (${SERVICE_CALLER} or ${canRead("v_node." + n("id"))}) then
+  if not found or not (${SERVICE_CALLER} or ${canRead(`v_node.${n("id")}`)}) then
     ${notFound}
   end if;
-  if not (${SERVICE_CALLER} or ${canWrite("v_node." + n("id"))}) then
+  if not (${SERVICE_CALLER} or ${canWrite(`v_node.${n("id")}`)}) then
     ${forbidden("change this file")}
   end if;
   if v_node.${n("kind")} <> 'file' then
@@ -148,10 +148,10 @@ declare
   v_file ${A}%rowtype;
 begin
   select * into v_node from ${T} x where x.${n("id")} = drive_commit.node${live("x")} for update;
-  if not found or not (${SERVICE_CALLER} or ${canRead("v_node." + n("id"))}) then
+  if not found or not (${SERVICE_CALLER} or ${canRead(`v_node.${n("id")}`)}) then
     ${notFound}
   end if;
-  if not (${SERVICE_CALLER} or ${canWrite("v_node." + n("id"))}) then
+  if not (${SERVICE_CALLER} or ${canWrite(`v_node.${n("id")}`)}) then
     ${forbidden("change this file")}
   end if;
   if not exists (
@@ -292,7 +292,7 @@ declare
   v_node ${T}%rowtype;
 begin
   select * into v_node from ${T} x where x.${n("id")} = drive_revisions.node${live("x")};
-  if not found or not (${SERVICE_CALLER} or ${canRead("v_node." + n("id"))}) then
+  if not found or not (${SERVICE_CALLER} or ${canRead(`v_node.${n("id")}`)}) then
     ${notFound}
   end if;
   return (
@@ -324,10 +324,10 @@ declare
   v_file ${A}%rowtype;
 begin
   select * into v_node from ${T} x where x.${n("id")} = drive_restore_revision.node${live("x")} for update;
-  if not found or not (${SERVICE_CALLER} or ${canRead("v_node." + n("id"))}) then
+  if not found or not (${SERVICE_CALLER} or ${canRead(`v_node.${n("id")}`)}) then
     ${notFound}
   end if;
-  if not (${SERVICE_CALLER} or ${canWrite("v_node." + n("id"))}) then
+  if not (${SERVICE_CALLER} or ${canWrite(`v_node.${n("id")}`)}) then
     ${forbidden("change this file")}
   end if;
   select r.${v("content")} into v_content from ${versions.table("versions")} r
@@ -371,10 +371,10 @@ declare
   v_id uuid;
 begin
   select * into v_node from ${T} x where x.${n("id")} = drive_trash.node${live("x")};
-  if not found or not (${SERVICE_CALLER} or ${canRead("v_node." + n("id"))}) then
+  if not found or not (${SERVICE_CALLER} or ${canRead(`v_node.${n("id")}`)}) then
     ${notFound}
   end if;
-  if not (${SERVICE_CALLER} or ${canWrite("v_node." + n("id"))}) then
+  if not (${SERVICE_CALLER} or ${canWrite(`v_node.${n("id")}`)}) then
     ${forbidden("move this item to the bin")}
   end if;
   for v_child in
@@ -414,10 +414,10 @@ begin
     ${notFound}
   end if;
   select * into v_node from ${T} x where x.${n("id")} = v_root.${ti("subjectId")}::uuid;
-  if not found or not (${SERVICE_CALLER} or ${canRead("v_node." + n("id"))}) then
+  if not found or not (${SERVICE_CALLER} or ${canRead(`v_node.${n("id")}`)}) then
     ${notFound}
   end if;
-  if not (${SERVICE_CALLER} or ${canWrite("v_node." + n("id"))}) then
+  if not (${SERVICE_CALLER} or ${canWrite(`v_node.${n("id")}`)}) then
     ${forbidden("restore this item")}
   end if;
   if v_node.${n("parent")} is not null and exists (
@@ -530,7 +530,7 @@ declare
   v_node ${T}%rowtype;
 begin
   select * into v_node from ${T} x where x.${n("id")} = drive_open.node${live("x")};
-  if not found or auth.uid() is null or not ${canRead("v_node." + n("id"))} then
+  if not found or auth.uid() is null or not ${canRead(`v_node.${n("id")}`)} then
     ${notFound}
   end if;
   insert into ${state.table("state")} (${st("subjectType")}, ${st("subjectId")}, ${st("user")}, ${st("lastOpenedAt")})

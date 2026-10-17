@@ -380,7 +380,7 @@ create policy bs_incoming_webhooks_read on ${t} for select to authenticated
         ])
       : []),
   ];
-  const same = "v_verify = previous." + c("verify");
+  const same = `v_verify = previous.${c("verify")}`;
   const updateSet = [
     `${c("name")} = coalesce(update_incoming_webhook.name, ${ev("name")})`,
     ...assign([

@@ -10,7 +10,7 @@ const PUBLIC = new URL("../../../../apps/marketing/public/r/", import.meta.url);
 const VERSION = SPEC_PINS.shadcnRegistry;
 
 const json = (url: URL): Record<string, unknown> =>
-  JSON.parse(readFileSync(url, "utf8")) as Record<string, unknown>;
+  JSON.parse(readFileSync(url, "utf-8")) as Record<string, unknown>;
 
 const items = readdirSync(PUBLIC)
   .filter((file) => file.endsWith(".json") && file !== "registry.json")

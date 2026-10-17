@@ -10,7 +10,7 @@ describe.skipIf(!live)("authorization provider policy shapes (pgTAP)", () => {
   it("passes every assertion in scope-helpers.test.sql", async () => {
     const file = await readFile(
       new URL("../supabase/scope-helpers.test.sql", import.meta.url),
-      "utf8",
+      "utf-8",
     );
     // The file rolls back its own transaction, extension included.
     const text = file.replace(

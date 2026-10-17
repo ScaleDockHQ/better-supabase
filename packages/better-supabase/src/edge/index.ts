@@ -266,13 +266,12 @@ export function createEdge<
             routed(request, env, executionContext),
         )
       : routed;
-    return async (request, env, executionContext) => {
-      return withFlush(
+    return async (request, env, executionContext) =>
+      withFlush(
         server,
         options.waitUntil ?? executionContext?.waitUntil.bind(executionContext),
         () => answer(request, env, executionContext),
       );
-    };
   };
 
   return extendServer<BetterEdge<M, F, E, C, P, PermissionRef<A>>>(server, {

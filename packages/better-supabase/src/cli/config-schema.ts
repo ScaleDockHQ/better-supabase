@@ -5,8 +5,7 @@ import type {
   EnvironmentConfig,
 } from "../config/index.ts";
 
-import { providerApiProblem } from "../config/index.ts";
-import { SKILLS_AGENTS } from "../config/index.ts";
+import { providerApiProblem, SKILLS_AGENTS } from "../config/index.ts";
 import { SCOPE_ID_TYPES, scopeProblems } from "../sql/index.ts";
 import { GEN_TASKS, INTEGRATIONS } from "./names.ts";
 

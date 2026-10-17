@@ -40,7 +40,7 @@ async function readJson(
   path: string,
 ): Promise<Record<string, unknown> | undefined> {
   if (!existsSync(path)) return undefined;
-  const text = await readFile(path, "utf8");
+  const text = await readFile(path, "utf-8");
   try {
     // SAFETY: callers only read optional fields and check their types.
     return JSON.parse(

@@ -284,7 +284,7 @@ begin
     where x.${ca("id")} = v_row.${ca("id")}
     returning * into v_row;
   end if;
-  ${announcementEvent("announcement.saved", "v_row." + ca("id"))}
+  ${announcementEvent("announcement.saved", `v_row.${ca("id")}`)}
   return ${withExtraFields("to_jsonb(v_row)", "v_row", extras)};
 end;
 $$;

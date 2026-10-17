@@ -1,7 +1,9 @@
 import type { EntitlementPlansSource } from "../../config/index.ts";
 import type { ModuleContext } from "../context.ts";
-import type { ModuleLayout } from "../module-types.ts";
-import type { ModuleEntitlementsProvider } from "../module-types.ts";
+import type {
+  ModuleLayout,
+  ModuleEntitlementsProvider,
+} from "../module-types.ts";
 import type { FeatureClaimOption } from "./entitlements-checks.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";

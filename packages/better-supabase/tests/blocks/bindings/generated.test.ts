@@ -18,7 +18,7 @@ vi.mock("solid-js", () => {
 });
 
 /** Any property, call or await of it gives itself back, and an await never settles. */
-const stub: unknown = new Proxy(function stub() {}, {
+const stub: unknown = new Proxy(() => {}, {
   get: (_target, key) =>
     key === "then"
       ? () => undefined

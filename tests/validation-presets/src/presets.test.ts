@@ -56,8 +56,8 @@ describe("named presets", () => {
       await writeFile(wiringFile(name), source);
       await writeFile(blockConfigFile(name), blockConfig);
     }
-    expect(await readFile(wiringFile(name), "utf8")).toBe(source);
-    expect(await readFile(blockConfigFile(name), "utf8")).toBe(blockConfig);
+    expect(await readFile(wiringFile(name), "utf-8")).toBe(source);
+    expect(await readFile(blockConfigFile(name), "utf-8")).toBe(blockConfig);
   });
 });
 

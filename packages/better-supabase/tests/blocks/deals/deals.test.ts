@@ -30,7 +30,7 @@ const ROW = {
   owner_user_id: "u1",
   product: "pro",
   seats: 60,
-  amount: 4800000,
+  amount: 4_800_000,
   existing_amount: 0,
   currency: "EUR",
   value_period: "annual",

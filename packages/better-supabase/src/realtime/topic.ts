@@ -1,9 +1,8 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
-
-import {
-  type RealtimeChannel,
-  type RealtimePresenceState,
-  type SupabaseClient,
+import type {
+  RealtimeChannel,
+  RealtimePresenceState,
+  SupabaseClient,
 } from "@supabase/supabase-js";
 
 import type { AuthorizationFunctions } from "../config/authorization.ts";

@@ -58,7 +58,7 @@ const tables = () => Promise.resolve([TEAMS, MEMBERS]);
 
 const configPath = () => join(dir, "better-supabase.config.json");
 const readConfig = async (): Promise<unknown> =>
-  JSON.parse(await readFile(configPath(), "utf8"));
+  JSON.parse(await readFile(configPath(), "utf-8"));
 
 describe("adopt", () => {
   it("writes the proposed entry and shows the mapping and the diff", async () => {

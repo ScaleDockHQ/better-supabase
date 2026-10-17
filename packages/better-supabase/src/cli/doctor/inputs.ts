@@ -3,9 +3,9 @@ import { glob, readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig, SqlWorkflow } from "../../config/index.ts";
+import type { TextFile } from "../doctor/rules.ts";
 
 import { byCodePoint } from "../compare.ts";
-import { type TextFile } from "../doctor/rules.ts";
 import { schemaPaths, type SupabaseToml } from "../supabase-toml.ts";
 
 export const ENV_FILES: readonly string[] = [
@@ -24,7 +24,7 @@ export async function readText(
 ): Promise<TextFile | undefined> {
   const absolute = resolve(root, path);
   return existsSync(absolute)
-    ? { path, text: await readFile(absolute, "utf8") }
+    ? { path, text: await readFile(absolute, "utf-8") }
     : undefined;
 }
 
@@ -36,7 +36,7 @@ export async function sqlFiles(
 ): Promise<TextFile[]> {
   const read = async (path: string): Promise<TextFile> => ({
     path,
-    text: await readFile(resolve(root, path), "utf8"),
+    text: await readFile(resolve(root, path), "utf-8"),
   });
   const schemas = await Promise.all(
     (await schemaPaths(root, toml, workflow)).files.map(read),
@@ -62,7 +62,7 @@ export async function sourceFiles(config: ResolvedConfig): Promise<TextFile[]> {
   })) {
     files.push({
       path,
-      text: await readFile(resolve(config.root, path), "utf8"),
+      text: await readFile(resolve(config.root, path), "utf-8"),
     });
   }
   return files.sort((a, b) => byCodePoint(a.path, b.path));

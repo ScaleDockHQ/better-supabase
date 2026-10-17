@@ -150,7 +150,7 @@ async function readManifest(
   path: string,
 ): Promise<Record<string, unknown> | undefined> {
   try {
-    const data: unknown = JSON.parse(await readFile(path, "utf8"));
+    const data: unknown = JSON.parse(await readFile(path, "utf-8"));
     // SAFETY: a package.json is a JSON object; callers check each field.
     return typeof data === "object" && data !== null
       ? (data as Record<string, unknown>)

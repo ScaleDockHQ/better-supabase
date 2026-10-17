@@ -7,13 +7,14 @@ export function InstallButton({ command }: { command: string }) {
   const [copied, setCopied] = useState(false);
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    return () => {
+  useEffect(
+    () => () => {
       if (resetTimer.current) {
         clearTimeout(resetTimer.current);
       }
-    };
-  }, []);
+    },
+    [],
+  );
 
   async function handleCopy() {
     try {

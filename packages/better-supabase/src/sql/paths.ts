@@ -1,5 +1,4 @@
-import type { ModuleLayout } from "./module-types.ts";
-import type { SqlModule } from "./module-types.ts";
+import type { ModuleLayout, SqlModule } from "./module-types.ts";
 
 import { CONFIG_DEFAULTS } from "../config/defaults.ts";
 import { moduleContext } from "./module-context.ts";

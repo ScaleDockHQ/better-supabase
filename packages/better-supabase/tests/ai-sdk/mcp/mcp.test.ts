@@ -93,9 +93,8 @@ function fakeVault() {
       secrets.set(key(ref, options?.subject), value);
       return AsyncResult.ok(undefined);
     },
-    revoke: (ref, options) => {
-      return AsyncResult.ok(secrets.delete(key(ref, options.subject)));
-    },
+    revoke: (ref, options) =>
+      AsyncResult.ok(secrets.delete(key(ref, options.subject))),
     verifyInbound: () => AsyncResult.ok(false),
   } satisfies VaultCredentials;
   return { vault, secrets };

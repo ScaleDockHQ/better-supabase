@@ -68,7 +68,7 @@ describe.skipIf(!live)("audit block", () => {
         ocsf
           .filter((event) => event["class_uid"] === 6003)
           .map((event) => event["type_uid"]),
-      ).toEqual([600301, 600304, 600304]);
+      ).toEqual([600_301, 600_304, 600_304]);
 
       // With the read policy, a member reads only their own tenant.
       await s.asRole(owner);

@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import type { FormDefinition } from "../../../src/blocks/forms/index.ts";
-
 import {
+  type FormDefinition,
   conditionHolds,
   finishQuestionnaire,
   formSchema,

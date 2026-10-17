@@ -16,7 +16,7 @@ const live = await reachable();
 const BUCKET = "bs-it-attachments";
 
 /** Signs nothing: the test stores objects through SQL as the caller. */
-const storage = (files: Map<string, Blob> = new Map()): AttachmentStorage => ({
+const storage = (files = new Map<string, Blob>()): AttachmentStorage => ({
   from: () => ({
     createSignedUploadUrl: (path) =>
       Promise.resolve({

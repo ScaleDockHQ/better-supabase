@@ -9,6 +9,7 @@ import type { StorageApi } from "../storage/storage-api.ts";
 import type { ConnectOptions, SupabaseOptions } from "./define-types.ts";
 import type { Executor } from "./executor.ts";
 import type { Db } from "./repository-types.ts";
+import type { SearchInput } from "./search.ts";
 
 import { builderFor } from "../ir/build.ts";
 import { batchingExecutor } from "./batch.ts";
@@ -64,7 +65,6 @@ import {
 } from "./result.ts";
 import { decodeRpcResult, rpcFunction } from "./rpc-result.ts";
 import { OperationRunner } from "./runner.ts";
-import { type SearchInput } from "./search.ts";
 import {
   createSpecs,
   isQuerySpec,

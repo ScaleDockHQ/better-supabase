@@ -1,7 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from "vitest";
 
-import { type Json } from "./generated.ts";
+import type { Json } from "./generated.ts";
+
 import { appChrome, customerOverview, betterSupabase } from "./latency.ts";
 
 const ORG = "00000000-0000-4000-8000-0000000000aa";

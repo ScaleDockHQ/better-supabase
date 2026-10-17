@@ -1,7 +1,6 @@
 import type { EntitlementPlansSource } from "../../config/index.ts";
 import type { ClaimsMeta } from "../../schema/types.ts";
-import type { ModuleLayout } from "../module-types.ts";
-import type { SqlModule } from "../module-types.ts";
+import type { ModuleLayout, SqlModule } from "../module-types.ts";
 
 import { DEFAULT_CLAIMS } from "../../core/claims.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";

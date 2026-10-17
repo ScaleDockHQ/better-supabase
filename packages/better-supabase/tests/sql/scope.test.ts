@@ -147,7 +147,7 @@ describe("module sources", () => {
     );
     const sites: string[] = [];
     for (const file of files) {
-      const lines = (await readFile(new URL(file, MODULES_DIR), "utf8")).split(
+      const lines = (await readFile(new URL(file, MODULES_DIR), "utf-8")).split(
         "\n",
       );
       lines.forEach((line, index) => {

@@ -101,7 +101,7 @@ async function listInConfig(
       ...untracked.map((name) => `  ${keyText(name)}: {},`),
     ];
   }
-  const source = await readFile(file, "utf8");
+  const source = await readFile(file, "utf-8");
   const edit = file.endsWith(".json")
     ? addBlocksToJson(source, untracked)
     : addBlocksToConfig(source, untracked);

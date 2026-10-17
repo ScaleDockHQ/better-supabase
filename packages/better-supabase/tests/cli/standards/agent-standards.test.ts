@@ -11,7 +11,7 @@ const REPO = resolve(PACKAGE, "../..");
 const SKILLS = join(PACKAGE, "skills");
 
 const json = async (path: string): Promise<Record<string, unknown>> =>
-  JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
+  JSON.parse(await readFile(path, "utf-8")) as Record<string, unknown>;
 
 /** The YAML frontmatter as flat `key: value` pairs (the spec's fields are scalars or one map). */
 function frontmatter(markdown: string): Record<string, string> {
@@ -49,7 +49,7 @@ describe("Agent Skills", () => {
 
   it.each(folders)("%s/SKILL.md has spec-valid frontmatter", async (folder) => {
     const fields = frontmatter(
-      await readFile(join(SKILLS, folder, "SKILL.md"), "utf8"),
+      await readFile(join(SKILLS, folder, "SKILL.md"), "utf-8"),
     );
     for (const key of Object.keys(fields)) expect(SPEC_FIELDS).toContain(key);
     expect(fields["name"]).toBe(folder);
@@ -61,7 +61,7 @@ describe("Agent Skills", () => {
   });
 
   it.each(folders)("%s links only to files that exist", async (folder) => {
-    const body = await readFile(join(SKILLS, folder, "SKILL.md"), "utf8");
+    const body = await readFile(join(SKILLS, folder, "SKILL.md"), "utf-8");
     const links = [
       ...body.matchAll(/\]\((?!https?:|#|mailto:)([^)#\s]+)/g),
     ].map((match) => match[1]!);
@@ -122,15 +122,15 @@ describe("Agent Skills", () => {
 
 describe("AGENTS.md", () => {
   it("lives at the repo root, and CLAUDE.md imports it instead of copying it", async () => {
-    const agents = await readFile(join(REPO, "AGENTS.md"), "utf8");
+    const agents = await readFile(join(REPO, "AGENTS.md"), "utf-8");
     expect(agents.startsWith("# ")).toBe(true);
-    expect((await readFile(join(REPO, "CLAUDE.md"), "utf8")).trim()).toBe(
+    expect((await readFile(join(REPO, "CLAUDE.md"), "utf-8")).trim()).toBe(
       "@AGENTS.md",
     );
   });
 
   it("links only to repo files that exist", async () => {
-    const agents = await readFile(join(REPO, "AGENTS.md"), "utf8");
+    const agents = await readFile(join(REPO, "AGENTS.md"), "utf-8");
     const links = [...agents.matchAll(/\]\((?!https?:|#)([^)#\s]+)/g)].map(
       (match) => match[1]!,
     );
@@ -153,7 +153,7 @@ describe("llms.txt", () => {
     expect(text).toContain('"/llms-full.txt"');
     const marketing = await readFile(
       join(REPO, "apps/marketing/next.config.ts"),
-      "utf8",
+      "utf-8",
     );
     expect(marketing).toContain('"/llms.txt"');
     expect(marketing).toContain('"/llms-full.txt"');

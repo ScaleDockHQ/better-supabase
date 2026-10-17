@@ -227,7 +227,7 @@ export async function withCentraKit(
     await client.query(
       await readFile(
         new URL("../supabase/schema.sql", import.meta.url),
-        "utf8",
+        "utf-8",
       ),
     );
     await client.query(SEED[0]!);
@@ -259,7 +259,7 @@ export async function withCentraKit(
     await client.query(
       await readFile(
         new URL("../supabase/policies.sql", import.meta.url),
-        "utf8",
+        "utf-8",
       ),
     );
     await body(session);

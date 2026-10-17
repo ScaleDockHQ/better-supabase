@@ -8,7 +8,7 @@ describe("block bindings", () => {
     for (const file of await renderBindings()) {
       expect({
         path: file.path,
-        contents: await readFile(file.path, "utf8"),
+        contents: await readFile(file.path, "utf-8"),
       }).toEqual({ path: file.path, contents: file.contents });
     }
   });

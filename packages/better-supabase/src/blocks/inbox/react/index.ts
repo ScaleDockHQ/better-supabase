@@ -1,17 +1,14 @@
 "use client";
 
-import type {
-  ConversationActions,
-  ConversationSnapshot,
-  InboxListActions,
-  InboxListSnapshot,
-  InboxWidgetActions,
-  InboxWidgetSnapshot,
-} from "../client.ts";
-
 import { useController, useLatest } from "../../react-controller.ts";
 import { useBlockEnv } from "../../react-env.ts";
 import {
+  type ConversationActions,
+  type ConversationSnapshot,
+  type InboxListActions,
+  type InboxListSnapshot,
+  type InboxWidgetActions,
+  type InboxWidgetSnapshot,
   createConversationController,
   createInboxController,
   createInboxWidgetController,

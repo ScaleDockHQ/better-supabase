@@ -149,7 +149,7 @@ describe("standard schema generator", () => {
     const doc = JSON.parse(
       await readFile(
         new URL("../fixtures/generated-camel.schema.json", import.meta.url),
-        "utf8",
+        "utf-8",
       ),
     ) as { $defs: Record<string, Record<string, unknown>> };
     const { validators: _, ...schemas } = standardSchemas;
@@ -175,7 +175,7 @@ describe("json schema generator", () => {
     const doc = JSON.parse(
       await readFile(
         new URL("../fixtures/generated-camel.schema.json", import.meta.url),
-        "utf8",
+        "utf-8",
       ),
     ) as {
       $defs: Record<

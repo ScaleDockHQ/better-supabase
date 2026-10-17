@@ -9,5 +9,5 @@ export const FIXTURE_TENANT_SQL: string = readFileSync(
     "../../../../supabase/schemas/better_supabase/functions/current_tenant_id.sql",
     import.meta.url,
   ),
-  "utf8",
+  "utf-8",
 );

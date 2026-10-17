@@ -183,7 +183,7 @@ describe("generateInviteCode", () => {
 });
 
 describe("waitlistHook", () => {
-  const secret = "v1,whsec_" + btoa("hook-secret-for-tests-0123456789");
+  const secret = `v1,whsec_${btoa("hook-secret-for-tests-0123456789")}`;
 
   async function send(
     handler: (request: Request) => Promise<Response>,

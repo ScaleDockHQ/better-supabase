@@ -105,7 +105,7 @@ describe(`Stripe Sync Engine schema (${SPEC_PINS.stripeSyncEngine})`, () => {
         `schemas/stripe-sync-engine-${SPEC_PINS.stripeSyncEngine}-active-entitlements.sql`,
         import.meta.url,
       ),
-      "utf8",
+      "utf-8",
     );
     const columns = new Set(
       [...migration.matchAll(/^\s+"([a-z_]+)" [a-z]/gm)].map(

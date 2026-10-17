@@ -233,7 +233,7 @@ describe(`MCP ${SPEC_PINS.mcp}`, () => {
     expect(broken.status).toBe(400);
     expect(await broken.json()).toMatchObject({
       jsonrpc: "2.0",
-      error: { code: -32700 },
+      error: { code: -32_700 },
     });
   });
 

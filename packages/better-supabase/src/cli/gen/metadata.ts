@@ -4,6 +4,8 @@ import { basename, join, relative, resolve, sep } from "node:path";
 import type { Generator, ResolvedConfig } from "../../config/index.ts";
 import type { CliEnv } from "../env.ts";
 import type { Snapshot } from "../introspect/types.ts";
+import type { CliIo, CommandResult } from "../io.ts";
+import type { Paint } from "../style.ts";
 
 import {
   jsonSchema,
@@ -17,8 +19,6 @@ import {
   MetadataRejectedError,
   parseMetadataDocument,
 } from "../introspect/typegen.ts";
-import { type CliIo, type CommandResult } from "../io.ts";
-import { type Paint } from "../style.ts";
 import { metaPaths } from "./emit.ts";
 import { generationNotices, UNFORMATTED } from "./notices.ts";
 import { type Rendered, render } from "./render.ts";
@@ -117,7 +117,7 @@ export async function readMetadataSnapshot(
 ): Promise<Snapshot> {
   let text: string;
   try {
-    if (source !== "-") text = await readFile(resolve(cwd, source), "utf8");
+    if (source !== "-") text = await readFile(resolve(cwd, source), "utf-8");
     else if (io.stdin) text = await io.stdin();
     else throw new Error("there is no stdin to read");
   } catch (cause) {

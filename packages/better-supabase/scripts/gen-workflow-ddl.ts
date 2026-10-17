@@ -36,7 +36,7 @@ export async function worldPostgresVersion(): Promise<string> {
   const pkg: unknown = JSON.parse(
     await readFile(
       join(migrationsDir(), "..", "..", "..", "package.json"),
-      "utf8",
+      "utf-8",
     ),
   );
   if (typeof pkg === "object" && pkg !== null && "version" in pkg) {
@@ -48,7 +48,7 @@ export async function worldPostgresVersion(): Promise<string> {
 export async function readMigrations(): Promise<WorldMigration[]> {
   const dir = migrationsDir();
   const journal: unknown = JSON.parse(
-    await readFile(join(dir, "meta", "_journal.json"), "utf8"),
+    await readFile(join(dir, "meta", "_journal.json"), "utf-8"),
   );
   const entries =
     typeof journal === "object" && journal !== null && "entries" in journal
@@ -64,7 +64,7 @@ export async function readMigrations(): Promise<WorldMigration[]> {
         ? entry.tag
         : undefined;
     if (typeof tag !== "string") throw new Error("a journal entry has no tag");
-    const sql = await readFile(join(dir, `${tag}.sql`), "utf8");
+    const sql = await readFile(join(dir, `${tag}.sql`), "utf-8");
     migrations.push({
       tag,
       sha256: createHash("sha256").update(sql).digest("hex"),
@@ -287,7 +287,7 @@ if (import.meta.main) {
     await generateDdl(dbUrl, migrations),
   );
   if (process.argv.includes("--check")) {
-    const current = await readFile(OUTPUT, "utf8").catch(() => "");
+    const current = await readFile(OUTPUT, "utf-8").catch(() => "");
     if (current !== contents) {
       console.error(`stale: ${OUTPUT}`);
       process.exitCode = 1;

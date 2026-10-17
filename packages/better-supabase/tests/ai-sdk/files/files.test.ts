@@ -1,16 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 
-const sdkDownload = vi.hoisted(() =>
-  vi.fn(() =>
-    Promise.resolve({ data: new Uint8Array([5]), mediaType: "text/plain" }),
-  ),
-);
-
-vi.mock(import("ai"), async (importOriginal) => ({
-  ...(await importOriginal()),
-  createDownload: () => sdkDownload,
-}));
-
 import type { AiFileStorage } from "../../../src/blocks/ai-files/index.ts";
 
 import {
@@ -23,6 +12,17 @@ import {
   aiFileUrl,
   createAiFiles,
 } from "../../../src/blocks/ai-files/index.ts";
+
+const sdkDownload = vi.hoisted(() =>
+  vi.fn(() =>
+    Promise.resolve({ data: new Uint8Array([5]), mediaType: "text/plain" }),
+  ),
+);
+
+vi.mock(import("ai"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  createDownload: () => sdkDownload,
+}));
 
 const AT = "2026-01-01T00:00:00Z";
 

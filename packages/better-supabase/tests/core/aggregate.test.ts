@@ -228,7 +228,7 @@ describe("db.x.aggregate()", () => {
     expect(data).toEqual([
       {
         accountCode: "4000",
-        _sum: { amount: "12.50", id: 9007199254740993n },
+        _sum: { amount: "12.50", id: 9_007_199_254_740_993n },
         _avg: { amount: 6.25 },
         _max: { bookedAt: Temporal.Instant.from("2026-03-01T00:00:00Z") },
       },

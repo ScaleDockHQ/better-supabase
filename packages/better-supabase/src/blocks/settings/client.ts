@@ -1,4 +1,3 @@
-import type { AsyncResult } from "../../core/result.ts";
 import type { AuthPort, Controller } from "../controller.ts";
 import type {
   SettingEntries,
@@ -10,7 +9,7 @@ import type {
 
 import { type DbError, dbError } from "../../core/errors.ts";
 import { isList, isRecord } from "../../core/guards.ts";
-import { err, type Result } from "../../core/result.ts";
+import { type AsyncResult, err, type Result } from "../../core/result.ts";
 import { defineController, whileSignedIn } from "../controller.ts";
 
 /** How a settings page renders a key. */

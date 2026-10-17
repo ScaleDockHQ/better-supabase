@@ -129,7 +129,7 @@ describe("cachedIntrospect", () => {
     const files = await readdir(join(root, CACHE_DIR));
     expect(files).toEqual([expect.stringMatching(/^snapshot-\w+\.json$/)]);
     const entry = JSON.parse(
-      await readFile(join(root, CACHE_DIR, files[0]!), "utf8"),
+      await readFile(join(root, CACHE_DIR, files[0]!), "utf-8"),
     ) as { key: string };
     const key = (typegen: string) =>
       createHash("sha256")
@@ -161,7 +161,7 @@ describe("writeAtomic", () => {
     const file = join(root, "nested/out.json");
     await writeAtomic(file, "one");
     await writeAtomic(file, "two");
-    expect(await readFile(file, "utf8")).toBe("two");
+    expect(await readFile(file, "utf-8")).toBe("two");
 
     const folder = join(root, "folder");
     await mkdir(join(folder, "child"), { recursive: true });

@@ -1,6 +1,5 @@
 import type { AnyBlocksConfig } from "../config/blocks.ts";
-import type { ModuleFile, ModuleLayout } from "./module-types.ts";
-import type { SqlModule } from "./module-types.ts";
+import type { ModuleFile, ModuleLayout, SqlModule } from "./module-types.ts";
 
 import { sqlIdent } from "../core/template.ts";
 import { eventTriggersOf } from "./event-triggers.ts";

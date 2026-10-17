@@ -17,8 +17,7 @@ import {
   createOrganizationPurger,
   sqlTransport,
 } from "../../src/blocks/data-lifecycle/index.ts";
-import { ok } from "../../src/core/result.ts";
-import { AsyncResult } from "../../src/core/result.ts";
+import { ok, AsyncResult } from "../../src/core/result.ts";
 import {
   sqlTransport as credentialsTransport,
   vaultCredentials,

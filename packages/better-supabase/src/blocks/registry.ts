@@ -33,8 +33,7 @@ import { engagementsBlock } from "./engagements/manifest.ts";
 import { ensureRlsBlock } from "./ensure-rls/manifest.ts";
 import { entitlementsBlock } from "./entitlements/manifest.ts";
 import { flagsBlock } from "./flags/manifest.ts";
-import { formsBlock } from "./forms/manifest.ts";
-import { signaturesBlock } from "./forms/manifest.ts";
+import { formsBlock, signaturesBlock } from "./forms/manifest.ts";
 import { grantsBlock } from "./grants/manifest.ts";
 import { hiringBlock } from "./hiring/manifest.ts";
 import { identitiesBlock } from "./identities/manifest.ts";
@@ -42,10 +41,12 @@ import { importsBlock } from "./imports/manifest.ts";
 import { inboxBlock } from "./inbox/manifest.ts";
 import { inventoryBlock } from "./inventory/manifest.ts";
 import { invoicesBlock } from "./invoices/manifest.ts";
-import { idempotencyBlock } from "./jobs/manifest.ts";
-import { jobsBlock } from "./jobs/manifest.ts";
-import { rateLimitBlock } from "./jobs/manifest.ts";
-import { webhookInboxBlock } from "./jobs/manifest.ts";
+import {
+  idempotencyBlock,
+  jobsBlock,
+  rateLimitBlock,
+  webhookInboxBlock,
+} from "./jobs/manifest.ts";
 import { jsonbSchemasBlock } from "./jsonb-schemas/manifest.ts";
 import { knowledgeBlock } from "./knowledge/manifest.ts";
 import { memoryBlock } from "./memory/manifest.ts";
@@ -98,8 +99,7 @@ import { usageBlock } from "./usage/manifest.ts";
 import { vectorSearchBlock } from "./vector-search/manifest.ts";
 import { versionsBlock } from "./versions/manifest.ts";
 import { waitlistBlock } from "./waitlist/manifest.ts";
-import { incomingWebhooksBlock } from "./webhooks/manifest.ts";
-import { webhooksBlock } from "./webhooks/manifest.ts";
+import { incomingWebhooksBlock, webhooksBlock } from "./webhooks/manifest.ts";
 import { workItemsBlock } from "./work-items/manifest.ts";
 import { workflowBuilderBlock } from "./workflow-builder/manifest.ts";
 import { workflowSdkWorldBlock } from "./workflow-sdk-world/manifest.ts";

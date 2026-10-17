@@ -40,10 +40,10 @@ export function decodeCursor(cursor: string): unknown[] | undefined {
 
 /** A short FNV-1a hash of `text`, enough to tell two sorts apart. */
 export function sortKey(text: string): string {
-  let hash = 0x811c9dc5;
+  let hash = 0x81_1c_9d_c5;
   for (let index = 0; index < text.length; index++) {
     hash ^= text.codePointAt(index) ?? 0;
-    hash = Math.imul(hash, 0x01000193);
+    hash = Math.imul(hash, 0x01_00_01_93);
   }
   return (hash >>> 0).toString(36);
 }

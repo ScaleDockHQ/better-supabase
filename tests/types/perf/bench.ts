@@ -391,7 +391,7 @@ function measure(tsc: string): Measurement {
     process.execPath,
     [tsc, "-p", join(work, "tsconfig.json"), "--extendedDiagnostics"],
     {
-      encoding: "utf8",
+      encoding: "utf-8",
     },
   );
   const output = `${result.stdout}${result.stderr}`;
@@ -490,7 +490,7 @@ function run(profile: Profile): Run {
 const baselinePath = join(here, "baseline.json");
 const update = process.env["BENCH_UPDATE"] === "1";
 // SAFETY: this script writes the baseline file in the Baseline shape.
-const baseline = JSON.parse(readFileSync(baselinePath, "utf8")) as Baseline;
+const baseline = JSON.parse(readFileSync(baselinePath, "utf-8")) as Baseline;
 const next: Record<string, BaselineEntry> = {};
 const calibration = calibrate();
 console.log(

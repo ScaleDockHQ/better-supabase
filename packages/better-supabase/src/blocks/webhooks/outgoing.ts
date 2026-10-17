@@ -673,24 +673,20 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
         },
       );
     },
-    sink: (sinkOptions = {}) => {
-      return {
-        async send(events: readonly CloudEvent[]) {
-          for (const event of events) {
-            const tenant = event["partitionkey"];
-            await call("publish_webhook_event", {
-              event_type: stripTypePrefix(event.type, sinkOptions.typePrefix),
-              payload: event.data ?? {},
-              tenant: typeof tenant === "string" ? tenant : null,
-              event_id: event.id,
-              ...(event.subject === undefined
-                ? {}
-                : { subject: event.subject }),
-            });
-          }
-        },
-      };
-    },
+    sink: (sinkOptions = {}) => ({
+      async send(events: readonly CloudEvent[]) {
+        for (const event of events) {
+          const tenant = event["partitionkey"];
+          await call("publish_webhook_event", {
+            event_type: stripTypePrefix(event.type, sinkOptions.typePrefix),
+            payload: event.data ?? {},
+            tenant: typeof tenant === "string" ? tenant : null,
+            event_id: event.id,
+            ...(event.subject === undefined ? {} : { subject: event.subject }),
+          });
+        }
+      },
+    }),
   };
   return withBlockHooks(client, options.hooks, {
     block: "webhooks",

@@ -83,13 +83,13 @@ export async function detectWorkspace(
   const yaml = join(root, "pnpm-workspace.yaml");
   if (existsSync(yaml)) {
     file = "pnpm-workspace.yaml";
-    patterns = pnpmWorkspacePatterns(await readFile(yaml, "utf8"));
+    patterns = pnpmWorkspacePatterns(await readFile(yaml, "utf-8"));
   } else {
     const path = join(root, "package.json");
     if (!existsSync(path)) return undefined;
     let pkg: unknown;
     try {
-      pkg = JSON.parse(await readFile(path, "utf8"));
+      pkg = JSON.parse(await readFile(path, "utf-8"));
     } catch {
       return undefined;
     }

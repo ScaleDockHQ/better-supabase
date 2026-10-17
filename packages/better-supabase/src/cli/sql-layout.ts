@@ -3,13 +3,11 @@ import { readdir, readFile } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
 
 import type { ResolvedConfig } from "../config/index.ts";
-import type {
-  ModuleAccessProvider,
-  ModuleEntitlementsProvider,
-  ModuleLayout,
-} from "../sql/index.ts";
 
 import {
+  type ModuleAccessProvider,
+  type ModuleEntitlementsProvider,
+  type ModuleLayout,
   type AuditedTable,
   adoptedColumnProblems,
   auditRegistrations,
@@ -50,7 +48,7 @@ async function schemaTexts(
   ];
   return Promise.all(
     paths.map(async (path) => ({
-      text: await readFile(resolve(config.root, path), "utf8"),
+      text: await readFile(resolve(config.root, path), "utf-8"),
     })),
   );
 }
@@ -67,7 +65,7 @@ async function declarativeTexts(
   if (files.length === 0) return schemaTexts(config);
   return Promise.all(
     files.map(async (path) => ({
-      text: await readFile(resolve(config.root, path), "utf8"),
+      text: await readFile(resolve(config.root, path), "utf-8"),
     })),
   );
 }

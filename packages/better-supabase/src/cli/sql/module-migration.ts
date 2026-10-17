@@ -106,7 +106,7 @@ export async function latestMigration(
   if (latest === undefined) return undefined;
   return {
     path: `${dir}/${latest}`,
-    text: await readFile(resolve(config.root, dir, latest), "utf8"),
+    text: await readFile(resolve(config.root, dir, latest), "utf-8"),
   };
 }
 

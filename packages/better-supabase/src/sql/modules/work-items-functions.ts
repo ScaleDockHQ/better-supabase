@@ -78,10 +78,10 @@ export function workItemFunctions(
     ),
   ].join("\n");
   const watch = watchSql(ctx, {
-    tenant: "v_row." + w("tenant"),
+    tenant: `v_row.${w("tenant")}`,
     user: "v_user",
     subjectType: "'work_item'",
-    subjectId: "v_row." + w("id") + "::text",
+    subjectId: `v_row.${w("id")}::text`,
   });
   const notify = ctx.installed("notifications")
     ? `

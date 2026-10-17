@@ -63,7 +63,7 @@ const date = new Date().toISOString().slice(0, 10);
 const section = `## ${release.newVersion} (${date})\n\n${entries.join("\n")}\n`;
 
 const path = join(root, "CHANGELOG.md");
-const current = readFileSync(path, "utf8");
+const current = readFileSync(path, "utf-8");
 const body = current.startsWith(heading)
   ? current.slice(heading.length).trimStart()
   : current;

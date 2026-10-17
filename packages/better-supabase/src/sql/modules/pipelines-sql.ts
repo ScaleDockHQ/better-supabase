@@ -226,7 +226,7 @@ begin
     ${ctx.hook("before_pipeline_stage_change", [
       ["text", sqlString(binding.type)],
       ["text", subjectId],
-      ["uuid", "case when tg_op = 'UPDATE' then old." + stage + " end"],
+      ["uuid", `case when tg_op = 'UPDATE' then old.${stage} end`],
       ["uuid", `new.${stage}`],
     ])}${entered}
     update ${t("history")} set ${h("exitedAt")} = now()

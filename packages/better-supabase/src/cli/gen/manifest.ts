@@ -11,7 +11,7 @@ export const manifestPath = (root: string, path: string): string =>
   relative(root, resolve(root, path)).split(sep).join("/");
 
 async function readManifest(root: string): Promise<readonly string[]> {
-  const parsed: unknown = await readFile(resolve(root, MANIFEST), "utf8")
+  const parsed: unknown = await readFile(resolve(root, MANIFEST), "utf-8")
     .then((text): unknown => JSON.parse(text))
     .catch(() => undefined);
   if (

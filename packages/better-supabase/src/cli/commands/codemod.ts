@@ -96,7 +96,7 @@ export async function runCodemod(
   const diffs: string[] = [];
   const review: { file: string; line: number; message: string }[] = [];
   for (const file of files) {
-    const source = await readFile(file, "utf8");
+    const source = await readFile(file, "utf-8");
     const result = applyCodemod(codemod, source);
     const path = relative(config.root, file);
     review.push(...result.review.map((hint) => ({ file: path, ...hint })));

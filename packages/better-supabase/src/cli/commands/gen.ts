@@ -2,13 +2,13 @@ import type { GenTask } from "../../config/index.ts";
 import type { AnyCommand, CliContext } from "../command.ts";
 import type { IntrospectionSource } from "../introspect/source.ts";
 import type { Snapshot } from "../introspect/types.ts";
+import type { CommandResult } from "../io.ts";
 
 import { defineCliCommand, list } from "../command.ts";
 import { errorText, failedResult } from "../errors.ts";
 import { runMetadataGen, EMITS } from "../gen/metadata.ts";
 import { type GenOptions, runGen } from "../gen/run.ts";
 import { catalogFingerprint } from "../introspect/fingerprint.ts";
-import { type CommandResult } from "../io.ts";
 import { GEN_TASKS } from "../names.ts";
 import { withSpinner } from "../prompts.ts";
 import { painter, plain } from "../style.ts";

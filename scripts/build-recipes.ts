@@ -491,7 +491,7 @@ function checkRegions(recipes: readonly RecipeSource[]): void {
     ...sourceFiles(`${WEB_APP}/src`),
     ...sourceFiles(`${NATIVE_APP}/src`),
   ]) {
-    for (const line of readFileSync(join(ROOT, file), "utf8").split("\n")) {
+    for (const line of readFileSync(join(ROOT, file), "utf-8").split("\n")) {
       const slug = REGION.exec(line)?.[2];
       if (slug && !owners.get(file)?.includes(slug)) {
         throw new Error(
@@ -504,7 +504,7 @@ function checkRegions(recipes: readonly RecipeSource[]): void {
 
 function withSnippet(side: Side | undefined, slug: string) {
   if (!side) return null;
-  const source = readFileSync(join(ROOT, side.file), "utf8");
+  const source = readFileSync(join(ROOT, side.file), "utf-8");
   return {
     ...side,
     snippet: { file: side.file, code: extractRegion(source, slug, side.file) },
@@ -681,7 +681,7 @@ if (import.meta.main) {
     }
     if (argv.includes("--check")) {
       const stale = [...outputs]
-        .filter(([file, contents]) => readFileSync(file, "utf8") !== contents)
+        .filter(([file, contents]) => readFileSync(file, "utf-8") !== contents)
         .map(([file]) => relative(ROOT, file));
       if (stale.length > 0) {
         console.error(

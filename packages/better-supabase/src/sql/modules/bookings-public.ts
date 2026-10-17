@@ -1,5 +1,4 @@
-import type { ExtraColumn } from "../context.ts";
-import type { ModuleContext } from "../context.ts";
+import type { ExtraColumn, ModuleContext } from "../context.ts";
 import type { ModuleScope } from "../scope.ts";
 
 import { fail } from "../shared.ts";

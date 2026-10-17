@@ -147,7 +147,7 @@ async function installSchemaModules(pool: Pool): Promise<void> {
     for (const file of renderModules(names))
       if (file.kind !== "test") await client.query(file.contents);
     // The default search render has no subjects, and the fixture's customers trigger needs its own.
-    await client.query(readFileSync(FIXTURE_SEARCH, "utf8"));
+    await client.query(readFileSync(FIXTURE_SEARCH, "utf-8"));
     await client.query(FIXTURE_TENANT_SQL);
     await client.query("commit");
   } catch (error) {

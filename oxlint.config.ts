@@ -344,16 +344,17 @@ const config: OxlintConfig = defineConfig({
     // method-signature-style 1,896, consistent-type-specifier-style 1,826,
     // no-await-expression-member 1,472, switch-case-braces 593,
     // prefer-named-capture-group 488, no-use-before-define 476,
-    // prefer-destructuring 436, text-encoding-identifier-case 254,
-    // catch-error-name 249, consistent-type-definitions 202, no-nested-ternary
-    // 200, no-plusplus 123, import-style 120, numeric-separators-style 92,
-    // prefer-template 64, no-bitwise 54, no-import-type-side-effects 44,
-    // no-duplicates 38, no-duplicate-imports 35, no-array-for-each 28,
-    // prefer-export-from 27, no-inferrable-types 25, object-shorthand 8, first
-    // 8, no-eq-null 7, no-array-reduce 7, arrow-body-style 6, func-names 6,
-    // prefer-ternary 4, newline-after-import 2, prefer-arrow-callback 2,
-    // consistent-generic-constructors 1, unified-signatures 1, filename-case 1,
-    // array-type 1, no-anonymous-default-export 1.
+    // prefer-destructuring 436, catch-error-name 249,
+    // consistent-type-definitions 202, no-nested-ternary 200, no-plusplus 123,
+    // import-style 120, no-bitwise 54, no-array-for-each 28, no-eq-null 7,
+    // no-array-reduce 7, func-names 6, prefer-ternary 4, unified-signatures 1,
+    // filename-case 1, no-anonymous-default-export 1.
+    // no-duplicate-imports (35) also flags the `import type` line the repo
+    // keeps apart from the value import; import/no-duplicates covers the rest.
+    // prefer-export-from (27) has no autofix, and Next.js route exports such
+    // as `export const size = ogSize` must stay declarations.
+    // no-inferrable-types (25) flags exported template constants, which
+    // isolatedDeclarations requires to carry their type.
     "eslint/sort-keys": "off",
     "eslint/curly": "off",
     "eslint/func-style": "off",
@@ -364,34 +365,22 @@ const config: OxlintConfig = defineConfig({
     "eslint/prefer-named-capture-group": "off",
     "eslint/no-use-before-define": "off",
     "eslint/prefer-destructuring": "off",
-    "unicorn/text-encoding-identifier-case": "off",
     "unicorn/catch-error-name": "off",
     "typescript/consistent-type-definitions": "off",
     "eslint/no-nested-ternary": "off",
     "eslint/no-plusplus": "off",
     "unicorn/import-style": "off",
-    "unicorn/numeric-separators-style": "off",
-    "eslint/prefer-template": "off",
     "eslint/no-bitwise": "off",
-    "typescript/no-import-type-side-effects": "off",
-    "import/no-duplicates": "off",
     "eslint/no-duplicate-imports": "off",
     "unicorn/no-array-for-each": "off",
     "unicorn/prefer-export-from": "off",
     "typescript/no-inferrable-types": "off",
-    "eslint/object-shorthand": "off",
-    "import/first": "off",
     "eslint/no-eq-null": "off",
     "unicorn/no-array-reduce": "off",
-    "eslint/arrow-body-style": "off",
     "eslint/func-names": "off",
     "unicorn/prefer-ternary": "off",
-    "import/newline-after-import": "off",
-    "eslint/prefer-arrow-callback": "off",
-    "typescript/consistent-generic-constructors": "off",
     "typescript/unified-signatures": "off",
     "unicorn/filename-case": "off",
-    "typescript/array-type": "off",
     "unicorn/no-anonymous-default-export": "off",
 
     // Each finding needs reading first: some are deliberate (Promise

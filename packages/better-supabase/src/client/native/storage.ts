@@ -49,10 +49,10 @@ const UNSAFE = /[^\w.-]/g;
 
 /** FNV-1a, enough to tell apart keys that map to the same safe name. */
 function hashOf(text: string): string {
-  let hash = 0x811c9dc5;
+  let hash = 0x81_1c_9d_c5;
   for (const char of text) {
     hash ^= char.codePointAt(0) ?? 0;
-    hash = Math.imul(hash, 0x01000193);
+    hash = Math.imul(hash, 0x01_00_01_93);
   }
   return (hash >>> 0).toString(36);
 }

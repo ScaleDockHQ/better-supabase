@@ -315,7 +315,7 @@ describe("CloudEvents", () => {
       id: "1",
       source: "/s",
       type: "t",
-      data: { table: "ledger", row: { id: 9007199254740993n } },
+      data: { table: "ledger", row: { id: 9_007_199_254_740_993n } },
       datacontenttype: "application/json",
     };
     for (const mode of ["structured", "binary", "batch"] as const) {

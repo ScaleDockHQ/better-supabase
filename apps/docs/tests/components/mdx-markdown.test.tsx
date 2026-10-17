@@ -104,11 +104,8 @@ describe("Markdown forms of MDX components", () => {
         "| Name | Type | Default | Description |",
         "| --- | --- | --- | --- |",
         "| `url` | `string` |  | The API URL. |",
-        String.raw`| ~~` +
-          "`mode?`" +
-          String.raw`~~ | ` +
-          "`'a' \\| 'b'`" +
-          " | `'a'` |  |",
+        `${String.raw`| ~~`}\`mode?\`${String.raw`~~ | `}\`'a' \\| 'b'\`` +
+          ` | \`'a'\` |  |`,
       ].join("\n"),
     );
   });

@@ -20,7 +20,7 @@ const Runtime = v.looseObject({ runtime: v.string() });
 const supabase = (...args: string[]): string | undefined => {
   try {
     return execFileSync("pnpm", ["exec", "supabase", ...args], {
-      encoding: "utf8",
+      encoding: "utf-8",
       stdio: ["ignore", "pipe", "ignore"],
     });
   } catch {

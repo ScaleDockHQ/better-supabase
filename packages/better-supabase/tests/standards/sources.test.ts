@@ -6,7 +6,7 @@ const folder = new URL("schemas/", import.meta.url);
 
 describe("vendored schemas", () => {
   it("match the SHA-256 recorded in SOURCES.md and nothing is unlisted", async () => {
-    const sources = await readFile(new URL("SOURCES.md", folder), "utf8");
+    const sources = await readFile(new URL("SOURCES.md", folder), "utf-8");
     const pinned = new Map(
       [
         ...sources.matchAll(

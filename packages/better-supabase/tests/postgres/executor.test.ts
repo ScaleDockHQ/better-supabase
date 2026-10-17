@@ -539,7 +539,13 @@ describe("postgresExecutor rpc", () => {
     const at = Temporal.Instant.from("2026-01-02T03:04:05Z");
     const result = await postgresExecutor(fake.sql).rpc!(
       "probe",
-      { a: { b: 1 }, at, n: 9007199254740993n, ids: ["x", "y"], none: null },
+      {
+        a: { b: 1 },
+        at,
+        n: 9_007_199_254_740_993n,
+        ids: ["x", "y"],
+        none: null,
+      },
       { schema: "app", errorMappers: [] },
     );
     expect(result).toMatchObject({ ok: true, data: [1, 2] });

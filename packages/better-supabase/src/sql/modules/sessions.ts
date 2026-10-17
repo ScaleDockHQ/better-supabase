@@ -1,7 +1,6 @@
-import type { ModuleLayout } from "../module-types.ts";
-import type { ModuleDefinition } from "../module-types.ts";
+import type { ModuleContext } from "../context.ts";
+import type { ModuleLayout, ModuleDefinition } from "../module-types.ts";
 
-import { type ModuleContext } from "../context.ts";
 import { tableGlobs } from "../schema-scan.ts";
 import { SCHEMA } from "../shared.ts";
 import { qualifiedTable } from "./grants.ts";

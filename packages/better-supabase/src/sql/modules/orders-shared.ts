@@ -41,7 +41,7 @@ const ORDER_STATUS_EDGES: Readonly<Record<string, readonly string[]>> = {
 /** Minutes a placed order holds its stock for payment. Default 30. */
 export function paymentWindow(ctx: ModuleContext): number {
   const minutes = ctx.number("paymentWindowMinutes", 30);
-  if (!Number.isInteger(minutes) || minutes < 1 || minutes > 10080) {
+  if (!Number.isInteger(minutes) || minutes < 1 || minutes > 10_080) {
     throw new TypeError(
       "blocks.orders.options.paymentWindowMinutes must be a whole number of minutes from 1 to 10080",
     );

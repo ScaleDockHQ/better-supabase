@@ -18,7 +18,7 @@ const folder = new URL("schemas/", import.meta.url);
 
 /** The RFC text without page breaks: running headers, footers and form feeds. */
 async function rfc(number: 7643 | 7644): Promise<string[]> {
-  const text = await readFile(new URL(`rfc${number}.txt`, folder), "utf8");
+  const text = await readFile(new URL(`rfc${number}.txt`, folder), "utf-8");
   const title =
     number === 7643 ? "SCIM Core Schema" : "SCIM Protocol Specification";
   return text

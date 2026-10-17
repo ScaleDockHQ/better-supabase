@@ -114,7 +114,7 @@ function categoryOf(name: string): Category {
 
 /** Module name to docs page, from the Blocks table in `blocks/index.mdx`. */
 function docsPages(): ReadonlyMap<string, string> {
-  const index = readFileSync(join(DOCS_BLOCKS, "index.mdx"), "utf8");
+  const index = readFileSync(join(DOCS_BLOCKS, "index.mdx"), "utf-8");
   const pages = new Map<string, string>();
   for (const line of index.split("\n")) {
     const row = /^\| \[[^\]]+\]\((\/docs\/[^)]+)\)\s*\|[^|]*\|([^|]*)\|/.exec(
@@ -155,7 +155,7 @@ const packageJsonSchema = v.object({
 function exportsOf(): ReadonlyMap<string, string> {
   const { exports } = v.parse(
     packageJsonSchema,
-    JSON.parse(readFileSync(PACKAGE_JSON, "utf8")),
+    JSON.parse(readFileSync(PACKAGE_JSON, "utf-8")),
   );
   return new Map(
     Object.entries(exports).map(([subpath, source]) => [
@@ -245,13 +245,15 @@ function manifestExports(): ReadonlyMap<
   AnyBlock,
   { name: string; folder: string }
 > {
-  const registry = readFileSync(join(BLOCKS_SRC, "registry.ts"), "utf8");
+  const registry = readFileSync(join(BLOCKS_SRC, "registry.ts"), "utf-8");
   const folders = new Map(
     [
       ...registry.matchAll(
-        /import \{ (\w+) \} from "\.\/([a-z0-9-]+)\/manifest\.ts";/g,
+        /import \{([\w\s,]+)\} from "\.\/([a-z0-9-]+)\/manifest\.ts";/g,
       ),
-    ].flatMap((match) => (match[1] && match[2] ? [[match[1], match[2]]] : [])),
+    ].flatMap(([, imported = "", folder = ""]) =>
+      [...imported.matchAll(/\w+/g)].map(([name]) => [name, folder] as const),
+    ),
   );
   const list = /BLOCK_MANIFESTS[^=]*= \[([^\]]*)\]/.exec(registry)?.[1] ?? "";
   const names = [...list.matchAll(/(\w+),/g)].flatMap((match) =>
@@ -281,7 +283,7 @@ function presetManifest(
   const index =
     source === undefined || source === ""
       ? ""
-      : readFileSync(join(ROOT, source), "utf8");
+      : readFileSync(join(ROOT, source), "utf-8");
   const reexported =
     exported !== undefined && new RegExp(`\\b${exported.name}\\b`).test(index);
   return {
@@ -384,7 +386,7 @@ const registrySchema = v.object({
 function glueItems(): PresetGlueItem[] {
   const { items } = v.parse(
     registrySchema,
-    JSON.parse(readFileSync(REGISTRY_FILE, "utf8")),
+    JSON.parse(readFileSync(REGISTRY_FILE, "utf-8")),
   );
   return items.map((item) => {
     const glue = {
@@ -428,7 +430,7 @@ if (import.meta.main) {
   try {
     const preset = formatPresetCatalog(buildPresetCatalog());
     if (argv.includes("--check")) {
-      if (readFileSync(PRESET_CATALOG_FILE, "utf8") !== preset) {
+      if (readFileSync(PRESET_CATALOG_FILE, "utf-8") !== preset) {
         console.error(
           "build-catalog: src/preset/catalog.generated.ts is stale; run `pnpm catalog`.",
         );

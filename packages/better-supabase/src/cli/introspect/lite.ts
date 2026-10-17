@@ -42,7 +42,7 @@ async function schemaSql(root: string, toml?: SupabaseToml): Promise<string[]> {
   const { files: schemas } = await schemaPaths(root, toml);
   return Promise.all(
     [...files, ...schemas.map((path) => join(root, path))].map((path) =>
-      readFile(path, "utf8"),
+      readFile(path, "utf-8"),
     ),
   );
 }

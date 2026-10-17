@@ -345,7 +345,7 @@ begin
   v_chunk := v_run.${c("ids")}[v_run.${c("position")} + 1 : v_run.${c("position")} + v_size];
   perform set_config('request.jwt.claims', jsonb_build_object('sub', v_run.${c("createdBy")}, 'role', 'authenticated', 'aud', 'authenticated')::text, true);
   set local role authenticated;
-  v_allowed := ${ctx.scope.can("v_run." + c("tenant"), run)};
+  v_allowed := ${ctx.scope.can(`v_run.${c("tenant")}`, run)};
   if v_allowed then
     ${rowLoop(ctx, `v_run.${c("tenant")}`, `v_run.${c("subjectType")}`, `v_run.${c("action")}`, `v_run.${c("args")}`, "false")}
   end if;

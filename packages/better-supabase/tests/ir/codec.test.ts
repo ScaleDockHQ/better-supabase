@@ -50,7 +50,7 @@ describe("encodeValue", () => {
     ],
     ["a PlainDate", Temporal.PlainDate.from("2026-01-02"), "2026-01-02"],
     ["a PlainTime", Temporal.PlainTime.from("10:30"), "10:30:00"],
-    ["a bigint", 9007199254740993n, "9007199254740993"],
+    ["a bigint", 9_007_199_254_740_993n, "9007199254740993"],
     [
       "an array of both",
       [1n, [Temporal.Instant.fromEpochMilliseconds(0)]],
@@ -177,7 +177,7 @@ describe("decodeRows", () => {
       {
         at: Temporal.Instant.from("2026-01-02T00:00:00.123456Z"),
         local: Temporal.PlainDateTime.from("2026-01-02T10:30:00"),
-        big: 9007199254740993n,
+        big: 9_007_199_254_740_993n,
         exact: "1.5",
         days: [Temporal.Instant.fromEpochMilliseconds(0), null],
         gone: null,

@@ -5,8 +5,10 @@ import type { Result } from "../../src/core/result.ts";
 import type { ModuleLayout } from "../../src/sql/module-types.ts";
 
 import { createEngagements } from "../../src/blocks/engagements/index.ts";
-import { partiesSubjects } from "../../src/blocks/parties/index.ts";
-import { createParties } from "../../src/blocks/parties/index.ts";
+import {
+  partiesSubjects,
+  createParties,
+} from "../../src/blocks/parties/index.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 

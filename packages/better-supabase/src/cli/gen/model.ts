@@ -489,7 +489,7 @@ function toTableModels(
           primaryKey: table.primaryKey.map(app),
           uniqueKeys,
           relations: relationMeta,
-          flags: flags,
+          flags,
           ...commentMeta(table.comment),
         },
       };

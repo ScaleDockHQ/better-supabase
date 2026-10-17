@@ -102,7 +102,7 @@ describe("init prompts", () => {
       { kind: "multiselect", message: "Integrations", initial: ["hono"] },
     ]);
     expect(
-      await readFile(join(dir, "better-supabase.config.ts"), "utf8"),
+      await readFile(join(dir, "better-supabase.config.ts"), "utf-8"),
     ).toContain("snake");
     expect(existsSync(join(dir, "supabase/functions/mcp/index.ts"))).toBe(true);
   });
@@ -167,7 +167,7 @@ describe("init prompts", () => {
     const replace = fake(["none", "camel", [], true]);
     await runWith(["init"], replace);
     expect(
-      await readFile(join(dir, "better-supabase.config.ts"), "utf8"),
+      await readFile(join(dir, "better-supabase.config.ts"), "utf-8"),
     ).not.toBe("// mine\n");
   });
 

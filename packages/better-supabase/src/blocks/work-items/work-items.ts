@@ -521,7 +521,7 @@ export function createWorkItems<
         "list_work_items",
         {
           tenant: organizationId,
-          filter: filter,
+          filter,
           search: search ?? null,
           after: after ?? null,
           page_size: limit ?? null,

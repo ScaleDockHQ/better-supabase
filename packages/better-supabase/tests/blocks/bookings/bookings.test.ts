@@ -67,7 +67,7 @@ describe("bookings client", () => {
   it("names the queue the SQL enqueues holds on", () => {
     const sql = readFileSync(
       new URL("../../sql/__golden__/bookings.sql", import.meta.url),
-      "utf8",
+      "utf-8",
     );
     expect(sql).toContain(`queue => '${BOOKING_EXPIRE_QUEUE}'`);
   });

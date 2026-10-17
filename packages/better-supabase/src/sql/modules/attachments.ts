@@ -433,8 +433,8 @@ alter table ${t} add column if not exists ${c("metadata")} jsonb not null defaul
 do $$
 declare
   v_current text := coalesce(
-    col_description(${sqlString(ctx.tableName("attachments").schema + "." + ctx.tableName("attachments").name)}::regclass,
-      (select attnum from pg_attribute where attrelid = ${sqlString(ctx.tableName("attachments").schema + "." + ctx.tableName("attachments").name)}::regclass and attname = ${sqlString(c("path").replaceAll('"', ""))})::integer),
+    col_description(${sqlString(`${ctx.tableName("attachments").schema}.${ctx.tableName("attachments").name}`)}::regclass,
+      (select attnum from pg_attribute where attrelid = ${sqlString(`${ctx.tableName("attachments").schema}.${ctx.tableName("attachments").name}`)}::regclass and attname = ${sqlString(c("path").replaceAll('"', ""))})::integer),
     'better-supabase path: {organization_id}/attachments/{id}');
 begin
   if v_current is distinct from ${sqlString(pathComment)} then

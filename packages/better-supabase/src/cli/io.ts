@@ -48,7 +48,7 @@ export function sameText(
 
 /** The file's text, or `undefined` when it does not exist. */
 export async function readIfExists(path: string): Promise<string | undefined> {
-  return existsSync(path) ? readFile(path, "utf8") : undefined;
+  return existsSync(path) ? readFile(path, "utf-8") : undefined;
 }
 
 /** Writes a file when its contents changed, ignoring line endings. Returns whether it wrote. */
@@ -59,7 +59,7 @@ export async function writeIfChanged(
 ): Promise<boolean> {
   const { mode } = options;
   if (existsSync(path)) {
-    const current = await readFile(path, "utf8");
+    const current = await readFile(path, "utf-8");
     if (sameText(current, contents)) {
       if (mode !== undefined) await chmod(path, mode);
       return false;

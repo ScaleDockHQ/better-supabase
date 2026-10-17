@@ -258,49 +258,46 @@ export function createOrpc<
 
   const middleware = (
     middlewareOptions: OrpcGuardOptions<C, P> = {},
-  ): OrpcMiddleware<M, F, E, C, P> => {
-    return os
-      .$context<OrpcRequestContext>()
-      .middleware(async ({ context, next }) => {
-        // Nested middleware resolves the request once; the context is kept
-        // before the guard so a denied call still returns rotated cookies.
-        const refresh =
-          refreshFor(middlewareOptions.refresh, context.request) ?? false;
-        const known = contexts.get(context.request);
-        const ctx =
-          known && (known.refresh || !refresh)
-            ? known.ctx
-            : await server.context(context.request, { refresh });
-        contexts.set(context.request, {
-          ctx,
-          refresh: refresh || (known?.refresh ?? false),
-        });
-        const denied = guard(
-          ctx.auth,
-          middlewareOptions.allow,
-          middlewareOptions.aal,
-          middlewareOptions.scopes,
-        );
-        if (denied) throw toOrpcError(denied);
-        const caller = await authorizeCaller(
-          ctx.auth,
-          middlewareOptions,
-          undefined,
-          tenantOf(toSession(ctx.auth), tenantClaim),
-          options.authorizer,
-        );
-        if ("kind" in caller) throw toOrpcError(caller);
-        try {
-          return await next({
-            context: { bs: ctx, db: ctx.db, auth: ctx.auth },
-          });
-        } catch (cause) {
-          const thrown = dbErrorOf(cause);
-          if (thrown) throw toOrpcError(thrown);
-          throw cause;
-        }
+  ): OrpcMiddleware<M, F, E, C, P> =>
+    os.$context<OrpcRequestContext>().middleware(async ({ context, next }) => {
+      // Nested middleware resolves the request once; the context is kept
+      // before the guard so a denied call still returns rotated cookies.
+      const refresh =
+        refreshFor(middlewareOptions.refresh, context.request) ?? false;
+      const known = contexts.get(context.request);
+      const ctx =
+        known && (known.refresh || !refresh)
+          ? known.ctx
+          : await server.context(context.request, { refresh });
+      contexts.set(context.request, {
+        ctx,
+        refresh: refresh || (known?.refresh ?? false),
       });
-  };
+      const denied = guard(
+        ctx.auth,
+        middlewareOptions.allow,
+        middlewareOptions.aal,
+        middlewareOptions.scopes,
+      );
+      if (denied) throw toOrpcError(denied);
+      const caller = await authorizeCaller(
+        ctx.auth,
+        middlewareOptions,
+        undefined,
+        tenantOf(toSession(ctx.auth), tenantClaim),
+        options.authorizer,
+      );
+      if ("kind" in caller) throw toOrpcError(caller);
+      try {
+        return await next({
+          context: { bs: ctx, db: ctx.db, auth: ctx.auth },
+        });
+      } catch (cause) {
+        const thrown = dbErrorOf(cause);
+        if (thrown) throw toOrpcError(thrown);
+        throw cause;
+      }
+    });
 
   return extendServer<BetterOrpc<M, F, E, C, P>>(server, {
     toOrpcError,

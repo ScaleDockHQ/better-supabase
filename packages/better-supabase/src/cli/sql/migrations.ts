@@ -72,7 +72,7 @@ async function unmigratedExtensions(
   const created = new Set<string>();
   for (const name of existing) {
     if (!name.endsWith(".sql") || name.endsWith(DATA_SUFFIX)) continue;
-    const text = await readFile(resolve(config.root, dir, name), "utf8");
+    const text = await readFile(resolve(config.root, dir, name), "utf-8");
     for (const match of text.matchAll(MIGRATION_EXTENSION))
       created.add(match[1]!.toLowerCase());
   }
@@ -156,7 +156,7 @@ export async function dataMigration(
     .findLast((name) => name.endsWith(DATA_SUFFIX));
   if (
     latest !== undefined &&
-    (await readFile(resolve(config.root, dir, latest), "utf8")) === contents
+    (await readFile(resolve(config.root, dir, latest), "utf-8")) === contents
   ) {
     return {
       code: 0,

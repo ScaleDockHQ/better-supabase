@@ -10,7 +10,7 @@ const PUBLIC = resolve(ROOT, "../../apps/marketing/public/r");
 const VERSION = v.parse(
   v.object({ version: v.string() }),
   JSON.parse(
-    readFileSync(resolve(ROOT, "../better-supabase/package.json"), "utf8"),
+    readFileSync(resolve(ROOT, "../better-supabase/package.json"), "utf-8"),
   ),
 ).version;
 
@@ -61,7 +61,7 @@ const Registry = v.object({ name: v.string(), items: v.array(Item) });
 
 const registry = v.parse(
   Registry,
-  JSON.parse(readFileSync(join(ROOT, "registry.json"), "utf8")),
+  JSON.parse(readFileSync(join(ROOT, "registry.json"), "utf-8")),
 );
 const names = new Set(registry.items.map((item) => item.name));
 
@@ -152,8 +152,8 @@ describe("apps/marketing/public/r", () => {
       for (const file of built) {
         expect({
           file,
-          contents: readFileSync(join(PUBLIC, file), "utf8"),
-        }).toEqual({ file, contents: readFileSync(join(out, file), "utf8") });
+          contents: readFileSync(join(PUBLIC, file), "utf-8"),
+        }).toEqual({ file, contents: readFileSync(join(out, file), "utf-8") });
       }
     },
   );

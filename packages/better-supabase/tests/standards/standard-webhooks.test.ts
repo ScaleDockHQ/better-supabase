@@ -73,7 +73,7 @@ describe(`Standard Webhooks ${SPEC_PINS.standardWebhooks}`, () => {
   });
 
   it("supports key rotation with several secrets", async () => {
-    const other = "whsec_" + btoa("a-different-secret-value");
+    const other = `whsec_${btoa("a-different-secret-value")}`;
     expect(
       (await verify({ headers: headers(), body: BODY }, [other, SECRET])).ok,
     ).toBe(true);
@@ -169,7 +169,7 @@ describe(`Standard Webhooks ${SPEC_PINS.standardWebhooks}`, () => {
   });
 
   it("signs with every live secret in one header while rotating", async () => {
-    const next = "whsec_" + btoa("the-next-secret-of-32-bytes-long");
+    const next = `whsec_${btoa("the-next-secret-of-32-bytes-long")}`;
     const signed = await standardWebhooks().sign({
       id: ID,
       body: BODY,

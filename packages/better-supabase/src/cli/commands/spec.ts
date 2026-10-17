@@ -177,7 +177,7 @@ interface Settled {
 }
 
 async function compare(path: string, expected: string): Promise<boolean> {
-  const current = existsSync(path) ? await readFile(path, "utf8") : undefined;
+  const current = existsSync(path) ? await readFile(path, "utf-8") : undefined;
   return sameText(current, expected);
 }
 

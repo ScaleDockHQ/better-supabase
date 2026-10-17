@@ -111,7 +111,7 @@ describe("Standard Webhooks", () => {
   });
 
   it("accepts Supabase-style secrets, rotation and multiple signatures", async () => {
-    const other = "whsec_" + btoa("another-secret-value");
+    const other = `whsec_${btoa("another-secret-value")}`;
     expect(
       (
         await verifyWebhook(
@@ -192,7 +192,7 @@ describe("Standard Webhooks", () => {
 });
 
 describe("authHook", () => {
-  const secret = "v1,whsec_" + btoa("hook-secret-for-tests-0123456789");
+  const secret = `v1,whsec_${btoa("hook-secret-for-tests-0123456789")}`;
 
   async function call(
     handler: Parameters<typeof authHook<"custom_access_token">>[2],
@@ -240,7 +240,7 @@ describe("authHook", () => {
     const forged = await call(
       () => ({ claims: {} }),
       payload,
-      "whsec_" + btoa("wrong"),
+      `whsec_${btoa("wrong")}`,
     );
     expect(forged.status).toBe(401);
   });

@@ -114,7 +114,7 @@ describe("doctor command", () => {
     const sarif = await doctor([], options(), config);
     expect(sarif.code).toBe(0);
     const written = JSON.parse(
-      await readFile(join(root, "doctor.sarif"), "utf8"),
+      await readFile(join(root, "doctor.sarif"), "utf-8"),
     ) as { runs: { results: { ruleId: string }[] }[] };
     expect(written.runs[0]!.results.map((result) => result.ruleId)).toEqual([
       "BS208",
@@ -123,7 +123,7 @@ describe("doctor command", () => {
     await rm(join(root, "doctor.sarif"));
     const json = await doctor(["--json"], options(), config);
     expect(findings(json).map((finding) => finding.code)).toEqual(["BS208"]);
-    await expect(readFile(join(root, "doctor.sarif"), "utf8")).rejects.toThrow(
+    await expect(readFile(join(root, "doctor.sarif"), "utf-8")).rejects.toThrow(
       /ENOENT/,
     );
   });

@@ -28,7 +28,7 @@ describe("the CLI's library imports", () => {
   // import would put a second copy of that module in the CLI bundle.
   it("only reach the library through its entry files", () => {
     const offenders = files(CLI).flatMap((file) =>
-      [...readFileSync(file, "utf8").matchAll(SPECIFIER)].flatMap(
+      [...readFileSync(file, "utf-8").matchAll(SPECIFIER)].flatMap(
         ([, specifier]) => {
           const target = resolve(dirname(file), specifier!);
           if (target.startsWith(`${CLI}/`) || entries.has(target)) return [];

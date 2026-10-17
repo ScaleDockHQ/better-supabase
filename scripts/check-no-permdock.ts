@@ -38,7 +38,7 @@ const allowed = new Set([
 const files = execFileSync(
   "git",
   ["ls-files", "--cached", "--others", "--exclude-standard", "--", ...roots],
-  { encoding: "utf8" },
+  { encoding: "utf-8" },
 )
   .split("\n")
   .filter((file) => file !== "" && existsSync(file));
@@ -46,7 +46,7 @@ const files = execFileSync(
 const findings: string[] = [];
 for (const file of files) {
   if (allowed.has(file)) continue;
-  readFileSync(file, "utf8")
+  readFileSync(file, "utf-8")
     .split("\n")
     .forEach((line, index) => {
       if (pattern.test(line)) findings.push(`${file}:${index + 1}`);

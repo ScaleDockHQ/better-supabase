@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { CliEnv } from "../env.ts";
 import type { Snapshot } from "../introspect/types.ts";
+import type { Paint } from "../style.ts";
 
 import {
   type ModuleFile,
@@ -31,7 +32,6 @@ import {
   writeLatestMigration,
   writesMigrations,
 } from "../sql/module-migration.ts";
-import { type Paint } from "../style.ts";
 import { leftoverFiles, manifestPath, writeManifest } from "./manifest.ts";
 import { generationNotices } from "./notices.ts";
 import { render } from "./render.ts";
@@ -136,7 +136,7 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
     for (const file of files) {
       const path = resolve(config.root, file.path);
       const current = existsSync(path)
-        ? await readFile(path, "utf8")
+        ? await readFile(path, "utf-8")
         : undefined;
       if (!sameText(current, file.contents)) compare(file, current);
     }
@@ -156,7 +156,7 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
     } else if (readSets) {
       const path = resolve(config.root, readSets.path);
       const current = existsSync(path)
-        ? await readFile(path, "utf8")
+        ? await readFile(path, "utf-8")
         : undefined;
       if (!sameModuleFile(current, readSets.contents))
         compare(readSets, current);

@@ -54,7 +54,7 @@ async function loadOverlays(
   const overlays: Overlay[] = [];
   const diagnostics: SpecDiagnostic[] = [];
   for (const path of paths) {
-    const text = await readFile(resolve(root, path), "utf8");
+    const text = await readFile(resolve(root, path), "utf-8");
     texts.push(text);
     let parsed: unknown;
     try {

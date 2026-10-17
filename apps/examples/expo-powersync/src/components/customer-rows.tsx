@@ -10,7 +10,7 @@ interface Row {
   readonly status: string;
 }
 
-const CustomerRow = memo(function CustomerRow({ row }: { readonly row: Row }) {
+function CustomerRowItem({ row }: { readonly row: Row }): ReactElement {
   return (
     <Pressable
       accessibilityRole="link"
@@ -25,7 +25,9 @@ const CustomerRow = memo(function CustomerRow({ row }: { readonly row: Row }) {
       <Text>{row.status}</Text>
     </Pressable>
   );
-});
+}
+
+const CustomerRow = memo(CustomerRowItem);
 
 const renderRow: ListRenderItem<Row> = ({ item }) => <CustomerRow row={item} />;
 

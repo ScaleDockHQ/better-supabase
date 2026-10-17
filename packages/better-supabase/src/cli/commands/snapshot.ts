@@ -161,7 +161,7 @@ async function readSnapshotFile(
   label: string = absolute,
 ): Promise<Snapshot> {
   if (!existsSync(absolute)) throw new Error(`Snapshot not found: ${label}`);
-  return parseSnapshot(JSON.parse(await readFile(absolute, "utf8")), label);
+  return parseSnapshot(JSON.parse(await readFile(absolute, "utf-8")), label);
 }
 
 /** Validates a parsed snapshot document. */

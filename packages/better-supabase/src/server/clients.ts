@@ -1,8 +1,9 @@
-import { PostgrestClient } from "@supabase/postgrest-js";
-import {
-  type createClient as createClientType,
-  type SupabaseClient,
+import type {
+  createClient as createClientType,
+  SupabaseClient,
 } from "@supabase/supabase-js";
+
+import { PostgrestClient } from "@supabase/postgrest-js";
 
 import type { AuthState } from "../auth/resolve.ts";
 import type {

@@ -4,11 +4,11 @@ import { describe, expect, it } from "vitest";
 
 const repo = join(import.meta.dirname, "../../..");
 const [workspace, manifest, page] = await Promise.all([
-  readFile(join(repo, "pnpm-workspace.yaml"), "utf8"),
-  readFile(join(repo, "packages/better-supabase/package.json"), "utf8"),
+  readFile(join(repo, "pnpm-workspace.yaml"), "utf-8"),
+  readFile(join(repo, "packages/better-supabase/package.json"), "utf-8"),
   readFile(
     join(repo, "apps/docs/content/docs/getting-started/peers.mdx"),
-    "utf8",
+    "utf-8",
   ),
 ]);
 

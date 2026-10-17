@@ -1,5 +1,4 @@
-import type { ModuleLayout } from "../module-types.ts";
-import type { SqlModule } from "../module-types.ts";
+import type { ModuleLayout, SqlModule } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { quotedTable } from "../shared.ts";

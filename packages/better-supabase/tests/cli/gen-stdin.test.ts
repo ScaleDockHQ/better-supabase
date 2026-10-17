@@ -182,7 +182,7 @@ describe("gen --metadata", () => {
     ).toBe(false);
     const check = await gen(["--metadata", "-", "--out", "out", "--check"]);
     expect(check.code).toBe(0);
-    expect(await readFile(join(root, "out/generated.ts"), "utf8")).toContain(
+    expect(await readFile(join(root, "out/generated.ts"), "utf-8")).toContain(
       'import meta from "./generated.meta.js";',
     );
   });

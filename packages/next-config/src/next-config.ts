@@ -7,7 +7,7 @@ type HeaderRules = Awaited<ReturnType<NonNullable<NextConfig["headers"]>>>;
  * Content-Security-Policy: a nonce forces every page to render per request,
  * which defeats Cache Components.
  */
-export const securityHeaders: ReadonlyArray<{ key: string; value: string }> = [
+export const securityHeaders: readonly { key: string; value: string }[] = [
   {
     key: "Content-Security-Policy",
     value: "base-uri 'self'; frame-ancestors 'none'; object-src 'none'",

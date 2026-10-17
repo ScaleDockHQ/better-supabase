@@ -30,7 +30,7 @@ const SPECIFIER =
   /^\s*(?:import|export)(?!\s+type\b)\b[^;]*?\bfrom\s+["']([^"']+)["']|^\s*import\s+["']([^"']+)["']|\bimport\(\s*["']([^"']+)["']\s*\)/gm;
 
 async function entries(): Promise<string[]> {
-  const config = await readFile(resolve(SRC, "../tsdown.config.ts"), "utf8");
+  const config = await readFile(resolve(SRC, "../tsdown.config.ts"), "utf-8");
   const list = /const entries = \[([^\]]+)\]/.exec(config)![1]!;
   return [...list.matchAll(/"([^"]+)"/g)].map((match) => match[1]!);
 }
@@ -41,7 +41,7 @@ async function closure(entry: string) {
   const visit = async (file: string): Promise<void> => {
     if (files.has(file)) return;
     files.add(file);
-    const source = await readFile(file, "utf8");
+    const source = await readFile(file, "utf-8");
     for (const match of source.matchAll(SPECIFIER)) {
       const specifier = (match[1] ?? match[2] ?? match[3])!;
       if (specifier.startsWith(".")) {
@@ -79,7 +79,7 @@ describe("WinterTC runtime entries", async () => {
     const { files } = await closure(entry);
     const offenders: string[] = [];
     for (const file of files) {
-      const code = (await readFile(file, "utf8")).replaceAll(
+      const code = (await readFile(file, "utf-8")).replaceAll(
         /\/\/.*$|\/\*[^]*?\*\//gm,
         "",
       );

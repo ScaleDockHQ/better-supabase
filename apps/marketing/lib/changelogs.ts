@@ -18,5 +18,5 @@ export async function loadChangelog(): Promise<ChangelogRelease[]> {
   if (!existsSync(changelogPath)) {
     return [];
   }
-  return parseChangelog(readFileSync(changelogPath, "utf8"));
+  return parseChangelog(readFileSync(changelogPath, "utf-8"));
 }

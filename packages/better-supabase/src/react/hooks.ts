@@ -21,8 +21,9 @@ import type {
   CountState,
   LiveCountHookOptions,
   LiveQueryHookOptions,
+  ClaimsOf,
+  ProfileOf,
 } from "../bindings/client.ts";
-import type { ClaimsOf, ProfileOf } from "../bindings/client.ts";
 import type { AuthSnapshot } from "../client/index.ts";
 import type { DbError } from "../core/errors.ts";
 import type { QuerySpec } from "../core/spec.ts";

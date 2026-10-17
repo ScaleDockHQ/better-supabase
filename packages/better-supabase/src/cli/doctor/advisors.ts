@@ -139,7 +139,7 @@ const sha256 = (text: string): string =>
 async function splinterSql(options: SplinterOptions): Promise<string> {
   const file = resolve(options.cacheDir, `splinter-${SPLINTER_COMMIT}.sql`);
   if (existsSync(file)) {
-    const cached = await readFile(file, "utf8");
+    const cached = await readFile(file, "utf-8");
     if (sha256(cached) === SPLINTER_SHA256) return cached;
   }
   const response = await (options.fetch ?? fetch)(SPLINTER_URL, {

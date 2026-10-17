@@ -3188,7 +3188,7 @@ describe("useSignedUrl", () => {
       });
 
       failing = true;
-      await vi.advanceTimersByTimeAsync(9_000);
+      await vi.advanceTimersByTimeAsync(9000);
       expect(view.result.url).toBe("url-1");
       expect(view.result.error).toMatchObject({ kind: "network" });
 

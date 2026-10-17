@@ -317,7 +317,7 @@ export function createSupabaseWorld(
       if (secret !== undefined) {
         headers.set(
           SIGNATURE_HEADER,
-          await signDelivery(secret, "", body.toString("utf8")),
+          await signDelivery(secret, "", body.toString("utf-8")),
         );
       }
       const response = await fetch(flowUrl(), {

@@ -50,7 +50,7 @@ const here = (name: string): string =>
 
 export async function loadFixtureSnapshot(): Promise<Snapshot> {
   return parseSnapshot(
-    JSON.parse(await readFile(here("./snapshot.json"), "utf8")),
+    JSON.parse(await readFile(here("./snapshot.json"), "utf-8")),
     "tests/fixtures/snapshot.json",
   );
 }

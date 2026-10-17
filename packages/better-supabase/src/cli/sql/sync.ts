@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { CommandResult } from "../io.ts";
+import type { Paint } from "../style.ts";
 import type { SqlFlags } from "./args.ts";
 import type { Now } from "./migrations.ts";
 
@@ -16,7 +17,6 @@ import { fileDiff } from "../diff.ts";
 import { writeLine } from "../files.ts";
 import { display, sameText } from "../io.ts";
 import { migrationsDir } from "../sql-layout.ts";
-import { type Paint } from "../style.ts";
 import { topicPolicyFile } from "../topic-policies.ts";
 import {
   latestMigration,
@@ -101,7 +101,7 @@ export async function syncModules(
   for (const file of files) {
     const current = await readFile(
       resolve(config.root, file.path),
-      "utf8",
+      "utf-8",
     ).catch(() => undefined);
     if (
       file.topics
@@ -144,7 +144,7 @@ async function checkModuleMigration(
   for (const file of files.filter((entry) => entry.kind === "test")) {
     const current = await readFile(
       resolve(config.root, file.path),
-      "utf8",
+      "utf-8",
     ).catch(() => undefined);
     if (!sameModuleFile(current, file.contents)) {
       const shown = display(config.root, file.path);

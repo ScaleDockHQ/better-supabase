@@ -141,7 +141,7 @@ describe("subpath entries", () => {
   it.each(PURE_BARRELS)("%s/index.ts only re-exports", async (entry) => {
     const source = await readFile(
       new URL(`../src/${entry}/index.ts`, import.meta.url),
-      "utf8",
+      "utf-8",
     );
     const statements = source
       .replace(/^"use client";$/m, "")

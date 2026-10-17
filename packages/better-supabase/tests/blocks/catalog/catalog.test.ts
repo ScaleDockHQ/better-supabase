@@ -116,12 +116,12 @@ describe("catalog block", () => {
     const catalog = createCatalog({ transport });
     const saved = await catalog
       .setPrice("x1", {
-        amount: money(900719925474099300n, "EUR"),
-        compareAt: money(900719925474099400n, "EUR"),
+        amount: money(900_719_925_474_099_300n, "EUR"),
+        compareAt: money(900_719_925_474_099_400n, "EUR"),
         validFrom: Temporal.Instant.from("2026-01-01T00:00:00Z"),
       })
       .orThrow();
-    expect(saved.amount).toEqual(money(900719925474099300n, "EUR"));
+    expect(saved.amount).toEqual(money(900_719_925_474_099_300n, "EUR"));
     expect(saved.previousAmount).toEqual(money(1299n, "EUR"));
     expect(calls[0]).toEqual({
       fn: "set_price",

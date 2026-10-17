@@ -118,8 +118,8 @@ describe("vendored schemas", () => {
     expect(files).toHaveLength(OFFICIAL_SCHEMAS.size);
     for (const file of files) {
       const [copy, original] = await Promise.all([
-        readFile(join(vendored, file), "utf8"),
-        readFile(join(pinned, file), "utf8"),
+        readFile(join(vendored, file), "utf-8"),
+        readFile(join(pinned, file), "utf-8"),
       ]);
       expect({ file, same: copy === original }).toEqual({ file, same: true });
     }

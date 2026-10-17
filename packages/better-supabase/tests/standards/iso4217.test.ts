@@ -7,7 +7,7 @@ import { SPEC_PINS } from "../../src/core/spec-pins.ts";
 
 const listOne = await readFile(
   new URL("schemas/iso-4217-list-one-2026-09-17.xml", import.meta.url),
-  "utf8",
+  "utf-8",
 );
 
 const fromListOne = (): Record<string, number> => {

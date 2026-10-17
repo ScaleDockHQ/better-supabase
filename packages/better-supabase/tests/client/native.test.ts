@@ -41,7 +41,7 @@ describe("better-supabase/client/native", () => {
     for (const file of ["native/index.ts", "native/storage.ts", "bind.ts"]) {
       const source = await readFile(
         new URL(`../../src/client/${file}`, import.meta.url),
-        "utf8",
+        "utf-8",
       );
       expect(source).not.toContain("@supabase/ssr");
     }

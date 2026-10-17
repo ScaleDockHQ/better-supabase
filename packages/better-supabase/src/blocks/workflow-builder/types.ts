@@ -12,8 +12,8 @@ import type {
   CredentialToken,
 } from "../../credentials/provider.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
-import type { Workflows } from "../workflows/workflows.ts";
 import type {
+  Workflows,
   WorkflowRunMode,
   WorkflowSchedule,
   WorkflowStarter,

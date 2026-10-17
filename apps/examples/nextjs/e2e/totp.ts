@@ -30,6 +30,6 @@ export function totp(secret: string, step: number = totpStep()): string {
     .update(counter)
     .digest();
   const offset = (digest.at(-1) ?? 0) & 0x0f;
-  const value = (digest.readUInt32BE(offset) & 0x7fffffff) % 1_000_000;
+  const value = (digest.readUInt32BE(offset) & 0x7f_ff_ff_ff) % 1_000_000;
   return value.toString().padStart(6, "0");
 }

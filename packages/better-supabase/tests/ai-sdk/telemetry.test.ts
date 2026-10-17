@@ -190,14 +190,14 @@ describe("spendReconciliation", () => {
     expect(report).toEqual({
       day: "2026-03-01",
       tenants: [
-        { organizationId: "o1", costMicroUsd: 12346, requests: 4 },
+        { organizationId: "o1", costMicroUsd: 12_346, requests: 4 },
         { organizationId: "o2", costMicroUsd: 0, requests: 0 },
       ],
     });
     expect(rows).toEqual([
       {
         organizationId: "o1",
-        entries: [{ meter: "ai.gateway_cost", quantity: 12346 }],
+        entries: [{ meter: "ai.gateway_cost", quantity: 12_346 }],
         options: {
           idempotencyKey: "ai-spend:2026-03-01:o1",
           source: "ai:gateway-spend",

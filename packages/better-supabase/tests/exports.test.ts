@@ -45,7 +45,7 @@ describe("public API", () => {
   it("builds every subpath in package.json", async () => {
     const config = await readFile(
       new URL("../tsdown.config.ts", import.meta.url),
-      "utf8",
+      "utf-8",
     );
     for (const subpath of subpaths)
       expect(config).toContain(`"${entryOf(subpath)}"`);
@@ -58,7 +58,7 @@ describe("public API", () => {
       const module = (await import(file.href)) as Record<string, unknown>;
       api[subpath] = {
         values: Object.keys(module).toSorted((a, b) => a.localeCompare(b)),
-        types: typeExports(await readFile(file, "utf8")),
+        types: typeExports(await readFile(file, "utf-8")),
       };
     }
     await expect(`${JSON.stringify(api, null, 2)}\n`).toMatchFileSnapshot(

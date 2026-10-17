@@ -32,7 +32,7 @@ function readJson<const Schema extends v.GenericSchema>(
   schema: Schema,
   path: string,
 ): v.InferOutput<Schema> {
-  return v.parse(schema, JSON.parse(readFileSync(path, "utf8")));
+  return v.parse(schema, JSON.parse(readFileSync(path, "utf-8")));
 }
 
 function doctorCodes(): string[] {
@@ -40,7 +40,7 @@ function doctorCodes(): string[] {
     DoctorReport,
     join(library, "schemas/doctor-report-v1.json"),
   ).properties.findings.items.properties.code.enum;
-  const page = readFileSync(join(docs, "cli/doctor.mdx"), "utf8");
+  const page = readFileSync(join(docs, "cli/doctor.mdx"), "utf-8");
   const headings = new Set(
     [...page.matchAll(/^### (BS\d{3})$/gmu)].map((match) => match[1]),
   );
@@ -99,10 +99,10 @@ function subpaths(): string[] {
     join(library, "package.json"),
   );
   const imports = readmeImports(
-    readFileSync(join(library, "README.md"), "utf8"),
+    readFileSync(join(library, "README.md"), "utf-8"),
   );
   const pages = markdownFiles(docs, ".mdx").map((file) =>
-    readFileSync(file, "utf8"),
+    readFileSync(file, "utf-8"),
   );
   const entries = Object.keys(exportsMap)
     .filter((key) => !key.includes("*") && key !== "./package.json")
@@ -208,7 +208,7 @@ function naming(): string[] {
     ...markdownFiles(join(library, "skills"), ".md"),
   ];
   return files.flatMap((file) =>
-    titledBlocks(readFileSync(file, "utf8")).flatMap((block) => {
+    titledBlocks(readFileSync(file, "utf-8")).flatMap((block) => {
       const where = `${relative(root, file)}:${String(block.line)}`;
       const problems: string[] = [];
       if (

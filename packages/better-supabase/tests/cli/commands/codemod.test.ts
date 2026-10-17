@@ -55,7 +55,7 @@ describe("runCodemod", () => {
 
   it("shows the changes with --dry-run and writes them without", async () => {
     const path = join(root, "src/lib/client.ts");
-    const before = await readFile(path, "utf8");
+    const before = await readFile(path, "utf-8");
     const dry = await codemod(["0.4", "--dry-run"]);
     expect(dry.code).toBe(0);
     expect(dry.output).toContain(
@@ -64,7 +64,7 @@ describe("runCodemod", () => {
     expect(dry.output).toContain(
       "Check these by hand:\n  src/lib/client.ts:3: `next.server()` is `bs.context()`",
     );
-    expect(await readFile(path, "utf8")).toBe(before);
+    expect(await readFile(path, "utf-8")).toBe(before);
 
     const done = await codemod(["0.4", "src"]);
     expect(done.output).toContain("Updated 1 of 2 files");
@@ -72,7 +72,7 @@ describe("runCodemod", () => {
       codemod: "0.4",
       changed: ["src/lib/client.ts"],
     });
-    expect(await readFile(path, "utf8")).toContain(
+    expect(await readFile(path, "utf-8")).toContain(
       "export const bs = createClient(betterSupabase);",
     );
     expect((await codemod(["0.4", "src/lib/client.ts"])).output).toContain(

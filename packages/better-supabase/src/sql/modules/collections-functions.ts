@@ -279,7 +279,7 @@ begin
     ${fail("COLLECTION_SUBJECT_TYPE_MISMATCH", "the collection holds another subject type", "22023")}
   end if;
   ${ctx.hook("before_collection_add", [
-    ["uuid", "v_row." + co("id")],
+    ["uuid", `v_row.${co("id")}`],
     ["text[]", "add_collection_entries.subject_ids"],
   ])}
   select max(e.${en("rank")}) into v_last from ${t("entries")} e where e.${en("collection")} = v_row.${co("id")};
@@ -302,7 +302,7 @@ begin
     end if;
   end loop;
   ${ctx.hook("after_collection_add", [
-    ["uuid", "v_row." + co("id")],
+    ["uuid", `v_row.${co("id")}`],
     ["text[]", "v_added"],
   ])}
   return jsonb_build_object('added', to_jsonb(v_added));

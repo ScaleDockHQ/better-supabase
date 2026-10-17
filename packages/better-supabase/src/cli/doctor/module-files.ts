@@ -99,7 +99,7 @@ async function fileState(
 ): Promise<ModuleFileState> {
   const current = await readFile(
     resolve(context.config.root, file.path),
-    "utf8",
+    "utf-8",
   ).catch(() => undefined);
   const installed =
     current === undefined

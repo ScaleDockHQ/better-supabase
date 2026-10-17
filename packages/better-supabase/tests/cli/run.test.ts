@@ -247,7 +247,7 @@ describe("run", () => {
     });
 
     const path = join(dir, "supabase/snapshot.json");
-    await writeFile(path, `${await readFile(path, "utf8")} `);
+    await writeFile(path, `${await readFile(path, "utf-8")} `);
     expect(await introspect("--check")).toMatchObject({
       code: 1,
       stderr:
@@ -272,7 +272,9 @@ describe("run", () => {
       { env: ENV, io: io() },
     );
     expect(result.stdout).toBe("Wrote meta.json (0 tables).\n");
-    const meta = JSON.parse(await readFile(join(dir, "meta.json"), "utf8")) as {
+    const meta = JSON.parse(
+      await readFile(join(dir, "meta.json"), "utf-8"),
+    ) as {
       schemas: unknown[];
     };
     expect(meta.schemas).toEqual([]);
@@ -575,7 +577,7 @@ describe("run", () => {
     const synced = await run(["sql", "sync", "--cwd", dir]);
     expect(synced).toMatchObject({ code: 0, stderr: "" });
     const path = /Wrote (\S+) \(grants\)/.exec(synced.stdout)?.[1];
-    const grants = await readFile(join(dir, path!), "utf8");
+    const grants = await readFile(join(dir, path!), "utf-8");
     expect(grants).toContain(
       'grant select, update ("username", "first_name") on table "public"."profiles" to authenticated;',
     );

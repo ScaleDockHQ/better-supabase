@@ -154,7 +154,7 @@ export async function readSupabaseToml(
   const found = findSupabaseRoot(root);
   if (found === undefined) return undefined;
   const absolute = join(found, CONFIG_TOML);
-  const text = await readFile(absolute, "utf8");
+  const text = await readFile(absolute, "utf-8");
   const key = `${root}\0${absolute}`;
   const cached = parsed.get(key);
   if (cached?.text === text) return cached.toml;

@@ -207,7 +207,7 @@ describe("createServer claims", () => {
         {
           scope: "project",
           id: "p1",
-          within: { organization: organization },
+          within: { organization },
           roles: ["editor"],
           expiresAt: 1_900_000_000,
         },

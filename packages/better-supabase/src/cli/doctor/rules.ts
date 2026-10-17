@@ -627,7 +627,7 @@ const OWN_RULES: readonly Rule[] = [
       for (const file of await renderFiles(context.config, context.snapshot)) {
         const current = await readFile(
           resolve(context.config.root, file.path),
-          "utf8",
+          "utf-8",
         ).catch(() => undefined);
         if (!sameText(current, file.contents)) {
           stale.push({

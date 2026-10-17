@@ -228,7 +228,7 @@ describe("exportAuditLog", () => {
     expect(change).toMatchObject({
       class_uid: 3004,
       activity_id: 3,
-      type_uid: 300403,
+      type_uid: 300_403,
       entity: { uid: "d1", type: "public.deals" },
       metadata: {
         version: SPEC_PINS.ocsf,
@@ -239,7 +239,7 @@ describe("exportAuditLog", () => {
     expect(revoked).toMatchObject({
       class_uid: 6003,
       activity_id: 4,
-      type_uid: 600304,
+      type_uid: 600_304,
       status_id: 1,
       api: { operation: "api_key.revoked" },
       resources: [{ uid: "k1", type: "api_key" }],

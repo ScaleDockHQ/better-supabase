@@ -49,7 +49,7 @@ describe("createCommandSearchController", () => {
     const { view, unmount } = mount(
       createCommandSearchController({
         // SAFETY: the fake has the methods the controller calls.
-        client: client,
+        client,
         keyboard: keyboard.port,
         organizationId: "org",
         types: ["note"],
@@ -92,7 +92,7 @@ describe("createCommandSearchController", () => {
   it("drops overtaken answers, keeps hits on a failed query and reports list errors", async () => {
     const client = fakeClient();
     const { view, unmount } = mount(
-      createCommandSearchController({ client: client, debounceMs: 0 }),
+      createCommandSearchController({ client, debounceMs: 0 }),
     );
     view().setOpen(true);
     view().setOpen(true);
@@ -136,9 +136,7 @@ describe("createCommandSearchController", () => {
 
   it("drops lists that load after the dialog closed", async () => {
     const client = fakeClient();
-    const { view, unmount } = mount(
-      createCommandSearchController({ client: client }),
-    );
+    const { view, unmount } = mount(createCommandSearchController({ client }));
     view().setOpen(true);
     view().setOpen(false);
     await vi.advanceTimersByTimeAsync(0);

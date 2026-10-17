@@ -905,7 +905,7 @@ describe("eve on the Supabase World", () => {
     const versions = new Set<number>();
     for (const file of await readdir(chunks)) {
       if (!file.endsWith(".js")) continue;
-      const source = await readFile(join(chunks, file), "utf8");
+      const source = await readFile(join(chunks, file), "utf-8");
       for (const match of source.matchAll(
         /SPEC_VERSION_MAX_SUPPORTED:\(\)=>(\d+)/g,
       ))

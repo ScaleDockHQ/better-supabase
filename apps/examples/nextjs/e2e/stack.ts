@@ -16,7 +16,7 @@ export function stackStatus(): Readonly<Record<string, string>> {
       ["exec", "supabase", "status", "--env", "--output-format", "json"],
       {
         cwd: fileURLToPath(new URL("../../../..", import.meta.url)),
-        encoding: "utf8",
+        encoding: "utf-8",
         stdio: ["ignore", "pipe", "ignore"],
       },
     );

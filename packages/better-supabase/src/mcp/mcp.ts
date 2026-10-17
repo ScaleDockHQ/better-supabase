@@ -14,6 +14,10 @@ import type { OperationTable } from "../core/operations.ts";
 import type { ResourceOperation } from "../openapi/index.ts";
 import type { AnyFunctions, AnyModels, TableKey } from "../schema/types.ts";
 import type {
+  ResourceHandler,
+  ResourceRouteOptions,
+} from "../server/resource-types.ts";
+import type {
   BetterServer,
   ServerContext,
   ServerOptions,
@@ -33,10 +37,6 @@ import { boundedTtlCache } from "../core/ttl-cache.ts";
 import { buildJsonSchema } from "../generators/json-schema.ts";
 import { flushEvents } from "../server/adapter.ts";
 import { withExtra } from "../server/extra.ts";
-import {
-  type ResourceHandler,
-  type ResourceRouteOptions,
-} from "../server/resource-types.ts";
 import { defineResource } from "../server/resource.ts";
 import {
   defaultExpose,
@@ -546,12 +546,12 @@ interface JsonRpcRequest {
   readonly params?: Json;
 }
 
-const PARSE_ERROR = -32700;
-const INVALID_REQUEST = -32600;
-const METHOD_NOT_FOUND = -32601;
-const INVALID_PARAMS = -32602;
-const HEADER_MISMATCH = -32020;
-const UNSUPPORTED_PROTOCOL_VERSION = -32022;
+const PARSE_ERROR = -32_700;
+const INVALID_REQUEST = -32_600;
+const METHOD_NOT_FOUND = -32_601;
+const INVALID_PARAMS = -32_602;
+const HEADER_MISMATCH = -32_020;
+const UNSUPPORTED_PROTOCOL_VERSION = -32_022;
 
 const META_VERSION = "io.modelcontextprotocol/protocolVersion";
 const META_CAPABILITIES = "io.modelcontextprotocol/clientCapabilities";

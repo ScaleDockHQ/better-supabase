@@ -107,7 +107,7 @@ export const FORM_MAX_LENGTH: {
   readonly url: number;
 } = {
   text: 500,
-  textarea: 10000,
+  textarea: 10_000,
   email: 320,
   url: 2000,
 };

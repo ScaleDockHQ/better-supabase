@@ -17,7 +17,7 @@ async function findSigningKeys(from: string): Promise<string | undefined> {
     const toml = join(supabase, "config.toml");
     if (existsSync(toml)) {
       const configured = SIGNING_KEYS_PATH.exec(
-        await readFile(toml, "utf8"),
+        await readFile(toml, "utf-8"),
       )?.[1];
       const path = resolve(supabase, configured ?? "signing_keys.json");
       if (existsSync(path)) return path;
@@ -49,7 +49,7 @@ export async function localSigningKey(path?: string): Promise<SigningJwk> {
       'No local signing key. Run `better-supabase keys`, set `signing_keys_path` in supabase/config.toml and restart the stack, or pass { alg: "HS256" } to sign with the local JWT secret.',
     );
   }
-  const keys: unknown = JSON.parse(await readFile(file, "utf8"));
+  const keys: unknown = JSON.parse(await readFile(file, "utf-8"));
   const first: unknown = Array.isArray(keys) ? keys[0] : undefined;
   if (!isSigningKey(first))
     throw new TypeError(`${file} has no private ES256 key first.`);

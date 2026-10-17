@@ -52,7 +52,7 @@ async function readStatus(
   const from = args.from;
   if (from) {
     const status = parseStackStatus(
-      await readFile(resolve(config.root, from), "utf8"),
+      await readFile(resolve(config.root, from), "utf-8"),
     );
     if (!status) throw new Error(`${from} holds no supabase status JSON.`);
     return status;
@@ -162,7 +162,7 @@ export async function runEnv(
   const gitignore = resolve(config.root, ".gitignore");
   const ignored =
     existsSync(gitignore) &&
-    (await readFile(gitignore, "utf8"))
+    (await readFile(gitignore, "utf-8"))
       .split("\n")
       .some((line) =>
         [out, `/${out}`, ".env*", ".env*.local", "*.local"].includes(

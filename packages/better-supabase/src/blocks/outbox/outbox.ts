@@ -3,7 +3,9 @@ import type {
   AuthorizationHooks,
   SubscriberPolicy,
 } from "../../core/contracts/authorization-hooks.ts";
+import type { DbError } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
+import type { BlockProblemOptions } from "../../core/problem.ts";
 import type { CloudEvent, EventSink } from "../../events/index.ts";
 
 import {
@@ -14,8 +16,6 @@ import {
 } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { cronRoute } from "../../core/cron-route.ts";
-import { type DbError } from "../../core/errors.ts";
-import { type BlockProblemOptions } from "../../core/problem.ts";
 import { type AsyncResult, toDbError } from "../../core/result.ts";
 import { DEFAULT_TYPE_PREFIX } from "../../events/cloud-event.ts";
 import {

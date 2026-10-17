@@ -1,5 +1,8 @@
-import type { ModuleLayout } from "./module-types.ts";
-import type { ModuleDeprecation, SqlModule } from "./module-types.ts";
+import type {
+  ModuleLayout,
+  ModuleDeprecation,
+  SqlModule,
+} from "./module-types.ts";
 
 import { createModuleContext, type ModuleContext } from "./context.ts";
 import { providerIdType, withProviderDefaults } from "./module-context.ts";

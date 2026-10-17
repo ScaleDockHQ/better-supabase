@@ -55,7 +55,7 @@ describe("CLI docs", () => {
   it.each(Object.entries(PAGES))(
     "documents every flag of %s in %s",
     async (command, page) => {
-      const text = await readFile(join(docs, page), "utf8");
+      const text = await readFile(join(docs, page), "utf-8");
       const missing = (await flagsOf(command)).filter(
         (flag) => !text.includes(`--${flag}`),
       );
@@ -64,11 +64,11 @@ describe("CLI docs", () => {
   );
 
   it("documents the global options and every error code", async () => {
-    const index = await readFile(join(docs, "cli/index.mdx"), "utf8");
+    const index = await readFile(join(docs, "cli/index.mdx"), "utf-8");
     for (const flag of Object.keys(GLOBAL_ARGS)) {
       expect(index).toContain(`--${flag}`);
     }
-    const errors = await readFile(join(docs, "cli/errors.mdx"), "utf8");
+    const errors = await readFile(join(docs, "cli/errors.mdx"), "utf-8");
     const headings = [...errors.matchAll(/^## `([a-z_]+)`$/gm)].map(
       (match) => match[1],
     );
@@ -117,7 +117,7 @@ async function sources(): Promise<{ path: string; text: string }[]> {
     .filter((path) => !HISTORY.has(path))
     .map(async (path) => ({
       path,
-      text: await readFile(join(repo, path), "utf8"),
+      text: await readFile(join(repo, path), "utf-8"),
     }));
   return Promise.all(read);
 }
@@ -159,7 +159,7 @@ describe("naming", () => {
       JSON.parse(
         await readFile(
           join(import.meta.dirname, "../../api/exports.json"),
-          "utf8",
+          "utf-8",
         ),
       );
     const missing = Object.entries(api).flatMap(([subpath, names]) =>
@@ -195,7 +195,7 @@ const FACTORIES = new Set([
 
 describe("blocks overview", () => {
   it("lists every module with what it requires and works with", async () => {
-    const page = await readFile(join(docs, "blocks/index.mdx"), "utf8");
+    const page = await readFile(join(docs, "blocks/index.mdx"), "utf-8");
     const section = page.slice(page.indexOf("## How modules work together"));
     const cell = (names: readonly string[]): string =>
       names.length === 0

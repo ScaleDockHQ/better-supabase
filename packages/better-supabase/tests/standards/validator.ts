@@ -14,7 +14,7 @@ addFormats(draft2020);
 
 function vendored(file: string): Json {
   return JSON.parse(
-    readFileSync(new URL(`schemas/${file}`, import.meta.url), "utf8"),
+    readFileSync(new URL(`schemas/${file}`, import.meta.url), "utf-8"),
   ) as Json;
 }
 

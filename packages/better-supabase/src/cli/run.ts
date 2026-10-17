@@ -10,6 +10,7 @@ import { stripVTControlCharacters } from "node:util";
 
 import type { ResolvedConfig } from "../config/index.ts";
 import type { CliEntry } from "./builtin-commands.ts";
+import type { CliIo, CommandResult, RunResult } from "./io.ts";
 
 import { builtinCommands } from "./builtin-commands.ts";
 import {
@@ -20,7 +21,6 @@ import {
   listArgs,
 } from "./command.ts";
 import { CliError, type CliErrorCode, toCliError } from "./errors.ts";
-import { type CliIo, type CommandResult, type RunResult } from "./io.ts";
 import { type Command, legacyCommand } from "./legacy.ts";
 import { type Rendered, renderError, renderResult } from "./output.ts";
 import { painter } from "./style.ts";

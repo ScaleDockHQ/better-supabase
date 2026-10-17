@@ -54,7 +54,7 @@ describe("readSupabaseToml", () => {
         "https://example.test",
       );
       expect(tomlGet(toml!.document, ["auth", "jwt_expiry"])).toBe(7200);
-      expect(await readSupabasePort(dir, "db")).toBe(55422);
+      expect(await readSupabasePort(dir, "db")).toBe(55_422);
       expect(await readSupabasePort(dir, "api")).toBeUndefined();
     } finally {
       delete process.env["BS_TOML_SITE_URL"];
@@ -70,7 +70,7 @@ describe("readSupabaseToml", () => {
     await writeFile(path, "[db]\nport = 55432\n");
     const changed = await readSupabaseToml(dir);
     expect(changed).not.toBe(first);
-    expect(tomlGet(changed!.document, ["db", "port"])).toBe(55432);
+    expect(tomlGet(changed!.document, ["db", "port"])).toBe(55_432);
   });
 
   it("returns undefined without a config.toml", async () => {
@@ -89,7 +89,7 @@ describe("readSupabaseToml", () => {
       path: "../../supabase/config.toml",
       dir: "../../supabase",
     });
-    expect(await readSupabasePort(app, "db")).toBe(55422);
+    expect(await readSupabasePort(app, "db")).toBe(55_422);
     expect((await readSupabaseToml(dir))?.path).toBe("supabase/config.toml");
   });
 

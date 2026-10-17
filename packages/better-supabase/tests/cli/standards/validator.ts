@@ -16,7 +16,7 @@ function vendored(file: string): Json {
   return JSON.parse(
     readFileSync(
       new URL(`../../standards/schemas/${file}`, import.meta.url),
-      "utf8",
+      "utf-8",
     ),
   ) as Json;
 }

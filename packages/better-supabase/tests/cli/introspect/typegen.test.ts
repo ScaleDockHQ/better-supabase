@@ -37,7 +37,7 @@ const type = (
 });
 
 const column = (format: string, typeSchema: string) => ({
-  table_id: 20000,
+  table_id: 20_000,
   schema: "public",
   table: "notes",
   id: "20000.1",
@@ -73,7 +73,7 @@ describe("readGeneratorMetadata", () => {
             args: [{ mode: "in", name: "a", type_id: 200, has_default: false }],
           },
           {
-            id: 30001,
+            id: 30_001,
             schema: "public",
             name: "touch",
             return_type: "trigger",
@@ -113,7 +113,7 @@ describe("readGeneratorMetadata", () => {
       metadata.types.map((entry) => entry.id).sort((a, b) => a - b),
     ).toEqual([23, 25, 100, 200, 300, 1009]);
     expect(metadata.functions.map((fn) => fn.name)).toEqual(["make_address"]);
-    expect(metadata.functions[0]!.id).toBe(30000);
+    expect(metadata.functions[0]!.id).toBe(30_000);
     expect(db.calls.length).toBeGreaterThan(5);
   });
 });
@@ -140,7 +140,7 @@ describe("orderArgsByPosition", () => {
   });
   const fn = (args: ReturnType<typeof arg>[]) => ({
     ...generator.functions[0]!,
-    id: 40000,
+    id: 40_000,
     name: "l2_distance",
     args,
   });
@@ -156,7 +156,7 @@ describe("orderArgsByPosition", () => {
     ]);
     const twice = orderArgsByPosition(
       { ...generator, functions: [fn([arg("", 10), arg("", 20)])] },
-      [{ id: 40000, types: [10, 20], names: null }],
+      [{ id: 40_000, types: [10, 20], names: null }],
     );
     expect(twice.functions[0]!.args).toEqual(ordered.functions[0]!.args);
   });
@@ -165,7 +165,7 @@ describe("orderArgsByPosition", () => {
     const named = fn([arg("b", 20), arg("a", 10), arg("", 30)]);
     const metadata = { ...generator, functions: [named] };
     const ordered = orderArgsByPosition(metadata, [
-      { id: 40000, types: [10, 20], names: ["a", "b"] },
+      { id: 40_000, types: [10, 20], names: ["a", "b"] },
     ]);
     expect(ordered.functions[0]!.args.map((entry) => entry.name)).toEqual([
       "a",
@@ -184,10 +184,10 @@ describe("stabilizeMetadata", () => {
       tables: [],
       columns: [],
       primaryKeys: [],
-      schemas: [{ id: 50000, name: "public", owner: "postgres" }],
+      schemas: [{ id: 50_000, name: "public", owner: "postgres" }],
       views: [
         {
-          id: 40001,
+          id: 40_001,
           schema: "public",
           name: "b_view",
           comment: null,
@@ -195,11 +195,11 @@ describe("stabilizeMetadata", () => {
         },
       ],
       foreignTables: [
-        { id: 40002, schema: "public", name: "a_remote", comment: null },
+        { id: 40_002, schema: "public", name: "a_remote", comment: null },
       ],
       materializedViews: [
         {
-          id: 40003,
+          id: 40_003,
           schema: "public",
           name: "c_mat",
           comment: null,
@@ -208,34 +208,36 @@ describe("stabilizeMetadata", () => {
       ],
       types: [
         {
-          ...type(41000, "public", "row_type", [23, 41001]),
-          type_relation_id: 40001,
+          ...type(41_000, "public", "row_type", [23, 41_001]),
+          type_relation_id: 40_001,
         },
-        type(41001, "public", "addr"),
+        type(41_001, "public", "addr"),
         type(23, "pg_catalog", "int4"),
       ],
       functions: [
         {
           ...base.functions[0]!,
-          id: 42000,
+          id: 42_000,
           schema: "public",
           name: "f",
           identity_argument_types: "",
-          return_type_id: 41000,
+          return_type_id: 41_000,
           return_type_relation_id: null,
-          args: [{ mode: "in", name: "x", type_id: 41001, has_default: false }],
+          args: [
+            { mode: "in", name: "x", type_id: 41_001, has_default: false },
+          ],
         },
       ],
     };
     const { metadata: stable, ids } = stabilizeMetadata(metadata);
     expect(Object.fromEntries(ids)).toEqual({
-      40002: 1_000_000,
-      40001: 1_000_001,
-      40003: 1_000_002,
-      41001: 2_000_001,
-      41000: 2_000_002,
-      42000: 3_000_000,
-      50000: 4_000_000,
+      40_002: 1_000_000,
+      40_001: 1_000_001,
+      40_003: 1_000_002,
+      41_001: 2_000_001,
+      41_000: 2_000_002,
+      42_000: 3_000_000,
+      50_000: 4_000_000,
     });
     expect(stable.views[0]!.id).toBe(1_000_001);
     expect(stable.foreignTables[0]!.id).toBe(1_000_000);

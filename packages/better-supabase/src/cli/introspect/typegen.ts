@@ -143,7 +143,7 @@ export function orderArgsByPosition(
 }
 
 /** Postgres assigns oids below this to built-in objects; those are stable. */
-const FIRST_NORMAL_OID = 16384;
+const FIRST_NORMAL_OID = 16_384;
 
 /**
  * Replaces the oids of user objects with ids derived from their names and

@@ -23,7 +23,7 @@ interface Row {
 }
 
 async function registry(): Promise<Row[]> {
-  const page = await readFile(PAGE, "utf8");
+  const page = await readFile(PAGE, "utf-8");
   const table = page.slice(
     page.indexOf("## Registry"),
     page.indexOf("## Pins"),
@@ -81,13 +81,13 @@ describe("standards registry", async () => {
 });
 
 describe("SPEC_PINS", async () => {
-  const page = await readFile(PAGE, "utf8");
+  const page = await readFile(PAGE, "utf-8");
   const suite = (
     await Promise.all(
       DIRS.flatMap((dir) =>
         testFiles(dir)
           .filter((file) => file !== "spec-pins.test.ts")
-          .map((file) => readFile(join(dir, file), "utf8")),
+          .map((file) => readFile(join(dir, file), "utf-8")),
       ),
     )
   ).join("\n");

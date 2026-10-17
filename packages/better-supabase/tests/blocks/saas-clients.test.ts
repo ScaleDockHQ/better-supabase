@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { createCustomFields } from "../../src/blocks/custom-fields/index.ts";
-import { createImports } from "../../src/blocks/imports/index.ts";
-import { suggestMapping } from "../../src/blocks/imports/index.ts";
+import {
+  createImports,
+  suggestMapping,
+} from "../../src/blocks/imports/index.ts";
 import { createNumberSequences } from "../../src/blocks/number-sequences/index.ts";
 import { createReminders } from "../../src/blocks/reminders/index.ts";
 import { createShareLinks } from "../../src/blocks/share-links/index.ts";

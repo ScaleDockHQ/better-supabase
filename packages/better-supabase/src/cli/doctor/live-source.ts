@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { connect } from "../db.ts";
 import type { LiveDatabase } from "../doctor/live.ts";
+import type { DoctorContext } from "../doctor/rules.ts";
 import type { CliEnv } from "../env.ts";
 import type { IntrospectionSource } from "../introspect/source.ts";
 
@@ -18,7 +19,6 @@ import {
   managementAdvisors,
   splinterAdvisors,
 } from "../doctor/advisors.ts";
-import { type DoctorContext } from "../doctor/rules.ts";
 import { CACHE_DIR } from "../introspect/cache.ts";
 import { readSupabaseToml } from "../supabase-toml.ts";
 

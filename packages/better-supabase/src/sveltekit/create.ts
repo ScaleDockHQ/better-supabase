@@ -1,12 +1,12 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
+import type { SvelteKitHandle } from "../bridges/sveltekit.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { DbError } from "../core/errors.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { BetterServer } from "../server/server-types.ts";
 
 import { around, bufferInPlace } from "../bridges/shared.ts";
-import { type SvelteKitHandle } from "../bridges/sveltekit.ts";
 import { dbErrorOf, DbException } from "../core/errors.ts";
 import { toProblem } from "../core/problem.ts";
 import { withFlush } from "../server/adapter.ts";

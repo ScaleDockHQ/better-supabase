@@ -36,9 +36,9 @@ export function getPageMarkdownUrl(page: DocsPage) {
   const segments = [...page.slugs, "content.md"];
   return {
     segments,
-    url:
-      "/" +
-      [...docsContentRoute.split("/"), ...segments].filter(Boolean).join("/"),
+    url: `/${[...docsContentRoute.split("/"), ...segments]
+      .filter(Boolean)
+      .join("/")}`,
   };
 }
 

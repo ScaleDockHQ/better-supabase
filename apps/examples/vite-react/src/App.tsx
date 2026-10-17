@@ -1,3 +1,5 @@
+import type { SubmitEvent } from "react";
+
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { optimistic } from "better-supabase/query";
 import {
@@ -7,7 +9,6 @@ import {
   useSignIn,
   useSignOut,
 } from "better-supabase/react";
-import { type SubmitEvent } from "react";
 
 import { useAuth, useQueries } from "./lib/hooks";
 import { createCustomer, customerSpec } from "./queries";

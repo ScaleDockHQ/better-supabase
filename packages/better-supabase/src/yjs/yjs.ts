@@ -11,13 +11,13 @@ import type {
   SubscriptionStatus,
 } from "../realtime/topic.ts";
 
-type PresenceState = Readonly<Record<string, unknown>>;
-
 import { fromBase64, toBase64 } from "../core/base64.ts";
 import { isRecord } from "../core/block-helpers.ts";
 import { importOptionalPeer } from "../core/optional-peer.ts";
 import { AsyncResult, err, ok } from "../core/result.ts";
 import { defineTopic } from "../realtime/topic.ts";
+
+type PresenceState = Readonly<Record<string, unknown>>;
 
 /** The part of a `Y.Doc` the provider uses. */
 export interface YDocLike {

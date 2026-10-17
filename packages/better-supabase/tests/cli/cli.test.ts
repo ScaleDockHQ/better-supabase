@@ -77,7 +77,7 @@ describe("fixtures", () => {
     for (const file of await renderFixtures()) {
       expect({
         path: file.path,
-        contents: await readFile(file.path, "utf8"),
+        contents: await readFile(file.path, "utf-8"),
       }).toEqual(file);
     }
   });
@@ -573,7 +573,7 @@ describe("config JSON Schema", () => {
     const schema = JSON.parse(
       await readFile(
         new URL(import.meta.resolve("better-supabase/schemas/config-v1.json")),
-        "utf8",
+        "utf-8",
       ),
     ) as { properties: Record<string, unknown> };
     const keys: Record<keyof BetterSupabaseConfig, true> = {
@@ -656,7 +656,7 @@ describe("gen", () => {
     ]);
     expect(first.code).toBe(0);
     expect(first.stdout).toContain("src/db/generated.ts");
-    const generated = await readFile(join(dir, "src/db/generated.ts"), "utf8");
+    const generated = await readFile(join(dir, "src/db/generated.ts"), "utf-8");
     expect(generated).toContain('from "better-supabase"');
     expect(generated).toContain("customerTags");
 
@@ -697,7 +697,10 @@ describe("gen", () => {
 
   it("writes database.types.ts next to the main module", async () => {
     await run(["gen", "--snapshot", "snapshot.json", "--cwd", dir]);
-    const types = await readFile(join(dir, "src/db/database.types.ts"), "utf8");
+    const types = await readFile(
+      join(dir, "src/db/database.types.ts"),
+      "utf-8",
+    );
     expect(types).toContain("export type Database = {");
     expect(types).toContain('PostgrestVersion: "13"');
   });
@@ -720,7 +723,7 @@ describe("gen", () => {
     ).toBe(0);
     const generated = await readFile(
       join(dir, "src/db/generated.meta.js"),
-      "utf8",
+      "utf-8",
     );
     expect(generated).toMatch(
       /"realtime": \{\s+"customers": \{"tenant":"organizationId"\},\s+"tags": \{"user":"organizationId"\},\s+"organizations": \{\}/,
@@ -844,7 +847,7 @@ describe("sql", () => {
     );
     expect(
       JSON.parse(
-        await readFile(join(dir, "better-supabase.config.json"), "utf8"),
+        await readFile(join(dir, "better-supabase.config.json"), "utf-8"),
       ),
     ).toEqual({ blocks: ["invitations", "jobs", "pgtap"] });
 
@@ -946,7 +949,7 @@ describe("sql", () => {
       /supabase\/schemas\/900_better_supabase_\d\d_entitlements\.sql/.exec(
         added.stdout,
       )![0];
-    expect(await readFile(join(dir, path), "utf8")).toContain(
+    expect(await readFile(join(dir, path), "utf-8")).toContain(
       "authz.member_organization_ids_for(feature_claims.user_id)",
     );
 

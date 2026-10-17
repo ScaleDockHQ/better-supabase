@@ -25,7 +25,7 @@ async function shippedSchemas(): Promise<Map<string, Record<string, unknown>>> {
   for (const file of await readdir(shipped))
     out.set(
       file,
-      JSON.parse(await readFile(new URL(file, shipped), "utf8")) as Record<
+      JSON.parse(await readFile(new URL(file, shipped), "utf-8")) as Record<
         string,
         unknown
       >,

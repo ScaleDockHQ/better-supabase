@@ -239,7 +239,7 @@ describe("createMcp", () => {
       await (
         await rpc({ jsonrpc: "2.0", id: 2, method: "resources/list" })
       ).json(),
-    ).toMatchObject({ id: 2, error: { code: -32601 } });
+    ).toMatchObject({ id: 2, error: { code: -32_601 } });
     expect(
       await (
         await rpc({
@@ -249,7 +249,7 @@ describe("createMcp", () => {
           params: { name: "nope" },
         })
       ).json(),
-    ).toMatchObject({ id: 3, error: { code: -32602 } });
+    ).toMatchObject({ id: 3, error: { code: -32_602 } });
     expect(
       (
         await rpc(
@@ -346,12 +346,12 @@ describe("createMcp", () => {
       { "mcp-name": "echo" },
     );
     expect(mismatch.status).toBe(400);
-    expect(await mismatch.json()).toMatchObject({ error: { code: -32020 } });
+    expect(await mismatch.json()).toMatchObject({ error: { code: -32_020 } });
     expect(
       await (
         await modern(2, "tools/list", {}, { "mcp-method": "tools/call" })
       ).json(),
-    ).toMatchObject({ error: { code: -32020 } });
+    ).toMatchObject({ error: { code: -32_020 } });
     const unsupported = await rpc(
       { jsonrpc: "2.0", id: 3, method: "tools/list" },
       { headers: { "mcp-protocol-version": "1999-01-01" } },
@@ -359,7 +359,7 @@ describe("createMcp", () => {
     expect(unsupported.status).toBe(400);
     expect(await unsupported.json()).toMatchObject({
       error: {
-        code: -32022,
+        code: -32_022,
         data: { requested: "1999-01-01", supported: expect.any(Array) },
       },
     });
@@ -373,7 +373,7 @@ describe("createMcp", () => {
       },
     );
     expect(noMeta.status).toBe(400);
-    expect(await noMeta.json()).toMatchObject({ error: { code: -32602 } });
+    expect(await noMeta.json()).toMatchObject({ error: { code: -32_602 } });
   });
 
   it("challenges with insufficient_scope and publishes scopes without offline_access", async () => {
@@ -622,7 +622,7 @@ describe("createMcp", () => {
       await send("tools/call", { name: "secret", arguments: {} })
     ).json()) as { error: { code: number; message: string } };
     expect(hidden.error).toMatchObject({
-      code: -32602,
+      code: -32_602,
       message: 'Unknown tool "secret"',
     });
 

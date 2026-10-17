@@ -105,7 +105,7 @@ export async function runSeed(
     ? `./${out.slice(dir.length + 1)}`
     : out;
   if (existsSync(toml)) {
-    const text = await readFile(toml, "utf8");
+    const text = await readFile(toml, "utf-8");
     const folder = seedPath.replace(/[^/]+$/, "");
     if (!text.includes(seedPath) && !text.includes(`${folder}*`)) {
       lines.push(

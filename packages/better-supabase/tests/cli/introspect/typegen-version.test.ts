@@ -12,7 +12,7 @@ import { satisfies } from "../../../src/cli/peers.ts";
 
 const workspace = await readFile(
   resolve(import.meta.dirname, "../../../../../pnpm-workspace.yaml"),
-  "utf8",
+  "utf-8",
 );
 const pins = [
   ...workspace.matchAll(/^\s+"@supabase\/postgrest-typegen": (\S.*)$/gm),

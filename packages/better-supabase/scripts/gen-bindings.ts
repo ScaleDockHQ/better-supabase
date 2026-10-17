@@ -12,7 +12,7 @@ const check = process.argv.includes("--check");
 let stale = false;
 for (const file of await renderBindings()) {
   if (check) {
-    const current = await readFile(file.path, "utf8").catch(() => "");
+    const current = await readFile(file.path, "utf-8").catch(() => "");
     if (current !== file.contents) {
       console.error(`stale: ${file.path}`);
       stale = true;

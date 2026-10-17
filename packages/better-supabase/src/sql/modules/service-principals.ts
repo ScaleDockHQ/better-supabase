@@ -124,7 +124,7 @@ ${lockTable(t, { read: true })}
     : "";
   const setMembership = memberships
     ? `
-  update ${m} set ${mr} = ${roleValue(ctx, "set_service_principal_role.role", "v_row." + c("tenant"))}
+  update ${m} set ${mr} = ${roleValue(ctx, "set_service_principal_role.role", `v_row.${c("tenant")}`)}
   where ${mt} = v_row.${c("tenant")} and ${mu} = v_row.${c("id")};`
     : "";
   const dropMembership = memberships

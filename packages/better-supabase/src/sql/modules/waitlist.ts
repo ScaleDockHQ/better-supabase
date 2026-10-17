@@ -387,7 +387,7 @@ begin
     create_invite_code.role
   )
   returning * into v_row;
-  ${codeEvent("invite_code.created", "v_row", "v_row." + ck("tenant"))}
+  ${codeEvent("invite_code.created", "v_row", `v_row.${ck("tenant")}`)}
   return ${publicCode("v_row")};
 exception when unique_violation then
   ${fail("WAITLIST_CODE_TAKEN", "That invite code exists", "23505")}

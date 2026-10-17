@@ -44,7 +44,7 @@ const scaffold = (...args: string[]) =>
   run(["scaffold", ...args, "--cwd", dir]);
 
 const read = (path: string): Promise<string> =>
-  readFile(join(dir, path), "utf8");
+  readFile(join(dir, path), "utf-8");
 
 describe("scaffold api", () => {
   it("writes the Next.js catch-all and OpenAPI routes for every public table", async () => {

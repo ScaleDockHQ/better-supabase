@@ -224,5 +224,5 @@ export async function databaseUrl(
     const url = stack?.ok ? stack.status["DB_URL"] : undefined;
     if (typeof url === "string" && url.length > 0) return url;
   }
-  return `postgresql://postgres:postgres@127.0.0.1:${port ?? 54322}/postgres`;
+  return `postgresql://postgres:postgres@127.0.0.1:${port ?? 54_322}/postgres`;
 }

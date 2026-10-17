@@ -78,7 +78,7 @@ export async function runKeys(
   // SAFETY: the keys file is a JSON list that this command writes.
   const previous: unknown[] =
     exists && rotate
-      ? (JSON.parse(await readFile(path, "utf8")) as unknown[])
+      ? (JSON.parse(await readFile(path, "utf-8")) as unknown[])
       : [];
   if (!Array.isArray(previous)) {
     return {
@@ -99,7 +99,7 @@ export async function runKeys(
   const toml = resolve(config.root, dir, "config.toml");
   const configured =
     existsSync(toml) &&
-    /^\s*signing_keys_path\s*=/m.test(await readFile(toml, "utf8"));
+    /^\s*signing_keys_path\s*=/m.test(await readFile(toml, "utf-8"));
   if (!configured) {
     const relativeToSupabase = out.startsWith(`${dir}/`)
       ? `./${out.slice(dir.length + 1)}`
@@ -119,7 +119,7 @@ export async function runKeys(
   for (const file of gitignored) {
     if (
       existsSync(file) &&
-      (await readFile(file, "utf8")).includes("signing_keys")
+      (await readFile(file, "utf-8")).includes("signing_keys")
     )
       ignored = true;
   }

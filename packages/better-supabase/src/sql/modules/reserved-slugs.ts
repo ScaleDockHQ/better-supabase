@@ -1,7 +1,7 @@
+import type { ModuleContext } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { type ModuleContext } from "../context.ts";
 import { SCHEMA, raise } from "../shared.ts";
 
 const RESERVED_SLUGS_SEED = `insert into better_supabase.reserved_slugs (slug, reason)

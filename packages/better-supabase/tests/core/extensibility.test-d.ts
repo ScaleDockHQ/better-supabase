@@ -67,8 +67,8 @@ import type {
   OpenApiDocuments,
   OpenApiVersion,
 } from "../../src/openapi/types.ts";
-import type { AuthorizationHooks } from "../../src/server/index.ts";
 import type {
+  AuthorizationHooks,
   ServerContext,
   SupportSessionStore,
 } from "../../src/server/index.ts";

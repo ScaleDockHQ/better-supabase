@@ -469,7 +469,7 @@ begin
   if v_row.${ce("id")} is null then
     return null;
   end if;
-  ${exportEvent("data_export.failed", ", 'error', v_row." + ce("error"), true)}
+  ${exportEvent("data_export.failed", `, 'error', v_row.${ce("error")}`, true)}
   return to_jsonb(v_row);
 end;
 $$;

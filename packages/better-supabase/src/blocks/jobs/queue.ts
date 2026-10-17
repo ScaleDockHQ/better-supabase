@@ -527,7 +527,7 @@ export function createJobs<const Q extends QueueSchemas>(
         });
       });
     },
-    claim: claim,
+    claim,
     complete,
     fail,
     extend: (job, lease) => run(() => transport.extend(job, lease)),

@@ -1,5 +1,4 @@
-import type { MutationNotice } from "../core/events.ts";
-import type { EventHub } from "../core/events.ts";
+import type { MutationNotice, EventHub } from "../core/events.ts";
 import type { MutationIntent } from "../core/plugin.ts";
 import type { SchemaMeta } from "../schema/types.ts";
 import type {

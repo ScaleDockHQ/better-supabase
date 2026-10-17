@@ -236,7 +236,7 @@ begin
   if not exists (select 1 from ${t("lines")} x where x.${l("parent")} = v_row.${i("id")}) then
     ${fail("INVOICE_EMPTY", "an invoice needs a line before it is issued", "23514")}
   end if;
-  ${ctx.hook("before_invoice_issue", [["uuid", "v_row." + i("id")]])}
+  ${ctx.hook("before_invoice_issue", [["uuid", `v_row.${i("id")}`]])}
   if v_row.${i("kind")} = 'credit_note' then
     select * into v_original from ${t("invoices")} x where x.${i("id")} = v_row.${i("original")} for update;
     if v_row.${i("total")} > ${balance("v_original")} then
@@ -262,7 +262,7 @@ begin
       ${record("invoice.paid", "v_original", `, 'total', v_original.${i("total")}::text`)}
     end if;
   end if;
-  ${ctx.hook("after_invoice_issue", [["uuid", "v_row." + i("id")]])}
+  ${ctx.hook("after_invoice_issue", [["uuid", `v_row.${i("id")}`]])}
   return ${row("v_row")};
 end;
 $$;
@@ -293,7 +293,7 @@ begin
     ${fail("INVOICE_PAYMENT_INVALID", "a payment has an amount", "22023")}
   end if;
   ${ctx.hook("before_invoice_payment", [
-    ["uuid", "v_row." + i("id")],
+    ["uuid", `v_row.${i("id")}`],
     ["bigint", "record_invoice_payment.amount"],
   ])}
   v_was := v_row.${i("status")};
@@ -310,7 +310,7 @@ begin
     ${record("invoice.paid", "v_row", `, 'total', v_row.${i("total")}::text`)}
   end if;
   ${ctx.hook("after_invoice_payment", [
-    ["uuid", "v_row." + i("id")],
+    ["uuid", `v_row.${i("id")}`],
     ["uuid", "v_payment"],
   ])}
   return ${row("v_row")};

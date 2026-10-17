@@ -85,7 +85,7 @@ async function closure(entry: string, dynamic = true): Promise<Closure> {
   const visit = async (file: string): Promise<void> => {
     if (files.has(file)) return;
     files.add(file);
-    const source = await readFile(file, "utf8");
+    const source = await readFile(file, "utf-8");
     for (const [, fromClause, lazy] of source.matchAll(SPECIFIER)) {
       if (lazy !== undefined && !dynamic) continue;
       const specifier = (fromClause ?? lazy)!;
@@ -226,7 +226,7 @@ async function nodeResolvable(specifier: string): Promise<boolean> {
   const root =
     name === "better-supabase" ? PACKAGE : join(PACKAGE, "node_modules", name);
   const manifest = JSON.parse(
-    await readFile(join(root, "package.json"), "utf8"),
+    await readFile(join(root, "package.json"), "utf-8"),
   ) as Manifest;
   const rest = parts.slice(size).join("/");
   return manifest.exports === undefined
@@ -236,7 +236,7 @@ async function nodeResolvable(specifier: string): Promise<boolean> {
 
 const subpaths = async (): Promise<Map<string, string>> => {
   const manifest = JSON.parse(
-    await readFile(join(PACKAGE, "package.json"), "utf8"),
+    await readFile(join(PACKAGE, "package.json"), "utf-8"),
   ) as {
     exports: Record<string, string | { default: string }>;
   };
@@ -308,7 +308,7 @@ describe("bundle", () => {
 
   it('keeps "use client" on the react and next/client entries', async () => {
     for (const file of ["dist/react/index.js", "dist/next/client/index.js"]) {
-      const source = await readFile(join(PACKAGE, file), "utf8");
+      const source = await readFile(join(PACKAGE, file), "utf-8");
       expect(source.startsWith('"use client";')).toBe(true);
     }
   });
@@ -316,7 +316,7 @@ describe("bundle", () => {
   it('ships a react-server build without "use client"', async () => {
     const source = await readFile(
       join(PACKAGE, "dist/react/server.js"),
-      "utf8",
+      "utf-8",
     );
     expect(source.includes('"use client"')).toBe(false);
   });
@@ -324,12 +324,12 @@ describe("bundle", () => {
   it("renders SessionProvider from the react-server build as a client reference", async () => {
     const server = await readFile(
       join(PACKAGE, "dist/react/server.js"),
-      "utf8",
+      "utf-8",
     );
     expect(server).toContain('from "./session.js"');
     const session = await readFile(
       join(PACKAGE, "dist/react/session.js"),
-      "utf8",
+      "utf-8",
     );
     expect(session.startsWith('"use client";')).toBe(true);
   });
@@ -376,7 +376,7 @@ describe("bundle", () => {
       await writeFile(BASELINE, `${JSON.stringify(sizes, null, 2)}\n`);
       return;
     }
-    const baseline = JSON.parse(await readFile(BASELINE, "utf8")) as Record<
+    const baseline = JSON.parse(await readFile(BASELINE, "utf-8")) as Record<
       string,
       number
     >;
@@ -404,7 +404,7 @@ describe("bundle", () => {
       return;
     }
     const baseline = JSON.parse(
-      await readFile(SHIPPED_BASELINE, "utf8"),
+      await readFile(SHIPPED_BASELINE, "utf-8"),
     ) as Record<string, number>;
     expect(Object.keys(sizes).toSorted()).toEqual(
       Object.keys(baseline).toSorted(),

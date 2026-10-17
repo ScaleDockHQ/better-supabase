@@ -151,7 +151,7 @@ describe("apply", () => {
     expect(result.stdout).toContain('+  "preset": "minimal"');
     expect(
       JSON.parse(
-        await readFile(join(dir, "better-supabase.config.json"), "utf8"),
+        await readFile(join(dir, "better-supabase.config.json"), "utf-8"),
       ),
     ).toEqual({ blocks: { tags: {} }, preset: "minimal" });
     expect(
@@ -176,7 +176,7 @@ describe("apply", () => {
     ]);
     expect(dry.stdout).toContain("Dry run: nothing written.");
     expect(
-      await readFile(join(dir, "better-supabase.config.json"), "utf8"),
+      await readFile(join(dir, "better-supabase.config.json"), "utf-8"),
     ).toBe(json({}));
     const blocks = await run([
       "apply",
@@ -190,7 +190,7 @@ describe("apply", () => {
     expect(blocks.code).toBe(0);
     expect(
       JSON.parse(
-        await readFile(join(dir, "better-supabase.config.json"), "utf8"),
+        await readFile(join(dir, "better-supabase.config.json"), "utf-8"),
       ),
     ).toEqual({
       blocks: { "updated-at": {}, tenant: {}, access: {}, comments: {} },
@@ -215,7 +215,7 @@ describe("apply", () => {
     expect(result.code).toBe(0);
     const code = encodePreset({ ...preset, blocks: [] });
     expect(
-      await readFile(join(dir, "better-supabase.config.ts"), "utf8"),
+      await readFile(join(dir, "better-supabase.config.ts"), "utf-8"),
     ).toContain(`  casing: 'snake',\n  preset: '${code}',\n`);
   });
 
@@ -274,7 +274,7 @@ describe("add <block>", () => {
     expect(result.stdout).toContain(
       "Glue for next: npx shadcn@latest add @better-supabase/outbox @better-supabase/outbox-relay-next",
     );
-    const wiring = await readFile(join(dir, "lib/blocks.ts"), "utf8");
+    const wiring = await readFile(join(dir, "lib/blocks.ts"), "utf-8");
     expect(wiring).toContain(
       'import { profilesBlock } from "better-supabase/blocks/profiles";\nimport { commentsBlock } from "better-supabase/blocks/comments";',
     );
@@ -283,7 +283,7 @@ describe("add <block>", () => {
     );
     expect(
       JSON.parse(
-        await readFile(join(dir, "better-supabase.config.json"), "utf8"),
+        await readFile(join(dir, "better-supabase.config.json"), "utf-8"),
       ).blocks,
     ).toMatchObject({ comments: {}, outbox: {} });
   });
@@ -314,10 +314,10 @@ describe("init --preset", () => {
     expect(result.code).toBe(0);
     const config = await readFile(
       join(dir, "better-supabase.config.ts"),
-      "utf8",
+      "utf-8",
     );
     expect(config).toContain("  preset: 'minimal',\n  casing: 'snake',");
-    expect(await readFile(join(dir, "lib/blocks.ts"), "utf8")).toContain(
+    expect(await readFile(join(dir, "lib/blocks.ts"), "utf-8")).toContain(
       "profiles: profilesBlock,",
     );
     expect(

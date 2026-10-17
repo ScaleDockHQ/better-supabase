@@ -78,7 +78,7 @@ function prose(line: string): string {
 
 function check(file: string): Finding[] {
   const findings: Finding[] = [];
-  const lines = readFileSync(file, "utf8").split("\n");
+  const lines = readFileSync(file, "utf-8").split("\n");
   let fence: string | undefined;
   let jsx = false;
   lines.forEach((raw, index) => {

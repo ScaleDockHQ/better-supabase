@@ -22,7 +22,7 @@ export interface PromotionsNames {
 const MAX_CART_CODES = 5;
 
 /** Codes one `create_promotion_codes` call can generate. */
-const MAX_GENERATED = 10000;
+const MAX_GENERATED = 10_000;
 
 /** Generated code characters: no 0/O or 1/I. */
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";

@@ -3,8 +3,7 @@ import type { Mock } from "vitest";
 import { QueryClient } from "@tanstack/query-core";
 import { vi } from "vitest";
 
-import type { ClientLike } from "../../src/bindings/client.ts";
-import type { PresenceTopic } from "../../src/bindings/client.ts";
+import type { ClientLike, PresenceTopic } from "../../src/bindings/client.ts";
 import type { AuthSnapshot } from "../../src/client/index.ts";
 import type {
   PresenceMember,

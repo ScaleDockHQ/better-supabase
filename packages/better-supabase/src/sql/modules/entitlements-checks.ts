@@ -1,10 +1,12 @@
 import type { ClaimsMeta } from "../../schema/types.ts";
-import type { ModuleLayout } from "../module-types.ts";
-import type { ModuleEntitlementsProvider } from "../module-types.ts";
+import type { ModuleIdType } from "../context.ts";
+import type {
+  ModuleLayout,
+  ModuleEntitlementsProvider,
+} from "../module-types.ts";
 
 import { fillTemplate } from "../../core/access-sql.ts";
 import { sqlString } from "../../core/template.ts";
-import { type ModuleIdType } from "../context.ts";
 import { moduleContext } from "../module-context.ts";
 
 /** The tenant module's memberships table and columns, for the entitlement lookups. */

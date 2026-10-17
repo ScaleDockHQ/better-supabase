@@ -41,7 +41,7 @@ describe("RFC 7518 ES256 (section 3.4) and RFC 7517 JSON Web Keys", () => {
     await writeFile(join(dir, "package.json"), "{}");
     expect((await run(["keys", "--cwd", dir])).code).toBe(0);
     const [key] = JSON.parse(
-      await readFile(join(dir, "supabase/signing_keys.json"), "utf8"),
+      await readFile(join(dir, "supabase/signing_keys.json"), "utf-8"),
     ) as SigningJwk[];
     expect(key).toMatchObject({
       kty: "EC",

@@ -177,7 +177,7 @@ describe("gen sql and env steps", () => {
       ["sql", 0],
       ["env", 0],
     ]);
-    expect(await readFile(join(root, ".env.test"), "utf8")).toContain(
+    expect(await readFile(join(root, ".env.test"), "utf-8")).toContain(
       "VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_test",
     );
   });

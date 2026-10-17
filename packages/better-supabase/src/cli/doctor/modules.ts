@@ -1,7 +1,6 @@
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
-import { tenantClaimPaths } from "../../config/index.ts";
-import { DEFAULT_ACTIVE_TENANT } from "../../config/index.ts";
+import { tenantClaimPaths, DEFAULT_ACTIVE_TENANT } from "../../config/index.ts";
 import {
   adoptedTables,
   contractSignature,

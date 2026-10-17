@@ -108,7 +108,7 @@ const DIRS = new Map(
     .filter((dir) => existsSync(join(BLOCKS_DIR, dir, "manifest.ts")))
     .flatMap((dir) =>
       [
-        ...readFileSync(join(BLOCKS_DIR, dir, "manifest.ts"), "utf8").matchAll(
+        ...readFileSync(join(BLOCKS_DIR, dir, "manifest.ts"), "utf-8").matchAll(
           /name: "([a-z-]+)"/g,
         ),
       ].map((match) => [match[1] ?? "", join(BLOCKS_DIR, dir)] as const),
@@ -147,12 +147,12 @@ const sourcesOf = (block: AnyBlock): string => {
     shared && creator !== undefined
       ? files.filter((file) =>
           new RegExp(`export (async )?function ${creator}\\b`).test(
-            readFileSync(join(dir, file), "utf8"),
+            readFileSync(join(dir, file), "utf-8"),
           ),
         )
       : files;
   return picked
-    .map((file) => withoutComments(readFileSync(join(dir, file), "utf8")))
+    .map((file) => withoutComments(readFileSync(join(dir, file), "utf-8")))
     .join("\n");
 };
 
@@ -233,7 +233,7 @@ describe("block manifests", () => {
   });
 
   it("lists the recipes that name the block", () => {
-    const source = readFileSync(RECIPES, "utf8");
+    const source = readFileSync(RECIPES, "utf-8");
     const named = [
       ...source.matchAll(
         /slug: "([a-z-]+)",\s*title: "[^"]*",\s*block: "([a-z-]+)"/g,
@@ -326,9 +326,9 @@ describe("the block contract", () => {
   });
 
   it("declares only events its SQL records or its code emits", () => {
-    const code = readdirSync(SRC_DIR, { recursive: true, encoding: "utf8" })
+    const code = readdirSync(SRC_DIR, { recursive: true, encoding: "utf-8" })
       .filter((file) => file.endsWith(".ts") && !file.endsWith("events.ts"))
-      .map((file) => readFileSync(join(SRC_DIR, file), "utf8"))
+      .map((file) => readFileSync(join(SRC_DIR, file), "utf-8"))
       .join("\n");
     const unused = BLOCK_MANIFESTS.flatMap((block) => {
       const recorded = new Set(

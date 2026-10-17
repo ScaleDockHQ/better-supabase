@@ -39,7 +39,7 @@ describe("Temporal in src", () => {
     for (const entry of readdirSync(SRC, { recursive: true })) {
       const file = String(entry);
       if (!file.endsWith(".ts") || READERS.has(file)) continue;
-      const lines = readFileSync(join(SRC, file), "utf8").split("\n");
+      const lines = readFileSync(join(SRC, file), "utf-8").split("\n");
       for (const [index, line] of lines.entries()) {
         const code = line.replace(/\/\/.*$/, "").trim();
         if (code.startsWith("*") || code.startsWith("/*")) continue;

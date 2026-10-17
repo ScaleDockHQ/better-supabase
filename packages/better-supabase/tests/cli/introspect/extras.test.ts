@@ -377,7 +377,7 @@ describe("readExtras", () => {
       {
         id: "avatars",
         public: true,
-        fileSizeLimit: 1048576,
+        fileSizeLimit: 1_048_576,
         allowedMimeTypes: ["image/png"],
       },
       {

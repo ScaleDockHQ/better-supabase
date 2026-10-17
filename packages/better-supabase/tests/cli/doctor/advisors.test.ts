@@ -28,7 +28,7 @@ const PINNED = vi.hoisted(async () => {
   const { readFile: read } = await import("node:fs/promises");
   const source = await read(
     new globalThis.URL("../../../src/cli/doctor/advisors.ts", import.meta.url),
-    "utf8",
+    "utf-8",
   );
   return /SPLINTER_SHA256 =\s*"([0-9a-f]{64})"/.exec(source)![1]!;
 });
@@ -145,7 +145,7 @@ describe("splinterAdvisors", () => {
     ]);
     expect(db.texts).toEqual([`begin read only;\n${SQL}\n;\nrollback;`]);
     expect(download.calls).toHaveLength(1);
-    expect(await readFile(cached(), "utf8")).toBe(SQL);
+    expect(await readFile(cached(), "utf-8")).toBe(SQL);
 
     const offline = fakeFetch(() => {
       throw new Error("offline");
@@ -177,7 +177,7 @@ describe("splinterAdvisors", () => {
     ]);
     expect(download.calls).toHaveLength(1);
     expect(db.texts[0]).toContain(SQL);
-    expect(await readFile(cached(), "utf8")).toBe(SQL);
+    expect(await readFile(cached(), "utf-8")).toBe(SQL);
   });
 
   it("returns nothing when the result has no rows", async () => {

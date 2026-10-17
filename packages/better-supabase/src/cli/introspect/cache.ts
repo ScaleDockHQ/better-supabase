@@ -61,7 +61,7 @@ export async function cachedIntrospect(
     CACHE_DIR,
     `snapshot-${sha256(source.describe).slice(0, 16)}.json`,
   );
-  const cached: unknown = await readFile(file, "utf8")
+  const cached: unknown = await readFile(file, "utf-8")
     .then((text): unknown => JSON.parse(text))
     .catch(() => undefined);
   if (isEntry(cached) && cached.key === key) return cached.snapshot;
@@ -84,7 +84,7 @@ export async function cachedDatabaseTypes(
 ): Promise<string> {
   const key = sha256(JSON.stringify([VERSION, TYPEGEN_VERSION, inputs]));
   const file = resolve(root, CACHE_DIR, "database-types.json");
-  const cached: unknown = await readFile(file, "utf8")
+  const cached: unknown = await readFile(file, "utf-8")
     .then((text): unknown => JSON.parse(text))
     .catch(() => undefined);
   if (

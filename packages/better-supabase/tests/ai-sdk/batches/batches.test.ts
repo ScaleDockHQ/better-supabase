@@ -282,7 +282,7 @@ describe("aiBatches", () => {
       providers: { batches: store },
       api: {
         // oxlint-disable-next-line require-yield -- the stream fails before its first item
-        results: async function* () {
+        async *results() {
           throw new Error("gone");
         },
       },

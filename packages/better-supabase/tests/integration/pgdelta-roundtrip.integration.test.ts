@@ -24,7 +24,7 @@ const SUPABASE = resolve(
   import.meta.dirname,
   "../../../../node_modules/.bin/supabase",
 );
-const DB_PORT = 56422;
+const DB_PORT = 56_422;
 // The round trip uses its own Docker stack on fixed ports, whatever engine the shell selects.
 const ENV = { ...process.env, SUPABASE_EXPERIMENTAL_STACK: "0" };
 // read-sets and vector-search render nothing without app config; pgtap is a test file.
@@ -43,7 +43,7 @@ const supabase = (cwd: string, args: string[]) => {
   const run = spawnSync(SUPABASE, args, {
     cwd,
     env: ENV,
-    encoding: "utf8",
+    encoding: "utf-8",
     maxBuffer: 64 * 1024 * 1024,
   });
   if (run.status !== 0)
@@ -71,7 +71,7 @@ const startWhenPortFree = async (cwd: string) => {
       const run = spawnSync(SUPABASE, ["db", "start"], {
         cwd,
         env: ENV,
-        encoding: "utf8",
+        encoding: "utf-8",
       });
       if (run.status === 0) return;
       const output = `${run.stdout}${run.stderr}`;
@@ -157,7 +157,7 @@ declarative_schema_path = "./schemas"
       expect(migrations[2]).toMatch(/_better_supabase_module_data\.sql$/);
       const schema = await readFile(
         join(root, "supabase/migrations", migrations[1]!),
-        "utf8",
+        "utf-8",
       );
       expect(schema).not.toMatch(/^insert into/im);
 

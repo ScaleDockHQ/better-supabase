@@ -200,7 +200,7 @@ export async function runApply(
     only === "conventions" ? { ...preset, blocks: [] } : preset,
   );
   if (conflict !== undefined) return { code: 2, error: conflict };
-  const source = await readFile(file, "utf8");
+  const source = await readFile(file, "utf-8");
   const edit = edited(file, source, input, preset, only);
   const shown = display(config.root, file);
   if (!edit.ok) {

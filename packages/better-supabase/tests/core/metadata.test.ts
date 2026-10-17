@@ -140,7 +140,7 @@ describe("codecs", () => {
       "select=id::text,code,amount::text,bookedAt:booked_at::text,total",
     );
     expect(row).toEqual({
-      id: 9007199254740993n,
+      id: 9_007_199_254_740_993n,
       code: "a",
       amount: "10.10",
       bookedAt: Temporal.Instant.from("2026-09-24T10:00:00Z"),

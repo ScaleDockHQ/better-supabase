@@ -17,7 +17,7 @@ const PAGE = join(import.meta.dirname, "../../app/blocks/[name]/page.tsx");
 
 describe("blocks catalog", () => {
   test("every catalog block has a statically generated page", () => {
-    const page = readFileSync(PAGE, "utf8");
+    const page = readFileSync(PAGE, "utf-8");
     expect(page).toContain("return blockStaticParams();");
     const params = blockStaticParams().map((param) => param.name);
     expect(params).toEqual(blocks.map((block) => block.name));

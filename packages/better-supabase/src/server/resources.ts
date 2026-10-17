@@ -1,14 +1,14 @@
 import type { Authorizer } from "../core/authorizer.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { AnyFunctions, AnyModels, TableKey } from "../schema/types.ts";
+import type {
+  ResourceHandler,
+  ResourceRouteOptions,
+} from "./resource-types.ts";
 
 import { dbError } from "../core/errors.ts";
 import { problemResponse } from "../core/problem.ts";
 import { actionFits } from "./resource-http.ts";
-import {
-  type ResourceHandler,
-  type ResourceRouteOptions,
-} from "./resource-types.ts";
 import { defineResource } from "./resource.ts";
 
 /** Resources by table name; `true` serves a table with the defaults. */

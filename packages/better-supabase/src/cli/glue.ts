@@ -2,11 +2,11 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
 import type { CommandResult } from "./io.ts";
+import type { Project } from "./project.ts";
 import type { Prompter } from "./prompts.ts";
 
 import { parseNames } from "./errors.ts";
 import { display, writeIfChanged } from "./io.ts";
-import { type Project } from "./project.ts";
 import {
   INTEGRATIONS,
   isIntegration,

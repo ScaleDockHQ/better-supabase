@@ -8,6 +8,7 @@ import type { AuthSession } from "../auth/view.ts";
 import type { AnyAuthorizer, PermissionRef } from "../core/authorizer.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { AnyFunctions, AnyModels, TableKey } from "../schema/types.ts";
+import type { ResourceRouteOptions } from "../server/resource-types.ts";
 import type {
   BetterServer,
   ServerContext,
@@ -25,7 +26,6 @@ import {
   type RateLimitRouteOptions,
   rateLimitGate,
 } from "../server/rate-limit.ts";
-import { type ResourceRouteOptions } from "../server/resource-types.ts";
 import { defineResource } from "../server/resource.ts";
 import {
   defaultExpose,
@@ -247,8 +247,9 @@ export function createHono<
       };
     },
 
-    require: (requireOptions = {}) => {
-      return async (c, next) => {
+    require:
+      (requireOptions = {}) =>
+      async (c, next) => {
         const ctx = contextOf(c);
         const caller = await requireCaller(
           ctx.auth,
@@ -263,8 +264,7 @@ export function createHono<
           });
         }
         return next();
-      };
-    },
+      },
 
     rateLimit(rateLimitOptions) {
       const gate = rateLimitGate(rateLimitOptions);

@@ -19,7 +19,7 @@ const REGISTRY = join(
 
 describe("recipes", () => {
   test("every available recipe has a statically generated page", () => {
-    expect(readFileSync(PAGE, "utf8")).toContain(
+    expect(readFileSync(PAGE, "utf-8")).toContain(
       "return recipeStaticParams();",
     );
     expect(recipeStaticParams().map((param) => param.slug)).toEqual(
@@ -47,7 +47,7 @@ describe("recipes", () => {
   test("every recipe names a catalog block, and its glue is a registry item", () => {
     const items = new Set(
       (
-        JSON.parse(readFileSync(REGISTRY, "utf8")) as {
+        JSON.parse(readFileSync(REGISTRY, "utf-8")) as {
           items: { name: string }[];
         }
       ).items.map((item) => item.name),

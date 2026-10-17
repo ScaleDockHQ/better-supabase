@@ -165,7 +165,7 @@ export async function readBlocks(): Promise<BlockBindings[]> {
   for (const entry of await readdir(BLOCKS, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
     const path = join(BLOCKS, entry.name, "client.ts");
-    const source = await readFile(path, "utf8").catch(() => undefined);
+    const source = await readFile(path, "utf-8").catch(() => undefined);
     if (source === undefined) continue;
     const parsed = parseBlock(entry.name, source);
     if (parsed.controllers.length > 0) blocks.push(parsed);

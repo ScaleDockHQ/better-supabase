@@ -28,7 +28,7 @@ describe("fieldSchema", () => {
     );
     expect(schemas).toEqual({
       text: { type: "string", maxLength: 500, title: "K" },
-      textarea: { type: "string", maxLength: 10000, title: "K" },
+      textarea: { type: "string", maxLength: 10_000, title: "K" },
       email: { type: "string", format: "email", maxLength: 320, title: "K" },
       url: { type: "string", format: "uri", maxLength: 2000, title: "K" },
       number: { type: "number", title: "K" },

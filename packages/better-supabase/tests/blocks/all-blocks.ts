@@ -32,8 +32,10 @@ import type { engagementsBlock } from "../../src/blocks/engagements/manifest.ts"
 import type { ensureRlsBlock } from "../../src/blocks/ensure-rls/manifest.ts";
 import type { entitlementsBlock } from "../../src/blocks/entitlements/manifest.ts";
 import type { flagsBlock } from "../../src/blocks/flags/manifest.ts";
-import type { formsBlock } from "../../src/blocks/forms/manifest.ts";
-import type { signaturesBlock } from "../../src/blocks/forms/manifest.ts";
+import type {
+  formsBlock,
+  signaturesBlock,
+} from "../../src/blocks/forms/manifest.ts";
 import type { grantsBlock } from "../../src/blocks/grants/manifest.ts";
 import type { hiringBlock } from "../../src/blocks/hiring/manifest.ts";
 import type { identitiesBlock } from "../../src/blocks/identities/manifest.ts";
@@ -41,10 +43,12 @@ import type { importsBlock } from "../../src/blocks/imports/manifest.ts";
 import type { inboxBlock } from "../../src/blocks/inbox/manifest.ts";
 import type { inventoryBlock } from "../../src/blocks/inventory/manifest.ts";
 import type { invoicesBlock } from "../../src/blocks/invoices/manifest.ts";
-import type { idempotencyBlock } from "../../src/blocks/jobs/manifest.ts";
-import type { jobsBlock } from "../../src/blocks/jobs/manifest.ts";
-import type { rateLimitBlock } from "../../src/blocks/jobs/manifest.ts";
-import type { webhookInboxBlock } from "../../src/blocks/jobs/manifest.ts";
+import type {
+  idempotencyBlock,
+  jobsBlock,
+  rateLimitBlock,
+  webhookInboxBlock,
+} from "../../src/blocks/jobs/manifest.ts";
 import type { jsonbSchemasBlock } from "../../src/blocks/jsonb-schemas/manifest.ts";
 import type { knowledgeBlock } from "../../src/blocks/knowledge/manifest.ts";
 import type { memoryBlock } from "../../src/blocks/memory/manifest.ts";
@@ -97,8 +101,10 @@ import type { usageBlock } from "../../src/blocks/usage/manifest.ts";
 import type { vectorSearchBlock } from "../../src/blocks/vector-search/manifest.ts";
 import type { versionsBlock } from "../../src/blocks/versions/manifest.ts";
 import type { waitlistBlock } from "../../src/blocks/waitlist/manifest.ts";
-import type { incomingWebhooksBlock } from "../../src/blocks/webhooks/manifest.ts";
-import type { webhooksBlock } from "../../src/blocks/webhooks/manifest.ts";
+import type {
+  incomingWebhooksBlock,
+  webhooksBlock,
+} from "../../src/blocks/webhooks/manifest.ts";
 import type { workItemsBlock } from "../../src/blocks/work-items/manifest.ts";
 import type { workflowBuilderBlock } from "../../src/blocks/workflow-builder/manifest.ts";
 import type { workflowSdkWorldBlock } from "../../src/blocks/workflow-sdk-world/manifest.ts";

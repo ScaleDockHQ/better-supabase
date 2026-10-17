@@ -590,7 +590,7 @@ describe("createSupabaseWorld", () => {
         (query) => query.fn === "extend_job_lease",
       ).length;
       expect(extended).toBeGreaterThan(0);
-      await vi.advanceTimersByTimeAsync(1_000);
+      await vi.advanceTimersByTimeAsync(1000);
       await delivered;
       expect(seen?.aborted).toBe(true);
       expect(queries.find((query) => query.fn === "fail_job")?.params[3]).toBe(

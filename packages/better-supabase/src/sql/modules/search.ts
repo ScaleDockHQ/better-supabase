@@ -63,7 +63,7 @@ function configOf(ctx: ModuleContext): string {
 /** The embedding size (`options.dimensions`), or 0 when the index keeps none. */
 function dimensionsOf(ctx: ModuleContext): number {
   const dimensions = ctx.number("dimensions", 0);
-  if (!Number.isInteger(dimensions) || dimensions < 0 || dimensions > 16000) {
+  if (!Number.isInteger(dimensions) || dimensions < 0 || dimensions > 16_000) {
     throw new TypeError(
       "blocks.search.options.dimensions must be the embedding size, a whole number up to 16000",
     );

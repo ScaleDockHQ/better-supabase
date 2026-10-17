@@ -152,7 +152,9 @@ describe("pipelines block", () => {
       count: 3,
       overLimit: true,
       wipLimit: 2,
-      totals: [{ currency: "EUR", amount: 9007199254740993n, weighted: 100n }],
+      totals: [
+        { currency: "EUR", amount: 9_007_199_254_740_993n, weighted: 100n },
+      ],
     });
     expect(t.calls[0]).toEqual([
       "pipeline_board",

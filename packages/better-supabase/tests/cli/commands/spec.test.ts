@@ -41,7 +41,7 @@ const spec = (...args: string[]) =>
 
 const readJson = async (path: string): Promise<Record<string, unknown>> =>
   // SAFETY: the test reads JSON files the command wrote.
-  JSON.parse(await readFile(join(dir, path), "utf8")) as Record<
+  JSON.parse(await readFile(join(dir, path), "utf-8")) as Record<
     string,
     unknown
   >;
@@ -74,9 +74,9 @@ describe("spec emit", () => {
     );
     expect(result.code).toBe(0);
     expect(result.stdout).toContain("Wrote openapi-3.0.yaml");
-    const text = await readFile(join(dir, "openapi-3.0.yaml"), "utf8");
+    const text = await readFile(join(dir, "openapi-3.0.yaml"), "utf-8");
     expect(text).toMatch(/^openapi: 3\.0\.\d/m);
-    const html = await readFile(join(dir, uiPath("openapi-3.0.yaml")), "utf8");
+    const html = await readFile(join(dir, uiPath("openapi-3.0.yaml")), "utf-8");
     expect(html).toContain("redoc");
     expect(html).toContain("./openapi-3.0.yaml");
   });
@@ -218,7 +218,7 @@ describe("spec check", () => {
   it("passes when the file matches and fails when it drifts", async () => {
     await spec("emit");
     expect((await spec("check")).code).toBe(0);
-    const json = await readFile(join(dir, "openapi.json"), "utf8");
+    const json = await readFile(join(dir, "openapi.json"), "utf-8");
     await writeFile(join(dir, "openapi.json"), json.replaceAll("\n", "\r\n"));
     expect((await spec("check")).code).toBe(0);
     await writeFile(join(dir, "openapi.json"), "{}\n");

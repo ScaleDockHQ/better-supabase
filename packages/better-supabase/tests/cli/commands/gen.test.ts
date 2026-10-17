@@ -143,7 +143,7 @@ describe("gen", () => {
         `^Generated \\d+ tables:\\n  src/db/database.types.ts\\n  src/db/generated.ts\\n  src/db/generated.meta.js\\n  src/db/generated.meta.d.ts\\n  ${READ_SET_FILE}$`,
       ),
     );
-    const sql = await readFile(join(root, READ_SET_FILE), "utf8");
+    const sql = await readFile(join(root, READ_SET_FILE), "utf-8");
     expect(sql).toContain(
       "create or replace function public.rs_chrome(p jsonb)",
     );
@@ -186,7 +186,7 @@ describe("gen", () => {
       )?.[0];
     expect(path).toBeDefined();
     expect(existsSync(join(root, READ_SET_FILE))).toBe(false);
-    expect(await readFile(join(root, path!), "utf8")).toContain(
+    expect(await readFile(join(root, path!), "utf-8")).toContain(
       "create or replace function public.rs_chrome(p jsonb)",
     );
     expect((await gen(true)).code).toBe(0);
@@ -322,7 +322,7 @@ describe("gen", () => {
     expect(check.code).toBe(0);
     const again = await runGen({ config, env: {}, check: false, snapshot });
     expect(again.output).toMatch(/^No changes/);
-    expect(await readFile(join(root, files[1]!.path), "utf8")).toContain(
+    expect(await readFile(join(root, files[1]!.path), "utf-8")).toContain(
       "\r\n",
     );
   });

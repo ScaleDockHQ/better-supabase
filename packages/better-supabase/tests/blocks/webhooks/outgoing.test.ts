@@ -206,7 +206,7 @@ describe("createWebhooks: deliver", () => {
       expect(waits[0]).toBeLessThan(4);
       expect(waits[1]).toBeGreaterThanOrEqual(899);
       expect(waits[1]).toBeLessThan(902);
-      random.mockReturnValue(0.999_999);
+      random.mockReturnValue(0.999999);
       const { webhooks: later, calls: laterCalls } = setup([row()], () => ({
         status: 503,
         body: "",

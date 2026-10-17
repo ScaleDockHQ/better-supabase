@@ -56,7 +56,7 @@ export async function staleModuleTests(
   for (const name of entries.toSorted()) {
     const path = `${dir}/${name}`;
     if (!name.endsWith(".test.sql") || current.has(path)) continue;
-    const text = await readFile(resolve(config.root, path), "utf8");
+    const text = await readFile(resolve(config.root, path), "utf-8");
     const module = MODULE_TEST_MARKER.exec(text)?.[1];
     if (module !== undefined && modules.has(module)) stale.push(path);
   }

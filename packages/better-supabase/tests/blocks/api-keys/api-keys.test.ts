@@ -77,7 +77,7 @@ describe("parseApiKey", () => {
   });
 
   it("checks the CRC-32 checksum at the end of a key", () => {
-    const secret = "A1".repeat(21) + "z";
+    const secret = `${"A1".repeat(21)}z`;
     const body = `key_0123456789abcdef_${secret}`;
     const checked = `${body}${apiKeyChecksum(body)}`;
     expect(parseApiKey(checked)).toEqual({
@@ -89,7 +89,7 @@ describe("parseApiKey", () => {
     const typo = `${checked.slice(0, -1)}${checked.endsWith("a") ? "b" : "a"}`;
     expect(parseApiKey(typo)).toBeUndefined();
     // A key from another generator that uses the same checksum.
-    const foreign = "acme_0123456789abcdef_" + "Lx9".repeat(14) + "q";
+    const foreign = `acme_0123456789abcdef_${"Lx9".repeat(14)}q`;
     expect(parseApiKey(`${foreign}${apiKeyChecksum(foreign)}`)).toMatchObject({
       prefix: "acme",
       checksum: true,

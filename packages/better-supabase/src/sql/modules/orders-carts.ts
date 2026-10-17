@@ -9,7 +9,7 @@ import {
   serviceOnlyGuard,
 } from "./orders-shared.ts";
 
-const MAX_QUANTITY = 10000;
+const MAX_QUANTITY = 10_000;
 
 const COUNTRY = "'^[A-Z]{2}$'";
 

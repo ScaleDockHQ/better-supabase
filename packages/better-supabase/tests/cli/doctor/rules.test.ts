@@ -26,8 +26,7 @@ import {
   type BetterSupabaseConfig,
   resolveConfig,
 } from "../../../src/config/index.ts";
-import { renderModules } from "../../../src/sql/index.ts";
-import { moduleLayout } from "../../../src/sql/index.ts";
+import { renderModules, moduleLayout } from "../../../src/sql/index.ts";
 import { stubProvider } from "../../fixtures/authorization-provider.ts";
 import { snapshotFixture as fixture } from "../fixtures/library.ts";
 
@@ -548,7 +547,7 @@ describe("generated and module files (BS303, BS304)", () => {
     expect(await run("BS304", ctx)).toEqual([]);
     const grants = await readFile(
       join(root, "supabase/schemas/900_better_supabase_13_grants.sql"),
-      "utf8",
+      "utf-8",
     );
     expect(grants).toContain('"public"."jobs"');
   });

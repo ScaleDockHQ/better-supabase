@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { cwd } from "node:process";
 
 const root = cwd();
-const read = (path: string): string => readFileSync(join(root, path), "utf8");
+const read = (path: string): string => readFileSync(join(root, path), "utf-8");
 
 const library = (await getPackages(root)).packages.find(
   (candidate) => candidate.packageJson.name === "better-supabase",

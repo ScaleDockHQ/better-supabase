@@ -41,7 +41,7 @@ describe.skipIf(!live)("upgrading SQL modules installed by 0.4.0", () => {
       await client.query("begin");
       await client.query("drop schema if exists better_supabase cascade");
       for (const name of (await readdir(FIXTURES)).toSorted())
-        await client.query(await readFile(new URL(name, FIXTURES), "utf8"));
+        await client.query(await readFile(new URL(name, FIXTURES), "utf-8"));
 
       const { rows: users } = await client.query<{ id: string }>(
         "select id from auth.users order by created_at limit 1",

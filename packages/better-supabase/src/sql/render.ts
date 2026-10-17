@@ -1,17 +1,16 @@
 import type { BlockMode } from "../config/blocks.ts";
-import type { ModuleFile, ModuleLayout } from "./module-types.ts";
-import type { SqlModule } from "./module-types.ts";
+import type {
+  ModuleContext,
+  ModuleContractFunction,
+  ModuleIdType,
+} from "./context.ts";
+import type { ModuleFile, ModuleLayout, SqlModule } from "./module-types.ts";
 
 import { CONFIG_DEFAULTS } from "../config/defaults.ts";
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { sqlString } from "../core/template.ts";
 import { applyActorWriteGuards } from "./actor-guard.ts";
 import { apiWrappers } from "./api-schema.ts";
-import {
-  type ModuleContext,
-  type ModuleContractFunction,
-  type ModuleIdType,
-} from "./context.ts";
 import { eventTriggersOf } from "./event-triggers.ts";
 import { moduleExtensions } from "./introspect.ts";
 import { moduleContext } from "./module-context.ts";

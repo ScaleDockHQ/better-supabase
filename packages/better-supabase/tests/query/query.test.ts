@@ -105,12 +105,12 @@ describe("createQueries", () => {
   it("hashes keys whose arguments hold bigint values", async () => {
     const { client, last } = capturingClient(() => ({ body: [] }));
     const q = createQueries(betterSupabase, betterSupabase.connect(client));
-    const where = { id: { in: [9007199254740993n] } };
+    const where = { id: { in: [9_007_199_254_740_993n] } };
     const options = [
       q.notes.findMany({ where } as never),
       q.notes.infinite({ where, size: 5 } as never),
       q.notes.infinitePages({ where, size: 5 } as never),
-      q.$rpc("lookup" as never, { id: 9007199254740993n } as never),
+      q.$rpc("lookup" as never, { id: 9_007_199_254_740_993n } as never),
     ];
     for (const option of options)
       expect(() => hashKey(option.queryKey)).not.toThrow();
@@ -122,7 +122,7 @@ describe("createQueries", () => {
     ]);
     expect(hashKey(options[0]!.queryKey)).not.toBe(
       hashKey(
-        q.notes.findMany({ where: { id: { in: [9007199254740992] } } })
+        q.notes.findMany({ where: { id: { in: [9_007_199_254_740_992] } } })
           .queryKey,
       ),
     );

@@ -86,7 +86,7 @@ async function readTree(root: string, prefix = ""): Promise<SkillFile[]> {
     const path = prefix ? `${prefix}/${entry.name}` : entry.name;
     if (entry.isDirectory()) files.push(...(await readTree(root, path)));
     else if (entry.isFile())
-      files.push({ path, contents: await readFile(join(root, path), "utf8") });
+      files.push({ path, contents: await readFile(join(root, path), "utf-8") });
   }
   return files;
 }

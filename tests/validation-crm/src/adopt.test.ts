@@ -29,7 +29,7 @@ afterEach(async () => {
 
 const committed = async (): Promise<{ blocks: unknown }> =>
   JSON.parse(
-    await readFile(join(ROOT, "better-supabase.config.json"), "utf8"),
+    await readFile(join(ROOT, "better-supabase.config.json"), "utf-8"),
   ) as { blocks: unknown };
 
 describe("apply --adopt on the CRM schema", () => {

@@ -1,4 +1,5 @@
-import { type RpcClient } from "better-supabase/blocks/organizations";
+import type { RpcClient } from "better-supabase/blocks/organizations";
+
 import {
   createWorkflowBuilder,
   rpcTransport,

@@ -92,7 +92,7 @@ describe("guard and delegated scopes", () => {
 describe("respond", () => {
   it("writes bigints as decimal strings", async () => {
     const response = await respond(() => ({
-      id: 9007199254740993n,
+      id: 9_007_199_254_740_993n,
       ids: [1n],
     }));
     expect(response.headers.get("content-type")).toBe("application/json");

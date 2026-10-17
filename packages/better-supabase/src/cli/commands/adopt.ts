@@ -133,7 +133,7 @@ export async function runAdopt(
       data: { ...data, written: false },
     };
   }
-  const source = await readFile(file, "utf8");
+  const source = await readFile(file, "utf-8");
   const edit = withAdoptedBlock(file, source, proposal);
   const shown = display(config.root, file);
   if (!edit.ok) {

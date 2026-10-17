@@ -204,7 +204,7 @@ begin
     select ${cc("data")}, ${cc("idx")} from ${c}
     where ${cc("stream")} = stream_read.stream_id and ${cc("idx")} >= greatest(coalesce(from_idx, 0), 0)
     order by ${cc("idx")}
-    limit ${pageSize("max", 1000, 10000, 0)}
+    limit ${pageSize("max", 1000, 10_000, 0)}
   ) r;
   v_next := greatest(coalesce(from_idx, 0), 0) + cardinality(v_chunks);
   select coalesce(max(${cc("idx")}) + 1, 0) into v_last from ${c} where ${cc("stream")} = stream_read.stream_id;

@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { CommandResult } from "../io.ts";
+import type { Paint } from "../style.ts";
 import type { SqlFlags } from "./args.ts";
 
 import {
@@ -19,7 +20,6 @@ import {
 import { fileDiff } from "../diff.ts";
 import { display, writeIfChanged } from "../io.ts";
 import { migrationsDir } from "../sql-layout.ts";
-import { type Paint } from "../style.ts";
 import { topicPolicyFile } from "../topic-policies.ts";
 import { migrationStamp, type Now } from "./migrations.ts";
 import {
@@ -145,7 +145,7 @@ async function installedFromFiles(
       continue;
     const current = await readFile(
       resolve(config.root, file.path),
-      "utf8",
+      "utf-8",
     ).catch(() => undefined);
     if (current === undefined) continue;
     installed.push({

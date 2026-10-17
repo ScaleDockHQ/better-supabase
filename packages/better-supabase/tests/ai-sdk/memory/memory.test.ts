@@ -17,8 +17,7 @@ import {
   recallTool,
   withMemory,
 } from "../../../src/ai-sdk/memory/index.ts";
-import { dbError } from "../../../src/core/errors.ts";
-import { DbException } from "../../../src/core/errors.ts";
+import { dbError, DbException } from "../../../src/core/errors.ts";
 import { AsyncResult, err, ok } from "../../../src/core/result.ts";
 import { SPEC_PINS } from "../../../src/core/spec-pins.ts";
 
