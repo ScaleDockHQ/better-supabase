@@ -8,8 +8,8 @@
  * snippet instead.
  */
 
-import { isRecord } from "../../core/guards.ts";
 import { codeRanges } from "../codemod.ts";
+import { isRecord } from "../guards.ts";
 
 export type ConfigEdit =
   | { readonly ok: true; readonly text: string }

@@ -11,9 +11,9 @@ import type {
   TextFile,
 } from "./rules.ts";
 
-import { isRecord } from "../../core/guards.ts";
 import { providerLabel } from "../authorization.ts";
 import { errorText } from "../errors.ts";
+import { isRecord } from "../guards.ts";
 import {
   httpHooks,
   type PgFunctionHook,

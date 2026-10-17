@@ -7,8 +7,8 @@ import type {
   RenderResult,
 } from "../../spec/index.ts";
 
-import { isRecord } from "../../core/guards.ts";
 import { importFresh } from "../fresh-import.ts";
+import { isRecord } from "../guards.ts";
 import { isDocumentFormat } from "./formats.ts";
 
 /** The part of `Api` (from `defineApi`) that `spec` uses. */

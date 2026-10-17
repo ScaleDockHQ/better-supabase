@@ -1,7 +1,6 @@
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
 import { tenantClaimPaths, DEFAULT_ACTIVE_TENANT } from "../../config/index.ts";
-import { isRecord } from "../../core/guards.ts";
 import {
   adoptedTables,
   contractSignature,
@@ -16,6 +15,7 @@ import {
   subjectColumns,
 } from "../../sql/index.ts";
 import { errorText } from "../errors.ts";
+import { isRecord } from "../guards.ts";
 import { tomlGet } from "../supabase-toml.ts";
 import { accessModule, entitlementsModule } from "./authorization.ts";
 import { configuredHooks, hookClaims, signatureOf } from "./hooks.ts";

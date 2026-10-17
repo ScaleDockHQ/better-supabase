@@ -2,8 +2,8 @@ import type { AnyDocumentFormat } from "../../spec/index.ts";
 
 import { arazzoFormat } from "../../arazzo/index.ts";
 import { asyncapiFormat } from "../../asyncapi/index.ts";
-import { isRecord } from "../../core/guards.ts";
 import { openapiFormat } from "../../openapi/index.ts";
+import { isRecord } from "../guards.ts";
 
 /**
  * The first-party document formats `spec` knows by id. Entries add more

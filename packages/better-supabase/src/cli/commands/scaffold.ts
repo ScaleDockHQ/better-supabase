@@ -7,12 +7,12 @@ import type { AnyCommand, CliArgs, CliOptions } from "../command.ts";
 import type { CommandResult } from "../io.ts";
 import type { ScaffoldFramework } from "../scaffold/api.ts";
 
-import { isRecord } from "../../core/guards.ts";
 import { defineCliCommand, list } from "../command.ts";
 import { fileDiff } from "../diff.ts";
 import { writeLine } from "../files.ts";
 import { importFresh } from "../fresh-import.ts";
 import { metaPaths } from "../gen/emit.ts";
+import { isRecord } from "../guards.ts";
 import { display, sameText } from "../io.ts";
 import { detectProject } from "../project.ts";
 import {
