@@ -494,6 +494,21 @@ describe("stripeTax", () => {
       "STRIPE_AMOUNT_PRECISION",
     );
   });
+
+  it("refuses tax Stripe computed in a fraction of a krona", async () => {
+    const fake = fakeStripe();
+    const provider = stripeTax({ stripe: fake.client, name: "tax" });
+
+    const result = await provider.quote({
+      currency: "ISK",
+      address: { country: "NL" },
+      lines: [{ id: "a", amount: money(1001n, "ISK") }],
+    });
+
+    expect(result.ok ? undefined : result.error.hint).toBe(
+      "STRIPE_AMOUNT_PRECISION",
+    );
+  });
 });
 
 describe("StripeTaxClient", () => {

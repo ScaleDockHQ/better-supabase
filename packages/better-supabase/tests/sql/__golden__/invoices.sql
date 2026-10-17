@@ -1322,7 +1322,7 @@ begin
     v_lines := jsonb_build_array(jsonb_build_object(
       'description', 'Deposit ' || (invoice_from_quote.deposit_bps / 100.0)::text || '% of ' || v_quote."identifier",
       'quantity', 1,
-      'unitAmount', round(v_quote."subtotal" * invoice_from_quote.deposit_bps / 10000.0)::bigint::text,
+      'unitAmount', round(v_quote."subtotal"::numeric * invoice_from_quote.deposit_bps / 10000)::bigint::text,
       'taxRateBps', case when v_quote."subtotal" = 0 then 0 else round(v_quote."tax_total" * 10000.0 / v_quote."subtotal")::integer end));
   end if;
   v_row := null;
