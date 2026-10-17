@@ -2,6 +2,7 @@ import { isAbsolute, relative, resolve, sep } from "node:path";
 
 import type { CommandResult } from "./io.ts";
 
+import { fileDiff } from "./diff.ts";
 import { display, readIfExists, sameText, writeIfChanged } from "./io.ts";
 
 /**
@@ -27,6 +28,8 @@ export interface FileState {
   readonly file: string;
   readonly path: string;
   readonly current: string | undefined;
+  /** What the command would write. */
+  readonly contents: string;
   readonly upToDate: boolean;
 }
 
@@ -43,11 +46,15 @@ export async function fileState(
     file: display(root, out),
     path,
     current,
+    contents,
     upToDate: sameText(current, contents),
   };
 }
 
-/** The result of `--check` for one file: up to date, or failed with the command that rewrites it. */
+/**
+ * The result of `--check` for one file: up to date, or failed with a unified
+ * diff of the drift and the command that rewrites it.
+ */
 export function staleResult(
   state: FileState,
   regenerate: string,
@@ -56,6 +63,7 @@ export function staleResult(
     ? { code: 0, output: `${state.file} is up to date.` }
     : {
         code: 1,
+        output: fileDiff(state.file, state.current, state.contents),
         error: `${state.file} is out of date. Run \`${regenerate}\`.`,
       };
 }

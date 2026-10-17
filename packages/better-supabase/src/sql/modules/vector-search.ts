@@ -1,4 +1,4 @@
-import type { SqlModule } from "../module-types.ts";
+import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { splitTable } from "../shared.ts";
@@ -12,7 +12,7 @@ const vectorSearchSql = (schema: string): string =>
 -- index scan. hnsw.iterative_scan keeps scanning until k visible rows are found
 -- (pgvector 0.8+) instead of returning fewer.`;
 
-export const VECTOR_SEARCH: SqlModule = {
+export const VECTOR_SEARCH: ModuleDefinition = {
   name: "vector-search",
   title: "Vector search",
   description:
@@ -20,7 +20,6 @@ export const VECTOR_SEARCH: SqlModule = {
   requires: [],
   target: "schema",
   names: { tables: {}, options: ["schema"] },
-  sql: vectorSearchSql("extensions"),
   build: (_ctx, layout) => vectorSearchSql(vectorSchemaOf(layout)),
   extras: (_ctx, layout) =>
     vectorSearchFunctions(layout.vectorSearch ?? [], vectorSchemaOf(layout)),

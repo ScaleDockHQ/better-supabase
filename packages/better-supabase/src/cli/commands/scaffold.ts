@@ -8,6 +8,7 @@ import type { CommandResult } from "../io.ts";
 import type { ScaffoldFramework } from "../scaffold/api.ts";
 
 import { defineCliCommand, list } from "../command.ts";
+import { fileDiff } from "../diff.ts";
 import { writeLine } from "../files.ts";
 import { importFresh } from "../fresh-import.ts";
 import { metaPaths } from "../gen/emit.ts";
@@ -180,6 +181,7 @@ export async function runScaffold(
 
   const lines: string[] = [];
   const stale: string[] = [];
+  const diffs: string[] = [];
 
   for (const file of scaffoldApiFiles(context)) {
     if (options.generatedOnly === true && !file.generated) {
@@ -208,6 +210,7 @@ export async function runScaffold(
         lines.push(`${file.path} is up to date.`);
       } else {
         stale.push(file.path);
+        diffs.push(fileDiff(file.path, current, file.contents));
       }
 
       continue;
@@ -219,6 +222,7 @@ export async function runScaffold(
   if (stale.length > 0) {
     return {
       code: 1,
+      output: diffs.join("\n"),
       error: `Out of date: ${stale.join(", ")}. Run \`better-supabase scaffold api\`.`,
     };
   }

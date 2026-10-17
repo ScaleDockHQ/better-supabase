@@ -174,6 +174,13 @@ export async function runDoctor(
     return { code: 2, error: String(claims.error) };
   }
 
+  if (args.claims !== undefined && explainTables.length === 0) {
+    return {
+      code: 2,
+      error: "--claims plans a query, so it needs --explain <table>.",
+    };
+  }
+
   // --stats and --explain ask for their checks even when --only leaves them out.
   const hookUser = args.as;
 

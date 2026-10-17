@@ -1,16 +1,16 @@
-import type { SqlModule } from "../module-types.ts";
+import type { ModuleDefinition } from "../module-types.ts";
 
 import { actorWriteFunctions } from "../actor-guard.ts";
 import { SCHEMA } from "../shared.ts";
 
-export const ACTOR: SqlModule = {
+export const ACTOR: ModuleDefinition = {
   name: "actor",
   title: "Actor stamping",
   description:
     "Sets created_by on insert and updated_by on every write from auth.uid(); an update keeps created_by and the impersonation stamp. Service writes keep the values they send.",
   requires: [],
   target: "schema",
-  sql: `${SCHEMA}
+  build: () => `${SCHEMA}
 
 create or replace function better_supabase.set_actor()
 returns trigger

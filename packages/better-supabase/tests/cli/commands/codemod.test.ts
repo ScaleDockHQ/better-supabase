@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { CODEMODS } from "../../../src/cli/codemod.ts";
 import { parseCommandArgs } from "../../../src/cli/command.ts";
 import {
   type CodemodArgs,
@@ -41,6 +42,14 @@ describe("runCodemod", () => {
       // SAFETY: parseCommandArgs returns the declared args of codemodCommand.
       parseCommandArgs(codemodCommand, argv) as CodemodArgs,
     );
+
+  it("lists every registered codemod in --help", () => {
+    const { description } = codemodCommand.args.name;
+
+    for (const name of Object.keys(CODEMODS)) {
+      expect(description).toContain(name);
+    }
+  });
 
   it("asks for a known codemod", async () => {
     expect(await codemod([])).toMatchObject({

@@ -1,13 +1,14 @@
-import type { SqlModule } from "../module-types.ts";
+import type { ModuleDefinition } from "../module-types.ts";
 
-export const PGTAP: SqlModule = {
+export const PGTAP: ModuleDefinition = {
   name: "pgtap",
   title: "pgTAP helpers",
   description:
     "tests.create_user, tests.authenticate_as and tests.rls_enabled for `supabase test db`. Written to supabase/tests, never to your schema.",
   requires: [],
   target: "test",
-  sql: `-- Runs first (000_) and commits, so later test files can use the helpers.
+  build:
+    () => `-- Runs first (000_) and commits, so later test files can use the helpers.
 create extension if not exists pgtap with schema extensions;
 create schema if not exists tests;
 grant usage on schema tests to anon, authenticated, service_role;

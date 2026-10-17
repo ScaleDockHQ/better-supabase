@@ -291,6 +291,15 @@ overrides:
   "@better-supabase/example-expo-powersync>react-dom": 19.2.3
   # One shiki, so fumadocs-ui and the docs transformers share ShikiTransformer.
   shiki: "catalog:"
+  # debug's optional peer. Without one copy, workspaces that don't declare it
+  # get @babel/core with chalk's supports-color 7, and next resolves twice.
+  supports-color: "catalog:"
+  # marketing validates its env with valibot; without this its @t3-oss/env
+  # optional zod peer picks shadcn's Zod 3 and forks the env-core variant.
+  "@t3-oss/env-core>zod": "catalog:"
+  # Only optional peers reach for ESLint (see packageExtensions); Oxlint runs
+  # the rules, so nothing installs it.
+  eslint: "-"
   # source-map-js <1.2.2 has an event-loop denial of service (high); it
   # arrives through next > postcss.
   source-map-js: ">=1.2.2"
@@ -313,11 +322,20 @@ overrides:
   "hono@<4.13.7": ^4.13.7
   "@hono/node-server@<1.19.15": ^1.19.15
 
+# eslint-plugin-playwright and eslint-plugin-turbo peer on eslint but import
+# nothing from it at runtime; Oxlint loads their rules as JS plugins. An
+# optional peer keeps pnpm from installing ESLint for them.
+packageExtensions:
+  eslint-plugin-playwright:
+    peerDependenciesMeta:
+      eslint:
+        optional: true
+  eslint-plugin-turbo:
+    peerDependenciesMeta:
+      eslint:
+        optional: true
+
 peerDependencyRules:
-  # eslint-plugin-playwright peers on eslint but imports nothing from it;
-  # Oxlint loads its rules as a JS plugin.
-  ignoreMissing:
-    - eslint
   allowedVersions:
     # postgrest-typegen pins its optional oxfmt peer exactly; it formats the
     # generated types with whichever oxfmt the CLI installs.

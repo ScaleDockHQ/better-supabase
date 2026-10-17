@@ -658,3 +658,76 @@ describe.skipIf(!live)("usage", () => {
     }
   });
 });
+
+describe.skipIf(!live)("consume_quota under concurrency", () => {
+  const pool = new Pool({ connectionString: dbUrl, max: 3 });
+  const tenant = crypto.randomUUID();
+
+  afterAll(async () => {
+    for (const table of ["usage_quotas", "usage_counters", "usage_events"]) {
+      await pool.query(
+        `delete from better_supabase.${table} where organization_id = $1`,
+        [tenant],
+      );
+    }
+
+    await pool.end();
+  });
+
+  it("lets only one of two calls that together exceed the limit record", async () => {
+    await pool.query(
+      `insert into better_supabase.usage_quotas (organization_id, meter, "limit", period)
+       values ($1, 'race', 5, 'month')`,
+      [tenant],
+    );
+
+    const left = await pool.connect();
+    const right = await pool.connect();
+
+    try {
+      await left.query("begin");
+      await right.query("begin");
+
+      const sql =
+        "select better_supabase.consume_quota($1::uuid, 'race', 3) as outcome";
+
+      const leftCall = left.query(sql, [tenant]);
+      const rightCall = right.query(sql, [tenant]);
+
+      const first = await Promise.race([
+        leftCall.then(() => left),
+        rightCall.then(() => right),
+      ]);
+
+      await first.query("commit");
+
+      const [leftResult, rightResult] = await Promise.allSettled([
+        leftCall,
+        rightCall,
+      ]);
+
+      await (first === left ? right : left).query("rollback");
+
+      const rejected = [leftResult, rightResult].filter(
+        (result) => result.status === "rejected",
+      );
+
+      expect(rejected).toHaveLength(1);
+      expect(rejected[0]).toMatchObject({
+        reason: { hint: "QUOTA_EXCEEDED" },
+      });
+
+      const { rows } = await pool.query<{ used: string }>(
+        "select coalesce(sum(value), 0)::text as used from better_supabase.usage_counters where organization_id = $1 and meter = 'race'",
+        [tenant],
+      );
+
+      expect(rows[0]?.used).toBe("3");
+    } finally {
+      await left.query("rollback").catch(() => undefined);
+      await right.query("rollback").catch(() => undefined);
+      left.release();
+      right.release();
+    }
+  });
+});

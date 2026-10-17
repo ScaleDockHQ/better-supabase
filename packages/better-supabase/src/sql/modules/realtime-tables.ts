@@ -1,5 +1,5 @@
 import type { ClaimsMeta } from "../../schema/types.ts";
-import type { SqlModule } from "../module-types.ts";
+import type { ModuleDefinition } from "../module-types.ts";
 
 import { DEFAULT_CLAIMS } from "../../core/claims.ts";
 import { sqlString } from "../../core/template.ts";
@@ -183,15 +183,14 @@ create policy bs_realtime_tables_receive on realtime.messages for select to auth
     )
   );`;
 
-export const REALTIME_TABLES: SqlModule = {
+export const REALTIME_TABLES: ModuleDefinition = {
   name: "realtime-tables",
   title: "Realtime table changes",
   description:
     "Broadcasts a change signal (no row data) once per statement on bs:t:<schema>.<table>[:<tenant>], or bs:t:<schema>.<table>:u:<user> for realtime.users tables, for live queries.",
   requires: [],
   target: "schema",
-  sql: realtimeTablesSql(DEFAULT_CLAIMS),
-  render: realtimeTablesSql,
+  build: (_ctx, layout) => realtimeTablesSql(layout.claims ?? DEFAULT_CLAIMS),
   topics: () => ["bs:t:*"],
   extras: (_ctx, layout) =>
     realtimeRegistrations(

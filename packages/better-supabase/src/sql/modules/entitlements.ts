@@ -1,6 +1,6 @@
 import type { EntitlementPlansSource } from "../../config/index.ts";
 import type { ClaimsMeta } from "../../schema/types.ts";
-import type { ModuleLayout, SqlModule } from "../module-types.ts";
+import type { ModuleLayout, ModuleDefinition } from "../module-types.ts";
 
 import { DEFAULT_CLAIMS } from "../../core/claims.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -183,7 +183,7 @@ revoke execute on function better_supabase.tenant_entitlement_value(${id}, text)
 grant execute on function better_supabase.tenant_entitlement_value(${id}, text) to service_role;`;
 }
 
-export const ENTITLEMENTS: SqlModule = {
+export const ENTITLEMENTS: ModuleDefinition = {
   name: "entitlements",
   scopes: ["tenant"],
   title: "Stripe entitlements",
@@ -193,10 +193,8 @@ export const ENTITLEMENTS: SqlModule = {
   integrates: ["billing", "organizations"],
   providerRequires: [],
   target: "schema",
-  get sql() {
-    return entitlementsSql(DEFAULT_CLAIMS);
-  },
-  render: entitlementsSql,
+  build: (_ctx, layout) =>
+    entitlementsSql(layout.claims ?? DEFAULT_CLAIMS, layout),
   extras: (ctx, layout) =>
     (layout.entitlements?.source ?? "stripe-sync") === "stripe-sync"
       ? entitlementsSource(customerSource(ctx, layout), layout)

@@ -1,4 +1,4 @@
-import type { SqlModule } from "../module-types.ts";
+import type { ModuleDefinition } from "../module-types.ts";
 
 import { SCHEMA } from "../shared.ts";
 
@@ -41,7 +41,7 @@ end
 $$;
 notify pgrst, 'reload config';`;
 
-export const RATE_LIMIT: SqlModule = {
+export const RATE_LIMIT: ModuleDefinition = {
   name: "rate-limit",
   names: { tables: {}, options: ["preRequest"] },
   data: (ctx) =>
@@ -51,7 +51,7 @@ export const RATE_LIMIT: SqlModule = {
     "Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.",
   requires: [],
   target: "schema",
-  sql: `${SCHEMA}
+  build: () => `${SCHEMA}
 
 -- One rule per scope: '*' (every write), a table path ('/customers') or an
 -- RPC path ('/rpc/send_invite'). key_claim is the JWT claim each caller is

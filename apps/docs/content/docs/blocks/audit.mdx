@@ -550,8 +550,9 @@ const verdict = await chain.verify({ organizationId }).orThrow();
 | `checkpoints(opts?)` | A tenant's recorded checkpoints, newest first                          |
 
 A verdict's `reason` is `hash` (an entry changed), `link` (an entry points
-at the wrong predecessor), `gap` (an entry is missing) or `checkpoint` (a
-signed head no longer matches). The checkpoint JWS carries `sub` (the
+at the wrong predecessor), `gap` (an entry is missing) or `checkpoint` (a signed head no longer
+matches). Without a `to`, `verify` checks up to the latest checkpoint, so
+deleting the newest entries is caught once a checkpoint covers them. The checkpoint JWS carries `sub` (the
 tenant), `seq`, `hash`, `entry` and `iat`; publish the signer's
 [JWK Set](/docs/blocks/signing-keys) so an auditor can check the
 checkpoints without database access. Run `checkpoint()` on a schedule:

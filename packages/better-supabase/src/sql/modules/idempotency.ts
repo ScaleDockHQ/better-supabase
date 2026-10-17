@@ -1,15 +1,15 @@
-import type { SqlModule } from "../module-types.ts";
+import type { ModuleDefinition } from "../module-types.ts";
 
 import { SCHEMA, serviceOnly, lockTable } from "../shared.ts";
 
-export const IDEMPOTENCY: SqlModule = {
+export const IDEMPOTENCY: ModuleDefinition = {
   name: "idempotency",
   title: "Idempotency keys",
   description:
     "Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.",
   requires: [],
   target: "schema",
-  sql: `${SCHEMA}
+  build: () => `${SCHEMA}
 
 create table if not exists better_supabase.idempotency_keys (
   scope text not null default '',

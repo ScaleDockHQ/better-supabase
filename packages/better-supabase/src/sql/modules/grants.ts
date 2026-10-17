@@ -1,9 +1,9 @@
-import type { ModuleLayout, SqlModule } from "../module-types.ts";
+import type { ModuleLayout, ModuleDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { quotedTable } from "../shared.ts";
 
-export const GRANTS: SqlModule = {
+export const GRANTS: ModuleDefinition = {
   name: "grants",
   names: { tables: {}, options: ["fromPolicies"] },
   title: "Data API grants",
@@ -11,7 +11,8 @@ export const GRANTS: SqlModule = {
     "Writes the complete Data API privileges of the tables and functions in the `expose` config for anon, authenticated and service_role, or derives table grants from the policies. A project with default privileges turned off grants new tables to no Data API role.",
   requires: [],
   target: "schema",
-  sql: `-- List tables and functions in \`expose\` (better-supabase.config.ts); \`sql sync\` rewrites the grants below.
+  build:
+    () => `-- List tables and functions in \`expose\` (better-supabase.config.ts); \`sql sync\` rewrites the grants below.
 -- Each listed table or function gets exactly the listed privileges: the rest is revoked.
 -- RLS still decides which rows each role sees; grants decide whether the role reaches the table at all.`,
   extras: (_ctx, layout) => tableGrants(layout),

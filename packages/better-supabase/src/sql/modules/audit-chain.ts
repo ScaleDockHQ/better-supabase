@@ -136,7 +136,8 @@ ${lockTable(CHECKPOINTS)}
 -- at or after from_at to the last before to_at, in chain order. Returns
 -- valid, checked and the last hash, or the first broken entry and why:
 -- hash (the row changed), link (prev_hash doesn't match), gap (an entry in
--- the range is missing) or checkpoint (a signed head disagrees).
+-- the range is missing, or a checkpoint signed one past the last) or
+-- checkpoint (a signed head disagrees).
 create or replace function better_supabase.verify_audit_chain(
   tenant ${id} default null,
   from_at timestamptz default null,
@@ -167,6 +168,11 @@ begin
     and l.chain_seq is not null
     and (from_at is null or l.${c("occurredAt")} >= from_at)
     and (to_at is null or l.${c("occurredAt")} < to_at);
+  -- A signed head past the last entry means the tail was removed.
+  if to_at is null and v_to is not null then
+    select greatest(v_to, max(k.chain_seq)) into v_to from ${CHECKPOINTS} k
+    where k.${t} is not distinct from verify_audit_chain.tenant;
+  end if;
   for v_row in
     select l.${c("id")} as id, l.chain_seq, l.prev_hash, l.row_hash, pg_catalog.to_jsonb(l) as entry
     from ${log} l

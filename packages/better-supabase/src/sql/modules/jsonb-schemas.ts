@@ -1,15 +1,16 @@
-import type { SqlModule } from "../module-types.ts";
+import type { ModuleDefinition } from "../module-types.ts";
 
 import { jsonSchemaChecks, SCHEMA } from "../shared.ts";
 
-export const JSONB_SCHEMAS: SqlModule = {
+export const JSONB_SCHEMAS: ModuleDefinition = {
   name: "jsonb-schemas",
   title: "JSON Schema checks for jsonb",
   description:
     "pg_jsonschema check constraints for jsonb columns with a `schema` in the `json` config, so the database enforces the same shape as the types. A trigger reports what failed through jsonschema_validation_errors, which the client maps to a validation error.",
   requires: [],
   target: "schema",
-  sql: `create extension if not exists pg_jsonschema with schema extensions;
+  build:
+    () => `create extension if not exists pg_jsonschema with schema extensions;
 
 ${SCHEMA}
 

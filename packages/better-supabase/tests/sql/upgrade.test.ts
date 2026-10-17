@@ -17,6 +17,7 @@ const widget: SqlModule = {
   requires: [],
   target: "schema",
   sql: "select 1;",
+  build: () => "select 1;",
   version: 4,
   modes: ["managed", "custom"],
   upgrades: [

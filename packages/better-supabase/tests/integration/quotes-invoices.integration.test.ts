@@ -224,6 +224,33 @@ describe.skipIf(!live)("quotes and invoices", () => {
             .orThrow()
         ).paidTotal,
       ).toBe(500_000n);
+      expect(
+        hint(
+          await invoices.recordPayment(issuedFinal.id, {
+            amount: -500_001n,
+          }),
+        ),
+      ).toBe("INVOICE_REFUND_TOO_LARGE");
+
+      const refund = { amount: -500_000n, reference: "refund-1" };
+      expect(
+        (await invoices.recordPayment(issuedFinal.id, refund).orThrow())
+          .paidTotal,
+      ).toBe(0n);
+      expect(
+        (await invoices.recordPayment(issuedFinal.id, refund).orThrow())
+          .paidTotal,
+      ).toBe(0n);
+      expect(
+        (
+          await invoices
+            .recordPayment(issuedFinal.id, {
+              amount: 500_000n,
+              reference: "bank-2",
+            })
+            .orThrow()
+        ).paidTotal,
+      ).toBe(500_000n);
 
       const credit = await invoices
         .credit(issuedFinal.id, {

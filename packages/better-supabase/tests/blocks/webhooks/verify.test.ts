@@ -91,3 +91,76 @@ describe("Stripe signatures", () => {
     expect(await verify(request, "{}")).toMatchObject({ ok: false });
   });
 });
+
+describe("Stripe replay checks through seen", () => {
+  const signed = async (text = body, when = at) => ({
+    headers: {
+      "stripe-signature": await signStripeWebhook(secret, text, when),
+    },
+    body: text,
+  });
+
+  it("records the event id until the tolerance ends and refuses a replay", async () => {
+    const ids = new Map<string, Temporal.Instant>();
+
+    const seen = (id: string, until: Temporal.Instant) => {
+      if (ids.has(id)) {
+        return true;
+      }
+
+      ids.set(id, until);
+
+      return false;
+    };
+
+    const input = await signed();
+    expect((await verifyStripeWebhook(input, secret, { now, seen })).ok).toBe(
+      true,
+    );
+    expect(ids.get("evt_1")?.epochMilliseconds).toBe(
+      (at.epochMilliseconds / 1000 + 300) * 1000,
+    );
+    expect(
+      (await verifyStripeWebhook(input, secret, { now, seen })).error,
+    ).toMatchObject({ kind: "conflict", code: "WEBHOOK_REPLAYED" });
+  });
+
+  it("asks seen only for a verified event with an id", async () => {
+    const asked: string[] = [];
+
+    const seen = (id: string) => {
+      asked.push(id);
+
+      return false;
+    };
+
+    const forged = await signed();
+    await verifyStripeWebhook(forged, "whsec_other", { now, seen });
+    await verifyStripeWebhook(
+      await signed(body, at.subtract({ minutes: 10 })),
+      secret,
+      {
+        now,
+        seen,
+      },
+    );
+    await verifyStripeWebhook(await signed("nope"), secret, { now, seen });
+    expect(asked).toEqual([]);
+
+    expect(
+      await verifyStripeWebhook(await signed("[]"), secret, { now, seen }),
+    ).toMatchObject({ ok: true, data: { id: "" } });
+    expect(asked).toEqual([]);
+  });
+
+  it("refuses the event when seen throws", async () => {
+    const result = await verifyStripeWebhook(await signed(), secret, {
+      now,
+      seen: () => {
+        throw new Error("redis down");
+      },
+    });
+
+    expect(result.error).toMatchObject({ code: "WEBHOOK_DEDUPE_FAILED" });
+  });
+});

@@ -1,14 +1,14 @@
-import type { SqlModule } from "../module-types.ts";
+import type { ModuleDefinition } from "../module-types.ts";
 
 import { EQUIVALENT_TRIGGERS, SCHEMA } from "../shared.ts";
 
-export const UPDATED_AT: SqlModule = {
+export const UPDATED_AT: ModuleDefinition = {
   name: "updated-at",
   title: "updated_at triggers",
   description: "Keeps an updated_at column current on every update.",
   requires: [],
   target: "schema",
-  sql: `${SCHEMA}
+  build: () => `${SCHEMA}
 
 create or replace function better_supabase.set_updated_at()
 returns trigger

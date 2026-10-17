@@ -303,6 +303,13 @@ begin
   if coalesce(record_invoice_payment.amount, 0) = 0 then
     ${fail("INVOICE_PAYMENT_INVALID", "a payment has an amount", "22023")}
   end if;
+  -- A recorded reference is a replay that adds nothing, so it skips the check.
+  if record_invoice_payment.amount < 0 and v_row.${i("paidTotal")} + record_invoice_payment.amount < 0 and not exists (
+    select 1 from ${t("payments")} y
+    where y.${p("tenant")} = v_row.${i("tenant")} and y.${p("reference")} = nullif(trim(record_invoice_payment.reference), '')
+  ) then
+    ${fail("INVOICE_REFUND_TOO_LARGE", "a refund can't exceed what was paid", "23514")}
+  end if;
   ${ctx.hook("before_invoice_payment", [
     ["uuid", `v_row.${i("id")}`],
     ["bigint", "record_invoice_payment.amount"],
