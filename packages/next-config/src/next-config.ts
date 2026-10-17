@@ -59,9 +59,6 @@ export function createNextConfig(overrides: NextConfig = {}): NextConfig {
       ...compiler,
     },
     experimental: {
-      varyParams: true,
-      optimisticRouting: true,
-      prefetchInlining: true,
       useOffline: true,
       globalNotFound: true,
       requestInsights: true,

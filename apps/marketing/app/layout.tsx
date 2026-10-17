@@ -13,6 +13,9 @@ import { cn } from "@/lib/utils";
 
 import "./globals.css";
 
+// Every page renders at build time; a request-time read fails the build.
+export const ensureStatic = "navigation";
+
 export const metadata: Metadata = {
   metadataBase: new URL(site.url),
   title: {
