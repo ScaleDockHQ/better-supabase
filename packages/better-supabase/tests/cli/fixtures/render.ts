@@ -14,7 +14,7 @@ import {
   valibot,
   zod,
 } from "../../../src/config/index.ts";
-import { libraryFixture } from "./library.ts";
+import { libraryFixture, snapshotPath } from "./library.ts";
 
 const fixtureConfig: BetterSupabaseConfig = {
   output: "tests/fixtures/generated.ts",
@@ -50,8 +50,8 @@ const here = (name: string): string =>
 
 export async function loadFixtureSnapshot(): Promise<Snapshot> {
   return parseSnapshot(
-    JSON.parse(await readFile(here("./snapshot.json"), "utf-8")),
-    "tests/fixtures/snapshot.json",
+    JSON.parse(await readFile(snapshotPath, "utf-8")),
+    "supabase/snapshot.json",
   );
 }
 

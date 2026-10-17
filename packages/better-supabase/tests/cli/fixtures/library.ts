@@ -12,8 +12,16 @@ export const libraryFixture = (name: string): URL =>
 export const readJsonFixture = (name: string): unknown =>
   JSON.parse(readFileSync(libraryFixture(name), "utf-8"));
 
-// SAFETY: snapshot.json is written by `better-supabase introspect`.
-export const snapshotFixture = readJsonFixture("snapshot.json") as Snapshot;
+/** The fixture database's snapshot, which CI checks against a fresh stack. */
+export const snapshotPath: URL = new URL(
+  "../../../../../supabase/snapshot.json",
+  import.meta.url,
+);
+
+// SAFETY: supabase/snapshot.json is written by `better-supabase introspect`.
+export const snapshotFixture = JSON.parse(
+  readFileSync(snapshotPath, "utf-8"),
+) as Snapshot;
 
 /**
  * A snapshot with the SQL module tables in `better_supabase` (memberships,

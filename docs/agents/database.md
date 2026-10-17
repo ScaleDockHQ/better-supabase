@@ -73,6 +73,15 @@ edit them by hand. When a change touches one of those modules, run
 then `pnpm supabase:diff <name>`, and `sql data` from the same folder when the
 data files changed. The example's `gen:check` fails while they are stale.
 
+`supabase/snapshot.json` is the only snapshot: the CLI and generator tests
+and `scripts/gen-fixtures.ts` read it. Refresh it from a freshly reset stack
+(`pnpm supabase:reset`, then
+`node packages/better-supabase/src/cli/bin.ts introspect --cwd .`), never after
+the integration tests, which install every SQL module into the same database.
+Then run `pnpm --filter better-supabase gen:fixtures`. The database workflow
+runs `introspect --check` on its fresh stack, and the library's `gen:check`
+fails while the fixtures are stale.
+
 Managed block defaults follow the repo standard (hashed tokens, Vault secrets,
 `text` ids, the module's CloudEvents sources). A shape that only an existing app
 needs belongs in its adopt config, never in a managed default. When an adopter

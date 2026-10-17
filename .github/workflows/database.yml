@@ -6,6 +6,9 @@ on:
     paths:
       - "supabase/**"
       - "packages/better-supabase/src/cli/doctor/**"
+      - "packages/better-supabase/src/cli/introspect/**"
+      - "packages/better-supabase/src/cli/commands/introspect.ts"
+      - "packages/better-supabase/src/cli/commands/snapshot.ts"
       - ".github/workflows/database.yml"
       - ".github/actions/supabase-stack/**"
       - "pnpm-workspace.yaml"
@@ -14,6 +17,9 @@ on:
     paths:
       - "supabase/**"
       - "packages/better-supabase/src/cli/doctor/**"
+      - "packages/better-supabase/src/cli/introspect/**"
+      - "packages/better-supabase/src/cli/commands/introspect.ts"
+      - "packages/better-supabase/src/cli/commands/snapshot.ts"
       - ".github/workflows/database.yml"
       - ".github/actions/supabase-stack/**"
       - "pnpm-workspace.yaml"
@@ -60,6 +66,14 @@ jobs:
             echo "supabase/schemas changed without a migration. Run pnpm supabase:diff <name>."
             exit 1
           fi
+
+      - name: Snapshot matches the stack
+        run: |
+          # Tests add objects, so this checks the freshly migrated database.
+          # shellcheck disable=SC2016
+          pnpm exec dotenv -e .env.development.local -- \
+            sh -c 'printf %s "$SUPABASE_DB_URL" | pnpm exec better-supabase introspect --cwd . --db-url-stdin --check' \
+            || { echo "supabase/snapshot.json is stale. Run pnpm supabase:reset, then pnpm exec better-supabase introspect --cwd ."; exit 1; }
 
       - name: pgTAP
         run: pnpm exec supabase test db

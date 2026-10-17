@@ -2536,6 +2536,7 @@
     "build": "tsdown",
     "check:publish": "publint && pnpm pack --out pack.tgz && attw --profile esm-only pack.tgz && rm -f pack.tgz",
     "gen:bindings": "node scripts/gen-bindings.ts",
+    "gen:check": "node scripts/gen-fixtures.ts --check",
     "gen:config-schema": "node scripts/gen-config-schema.ts",
     "gen:fixtures": "node scripts/gen-fixtures.ts",
     "lint": "oxlint",

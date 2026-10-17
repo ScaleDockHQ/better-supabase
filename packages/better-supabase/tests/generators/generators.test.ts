@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import type { GeneratorInput } from "../../src/config/index.ts";
 import type { ColumnMeta, TableMeta } from "../../src/schema/types.ts";
 
+import fixture from "../../../../supabase/snapshot.json" with { type: "json" };
 import { resolveConfig } from "../../src/config/index.ts";
 import {
   buildJsonSchema,
@@ -18,7 +19,6 @@ import * as standardSchemas from "../fixtures/generated-camel.standard.ts";
 import * as valibotSchemas from "../fixtures/generated-camel.valibot.ts";
 import * as zodMiniSchemas from "../fixtures/generated-camel.zod-mini.ts";
 import * as zodSchemas from "../fixtures/generated-camel.zod.ts";
-import fixture from "../fixtures/snapshot.json" with { type: "json" };
 
 function importPath(fromFile: string, toFile: string): string {
   const path = relative(dirname(fromFile), toFile).split(sep).join("/");
