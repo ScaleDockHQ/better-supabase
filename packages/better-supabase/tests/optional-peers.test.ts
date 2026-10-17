@@ -30,8 +30,27 @@ const INTEGRATIONS = [
   "temporal-polyfill",
 ] as const;
 
+/**
+ * Frameworks the adapters type structurally. Each is an optional peer with a
+ * tested range: `tests/frameworks.test-d.ts` checks the current major, and
+ * `tests/types/frameworks-previous` the previous one where the range keeps it.
+ */
+const FRAMEWORKS = [
+  "@solidjs/start",
+  "@sveltejs/kit",
+  "@tanstack/react-start",
+  "astro",
+  "elysia",
+  "express",
+  "fastify",
+  "h3",
+  "koa",
+  "nuxt",
+  "react-router",
+] as const;
+
 describe("optional peers", () => {
-  it.each(INTEGRATIONS)(
+  it.each([...INTEGRATIONS, ...FRAMEWORKS])(
     "%s is an optional peer and a devDependency",
     (name) => {
       expect(manifest.peerDependencies[name]).toBe("catalog:peers");

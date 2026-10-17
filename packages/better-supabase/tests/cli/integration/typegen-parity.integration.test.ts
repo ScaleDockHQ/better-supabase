@@ -3,6 +3,7 @@ import { format } from "oxfmt";
 import { Pool } from "pg";
 import { describe, expect, it } from "vitest";
 
+import { parseEnv } from "../../../src/cli/env.ts";
 import { supabaseCli } from "../../../src/cli/exec.ts";
 import { introspect } from "../../../src/cli/introspect/index.ts";
 import { pgSource } from "../../../src/cli/introspect/source.ts";
@@ -59,7 +60,7 @@ describe.skipIf(!live)("database.types.ts parity", () => {
     const cli = await supabaseCli(
       ["gen", "types", "typescript", "--local", "--schema", "public"],
       repoRoot,
-      process.env,
+      parseEnv(process.env),
     );
 
     expect({ code: cli.code, stderr: cli.stderr }).toMatchObject({ code: 0 });
