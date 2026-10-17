@@ -141,7 +141,7 @@ describe("createHono", () => {
 
   it("only mounts item routes for single-column keys", () => {
     const routes = bs.resource("customers").routes.map((route) => route.path);
-    expect(routes).toEqual(["/", "/:id"]);
+    expect(routes).toEqual(["/", "/:id", "/*"]);
     expect(() => bs.resource("nope" as never)).toThrow('Unknown table "nope"');
   });
 });
@@ -255,7 +255,21 @@ describe("authorizer", () => {
           },
         })
         .routes.map((route) => route.path),
-    ).toEqual(["/", "/ping", "/:id"]);
+    ).toEqual(["/", "/ping", "/:id", "/*"]);
+  });
+
+  it("matches through the shared resource router", async () => {
+    const malformed = await call("/customers/%E0%A4%A");
+    expect(malformed.status).toBe(400);
+    expect(await malformed.json()).toMatchObject({ kind: "invalid_input" });
+
+    const unknown = await call("/customers/c1/unknown");
+    expect(unknown.status).toBe(404);
+    expect(unknown.headers.get("content-type")).toContain(
+      "application/problem+json",
+    );
+
+    expect((await call("/customers/export", "PATCH")).status).toBe(405);
   });
 
   it("refuses a route whose permission needs an approval", async () => {

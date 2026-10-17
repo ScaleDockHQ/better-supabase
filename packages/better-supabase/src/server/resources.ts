@@ -54,6 +54,36 @@ function serves(
 }
 
 /**
+ * Matches the still encoded path segments below one resource: the decoded
+ * segments, or the 404 for a path it doesn't serve (400 for a malformed
+ * segment). `instance` is the request path for the problem response.
+ */
+export function matchResource<Ref>(
+  handler: ResourceHandler<Ref>,
+  raw: readonly string[],
+  instance: string,
+): ResourceRoute<Ref> | Response {
+  let segments: readonly string[];
+
+  try {
+    segments = raw.map((segment) => decodeURIComponent(segment));
+  } catch {
+    return problemResponse(
+      dbError("invalid_input", `Malformed id in ${instance}`),
+      { instance },
+    );
+  }
+
+  if (!serves(handler, segments)) {
+    return problemResponse(dbError("not_found", `No route for ${instance}`), {
+      instance,
+    });
+  }
+
+  return { handler, segments, instance };
+}
+
+/**
  * Routes `basePath` plus each resource's path (`/<table>` unless `path` is
  * set) to its handler. Shared by the edge and Next.js resource routers.
  */
@@ -135,26 +165,11 @@ export function resourceRouter<
         return notFound();
       }
 
-      let segments: readonly string[];
-
-      try {
-        segments = rest
-          .slice(route.prefix.length)
-          .map((segment) => decodeURIComponent(segment));
-      } catch {
-        return problemResponse(
-          dbError("invalid_input", `Malformed id in ${pathname}`),
-          {
-            instance: pathname,
-          },
-        );
-      }
-
-      if (!serves(route.handler, segments)) {
-        return notFound();
-      }
-
-      return { handler: route.handler, segments, instance: pathname };
+      return matchResource(
+        route.handler,
+        rest.slice(route.prefix.length),
+        pathname,
+      );
     },
   };
 }

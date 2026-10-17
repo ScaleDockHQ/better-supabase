@@ -2,6 +2,7 @@ import type { Context, ErrorHandler, MiddlewareHandler } from "hono";
 
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
+import { routePath } from "hono/route";
 
 import type { AuthState } from "../auth/resolve.ts";
 import type { AuthSession } from "../auth/view.ts";
@@ -27,6 +28,7 @@ import {
   rateLimitGate,
 } from "../server/rate-limit.ts";
 import { defineResource } from "../server/resource.ts";
+import { matchResource } from "../server/resources.ts";
 import {
   defaultExpose,
   type MiddlewareOptions,
@@ -179,6 +181,10 @@ function contextOf<M extends AnyModels, F extends AnyFunctions, E, C, P>(
   }
 
   return ctx;
+}
+
+function segmentsOf(path: string): readonly string[] {
+  return path.split("/").filter((segment) => segment !== "");
 }
 
 /** Hono integration: a server plus middleware, handlers and REST resources. */
@@ -339,32 +345,44 @@ export function createHono<
       const { keyParam } = resource;
       const app = new Hono<HonoEnv<M, F, E, C, P>>();
 
+      // Every route matches through `matchResource`, which also picks an
+      // action over an id; the routes are listed for `app.routes`.
       const serve =
-        (template: readonly string[]) =>
-        (c: Context<HonoEnv<M, F, E, C, P>>): Promise<Response> =>
-          resource.serve(
-            c.req.raw,
-            contextOf(c).db,
-            template.map((segment) =>
-              segment.startsWith("{") && keyParam
-                ? (c.req.param(keyParam) ?? "")
-                : segment,
-            ),
-            { instance: new URL(c.req.url).pathname, expose },
+        (pattern: string) =>
+        async (c: Context<HonoEnv<M, F, E, C, P>>): Promise<Response> => {
+          const { pathname } = new URL(c.req.url);
+
+          const mounted =
+            segmentsOf(routePath(c)).length - segmentsOf(pattern).length;
+
+          const route = matchResource(
+            resource,
+            segmentsOf(pathname).slice(mounted),
+            pathname,
           );
 
-      app.all("/", serve([]));
+          if (route instanceof Response) {
+            return route;
+          }
 
-      // Before `/:id`, so `/export` is the action and not an id.
-      for (const action of resource.plan.actions) {
-        app.all(
-          `/${action.segments.map((segment) => (segment.startsWith("{") ? `:${keyParam}` : segment)).join("/")}`,
-          serve(action.segments),
-        );
-      }
+          return resource.serve(c.req.raw, contextOf(c).db, route.segments, {
+            instance: pathname,
+            expose,
+          });
+        };
 
-      if (keyParam) {
-        app.all(`/:${keyParam}`, serve([`{${keyParam}}`]));
+      const patterns = [
+        "/",
+        ...resource.plan.actions.map(
+          (action) =>
+            `/${action.segments.map((segment) => (segment.startsWith("{") ? `:${keyParam}` : segment)).join("/")}`,
+        ),
+        ...(keyParam ? [`/:${keyParam}`] : []),
+        "/*",
+      ];
+
+      for (const pattern of patterns) {
+        app.all(pattern, serve(pattern));
       }
 
       return app;
