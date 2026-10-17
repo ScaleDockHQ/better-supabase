@@ -411,6 +411,7 @@ as $$
   select coalesce(jsonb_agg(jsonb_build_object(
     'key', x.${f("key")},
     'type', x.${f("type")},
+    'description', x.${f("description")},
     'variants', x.${f("variants")},
     'default_variant', x.${f("defaultVariant")},
     'enabled', x.${f("enabled")},

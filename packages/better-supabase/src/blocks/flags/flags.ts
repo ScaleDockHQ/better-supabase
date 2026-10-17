@@ -56,6 +56,7 @@ export interface FlagOverride {
 export interface FlagDefinition {
   readonly key: string;
   readonly type: FlagType;
+  readonly description?: string;
   readonly variants: Readonly<Record<string, FlagValue>>;
   readonly defaultVariant: string;
   readonly enabled: boolean;
@@ -318,6 +319,9 @@ export function flagDefinitionsOf(value: unknown): readonly FlagDefinition[] {
       FlagValue
     >,
     defaultVariant: optionalText(row["default_variant"]) ?? "",
+    ...(optionalText(row["description"]) !== undefined && {
+      description: textOf(row["description"]),
+    }),
     enabled: row["enabled"] !== false,
     ...(row["archived"] === true && { archived: true }),
     rules: (Array.isArray(row["rules"]) ? row["rules"] : []).flatMap((rule) => {
@@ -402,6 +406,11 @@ export interface FlagsProvider<Code extends string = FlagErrorCode> {
     defaultValue: T,
     context: FlagContext,
   ): Promise<FlagResolution<T, Code>>;
+  /**
+   * Every definition, from the same cache as the evaluations. It rejects when
+   * the definitions fail to load.
+   */
+  definitions(): Promise<readonly FlagDefinition[]>;
   /** Drops the cache, so the next evaluation reloads the definitions. */
   refresh(): void;
 }
@@ -550,6 +559,7 @@ export function createFlagsProvider<Code extends string = FlagErrorCode>(
         context,
         (value): value is T => typeof value === "object" && value !== null,
       ),
+    definitions: async () => [...(await load()).values()],
     refresh() {
       cache = undefined;
     },

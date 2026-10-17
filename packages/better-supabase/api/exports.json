@@ -3511,6 +3511,29 @@
       "SupabaseMemoryOptions"
     ]
   },
+  "./flags-sdk": {
+    "values": [
+      "betterSupabaseAdapter",
+      "createIdentify",
+      "flagContextOf",
+      "flagOptions",
+      "getProviderData"
+    ],
+    "types": [
+      "BetterSupabaseAdapterFactory",
+      "BetterSupabaseAdapterOptions",
+      "CreateIdentifyOptions",
+      "FlagsSdkAdapter",
+      "FlagsSdkDefinition",
+      "FlagsSdkEntities",
+      "FlagsSdkEntity",
+      "FlagsSdkOption",
+      "FlagsSdkOrganization",
+      "FlagsSdkOrigin",
+      "FlagsSdkProviderData",
+      "FlagsSdkRequest"
+    ]
+  },
   "./workflow-sdk/builder": {
     "values": [
       "approvalToken",

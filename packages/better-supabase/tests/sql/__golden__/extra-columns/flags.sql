@@ -237,6 +237,7 @@ as $$
   select coalesce(jsonb_agg(jsonb_build_object(
     'key', x."key",
     'type', x."type",
+    'description', x."description",
     'variants', x."variants",
     'default_variant', x."default_variant",
     'enabled', x."enabled",

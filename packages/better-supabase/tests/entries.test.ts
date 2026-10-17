@@ -122,6 +122,7 @@ const PURE_BARRELS = [
   "blocks/inbox",
   "chat-sdk",
   "eve",
+  "flags-sdk",
 ];
 
 describe("subpath entries", () => {
