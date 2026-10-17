@@ -8,9 +8,9 @@ import type * as Connect from "@vercel/connect";
 
 import { describe, expectTypeOf, it } from "vitest";
 
-import type { AnthropicMemoryTools } from "../../src/ai-sdk/memory/index.ts";
-import type { SyncedDatabaseLike } from "../../src/powersync/index.ts";
-import type { VercelConnectModule } from "../../src/vercel-connect/index.ts";
+import type { AnthropicMemoryTools } from "../src/ai-sdk/memory/index.ts";
+import type { SyncedDatabaseLike } from "../src/powersync/index.ts";
+import type { VercelConnectModule } from "../src/vercel-connect/index.ts";
 
 /**
  * The structural types better-supabase declares instead of importing an

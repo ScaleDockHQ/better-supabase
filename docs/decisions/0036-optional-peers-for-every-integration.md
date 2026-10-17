@@ -26,9 +26,9 @@ installs the peer, and an app that does gets a peer warning (or, with
 `strictPeerDependencies`, an install error) when its version leaves the
 range.
 
-`tests/standards/optional-peers.test.ts` lists these integrations and fails
+`tests/optional-peers.test.ts` lists these integrations and fails
 when one stops being an optional peer and a devDependency.
-`tests/standards/optional-peers.test-d.ts`, `openfeature.test.ts` and the
+`tests/optional-peers.test-d.ts`, `openfeature.test.ts` and the
 Flags SDK type test check each structural type against the peer's real types
 at the pinned version, so a Renovate bump that breaks a contract fails CI
 before the range is widened. `getting-started/peers.mdx` lists every peer.

@@ -7,7 +7,7 @@ const manifest: {
   peerDependencies: Record<string, string>;
   peerDependenciesMeta: Record<string, { optional?: boolean }>;
 } = JSON.parse(
-  await readFile(join(import.meta.dirname, "../../package.json"), "utf-8"),
+  await readFile(join(import.meta.dirname, "../package.json"), "utf-8"),
 );
 
 /**
