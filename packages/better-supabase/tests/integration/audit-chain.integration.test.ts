@@ -106,6 +106,97 @@ describe.skipIf(!live)("audit hash chain", () => {
     }
   });
 
+  it("finds a deleted entry, a broken link and a truncated tail", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.install(["audit"], chained);
+      const tenant = crypto.randomUUID();
+      const ids: string[] = [];
+
+      for (const name of ["a.one", "a.two", "a.three", "a.four"]) {
+        ids.push(
+          await s.value<string>(
+            "better_supabase.audit_event($1, tenant => $2)",
+            [name, tenant],
+          ),
+        );
+      }
+
+      await s.service();
+      await s.client.query("set local role service_role");
+
+      const chain = createAuditChain({
+        transport: sqlTransport(s.sql),
+        signer,
+        issuer: "https://app.example",
+      });
+
+      const verify = () => chain.verify({ organizationId: tenant }).orThrow();
+
+      /** Runs `sql` past the append-only triggers, then undoes it after `check`. */
+      const tampered = async (
+        sql: string,
+        id: string | undefined,
+        check: () => Promise<void>,
+      ) => {
+        await s.client.query("savepoint tamper");
+        await s.client.query("reset role");
+        await s.client.query("set local session_replication_role = replica");
+        await s.client.query(sql, [id]);
+        await s.client.query("set local session_replication_role = origin");
+        await s.client.query("set local role service_role");
+        await check();
+        await s.client.query("rollback to savepoint tamper");
+      };
+
+      await tampered(
+        "delete from better_supabase.audit_events where id = $1",
+        ids[1],
+        async () => {
+          expect(await verify()).toEqual({
+            valid: false,
+            checked: 1,
+            seq: 3,
+            brokenAt: ids[2],
+            reason: "gap",
+          });
+        },
+      );
+
+      await tampered(
+        "update better_supabase.audit_events set prev_hash = '\\x00' where id = $1",
+        ids[2],
+        async () => {
+          expect(await verify()).toEqual({
+            valid: false,
+            checked: 2,
+            seq: 3,
+            brokenAt: ids[2],
+            reason: "link",
+          });
+        },
+      );
+
+      await chain.checkpoint().orThrow();
+      await tampered(
+        "delete from better_supabase.audit_events where id = $1",
+        ids[3],
+        async () => {
+          expect(await verify()).toEqual({
+            valid: false,
+            checked: 3,
+            seq: 4,
+            reason: "gap",
+          });
+        },
+      );
+      expect(await verify()).toMatchObject({ valid: true, checked: 4, seq: 4 });
+    } finally {
+      await s.close();
+    }
+  });
+
   it("drops whole expired months of a partitioned log unless a hold covers it", async () => {
     const s = await BlockSession.open(pool);
 
