@@ -117,7 +117,8 @@ The rows for each area are in `.agents/rules/also-update-library.mdc`,
 One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 
 - 0001: the library profile of the repo standard.
-- 0002: the deviations and lint backlogs, each with what ends it.
+- 0002: the deviations and lint backlogs, each with what ends it (CI shape, Ask AI tools,
+  the support-storage rehearsal, `tracedFetch`).
 - 0003: the CLI runs on citty (package split superseded by 0007).
 - 0004: maintainer skills in `.agents/skills` are committed.
 - 0005: the public API uses Temporal.

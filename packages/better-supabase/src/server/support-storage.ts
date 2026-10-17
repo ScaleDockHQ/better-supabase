@@ -73,6 +73,9 @@ set bucket_id = $3, name = $4, owner = $5::uuid, owner_id = $6
 where bucket_id = $1 and name = $2
 returning name`;
 
+// Storage refuses a direct delete on `storage.objects` without this flag.
+// It is set locally inside the rehearsal's savepoint, which is always rolled
+// back, so the delete only reports which rows the target's policies allow.
 const ALLOW_DELETE =
   "select set_config('storage.allow_delete_query', 'true', true)";
 

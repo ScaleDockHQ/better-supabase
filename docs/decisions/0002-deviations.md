@@ -70,9 +70,10 @@ backlogs too large to clear in the upgrade.
   and lists both sitemaps.
 - OG images are at `/docs/og/...` instead of `/og/docs/...`, and Ask AI is at
   `/docs/api/chat`. Vercel Services sends only `/docs/*` to the docs app.
-- Ask AI searches the docs before it calls the model and passes the four best
-  pages as context, instead of giving the model a search tool. One request
-  then makes one model call.
+- Ask AI gives the model the docs MCP server's read-only tools
+  (`search_docs` and `read_page`) and also lists the six pages whose titles
+  best match the question in the system prompt, so the first step can read a
+  page instead of searching. A request stops after five steps.
 - The docs MCP server at `/mcp` registers its own tools on
   `@modelcontextprotocol/server` instead of the `fumadocs-core/mcp` helpers.
   Those helpers register tools without `annotations` or an `outputSchema`, so
@@ -103,6 +104,13 @@ backlogs too large to clear in the upgrade.
 - `pnpm test:integration` runs in CI only (the `stack` job in `ci.yml`
   and `database.yml`), not in `pnpm verify`. It needs a running Supabase
   stack, which a pre-push hook cannot assume.
+- CI starts Supabase in the foreground, not as a background step. The
+  stack loads `supabase/signing_keys.json` at start, so the library build
+  and `better-supabase keys` run first, and the start itself takes about
+  15 seconds.
+- `pnpm verify` runs `typecheck:perf` in a second `turbo run` after the
+  other tasks, and CI gives it a runner of its own. It is a timing
+  benchmark, so it fails when other tasks share the CPU.
 
 ### Workflow
 
@@ -133,6 +141,28 @@ backlogs too large to clear in the upgrade.
   `liteStack()` tests, which send no mail, and a major override could break
   Lite's mailer. It ends when `@supabase/lite` moves to `nodemailer` 10.0.6
   or later.
+
+- Lefthook's pre-commit runs `turbo run lint lint:root --affected` next to
+  `ultracite fix`, not only the fix. Type-aware lint findings then show up
+  at commit time instead of on push.
+- `audit:high` runs in `pnpm verify` and in the static job of
+  `verify.yml`, next to format and boundaries, not in a separate security
+  workflow. `doctor` runs three times: as a Turbo task in `pnpm verify`,
+  as SARIF uploaded to code scanning in `verify.yml`, and with `--strict`
+  against the migrated database in `database.yml`.
+
+### Library
+
+- In a writable support session, `supportStorage` checks each write by
+  running the row change on `storage.objects` as the target inside a
+  savepoint it rolls back (`src/server/support-storage.ts`), instead of
+  reimplementing Storage's policy checks. A delete needs
+  `storage.allow_delete_query`, which the rehearsal sets in the same
+  transaction, so no row outlives it.
+- The library does not set supabase-js `tracePropagation`. `tracedFetch`
+  from `better-supabase/otel` injects the trace headers into every
+  PostgREST, Auth and Storage request of the clients the app passes it to,
+  on any runtime. It ends if `tracePropagation` covers all three services.
 
 ### Agent files
 
