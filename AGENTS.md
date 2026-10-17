@@ -84,19 +84,19 @@ agent needs it twice.
 
 ## When you change X, also update Y
 
-| Change                  | Also update                                                                                         |
-| ----------------------- | --------------------------------------------------------------------------------------------------- |
-| A subpath               | exports map, `tsdown.config.ts`, size baseline, export snapshot, README table                       |
-| A public export         | `api/exports.json` (`vitest run tests/exports.test.ts -u`), review the diff                         |
-| An env key              | the app's `env.ts`, all three Vercel environments, `turbo.json`, `.env.example`                     |
-| A CLI command or flag   | its docs page under `cli/`, the help snapshot, the changeset                                        |
-| A dependency bump       | the catalog pin, "Pre-release pins", the changeset or commit note, an ADR                           |
-| A `typescript` bump     | `oxlint-tsgolint` in the same commit                                                                |
-| A Next.js bump          | run `next dev` once in each Next.js app                                                             |
-| A file move             | Knip entries, the `tests/` mirror path, the folder's `meta.json` for a docs page                    |
-| A rename                | the docs Naming page (`docs:drift` checks `lib/supabase/*` names), the changeset's old-to-new table |
-| A perf-sensitive change | the bundle, type and benchmark baselines, before and after numbers in the commit                    |
-| A user-visible change   | a changeset (`pnpm changeset`)                                                                      |
+| Change                  | Also update                                                                                                   |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------- |
+| A subpath               | exports map, `tsdown.config.ts`, size baseline, export snapshot, README table                                 |
+| A public export         | `api/exports.json` (`vitest run tests/exports.test.ts -u`), review the diff                                   |
+| An env key              | the app's `env.ts`, all three Vercel environments, `turbo.json`, `.env.example`                               |
+| A CLI command or flag   | its docs page under `cli/`, the help snapshot, the changeset                                                  |
+| A dependency bump       | the catalog pin, "Pre-release pins", the changeset or commit note, an ADR                                     |
+| A `typescript` bump     | `oxlint-tsgolint` in the same commit                                                                          |
+| A Next.js bump          | run `next dev` once in each Next.js app                                                                       |
+| A file move             | Knip entries, the `tests/` mirror path, the folder's `meta.json` for a docs page                              |
+| A rename                | the docs Naming page (`docs:drift` checks `lib/supabase/*` names), the changeset's old-to-new table           |
+| A perf-sensitive change | the bundle (with the CLI startup entry), type and benchmark baselines, before and after numbers in the commit |
+| A user-visible change   | a changeset (`pnpm changeset`)                                                                                |
 
 The rows for each area are in `.agents/rules/also-update-library.mdc`,
 `also-update-blocks.mdc` and `also-update-repo.mdc`.
@@ -166,6 +166,7 @@ Move each to its stable release when it ships, and update this list.
 | Rule (`.agents/rules`)                    | Applies to                                   |
 | ----------------------------------------- | -------------------------------------------- |
 | `architecture`, `writing`, `git-workflow` | always                                       |
+| `code-conventions`                        | TypeScript files                             |
 | `lazy-imports`                            | `packages/better-supabase/src/**`            |
 | `also-update-library`, `-blocks`, `-repo` | the library, blocks and SQL, the repo        |
 | `docs-content`                            | `apps/docs/content/**`                       |

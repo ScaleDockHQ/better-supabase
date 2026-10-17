@@ -16,7 +16,7 @@ better-supabase is on `0.x`. Patch releases of the current minor are supported. 
 
 | Version                | Supported |
 | ---------------------- | --------- |
-| 0.2.x                  | Yes       |
+| The latest minor       | Yes       |
 | 0.x (an earlier minor) | No        |
 
 ## What to include
