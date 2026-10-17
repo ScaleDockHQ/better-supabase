@@ -6,7 +6,6 @@ import { describe, expect, it } from "vitest";
 import type { GeneratorInput } from "../../src/config/index.ts";
 import type { ColumnMeta, TableMeta } from "../../src/schema/types.ts";
 
-import fixture from "../../../../supabase/snapshot.json" with { type: "json" };
 import { resolveConfig } from "../../src/config/index.ts";
 import {
   buildJsonSchema,
@@ -15,6 +14,7 @@ import {
 import { standardSchema } from "../../src/generators/standard-schema.ts";
 import { valibot } from "../../src/generators/valibot.ts";
 import { zod } from "../../src/generators/zod.ts";
+import { snapshotFixture } from "../cli/fixtures/library.ts";
 import * as standardSchemas from "../fixtures/generated-camel.standard.ts";
 import * as valibotSchemas from "../fixtures/generated-camel.valibot.ts";
 import * as zodMiniSchemas from "../fixtures/generated-camel.zod-mini.ts";
@@ -293,7 +293,7 @@ const input: GeneratorInput = {
       }),
     },
   },
-  introspection: fixture.generator as GeneratorInput["introspection"],
+  introspection: snapshotFixture.generator,
   extras: { tables: [], buckets: [], realtime: [] },
   config,
   output: resolve(root, config.output),
