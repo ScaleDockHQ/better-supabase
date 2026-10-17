@@ -16,6 +16,7 @@
     "chat-sdk",
     "ai-sdk",
     "eve",
+    "flags-sdk",
     "build",
     "plugins",
     "testing",

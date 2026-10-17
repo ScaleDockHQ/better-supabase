@@ -1,12 +1,13 @@
 ---
 title: Feature flags
-description: Feature flags per tenant and per user, with targeting rules, overrides and percentage rollouts, evaluated the same way in RLS and in an OpenFeature provider.
+description: Feature flags per tenant, per user and per custom context such as a brand, with targeting rules, overrides and percentage rollouts, evaluated the same way in RLS, in an OpenFeature provider and in the Flags SDK.
 ---
 
-The `flags` block stores feature flags in Postgres and evaluates them in two
-places: `flag_enabled()` in policies and functions, and an OpenFeature
-provider in the app. Both use the same rules and the same SHA-256 bucketing,
-so a user who sees a feature in the UI also passes the policy behind it.
+The `flags` block stores feature flags in Postgres and evaluates them in
+three places: `flag_enabled()` in policies and functions, an OpenFeature
+provider, and a [Flags SDK](/docs/flags-sdk) adapter in the app. All of them
+use the same rules and the same SHA-256 bucketing, so a user who sees a
+feature in the UI also passes the policy behind it.
 
 Flags decide what a tenant or user sees while a feature rolls out. What a
 tenant pays for stays in [entitlements](/docs/blocks/entitlements); a flag
@@ -16,10 +17,10 @@ rule can still target plans.
 better-supabase sql add flags   # adds tenant as well
 ```
 
-| Table            | Holds                                                                                                     |
-| ---------------- | --------------------------------------------------------------------------------------------------------- |
-| `flags`          | `key`, `type`, `variants`, `default_variant`, `enabled`, `rules`, `rollout_percentage`, `rollout_variant` |
-| `flag_overrides` | A variant for one `organization_id` or one `user_id`                                                      |
+| Table            | Holds                                                                                                                                |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `flags`          | `key`, `type`, `description`, `variants`, `default_variant`, `enabled`, `archived`, `rules`, `rollout_percentage`, `rollout_variant` |
+| `flag_overrides` | A variant for one `organization_id`, one `user_id` or one custom context value (`context`, `context_key`)                            |
 
 Only the service role reads and writes both tables. Manage flags from a
 migration, the Studio or an admin route that runs as the service role.
@@ -42,11 +43,14 @@ insert into better_supabase.flag_overrides (flag_key, organization_id, variant)
 
 A flag resolves in this order:
 
-1. A disabled flag (`enabled = false`) returns its default variant.
-2. A user override, then a tenant override.
+1. A disabled flag (`enabled = false`) or an archived one returns its
+   default variant.
+2. A user override, then a tenant override, then a custom context override
+   in the order the contexts are declared.
 3. The first rule whose lists all contain the caller. A rule lists any of
-   `tenants`, `users`, `roles` (the caller's role in the tenant) and `plans`
-   (entitlement lookup keys, one match is enough).
+   `tenants`, `users`, `roles` (the caller's role in the tenant), `plans`
+   (entitlement lookup keys, one match is enough) and `contexts` (a context
+   name to its values, every one must match).
 4. The rollout: the first 32 bits of SHA-256 of `flag.target`, modulo 10000,
    below `rollout_percentage * 100` returns `rollout_variant`. The target is
    the user id, or the tenant id when there is no user.
@@ -54,6 +58,51 @@ A flag resolves in this order:
 
 The reason in each result follows OpenFeature: `DISABLED`,
 `TARGETING_MATCH`, `SPLIT` or `DEFAULT`.
+
+### Custom contexts
+
+A custom context targets flags by a value that isn't a tenant or a user,
+such as the brand a white-label app serves. Declare each one with the table
+and column that hold a tenant's value; `tenant` names the column with the
+tenant id and defaults to `id`, for a column on the tenant table:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  flags: {
+    options: {
+      contexts: {
+        brand: { table: "public.organizations", column: "brand_id" },
+      },
+    },
+  },
+},
+```
+
+Rules and overrides then name the context:
+
+```sql
+update better_supabase.flags
+  set rules = '[{"variant": "on", "contexts": {"brand": ["acme"]}}]'
+  where key = 'new_editor';
+
+insert into better_supabase.flag_overrides (flag_key, context, context_key, variant)
+  values ('new_editor', 'brand', 'globex', 'off');
+```
+
+`flag_evaluation(key, tenant, user, contexts)` takes the values as
+`{"brand": "acme"}`. A declared context it leaves out is read from the
+tenant, and only for a flag whose rules or overrides name a context, so
+`flag_enabled()` in a policy targets brands without extra arguments. The
+OpenFeature provider and the Flags SDK adapter never read the tenant table;
+pass the values through `flagContext({ contexts })`, `contextClaims` or the
+Flags SDK `identify`.
+
+### Archiving a flag
+
+`save(key, { archived: true })` archives a flag: it serves its default
+variant like a disabled flag, and Flags Explorer no longer lists it. Archive
+a flag once no code reads it, and delete it later, so a deploy that still
+checks it gets the default instead of an unknown flag.
 
 ### Managing flags from an admin page
 
@@ -74,6 +123,11 @@ const admin = createFlags({
 
 await admin.save("new_editor", { rolloutPercentage: 25, rolloutVariant: "on" });
 await admin.override("new_editor", { organizationId }, "on");
+await admin.override(
+  "new_editor",
+  { context: "brand", contextKey: "acme" },
+  "on",
+);
 await admin.override("new_editor", { userId }, null); // removes it
 const flags = await admin.list().orThrow();
 ```
@@ -105,6 +159,28 @@ const admin = createFlags({
 
 await admin.save("new_editor", { fields: { owner: "ana@acme.test" } });
 ```
+
+### Owner and expiry
+
+Give every flag an owner and a date by which it should be gone, so release
+flags don't pile up. Add the columns as extra columns:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  flags: {
+    options: {
+      extraColumns: { owner: "text", expires_at: "timestamptz" },
+    },
+  },
+},
+```
+
+With an `expires_at` column, [`better-supabase doctor`](/docs/cli/doctor#bs336)
+reads the live database and warns about each flag past it that isn't
+archived (BS336), naming the owner when the table has one. Remove the
+flag's checks from the code, then archive it, or move `expires_at` when the
+flag stays. `expiredFlagsQuery(layout, installed)` from
+`better-supabase/sql` returns the query doctor runs, for your own report.
 
 ## In policies
 
@@ -187,14 +263,14 @@ returns the four `get*Details` methods that `withOpenFeature` calls (see
 
 ## Reference
 
-| Export                      | Does                                                                             |
-| --------------------------- | -------------------------------------------------------------------------------- |
-| `createFlagsProvider(opts)` | An OpenFeature-shaped provider over `flag_definitions()`, or fixed `definitions` |
-| `createFlagClient(source)`  | `getBooleanDetails`, `getStringDetails`, `getNumberDetails`, `getObjectDetails`  |
-| `flagContext(ctx, opts?)`   | The evaluation context from `jwtClaims`; claim names are options                 |
-| `evaluateFlag(flag, ctx)`   | `{ value, variant, reason }`, as `flag_evaluation()` computes it                 |
-| `flagBucket(key, target)`   | The rollout bucket, 0 to 9999                                                    |
-| `createFlags(opts)`         | `list`, `save`, `remove` and `override` for platform staff or the service role   |
+| Export                      | Does                                                                                                                      |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `createFlagsProvider(opts)` | An OpenFeature-shaped provider over `flag_definitions()`, or fixed `definitions`; `definitions()` returns the cached list |
+| `createFlagClient(source)`  | `getBooleanDetails`, `getStringDetails`, `getNumberDetails`, `getObjectDetails`                                           |
+| `flagContext(ctx, opts?)`   | The evaluation context from `jwtClaims`; claim names are options                                                          |
+| `evaluateFlag(flag, ctx)`   | `{ value, variant, reason }`, as `flag_evaluation()` computes it                                                          |
+| `flagBucket(key, target)`   | The rollout bucket, 0 to 9999                                                                                             |
+| `createFlags(opts)`         | `list`, `save`, `remove` and `override` for platform staff or the service role                                            |
 
 The provider follows the OpenFeature specification pinned in
 `SPEC_PINS.openfeature` (see [standards](/docs/standards)).
