@@ -23,6 +23,12 @@ export type {
 
 export { buildApiModel } from "./build.ts";
 
+export type { DataApiOptions } from "./data-api.ts";
+
+export type { EventsOptions, TopicInput } from "./events.ts";
+
+export { topicsFrom } from "./events.ts";
+
 export type {
   AnyDocumentFormat,
   DiagnosticSeverity,

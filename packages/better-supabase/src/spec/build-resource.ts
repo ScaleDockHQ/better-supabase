@@ -8,6 +8,7 @@ import type {
   ModelParameter,
   ModelResponse,
   ModelResponseOrRef,
+  ModelServer,
   ModelTag,
   OperationSource,
   ResourceOperation,
@@ -48,6 +49,7 @@ export interface DraftOperation {
   parameters: ModelParameter[];
   requestBody?: ModelBody;
   responses: Record<string, ModelResponseOrRef>;
+  servers?: readonly ModelServer[];
   security?: readonly SecurityRequirement[];
   permission?: string;
   source: OperationSource;

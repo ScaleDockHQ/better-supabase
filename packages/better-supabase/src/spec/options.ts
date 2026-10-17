@@ -1,6 +1,7 @@
 import type { Authorizer } from "../core/authorizer.ts";
 import type { AnyPlugin } from "../core/plugin.ts";
 import type { SchemaMeta } from "../schema/types.ts";
+import type { DataApiOptions } from "./data-api.ts";
 import type { EventsOptions } from "./events.ts";
 import type { SpecDiagnostic } from "./format.ts";
 import type {
@@ -127,6 +128,8 @@ export interface ApiOptions<Ref = string> {
   /** Tables to publish, by app key. */
   readonly resources?: Readonly<Record<string, ResourceInput<Ref>>>;
   readonly routes?: readonly RouteSpec<Ref>[];
+  /** Tables and functions to document as the Supabase Data API (`/rest/v1`), with database names. */
+  readonly dataApi?: DataApiOptions;
   /** Parsed OpenAPI fragments, merged over the generated document. */
   readonly fragments?: readonly JsonObject[];
   /** Defaults to `['bearer']`. */

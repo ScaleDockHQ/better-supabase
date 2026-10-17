@@ -24,6 +24,7 @@ import type { FanOutResult, TopicFanOutOptions } from "./fan-out.ts";
 import { accessCheck, resolveProviderSql } from "../core/access-sql.ts";
 import { tenantClaimPaths } from "../core/claims.ts";
 import { dbError, type DbError, type ValidationIssue } from "../core/errors.ts";
+import { type RealtimeStatus, topicStatus } from "../core/realtime-status.ts";
 import { AsyncResult, err, ok } from "../core/result.ts";
 import {
   parseTemplate,
@@ -329,6 +330,19 @@ export interface Topic<
   readonly private: boolean;
   /** Whether subscriptions get `track` and `onPresence`. */
   readonly presence: boolean;
+  /** The schema tracked presence states are validated against, if any. */
+  readonly presenceSchema: StandardSchemaV1 | undefined;
+  /** Payload schemas per event, as given to `defineTopic`. */
+  readonly events: E;
+  /** Whether clients may broadcast on the topic (the `send` option). */
+  readonly clientSend: boolean;
+  /** The instance permission's key, when the topic has one. */
+  readonly permission: string | undefined;
+  /**
+   * Supabase's status for what the topic relies on: `beta` for a private
+   * topic (Realtime Authorization is in public beta), `ga` otherwise.
+   */
+  readonly status: RealtimeStatus;
   topic(values: TemplateValues<P>): string;
   match(topic: string): TemplateValues<P> | null;
   /**
@@ -582,6 +596,12 @@ export function defineTopic<
     params: parsed.params as TemplateParams<P>[],
     private: isPrivate,
     presence: hasPresence,
+    presenceSchema,
+    // SAFETY: `schemas` is `options.events`, or `{}` when E is the empty default.
+    events: schemas as E,
+    clientSend: options.send ?? false,
+    permission: permission?.key,
+    status: topicStatus({ private: isPrivate }),
     topic: topicOf,
     match: (topic) => parsed.match(topic) as TemplateValues<P> | null,
     sql(sqlOptions) {

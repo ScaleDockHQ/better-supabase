@@ -17,6 +17,7 @@ import type {
 import type { ApiOptions } from "./options.ts";
 
 import { isPlainObject } from "../core/clone.ts";
+import { type RealtimeStatus, topicStatus } from "../core/realtime-status.ts";
 import { dataschemaOf, DEFAULT_TYPE_PREFIX } from "../events/cloud-event.ts";
 import { ROW_EVENT_TYPES } from "../events/index.ts";
 import {
@@ -40,21 +41,89 @@ export type BlockEventSchemas<M extends EventMap = EventMap> = {
 };
 
 /**
- * A Realtime broadcast topic. A `defineTopic()` result fits; add `events`
- * to document the payloads and `send` when clients broadcast too.
+ * A Realtime broadcast topic. A `defineTopic()` result fits as it is, with
+ * its event and presence schemas, `send` and `permission`; `topicsFrom()`
+ * collects them from a module.
  */
 export interface TopicInput<Ref = string> {
   readonly template: string;
   readonly name?: string;
   readonly private?: boolean;
   readonly presence?: boolean;
+  /** The schema of each tracked presence state; open when unset. */
+  readonly presenceSchema?: StandardLike | undefined;
   /** Payload schema per broadcast event; `true` for an open payload. */
   readonly events?: Readonly<Record<string, StandardLike | true>>;
-  /** Clients may broadcast on the topic, not only receive. */
-  readonly send?: boolean;
-  readonly permission?: Ref;
+  /**
+   * Clients may broadcast on the topic, not only receive. Only `true`
+   * counts, so a `defineTopic()` result's `send` method is ignored.
+   */
+  readonly send?: boolean | ((...args: never[]) => unknown);
+  /** The same as `send: true`; what a `defineTopic()` result carries. */
+  readonly clientSend?: boolean;
+  readonly permission?: Ref | undefined;
+  /** Supabase's status for the topic's features. Defaults from `private`. */
+  readonly status?: RealtimeStatus;
   readonly summary?: string;
   readonly description?: string;
+}
+
+const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/**
+ * Whether a value is a `defineTopic()` result: a template string and the
+ * `sql`, `trigger` and `subscribe` methods. `better-supabase sql sync` and
+ * `spec` use the same check.
+ */
+function isTopicLike(value: unknown): value is TopicInput & {
+  sql(...args: never[]): string;
+  trigger(...args: never[]): string;
+} {
+  return (
+    isRecord(value) &&
+    typeof value["template"] === "string" &&
+    typeof value["sql"] === "function" &&
+    typeof value["trigger"] === "function" &&
+    typeof value["subscribe"] === "function"
+  );
+}
+
+/**
+ * The `defineTopic()` results in modules or arrays, for `events.topics`.
+ * A module's topics are keyed by export name; a topic in an array by its
+ * `name`. Other values are skipped, and a topic reached twice is kept once.
+ *
+ * ```ts
+ * import * as topics from "../realtime/topics";
+ * defineApi(betterSupabase, { info, events: { topics: topicsFrom(topics) } });
+ * ```
+ */
+export function topicsFrom(
+  ...sources: readonly (
+    | Readonly<Record<string, unknown>>
+    | readonly unknown[]
+  )[]
+): Readonly<Record<string, TopicInput>> {
+  const topics: Record<string, TopicInput> = {};
+  const seen = new Set<unknown>();
+
+  for (const source of sources) {
+    const entries: [string | undefined, unknown][] = Array.isArray(source)
+      ? source.map((value) => [undefined, value])
+      : Object.entries(source);
+
+    for (const [key, value] of entries) {
+      if (!isTopicLike(value) || seen.has(value)) {
+        continue;
+      }
+
+      seen.add(value);
+      topics[key ?? value.name ?? value.template] = value;
+    }
+  }
+
+  return topics;
 }
 
 /** CloudEvents the app sends (`forwardMutations`, `forwardBlockEvents`). */
@@ -255,7 +324,10 @@ function tableChannels<Ref>(
           summary: `Change signals for ${key}`,
         },
       ],
-      extensions: { [`${ctx.prefix}table`]: `${table.schema}.${table.name}` },
+      extensions: {
+        [`${ctx.prefix}table`]: `${table.schema}.${table.name}`,
+        [`${ctx.prefix}realtime-status`]: topicStatus({ private: true }),
+      },
     });
   }
 }
@@ -301,7 +373,9 @@ function topicChannels<Ref>(
         name: "presence",
         title: `${key} presence`,
         contentType: "application/json",
-        payload: OPEN,
+        payload: topic.presenceSchema
+          ? convert(topic.presenceSchema, `topics.${key}.presence`, ctx)
+          : OPEN,
         extensions: { [`${ctx.prefix}event`]: "presence" },
       };
     }
@@ -322,7 +396,7 @@ function topicChannels<Ref>(
       },
     ];
 
-    if (topic.send || topic.presence) {
+    if (topic.send === true || topic.clientSend === true || topic.presence) {
       operations.push({
         id: `send${keyPart(key)}`,
         action: "send",
@@ -346,7 +420,10 @@ function topicChannels<Ref>(
       protocol: "ws",
       messages: ids,
       operations,
-      extensions: { [`${ctx.prefix}private`]: topic.private ?? true },
+      extensions: {
+        [`${ctx.prefix}private`]: topic.private ?? true,
+        [`${ctx.prefix}realtime-status`]: topic.status ?? topicStatus(topic),
+      },
     });
   }
 }

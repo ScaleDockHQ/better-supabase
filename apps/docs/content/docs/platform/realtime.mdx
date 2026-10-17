@@ -27,6 +27,14 @@ export const notifications = defineTopic(
 Or declare templates under `topics` in `better-supabase.config.ts` and pass
 the generated constant: `defineTopic(topics.notifications)`.
 
+The result also describes itself for [AsyncAPI](/docs/specs/asyncapi#broadcast-topics):
+`events` and `presenceSchema` hold the payload schemas, `clientSend` says
+whether clients may broadcast, `permission` is the instance permission key,
+and `status` is the platform status of the topic. Private topics rely on
+Realtime Authorization, which is in public beta, so their `status` is
+`beta`; public topics are `ga`. `topicsFrom(module)` from
+`better-supabase/asyncapi` passes a module's topics to `defineApi`.
+
 ## Authorization
 
 Topics are private by default: Realtime checks `realtime.messages` policies

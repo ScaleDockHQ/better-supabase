@@ -81,8 +81,19 @@ export type OperationSource =
       readonly table: string;
       readonly action: string;
     }
+  | {
+      readonly kind: "data-api";
+      /** The table's app key, for `select`, `insert`, `update` and `delete`. */
+      readonly table?: string;
+      /** The function's key, for `rpc`. */
+      readonly function?: string;
+      readonly operation: DataApiOperation | "rpc";
+    }
   | { readonly kind: "route" }
   | { readonly kind: "fragment" };
+
+/** A table operation of the Data API (PostgREST). */
+export type DataApiOperation = "select" | "insert" | "update" | "delete";
 
 export interface ModelOperation {
   /** The operationId: unique across the model. */
@@ -97,6 +108,8 @@ export interface ModelOperation {
   readonly parameters: readonly ModelParameter[];
   readonly requestBody?: ModelBody;
   readonly responses: Readonly<Record<string, ModelResponseOrRef>>;
+  /** Overrides the model's `servers`, e.g. the Supabase project for the Data API. */
+  readonly servers?: readonly ModelServer[];
   /** Overrides the model's `security`; `[]` makes the operation public. */
   readonly security?: readonly SecurityRequirement[];
   /** The permission key the authorizer checks, from `Authorizer.key()`. */

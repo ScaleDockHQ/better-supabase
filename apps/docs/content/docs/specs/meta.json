@@ -9,6 +9,7 @@
     "overlay",
     "reference-ui",
     "resources",
+    "data-api",
     "diagnostics"
   ]
 }

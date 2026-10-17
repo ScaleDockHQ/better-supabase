@@ -136,6 +136,26 @@ describe("defineTopic", () => {
     send: true,
   });
 
+  it("exposes what the AsyncAPI document reads", () => {
+    expect(notifications.events).toEqual({ created: title });
+    expect(notifications.clientSend).toBe(true);
+    expect(notifications.permission).toBeUndefined();
+    expect(notifications.presenceSchema).toBeUndefined();
+    expect(notifications.status).toBe("beta");
+
+    const lobby = defineTopic("lobby:{roomId}", {
+      private: false,
+      presence: title,
+      permission: { key: "rooms.read" },
+    });
+
+    expect(lobby.events).toEqual({});
+    expect(lobby.clientSend).toBe(false);
+    expect(lobby.permission).toBe("rooms.read");
+    expect(lobby.presenceSchema).toBe(title);
+    expect(lobby.status).toBe("ga");
+  });
+
   it("builds and matches topic names", () => {
     expect(notifications.topic({ organizationId: "o1", userId: "u1" })).toBe(
       "organization:o1:notifications:u1",

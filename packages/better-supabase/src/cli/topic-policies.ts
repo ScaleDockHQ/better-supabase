@@ -1,33 +1,7 @@
-import { resolve } from "node:path";
-
-import type {
-  AuthorizationFunctions,
-  ResolvedConfig,
-  TopicTriggerConfig,
-} from "../config/index.ts";
+import type { ResolvedConfig } from "../config/index.ts";
 import type { ModuleTopic } from "../sql/index.ts";
 
-import { importFresh } from "./fresh-import.ts";
-
-/** What the writer reads from a `defineTopic` result. */
-interface TopicLike {
-  readonly template: string;
-  sql(options?: { readonly functions?: AuthorizationFunctions }): string;
-  trigger(
-    table: string,
-    options?: Omit<TopicTriggerConfig, "topic" | "table">,
-  ): string;
-}
-
-const isTopic = (value: unknown): value is TopicLike =>
-  typeof value === "object" &&
-  value !== null &&
-  "template" in value &&
-  typeof value.template === "string" &&
-  "sql" in value &&
-  typeof value.sql === "function" &&
-  "trigger" in value &&
-  typeof value.trigger === "function";
+import { type LoadedTopic, loadTopics } from "./topics.ts";
 
 const literalParts = (template: string): string =>
   template.replaceAll(/\{[^}]+\}/g, "{}");
@@ -64,29 +38,13 @@ export async function topicPolicyFile(
     );
   }
 
-  const topics: TopicLike[] = [];
-
-  for (const entry of policies.from) {
-    const loaded = await importFresh(resolve(config.root, entry));
-    const found = Object.values(loaded).filter(isTopic);
-
-    if (found.length === 0) {
-      throw new Error(`${entry} exports no topic (defineTopic)`);
-    }
-
-    for (const topic of found) {
-      if (!topics.includes(topic)) {
-        topics.push(topic);
-      }
-    }
-  }
-
-  topics.sort((a, b) =>
-    a.template < b.template ? -1 : a.template > b.template ? 1 : 0,
+  const topics = (await loadTopics(config.root, policies.from)).map(
+    (each) => each.topic,
   );
+
   const functions = config.authorization?.functions;
 
-  const sqlOf = (topic: TopicLike): string =>
+  const sqlOf = (topic: LoadedTopic): string =>
     topic.sql(functions === undefined ? undefined : { functions });
 
   const skipped: string[] = [];

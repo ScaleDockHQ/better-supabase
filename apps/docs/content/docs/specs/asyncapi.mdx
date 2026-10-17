@@ -136,25 +136,61 @@ receives it, and the channel carries `x-better-supabase-table`.
 
 ## Broadcast topics
 
-`events.topics` takes Realtime broadcast topics by key. A `defineTopic()`
-result from `better-supabase/realtime` fits.
+`events.topics` takes Realtime broadcast topics by key. Pass the
+`defineTopic()` results from `better-supabase/realtime` as they are, so the
+document and the Realtime policies come from the same definition.
+`topicsFrom(module)` collects every topic a module exports, keyed by export
+name, and skips its other exports:
 
-| Field                    | What it does                                                                      |
-| ------------------------ | --------------------------------------------------------------------------------- |
-| `template`               | The address, such as `room:{roomId}`; each `{name}` becomes a channel parameter   |
-| `events`                 | A payload schema per broadcast event: a Standard Schema, or `true` for any object |
-| `presence`               | Adds a `presence` message and a `send` operation                                  |
-| `send`                   | Clients may broadcast too, so the topic gets a `send` operation                   |
-| `private`                | Defaults to `true`; written as `x-better-supabase-private`                        |
-| `permission`             | The permission to join, as `x-better-supabase-permission` on the operations       |
-| `name`                   | The channel title; defaults to the key                                            |
-| `summary`, `description` | Copied to the channel                                                             |
+```ts title="src/api/asyncapi.ts"
+import { topicsFrom } from "better-supabase/asyncapi";
+import { defineApi } from "better-supabase/spec";
+import { betterSupabase } from "../lib/supabase";
+import * as topics from "../realtime/topics";
+
+export const api = defineApi(betterSupabase, {
+  info: { title: "CRM events", version: "1.0.0" },
+  realtimeUrl: "wss://example.supabase.co/realtime/v1/websocket",
+  events: { topics: topicsFrom(topics) },
+});
+```
+
+`topicsFrom` also takes several modules, or arrays of topics (keyed by their
+`name`, or by their template). A plain object with the fields below works
+too:
+
+| Field                    | What it does                                                                            |
+| ------------------------ | --------------------------------------------------------------------------------------- |
+| `template`               | The address, such as `room:{roomId}`; each `{name}` becomes a channel parameter         |
+| `events`                 | A payload schema per broadcast event: a Standard Schema, or `true` for any object       |
+| `presence`               | Adds a `presence` message and a `send` operation                                        |
+| `presenceSchema`         | The presence payload schema; `defineTopic` sets it from its `presence` option           |
+| `send`, `clientSend`     | `true` when clients may broadcast too, so the topic gets a `send` operation             |
+| `private`                | Defaults to `true`; written as `x-better-supabase-private`                              |
+| `permission`             | The permission to join, as `x-better-supabase-permission` on the operations             |
+| `status`                 | `beta` or `ga`, written as `x-better-supabase-realtime-status`; defaults from `private` |
+| `name`                   | The channel title; defaults to the key                                                  |
+| `summary`, `description` | Copied to the channel                                                                   |
 
 The channel is `topic<Key>`, with one message per event (`topic<Key><Event>`)
 and the operation `receive<Key>`. A topic without `events` is documented with
 one open message and an `asyncapi-topic-open` info finding. A schema without
 Standard JSON Schema leaves its payload open with an `asyncapi-schema-opaque`
 warning.
+
+### Realtime status
+
+Every topic and table channel carries `x-better-supabase-realtime-status`,
+the platform status of what it relies on. Private channels need Realtime
+Authorization for broadcast and presence, which is in public beta, so they
+are `beta`. Public broadcast and presence, and Postgres changes, are `ga`.
+Table change signals are private broadcasts, so table channels are `beta`.
+`defineTopic` reports the same value as `topic.status`.
+
+The [`spec` command](/docs/cli/spec) reads the topics in
+`realtime.policies.from`, the modules `sql sync` writes policies from, and
+warns with `asyncapi-topic-undocumented` about each topic the AsyncAPI
+document leaves out.
 
 ## CloudEvents
 

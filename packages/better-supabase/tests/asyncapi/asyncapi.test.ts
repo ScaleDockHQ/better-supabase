@@ -1,3 +1,5 @@
+import type { StandardSchemaV1 } from "@standard-schema/spec";
+
 import { describe, expect, it } from "vitest";
 
 import type {
@@ -10,9 +12,14 @@ import type { SupportEventData } from "../../src/core/block-events.ts";
 import type { SpecDiagnostic } from "../../src/spec/format.ts";
 import type { ApiModel } from "../../src/spec/model.ts";
 
-import { asyncapiFormat, createAsyncApi } from "../../src/asyncapi/index.ts";
+import {
+  asyncapiFormat,
+  createAsyncApi,
+  topicsFrom,
+} from "../../src/asyncapi/index.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { SPEC_PINS } from "../../src/core/spec-pins.ts";
+import { defineTopic } from "../../src/realtime/topic.ts";
 import { defineSchema } from "../../src/schema/define.ts";
 import { defineApi } from "../../src/spec/api.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -275,6 +282,72 @@ describe("asyncapiFormat", () => {
     expect(codes(rendered.diagnostics)).toEqual(
       expect.arrayContaining(["asyncapi-topic-open", "asyncapi-schema-opaque"]),
     );
+  });
+
+  it("documents defineTopic results from topicsFrom with their schemas and status", () => {
+    // SAFETY: `standard()` returns a full Standard Schema with JSON Schema.
+    const typing = standard({
+      type: "object",
+      properties: { userId: { type: "string" } },
+    }) as unknown as StandardSchemaV1;
+
+    // SAFETY: as above.
+    const cursor = standard({
+      type: "object",
+      properties: { x: { type: "number" } },
+    }) as unknown as StandardSchemaV1;
+
+    const module = {
+      room: defineTopic("room:{roomId}", {
+        events: { typing },
+        presence: cursor,
+        send: true,
+        permission: "rooms.read",
+      }),
+      feed: defineTopic("feed", { private: false }),
+      notATopic: { template: "nope" },
+    };
+
+    const topics = topicsFrom(module, [module.room]);
+    expect(Object.keys(topics)).toEqual(["room", "feed"]);
+
+    const built = defineApi(betterSupabase, {
+      info,
+      realtimeUrl,
+      events: { tables: false, topics },
+    }).render(asyncapiFormat);
+
+    const channelsOf = built.document.channels as Record<string, Json>;
+    const operationsOf = built.document.operations as Record<string, Json>;
+
+    expect(channelsOf["topicRoom"]).toMatchObject({
+      address: "room:{roomId}",
+      "x-better-supabase-private": true,
+      "x-better-supabase-realtime-status": "beta",
+    });
+    expect(channelsOf["topicFeed"]).toMatchObject({
+      "x-better-supabase-private": false,
+      "x-better-supabase-realtime-status": "ga",
+    });
+    expect(
+      built.document.components.messages?.["topicRoomTyping"],
+    ).toMatchObject({
+      payload: { properties: { userId: { type: "string" } } },
+    });
+    expect(
+      built.document.components.messages?.["topicRoomPresence"],
+    ).toMatchObject({ payload: { properties: { x: { type: "number" } } } });
+    expect(operationsOf["sendRoom"]).toBeDefined();
+    expect(operationsOf["receiveRoom"]).toMatchObject({
+      "x-better-supabase-permission": "rooms.read",
+    });
+    expect(operationsOf["sendFeed"]).toBeUndefined();
+  });
+
+  it("marks table change channels with the beta status of private broadcast", () => {
+    expect(channels["tableCustomers"]).toMatchObject({
+      "x-better-supabase-realtime-status": "beta",
+    });
   });
 
   it("describes CloudEvents with the header trait and dataschema", () => {

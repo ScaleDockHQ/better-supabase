@@ -25,15 +25,18 @@ page.
 
 ## Building the model
 
-| Code                     | Severity | Cause                                                                                                  | Fix                                                                                 |
-| ------------------------ | -------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
-| `component-conflict`     | error    | Two different schemas got the same component name; the first one is kept                               | Give one of them another `$id`, or rename it in `componentName`                     |
-| `operation-id-duplicate` | error    | Two operations have the same id                                                                        | Set `operationId` on the route, or change the `operationId` option                  |
-| `permission-unresolved`  | error    | The authorizer's `key()` threw for a permission, or a permission that isn't a string has no authorizer | Pass the `authorizer` to `defineApi`, or fix the reference                          |
-| `permission-missing`     | error    | With `requirePermissions: true`, a write declares no permission                                        | Add a `permission` to the route or action, or `permissions` to the resource         |
-| `schema-unconvertible`   | warning  | A Standard Schema has no Standard JSON Schema, so the document accepts any value there                 | Use a schema library that implements Standard JSON Schema, such as zod 4 or ArkType |
-| `extend-unknown`         | warning  | A resource's `extend` names no operation or action of it                                               | Fix the key, or use `*` for every operation                                         |
-| `plugin-describe-failed` | warning  | A plugin's `describe` hook threw; the rest of the model is built                                       | Fix the plugin                                                                      |
+| Code                        | Severity | Cause                                                                                                  | Fix                                                                                 |
+| --------------------------- | -------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| `component-conflict`        | error    | Two different schemas got the same component name; the first one is kept                               | Give one of them another `$id`, or rename it in `componentName`                     |
+| `operation-id-duplicate`    | error    | Two operations have the same id                                                                        | Set `operationId` on the route, or change the `operationId` option                  |
+| `permission-unresolved`     | error    | The authorizer's `key()` threw for a permission, or a permission that isn't a string has no authorizer | Pass the `authorizer` to `defineApi`, or fix the reference                          |
+| `permission-missing`        | error    | With `requirePermissions: true`, a write declares no permission                                        | Add a `permission` to the route or action, or `permissions` to the resource         |
+| `schema-unconvertible`      | warning  | A Standard Schema has no Standard JSON Schema, so the document accepts any value there                 | Use a schema library that implements Standard JSON Schema, such as zod 4 or ArkType |
+| `extend-unknown`            | warning  | A resource's `extend` names no operation or action of it                                               | Fix the key, or use `*` for every operation                                         |
+| `plugin-describe-failed`    | warning  | A plugin's `describe` hook threw; the rest of the model is built                                       | Fix the plugin                                                                      |
+| `data-api-table-unknown`    | error    | `dataApi.tables` or `dataApi.operations` names a table or view the schema doesn't have                 | Fix the app key                                                                     |
+| `data-api-function-unknown` | error    | `dataApi.functions` names a function the schema doesn't have                                           | Fix the key, or add the function's schema to `schemas` and run `gen`                |
+| `data-api-server-missing`   | warning  | `dataApi` is set without `supabaseUrl`, so the `/rest/v1` paths resolve against the document's servers | Set `supabaseUrl`                                                                   |
 
 ## Rendering
 
@@ -76,6 +79,7 @@ the `events`, `channels`, `messages` and `webhooks` of the model.
 | `asyncapi-schema-dialect`            | warning  | A message payload or headers use JSON Schema 2020-12 keywords the draft-07 Schema Object lacks        | Expected when your tools read 2020-12; otherwise rewrite the schema without them     |
 | `asyncapi-emits-unknown`             | warning  | An action's `emits` names an event no message describes                                               | Fix the name, or describe the event in `events` or `messages`                        |
 | `asyncapi-topic-open`                | info     | A topic lists no `events`, so it has one open message                                                 | Add `events` to document the payloads                                                |
+| `asyncapi-topic-undocumented`        | warning  | `spec`: a topic in `realtime.policies.from` has no channel in the document                            | Pass the module with `events: { topics: topicsFrom(topics) }`                        |
 | `asyncapi-key-invalid`               | info     | A channel, message or operation id has characters AsyncAPI keys don't allow; it is written with `_`   | Expected; use letters, digits, `_` and `-` to keep the id                            |
 | `asyncapi-security-unsupported`      | info     | A Security Profiles scheme is left out, because AsyncAPI can't describe it                            | Expected                                                                             |
 | `asyncapi-security-combined`         | info     | A requirement that needs several schemes together is listed as alternatives                           | Expected; AsyncAPI security lists have no AND                                        |

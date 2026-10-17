@@ -12,6 +12,7 @@ import type {
   ModelResponse,
   ModelResponseOrRef,
   ModelSecurityScheme,
+  ModelServer,
   ModelWebhook,
   SecurityRequirement,
 } from "../spec/model.ts";
@@ -191,11 +192,29 @@ function lowerOperation(operation: ModelOperation, features: Features): Json {
         lowerResponseOrRef(response, features),
       ]),
     ),
+    servers: operation.servers
+      ? lowerServers(operation.servers, features)
+      : undefined,
     security: operation.security
       ? lowerSecurity(operation.security, features)
       : undefined,
     ...operation.extensions,
   });
+}
+
+function lowerServers(
+  servers: readonly ModelServer[],
+  features: Features,
+): Json[] | undefined {
+  return servers.length > 0
+    ? servers.map((server) =>
+        omitUndefined({
+          url: server.url,
+          description: server.description,
+          [features.native32 ? "name" : "x-oai-name"]: server.name,
+        }),
+      )
+    : undefined;
 }
 
 const sameJson = (a: unknown, b: unknown): boolean =>
@@ -452,16 +471,7 @@ function lowerOpenApi(
     [features.native32 ? "$self" : "x-oai-$self"]: model.self,
     info: structuredClone(info),
     jsonSchemaDialect: features.is30 ? undefined : DIALECT,
-    servers:
-      model.servers.length > 0
-        ? model.servers.map((server) =>
-            omitUndefined({
-              url: server.url,
-              description: server.description,
-              [features.native32 ? "name" : "x-oai-name"]: server.name,
-            }),
-          )
-        : undefined,
+    servers: lowerServers(model.servers, features),
     tags: lowerTags(model, features),
     security: lowerSecurity(model.security, features),
     paths,
