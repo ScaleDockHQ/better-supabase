@@ -61,7 +61,9 @@ async function fromHttp(response: Response, name: string): Promise<DbError> {
   const type = response.headers.get("content-type") ?? "";
   if (type.includes("json")) {
     const body: unknown = await response.json().catch(() => undefined);
-    if (isProblem(body)) return fromProblem(body);
+    if (isProblem(body)) {
+      return fromProblem(body);
+    }
   }
   return dbError("unexpected", `${name} answered ${String(response.status)}`, {
     status: response.status,
@@ -70,18 +72,25 @@ async function fromHttp(response: Response, name: string): Promise<DbError> {
 
 /** The function's error as a `DbError`. */
 async function toFunctionError(error: unknown, name: string): Promise<DbError> {
-  if (error instanceof FunctionsHttpError && error.context instanceof Response)
+  if (
+    error instanceof FunctionsHttpError &&
+    error.context instanceof Response
+  ) {
     return fromHttp(error.context, name);
+  }
   if (error instanceof FunctionsFetchError) {
     const cause: unknown = error.context;
-    if (causeName(cause) === "AbortError")
+    if (causeName(cause) === "AbortError") {
       return dbError("aborted", `The call to ${name} was aborted`);
-    if (causeName(cause) === "TimeoutError")
+    }
+    if (causeName(cause) === "TimeoutError") {
       return dbError("timeout", `The call to ${name} timed out`);
+    }
     return dbError("network", `Could not reach ${name}`);
   }
-  if (error instanceof FunctionsRelayError)
+  if (error instanceof FunctionsRelayError) {
     return dbError("network", `The Edge Functions relay failed to run ${name}`);
+  }
   return dbError(
     "unexpected",
     error instanceof Error ? error.message : `${name} failed`,
@@ -115,8 +124,9 @@ export function functions<Contracts extends FunctionContracts>(
                 body: JSON.stringify(input),
               },
         );
-        if (error !== null && error !== undefined)
+        if (error !== null && error !== undefined) {
           return err(await toFunctionError(error, name));
+        }
         // SAFETY: the function's output schema and the contract it exports
         // describe this body; a 204 carries no data.
         return ok(

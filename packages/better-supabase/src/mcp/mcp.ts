@@ -22,8 +22,8 @@ import type {
   ServerContext,
   ServerOptions,
 } from "../server/server-types.ts";
+import type { Json, JsonRpcRequest } from "./json-rpc.ts";
 
-import { base64ToText } from "../core/base64.ts";
 import { type DbError, dbError } from "../core/errors.ts";
 import { jsonReplacer, jsonResponse } from "../core/json.ts";
 import {
@@ -59,6 +59,22 @@ import {
   withCors,
 } from "./http.ts";
 import {
+  HEADER_MISMATCH,
+  INVALID_PARAMS,
+  INVALID_REQUEST,
+  META_CAPABILITIES,
+  META_SERVER_INFO,
+  META_VERSION,
+  METHOD_NOT_FOUND,
+  PARSE_ERROR,
+  UNSUPPORTED_PROTOCOL_VERSION,
+  headerName,
+  isObject,
+  isRpcRequest,
+  quoted,
+  rpcError,
+} from "./json-rpc.ts";
+import {
   checkTool,
   contextOf,
   missingRole,
@@ -79,11 +95,11 @@ const SUPPORTED_VERSIONS: readonly string[] = [
   ...LEGACY_VERSIONS,
 ];
 
-type Json = Readonly<Record<string, unknown>>;
-
 /** The host's hostname is in the list; a missing or malformed host is not. */
 function hostAllowed(host: string | null, allowed: readonly string[]): boolean {
-  if (!host) return false;
+  if (!host) {
+    return false;
+  }
   try {
     return allowed.includes(new URL(`http://${host}`).hostname);
   } catch {
@@ -505,8 +521,9 @@ function tableTools(
         break;
       }
       case "get":
-        if (keyParam)
+        if (keyParam) {
           add("get", `Get one ${table} row by ${keyParam}.`, keyInput(), row);
+        }
         break;
       case "create":
         add(
@@ -527,8 +544,9 @@ function tableTools(
         }
         break;
       case "delete":
-        if (keyParam)
+        if (keyParam) {
           add("delete", `Delete one ${table} row by ${keyParam}.`, keyInput());
+        }
         break;
       default: {
         const unknown: never = operation;
@@ -539,70 +557,10 @@ function tableTools(
   return tools;
 }
 
-interface JsonRpcRequest {
-  readonly jsonrpc: "2.0";
-  readonly id?: string | number | null;
-  readonly method: string;
-  readonly params?: Json;
-}
-
-const PARSE_ERROR = -32_700;
-const INVALID_REQUEST = -32_600;
-const METHOD_NOT_FOUND = -32_601;
-const INVALID_PARAMS = -32_602;
-const HEADER_MISMATCH = -32_020;
-const UNSUPPORTED_PROTOCOL_VERSION = -32_022;
-
-const META_VERSION = "io.modelcontextprotocol/protocolVersion";
-const META_CAPABILITIES = "io.modelcontextprotocol/clientCapabilities";
-const META_SERVER_INFO = "io.modelcontextprotocol/serverInfo";
 /** How long clients may cache `tools/list` and `server/discover` (per token). */
 const LIST_TTL_MS = 300_000;
 /** Callers whose visible tool lists are kept; the oldest goes first. */
 const VISIBLE_LISTS_MAX = 1000;
-
-function rpcError(
-  id: JsonRpcRequest["id"],
-  code: number,
-  message: string,
-  status = 200,
-  data?: Json,
-): Response {
-  return Response.json(
-    {
-      jsonrpc: "2.0",
-      id: id ?? null,
-      error: { code, message, ...(data ? { data } : {}) },
-    },
-    { status },
-  );
-}
-
-const isObject = (value: unknown): value is Json =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
-/** An `Mcp-Name` value, decoding the `=?base64?...?=` sentinel. */
-function headerName(value: string): string {
-  const encoded = /^=\?base64\?(.*)\?=$/.exec(value)?.[1];
-  if (encoded === undefined) return value;
-  try {
-    return base64ToText(encoded);
-  } catch {
-    return value;
-  }
-}
-
-const quoted = (value: string): string =>
-  `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
-
-function isRpcRequest(value: unknown): value is JsonRpcRequest {
-  return (
-    isObject(value) &&
-    value["jsonrpc"] === "2.0" &&
-    typeof value["method"] === "string" &&
-    (value["params"] === undefined || isObject(value["params"]))
-  );
-}
 
 function textResult(value: unknown, isError = false): ToolResult {
   // SAFETY: the check above narrows value to a non-array object, which is a JSON object.
@@ -686,9 +644,13 @@ export function createMcp<
     args: unknown,
     ctx: ToolContext<M, F, E, C, P>,
   ): Promise<Refusal | undefined> => {
-    if (!options.authorize) return undefined;
+    if (!options.authorize) {
+      return undefined;
+    }
     const decision = await options.authorize(ctx, tool, args);
-    if (decision.allowed) return undefined;
+    if (decision.allowed) {
+      return undefined;
+    }
     return {
       refusal: decision.reason ?? `Not allowed to call ${tool.info.name}`,
       scopes: decision.scopes ?? [],
@@ -700,7 +662,9 @@ export function createMcp<
   ): Promise<boolean> => !options.visible || options.visible(ctx, tool);
 
   for (const [table, raw] of Object.entries(options.resources ?? {})) {
-    if (!raw) continue;
+    if (!raw) {
+      continue;
+    }
     // SAFETY: options.resources is keyed by table names of M, and
     // Object.entries widens the keys and values.
     const key = table as TableKey<M>;
@@ -723,14 +687,18 @@ export function createMcp<
           // arguments default to an empty object.
           const input = (args ?? {}) as Record<string, unknown>;
           const refusal = await refused(ref, input, ctx);
-          if (refusal) return refusal;
+          if (refusal) {
+            return refusal;
+          }
           const id = resource.keyParam ? input[resource.keyParam] : undefined;
           const result = await resource.execute(ctx.db, operation, {
             id,
             query: input,
             data: operation === "update" ? input["patch"] : input,
           });
-          if (!result.ok) return failure(result.error);
+          if (!result.ok) {
+            return failure(result.error);
+          }
           return textResult(
             operation === "delete" ? { deleted: true } : result.data,
           );
@@ -756,7 +724,9 @@ export function createMcp<
         let value: unknown = args ?? {};
         if (tool.input) {
           const parsed = await validate(tool.input, value, "arguments");
-          if (!parsed.ok) return failure(parsed.error);
+          if (!parsed.ok) {
+            return failure(parsed.error);
+          }
           value = parsed.data;
         }
         const checked = await checkTool(
@@ -765,9 +735,13 @@ export function createMcp<
           value,
           ctx.db,
         );
-        if (!checked.ok) return failure(checked.error);
+        if (!checked.ok) {
+          return failure(checked.error);
+        }
         const refusal = await refused(ref, value, ctx);
-        if (refusal) return refusal;
+        if (refusal) {
+          return refusal;
+        }
         // SAFETY: value passed the tool's input schema above, so it has the
         // tool's input type.
         const outcome = await settle(() => tool.run(value as never, ctx));
@@ -775,7 +749,9 @@ export function createMcp<
       },
     });
   };
-  for (const tool of options.tools ?? []) addTool(tool);
+  for (const tool of options.tools ?? []) {
+    addTool(tool);
+  }
 
   const listTools = (): ToolInfo[] =>
     (allTools ??= [...registry.values()].map((entry) => entry.info));
@@ -802,12 +778,15 @@ export function createMcp<
   ): Promise<ToolInfo[]> => {
     const all = [...registry.values()];
     const gated = all.some((entry) => entry.permission !== undefined);
-    if (!options.visible && !gated) return listFor(target);
+    if (!options.visible && !gated) {
+      return listFor(target);
+    }
     const ctx = context();
     const token = ctx.auth.kind === "user" ? ctx.auth.token : undefined;
     const cached = token === undefined ? undefined : visibleLists.get(token);
-    if (cached?.generation === generation)
+    if (cached?.generation === generation) {
       return cached.entries.map((entry) => entry.infoFor(target));
+    }
     const [shown, permitted] = await Promise.all([
       Promise.all(all.map((entry) => isVisible(entry, ctx))),
       permittedTools(
@@ -817,12 +796,13 @@ export function createMcp<
       ),
     ]);
     const entries = all.filter((_, index) => shown[index] && permitted[index]);
-    if (token !== undefined)
+    if (token !== undefined) {
       visibleLists.set(
         token,
         { entries, generation },
         Date.now() + LIST_TTL_MS,
       );
+    }
     return entries.map((entry) => entry.infoFor(target));
   };
   const urls = discovery(options, () => server.env.url);
@@ -898,8 +878,12 @@ export function createMcp<
   };
   /** A missing second factor is no scope problem, and an outage is not the caller's fault. */
   const refuse = (request: Request, denied: DbError): Response => {
-    if (denied.kind === "unauthorized") return unauthorized(request);
-    if (denied.kind !== "forbidden") return problemResponse(denied, { expose });
+    if (denied.kind === "unauthorized") {
+      return unauthorized(request);
+    }
+    if (denied.kind !== "forbidden") {
+      return problemResponse(denied, { expose });
+    }
     return denied.code === "INSUFFICIENT_AAL"
       ? rpcError(null, INVALID_REQUEST, denied.message, 403)
       : forbidden(request, denied.message, denied.scopes);
@@ -998,9 +982,13 @@ export function createMcp<
       options.aal,
       options.requiredScopes,
     );
-    if (denied) return refuse(request, denied);
+    if (denied) {
+      return refuse(request, denied);
+    }
     const roleDenied = missingRole(ctx.auth, options.requiredRoles);
-    if (roleDenied) return refuse(request, roleDenied);
+    if (roleDenied) {
+      return refuse(request, roleDenied);
+    }
 
     let message: unknown;
     try {
@@ -1022,9 +1010,13 @@ export function createMcp<
       header === MCP_PROTOCOL_VERSION;
     if (modern) {
       const invalid = checkModern(message, header, request.headers);
-      if (invalid) return invalid;
+      if (invalid) {
+        return invalid;
+      }
     }
-    if (message.id === undefined) return new Response(null, { status: 202 });
+    if (message.id === undefined) {
+      return new Response(null, { status: 202 });
+    }
     const toolContext = (): ToolContext<M, F, E, C, P> =>
       withExtra(ctx, { request, signal: request.signal });
 
@@ -1060,7 +1052,9 @@ export function createMcp<
           cacheScope: "private",
         });
       case "initialize": {
-        if (modern) return notFound();
+        if (modern) {
+          return notFound();
+        }
         const requested = message.params?.["protocolVersion"];
         return reply({
           protocolVersion:
@@ -1105,7 +1099,9 @@ export function createMcp<
           context,
           false,
         );
-        if (!isRefusal(outcome)) return reply(outcome);
+        if (!isRefusal(outcome)) {
+          return reply(outcome);
+        }
         if (outcome.scopes.length > 0) {
           return forbidden(
             request,

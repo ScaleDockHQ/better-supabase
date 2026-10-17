@@ -45,7 +45,9 @@ const SEVERITY_FORMAT: Readonly<Record<Severity, Format>> = {
 };
 
 function text(findings: readonly Finding[], paint: Paint): string {
-  if (findings.length === 0) return "No problems found.";
+  if (findings.length === 0) {
+    return "No problems found.";
+  }
   const order: readonly Severity[] = ["error", "warning", "info"];
   const lines = [...findings]
     .sort(

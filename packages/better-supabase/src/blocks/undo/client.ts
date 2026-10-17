@@ -63,7 +63,9 @@ export function createUndoController(
       return {
         actions: {
           push: (token, label = "") => {
-            if (!token) return;
+            if (!token) {
+              return;
+            }
             nextId += 1;
             const limit = Math.max(1, options.limit ?? 20);
             const { entries, pending } = state.get();
@@ -76,7 +78,9 @@ export function createUndoController(
           undo: async () => {
             const { entries, pending } = state.get();
             const top = entries.at(-1);
-            if (!top || pending) return false;
+            if (!top || pending) {
+              return false;
+            }
             show(entries.slice(0, -1), true, undefined);
             let error: unknown;
             let worked = true;

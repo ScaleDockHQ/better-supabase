@@ -42,12 +42,16 @@ export function defineAnalyticsBucket<const Id extends string>(config: {
           const analytics = client.storage.analytics;
           try {
             const listed = await analytics.listBuckets({ search: config.id });
-            if (listed.error)
+            if (listed.error) {
               return err(fromStorageError(listed.error, config.id));
-            if (listed.data.some((bucket) => bucket.name === config.id))
+            }
+            if (listed.data.some((bucket) => bucket.name === config.id)) {
               return ok({ created: false });
+            }
             const made = await analytics.createBucket(config.id);
-            if (made.error) return err(fromStorageError(made.error, config.id));
+            if (made.error) {
+              return err(fromStorageError(made.error, config.id));
+            }
             return ok({ created: true });
           } catch (cause) {
             return err(fromStorageError(cause, config.id));

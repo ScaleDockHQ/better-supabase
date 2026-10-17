@@ -87,7 +87,9 @@ const NAMES: ModuleNames = {
 const extrasOf = (ctx: ModuleContext) => ctx.extraColumns("reminders");
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const extras = extrasOf(ctx);
   const format = ctx.text("ruleFormat", "rrule");
   if (format !== "rrule" && format !== "columns") {

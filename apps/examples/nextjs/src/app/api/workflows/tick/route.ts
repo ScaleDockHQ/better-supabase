@@ -15,7 +15,9 @@ import { bs } from "@/lib/supabase/server";
  * member who created it. The sample steps check no permission keys.
  */
 async function runAs(call: WorkflowStartCall): Promise<WorkflowRunAs | null> {
-  if (call.tenant === undefined) return null;
+  if (call.tenant === undefined) {
+    return null;
+  }
   const owner = await bs
     .admin()
     .memberships.findFirst({

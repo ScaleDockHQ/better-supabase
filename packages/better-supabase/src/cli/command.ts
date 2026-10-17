@@ -119,7 +119,9 @@ export function joinRepeated(
   argv: readonly string[],
   names: readonly string[],
 ): string[] {
-  if (names.length === 0) return [...argv];
+  if (names.length === 0) {
+    return [...argv];
+  }
   const lists = new Set(names);
   const values = new Map<string, string[]>();
   const rest: string[] = [];
@@ -138,7 +140,9 @@ export function joinRepeated(
     let value = match?.[2];
     if (value === undefined) {
       const next = argv[index + 1];
-      if (next === undefined || next.startsWith("-")) continue;
+      if (next === undefined || next.startsWith("-")) {
+        continue;
+      }
       value = next;
       index += 1;
     }
@@ -156,8 +160,9 @@ export function parseCommandArgs<T extends ArgsDef>(
   argv: readonly string[],
 ): ParsedArgs<T> {
   const args = command.args;
-  if (typeof args !== "object" || args instanceof Promise)
+  if (typeof args !== "object" || args instanceof Promise) {
     throw new TypeError("parseCommandArgs needs a command with static args");
+  }
   return parseArgs<T>(joinRepeated(argv, listArgs(command)), args);
 }
 
@@ -173,9 +178,10 @@ function isCliContext(value: unknown): value is CliContext {
 }
 
 export function cliContext(data: unknown): CliContext {
-  if (!isCliContext(data))
+  if (!isCliContext(data)) {
     throw new TypeError(
       "better-supabase commands run through run() from better-supabase/cli",
     );
+  }
   return data;
 }

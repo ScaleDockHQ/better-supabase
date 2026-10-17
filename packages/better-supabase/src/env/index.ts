@@ -111,7 +111,9 @@ function first(
 ): string | undefined {
   for (const name of names) {
     const value = source[name]?.trim();
-    if (value) return value;
+    if (value) {
+      return value;
+    }
   }
   return undefined;
 }
@@ -124,7 +126,9 @@ function keySet(
   issues: EnvIssue[],
 ): Readonly<Record<string, string>> | undefined {
   const raw = source[name];
-  if (!raw) return undefined;
+  if (!raw) {
+    return undefined;
+  }
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -148,7 +152,9 @@ function keySet(
   const keys: Record<string, string> = {};
   // SAFETY: the filter above kept only entries with string values.
   for (const [key, value] of entries as [string, string][]) {
-    if (checkKey(value, kind, [name], issues)) keys[key] = value;
+    if (checkKey(value, kind, [name], issues)) {
+      keys[key] = value;
+    }
   }
   return keys;
 }
@@ -156,7 +162,9 @@ function keySet(
 function preferred(
   keys: Readonly<Record<string, string>> | undefined,
 ): string | undefined {
-  if (!keys) return undefined;
+  if (!keys) {
+    return undefined;
+  }
   return keys["default"] ?? Object.values(keys)[0];
 }
 
@@ -214,8 +222,12 @@ function checkUrl(
     issues.push({ variables, message: "is not a valid URL" });
     return undefined;
   }
-  if (url.protocol === "https:") return url;
-  if (url.protocol === "http:" && LOOPBACK.test(url.hostname)) return url;
+  if (url.protocol === "https:") {
+    return url;
+  }
+  if (url.protocol === "http:" && LOOPBACK.test(url.hostname)) {
+    return url;
+  }
   issues.push({
     variables,
     message:
@@ -230,7 +242,9 @@ function checkKey(
   variables: readonly string[],
   issues: EnvIssue[],
 ): boolean {
-  if (value.startsWith(`sb_${kind}_`)) return true;
+  if (value.startsWith(`sb_${kind}_`)) {
+    return true;
+  }
   if (value.startsWith("eyJ")) {
     issues.push({
       variables,
@@ -266,8 +280,9 @@ export function parseEnv(
 
   const rawUrl = first(source, ENV_VARIABLES.url);
   const url = rawUrl ? checkUrl(rawUrl, ENV_VARIABLES.url, issues) : undefined;
-  if (!rawUrl)
+  if (!rawUrl) {
     issues.push({ variables: ENV_VARIABLES.url, message: "is not set" });
+  }
 
   const publishableKeys = keySet(
     source,
@@ -294,10 +309,11 @@ export function parseEnv(
   const namedSecrets = keySet(source, "SUPABASE_SECRET_KEYS", "secret", issues);
   const singleSecret = first(source, ENV_VARIABLES.secretKey);
   const secretKey = singleSecret ?? preferred(namedSecrets);
-  if (singleSecret)
+  if (singleSecret) {
     checkKey(singleSecret, "secret", ENV_VARIABLES.secretKey, issues);
-  else if (!secretKey && required.has("secretKey"))
+  } else if (!secretKey && required.has("secretKey")) {
     issues.push({ variables: ENV_VARIABLES.secretKey, message: "is not set" });
+  }
 
   const dbUrl = first(source, ENV_VARIABLES.dbUrl);
   if (dbUrl && !/^postgres(ql)?:\/\//.test(dbUrl)) {
@@ -330,8 +346,9 @@ export function parseEnv(
     });
   }
 
-  if (issues.length > 0 || !url || !publishableKey)
+  if (issues.length > 0 || !url || !publishableKey) {
     return { ok: false, issues };
+  }
 
   const base = url.href.replace(/\/+$/, "");
   const projectRef = HOSTED.exec(url.hostname)?.[1];
@@ -368,7 +385,9 @@ export function loadEnv(
   options: EnvOptions = {},
 ): BetterSupabaseEnv {
   const result = parseEnv(source, options);
-  if (!result.ok) throw new EnvValidationError(result.issues);
+  if (!result.ok) {
+    throw new EnvValidationError(result.issues);
+  }
   return result.env;
 }
 
@@ -387,7 +406,9 @@ export function envSchema(
         // SAFETY: the check above narrows value to an object, and parseEnv
         // checks each key.
         const result = parseEnv(value as EnvSource, options);
-        if (result.ok) return { value: result.env };
+        if (result.ok) {
+          return { value: result.env };
+        }
         return {
           issues: result.issues.map((issue) => ({
             message: `${issue.variables[0] ?? "env"} ${issue.message}`,

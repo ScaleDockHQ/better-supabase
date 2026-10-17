@@ -38,16 +38,24 @@ export function overrideRequestHeaders(
   const listed = response.headers.get(OVERRIDE);
   const current = new Headers();
   if (listed === null) {
-    for (const [name, value] of request.headers) current.set(name, value);
+    for (const [name, value] of request.headers) {
+      current.set(name, value);
+    }
   } else {
     for (const name of listed.split(",")) {
       const value = response.headers.get(`${REQUEST_PREFIX}${name.trim()}`);
-      if (name.trim() && value !== null) current.set(name.trim(), value);
+      if (name.trim() && value !== null) {
+        current.set(name.trim(), value);
+      }
     }
   }
-  for (const [name, value] of Object.entries(set)) current.set(name, value);
+  for (const [name, value] of Object.entries(set)) {
+    current.set(name, value);
+  }
   for (const name of [...response.headers.keys()]) {
-    if (name.startsWith(REQUEST_PREFIX)) response.headers.delete(name);
+    if (name.startsWith(REQUEST_PREFIX)) {
+      response.headers.delete(name);
+    }
   }
   response.headers.set(OVERRIDE, [...current.keys()].join(","));
   for (const [name, value] of current) {

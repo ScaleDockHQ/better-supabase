@@ -32,7 +32,9 @@ function valueMaps(
   const where = "blocks.audit.options.values";
   const configured = ctx.option("values");
   const maps = new Map<AuditValueColumn, Map<string, string>>();
-  if (configured === undefined) return maps;
+  if (configured === undefined) {
+    return maps;
+  }
   if (typeof configured !== "object" || configured === null) {
     throw new TypeError(`${where} must be an object`);
   }
@@ -70,7 +72,9 @@ export function auditWrite(
   expression: string,
 ): string {
   const map = valueMaps(ctx).get(column);
-  if (!map || map.size === 0) return expression;
+  if (!map || map.size === 0) {
+    return expression;
+  }
   const cases = [...map]
     .map(([from, to]) => `when ${sqlString(from)} then ${sqlString(to)}`)
     .join(" ");
@@ -84,7 +88,9 @@ export function auditRead(
   expression: string,
 ): string {
   const map = valueMaps(ctx).get(column);
-  if (!map || map.size === 0) return expression;
+  if (!map || map.size === 0) {
+    return expression;
+  }
   const cases = [...map]
     .map(([from, to]) => `when ${sqlString(to)} then ${sqlString(from)}`)
     .join(" ");
@@ -106,8 +112,12 @@ export function tenantLabel(ctx: ModuleContext, tenant: string): string {
     const key = sqlIdent(ctx.text("tenantLabelKey", "id"));
     return `(select o.${ref.column}::text from ${ref.table} o where o.${key} = ${tenant})`;
   }
-  if (!ctx.installed("organizations")) return "null";
+  if (!ctx.installed("organizations")) {
+    return "null";
+  }
   const organizations = ctx.of("organizations");
-  if (!organizations.has("organizations", "name")) return "null";
+  if (!organizations.has("organizations", "name")) {
+    return "null";
+  }
   return `(select o.${organizations.col("organizations", "name")}::text from ${organizations.table("organizations")} o where o.${organizations.col("organizations", "id")} = ${tenant})`;
 }

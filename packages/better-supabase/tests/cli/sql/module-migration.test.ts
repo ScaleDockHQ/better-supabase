@@ -66,8 +66,9 @@ describe("sameModuleMigration and migrationHolds", () => {
   });
 
   it("finds one module's file in the migration", () => {
-    for (const file of files)
+    for (const file of files) {
       expect(migrationHolds(plain, file.contents)).toBe(true);
+    }
     expect(migrationHolds(plain, "create table nope ();")).toBe(false);
   });
 

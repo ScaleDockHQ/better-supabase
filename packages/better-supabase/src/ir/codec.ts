@@ -40,7 +40,9 @@ function countOf(value: unknown): number {
 }
 
 function measureOf(measure: Measure, value: unknown): unknown {
-  if (value === undefined || value === null) return null;
+  if (value === undefined || value === null) {
+    return null;
+  }
   return measure.codec ? decodeScalar(measure.codec, value) : value;
 }
 
@@ -91,19 +93,24 @@ function decodeRow(
   const dropped = droppedOf(selection);
   const out: Record<string, unknown> = {};
   for (const key in row) {
-    if (!dropped.has(key) && Object.hasOwn(row, key)) out[key] = row[key];
+    if (!dropped.has(key) && Object.hasOwn(row, key)) {
+      out[key] = row[key];
+    }
   }
   const folded: Folded = new Map();
   for (const column of selection.columns) {
-    if (!column.codec || !(column.alias in out)) continue;
+    if (!column.codec || !(column.alias in out)) {
+      continue;
+    }
     try {
       out[column.alias] = decodeValue(column.codec, out[column.alias]);
     } catch (cause) {
       if (
         !(cause instanceof DbException) ||
         cause.error.kind !== "invalid_value"
-      )
+      ) {
         throw cause;
+      }
       throw new DbException(
         dbError("invalid_value", `${column.alias}: ${cause.error.message}`, {
           column: column.alias,
@@ -112,7 +119,9 @@ function decodeRow(
     }
   }
   if (selection.aggregate) {
-    if (selection.aggregate.count) out["_count"] = countOf(out["_count"]);
+    if (selection.aggregate.count) {
+      out["_count"] = countOf(out["_count"]);
+    }
     for (const measure of selection.aggregate.measures) {
       const value = row[measure.key];
       fold(
@@ -127,12 +136,16 @@ function decodeRow(
   for (const include of selection.includes) {
     const value = row[include.alias];
     if (include.count !== undefined) {
-      if (!(include.alias in row)) continue;
+      if (!(include.alias in row)) {
+        continue;
+      }
       fold(out, folded, "_count", include.count, countOf(value));
       continue;
     }
     if (include.aggregate !== undefined) {
-      if (!(include.alias in row)) continue;
+      if (!(include.alias in row)) {
+        continue;
+      }
       // PostgREST returns `[{ amount }]` for an aggregate embed; SQL the object.
       // SAFETY: an aggregate embed is an object of measures, or a list holding one.
       const inner = (Array.isArray(value) ? value[0] : value) as

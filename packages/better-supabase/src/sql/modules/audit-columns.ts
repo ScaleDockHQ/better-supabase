@@ -38,7 +38,11 @@ export function hasColumn(
   table: string,
   logical: string,
 ): boolean {
-  if (!ctx.has(table, logical)) return false;
-  if (ctx.manages || !ADDED_COLUMNS[table]?.includes(logical)) return true;
+  if (!ctx.has(table, logical)) {
+    return false;
+  }
+  if (ctx.manages || !ADDED_COLUMNS[table]?.includes(logical)) {
+    return true;
+  }
   return typeof ctx.config.columns[table]?.[logical] === "string";
 }

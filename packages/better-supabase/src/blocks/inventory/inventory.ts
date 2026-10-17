@@ -240,7 +240,9 @@ function idOf(fn: string) {
 }
 
 function maxRowsOf(payload: unknown): number | undefined {
-  if (!isRecord(payload)) return undefined;
+  if (!isRecord(payload)) {
+    return undefined;
+  }
   const value = payload["maxRows"];
   return typeof value === "number" ? value : undefined;
 }

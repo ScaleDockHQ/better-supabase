@@ -44,7 +44,9 @@ export function createdFromLink(
     readonly originId: string;
   },
 ): string {
-  if (!ctx.installed("relations")) return "";
+  if (!ctx.installed("relations")) {
+    return "";
+  }
   const r = ctx.of("relations");
   const col = (name: string): string => r.col("relations", name);
   return `insert into ${r.table("relations")} (${col("tenant")}, ${col("kind")}, ${col("sourceType")}, ${col("sourceId")}, ${col("targetType")}, ${col("targetId")}, ${col("createdBy")})

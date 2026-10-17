@@ -243,7 +243,9 @@ export function createImageService(
     getURL(transform) {
       const src =
         typeof transform.src === "string" ? transform.src : transform.src.src;
-      if (transform.width === undefined) return src;
+      if (transform.width === undefined) {
+        return src;
+      }
       const quality =
         typeof transform.quality === "string"
           ? QUALITY_PRESETS[transform.quality]

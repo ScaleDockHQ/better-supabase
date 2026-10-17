@@ -69,7 +69,9 @@ const IDENT = /^[a-z_][a-z0-9_$]{0,62}$/;
 function plansOf(ctx: ModuleContext): PlanCatalog | undefined {
   const where = "blocks.billing.options.plans";
   const option = ctx.option("plans");
-  if (option === undefined) return undefined;
+  if (option === undefined) {
+    return undefined;
+  }
   if (typeof option !== "object" || option === null || Array.isArray(option)) {
     throw new TypeError(
       `${where} must be { table, key?, price?, interval?, active?, variant? }`,
@@ -78,7 +80,9 @@ function plansOf(ctx: ModuleContext): PlanCatalog | undefined {
   const entries = new Map<string, unknown>(Object.entries(option));
   const text = (name: string, fallback?: string): string | undefined => {
     const value = entries.get(name) ?? fallback;
-    if (value === undefined) return undefined;
+    if (value === undefined) {
+      return undefined;
+    }
     if (
       typeof value !== "string" ||
       !value.split(".").every((part) => IDENT.test(part))
@@ -164,7 +168,9 @@ grant execute on function ${fn}(text, text, text) to authenticated, service_role
  */
 function tenantReference(ctx: ModuleContext): string | undefined {
   const configured = ctx.option("tenantKey");
-  if (configured === false) return undefined;
+  if (configured === false) {
+    return undefined;
+  }
   if (configured !== undefined) {
     if (typeof configured !== "string") {
       throw new TypeError(
@@ -174,13 +180,17 @@ function tenantReference(ctx: ModuleContext): string | undefined {
     const ref = columnRef("blocks.billing.options.tenantKey", configured);
     return `${ref.table} (${ref.column})`;
   }
-  if (!ctx.installed("organizations")) return undefined;
+  if (!ctx.installed("organizations")) {
+    return undefined;
+  }
   const organizations = ctx.of("organizations");
   return `${organizations.table("organizations")} (${organizations.col("organizations", "id")})`;
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const id = ctx.idType;
   const t = ctx.table("customers");
   const c = (logical: string): string => ctx.col("customers", logical);

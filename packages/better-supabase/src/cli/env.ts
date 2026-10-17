@@ -28,8 +28,12 @@ export function configEnvironment(
   flag: string | undefined,
   env: CliEnv,
 ): string | undefined {
-  if (flag !== undefined && flag !== "") return flag;
-  if (env.BETTER_SUPABASE_ENV !== undefined) return env.BETTER_SUPABASE_ENV;
+  if (flag !== undefined && flag !== "") {
+    return flag;
+  }
+  if (env.BETTER_SUPABASE_ENV !== undefined) {
+    return env.BETTER_SUPABASE_ENV;
+  }
   return env.CI !== undefined && env.CI !== "false" && env.CI !== "0"
     ? "ci"
     : undefined;

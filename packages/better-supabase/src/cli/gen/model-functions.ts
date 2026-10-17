@@ -25,14 +25,17 @@ export function buildFunctions(
   const ownerSchema = new Map<string, string>();
   for (const schema of config.schemas) {
     for (const fn of callable) {
-      if (fn.schema === schema && !ownerSchema.has(fn.name))
+      if (fn.schema === schema && !ownerSchema.has(fn.name)) {
         ownerSchema.set(fn.name, schema);
+      }
     }
   }
   const shadowed = new Set<string>();
   const functions: FunctionModel[] = callable
     .filter((fn) => {
-      if (ownerSchema.get(fn.name) === fn.schema) return true;
+      if (ownerSchema.get(fn.name) === fn.schema) {
+        return true;
+      }
       shadowed.add(`${fn.schema}.${fn.name}`);
       return false;
     })
@@ -42,18 +45,20 @@ export function buildFunctions(
         const values = enumsByName.get(
           `${typeSchema ?? fn.schema}.${isArray ? format.slice(1) : format}`,
         );
-        if (values)
+        if (values) {
           return isArray ? arrayOf(enumType(values)) : enumType(values);
+        }
         return tsType(fn.schema, format, typeSchema);
       };
       const notNull = configFor(config.functions, fn.schema, fn.name)?.notNull;
       const notNullColumns = new Set(Array.isArray(notNull) ? notNull : []);
       if (Array.isArray(notNull)) {
         for (const name of notNullColumns) {
-          if (!fn.returnsTable?.some((column) => column.name === name))
+          if (!fn.returnsTable?.some((column) => column.name === name)) {
             throw new TypeError(
               `functions.${fn.name}.notNull: "${name}" is not a column the function returns`,
             );
+          }
         }
       }
       const orNull = (type: string, column?: string): string =>
@@ -112,7 +117,9 @@ export function buildFunctions(
         }
       } else {
         returns = orNull(typeOf(fn.returns, fn.returnsSchema));
-        if (fn.returnsSet) returns = arrayOf(returns);
+        if (fn.returnsSet) {
+          returns = arrayOf(returns);
+        }
       }
       return {
         key: fn.name,
@@ -139,10 +146,11 @@ export function buildFunctions(
       !functions.some(
         (fn) => fn.key === name || `${fn.meta.schema}.${fn.key}` === name,
       )
-    )
+    ) {
       throw new TypeError(
         `functions.${name}: no function "${name}" in ${config.schemas.join(", ")}`,
       );
+    }
   }
   for (const id of shadowed) {
     const name = id.slice(id.indexOf(".") + 1);

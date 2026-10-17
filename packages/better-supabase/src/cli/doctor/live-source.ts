@@ -74,10 +74,13 @@ export function openLive(
     },
   };
   const close = async (): Promise<void> => {
-    if (opened) await (await opened).close();
+    if (opened) {
+      await (await opened).close();
+    }
   };
-  if (target)
+  if (target) {
     return { advisors: managementAdvisors(target), database, open, close };
+  }
   let splinter: Promise<AdvisorSource> | undefined;
   const cacheDir = resolve(config.root, CACHE_DIR);
   const advisors: AdvisorSource = {

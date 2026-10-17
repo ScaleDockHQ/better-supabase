@@ -11,7 +11,9 @@ export function maxAffectedOf(
   args: Readonly<Record<string, unknown>>,
 ): { maxAffected?: number } | { invalid: string } {
   const value = args["maxAffected"];
-  if (value === undefined) return {};
+  if (value === undefined) {
+    return {};
+  }
   return typeof value === "number" && Number.isInteger(value) && value >= 0
     ? { maxAffected: value }
     : {

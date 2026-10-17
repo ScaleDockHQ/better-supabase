@@ -50,8 +50,9 @@ describe("RFC 7518 ES256 (section 3.4) and RFC 7517 JSON Web Keys", () => {
       use: "sig",
     });
     expect(key!.kid).toMatch(/\S/);
-    for (const coordinate of ["x", "y", "d"] as const)
+    for (const coordinate of ["x", "y", "d"] as const) {
       expect(bytes(String(key![coordinate]))).toBe(32);
+    }
 
     const token = await signTestJwtWithKey(key!, { sub: "u1" });
     const [header, , signature] = token.split(".");

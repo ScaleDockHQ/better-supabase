@@ -47,7 +47,7 @@ describe("sessionStatus", () => {
   });
 
   it("reports a banned account from the Auth error code", async () => {
-    for (const status of [401, 403])
+    for (const status of [401, 403]) {
       await expect(
         sessionStatus(live, {
           url: PROJECT,
@@ -60,6 +60,7 @@ describe("sessionStatus", () => {
           ),
         }),
       ).resolves.toBe("banned");
+    }
     await expect(
       sessionStatus(live, {
         url: PROJECT,

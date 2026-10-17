@@ -138,7 +138,9 @@ const TENANT_PROVIDERS: ReadonlySet<string> = new Set(["tenant", "access"]);
 
 /** The scope `name` runs in for `layout`: its own, then `sql.scope`, then `tenant`. */
 export function blockScope(name: string, layout: ModuleLayout): BlockScope {
-  if (TENANT_PROVIDERS.has(name)) return "tenant";
+  if (TENANT_PROVIDERS.has(name)) {
+    return "tenant";
+  }
   return layout.modules?.[name]?.scope ?? layout.scope ?? "tenant";
 }
 
@@ -165,10 +167,14 @@ function scopeProblem(
   module: SqlModule,
   layout: ModuleLayout,
 ): string | undefined {
-  if (TENANT_PROVIDERS.has(module.name)) return undefined;
+  if (TENANT_PROVIDERS.has(module.name)) {
+    return undefined;
+  }
   const scope = blockScope(module.name, layout);
   const scopes = module.scopes ?? BLOCK_SCOPES;
-  if (scopes.includes(scope)) return undefined;
+  if (scopes.includes(scope)) {
+    return undefined;
+  }
   const own = layout.modules?.[module.name]?.scope !== undefined;
   return `blocks.${module.name}: the ${module.name} module runs in ${scopes.join(" or ")} scope, not ${scope}${own ? "" : " (from sql.scope)"}. ${scopes.includes("tenant") ? `Set blocks.${module.name}.scope to "tenant" or remove the block.` : "Remove the block."}`;
 }
@@ -310,18 +316,23 @@ export function resolveModules(
         `Unknown SQL module "${name}"${from ? ` (required by ${from})` : ""}. Available: ${Object.keys(SQL_MODULES).join(", ")}`,
       );
     }
-    if (ordered.includes(module)) return;
+    if (ordered.includes(module)) {
+      return;
+    }
     const problem = scopeProblem(module, layout);
     if (problem) {
       throw new TypeError(
         from ? `${problem} It is required by ${from}.` : problem,
       );
     }
-    for (const dependency of requiresOf(module, layout))
+    for (const dependency of requiresOf(module, layout)) {
       visit(dependency, name);
+    }
     ordered.push(module);
   };
-  for (const name of names) visit(name);
+  for (const name of names) {
+    visit(name);
+  }
   return ordered.sort((a, b) => renderPosition(a) - renderPosition(b));
 }
 

@@ -80,8 +80,9 @@ export function testPlugin(
         const db = betterSupabase
           .use(plugin)
           .connect(recorder([]), context) as unknown as AnyDb;
-        for (const key of Object.keys(betterSupabase.meta.tables))
+        for (const key of Object.keys(betterSupabase.meta.tables)) {
           expect(db[key], `db.${key} is missing`);
+        }
       },
     ],
     [
@@ -104,9 +105,13 @@ export function testPlugin(
           (other) => other.name !== plugin.name,
         );
         let before: AnySupabase = betterSupabase;
-        for (const other of others) before = before.use(other);
+        for (const other of others) {
+          before = before.use(other);
+        }
         let after: AnySupabase = betterSupabase.use(plugin);
-        for (const other of others) after = after.use(other);
+        for (const other of others) {
+          after = after.use(other);
+        }
         for (const installed of [before.use(plugin), after]) {
           // SAFETY: the kit runs against any schema, so it indexes repositories
           // by table name.
@@ -115,8 +120,9 @@ export function testPlugin(
             recorder([]),
             context,
           ) as unknown as AnyDb;
-          for (const key of Object.keys(betterSupabase.meta.tables))
+          for (const key of Object.keys(betterSupabase.meta.tables)) {
             expect(db[key], `db.${key} is missing`);
+          }
         }
       },
     ],
@@ -133,7 +139,9 @@ export function testPlugin(
         for (const [key, table] of Object.entries(betterSupabase.meta.tables)) {
           const base = db[key]!;
           const added = plugin.repository!({ table, base });
-          if (added === undefined) continue;
+          if (added === undefined) {
+            continue;
+          }
           for (const [name, method] of Object.entries(added)) {
             expect(
               typeof method === "function",
@@ -167,8 +175,9 @@ export function testPlugin(
           const op = await captureOp(betterSupabase, (db) =>
             db[table]!["create"]!(create),
           );
-          if (op.kind === "select")
+          if (op.kind === "select") {
             throw new Violation("create did not produce a mutation");
+          }
           const first = await plugin.beforeMutation!(frozenCopy(op), hook(op));
           const second = await plugin.beforeMutation!(frozenCopy(op), hook(op));
           expect(

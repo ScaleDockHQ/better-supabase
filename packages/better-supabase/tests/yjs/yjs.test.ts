@@ -109,8 +109,12 @@ function fakeBus() {
     const channel = {
       topic: "",
       on: (type: string, _filter: unknown, listener: Listener) => {
-        if (type === "broadcast") entry.listeners.push(listener);
-        if (type === "presence") entry.syncs.push(listener as () => void);
+        if (type === "broadcast") {
+          entry.listeners.push(listener);
+        }
+        if (type === "presence") {
+          entry.syncs.push(listener as () => void);
+        }
         return channel;
       },
       presenceState: () => entry.presence,
@@ -125,8 +129,12 @@ function fakeBus() {
       },
       send: vi.fn(async (message: { event: string; payload: unknown }) => {
         for (const other of channels) {
-          if (other === entry) continue;
-          for (const listener of other.listeners) listener(message);
+          if (other === entry) {
+            continue;
+          }
+          for (const listener of other.listeners) {
+            listener(message);
+          }
         }
         return "ok";
       }),
@@ -147,7 +155,9 @@ function fakeBus() {
       channel,
       sync: (state: Record<string, Record<string, unknown>[]>) => {
         entry.presence = state;
-        for (const listener of entry.syncs) listener();
+        for (const listener of entry.syncs) {
+          listener();
+        }
       },
       deliver: (payload: unknown) => {
         for (const listener of entry.listeners) {
@@ -232,7 +242,9 @@ describe("createDocumentProvider", () => {
     });
     const copy = new Y.Doc();
     const state = await server.documents.pull(DOC_ID, 0).orThrow();
-    for (const item of state.updates) Y.applyUpdate(copy, item.update);
+    for (const item of state.updates) {
+      Y.applyUpdate(copy, item.update);
+    }
     expect(copy.getText("t").toString()).toBe("ab");
     await provider.destroy();
   });

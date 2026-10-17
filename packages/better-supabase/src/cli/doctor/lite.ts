@@ -33,10 +33,14 @@ function liteDriver(context: DoctorContext): LiteDriver | undefined {
 
 function rpcOnSqlite(context: DoctorContext): FindingInput[] {
   const driver = liteDriver(context);
-  if (driver === undefined || !isSqliteLiteDriver(driver)) return [];
+  if (driver === undefined || !isSqliteLiteDriver(driver)) {
+    return [];
+  }
   return context.sources.flatMap((file) => {
     const line = lineOf(file.text, RPC_CALL);
-    if (line === undefined) return [];
+    if (line === undefined) {
+      return [];
+    }
     return [
       {
         message: `${file.path} calls a Postgres function, but Supabase Lite's ${driver} driver has no rpc(), so the call returns an unsupported error. Switch [db] driver to "pglite" or "postgres" in supabase/config.toml, or replace the function with table queries.`,
@@ -48,11 +52,15 @@ function rpcOnSqlite(context: DoctorContext): FindingInput[] {
 }
 
 function missingLiteFeature(context: DoctorContext): FindingInput[] {
-  if (liteDriver(context) === undefined) return [];
+  if (liteDriver(context) === undefined) {
+    return [];
+  }
   return context.sources.flatMap((file) =>
     MISSING_FEATURES.flatMap(({ feature, pattern }) => {
       const line = lineOf(file.text, pattern);
-      if (line === undefined) return [];
+      if (line === undefined) {
+        return [];
+      }
       return [
         {
           message: `${file.path} uses ${feature}, which Supabase Lite does not implement on any driver. Run the full Supabase stack for this feature, or move the project off Lite with \`supabase lite upgrade\`.`,

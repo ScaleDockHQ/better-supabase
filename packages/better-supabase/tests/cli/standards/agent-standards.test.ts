@@ -16,7 +16,9 @@ const json = async (path: string): Promise<Record<string, unknown>> =>
 /** The YAML frontmatter as flat `key: value` pairs (the spec's fields are scalars or one map). */
 function frontmatter(markdown: string): Record<string, string> {
   const block = /^---\n([^]*?)\n---\n/.exec(markdown);
-  if (!block) throw new Error("SKILL.md has no frontmatter");
+  if (!block) {
+    throw new Error("SKILL.md has no frontmatter");
+  }
   return Object.fromEntries(
     block[1]!
       .split("\n")
@@ -51,7 +53,9 @@ describe("Agent Skills", () => {
     const fields = frontmatter(
       await readFile(join(SKILLS, folder, "SKILL.md"), "utf-8"),
     );
-    for (const key of Object.keys(fields)) expect(SPEC_FIELDS).toContain(key);
+    for (const key of Object.keys(fields)) {
+      expect(SPEC_FIELDS).toContain(key);
+    }
     expect(fields["name"]).toBe(folder);
     expect(fields["name"]).toMatch(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
     expect(fields["name"]!.length).toBeLessThanOrEqual(64);

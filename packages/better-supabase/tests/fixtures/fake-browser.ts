@@ -114,11 +114,14 @@ export function fakeRealtime(): FakeRealtime {
     },
   };
   const emit = (topic: string, event: string, payload: unknown = {}): void => {
-    for (const listener of channels.get(topic)?.broadcast ?? [])
+    for (const listener of channels.get(topic)?.broadcast ?? []) {
       listener({ event, payload });
+    }
   };
   const emitAuth = (session: unknown): void => {
-    for (const listener of [...authListeners]) listener("SIGNED_IN", session);
+    for (const listener of [...authListeners]) {
+      listener("SIGNED_IN", session);
+    }
   };
   return { client, channels, emit, emitAuth, authListeners };
 }
@@ -151,7 +154,9 @@ export function fakeBrowser(
   } as unknown as ClientLike;
   const setAuth = (next: AuthSnapshot): void => {
     snapshot = next;
-    for (const listener of [...listeners]) listener();
+    for (const listener of [...listeners]) {
+      listener();
+    }
   };
   return { browser, setAuth, listeners, ...realtime };
 }
@@ -171,7 +176,9 @@ export function cachedClient(...keys: (readonly unknown[])[]): {
   readonly invalidated: (key: readonly unknown[]) => boolean;
 } {
   const queryClient = new QueryClient();
-  for (const key of keys) queryClient.setQueryData(key, 1);
+  for (const key of keys) {
+    queryClient.setQueryData(key, 1);
+  }
   const invalidated = (key: readonly unknown[]): boolean =>
     queryClient.getQueryState(key)?.isInvalidated ?? false;
   return { queryClient, invalidated };

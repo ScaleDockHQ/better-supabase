@@ -15,12 +15,7 @@ import {
   fail,
   raise,
 } from "../shared.ts";
-import {
-  accessModel,
-  OPERATIONS,
-  moduleOperations,
-  roleNames,
-} from "./access-model.ts";
+import { accessModel, OPERATIONS, moduleOperations } from "./access-model.ts";
 import { ORGANIZATION_CUSTOMER_COLUMN } from "./entitlements-source.ts";
 import { ORGANIZATION_EVENTS } from "./organizations-events.ts";
 import {
@@ -28,13 +23,9 @@ import {
   organizationExtraColumns,
   organizationReads,
 } from "./organizations-reads.ts";
+import { assignableRole, checkRole, roleValue } from "./organizations-roles.ts";
 import { memberSuspension } from "./organizations-suspension.ts";
-import {
-  activeTenantSource,
-  roleNameFrom,
-  roleNameOf,
-  roleThrough,
-} from "./tenant.ts";
+import { activeTenantSource, roleNameOf } from "./tenant.ts";
 
 const NAMES: ModuleNames = {
   events: ORGANIZATION_EVENTS,
@@ -115,97 +106,6 @@ function namesOf(ctx: ModuleContext): OrganizationNames {
   };
 }
 
-/**
- * The tenant column of a roles table with tenant custom roles: the
- * `roleThrough` table's `tenant`, or the catalog's mapped `roles.tenant`.
- */
-function rolesTenantColumn(ctx: ModuleContext): string | undefined {
-  const through = roleThrough(ctx.of("tenant"));
-  if (through) return through.tenant;
-  if (accessModel(ctx) !== "catalog") return undefined;
-  const access = ctx.of("access");
-  return !access.manages &&
-    typeof access.config.columns["roles"]?.["tenant"] === "string"
-    ? access.col("roles", "tenant")
-    : undefined;
-}
-
-/**
- * Limits roles row `r` to `tenant`'s custom roles and the shared ones (no
- * tenant), its own first, so a key that several tenants use resolves to the
- * tenant's role. Nothing without a tenant or a tenant column.
- */
-export function tenantRoleScope(
-  ctx: ModuleContext,
-  tenant: string | undefined,
-): { readonly where: string; readonly order: string } {
-  const column = rolesTenantColumn(ctx);
-  if (column === undefined || tenant === undefined)
-    return { where: "", order: "" };
-  return {
-    where: ` and (r.${column} = ${tenant} or r.${column} is null)`,
-    order: `, (r.${column} is not null) desc`,
-  };
-}
-
-/**
- * A role argument as the membership role column stores it: the name for the
- * roles model, the catalog role id (looked up by id or key) for `catalog`.
- * With `tenant`, a key resolves among that tenant's roles. A `roleThrough`
- * lookup keeps to the rows its `where` accepts unless `tenantRoles` is false.
- */
-export function roleValue(
-  ctx: ModuleContext,
-  expr: string,
-  tenant?: string,
-  tenantRoles = true,
-): string {
-  const scope = tenantRoleScope(ctx, tenant);
-  const through = roleThrough(ctx.of("tenant"));
-  if (through) {
-    const text = `(${expr})::text`;
-    const only =
-      tenantRoles && through.where
-        ? ` and (${through.where.replaceAll("{row}", "r")})`
-        : "";
-    return `(select r.${through.id} from ${through.table} r where (r.${through.id}::text = ${text} or r.${through.column}::text = ${text})${only}${scope.where} order by (r.${through.id}::text = ${text}) desc${scope.order} limit 1)`;
-  }
-  if (accessModel(ctx) !== "catalog") return expr;
-  const access = ctx.of("access");
-  const rid = access.col("roles", "id");
-  const key = access.col("roles", "key");
-  const text = `(${expr})::text`;
-  return `(select r.${rid} from ${access.table("roles")} r where (r.${rid}::text = ${text} or r.${key} = ${text})${scope.where} order by (r.${rid}::text = ${text}) desc${scope.order} limit 1)`;
-}
-
-/**
- * A stored membership role as `can_assign` takes it: the role name with
- * `blocks.tenant.options.roleThrough`, the stored value otherwise.
- */
-export function assignableRole(ctx: ModuleContext, stored: string): string {
-  const tenant = ctx.of("tenant");
-  return roleThrough(tenant) ? roleNameFrom(tenant, stored) : `${stored}::text`;
-}
-
-/** Raises `ORGANIZATION_ROLE_UNKNOWN` for a role the access model doesn't know. */
-export function checkRole(
-  ctx: ModuleContext,
-  expr: string,
-  tenant: string,
-): string {
-  const model = accessModel(ctx);
-  const through = roleThrough(ctx.of("tenant")) !== undefined;
-  if (!through && (model === "provider" || model === "custom")) return "";
-  const known =
-    model === "roles" && !through
-      ? `${expr} = any (array[${roleNames(ctx).map(sqlString).join(", ")}]::text[])`
-      : `${roleValue(ctx, expr, tenant)} is not null`;
-  return `
-  if not (${known}) then
-    ${raise("Unknown role %", "22023", "ORGANIZATION_ROLE_UNKNOWN", expr)}
-  end if;`;
-}
-
 const isOwner = (
   ctx: ModuleContext,
   n: OrganizationNames,
@@ -279,7 +179,9 @@ create policy ${ctx.naming.rename("bs_organizations_read")} on ${n.organization}
 
 /** `organization_slug_problem(slug)`: `invalid`, `reserved`, `taken` or null. */
 function slugCheck(ctx: ModuleContext, n: OrganizationNames): string {
-  if (!ctx.has("organizations", "slug")) return "";
+  if (!ctx.has("organizations", "slug")) {
+    return "";
+  }
   const slug = ctx.col("organizations", "slug");
   const pattern = sqlString(ctx.text("slugPattern", DEFAULT_SLUG_PATTERN));
   const min = ctx.number("slugMinLength", 2);
@@ -553,7 +455,9 @@ function remove(ctx: ModuleContext, n: OrganizationNames): string {
 drop function if exists ${ctx.fn("delete_organization")}(${id});
 `;
   }
-  if (mode === "lifecycle") return requestDeletion(ctx);
+  if (mode === "lifecycle") {
+    return requestDeletion(ctx);
+  }
   const soft = mode === "soft";
   if (soft && !ctx.has("organizations", "deletedAt")) {
     throw new TypeError(
@@ -603,7 +507,9 @@ $$;
  * invitations and permission overrides go with their organization.
  */
 function tenantKeys(ctx: ModuleContext, n: OrganizationNames): string {
-  if (!ctx.manages) return "";
+  if (!ctx.manages) {
+    return "";
+  }
   const references = `${n.organization} (${n.id})`;
   const keys: string[] = [];
   const add = (
@@ -612,9 +518,13 @@ function tenantKeys(ctx: ModuleContext, n: OrganizationNames): string {
     name: string,
     available: boolean,
   ): void => {
-    if (!available) return;
+    if (!available) {
+      return;
+    }
     const other = ctx.of(module);
-    if (!other.manages || !other.hasTable(logical)) return;
+    if (!other.manages || !other.hasTable(logical)) {
+      return;
+    }
     keys.push(
       addForeignKey({
         table: other.table(logical),

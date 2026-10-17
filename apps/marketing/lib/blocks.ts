@@ -85,7 +85,9 @@ export function configSnippet(
   ];
   if (dependencies.length > 0) {
     lines.push(`    // Required by ${block.name}; sql add installs them too.`);
-    for (const name of dependencies) lines.push(`    ${configKey(name)}: {},`);
+    for (const name of dependencies) {
+      lines.push(`    ${configKey(name)}: {},`);
+    }
   }
   const modes = block.modes.map((mode) => `"${mode}"`).join(", ");
   lines.push(

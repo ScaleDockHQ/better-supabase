@@ -5,7 +5,9 @@
  * their own worker instead.
  */
 export async function register(): Promise<void> {
-  if (process.env["NEXT_RUNTIME"] !== "nodejs") return;
+  if (process.env["NEXT_RUNTIME"] !== "nodejs") {
+    return;
+  }
   // Loaded here, not at the top: the edge build of this file must not pull
   // in `pg` or the server client.
   const { syncStepLibrary } =

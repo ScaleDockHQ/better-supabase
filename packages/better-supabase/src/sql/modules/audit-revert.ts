@@ -21,7 +21,9 @@ export function revert(ctx: ModuleContext, restricted: boolean): string {
   const needed = ["table", "op"].every((logical) =>
     hasColumn(ctx, "log", logical),
   );
-  if (!snapshots || !needed || !ctx.installed("access")) return "";
+  if (!snapshots || !needed || !ctx.installed("access")) {
+    return "";
+  }
   const log = ctx.table("log");
   const c = (logical: string) => ctx.col("log", logical);
   const snapshot = (logical: "old" | "new") =>

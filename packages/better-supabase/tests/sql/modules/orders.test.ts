@@ -64,8 +64,9 @@ describe("orders module", () => {
 
   it("records subject events through the outbox", () => {
     const sql = sqlOf(["catalog", "outbox", "orders"]);
-    for (const type of ["order.placed", "order.paid", "order.refunded"])
+    for (const type of ["order.placed", "order.paid", "order.refunded"]) {
       expect(sql).toContain(`'${type}'`);
+    }
     expect(sqlOf(["catalog", "orders"])).not.toContain("'order.placed'");
   });
 

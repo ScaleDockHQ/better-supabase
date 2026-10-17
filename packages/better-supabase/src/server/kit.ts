@@ -112,7 +112,9 @@ function actionError(error: DbError): ActionResult<never> {
 
 /** What a `permission` on an action or route is checked against. */
 function callerResource(input: unknown): AuthorizationResource {
-  if (input === undefined || input instanceof Request) return { type: "route" };
+  if (input === undefined || input instanceof Request) {
+    return { type: "route" };
+  }
   if (
     typeof input !== "object" ||
     input === null ||
@@ -166,7 +168,9 @@ export async function authorizeCaller<I, C, P>(
         ...(tenant === undefined ? {} : { tenant }),
       },
     });
-    if (!permitted.ok) return permitted.error;
+    if (!permitted.ok) {
+      return permitted.error;
+    }
   }
   if (checks.authorize && !(await checks.authorize(session, input))) {
     return dbError("forbidden", "You are not allowed to do this", {
@@ -213,12 +217,16 @@ export async function runAction<C, P>(
   authorizer?: AnyAuthorizer,
 ): Promise<ActionResult<unknown>> {
   const denied = guard(auth, options.allow, options.aal, options.scopes);
-  if (denied) return actionError(denied);
+  if (denied) {
+    return actionError(denied);
+  }
   let parsed: unknown =
     input instanceof FormData ? formDataObject(input) : input;
   if (options.input) {
     const checked = await validate(options.input, parsed, "input");
-    if (!checked.ok) return actionError(checked.error);
+    if (!checked.ok) {
+      return actionError(checked.error);
+    }
     parsed = checked.data;
   }
   const caller = await authorizeCaller(
@@ -228,7 +236,9 @@ export async function runAction<C, P>(
     tenant,
     authorizer,
   );
-  if ("kind" in caller) return actionError(caller);
+  if ("kind" in caller) {
+    return actionError(caller);
+  }
   const settled = await settle(() => body(parsed, caller));
   return settled.ok
     ? { ok: true, data: settled.data, error: null }
@@ -241,7 +251,9 @@ export function rolesAt(
   path: string,
 ): readonly string[] {
   const single = claimAt(claims, path);
-  if (single !== undefined) return [single];
+  if (single !== undefined) {
+    return [single];
+  }
   let value: unknown = claims;
   for (const segment of path.split(".")) {
     // SAFETY: the condition narrows value to a non-null object, and claims are JSON objects.
@@ -261,7 +273,9 @@ export function hasRole(
   roles: readonly string[],
   path = "app_metadata.role",
 ): boolean {
-  if (auth.kind !== "user") return false;
+  if (auth.kind !== "user") {
+    return false;
+  }
   const held = rolesAt(auth.claims, path);
   return roles.some((role) => held.includes(role));
 }

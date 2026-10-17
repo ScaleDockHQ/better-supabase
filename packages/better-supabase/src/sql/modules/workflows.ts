@@ -170,7 +170,9 @@ const PRINCIPAL_KINDS = [
 const TERMINAL = "('completed', 'failed', 'cancelled')";
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const id = ctx.idType;
   const fn = (name: string): string => ctx.fn(name);
   const r = ctx.table("runs");

@@ -81,7 +81,9 @@ export function vaultOAuthProvider(
     }
   };
   const load = async (): Promise<StoredConnection> => {
-    if (cached !== undefined) return cached;
+    if (cached !== undefined) {
+      return cached;
+    }
     const stored = await vault.getToken(ref, { subject });
     // SAFETY: only this provider writes the secret, as a StoredConnection.
     cached = (stored.ok ? parse(stored.data.token) : undefined) ?? {};
@@ -94,7 +96,9 @@ export function vaultOAuthProvider(
       subject,
       description: `MCP connection to ${server.id}`,
     });
-    if (!saved.ok) throw new DbException(saved.error);
+    if (!saved.ok) {
+      throw new DbException(saved.error);
+    }
   };
   const metadata: OAuthClientMetadata = options.clientMetadata ?? {
     client_name: "better-supabase",
@@ -124,7 +128,9 @@ export function vaultOAuthProvider(
     saveCodeVerifier: (codeVerifier) => store({ codeVerifier }),
     codeVerifier: async () => {
       const verifier = (await load()).codeVerifier;
-      if (verifier === undefined) throw new Error("No PKCE verifier is stored");
+      if (verifier === undefined) {
+        throw new Error("No PKCE verifier is stored");
+      }
       return verifier;
     },
     state: () => crypto.randomUUID(),
@@ -146,7 +152,9 @@ export function vaultOAuthProvider(
         JSON.stringify(information),
         { description: `MCP client for ${server.id}` },
       );
-      if (!saved.ok) throw new DbException(saved.error);
+      if (!saved.ok) {
+        throw new DbException(saved.error);
+      }
     },
     invalidateCredentials: async (scope) => {
       if (scope === "all" || scope === "client") {
@@ -157,8 +165,12 @@ export function vaultOAuthProvider(
         await vault.revoke(ref, { subject });
         return;
       }
-      if (scope === "tokens") await store({ tokens: undefined });
-      if (scope === "verifier") await store({ codeVerifier: undefined });
+      if (scope === "tokens") {
+        await store({ tokens: undefined });
+      }
+      if (scope === "verifier") {
+        await store({ codeVerifier: undefined });
+      }
     },
   };
 }

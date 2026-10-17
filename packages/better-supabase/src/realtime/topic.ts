@@ -393,7 +393,9 @@ async function validate(
   | { ok: true; value: unknown }
   | { ok: false; issues: readonly ValidationIssue[] }
 > {
-  if (!schema) return { ok: true, value };
+  if (!schema) {
+    return { ok: true, value };
+  }
   const result = await schema["~standard"].validate(value);
   if (result.issues) {
     return {
@@ -414,10 +416,15 @@ async function validate(
 }
 
 function sendError(status: number, message: string): DbError {
-  if (status === 401) return dbError("unauthorized", message);
-  if (status === 403) return dbError("forbidden", message);
-  if (status === 429 || status >= 500 || status === 0)
+  if (status === 401) {
+    return dbError("unauthorized", message);
+  }
+  if (status === 403) {
+    return dbError("forbidden", message);
+  }
+  if (status === 429 || status >= 500 || status === 0) {
     return dbError("network", message, status ? { status } : {});
+  }
   return dbError("invalid_request", message, { status });
 }
 
@@ -465,7 +472,9 @@ export function defineTopic<
   const accessChecksFor = (
     functions?: AuthorizationFunctions,
   ): { receive: string; send: string } | undefined => {
-    if (!access) return undefined;
+    if (!access) {
+      return undefined;
+    }
     const where = `defineTopic(${template})`;
     const target = resolveProviderSql(where, access, functions);
     const id =
@@ -508,10 +517,13 @@ export function defineTopic<
       ? { key: options.permission }
       : options.permission;
   const permissionTarget = (() => {
-    if (permission === undefined) return;
+    if (permission === undefined) {
+      return;
+    }
     const key = permission.key;
-    if (key === "")
+    if (key === "") {
       throw new TypeError(`defineTopic(${template}): the permission is empty`);
+    }
     const param = permission.param ?? parsed.params.at(-1);
     if (param === undefined) {
       throw new TypeError(
@@ -567,13 +579,14 @@ export function defineTopic<
       const policies: [string, string, "using" | "with check", string][] = [
         ["receive", "select", "using", condition(accessChecks?.receive)],
       ];
-      if (options.send || hasPresence || access?.send !== undefined)
+      if (options.send || hasPresence || access?.send !== undefined) {
         policies.push([
           "send",
           "insert",
           "with check",
           condition(accessChecks?.send),
         ]);
+      }
       for (const [suffix, command, clause, check] of policies) {
         const policy = sqlIdent(`bs_topic_${name}_${suffix}`);
         lines.push(
@@ -585,7 +598,9 @@ export function defineTopic<
     },
     triggerSql(betterSupabase, table, trigger) {
       const meta: TableMeta | undefined = betterSupabase.meta.tables[table];
-      if (!meta) throw new TypeError(`defineTopic: unknown table "${table}"`);
+      if (!meta) {
+        throw new TypeError(`defineTopic: unknown table "${table}"`);
+      }
       // SAFETY: trigger values name table columns or lookups by topic
       // parameter, and templates hold strings.
       const values = trigger.values as Readonly<
@@ -597,12 +612,15 @@ export function defineTopic<
         .filter(Boolean)
         .map((part) => {
           const param = /^\{(.+)\}$/.exec(part)?.[1];
-          if (param === undefined) return sqlString(part);
+          if (param === undefined) {
+            return sqlString(part);
+          }
           const value = values[param];
-          if (value === undefined)
+          if (value === undefined) {
             throw new TypeError(
               `defineTopic: no column for {${param}} on "${table}"`,
             );
+          }
           return `${triggerValueSql(tables, meta, value, `{${param}}`)}::text`;
         });
       const schema = trigger.functionSchema ?? "better_supabase";
@@ -744,7 +762,9 @@ export function defineTopic<
           ),
         );
         // A later sync finished validating first.
-        if (run !== syncs) return;
+        if (run !== syncs) {
+          return;
+        }
         const valid: PresenceMember<unknown>[] = [];
         for (const each of checked) {
           if (each.checked.ok) {
@@ -763,11 +783,16 @@ export function defineTopic<
         onStatus: subscribeOptions.onStatus,
         receive: (message) => {
           const handler = table[message.event] ?? table["*"];
-          if (!handler) return;
+          if (!handler) {
+            return;
+          }
           void validate(schemas[message.event], message.payload).then(
             (checked) => {
-              if (checked.ok) handler(checked.value, message);
-              else subscribeOptions.onInvalid?.(message, checked.issues);
+              if (checked.ok) {
+                handler(checked.value, message);
+              } else {
+                subscribeOptions.onInvalid?.(message, checked.issues);
+              }
             },
           );
         },
@@ -783,7 +808,9 @@ export function defineTopic<
       );
       let closed = false;
       const unsubscribe = async () => {
-        if (closed) return;
+        if (closed) {
+          return;
+        }
         closed = true;
         await leave();
       };
@@ -792,13 +819,14 @@ export function defineTopic<
         run: () => Promise<string>,
       ): AsyncResult<void> =>
         AsyncResult.from(async () => {
-          if (closed)
+          if (closed) {
             return err(
               dbError(
                 "invalid_request",
                 `Presence ${action} after unsubscribe on ${topic}`,
               ),
             );
+          }
           try {
             await shared.ready;
           } catch (cause) {
@@ -834,7 +862,7 @@ export function defineTopic<
             track: (state: unknown) =>
               AsyncResult.from(async () => {
                 const checked = await validate(presenceSchema, state);
-                if (!checked.ok)
+                if (!checked.ok) {
                   return err(
                     dbError(
                       "validation",
@@ -844,6 +872,7 @@ export function defineTopic<
                       },
                     ),
                   );
+                }
                 return presenceCall("track", async () => {
                   shared.tracker = subscriber;
                   return shared.channel.track(
@@ -854,7 +883,9 @@ export function defineTopic<
               }),
             untrack: () =>
               presenceCall("untrack", async () => {
-                if (shared.tracker === subscriber) shared.tracker = undefined;
+                if (shared.tracker === subscriber) {
+                  shared.tracker = undefined;
+                }
                 return shared.channel.untrack();
               }),
             members: () => members,
@@ -867,18 +898,21 @@ export function defineTopic<
       return AsyncResult.from(async () => {
         const topic = topicOf(values);
         const checked = await validate(schemas[event], payload);
-        if (!checked.ok)
+        if (!checked.ok) {
           return err(
             dbError("validation", `Invalid payload for ${event}`, {
               issues: checked.issues,
             }),
           );
+        }
         // client.channel() returns the open channel for a subscribed topic;
         // removing that one would end the caller's subscription.
         const open = client
           .getChannels()
           .some((existing) => existing.topic === `realtime:${topic}`);
-        if (isPrivate && !open) await refreshRealtimeAuth(client);
+        if (isPrivate && !open) {
+          await refreshRealtimeAuth(client);
+        }
         const channel = client.channel(topic, {
           config: { private: isPrivate },
         });
@@ -888,7 +922,9 @@ export function defineTopic<
             ? ok(undefined)
             : err(sendError(response.status, response.error));
         } finally {
-          if (!open) await client.removeChannel(channel);
+          if (!open) {
+            await client.removeChannel(channel);
+          }
         }
       });
     },
@@ -935,15 +971,17 @@ export function rowChange<
     !payload ||
     payload.table !== meta.name ||
     (payload.schema && payload.schema !== meta.schema)
-  )
+  ) {
     return null;
+  }
   const operation = payload.operation ?? message.event;
   if (
     operation !== "INSERT" &&
     operation !== "UPDATE" &&
     operation !== "DELETE"
-  )
+  ) {
     return null;
+  }
   return {
     operation,
     table,

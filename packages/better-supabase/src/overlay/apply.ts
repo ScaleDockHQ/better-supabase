@@ -25,9 +25,13 @@ const kindOf = (value: unknown): Kind =>
   Array.isArray(value) ? "array" : isObject(value) ? "object" : "primitive";
 
 function readMinor(version: unknown): Minor | undefined {
-  if (typeof version !== "string") return undefined;
+  if (typeof version !== "string") {
+    return undefined;
+  }
   const match = /^1\.([012])\.\d+$/.exec(version);
-  if (!match) return undefined;
+  if (!match) {
+    return undefined;
+  }
   const minor = Number(match[1]);
   return minor === 0 || minor === 1 || minor === 2 ? minor : undefined;
 }
@@ -160,10 +164,13 @@ function mergeInto(
       conflicts.push(`${at}${escapeToken(key)}`);
       continue;
     }
-    if (isObject(current) && isObject(value))
+    if (isObject(current) && isObject(value)) {
       mergeInto(current, value, `${at}${escapeToken(key)}`, conflicts);
-    else if (isArray(current) && isArray(value)) current.push(...value);
-    else target[key] = value;
+    } else if (isArray(current) && isArray(value)) {
+      current.push(...value);
+    } else {
+      target[key] = value;
+    }
   }
 }
 
@@ -218,11 +225,15 @@ function removeNodes(
       const indexes = fromArrays.get(parent) ?? [];
       indexes.push(key);
       fromArrays.set(parent, indexes);
-    } else if (isObject(parent) && typeof key === "string") delete parent[key];
+    } else if (isObject(parent) && typeof key === "string") {
+      delete parent[key];
+    }
   }
-  for (const [array, indexes] of fromArrays)
-    for (const index of [...new Set(indexes)].toSorted((a, b) => b - a))
+  for (const [array, indexes] of fromArrays) {
+    for (const index of [...new Set(indexes)].toSorted((a, b) => b - a)) {
       array.splice(index, 1);
+    }
+  }
 }
 
 function updateNodes(
@@ -252,8 +263,11 @@ function updateNodes(
     const copy = structuredClone(value);
     const at = toPointer(node.segments) || "the root";
     if (isArray(node.value)) {
-      if (isArray(copy)) node.value.push(...copy);
-      else node.value.push(copy);
+      if (isArray(copy)) {
+        node.value.push(...copy);
+      } else {
+        node.value.push(copy);
+      }
       continue;
     }
     if (isObject(node.value)) {
@@ -269,7 +283,7 @@ function updateNodes(
       }
       const conflicts: string[] = [];
       mergeInto(node.value, copy, toPointer(node.segments), conflicts);
-      for (const conflict of conflicts)
+      for (const conflict of conflicts) {
         report(
           reporter,
           "error",
@@ -277,6 +291,7 @@ function updateNodes(
           `Cannot merge values of different kinds at ${conflict}`,
           pointer,
         );
+      }
       continue;
     }
     if (valueKind !== "primitive") {
@@ -289,11 +304,13 @@ function updateNodes(
       );
       continue;
     }
-    if (node.key === undefined) state.document = copy;
-    else if (Array.isArray(node.parent) && typeof node.key === "number")
+    if (node.key === undefined) {
+      state.document = copy;
+    } else if (Array.isArray(node.parent) && typeof node.key === "number") {
       node.parent[node.key] = copy;
-    else if (isObject(node.parent) && typeof node.key === "string")
+    } else if (isObject(node.parent) && typeof node.key === "string") {
       node.parent[node.key] = copy;
+    }
   }
 }
 
@@ -327,9 +344,11 @@ function runAction(
     pointer,
     "target",
   );
-  if (!targets) return;
+  if (!targets) {
+    return;
+  }
   if (targets.length === 0) {
-    if (action[ALLOW_EMPTY] !== true && options.allowEmpty !== true)
+    if (action[ALLOW_EMPTY] !== true && options.allowEmpty !== true) {
       report(
         reporter,
         "error",
@@ -337,6 +356,7 @@ function runAction(
         `The target ${action.target} selects no nodes; set ${ALLOW_EMPTY}: true on the action if that is expected`,
         pointer,
       );
+    }
     return;
   }
   if (action.remove === true) {
@@ -356,7 +376,9 @@ function runAction(
       pointer,
       "copy source",
     );
-    if (!sources) return;
+    if (!sources) {
+      return;
+    }
     const [source] = sources;
     if (sources.length !== 1 || !source) {
       report(
@@ -427,7 +449,7 @@ function applyInPlace(
       );
       continue;
     }
-    if ("$ref" in entry && minor < 2)
+    if ("$ref" in entry && minor < 2) {
       report(
         reporter,
         "warning",
@@ -435,11 +457,14 @@ function applyInPlace(
         `Reusable actions need Overlay 1.2; the reference is expanded for this ${overlay.overlay} overlay`,
         pointer,
       );
+    }
     const action =
       "$ref" in entry
         ? resolveReference(overlay, entry, pointer, reporter)
         : entry;
-    if (!action) continue;
+    if (!action) {
+      continue;
+    }
     if (!isAction(action)) {
       report(
         reporter,
@@ -511,11 +536,12 @@ function run<T>(
 ): OverlayResult<T> {
   const state: State = { document: structuredClone(document) };
   const diagnostics: SpecDiagnostic[] = [];
-  for (const [index, overlay] of overlays.entries())
+  for (const [index, overlay] of overlays.entries()) {
     applyInPlace(state, overlay, options, {
       prefix: prefix(index),
       diagnostics,
     });
+  }
   // SAFETY: the clone starts as a T; overlays that change its shape are the caller's to narrow (see applyOverlay).
   return { document: state.document as T, diagnostics };
 }

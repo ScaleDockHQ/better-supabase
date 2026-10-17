@@ -54,7 +54,9 @@ function memoryTransport(): BlockTransport & { readonly calls: string[] } {
     chat_state_acquire_lock: (args) => {
       const id = key(args, "thread_id");
       const held = locks.get(id);
-      if (held && held.expiresAt > now()) return null;
+      if (held && held.expiresAt > now()) {
+        return null;
+      }
       const next = {
         token: String(args["token"]),
         expiresAt: now() + Number(args["ttl_ms"]),
@@ -64,14 +66,17 @@ function memoryTransport(): BlockTransport & { readonly calls: string[] } {
     },
     chat_state_extend_lock: (args) => {
       const held = locks.get(key(args, "thread_id"));
-      if (!held || held.token !== args["token"] || held.expiresAt <= now())
+      if (!held || held.token !== args["token"] || held.expiresAt <= now()) {
         return false;
+      }
       held.expiresAt = now() + Number(args["ttl_ms"]);
       return true;
     },
     chat_state_release_lock: (args) => {
       const id = key(args, "thread_id");
-      if (locks.get(id)?.token !== args["token"]) return false;
+      if (locks.get(id)?.token !== args["token"]) {
+        return false;
+      }
       return locks.delete(id);
     },
     chat_state_force_release_lock: (args) =>
@@ -89,7 +94,9 @@ function memoryTransport(): BlockTransport & { readonly calls: string[] } {
     },
     chat_state_set_if_not_exists: (args) => {
       const hit = cache.get(key(args));
-      if (hit && live(hit.expiresAt)) return false;
+      if (hit && live(hit.expiresAt)) {
+        return false;
+      }
       cache.set(key(args), {
         value: args["value"],
         expiresAt: expiry(args["ttl_ms"]),
@@ -138,7 +145,9 @@ function memoryTransport(): BlockTransport & { readonly calls: string[] } {
     call: async (_schema, fn, args) => {
       calls.push(fn);
       const run = functions[fn];
-      if (!run) throw new Error(`unexpected ${fn}`);
+      if (!run) {
+        throw new Error(`unexpected ${fn}`);
+      }
       return structuredClone(run(JSON.parse(JSON.stringify(args)) as Args));
     },
   };

@@ -76,7 +76,9 @@ const isPlainObject = (value: object): boolean => {
 
 /** A copy of plain objects and arrays; class instances (Temporal values) are immutable and stay shared. */
 function copyOf(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(copyOf);
+  if (Array.isArray(value)) {
+    return value.map(copyOf);
+  }
   if (typeof value === "object" && value !== null && isPlainObject(value)) {
     return Object.fromEntries(
       Object.entries(value).map(([key, entry]) => [key, copyOf(entry)]),
@@ -87,7 +89,9 @@ function copyOf(value: unknown): unknown {
 
 /** A new client with the same methods: a spread for object literals, a child object otherwise. */
 function cloneClient(client: object): Record<string, unknown> {
-  if (isPlainObject(client)) return { ...client };
+  if (isPlainObject(client)) {
+    return { ...client };
+  }
   // SAFETY: Object.create returns an empty object whose prototype is client;
   // the caller only adds string-keyed methods to it.
   return Object.create(client) as Record<string, unknown>;
@@ -99,7 +103,9 @@ type Method = (...args: unknown[]) => unknown;
 function methodOf(client: object, name: string): Method | undefined {
   // SAFETY: a read of one string key; the result is checked before use.
   const value = (client as Readonly<Record<string, unknown>>)[name];
-  if (typeof value !== "function") return undefined;
+  if (typeof value !== "function") {
+    return undefined;
+  }
   // SAFETY: any function accepts unknown arguments at runtime; the hook
   // passes it the arguments its caller gave.
   return value as Method;
@@ -122,12 +128,16 @@ export function withBlockHooks<C extends object>(
   hooks: BlockHooks<C> | undefined,
   options: WithBlockHooksOptions = {},
 ): C {
-  if (hooks === undefined) return client;
+  if (hooks === undefined) {
+    return client;
+  }
   const block = options.block ?? "block";
   const logger = options.logger ?? consoleLogger;
   const wrapped = cloneClient(client);
   for (const [method, hook] of Object.entries(hooks)) {
-    if (hook === undefined) continue;
+    if (hook === undefined) {
+      continue;
+    }
     const original = methodOf(client, method);
     if (original === undefined) {
       throw new TypeError(
@@ -142,8 +152,12 @@ export function withBlockHooks<C extends object>(
         let current = args;
         if (before) {
           const outcome = await before(current, info);
-          if (isDbError(outcome)) return err(outcome);
-          if (Array.isArray(outcome)) current = outcome;
+          if (isDbError(outcome)) {
+            return err(outcome);
+          }
+          if (Array.isArray(outcome)) {
+            current = outcome;
+          }
         }
         // SAFETY: original is one of the client's AsyncResult methods.
         const result = await (original.apply(

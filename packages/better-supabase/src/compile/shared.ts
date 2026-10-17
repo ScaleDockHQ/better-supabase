@@ -2,8 +2,9 @@ import { invalidRequest } from "../ir/build.ts";
 
 /** A row-count or offset value that is safe to inline into SQL text. */
 export function integer(value: number): number {
-  if (!Number.isInteger(value) || value < 0)
+  if (!Number.isInteger(value) || value < 0) {
     invalidRequest(`Expected a non-negative integer, got ${value}`);
+  }
   return value;
 }
 

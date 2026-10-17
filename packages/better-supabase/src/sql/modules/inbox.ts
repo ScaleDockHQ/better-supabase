@@ -14,7 +14,9 @@ import {
 } from "./inbox-tables.ts";
 
 function build(ctx: ModuleContext, layout: ModuleLayout): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const q = inboxSql(ctx, layout.accessProvider?.operations);
   const teams = ctx.installed("teams") ? ctx.of("teams") : undefined;
   const sharedTeams = teams !== undefined;
@@ -46,7 +48,9 @@ ${inboxStorage(q)}`;
 
 // An existing bucket keeps its settings.
 function data(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const { bucket } = inboxSql(ctx);
   return `insert into storage.buckets (id, name, public, file_size_limit)
 values (${sqlString(bucket)}, ${sqlString(bucket)}, false, 26214400)

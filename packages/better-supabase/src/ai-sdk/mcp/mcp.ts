@@ -172,7 +172,9 @@ async function digestOf(fingerprints: Record<string, string>): Promise<string> {
 }
 
 function prefixed(tools: ToolSet, prefix: string | undefined): ToolSet {
-  if (prefix === undefined || prefix === "") return tools;
+  if (prefix === undefined || prefix === "") {
+    return tools;
+  }
   return Object.fromEntries(
     Object.entries(tools).map(([name, tool]) => [`${prefix}${name}`, tool]),
   );
@@ -195,7 +197,9 @@ export function connectTools(
       );
     }
     const authorization = await authOf(options);
-    if (!authorization.ok) return err(authorization.error);
+    if (!authorization.ok) {
+      return err(authorization.error);
+    }
     const session = await connectors.sessions.get(server.id, options.chatKey);
     const previous = session.ok ? session.data : undefined;
     const chatKey = options.chatKey ?? "";

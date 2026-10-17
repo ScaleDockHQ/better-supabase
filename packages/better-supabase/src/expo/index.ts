@@ -124,7 +124,9 @@ export interface BetterExpo<
 
 /** `ImmutableRequest` has no body and immutable headers; the resolver only reads URL, method and headers. */
 function toRequest(request: ExpoRequest): Request {
-  if (request instanceof Request) return request;
+  if (request instanceof Request) {
+    return request;
+  }
   return new Request(request.url, {
     method: request.method,
     headers: new Headers(request.headers),
@@ -139,12 +141,19 @@ function writeHeaders(
 ): void {
   const cookies = ctx.cookies().map(serializeCookie);
   const others = Object.entries(ctx.resolution.headers);
-  if (cookies.length === 0 && others.length === 0) return;
+  if (cookies.length === 0 && others.length === 0) {
+    return;
+  }
   setResponseHeaders((headers) => {
     const sent = new Set(headers.getSetCookie());
-    for (const cookie of cookies)
-      if (!sent.has(cookie)) headers.append("set-cookie", cookie);
-    for (const [name, value] of others) headers.set(name, value);
+    for (const cookie of cookies) {
+      if (!sent.has(cookie)) {
+        headers.append("set-cookie", cookie);
+      }
+    }
+    for (const [name, value] of others) {
+      headers.set(name, value);
+    }
   });
 }
 
@@ -183,7 +192,9 @@ export function createExpo<
     writeHeaders(ctx);
     if (allow !== undefined || aal !== undefined || scopes !== undefined) {
       const denied = guard(ctx.auth, allow, aal, scopes);
-      if (denied) throw statusError(denied, expose);
+      if (denied) {
+        throw statusError(denied, expose);
+      }
     }
     return ctx;
   };
@@ -203,8 +214,9 @@ export function createExpo<
         try {
           return await fn(ctx, params, incoming);
         } catch (cause) {
-          if (cause instanceof DbException)
+          if (cause instanceof DbException) {
             throw statusError(cause.error, expose);
+          }
           throw cause;
         }
       };

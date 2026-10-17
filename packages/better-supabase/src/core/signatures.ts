@@ -122,7 +122,9 @@ export function header(
   headers: Headers | Readonly<Record<string, string>>,
   name: string,
 ): string | null {
-  if (headers instanceof Headers) return headers.get(name);
+  if (headers instanceof Headers) {
+    return headers.get(name);
+  }
   const found = Object.entries(headers).find(
     ([key]) => key.toLowerCase() === name,
   );
@@ -141,9 +143,13 @@ export async function replayed(
   id: string,
   until: Temporal.Instant,
 ): Promise<DbError | undefined> {
-  if (!options.seen || id === "") return undefined;
+  if (!options.seen || id === "") {
+    return undefined;
+  }
   try {
-    if (!(await options.seen(id, until))) return undefined;
+    if (!(await options.seen(id, until))) {
+      return undefined;
+    }
   } catch {
     return dbError(
       "unexpected",
@@ -193,34 +199,40 @@ export async function verifyWebhook<T = unknown>(
   const id = header(headers, `${prefix}-id`);
   const timestamp = header(headers, `${prefix}-timestamp`);
   const signatures = header(headers, `${prefix}-signature`);
-  if (!id || !timestamp || !signatures)
+  if (!id || !timestamp || !signatures) {
     return err(
       unauthorized(
         "WEBHOOK_MISSING_HEADERS",
         "Missing webhook signature headers",
       ),
     );
+  }
   const seconds = Number(timestamp);
-  if (!/^\d+$/.test(timestamp))
+  if (!/^\d+$/.test(timestamp)) {
     return err(
       unauthorized("WEBHOOK_INVALID_TIMESTAMP", "Invalid webhook timestamp"),
     );
+  }
   const namespace = optionalTemporal();
-  if (namespace === undefined) return err(temporalMissing());
+  if (namespace === undefined) {
+    return err(temporalMissing());
+  }
   const now =
     (options.now?.() ?? namespace.Now.instant()).epochMilliseconds / 1000;
   const tolerance = options.tolerance ?? 300;
-  if (seconds < now - tolerance)
+  if (seconds < now - tolerance) {
     return err(
       unauthorized("WEBHOOK_TIMESTAMP_TOO_OLD", "Webhook timestamp is too old"),
     );
-  if (seconds > now + tolerance)
+  }
+  if (seconds > now + tolerance) {
     return err(
       unauthorized(
         "WEBHOOK_TIMESTAMP_TOO_NEW",
         "Webhook timestamp is in the future",
       ),
     );
+  }
 
   const body = input instanceof Request ? await input.text() : input.body;
   const content = encoder.encode(`${id}.${timestamp}.${body}`);
@@ -251,11 +263,12 @@ export async function verifyWebhook<T = unknown>(
           candidate,
           content,
         )
-      )
+      ) {
         valid = true;
+      }
     }
   }
-  if (!valid && malformed)
+  if (!valid && malformed) {
     return err(
       dbError(
         "unexpected",
@@ -265,10 +278,12 @@ export async function verifyWebhook<T = unknown>(
         },
       ),
     );
-  if (!valid)
+  }
+  if (!valid) {
     return err(
       unauthorized("WEBHOOK_INVALID_SIGNATURE", "Invalid webhook signature"),
     );
+  }
 
   let payload: T;
   try {
@@ -283,7 +298,9 @@ export async function verifyWebhook<T = unknown>(
     id,
     namespace.Instant.fromEpochMilliseconds((seconds + tolerance) * 1000),
   );
-  if (replay) return err(replay);
+  if (replay) {
+    return err(replay);
+  }
   return ok({
     id,
     timestamp: namespace.Instant.fromEpochMilliseconds(seconds * 1000),

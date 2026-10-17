@@ -69,7 +69,9 @@ function capture() {
 
 async function drain(stream: ReadableStream<unknown>): Promise<void> {
   const reader = stream.getReader();
-  while (!(await reader.read()).done);
+  while (!(await reader.read()).done) {
+    // Every chunk is read so the producer can finish.
+  }
 }
 
 afterEach(() => {

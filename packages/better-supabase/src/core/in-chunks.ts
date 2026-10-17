@@ -27,7 +27,9 @@ export function queryLength(plan: PostgrestPlan): number {
           encoded(`(${filter.expression})`) +
           (filter.referencedTable ? encoded(filter.referencedTable) + 1 : 0);
   }
-  for (const order of plan.orders) length += 24 + encoded(order.column);
+  for (const order of plan.orders) {
+    length += 24 + encoded(order.column);
+  }
   return length;
 }
 
@@ -36,7 +38,9 @@ function encoded(text: string): number {
 }
 
 function topLevel(where: Condition | undefined): readonly Condition[] {
-  if (!where) return [];
+  if (!where) {
+    return [];
+  }
   return where.kind === "and" ? where.items : [where];
 }
 
@@ -71,8 +75,12 @@ type SortKind = "number" | "bigint" | "time" | "text";
 const INTEGER = /^-?\d+$/;
 
 function sortKind(type: string): SortKind {
-  if (type === "int8") return "bigint";
-  if (NUMERIC.has(type)) return "number";
+  if (type === "int8") {
+    return "bigint";
+  }
+  if (NUMERIC.has(type)) {
+    return "number";
+  }
   return TIME.has(type) ? "time" : "text";
 }
 
@@ -141,7 +149,9 @@ export function chunkRead(
       }
     | undefined;
   for (const condition of items) {
-    if (!isInList(condition)) continue;
+    if (!isInList(condition)) {
+      continue;
+    }
     // A value repeated across two chunks would return its rows twice.
     const seen = new Set<string>();
     const values: unknown[] = [];
@@ -151,7 +161,9 @@ export function chunkRead(
     let largest = 0;
     for (const value of condition.value) {
       const text = listItem(value);
-      if (seen.has(text)) continue;
+      if (seen.has(text)) {
+        continue;
+      }
       seen.add(text);
       // `encodeURIComponent(",")` is three characters.
       const size = encoded(text) + 3;
@@ -159,13 +171,17 @@ export function chunkRead(
       texts.push(text);
       sizes.push(size);
       total += size;
-      if (size > largest) largest = size;
+      if (size > largest) {
+        largest = size;
+      }
     }
-    if (!longest || total > longest.total)
+    if (!longest || total > longest.total) {
       longest = { condition, values, texts, sizes, total, largest };
+    }
   }
-  if (!longest)
+  if (!longest) {
     return tooLong(op, length, max, "it has no top-level in list to split");
+  }
   const listLength = encoded(
     `(${longest.condition.value.map(listItem).join(",")})`,
   );
@@ -177,7 +193,9 @@ export function chunkRead(
   const hidden: SelectColumn[] = [];
   const aliases = new Map(op.selection.columns.map((c) => [c.column, c.alias]));
   for (const term of op.orderBy) {
-    if (term.relation || aliases.has(term.column)) continue;
+    if (term.relation || aliases.has(term.column)) {
+      continue;
+    }
     const alias = `_bs_order${hidden.length}`;
     const exact = byDb.get(term.column)?.[1].type === "int8";
     hidden.push({
@@ -246,16 +264,26 @@ export function chunkRead(
         for (const [index, key] of keys.entries()) {
           const a = left.values[index];
           const b = right.values[index];
-          if (a === b) continue;
-          if (a === undefined) return key.nullsFirst ? -1 : 1;
-          if (b === undefined) return key.nullsFirst ? 1 : -1;
+          if (a === b) {
+            continue;
+          }
+          if (a === undefined) {
+            return key.nullsFirst ? -1 : 1;
+          }
+          if (b === undefined) {
+            return key.nullsFirst ? 1 : -1;
+          }
           const order = a < b ? -1 : a > b ? 1 : 0;
-          if (order !== 0) return key.desc ? -order : order;
+          if (order !== 0) {
+            return key.desc ? -order : order;
+          }
         }
         return 0;
       });
       return decorated.map(({ row }) => {
-        for (const column of hidden) delete row[column.alias];
+        for (const column of hidden) {
+          delete row[column.alias];
+        }
         return row;
       });
     };
@@ -279,7 +307,9 @@ export function chunkRead(
     current.texts.push(list.texts[index] ?? "");
     used += size;
   });
-  if (current.values.length > 0) chunks.push(current);
+  if (current.values.length > 0) {
+    chunks.push(current);
+  }
 
   const full = `(${list.condition.value.map(listItem).join(",")})`;
   const at = plan.filters.findIndex(
@@ -333,19 +363,32 @@ function sortValue(
   value: unknown,
   kind: SortKind,
 ): number | bigint | string | undefined {
-  if (value === null || value === undefined) return undefined;
-  if (kind === "number") return Number(value);
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+  if (kind === "number") {
+    return Number(value);
+  }
   if (kind === "bigint") {
-    if (typeof value === "bigint") return value;
-    if (typeof value === "number" && Number.isInteger(value))
+    if (typeof value === "bigint") {
+      return value;
+    }
+    if (typeof value === "number" && Number.isInteger(value)) {
       return BigInt(value);
-    if (typeof value === "string" && INTEGER.test(value)) return BigInt(value);
+    }
+    if (typeof value === "string" && INTEGER.test(value)) {
+      return BigInt(value);
+    }
     return Number(value);
   }
   const text = String(value);
-  if (kind === "text") return text;
+  if (kind === "text") {
+    return text;
+  }
   const instant = Date.parse(text);
-  if (Number.isNaN(instant)) return text;
+  if (Number.isNaN(instant)) {
+    return text;
+  }
   const fraction = /\.(\d+)/.exec(text)?.[1] ?? "";
   const micros = fraction.slice(3, 6).padEnd(3, "0");
   return `${String(instant + 8.64e15).padStart(17, "0")}${micros}`;

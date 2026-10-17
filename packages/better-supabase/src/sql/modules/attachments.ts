@@ -220,7 +220,9 @@ function scanBucketsOf(ctx: ModuleContext): readonly string[] {
 const BUCKET = /^[a-z0-9][a-z0-9_.-]{0,99}$/;
 
 function build(ctx: ModuleContext, layout: ModuleLayout): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const id = ctx.idType;
   const t = ctx.table("attachments");
   const metadata = ctx.has("attachments", "metadata");
@@ -832,7 +834,9 @@ function bucketOptions(ctx: ModuleContext): BucketOptions {
 
 // An existing bucket keeps its settings.
 function data(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const { bucket, maxSize, mimeTypes } = bucketOptions(ctx);
   const subjects = subjectBuckets(
     subjectsOption(
@@ -844,7 +848,9 @@ function data(ctx: ModuleContext): string {
   );
   const rows = new Map<string, readonly string[]>([[bucket, mimeTypes]]);
   for (const entry of subjects) {
-    if (!rows.has(entry.bucket)) rows.set(entry.bucket, entry.mimeTypes);
+    if (!rows.has(entry.bucket)) {
+      rows.set(entry.bucket, entry.mimeTypes);
+    }
   }
   const values = [...rows].map(([id, types]) => {
     const mimeArray =

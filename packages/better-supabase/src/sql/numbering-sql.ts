@@ -10,11 +10,17 @@ function sequenceFormatOf(
   ctx: ModuleContext,
   entity: string,
 ): string | undefined {
-  if (!ctx.installed("number-sequences")) return undefined;
+  if (!ctx.installed("number-sequences")) {
+    return undefined;
+  }
   const entities = ctx.of("number-sequences").option("entities");
-  if (!isRecord(entities)) return undefined;
+  if (!isRecord(entities)) {
+    return undefined;
+  }
   const entry = entities[entity];
-  if (!isRecord(entry) || typeof entry["format"] !== "string") return undefined;
+  if (!isRecord(entry) || typeof entry["format"] !== "string") {
+    return undefined;
+  }
   return entry["format"];
 }
 

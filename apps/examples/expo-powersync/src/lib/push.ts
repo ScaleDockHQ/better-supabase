@@ -25,7 +25,9 @@ export function usePushRegistration(): void {
       platform: Platform.OS,
       projectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID,
     }).then((result) => {
-      if (result.ok && result.data) token = result.data.token;
+      if (result.ok && result.data) {
+        token = result.data.token;
+      }
     });
   }, []);
 }

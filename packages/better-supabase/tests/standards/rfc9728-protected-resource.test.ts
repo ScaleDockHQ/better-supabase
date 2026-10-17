@@ -49,8 +49,9 @@ describe("RFC 9728 OAuth 2.0 Protected Resource Metadata", () => {
     expect(metadata["authorization_servers"]).toEqual([
       `${PROJECT_URL}/auth/v1`,
     ]);
-    for (const issuer of metadata["authorization_servers"]!)
+    for (const issuer of metadata["authorization_servers"]!) {
       expect(new URL(issuer).protocol).toBe("https:");
+    }
     expect(metadata["bearer_methods_supported"]).toEqual(["header"]);
   });
 

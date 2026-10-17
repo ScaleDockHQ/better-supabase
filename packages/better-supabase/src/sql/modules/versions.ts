@@ -164,9 +164,13 @@ function freezeOf(
   value: unknown,
   where: string,
 ): Versioned["freeze"] | undefined {
-  if (value === undefined) return undefined;
+  if (value === undefined) {
+    return undefined;
+  }
   const expected = `${where} must be { column, values }`;
-  if (!isFreezeInput(value)) throw new TypeError(expected);
+  if (!isFreezeInput(value)) {
+    throw new TypeError(expected);
+  }
   const { column, values } = value;
   if (typeof column !== "string" || !COLUMN.test(column)) {
     throw new TypeError(expected);
@@ -203,7 +207,9 @@ function captureCase(
       where ${subjectIdMatches(entry.subject, id)}
         and e.key = any (${sqlString(`{${entry.columns.join(",")}}`)}::text[]);`,
     );
-  if (whens.length === 0) return "";
+  if (whens.length === 0) {
+    return "";
+  }
   return `case ${type}
 ${whens.join("\n")}
     else null;
@@ -218,7 +224,9 @@ function restoreCase(list: readonly Versioned[]): string {
       perform ${functionName(entry.apply)}(v_subject_id, v_content);`,
       ];
     }
-    if (entry.columns.length === 0) return [];
+    if (entry.columns.length === 0) {
+      return [];
+    }
     const table = qualifiedTable(entry.subject.table);
     const sets = entry.columns
       .map((column) => `${sqlIdent(column)} = r.${sqlIdent(column)}`)
@@ -235,7 +243,9 @@ function restoreCase(list: readonly Versioned[]): string {
     "this subject type has no columns or apply function to restore into",
     "22023",
   );
-  if (whens.length === 0) return unsupported;
+  if (whens.length === 0) {
+    return unsupported;
+  }
   return `perform set_config(${sqlString(RESTORING)}, 'on', true);
   case v_subject_type
 ${whens.join("\n")}
@@ -287,7 +297,9 @@ create trigger ${trigger}
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const versions = ctx.table("versions");
   const c = (column: string): string => ctx.col("versions", column);
   const read = ctx.permission("read", OPERATIONS["versions.read"]);

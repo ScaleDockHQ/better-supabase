@@ -11,7 +11,9 @@ import { getSession } from "../user-queries";
  */
 export async function ImpersonationBanner() {
   const [session, t] = await Promise.all([getSession(), getExtracted("user")]);
-  if (session.kind !== "user" || !session.impersonator) return null;
+  if (session.kind !== "user" || !session.impersonator) {
+    return null;
+  }
   const { id, reason } = session.impersonator;
   return (
     <Alert variant="destructive" data-testid="impersonation">

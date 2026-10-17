@@ -140,10 +140,15 @@ describe("stabilizeMetadata", () => {
       ...shifted.views,
       ...shifted.materializedViews,
       ...shifted.foreignTables,
-    ])
+    ]) {
       table.id += 500;
-    for (const column of shifted.columns) column.table_id += 500;
-    for (const key of shifted.primaryKeys) key.table_id += 500;
+    }
+    for (const column of shifted.columns) {
+      column.table_id += 500;
+    }
+    for (const key of shifted.primaryKeys) {
+      key.table_id += 500;
+    }
     expect(stabilizeMetadata(shifted).metadata).toEqual(
       stabilizeMetadata(snapshot.generator).metadata,
     );

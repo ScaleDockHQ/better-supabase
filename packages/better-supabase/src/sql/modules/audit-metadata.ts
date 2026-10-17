@@ -18,7 +18,9 @@ export function metadataColumns(
 ): readonly (readonly [column: string, key: string])[] {
   const where = "blocks.audit.options.metadataColumns";
   const configured = ctx.option("metadataColumns");
-  if (configured === undefined) return [];
+  if (configured === undefined) {
+    return [];
+  }
   if (typeof configured !== "object" || configured === null) {
     throw new TypeError(`${where} must map columns to metadata keys`);
   }
@@ -50,8 +52,9 @@ export function storedMetadata(
   ctx: ModuleContext,
   extra: readonly (readonly [column: string, key: string])[],
 ): string {
-  if (extra.length === 0 || ctx.flag("keepMappedMetadata", false))
+  if (extra.length === 0 || ctx.flag("keepMappedMetadata", false)) {
     return "coalesce(metadata, '{}')";
+  }
   const keys = [...new Set(extra.map(([, key]) => sqlString(key)))];
   return `coalesce(metadata, '{}') - array[${keys.join(", ")}]::text[]`;
 }
@@ -80,10 +83,11 @@ export function eventInsert(
     ([column, value]) => `${sqlString(column)}, ${value}`,
   );
   const chunks: string[] = [];
-  for (let index = 0; index < pairs.length; index += 40)
+  for (let index = 0; index < pairs.length; index += 40) {
     chunks.push(
       `pg_catalog.jsonb_build_object(\n    ${pairs.slice(index, index + 40).join(",\n    ")}\n  )`,
     );
+  }
   const mapped = extra.map(
     ([column, key]) =>
       `\n    || case when audit_event.metadata ? ${sqlString(key)} then pg_catalog.jsonb_build_object(${sqlString(column)}, audit_event.metadata -> ${sqlString(key)}) else '{}'::jsonb end`,

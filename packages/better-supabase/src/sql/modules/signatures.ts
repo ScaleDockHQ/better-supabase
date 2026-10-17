@@ -124,7 +124,9 @@ const signedHash = (parts: {
   );
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const versionsModule = ctx.of("versions");
   if (versionsModule.mode === "custom") {
     throw new TypeError(

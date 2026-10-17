@@ -22,16 +22,21 @@ async function closure(entry: string) {
   const files = new Set<string>();
   const externals = new Map<string, string>();
   const visit = async (file: string): Promise<void> => {
-    if (files.has(file)) return;
+    if (files.has(file)) {
+      return;
+    }
     files.add(file);
     const source = await readFile(file, "utf-8");
     for (const match of source.matchAll(SPECIFIER)) {
       const specifier = (match[1] ?? match[2] ?? match[3])!;
       if (specifier.startsWith(".")) {
         const target = resolve(dirname(file), specifier);
-        if (existsSync(target)) await visit(target);
-      } else if (!externals.has(specifier))
+        if (existsSync(target)) {
+          await visit(target);
+        }
+      } else if (!externals.has(specifier)) {
         externals.set(specifier, relative(SRC, file));
+      }
     }
   };
   await visit(resolve(SRC, entry));
@@ -43,8 +48,9 @@ async function domOffenders(files: ReadonlySet<string>): Promise<string[]> {
   for (const file of files) {
     const code = (await readFile(file, "utf-8")).replace(NOISE, "");
     code.split("\n").forEach((line, index) => {
-      if (DOM_GLOBAL.test(line))
+      if (DOM_GLOBAL.test(line)) {
         offenders.push(`${relative(SRC, file)}:${index + 1}: ${line.trim()}`);
+      }
     });
   }
   return offenders;
@@ -66,10 +72,11 @@ const bindings = blocks
 describe("platform-neutral block clients", () => {
   it("gives every React binding a controller", () => {
     expect(bindings.length).toBeGreaterThan(0);
-    for (const binding of bindings)
+    for (const binding of bindings) {
       expect(controllers).toContain(
         binding.replace("/react/index.ts", "/client.ts"),
       );
+    }
   });
 
   it.each(controllers)(
@@ -100,8 +107,9 @@ describe("platform-neutral block clients", () => {
       "const el = document.createElement('input');",
       "if (typeof window === 'undefined') return;",
     ];
-    for (const line of lines)
+    for (const line of lines) {
       expect(DOM_GLOBAL.test(line.replace(NOISE, ""))).toBe(true);
+    }
     const fine = [
       "// a window focus refetches",
       '"document.created"',
@@ -110,7 +118,8 @@ describe("platform-neutral block clients", () => {
       "readonly window?: Span;",
       "const windowSize = 3;",
     ];
-    for (const line of fine)
+    for (const line of fine) {
       expect(DOM_GLOBAL.test(line.replace(NOISE, ""))).toBe(false);
+    }
   });
 });

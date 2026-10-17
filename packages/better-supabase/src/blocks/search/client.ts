@@ -113,11 +113,19 @@ export function createCommandSearchController(
           client.recents(list),
           client.favorites(list),
         ]);
-        if (request !== listTicket) return;
-        if (recent.ok) recents = recent.data;
-        if (starred.ok) favorites = starred.data;
+        if (request !== listTicket) {
+          return;
+        }
+        if (recent.ok) {
+          recents = recent.data;
+        }
+        if (starred.ok) {
+          favorites = starred.data;
+        }
         const failed = recent.ok ? (starred.ok ? undefined : starred) : recent;
-        if (failed) error = failed.error;
+        if (failed) {
+          error = failed.error;
+        }
         show();
       };
       const schedule = (): void => {
@@ -125,7 +133,9 @@ export function createCommandSearchController(
         clearTimeout(timer);
         timer = undefined;
         const trimmed = query.trim();
-        if (!open || trimmed === "") return;
+        if (!open || trimmed === "") {
+          return;
+        }
         timer = setTimeout(() => {
           timer = undefined;
           void client
@@ -135,7 +145,9 @@ export function createCommandSearchController(
               ...(types ? { types } : {}),
             })
             .then((result) => {
-              if (request !== ticket) return;
+              if (request !== ticket) {
+                return;
+              }
               if (result.ok) {
                 answer = { q: trimmed, hits: result.data };
                 error = undefined;
@@ -148,7 +160,9 @@ export function createCommandSearchController(
         }, debounceMs);
       };
       const setOpen = (next: boolean): void => {
-        if (next === open) return;
+        if (next === open) {
+          return;
+        }
         open = next;
         if (open) {
           void loadLists();
@@ -162,10 +176,14 @@ export function createCommandSearchController(
         actions: {
           setOpen,
           setQuery: (next) => {
-            if (next === query) return;
+            if (next === query) {
+              return;
+            }
             const before = query.trim();
             query = next;
-            if (query.trim() !== before) schedule();
+            if (query.trim() !== before) {
+              schedule();
+            }
             show();
           },
           select: async (item) => {

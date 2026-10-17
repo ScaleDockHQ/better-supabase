@@ -44,7 +44,9 @@ export function transferFunctions(
   ctx: ModuleContext,
   names: InventoryNames,
 ): string {
-  if (!ctx.hasTable("transfers") || !ctx.hasTable("transferLines")) return "";
+  if (!ctx.hasTable("transfers") || !ctx.hasTable("transferLines")) {
+    return "";
+  }
   const { fn } = names;
   const transfers = ctx.table("transfers");
   const lines = ctx.table("transferLines");

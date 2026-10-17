@@ -99,7 +99,9 @@ revoke execute on function ${names.fn("order_json")}(uuid) from public, anon, au
 
 /** The SQL that reserves each tracked line's stock at the best location. */
 function reserveLines(ctx: ModuleContext, minutes: number): string {
-  if (!ctx.installed("inventory")) return "";
+  if (!ctx.installed("inventory")) {
+    return "";
+  }
   const inventory = ctx.of("inventory");
   const catalog = ctx.of("catalog");
   const v = columns(catalog, "variants");
@@ -141,7 +143,9 @@ function reserveLines(ctx: ModuleContext, minutes: number): string {
  * the stock can't cover any more is marked backordered.
  */
 function commitLines(ctx: ModuleContext): string {
-  if (!ctx.installed("inventory")) return "";
+  if (!ctx.installed("inventory")) {
+    return "";
+  }
   const inventory = ctx.of("inventory");
   const m = columns(inventory, "movements");
   const ol = columns(ctx, "orderLines");
@@ -168,7 +172,9 @@ function commitLines(ctx: ModuleContext): string {
 }
 
 function releaseLines(ctx: ModuleContext): string {
-  if (!ctx.installed("inventory")) return "";
+  if (!ctx.installed("inventory")) {
+    return "";
+  }
   const inventory = ctx.of("inventory");
   const ol = columns(ctx, "orderLines");
   return `

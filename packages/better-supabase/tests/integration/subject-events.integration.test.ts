@@ -56,7 +56,9 @@ describe.skipIf(!live)("subject-bound events in Postgres", () => {
       ["outbox", "state-machine", "reminders"],
       layout,
     )) {
-      if (file.kind !== "test") await client.query(file.contents);
+      if (file.kind !== "test") {
+        await client.query(file.contents);
+      }
     }
   });
 

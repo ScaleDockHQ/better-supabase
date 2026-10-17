@@ -49,7 +49,9 @@ export interface ResolvedPreset {
 
 /** "a", "a and b", "a, b and c". */
 export function listNames(names: readonly string[]): string {
-  if (names.length <= 1) return names.join("");
+  if (names.length <= 1) {
+    return names.join("");
+  }
   return `${names.slice(0, -1).join(", ")} and ${names.at(-1) ?? ""}`;
 }
 
@@ -77,9 +79,13 @@ function closureOf(
   const out: string[] = [];
   const visit = (each: string): void => {
     const block = byName.get(each);
-    if (block === undefined || out.includes(each)) return;
+    if (block === undefined || out.includes(each)) {
+      return;
+    }
     out.push(each);
-    for (const dependency of requiresOf(block, preset)) visit(dependency);
+    for (const dependency of requiresOf(block, preset)) {
+      visit(dependency);
+    }
   };
   visit(name);
   return out;
@@ -95,15 +101,22 @@ export function presetBlockConflict(
   catalog: PresetCatalog = PRESET_CATALOG,
 ): string | undefined {
   const byName = new Map(catalog.blocks.map((block) => [block.name, block]));
-  if (!byName.has(name)) return `"${name}" is not a block`;
-  if (preset.scope === "tenant") return undefined;
-  if (TENANT_PROVIDERS.has(name))
+  if (!byName.has(name)) {
+    return `"${name}" is not a block`;
+  }
+  if (preset.scope === "tenant") {
+    return undefined;
+  }
+  if (TENANT_PROVIDERS.has(name)) {
     return `scope "${preset.scope}" has no tenants`;
+  }
   const tenantOnly = closureOf(name, preset, byName).filter(
     (each) =>
       !(byName.get(each)?.scopes ?? [preset.scope]).includes(preset.scope),
   );
-  if (tenantOnly.length === 0) return undefined;
+  if (tenantOnly.length === 0) {
+    return undefined;
+  }
   return tenantOnly[0] === name
     ? `it needs tenants, and scope "${preset.scope}" has none`
     : `it needs ${listNames(tenantOnly)}, which need tenants, and scope "${preset.scope}" has none`;
@@ -147,11 +160,17 @@ export function resolvePreset(
       conflicts.push({ block: name, reason: problem });
       continue;
     }
-    for (const each of closureOf(name, preset, byName)) installed.add(each);
+    for (const each of closureOf(name, preset, byName)) {
+      installed.add(each);
+    }
   }
   for (const block of catalog.blocks) {
-    if (!installed.has(block.name)) continue;
-    if (!block.tenantNameClashes?.includes(preset.tenantName)) continue;
+    if (!installed.has(block.name)) {
+      continue;
+    }
+    if (!block.tenantNameClashes?.includes(preset.tenantName)) {
+      continue;
+    }
     conflicts.push({
       block: block.name,
       field: "tenantName",
@@ -190,7 +209,9 @@ export function resolvePreset(
   );
   for (const manifest of manifests) {
     for (const [port, need] of Object.entries(manifest.consumes)) {
-      if (need !== "required") continue;
+      if (need !== "required") {
+        continue;
+      }
       if (manifests.some((each) => each.provides.some((p) => p === port))) {
         continue;
       }

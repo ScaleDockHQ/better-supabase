@@ -55,9 +55,11 @@ function splitTop(text: string): [string, string] {
   let depth = 0;
   for (let index = 0; index < text.length; index += 1) {
     const char = text[index];
-    if (char === "<") depth += 1;
-    else if (char === ">") depth -= 1;
-    else if (char === "," && depth === 0) {
+    if (char === "<") {
+      depth += 1;
+    } else if (char === ">") {
+      depth -= 1;
+    } else if (char === "," && depth === 0) {
       return [text.slice(0, index).trim(), text.slice(index + 1).trim()];
     }
   }
@@ -75,9 +77,11 @@ function splitParams(text: string): string[] {
   let start = 0;
   for (let index = 0; index < text.length; index += 1) {
     const char = text[index];
-    if (char === "<") depth += 1;
-    else if (char === ">") depth -= 1;
-    else if (char === "," && depth === 0) {
+    if (char === "<") {
+      depth += 1;
+    } else if (char === ">") {
+      depth -= 1;
+    } else if (char === "," && depth === 0) {
       parts.push(text.slice(start, index).trim());
       start = index + 1;
     }
@@ -114,8 +118,12 @@ function usesEnv(source: string, name: string): boolean {
     `^export interface ${name}(?:<[\\s\\S]*?>)?(?: extends ([\\s\\S]*?))? \\{([\\s\\S]*?)^\\}`,
     "m",
   ).exec(source);
-  if (!match) return false;
-  if (/^ {2}readonly (auth|ports)\b/m.test(match[2]!)) return true;
+  if (!match) {
+    return false;
+  }
+  if (/^ {2}readonly (auth|ports)\b/m.test(match[2]!)) {
+    return true;
+  }
   const parents = (match[1] ?? "").match(/\b[A-Z]\w*/g) ?? [];
   return parents.some((parent) => usesEnv(source, parent));
 }
@@ -152,7 +160,9 @@ export function parseBlock(block: string, source: string): BlockBindings {
     const own = new Set(paramNames(generics));
     const text = [generics, binding.options, snapshot, actions].join(" ");
     for (const [name] of text.matchAll(/\b[A-Z]\w*/g)) {
-      if (own.has(name) || BUILTIN.has(name) || types.has(name)) continue;
+      if (own.has(name) || BUILTIN.has(name) || types.has(name)) {
+        continue;
+      }
       types.set(name, sourceOf(source, name));
     }
   }
@@ -163,12 +173,18 @@ export function parseBlock(block: string, source: string): BlockBindings {
 export async function readBlocks(): Promise<BlockBindings[]> {
   const blocks: BlockBindings[] = [];
   for (const entry of await readdir(BLOCKS, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
+    if (!entry.isDirectory()) {
+      continue;
+    }
     const path = join(BLOCKS, entry.name, "client.ts");
     const source = await readFile(path, "utf-8").catch(() => undefined);
-    if (source === undefined) continue;
+    if (source === undefined) {
+      continue;
+    }
     const parsed = parseBlock(entry.name, source);
-    if (parsed.controllers.length > 0) blocks.push(parsed);
+    if (parsed.controllers.length > 0) {
+      blocks.push(parsed);
+    }
   }
   return blocks.toSorted((a, b) => a.block.localeCompare(b.block));
 }
@@ -196,7 +212,9 @@ function wrap(text: string): string[] {
     if (line !== "" && line.length + word.length + 1 > 77) {
       lines.push(line);
       line = word;
-    } else line = line === "" ? word : `${line} ${word}`;
+    } else {
+      line = line === "" ? word : `${line} ${word}`;
+    }
   }
   return [...lines, line];
 }

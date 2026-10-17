@@ -55,7 +55,9 @@ export function honoMiddleware(
   return async (c, next) => {
     // A bridge that seeds the context buffers the body itself, and puts the
     // buffered request on Hono's so an entry and the route read one cache.
-    if (c.req.raw.body) c.req.raw = bufferRequest(c.req.raw);
+    if (c.req.raw.body) {
+      c.req.raw = bufferRequest(c.req.raw);
+    }
     // `c.env` holds the bindings on Workers, which is how `getEnv` reads them there.
     const response = await run(c.req.raw, {
       ...seedContext(c.env),

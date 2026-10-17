@@ -28,7 +28,7 @@ import {
   modulePermission,
   roleNames,
 } from "./access-model.ts";
-import { roleValue } from "./organizations.ts";
+import { roleValue } from "./organizations-roles.ts";
 
 const EVENTS: ModuleEvents<WaitlistEvents> = {
   "waitlist.approved": {
@@ -124,12 +124,16 @@ function assignableRoles(ctx: ModuleContext): readonly string[] {
     return roles;
   }
   const model = accessModel(ctx);
-  if (model !== "roles" && model !== "catalog") return [];
+  if (model !== "roles" && model !== "catalog") {
+    return [];
+  }
   return roleNames(ctx).filter((role) => role !== owner);
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const id = ctx.idType;
   const fn = (name: string): string => ctx.fn(name);
   const e = ctx.table("entries");

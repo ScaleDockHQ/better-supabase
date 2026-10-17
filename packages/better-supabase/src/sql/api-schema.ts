@@ -44,17 +44,24 @@ function splitTopLevel(text: string): string[] {
   for (let i = 0; i < text.length; i++) {
     const char = text[i]!;
     if (quote) {
-      if (char === quote) quote = undefined;
-    } else if (char === "'" || char === '"') quote = char;
-    else if (char === "(" || char === "[") depth++;
-    else if (char === ")" || char === "]") depth--;
-    else if (char === "," && depth === 0) {
+      if (char === quote) {
+        quote = undefined;
+      }
+    } else if (char === "'" || char === '"') {
+      quote = char;
+    } else if (char === "(" || char === "[") {
+      depth++;
+    } else if (char === ")" || char === "]") {
+      depth--;
+    } else if (char === "," && depth === 0) {
       parts.push(text.slice(start, i));
       start = i + 1;
     }
   }
   const last = text.slice(start);
-  if (last.trim() !== "") parts.push(last);
+  if (last.trim() !== "") {
+    parts.push(last);
+  }
   return parts.map((part) => part.trim());
 }
 
@@ -65,12 +72,18 @@ function closing(text: string, open: number): number {
   for (let i = open; i < text.length; i++) {
     const char = text[i]!;
     if (quote) {
-      if (char === quote) quote = undefined;
-    } else if (char === "'" || char === '"') quote = char;
-    else if (char === "(") depth++;
-    else if (char === ")") {
+      if (char === quote) {
+        quote = undefined;
+      }
+    } else if (char === "'" || char === '"') {
+      quote = char;
+    } else if (char === "(") {
+      depth++;
+    } else if (char === ")") {
       depth--;
-      if (depth === 0) return i;
+      if (depth === 0) {
+        return i;
+      }
     }
   }
   return -1;
@@ -100,13 +113,17 @@ function signatures(sql: string, schema: string): Signature[] {
   for (const match of sql.matchAll(create)) {
     const open = match.index + match[0].length - 1;
     const close = closing(sql, open);
-    if (close === -1) continue;
+    if (close === -1) {
+      continue;
+    }
     const rest = sql.slice(close + 1);
     const returns =
       /^\s*returns\s+([\s\S]*?)\n(?=\s*(?:language|stable|volatile|immutable|security|set|as|strict|parallel|cost|rows)\b)/i.exec(
         rest,
       );
-    if (!returns) continue;
+    if (!returns) {
+      continue;
+    }
     found.push({
       name: (match[1] ?? match[2])!,
       args: splitTopLevel(sql.slice(open + 1, close)).map(argument),
@@ -148,7 +165,9 @@ function apiGrants(sql: string, schema: string): Grant[] {
       .split(",")
       .map((role) => role.trim().replace(/^"(.*)"$/, "$1"))
       .filter((role) => API_ROLES.has(role));
-    if (roles.length === 0) return [];
+    if (roles.length === 0) {
+      return [];
+    }
     return [
       {
         name: (match[1] ?? match[2])!,
@@ -254,7 +273,9 @@ export function apiWrappers(
         ),
     ),
   ];
-  if (grants.length === 0 && dropped.length === 0) return "";
+  if (grants.length === 0 && dropped.length === 0) {
+    return "";
+  }
   const statements = grants.map((grant) => {
     const signature = defined.find(
       (entry) =>

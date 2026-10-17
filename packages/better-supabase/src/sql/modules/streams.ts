@@ -55,7 +55,9 @@ function topicPrefix(ctx: ModuleContext): string {
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const id = ctx.idType;
   const fn = (name: string): string => ctx.fn(name);
   const s = ctx.table("streams");

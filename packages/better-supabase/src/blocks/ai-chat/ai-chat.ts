@@ -812,7 +812,9 @@ export function createAiChat<
           const policies: Record<string, AiToolPolicy> = {};
           for (const [tool, policy] of Object.entries(record(value))) {
             const known = policyOf(policy);
-            if (known) policies[tool] = known;
+            if (known) {
+              policies[tool] = known;
+            }
           }
           return policies;
         }),

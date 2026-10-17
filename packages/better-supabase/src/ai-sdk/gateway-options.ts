@@ -27,14 +27,26 @@ export function gatewayOptions(
   extra: GatewayOptions = {},
 ): { readonly gateway: GatewayOptions } {
   const tags: string[] = [];
-  if (context.organizationId !== undefined)
+  if (context.organizationId !== undefined) {
     tags.push(`org:${context.organizationId}`);
-  if (context.chatId !== undefined) tags.push(`chat:${context.chatId}`);
-  if (context.feature !== undefined) tags.push(`feature:${context.feature}`);
-  if (context.tags !== undefined) tags.push(...context.tags);
+  }
+  if (context.chatId !== undefined) {
+    tags.push(`chat:${context.chatId}`);
+  }
+  if (context.feature !== undefined) {
+    tags.push(`feature:${context.feature}`);
+  }
+  if (context.tags !== undefined) {
+    tags.push(...context.tags);
+  }
   const more = extra["tags"];
-  if (Array.isArray(more))
-    for (const tag of more) if (typeof tag === "string") tags.push(tag);
+  if (Array.isArray(more)) {
+    for (const tag of more) {
+      if (typeof tag === "string") {
+        tags.push(tag);
+      }
+    }
+  }
   const options: GatewayOptions = Object.fromEntries(
     Object.entries(extra).filter(([key]) => key !== "user" && key !== "tags"),
   );

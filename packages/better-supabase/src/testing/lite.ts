@@ -63,7 +63,9 @@ function randomToken(bytes: number): string {
 }
 
 function list(value: string | readonly string[] | undefined): string[] {
-  if (value === undefined) return [];
+  if (value === undefined) {
+    return [];
+  }
   return typeof value === "string" ? [value] : [...value];
 }
 
@@ -82,8 +84,9 @@ export async function liteStack(
   options: LiteStackOptions = {},
 ): Promise<LiteStack> {
   const lite = await loadLite();
-  if (!lite)
+  if (!lite) {
     throw new Error(`liteStack() needs @supabase/lite. ${LITE_INSTALL}`);
+  }
   const driver = options.driver ?? "sqlite-postgres";
   const jwtSecret = options.jwtSecret ?? randomToken(32);
   const publishableKey = `sb_publishable_${randomToken(16)}`;
@@ -119,7 +122,9 @@ export async function liteStack(
       ...(options.migrations ?? []),
       ...(options.schemas ?? []),
     ]);
-    for (const seed of list(options.seed)) await seedLite(target, seed);
+    for (const seed of list(options.seed)) {
+      await seedLite(target, seed);
+    }
 
     const fetch: typeof globalThis.fetch = (input, init) =>
       app.fetch(new Request(input, init));

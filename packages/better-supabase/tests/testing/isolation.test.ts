@@ -59,10 +59,14 @@ function fakePostgrest(
   const leaks = new Set(options.leaks);
 
   const tenantOf = (headers: Headers): string | null | undefined => {
-    if (headers.get("apikey") === SECRET) return undefined;
+    if (headers.get("apikey") === SECRET) {
+      return undefined;
+    }
     const token = headers.get("authorization")?.replace(/^Bearer /, "");
     const body = token?.split(".")[1];
-    if (!body) return null;
+    if (!body) {
+      return null;
+    }
     const claims = JSON.parse(
       atob(body.replaceAll("-", "+").replaceAll("_", "/")),
     ) as Row;
@@ -78,7 +82,9 @@ function fakePostgrest(
       ]);
 
   const project = (rows: Row[], select: string | null): Row[] => {
-    if (!select || select === "*") return rows.map((row) => ({ ...row }));
+    if (!select || select === "*") {
+      return rows.map((row) => ({ ...row }));
+    }
     const fields = select.split(",").map((field) => {
       const [alias, column] = field.includes(":")
         ? field.split(":")
@@ -159,14 +165,18 @@ function fakePostgrest(
         case "PATCH": {
           const patch = (await request.json()) as Row;
           const changed = matching("update");
-          for (const row of changed) Object.assign(row, patch);
+          for (const row of changed) {
+            Object.assign(row, patch);
+          }
           return wantsRows
             ? respond(200, project(changed, select))
             : respond(204);
         }
         case "DELETE": {
           const removed = matching("delete");
-          for (const row of removed) rows.splice(rows.indexOf(row), 1);
+          for (const row of removed) {
+            rows.splice(rows.indexOf(row), 1);
+          }
           return wantsRows
             ? respond(200, project(removed, select))
             : respond(204);
@@ -351,11 +361,12 @@ describe("expectTenantIsolation", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        if (init?.method === "POST" && (posts += 1) === 2)
+        if (init?.method === "POST" && (posts += 1) === 2) {
           return Response.json(
             { code: "23505", message: "duplicate key" },
             { status: 409, headers: { "content-type": "application/json" } },
           );
+        }
         return inner(input, init);
       }),
     );
@@ -410,8 +421,9 @@ describe("expectTenantIsolation", () => {
       "PUBLIC_",
       "EXPO_PUBLIC_",
       "NUXT_PUBLIC_",
-    ])
+    ]) {
       vi.stubEnv(`${prefix}SUPABASE_URL`, "");
+    }
     const { url: _url, ...withoutUrl } = stack;
     await expectTenantIsolation(betterSupabase, {
       stack: withoutUrl,

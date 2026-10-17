@@ -58,9 +58,13 @@ export function upgradePlan(
   const defaults = withProviderDefaults(layout);
   return installed.flatMap((entry): ModuleUpgradePlan[] => {
     const module = modules[entry.module];
-    if (!module) return [];
+    if (!module) {
+      return [];
+    }
     const to = moduleVersion(module);
-    if (entry.version >= to) return [];
+    if (entry.version >= to) {
+      return [];
+    }
     const ctx = createModuleContext(
       entry.module,
       (name) => modules[name]?.names,
@@ -71,7 +75,9 @@ export function upgradePlan(
         ...providerIdType(layout),
       },
     );
-    if (ctx.mode === "custom") return [];
+    if (ctx.mode === "custom") {
+      return [];
+    }
     const steps = (module.upgrades ?? [])
       .filter((step) => step.from >= entry.version && step.from < to)
       .toSorted((a, b) => a.from - b.from)

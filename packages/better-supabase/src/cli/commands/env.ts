@@ -54,7 +54,9 @@ async function readStatus(
     const status = parseStackStatus(
       await readFile(resolve(config.root, from), "utf-8"),
     );
-    if (!status) throw new Error(`${from} holds no supabase status JSON.`);
+    if (!status) {
+      throw new Error(`${from} holds no supabase status JSON.`);
+    }
     return status;
   }
   const result = await readStackStatus(config.root, env);
@@ -69,7 +71,9 @@ async function readStatus(
 const text = (status: StackStatus, ...keys: string[]): string | undefined => {
   for (const key of keys) {
     const value = status[key];
-    if (typeof value === "string" && value.length > 0) return value;
+    if (typeof value === "string" && value.length > 0) {
+      return value;
+    }
   }
   return undefined;
 };
@@ -86,15 +90,21 @@ export function mergeEnv(
     const key = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=/.exec(
       line,
     )?.[1];
-    if (!key || !pending.has(key)) return line;
+    if (!key || !pending.has(key)) {
+      return line;
+    }
     const value = pending.get(key)!;
     pending.delete(key);
     return `${key}=${value}`;
   });
   if (pending.size > 0) {
-    if (merged.length > 0 && merged.at(-1) !== "") merged.push("");
+    if (merged.length > 0 && merged.at(-1) !== "") {
+      merged.push("");
+    }
     merged.push("# Local Supabase stack (better-supabase env)");
-    for (const [key, value] of pending) merged.push(`${key}=${value}`);
+    for (const [key, value] of pending) {
+      merged.push(`${key}=${value}`);
+    }
   }
   return `${merged.join("\n")}\n`;
 }
@@ -128,11 +138,17 @@ export async function runEnv(
     [`${prefix}SUPABASE_URL`]: url,
     [`${prefix}SUPABASE_PUBLISHABLE_KEY`]: publishableKey,
   };
-  if (secretKey) values["SUPABASE_SECRET_KEY"] = secretKey;
+  if (secretKey) {
+    values["SUPABASE_SECRET_KEY"] = secretKey;
+  }
   const dbUrl = text(status, "DB_URL");
-  if (dbUrl) values["SUPABASE_DB_URL"] = dbUrl;
+  if (dbUrl) {
+    values["SUPABASE_DB_URL"] = dbUrl;
+  }
   const jwtSecret = text(status, "JWT_SECRET");
-  if (jwtSecret) values["SUPABASE_JWT_SECRET"] = jwtSecret;
+  if (jwtSecret) {
+    values["SUPABASE_JWT_SECRET"] = jwtSecret;
+  }
 
   if (args.print === true) {
     return {
@@ -169,10 +185,11 @@ export async function runEnv(
           line.trim(),
         ),
       );
-  if (!ignored)
+  if (!ignored) {
     lines.push(
       `Warning: add ${out} to .gitignore; it contains the secret key.`,
     );
+  }
   return { code: 0, output: lines.join("\n") };
 }
 

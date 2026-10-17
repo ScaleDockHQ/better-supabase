@@ -17,10 +17,11 @@ const importEngine = (): Promise<unknown> =>
 
 async function load(importer: () => Promise<unknown>): Promise<JsonPathEngine> {
   const module = await importer();
-  if (!isEngine(module))
+  if (!isEngine(module)) {
     throw new TypeError(
       "better-supabase/overlay needs an RFC 9535 JSONPath engine: pnpm add jsonpath-rfc9535, or pass your own { paths(document, expression) }",
     );
+  }
   return module;
 }
 
@@ -35,6 +36,8 @@ const cachedEngine = memoized(() => load(importEngine));
 export function loadJsonPath(
   importer?: () => Promise<unknown>,
 ): Promise<JsonPathEngine> {
-  if (importer) return load(importer);
+  if (importer) {
+    return load(importer);
+  }
   return cachedEngine();
 }

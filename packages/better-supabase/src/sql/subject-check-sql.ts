@@ -18,7 +18,9 @@ export function subjectInTenant(
   const subjects = registeredSubjects(ctx.subjects).filter(
     (subject) => subject.tenant !== undefined,
   );
-  if (subjects.length === 0) return "false";
+  if (subjects.length === 0) {
+    return "false";
+  }
   const canSubject = ctx.of("subjects").fn("can_subject");
   return `(case ${type}
 ${subjects
@@ -44,7 +46,9 @@ export function subjectTenant(
   const subjects = registeredSubjects(ctx.subjects).filter(
     (subject) => subject.tenant !== undefined,
   );
-  if (subjects.length === 0) return "null::text";
+  if (subjects.length === 0) {
+    return "null::text";
+  }
   return `(case ${type}
 ${subjects
   .map(
@@ -69,7 +73,9 @@ export function subjectTitle(
   const subjects = registeredSubjects(ctx.subjects).filter(
     (subject) => subject.config.title !== undefined,
   );
-  if (subjects.length === 0) return "null::text";
+  if (subjects.length === 0) {
+    return "null::text";
+  }
   return `(case ${type}
 ${subjects
   .map(

@@ -25,7 +25,9 @@ function approvalsOf(message: UIMessage | undefined): {
   approved: boolean;
   reason?: string;
 }[] {
-  if (message?.role !== "assistant") return [];
+  if (message?.role !== "assistant") {
+    return [];
+  }
   return message.parts.flatMap((part) =>
     "state" in part && part.state === "approval-responded"
       ? [

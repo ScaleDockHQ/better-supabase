@@ -28,10 +28,11 @@ function controlled<T>(): Controlled<T> {
     resolveFirst = resolve;
   });
   const next = async (): Promise<IteratorResult<T>> => {
-    if (queue.length === 0)
+    if (queue.length === 0) {
       await new Promise<void>((resolve) => {
         wake = resolve;
       });
+    }
     return { done: false, value: queue.shift()! };
   };
   const hook: DurableHook<T> = Object.assign(first, {

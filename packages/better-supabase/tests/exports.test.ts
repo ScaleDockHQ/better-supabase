@@ -19,13 +19,17 @@ function typeExports(source: string): string[] {
         .trim()
         .split(/\s+as\s+/)
         .at(-1);
-      if (name) names.add(name);
+      if (name) {
+        names.add(name);
+      }
     }
   }
   for (const match of source.matchAll(/export\s*\{([^}]*)\}/g)) {
     for (const part of match[1]!.split(",")) {
       const inline = /^\s*type\s+(\S+)(?:\s+as\s+(\S+))?/.exec(part);
-      if (inline) names.add(inline[2] ?? inline[1]!);
+      if (inline) {
+        names.add(inline[2] ?? inline[1]!);
+      }
     }
   }
   for (const match of source.matchAll(
@@ -47,8 +51,9 @@ describe("public API", () => {
       new URL("../tsdown.config.ts", import.meta.url),
       "utf-8",
     );
-    for (const subpath of subpaths)
+    for (const subpath of subpaths) {
       expect(config).toContain(`"${entryOf(subpath)}"`);
+    }
   });
 
   it("matches the export snapshot", { timeout: 30_000 }, async () => {

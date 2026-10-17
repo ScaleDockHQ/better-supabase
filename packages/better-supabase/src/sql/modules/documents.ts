@@ -95,7 +95,9 @@ const b64 = (bytes: string): string =>
   `replace(encode(${bytes}, 'base64'), E'\\n', '')`;
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const documents = ctx.table("documents");
   const updates = ctx.table("updates");
   const snapshots = ctx.table("snapshots");

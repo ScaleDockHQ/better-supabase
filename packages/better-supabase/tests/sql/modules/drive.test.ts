@@ -65,8 +65,9 @@ describe("drive module", () => {
     );
     const drive = SQL_MODULES["drive"];
     const comments = SQL_MODULES["comments"];
-    if (drive === undefined || comments === undefined)
+    if (drive === undefined || comments === undefined) {
       throw new Error("missing");
+    }
     const number = (path: string): number =>
       Number(/_(\d+)_[a-z_]+\.sql$/.exec(path)?.[1]);
     expect(number(modulePath(drive, {}))).toBe(

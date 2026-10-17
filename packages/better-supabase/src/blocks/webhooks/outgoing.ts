@@ -114,26 +114,31 @@ const TRACEPARENT =
   /^(?!ff)[0-9a-f]{2}-(?!0{32})[0-9a-f]{32}-(?!0{16})[0-9a-f]{16}-[0-9a-f]{2}$/;
 
 function absoluteUri(where: string, value: string): string {
-  if (!URL.canParse(value))
+  if (!URL.canParse(value)) {
     throw new TypeError(`${where} must be an absolute URI, not "${value}"`);
+  }
   return value;
 }
 
 /** The CloudEvents `source`: the `source` option, else `/webhooks` on `appUrl`. */
 function sourceOf(options: WebhooksOptions): string {
-  if (options.source !== undefined)
+  if (options.source !== undefined) {
     return absoluteUri("createWebhooks: source", options.source);
-  if (options.appUrl !== undefined)
+  }
+  if (options.appUrl !== undefined) {
     return new URL(
       "/webhooks",
       absoluteUri("createWebhooks: appUrl", options.appUrl),
     ).href;
+  }
   return "urn:better-supabase:webhooks";
 }
 
 /** The `actorId` a block event or the outbox put in the payload, if any. */
 function actorOf(payload: unknown): string | null {
-  if (!isRecord(payload)) return null;
+  if (!isRecord(payload)) {
+    return null;
+  }
   const actor = payload["actorId"];
   return typeof actor === "string" ? actor : null;
 }
@@ -297,28 +302,33 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
     encoder: WebhookEncoder,
   ): Promise<Result<Headers, Attempt>> {
     const ref = delivery.credentialRef;
-    if (ref === null) return ok({});
-    if (!credentialRefInTenant(ref, delivery.tenant ?? undefined))
+    if (ref === null) {
+      return ok({});
+    }
+    if (!credentialRefInTenant(ref, delivery.tenant ?? undefined)) {
       return err({
         outcome: "dead",
         error: foreignCredentialRef(delivery.tenant ?? undefined).message,
       });
-    if (options.credentials === undefined)
+    }
+    if (options.credentials === undefined) {
       return err({
         outcome: "dead",
         error:
           "The endpoint has a credential_ref, but no credentials provider is set",
       });
+    }
     const token = await options.credentials.getToken(ref, {
       subject: { type: "app" },
     });
-    if (!token.ok)
+    if (!token.ok) {
       return err({
         outcome: PERMANENT_CREDENTIAL_ERRORS.has(token.error.kind)
           ? "dead"
           : "failed",
         error: token.error.message,
       });
+    }
     return ok(encoder.authorize?.(token.data) ?? token.data.headers);
   }
 
@@ -329,17 +339,19 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
   ): Promise<Result<Headers, Attempt>> {
     const first = deliveries[0]!;
     const sign = first.signing === "v1a" ? options.asymmetricSigner : signer;
-    if (sign === undefined)
+    if (sign === undefined) {
       return err({
         outcome: "dead",
         error: "The endpoint signs with v1a, but no asymmetricSigner is set",
       });
+    }
     const secrets = await store.secrets(first.endpointId);
-    if (secrets.length === 0 && first.signing === "v1")
+    if (secrets.length === 0 && first.signing === "v1") {
       return err({
         outcome: "dead",
         error: "The endpoint has no signing secret",
       });
+    }
     return ok(
       await sign.sign({
         id: first.batch ? await batchId(deliveries) : first.id,
@@ -356,16 +368,19 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
   ): Promise<Attempt> {
     const first = deliveries[0]!;
     const encoder = encoders.get(first.format);
-    if (encoder === undefined)
+    if (encoder === undefined) {
       return {
         outcome: "dead",
         error: `No encoder for the endpoint format "${first.format}"`,
       };
+    }
     let body: string;
     let headers: Record<string, string>;
     try {
       const auth = await authorization(first, encoder);
-      if (!auth.ok) return auth.error;
+      if (!auth.ok) {
+        return auth.error;
+      }
       const events = await Promise.all(deliveries.map(cloudEvent));
       const message = await encoder.encode(events, {
         url: first.url,
@@ -376,7 +391,9 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
       const signature = encoder.signed
         ? await signatureHeaders(deliveries, body)
         : ok({});
-      if (!signature.ok) return signature.error;
+      if (!signature.ok) {
+        return signature.error;
+      }
       headers = {
         ...message.headers,
         "user-agent": "better-supabase-webhooks",
@@ -396,15 +413,17 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
       });
       const durationMs = Date.now() - started;
       const verdict = encoder.classify?.(response);
-      if (verdict !== undefined)
+      if (verdict !== undefined) {
         return {
           outcome: verdict.outcome === "retry" ? "failed" : verdict.outcome,
           response,
           durationMs,
           ...(verdict.error === undefined ? {} : { error: verdict.error }),
         };
-      if (response.status >= 200 && response.status < 300)
+      }
+      if (response.status >= 200 && response.status < 300) {
         return { outcome: "succeeded", response, durationMs };
+      }
       return {
         outcome: retryable(response.status) ? "failed" : "dead",
         response,
@@ -424,9 +443,13 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
   async function vetoed(
     delivery: WebhookDelivery,
   ): Promise<Attempt | undefined> {
-    if (!options.shouldDeliver) return undefined;
+    if (!options.shouldDeliver) {
+      return undefined;
+    }
     try {
-      if (await options.shouldDeliver(delivery)) return undefined;
+      if (await options.shouldDeliver(delivery)) {
+        return undefined;
+      }
     } catch (cause) {
       return { outcome: "canceled", error: errorText(cause) };
     }
@@ -442,7 +465,9 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
     queue: readonly WebhookDelivery[],
   ): Promise<Map<WebhookDelivery, Attempt>> {
     const refused = new Map<WebhookDelivery, Attempt>();
-    if (!subscribers) return refused;
+    if (!subscribers) {
+      return refused;
+    }
     const byEvent = Map.groupBy(
       queue,
       (delivery) =>
@@ -468,19 +493,22 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
         try {
           kept = new Set(await subscribers(event, candidates));
         } catch (cause) {
-          for (const delivery of deliveries)
+          for (const delivery of deliveries) {
             refused.set(delivery, {
               outcome: "failed",
               error: `Subscriber policy failed: ${errorText(cause)}`,
             });
+          }
           return;
         }
-        for (const candidate of candidates)
-          if (!kept.has(candidate))
+        for (const candidate of candidates) {
+          if (!kept.has(candidate)) {
             refused.set(candidate.delivery, {
               outcome: "canceled",
               error: "Refused by the subscriber policy",
             });
+          }
+        }
       }),
     );
     return refused;
@@ -507,7 +535,9 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
       const outcome =
         result.outcome === "failed" ? failure(delivery) : result.outcome;
       const state = await complete(delivery, outcome, result);
-      if (state === "stale") return;
+      if (state === "stale") {
+        return;
+      }
       switch (outcome) {
         case "succeeded":
           counts.succeeded += 1;
@@ -517,8 +547,11 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
           break;
         case "retrying":
         case "dead":
-          if (outcome === "retrying") counts.retrying += 1;
-          else counts.dead += 1;
+          if (outcome === "retrying") {
+            counts.retrying += 1;
+          } else {
+            counts.dead += 1;
+          }
           emit("webhook.failed", delivery, {
             ...(result.response ? { status: result.response.status } : {}),
             ...(result.error ? { error: result.error } : {}),
@@ -544,12 +577,19 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
       const send: WebhookDelivery[] = [];
       for (const delivery of deliveries) {
         const veto = await vetoed(delivery);
-        if (veto) await finish(delivery, veto);
-        else send.push(delivery);
+        if (veto) {
+          await finish(delivery, veto);
+        } else {
+          send.push(delivery);
+        }
       }
-      if (send.length === 0) return;
+      if (send.length === 0) {
+        return;
+      }
       const result = await attempt(send);
-      for (const delivery of send) await finish(delivery, result);
+      for (const delivery of send) {
+        await finish(delivery, result);
+      }
     }
 
     while (!spent.expired()) {
@@ -563,7 +603,9 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
         .map(toDelivery);
       const size = deliveries.length;
       const refused = await screen(deliveries);
-      for (const [delivery, result] of refused) await finish(delivery, result);
+      for (const [delivery, result] of refused) {
+        await finish(delivery, result);
+      }
       const allowed = deliveries.filter((delivery) => !refused.has(delivery));
       const batched = Map.groupBy(
         allowed.filter((delivery) => delivery.batch),
@@ -579,12 +621,15 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
         Array.from(
           { length: Math.min(concurrency, queue.length) },
           async () => {
-            for (let next = queue.shift(); next; next = queue.shift())
+            for (let next = queue.shift(); next; next = queue.shift()) {
               await handle(next);
+            }
           },
         ),
       );
-      if (size < batch) break;
+      if (size < batch) {
+        break;
+      }
     }
     return counts;
   }

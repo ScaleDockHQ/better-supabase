@@ -52,8 +52,9 @@ function fakeMfa(verified = false) {
         });
       }
       const factor = factors.find((each) => each.id === params.factorId);
-      if (factor)
+      if (factor) {
         factors[factors.indexOf(factor)] = { ...factor, status: "verified" };
+      }
       level = "aal2";
       return reply({});
     }),

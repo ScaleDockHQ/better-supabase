@@ -144,7 +144,9 @@ const etag = (version: unknown): string => `W/"${String(version)}"`;
 /** The version an `If-Match` header requires; `undefined` for none or `*`. */
 function ifMatch(request: Request): number | undefined {
   const header = request.headers.get("if-match")?.trim();
-  if (!header || header === "*") return undefined;
+  if (!header || header === "*") {
+    return undefined;
+  }
   const version = /^(?:W\/)?"(\d+)"$/.exec(header)?.[1];
   if (version === undefined) {
     throw new ScimError(412, "If-Match names no current version");
@@ -199,7 +201,9 @@ function present(kind: Kind, stored: ScimStoredResource, base: string): Doc {
 
 function stringField(doc: Doc, key: string): string | undefined {
   const value = doc[key];
-  if (value === undefined || value === null) return undefined;
+  if (value === undefined || value === null) {
+    return undefined;
+  }
   if (typeof value !== "string") {
     throw new ScimError(400, `${key} is a string`, "invalidValue");
   }
@@ -207,8 +211,12 @@ function stringField(doc: Doc, key: string): string | undefined {
 }
 
 function booleanField(value: unknown): boolean {
-  if (value === undefined || value === null) return true;
-  if (typeof value === "boolean") return value;
+  if (value === undefined || value === null) {
+    return true;
+  }
+  if (typeof value === "boolean") {
+    return value;
+  }
   if (typeof value === "string" && /^(true|false)$/i.test(value)) {
     return value.toLowerCase() === "true";
   }
@@ -447,7 +455,9 @@ export function scimHandler(
     reply: Promise<{ ok: true; data: T } | { ok: false; error: DbError }>,
   ): Promise<T> => {
     const result = await reply;
-    if (!result.ok) throw fromDbError(result.error);
+    if (!result.ok) {
+      throw fromDbError(result.error);
+    }
     return result.data;
   };
 
@@ -457,10 +467,13 @@ export function scimHandler(
       .get("authorization")
       ?.match(/^Bearer\s+(.+)$/i)?.[1]
       ?.trim();
-    if (!token)
+    if (!token) {
       throw new ScimError(401, "Send a bearer token", undefined, challenge);
+    }
     const checked = await options.keys.verify(token);
-    if (!checked.ok) throw new ScimError(500, "Could not check the token");
+    if (!checked.ok) {
+      throw new ScimError(500, "Could not check the token");
+    }
     const check = checked.data;
     switch (check.status) {
       case "invalid":
@@ -509,7 +522,9 @@ export function scimHandler(
       });
     const one = (items: readonly Doc[]): Response => {
       const found = items.find((item) => item["id"] === ids);
-      if (!found) throw new ScimError(404, `No ${head} ${ids}`);
+      if (!found) {
+        throw new ScimError(404, `No ${head} ${ids}`);
+      }
       return json(200, found);
     };
     if (
@@ -539,7 +554,9 @@ export function scimHandler(
     id: string,
   ): Promise<ScimStoredResource> => {
     const found = await unwrap(store.get(kind, tenant, id));
-    if (found === undefined) throw new ScimError(404, `No ${kind} ${id}`);
+    if (found === undefined) {
+      throw new ScimError(404, `No ${kind} ${id}`);
+    }
     return found;
   };
 
@@ -635,7 +652,9 @@ export function scimHandler(
     const method = request.method;
     if (id === undefined || id === ".search") {
       if (id === ".search") {
-        if (method !== "POST") throw new ScimError(405, "Use POST for .search");
+        if (method !== "POST") {
+          throw new ScimError(405, "Use POST for .search");
+        }
         const body = await readBody(request);
         if (
           !isRecord(body) ||
@@ -755,7 +774,9 @@ export function scimHandler(
       }
       case "DELETE": {
         const removed = await unwrap(store.delete(kind, tenant, id));
-        if (!removed) throw new ScimError(404, `No ${kind} ${id}`);
+        if (!removed) {
+          throw new ScimError(404, `No ${kind} ${id}`);
+        }
         return new Response(null, { status: 204 });
       }
       default:
@@ -767,11 +788,21 @@ export function scimHandler(
     method: string,
     id: string | undefined,
   ): ScimSyncOperation | undefined => {
-    if (id === undefined) return method === "POST" ? "create" : undefined;
-    if (id === ".search") return undefined;
-    if (method === "PUT") return "replace";
-    if (method === "PATCH") return "patch";
-    if (method === "DELETE") return "delete";
+    if (id === undefined) {
+      return method === "POST" ? "create" : undefined;
+    }
+    if (id === ".search") {
+      return undefined;
+    }
+    if (method === "PUT") {
+      return "replace";
+    }
+    if (method === "PATCH") {
+      return "patch";
+    }
+    if (method === "DELETE") {
+      return "delete";
+    }
     return undefined;
   };
 
@@ -837,7 +868,9 @@ export function scimHandler(
         .map(decodeURIComponent);
       const [head, id, ...rest] = segments;
       const discovered = discover(request, url, base, segments);
-      if (discovered) return discovered;
+      if (discovered) {
+        return discovered;
+      }
       const tenant = await authenticate(request);
       if (head === "Me") {
         throw new ScimError(501, "/Me is not supported");
@@ -845,7 +878,9 @@ export function scimHandler(
       if (head === "Bulk") {
         throw new ScimError(501, "Bulk operations are not supported");
       }
-      if (rest.length > 0) throw new ScimError(404, "Not a SCIM endpoint");
+      if (rest.length > 0) {
+        throw new ScimError(404, "Not a SCIM endpoint");
+      }
       if (head === "Users") {
         return await logged(request, url, base, "User", id, tenant);
       }
@@ -854,7 +889,9 @@ export function scimHandler(
       }
       throw new ScimError(404, "Not a SCIM endpoint");
     } catch (cause) {
-      if (cause instanceof ScimError) return errorResponse(cause);
+      if (cause instanceof ScimError) {
+        return errorResponse(cause);
+      }
       return errorResponse(new ScimError(500, "The service provider failed"));
     }
   };

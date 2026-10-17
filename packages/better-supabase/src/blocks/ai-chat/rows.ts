@@ -247,40 +247,76 @@ export function moderationOf(value: unknown): AiModerationEvent {
 /** The fields `create_ai_chat` reads, from the ones the input names. */
 export function chatFields(input: AiChatInput): Record<string, unknown> {
   const fields: Record<string, unknown> = {};
-  if (input.id !== undefined) fields["id"] = input.id;
-  if (input.title !== undefined) fields["title"] = input.title;
-  if (input.model !== undefined) fields["model"] = input.model;
-  if (input.projectId !== undefined) fields["project_id"] = input.projectId;
-  if (input.agentId !== undefined) fields["agent_id"] = input.agentId;
-  if (input.visibility !== undefined) fields["visibility"] = input.visibility;
-  if (input.pinned !== undefined) fields["pinned"] = input.pinned;
-  if (input.temporary !== undefined) fields["is_temporary"] = input.temporary;
-  if (input.ownerId !== undefined) fields["owner_id"] = input.ownerId;
+  if (input.id !== undefined) {
+    fields["id"] = input.id;
+  }
+  if (input.title !== undefined) {
+    fields["title"] = input.title;
+  }
+  if (input.model !== undefined) {
+    fields["model"] = input.model;
+  }
+  if (input.projectId !== undefined) {
+    fields["project_id"] = input.projectId;
+  }
+  if (input.agentId !== undefined) {
+    fields["agent_id"] = input.agentId;
+  }
+  if (input.visibility !== undefined) {
+    fields["visibility"] = input.visibility;
+  }
+  if (input.pinned !== undefined) {
+    fields["pinned"] = input.pinned;
+  }
+  if (input.temporary !== undefined) {
+    fields["is_temporary"] = input.temporary;
+  }
+  if (input.ownerId !== undefined) {
+    fields["owner_id"] = input.ownerId;
+  }
   return fields;
 }
 
 export function patchFields(patch: AiChatPatch): Record<string, unknown> {
   const fields: Record<string, unknown> = {};
-  if (patch.title !== undefined) fields["title"] = patch.title;
-  if (patch.model !== undefined) fields["model"] = patch.model;
-  if (patch.projectId !== undefined) fields["project_id"] = patch.projectId;
-  if (patch.visibility !== undefined) fields["visibility"] = patch.visibility;
-  if (patch.pinned !== undefined) fields["pinned"] = patch.pinned;
-  if (patch.archived !== undefined) fields["archived"] = patch.archived;
+  if (patch.title !== undefined) {
+    fields["title"] = patch.title;
+  }
+  if (patch.model !== undefined) {
+    fields["model"] = patch.model;
+  }
+  if (patch.projectId !== undefined) {
+    fields["project_id"] = patch.projectId;
+  }
+  if (patch.visibility !== undefined) {
+    fields["visibility"] = patch.visibility;
+  }
+  if (patch.pinned !== undefined) {
+    fields["pinned"] = patch.pinned;
+  }
+  if (patch.archived !== undefined) {
+    fields["archived"] = patch.archived;
+  }
   return fields;
 }
 
 export function projectFields(input: AiProjectInput): Record<string, unknown> {
   const fields: Record<string, unknown> = {};
-  if (input.name !== undefined) fields["name"] = input.name;
+  if (input.name !== undefined) {
+    fields["name"] = input.name;
+  }
   if (input.instructions !== undefined) {
     fields["instructions"] = input.instructions;
   }
   if (input.defaultModel !== undefined) {
     fields["default_model"] = input.defaultModel;
   }
-  if (input.pinned !== undefined) fields["pinned"] = input.pinned;
-  if (input.archived !== undefined) fields["archived"] = input.archived;
+  if (input.pinned !== undefined) {
+    fields["pinned"] = input.pinned;
+  }
+  if (input.archived !== undefined) {
+    fields["archived"] = input.archived;
+  }
   return fields;
 }
 

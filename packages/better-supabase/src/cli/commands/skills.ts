@@ -59,8 +59,9 @@ function skillsRoot(): string {
     dirname(fileURLToPath(import.meta.resolve("better-supabase/package.json"))),
     "skills",
   );
-  if (!existsSync(root))
+  if (!existsSync(root)) {
     throw new Error("Could not find the better-supabase skills folder.");
+  }
   return root;
 }
 
@@ -84,9 +85,11 @@ async function readTree(root: string, prefix = ""): Promise<SkillFile[]> {
   const entries = await readdir(join(root, prefix), { withFileTypes: true });
   for (const entry of entries.sort((a, b) => byCodePoint(a.name, b.name))) {
     const path = prefix ? `${prefix}/${entry.name}` : entry.name;
-    if (entry.isDirectory()) files.push(...(await readTree(root, path)));
-    else if (entry.isFile())
+    if (entry.isDirectory()) {
+      files.push(...(await readTree(root, path)));
+    } else if (entry.isFile()) {
       files.push({ path, contents: await readFile(join(root, path), "utf-8") });
+    }
   }
   return files;
 }
@@ -99,7 +102,9 @@ export async function loadSkills(
     (item) => item.isDirectory(),
   )) {
     const folder = join(root, entry.name);
-    if (!existsSync(join(folder, "SKILL.md"))) continue;
+    if (!existsSync(join(folder, "SKILL.md"))) {
+      continue;
+    }
     const tree = await readTree(folder);
     const main = tree.find((file) => file.path === "SKILL.md")!;
     const files = [main, ...tree.filter((file) => file !== main)];
@@ -177,7 +182,9 @@ export async function runSkills(
       : display(config.root, relativePath);
     if (check) {
       const current = await readIfExists(path);
-      if (!sameText(current, file.contents)) stale.push(shown);
+      if (!sameText(current, file.contents)) {
+        stale.push(shown);
+      }
       continue;
     }
     lines.push((await writeLine(path, file.contents, shown)).line);

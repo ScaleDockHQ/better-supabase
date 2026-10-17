@@ -44,7 +44,9 @@ function withApiKeyAuth<F extends object>(
     run: () => async (request) => {
       const instance = new URL(request.url).pathname;
       const state = await resolver.resolve(request);
-      if (state?.kind === "apiKey") return { auth: state };
+      if (state?.kind === "apiKey") {
+        return { auth: state };
+      }
       return problemResponse(
         state?.kind === "invalid"
           ? state.error

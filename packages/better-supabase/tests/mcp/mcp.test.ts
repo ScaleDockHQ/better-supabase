@@ -1017,7 +1017,9 @@ describe("tool schemas per protocol version", () => {
       jsonSchema: {
         input: ({ target }: { target: string }) => {
           calls.push(target);
-          if (target !== "draft-2020-12") throw new Error("unsupported");
+          if (target !== "draft-2020-12") {
+            throw new Error("unsupported");
+          }
           return {
             type: "object",
             properties: { pair: { prefixItems: [{ type: "string" }] } },
@@ -1154,8 +1156,9 @@ describe("tool schemas per protocol version", () => {
       await list({ "mcp-protocol-version": version });
     }
     const after = calls.length;
-    for (const version of ["2025-06-18", "2025-11-25"])
+    for (const version of ["2025-06-18", "2025-11-25"]) {
       await list({ "mcp-protocol-version": version });
+    }
     expect(calls.length).toBe(after);
     expect(after - before).toBeLessThanOrEqual(2);
     expect(

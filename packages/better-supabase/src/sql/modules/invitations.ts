@@ -47,7 +47,7 @@ import {
   tokenHash,
   type InviteTable,
 } from "./invitations-tables.ts";
-import { assignableRole, roleValue } from "./organizations.ts";
+import { assignableRole, roleValue } from "./organizations-roles.ts";
 import { roleThrough } from "./tenant.ts";
 
 const EVENTS: ModuleEvents<OrganizationsEvents> = {
@@ -200,7 +200,9 @@ create policy bs_invitations_read on ${t.table} for select to authenticated
 
 function platformTableSql(ctx: ModuleContext): string {
   const p = platformTable(ctx);
-  if (!p || !ctx.manages) return "";
+  if (!p || !ctx.manages) {
+    return "";
+  }
   const c = (logical: string) => p.col(logical);
   const add = (logical: string, type: string) =>
     p.has(logical)

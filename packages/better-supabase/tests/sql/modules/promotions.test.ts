@@ -27,12 +27,13 @@ describe("promotions module", () => {
         new RegExp(`grant execute on function "better_supabase"\\."${fn}"\\(`),
       );
     }
-    for (const fn of ["save_promotion", "apply_promotion_code"])
+    for (const fn of ["save_promotion", "apply_promotion_code"]) {
       expect(sql).toMatch(
         new RegExp(
           `grant execute on function "better_supabase"\\."${fn}"\\([^)]*\\) to authenticated`,
         ),
       );
+    }
   });
 
   it("references the orders carts and the catalog targets", () => {

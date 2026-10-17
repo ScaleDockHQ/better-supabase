@@ -118,7 +118,9 @@ function matchColumns(
   const matches: ColumnMatch[] = [];
   // Exact names first, so an alias never takes a column another logical column names.
   for (const physical of Object.values(spec.columns)) {
-    if (names.has(physical)) used.add(physical);
+    if (names.has(physical)) {
+      used.add(physical);
+    }
   }
   for (const [logical, physical] of Object.entries(spec.columns)) {
     if (names.has(physical)) {
@@ -197,13 +199,17 @@ function matchTables(
     chosen.set(best.logical, table);
   }
   for (const [logical, table] of Object.entries(spec)) {
-    if (chosen.has(logical)) continue;
+    if (chosen.has(logical)) {
+      continue;
+    }
     const found = schemas
       .map((schema) => byName.get(`${schema}.${table.name}`))
       .find((match) => match !== undefined);
-    if (found !== undefined) chosen.set(logical, found);
-    else if (table.optionalTable === true) chosen.set(logical, null);
-    else {
+    if (found !== undefined) {
+      chosen.set(logical, found);
+    } else if (table.optionalTable === true) {
+      chosen.set(logical, null);
+    } else {
       errors.push(
         `blocks.${block} needs a table for ${logical} (${table.name} by default) and none was found. Pass it with --from.`,
       );
@@ -259,7 +265,9 @@ export function proposeAdoption(
   const entryColumns: Record<string, Record<string, string | null>> = {};
   let idType: string | undefined;
   for (const [logical, table] of Object.entries(spec)) {
-    if (!chosen.has(logical)) continue;
+    if (!chosen.has(logical)) {
+      continue;
+    }
     const existing = chosen.get(logical) ?? null;
     if (existing === null) {
       entryTables[logical] = null;
@@ -290,10 +298,14 @@ export function proposeAdoption(
           (column) => column.name === match.column,
         )?.udt;
         const type = udt === undefined ? undefined : moduleIdType(udt);
-        if (type !== undefined && type !== "uuid") idType = type;
+        if (type !== undefined && type !== "uuid") {
+          idType = type;
+        }
       }
     }
-    if (Object.keys(mapped).length > 0) entryColumns[logical] = mapped;
+    if (Object.keys(mapped).length > 0) {
+      entryColumns[logical] = mapped;
+    }
   }
   const current = options.blocks?.[block];
   const entry: BlockConfig = {
@@ -366,7 +378,11 @@ export function describeProposal(proposal: AdoptProposal): string[] {
       lines.push(`    ${column.logical.padEnd(width)}  ${target}`);
     }
   }
-  for (const error of proposal.errors) lines.push(`  error  ${error}`);
-  for (const warning of proposal.warnings) lines.push(`  warn   ${warning}`);
+  for (const error of proposal.errors) {
+    lines.push(`  error  ${error}`);
+  }
+  for (const warning of proposal.warnings) {
+    lines.push(`  warn   ${warning}`);
+  }
   return lines;
 }

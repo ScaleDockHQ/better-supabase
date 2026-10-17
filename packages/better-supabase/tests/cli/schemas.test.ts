@@ -21,9 +21,15 @@ const load = async (name: string): Promise<Schema> =>
   JSON.parse(await readFile(new URL(name, SCHEMAS), "utf-8")) as Schema;
 
 const typeOf = (value: unknown): string => {
-  if (value === null) return "null";
-  if (Array.isArray(value)) return "array";
-  if (Number.isInteger(value)) return "integer";
+  if (value === null) {
+    return "null";
+  }
+  if (Array.isArray(value)) {
+    return "array";
+  }
+  if (Number.isInteger(value)) {
+    return "integer";
+  }
   return typeof value;
 };
 
@@ -48,11 +54,13 @@ function validate(
       validate(root, option, value, path, inner);
       return inner.length === 0;
     });
-    if (matches.length !== 1)
+    if (matches.length !== 1) {
       errors.push(`${path}: matches ${matches.length} oneOf options`);
+    }
   }
-  if ("const" in schema && value !== schema["const"])
+  if ("const" in schema && value !== schema["const"]) {
     errors.push(`${path}: expected ${JSON.stringify(schema["const"])}`);
+  }
   if (
     Array.isArray(schema["enum"]) &&
     !(schema["enum"] as unknown[]).includes(value)
@@ -78,15 +86,19 @@ function validate(
     const object = value as Record<string, unknown>;
     const properties = (schema["properties"] ?? {}) as Record<string, Schema>;
     for (const key of (schema["required"] ?? []) as string[]) {
-      if (!(key in object)) errors.push(`${path}: missing ${key}`);
+      if (!(key in object)) {
+        errors.push(`${path}: missing ${key}`);
+      }
     }
     for (const [key, item] of Object.entries(object)) {
       const additional = schema["additionalProperties"];
-      if (properties[key])
+      if (properties[key]) {
         validate(root, properties[key], item, `${path}.${key}`, errors);
-      else if (additional === false) errors.push(`${path}: unexpected ${key}`);
-      else if (typeof additional === "object" && additional !== null)
+      } else if (additional === false) {
+        errors.push(`${path}: unexpected ${key}`);
+      } else if (typeof additional === "object" && additional !== null) {
         validate(root, additional as Schema, item, `${path}.${key}`, errors);
+      }
     }
   }
   if (Array.isArray(value) && schema["items"]) {

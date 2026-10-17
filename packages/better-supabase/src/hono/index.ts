@@ -190,17 +190,23 @@ export function createHono<
   const expose = options.exposeErrors ?? defaultExpose();
 
   const onError: ErrorHandler<HonoEnv<M, F, E, C, P>> = (cause, c) => {
-    if (cause instanceof HTTPException) return cause.getResponse();
+    if (cause instanceof HTTPException) {
+      return cause.getResponse();
+    }
     const instance = new URL(c.req.url).pathname;
     const thrown = dbErrorOf(cause);
-    if (thrown) return problemResponse(thrown, { instance, expose });
+    if (thrown) {
+      return problemResponse(thrown, { instance, expose });
+    }
     return unexpectedResponse(cause, { instance, expose });
   };
 
   const waitUntilOf = (
     c: Context<HonoEnv<M, F, E, C, P>>,
   ): ((promise: Promise<unknown>) => void) | undefined => {
-    if (options.waitUntil) return options.waitUntil;
+    if (options.waitUntil) {
+      return options.waitUntil;
+    }
     try {
       const executionContext = c.executionCtx;
       return (promise) => {
@@ -280,7 +286,9 @@ export function createHono<
         }
         await next();
         if (outcome.kind === "allow") {
-          for (const [name, value] of outcome.headers) c.header(name, value);
+          for (const [name, value] of outcome.headers) {
+            c.header(name, value);
+          }
         }
         return;
       };
@@ -327,7 +335,9 @@ export function createHono<
           serve(action.segments),
         );
       }
-      if (keyParam) app.all(`/:${keyParam}`, serve([`{${keyParam}}`]));
+      if (keyParam) {
+        app.all(`/:${keyParam}`, serve([`{${keyParam}}`]));
+      }
       return app;
     },
   });

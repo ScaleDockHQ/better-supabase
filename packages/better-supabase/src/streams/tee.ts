@@ -91,16 +91,22 @@ async function persist(
   let writing: Promise<void> = Promise.resolve();
 
   const flush = (): Promise<void> => {
-    if (timer !== undefined) clearTimeout(timer);
+    if (timer !== undefined) {
+      clearTimeout(timer);
+    }
     timer = undefined;
-    if (buffer.length === 0) return writing;
+    if (buffer.length === 0) {
+      return writing;
+    }
     const batch = buffer;
     const from = next;
     buffer = [];
     bytes = 0;
     next += batch.length;
     writing = writing.then(async () => {
-      if (failure) return;
+      if (failure) {
+        return;
+      }
       const appended = await store.append(id, from, batch);
       if (!appended.ok) {
         failure = appended.error;
@@ -119,12 +125,19 @@ async function persist(
   try {
     for (;;) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {
+        break;
+      }
       buffer.push(value);
       bytes += value.length;
-      if (bytes >= flushBytes) void flush();
-      else timer ??= setTimeout(() => void flush(), flushMs);
-      if (failure) break;
+      if (bytes >= flushBytes) {
+        void flush();
+      } else {
+        timer ??= setTimeout(() => void flush(), flushMs);
+      }
+      if (failure) {
+        break;
+      }
     }
   } catch (cause) {
     sourceError = cause;
@@ -137,7 +150,9 @@ async function persist(
     return err(failure);
   }
   const closed = await store.close(id);
-  if (!closed.ok) return closed;
+  if (!closed.ok) {
+    return closed;
+  }
   return sourceError === undefined ? ok(next) : err(toDbError(sourceError));
 }
 

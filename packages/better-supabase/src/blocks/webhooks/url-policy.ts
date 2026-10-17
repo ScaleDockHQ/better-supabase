@@ -40,12 +40,18 @@ const PRIVATE_V4: readonly (readonly [number, number])[] = [
 
 function v4(address: string): number | undefined {
   const parts = address.split(".");
-  if (parts.length !== 4) return undefined;
+  if (parts.length !== 4) {
+    return undefined;
+  }
   let value = 0;
   for (const part of parts) {
-    if (!/^\d{1,3}$/.test(part)) return undefined;
+    if (!/^\d{1,3}$/.test(part)) {
+      return undefined;
+    }
     const octet = Number(part);
-    if (octet > 255) return undefined;
+    if (octet > 255) {
+      return undefined;
+    }
     value = value * 256 + octet;
   }
   return value;
@@ -61,24 +67,33 @@ const publicV4 = (value: number): boolean =>
 function v6(address: string): number[] | undefined {
   let text = address.toLowerCase();
   const zone = text.indexOf("%");
-  if (zone !== -1) text = text.slice(0, zone);
+  if (zone !== -1) {
+    text = text.slice(0, zone);
+  }
   if (text.includes(".")) {
     const colon = text.lastIndexOf(":");
     const embedded = v4(text.slice(colon + 1));
-    if (embedded === undefined) return undefined;
+    if (embedded === undefined) {
+      return undefined;
+    }
     const high = Math.floor(embedded / 65_536).toString(16);
     const low = (embedded % 65_536).toString(16);
     text = `${text.slice(0, colon + 1)}${high}:${low}`;
   }
   const halves = text.split("::");
-  if (halves.length > 2) return undefined;
+  if (halves.length > 2) {
+    return undefined;
+  }
   const groups = (part: string) => (part === "" ? [] : part.split(":"));
   const head = groups(halves[0]!);
   const rest = halves.length === 2 ? groups(halves[1]!) : [];
-  if (![...head, ...rest].every((group) => /^[0-9a-f]{1,4}$/.test(group)))
+  if (![...head, ...rest].every((group) => /^[0-9a-f]{1,4}$/.test(group))) {
     return undefined;
+  }
   const known = head.length + rest.length;
-  if (halves.length === 1 ? known !== 8 : known > 7) return undefined;
+  if (halves.length === 1 ? known !== 8 : known > 7) {
+    return undefined;
+  }
   return [
     ...head,
     ...Array.from({ length: 8 - known }, () => "0"),
@@ -91,26 +106,52 @@ function publicV6(groups: readonly number[]): boolean {
   const zeros = (from: number, to: number) =>
     groups.slice(from, to).every((group) => group === 0);
   const embedded = groups[6]! * 65_536 + groups[7]!;
-  if (zeros(0, 8)) return false;
-  if (zeros(0, 7) && groups[7] === 1) return false;
-  // IPv4-mapped (::ffff:a.b.c.d) and NAT64 (64:ff9b::a.b.c.d) carry an IPv4 address.
-  if (zeros(0, 5) && groups[5] === 0xff_ff) return publicV4(embedded);
-  if (first === 0x00_64 && groups[1] === 0xff_9b && zeros(2, 6))
-    return publicV4(embedded);
-  // IPv4-compatible (::a.b.c.d, deprecated) and local-use NAT64 (64:ff9b:1::/48).
-  if (zeros(0, 6)) return false;
-  if (first === 0x00_64 && groups[1] === 0xff_9b && groups[2] === 1)
+  if (zeros(0, 8)) {
     return false;
+  }
+  if (zeros(0, 7) && groups[7] === 1) {
+    return false;
+  }
+  // IPv4-mapped (::ffff:a.b.c.d) and NAT64 (64:ff9b::a.b.c.d) carry an IPv4 address.
+  if (zeros(0, 5) && groups[5] === 0xff_ff) {
+    return publicV4(embedded);
+  }
+  if (first === 0x00_64 && groups[1] === 0xff_9b && zeros(2, 6)) {
+    return publicV4(embedded);
+  }
+  // IPv4-compatible (::a.b.c.d, deprecated) and local-use NAT64 (64:ff9b:1::/48).
+  if (zeros(0, 6)) {
+    return false;
+  }
+  if (first === 0x00_64 && groups[1] === 0xff_9b && groups[2] === 1) {
+    return false;
+  }
   // 6to4 (2002::/16) carries an IPv4 address in its next 32 bits.
-  if (first === 0x20_02) return publicV4(groups[1]! * 65_536 + groups[2]!);
+  if (first === 0x20_02) {
+    return publicV4(groups[1]! * 65_536 + groups[2]!);
+  }
   // Teredo (2001::/32) hides its IPv4 server and client addresses.
-  if (first === 0x20_01 && groups[1] === 0) return false;
-  if ((first & 0xfe_00) === 0xfc_00) return false;
-  if ((first & 0xff_c0) === 0xfe_80) return false;
-  if ((first & 0xff_c0) === 0xfe_c0) return false;
-  if ((first & 0xff_00) === 0xff_00) return false;
-  if (first === 0x20_01 && groups[1] === 0x0d_b8) return false;
-  if (first === 0x01_00 && zeros(1, 4)) return false;
+  if (first === 0x20_01 && groups[1] === 0) {
+    return false;
+  }
+  if ((first & 0xfe_00) === 0xfc_00) {
+    return false;
+  }
+  if ((first & 0xff_c0) === 0xfe_80) {
+    return false;
+  }
+  if ((first & 0xff_c0) === 0xfe_c0) {
+    return false;
+  }
+  if ((first & 0xff_00) === 0xff_00) {
+    return false;
+  }
+  if (first === 0x20_01 && groups[1] === 0x0d_b8) {
+    return false;
+  }
+  if (first === 0x01_00 && zeros(1, 4)) {
+    return false;
+  }
   return true;
 }
 
@@ -121,7 +162,9 @@ function publicV6(groups: readonly number[]): boolean {
  */
 export function isPublicAddress(address: string): boolean {
   const ipv4 = v4(address);
-  if (ipv4 !== undefined) return publicV4(ipv4);
+  if (ipv4 !== undefined) {
+    return publicV4(ipv4);
+  }
   const ipv6 = v6(address.replaceAll(/^\[|\]$/g, ""));
   return ipv6 !== undefined && publicV6(ipv6);
 }
@@ -147,8 +190,9 @@ function builtinResolver(): ResolveHost | undefined {
     process?: { getBuiltinModule?: (id: string) => unknown };
   };
   const dns = runtime.process?.getBuiltinModule?.("node:dns");
-  if (typeof dns !== "object" || dns === null || !("promises" in dns))
+  if (typeof dns !== "object" || dns === null || !("promises" in dns)) {
     return undefined;
+  }
   // SAFETY: node:dns has `promises.lookup` with this signature since Node 10.
   const { promises } = dns as DnsModule;
   return async (hostname) =>
@@ -180,16 +224,27 @@ export function publicUrl(options: PublicUrlOptions = {}): AllowUrl {
   );
   return async (url) => {
     const host = url.hostname.toLowerCase().replaceAll(/^\[|\]$/g, "");
-    if (trusted.has(host)) return true;
+    if (trusted.has(host)) {
+      return true;
+    }
     if (
       url.protocol !== "https:" &&
       !(options.allowHttp && url.protocol === "http:")
-    )
+    ) {
       return false;
-    if (url.username || url.password) return false;
-    if (isAddress(host)) return isPublicAddress(host);
-    if (LOCAL_HOST.test(host) || !host.includes(".")) return false;
-    if (!resolve) return true;
+    }
+    if (url.username || url.password) {
+      return false;
+    }
+    if (isAddress(host)) {
+      return isPublicAddress(host);
+    }
+    if (LOCAL_HOST.test(host) || !host.includes(".")) {
+      return false;
+    }
+    if (!resolve) {
+      return true;
+    }
     const addresses = await resolve(host);
     return addresses.length > 0 && addresses.every(isPublicAddress);
   };

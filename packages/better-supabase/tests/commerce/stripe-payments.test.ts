@@ -49,7 +49,9 @@ function fakeStripe() {
   });
   const find = (id: string): Intent => {
     const intent = intents.get(id);
-    if (!intent) throw missing(id);
+    if (!intent) {
+      throw missing(id);
+    }
     return intent;
   };
   const once = <T>(
@@ -57,9 +59,13 @@ function fakeStripe() {
     work: () => T,
   ): T => {
     const key = options?.idempotencyKey;
-    if (key !== undefined && keys.has(key)) return keys.get(key) as T;
+    if (key !== undefined && keys.has(key)) {
+      return keys.get(key) as T;
+    }
     const result = work();
-    if (key !== undefined) keys.set(key, result);
+    if (key !== undefined) {
+      keys.set(key, result);
+    }
     return result;
   };
   const client: StripePaymentsClient = {
@@ -87,8 +93,9 @@ function fakeStripe() {
         once(options, () => {
           calls.push({ method: "capture", params });
           const intent = find(id);
-          if (intent.status !== "requires_capture")
+          if (intent.status !== "requires_capture") {
             throw invalid("This PaymentIntent could not be captured");
+          }
           intent.status = "succeeded";
           intent.amount_received = Number(
             params["amount_to_capture"] ?? intent.amount,
@@ -108,8 +115,9 @@ function fakeStripe() {
           const intent = find(String(params["payment_intent"]));
           const left = (intent.amount_received ?? 0) - intent.refunded;
           const amount = Number(params["amount"] ?? left);
-          if (amount > left)
+          if (amount > left) {
             throw invalid("Refund amount is greater than unrefunded amount");
+          }
           intent.refunded += amount;
           const refund: StripeRefund = {
             id: `re_${++next}`,
@@ -124,8 +132,9 @@ function fakeStripe() {
   };
   const authorize = (payment: Payment): void => {
     const intent = find(payment.id);
-    if (intent.capture_method === "manual") intent.status = "requires_capture";
-    else {
+    if (intent.capture_method === "manual") {
+      intent.status = "requires_capture";
+    } else {
       intent.status = "succeeded";
       intent.amount_received = intent.amount;
     }

@@ -48,7 +48,9 @@ function parsePath(
     ? raw.slice(prefix.length)
     : raw;
   const match = PATH.exec(local);
-  if (!match) throw new ScimPatchError("invalidPath", `Invalid path ${raw}`);
+  if (!match) {
+    throw new ScimPatchError("invalidPath", `Invalid path ${raw}`);
+  }
   const [, name = "", filterText, subName] = match;
   const attribute = find(attributes, name);
   if (!attribute) {
@@ -170,8 +172,12 @@ function apply(
     }
     doc[key] = onePrimary(
       current.map((item) => {
-        if (!hit(item)) return item;
-        if (sub !== undefined) return { ...item, [sub.name]: value };
+        if (!hit(item)) {
+          return item;
+        }
+        if (sub !== undefined) {
+          return { ...item, [sub.name]: value };
+        }
         if (!isRecord(value)) {
           throw new ScimPatchError("invalidValue", `${key} values are objects`);
         }
@@ -182,8 +188,11 @@ function apply(
   }
   if (sub !== undefined) {
     const inner = isRecord(doc[key]) ? { ...doc[key] } : {};
-    if (op === "remove") delete inner[sub.name];
-    else inner[sub.name] = value;
+    if (op === "remove") {
+      delete inner[sub.name];
+    } else {
+      inner[sub.name] = value;
+    }
     doc[key] = inner;
     return;
   }

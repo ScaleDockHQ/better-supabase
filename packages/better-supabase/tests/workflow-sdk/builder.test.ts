@@ -60,7 +60,9 @@ function load(
   const createHook = ({ token }: { token: string }) =>
     runtime.approval(token, token.split(":").at(-1) ?? "");
   const workflow: unknown = factory(steps, sleep, createHook);
-  if (typeof workflow !== "function") throw new Error("no workflow");
+  if (typeof workflow !== "function") {
+    throw new TypeError("no workflow");
+  }
   return async (input, meta) => {
     const result: unknown = await workflow(input, meta);
     return result as Record<string, unknown>;
@@ -194,7 +196,9 @@ describe("compileGraph", () => {
         return { approved: true };
       },
     );
-    if (typeof workflow !== "function") throw new Error("no workflow");
+    if (typeof workflow !== "function") {
+      throw new TypeError("no workflow");
+    }
     await workflow({ email: "a@x.test" }, { runKey: "run-1", versionId: "v1" });
     expect(tokens).toEqual(["req-123"]);
     expect(requests).toMatchObject([

@@ -63,7 +63,9 @@ describe(`W3C Server Timing (${SPEC_PINS.serverTiming})`, () => {
     expect(header).toMatch(HEADER);
     const values = metrics(header);
     expect([...values.keys()]).toEqual(["bs-proxy", "bs-verify"]);
-    for (const dur of values.values()) expect(dur).toBeGreaterThanOrEqual(0);
+    for (const dur of values.values()) {
+      expect(dur).toBeGreaterThanOrEqual(0);
+    }
     expect(values.get("bs-proxy")!).toBeGreaterThanOrEqual(
       values.get("bs-verify")!,
     );

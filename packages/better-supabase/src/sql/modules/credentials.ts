@@ -168,7 +168,9 @@ function adoptedKey(
 function vaultCleanup(ctx: ModuleContext, vault: boolean): string {
   const t = ctx.table("secrets");
   const trigger = ctx.trigger("credential_vault");
-  if (!vault) return `drop trigger if exists ${trigger} on ${t};`;
+  if (!vault) {
+    return `drop trigger if exists ${trigger} on ${t};`;
+  }
   const id = ctx.col("secrets", "vaultId");
   return `
 create or replace function ${ctx.fn("drop_credential_vault_secret")}()
@@ -321,8 +323,12 @@ ${vaultCleanup(ctx, vault)}`;
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
-  if (!ctx.manages) return adopted(ctx);
+  if (ctx.mode === "custom") {
+    return "";
+  }
+  if (!ctx.manages) {
+    return adopted(ctx);
+  }
   const renamed = Object.keys(ctx.config.columns["secrets"] ?? {});
   if (renamed.length > 0) {
     throw new TypeError(

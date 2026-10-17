@@ -36,10 +36,14 @@ export interface MyProfile {
 export async function getMyProfile(): Promise<MyProfile | null> {
   "use cache: private";
   const { db, session, supabase } = await bs.cached();
-  if (session.kind !== "user") return null;
+  if (session.kind !== "user") {
+    return null;
+  }
   const rows = await db.$rpc("my_profile").orThrow();
   const row = rows[0];
-  if (!row) return null;
+  if (!row) {
+    return null;
+  }
   return {
     fullName: row.fullName,
     email: row.email,

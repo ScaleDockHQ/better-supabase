@@ -128,7 +128,9 @@ const NAMES: ModuleNames = {
 };
 
 function tables(ctx: ModuleContext, n: WorkItemNames): string {
-  if (!ctx.manages) return "";
+  if (!ctx.manages) {
+    return "";
+  }
   const { t, c } = n;
   const w = (column: string): string => c("items", column);
   const a = (column: string): string => c("assignees", column);
@@ -306,7 +308,9 @@ for each row execute function better_supabase.bs_work_item_guard();
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const keys = moduleOperations("work-items");
   const maxAssignees = ctx.number("maxAssignees", 0);
   if (!Number.isInteger(maxAssignees) || maxAssignees < 0) {

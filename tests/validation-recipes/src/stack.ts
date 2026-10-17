@@ -11,7 +11,9 @@ import type { Recipe } from "./recipes.ts";
 export const dbUrl: string | undefined = process.env["SUPABASE_DB_URL"];
 
 export async function reachable(): Promise<boolean> {
-  if (dbUrl === undefined) return false;
+  if (dbUrl === undefined) {
+    return false;
+  }
   const pool = new Pool({
     connectionString: dbUrl,
     max: 1,
@@ -167,7 +169,9 @@ export class Session {
       await this.client.query(`select ${sql}`, [...params]);
     } catch (error) {
       await this.client.query("rollback to savepoint attempt");
-      if (!(error instanceof DatabaseError)) throw error;
+      if (!(error instanceof DatabaseError)) {
+        throw error;
+      }
       return error.hint ?? error.message;
     }
     await this.client.query("release savepoint attempt");
@@ -202,7 +206,9 @@ export class Session {
               )
             ).rows[0]
           : undefined;
-        if (caller) await this.service();
+        if (caller) {
+          await this.service();
+        }
         const { rows } = await client.query(text, [...params]);
         if (caller) {
           await client.query(
@@ -267,7 +273,9 @@ async function install(client: PoolClient, sql: string): Promise<void> {
       if (!(error instanceof DatabaseError) || error.code !== "40P01") {
         throw error;
       }
-      if (attempt === 5) throw error;
+      if (attempt === 5) {
+        throw error;
+      }
     }
   }
 }

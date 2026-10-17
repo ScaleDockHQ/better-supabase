@@ -194,10 +194,11 @@ export function resolveSecurity(
         requirements.push({ supabaseJwt: [] });
         break;
       case "oauth2": {
-        if (!supabaseUrl)
+        if (!supabaseUrl) {
           throw new TypeError(
             "better-supabase/spec: oauth2 security needs supabaseUrl",
           );
+        }
         const origin = supabaseUrl.replace(/\/$/, "");
         const auth = `${origin}/auth/v1`;
         schemes[OAUTH_SCHEME] = {

@@ -166,7 +166,9 @@ export function createMfaController(
           readFactors(mfa),
           readAssurance(mfa),
         ]);
-        if (request !== ticket) return;
+        if (request !== ticket) {
+          return;
+        }
         if (!factors.ok) {
           state.set({ error: factors.error });
           return;
@@ -183,7 +185,9 @@ export function createMfaController(
             ? { pending: false }
             : { pending: false, error: result.error },
         );
-        if (result.ok) await refresh();
+        if (result.ok) {
+          await refresh();
+        }
         return result;
       };
       return {
@@ -213,7 +217,9 @@ export function createMfaController(
                   uri: result.data.totp.uri,
                 })
               : result;
-            if (enrolled.ok) state.set({ enrollment: enrolled.data });
+            if (enrolled.ok) {
+              state.set({ enrollment: enrolled.data });
+            }
             return settle(enrolled);
           },
           verify: async (code) => {
@@ -227,13 +233,17 @@ export function createMfaController(
             const verified = await authResult(() =>
               mfa.challengeAndVerify({ factorId: enrollment.factorId, code }),
             );
-            if (!verified.ok) return settle<MfaAssurance>(err(verified.error));
+            if (!verified.ok) {
+              return settle<MfaAssurance>(err(verified.error));
+            }
             state.set({ enrollment: undefined });
             return settle<MfaAssurance>(await readAssurance(mfa));
           },
           cancel: async () => {
             const enrollment = state.get().enrollment;
-            if (enrollment === undefined) return;
+            if (enrollment === undefined) {
+              return;
+            }
             state.set({ enrollment: undefined, pending: true });
             await settle(
               await authResult(() =>
@@ -317,7 +327,9 @@ export function createStepUpController(
           readFactors(mfa),
           readAssurance(mfa),
         ]);
-        if (request !== ticket) return;
+        if (request !== ticket) {
+          return;
+        }
         if (!factors.ok) {
           state.set({ error: factors.error });
           return;

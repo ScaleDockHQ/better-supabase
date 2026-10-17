@@ -33,11 +33,12 @@ const project = async (dependencies: Record<string, string>, meta = true) => {
     join(dir, "package.json"),
     JSON.stringify({ name: "app", dependencies }),
   );
-  if (meta)
+  if (meta) {
     await copyFile(
       FIXTURE_META,
       join(dir, "src/lib/supabase/generated.meta.js"),
     );
+  }
 };
 
 const scaffold = (...args: string[]) =>

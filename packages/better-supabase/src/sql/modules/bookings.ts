@@ -144,7 +144,9 @@ const NAMES: ModuleNames = {
 
 function tables(p: Parts): string {
   const { ctx, r, av, x, s, b } = p;
-  if (!ctx.manages) return "";
+  if (!ctx.manages) {
+    return "";
+  }
   return `create extension if not exists btree_gist with schema extensions;
 create table if not exists ${p.resources} (
   ${r("id")} uuid primary key default gen_random_uuid(),
@@ -832,7 +834,9 @@ ${userGrant(`${fn("list_bookings")}(${ctx.idType}, timestamptz, timestamptz, uui
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const perms = moduleOperations("bookings");
   const p: Parts = {
     scope: ctx.scope,

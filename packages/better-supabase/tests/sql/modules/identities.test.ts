@@ -48,10 +48,11 @@ describe("identities module", () => {
       "principal_by_identity(text, text, text, text)",
       "link_verified_email(uuid)",
       "backfill_verified_emails()",
-    ])
+    ]) {
       expect(sql).toContain(
         `revoke execute on function "better_supabase"."${signature.split("(")[0]!}"(${signature.split("(")[1]!} from public, anon, authenticated;`,
       );
+    }
     expect(sql).toContain(
       `revoke execute on function "better_supabase"."begin_identity_link"(text, text) from public, anon;`,
     );

@@ -28,9 +28,9 @@ import {
 } from "../subjects.ts";
 import { OPERATIONS } from "./access-model.ts";
 import {
-  type ApprovalPolicy,
   approvalPolicies,
-  policySnapshot,
+  policyCase,
+  validateRuns,
 } from "./approvals-policies.ts";
 import { approverCheck } from "./approver.ts";
 import { providerMembers } from "./tenant.ts";
@@ -137,48 +137,10 @@ const NAMES: ModuleNames = {
   },
 };
 
-function policyCase(policies: readonly ApprovalPolicy[]): string {
-  if (policies.length === 0) return "null::jsonb";
-  return `case approval_policy.subject_type || ':' || approval_policy.action
-${policies
-  .map(
-    (policy) =>
-      `    when ${sqlString(`${policy.subjectType}:${policy.action}`)} then ${sqlString(policySnapshot(policy))}::jsonb`,
-  )
-  .join("\n")}
-    else null::jsonb
-  end`;
-}
-
-function validateRuns(
-  ctx: ModuleContext,
-  policies: readonly ApprovalPolicy[],
-): void {
-  for (const policy of policies) {
-    const where = `blocks.approvals.options.policies.${policy.subjectType}.${policy.action}.run`;
-    if (policy.run?.kind === "transition") {
-      if (!ctx.installed("state-machine")) {
-        throw new TypeError(`${where} needs the state-machine module`);
-      }
-      const machines = ctx.of("state-machine").option("machines");
-      const names =
-        typeof machines === "object" && machines !== null
-          ? Object.keys(machines)
-          : [];
-      if (!names.includes(policy.subjectType)) {
-        throw new TypeError(
-          `${where}: "${policy.subjectType}" is not a state-machine machine`,
-        );
-      }
-    }
-    if (policy.run?.kind === "queue" && !ctx.installed("jobs")) {
-      throw new TypeError(`${where} needs the jobs module`);
-    }
-  }
-}
-
 function build(ctx: ModuleContext, layout: ModuleLayout): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const requests = ctx.table("requests");
   const decisions = ctx.table("decisions");
   const c = (column: string): string => ctx.col("requests", column);

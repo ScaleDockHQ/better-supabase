@@ -74,12 +74,19 @@ export function createRepository(
     name: "limit" | "offset",
   ): number | undefined => {
     const value = args?.[name];
-    if (value === undefined) return undefined;
-    if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0)
+    if (value === undefined) {
+      return undefined;
+    }
+    if (
+      typeof value !== "number" ||
+      !Number.isSafeInteger(value) ||
+      value < 0
+    ) {
       invalidRequest(
         `"${name}" must be a non-negative integer, not ${String(value)}`,
         table.key,
       );
+    }
     return value;
   };
 
@@ -102,10 +109,13 @@ export function createRepository(
 
   /** Writes return every column but the sensitive ones unless they are asked for. */
   const returning = (args: Args | undefined): Selection | undefined => {
-    if (args?.["returning"] === false) return undefined;
+    if (args?.["returning"] === false) {
+      return undefined;
+    }
     const all = selection(args);
-    if (args?.["select"] !== undefined || args?.["sensitive"] === true)
+    if (args?.["select"] !== undefined || args?.["sensitive"] === true) {
       return all;
+    }
     const columns = all.columns.filter(
       (entry) => !sensitiveDb.has(entry.column),
     );
@@ -174,8 +184,10 @@ export function createRepository(
           selectOp(args, { limit: 2, unpaged: true }),
           args,
         );
-        if (!result.ok) return result;
-        if (result.data.rows.length > 1)
+        if (!result.ok) {
+          return result;
+        }
+        if (result.data.rows.length > 1) {
           return runner.fail(
             table,
             dbError(
@@ -183,6 +195,7 @@ export function createRepository(
               `More than one ${table.key} row matched; findOnly expects at most one`,
             ),
           );
+        }
         return ok(result.data.rows[0] ?? null);
       });
     },
@@ -205,7 +218,9 @@ export function createRepository(
           limit: 1,
         });
         const result = await run(op, args);
-        if (!result.ok) return result;
+        if (!result.ok) {
+          return result;
+        }
         const row = result.data.rows[0];
         return row ? ok(row) : notFound();
       });
@@ -244,8 +259,12 @@ export function createRepository(
           { selection: aggregation, orderBy },
         );
         const result = await run(op, args);
-        if (!result.ok) return result;
-        if (args["groupBy"] !== undefined) return ok(result.data.rows);
+        if (!result.ok) {
+          return result;
+        }
+        if (args["groupBy"] !== undefined) {
+          return ok(result.data.rows);
+        }
         // Without groups the database returns one row, unless nothing can match.
         return ok(
           result.data.rows[0] ?? decodeRows(aggregation, [{}])[0] ?? {},
@@ -277,7 +296,9 @@ export function createRepository(
       return guarded(async () => {
         const op = insertOp([data], args, undefined);
         const result = await run(op, args);
-        if (!result.ok) return result;
+        if (!result.ok) {
+          return result;
+        }
         return ok(
           args?.["returning"] === false ? null : (result.data.rows[0] ?? null),
         );
@@ -286,10 +307,13 @@ export function createRepository(
 
     createMany(rows: readonly unknown[], args?: Args) {
       return guarded(async () => {
-        if (rows.length === 0)
+        if (rows.length === 0) {
           return ok(args?.["returning"] === false ? { count: 0 } : []);
+        }
         const result = await run(insertOp(rows, args, undefined), args);
-        if (!result.ok) return result;
+        if (!result.ok) {
+          return result;
+        }
         return ok(
           args?.["returning"] === false
             ? { count: result.data.count ?? rows.length }
@@ -315,12 +339,16 @@ export function createRepository(
           returning: returning(args),
         };
         const result = await run(op, args);
-        if (!result.ok) return result;
+        if (!result.ok) {
+          return result;
+        }
         const affected = op.returning
           ? result.data.rows.length
           : (result.data.count ?? 0);
         if (affected === 0) {
-          if (!expect) return notFound();
+          if (!expect) {
+            return notFound();
+          }
           const exists = await run(
             selectOp(undefined, {
               where: key,
@@ -359,8 +387,9 @@ export function createRepository(
         }
         const rows = args["returning"] === true;
         const bound = maxAffectedOf(args);
-        if ("invalid" in bound)
+        if ("invalid" in bound) {
           return runner.fail(table, dbError("invalid_request", bound.invalid));
+        }
         const op: UpdateOp = {
           kind: "update",
           table,
@@ -371,7 +400,9 @@ export function createRepository(
           ...countOf(args),
         };
         const result = await run(op, args);
-        if (!result.ok) return result;
+        if (!result.ok) {
+          return result;
+        }
         return ok(rows ? result.data.rows : { count: result.data.count ?? 0 });
       });
     },
@@ -384,7 +415,9 @@ export function createRepository(
           conflictColumns(args?.["onConflict"]),
         );
         const result = await run(op, args);
-        if (!result.ok) return result;
+        if (!result.ok) {
+          return result;
+        }
         return ok(
           args?.["returning"] === false ? null : (result.data.rows[0] ?? null),
         );
@@ -393,11 +426,14 @@ export function createRepository(
 
     upsertMany(rows: readonly unknown[], args?: Args) {
       return guarded(async () => {
-        if (rows.length === 0)
+        if (rows.length === 0) {
           return ok(args?.["returning"] === false ? { count: 0 } : []);
+        }
         const op = insertOp(rows, args, conflictColumns(args?.["onConflict"]));
         const result = await run(op, args);
-        if (!result.ok) return result;
+        if (!result.ok) {
+          return result;
+        }
         return ok(
           args?.["returning"] === false
             ? { count: result.data.count ?? rows.length }
@@ -415,7 +451,9 @@ export function createRepository(
           returning: builder.selection(table, table.primaryKey, undefined),
         };
         const result = await run(op, args);
-        if (!result.ok) return result;
+        if (!result.ok) {
+          return result;
+        }
         return (result.data.count ?? result.data.rows.length) === 0
           ? notFound()
           : ok(undefined);
@@ -436,8 +474,9 @@ export function createRepository(
         }
         const rows = args["returning"] === true;
         const bound = maxAffectedOf(args);
-        if ("invalid" in bound)
+        if ("invalid" in bound) {
           return runner.fail(table, dbError("invalid_request", bound.invalid));
+        }
         const op: DeleteOp = {
           kind: "delete",
           table,
@@ -453,7 +492,9 @@ export function createRepository(
           signalOf(args),
           tuningOf(args),
         );
-        if (!result.ok) return result;
+        if (!result.ok) {
+          return result;
+        }
         return ok(rows ? result.data.rows : { count: result.data.count ?? 0 });
       });
     },
@@ -506,11 +547,12 @@ export function createRepository(
     }
     if (typeof target === "string") {
       const columns = table.uniqueKeys[target];
-      if (!columns)
+      if (!columns) {
         invalidRequest(
           `Unknown unique key "${target}" on "${table.key}"`,
           table.key,
         );
+      }
       return columns.map((name) => builder.column(table, name));
     }
     if (Array.isArray(target)) {
@@ -541,7 +583,9 @@ export function createRepository(
           : undefined,
     });
     const result = await run(op, args);
-    if (!result.ok) return result;
+    if (!result.ok) {
+      return result;
+    }
     return ok(
       offsetEnvelope(result.data.rows, result.data.count, size, offset),
     );
@@ -606,7 +650,9 @@ export function createRepository(
       offset: undefined,
     });
     const result = await run(op, args);
-    if (!result.ok) return result;
+    if (!result.ok) {
+      return result;
+    }
 
     const rows = result.data.rows.slice(0, size);
     const hasMore = result.data.rows.length > size;
@@ -650,7 +696,9 @@ export function createRepository(
     const { byDb } = lookupOf(table);
     const added: string[] = [];
     for (const term of orderBy) {
-      if (selected.has(term.column)) continue;
+      if (selected.has(term.column)) {
+        continue;
+      }
       const alias = byDb.get(term.column)?.[0];
       columns.push(
         alias === undefined

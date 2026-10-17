@@ -132,8 +132,9 @@ describe.skipIf(!live)("webhooks-out", () => {
       for (const file of renderModules(
         ["organizations", "outbox", "webhooks-out"],
         LAYOUT,
-      ))
+      )) {
         await client.query(file.contents);
+      }
 
       await s.as("owner");
       const organization = await s.value<string>(
@@ -165,10 +166,11 @@ describe.skipIf(!live)("webhooks-out", () => {
         [billing],
       );
       expect(billingSecret).toMatch(/^whsec_/);
-      for (const id of [all, organizations])
+      for (const id of [all, organizations]) {
         await client.query("select better_supabase.rotate_webhook_secret($1)", [
           id,
         ]);
+      }
 
       // A member can neither see nor manage endpoints.
       await client.query("set local role authenticated");
@@ -474,8 +476,9 @@ describe.skipIf(!live)("webhooks-out", () => {
       for (const file of renderModules(
         ["organizations", "outbox", "webhooks-out"],
         LAYOUT,
-      ))
+      )) {
         await client.query(file.contents);
+      }
       await s.as("owner");
       const organization = await s.value<string>(
         "better_supabase.create_organization($1)",

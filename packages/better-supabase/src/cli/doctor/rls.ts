@@ -38,8 +38,11 @@ function functionsByName(
   for (const fn of context.snapshot.extras.functions ?? []) {
     const key = functionName(fn);
     const list = map.get(key);
-    if (list) list.push(fn);
-    else map.set(key, [fn]);
+    if (list) {
+      list.push(fn);
+    } else {
+      map.set(key, [fn]);
+    }
   }
   return map;
 }
@@ -49,7 +52,9 @@ function callArguments(
   expression: string | null,
   fn: Pick<ExtrasFunction, "schema" | "name">,
 ): string[] {
-  if (!expression) return [];
+  if (!expression) {
+    return [];
+  }
   const text = withoutStrings(expression);
   const pattern = new RegExp(
     `(?<![\\w."])(?:"?${escape(fn.schema)}"?\\.)?"?${escape(fn.name)}"?\\s*\\(`,
@@ -61,8 +66,11 @@ function callArguments(
     let depth = 1;
     let end = start;
     while (end < text.length && depth > 0) {
-      if (text[end] === "(") depth += 1;
-      else if (text[end] === ")") depth -= 1;
+      if (text[end] === "(") {
+        depth += 1;
+      } else if (text[end] === ")") {
+        depth -= 1;
+      }
       end += 1;
     }
     calls.push(text.slice(start, end - 1));
@@ -90,12 +98,19 @@ const expressions = (policy: CatalogPolicy): (string | null)[] => [
  * volatile, not security definer and have no `set` options are inlined.
  */
 function notInlinable(fn: ExtrasFunction): string | undefined {
-  if (fn.language !== "sql") return `a ${fn.language} function`;
-  if (fn.volatility === "volatile") return "a volatile function";
-  if (fn.securityDefiner) return "a security definer function";
+  if (fn.language !== "sql") {
+    return `a ${fn.language} function`;
+  }
+  if (fn.volatility === "volatile") {
+    return "a volatile function";
+  }
+  if (fn.securityDefiner) {
+    return "a security definer function";
+  }
   const settings = Object.keys(fn.settings);
-  if (settings.length > 0)
+  if (settings.length > 0) {
     return `a function with \`set ${settings.join(", ")}\``;
+  }
   return undefined;
 }
 
@@ -126,7 +141,9 @@ function permissiveOverlaps(table: CatalogTable): PermissiveOverlap[] {
       roles.add("anon");
       roles.add("authenticated");
     }
-    for (const role of named) roles.add(role);
+    for (const role of named) {
+      roles.add(role);
+    }
   }
   const overlaps: PermissiveOverlap[] = [];
   for (const command of COMMANDS) {
@@ -138,7 +155,9 @@ function permissiveOverlaps(table: CatalogTable): PermissiveOverlap[] {
             appliesTo(policy, role),
         )
         .map((policy) => policy.name);
-      if (policies.length > 1) overlaps.push({ command, role, policies });
+      if (policies.length > 1) {
+        overlaps.push({ command, role, policies });
+      }
     }
   }
   return overlaps;
@@ -181,14 +200,18 @@ export function functionBody(
   const introspected = context.snapshot.generator.functions.find(
     (fn) => fn.schema === schema && fn.name === name && fn.definition,
   )?.definition;
-  if (introspected) return introspected;
+  if (introspected) {
+    return introspected;
+  }
   const creates = new RegExp(
     `create\\s+(?:or\\s+replace\\s+)?function\\s+(?:"?${escape(schema)}"?\\.)?"?${escape(name)}"?\\s*\\([\\s\\S]*?\\bas\\s+(\\$\\w*\\$)([\\s\\S]*?)\\1`,
     "i",
   );
   for (const file of context.sqlFiles ?? []) {
     const match = creates.exec(file.text);
-    if (match) return match[2];
+    if (match) {
+      return match[2];
+    }
   }
   return undefined;
 }
@@ -218,16 +241,21 @@ function findPolicyHelpers(context: DoctorContext): Map<string, string> {
   const bodies = new Map<string, string>();
   while (queue.length > 0) {
     const key = queue.pop()!;
-    if (bodies.has(key)) continue;
+    if (bodies.has(key)) {
+      continue;
+    }
     const dot = key.indexOf(".");
     const body = functionBody(context, key.slice(0, dot), key.slice(dot + 1));
-    if (!body) continue;
+    if (!body) {
+      continue;
+    }
     const text = withoutStrings(body);
     bodies.set(key, text);
     for (const fn of known) {
       const called = `${fn.schema}.${fn.name}`;
-      if (!bodies.has(called) && callArguments(text, fn).length > 0)
+      if (!bodies.has(called) && callArguments(text, fn).length > 0) {
         queue.push(called);
+      }
     }
   }
   return bodies;
@@ -249,9 +277,13 @@ function readTables(
         ? undefined
         : (tables.find((t) => t.name === name && t.schema === "public") ??
           tables.find((t) => t.name === name)));
-    if (!table) continue;
+    if (!table) {
+      continue;
+    }
     const names = found.get(table) ?? new Set([table.name]);
-    if (alias && !NOT_ALIAS.has(alias.toLowerCase())) names.add(alias);
+    if (alias && !NOT_ALIAS.has(alias.toLowerCase())) {
+      names.add(alias);
+    }
     found.set(table, names);
   }
   return [...found].map(([table, names]) => ({ table, names: [...names] }));
@@ -273,7 +305,9 @@ function grantColumns(
     const byColumn = columns.get(table) ?? new Map<string, GrantColumn>();
     columns.set(table, byColumn);
     const existing = byColumn.get(column);
-    if (existing) return existing;
+    if (existing) {
+      return existing;
+    }
     const created: GrantColumn = { helpers: new Set(), provider: false };
     byColumn.set(column, created);
     return created;
@@ -291,7 +325,9 @@ function grantColumns(
     const read = readTables(body, tables);
     for (const { table, names } of read) {
       for (const column of table.columns) {
-        if (softDeleted.has(`${qualified(table)}.${column.name}`)) continue;
+        if (softDeleted.has(`${qualified(table)}.${column.name}`)) {
+          continue;
+        }
         const col = `"?${escape(column.name)}"?(?![\\w"(])`;
         const qualifiedColumn = new RegExp(
           `(?<![\\w"])(?:${names.map((name) => `"?${escape(name)}"?`).join("|")})\\s*\\.\\s*${col}`,
@@ -301,15 +337,17 @@ function grantColumns(
         if (
           qualifiedColumn.test(body) ||
           (read.length === 1 && bare.test(body))
-        )
+        ) {
           entry(qualified(table), column.name).helpers.add(helper);
+        }
       }
     }
   }
   for (const deciding of context.config.authorization?.decidingColumns ?? []) {
     const dot = deciding.lastIndexOf(".");
-    if (dot > 0)
+    if (dot > 0) {
       entry(deciding.slice(0, dot), deciding.slice(dot + 1)).provider = true;
+    }
   }
   return columns;
 }
@@ -343,7 +381,9 @@ function pinnedToTenant(
   command: (typeof WRITES)[number],
   role: string,
 ): boolean {
-  if (!table.rls) return false;
+  if (!table.rls) {
+    return false;
+  }
   const pin = new RegExp(
     `(?<![\\w."])"?${escape(column)}"?\\s*=\\s*\\(?\\s*(?:select\\s+)?better_supabase\\.current_tenant_id\\(\\)`,
     "i",
@@ -377,7 +417,9 @@ function writableColumns(
   role: string,
   deciding: ReadonlySet<string> = new Set(),
 ): string[] {
-  if (!policyAllows(table, command, role)) return [];
+  if (!policyAllows(table, command, role)) {
+    return [];
+  }
   const privilege = command.toUpperCase();
   const tableLevel = table.grants.some(
     (grant) => grantsTo(grant, role) && grant.privileges.includes(privilege),
@@ -388,7 +430,9 @@ function writableColumns(
       (!(table.primaryKey.length === 1 && table.primaryKey[0] === column) &&
         !pinnedToTenant(table, column, command, role)),
   );
-  if (tableLevel) return risky;
+  if (tableLevel) {
+    return risky;
+  }
   return risky.filter((column) =>
     (table.columnGrants ?? []).some(
       (grant) =>
@@ -423,12 +467,16 @@ export const RLS_RULES: readonly Rule[] = [
             const slow = functions
               .get(name)
               ?.find((fn) => notInlinable(fn) !== undefined);
-            if (!slow) continue;
+            if (!slow) {
+              continue;
+            }
             const column = expressions(policy)
               .flatMap((expression) => callArguments(expression, slow))
               .map((args) => columnArgument(args, table))
               .find((found) => found !== undefined);
-            if (!column) continue;
+            if (!column) {
+              continue;
+            }
             const fix =
               slow.securityDefiner || Object.keys(slow.settings).length > 0
                 ? ""
@@ -466,11 +514,15 @@ export const RLS_RULES: readonly Rule[] = [
         }
       }
       return [...uses].flatMap(([name, policies]): FindingInput[] => {
-        if (policies.length <= limit) return [];
+        if (policies.length <= limit) {
+          return [];
+        }
         const fn = functions
           .get(name)
           ?.find((candidate) => candidate.securityDefiner);
-        if (!fn) return [];
+        if (!fn) {
+          return [];
+        }
         const shown = policies.slice(0, 5).join(", ");
         const more =
           policies.length > 5 ? ` and ${policies.length - 5} more` : "";
@@ -496,9 +548,13 @@ export const RLS_RULES: readonly Rule[] = [
         "multiple_permissive_policies",
       );
       return rlsTables(context).flatMap((table): FindingInput[] => {
-        if (splinter?.has(qualified(table))) return [];
+        if (splinter?.has(qualified(table))) {
+          return [];
+        }
         const overlaps = permissiveOverlaps(table);
-        if (overlaps.length === 0) return [];
+        if (overlaps.length === 0) {
+          return [];
+        }
         const first = table.policies.find(
           (policy) => policy.name === overlaps[0]!.policies[0],
         )!;
@@ -531,7 +587,9 @@ export const RLS_RULES: readonly Rule[] = [
       return [...grantColumns(context)].flatMap(
         ([name, byColumn]): FindingInput[] => {
           const table = tables.get(name);
-          if (!table) return [];
+          if (!table) {
+            return [];
+          }
           const columns = table.columns
             .map((column) => column.name)
             .filter((column) => byColumn.has(column))
@@ -552,7 +610,9 @@ export const RLS_RULES: readonly Rule[] = [
                 role,
                 deciding,
               );
-              if (writable.length === 0) continue;
+              if (writable.length === 0) {
+                continue;
+              }
               writes.push(`${role} may ${command} ${writable.join(", ")}`);
               const privilege = command.toUpperCase();
               const grantedTable = table.grants.some(
@@ -561,7 +621,9 @@ export const RLS_RULES: readonly Rule[] = [
               );
               if (grantedTable) {
                 tableLevel.push(command);
-                for (const column of writable) revoked.add(column);
+                for (const column of writable) {
+                  revoked.add(column);
+                }
                 continue;
               }
               const fromPublic = (table.columnGrants ?? []).some(
@@ -574,7 +636,9 @@ export const RLS_RULES: readonly Rule[] = [
                 `revoke ${command} (${writable.join(", ")}) on ${name} from ${fromPublic ? `${role}, public` : role};`,
               );
             }
-            if (tableLevel.length === 0) continue;
+            if (tableLevel.length === 0) {
+              continue;
+            }
             const fromPublic = table.grants.some(
               (grant) =>
                 grant.role === "PUBLIC" &&
@@ -588,12 +652,15 @@ export const RLS_RULES: readonly Rule[] = [
             const rest = table.columns
               .map((column) => column.name)
               .filter((column) => !revoked.has(column));
-            if (rest.length > 0)
+            if (rest.length > 0) {
               fix.push(
                 `grant ${tableLevel.map((command) => `${command} (${rest.join(", ")})`).join(", ")} on ${name} to ${role};`,
               );
+            }
           }
-          if (writes.length === 0) return [];
+          if (writes.length === 0) {
+            return [];
+          }
           const helpers = [
             ...new Set(
               columns.flatMap((column) => [...byColumn.get(column)!.helpers]),
@@ -631,7 +698,9 @@ export const RLS_RULES: readonly Rule[] = [
       "PostgREST switches to `anon` or `authenticated` for each request, so their `statement_timeout` limits Data API queries. A function's own `set statement_timeout` only applies when PostgREST hoists it (`pgrst.db_hoisted_tx_settings`). `idle_in_transaction_session_timeout` ends sessions that leave a transaction open; it applies to the role a connection logs in as.",
     check: (context) => {
       const settings = context.snapshot.extras.roleSettings;
-      if (!settings) return [];
+      if (!settings) {
+        return [];
+      }
       const values = (setting: string): string =>
         TIMEOUT_ROLES.map(
           (role) => `${role} ${settings[role]?.[setting] ?? "not set"}`,
@@ -647,10 +716,14 @@ export const RLS_RULES: readonly Rule[] = [
       const hoisted = configured
         ? configured.split(",").map((setting) => setting.trim())
         : DEFAULT_HOISTED;
-      if (hoisted.includes("statement_timeout")) return findings;
+      if (hoisted.includes("statement_timeout")) {
+        return findings;
+      }
       for (const fn of context.snapshot.extras.functions ?? []) {
         const timeout = fn.settings["statement_timeout"];
-        if (!timeout || !context.config.schemas.includes(fn.schema)) continue;
+        if (!timeout || !context.config.schemas.includes(fn.schema)) {
+          continue;
+        }
         findings.push({
           severity: "warning",
           message: `${functionName(fn)}(${fn.signature}) sets statement_timeout = ${timeout}, but pgrst.db_hoisted_tx_settings (${configured}) leaves it out, so the setting doesn't limit the RPC. Add statement_timeout to it, or set the timeout on the role.`,

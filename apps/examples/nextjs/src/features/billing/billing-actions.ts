@@ -23,7 +23,9 @@ export const markPlanReviewed = bs.action(
       "plan",
       organizationId,
     );
-    if (!completed.ok) return completed;
+    if (!completed.ok) {
+      return completed;
+    }
     refresh();
     return ok(completed.data);
   },

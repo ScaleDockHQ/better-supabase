@@ -12,9 +12,15 @@ import {
 import { API_SCHEMA } from "../lib/blocks";
 
 function heading(key: string): string {
-  if (key === "favorites") return "Favorites";
-  if (key === "recents") return "Recent";
-  if (key === "customer") return "Customers";
+  if (key === "favorites") {
+    return "Favorites";
+  }
+  if (key === "recents") {
+    return "Recent";
+  }
+  if (key === "customer") {
+    return "Customers";
+  }
   return key;
 }
 

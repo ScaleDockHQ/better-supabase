@@ -495,7 +495,9 @@ function dealOf(value: unknown): Deal {
 
 /** A change value as the database reads it: dates as ISO, bigints as text. */
 function valueArg(value: unknown): unknown {
-  if (typeof value === "bigint") return value.toString();
+  if (typeof value === "bigint") {
+    return value.toString();
+  }
   if (
     value instanceof temporal().Instant ||
     value instanceof temporal().PlainDate
@@ -585,9 +587,13 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
     update: (changes) =>
       AsyncResult.from(async () => {
         for (const change of changes) {
-          if (BUILT_IN.has(change.field)) continue;
+          if (BUILT_IN.has(change.field)) {
+            continue;
+          }
           const valid = await fields.write({ [change.field]: change.value });
-          if (!valid.ok) return valid;
+          if (!valid.ok) {
+            return valid;
+          }
         }
         return ok(changes);
       }).andThen((checked) =>

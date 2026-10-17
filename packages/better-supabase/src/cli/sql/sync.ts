@@ -48,8 +48,9 @@ export async function syncModules(
   }
   if (await writesMigrations(config)) {
     const sqlLayout = await layoutFor(config, args, config.blockNames);
-    if (args.check === true)
+    if (args.check === true) {
       return checkModuleMigration(config, sqlLayout, paint, topics?.contents);
+    }
     const lines = await write(config, args, config.blockNames, sqlLayout, now);
     return { code: 0, output: lines.join("\n") };
   }
@@ -66,8 +67,9 @@ export async function syncModules(
           );
     if (topics !== undefined) {
       const shown = display(config.root, topics.path);
-      if (args["dry-run"] === true) lines.push(`Would write ${shown} (topics)`);
-      else {
+      if (args["dry-run"] === true) {
+        lines.push(`Would write ${shown} (topics)`);
+      } else {
         lines.push(
           (
             await writeLine(

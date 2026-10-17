@@ -45,7 +45,9 @@ export async function notifyActor(
   title: string,
 ): Promise<void> {
   "use step";
-  if (context.tenant === undefined || context.actor?.kind !== "user") return;
+  if (context.tenant === undefined || context.actor?.kind !== "user") {
+    return;
+  }
   await serviceNotifications()
     .send("workflow.message", {
       tenant: context.tenant,

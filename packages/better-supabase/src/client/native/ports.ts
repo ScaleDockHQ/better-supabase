@@ -85,7 +85,9 @@ export function nativeFilePicker(
       multiple: options.multiple ?? false,
       copyToCacheDirectory: true,
     });
-    if (picked.canceled) return [];
+    if (picked.canceled) {
+      return [];
+    }
     return picked.assets.map((asset) => ({
       name: asset.name,
       type: asset.mimeType,

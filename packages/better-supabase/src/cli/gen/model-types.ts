@@ -131,11 +131,19 @@ export function codecFor(
 ): Codec | undefined {
   const { codecs } = config;
   if (codecs.timestamptz === "instant") {
-    if (udt === "timestamptz") return "instant";
-    if (udt === "timestamp") return "plainDateTime";
+    if (udt === "timestamptz") {
+      return "instant";
+    }
+    if (udt === "timestamp") {
+      return "plainDateTime";
+    }
   }
-  if (udt === "int8" && codecs.int8 !== "number") return codecs.int8;
-  if (udt === "numeric" && codecs.numeric === "string") return "string";
+  if (udt === "int8" && codecs.int8 !== "number") {
+    return codecs.int8;
+  }
+  if (udt === "numeric" && codecs.numeric === "string") {
+    return "string";
+  }
   return undefined;
 }
 

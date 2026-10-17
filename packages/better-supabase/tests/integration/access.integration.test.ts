@@ -50,9 +50,12 @@ async function inTransaction<T>(
        values ($1, $2, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000')`,
       [USER, `access-${USER}@example.test`],
     );
-    if (setup) await client.query(setup);
-    for (const file of renderModules(names, layout))
+    if (setup) {
+      await client.query(setup);
+    }
+    for (const file of renderModules(names, layout)) {
       await client.query(file.contents);
+    }
     return await run(client);
   } finally {
     await client.query("rollback");

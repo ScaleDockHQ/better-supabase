@@ -136,7 +136,9 @@ describe("CloudEvents", () => {
       {
         send: async (events) => {
           await late;
-          if (events[0]?.subject === "customers/c2") throw new Error("down");
+          if (events[0]?.subject === "customers/c2") {
+            throw new Error("down");
+          }
           delivered.push(String(events[0]?.subject));
         },
       },

@@ -404,7 +404,9 @@ const firstText = (
 ): string | undefined => {
   for (const key of keys) {
     const value = optionalText(data[key]);
-    if (value !== undefined) return value;
+    if (value !== undefined) {
+      return value;
+    }
   }
   return undefined;
 };
@@ -414,7 +416,9 @@ function subjectOf(
   subject: string | undefined,
 ): { type: string; id: string } | undefined {
   const slash = subject?.indexOf("/") ?? -1;
-  if (subject === undefined || slash < 1) return undefined;
+  if (subject === undefined || slash < 1) {
+    return undefined;
+  }
   const plural = subject.slice(0, slash);
   return {
     type: plural.endsWith("s") ? plural.slice(0, -1) : plural,
@@ -434,11 +438,17 @@ export function activitySink(options: ActivitySinkOptions): EventSink {
       const entries: Record<string, unknown>[] = [];
       for (const event of events) {
         const tenant = optionalText(event["partitionkey"]);
-        if (tenant === undefined) continue;
+        if (tenant === undefined) {
+          continue;
+        }
         const type = stripTypePrefix(event.type, options.typePrefix);
-        if (options.types && !matches(options.types, type)) continue;
+        if (options.types && !matches(options.types, type)) {
+          continue;
+        }
         const described = options.describe ? options.describe(event, type) : {};
-        if (described === null) continue;
+        if (described === null) {
+          continue;
+        }
         const data = isRecord(event.data) ? event.data : {};
         const subject = subjectOf(event.subject);
         entries.push({
@@ -504,7 +514,9 @@ export function activityListQuery<
   options: { readonly pageSize?: number; readonly maxPageSize?: number } = {},
 ): ListDefinition<M, T, E, ActivitySort, ActivityFacet, false, "cursor"> {
   const meta: TableMeta | undefined = betterSupabase.meta.tables[table];
-  if (!meta) throw new TypeError(`activityListQuery: unknown table "${table}"`);
+  if (!meta) {
+    throw new TypeError(`activityListQuery: unknown table "${table}"`);
+  }
   const camel = meta.columns["occurredAt"] !== undefined;
   const facets: Record<string, string> = Object.fromEntries(
     FACETS.map(([key, snake, camelName]): [ActivityFacet, string] => [

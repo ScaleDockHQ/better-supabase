@@ -122,10 +122,13 @@ export function betterSupabase(
           auth.value = client.auth.current();
         }),
       ];
-      if (options.queryClient)
+      if (options.queryClient) {
         stops.push(clearOnUserChange(options.queryClient, client.auth));
+      }
       app.onUnmount(() => {
-        for (const stop of stops) stop();
+        for (const stop of stops) {
+          stop();
+        }
       });
       app.provide(CLIENT, {
         client,
@@ -208,10 +211,13 @@ function useCaller(
   context: Context | null,
   client: SupabaseClient | undefined,
 ): Readonly<Ref<Caller>> {
-  if (context && client === undefined)
+  if (context && client === undefined) {
     return computed(() => callerOf(context.auth.value));
+  }
   const supabase = client ?? context?.client.supabase;
-  if (!supabase) throw new Error("better-supabase: no supabase client");
+  if (!supabase) {
+    throw new Error("better-supabase: no supabase client");
+  }
   const store = plainCaller(supabase);
   const caller = shallowRef(store.current());
   onClient(() => {
@@ -260,7 +266,9 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
   const run = keyed();
   const key = computed(() => {
     const current = toValue(values);
-    if (!current || caller.value.status === "loading") return null;
+    if (!current || caller.value.status === "loading") {
+      return null;
+    }
     return JSON.stringify([topic.topic(current), caller.value.userId]);
   });
   onClient(() => {
@@ -269,7 +277,9 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
       (next) => {
         run.update(next, () => {
           const current = toValue(values);
-          if (!current) return;
+          if (!current) {
+            return;
+          }
           return startBroadcast({
             supabase,
             topic,
@@ -321,7 +331,9 @@ export function useLiveQuery(
       (next) => {
         run.update(next, () => {
           const current = toValue(spec);
-          if (!current || !queryClient || next === null) return;
+          if (!current || !queryClient || next === null) {
+            return;
+          }
           const resumed = joined === next;
           joined = next;
           return startLiveQuery({
@@ -381,7 +393,9 @@ export function useLiveCount(
       (next) => {
         run.update(next, () => {
           const { spec, initial, seedAt } = parsed.value;
-          if (!spec || next === null) return;
+          if (!spec || next === null) {
+            return;
+          }
           const previous = joined?.key === next ? joined : null;
           joined = { key: next, at: previous?.at ?? seedAt ?? 0 };
           return startLiveCount({
@@ -394,8 +408,9 @@ export function useLiveCount(
             since: previous ? previous.at : seedAt,
             onState: (update) => {
               state.value = update(state.value);
-              if (joined?.key === next)
+              if (joined?.key === next) {
                 joined = { key: next, at: state.value.at };
+              }
             },
             onStatus: (value) => {
               status.value = value;
@@ -463,7 +478,9 @@ export function usePresence<P extends string, I, O>(
   const run = keyed();
   const key = computed(() => {
     const current = toValue(values);
-    if (!current || caller.value.status === "loading") return null;
+    if (!current || caller.value.status === "loading") {
+      return null;
+    }
     return JSON.stringify([topic.topic(current), caller.value.userId]);
   });
   onClient(() => {
@@ -472,7 +489,9 @@ export function usePresence<P extends string, I, O>(
       (next) => {
         run.update(next, () => {
           const current = toValue(values);
-          if (!current) return;
+          if (!current) {
+            return;
+          }
           const joined = joinPresence(supabase, topic, topic.topic(current), {
             onStatus: (value) => {
               status.value = value;
@@ -481,7 +500,9 @@ export function usePresence<P extends string, I, O>(
               members.value = value;
             },
           });
-          if (!joined) return;
+          if (!joined) {
+            return;
+          }
           join = joined;
           joined.sync(toValue(options.state));
           return () => {
@@ -541,7 +562,9 @@ export function useAction<I, T>(
   const stop = runner.subscribe(() => {
     state.value = runner.current();
   });
-  if (getCurrentScope()) onScopeDispose(stop);
+  if (getCurrentScope()) {
+    onScopeDispose(stop);
+  }
   return {
     run: runner.run,
     reset: runner.reset,

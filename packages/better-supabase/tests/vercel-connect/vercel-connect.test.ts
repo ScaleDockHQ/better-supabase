@@ -20,7 +20,9 @@ function fakeConnect(fail?: Error): {
     module: {
       async getTokenResponse(...args) {
         calls.push(["get", ...args]);
-        if (fail) throw fail;
+        if (fail) {
+          throw fail;
+        }
         return { token: "gho_1", expiresAt: 1_700_000_000_000 };
       },
       async revokeToken(...args) {
@@ -121,10 +123,11 @@ describe("vercelConnectCredentials", () => {
     for (const result of [
       await provider.getToken(tenantRef, { subject: { type: "app" } }),
       await provider.revoke(tenantRef, { subject: { type: "app" } }),
-    ])
+    ]) {
       expect(result.ok ? undefined : result.error.hint).toBe(
         "CREDENTIAL_REF_FOREIGN",
       );
+    }
     expect(load).not.toHaveBeenCalled();
     const forUser = await provider.getToken(tenantRef, { subject: user });
     expect(forUser.ok ? undefined : forUser.error.message).toMatch(

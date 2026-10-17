@@ -1426,10 +1426,13 @@ uri = "https://example.com/hook"
             if (
               sql.includes("better_supabase.hook_event") &&
               sql.includes("auth.users")
-            )
+            ) {
               return (user ? [{ event: "{}" }] : []) as R[];
-            if (sql.includes("pg_roles")) return [{ member: true }] as R[];
-            if (sql.includes("octet_length"))
+            }
+            if (sql.includes("pg_roles")) {
+              return [{ member: true }] as R[];
+            }
+            if (sql.includes("octet_length")) {
               return [
                 {
                   bytes,
@@ -1438,6 +1441,7 @@ uri = "https://example.com/hook"
                   truncated: size.truncated ?? false,
                 },
               ] as R[];
+            }
             return [] as R[];
           },
         };
@@ -2149,7 +2153,9 @@ describe("doctor command", () => {
       ),
       "utf-8",
     );
-    for (const code of RULE_CODES) expect(docs).toContain(`### ${code}`);
+    for (const code of RULE_CODES) {
+      expect(docs).toContain(`### ${code}`);
+    }
     const schema = JSON.parse(
       await readFile(
         new URL(

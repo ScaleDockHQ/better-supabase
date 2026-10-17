@@ -40,7 +40,9 @@ function withTable(
 ) {
   const { meta } = schema;
   const tableMeta = meta.tables[table];
-  if (!tableMeta) throw new Error(table);
+  if (!tableMeta) {
+    throw new Error(table);
+  }
   return defineSupabase(
     defineSchema<Models>({
       ...meta,

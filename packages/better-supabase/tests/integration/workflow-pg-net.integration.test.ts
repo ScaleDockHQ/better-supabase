@@ -36,7 +36,9 @@ let server: Server;
 const received: { message: unknown; attempt: number }[] = [];
 
 function field(value: unknown, key: string): unknown {
-  if (typeof value !== "object" || value === null) return undefined;
+  if (typeof value !== "object" || value === null) {
+    return undefined;
+  }
   const record: Record<string, unknown> = { ...value };
   return record[key];
 }
@@ -62,14 +64,18 @@ async function until<T>(
   const deadline = Date.now() + ms;
   while (Date.now() < deadline) {
     const value = await read();
-    if (value !== undefined) return value;
+    if (value !== undefined) {
+      return value;
+    }
     await sleep(100);
   }
   throw new Error("timed out");
 }
 
 beforeAll(async () => {
-  if (!live) return;
+  if (!live) {
+    return;
+  }
   await installWorld(pool);
   const installed = await pool.query(
     "select 1 from pg_extension where extname = 'pg_net'",
@@ -95,7 +101,9 @@ beforeAll(async () => {
     req.on("end", () => {
       const headers = new Headers();
       for (const [key, value] of Object.entries(req.headers)) {
-        if (typeof value === "string") headers.set(key, value);
+        if (typeof value === "string") {
+          headers.set(key, value);
+        }
       }
       void handler(
         new Request(`http://localhost${req.url ?? "/"}`, {
@@ -133,7 +141,9 @@ afterAll(async () => {
     server.close(resolve);
   });
   await world.close();
-  if (createdPgNet) await pool.query("drop extension pg_net");
+  if (createdPgNet) {
+    await pool.query("drop extension pg_net");
+  }
   await pool.end();
 });
 

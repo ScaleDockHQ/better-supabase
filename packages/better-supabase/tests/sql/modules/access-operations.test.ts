@@ -23,8 +23,9 @@ const accessSql = (
 
 describe("OPERATIONS", () => {
   it("keys every operation <module>.<action>", () => {
-    for (const name of Object.keys(OPERATIONS))
+    for (const name of Object.keys(OPERATIONS)) {
       expect(name).toMatch(/^[a-z][a-z-]*\.[A-Za-z]+$/);
+    }
   });
 
   it("gives each module its actions by name", () => {

@@ -102,7 +102,9 @@ const isChildInput = (value: unknown): value is ChildInput =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
 function childrenOf(value: unknown, where: string): readonly Child[] {
-  if (value === undefined) return [];
+  if (value === undefined) {
+    return [];
+  }
   if (!Array.isArray(value)) {
     throw new TypeError(`${where} must be a list of { type, column }`);
   }
@@ -129,7 +131,9 @@ function trashable(ctx: ModuleContext): readonly Trashable[] {
   ]).flatMap(([type, subject]): Trashable[] => {
     const extra = subject.extra;
     const deletedAt = extra["deletedAt"];
-    if (deletedAt === undefined && !explicit) return [];
+    if (deletedAt === undefined && !explicit) {
+      return [];
+    }
     if (!isColumn(deletedAt)) {
       throw new TypeError(
         `${where}.${type}.deletedAt must name the timestamptz column that marks a trashed row`,
@@ -180,7 +184,9 @@ const tenantColumn = (subject: Subject): string =>
   );
 
 function trashCase(list: readonly Trashable[], unsupported: string): string {
-  if (list.length === 0) return unsupported;
+  if (list.length === 0) {
+    return unsupported;
+  }
   return `case trash_cascade.subject_type
 ${list
   .map(
@@ -207,7 +213,9 @@ function childrenCase(list: readonly Trashable[], cascade: string): string {
     .map((entry) => {
       const loops = entry.children.flatMap((child) => {
         const target = byType.get(child.type);
-        if (target === undefined) return [];
+        if (target === undefined) {
+          return [];
+        }
         return `      for v_child in
         select c.${sqlIdent(target.subject.id ?? "id")}::text from ${qualifiedTable(target.subject.table)} c
         where c.${sqlIdent(child.column)}::text = trash_cascade.subject_id
@@ -220,7 +228,9 @@ function childrenCase(list: readonly Trashable[], cascade: string): string {
       return `    when ${sqlString(entry.type)} then
 ${loops.join("\n")}`;
     });
-  if (whens.length === 0) return "";
+  if (whens.length === 0) {
+    return "";
+  }
   return `case trash_cascade.subject_type
 ${whens.join("\n")}
     else null;
@@ -228,7 +238,9 @@ ${whens.join("\n")}
 }
 
 function untrashCase(list: readonly Trashable[]): string {
-  if (list.length === 0) return "null;";
+  if (list.length === 0) {
+    return "null;";
+  }
   return `case v_item.subject_type
 ${list
   .map((entry) => {
@@ -258,7 +270,9 @@ ${list
 }
 
 function purgeCase(list: readonly Trashable[]): string {
-  if (list.length === 0) return "null;";
+  if (list.length === 0) {
+    return "null;";
+  }
   return `case v_item.subject_type
 ${list
   .map(
@@ -272,7 +286,9 @@ ${list
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const items = ctx.table("items");
   const c = (column: string): string => ctx.col("items", column);
   const read = ctx.permission("read", OPERATIONS["trash.read"]);

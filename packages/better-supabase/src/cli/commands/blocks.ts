@@ -80,7 +80,9 @@ function listing(entries: readonly BlockEntry[]): string[] {
   const width = Math.max(0, ...entries.map((entry) => entry.name.length));
   return CATEGORIES.flatMap((category) => {
     const rows = entries.filter((entry) => entry.category === category);
-    if (rows.length === 0) return [];
+    if (rows.length === 0) {
+      return [];
+    }
     return [
       "",
       `${category}:`,

@@ -43,7 +43,9 @@ export function createNumberSequences(
           if (typeof value === "number" || typeof value === "bigint") {
             return String(value);
           }
-          if (typeof value === "string") return value;
+          if (typeof value === "string") {
+            return value;
+          }
           throw new TypeError("next_number did not return a number");
         },
       ),

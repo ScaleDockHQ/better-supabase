@@ -106,7 +106,9 @@ export function defineBuckets<const B extends BucketMap>(
   };
   const resolve = (ref: StoredRef): Result<ResolvedRef<B>> => {
     const found = lookup(ref.bucket);
-    if (!found.ok) return found;
+    if (!found.ok) {
+      return found;
+    }
     const bucket = found.data;
     if (bucket.match(ref.path) === null) {
       return err(
@@ -131,7 +133,9 @@ export function defineBuckets<const B extends BucketMap>(
     resolve,
     connectStored(client, ref, options) {
       const resolved = resolve(ref);
-      if (!resolved.ok) return resolved;
+      if (!resolved.ok) {
+        return resolved;
+      }
       const { bucket } = resolved.data;
       const storage: BucketClient<string, BucketIdOf<B>> = bucket.connect(
         client,

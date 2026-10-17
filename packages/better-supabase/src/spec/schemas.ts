@@ -63,7 +63,9 @@ const converted = new WeakMap<object, Map<string, ConvertedSchema | null>>();
 
 function nameOf(schema: JsonSchema): string | undefined {
   const id = schema["$id"] ?? schema["id"];
-  if (typeof id !== "string" || id === "") return undefined;
+  if (typeof id !== "string" || id === "") {
+    return undefined;
+  }
   const last = id.split(/[/#]/u).findLast((part) => part !== "") ?? id;
   return last.replace(/\.(?:schema\.)?json$/u, "");
 }
@@ -83,7 +85,9 @@ export function convertStandard(
     converted.set(schema, cache);
   }
   const hit = cache.get(direction);
-  if (hit !== undefined) return hit ?? undefined;
+  if (hit !== undefined) {
+    return hit ?? undefined;
+  }
   // SAFETY: every Standard JSON Schema field on ~standard is optional, and a
   // missing jsonSchema is handled below.
   const standard = schema["~standard"] as Partial<StandardJSONSchemaV1.Props>;

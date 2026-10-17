@@ -24,7 +24,9 @@ const NAMES: ModuleNames = { tables: {} };
 /** The permission check for `action` on row `s`, `true` when the action has no key. */
 function actionCheck(ctx: ModuleContext, subject: RegisteredSubject): string {
   const permissions = Object.entries(subject.config.permissions ?? {});
-  if (permissions.length === 0) return "true";
+  if (permissions.length === 0) {
+    return "true";
+  }
   const scope = subject.config.scope;
   const held = (key: string): string => {
     const parts = [
@@ -52,7 +54,9 @@ function actionCheck(ctx: ModuleContext, subject: RegisteredSubject): string {
  */
 function actionCheckFor(subject: RegisteredSubject, user: string): string {
   const permissions = Object.entries(subject.config.permissions ?? {});
-  if (permissions.length === 0) return "false";
+  if (permissions.length === 0) {
+    return "false";
+  }
   const scope = subject.config.scope;
   const held = (key: string): string => {
     const userCan = (scopeName: string, id: string): string =>
@@ -95,7 +99,9 @@ function cases(
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const subjects = registeredSubjects(ctx.subjects);
   const fn = (name: string): string => ctx.fn(name);
   return `${schemaPreamble(ctx)}

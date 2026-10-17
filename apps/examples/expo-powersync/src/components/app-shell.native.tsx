@@ -24,7 +24,9 @@ export function AppShell({ children }: { readonly children: ReactNode }) {
 function useAuthLinks(): void {
   useEffect(() => {
     void Linking.getInitialURL().then((url) => {
-      if (url) void handleAuthDeepLink(supabase, url);
+      if (url) {
+        void handleAuthDeepLink(supabase, url);
+      }
     });
     const subscription = Linking.addEventListener("url", ({ url }) => {
       void handleAuthDeepLink(supabase, url);

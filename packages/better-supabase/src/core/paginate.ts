@@ -61,7 +61,9 @@ export function offsetEnvelope(
 export function strip(row: Row, keys: readonly string[]): Row {
   const copy: Row = {};
   for (const key in row) {
-    if (!keys.includes(key) && Object.hasOwn(row, key)) copy[key] = row[key];
+    if (!keys.includes(key) && Object.hasOwn(row, key)) {
+      copy[key] = row[key];
+    }
   }
   return copy;
 }

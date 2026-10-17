@@ -103,7 +103,9 @@ export async function latestMigration(
     () => [],
   );
   const latest = names.toSorted().findLast((name) => name.endsWith(suffix));
-  if (latest === undefined) return undefined;
+  if (latest === undefined) {
+    return undefined;
+  }
   return {
     path: `${dir}/${latest}`,
     text: await readFile(resolve(config.root, dir, latest), "utf-8"),
@@ -158,8 +160,9 @@ export async function writeLatestMigration(
     () => [],
   );
   const path = `${dir}/${stampAfter(names, options.now)}${suffix}`;
-  if (options.dryRun)
+  if (options.dryRun) {
     return { path, wrote: false, line: `Would write ${path}` };
+  }
   await writeIfChanged(resolve(config.root, path), contents);
   return { path, wrote: true, line: `Wrote ${path}` };
 }

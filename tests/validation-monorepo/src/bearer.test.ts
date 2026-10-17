@@ -21,7 +21,9 @@ const addresses = runtime.handler(
   async (_request, ctx) => {
     const session = sessionOf(ctx);
     const rows = await shippingAddresses(ctx.db, "c1");
-    if (!rows.ok) return rows;
+    if (!rows.ok) {
+      return rows;
+    }
     return {
       actor: session.kind === "user" ? session.actor : undefined,
       delegation: session.kind === "user" ? session.delegation : undefined,

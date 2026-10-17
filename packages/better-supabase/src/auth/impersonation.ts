@@ -56,7 +56,9 @@ export function impersonatorOf(
 ): Impersonator | undefined {
   const outcome = actorOf(claims);
   const actor = outcome.ok ? outcome.actor : undefined;
-  if (actor === undefined) return undefined;
+  if (actor === undefined) {
+    return undefined;
+  }
   switch (actor.kind) {
     case "oauth-client":
     case "agent":

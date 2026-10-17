@@ -29,14 +29,18 @@ async function latestLink(page: Page, to: string): Promise<string> {
         messages: { ID: string }[];
       };
       const id = messages[0]?.ID;
-      if (!id) return false;
+      if (!id) {
+        return false;
+      }
       const message = await page.request.get(`${MAILPIT}/message/${id}`);
       body = ((await message.json()) as { Text: string }).Text;
       return true;
     })
     .toBe(true);
   const link = /https?:\/\/\S+\/auth\/v1\/verify\S+/.exec(body)?.[0];
-  if (!link) throw new Error(`No verify link in the email to ${to}`);
+  if (!link) {
+    throw new Error(`No verify link in the email to ${to}`);
+  }
   return link.replaceAll("&amp;", "&");
 }
 
@@ -238,10 +242,11 @@ test.describe("preferences", () => {
       document.addEventListener(
         "readystatechange",
         () => {
-          if (document.readyState === "interactive")
+          if (document.readyState === "interactive") {
             Object.assign(window, {
               e2eFirstClass: document.documentElement.className,
             });
+          }
         },
         { once: true },
       );

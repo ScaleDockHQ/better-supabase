@@ -42,9 +42,13 @@ export function CommentThread({
   const submit = async (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     const text = body.trim();
-    if (!text) return;
+    if (!text) {
+      return;
+    }
     setPending(true);
-    if ((await add(text)).ok) setBody("");
+    if ((await add(text)).ok) {
+      setBody("");
+    }
     setPending(false);
   };
 

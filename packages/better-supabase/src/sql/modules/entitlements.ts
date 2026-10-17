@@ -145,7 +145,9 @@ function planEntitlementValue(
 ): string {
   const subs = plans.subscriptions;
   const features = plans.features;
-  if (features.value === undefined) return booleanEntitlementValue(id);
+  if (features.value === undefined) {
+    return booleanEntitlementValue(id);
+  }
   const value = `to_jsonb(f.${sqlIdent(features.value)})`;
   return `
 -- The value of a feature for the tenant (entitlements.source.plans.features.value):

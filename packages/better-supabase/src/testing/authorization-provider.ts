@@ -13,11 +13,22 @@ import { type ConformanceReport, conform, expect } from "./conformance.ts";
 import { hasName } from "./kits/executor.ts";
 
 function isPlainJson(value: unknown): boolean {
-  if (value === null || typeof value === "string" || typeof value === "boolean")
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "boolean"
+  ) {
     return true;
-  if (typeof value === "number") return Number.isFinite(value);
-  if (Array.isArray(value)) return value.every(isPlainJson);
-  if (typeof value !== "object") return false;
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value);
+  }
+  if (Array.isArray(value)) {
+    return value.every(isPlainJson);
+  }
+  if (typeof value !== "object") {
+    return false;
+  }
   const prototype: unknown = Object.getPrototypeOf(value);
   return (
     (prototype === Object.prototype || prototype === null) &&
@@ -42,12 +53,14 @@ function expectRow(where: string, row: DisabledRow): void {
     row.disabledAt !== undefined || row.status !== undefined,
     `${where} sets neither disabledAt nor status`,
   );
-  for (const column of [row.disabledAt, row.status])
-    if (column !== undefined)
+  for (const column of [row.disabledAt, row.status]) {
+    if (column !== undefined) {
       expect(
         IDENTIFIER.test(column),
         `${where} column "${column}" is not a column`,
       );
+    }
+  }
   expect(
     (row.status === undefined) === (row.active === undefined),
     `${where} needs status and active together`,
@@ -114,11 +127,12 @@ export function testAuthorizationProvider(
           const allowed: readonly string[] | undefined =
             TEMPLATE_PLACEHOLDERS[name];
           expect(allowed, `functions.${name} is not a known template`);
-          for (const placeholder of templatePlaceholders(template))
+          for (const placeholder of templatePlaceholders(template)) {
             expect(
               allowed.includes(placeholder),
               `functions.${name} uses {${placeholder}}; it takes ${allowed.map((key) => `{${key}}`).join(", ")}`,
             );
+          }
           const needed = allowed.filter(
             (key) =>
               key === "permission" ||
@@ -129,13 +143,14 @@ export function testAuthorizationProvider(
                 scopes.size > 1 &&
                 name.startsWith("idsWith")),
           );
-          for (const key of needed)
+          for (const key of needed) {
             expect(
               template.includes(`{${key}}`),
               key === "scope"
                 ? `functions.${name} doesn't use {scope}, so it answers the same for every scope`
                 : `functions.${name} doesn't use {${key}}`,
             );
+          }
         }
       },
     ],
@@ -161,20 +176,24 @@ export function testAuthorizationProvider(
         const required = new Set(
           (provider.requires ?? []).map((entry) => entry.function),
         );
-        for (const entry of provider.requires ?? [])
+        for (const entry of provider.requires ?? []) {
           expect(
             QUALIFIED.test(entry.function),
             `requires "${entry.function}" is not schema.name`,
           );
-        for (const [name, template] of templates)
+        }
+        for (const [name, template] of templates) {
           for (const scope of template.includes("{scope}")
             ? scopes
-            : [undefined])
-            for (const fn of templateFunctions(template, scope))
+            : [undefined]) {
+            for (const fn of templateFunctions(template, scope)) {
               expect(
                 required.has(fn),
                 `functions.${name} calls ${fn}, which requires doesn't list`,
               );
+            }
+          }
+        }
       },
     ],
     provider.permissions && [
@@ -188,11 +207,12 @@ export function testAuthorizationProvider(
             `permission "${permission.key}" repeats`,
           );
           keys.add(permission.key);
-          for (const scope of permission.scopes ?? [])
+          for (const scope of permission.scopes ?? []) {
             expect(
               scopes.has(scope),
               `permission "${permission.key}" names unknown scope "${scope}"`,
             );
+          }
         }
       },
     ],
@@ -209,11 +229,12 @@ export function testAuthorizationProvider(
             operation.permission !== "",
             `operation "${name}" names no permission`,
           );
-          if (keys)
+          if (keys) {
             expect(
               keys.has(operation.permission),
               `operation "${name}" needs "${operation.permission}", which permissions doesn't list`,
             );
+          }
         }
       },
     ],
@@ -225,11 +246,12 @@ export function testAuthorizationProvider(
             TABLE.test(membership.table),
             `membership table "${membership.table}" is not schema.table`,
           );
-          if ("value" in membership.scope)
+          if ("value" in membership.scope) {
             expect(
               scopes.has(membership.scope.value),
               `${membership.table} names unknown scope "${membership.scope.value}"`,
             );
+          }
         }
       },
     ],
@@ -237,8 +259,12 @@ export function testAuthorizationProvider(
       "suspension rows name a table, an id and a state column",
       () => {
         const { user, tenant } = provider.suspension!;
-        if (user) expectRow("suspension.user", user);
-        if (tenant) expectRow("suspension.tenant", tenant);
+        if (user) {
+          expectRow("suspension.user", user);
+        }
+        if (tenant) {
+          expectRow("suspension.tenant", tenant);
+        }
       },
     ],
     provider.roleSources && [
@@ -257,22 +283,24 @@ export function testAuthorizationProvider(
             source.role.column,
             source.role.through.id,
             source.role.through.column,
-          ])
+          ]) {
             expect(
               IDENTIFIER.test(column),
               `roleSources ${source.table} names "${column}", which is not a column`,
             );
+          }
         }
       },
     ],
     provider.decidingColumns && [
       "deciding columns are schema.table.column",
       () => {
-        for (const column of provider.decidingColumns!)
+        for (const column of provider.decidingColumns!) {
           expect(
             COLUMN.test(column),
             `decidingColumns "${column}" is not schema.table.column`,
           );
+        }
       },
     ],
     provider.tokenHook && [
@@ -302,11 +330,12 @@ export function testAuthorizationProvider(
             Number.isInteger(hook.budget.bytes) && hook.budget.bytes > 0,
             "tokenHook.budget.bytes must be a positive integer",
           );
-          for (const claim of hook.budget.claims)
+          for (const claim of hook.budget.claims) {
             expect(
               written.has(claim),
               `tokenHook.budget counts "${claim}", which neither ownedClaims nor registeredClaims lists`,
             );
+          }
         }
       },
     ],

@@ -157,11 +157,16 @@ describe("BS308 tenant claim", () => {
     describe: "test",
     session: true,
     async query<R>(sql: string) {
-      if (sql.includes("auth.users"))
+      if (sql.includes("auth.users")) {
         return [{ event: user ? "{}" : null }] as R[];
-      if (sql.includes("pg_roles")) return [{ member: true }] as R[];
+      }
+      if (sql.includes("pg_roles")) {
+        return [{ member: true }] as R[];
+      }
       if (sql.includes("as claims")) {
-        if (claims instanceof Error) throw claims;
+        if (claims instanceof Error) {
+          throw claims;
+        }
         return [{ claims }] as R[];
       }
       return [] as R[];
@@ -266,13 +271,17 @@ describe("BS405 --as", () => {
         if (
           sql.includes("better_supabase.hook_event") &&
           sql.includes("auth.users")
-        )
+        ) {
           return [{ event: "{}" }] as R[];
-        if (sql.includes("pg_roles")) return [{ member: false }] as R[];
-        if (sql.includes("octet_length"))
+        }
+        if (sql.includes("pg_roles")) {
+          return [{ member: false }] as R[];
+        }
+        if (sql.includes("octet_length")) {
           throw new Error(
             "function rbac.custom_access_token_hook does not exist",
           );
+        }
         return [] as R[];
       },
     };

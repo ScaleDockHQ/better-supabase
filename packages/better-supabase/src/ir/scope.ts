@@ -21,7 +21,9 @@ export function scopeCondition(
   condition: Condition | undefined,
   scopeFor: ScopeFor,
 ): Condition | undefined {
-  if (!condition) return undefined;
+  if (!condition) {
+    return undefined;
+  }
   switch (condition.kind) {
     case "and":
     case "or":
@@ -41,7 +43,9 @@ export function scopeCondition(
     case "relation": {
       const inner = scopeCondition(condition.where, scopeFor);
       const scope = scopeFor(condition.target);
-      if (!scope) return { ...condition, where: inner };
+      if (!scope) {
+        return { ...condition, where: inner };
+      }
       switch (condition.quantifier) {
         case "some":
         case "none":
@@ -83,7 +87,9 @@ export function scopeSelection(
   selection: Selection,
   scopeFor: ScopeFor,
 ): Selection {
-  if (selection.includes.length === 0) return selection;
+  if (selection.includes.length === 0) {
+    return selection;
+  }
   return {
     ...selection,
     includes: selection.includes.map((include) =>

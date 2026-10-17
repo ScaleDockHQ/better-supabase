@@ -142,7 +142,9 @@ interface Machine {
 
 function machines(ctx: ModuleContext): readonly Machine[] {
   const raw = ctx.option("machines");
-  if (raw === undefined) return [];
+  if (raw === undefined) {
+    return [];
+  }
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     throw new TypeError(
       "blocks.state-machine.options.machines must be an object",
@@ -160,7 +162,9 @@ function registered(
   where: string,
 ): Record<string, unknown> {
   const entry = Object.hasOwn(registry, name) ? registry[name] : undefined;
-  if (entry === undefined) return {};
+  if (entry === undefined) {
+    return {};
+  }
   if (entry.tenant === false) {
     throw new TypeError(
       `${where}: config.subjects.${name} has no tenant column, which a machine needs`,
@@ -180,12 +184,16 @@ function machine(
   registry: SubjectsConfig,
 ): Machine {
   const where = `blocks.state-machine.options.machines.${name}`;
-  if (!NAME.test(name)) throw new TypeError(`${where} has an invalid name`);
+  if (!NAME.test(name)) {
+    throw new TypeError(`${where} has an invalid name`);
+  }
   if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
     throw new TypeError(`${where} must be an object`);
   }
   const own: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(entry)) own[key] = value;
+  for (const [key, value] of Object.entries(entry)) {
+    own[key] = value;
+  }
   const record =
     own["table"] === undefined
       ? { ...registered(name, registry, where), ...own }
@@ -300,7 +308,9 @@ function edgesOf(
 
 /** A list of distinct strings, or an empty list when unset. */
 function statusList(value: unknown, where: string): readonly string[] {
-  if (value === undefined) return [];
+  if (value === undefined) {
+    return [];
+  }
   if (
     !Array.isArray(value) ||
     value.some((item) => typeof item !== "string") ||
@@ -327,15 +337,21 @@ function historyOf(
   value: unknown,
   where: string,
 ): Machine["history"] | undefined {
-  if (value === undefined) return undefined;
+  if (value === undefined) {
+    return undefined;
+  }
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new TypeError(`${where}.history must be an object`);
   }
   const record: Record<string, unknown> = {};
-  for (const [key, item] of Object.entries(value)) record[key] = item;
+  for (const [key, item] of Object.entries(value)) {
+    record[key] = item;
+  }
   const text = (key: string, fallback: string): string => {
     const item = record[key];
-    if (item === undefined) return fallback;
+    if (item === undefined) {
+      return fallback;
+    }
     if (typeof item !== "string" || !NAME.test(item)) {
       throw new TypeError(`${where}.history.${key} must be a column name`);
     }
@@ -374,7 +390,9 @@ function stageWrite(
   item: Machine,
   kind: "open" | "advance",
 ): string {
-  if (!item.stages || !ctx.hasTable("stages")) return "";
+  if (!item.stages || !ctx.hasTable("stages")) {
+    return "";
+  }
   const stages = ctx.table("stages");
   const tenant = ctx.col("stages", "tenant");
   const subjectType = ctx.col("stages", "subjectType");
@@ -402,7 +420,9 @@ function approvalGate(ctx: ModuleContext, item: Machine): string {
   const gated = Object.entries(item.requiresApproval).filter(
     ([, to]) => to.length > 0,
   );
-  if (gated.length === 0) return "";
+  if (gated.length === 0) {
+    return "";
+  }
   const where = `blocks.state-machine.options.machines.${item.name}.requiresApproval`;
   if (!ctx.installed("approvals")) {
     throw new TypeError(`${where} needs the approvals module`);
@@ -458,7 +478,9 @@ function lifecycleRecord(
  * the change in a transaction setting the trigger reads here.
  */
 function lifecycleOps(ctx: ModuleContext, item: Machine): string {
-  if (!item.lifecycle) return "";
+  if (!item.lifecycle) {
+    return "";
+  }
   const life = ctx.table("lifecycles");
   const l = (column: string): string => ctx.col("lifecycles", column);
   const key = `${l("subjectType")} = ${sqlString(item.name)} and ${l("subjectId")} = new.${sqlIdent(item.idColumn)}::text`;
@@ -516,7 +538,9 @@ function lifecycleOps(ctx: ModuleContext, item: Machine): string {
 
 /** The trigger check that refuses a transition while the record is paused. */
 function pauseGate(ctx: ModuleContext, item: Machine): string {
-  if (!item.lifecycle) return "";
+  if (!item.lifecycle) {
+    return "";
+  }
   const life = ctx.table("lifecycles");
   const l = (column: string): string => ctx.col("lifecycles", column);
   const key = `${l("subjectType")} = ${sqlString(item.name)} and ${l("subjectId")} = new.${sqlIdent(item.idColumn)}::text`;
@@ -533,7 +557,9 @@ function pauseGate(ctx: ModuleContext, item: Machine): string {
 }
 
 function lifecycleInsert(ctx: ModuleContext, item: Machine): string {
-  if (!item.lifecycle) return "";
+  if (!item.lifecycle) {
+    return "";
+  }
   const l = (column: string): string => ctx.col("lifecycles", column);
   return `insert into ${ctx.table("lifecycles")} (${l("tenant")}, ${l("subjectType")}, ${l("subjectId")}, ${l("version")})
     values (new.${sqlIdent(item.tenantColumn)}, ${sqlString(item.name)}, new.${sqlIdent(item.idColumn)}::text, ${String(item.version)})
@@ -612,7 +638,9 @@ function byMachine(
   branch: (item: Machine) => string,
 ): string {
   const unknown = fail("STATE_MACHINE_UNKNOWN", "unknown subject", "22023");
-  if (list.length === 0) return unknown;
+  if (list.length === 0) {
+    return unknown;
+  }
   return `case ${subjectType}
 ${list.map((item) => `    when ${sqlString(item.name)} then\n${branch(item)}`).join("\n")}
     else
@@ -650,7 +678,9 @@ create policy ${name} on ${table} for select to authenticated
 }
 
 function tables(ctx: ModuleContext, list: readonly Machine[]): string {
-  if (!ctx.manages) return "";
+  if (!ctx.manages) {
+    return "";
+  }
   const history = ctx.table("history");
   const h = (column: string): string => ctx.col("history", column);
   const stages = ctx.hasTable("stages")
@@ -879,7 +909,9 @@ ${userGrant(`${ctx.fn("list_status_stages")}(text, text)`)}
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const list = machines(ctx);
   for (const item of list) {
     if (item.stages && !ctx.hasTable("stages")) {

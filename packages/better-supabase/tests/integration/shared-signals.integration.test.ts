@@ -116,7 +116,7 @@ describe.skipIf(!live)("shared-signals module", () => {
           eventsRequested: [CAEP_EVENTS.credentialChange],
         })
         .orThrow();
-      for (const tenant of ["t1", "t2", "t1"])
+      for (const tenant of ["t1", "t2", "t1"]) {
         await tx
           .emit({
             tenant,
@@ -124,6 +124,7 @@ describe.skipIf(!live)("shared-signals module", () => {
             event: { type: CAEP_EVENTS.credentialChange, claims: {} },
           })
           .orThrow();
+      }
       const first = await tx.poll(stream.id, { maxEvents: 1 }).orThrow();
       expect(Object.keys(first.sets)).toHaveLength(1);
       expect(first.moreAvailable).toBe(true);

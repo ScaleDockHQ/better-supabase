@@ -36,7 +36,9 @@ function accessTokenOf(
   options: SessionStatusOptions,
 ): string | undefined {
   const bearer = extractCredentials(request).token;
-  if (bearer) return bearer;
+  if (bearer) {
+    return bearer;
+  }
   const session = readSession(
     parseCookies(request.headers.get("cookie")),
     options.cookieName ?? sessionCookieName(options.url),
@@ -50,10 +52,13 @@ export async function sessionStatus(
 ): Promise<SessionStatus> {
   const token =
     typeof input === "string" ? input : accessTokenOf(input, options);
-  if (!token) return "unknown";
-  const exp = decodeJwtPayload(token)?.["exp"];
-  if (typeof exp === "number" && exp * 1000 <= (options.now ?? Date.now)())
+  if (!token) {
     return "unknown";
+  }
+  const exp = decodeJwtPayload(token)?.["exp"];
+  if (typeof exp === "number" && exp * 1000 <= (options.now ?? Date.now)()) {
+    return "unknown";
+  }
   const doFetch = options.fetch ?? fetch;
   try {
     const response = await doFetch(`${options.url}/auth/v1/user`, {
@@ -89,10 +94,14 @@ export function clearSessionCookies<R extends Response>(
     null,
     options.cookie,
   );
-  if (writes.length === 0) return response;
-  for (const write of writes)
+  if (writes.length === 0) {
+    return response;
+  }
+  for (const write of writes) {
     response.headers.append("set-cookie", serializeCookie(write));
-  for (const [key, value] of Object.entries(AUTH_CACHE_HEADERS))
+  }
+  for (const [key, value] of Object.entries(AUTH_CACHE_HEADERS)) {
     response.headers.set(key, value);
+  }
   return response;
 }

@@ -22,7 +22,9 @@ function hangingClient() {
     const signal = init?.signal ?? undefined;
     seen.push(signal);
     return new Promise((_resolve, reject) => {
-      if (signal?.aborted) reject(signal.reason);
+      if (signal?.aborted) {
+        reject(signal.reason);
+      }
       signal?.addEventListener(
         "abort",
         () => {

@@ -19,7 +19,9 @@ import { schema } from "../fixtures/generated-camel.ts";
 
 function table(key: string): TableMeta {
   const found = schema.meta.tables[key];
-  if (!found) throw new Error(`No fixture table ${key}`);
+  if (!found) {
+    throw new Error(`No fixture table ${key}`);
+  }
   return found;
 }
 
@@ -45,7 +47,9 @@ function onNotes(
   where: Condition | undefined,
 ): Condition {
   const relation = customers.relations["notes"];
-  if (!relation) throw new Error("No notes relation");
+  if (!relation) {
+    throw new Error("No notes relation");
+  }
   return {
     kind: "relation",
     name: "notes",
@@ -58,7 +62,9 @@ function onNotes(
 
 function onOrganization(where: Condition | undefined): Condition {
   const relation = customers.relations["organization"];
-  if (!relation) throw new Error("No organization relation");
+  if (!relation) {
+    throw new Error("No organization relation");
+  }
   return {
     kind: "relation",
     name: "organization",
@@ -142,7 +148,9 @@ describe("scopeCondition", () => {
 
 const notesInclude = (overrides: Partial<Include> = {}): Include => {
   const relation = customers.relations["notes"];
-  if (!relation) throw new Error("No notes relation");
+  if (!relation) {
+    throw new Error("No notes relation");
+  }
   return {
     alias: "notes",
     relation,
@@ -167,7 +175,9 @@ describe("scopeSelection", () => {
 
   it("scopes include filters and nested includes", () => {
     const customerRelation = notes.relations["customer"];
-    if (!customerRelation) throw new Error("No customer relation");
+    if (!customerRelation) {
+      throw new Error("No customer relation");
+    }
     const nested: Include = {
       ...notesInclude(),
       alias: "customer",

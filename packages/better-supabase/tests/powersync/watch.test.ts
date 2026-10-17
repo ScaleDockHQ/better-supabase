@@ -32,7 +32,9 @@ function fakePowerSync(options: { listeners?: boolean } = {}) {
     listeners,
     setConnected: (connected: boolean) => {
       status.connected = connected;
-      for (const listener of listeners) listener({ connected });
+      for (const listener of listeners) {
+        listener({ connected });
+      }
     },
   };
 }
@@ -119,8 +121,11 @@ describe("watch refresh", () => {
       });
       await vi.advanceTimersByTimeAsync(0);
       expect(listeners.size).toBe(1);
-      if (end === "stop") stop();
-      else controller.abort();
+      if (end === "stop") {
+        stop();
+      } else {
+        controller.abort();
+      }
       await vi.advanceTimersByTimeAsync(5000);
       expect(query).toHaveBeenCalledTimes(1);
       expect(listeners.size).toBe(0);

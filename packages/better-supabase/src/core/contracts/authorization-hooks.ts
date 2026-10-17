@@ -250,7 +250,9 @@ export function hooksApiProblem(hooks: {
   readonly name?: unknown;
   readonly apiVersion?: unknown;
 }): string | undefined {
-  if (hooks.apiVersion === 1) return undefined;
+  if (hooks.apiVersion === 1) {
+    return undefined;
+  }
   const name = typeof hooks.name === "string" ? hooks.name : "provider";
   return `authorization hooks "${name}" target API ${String(hooks.apiVersion)}; this better-supabase supports 1.`;
 }

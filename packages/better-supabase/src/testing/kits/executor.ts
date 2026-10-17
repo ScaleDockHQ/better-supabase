@@ -41,7 +41,9 @@ export async function captureOp(
   const ops: Operation[] = [];
   await run(betterSupabase.connect(recorder(ops)));
   const [op] = ops;
-  if (!op) throw new Error("the repository call did not reach the executor");
+  if (!op) {
+    throw new Error("the repository call did not reach the executor");
+  }
   return op;
 }
 
@@ -50,8 +52,9 @@ export function tableKey(
   table: string | undefined,
 ): string {
   const key = table ?? Object.keys(betterSupabase.meta.tables)[0];
-  if (!key || !(key in betterSupabase.meta.tables))
+  if (!key || !(key in betterSupabase.meta.tables)) {
     throw new TypeError(`better-supabase: unknown table "${String(key)}"`);
+  }
   return key;
 }
 
@@ -114,7 +117,9 @@ export function testExecutor(
           result.data.count === null || typeof result.data.count === "number",
           "count must be a number or null",
         );
-        if (op.kind !== "select") return;
+        if (op.kind !== "select") {
+          return;
+        }
         const aliases = new Set(
           op.selection.columns.map((column) => column.alias),
         );
@@ -193,7 +198,9 @@ export function testExecutor(
       "reads from SelectOp.source instead of the table",
       async () => {
         const op = await read();
-        if (op.kind !== "select") return;
+        if (op.kind !== "select") {
+          return;
+        }
         const result = await executor.execute(
           {
             ...op,

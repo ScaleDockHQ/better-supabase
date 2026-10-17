@@ -34,7 +34,9 @@ export async function pgSource(
     statementTimeout: STATEMENT_TIMEOUT_MS,
     ...(signal ? { signal } : {}),
   });
-  if (pooled) return { queryable: client, close, describe };
+  if (pooled) {
+    return { queryable: client, close, describe };
+  }
   let queue: Promise<unknown> = Promise.resolve();
   const queryable: Queryable = {
     query(sql: string) {

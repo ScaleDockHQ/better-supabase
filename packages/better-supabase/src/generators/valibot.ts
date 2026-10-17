@@ -68,7 +68,9 @@ function scalar(kind: ScalarKind): string {
 
 /** `expr` with `actions` appended, flattening an existing top-level `v.pipe`. */
 function piped(expr: string, actions: readonly string[]): string {
-  if (actions.length === 0) return expr;
+  if (actions.length === 0) {
+    return expr;
+  }
   const inner = /^v\.pipe\((.*)\)$/s.exec(expr)?.[1];
   return `v.pipe(${inner ?? expr}, ${actions.join(", ")})`;
 }
@@ -113,10 +115,16 @@ function field(
       : plan.column.storage === undefined
         ? piped(scalar(plan.scalar), boundActions(docs))
         : `(v.string() as unknown as v.GenericSchema<${rowType(table, plan)}>)`);
-  if (plan.column.array) expr = `v.array(${expr})`;
-  if (plan.nullable) expr = `v.nullable(${expr})`;
+  if (plan.column.array) {
+    expr = `v.array(${expr})`;
+  }
+  if (plan.nullable) {
+    expr = `v.nullable(${expr})`;
+  }
   expr = piped(expr, docActions(docs));
-  if (plan.optional) expr = `v.exactOptional(${expr})`;
+  if (plan.optional) {
+    expr = `v.exactOptional(${expr})`;
+  }
   return `  ${propertyKey(plan.name)}: ${expr},`;
 }
 
@@ -184,8 +192,9 @@ export function valibot(options: ValibotGeneratorOptions = {}): Generator {
           lines.push(
             `export const ${name}: v.GenericSchema<${variant}Of<'${key}'>> = ${objectActions.length > 0 ? "v.pipe(" : ""}v.object({`,
           );
-          for (const plan of fieldsFor(table, variant, input))
+          for (const plan of fieldsFor(table, variant, input)) {
             lines.push(field(key, plan, jsonImports, fieldDocs(docs, plan)));
+          }
           lines.push(
             objectActions.length > 0
               ? `}), ${objectActions.join(", ")});`

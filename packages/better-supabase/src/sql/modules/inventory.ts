@@ -232,7 +232,9 @@ const NAMES: ModuleNames = {
 };
 
 function tables(ctx: ModuleContext, names: InventoryNames): string {
-  if (!ctx.manages) return "";
+  if (!ctx.manages) {
+    return "";
+  }
   const catalog = ctx.of("catalog");
   const variants = `${catalog.table("variants")} (${catalog.col("variants", "id")}) on delete cascade`;
   const t = (name: string): string => ctx.table(name);
@@ -463,7 +465,9 @@ for each row execute function ${fn("stock_movements_append_only")}();
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const names: InventoryNames = {
     scope: ctx.scope,
     fn: (name) => ctx.fn(name),

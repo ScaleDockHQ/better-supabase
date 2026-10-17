@@ -73,22 +73,29 @@ function changesOf(
       timer = undefined;
       const changedTables = [...pending];
       pending = new Set();
-      if (changedTables.length > 0) void handler.onChange({ changedTables });
+      if (changedTables.length > 0) {
+        void handler.onChange({ changedTables });
+      }
     };
     const subscription = addListener((event) => {
       if (
         event.databaseFilePath !== undefined &&
         db.databasePath !== undefined &&
         event.databaseFilePath !== db.databasePath
-      )
+      ) {
         return;
-      if (tables && !tables.has(event.tableName)) return;
+      }
+      if (tables && !tables.has(event.tableName)) {
+        return;
+      }
       pending.add(event.tableName);
       timer ??= setTimeout(flush, throttleMs);
     });
     const stop = (): void => {
       subscription.remove();
-      if (timer !== undefined) clearTimeout(timer);
+      if (timer !== undefined) {
+        clearTimeout(timer);
+      }
       timer = undefined;
       pending = new Set();
     };
@@ -122,7 +129,9 @@ export function expoSqliteDatabase(
           box = { value: await callback(context) };
         });
       }
-      if (!box) throw new TypeError("expo-sqlite skipped the transaction");
+      if (!box) {
+        throw new TypeError("expo-sqlite skipped the transaction");
+      }
       return box.value;
     },
   };
@@ -163,9 +172,13 @@ export function expoSqliteExecutor(
     options.newId ??
     (async (_table: TableMeta): Promise<string> => {
       const random = randomId();
-      if (random !== undefined) return random;
+      if (random !== undefined) {
+        return random;
+      }
       const [row] = await database.getAll<{ id: string }>(UUID_SQL);
-      if (!row) throw new TypeError("SQLite returned no id");
+      if (!row) {
+        throw new TypeError("SQLite returned no id");
+      }
       return row.id;
     });
   return {

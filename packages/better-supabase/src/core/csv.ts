@@ -15,7 +15,9 @@ export interface CsvOptions {
 const FORMULA = /^[=+\-@\t\r]/;
 
 function cell(value: unknown, escapeFormulas: boolean): string {
-  if (value === null || value === undefined) return "";
+  if (value === null || value === undefined) {
+    return "";
+  }
   let text =
     typeof value === "string"
       ? value
@@ -35,7 +37,11 @@ export function csvColumns(
   rows: readonly Readonly<Record<string, unknown>>[],
 ): string[] {
   const columns = new Set<string>();
-  for (const row of rows) for (const key of Object.keys(row)) columns.add(key);
+  for (const row of rows) {
+    for (const key of Object.keys(row)) {
+      columns.add(key);
+    }
+  }
   return [...columns];
 }
 
@@ -105,7 +111,9 @@ export function parseCsv(text: string): string[][] {
       continue;
     }
     if (char === "\r") {
-      if (text[i + 1] === "\n") i += 1;
+      if (text[i + 1] === "\n") {
+        i += 1;
+      }
       pushRow();
       i += 1;
       continue;
@@ -118,7 +126,11 @@ export function parseCsv(text: string): string[][] {
     field += char;
     i += 1;
   }
-  if (quoted) throw new TypeError("a quoted CSV field was not closed");
-  if (field !== "" || row.length > 0) pushRow();
+  if (quoted) {
+    throw new TypeError("a quoted CSV field was not closed");
+  }
+  if (field !== "" || row.length > 0) {
+    pushRow();
+  }
   return rows;
 }

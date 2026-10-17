@@ -178,13 +178,15 @@ export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
         : session.role === "anon"
           ? timeouts.anon
           : timeouts.admin);
-    if (timeout !== undefined)
+    if (timeout !== undefined) {
       settings.push(["statement_timeout", String(Math.trunc(timeout))]);
-    if (options.idleInTransactionTimeout !== undefined)
+    }
+    if (options.idleInTransactionTimeout !== undefined) {
       settings.push([
         "idle_in_transaction_session_timeout",
         String(Math.trunc(options.idleInTransactionTimeout)),
       ]);
+    }
     if (session.claims && session.role) {
       settings.push(
         [
@@ -204,7 +206,9 @@ export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
     settings: readonly [string, string][],
   ): Promise<void> {
     await client.query(session.readOnly ? "begin read only" : "begin");
-    if (settings.length === 0) return;
+    if (settings.length === 0) {
+      return;
+    }
     await client.query(
       `select ${settings.map((_, index) => `set_config($${index * 2 + 1}, $${index * 2 + 2}, true)`).join(", ")}`,
       settings.flat(),

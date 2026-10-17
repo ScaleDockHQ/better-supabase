@@ -32,7 +32,9 @@ export async function generateMetadata({
   params,
 }: BlockPageProps): Promise<Metadata> {
   const block = getBlock((await params).name);
-  if (!block) return {};
+  if (!block) {
+    return {};
+  }
   return { title: `${block.title} block`, description: block.description };
 }
 
@@ -170,7 +172,9 @@ function lineCount(contents: string): number {
 
 export default async function BlockPage({ params }: BlockPageProps) {
   const block = getBlock((await params).name);
-  if (!block) notFound();
+  if (!block) {
+    notFound();
+  }
   const migrations = blockMigrations(block.name);
   const own = migrations.files.filter((file) => file.module === block.name);
   const install = installCommand(block.name);

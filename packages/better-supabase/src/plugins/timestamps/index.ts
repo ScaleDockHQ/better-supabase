@@ -16,23 +16,27 @@ export function timestamps(): Plugin<"timestamps"> {
     describe(api): void {
       for (const { table } of api.resources) {
         const flags = table.flags.timestamps;
-        if (flags?.createdAt)
+        if (flags?.createdAt) {
           api.markReadOnly(
             table.key,
             flags.createdAt,
             "Set by the server when the row is created.",
           );
-        if (flags?.updatedAt)
+        }
+        if (flags?.updatedAt) {
           api.markReadOnly(
             table.key,
             flags.updatedAt,
             "Set by the server on every write.",
           );
+        }
       }
     },
     beforeMutation(op, { table, now, options }): MutationOp {
       const flags = table.flags.timestamps;
-      if (!flags) return op;
+      if (!flags) {
+        return op;
+      }
       const created = dbName(table, flags.createdAt);
       const updated = dbName(table, flags.updatedAt);
       guardManaged(op, [created, updated], "timestamps", options);

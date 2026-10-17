@@ -76,11 +76,14 @@ const DOCS = "https://bettersupabase.com/docs/plugins/lint";
 
 function methodName(node: CallExpression): string | undefined {
   const callee = node.callee;
-  if (callee.type !== "MemberExpression") return undefined;
+  if (callee.type !== "MemberExpression") {
+    return undefined;
+  }
   // SAFETY: the type check above narrows the callee to a MemberExpression.
   const member = callee as MemberExpression;
-  if (member.computed || member.property.type !== "Identifier")
+  if (member.computed || member.property.type !== "Identifier") {
     return undefined;
+  }
   // SAFETY: the type check above narrows the property to an Identifier.
   return (member.property as Identifier).name;
 }
@@ -89,11 +92,14 @@ function methodName(node: CallExpression): string | undefined {
 function receiverName(node: CallExpression): string | undefined {
   // SAFETY: callers only pass calls whose callee methodName resolved, which is a MemberExpression.
   const callee = node.callee as MemberExpression;
-  if (callee.object.type !== "MemberExpression") return undefined;
+  if (callee.object.type !== "MemberExpression") {
+    return undefined;
+  }
   // SAFETY: the type check above narrows the object to a MemberExpression.
   const receiver = callee.object as MemberExpression;
-  if (receiver.computed || receiver.property.type !== "Identifier")
+  if (receiver.computed || receiver.property.type !== "Identifier") {
     return undefined;
+  }
   // SAFETY: the type check above narrows the property to an Identifier.
   return (receiver.property as Identifier).name;
 }
@@ -103,10 +109,13 @@ const tableKey = (name: string): string =>
   (name.split(".").at(-1) ?? name).replaceAll("_", "").toLowerCase();
 
 function keyName(property: Property): string | undefined {
-  if (property.computed) return undefined;
-  if (property.key.type === "Identifier")
+  if (property.computed) {
+    return undefined;
+  }
+  if (property.key.type === "Identifier") {
     // SAFETY: the type check above narrows the key to an Identifier.
     return (property.key as Identifier).name;
+  }
   if (property.key.type === "Literal") {
     // SAFETY: the type check above narrows the key to a Literal.
     const value = (property.key as Literal).value;
@@ -122,14 +131,22 @@ function keyName(property: Property): string | undefined {
 // SAFETY: the type check above narrows first to an ObjectExpression.
 function argsOf(node: CallExpression): ReadonlyMap<string, Node> | undefined {
   const [first] = node.arguments;
-  if (first === undefined) return new Map();
-  if (first.type !== "ObjectExpression") return undefined;
+  if (first === undefined) {
+    return new Map();
+  }
+  if (first.type !== "ObjectExpression") {
+    return undefined;
+  }
   const keys = new Map<string, Node>();
   for (const property of (first as ObjectExpression).properties) {
-    if (property.type !== "Property") return undefined;
+    if (property.type !== "Property") {
+      return undefined;
+    }
     // SAFETY: the type check above narrows property to a Property.
     const name = keyName(property as Property);
-    if (name === undefined) return undefined;
+    if (name === undefined) {
+      return undefined;
+    }
     // SAFETY: the type check above narrows property to a Property.
     keys.set(name, (property as Property).value);
   }
@@ -137,7 +154,9 @@ function argsOf(node: CallExpression): ReadonlyMap<string, Node> | undefined {
 }
 
 function numberOf(node: Node | undefined): number | undefined {
-  if (node?.type !== "Literal") return undefined;
+  if (node?.type !== "Literal") {
+    return undefined;
+  }
   // SAFETY: the type check above narrows node to a Literal.
   const value = (node as Literal).value;
   return typeof value === "number" ? value : undefined;
@@ -199,10 +218,13 @@ export const rules: Readonly<Record<RuleId, RuleModule>> = {
     { unbounded: "findMany without limit reads every visible row." },
     (context) => ({
       CallExpression(node) {
-        if (methodName(node) !== "findMany") return;
+        if (methodName(node) !== "findMany") {
+          return;
+        }
         const args = argsOf(node);
-        if (args && !args.has("limit"))
+        if (args && !args.has("limit")) {
           context.report({ node, messageId: "unbounded" });
+        }
       },
     }),
   ),
@@ -212,10 +234,13 @@ export const rules: Readonly<Record<RuleId, RuleModule>> = {
     { missing: "deleteMany without where removes every visible row." },
     (context) => ({
       CallExpression(node) {
-        if (methodName(node) !== "deleteMany") return;
+        if (methodName(node) !== "deleteMany") {
+          return;
+        }
         const args = argsOf(node);
-        if (args && !args.has("where"))
+        if (args && !args.has("where")) {
           context.report({ node, messageId: "missing" });
+        }
       },
     }),
   ),
@@ -230,7 +255,9 @@ export const rules: Readonly<Record<RuleId, RuleModule>> = {
       return {
         CallExpression(node) {
           const method = methodName(node);
-          if (method === undefined || !FIND_METHODS.has(method)) return;
+          if (method === undefined || !FIND_METHODS.has(method)) {
+            return;
+          }
           const limit = numberOf(argsOf(node)?.get("limit"));
           if (limit !== undefined && limit > max) {
             context.report({
@@ -256,10 +283,13 @@ export const rules: Readonly<Record<RuleId, RuleModule>> = {
     { unordered: "offset without orderBy returns rows in no stable order." },
     (context) => ({
       CallExpression(node) {
-        if (methodName(node) !== "findMany") return;
+        if (methodName(node) !== "findMany") {
+          return;
+        }
         const args = argsOf(node);
-        if (args?.has("offset") && !args.has("orderBy"))
+        if (args?.has("offset") && !args.has("orderBy")) {
           context.report({ node, messageId: "unordered" });
+        }
       },
     }),
   ),
@@ -278,13 +308,20 @@ export const rules: Readonly<Record<RuleId, RuleModule>> = {
       const large = new Set((option?.tables ?? []).map(tableKey));
       return {
         CallExpression(node) {
-          if (methodName(node) !== "findMany") return;
+          if (methodName(node) !== "findMany") {
+            return;
+          }
           const table = receiverName(node);
-          if (table === undefined) return;
-          if (!option?.strict && !large.has(tableKey(table))) return;
+          if (table === undefined) {
+            return;
+          }
+          if (!option?.strict && !large.has(tableKey(table))) {
+            return;
+          }
           const args = argsOf(node);
-          if (args && !args.has("limit"))
+          if (args && !args.has("limit")) {
             context.report({ node, messageId: "unbounded", data: { table } });
+          }
         },
       };
     },
@@ -314,9 +351,13 @@ export const rules: Readonly<Record<RuleId, RuleModule>> = {
       return {
         CallExpression(node) {
           const method = methodName(node);
-          if (method !== "updateMany" && method !== "deleteMany") return;
+          if (method !== "updateMany" && method !== "deleteMany") {
+            return;
+          }
           const args = argsOf(node);
-          if (!args) return;
+          if (!args) {
+            return;
+          }
           const bound = args.get("maxAffected");
           if (bound === undefined) {
             context.report({ node, messageId: "missing", data: { method } });

@@ -260,7 +260,9 @@ describe("createInbox", () => {
       attachments: ["org/c1/photo.jpg"],
     });
 
-    for (const [schema] of call.mock.calls) expect(schema).toBe("app");
+    for (const [schema] of call.mock.calls) {
+      expect(schema).toBe("app");
+    }
     expect(call.mock.calls.map(([, fn, args]) => [fn, args])).toMatchSnapshot();
   });
 

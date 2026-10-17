@@ -73,10 +73,12 @@ function build<Ref>(
   options: ApiOptions<Ref>,
 ): BuiltModel {
   const ctx = createBuildContext(meta, options);
-  for (const [key, input] of Object.entries(options.resources ?? {}))
+  for (const [key, input] of Object.entries(options.resources ?? {})) {
     buildResource(ctx, key, input);
-  for (const [index, route] of (options.routes ?? []).entries())
+  }
+  for (const [index, route] of (options.routes ?? []).entries()) {
     buildRoute(ctx, route, index);
+  }
   const security = buildSecurity(ctx);
   applyPlugins(ctx, plugins);
   validateOperations(ctx);
@@ -103,10 +105,11 @@ function buildRoute<Ref>(
     usedErrors,
   } = ctx;
   const method = route.method.toLowerCase();
-  if (!isMethod(method))
+  if (!isMethod(method)) {
     throw new TypeError(
       `better-supabase/spec: routes[${index}] has an unknown method "${route.method}"`,
     );
+  }
   const path = `${base}${route.path}`;
   const segments = route.path
     .split("/")
@@ -132,8 +135,9 @@ function buildRoute<Ref>(
       },
     );
   }
-  if (route.query)
+  if (route.query) {
     parameters.push(...objectParameters(route.query, "query", `${id} query`));
+  }
   const permission =
     route.permission === undefined
       ? undefined
@@ -158,7 +162,9 @@ function buildRoute<Ref>(
         )
       : { description: route.summary ?? "Done." };
   const routeTags = [...(route.tags ?? [])];
-  for (const tag of routeTags) addTag(tag);
+  for (const tag of routeTags) {
+    addTag(tag);
+  }
   operations.push({
     id,
     method,
@@ -200,10 +206,12 @@ function buildSecurity<Ref>(ctx: BuildContext<Ref>) {
   const { options, operations } = ctx;
   const oauthScopes: Record<string, string> = {};
   if (options.permissionScopes === "keys") {
-    for (const operation of operations)
-      if (operation.permission)
+    for (const operation of operations) {
+      if (operation.permission) {
         oauthScopes[operation.permission] =
           `Permission ${operation.permission}.`;
+      }
+    }
   }
   const security = resolveSecurity(
     options.security ?? ["bearer"],
@@ -213,7 +221,9 @@ function buildSecurity<Ref>(ctx: BuildContext<Ref>) {
   if (options.permissionScopes === "keys") {
     for (const operation of operations) {
       const key = operation.permission;
-      if (!key || operation.security?.length === 0) continue;
+      if (!key || operation.security?.length === 0) {
+        continue;
+      }
       operation.security = (operation.security ?? security.requirements).map(
         (requirement) => {
           const scopes = requirement[OAUTH_SCHEME];
@@ -234,7 +244,9 @@ function applyPlugins<Ref>(
   const { meta, prefix, served, schemas, report } = ctx;
   const describe = describeApi(meta, prefix, served, schemas);
   for (const plugin of plugins) {
-    if (!plugin.describe) continue;
+    if (!plugin.describe) {
+      continue;
+    }
     try {
       plugin.describe(describe);
     } catch (error) {
@@ -301,8 +313,9 @@ function finalizeModel<Ref>(
   } = ctx;
   const { enrich } = options;
   const finalSchemas: Record<string, JsonSchema> = {};
-  for (const [name, schema] of Object.entries(schemas))
+  for (const [name, schema] of Object.entries(schemas)) {
     finalSchemas[name] = enrich?.schema?.(schema, { name }) ?? schema;
+  }
   const finalOperations = operations.map(
     (operation) => enrich?.operation?.(operation) ?? operation,
   );
@@ -314,8 +327,9 @@ function finalizeModel<Ref>(
     finalOperations,
   );
   const messages: Record<string, ModelMessage> = {};
-  for (const [id, message] of Object.entries(parts.messages))
+  for (const [id, message] of Object.entries(parts.messages)) {
     messages[id] = enrich?.message?.(message, { id }) ?? message;
+  }
 
   const model: ApiModel = {
     info: options.info,
@@ -354,14 +368,20 @@ function describeApi(
 ): PluginDescribeApi {
   const columnSchemas = (table: string, column: string) => {
     const entry = served.get(table);
-    if (!entry) return [];
+    if (!entry) {
+      return [];
+    }
     return (["Row", "Insert", "Update"] as const).flatMap((variant) => {
       const name = entry.components[variant];
       const schema = name ? schemas[name] : undefined;
       const properties = schema?.["properties"];
-      if (!schema || !isPlainObject(properties)) return [];
+      if (!schema || !isPlainObject(properties)) {
+        return [];
+      }
       const property = properties[column];
-      if (!isPlainObject(property)) return [];
+      if (!isPlainObject(property)) {
+        return [];
+      }
       return [{ variant, schema, properties, property }];
     });
   };
@@ -394,14 +414,17 @@ function describeApi(
             : operation.source.kind === "resource"
               ? operation.source.operation
               : operation.id;
-        if (names && !names.includes(name)) continue;
+        if (names && !names.includes(name)) {
+          continue;
+        }
         if (
           operation.parameters.some(
             (entry) =>
               entry.name === parameter.name && entry.in === parameter.in,
           )
-        )
+        ) {
           continue;
+        }
         operation.parameters.push({ ...parameter });
       }
     },
@@ -418,16 +441,18 @@ function describeApi(
             : {}),
         });
         const required = schema["required"];
-        if (variant !== "Row" && Array.isArray(required))
+        if (variant !== "Row" && Array.isArray(required)) {
           schema["required"] = required.filter((name) => name !== column);
+        }
       }
     },
     describeColumn(table, column, patch): void {
       for (const { schema, properties, property } of columnSchemas(
         table,
         column,
-      ))
+      )) {
         replace(schema, properties, column, mergeJson<Json>(property, patch));
+      }
     },
   };
 }

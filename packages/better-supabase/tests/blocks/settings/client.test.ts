@@ -50,7 +50,9 @@ function fakeTransport() {
     async (_schema: string, fn: string, args: Record<string, unknown>) => {
       const key = keyOf(fn, args);
       const values = stored.get(key) ?? {};
-      if (fn.startsWith("get_")) return values;
+      if (fn.startsWith("get_")) {
+        return values;
+      }
       if (fn.startsWith("set_")) {
         const { value } = args["value"] as { value: unknown };
         stored.set(key, { ...values, [String(args["key"])]: value });

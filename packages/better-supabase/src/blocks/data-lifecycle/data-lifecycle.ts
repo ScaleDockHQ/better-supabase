@@ -187,7 +187,9 @@ export function stored<T>(
   return AsyncResult.from(async () => {
     try {
       const { data, error } = await reply;
-      if (error) return err(fromStorageError(error, "storage.objects"));
+      if (error) {
+        return err(fromStorageError(error, "storage.objects"));
+      }
       if (data === null || data === undefined) {
         return err(dbError("network", "Storage returned no data"));
       }
@@ -254,7 +256,9 @@ export function createDataLifecycle(
             const signed = await stored(
               bucket.createSignedUrl(path, ttl, { download: true }),
             );
-            if (!signed.ok) return signed;
+            if (!signed.ok) {
+              return signed;
+            }
             files.push({ table: tableOf(path), url: signed.data.signedUrl });
           }
           return ok({ export: found, files });

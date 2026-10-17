@@ -31,8 +31,9 @@ export const bs = createMcp(betterSupabase, {
   },
   authorize: (ctx, tool) => {
     const role = requiredRole(tool);
-    if (role === undefined || hasRole(ctx.auth, [role], ROLE_CLAIM))
+    if (role === undefined || hasRole(ctx.auth, [role], ROLE_CLAIM)) {
       return { allowed: true };
+    }
     return { allowed: false, reason: `Needs the ${role} role` };
   },
 }).tool({

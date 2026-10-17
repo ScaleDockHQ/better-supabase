@@ -78,7 +78,9 @@ function fake(replies: Record<string, Reply>) {
     call: vi.fn(async (_schema, fn, args) => {
       calls.push({ fn, args });
       const reply = replies[fn];
-      if (reply === undefined) throw new Error(`unexpected ${fn}`);
+      if (reply === undefined) {
+        throw new Error(`unexpected ${fn}`);
+      }
       return reply(args);
     }),
   };

@@ -44,8 +44,9 @@ const CATALOG: AccessBlockConfig = {
 describe("access module", () => {
   it("renders the roles model from the default roles", () => {
     const sql = SQL_MODULES["access"]!.sql;
-    for (const role of Object.keys(DEFAULT_ROLES))
+    for (const role of Object.keys(DEFAULT_ROLES)) {
       expect(sql).toContain(`when '${role}' then array[`);
+    }
     expect(sql).toContain(
       'better_supabase.role_grants(m."role", member_can.permission)',
     );

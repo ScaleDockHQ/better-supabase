@@ -57,13 +57,19 @@ export function useSignedUrl<T>(
   const ttl = ttlSeconds(options.ttl);
 
   useEffect(() => {
-    if (key === null) return;
+    if (key === null) {
+      return;
+    }
     let active = true;
     const sign = () => {
       const current = latest.current.target;
-      if (current === null || current === undefined) return;
+      if (current === null || current === undefined) {
+        return;
+      }
       void bucket.signedUrl(current, latest.current.options).then((result) => {
-        if (!active) return;
+        if (!active) {
+          return;
+        }
         if (!result.ok) {
           setState((last) => ({
             key,
@@ -188,13 +194,17 @@ export function useUpload<T, R>(
             ...uploadOptions,
             signal: controller.signal,
             onProgress: (progress) => {
-              if (mine()) setState((last) => ({ ...last, progress }));
+              if (mine()) {
+                setState((last) => ({ ...last, progress }));
+              }
             },
           });
         } catch (cause) {
           result = err(toDbError(cause));
         }
-        if (!mine() || controller.signal.aborted) return result;
+        if (!mine() || controller.signal.aborted) {
+          return result;
+        }
         latest.current.controller = undefined;
         if (result.ok) {
           setState({

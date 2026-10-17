@@ -193,17 +193,18 @@ async function settle(
   ];
   const diagnostics: SpecDiagnostic[] = [...rendered.diagnostics];
   if (target.ui) {
-    if (target.format.id === "openapi")
+    if (target.format.id === "openapi") {
       files.push({
         path: uiPath(target.output),
         text: uiHtml(rendered, target.ui),
       });
-    else
+    } else {
       diagnostics.push({
         code: "ui-unsupported",
         severity: "info",
         message: `--ui renders OpenAPI documents only; ${target.format.id} has no reference page.`,
       });
+    }
   }
   const label = `(${target.format.id} ${target.version}${rendered.cached ? ", cached" : ""})`;
   switch (action) {
@@ -284,18 +285,20 @@ export async function runSpec(options: SpecRunOptions): Promise<CommandResult> {
   try {
     targets = resolveTargets(config.specs.outputs, registry, options.filter);
   } catch (cause) {
-    if (cause instanceof TargetError)
+    if (cause instanceof TargetError) {
       return { code: cause.code === "usage" ? 2 : 1, error: cause.message };
+    }
     throw cause;
   }
   const missing = targets.find(
     (target) => !entry.api && !entry.documents.has(target.format.id),
   );
-  if (missing)
+  if (missing) {
     return {
       code: 1,
       error: `${display(root, entryPath)} must export \`api\` (defineApi(...)) or a ${missing.format.id} document as \`${missing.format.id}\` or default.`,
     };
+  }
 
   const context = {
     root,
@@ -339,12 +342,15 @@ export async function runSpec(options: SpecRunOptions): Promise<CommandResult> {
     resolve(root, SPEC_CACHE_DIR, "diagnostics.json"),
     manifestText,
   ).catch(() => undefined);
-  if (options.manifest)
+  if (options.manifest) {
     await writeIfChanged(resolve(root, options.manifest), manifestText);
+  }
 
   const findings = formatDiagnostics(outputs);
   const output = [...lines, ...(findings ? ["", findings] : [])].join("\n");
-  if (ok) return { code: 0, output, data: manifest };
+  if (ok) {
+    return { code: 0, output, data: manifest };
+  }
   const count = failing.length;
   return {
     code: 1,
@@ -389,7 +395,9 @@ async function watch(
     configFile ? modifiedTime(configFile) : Promise.resolve(undefined);
   let configTime = await configStamp();
   for (;;) {
-    if (signal?.aborted === true) break;
+    if (signal?.aborted === true) {
+      break;
+    }
     const changedConfig = await configStamp();
     if (reloadConfig && changedConfig !== configTime) {
       configTime = changedConfig;
@@ -397,16 +405,22 @@ async function watch(
         options = { ...options, config: await reloadConfig() };
       } catch (cause) {
         const message = errorText(cause);
-        if (fresh(message)) io.stderr(`${message}\n`);
+        if (fresh(message)) {
+          io.stderr(`${message}\n`);
+        }
       }
     }
     const current = await stampFiles(watchedFiles(options, configFile));
     if (current !== last) {
       last = current;
       const result = await runSpec(options).catch(failedResult);
-      if (result.output) io.stdout(`${result.output}\n`);
+      if (result.output) {
+        io.stdout(`${result.output}\n`);
+      }
       const message = result.error ?? "";
-      if (fresh(message)) io.stderr(`${message}\n`);
+      if (fresh(message)) {
+        io.stderr(`${message}\n`);
+      }
     }
     await sleep(interval, signal);
   }
@@ -422,22 +436,25 @@ export const specCommand: AnyCommand = defineCliCommand({
   args: ARGS,
   run: (args, context) => {
     const [action, format] = args._;
-    if (!isAction(action))
+    if (!isAction(action)) {
       return Promise.resolve({
         code: 2,
         error: `${action ? `Unknown spec action "${action}"` : "Name an action"}. Run \`better-supabase spec emit\`, \`check\` or \`validate\`.`,
       });
+    }
     const failOn = args["fail-on"] ?? context.config.specs.failOn;
-    if (!isFailOn(failOn))
+    if (!isFailOn(failOn)) {
       return Promise.resolve({
         code: 2,
         error: `--fail-on takes ${FAIL_ON.join(", ")}, got "${failOn}".`,
       });
-    if (args.ui !== undefined && !isUi(args.ui))
+    }
+    if (args.ui !== undefined && !isUi(args.ui)) {
       return Promise.resolve({
         code: 2,
         error: `--ui takes ${SPEC_UIS.join(", ")}, got "${args.ui}".`,
       });
+    }
     const interval = parseInterval(
       args.interval,
       context.config.gen.watchInterval,
@@ -445,7 +462,7 @@ export const specCommand: AnyCommand = defineCliCommand({
     if (
       args.watch === true &&
       (action !== "emit" || typeof interval === "string")
-    )
+    ) {
       return Promise.resolve({
         code: 2,
         error:
@@ -453,6 +470,7 @@ export const specCommand: AnyCommand = defineCliCommand({
             ? interval
             : "--watch only applies to `spec emit`.",
       });
+    }
     const options = specOptionsFromConfig(context.config, action, {
       failOn,
       cache: args.cache,

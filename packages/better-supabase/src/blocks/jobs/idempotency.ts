@@ -298,8 +298,9 @@ export function createIdempotency(options: IdempotencyOptions): Idempotency {
         `${request.method} ${instance}\n${body}`,
       );
       const started = await hooked.begin(key, fingerprint, scope);
-      if (!started.ok)
+      if (!started.ok) {
         return problemResponse(started.error, { instance, format });
+      }
       const { state, holder = "" } = started.data;
       switch (state) {
         case "replay": {

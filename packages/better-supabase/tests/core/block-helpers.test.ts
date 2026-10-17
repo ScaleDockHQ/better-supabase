@@ -128,7 +128,9 @@ describe("eachLimit", () => {
     await expect(
       eachLimit([1, 2, 3, 4], 1, async (item) => {
         started.push(item);
-        if (item === 2) throw new Error("boom");
+        if (item === 2) {
+          throw new Error("boom");
+        }
       }),
     ).rejects.toThrow("boom");
     expect(started).toEqual([1, 2]);

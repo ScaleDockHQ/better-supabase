@@ -51,7 +51,9 @@ describe("blocks catalog", () => {
   test("the config snippet lists the dependencies before the block", () => {
     const comments = getBlock("comments");
     expect(comments).toBeDefined();
-    if (!comments) return;
+    if (!comments) {
+      return;
+    }
     const snippet = configSnippet(comments, [
       "updated-at",
       "tenant",

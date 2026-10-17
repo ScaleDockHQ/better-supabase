@@ -37,10 +37,14 @@ function enginesOf(): { readonly draft7: Ajv; readonly draft2020: Ajv2020 } {
  */
 function fromDraft04(node: unknown, root = true): void {
   if (Array.isArray(node)) {
-    for (const item of node) fromDraft04(item, false);
+    for (const item of node) {
+      fromDraft04(item, false);
+    }
     return;
   }
-  if (!isJson(node)) return;
+  if (!isJson(node)) {
+    return;
+  }
   if (root) {
     delete node["$schema"];
     if (typeof node["id"] === "string") {
@@ -52,15 +56,21 @@ function fromDraft04(node: unknown, root = true): void {
     ["minimum", "exclusiveMinimum"],
     ["maximum", "exclusiveMaximum"],
   ] as const) {
-    if (typeof node[exclusive] !== "boolean") continue;
+    if (typeof node[exclusive] !== "boolean") {
+      continue;
+    }
     if (node[exclusive] && typeof node[bound] === "number") {
       node[exclusive] = node[bound];
       delete node[bound];
-    } else delete node[exclusive];
+    } else {
+      delete node[exclusive];
+    }
   }
-  for (const [key, value] of Object.entries(node))
-    if (key !== "enum" && key !== "const" && key !== "default")
+  for (const [key, value] of Object.entries(node)) {
+    if (key !== "enum" && key !== "const" && key !== "default") {
       fromDraft04(value, false);
+    }
+  }
 }
 
 /**
@@ -71,19 +81,27 @@ function fromDraft04(node: unknown, root = true): void {
 function staticDynamicRefs(schema: Json): void {
   const anchors = new Map<string, string>();
   const find = (node: unknown, pointer: string): void => {
-    if (!isJson(node) && !Array.isArray(node)) return;
+    if (!isJson(node) && !Array.isArray(node)) {
+      return;
+    }
     for (const [key, value] of Object.entries(node)) {
-      if (key === "$dynamicAnchor" && typeof value === "string")
+      if (key === "$dynamicAnchor" && typeof value === "string") {
         anchors.set(value, `#${pointer}`);
-      else find(value, `${pointer}/${key}`);
+      } else {
+        find(value, `${pointer}/${key}`);
+      }
     }
   };
   const rewrite = (node: unknown): void => {
     if (Array.isArray(node)) {
-      for (const item of node) rewrite(item);
+      for (const item of node) {
+        rewrite(item);
+      }
       return;
     }
-    if (!isJson(node)) return;
+    if (!isJson(node)) {
+      return;
+    }
     const dynamic = node["$dynamicRef"];
     const target =
       typeof dynamic === "string" ? anchors.get(dynamic.slice(1)) : undefined;
@@ -91,7 +109,9 @@ function staticDynamicRefs(schema: Json): void {
       delete node["$dynamicRef"];
       node["$ref"] = target;
     }
-    for (const value of Object.values(node)) rewrite(value);
+    for (const value of Object.values(node)) {
+      rewrite(value);
+    }
   };
   find(schema, "");
   rewrite(schema);
@@ -106,30 +126,38 @@ const META_SCHEMA = /^https?:\/\/json-schema\.org\/draft-07\/schema#?$/;
  */
 function dropBundledMetaSchemas(schema: Json): void {
   const definitions = schema["definitions"];
-  if (!isJson(definitions)) return;
-  for (const [key, value] of Object.entries(definitions))
+  if (!isJson(definitions)) {
+    return;
+  }
+  for (const [key, value] of Object.entries(definitions)) {
     if (
       isJson(value) &&
       typeof value["$id"] === "string" &&
       META_SCHEMA.test(value["$id"])
-    )
+    ) {
       delete definitions[key];
+    }
+  }
 }
 
 const compiled = new Map<string, Promise<ValidateFunction>>();
 
 async function compile(official: OfficialSchema): Promise<ValidateFunction> {
   const loaded = await official.load();
-  if (!isJson(loaded))
+  if (!isJson(loaded)) {
     throw new TypeError(`The vendored schema ${official.id} is not an object`);
+  }
   const schema = structuredClone(loaded);
   const { draft7, draft2020 } = enginesOf();
   if (official.dialect === "2020-12") {
     staticDynamicRefs(schema);
     return draft2020.compile(schema);
   }
-  if (official.dialect === "draft-04") fromDraft04(schema);
-  else dropBundledMetaSchemas(schema);
+  if (official.dialect === "draft-04") {
+    fromDraft04(schema);
+  } else {
+    dropBundledMetaSchemas(schema);
+  }
   return draft7.compile(schema);
 }
 
@@ -161,7 +189,7 @@ export async function validateDocument(
   document: unknown,
 ): Promise<SpecDiagnostic[]> {
   const official = officialSchema(format, version);
-  if (!official)
+  if (!official) {
     return [
       {
         code: "schema-unavailable",
@@ -169,14 +197,19 @@ export async function validateDocument(
         message: `No official schema is bundled for ${format} ${version}; only the semantic checks ran`,
       },
     ];
+  }
   const validate = await validatorFor(official);
-  if (validate(document)) return [];
+  if (validate(document)) {
+    return [];
+  }
   const seen = new Set<string>();
   const diagnostics: SpecDiagnostic[] = [];
   for (const error of validate.errors ?? []) {
     const message = describe(error);
     const key = `${error.instancePath}\u0000${message}`;
-    if (seen.has(key)) continue;
+    if (seen.has(key)) {
+      continue;
+    }
     seen.add(key);
     diagnostics.push({
       code: "schema-invalid",
@@ -185,7 +218,9 @@ export async function validateDocument(
       pointer: error.instancePath,
     });
   }
-  if (diagnostics.length <= MAX_ERRORS) return diagnostics;
+  if (diagnostics.length <= MAX_ERRORS) {
+    return diagnostics;
+  }
   return [
     ...diagnostics.slice(0, MAX_ERRORS),
     {

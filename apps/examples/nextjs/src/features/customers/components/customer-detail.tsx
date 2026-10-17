@@ -31,14 +31,18 @@ export async function CustomerDetail({
 }) {
   const [{ id }, session] = await Promise.all([params, getSession()]);
   const organizationId = tenantOf(session);
-  if (!organizationId) notFound();
+  if (!organizationId) {
+    notFound();
+  }
   const [customer, members, t, format] = await Promise.all([
     getCustomer(id),
     getMembers(organizationId),
     getExtracted("customers"),
     getFormatter(),
   ]);
-  if (!customer) notFound();
+  if (!customer) {
+    notFound();
+  }
   const authors = Object.fromEntries(
     members.flatMap((member) => {
       const name = member.name ?? member.email;

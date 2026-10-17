@@ -277,7 +277,9 @@ describe("init and add", () => {
   it("prints command help", async () => {
     const help = await run(["add", "--help"]);
     expect(help.stdout).toContain("USAGE better-supabase add [OPTIONS]");
-    for (const name of INTEGRATIONS) expect(help.stdout).toContain(name);
+    for (const name of INTEGRATIONS) {
+      expect(help.stdout).toContain(name);
+    }
   });
 });
 

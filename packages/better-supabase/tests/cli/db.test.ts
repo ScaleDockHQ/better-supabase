@@ -29,7 +29,9 @@ function fakePg(connectError?: unknown, endError?: Error) {
     }
     async end(): Promise<void> {
       state.ended += 1;
-      if (endError !== undefined) throw endError;
+      if (endError !== undefined) {
+        throw endError;
+      }
     }
   }
   return { Client, state };

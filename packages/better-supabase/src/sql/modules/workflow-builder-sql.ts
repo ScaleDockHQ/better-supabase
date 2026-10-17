@@ -113,10 +113,14 @@ function nodeOperationsOf(
 ): Readonly<Record<string, string>> {
   const steps: Record<string, string> = {};
   for (const name of Object.keys(operations ?? {})) {
-    if (!name.startsWith(OPERATION_PREFIXES.workflowNode)) continue;
+    if (!name.startsWith(OPERATION_PREFIXES.workflowNode)) {
+      continue;
+    }
     const permission = operationPermission(operations, name);
     const step = name.slice(OPERATION_PREFIXES.workflowNode.length);
-    if (permission !== undefined && step !== "") steps[step] = permission;
+    if (permission !== undefined && step !== "") {
+      steps[step] = permission;
+    }
   }
   return steps;
 }
@@ -128,9 +132,13 @@ function operationKeysOf(
   const prefixes = Object.values(OPERATION_PREFIXES);
   const keys: Record<string, string> = {};
   for (const name of Object.keys(operations ?? {})) {
-    if (prefixes.some((prefix) => name.startsWith(prefix))) continue;
+    if (prefixes.some((prefix) => name.startsWith(prefix))) {
+      continue;
+    }
     const permission = operationPermission(operations, name);
-    if (permission !== undefined) keys[name] = permission;
+    if (permission !== undefined) {
+      keys[name] = permission;
+    }
   }
   return keys;
 }

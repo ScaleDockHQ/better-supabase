@@ -38,12 +38,18 @@ describe("Temporal in src", () => {
     const found: string[] = [];
     for (const entry of readdirSync(SRC, { recursive: true })) {
       const file = String(entry);
-      if (!file.endsWith(".ts") || READERS.has(file)) continue;
+      if (!file.endsWith(".ts") || READERS.has(file)) {
+        continue;
+      }
       const lines = readFileSync(join(SRC, file), "utf-8").split("\n");
       for (const [index, line] of lines.entries()) {
         const code = line.replace(/\/\/.*$/, "").trim();
-        if (code.startsWith("*") || code.startsWith("/*")) continue;
-        if (GLOBAL_USE.test(code)) found.push(`${file}:${index + 1}`);
+        if (code.startsWith("*") || code.startsWith("/*")) {
+          continue;
+        }
+        if (GLOBAL_USE.test(code)) {
+          found.push(`${file}:${index + 1}`);
+        }
       }
     }
     expect(found).toEqual([]);

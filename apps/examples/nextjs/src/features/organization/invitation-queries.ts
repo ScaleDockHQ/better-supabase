@@ -26,7 +26,9 @@ export async function getInvitationPreview(
   const preview = await blocks(supabase)
     .organizations.previewInvitation(token)
     .orThrow();
-  if (!preview) return null;
+  if (!preview) {
+    return null;
+  }
   const name = preview.organization?.["name"];
   return {
     status: preview.status,

@@ -94,7 +94,9 @@ const notes = ir.table("notes");
 const organizations = ir.table("organizations");
 const relation = (from: TableMeta, name: string) => {
   const found = from.relations[name];
-  if (!found) throw new Error(`No relation ${name}`);
+  if (!found) {
+    throw new Error(`No relation ${name}`);
+  }
   return found;
 };
 
@@ -102,7 +104,9 @@ function rejection(fn: () => unknown): DbError {
   try {
     fn();
   } catch (error) {
-    if (error instanceof DbException) return error.error;
+    if (error instanceof DbException) {
+      return error.error;
+    }
     throw error;
   }
   throw new Error("Expected a DbException");

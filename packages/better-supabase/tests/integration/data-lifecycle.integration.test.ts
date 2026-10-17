@@ -43,7 +43,9 @@ function memoryStorage() {
       list: (prefix = "") => {
         const entries = new Map<string, StorageEntry>();
         for (const path of files.keys()) {
-          if (!path.startsWith(`${prefix}/`)) continue;
+          if (!path.startsWith(`${prefix}/`)) {
+            continue;
+          }
           const [name, ...rest] = path.slice(prefix.length + 1).split("/");
           entries.set(name!, {
             name: name!,
@@ -53,7 +55,9 @@ function memoryStorage() {
         return Promise.resolve({ data: [...entries.values()], error: null });
       },
       remove: (paths) => {
-        for (const path of paths) files.delete(path);
+        for (const path of paths) {
+          files.delete(path);
+        }
         return Promise.resolve({ data: [], error: null });
       },
     }),

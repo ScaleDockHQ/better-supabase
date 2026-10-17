@@ -140,14 +140,19 @@ async function installedFromFiles(
   const stale: string[] = [];
   const diffs: string[] = [];
   for (const file of files) {
-    if (file.kind === "data") continue;
-    if (file.kind === "test" && SQL_MODULES[file.module]?.target !== "test")
+    if (file.kind === "data") {
       continue;
+    }
+    if (file.kind === "test" && SQL_MODULES[file.module]?.target !== "test") {
+      continue;
+    }
     const current = await readFile(
       resolve(config.root, file.path),
       "utf-8",
     ).catch(() => undefined);
-    if (current === undefined) continue;
+    if (current === undefined) {
+      continue;
+    }
     installed.push({
       module: file.module,
       version: moduleFileVersion(current)?.version ?? 1,
@@ -169,7 +174,9 @@ async function installedFromMigration(
   paint: Paint,
 ): Promise<Installed> {
   const latest = await latestMigration(config, MODULES_SUFFIX);
-  if (latest === undefined) return { installed: [], stale: [], diffs: [] };
+  if (latest === undefined) {
+    return { installed: [], stale: [], diffs: [] };
+  }
   const versions = migrationModules(latest.text);
   const installed = [...versions].map(([module, version]) => ({
     module,

@@ -17,7 +17,9 @@ export async function PlanFeatures() {
     getExtracted("billing"),
   ]);
   const organizationId = tenantOf(session);
-  if (!organizationId) return null;
+  if (!organizationId) {
+    return null;
+  }
   const features = [
     ["exports", t("CSV exports")],
     ["audit", t("Audit log")],

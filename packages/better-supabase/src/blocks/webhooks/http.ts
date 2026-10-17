@@ -53,17 +53,25 @@ export function parseRetryAfter(
   value: string | null,
   now: number = Date.now(),
 ): number | undefined {
-  if (value === null) return undefined;
+  if (value === null) {
+    return undefined;
+  }
   const text = value.trim();
-  if (/^\d+$/.test(text)) return Number(text);
+  if (/^\d+$/.test(text)) {
+    return Number(text);
+  }
   const at = Date.parse(text);
-  if (Number.isNaN(at)) return undefined;
+  if (Number.isNaN(at)) {
+    return undefined;
+  }
   return Math.max(0, Math.ceil((at - now) / 1000));
 }
 
 /** Reads at most `limit` bytes of the body, then cancels the stream. */
 async function readCapped(response: Response, limit: number): Promise<string> {
-  if (!response.body) return "";
+  if (!response.body) {
+    return "";
+  }
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let text = "";
@@ -71,7 +79,9 @@ async function readCapped(response: Response, limit: number): Promise<string> {
   try {
     while (left > 0) {
       const { done, value } = await reader.read();
-      if (done) return text + decoder.decode();
+      if (done) {
+        return text + decoder.decode();
+      }
       const chunk = value.byteLength > left ? value.subarray(0, left) : value;
       left -= chunk.byteLength;
       text += decoder.decode(chunk, { stream: true });
@@ -114,10 +124,11 @@ export function fetchTransport(
         : timeout;
       let url = new URL(request.url);
       for (let hop = 0; ; hop++) {
-        if (options.allowUrl && !(await allowed(options.allowUrl, url)))
+        if (options.allowUrl && !(await allowed(options.allowUrl, url))) {
           throw new WebhookPolicyError(
             `Endpoint URL is not allowed: ${url.host}`,
           );
+        }
         const response = await send(url, {
           method: "POST",
           headers: request.headers,
@@ -137,16 +148,18 @@ export function fetchTransport(
         }
         await response.body?.cancel();
         const location = response.headers.get("location");
-        if (!location)
+        if (!location) {
           throw new WebhookPolicyError(
             `Redirect ${String(response.status)} without a location`,
           );
-        if (hop >= maxRedirects)
+        }
+        if (hop >= maxRedirects) {
           throw new WebhookPolicyError(
             maxRedirects === 0
               ? `Redirect ${String(response.status)} not followed (maxRedirects is 0)`
               : `More than ${String(maxRedirects)} redirects`,
           );
+        }
         url = new URL(location, url);
       }
     },

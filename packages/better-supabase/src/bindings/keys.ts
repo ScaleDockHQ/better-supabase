@@ -14,7 +14,9 @@ import { claimAt, claimsOf, tenantClaimPaths } from "../core/claims.ts";
  */
 export function sessionUserId(session: Session): string | null {
   try {
-    if (typeof session.user.id === "string") return session.user.id;
+    if (typeof session.user.id === "string") {
+      return session.user.id;
+    }
   } catch {
     // the tokens-only placeholder
   }
@@ -27,10 +29,14 @@ export function claimedTenant(
   auth: AuthSnapshot,
   meta: SchemaMeta,
 ): string | undefined {
-  if (auth.status !== "signed-in") return undefined;
+  if (auth.status !== "signed-in") {
+    return undefined;
+  }
   for (const path of tenantClaimPaths(claimsOf(meta).tenant)) {
     const value = claimAt(auth.claims, path);
-    if (value !== undefined) return value;
+    if (value !== undefined) {
+      return value;
+    }
   }
   return undefined;
 }

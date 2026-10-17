@@ -37,7 +37,9 @@ const messageOf = (error: unknown): string =>
 /** The value of a convention field, for printing. */
 function fieldValue(preset: Preset, key: PresetFieldKey): string {
   const value = preset[key];
-  if (typeof value === "string") return value;
+  if (typeof value === "string") {
+    return value;
+  }
   return value.length === 0 ? "none" : value.join(", ");
 }
 
@@ -145,7 +147,9 @@ function drift(
     const keys = Object.keys(own ?? {}).filter(
       (key) => key !== "schema" && key !== "api" && !(key in preset),
     );
-    if (keys.length > 0) changed.push(`${name} sets ${keys.join(", ")}`);
+    if (keys.length > 0) {
+      changed.push(`${name} sets ${keys.join(", ")}`);
+    }
   }
   return { added, changed };
 }

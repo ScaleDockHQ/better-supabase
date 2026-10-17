@@ -123,20 +123,22 @@ describe("defineListQuery", () => {
     });
     const { client, requests } = capturingClient((request) => {
       const select = request.params.get("select");
-      if (select?.startsWith("status"))
+      if (select?.startsWith("status")) {
         return {
           body: [
             { status: "active", _count: 5 },
             { status: "lead", _count: 9 },
           ],
         };
-      if (select?.startsWith("kvk"))
+      }
+      if (select?.startsWith("kvk")) {
         return {
           body: [
             { kvk: "1001", _count: 3 },
             { kvk: null, _count: 2 },
           ],
         };
+      }
       return { body: [{ id: "c1" }], headers: { "content-range": "0-0/1" } };
     });
     const db = betterSupabase.connect(client);
@@ -461,17 +463,19 @@ describe("defineListQuery", () => {
     });
     const { client } = capturingClient((request) => {
       const select = request.params.get("select");
-      if (select?.startsWith("status"))
+      if (select?.startsWith("status")) {
         return {
           body: [{ status: "lead", _count: 2 }, { status: "active" }],
         };
-      if (select?.startsWith("kvk"))
+      }
+      if (select?.startsWith("kvk")) {
         return {
           body: [
             { kvk: null, _count: 2 },
             { kvk: "9", _count: 7 },
           ],
         };
+      }
       return { body: [], headers: { "content-range": "*/0" } };
     });
     const query = faceted.parse({ facets: { kvk: [UNSET] } }).value!;
@@ -494,7 +498,7 @@ describe("defineListQuery", () => {
     });
     const { client, requests } = capturingClient((request) => {
       const select = request.params.get("select");
-      if (select?.startsWith("kvk"))
+      if (select?.startsWith("kvk")) {
         return {
           body: [
             { kvk: "3", _count: 7 },
@@ -502,8 +506,10 @@ describe("defineListQuery", () => {
             { kvk: "2", _count: 2 },
           ],
         };
-      if (select?.startsWith("status"))
+      }
+      if (select?.startsWith("status")) {
         return { body: [{ status: "lead", _count: 4 }] };
+      }
       return { body: [], headers: { "content-range": "*/0" } };
     });
     const page = await faceted

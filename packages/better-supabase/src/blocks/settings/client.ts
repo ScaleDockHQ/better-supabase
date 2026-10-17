@@ -44,7 +44,9 @@ const jsonSchemaOf = (
 ): Readonly<Record<string, unknown>> | undefined => {
   const standard: unknown = entry.schema["~standard"];
   const converter = isRecord(standard) ? standard["jsonSchema"] : undefined;
-  if (!isConverter(converter)) return undefined;
+  if (!isConverter(converter)) {
+    return undefined;
+  }
   try {
     const converted = converter.input({ target: "draft-2020-12" });
     return isRecord(converted) ? converted : undefined;
@@ -110,7 +112,9 @@ export function settingFields<E extends SettingEntries>(
   const fields: SettingField<keyof E & string>[] = [];
   for (const key of Object.keys(entries)) {
     const entry = entries[key];
-    if (!entry) continue;
+    if (!entry) {
+      continue;
+    }
     // SAFETY: `key` comes from `Object.keys(entries)`, so it is a key of E.
     fields.push(fieldOf(key as keyof E & string, entry));
   }
@@ -192,7 +196,9 @@ function storeOf<E extends SettingEntries>(
     );
   }
   const organizationId = options.organizationId ?? null;
-  if (organizationId === null) return undefined;
+  if (organizationId === null) {
+    return undefined;
+  }
   return {
     get: () => organization.getOrganization(organizationId),
     set: (key, value) =>
@@ -219,10 +225,14 @@ export function createSettingsController<E extends SettingEntries>(
     },
     (state) => {
       const refresh = async (): Promise<void> => {
-        if (!store) return;
+        if (!store) {
+          return;
+        }
         const run = state.run();
         const result = await store.get();
-        if (run !== state.run()) return;
+        if (run !== state.run()) {
+          return;
+        }
         state.set(
           result.ok
             ? { values: result.data, error: undefined }
@@ -234,7 +244,9 @@ export function createSettingsController<E extends SettingEntries>(
           dbError("invalid_input", "No organization to save the setting for"),
         );
       const set: SettingsActions<E>["set"] = async (key, value) => {
-        if (!store) return waiting();
+        if (!store) {
+          return waiting();
+        }
         state.set({ saving: key, error: undefined });
         const result = await store.set(key, value);
         if (!result.ok) {
@@ -258,7 +270,9 @@ export function createSettingsController<E extends SettingEntries>(
             // Schema before it stores it, and answers `validation` otherwise.
             set(key, value as SettingInputs<E>[typeof key]),
           reset: async (key) => {
-            if (!store) return waiting();
+            if (!store) {
+              return waiting();
+            }
             state.set({ saving: key, error: undefined });
             const result = await store.reset(key);
             state.set(
@@ -266,7 +280,9 @@ export function createSettingsController<E extends SettingEntries>(
                 ? { saving: undefined }
                 : { saving: undefined, error: result.error },
             );
-            if (result.ok) await refresh();
+            if (result.ok) {
+              await refresh();
+            }
             return result;
           },
         },

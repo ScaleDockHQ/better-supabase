@@ -172,8 +172,9 @@ export function createClients(input: ClientsInput): Clients {
       case "service":
       case "anon":
       case "invalid":
-        if (Object.keys(headers).length === 0 && url === env().url)
+        if (Object.keys(headers).length === 0 && url === env().url) {
           return supabaseAt(url, auth, headers);
+        }
         key = auth.kind === "service" ? secretKey() : env().publishableKey;
         bearer = key;
         break;

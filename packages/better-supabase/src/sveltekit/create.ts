@@ -162,7 +162,9 @@ export function createSvelteKit<
   const refuse = (error: DbError, request: Request): never => {
     const target = refusalTarget(error, request, options);
     if (options.kit) {
-      if (target) options.kit.redirect(303, target.pathname + target.search);
+      if (target) {
+        options.kit.redirect(303, target.pathname + target.search);
+      }
       options.kit.error(error.status, {
         message: toProblem(error, { expose }).detail ?? error.message,
       });
@@ -202,7 +204,9 @@ export function createSvelteKit<
         locals.tenant,
         options.authorizer,
       );
-      if ("kind" in caller) return refuse(caller, event.request);
+      if ("kind" in caller) {
+        return refuse(caller, event.request);
+      }
       // SAFETY: requireTenant refused a missing tenant.
       return { ...locals, ...caller } as never;
     },
@@ -245,7 +249,9 @@ export function createSvelteKit<
 
     depends(load, ...tables) {
       // The same tag as tagFor(table), spelled out for the `bs:${string}` type.
-      for (const table of tables) load.depends(`bs:${table}`);
+      for (const table of tables) {
+        load.depends(`bs:${table}`);
+      }
     },
   });
 }

@@ -90,8 +90,9 @@ export function store(): Store {
   const fns: Record<string, (args: Args) => unknown> = {
     create_ssf_stream(args) {
       const now = new Date().toISOString();
-      if (args["delivery_method"] === SSF_PUSH && !args["endpoint_url"])
+      if (args["delivery_method"] === SSF_PUSH && !args["endpoint_url"]) {
         throw new Error("SSF_ENDPOINT_REQUIRED");
+      }
       const s: Stream = {
         id: String(args["id"]),
         tenant: textOrNull(args["tenant"]),
@@ -120,21 +121,29 @@ export function store(): Store {
       streams.filter((s) => s.receiver === args["receiver"]).map(json),
     update_ssf_stream(args) {
       const s = find(args["id"]);
-      if (!s) return null;
+      if (!s) {
+        return null;
+      }
       const patch = recordOf(args["patch"]);
-      if ("description" in patch)
+      if ("description" in patch) {
         s.description = textOrNull(patch["description"]);
-      if ("eventsRequested" in patch)
+      }
+      if ("eventsRequested" in patch) {
         s.eventsRequested = strs(patch["eventsRequested"]);
-      if ("eventsDelivered" in patch)
+      }
+      if ("eventsDelivered" in patch) {
         s.eventsDelivered = strs(patch["eventsDelivered"]);
-      if ("endpointUrl" in patch && s.endpointUrl !== null)
+      }
+      if ("endpointUrl" in patch && s.endpointUrl !== null) {
         s.endpointUrl = String(patch["endpointUrl"]);
+      }
       return json(s);
     },
     delete_ssf_stream(args) {
       const index = streams.findIndex((s) => s.id === args["id"]);
-      if (index === -1) return false;
+      if (index === -1) {
+        return false;
+      }
       streams.splice(index, 1);
       return true;
     },
@@ -142,7 +151,9 @@ export function store(): Store {
       const s = find(args["stream_id"])!;
       const jti = String(args["jti"]);
       const token = String(args["token"]);
-      if (s.status === "disabled") return "dropped";
+      if (s.status === "disabled") {
+        return "dropped";
+      }
       if (
         s.method === SSF_PUSH &&
         s.status === "enabled" &&
@@ -166,9 +177,14 @@ export function store(): Store {
         s.status === "disabled" ||
         (s.status === "enabled" && s.method === SSF_PUSH)
       ) {
-        if (s.status === "enabled")
-          for (const q of held) dispatch(s, q.jti, q.token);
-        for (const q of held) queued.splice(queued.indexOf(q), 1);
+        if (s.status === "enabled") {
+          for (const q of held) {
+            dispatch(s, q.jti, q.token);
+          }
+        }
+        for (const q of held) {
+          queued.splice(queued.indexOf(q), 1);
+        }
       }
       return previous;
     },
@@ -189,8 +205,9 @@ export function store(): Store {
       ]);
       for (const q of queued.filter(
         (item) => item.stream === s.id && ack.has(item.jti),
-      ))
+      )) {
         queued.splice(queued.indexOf(q), 1);
+      }
       const limit = Math.min(
         Math.max(
           typeof args["max_events"] === "number" ? args["max_events"] : 100,
@@ -199,8 +216,9 @@ export function store(): Store {
         1000,
       );
       const mine = queued.filter((q) => q.stream === s.id);
-      if (s.status !== "enabled" || limit === 0)
+      if (s.status !== "enabled" || limit === 0) {
         return { sets: {}, moreAvailable: false };
+      }
       return {
         sets: Object.fromEntries(
           mine.slice(0, limit).map((q) => [q.jti, q.token]),
@@ -210,14 +228,17 @@ export function store(): Store {
     },
     note_ssf_verification(args) {
       const s = find(args["stream_id"])!;
-      if (s.verifiedAt !== null && Date.now() - s.verifiedAt < 30_000)
+      if (s.verifiedAt !== null && Date.now() - s.verifiedAt < 30_000) {
         return false;
+      }
       s.verifiedAt = Date.now();
       return true;
     },
     record_ssf_received(args) {
       const key = `${String(args["issuer"])} ${String(args["jti"])}`;
-      if (received.has(key)) return false;
+      if (received.has(key)) {
+        return false;
+      }
       received.add(key);
       return true;
     },
@@ -234,7 +255,9 @@ export function store(): Store {
     call(_schema, fn, args) {
       calls.push([fn, args]);
       const handler = fns[fn];
-      if (!handler) return Promise.reject(new Error(`unexpected ${fn}`));
+      if (!handler) {
+        return Promise.reject(new Error(`unexpected ${fn}`));
+      }
       try {
         return Promise.resolve(handler(args));
       } catch (cause) {

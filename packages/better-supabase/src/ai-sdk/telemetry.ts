@@ -53,10 +53,13 @@ export function tenantOfEvent(event: TelemetryStart): string | undefined {
       ? options["gateway"]
       : undefined;
   const tags = gateway?.["tags"];
-  if (Array.isArray(tags))
-    for (const tag of tags)
-      if (typeof tag === "string" && tag.startsWith("org:") && tag.length > 4)
+  if (Array.isArray(tags)) {
+    for (const tag of tags) {
+      if (typeof tag === "string" && tag.startsWith("org:") && tag.length > 4) {
         return tag.slice(4);
+      }
+    }
+  }
   const context = event.runtimeContext;
   const id = isRecord(context) ? context["organizationId"] : undefined;
   return typeof id === "string" && id.length > 0 ? id : undefined;
@@ -89,18 +92,24 @@ export function meterTelemetry(options: MeterTelemetryOptions): Telemetry {
   ): Promise<void> => {
     const tenant = tenants.get(callId);
     const kept = entries.filter((entry) => (entry.quantity ?? 0) > 0);
-    if (tenant === undefined || kept.length === 0) return;
+    if (tenant === undefined || kept.length === 0) {
+      return;
+    }
     const saved = await options.usage.recordMany(tenant, kept, {
       idempotencyKey: `ai-call:${key}`,
       source,
     });
-    if (!saved.ok) options.onError?.(saved.error);
+    if (!saved.ok) {
+      options.onError?.(saved.error);
+    }
   };
 
   return {
     onStart: (event) => {
       const tenant = tenantOf(event);
-      if (tenant !== undefined) tenants.set(event.callId, tenant);
+      if (tenant !== undefined) {
+        tenants.set(event.callId, tenant);
+      }
     },
     onLanguageModelCallEnd: (event) => {
       const step = calls.get(event.callId) ?? 0;
@@ -201,7 +210,9 @@ export function spendReconciliation(
     });
     const tenants: SpendReconciliation["tenants"][number][] = [];
     for (const row of report.results) {
-      if (typeof row.tag !== "string" || !row.tag.startsWith("org:")) continue;
+      if (typeof row.tag !== "string" || !row.tag.startsWith("org:")) {
+        continue;
+      }
       const organizationId = row.tag.slice(4);
       const costMicroUsd = Math.round(Math.max(0, row.totalCost) * 1_000_000);
       tenants.push({
@@ -209,7 +220,9 @@ export function spendReconciliation(
         costMicroUsd,
         requests: count(row.requestCount),
       });
-      if (costMicroUsd === 0) continue;
+      if (costMicroUsd === 0) {
+        continue;
+      }
       await options.usage
         .recordMany(organizationId, [{ meter, quantity: costMicroUsd }], {
           idempotencyKey: `ai-spend:${day}:${organizationId}`,

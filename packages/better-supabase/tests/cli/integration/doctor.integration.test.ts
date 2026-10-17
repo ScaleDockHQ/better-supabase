@@ -140,8 +140,8 @@ describe.skipIf(!source)("doctor against the local stack", () => {
   it("flags the per-row helper and the overlapping policies", async () => {
     const findings = await runRules(context(), only("BS205", "BS207"));
     expect(findings).toMatchObject([
-      // Postgres never inlines a security definer function.
       {
+        // Postgres never inlines a security definer function.
         code: "BS205",
         message: expect.stringContaining(
           `${SCHEMA}.is_admin(org_id), a security definer function`,
@@ -211,8 +211,9 @@ describe.skipIf(!source)("doctor against the local stack", () => {
       context({ stats: true }),
       only("BS208", "BS209"),
     );
-    for (const finding of findings)
+    for (const finding of findings) {
       expect(finding.message).not.toMatch(/^Could not read/);
+    }
   });
 
   it("plans a table under RLS as the given claims and rolls back", async () => {

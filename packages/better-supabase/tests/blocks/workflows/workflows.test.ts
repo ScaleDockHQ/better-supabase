@@ -47,7 +47,9 @@ function fake(replies: Record<string, Reply>) {
     call: vi.fn(async (_schema, fn, args) => {
       calls.push({ fn, args });
       const reply = replies[fn];
-      if (reply === undefined) throw new Error(`unexpected ${fn}`);
+      if (reply === undefined) {
+        throw new Error(`unexpected ${fn}`);
+      }
       return reply(args);
     }),
   };
@@ -66,8 +68,9 @@ describe("workflowRunOf", () => {
     });
     expect(run.createdAt.toString()).toBe("2026-01-01T00:00:00Z");
     expect(workflowRunOf({ ...RUN, attributes: null }).attributes).toEqual({});
-    for (const status of ["paused", "", null, 3])
+    for (const status of ["paused", "", null, 3]) {
       expect(workflowRunOf({ ...RUN, status }).status).toBe("running");
+    }
     expect(workflowRunOf({ ...RUN, status: "cancelled" }).status).toBe(
       "cancelled",
     );
@@ -183,8 +186,9 @@ describe("createWorkflows", () => {
     });
     const workflows = createWorkflows({ transport });
     const start = vi.fn(async (call: { idempotencyKey: string }) => {
-      if (call.idempotencyKey.startsWith("schedule:s2:"))
+      if (call.idempotencyKey.startsWith("schedule:s2:")) {
         throw new Error("down");
+      }
       return "wrun_9";
     });
     const result = await workflows.schedules

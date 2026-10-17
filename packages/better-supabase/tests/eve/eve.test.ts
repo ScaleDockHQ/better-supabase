@@ -352,12 +352,13 @@ function documentStore() {
       const key = `${scope}|${path}`;
       const row = rows.get(key);
       const current = row ? String(row.version) : null;
-      if (current !== expectedVersion)
+      if (current !== expectedVersion) {
         return AsyncResult.err(
           dbError("serialization", "conflict", {
             hint: "MEMORY_DOCUMENT_CONFLICT",
           }),
         );
+      }
       const version = (row?.version ?? 0) + 1;
       rows.set(key, { content, version });
       return AsyncResult.ok({ content, version: String(version) });
@@ -904,12 +905,15 @@ describe("eve on the Supabase World", () => {
     const chunks = join(root, "dist/src/compiled/_chunks/workflow");
     const versions = new Set<number>();
     for (const file of await readdir(chunks)) {
-      if (!file.endsWith(".js")) continue;
+      if (!file.endsWith(".js")) {
+        continue;
+      }
       const source = await readFile(join(chunks, file), "utf-8");
       for (const match of source.matchAll(
         /SPEC_VERSION_MAX_SUPPORTED:\(\)=>(\d+)/g,
-      ))
+      )) {
         versions.add(Number(match[1]));
+      }
     }
     expect([...versions]).toEqual([Number(SPEC_VERSION_MAX_SUPPORTED)]);
   });

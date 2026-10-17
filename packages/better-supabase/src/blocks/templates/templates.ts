@@ -459,7 +459,9 @@ export function createTemplates<
     save: (input) =>
       AsyncResult.from(async () => {
         const extra = await fields.args(input.fields);
-        if (!extra.ok) return extra;
+        if (!extra.ok) {
+          return extra;
+        }
         const type = typeOf(input.type);
         let settings: unknown = input.settings;
         if (settings !== undefined) {
@@ -468,7 +470,9 @@ export function createTemplates<
             settings,
             "template settings",
           );
-          if (!parsed.ok) return parsed;
+          if (!parsed.ok) {
+            return parsed;
+          }
           settings = parsed.data;
         }
         return call(
@@ -518,13 +522,17 @@ export function createTemplates<
             starter.settings ?? {},
             `settings of starter "${starter.key}"`,
           );
-          if (!settings.ok) return settings;
+          if (!settings.ok) {
+            return settings;
+          }
           const body = await checked(
             type?.body,
             starter.body,
             `body of starter "${starter.key}"`,
           );
-          if (!body.ok) return body;
+          if (!body.ok) {
+            return body;
+          }
           rows.push({
             key: starter.key,
             type: starter.type,
@@ -544,9 +552,13 @@ export function createTemplates<
           const hasBodySchemas = Object.values(types).some(
             (type) => type.body !== undefined,
           );
-          if (!hasBodySchemas) return saveVersion(template, body);
+          if (!hasBodySchemas) {
+            return saveVersion(template, body);
+          }
           const found = await get(template);
-          if (!found.ok) return found;
+          if (!found.ok) {
+            return found;
+          }
           if (found.data === undefined) {
             return err(dbError("not_found", "No such template"));
           }
@@ -555,7 +567,9 @@ export function createTemplates<
             body,
             "template body",
           );
-          if (!parsed.ok) return parsed;
+          if (!parsed.ok) {
+            return parsed;
+          }
           return saveVersion(template, parsed.data);
         }),
       publish: (template) =>
@@ -618,13 +632,17 @@ export function createTemplates<
           target.template.settings,
           "template settings",
         );
-        if (!settings.ok) return settings;
+        if (!settings.ok) {
+          return settings;
+        }
         const body = await checked(
           type.body,
           target.version.body,
           "template body",
         );
-        if (!body.ok) return body;
+        if (!body.ok) {
+          return body;
+        }
         let applied: TemplateApplied;
         try {
           applied = await type.apply({
@@ -654,7 +672,9 @@ export function createTemplates<
           (value) =>
             applicationOf(recordOf(value, "record_template_application")),
         );
-        if (!recorded.ok) return recorded;
+        if (!recorded.ok) {
+          return recorded;
+        }
         const runs = await startRuns(
           target,
           recorded.data,

@@ -110,7 +110,9 @@ const textList = (values: readonly string[]): string =>
   values.map((value) => sqlString(value)).join(", ");
 
 function tables(ctx: ModuleContext, names: CollectionNames): string {
-  if (!ctx.manages) return "";
+  if (!ctx.manages) {
+    return "";
+  }
   const { t } = names;
   const co = (column: string): string => names.c("collections", column);
   const en = (column: string): string => names.c("entries", column);
@@ -213,7 +215,9 @@ function cascading(
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const keys = moduleOperations("collections");
   const teams = ctx.installed("teams")
     ? `select t::text from ${ctx.of("teams").fn("team_ids_of")}((select auth.uid())) t`

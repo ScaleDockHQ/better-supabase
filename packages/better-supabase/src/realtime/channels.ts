@@ -72,7 +72,9 @@ export function joinTopic(
     });
     const subscribers = new Set<Subscriber>();
     const status = (next: SubscriptionStatus, error?: Error): void => {
-      for (const each of subscribers) each.onStatus?.(next, error);
+      for (const each of subscribers) {
+        each.onStatus?.(next, error);
+      }
     };
     channel.on("broadcast", { event: "*" }, (raw) => {
       const message: TopicMessage = {
@@ -80,7 +82,9 @@ export function joinTopic(
         payload: raw["payload"],
         topic,
       };
-      for (const each of subscribers) each.receive(message);
+      for (const each of subscribers) {
+        each.receive(message);
+      }
     });
     // realtime-js refuses presence listeners after `subscribe()`, so the
     // shared channel registers one for every subscriber up front.
@@ -88,11 +92,15 @@ export function joinTopic(
       channel.on("presence", { event: "sync" }, () => {
         entry.synced = true;
         const state = channel.presenceState();
-        for (const each of subscribers) each.sync?.(state);
+        for (const each of subscribers) {
+          each.sync?.(state);
+        }
       });
     }
     const evict = (): void => {
-      if (topics.get(topic) !== entry) return;
+      if (topics.get(topic) !== entry) {
+        return;
+      }
       topics.delete(topic);
       void client.removeChannel(channel);
     };
@@ -100,11 +108,15 @@ export function joinTopic(
       // Yields for public topics too: the first subscriber is added after
       // this starts, and one that leaves before the join skips it.
       await (isPrivate ? refreshRealtimeAuth(client) : undefined);
-      if (subscribers.size === 0) return;
+      if (subscribers.size === 0) {
+        return;
+      }
       await new Promise<void>((resolve, reject) => {
         channel.subscribe((state, error) => {
           // Dropped channels still report CLOSED on removal.
-          if (topics.get(topic) !== entry) return;
+          if (topics.get(topic) !== entry) {
+            return;
+          }
           switch (state) {
             case REALTIME_SUBSCRIBE_STATES.SUBSCRIBED:
               entry.subscribed = true;
@@ -125,7 +137,9 @@ export function joinTopic(
               reject(failure);
               // A joined channel rejoins on its own; one that never joined is
               // dropped so the next subscribe opens a fresh channel.
-              if (!entry.subscribed) evict();
+              if (!entry.subscribed) {
+                evict();
+              }
               return;
             }
             default: {
@@ -153,8 +167,12 @@ export function joinTopic(
   const current = shared;
   current.subscribers.add(subscriber);
   subscriber.onStatus?.("joining");
-  if (current.subscribed) subscriber.onStatus?.("subscribed");
-  if (current.synced) subscriber.sync?.(current.channel.presenceState());
+  if (current.subscribed) {
+    subscriber.onStatus?.("subscribed");
+  }
+  if (current.synced) {
+    subscriber.sync?.(current.channel.presenceState());
+  }
   return {
     shared: current,
     leave: async () => {
@@ -168,7 +186,9 @@ export function joinTopic(
       }
       // Removed right away rather than on the next tick like live queries: a
       // resubscribe for another user must join with that user's token.
-      if (topics.get(topic) !== current) return;
+      if (topics.get(topic) !== current) {
+        return;
+      }
       topics.delete(topic);
       await client.removeChannel(current.channel);
     },

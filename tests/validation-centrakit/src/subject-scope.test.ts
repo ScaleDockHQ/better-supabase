@@ -91,8 +91,9 @@ describe.skipIf(!live)("provider subject scopes on CentraKit's tables", () => {
       for (const file of renderModules(
         ["access", "comments", "attachments"],
         LAYOUT,
-      ))
+      )) {
         await s.client.query(file.contents);
+      }
 
       const [granted, hidden] = await s.rows<{ id: string }>(
         `insert into centrakit.projects (organization_id, name)

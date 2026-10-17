@@ -106,7 +106,9 @@ function links(ctx: ModuleContext) {
 
 function kindsOf(extra: Readonly<Record<string, unknown>>): readonly string[] {
   const value = extra["kinds"];
-  if (value === undefined) return [];
+  if (value === undefined) {
+    return [];
+  }
   if (!Array.isArray(value)) {
     throw new TypeError(
       "blocks.tags.options.subjects.<type>.kinds must be a list of strings",
@@ -137,7 +139,9 @@ function untagBody(
         and g.${ctx.col("taggings", "tag")} = untag.tag_id
         and g.${ctx.col("taggings", "subjectType")} = untag.subject_type
         and g.${ctx.col("taggings", "subjectId")} = untag.subject_id;`;
-  if (bound.length === 0) return polymorphic;
+  if (bound.length === 0) {
+    return polymorphic;
+  }
   const whens = bound
     .map((link) => {
       const subject = link.columns["subject"] ?? "subject";
@@ -154,7 +158,9 @@ ${whens}
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const tags = ctx.table("tags");
   const taggings = ctx.hasTable("taggings") ? ctx.table("taggings") : "";
   const id = ctx.col("tags", "id");
@@ -484,7 +490,9 @@ function subjectTagIds(
       where ${ctx.scope.eq(`g.${ctx.col("taggings", "tenant")}`, "subject_tags.tenant")}
         and g.${ctx.col("taggings", "subjectType")} = subject_tags.subject_type
         and g.${ctx.col("taggings", "subjectId")} = subject_tags.subject_id;`;
-  if (bound.length === 0) return polymorphic;
+  if (bound.length === 0) {
+    return polymorphic;
+  }
   const whens = bound
     .map((link) => {
       const subject = link.columns["subject"] ?? "subject";
@@ -578,7 +586,9 @@ export const TAGS: ModuleDefinition = {
       description:
         "Tags order by a fractional rank key instead of an integer position; rank_tag sets it.",
       sql: (ctx) => {
-        if (!ctx.manages) return "";
+        if (!ctx.manages) {
+          return "";
+        }
         const tags = ctx.table("tags");
         const rank = ctx.col("tags", "rank");
         return `alter table ${tags} add column if not exists ${rank} text collate "C";

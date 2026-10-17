@@ -217,7 +217,9 @@ export interface AuthResolution<C = unknown, P = unknown> {
 }
 
 function expiryOf(session: StoredSession): number | undefined {
-  if (typeof session.expires_at === "number") return session.expires_at;
+  if (typeof session.expires_at === "number") {
+    return session.expires_at;
+  }
   const exp = decodeJwtPayload(session.access_token)?.["exp"];
   return typeof exp === "number" ? exp : undefined;
 }
@@ -248,14 +250,18 @@ const secretIds = new Map<string, number>();
 let nextSecretId = 1;
 
 function secretId(secret: string | undefined): number | null {
-  if (secret === undefined) return null;
+  if (secret === undefined) {
+    return null;
+  }
   let id = secretIds.get(secret);
   if (id === undefined) {
     id = nextSecretId++;
     secretIds.set(secret, id);
     if (secretIds.size > SECRET_IDS_SIZE) {
       const oldest = secretIds.keys().next();
-      if (!oldest.done) secretIds.delete(oldest.value);
+      if (!oldest.done) {
+        secretIds.delete(oldest.value);
+      }
     }
   }
   return id;
@@ -278,17 +284,22 @@ function memoFor(options: ResolveAuthOptions): Map<string, VerifiedUser> {
   ]);
   if (inline) {
     let byKey = memoByJwks.get(jwks);
-    if (!byKey)
+    if (!byKey) {
       memoByJwks.set(
         jwks,
         (byKey = new Map<string, Map<string, VerifiedUser>>()),
       );
+    }
     let memo = byKey.get(key);
-    if (!memo) byKey.set(key, (memo = new Map<string, VerifiedUser>()));
+    if (!memo) {
+      byKey.set(key, (memo = new Map<string, VerifiedUser>()));
+    }
     return memo;
   }
   let memo = memoByUrl.get(key);
-  if (!memo) memoByUrl.set(key, (memo = new Map<string, VerifiedUser>()));
+  if (!memo) {
+    memoByUrl.set(key, (memo = new Map<string, VerifiedUser>()));
+  }
   return memo;
 }
 
@@ -306,9 +317,13 @@ function remembered(
   now: number,
 ): VerifiedUser | undefined {
   const hit = memo.get(token);
-  if (!hit) return undefined;
+  if (!hit) {
+    return undefined;
+  }
   memo.delete(token);
-  if (hit.expiresAt === null || hit.expiresAt <= now) return undefined;
+  if (hit.expiresAt === null || hit.expiresAt <= now) {
+    return undefined;
+  }
   memo.set(token, hit);
   return hit;
 }
@@ -336,17 +351,24 @@ function checkedFor(
   const claims = options.claims ?? NO_SCHEMA;
   const metadata = options.userMetadata ?? NO_SCHEMA;
   let byClaims = checkedByMemo.get(memo);
-  if (!byClaims) checkedByMemo.set(memo, (byClaims = new WeakMap()));
+  if (!byClaims) {
+    checkedByMemo.set(memo, (byClaims = new WeakMap()));
+  }
   let byMetadata = byClaims.get(claims);
-  if (!byMetadata) byClaims.set(claims, (byMetadata = new WeakMap()));
+  if (!byMetadata) {
+    byClaims.set(claims, (byMetadata = new WeakMap()));
+  }
   let checked = byMetadata.get(metadata);
-  if (!checked)
+  if (!checked) {
     byMetadata.set(metadata, (checked = new Map<string, CheckedState>()));
+  }
   return checked;
 }
 
 function withoutSource(state: AuthState): CheckedState {
-  if (state.kind !== "user") return state;
+  if (state.kind !== "user") {
+    return state;
+  }
   const { source: _source, ...rest } = state;
   return rest;
 }
@@ -357,9 +379,13 @@ function remember<T>(
   user: T,
   expiresAt: number | null,
 ): void {
-  if (expiresAt === null) return;
+  if (expiresAt === null) {
+    return;
+  }
   memo.set(token, user);
-  if (memo.size > MEMO_SIZE) memo.delete(memo.keys().next().value!);
+  if (memo.size > MEMO_SIZE) {
+    memo.delete(memo.keys().next().value!);
+  }
 }
 
 async function verify(
@@ -416,7 +442,9 @@ async function checkClaims(
   state: AuthState,
   options: ResolveAuthOptions,
 ): Promise<AuthState> {
-  if (state.kind !== "user") return state;
+  if (state.kind !== "user") {
+    return state;
+  }
   if (!actorOf(state.claims).ok) {
     return {
       kind: "invalid",
@@ -428,9 +456,13 @@ async function checkClaims(
       ),
     };
   }
-  if (!options.claims) return state;
+  if (!options.claims) {
+    return state;
+  }
   let outcome = options.claims["~standard"].validate(state.claims);
-  if (outcome instanceof Promise) outcome = await outcome;
+  if (outcome instanceof Promise) {
+    outcome = await outcome;
+  }
   if (outcome.issues) {
     const issues = outcome.issues
       .map((issue) => {
@@ -469,13 +501,19 @@ async function checkUser(
 ): Promise<AuthState> {
   const checked = await checkClaims(state, options);
   const schema = options.userMetadata;
-  if (checked.kind !== "user" || !schema) return checked;
+  if (checked.kind !== "user" || !schema) {
+    return checked;
+  }
   const { profile: _untrusted, ...user } = checked;
   let outcome = schema["~standard"].validate(
     checked.user.userMetadata ?? checked.claims.user_metadata ?? {},
   );
-  if (outcome instanceof Promise) outcome = await outcome;
-  if (!outcome.issues) return { ...user, profile: outcome.value };
+  if (outcome instanceof Promise) {
+    outcome = await outcome;
+  }
+  if (!outcome.issues) {
+    return { ...user, profile: outcome.value };
+  }
   if (!warnedMetadata.has(schema)) {
     warnedMetadata.add(schema);
     (options.logger ?? consoleLogger).warn(
@@ -515,8 +553,9 @@ function base64url(text: string): string {
  * fetch it as before.
  */
 export function prefetchJwks(options: ResolveAuthOptions): Promise<void> {
-  if (options.jwks !== undefined || options.env.jwks !== undefined)
+  if (options.jwks !== undefined || options.env.jwks !== undefined) {
     return Promise.resolve();
+  }
   return verifyCredentials(
     { token: PREFETCH_TOKEN, apikey: null },
     { auth: ["user"], env: serverEnv(options) },
@@ -583,8 +622,9 @@ async function verifyOnce(
       error: dbError(kind, error.message, { code: error.code }),
     };
   }
-  if (data.authMode === "secret")
+  if (data.authMode === "secret") {
     return { kind: "service", keyName: data.keyName ?? "default" };
+  }
   if (
     data.authMode === "user" &&
     data.token &&
@@ -626,18 +666,23 @@ function resolution(
       return requestCookies;
     },
     apply(response) {
-      if (writes.length === 0) return response;
+      if (writes.length === 0) {
+        return response;
+      }
       let target = response;
       try {
-        for (const write of writes)
+        for (const write of writes) {
           target.headers.append("set-cookie", serializeCookie(write));
+        }
       } catch {
         target = new Response(response.body, response);
-        for (const write of writes)
+        for (const write of writes) {
           target.headers.append("set-cookie", serializeCookie(write));
+        }
       }
-      for (const [name, value] of Object.entries(headers))
+      for (const [name, value] of Object.entries(headers)) {
         target.headers.set(name, value);
+      }
       return target;
     },
   };
@@ -677,7 +722,9 @@ export async function resolveAuth(
 
   for (const resolver of options.resolvers ?? []) {
     const state = await resolver.resolve(request);
-    if (!state) continue;
+    if (!state) {
+      continue;
+    }
     return resolution(
       state.kind === "invalid"
         ? {
@@ -793,10 +840,12 @@ export async function resolveAuth(
       state.kind !== "invalid" ||
       state.reason !== "token" ||
       state.error.kind === "network"
-    )
+    ) {
       return resolution(state, cookies, pruned);
-    if (!options.refresh)
+    }
+    if (!options.refresh) {
       return resolution({ kind: "anon", reason: "signed_out" }, cookies);
+    }
   } else if (!options.refresh) {
     return resolution({ kind: "anon", reason: "expired" }, cookies);
   }
@@ -851,8 +900,9 @@ export async function resolveAuth(
           options,
           "cookie",
         );
-        if (state.kind !== "invalid")
+        if (state.kind !== "invalid") {
           return resolution(state, cookies, pruned, undefined, outage(true));
+        }
       }
       return resolution(
         { kind: "anon", reason: "refresh_failed" },

@@ -38,7 +38,9 @@ export function NotificationList() {
     topic: userId ? `notifications:${userId}` : null,
     load: loadRows,
   });
-  if (items === undefined) return <NotificationListSkeleton />;
+  if (items === undefined) {
+    return <NotificationListSkeleton />;
+  }
   if (items.length === 0) {
     return (
       <Empty className="border">

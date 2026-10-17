@@ -11,7 +11,9 @@ export const READ_SETS: SqlModule = {
 -- They are security invoker: RLS decides what each caller reads, as for any other query.`,
   extras: (_ctx, layout) => {
     const sets = layout.readSets ?? [];
-    if (sets.length === 0) return "";
+    if (sets.length === 0) {
+      return "";
+    }
     return `\n-- config.readSets\n${sets.map((set) => `-- ${set.name}\n${set.sql}`).join("\n\n")}\n`;
   },
 };

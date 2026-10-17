@@ -49,7 +49,9 @@ class FakeXhr {
     sent.push(this);
     const current = outcome;
     queueMicrotask(() => {
-      if (current === "hang") return;
+      if (current === "hang") {
+        return;
+      }
       if (current === "error") {
         this.onerror?.();
         return;

@@ -692,10 +692,11 @@ describe("mapDbError", () => {
       expect(
         mapDbError({ ...raw, details: '{"permissions":["crm.read"]}' }),
       ).toMatchObject({ kind: "forbidden", permissions: ["crm.read"] });
-      for (const details of ["{oops", '{"permissions":[1]}', "null", "text"])
+      for (const details of ["{oops", '{"permissions":[1]}', "null", "text"]) {
         expect(mapDbError({ ...raw, details })).not.toHaveProperty(
           "permissions",
         );
+      }
     });
   });
 

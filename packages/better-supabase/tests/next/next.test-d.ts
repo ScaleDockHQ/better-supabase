@@ -154,7 +154,9 @@ describe("betterSupabase.userMetadata(schema)", () => {
 describe("next.action", () => {
   it("keeps the data type when one path returns err()", () => {
     const action = bs.action({}, async () => {
-      if (Math.random() > 0.5) return err(dbError("forbidden", "no"));
+      if (Math.random() > 0.5) {
+        return err(dbError("forbidden", "no"));
+      }
       return ok({ token: "t" });
     });
     expectTypeOf(action).returns.resolves.toEqualTypeOf<

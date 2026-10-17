@@ -47,7 +47,9 @@ function appSlugs(ctx: ModuleContext): string {
       );
     }
   }
-  if (slugs.length === 0) return "";
+  if (slugs.length === 0) {
+    return "";
+  }
   return `
 
 -- blocks.reserved-slugs.options.slugs

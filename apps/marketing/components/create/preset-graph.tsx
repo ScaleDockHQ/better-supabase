@@ -51,7 +51,9 @@ export function PresetGraph({ resolved }: { resolved: ResolvedPreset }) {
             {layout.edges.map((edge) => {
               const from = byName.get(edge.from);
               const to = byName.get(edge.to);
-              if (from === undefined || to === undefined) return null;
+              if (from === undefined || to === undefined) {
+                return null;
+              }
               return (
                 <path
                   key={`${edge.kind}:${edge.from}:${edge.to}`}

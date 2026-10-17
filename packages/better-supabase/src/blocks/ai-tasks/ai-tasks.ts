@@ -265,12 +265,24 @@ const TASK_FIELDS: ReadonlySet<string> = new Set([
 
 function fieldsArg(fields: AiTaskFields): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  if (fields.title !== undefined) out["title"] = fields.title;
-  if (fields.prompt !== undefined) out["prompt"] = fields.prompt;
-  if (fields.cron !== undefined) out["cron"] = fields.cron;
-  if (fields.timezone !== undefined) out["timezone"] = fields.timezone;
-  if (fields.chatId !== undefined) out["chat_id"] = fields.chatId;
-  if (fields.agentId !== undefined) out["agent_id"] = fields.agentId;
+  if (fields.title !== undefined) {
+    out["title"] = fields.title;
+  }
+  if (fields.prompt !== undefined) {
+    out["prompt"] = fields.prompt;
+  }
+  if (fields.cron !== undefined) {
+    out["cron"] = fields.cron;
+  }
+  if (fields.timezone !== undefined) {
+    out["timezone"] = fields.timezone;
+  }
+  if (fields.chatId !== undefined) {
+    out["chat_id"] = fields.chatId;
+  }
+  if (fields.agentId !== undefined) {
+    out["agent_id"] = fields.agentId;
+  }
   return out;
 }
 
@@ -279,7 +291,9 @@ function notifyThrough(
   options: Pick<AiTasksOptions, "notifier" | "notification">,
 ): ((outcome: AiTaskOutcome) => unknown) | undefined {
   const { notifier, notification } = options;
-  if (notifier === undefined || notification === undefined) return undefined;
+  if (notifier === undefined || notification === undefined) {
+    return undefined;
+  }
   return (outcome) =>
     notifier.send(notification, {
       recipients: [outcome.task.userId],
@@ -331,7 +345,9 @@ export function createAiTasks<
     AsyncResult.from(() => fields.write(extraOf(task, TASK_FIELDS)))
       .andThen((extra) => {
         const args: Record<string, unknown> = { ...extra, ...fieldsArg(task) };
-        if (task.enabled !== undefined) args["enabled"] = task.enabled;
+        if (task.enabled !== undefined) {
+          args["enabled"] = task.enabled;
+        }
         return call(
           "save_ai_task",
           {
@@ -357,7 +373,9 @@ export function createAiTasks<
       return AsyncResult.ok(task);
     }
     const upcoming = next(task.cron, task.timezone);
-    if (!upcoming.ok) return AsyncResult.ok(task);
+    if (!upcoming.ok) {
+      return AsyncResult.ok(task);
+    }
     return service(
       "schedule_ai_tasks",
       {
@@ -417,7 +435,9 @@ export function createAiTasks<
     service("start_ai_task_run", { id: runId }, (value) => value).andThen(
       (value) =>
         AsyncResult.from(async () => {
-          if (!isRecord(value)) return ok(false);
+          if (!isRecord(value)) {
+            return ok(false);
+          }
           const run = runOf(value);
           const task = taskOf(value["task"]);
           const runner = options.run;
@@ -454,7 +474,9 @@ export function createAiTasks<
             },
             (done) => done === true,
           );
-          if (!finished.ok) return finished;
+          if (!finished.ok) {
+            return finished;
+          }
           await notify?.(outcome);
           return ok(true);
         }),
@@ -494,7 +516,9 @@ export function createAiTasks<
     execute,
     runJob: () => async (payload, _job, signal) => {
       const result = await execute(payload.run_id, { signal });
-      if (!result.ok) throw new DbException(result.error);
+      if (!result.ok) {
+        throw new DbException(result.error);
+      }
     },
     drain: (drainOptions = {}) =>
       tick(drainOptions).andThen((runs) =>
@@ -505,14 +529,20 @@ export function createAiTasks<
             readonly error: DbError;
           }[] = [];
           for (const run of runs) {
-            if (drainOptions.signal?.aborted) break;
+            if (drainOptions.signal?.aborted) {
+              break;
+            }
             const result = await execute(run.id, drainOptions);
-            if (!result.ok)
+            if (!result.ok) {
               failures.push({ runId: run.id, error: result.error });
-            else if (result.data) done += 1;
+            } else if (result.data) {
+              done += 1;
+            }
           }
           const [first] = failures;
-          if (first === undefined) return ok(done);
+          if (first === undefined) {
+            return ok(done);
+          }
           return err({
             ...first.error,
             details: `${failures.length} of ${runs.length} runs failed: ${failures

@@ -66,8 +66,9 @@ export const SCHEMA_DESIGN_RULES: readonly Rule[] = [
     check: async (context) => {
       const splinter = await splinterTables(context, "unindexed_foreign_keys");
       return exposed(context).flatMap((table): FindingInput[] => {
-        if (table.kind !== "table" || splinter?.has(qualified(table)))
+        if (table.kind !== "table" || splinter?.has(qualified(table))) {
           return [];
+        }
         return unindexedForeignKeys(table).map((key) => ({
           message: `${qualified(table)}.${key.name} (${key.columns.join(", ")}) has no index that starts with its columns, so deletes on ${key.refSchema}.${key.refTable} scan ${qualified(table)}. Run \`create index on ${qualified(table)} (${key.columns.join(", ")});\`.`,
           target: `${qualified(table)}.${key.name}`,
@@ -84,18 +85,26 @@ export const SCHEMA_DESIGN_RULES: readonly Rule[] = [
       "When a tenant table references another tenant table by `id` alone, a row can point at a parent in another organization; RLS checks each row, not the pair. Reference `(id, organization_id)` with a composite foreign key, backed by `unique (id, organization_id)` on the parent.",
     check: (context) => {
       const column = context.config.plugins.tenant?.column;
-      if (!column) return [];
+      if (!column) {
+        return [];
+      }
       const tables = new Map(
         catalogOf(context).tables.map((table) => [qualified(table), table]),
       );
       const hasTenant = (table: CatalogTable | undefined): boolean =>
         table?.columns.some((entry) => entry.name === column) ?? false;
       return exposed(context).flatMap((table): FindingInput[] => {
-        if (table.kind !== "table" || !hasTenant(table)) return [];
+        if (table.kind !== "table" || !hasTenant(table)) {
+          return [];
+        }
         return table.foreignKeys.flatMap((key): FindingInput[] => {
-          if (key.columns.includes(column)) return [];
+          if (key.columns.includes(column)) {
+            return [];
+          }
           const parent = tables.get(`${key.refSchema}.${key.refTable}`);
-          if (!hasTenant(parent) || parent === table) return [];
+          if (!hasTenant(parent) || parent === table) {
+            return [];
+          }
           return [
             {
               message: `${qualified(table)}.${key.name} references ${key.refSchema}.${key.refTable} (${key.refColumns.join(", ")}) without ${column}, so a row can point at another tenant's ${key.refTable}. Add \`unique (${[...key.refColumns, column].join(", ")})\` to ${key.refTable} and reference \`(${[...key.columns, column].join(", ")})\`.`,
@@ -115,11 +124,15 @@ export const SCHEMA_DESIGN_RULES: readonly Rule[] = [
       "Queries on a table with `deleted_at` or `archived_at` read the live rows (`where deleted_at is null`). A partial index with that predicate stays small and matches those queries.",
     check: (context) =>
       exposed(context).flatMap((table): FindingInput[] => {
-        if (table.kind !== "table") return [];
+        if (table.kind !== "table") {
+          return [];
+        }
         const column = table.columns.find(
           (entry) => SOFT_DELETE.test(entry.name) && entry.nullable,
         );
-        if (!column) return [];
+        if (!column) {
+          return [];
+        }
         const isNull = new RegExp(
           `"?${escape(column.name)}"?\\s+IS\\s+NULL`,
           "i",
@@ -130,7 +143,9 @@ export const SCHEMA_DESIGN_RULES: readonly Rule[] = [
             (index.predicate === undefined ||
               (index.predicate !== null && isNull.test(index.predicate))),
         );
-        if (indexed) return [];
+        if (indexed) {
+          return [];
+        }
         return [
           {
             message: `${qualified(table)} soft-deletes with ${column.name}, but no index has \`where ${column.name} is null\`. Index the live rows you list, for example \`create index on ${qualified(table)} (created_at desc) where ${column.name} is null;\`.`,
@@ -162,19 +177,24 @@ export const SCHEMA_DESIGN_RULES: readonly Rule[] = [
         .join("\n");
       const filtered = new Set<string>();
       for (const file of context.sources) {
-        for (const match of file.text.matchAll(CLIENT_CONTAINS))
+        for (const match of file.text.matchAll(CLIENT_CONTAINS)) {
           filtered.add(match[1]!);
+        }
       }
       return tables.flatMap((table): FindingInput[] => {
         const own = policyText(table);
         const columns = table.columns.filter((column) => {
-          if (!column.isArray && column.udt !== "jsonb") return false;
+          if (!column.isArray && column.udt !== "jsonb") {
+            return false;
+          }
           const gin = table.indexes.some(
             (index) =>
               index.columns[0] === column.name &&
               (index.method === undefined || index.method === "gin"),
           );
-          if (gin) return false;
+          if (gin) {
+            return false;
+          }
           const used = new RegExp(
             `"?${escape(column.name)}"?\\s*${CONTAINS}|${CONTAINS}\\s*[\\w."]*\\b${escape(column.name)}\\b`,
           );
@@ -200,11 +220,15 @@ export const SCHEMA_DESIGN_RULES: readonly Rule[] = [
       "`timestamp` drops the time zone, `varchar(n)` and `char(n)` only add a length check `text` does with a constraint, `money` rounds by locale and `json` reparses on every read. Use `timestamptz`, `text`, `numeric` and `jsonb`.",
     check: (context) =>
       exposed(context).flatMap((table): FindingInput[] => {
-        if (table.kind !== "table") return [];
+        if (table.kind !== "table") {
+          return [];
+        }
         const columns = table.columns.filter(
           (column) => column.typeSchema === "pg_catalog" && column.udt in AVOID,
         );
-        if (columns.length === 0) return [];
+        if (columns.length === 0) {
+          return [];
+        }
         return [
           {
             message: `${qualified(table)}: ${columns.map((column) => `${column.name} is ${column.udt}, use ${AVOID[column.udt]}`).join("; ")}.`,
@@ -224,10 +248,14 @@ export const SCHEMA_DESIGN_RULES: readonly Rule[] = [
       const serverless =
         context.sources.some((file) => SERVERLESS.test(file.text)) ||
         context.envFiles.some((file) => /^\s*VERCEL\w*=/m.test(file.text));
-      if (!serverless) return [];
+      if (!serverless) {
+        return [];
+      }
       return context.envFiles.flatMap((file): FindingInput[] =>
         lines(file).flatMap(({ line, text }): FindingInput[] => {
-          if (/^\s*#/.test(text) || !DIRECT_URL.test(text)) return [];
+          if (/^\s*#/.test(text) || !DIRECT_URL.test(text)) {
+            return [];
+          }
           const key = /^\s*(?:export\s+)?(\w+)\s*=/.exec(text)?.[1];
           return [
             {
@@ -248,10 +276,15 @@ export const SCHEMA_DESIGN_RULES: readonly Rule[] = [
       "`int8` and `numeric` decode as `number` by default, which matches `supabase gen types` but loses precision past 2^53 (or 15 to 17 significant digits). An `int8` identity or sequence keeps growing toward that limit, and `numeric` usually holds exact amounts. Set `codecs.int8` to `bigint` or `string`, or `codecs.numeric` to `string`.",
     check: (context) => {
       const { int8, numeric } = context.config.codecs;
-      if (int8 !== "number" && numeric !== "number") return [];
+      if (int8 !== "number" && numeric !== "number") {
+        return [];
+      }
       return exposed(context).flatMap((table): FindingInput[] => {
-        if (configFor(context.config.tables, table.schema, table.name)?.exclude)
+        if (
+          configFor(context.config.tables, table.schema, table.name)?.exclude
+        ) {
           return [];
+        }
         const columns = table.columns.filter((column) =>
           column.udt === "int8"
             ? int8 === "number" &&
@@ -260,7 +293,9 @@ export const SCHEMA_DESIGN_RULES: readonly Rule[] = [
                 (column.default?.includes("nextval(") ?? false))
             : column.udt === "numeric" && numeric === "number",
         );
-        if (columns.length === 0) return [];
+        if (columns.length === 0) {
+          return [];
+        }
         const codecs = [
           ...(columns.some((column) => column.udt === "int8")
             ? ['`int8: "bigint"`']

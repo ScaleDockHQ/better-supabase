@@ -29,7 +29,9 @@ export const updateProfile = bs.action(
       return err(dbError("unauthorized", "Sign in to change your profile"));
     }
     const updated = await db.$rpc("update_my_profile", { full_name: fullName });
-    if (!updated.ok) return updated;
+    if (!updated.ok) {
+      return updated;
+    }
     refresh();
     return ok(true);
   },
@@ -69,7 +71,9 @@ export const uploadAvatar = bs.action(
       );
     }
     const profile = await db.$rpc("my_profile");
-    if (!profile.ok) return profile;
+    if (!profile.ok) {
+      return profile;
+    }
     const replaced = await avatars
       .connect(supabase)
       .replace(
@@ -82,7 +86,9 @@ export const uploadAvatar = bs.action(
             db.$rpc("set_my_avatar_path", { avatar_path: path }),
         },
       );
-    if (replaced.ok) refresh();
+    if (replaced.ok) {
+      refresh();
+    }
     return replaced;
   },
 );

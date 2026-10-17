@@ -104,7 +104,9 @@ function withSqlDefaults(
   names: readonly string[],
   sql: SqlConfig,
 ): AnyBlocksConfig {
-  if (sql.schema === undefined && sql.api === undefined) return modules;
+  if (sql.schema === undefined && sql.api === undefined) {
+    return modules;
+  }
   const { schema, api } = sql;
   return Object.fromEntries(
     names.map((name) => {
@@ -146,8 +148,12 @@ function pick<T extends object>(
   value: boolean | T | undefined,
   defaults: Required<T>,
 ): Required<T> | undefined {
-  if (value === undefined || value === false) return undefined;
-  if (value === true) return defaults;
+  if (value === undefined || value === false) {
+    return undefined;
+  }
+  if (value === true) {
+    return defaults;
+  }
   return { ...defaults, ...value };
 }
 
@@ -169,7 +175,9 @@ function authorizationOf(
   provider: AuthorizationProvider,
 ): AuthorizationProvider {
   const problem = providerApiProblem(provider);
-  if (problem !== undefined) throw new TypeError(problem);
+  if (problem !== undefined) {
+    throw new TypeError(problem);
+  }
   return provider;
 }
 

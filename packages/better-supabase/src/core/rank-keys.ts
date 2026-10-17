@@ -73,7 +73,9 @@ export function rankKeys(count: number): string[] {
     throw new RangeError("count must be a whole number of keys");
   }
   let width = 1;
-  while (BASE ** width <= count) width += 1;
+  while (BASE ** width <= count) {
+    width += 1;
+  }
   const step = Math.floor(BASE ** width / (count + 1));
   return Array.from({ length: count }, (_, index) => {
     let value = step * (index + 1);

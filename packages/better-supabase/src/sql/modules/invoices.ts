@@ -118,7 +118,9 @@ const NAMES: ModuleNames = {
 };
 
 function tables(ctx: ModuleContext, n: InvoiceNames): string {
-  if (!ctx.manages) return "";
+  if (!ctx.manages) {
+    return "";
+  }
   const { t, c } = n;
   const i = (column: string): string => c("invoices", column);
   const p = (column: string): string => c("payments", column);
@@ -189,7 +191,9 @@ using (${ctx.scope.check(p("tenant"), n.read)});
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const keys = moduleOperations("invoices");
   const termsDays = ctx.number("termsDays", 30);
   if (!Number.isInteger(termsDays) || termsDays < 0) {

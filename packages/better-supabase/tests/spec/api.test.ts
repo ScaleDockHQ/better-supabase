@@ -73,8 +73,9 @@ describe("defineApi", () => {
       fragments: [{ info: { description: "From a fragment" } }],
     });
     deepFreeze(api.model);
-    for (const version of ["3.0", "3.1", "3.2", "3.3-preview"] as const)
+    for (const version of ["3.0", "3.1", "3.2", "3.3-preview"] as const) {
       expect(() => api.openapi({ version })).not.toThrow();
+    }
   });
 
   it("passes a typed copy to transform and keeps its return value", () => {
@@ -155,8 +156,9 @@ describe("defineApi", () => {
       },
       defaultVersion: "1",
       lower: (model, version, ctx) => {
-        if (version === "2-preview")
+        if (version === "2-preview") {
           ctx.report({ code: "c", severity: "info", message: "m" });
+        }
         return { operations: model.operations.length };
       },
       lint: () => [{ code: "c", severity: "info", message: "m" }],

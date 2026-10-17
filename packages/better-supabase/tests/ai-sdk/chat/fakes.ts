@@ -98,7 +98,9 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
   const api = {
     chats: {
       get: (id: string) => {
-        if (options.getError) return failure(options.getError);
+        if (options.getError) {
+          return failure(options.getError);
+        }
         const chat = chats.get(id);
         return chat ? result(chat) : failure(dbError("not_found", "no chat"));
       },
@@ -129,15 +131,18 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
         message: AiMessage,
         opts: { trigger?: string; messageId?: string } = {},
       ) => {
-        if (opts.trigger === "regenerate-message")
+        if (opts.trigger === "regenerate-message") {
           return result({
             messageId: tree.find((m) => m.role === "user")?.id ?? "",
             parentId: undefined,
             created: false,
           });
+        }
         const chat = chats.get(chatId);
         store(message, chat?.leafId);
-        if (chat) chats.set(chatId, { ...chat, leafId: message.id });
+        if (chat) {
+          chats.set(chatId, { ...chat, leafId: message.id });
+        }
         return result({
           messageId: message.id,
           parentId: chat?.leafId,
@@ -164,19 +169,21 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
     },
     runs: {
       claim: (chatId: string, streamId: string) => {
-        if (options.claimed === false)
+        if (options.claimed === false) {
           return result({
             claimed: false,
             streamId: "other",
             runId: undefined,
           });
+        }
         const chat = chats.get(chatId);
-        if (chat)
+        if (chat) {
           chats.set(chatId, {
             ...chat,
             activeStreamId: streamId,
             activeRunId: "run1",
           });
+        }
         return result({ claimed: true, streamId, runId: "run1" });
       },
       release: (chatId: string, streamId: string, opts: unknown) => {

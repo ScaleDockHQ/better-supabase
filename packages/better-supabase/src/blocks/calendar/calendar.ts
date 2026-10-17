@@ -250,7 +250,9 @@ function itemOf(
 ): Record<string, unknown> {
   const item: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(input)) {
-    if (value === undefined) continue;
+    if (value === undefined) {
+      continue;
+    }
     if (key === "exdates" && Array.isArray(value)) {
       item[key] = value.map(String);
     } else if (
@@ -393,7 +395,9 @@ export function createCalendar<
           const extra: Record<string, string> = {};
           for (const key of ["color", "ownerType", "ownerId"]) {
             const found = optionalText(row[key]);
-            if (found !== undefined) extra[key] = found;
+            if (found !== undefined) {
+              extra[key] = found;
+            }
           }
           return {
             id: textOf(row["id"]),
@@ -559,7 +563,9 @@ export function createCalendar<
       ),
     feed: (token) =>
       call("calendar_feed", { token }, (value) => {
-        if (value === null || value === undefined) return null;
+        if (value === null || value === undefined) {
+          return null;
+        }
         const row = recordOf(value, "calendar_feed");
         const info = recordOf(row["calendar"], "calendar_feed");
         return toIcs(

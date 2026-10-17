@@ -167,7 +167,9 @@ const migrationRequests = new Map<string, Promise<MigrationState>>();
 
 function migrationsFor(code: string): Promise<MigrationState> {
   const known = migrationRequests.get(code);
-  if (known !== undefined) return known;
+  if (known !== undefined) {
+    return known;
+  }
   const request = loadMigrations(code);
   migrationRequests.set(code, request);
   return request;
@@ -262,8 +264,9 @@ export function CreateBuilder() {
               const value = PRESET_NAMES.find(
                 (name) => name === event.target.value,
               );
-              if (value !== undefined)
+              if (value !== undefined) {
                 setPreset(applyNamedPreset(preset, value));
+              }
             }}
           >
             {named === undefined && <option value="custom">Custom</option>}

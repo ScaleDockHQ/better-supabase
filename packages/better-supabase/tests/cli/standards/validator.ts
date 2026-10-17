@@ -35,24 +35,34 @@ function engineFor(schema: Json): Ajv | Ajv2020 {
 function staticDynamicRefs(schema: Json): void {
   const anchors = new Map<string, string>();
   const findAnchors = (node: unknown, pointer: string) => {
-    if (!node || typeof node !== "object") return;
+    if (!node || typeof node !== "object") {
+      return;
+    }
     for (const [key, value] of Object.entries(node)) {
       if (key === "$dynamicAnchor" && typeof value === "string") {
-        if (anchors.has(value)) throw new Error(`Two $dynamicAnchor ${value}`);
+        if (anchors.has(value)) {
+          throw new Error(`Two $dynamicAnchor ${value}`);
+        }
         anchors.set(value, `#${pointer}`);
-      } else findAnchors(value, `${pointer}/${key}`);
+      } else {
+        findAnchors(value, `${pointer}/${key}`);
+      }
     }
   };
   findAnchors(schema, "");
   const rewrite = (node: unknown) => {
-    if (!node || typeof node !== "object") return;
+    if (!node || typeof node !== "object") {
+      return;
+    }
     const record = node as Json;
     const dynamic = record["$dynamicRef"];
     if (typeof dynamic === "string" && anchors.has(dynamic.slice(1))) {
       delete record["$dynamicRef"];
       record["$ref"] = anchors.get(dynamic.slice(1));
     }
-    for (const value of Object.values(record)) rewrite(value);
+    for (const value of Object.values(record)) {
+      rewrite(value);
+    }
   };
   rewrite(schema);
 }
@@ -66,7 +76,9 @@ function load(file: string): { engine: Ajv | Ajv2020; key: string } {
       schema["$id"] = schema["id"];
       delete schema["id"];
     }
-    if (file.startsWith("openapi-")) staticDynamicRefs(schema);
+    if (file.startsWith("openapi-")) {
+      staticDynamicRefs(schema);
+    }
     engine.addSchema(schema, file);
   }
   return { engine, key: file };
@@ -79,7 +91,9 @@ function load(file: string): { engine: Ajv | Ajv2020; key: string } {
 export function validatorFor(file: string, definition = ""): ValidateFunction {
   const { engine, key } = load(file);
   const validate = engine.getSchema(`${key}${definition}`);
-  if (!validate) throw new Error(`No schema ${key}${definition}`);
+  if (!validate) {
+    throw new Error(`No schema ${key}${definition}`);
+  }
   return validate;
 }
 
@@ -88,13 +102,17 @@ export function metaSchema2020(): ValidateFunction {
   const validate = draft2020.getSchema(
     "https://json-schema.org/draft/2020-12/schema",
   );
-  if (!validate) throw new Error("ajv has no 2020-12 meta-schema");
+  if (!validate) {
+    throw new Error("ajv has no 2020-12 meta-schema");
+  }
   return validate;
 }
 
 /** Errors as readable lines, for `expect(...).toEqual([])`. */
 export function problems(validate: ValidateFunction, value: unknown): string[] {
-  if (validate(value)) return [];
+  if (validate(value)) {
+    return [];
+  }
   return (validate.errors ?? []).map(
     (error: ErrorObject) =>
       `${error.instancePath || "/"} ${error.message ?? ""} ${JSON.stringify(error.params)}`,

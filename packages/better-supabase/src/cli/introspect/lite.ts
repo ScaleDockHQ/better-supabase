@@ -21,8 +21,12 @@ function isLiteDriver(value: unknown): value is LiteDriver {
  */
 export function liteDriverOf(toml?: SupabaseToml): LiteDriver | undefined {
   const driver = tomlGet(toml?.document ?? {}, ["db", "driver"]);
-  if (driver === undefined) return undefined;
-  if (isLiteDriver(driver)) return driver;
+  if (driver === undefined) {
+    return undefined;
+  }
+  if (isLiteDriver(driver)) {
+    return driver;
+  }
   throw new CliError(
     "config_invalid",
     `[db] driver = ${JSON.stringify(driver)} in ${toml?.path ?? "supabase/config.toml"} is not a Supabase Lite driver (${LITE_DRIVERS.join(", ")}).`,
@@ -102,7 +106,9 @@ export async function liteSource(
     const ddl = (await schemaSql(root, toml))
       .filter((part) => part.trim() !== "")
       .join("\n;\n");
-    if (ddl !== "") await connection.createMigrator(ddl).migrate();
+    if (ddl !== "") {
+      await connection.createMigrator(ddl).migrate();
+    }
   } catch (error) {
     await connection.close();
     throw new CliError(

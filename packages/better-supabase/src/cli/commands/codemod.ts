@@ -51,14 +51,19 @@ const SKIPPED_DIRS: ReadonlySet<string> = new Set([
 /** Source files under `path`, skipping dependencies, build output and `.d.ts` files. */
 async function sourceFiles(path: string): Promise<string[]> {
   const info = await stat(path).catch(() => undefined);
-  if (!info) return [];
-  if (info.isFile()) return [path];
+  if (!info) {
+    return [];
+  }
+  if (info.isFile()) {
+    return [path];
+  }
   const files: string[] = [];
   for (const entry of await readdir(path, { withFileTypes: true })) {
     const full = join(path, entry.name);
     if (entry.isDirectory()) {
-      if (!SKIPPED_DIRS.has(entry.name))
+      if (!SKIPPED_DIRS.has(entry.name)) {
         files.push(...(await sourceFiles(full)));
+      }
     } else if (
       SOURCE_EXTENSIONS.has(extname(entry.name)) &&
       !entry.name.endsWith(".d.ts")
@@ -100,10 +105,15 @@ export async function runCodemod(
     const result = applyCodemod(codemod, source);
     const path = relative(config.root, file);
     review.push(...result.review.map((hint) => ({ file: path, ...hint })));
-    if (result.text === source) continue;
+    if (result.text === source) {
+      continue;
+    }
     changed.push(path);
-    if (dryRun) diffs.push(fileDiff(path, source, result.text, paint));
-    else await writeIfChanged(file, result.text);
+    if (dryRun) {
+      diffs.push(fileDiff(path, source, result.text, paint));
+    } else {
+      await writeIfChanged(file, result.text);
+    }
   }
   const lines = [
     ...diffs,

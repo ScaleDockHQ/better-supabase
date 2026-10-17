@@ -81,7 +81,9 @@ const NAMES: ModuleNames = {
 };
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const id = ctx.idType;
   const e = ctx.table("exports");
   const d = ctx.table("deletions");
@@ -713,7 +715,9 @@ grant execute on function ${fn("purge_organization")}(${id}) to service_role;`;
 }
 
 function data(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const bucket = sqlString(bucketOf(ctx));
   return `insert into storage.buckets (id, name, public)
 values (${bucket}, ${bucket}, false)

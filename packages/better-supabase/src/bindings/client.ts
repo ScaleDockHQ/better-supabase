@@ -203,7 +203,9 @@ export function startBroadcast<P extends string, E extends EventSchemas>(
   run: BroadcastRun<P, E>,
 ): (() => void) | undefined {
   const matched = run.topic.match(run.name);
-  if (!matched) return undefined;
+  if (!matched) {
+    return undefined;
+  }
   const { queryClient } = run;
   const forward = (payload: unknown, message: TopicMessage) => {
     const current = run.latest();
@@ -219,13 +221,16 @@ export function startBroadcast<P extends string, E extends EventSchemas>(
       | undefined;
     (table?.[message.event] ?? table?.["*"])?.(payload, message);
     const invalidate = current.options?.invalidate;
-    if (!invalidate || !queryClient) return;
+    if (!invalidate || !queryClient) {
+      return;
+    }
     if (typeof invalidate !== "function") {
       void invalidateTables(queryClient, invalidate);
       return;
     }
-    for (const queryKey of invalidate(message))
+    for (const queryKey of invalidate(message)) {
       void queryClient.invalidateQueries({ queryKey });
+    }
   };
   const self = run.latest().options?.self;
   const subscription = run.topic.subscribe(
@@ -263,7 +268,9 @@ export function liveKey(
   auth: AuthSnapshot,
   options: LiveQueryHookOptions,
 ): string | null {
-  if (!spec || auth.status === "loading") return null;
+  if (!spec || auth.status === "loading") {
+    return null;
+  }
   const tenant =
     options.tenant ?? claimedTenant(auth, client.betterSupabase.meta);
   return JSON.stringify([
@@ -439,7 +446,9 @@ export function joinPresence<P extends string, I, O>(
   },
 ): PresenceJoin<I> | undefined {
   const matched = topic.match(name);
-  if (!matched) return undefined;
+  if (!matched) {
+    return undefined;
+  }
   const joined = topic.subscribe(supabase, matched, NO_HANDLERS, handlers);
   let tracked: string | undefined;
   return {
@@ -453,10 +462,15 @@ export function joinPresence<P extends string, I, O>(
     },
     sync(state) {
       const key = state === undefined ? undefined : JSON.stringify(state);
-      if (key === undefined || key === tracked) return;
+      if (key === undefined || key === tracked) {
+        return;
+      }
       tracked = key;
-      if (state === null || state === undefined) void joined.untrack();
-      else void joined.track(state);
+      if (state === null || state === undefined) {
+        void joined.untrack();
+      } else {
+        void joined.track(state);
+      }
     },
     leave() {
       void joined.unsubscribe();
@@ -520,7 +534,9 @@ export function createActionRunner<I, T>(
   }
   const emit = (): void => {
     state = snapshot();
-    for (const listener of listeners) listener();
+    for (const listener of listeners) {
+      listener();
+    }
   };
 
   return {
@@ -550,11 +566,17 @@ export function createActionRunner<I, T>(
         throw cause;
       }
       done();
-      if (result.ok) data = result.data;
-      else error = result.error;
+      if (result.ok) {
+        data = result.data;
+      } else {
+        error = result.error;
+      }
       emit();
-      if (result.ok) options.onSuccess?.(result.data, input);
-      else options.onError?.(result.error, input);
+      if (result.ok) {
+        options.onSuccess?.(result.data, input);
+      } else {
+        options.onError?.(result.error, input);
+      }
       return result;
     },
     reset: () => {
@@ -579,7 +601,9 @@ export function keyed(): {
   let current: { key: string; stop: (() => void) | undefined } | undefined;
   return {
     update: (key, start) => {
-      if (current?.key === key) return;
+      if (current?.key === key) {
+        return;
+      }
       current?.stop?.();
       current = key === null ? undefined : { key, stop: start() };
     },

@@ -60,9 +60,13 @@ export function modulePermissionKeys(
   const installed = modules.map((module) => module.name);
   return modules.flatMap((module): ModulePermissionKey[] => {
     const name = module.name;
-    if (!isPermissionModule(name)) return [];
+    if (!isPermissionModule(name)) {
+      return [];
+    }
     const ctx = moduleContext(name, layout, installed);
-    if (ctx.mode === "custom") return [];
+    if (ctx.mode === "custom") {
+      return [];
+    }
     const scopes: Readonly<Record<string, "tenant" | "platform">> =
       MODULE_PERMISSION_SCOPES[name];
     const optional = Object.entries(
@@ -116,7 +120,9 @@ function extensionsOf(bodies: readonly string[]): ModuleExtension[] {
     [...body.matchAll(CREATE_EXTENSION)].flatMap(
       ([, name = "", schema]): ModuleExtension[] => {
         const key = name.toLowerCase();
-        if (seen.has(key)) return [];
+        if (seen.has(key)) {
+          return [];
+        }
         seen.add(key);
         return [
           {
@@ -146,7 +152,9 @@ export function moduleEventTriggers(
 ): { readonly module: string; readonly name: string }[] {
   return names.flatMap((module) => {
     const definition = modules[module];
-    if (!definition) return [];
+    if (!definition) {
+      return [];
+    }
     let body: string;
     try {
       body = definition.sql;

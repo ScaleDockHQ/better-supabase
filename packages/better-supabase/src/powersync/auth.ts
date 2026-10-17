@@ -56,16 +56,25 @@ export function syncWithAuth<C>(
   const leave = () => (clear ? db.disconnectAndClear() : db.disconnect());
 
   const follow = () => {
-    if (stopped) return;
+    if (stopped) {
+      return;
+    }
     const snapshot = auth.current();
-    if (snapshot.status === "loading") return;
+    if (snapshot.status === "loading") {
+      return;
+    }
     const next = snapshot.status === "signed-in" ? snapshot.user.id : null;
-    if (next === user) return;
+    if (next === user) {
+      return;
+    }
     const previous = user;
     user = next;
-    if (previous === undefined ? next === null && clear : previous !== null)
+    if (previous === undefined ? next === null && clear : previous !== null) {
       enqueue(leave);
-    if (next !== null) enqueue(() => db.connect(options.connector));
+    }
+    if (next !== null) {
+      enqueue(() => db.connect(options.connector));
+    }
   };
 
   follow();

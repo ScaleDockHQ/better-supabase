@@ -62,7 +62,9 @@ describe.skipIf(!live)("delegated jobs under RLS", () => {
     context: RequestContext,
   ): Promise<number | null> {
     const built = contextClaims(context);
-    if (!built.ok) throw new Error(built.message);
+    if (!built.ok) {
+      throw new Error(built.message);
+    }
     const { sub, ...claims } = built.claims;
     await session.asRole({ id: sub, email: "worker@example.test" }, claims);
     const result = await session.client.query(

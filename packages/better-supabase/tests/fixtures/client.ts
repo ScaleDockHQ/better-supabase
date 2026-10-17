@@ -57,7 +57,9 @@ export function capturingClient(respond: Responder = () => ({ body: [] })): {
     requests,
     last: () => {
       const request = requests.at(-1);
-      if (!request) throw new Error("No request captured");
+      if (!request) {
+        throw new Error("No request captured");
+      }
       return request;
     },
   };

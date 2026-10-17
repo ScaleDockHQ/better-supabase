@@ -41,7 +41,9 @@ function withDeprecated(
   deprecated: boolean,
   columns: readonly string[],
 ): JsonSchema {
-  if (!deprecated && columns.length === 0) return schema;
+  if (!deprecated && columns.length === 0) {
+    return schema;
+  }
   const properties = schema["properties"];
   return {
     ...schema,

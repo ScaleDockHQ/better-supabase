@@ -148,8 +148,9 @@ describe("schemaPaths", () => {
       "030_crm/b.sql",
       "030_crm/a.sql",
       "999_unlisted.sql",
-    ])
+    ]) {
       await writeFile(join(dir, "supabase/schemas", file), "");
+    }
   });
 
   afterEach(async () => {

@@ -99,7 +99,9 @@ function SettingsSection<E extends SettingEntries>({
   readonly title: string;
   readonly state: SettingsState<E>;
 }) {
-  if (state.values === undefined) return <ActivityIndicator />;
+  if (state.values === undefined) {
+    return <ActivityIndicator />;
+  }
   return (
     <View style={{ gap: 12 }}>
       <Text style={{ fontSize: 17, fontWeight: "600" }}>{title}</Text>

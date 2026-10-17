@@ -126,15 +126,16 @@ for (const name of Object.keys(users) as UserName[]) {
         }
       });
 
-      if (name === "member")
+      if (name === "member") {
         test("a page behind a permission redirects to the dashboard", async ({
           page,
         }) => {
           await page.goto(`/${locale}/settings/audit`);
           await expect(page).toHaveURL((url) => url.pathname === `/${locale}`);
         });
+      }
 
-      if (name === "globex")
+      if (name === "globex") {
         test("a page behind a flag that is off is a 404", async ({ page }) => {
           await page.goto(`/${locale}/beta`);
           await expect(
@@ -143,6 +144,7 @@ for (const name of Object.keys(users) as UserName[]) {
             ),
           ).toBeVisible();
         });
+      }
     });
   }
 }

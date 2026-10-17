@@ -27,7 +27,9 @@ function setup(
   const order: string[] = [];
   const queryRaw = vi.fn(async (text: string, params?: unknown[]) => {
     order.push("sessions");
-    if (options.sqlError) throw options.sqlError;
+    if (options.sqlError) {
+      throw options.sqlError;
+    }
     expect(params).toEqual([USER]);
     expect(text).toContain(
       "delete from auth.sessions where user_id = $1::uuid",

@@ -70,7 +70,9 @@ export function createSafeFetch(options: SafeFetchOptions = {}): typeof fetch {
         cause: error,
       });
     }
-    if (!ok) throw new UnsafeUrlError(`URL is not allowed: ${url.host}`);
+    if (!ok) {
+      throw new UnsafeUrlError(`URL is not allowed: ${url.host}`);
+    }
   };
   return async (input, init) => {
     await check(new URL(input instanceof Request ? input.url : String(input)));
@@ -85,7 +87,9 @@ export function createSafeFetch(options: SafeFetchOptions = {}): typeof fetch {
         ? undefined
         : await request.arrayBuffer();
     for (let hop = 0; ; hop++) {
-      if (hop > 0) await check(url);
+      if (hop > 0) {
+        await check(url);
+      }
       const response = await send(url, {
         method,
         headers,
@@ -93,7 +97,9 @@ export function createSafeFetch(options: SafeFetchOptions = {}): typeof fetch {
         redirect: "manual",
         signal,
       });
-      if (!REDIRECTS.has(response.status)) return response;
+      if (!REDIRECTS.has(response.status)) {
+        return response;
+      }
       await response.body?.cancel();
       const location = response.headers.get("location");
       if (!location || hop >= maxRedirects) {
@@ -109,7 +115,9 @@ export function createSafeFetch(options: SafeFetchOptions = {}): typeof fetch {
       }
       const next = new URL(location, url);
       if (next.origin !== url.origin) {
-        for (const name of sensitive) headers.delete(name);
+        for (const name of sensitive) {
+          headers.delete(name);
+        }
       }
       url = next;
     }

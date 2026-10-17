@@ -7,7 +7,9 @@ function base32Decode(secret: string): Buffer {
   let bits = "";
   for (const char of secret.replaceAll("=", "").toUpperCase()) {
     const value = BASE32.indexOf(char);
-    if (value === -1) throw new Error(`Not a base32 character: ${char}`);
+    if (value === -1) {
+      throw new Error(`Not a base32 character: ${char}`);
+    }
     bits += value.toString(2).padStart(5, "0");
   }
   const bytes: number[] = [];

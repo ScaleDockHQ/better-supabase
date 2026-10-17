@@ -23,7 +23,9 @@ function parseSubject(
     ? subject.slice("subjects/".length)
     : subject;
   const slash = rest.indexOf("/");
-  if (slash <= 0 || slash === rest.length - 1) return undefined;
+  if (slash <= 0 || slash === rest.length - 1) {
+    return undefined;
+  }
   const type = rest.slice(0, slash);
   return types.has(type) ? { type, id: rest.slice(slash + 1) } : undefined;
 }
@@ -69,7 +71,9 @@ export function subjectReaders(
       return subscribers;
     }
     const subject = parseSubject(event.subject, await registered());
-    if (subject === undefined) return subscribers;
+    if (subject === undefined) {
+      return subscribers;
+    }
     const allowed = await Promise.all(
       subscribers.map(async (subscriber) =>
         UUID.test(subscriber.principal)

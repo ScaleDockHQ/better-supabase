@@ -42,8 +42,12 @@ type Kind = v.InferOutput<typeof Kind>;
 
 const summary = (trigger: TriggerRow): string => {
   const { cron, type } = trigger.config;
-  if (v.is(v.string(), cron)) return cron;
-  if (v.is(v.string(), type)) return type;
+  if (v.is(v.string(), cron)) {
+    return cron;
+  }
+  if (v.is(v.string(), type)) {
+    return type;
+  }
   return "";
 };
 
@@ -170,7 +174,9 @@ export function TriggerSheet({
             <Select
               value={kind}
               onValueChange={(value) => {
-                if (v.is(Kind, value)) setKind(value);
+                if (v.is(Kind, value)) {
+                  setKind(value);
+                }
               }}
               items={KINDS.map((value) => ({ value, label: labels[value] }))}
             >

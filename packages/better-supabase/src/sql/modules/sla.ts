@@ -103,7 +103,9 @@ interface BusinessHours {
 function businessHours(ctx: ModuleContext): BusinessHours {
   const raw = ctx.option("businessHours") ?? {};
   const where = "blocks.sla.options.businessHours";
-  if (!isRecord(raw)) throw new TypeError(`${where} must be an object`);
+  if (!isRecord(raw)) {
+    throw new TypeError(`${where} must be an object`);
+  }
   const timeZone = raw["timeZone"] ?? "UTC";
   const start = raw["start"] ?? "09:00";
   const end = raw["end"] ?? "17:00";
@@ -167,7 +169,9 @@ function bindings(ctx: ModuleContext): readonly SlaBinding[] {
         `${where}: register "${type}" with a tenant column in config.subjects first`,
       );
     }
-    if (!isRecord(entry)) throw new TypeError(`${where} must be an object`);
+    if (!isRecord(entry)) {
+      throw new TypeError(`${where} must be an object`);
+    }
     const status = entry["status"];
     const priority = entry["priority"];
     if (typeof status !== "string" || !COLUMN.test(status)) {
@@ -260,7 +264,9 @@ for each row execute function better_supabase.${name}();`;
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const keys = moduleOperations("sla");
   const read = ctx.permission("read", keys.read);
   const manage = ctx.permission("manage", keys.manage);

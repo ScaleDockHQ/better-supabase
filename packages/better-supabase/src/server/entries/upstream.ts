@@ -23,7 +23,9 @@ export interface SupabaseAuthContext {
 export function contextFromSupabase(ctx: SupabaseAuthContext): RequestContext {
   switch (ctx.authMode) {
     case "user":
-      if (!ctx.userClaims) break;
+      if (!ctx.userClaims) {
+        break;
+      }
       return userContext(ctx.userClaims, ctx.jwtClaims ?? {});
     case "secret":
       return {

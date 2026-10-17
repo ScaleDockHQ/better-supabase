@@ -50,10 +50,16 @@ function isYjs(value: unknown): value is YjsLike {
  * the optional peer out of apps that pass the module in.
  */
 async function loadYjs(given: YjsLike | undefined): Promise<YjsLike> {
-  if (given !== undefined) return given;
+  if (given !== undefined) {
+    return given;
+  }
   const module = await importOptionalPeer("yjs");
-  if (isYjs(module)) return module;
-  if (isRecord(module) && isYjs(module["default"])) return module["default"];
+  if (isYjs(module)) {
+    return module;
+  }
+  if (isRecord(module) && isYjs(module["default"])) {
+    return module["default"];
+  }
   throw new TypeError(
     "better-supabase/yjs needs the yjs package: pnpm add yjs, or pass it as options.yjs",
   );
@@ -114,9 +120,13 @@ interface Broadcast {
 }
 
 function broadcastOf(value: unknown): Broadcast | undefined {
-  if (!isRecord(value)) return undefined;
+  if (!isRecord(value)) {
+    return undefined;
+  }
   const { seq, update } = value;
-  if (typeof seq !== "number" || typeof update !== "string") return undefined;
+  if (typeof seq !== "number" || typeof update !== "string") {
+    return undefined;
+  }
   return { seq, update };
 }
 
@@ -144,7 +154,9 @@ export function createDocumentProvider<P extends PresenceState = PresenceState>(
   let sending: Promise<void> = Promise.resolve();
 
   const setStatus = (next: DocumentProviderStatus): void => {
-    if (status === next) return;
+    if (status === next) {
+      return;
+    }
     status = next;
     options.onStatus?.(next);
   };
@@ -168,8 +180,9 @@ export function createDocumentProvider<P extends PresenceState = PresenceState>(
 
   const send = (): Promise<void> => {
     sending = sending.then(async () => {
-      if (opened === undefined || pending.length === 0 || yjs === undefined)
+      if (opened === undefined || pending.length === 0 || yjs === undefined) {
         return;
+      }
       const update =
         pending.length === 1 ? pending[0]! : yjs.mergeUpdates(pending);
       const count = pending.length;
@@ -196,13 +209,19 @@ export function createDocumentProvider<P extends PresenceState = PresenceState>(
   };
 
   const onUpdate = (update: Uint8Array, from: unknown): void => {
-    if (from === origin || opened === undefined || !opened.canWrite) return;
+    if (from === origin || opened === undefined || !opened.canWrite) {
+      return;
+    }
     pending.push(update);
-    if (!stalled) void send();
+    if (!stalled) {
+      void send();
+    }
   };
 
   const catchUp = async (): Promise<void> => {
-    if (opened === undefined) return;
+    if (opened === undefined) {
+      return;
+    }
     const state = await documents.pull(opened.id, synced);
     if (!state.ok) {
       fail(state.error);
@@ -217,13 +236,17 @@ export function createDocumentProvider<P extends PresenceState = PresenceState>(
     switch (next) {
       case "subscribed":
         // The first join follows the open; later ones are reconnects.
-        if (joined) void catchUp();
+        if (joined) {
+          void catchUp();
+        }
         joined = true;
         setStatus("synced");
         return;
       case "closed":
       case "error":
-        if (status !== "closed") setStatus("offline");
+        if (status !== "closed") {
+          setStatus("offline");
+        }
         return;
       case "joining":
         return;
@@ -243,7 +266,9 @@ export function createDocumentProvider<P extends PresenceState = PresenceState>(
     },
     connect: () =>
       AsyncResult.from(async () => {
-        if (opened !== undefined) return ok(opened);
+        if (opened !== undefined) {
+          return ok(opened);
+        }
         setStatus("connecting");
         try {
           yjs = await loadYjs(options.yjs);
@@ -276,9 +301,13 @@ export function createDocumentProvider<P extends PresenceState = PresenceState>(
           {
             [UPDATE_EVENT]: (payload: unknown) => {
               const message = broadcastOf(payload);
-              if (message === undefined) return;
+              if (message === undefined) {
+                return;
+              }
               apply(fromBase64(message.update));
-              if (message.seq === synced + 1) synced = message.seq;
+              if (message.seq === synced + 1) {
+                synced = message.seq;
+              }
             },
           },
           {
@@ -337,10 +366,14 @@ export function compactDocument(
   return AsyncResult.from(async () => {
     const yjs = await loadYjs(options.yjs);
     const state = await options.documents.pull(options.documentId, 0);
-    if (!state.ok) return err(state.error);
+    if (!state.ok) {
+      return err(state.error);
+    }
     const { snapshot, updates } = state.data;
     const last = updates.at(-1);
-    if (last === undefined) return ok(false);
+    if (last === undefined) {
+      return ok(false);
+    }
     const merged = yjs.mergeUpdates([
       ...(snapshot === undefined ? [] : [snapshot]),
       ...updates.map((item) => item.update),

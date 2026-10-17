@@ -53,8 +53,12 @@ export function planReminderDeliveries(
     });
     for (const occurrence of occurrences) {
       const runAt = occurrence.subtract({ minutes: item.offsetMinutes });
-      if (time.ZonedDateTime.compare(runAt, window.from) < 0) continue;
-      if (time.ZonedDateTime.compare(runAt, window.until) > 0) continue;
+      if (time.ZonedDateTime.compare(runAt, window.from) < 0) {
+        continue;
+      }
+      if (time.ZonedDateTime.compare(runAt, window.until) > 0) {
+        continue;
+      }
       const occurrenceAt = occurrence.toInstant().toString();
       planned.push({
         reminderId: item.id,

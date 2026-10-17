@@ -29,7 +29,9 @@ async function attempt<T>(
   fail: (error: DbError) => void,
 ): Promise<T | undefined> {
   const result = await write;
-  if (result.ok) return result.data;
+  if (result.ok) {
+    return result.data;
+  }
   fail(result.error);
   return;
 }
@@ -101,7 +103,9 @@ export function createAiChatsController(
         state.set({ items, hasMore: cursor !== undefined, error: undefined });
       };
       const loadWindow = async (): Promise<void> => {
-        if (user === null) return;
+        if (user === null) {
+          return;
+        }
         const run = ++ticket;
         const items: AiChatRecord[] = [];
         let page: AiChatPage | undefined;
@@ -109,14 +113,18 @@ export function createAiChatsController(
           const result: Result<AiChatPage> = await chats.list(
             page?.next === undefined ? query : { ...query, cursor: page.next },
           );
-          if (run !== ticket) return;
+          if (run !== ticket) {
+            return;
+          }
           if (!result.ok) {
             fail(result.error);
             return;
           }
           page = result.data;
           items.push(...page.items);
-          if (page.next === undefined) break;
+          if (page.next === undefined) {
+            break;
+          }
         }
         showPage(items, page?.next);
       };
@@ -124,7 +132,9 @@ export function createAiChatsController(
         at: number,
         change: (items: readonly AiChatRecord[]) => readonly AiChatRecord[],
       ): void => {
-        if (at !== generation) return;
+        if (at !== generation) {
+          return;
+        }
         state.set((current) =>
           current.items === undefined ? {} : { items: change(current.items) },
         );
@@ -133,11 +143,15 @@ export function createAiChatsController(
         actions: {
           refresh: loadWindow,
           loadMore: async () => {
-            if (next === undefined || user === null) return;
+            if (next === undefined || user === null) {
+              return;
+            }
             const run = ++ticket;
             pages += 1;
             const result = await chats.list({ ...query, cursor: next });
-            if (run !== ticket) return;
+            if (run !== ticket) {
+              return;
+            }
             if (!result.ok) {
               pages -= 1;
               fail(result.error);
@@ -148,32 +162,37 @@ export function createAiChatsController(
           },
           create: async (input) => {
             const organizationId = query.organizationId;
-            if (!organizationId) return;
+            if (!organizationId) {
+              return;
+            }
             const at = generation;
             const chat = await attempt(
               chats.create(organizationId, input),
               fail,
             );
-            if (chat && !chat.temporary)
+            if (chat && !chat.temporary) {
               edit(at, (items) => [
                 chat,
                 ...items.filter((item) => item.id !== chat.id),
               ]);
+            }
             return chat;
           },
           update: async (chatId, patch) => {
             const at = generation;
             const chat = await attempt(chats.update(chatId, patch), fail);
-            if (chat)
+            if (chat) {
               edit(at, (items) =>
                 items.map((item) => (item.id === chat.id ? chat : item)),
               );
+            }
             return chat;
           },
           remove: async (chatId) => {
             const at = generation;
-            if (await attempt(chats.remove(chatId), fail))
+            if (await attempt(chats.remove(chatId), fail)) {
               edit(at, (items) => items.filter((item) => item.id !== chatId));
+            }
           },
         },
         start: () =>
@@ -263,31 +282,46 @@ export function createAiChatTreeController(
         );
       };
       const loadPath = async (leafId?: string): Promise<void> => {
-        if (!chatId) return;
+        if (!chatId) {
+          return;
+        }
         const run = ++ticket;
         const result = await messages.path(
           chatId,
           leafId === undefined ? undefined : { leafId },
         );
-        if (run === ticket) apply(result);
+        if (run === ticket) {
+          apply(result);
+        }
       };
       const switchBranch = async (messageId: string): Promise<void> => {
-        if (!chatId) return;
+        if (!chatId) {
+          return;
+        }
         const run = state.run();
         const result = await messages.switchBranch(chatId, messageId);
-        if (run !== state.run()) return;
-        if (result.ok) await loadPath(result.data);
-        else state.set({ error: result.error });
+        if (run !== state.run()) {
+          return;
+        }
+        if (result.ok) {
+          await loadPath(result.data);
+        } else {
+          state.set({ error: result.error });
+        }
       };
       return {
         actions: {
           refresh: () => loadPath(),
           switchBranch,
           step: async (messageId, offset) => {
-            if (!chatId) return;
+            if (!chatId) {
+              return;
+            }
             const run = state.run();
             const result = await messages.siblings(chatId, messageId);
-            if (run !== state.run()) return;
+            if (run !== state.run()) {
+              return;
+            }
             if (!result.ok) {
               state.set({ error: result.error });
               return;
@@ -295,7 +329,9 @@ export function createAiChatTreeController(
             const siblings = result.data;
             const index = siblings.findIndex((item) => item.id === messageId);
             const target = siblings[index + offset];
-            if (index !== -1 && target) await switchBranch(target.id);
+            if (index !== -1 && target) {
+              await switchBranch(target.id);
+            }
           },
         },
         start: () => {
@@ -304,8 +340,9 @@ export function createAiChatTreeController(
             chatId && prefix
               ? options.ports.topic(aiChatTopic(chatId, prefix), {
                   onMessage: (event) => {
-                    if (event === "message.saved" || event === "leaf.changed")
+                    if (event === "message.saved" || event === "leaf.changed") {
                       void loadPath();
+                    }
                   },
                   onRejoin: () => void loadPath(),
                   onStatus: (status) => {
@@ -351,7 +388,9 @@ export function createAiModelsController(
       const refresh = async (): Promise<void> => {
         const run = state.run();
         const result = await options.client.models.allowed(tenant);
-        if (run !== state.run()) return;
+        if (run !== state.run()) {
+          return;
+        }
         state.set(
           result.ok
             ? { models: result.data, error: undefined }
@@ -404,10 +443,14 @@ export function createAiShareController(
         state.set({ error });
       };
       const reload = async (): Promise<void> => {
-        if (!chatId) return;
+        if (!chatId) {
+          return;
+        }
         const run = state.run();
         const result = await shares.list(chatId);
-        if (run !== state.run()) return;
+        if (run !== state.run()) {
+          return;
+        }
         state.set(
           result.ok
             ? { shares: result.data, error: undefined }
@@ -417,13 +460,19 @@ export function createAiShareController(
       return {
         actions: {
           create: async (leafId) => {
-            if (!chatId) return;
+            if (!chatId) {
+              return;
+            }
             const link = await attempt(shares.create(chatId, leafId), fail);
-            if (link) await reload();
+            if (link) {
+              await reload();
+            }
             return link;
           },
           revoke: async (shareId) => {
-            if (await attempt(shares.revoke(shareId), fail)) await reload();
+            if (await attempt(shares.revoke(shareId), fail)) {
+              await reload();
+            }
           },
         },
         start: () => {

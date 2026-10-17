@@ -15,9 +15,13 @@ export function watchSql(
     readonly subjectId: string;
   },
 ): string {
-  if (!ctx.installed("notifications")) return "";
+  if (!ctx.installed("notifications")) {
+    return "";
+  }
   const n = ctx.of("notifications");
-  if (!n.hasTable("subscriptions")) return "";
+  if (!n.hasTable("subscriptions")) {
+    return "";
+  }
   const s = (logical: string): string => n.col("subscriptions", logical);
   const tenanted = n.has("subscriptions", "tenant");
   const columns = [

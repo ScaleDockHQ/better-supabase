@@ -345,7 +345,9 @@ function view(db: DbLike, convert: Convert): object {
       throw new TypeError(`better-supabase: unknown table ${name}`);
     }
     const cached = repositories.get(target);
-    if (cached) return cached;
+    if (cached) {
+      return cached;
+    }
     const wrapped = Object.fromEntries(
       Object.entries(target).map(([key, value]) => [
         key,
@@ -365,9 +367,13 @@ function view(db: DbLike, convert: Convert): object {
       extra?: unknown,
     ): unknown => wrap(list.run(db, query, extra)),
   };
-  for (const key of HELPERS) result[key] = call(db, db[key], `db.${key}`);
+  for (const key of HELPERS) {
+    result[key] = call(db, db[key], `db.${key}`);
+  }
   for (const key in db) {
-    if (key.startsWith("$")) continue;
+    if (key.startsWith("$")) {
+      continue;
+    }
     Object.defineProperty(result, key, {
       enumerable: true,
       get: () => repository(db.$table(key), key),

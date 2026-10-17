@@ -64,8 +64,11 @@ export function keyOf(value: unknown): AiProviderKey {
 function countsOf(value: unknown): AiBatchCounts {
   const row = recordOrEmpty(value);
   const out: Record<string, number> = {};
-  for (const key of ["total", "pending", "completed", "failed"] as const)
-    if (typeof row[key] === "number") out[key] = row[key];
+  for (const key of ["total", "pending", "completed", "failed"] as const) {
+    if (typeof row[key] === "number") {
+      out[key] = row[key];
+    }
+  }
   return out;
 }
 

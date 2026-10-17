@@ -84,8 +84,11 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
           [id, `${id}@example.test`],
         );
       }
-      for (const file of renderModules(["webhooks-in", "rate-limit"]))
-        if (file.kind === "schema") await client.query(file.contents);
+      for (const file of renderModules(["webhooks-in", "rate-limit"])) {
+        if (file.kind === "schema") {
+          await client.query(file.contents);
+        }
+      }
       if (
         (
           await client.query(
@@ -600,16 +603,23 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
     const client = await pool.connect();
     try {
       await client.query("begin");
-      for (const file of renderModules(["webhooks-in"]))
-        if (file.kind === "schema") await client.query(file.contents);
+      for (const file of renderModules(["webhooks-in"])) {
+        if (file.kind === "schema") {
+          await client.query(file.contents);
+        }
+      }
       const { rows } = await client.query<{ id: string }>(
         `insert into better_supabase.incoming_webhooks (tenant, name, token_hash, verify, secret)
          values ($1, 'Legacy', $2, 'hmac-sha256', 'legacy-secret-0123456789') returning id`,
         [crypto.randomUUID(), crypto.randomUUID()],
       );
       const [plan] = upgradePlan([{ module: "webhooks-in", version: 1 }]);
-      for (const step of plan!.steps) await client.query(step.sql);
-      for (const step of plan!.steps) await client.query(step.sql);
+      for (const step of plan!.steps) {
+        await client.query(step.sql);
+      }
+      for (const step of plan!.steps) {
+        await client.query(step.sql);
+      }
       const { rows: after } = await client.query(
         `select e.secret, ds.decrypted_secret as vaulted
          from better_supabase.incoming_webhooks e
@@ -716,8 +726,11 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
       for (const file of renderModules(
         ["organizations", "webhooks-in", "webhook-inbox", "jobs"],
         layout,
-      ))
-        if (file.kind === "schema") await client.query(file.contents);
+      )) {
+        if (file.kind === "schema") {
+          await client.query(file.contents);
+        }
+      }
       await client.query(
         "insert into better_supabase.organizations (id, name, slug) values ($1, 'Adopted', $2)",
         [organization, `adopted-${suffix}`],
@@ -812,8 +825,11 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
     const source = `inbox-${crypto.randomUUID().slice(0, 8)}`;
     try {
       await client.query("begin");
-      for (const file of renderModules(["webhook-inbox"]))
-        if (file.kind === "schema") await client.query(file.contents);
+      for (const file of renderModules(["webhook-inbox"])) {
+        if (file.kind === "schema") {
+          await client.query(file.contents);
+        }
+      }
       const receive = async (tenant: string | null) =>
         (
           await client.query<{ duplicate: boolean }>(

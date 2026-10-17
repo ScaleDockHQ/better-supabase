@@ -88,8 +88,9 @@ export function rateLimitGate<I>(
         ]);
   const headersFor = (remaining: number, reset?: number): Headers => {
     const headers = new Headers();
-    if (policyHeader !== undefined)
+    if (policyHeader !== undefined) {
       headers.set("ratelimit-policy", policyHeader);
+    }
     headers.set(
       "ratelimit",
       rateLimitHeader([
@@ -101,7 +102,9 @@ export function rateLimitGate<I>(
 
   return async (input) => {
     const key = await options.key(input);
-    if (key === undefined) return { kind: "skip" };
+    if (key === undefined) {
+      return { kind: "skip" };
+    }
     const checked = await options.limiter.check(
       options.scope,
       key,

@@ -88,7 +88,9 @@ export function toWeeklyGrid<E extends WeeklyGridEntry>(
       const from = maxInstant(entry.startedAt, starts[day]!);
       const to = minInstant(end, starts[day + 1]!);
       const seconds = Math.max(0, Math.round(from.until(to).total("seconds")));
-      if (seconds === 0) continue;
+      if (seconds === 0) {
+        continue;
+      }
       row ??= {
         id: key,
         entry,
@@ -98,8 +100,12 @@ export function toWeeklyGrid<E extends WeeklyGridEntry>(
       rows.set(key, row);
       row.days[day]! += seconds;
       totals[day]! += seconds;
-      if (entry.billable) billable += seconds;
-      if (!counted) row.entryIds.push(entry.id);
+      if (entry.billable) {
+        billable += seconds;
+      }
+      if (!counted) {
+        row.entryIds.push(entry.id);
+      }
       counted = true;
     }
   }

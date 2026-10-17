@@ -35,7 +35,9 @@ describe.skipIf(!(await reachable()))("suspendAccount", () => {
   const userIds: string[] = [];
 
   afterAll(async () => {
-    for (const id of userIds) await service.auth.admin.deleteUser(id);
+    for (const id of userIds) {
+      await service.auth.admin.deleteUser(id);
+    }
     await postgres.end();
   });
 
@@ -47,13 +49,17 @@ describe.skipIf(!(await reachable()))("suspendAccount", () => {
       password,
       email_confirm: true,
     });
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     userIds.push(data.user.id);
     const client = createClient(url, publishableKey, {
       auth: { persistSession: false },
     });
     const signIn = await client.auth.signInWithPassword({ email, password });
-    if (signIn.error) throw signIn.error;
+    if (signIn.error) {
+      throw signIn.error;
+    }
     return { userId: data.user.id, token: signIn.data.session.access_token };
   }
 

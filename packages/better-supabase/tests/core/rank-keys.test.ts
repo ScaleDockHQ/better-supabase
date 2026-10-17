@@ -67,7 +67,9 @@ describe("rank keys", () => {
   it("grows by about one digit per insert at the same spot", () => {
     let key = rankBetween(null, null);
     const next = "W";
-    for (let step = 0; step < 30; step += 1) key = rankBetween(key, next);
+    for (let step = 0; step < 30; step += 1) {
+      key = rankBetween(key, next);
+    }
     expect(key.length).toBeLessThanOrEqual(32);
     expect(key < next).toBe(true);
   });

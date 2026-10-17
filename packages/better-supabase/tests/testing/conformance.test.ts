@@ -66,14 +66,17 @@ function memoryExecutor(rows: Record<string, unknown>[]): Executor {
   return {
     name: "memory",
     execute: (op, context) => {
-      if (context.signal?.aborted)
+      if (context.signal?.aborted) {
         return Promise.resolve(err(dbError("aborted", "aborted")));
-      if (op.table.name !== "tags")
+      }
+      if (op.table.name !== "tags") {
         return Promise.resolve(
           err(dbError("not_found", `no table ${op.table.name}`)),
         );
-      if (op.kind !== "select")
+      }
+      if (op.kind !== "select") {
         return Promise.resolve(err(dbError("invalid_request", "read only")));
+      }
       const selected = rows
         .slice(0, op.limit)
         .map((row) =>
@@ -113,7 +116,9 @@ describe("testExecutor", () => {
     const broken: Executor = {
       name: "broken",
       execute: (op) => {
-        if (op.table.name !== "tags") throw new Error("boom");
+        if (op.table.name !== "tags") {
+          throw new Error("boom");
+        }
         return Promise.resolve(
           ok({ rows: [{ id: "1", extra: true }, {}, {}], count: null }),
         );
@@ -150,7 +155,9 @@ describe("testCacheAdapter", () => {
     const picky: CacheAdapter = {
       name: "picky",
       invalidate: (target) => {
-        if (target.table.startsWith("__")) throw new Error("unknown table");
+        if (target.table.startsWith("__")) {
+          throw new Error("unknown table");
+        }
       },
     };
     expect(await failures(testCacheAdapter(picky))).toEqual([
@@ -176,7 +183,9 @@ describe("testEventSink", () => {
     ).toEqual(["delivers every event"]);
     const mutating: EventSink = {
       send: (events) => {
-        for (const event of events) (event as { id: string }).id = "x";
+        for (const event of events) {
+          (event as { id: string }).id = "x";
+        }
       },
     };
     expect(await failures(testEventSink(mutating))).toEqual([
@@ -205,7 +214,9 @@ function memoryQueue(options: { leases?: boolean } = {}): QueueBackend {
     leases: options.leases ?? true,
     send: (_queue, payload, delay, maxAttempts, key) => {
       const existing = key && rows.find((row) => row.key === key && !row.done);
-      if (existing) return Promise.resolve(existing.id);
+      if (existing) {
+        return Promise.resolve(existing.id);
+      }
       const id = rows.length + 1;
       rows.push({
         id,
@@ -239,12 +250,16 @@ function memoryQueue(options: { leases?: boolean } = {}): QueueBackend {
     },
     complete: (job) => {
       const row = find(job.id, job.attempts);
-      if (row) row.done = true;
+      if (row) {
+        row.done = true;
+      }
       return Promise.resolve(row !== undefined);
     },
     fail: (job, error, retryIn) => {
       const row = find(job.id, job.attempts);
-      if (!row) return Promise.resolve(null);
+      if (!row) {
+        return Promise.resolve(null);
+      }
       row.message.last_error = error;
       if (row.attempts >= row.message.max_attempts) {
         row.done = true;
@@ -255,7 +270,9 @@ function memoryQueue(options: { leases?: boolean } = {}): QueueBackend {
     },
     extend: (job, lease) => {
       const row = find(job.id, job.attempts);
-      if (row) row.visibleAt = now() + lease * 1000;
+      if (row) {
+        row.visibleAt = now() + lease * 1000;
+      }
       return Promise.resolve(row !== undefined);
     },
     schedule: () => Promise.resolve(),
@@ -329,7 +346,9 @@ describe("testAuthResolver", () => {
       name: "api-key",
       resolve: (incoming) => {
         const key = incoming.headers.get("x-api-key");
-        if (key === null) return;
+        if (key === null) {
+          return;
+        }
         return key === "good"
           ? { kind: "service", keyName: "ci" }
           : {
@@ -349,7 +368,9 @@ describe("testAuthResolver", () => {
       name: "lenient",
       resolve: (incoming) => {
         const key = incoming.headers.get("x-api-key");
-        if (key === "throw") throw new Error("database down");
+        if (key === "throw") {
+          throw new Error("database down");
+        }
         return key === null
           ? { kind: "anon", reason: "none" }
           : { kind: "anon", reason: "none" };
@@ -591,7 +612,9 @@ describe("conform", () => {
 type Row = Record<string, unknown>;
 
 function matches(row: Row, where: Condition | undefined): boolean {
-  if (!where) return true;
+  if (!where) {
+    return true;
+  }
   switch (where.kind) {
     case "and":
       return where.items.every((item) => matches(row, item));
@@ -635,16 +658,19 @@ function storeExecutor(
   const rows = seed.map((row) => ({ ...row }));
   let next = 100;
   const execute: Executor["execute"] = (op, context) => {
-    if (context.signal?.aborted)
+    if (context.signal?.aborted) {
       return Promise.resolve(err(dbError("aborted", "aborted")));
-    if (op.table.name !== "tags")
+    }
+    if (op.table.name !== "tags") {
       return Promise.resolve(
         err(dbError("not_found", `no table ${op.table.name}`)),
       );
+    }
     switch (op.kind) {
       case "select": {
-        if (op.source && !quirks.ignoresSource)
+        if (op.source && !quirks.ignoresSource) {
           return Promise.resolve(err(dbError("not_found", "no function")));
+        }
         const found = rows.filter((row) => matches(row, op.where));
         const limited = found.slice(0, op.limit);
         return Promise.resolve(
@@ -671,7 +697,7 @@ function storeExecutor(
           op.maxAffected !== undefined &&
           removed.length > op.maxAffected &&
           !quirks.ignoresMaxAffected
-        )
+        ) {
           return Promise.resolve(
             err(
               dbError("max_affected", "too many rows", {
@@ -679,8 +705,12 @@ function storeExecutor(
               }),
             ),
           );
-        if (!quirks.keepsDeleted)
-          for (const row of removed) rows.splice(rows.indexOf(row), 1);
+        }
+        if (!quirks.keepsDeleted) {
+          for (const row of removed) {
+            rows.splice(rows.indexOf(row), 1);
+          }
+        }
         return Promise.resolve(
           ok({ rows: project(removed, op.returning), count: removed.length }),
         );
@@ -785,9 +815,13 @@ describe("testAuthResolver edge cases", () => {
       name: "odd",
       resolve: (incoming) => {
         const key = incoming.headers.get("x-api-key");
-        if (key === null) return;
-        // oxlint-disable-next-line typescript/only-throw-error -- the module must report non-Error throws.
-        if (key === "throw") throw "offline";
+        if (key === null) {
+          return;
+        }
+        if (key === "throw") {
+          // oxlint-disable-next-line typescript/only-throw-error -- the module must report non-Error throws.
+          throw "offline";
+        }
         return key === "user"
           ? {
               kind: "user",

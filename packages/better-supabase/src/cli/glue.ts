@@ -32,7 +32,9 @@ export async function overwrite(
   prompts: Prompter | undefined,
   base: string = root,
 ): Promise<boolean | undefined> {
-  if (args.force === true) return true;
+  if (args.force === true) {
+    return true;
+  }
   const existing = [
     ...new Set(
       files
@@ -40,7 +42,9 @@ export async function overwrite(
         .filter((path) => existsSync(resolve(root, path))),
     ),
   ];
-  if (!prompts || existing.length === 0) return false;
+  if (!prompts || existing.length === 0) {
+    return false;
+  }
   return prompts.confirm(
     `${existing.map((path) => display(base, resolve(root, path))).join(", ")} ${existing.length === 1 ? "exists" : "exist"}. Overwrite?`,
   );
@@ -57,7 +61,9 @@ export async function writeFiles(
   const lines: string[] = [];
   const seen = new Set<string>();
   for (const file of files) {
-    if (seen.has(file.path)) continue;
+    if (seen.has(file.path)) {
+      continue;
+    }
     seen.add(file.path);
     const path = resolve(root, file.path);
     const shown = display(base, path);

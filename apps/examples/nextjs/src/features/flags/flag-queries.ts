@@ -17,7 +17,9 @@ export async function getEnabledFlags(): Promise<readonly FlagKey[]> {
   "use cache: private";
   const { session, supabase } = await bs.cached();
   const tenant = tenantOf(session);
-  if (!tenant) return [];
+  if (!tenant) {
+    return [];
+  }
   const { call } = blocks(supabase);
   const enabled = await Promise.all(
     FLAGS.map(async (key) =>

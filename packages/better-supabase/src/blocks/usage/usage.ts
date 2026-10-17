@@ -534,8 +534,9 @@ export async function reportUsageToStripe(
         !customers.has(organizationId) &&
         !skipTenants.has(organizationId) &&
         eventNameOf(textOf(row["meter"])) !== undefined
-      )
+      ) {
         lookups.add(organizationId);
+      }
     }
     await eachLimit(
       [...lookups],
@@ -596,7 +597,9 @@ export async function reportUsageToStripe(
       sent[index] = await send(pending);
     });
     reported += sent.filter(Boolean).length;
-    if (!passedOver || handled >= limit || rows.length === 0) break;
+    if (!passedOver || handled >= limit || rows.length === 0) {
+      break;
+    }
   }
   return { reported, skipped };
 }

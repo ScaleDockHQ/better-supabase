@@ -21,8 +21,9 @@ export function mergeJson<T>(
       onConflict &&
       base !== undefined &&
       JSON.stringify(base) !== JSON.stringify(patch)
-    )
+    ) {
       onConflict(pointer);
+    }
     // SAFETY: a patch replaces the value at this position; callers merge
     // fragments of the same document shape.
     return patch as T;

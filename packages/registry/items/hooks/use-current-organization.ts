@@ -40,7 +40,9 @@ export function useCurrentOrganization(): CurrentOrganization {
       const result = await organizations.switch(organizationId);
       if (result.ok) {
         setError(undefined);
-        if (result.data.refresh) await supabase.auth.refreshSession();
+        if (result.data.refresh) {
+          await supabase.auth.refreshSession();
+        }
       } else {
         setError(result.error);
       }

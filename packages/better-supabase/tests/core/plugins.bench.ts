@@ -57,9 +57,13 @@ const SETS: Readonly<Record<string, readonly AnyPlugin[]>> = {
 const context = { claims: { sub: "u1", org_id: ORG }, tenant: ORG };
 
 async function measure(work: () => PromiseLike<unknown>): Promise<number> {
-  for (let warm = 0; warm < 2000; warm++) await work();
+  for (let warm = 0; warm < 2000; warm++) {
+    await work();
+  }
   const started = performance.now();
-  for (let run = 0; run < RUNS; run++) await work();
+  for (let run = 0; run < RUNS; run++) {
+    await work();
+  }
   return ((performance.now() - started) / RUNS) * 1000;
 }
 
@@ -68,7 +72,9 @@ const results: Record<string, { "connect µs": string; "findMany µs": string }>
 const findMany: Record<string, number> = {};
 for (const [label, plugins] of Object.entries(SETS)) {
   let betterSupabase = defineSupabase(schema);
-  for (const plugin of plugins) betterSupabase = betterSupabase.use(plugin);
+  for (const plugin of plugins) {
+    betterSupabase = betterSupabase.use(plugin);
+  }
   const db = betterSupabase.connect(executor, context);
   const connect = await measure(() =>
     Promise.resolve(betterSupabase.connect(executor, context)),

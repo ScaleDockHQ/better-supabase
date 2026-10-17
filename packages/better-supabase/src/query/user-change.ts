@@ -21,7 +21,9 @@ const TIME_CLAIMS = new Set(["exp", "iat", "nbf", "jti"]);
 export function identityKey(
   snapshot: ReturnType<UserChangeSource["current"]>,
 ): string | null {
-  if (!snapshot.user) return null;
+  if (!snapshot.user) {
+    return null;
+  }
   const claims = Object.entries(snapshot.claims ?? {})
     .filter(([key]) => !TIME_CLAIMS.has(key))
     .toSorted(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));

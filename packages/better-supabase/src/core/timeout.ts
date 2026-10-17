@@ -20,8 +20,9 @@ function anySignal(signals: readonly AbortSignal[]): {
   signal: AbortSignal;
   detach: () => void;
 } {
-  if (typeof AbortSignal.any === "function")
+  if (typeof AbortSignal.any === "function") {
     return { signal: AbortSignal.any([...signals]), detach: () => {} };
+  }
   const controller = new AbortController();
   const abort = (): void => {
     controller.abort();
@@ -32,11 +33,15 @@ function anySignal(signals: readonly AbortSignal[]): {
       return { signal: controller.signal, detach: () => {} };
     }
   }
-  for (const signal of signals) signal.addEventListener("abort", abort);
+  for (const signal of signals) {
+    signal.addEventListener("abort", abort);
+  }
   return {
     signal: controller.signal,
     detach: () => {
-      for (const signal of signals) signal.removeEventListener("abort", abort);
+      for (const signal of signals) {
+        signal.removeEventListener("abort", abort);
+      }
     },
   };
 }
@@ -54,7 +59,9 @@ export function deadline(
   signal: AbortSignal | undefined,
   timeoutMs: number | undefined,
 ): Deadline {
-  if (timeoutMs === undefined) return NO_DEADLINE(signal);
+  if (timeoutMs === undefined) {
+    return NO_DEADLINE(signal);
+  }
   const timer = new AbortController();
   const handle = setTimeout(() => {
     timer.abort();
@@ -85,10 +92,12 @@ export function invalidTuning(tuning: {
   readonly timeout?: unknown;
   readonly retry?: unknown;
 }): string | undefined {
-  if (tuning.timeout !== undefined && !isTimeout(tuning.timeout))
+  if (tuning.timeout !== undefined && !isTimeout(tuning.timeout)) {
     return `"timeout" must be a positive number of milliseconds, got ${String(tuning.timeout)}`;
-  if (tuning.retry !== undefined && typeof tuning.retry !== "boolean")
+  }
+  if (tuning.retry !== undefined && typeof tuning.retry !== "boolean") {
     return `"retry" must be a boolean, got ${String(tuning.retry)}`;
+  }
   return undefined;
 }
 
@@ -98,9 +107,13 @@ export function tuningOf(
 ): RequestTuning | { readonly invalid: string } {
   const timeout = args?.["timeout"];
   const retry = args?.["retry"];
-  if (timeout === undefined && retry === undefined) return NO_TUNING;
+  if (timeout === undefined && retry === undefined) {
+    return NO_TUNING;
+  }
   const invalid = invalidTuning({ timeout, retry });
-  if (invalid) return { invalid };
+  if (invalid) {
+    return { invalid };
+  }
   return {
     ...(isTimeout(timeout) ? { timeout } : {}),
     ...(typeof retry === "boolean" ? { retry } : {}),

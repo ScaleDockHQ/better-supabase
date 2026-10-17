@@ -64,12 +64,13 @@ export function resolveExpose(
   key: string,
   entry: ExposeConfig,
 ): ResolvedExpose {
-  if (Array.isArray(entry))
+  if (Array.isArray(entry)) {
     return {
       anon: [],
       authenticated: checkedPrivileges(key, entry),
       serviceRole: ALL_PRIVILEGES,
     };
+  }
   if ("execute" in entry) {
     throw new TypeError(
       `expose.${key}: \`execute\` is for functions; key it by its signature, such as ${key}(text)`,

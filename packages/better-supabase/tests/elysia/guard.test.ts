@@ -14,7 +14,9 @@ describe("elysia guard and problemOnError", () => {
   const fetch = bridge.wrap(async (request) => {
     try {
       const refused = await admin({ request });
-      if (refused) return refused;
+      if (refused) {
+        return refused;
+      }
       if (request.url.endsWith("/thrown")) {
         throw new DbException(dbError("not_found", "Gone"));
       }

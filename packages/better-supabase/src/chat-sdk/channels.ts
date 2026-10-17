@@ -123,22 +123,26 @@ export function webhook(
     }
     if (options.ref) {
       const provider = options.credentials;
-      if (!provider?.verifyInbound)
+      if (!provider?.verifyInbound) {
         return new Response(
           "the credential provider cannot verify inbound requests",
           {
             status: 500,
           },
         );
+      }
       const verified = await provider.verifyInbound(request, options.ref);
-      if (!verified.ok || !verified.data)
+      if (!verified.ok || !verified.data) {
         return new Response("unauthorized", { status: 401 });
+      }
     } else if (options.verify && !(await options.verify(request, body))) {
       return new Response("unauthorized", { status: 401 });
     }
     const headers: Record<string, string> = {};
     request.headers.forEach((value, key) => {
-      if (!DROPPED_HEADERS.has(key)) headers[key] = value;
+      if (!DROPPED_HEADERS.has(key)) {
+        headers[key] = value;
+      }
     });
     const externalId = options.externalId?.(body, request);
     const stored = await options.inbox.inbound.store({
@@ -149,8 +153,9 @@ export function webhook(
       ...(options.inboxId === undefined ? {} : { inboxId: options.inboxId }),
       ...(options.tenant === undefined ? {} : { tenant: options.tenant }),
     });
-    if (!stored.ok)
+    if (!stored.ok) {
       return new Response("could not store the event", { status: 503 });
+    }
     options.after?.(stored.data);
     return new Response("ok", { status: 200 });
   };
@@ -214,7 +219,7 @@ export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
     adapter: string,
     parsed: ParsedDeliveries,
   ): Promise<void> => {
-    for (const update of parsed.updates)
+    for (const update of parsed.updates) {
       await inbox.deliveries
         .setStatus({
           channel: channelFor(adapter),
@@ -223,13 +228,16 @@ export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
           ...(update.error === undefined ? {} : { error: update.error }),
         })
         .orThrow();
+    }
   };
 
   const process = async (event: StoredInboundEvent): Promise<void> => {
     await inbox.inbound.setStatus(event.id, "processing").orThrow();
     try {
       const parsed = parsers[event.adapter]?.(event) ?? null;
-      if (parsed) await applyDeliveries(event.adapter, parsed);
+      if (parsed) {
+        await applyDeliveries(event.adapter, parsed);
+      }
       if (parsed?.only) {
         await inbox.inbound.setStatus(event.id, "processed").orThrow();
         return;
@@ -251,8 +259,9 @@ export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
         { waitUntil: (task) => void tasks.push(task) },
       );
       await Promise.all(tasks);
-      if (response.status >= 400)
+      if (response.status >= 400) {
         throw new Error(`${event.adapter} answered ${String(response.status)}`);
+      }
       await inbox.inbound.setStatus(event.id, "processed").orThrow();
     } catch (error) {
       await inbox.inbound.setStatus(event.id, "failed", errorText(error));
@@ -269,7 +278,9 @@ export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
     for (const file of message.attachments) {
       if (options.copyFile) {
         const copied = await options.copyFile(file, { adapter, threadId });
-        if (copied) out.push(copied);
+        if (copied) {
+          out.push(copied);
+        }
       } else if (file.url !== undefined) {
         out.push({
           url: file.url,
@@ -309,12 +320,17 @@ export function inboundHandler(options: InboundHandlerOptions): InboundHandler {
     },
     mirror: async (thread, message) => {
       const adapter = thread.adapter.name;
-      if (message.author.isMe || message.author.isBot === true) return null;
+      if (message.author.isMe || message.author.isBot === true) {
+        return null;
+      }
       const state = chat.getState();
-      if ((await state.get(echoKey(adapter, message.id))) !== null) return null;
+      if ((await state.get(echoKey(adapter, message.id))) !== null) {
+        return null;
+      }
       const inboxId = options.inboxes[adapter];
-      if (inboxId === undefined)
+      if (inboxId === undefined) {
         throw new Error(`inboundHandler: no inbox for adapter "${adapter}"`);
+      }
       const attachments = await files(message, adapter, thread.id);
       return inbox.inbound
         .record({
@@ -396,21 +412,26 @@ export function deliver(
   const { chat, inbox } = options;
   return async (job) => {
     const message = await inbox.messages.get(job.message_id).orThrow();
-    if (message?.kind !== "message" || message.deletedAt !== null) return null;
+    if (message?.kind !== "message" || message.deletedAt !== null) {
+      return null;
+    }
     const conversation = await inbox.conversations
       .get(message.conversationId)
       .orThrow();
-    if (!conversation) return null;
+    if (!conversation) {
+      return null;
+    }
     const name =
       options.adapterFor?.(conversation) ??
       (conversation.inbox?.channel === "sms"
         ? "twilio"
         : conversation.inbox?.channel);
     const adapter = name === undefined ? undefined : chat.getAdapter(name);
-    if (!adapter || name === undefined)
+    if (!adapter || name === undefined) {
       throw new Error(
         `deliver: no adapter for conversation ${conversation.id}`,
       );
+    }
     const channel = conversation.inbox?.channel ?? name;
     try {
       const template = await options.template?.({

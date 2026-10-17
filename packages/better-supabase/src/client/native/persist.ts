@@ -43,7 +43,9 @@ export function persistQueryCache<T>(
     timer = undefined;
     const next = pending;
     pending = undefined;
-    if (!next) return writing;
+    if (!next) {
+      return writing;
+    }
     writing = writing.then(() => store.set(key, next.value));
     return writing;
   };
@@ -68,7 +70,9 @@ export function persistQueryCache<T>(
       return restored;
     },
     async removeClient() {
-      if (timer !== undefined) clearTimeout(timer);
+      if (timer !== undefined) {
+        clearTimeout(timer);
+      }
       timer = undefined;
       pending = undefined;
       await writing;

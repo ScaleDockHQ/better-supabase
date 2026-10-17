@@ -63,7 +63,9 @@ export function hitOf(value: unknown): MemoryHit {
 }
 
 export function viewOf(value: unknown): MemoryView | undefined {
-  if (!isRecord(value)) return undefined;
+  if (!isRecord(value)) {
+    return undefined;
+  }
   if (value["type"] === "file") {
     return {
       type: "file",

@@ -27,13 +27,19 @@ export function CommentThread({ customerId }: { readonly customerId: string }) {
 
   const submit = async () => {
     const text = body.trim();
-    if (!text) return;
+    if (!text) {
+      return;
+    }
     setPending(true);
-    if ((await add(text)).ok) setBody("");
+    if ((await add(text)).ok) {
+      setBody("");
+    }
     setPending(false);
   };
 
-  if (comments === undefined) return <ActivityIndicator />;
+  if (comments === undefined) {
+    return <ActivityIndicator />;
+  }
   return (
     <View style={{ flex: 1, gap: 12 }}>
       <FlatList

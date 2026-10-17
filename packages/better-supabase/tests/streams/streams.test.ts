@@ -15,14 +15,18 @@ import { fakeRedis, fakeStreamsTransport } from "./fakes.ts";
 const fromChunks = (chunks: readonly string[]): ReadableStream<string> =>
   new ReadableStream<string>({
     start(controller) {
-      for (const chunk of chunks) controller.enqueue(chunk);
+      for (const chunk of chunks) {
+        controller.enqueue(chunk);
+      }
       controller.close();
     },
   });
 
 async function text(stream: ReadableStream<string>): Promise<string> {
   let out = "";
-  for await (const chunk of stream) out += chunk;
+  for await (const chunk of stream) {
+    out += chunk;
+  }
   return out;
 }
 

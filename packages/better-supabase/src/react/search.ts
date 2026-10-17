@@ -42,7 +42,9 @@ export function useDebouncedSearch(
   const [settled, setSettled] = useState(initial);
 
   useEffect(() => {
-    if (value === settled) return;
+    if (value === settled) {
+      return;
+    }
     const timer = setTimeout(() => {
       setSettled(value);
     }, delayMs);

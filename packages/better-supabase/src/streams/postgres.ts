@@ -37,7 +37,9 @@ export interface PostgresStreamStoreOptions {
 }
 
 function statusOf(value: unknown): StreamStatus | undefined {
-  if (!isRecord(value)) return undefined;
+  if (!isRecord(value)) {
+    return undefined;
+  }
   return {
     next: Number(value["next"] ?? 0),
     closed: value["closed"] === true,

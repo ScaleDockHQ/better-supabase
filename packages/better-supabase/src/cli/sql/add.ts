@@ -78,8 +78,9 @@ export async function addModules(
   if (untracked.length > 0) {
     lines.push("", ...(await listInConfig(args, untracked, deps)));
   }
-  if (args["dry-run"] !== true)
+  if (args["dry-run"] !== true) {
     lines.push(...(await unlistedModuleFiles(config, names, sqlLayout)));
+  }
   lines.push("", await nextStep(config));
   return { code: 0, output: lines.join("\n") };
 }

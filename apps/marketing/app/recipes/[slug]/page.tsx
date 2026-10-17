@@ -29,7 +29,9 @@ export async function generateMetadata({
   params,
 }: RecipePageProps): Promise<Metadata> {
   const recipe = getRecipe((await params).slug);
-  if (!recipe) return {};
+  if (!recipe) {
+    return {};
+  }
   return { title: `${recipe.title} recipe`, description: recipe.description };
 }
 
@@ -88,7 +90,9 @@ function Screenshot({ recipe }: { recipe: AvailableRecipe }) {
 
 export default async function RecipePage({ params }: RecipePageProps) {
   const recipe = getRecipe((await params).slug);
-  if (!recipe) notFound();
+  if (!recipe) {
+    notFound();
+  }
   const { web, native, hook } = recipe;
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-12 px-6 py-16 md:px-8">

@@ -56,12 +56,18 @@ function collect(path: string, into: string[]): void {
     return;
   }
   if (stats.isFile()) {
-    if (/\.mdx?$|\.mdc$/u.test(path) && !path.endsWith(".changeset/README.md"))
+    if (
+      /\.mdx?$|\.mdc$/u.test(path) &&
+      !path.endsWith(".changeset/README.md")
+    ) {
       into.push(path);
+    }
     return;
   }
   for (const entry of readdirSync(path)) {
-    if (entry === "node_modules" || entry.startsWith(".source")) continue;
+    if (entry === "node_modules" || entry.startsWith(".source")) {
+      continue;
+    }
     collect(join(path, entry), into);
   }
 }
@@ -85,15 +91,24 @@ function check(file: string): Finding[] {
     const trimmed = raw.trim();
     const marker = /^(`{3,}|~{3,})/u.exec(trimmed)?.[1];
     if (marker !== undefined) {
-      if (fence === undefined) fence = marker;
-      else if (trimmed.startsWith(fence)) fence = undefined;
+      if (fence === undefined) {
+        fence = marker;
+      } else if (trimmed.startsWith(fence)) {
+        fence = undefined;
+      }
       return;
     }
-    if (fence !== undefined) return;
-    if (/^(import|export)\s/u.test(trimmed)) return;
+    if (fence !== undefined) {
+      return;
+    }
+    if (/^(import|export)\s/u.test(trimmed)) {
+      return;
+    }
     // Multi-line JSX tags carry props, not prose.
     if (jsx) {
-      if (trimmed.endsWith(">")) jsx = false;
+      if (trimmed.endsWith(">")) {
+        jsx = false;
+      }
       return;
     }
     if (/^<[A-Za-z][^>]*$/u.test(trimmed)) {
@@ -101,19 +116,24 @@ function check(file: string): Finding[] {
       return;
     }
     const text = prose(raw);
-    for (const [pattern, message] of checks)
-      if (pattern.test(text)) findings.push({ file, line: index + 1, message });
+    for (const [pattern, message] of checks) {
+      if (pattern.test(text)) {
+        findings.push({ file, line: index + 1, message });
+      }
+    }
   });
   return findings;
 }
 
 const files: string[] = [];
-for (const root of argv.length > 2 ? argv.slice(2) : roots)
+for (const root of argv.length > 2 ? argv.slice(2) : roots) {
   collect(root, files);
+}
 
 const findings = files.flatMap(check);
-for (const { file, line, message } of findings)
+for (const { file, line, message } of findings) {
   console.error(`${relative(cwd(), file)}:${line}: ${message}`);
+}
 if (findings.length > 0) {
   console.error(
     `\n${findings.length} prose finding(s). See .agents/rules/writing.mdc.`,

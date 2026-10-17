@@ -83,8 +83,12 @@ describe("extraColumns", () => {
     ({ module, writes, reads }) => {
       const sql = body(module, { extraColumns: { region: "text" } });
       expect(sql).toContain('add column if not exists "region" text;');
-      for (const write of writes) expect(sql).toContain(write);
-      for (const read of reads) expect(sql).toContain(read);
+      for (const write of writes) {
+        expect(sql).toContain(write);
+      }
+      for (const read of reads) {
+        expect(sql).toContain(read);
+      }
       expect(body(module, {})).not.toContain('"region"');
     },
   );

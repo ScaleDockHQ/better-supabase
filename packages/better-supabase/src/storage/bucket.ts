@@ -445,12 +445,15 @@ const SIZE_UNITS: Readonly<Record<string, number>> = {
 };
 
 export function parseSize(value: string | number): number {
-  if (typeof value === "number") return value;
+  if (typeof value === "number") {
+    return value;
+  }
   const match = /^\s*(\d+(?:\.\d+)?)\s*([a-z]*)\s*$/i.exec(value);
   // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- an empty unit means bytes.
   const unit = SIZE_UNITS[(match?.[2] || "b").toLowerCase()];
-  if (!match || unit === undefined)
+  if (!match || unit === undefined) {
     throw new TypeError(`Invalid size "${value}"`);
+  }
   return Math.round(Number(match[1]) * unit);
 }
 
@@ -483,8 +486,9 @@ function sizeLabel(bytes: number): string {
     ["MiB", 1024 ** 2],
     ["KiB", 1024],
   ] as const) {
-    if (bytes >= size && bytes % size === 0)
+    if (bytes >= size && bytes % size === 0) {
       return `${String(bytes / size)}${unit}`;
+    }
   }
   return `${String(bytes)}B`;
 }
@@ -516,10 +520,11 @@ export function defineBucket<
       : parseSize(config.fileSizeLimit);
   const allowedMimeTypes = config.allowedMimeTypes;
   const versioning = config.versioning ?? false;
-  if (config.lifecycle && !versioning)
+  if (config.lifecycle && !versioning) {
     throw new TypeError(
       `defineBucket("${config.id}"): lifecycle expires noncurrent versions, so it needs versioning: true`,
     );
+  }
   const lifecycle = config.lifecycle
     ? lifecyclePayload(config.id, config.lifecycle)
     : undefined;
@@ -528,8 +533,9 @@ export function defineBucket<
   const tenantParam = config.tenant
     ? (config.tenant.param ?? "organizationId")
     : undefined;
-  if (tenantParam !== undefined)
+  if (tenantParam !== undefined) {
     layouts.requireParam(tenantParam, "tenant.param");
+  }
   const tenantClaim = config.tenant?.claim;
   const mode = typeof policy === "string" ? policy : "access";
   const accessCheck = ((): string | undefined => {
@@ -565,10 +571,11 @@ export function defineBucket<
   );
 
   const resolve = (target: ObjectTarget<P, Id>): StoragePath<Id> => {
-    if (typeof target !== "string")
+    if (typeof target !== "string") {
       // SAFETY: a template builds the path from typed values, so it matches
       // the bucket's paths.
       return layouts.build(target) as StoragePath<Id>;
+    }
     if (!layouts.match(target)) {
       throw new DbException(
         dbError(
@@ -765,10 +772,11 @@ export function defineBucket<
           `file_size_limit = "${typeof config.fileSizeLimit === "number" ? sizeLabel(config.fileSizeLimit) : config.fileSizeLimit}"`,
         );
       }
-      if (allowedMimeTypes)
+      if (allowedMimeTypes) {
         lines.push(
           `allowed_mime_types = [${allowedMimeTypes.map((type) => JSON.stringify(type)).join(", ")}]`,
         );
+      }
       return `${lines.join("\n")}\n`;
     },
     drift(actual) {

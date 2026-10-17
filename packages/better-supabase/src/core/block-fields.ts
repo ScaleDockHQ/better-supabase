@@ -93,7 +93,9 @@ export function readAllFields<
     const out: WithFields<R, F>[] = [];
     for (const row of rows) {
       const parsed = await fields.read(row.fields);
-      if (!parsed.ok) return parsed;
+      if (!parsed.ok) {
+        return parsed;
+      }
       out.push({ ...row, fields: parsed.data });
     }
     return ok(out);
@@ -111,7 +113,9 @@ export function writeFields<F extends object, T>(
     checked: Readonly<Record<string, unknown>> | undefined,
   ) => AsyncResult<T>,
 ): AsyncResult<T> {
-  if (values === undefined) return then(undefined);
+  if (values === undefined) {
+    return then(undefined);
+  }
   return AsyncResult.from(() => fields.write({ ...values })).andThen(then);
 }
 
@@ -147,7 +151,9 @@ export function blockFields<T extends object = Record<never, never>>(
         return ok(row as typeof row & T);
       }
       const outcome = await run(schema, row);
-      if (outcome.issues) return invalid(label, toIssues(outcome.issues));
+      if (outcome.issues) {
+        return invalid(label, toIssues(outcome.issues));
+      }
       if (!isObject(outcome.value)) {
         return invalid(label, [{ message: "fields must parse to an object" }]);
       }
@@ -155,10 +161,14 @@ export function blockFields<T extends object = Record<never, never>>(
       return ok({ ...row, ...outcome.value } as typeof row & T);
     },
     async write(attrs) {
-      if (schema === undefined) return ok(attrs);
+      if (schema === undefined) {
+        return ok(attrs);
+      }
       const outcome = await run(schema, attrs);
       if (!outcome.issues) {
-        if (!isObject(outcome.value)) return ok(attrs);
+        if (!isObject(outcome.value)) {
+          return ok(attrs);
+        }
         const parsed = outcome.value;
         const picked = Object.fromEntries(
           Object.keys(attrs)
@@ -173,7 +183,9 @@ export function blockFields<T extends object = Record<never, never>>(
         return first === undefined || given.has(String(first));
       });
       // Every issue concerns a field the write leaves out: a partial update.
-      if (relevant.length === 0) return ok(attrs);
+      if (relevant.length === 0) {
+        return ok(attrs);
+      }
       return invalid(label, relevant);
     },
     row: (row) =>
@@ -188,7 +200,9 @@ export function blockFields<T extends object = Record<never, never>>(
         })[] = [];
         for (const row of rows) {
           const parsed = await fields.row(row);
-          if (!parsed.ok) return parsed;
+          if (!parsed.ok) {
+            return parsed;
+          }
           out.push(parsed.data);
         }
         return ok(out);
@@ -227,7 +241,9 @@ export async function withFields<R extends object, T extends object>(
   row: R,
 ): Promise<Result<R & T>> {
   const parsed = await fields.read(extraFieldsOf(raw));
-  if (!parsed.ok) return parsed;
+  if (!parsed.ok) {
+    return parsed;
+  }
   return ok({ ...parsed.data, ...row });
 }
 
@@ -239,7 +255,9 @@ export async function allWithFields<R extends object, T extends object>(
   const out: (R & T)[] = [];
   for (const [raw, row] of rows) {
     const parsed = await withFields(fields, raw, row);
-    if (!parsed.ok) return parsed;
+    if (!parsed.ok) {
+      return parsed;
+    }
     out.push(parsed.data);
   }
   return ok(out);
@@ -254,7 +272,9 @@ export async function extraFieldsArg(
   fields: BlockFields<object>,
   extra: Readonly<Record<string, unknown>>,
 ): Promise<Result<{ readonly fields?: Readonly<Record<string, unknown>> }>> {
-  if (Object.keys(extra).length === 0) return ok({});
+  if (Object.keys(extra).length === 0) {
+    return ok({});
+  }
   const valid = await fields.write(extra);
   return valid.ok ? ok({ fields: valid.data }) : valid;
 }

@@ -187,7 +187,9 @@ function hooksOf(
   hooks: object | undefined,
   key: string,
 ): BlockHooks<object> | undefined {
-  if (hooks === undefined) return undefined;
+  if (hooks === undefined) {
+    return undefined;
+  }
   const entry: unknown = Object.entries(hooks).find(
     ([name]) => name === key,
   )?.[1];
@@ -199,8 +201,9 @@ function buildBlocks<B extends BlockMap>(
   blocks: B,
 ): Blocks<B> {
   const { audit, hooks, config, ...shared } = options;
-  if (audit !== undefined && shared.events === undefined)
+  if (audit !== undefined && shared.events === undefined) {
     throw new TypeError("createBlocks: `audit` needs `events` to forward");
+  }
   const providers = new Map<string, string>();
   for (const port of UNIQUE_PORTS) {
     const keys = Object.keys(blocks).filter(
@@ -212,7 +215,9 @@ function buildBlocks<B extends BlockMap>(
       );
     }
     const [key] = keys;
-    if (key !== undefined) providers.set(port, key);
+    if (key !== undefined) {
+      providers.set(port, key);
+    }
   }
   for (const [key, block] of Object.entries(blocks)) {
     for (const [port, need] of Object.entries(block.consumes)) {
@@ -229,7 +234,9 @@ function buildBlocks<B extends BlockMap>(
 
   const blockOf = (key: string): AnyBlock => {
     const block = blocks[key];
-    if (block === undefined) throw new TypeError(`No block named "${key}"`);
+    if (block === undefined) {
+      throw new TypeError(`No block named "${key}"`);
+    }
     return block;
   };
 
@@ -240,11 +247,17 @@ function buildBlocks<B extends BlockMap>(
   const optionsOf = (key: string): Record<string, unknown> => {
     const ports: Record<string, unknown> = {};
     for (const port of UNIQUE_PORTS) {
-      if (blockOf(key).consumes[port] === undefined) continue;
+      if (blockOf(key).consumes[port] === undefined) {
+        continue;
+      }
       const provider = providers.get(port);
-      if (provider === undefined || provider === key) continue;
+      if (provider === undefined || provider === key) {
+        continue;
+      }
       const value = portOf(provider, port);
-      if (value !== undefined) ports[port] = value;
+      if (value !== undefined) {
+        ports[port] = value;
+      }
     }
     const block = blockOf(key);
     const entry = config?.[block.name];
@@ -273,7 +286,9 @@ function buildBlocks<B extends BlockMap>(
     port: P,
   ): BlockPorts[P] | undefined {
     const provide = blockOf(key).provides[port];
-    if (provide === undefined) return undefined;
+    if (provide === undefined) {
+      return undefined;
+    }
     // SAFETY: `provide` takes the client and options of the block it belongs
     // to, which are the ones `build` made and passed for `key`.
     const call = provide as (
@@ -284,15 +299,18 @@ function buildBlocks<B extends BlockMap>(
   }
 
   function build(key: string): unknown {
-    if (built.has(key)) return built.get(key);
+    if (built.has(key)) {
+      return built.get(key);
+    }
     const block = blockOf(key);
     if (block.create === undefined) {
       throw new TypeError(
         `The "${block.name}" block has only SQL; it has no client to build`,
       );
     }
-    if (building.has(key))
+    if (building.has(key)) {
       throw new TypeError(`The "${key}" block depends on itself`);
+    }
     building.add(key);
     try {
       // SAFETY: the creator takes the block's options, which are the shared
@@ -319,10 +337,14 @@ function buildBlocks<B extends BlockMap>(
   const result: Record<string, unknown> = {};
   const sinks: Record<string, EventSink> = {};
   for (const [key, block] of Object.entries(blocks)) {
-    if (block.create === undefined) continue;
+    if (block.create === undefined) {
+      continue;
+    }
     result[key] = build(key);
     const sink = portOf(key, "sink");
-    if (sink !== undefined) sinks[key] = sink;
+    if (sink !== undefined) {
+      sinks[key] = sink;
+    }
   }
   result["sinks"] = sinks;
   const stop =

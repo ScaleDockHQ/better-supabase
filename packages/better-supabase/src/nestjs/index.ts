@@ -93,7 +93,9 @@ async function continueWith(
     next(error);
     return;
   }
-  if (proceed) next();
+  if (proceed) {
+    next();
+  }
 }
 
 /**
@@ -163,7 +165,9 @@ let nest: NestCommon | undefined;
  * required synchronously because decorators run while the class is defined.
  */
 function nestCommon(): NestCommon {
-  if (nest) return nest;
+  if (nest) {
+    return nest;
+  }
   let loaded: unknown;
   try {
     loaded = createRequire(import.meta.url)(NEST_COMMON);
@@ -229,10 +233,13 @@ export function guard(options: RouteGuardOptions = {}): CanActivateLike {
         toWebRequest(req, { body: false }),
         options,
       );
-      if (!refused) return true;
+      if (!refused) {
+        return true;
+      }
       const location = refused.headers.get("location");
-      if (location !== null)
+      if (location !== null) {
         responseOf(context).setHeader("location", location);
+      }
       const body: unknown = refused.body ? await refused.json() : {};
       const { HttpException } = nestCommon();
       throw new HttpException(
@@ -258,7 +265,9 @@ export function problemFilter(
       const response =
         errorResponse(exception, toWebRequest(req, { body: false }), options) ??
         nestErrorResponse(exception);
-      if (res.headersSent) return;
+      if (res.headersSent) {
+        return;
+      }
       void sendWebResponse(res, response);
     },
   };

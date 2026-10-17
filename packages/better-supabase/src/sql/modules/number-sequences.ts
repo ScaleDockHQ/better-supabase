@@ -59,7 +59,9 @@ interface SequenceEntity {
 
 function sequences(ctx: ModuleContext): readonly SequenceEntity[] {
   const raw = ctx.option("entities");
-  if (raw === undefined) return [];
+  if (raw === undefined) {
+    return [];
+  }
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     throw new TypeError(
       "blocks.number-sequences.options.entities must be an object of entity name to { period, format }",
@@ -147,7 +149,9 @@ function entity(name: string, entry: unknown): SequenceEntity {
 
 function recordOf(value: object): Record<string, unknown> {
   const record: Record<string, unknown> = {};
-  for (const [key, item] of Object.entries(value)) record[key] = item;
+  for (const [key, item] of Object.entries(value)) {
+    record[key] = item;
+  }
   return record;
 }
 
@@ -170,7 +174,9 @@ function periodSql(item: SequenceEntity, at: string): string {
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const table = ctx.table("sequences");
   const tenant = ctx.col("sequences", "tenant");
   const entityCol = ctx.col("sequences", "entity");
@@ -292,7 +298,9 @@ ${triggers}`;
 function trigger(ctx: ModuleContext, item: SequenceEntity): string {
   const table = item.table;
   const column = item.column;
-  if (table === undefined || column === undefined) return "";
+  if (table === undefined || column === undefined) {
+    return "";
+  }
   const target = quotedTable(table);
   const col = sqlIdent(column);
   const fn = sqlIdent(`bs_assign_number_${item.name}`);

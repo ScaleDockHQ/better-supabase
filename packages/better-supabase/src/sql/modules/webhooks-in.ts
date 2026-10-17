@@ -857,7 +857,9 @@ export const WEBHOOKS_IN: ModuleDefinition = {
       description:
         'Signing secrets move to Vault (secret_id) unless options.secretStorage is "column"; existing plaintext secrets are copied to Vault and cleared.',
       sql: (ctx) => {
-        if (!secretStorage(ctx)) return "";
+        if (!secretStorage(ctx)) {
+          return "";
+        }
         const t = ctx.table("endpoints");
         return `alter table ${t} add column if not exists secret_id uuid;
 update ${t} e set secret_id = ${vaultSecret("e.secret", "e.id")}, secret = null

@@ -174,7 +174,9 @@ export function createShareLinks<
       call("revoke_share_link", { id }, (value) => value === true),
     resolve: (token) =>
       call("resolve_share_link", { token }, (value) => {
-        if (value === null || value === undefined) return null;
+        if (value === null || value === undefined) {
+          return null;
+        }
         const row = recordOf(value, "resolve_share_link");
         const versionId = optionalText(row["versionId"]);
         const expiresAt = optionalInstant(row["expiresAt"]);

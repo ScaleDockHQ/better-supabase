@@ -54,8 +54,9 @@ export async function readMigrations(): Promise<WorldMigration[]> {
     typeof journal === "object" && journal !== null && "entries" in journal
       ? journal.entries
       : undefined;
-  if (!Array.isArray(entries))
-    throw new Error("the migration journal has no entries");
+  if (!Array.isArray(entries)) {
+    throw new TypeError("the migration journal has no entries");
+  }
   const list: unknown[] = entries;
   const migrations: WorldMigration[] = [];
   for (const entry of list) {
@@ -63,7 +64,9 @@ export async function readMigrations(): Promise<WorldMigration[]> {
       typeof entry === "object" && entry !== null && "tag" in entry
         ? entry.tag
         : undefined;
-    if (typeof tag !== "string") throw new Error("a journal entry has no tag");
+    if (typeof tag !== "string") {
+      throw new TypeError("a journal entry has no tag");
+    }
     const sql = await readFile(join(dir, `${tag}.sql`), "utf-8");
     migrations.push({
       tag,
@@ -83,7 +86,9 @@ export async function applyMigrations(
   try {
     for (const migration of migrations) {
       for (const statement of migration.sql.split("--> statement-breakpoint")) {
-        if (statement.trim() !== "") await client.query(statement);
+        if (statement.trim() !== "") {
+          await client.query(statement);
+        }
       }
     }
     await client.query("commit");
@@ -166,7 +171,9 @@ export async function renderSchema(
           : "serial"
         : text(column, "type");
       const parts = [`"${text(column, "name")}"`, type];
-      if (column["not_null"] === true && !serial) parts.push("not null");
+      if (column["not_null"] === true && !serial) {
+        parts.push("not null");
+      }
       if (column["default_expr"] !== null && !serial) {
         parts.push(`default ${text(column, "default_expr")}`);
       }

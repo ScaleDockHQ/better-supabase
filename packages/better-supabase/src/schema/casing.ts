@@ -8,7 +8,9 @@ type Row = Readonly<Record<string, unknown>>;
 export function toApp(table: TableMeta, row: Row): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [app, meta] of lookupOf(table).entries) {
-    if (meta.db in row) out[app] = row[meta.db];
+    if (meta.db in row) {
+      out[app] = row[meta.db];
+    }
   }
   return out;
 }
@@ -17,7 +19,9 @@ export function toApp(table: TableMeta, row: Row): Record<string, unknown> {
 export function toDb(table: TableMeta, row: Row): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [app, meta] of lookupOf(table).entries) {
-    if (app in row) out[meta.db] = row[app];
+    if (app in row) {
+      out[meta.db] = row[app];
+    }
   }
   return out;
 }

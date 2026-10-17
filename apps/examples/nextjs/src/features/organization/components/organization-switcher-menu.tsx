@@ -38,7 +38,9 @@ function Mark({ name }: { name: string }) {
 
 async function loadOrganizations(): Promise<readonly OrganizationSummary[]> {
   const result = await loadMyOrganizations({});
-  if (!result.ok) throw new DbException(result.error);
+  if (!result.ok) {
+    throw new DbException(result.error);
+  }
   return result.data;
 }
 
@@ -114,7 +116,9 @@ export function OrganizationSwitcherMenu({
                 key={organization.id}
                 className="gap-2"
                 onClick={() => {
-                  if (organization.id !== activeId) choose(organization);
+                  if (organization.id !== activeId) {
+                    choose(organization);
+                  }
                 }}
               >
                 <Mark name={organization.name} />

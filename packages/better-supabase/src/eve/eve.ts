@@ -92,15 +92,21 @@ export function supabaseDocumentBackend(
     apiVersion: 1,
     read: async ({ key }) => {
       const result = await options.memory.documents.read(scope, key);
-      if (!result.ok) throw new DbException(result.error);
+      if (!result.ok) {
+        throw new DbException(result.error);
+      }
       return result.data ?? null;
     },
     write: async ({ key, content, expectedVersion }) => {
       const result = await options.memory.documents.write(scope, key, content, {
         expectedVersion,
       });
-      if (result.ok) return result.data;
-      if (isConflict(result.error)) throw new MemoryDocumentConflictError(key);
+      if (result.ok) {
+        return result.data;
+      }
+      if (isConflict(result.error)) {
+        throw new MemoryDocumentConflictError(key);
+      }
       throw new DbException(result.error);
     },
   };
@@ -201,7 +207,9 @@ const OPS_SCOPE = "eve-ops";
 const OP_TTL_SECONDS = 7 * 24 * 60 * 60;
 
 function textOfMessage(message: EveModelMessage): string {
-  if (typeof message.content === "string") return message.content;
+  if (typeof message.content === "string") {
+    return message.content;
+  }
   return message.content
     .flatMap((part) =>
       part.type === "text" && typeof part.text === "string" ? [part.text] : [],
@@ -254,9 +262,13 @@ export function supabaseMemory(
     | undefined
   > => {
     const auth = ctx.session.auth.current;
-    if (auth?.principalType !== "user") return undefined;
+    if (auth?.principalType !== "user") {
+      return undefined;
+    }
     const organizationId = organizationOf(auth);
-    if (organizationId === undefined) return undefined;
+    if (organizationId === undefined) {
+      return undefined;
+    }
     return {
       organizationId,
       namespace: {
@@ -296,14 +308,18 @@ export function supabaseMemory(
             .orThrow(),
     ]);
     const messages: EveRecallMessage[] = [];
-    if (core.trim().length > 0) messages.push({ id: "core", content: core });
-    for (const hit of archival)
+    if (core.trim().length > 0) {
+      messages.push({ id: "core", content: core });
+    }
+    for (const hit of archival) {
       messages.push({ id: `memory:${hit.id}`, content: hit.content });
-    for (const hit of documents)
+    }
+    for (const hit of documents) {
       messages.push({
         id: `knowledge:${hit.documentId}:${String(hit.index)}`,
         content: hit.title ? `${hit.title}\n${hit.content}` : hit.content,
       });
+    }
     return { messages };
   };
 
@@ -323,7 +339,9 @@ export function supabaseMemory(
     recall: {
       "turn.started": async (ctx) => {
         const where = await target(ctx);
-        if (!where) return null;
+        if (!where) {
+          return null;
+        }
         const path = `recall/${ctx.operationId}`;
         const scopeKey = ctx.memory.scope.key;
         const stored = await memory.documents
@@ -340,8 +358,12 @@ export function supabaseMemory(
           JSON.stringify(result),
           { expectedVersion: null, expiresIn: OP_TTL_SECONDS },
         );
-        if (written.ok) return result;
-        if (!isConflict(written.error)) throw new DbException(written.error);
+        if (written.ok) {
+          return result;
+        }
+        if (!isConflict(written.error)) {
+          throw new DbException(written.error);
+        }
         const raced = await memory.documents
           .read(OPS_SCOPE, `${scopeKey}/${path}`)
           .orThrow();
@@ -355,17 +377,21 @@ export function supabaseMemory(
             "turn.completed": async (ctx: EveMemoryContext) => {
               const extract = options.extract;
               const where = await target(ctx);
-              if (!extract || !where) return;
-              const marker = `${ctx.memory.scope.key}/capture/${ctx.operationId}`;
-              if (await memory.documents.read(OPS_SCOPE, marker).orThrow())
+              if (!extract || !where) {
                 return;
+              }
+              const marker = `${ctx.memory.scope.key}/capture/${ctx.operationId}`;
+              if (await memory.documents.read(OPS_SCOPE, marker).orThrow()) {
+                return;
+              }
               const facts = await extract(ctx.messages ?? [], ctx);
-              if (facts.length > 0)
+              if (facts.length > 0) {
                 await memory
                   .saveExtracted(where.organizationId, facts, where.namespace, {
                     sourceMessageId: ctx.operationId,
                   })
                   .orThrow();
+              }
               const written = await memory.documents.write(
                 OPS_SCOPE,
                 marker,
@@ -375,19 +401,24 @@ export function supabaseMemory(
                   expiresIn: OP_TTL_SECONDS,
                 },
               );
-              if (!written.ok && !isConflict(written.error))
+              if (!written.ok && !isConflict(written.error)) {
                 throw new DbException(written.error);
+              }
             },
           },
         }
       : {}),
   };
-  if (options.tools === false) return provider;
+  if (options.tools === false) {
+    return provider;
+  }
   return {
     ...provider,
     tools: async (ctx) => {
       const where = await target(ctx);
-      if (!where) return null;
+      if (!where) {
+        return null;
+      }
       const { defineTool } = await loaded();
       return {
         remember: defineTool({
@@ -425,8 +456,9 @@ export function supabaseMemory(
             const page = await memory.archival
               .list(where.organizationId, where.namespace, { limit: 1000 })
               .orThrow();
-            if (!page.some((record) => record.id === id))
+            if (!page.some((record) => record.id === id)) {
               return { deleted: false };
+            }
             return { deleted: await memory.archival.forget(id).orThrow() };
           },
         }),

@@ -84,7 +84,9 @@ export function createAvailableSlotsController(
                 span,
                 tz === undefined ? {} : { tz },
               );
-        if (request !== ticket) return;
+        if (request !== ticket) {
+          return;
+        }
         state.set(
           result.ok
             ? {
@@ -100,7 +102,9 @@ export function createAvailableSlotsController(
         actions: {
           refresh,
           setRange: (next) => {
-            if (sameRange(range, next)) return;
+            if (sameRange(range, next)) {
+              return;
+            }
             range = next;
             void refresh();
           },

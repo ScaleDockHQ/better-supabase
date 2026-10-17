@@ -147,7 +147,9 @@ function names(
 }
 
 function tables(ctx: ModuleContext, n: DealNames): string {
-  if (!ctx.manages) return "";
+  if (!ctx.manages) {
+    return "";
+  }
   const { t, c } = n;
   const d = (column: string): string => c("deals", column);
   const k = (column: string): string => c("contacts", column);
@@ -368,7 +370,9 @@ for each row execute function better_supabase.bs_deal_guard();
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const keys = moduleOperations("deals");
   const readAll = ctx.flag("readAll", true);
   const n: DealNames = {

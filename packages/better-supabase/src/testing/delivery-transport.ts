@@ -80,7 +80,9 @@ export function testDeliveryTransport(
       "sends a message without mutating it and returns a valid receipt",
       async () => {
         const receipt = await transport.send(message, { idempotencyKey: KEY });
-        if (receipt === undefined) return;
+        if (receipt === undefined) {
+          return;
+        }
         expect(
           receipt.providerMessageId === undefined ||
             typeof receipt.providerMessageId === "string",

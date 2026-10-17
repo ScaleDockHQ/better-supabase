@@ -33,10 +33,11 @@ export function topicPermissionSql(input: TopicPermissionSql): string {
   const tenant =
     tenantSegment === undefined ? undefined : segmentSql(tenantSegment);
   if (input.permitted !== undefined) {
-    if (!isScopeName(input.scope))
+    if (!isScopeName(input.scope)) {
       throw new TypeError(
         `${where}: invalid permission scope "${input.scope}"`,
       );
+    }
     return `coalesce((${fillTemplate(
       `${where} authorization.functions.permitted`,
       input.permitted,
@@ -68,10 +69,11 @@ export type AnyTriggerValue =
 
 function columnSql(meta: TableMeta, column: string, where: string): string {
   const db = meta.columns[column]?.db;
-  if (!db)
+  if (!db) {
     throw new TypeError(
       `defineTopic: no column for ${where} on "${meta.key}" ("${column}")`,
     );
+  }
   return sqlIdent(db);
 }
 
@@ -83,19 +85,23 @@ export function triggerValueSql(
   where: string,
   depth = 0,
 ): string {
-  if (typeof value === "string") return `rec.${columnSql(meta, value, where)}`;
+  if (typeof value === "string") {
+    return `rec.${columnSql(meta, value, where)}`;
+  }
   const joined = tables[value.from];
-  if (!joined)
+  if (!joined) {
     throw new TypeError(
       `defineTopic: unknown table "${value.from}" for ${where}`,
     );
+  }
   const key =
     value.key ??
     (joined.primaryKey.length === 1 ? joined.primaryKey[0] : undefined);
-  if (key === undefined)
+  if (key === undefined) {
     throw new TypeError(
       `defineTopic: "${value.from}" has no single-column primary key; name its key for ${where}`,
     );
+  }
   const alias = `j${String(depth)}`;
   const via = triggerValueSql(tables, meta, value.via, where, depth + 1);
   return `(select ${alias}.${columnSql(joined, value.select, where)} from ${sqlIdent(joined.schema)}.${sqlIdent(joined.name)} ${alias} where ${alias}.${columnSql(joined, key, where)} = ${via} limit 1)`;
@@ -105,8 +111,12 @@ export function triggerValueSql(
 export function eventSql(
   event: string | Readonly<Record<string, string | undefined>> | undefined,
 ): string {
-  if (event === undefined) return "tg_op";
-  if (typeof event === "string") return sqlString(event);
+  if (event === undefined) {
+    return "tg_op";
+  }
+  if (typeof event === "string") {
+    return sqlString(event);
+  }
   const cases = Object.entries(event)
     .filter((entry): entry is [string, string] => entry[1] !== undefined)
     .map(

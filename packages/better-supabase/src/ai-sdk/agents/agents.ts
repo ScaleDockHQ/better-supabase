@@ -57,9 +57,13 @@ export function agentTools(
   const allowed = agent.tools.length === 0 ? undefined : new Set(agent.tools);
   const tools: ToolSet = {};
   for (const [name, tool] of Object.entries(available)) {
-    if (allowed !== undefined && !allowed.has(name)) continue;
+    if (allowed !== undefined && !allowed.has(name)) {
+      continue;
+    }
     const policy = policies[name];
-    if (policy === "deny") continue;
+    if (policy === "deny") {
+      continue;
+    }
     tools[name] = tool;
   }
   return tools;
@@ -72,7 +76,9 @@ export function agentToolApproval(
 ): Record<string, "user-approval"> {
   const approval: Record<string, "user-approval"> = {};
   for (const name of Object.keys(tools)) {
-    if (policies[name] === "ask") approval[name] = "user-approval";
+    if (policies[name] === "ask") {
+      approval[name] = "user-approval";
+    }
   }
   return approval;
 }
@@ -126,8 +132,9 @@ function composedApproval(checks: ApprovalChecks): AgentToolApprovalFunction {
         operation: operation.operation,
         input,
       });
-      if (!permitted)
+      if (!permitted) {
         return { type: "denied", reason: "The caller may not use this tool" };
+      }
     }
     let status: ToolApprovalStatus = "not-applicable";
     if (checks.approve !== undefined) {
@@ -268,8 +275,11 @@ export function createAgentRuntime(
   const ask: Record<string, "user-approval"> = {
     ...agentToolApproval(tools, options.policies),
   };
-  for (const name of Object.keys(tools))
-    if (operation(name).risk === "high") ask[name] = "user-approval";
+  for (const name of Object.keys(tools)) {
+    if (operation(name).risk === "high") {
+      ask[name] = "user-approval";
+    }
+  }
   const instructions = [options.instructions, agent.instructions]
     .filter((text) => text !== undefined && text !== "")
     .join("\n\n");
@@ -313,8 +323,9 @@ export function createAgentRuntime(
       runtimeContext: { ...call.runtimeContext, ...run },
     }),
     prepareStep: async ({ model }) => {
-      if (authorizeModel !== undefined)
+      if (authorizeModel !== undefined) {
         await assertModelAllowed(authorizeModel, model, run);
+      }
       return gateway === undefined ? undefined : { providerOptions: gateway };
     },
   });
@@ -358,7 +369,9 @@ type Prompt = Parameters<
 function lastUserText(prompt: Prompt): string {
   for (let index = prompt.length - 1; index >= 0; index -= 1) {
     const message = prompt[index];
-    if (message?.role !== "user") continue;
+    if (message?.role !== "user") {
+      continue;
+    }
     return message.content
       .flatMap((part) => (part.type === "text" ? [part.text] : []))
       .join("\n");
@@ -380,9 +393,13 @@ export function moderationMiddleware(
     text: string,
     stage: "input" | "output",
   ): Promise<ModerationVerdict | undefined> => {
-    if (text.trim() === "") return undefined;
+    if (text.trim() === "") {
+      return undefined;
+    }
     const verdict = await options.check(text, stage);
-    if (verdict === undefined || verdict.action === "allow") return verdict;
+    if (verdict === undefined || verdict.action === "allow") {
+      return verdict;
+    }
     const recorded = await options.chats.moderation.record({
       organizationId: options.organizationId,
       stage,
@@ -392,7 +409,9 @@ export function moderationMiddleware(
       ...(options.userId === undefined ? {} : { userId: options.userId }),
       ...(verdict.score === undefined ? {} : { score: verdict.score }),
     });
-    if (!recorded.ok) throw new DbException(recorded.error);
+    if (!recorded.ok) {
+      throw new DbException(recorded.error);
+    }
     return verdict;
   };
 
@@ -423,7 +442,9 @@ export function moderationMiddleware(
       const checked = result.stream.pipeThrough(
         new TransformStream<Part, Part>({
           transform(part, controller) {
-            if (part.type === "text-delta") text += part.delta;
+            if (part.type === "text-delta") {
+              text += part.delta;
+            }
             controller.enqueue(part);
           },
           async flush(controller) {

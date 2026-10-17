@@ -133,7 +133,9 @@ export function storageUpload(
             ...(file.type === undefined ? {} : { contentType: file.type }),
             ...(to.upsert === undefined ? {} : { upsert: to.upsert }),
           });
-        if (error) return err(fromStorageError(error, to.bucket));
+        if (error) {
+          return err(fromStorageError(error, to.bucket));
+        }
         return ok({ path: data.path });
       } catch (cause) {
         return err(fromStorageError(cause, to.bucket));

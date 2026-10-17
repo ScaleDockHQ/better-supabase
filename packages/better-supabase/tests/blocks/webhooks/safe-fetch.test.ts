@@ -49,16 +49,18 @@ describe("createSafeFetch", () => {
 
   it("checks every redirect and drops credentials across origins", async () => {
     const { fetch, hops } = fakeFetch((url) => {
-      if (url.pathname === "/start")
+      if (url.pathname === "/start") {
         return new Response(null, {
           status: 302,
           headers: { location: "https://other.example.com/next" },
         });
-      if (url.pathname === "/next")
+      }
+      if (url.pathname === "/next") {
         return new Response(null, {
           status: 307,
           headers: { location: "https://internal.example.com/secret" },
         });
+      }
       return new Response("done");
     });
     const safe = createSafeFetch({ fetch, resolve });
@@ -78,16 +80,18 @@ describe("createSafeFetch", () => {
 
   it("drops sensitiveHeaders across origins and keeps them on the same origin", async () => {
     const { fetch, hops } = fakeFetch((url) => {
-      if (url.pathname === "/start")
+      if (url.pathname === "/start") {
         return new Response(null, {
           status: 302,
           headers: { location: "/same" },
         });
-      if (url.pathname === "/same")
+      }
+      if (url.pathname === "/same") {
         return new Response(null, {
           status: 302,
           headers: { location: "https://other.example.com/next" },
         });
+      }
       return new Response("done");
     });
     const safe = createSafeFetch({

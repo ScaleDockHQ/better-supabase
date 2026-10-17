@@ -26,9 +26,12 @@ export interface Layouts {
 const SAFE_SEGMENT = /^[\w!\-.*'() &$@=;:+,?]+$/;
 
 function validateSegment(_name: string, value: string): string | undefined {
-  if (value === "." || value === "..") return "is a relative path";
-  if (!SAFE_SEGMENT.test(value))
+  if (value === "." || value === "..") {
+    return "is a relative path";
+  }
+  if (!SAFE_SEGMENT.test(value)) {
     return "contains characters Storage does not allow";
+  }
   return undefined;
 }
 
@@ -40,7 +43,9 @@ function commonFolder(folders: readonly string[]): string {
   const split = folders.map((folder) => (folder ? folder.split("/") : []));
   const shared: string[] = [];
   for (const [index, segment] of (split[0] ?? []).entries()) {
-    if (split.some((parts) => parts[index] !== segment)) break;
+    if (split.some((parts) => parts[index] !== segment)) {
+      break;
+    }
     shared.push(segment);
   }
   return shared.join("/");
@@ -52,20 +57,25 @@ export function pathLayouts(
   sqlString: (value: string) => string,
 ): Layouts {
   const sources: readonly string[] = typeof path === "string" ? [path] : path;
-  if (sources.length === 0)
+  if (sources.length === 0) {
     throw new TypeError(`defineBucket(${id}): path needs a template`);
+  }
   const layouts: readonly Template[] = sources.map((source) =>
     parseTemplate(source, "/", validateSegment, { rest: true }),
   );
   const layoutFor = (values: Values): Template => {
-    if (layouts.length === 1) return layouts[0]!;
+    if (layouts.length === 1) {
+      return layouts[0]!;
+    }
     const keys = keysOf(values);
     const layout = layouts.find(
       (candidate) =>
         candidate.params.length === keys.length &&
         candidate.params.every((name) => keys.includes(name)),
     );
-    if (layout) return layout;
+    if (layout) {
+      return layout;
+    }
     throw new DbException(
       dbError(
         "invalid_input",
@@ -88,7 +98,9 @@ export function pathLayouts(
     match(value) {
       for (const layout of layouts) {
         const values = layout.match(value);
-        if (values) return values;
+        if (values) {
+          return values;
+        }
       }
       return null;
     },
@@ -125,10 +137,11 @@ export function pathLayouts(
     },
     requireParam(param, label) {
       for (const layout of layouts) {
-        if (!layout.params.includes(param))
+        if (!layout.params.includes(param)) {
           throw new TypeError(
             `defineBucket: ${label} {${param}} is not in "${layout.source}"`,
           );
+        }
       }
     },
     sqlMatch:
@@ -141,9 +154,13 @@ export function inScope(
   values: Readonly<Record<string, string | number>> | null,
   within: Readonly<Record<string, string | number | undefined>>,
 ): boolean {
-  if (!values) return false;
+  if (!values) {
+    return false;
+  }
   return Object.entries(within).every(([key, expected]) => {
-    if (expected === undefined) return true;
+    if (expected === undefined) {
+      return true;
+    }
     const actual = String(values[key]);
     return (
       actual === String(expected) || actual.startsWith(`${String(expected)}/`)

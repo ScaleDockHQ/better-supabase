@@ -94,9 +94,13 @@ const kindOf = (value: unknown): DeliveryEventKind | null =>
   DELIVERY_EVENT_KINDS.find((kind) => kind === value) ?? null;
 
 const recordedOf = (value: unknown): RecordedDeliveryEvent | null => {
-  if (!isRecord(value)) return null;
+  if (!isRecord(value)) {
+    return null;
+  }
   const kind = kindOf(value["kind"]);
-  if (kind === null) return null;
+  if (kind === null) {
+    return null;
+  }
   return {
     deliveryId: String(value["delivery_id"]),
     notificationId: String(value["notification_id"]),
@@ -174,7 +178,9 @@ function deliveryChannels(
   options: Pick<NotificationsOptions<NotificationTypes>, "channels" | "email">,
 ): readonly NotificationChannel[] {
   const channels = options.channels ?? [];
-  if (options.email === undefined) return channels;
+  if (options.email === undefined) {
+    return channels;
+  }
   if (channels.some((channel) => channel.name === "email")) {
     throw new TypeError(
       'createNotifications: `email` adds the "email" channel; remove the channel named "email" from `channels`',
@@ -235,7 +241,9 @@ export function createNotifications<
     locale?: string,
     hydrated?: H,
   ): Rendered => {
-    if (!options.render) return item;
+    if (!options.render) {
+      return item;
+    }
     return {
       ...item,
       text: options.render(item, {
@@ -248,7 +256,9 @@ export function createNotifications<
   const withAvatarUrl = (actor: NotificationActor): NotificationActor => {
     const avatars = options.avatars;
     const path = actor.avatarPath;
-    if (!avatars || typeof path !== "string" || path === "") return actor;
+    if (!avatars || typeof path !== "string" || path === "") {
+      return actor;
+    }
     return {
       ...actor,
       avatarUrl:
@@ -264,7 +274,9 @@ export function createNotifications<
     const ids = [
       ...new Set(items.flatMap((item) => (item.actorId ? [item.actorId] : []))),
     ];
-    if (ids.length === 0) return new Map();
+    if (ids.length === 0) {
+      return new Map();
+    }
     const value = await call("notification_actors", { ids });
     return new Map(
       Object.entries(isRecord(value) ? value : {}).flatMap(([id, profile]) =>
@@ -292,7 +304,9 @@ export function createNotifications<
         : undefined;
       if (schemaOf === undefined) {
         const extra = await fields.read(item.fields);
-        if (!extra.ok) return extra;
+        if (!extra.ok) {
+          return extra;
+        }
         out.push({ ...item, fields: extra.data });
         continue;
       }
@@ -305,7 +319,9 @@ export function createNotifications<
         return err({ ...data.error, hint: "NOTIFICATION_DATA_INVALID" });
       }
       const extra = await fields.read(item.fields);
-      if (!extra.ok) return extra;
+      if (!extra.ok) {
+        return extra;
+      }
       out.push({ ...item, data: data.data, fields: extra.data });
     }
     return ok(out);
@@ -317,7 +333,9 @@ export function createNotifications<
   ): AsyncResult<readonly NotificationOf<K, F>[]> =>
     AsyncResult.from(async () => {
       const valid = await parsed(items);
-      if (!valid.ok) return valid;
+      if (!valid.ok) {
+        return valid;
+      }
       return rendered(valid.data, listOptions);
     });
 
@@ -370,7 +388,9 @@ export function createNotifications<
     const notification = isRecord(row["notification"])
       ? toItem(row["notification"])
       : undefined;
-    if (!notification) throw new TypeError("claim returned no notification");
+    if (!notification) {
+      throw new TypeError("claim returned no notification");
+    }
     return {
       message: {
         deliveryId: String(row["delivery_id"]),
@@ -452,8 +472,9 @@ export function createNotifications<
       );
       if (!checked.ok) {
         const error = `audience check failed: ${errorText(checked.cause)}`;
-        for (const message of messages)
+        for (const message of messages) {
           outcomes.push(await fail(channel, message, error, maxAttempts));
+        }
         continue;
       }
       const allowed = new Set(
@@ -516,12 +537,16 @@ export function createNotifications<
           );
         }
         const data = await validate(schemaOf, input.data, `${type} data`);
-        if (!data.ok) return err(data.error);
+        if (!data.ok) {
+          return err(data.error);
+        }
         const extra =
           input.fields === undefined
             ? ok(undefined)
             : await fields.write({ ...input.fields });
-        if (!extra.ok) return extra;
+        if (!extra.ok) {
+          return extra;
+        }
         if (
           input.permission !== undefined &&
           (input.tenant === undefined || input.tenant === "")
@@ -574,7 +599,9 @@ export function createNotifications<
                 }
               : null,
         );
-        if (!sent.ok || sent.data === null) return sent;
+        if (!sent.ok || sent.data === null) {
+          return sent;
+        }
         const { id, recipients } = sent.data;
         emit(
           "notification.created",
@@ -777,8 +804,12 @@ export function createNotifications<
               rows,
               deliverOptions.maxAttempts ?? 5,
             );
-            for (const outcome of outcomes) counts[outcome] += 1;
-            if (rows.length < batch) break;
+            for (const outcome of outcomes) {
+              counts[outcome] += 1;
+            }
+            if (rows.length < batch) {
+              break;
+            }
           }
         }),
       );
@@ -893,7 +924,9 @@ export function createNotifications<
           for (const event of events) {
             const type = stripTypePrefix(event.type, sinkOptions.typePrefix);
             const mapped = await sinkOptions.map({ ...event, type });
-            if (mapped === null) continue;
+            if (mapped === null) {
+              continue;
+            }
             const { type: notificationType, ...rest } = mapped;
             // SAFETY: SinkNotification pairs each type with its own send input;
             // destructuring loses that pairing, not the shape.

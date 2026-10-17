@@ -59,7 +59,9 @@ const asException = (error: DbError) => new DbException(error);
  * number argument can collide with. Values without one are returned as is.
  */
 function keyPart(value: unknown): unknown {
-  if (typeof value === "bigint") return { $bigint: value.toString() };
+  if (typeof value === "bigint") {
+    return { $bigint: value.toString() };
+  }
   if (Array.isArray(value)) {
     const items = value.map(keyPart);
     return items.some((item, index) => item !== value[index]) ? items : value;
@@ -68,8 +70,12 @@ function keyPart(value: unknown): unknown {
     let copy: Record<string, unknown> | undefined;
     for (const [key, item] of Object.entries(value)) {
       const part = keyPart(item);
-      if (part !== item) copy ??= { ...value };
-      if (copy) copy[key] = part;
+      if (part !== item) {
+        copy ??= { ...value };
+      }
+      if (copy) {
+        copy[key] = part;
+      }
     }
     return copy ?? value;
   }
@@ -270,7 +276,9 @@ function isSkip(value: unknown): value is SkipToken {
 }
 
 function withoutSignal(value: unknown): unknown {
-  if (typeof value !== "object" || value === null) return value;
+  if (typeof value !== "object" || value === null) {
+    return value;
+  }
   // SAFETY: value is a non-null object here, and only the signal key is removed.
   const { signal: _signal, ...rest } = value as Record<string, unknown>;
   return rest;
@@ -343,16 +351,18 @@ function tableQueries(
   const repo = (): AnyRepository => {
     // SAFETY: the db is indexed by table name, and a missing repository is checked below.
     const found = runtime.db()[table] as AnyRepository | undefined;
-    if (!found)
+    if (!found) {
       throw new TypeError(`better-supabase: unknown table "${table}"`);
+    }
     return found;
   };
   const call = (method: string, ...args: unknown[]): AsyncResult<unknown> => {
     const fn = repo()[method];
-    if (!fn)
+    if (!fn) {
       throw new TypeError(
         `better-supabase: ${table}.${method} is not available`,
       );
+    }
     return fn(...args);
   };
   const [primaryKey, ...composite] =
@@ -367,11 +377,19 @@ function tableQueries(
     row: unknown,
     args: object | undefined,
   ) => {
-    if (primaryKey === undefined || composite.length > 0) return;
-    if (args && Object.keys(args).some((name) => name !== "override")) return;
-    if (!isPlainObject(row)) return;
+    if (primaryKey === undefined || composite.length > 0) {
+      return;
+    }
+    if (args && Object.keys(args).some((name) => name !== "override")) {
+      return;
+    }
+    if (!isPlainObject(row)) {
+      return;
+    }
     const id = row[primaryKey];
-    if (id === undefined || id === null) return;
+    if (id === undefined || id === null) {
+      return;
+    }
     client.setQueryData(
       specQuery(runtime, specs["findById"]!(id, undefined)).queryKey,
       row,
@@ -391,7 +409,9 @@ function tableQueries(
       _result: unknown,
       context: { client: QueryClient },
     ) => {
-      if (seedArgs) seed(context.client, data, seedArgs.args);
+      if (seedArgs) {
+        seed(context.client, data, seedArgs.args);
+      }
       return invalidateTables(context.client, tables);
     },
   });

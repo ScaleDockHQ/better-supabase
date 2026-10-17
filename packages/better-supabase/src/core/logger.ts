@@ -15,8 +15,11 @@ export interface Logger {
 const log =
   (method: "debug" | "info" | "warn" | "error") =>
   (message: string, fields?: LogFields): void => {
-    if (fields === undefined) console[method](`better-supabase: ${message}`);
-    else console[method](`better-supabase: ${message}`, fields);
+    if (fields === undefined) {
+      console[method](`better-supabase: ${message}`);
+    } else {
+      console[method](`better-supabase: ${message}`, fields);
+    }
   };
 
 /** The default: `console`, with a `better-supabase:` prefix. */

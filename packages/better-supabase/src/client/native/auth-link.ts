@@ -67,7 +67,9 @@ export function linkParams(url: string): ReadonlyMap<string, string> {
   ];
   for (const part of parts) {
     for (const pair of part.split("&")) {
-      if (pair === "") continue;
+      if (pair === "") {
+        continue;
+      }
       const at = pair.indexOf("=");
       const name = at === -1 ? pair : pair.slice(0, at);
       const value = at === -1 ? "" : pair.slice(at + 1);
@@ -115,7 +117,9 @@ export function handleAuthDeepLink(
     });
   }
   const code = params.get("code");
-  if (code) return settle(supabase.auth.exchangeCodeForSession(code), "code");
+  if (code) {
+    return settle(supabase.auth.exchangeCodeForSession(code), "code");
+  }
   const access = params.get("access_token");
   const refresh = params.get("refresh_token");
   if (access && refresh) {
@@ -129,11 +133,12 @@ export function handleAuthDeepLink(
   }
   const tokenHash = params.get("token_hash");
   const type = params.get("type");
-  if (tokenHash && type && isOtpType(type))
+  if (tokenHash && type && isOtpType(type)) {
     return settle(
       supabase.auth.verifyOtp({ token_hash: tokenHash, type }),
       "otp",
     );
+  }
   return Promise.resolve({ type: "none" });
 }
 
@@ -197,13 +202,18 @@ export async function signInWithOAuthBrowser(
         : {}),
     },
   });
-  if (error) return { type: "error", error };
-  if (!data.url)
+  if (error) {
+    return { type: "error", error };
+  }
+  if (!data.url) {
     return { type: "error", error: { message: "No OAuth URL was returned" } };
+  }
   const session = await browser.openAuthSessionAsync(
     data.url,
     options.redirectTo,
   );
-  if (session.type !== "success" || !session.url) return { type: "none" };
+  if (session.type !== "success" || !session.url) {
+    return { type: "none" };
+  }
   return handleAuthDeepLink(supabase, session.url);
 }

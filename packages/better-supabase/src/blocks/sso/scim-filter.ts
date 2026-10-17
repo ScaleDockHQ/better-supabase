@@ -69,7 +69,9 @@ function tokenize(input: string): Token[] {
       while (end < input.length && input.charAt(end) !== '"') {
         end += input.charAt(end) === "\\" ? 2 : 1;
       }
-      if (end >= input.length) throw new ScimFilterError("Unterminated string");
+      if (end >= input.length) {
+        throw new ScimFilterError("Unterminated string");
+      }
       const raw = input.slice(i, end + 1);
       let value: unknown;
       try {
@@ -167,7 +169,9 @@ export function parseFilter(input: string): ScimFilter {
     }
     const op = next.value.toLowerCase();
     position += 1;
-    if (op === "pr") return { op: "pr", path };
+    if (op === "pr") {
+      return { op: "pr", path };
+    }
     const compare = COMPARE.find((candidate) => candidate === op);
     if (compare === undefined) {
       throw new ScimFilterError(`Unknown operator ${next.value}`);
@@ -177,12 +181,20 @@ export function parseFilter(input: string): ScimFilter {
   const literal = (): string | number | boolean | null => {
     const token = peek();
     position += 1;
-    if (token?.kind === "string") return token.value;
+    if (token?.kind === "string") {
+      return token.value;
+    }
     if (token?.kind === "word") {
       const word = token.value.toLowerCase();
-      if (word === "true") return true;
-      if (word === "false") return false;
-      if (word === "null") return null;
+      if (word === "true") {
+        return true;
+      }
+      if (word === "false") {
+        return false;
+      }
+      if (word === "null") {
+        return null;
+      }
       if (/^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(token.value)) {
         return Number(token.value);
       }
@@ -190,7 +202,9 @@ export function parseFilter(input: string): ScimFilter {
     throw new ScimFilterError("Expected a value");
   };
 
-  if (tokens.length === 0) throw new ScimFilterError("Empty filter");
+  if (tokens.length === 0) {
+    throw new ScimFilterError("Empty filter");
+  }
   const filter = orExpression();
   if (position !== tokens.length) {
     throw new ScimFilterError("Unexpected input after the filter");
@@ -205,7 +219,9 @@ const DATES = new Set(["meta.created", "meta.lastmodified"]);
 function lookup(record: Record<string, unknown>, name: string): unknown {
   const lower = name.toLowerCase();
   for (const [key, value] of Object.entries(record)) {
-    if (key.toLowerCase() === lower) return value;
+    if (key.toLowerCase() === lower) {
+      return value;
+    }
   }
   return undefined;
 }
@@ -216,7 +232,9 @@ function relative(
   path: string,
 ): string | undefined {
   const colon = path.lastIndexOf(":");
-  if (colon === -1) return path;
+  if (colon === -1) {
+    return path;
+  }
   const urn = path.slice(0, colon).toLowerCase();
   const known = Array.isArray(resource["schemas"])
     ? resource["schemas"].map((schema) => String(schema).toLowerCase())
@@ -230,10 +248,14 @@ function valuesAt(
   path: string,
 ): readonly unknown[] {
   const local = relative(resource, path);
-  if (local === undefined) return [];
+  if (local === undefined) {
+    return [];
+  }
   const [attribute = "", sub] = local.split(".");
   const value = lookup(resource, attribute);
-  if (value === undefined || value === null) return [];
+  if (value === undefined || value === null) {
+    return [];
+  }
   if (Array.isArray(value)) {
     const items: readonly unknown[] = value;
     return items
@@ -243,7 +265,9 @@ function valuesAt(
       .filter((item) => item !== undefined && item !== null);
   }
   if (isRecord(value)) {
-    if (sub === undefined) return [];
+    if (sub === undefined) {
+      return [];
+    }
     const inner = lookup(value, sub);
     return inner === undefined || inner === null ? [] : [inner];
   }
@@ -263,12 +287,18 @@ function compare(
     }
     return op === "eq" ? actual === expected : actual !== expected;
   }
-  if (expected === null) return op === "ne" ? actual !== null : actual === null;
+  if (expected === null) {
+    return op === "ne" ? actual !== null : actual === null;
+  }
   if (typeof actual === "number" && typeof expected === "number") {
     return order(op, actual - expected);
   }
-  if (typeof actual !== "string") return op === "ne";
-  if (typeof expected !== "string") return op === "ne";
+  if (typeof actual !== "string") {
+    return op === "ne";
+  }
+  if (typeof expected !== "string") {
+    return op === "ne";
+  }
   if (DATES.has(key)) {
     const left = Date.parse(actual);
     const right = Date.parse(expected);
@@ -360,7 +390,9 @@ export function matches(
     case "lt":
     case "le": {
       const values = valuesAt(resource, filter.path);
-      if (values.length === 0) return filter.op === "ne";
+      if (values.length === 0) {
+        return filter.op === "ne";
+      }
       return values.some((value) =>
         compare(filter.op, value, filter.value, filter.path),
       );

@@ -80,8 +80,12 @@ function defaultFormat(value: unknown): string {
     case "boolean":
       return String(value);
     case "object": {
-      if (typeof value !== "object" || value === null) return "";
-      if (value instanceof Date) return value.toISOString();
+      if (typeof value !== "object" || value === null) {
+        return "";
+      }
+      if (value instanceof Date) {
+        return value.toISOString();
+      }
       if (Array.isArray(value)) {
         return value.map((item: unknown) => defaultFormat(item)).join(", ");
       }
@@ -106,10 +110,14 @@ function lookup(
   values: Readonly<Record<string, unknown>>,
   name: string,
 ): unknown {
-  if (Object.hasOwn(values, name)) return values[name];
+  if (Object.hasOwn(values, name)) {
+    return values[name];
+  }
   let current: unknown = values;
   for (const part of name.split(".")) {
-    if (!isKeyed(current) || !Object.hasOwn(current, part)) return undefined;
+    if (!isKeyed(current) || !Object.hasOwn(current, part)) {
+      return undefined;
+    }
     current = current[part];
   }
   return current;
@@ -178,7 +186,9 @@ export function defineMergeFields<const K extends string>(
       const examples: Record<string, string> = {};
       for (const name of names) {
         const example = fields[name].example;
-        if (example !== undefined) examples[name] = example;
+        if (example !== undefined) {
+          examples[name] = example;
+        }
       }
       return examples;
     },

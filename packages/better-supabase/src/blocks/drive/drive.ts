@@ -317,7 +317,9 @@ const KINDS: readonly DriveNodeKind[] = ["folder", "file"];
 const PRINCIPALS: readonly DrivePrincipalType[] = ["user", "team", "role"];
 
 function fileOf(value: unknown): DriveFile | undefined {
-  if (!isRecord(value)) return undefined;
+  if (!isRecord(value)) {
+    return undefined;
+  }
   return {
     mimeType: textOf(value["mimeType"]),
     size: Number(value["size"]),
@@ -482,12 +484,16 @@ async function parseNodes(
     const out: unknown[] = [];
     for (const item of value) {
       const parsed = await parseNodes(fields, item);
-      if (!parsed.ok) return parsed;
+      if (!parsed.ok) {
+        return parsed;
+      }
       out.push(parsed.data);
     }
     return ok(out);
   }
-  if (!isRecord(value)) return ok(value);
+  if (!isRecord(value)) {
+    return ok(value);
+  }
   const extra = value["fields"];
   if (isNode(value) && isRecord(extra)) {
     const parsed = await fields.read({ ...extra });
@@ -495,9 +501,13 @@ async function parseNodes(
   }
   const out: Record<string, unknown> = { ...value };
   for (const key of ["node", "children"]) {
-    if (value[key] === undefined) continue;
+    if (value[key] === undefined) {
+      continue;
+    }
     const parsed = await parseNodes(fields, value[key]);
-    if (!parsed.ok) return parsed;
+    if (!parsed.ok) {
+      return parsed;
+    }
     out[key] = parsed.data;
   }
   return ok(out);
@@ -566,7 +576,9 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
   const withUploadUrl = (
     pending: () => AsyncResult<{ node: DriveNode; attachment: Attachment }>,
   ): AsyncResult<DriveUpload> => {
-    if (storage === undefined) return AsyncResult.err(noStorage());
+    if (storage === undefined) {
+      return AsyncResult.err(noStorage());
+    }
     return pending().andThen(({ node, attachment }) =>
       stored(
         storage.from(attachment.bucket).createSignedUploadUrl(attachment.path),
@@ -695,7 +707,9 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
         nodeOf(value, "drive_commit"),
       ),
     download: (id, download = {}) => {
-      if (attachments === undefined) return AsyncResult.err(noAttachments());
+      if (attachments === undefined) {
+        return AsyncResult.err(noAttachments());
+      }
       return client.get(id).andThen((node) =>
         node.attachmentId === undefined
           ? Promise.resolve(
@@ -769,13 +783,17 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
         { max_objects: prune.maxObjects ?? null },
         objectsOf,
       ).andThen(async (objects) => {
-        if (storage === undefined || objects.length === 0) return ok(objects);
+        if (storage === undefined || objects.length === 0) {
+          return ok(objects);
+        }
         const buckets = Map.groupBy(objects, (object) => object.bucket);
         for (const [bucket, inBucket] of buckets) {
           const removed = await stored(
             storage.from(bucket).remove(inBucket.map((object) => object.path)),
           );
-          if (!removed.ok) return removed;
+          if (!removed.ok) {
+            return removed;
+          }
         }
         return ok(objects);
       }),

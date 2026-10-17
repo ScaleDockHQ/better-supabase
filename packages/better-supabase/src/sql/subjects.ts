@@ -98,7 +98,9 @@ function rawSubjects(
   const raw = ctx.option("subjects");
   const tenantless = allow.tenantless === true;
   if (raw === undefined) {
-    if (allow.fallback === false) return {};
+    if (allow.fallback === false) {
+      return {};
+    }
     return Object.fromEntries(
       Object.entries(registry)
         .filter(([, entry]) => tenantless || entry.tenant !== false)
@@ -176,7 +178,9 @@ export function subjectsOption(
     }
     const text = (key: string): string | undefined => {
       const value = entry[key];
-      if (value === undefined) return undefined;
+      if (value === undefined) {
+        return undefined;
+      }
       if (typeof value !== "string") {
         throw new TypeError(`${where}.${type}.${key} must be a string`);
       }
@@ -253,7 +257,9 @@ function subjectTableBinding(
   },
 ): SubjectTableBinding | undefined {
   const raw = subject.extra[key];
-  if (raw === undefined) return undefined;
+  if (raw === undefined) {
+    return undefined;
+  }
   const where = `blocks.${ctx.module}.options.subjects.${type}.${key}`;
   if (!isObject(raw) || typeof raw["table"] !== "string") {
     throw new TypeError(`${where} needs { table, ${spec.columns.join(", ")} }`);
@@ -287,7 +293,9 @@ function subjectTableBinding(
   }
   for (const name of optional) {
     const value = raw[name];
-    if (value === undefined) continue;
+    if (value === undefined) {
+      continue;
+    }
     if (typeof value !== "string" || !COLUMN_NAME.test(value)) {
       throw new TypeError(`${where}.${name} must be a column name`);
     }
@@ -329,7 +337,9 @@ export function subjectReadable(
   subjects: readonly (readonly [string, Subject])[],
   args: { readonly type: string; readonly id: string; readonly tenant: string },
 ): string {
-  if (subjects.length === 0) return "true";
+  if (subjects.length === 0) {
+    return "true";
+  }
   return `case ${args.type}\n${subjects
     .map(([type, subject]) => {
       if (subject.tenant === false) {
@@ -354,7 +364,9 @@ export function subjectCascades(
   remove: string,
 ): string {
   const cascading = subjects.filter(([, subject]) => subject.cascade);
-  if (cascading.length === 0) return "";
+  if (cascading.length === 0) {
+    return "";
+  }
   const name = `${ctx.module.replaceAll("-", "_")}_subject_deleted`;
   const fn = ctx.fn(name);
   const triggers = cascading.map(([type, subject]) => {
@@ -496,8 +508,12 @@ export function subjectAccess<A extends string>(
   return {
     canOn(tenant, type, id, action) {
       const list = keyed(action);
-      if (list.length === 0) return can(tenant, permission(action));
-      if (scoped) return branches(action, type, id, (key) => can(tenant, key));
+      if (list.length === 0) {
+        return can(tenant, permission(action));
+      }
+      if (scoped) {
+        return branches(action, type, id, (key) => can(tenant, key));
+      }
       const cases = list.map(
         (entry) => `when ${sqlString(entry.type)} then ${entry.key}`,
       );
@@ -507,8 +523,9 @@ export function subjectAccess<A extends string>(
       );
     },
     memberOn(tenant, type, id, action) {
-      if (keyed(action).length === 0)
+      if (keyed(action).length === 0) {
         return ctx.scope.check(tenant, permission(action));
+      }
       return branches(action, type, id, (key) => ctx.scope.check(tenant, key));
     },
     keyFor(type, action) {
@@ -533,7 +550,9 @@ function subjectScope(
   subject: Subject,
 ): string | undefined {
   const scope = subject.extra["scope"];
-  if (scope === undefined) return undefined;
+  if (scope === undefined) {
+    return undefined;
+  }
   const where = `blocks.${ctx.module}.options.subjects.${type}.scope`;
   if (typeof scope !== "string") {
     throw new TypeError(`${where} must be the name of a provider scope`);

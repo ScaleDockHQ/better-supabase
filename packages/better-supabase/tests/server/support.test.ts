@@ -407,7 +407,9 @@ describe("support sessions on the server", () => {
     });
     expect(await server.support.resolve("", admin())).toBeUndefined();
     const active = await server.support.resolve(session.id, admin());
-    if (!active) throw new Error("no support session");
+    if (!active) {
+      throw new Error("no support session");
+    }
     expect(active.session.targetUserId).toBe(TARGET);
     const auth = server.contextFor(admin(), { support: active }).auth;
     expect(auth.kind === "user" ? auth.user.id : undefined).toBe(TARGET);

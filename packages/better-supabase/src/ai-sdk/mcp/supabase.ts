@@ -48,7 +48,9 @@ export async function supabaseMcp(
   if (options.projectRef !== undefined) {
     url.searchParams.set("project_ref", options.projectRef);
   }
-  if (readOnly) url.searchParams.set("read_only", "true");
+  if (readOnly) {
+    url.searchParams.set("read_only", "true");
+  }
   if (options.features !== undefined) {
     url.searchParams.set("features", options.features.join(","));
   }

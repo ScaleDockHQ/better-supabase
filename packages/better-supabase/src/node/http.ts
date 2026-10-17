@@ -33,7 +33,9 @@ export function toWebRequest(
     (options.body ?? true) && method !== "GET" && method !== "HEAD";
   const controller = new AbortController();
   req.once("close", () => {
-    if (!req.complete) controller.abort();
+    if (!req.complete) {
+      controller.abort();
+    }
   });
   return new Request(nodeRequestUrl(req, options.trustProxy ?? false), {
     method,
@@ -55,7 +57,9 @@ export async function sendWebResponse(
   response: Response,
 ): Promise<void> {
   res.statusCode = response.status;
-  if (response.statusText) res.statusMessage = response.statusText;
+  if (response.statusText) {
+    res.statusMessage = response.statusText;
+  }
   applyWebHeaders(res, response.headers);
   if (!response.body) {
     res.end();

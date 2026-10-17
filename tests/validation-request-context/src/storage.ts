@@ -43,17 +43,26 @@ export function avatarRenderer(storage: StorageClient, projectUrl: string) {
   const origin = new URL(projectUrl).origin;
   const prefix = `/storage/v1/object/public/${avatars.id}/`;
   return (value: string, transform: TransformOptions): string => {
-    if (!URL.canParse(value)) return value;
+    if (!URL.canParse(value)) {
+      return value;
+    }
     const url = new URL(value);
-    if (url.origin !== origin || !url.pathname.startsWith(prefix)) return value;
+    if (url.origin !== origin || !url.pathname.startsWith(prefix)) {
+      return value;
+    }
     const path = decodeURIComponent(url.pathname.slice(prefix.length));
-    if (!avatars.match(path)) return value;
+    if (!avatars.match(path)) {
+      return value;
+    }
     const built = bucket.publicUrl(path, { transform });
-    if (!built.ok) return value;
+    if (!built.ok) {
+      return value;
+    }
     const rendered = new URL(built.data);
     for (const [name, param] of url.searchParams) {
-      if (!rendered.searchParams.has(name))
+      if (!rendered.searchParams.has(name)) {
         rendered.searchParams.set(name, param);
+      }
     }
     return rendered.href;
   };

@@ -30,7 +30,9 @@ export const notifyMe = bs.action(
       includeActor: true,
       data: { title },
     });
-    if (!sent.ok) return sent;
+    if (!sent.ok) {
+      return sent;
+    }
     refresh();
     return ok(sent.data?.id ?? null);
   },
@@ -41,7 +43,9 @@ export const markAllRead = bs.action(
   { requireTenant: true },
   async (_input, { tenant, supabase }) => {
     const updated = await blocks(supabase).notifications.markRead({ tenant });
-    if (!updated.ok) return updated;
+    if (!updated.ok) {
+      return updated;
+    }
     refresh();
     return ok(updated.data.count);
   },

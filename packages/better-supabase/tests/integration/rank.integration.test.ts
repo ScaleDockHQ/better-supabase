@@ -129,7 +129,9 @@ describe.skipIf(!live)("rank keys in Postgres", () => {
       ["rank", "state-machine", "tags", "custom-fields"],
       layout,
     )) {
-      if (file.kind !== "test") await client.query(file.contents);
+      if (file.kind !== "test") {
+        await client.query(file.contents);
+      }
     }
     await client.query(
       `insert into rank_it.deals (id, organization_id, rank)
@@ -274,7 +276,9 @@ describe.skipIf(!live)("rank keys in Postgres", () => {
   });
 
   it("rebalances long keys to short ones in the same order", async () => {
-    for (let step = 0; step < 40; step += 1) await move("d2", "d1", "d4");
+    for (let step = 0; step < 40; step += 1) {
+      await move("d2", "d1", "d4");
+    }
     await move("d2", "d4", null);
     const before = (await deals()).map((deal) => deal.id);
     expect(
@@ -347,7 +351,9 @@ insert into rank_up.tags (tenant_id, kind, name, slug, position) values
     const [plan] = upgradePlan([{ module: "tags", version: 1 }], {
       modules: { tags: { schema: "rank_up" } },
     });
-    for (const step of plan!.steps) await client.query(step.sql);
+    for (const step of plan!.steps) {
+      await client.query(step.sql);
+    }
     const { rows } = await client.query<{ name: string; rank: string }>(
       `select name, rank from rank_up.tags order by kind, rank collate "C"`,
     );

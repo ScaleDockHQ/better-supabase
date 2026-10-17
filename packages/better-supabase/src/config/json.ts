@@ -12,7 +12,9 @@ export function resolveJsonSchema(
   // SAFETY: a Standard Schema carries ~standard; any other source is a JSON
   // Schema object without it.
   const standard = (source as { "~standard"?: unknown })["~standard"];
-  if (standard === undefined) return source;
+  if (standard === undefined) {
+    return source;
+  }
   // SAFETY: Standard JSON Schema puts jsonSchema.input on ~standard; its
   // absence is handled below.
   const jsonSchema = (standard as { jsonSchema?: unknown }).jsonSchema as

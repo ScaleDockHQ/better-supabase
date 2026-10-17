@@ -52,8 +52,9 @@ function approvingStore() {
   const store: SupportSessionStore = {
     ...base,
     request(input) {
-      if (input.approvedBy === input.adminId)
+      if (input.approvedBy === input.adminId) {
         return Promise.reject(selfApproval());
+      }
       next += 1;
       const now = Temporal.Now.instant();
       const request: SupportRequest = {
@@ -77,8 +78,12 @@ function approvingStore() {
     approve(id, approver) {
       approvers.push(approver);
       const found = requests.get(id);
-      if (!found) return Promise.reject(new Error("missing"));
-      if (found.adminId === approver.id) return Promise.reject(selfApproval());
+      if (!found) {
+        return Promise.reject(new Error("missing"));
+      }
+      if (found.adminId === approver.id) {
+        return Promise.reject(selfApproval());
+      }
       const approved = {
         ...found,
         approvedBy: approver.id,
@@ -101,7 +106,9 @@ function approvingStore() {
     async start(input) {
       const session = await base.start(input);
       const used = input.requestId && requests.get(input.requestId);
-      if (used) requests.set(used.id, { ...used, sessionId: session.id });
+      if (used) {
+        requests.set(used.id, { ...used, sessionId: session.id });
+      }
       return session;
     },
   };

@@ -123,7 +123,9 @@ const MAX_BODY_BYTES = 1_048_576;
 const MAX_SETTINGS_BYTES = 65_536;
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const id = ctx.idType;
   const fn = (name: string): string => ctx.fn(name);
   const t = ctx.table("templates");

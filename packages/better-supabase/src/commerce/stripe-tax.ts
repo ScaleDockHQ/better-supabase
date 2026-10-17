@@ -140,14 +140,18 @@ async function allPages<T extends { readonly id: string }>(
   first: StripeList<T> | null | undefined,
   next: (after: string | undefined) => PromiseLike<StripeList<T>>,
 ): Promise<readonly T[]> {
-  if (first && !first.has_more) return first.data;
+  if (first && !first.has_more) {
+    return first.data;
+  }
   const items: T[] = [];
   let after: string | undefined;
   for (;;) {
     const page = await next(after);
     items.push(...page.data);
     const last = page.data.at(-1);
-    if (!page.has_more || last === undefined) return items;
+    if (!page.has_more || last === undefined) {
+      return items;
+    }
     after = last.id;
   }
 }
@@ -164,7 +168,9 @@ function rateOf(
     const match = PERCENT.exec(
       entry.tax_rate_details?.percentage_decimal ?? "",
     );
-    if (!match) continue;
+    if (!match) {
+      continue;
+    }
     const fraction = match[2] ?? "";
     parts.push({
       value: BigInt(`${match[1] ?? "0"}${fraction}`),
@@ -237,7 +243,9 @@ export function stripeTax(options: StripeTaxOptions): TaxProvider {
   const name = options.name ?? "stripe-tax";
   const client = lazyStripe<StripeTaxClient>(options.stripe);
   const taxCode = (category: string | undefined): Params => {
-    if (category === undefined) return {};
+    if (category === undefined) {
+      return {};
+    }
     const code = category.startsWith("txcd_")
       ? category
       : options.taxCodes?.[category];
@@ -249,7 +257,9 @@ export function stripeTax(options: StripeTaxOptions): TaxProvider {
     const lines: CalculationParams["line_items"][number][] = [];
     for (const line of cart.lines) {
       const amount = stripeAmount(line.amount);
-      if (!amount.ok) return amount;
+      if (!amount.ok) {
+        return amount;
+      }
       lines.push({
         amount: amount.data,
         reference: line.id,
@@ -261,7 +271,9 @@ export function stripeTax(options: StripeTaxOptions): TaxProvider {
     let shipping: Params = {};
     if (cart.shipping) {
       const amount = stripeAmount(cart.shipping.amount);
-      if (!amount.ok) return amount;
+      if (!amount.ok) {
+        return amount;
+      }
       shipping = {
         shipping_cost: {
           amount: amount.data,
@@ -294,22 +306,27 @@ export function stripeTax(options: StripeTaxOptions): TaxProvider {
     quote: (cart, call = {}) =>
       stripeResult(async () => {
         const problem = invalidTaxCart(cart);
-        if (problem) return err(problem);
+        if (problem) {
+          return err(problem);
+        }
         const params = paramsOf(cart);
-        if (!params.ok) return params;
+        if (!params.ok) {
+          return params;
+        }
         const stripe = await client();
         const calculation = await stripe.tax.calculations.create(
           params.data,
           idempotency(call.idempotencyKey),
         );
         const id = calculation.id;
-        if (id === null)
+        if (id === null) {
           return err(
             dbError(
               "unexpected",
               "Stripe returned a calculation without an id",
             ),
           );
+        }
         const stripeLines = await allPages(calculation.line_items, (after) =>
           stripe.tax.calculations.listLineItems(id, {
             limit: PAGE,
@@ -332,7 +349,7 @@ export function stripeTax(options: StripeTaxOptions): TaxProvider {
           ),
         );
         const shipping = calculation.shipping_cost;
-        if (shipping && cart.shipping)
+        if (shipping && cart.shipping) {
           lines.push(
             lineOf(
               SHIPPING_LINE,
@@ -344,6 +361,7 @@ export function stripeTax(options: StripeTaxOptions): TaxProvider {
               shipping.tax_breakdown,
             ),
           );
+        }
         const totalTax = lines.reduce(
           (total, line) => total + line.tax.amount,
           0n,
@@ -384,7 +402,9 @@ export function stripeTax(options: StripeTaxOptions): TaxProvider {
     reverse: (input, call = {}) =>
       stripeResult(async () => {
         const reversal = reversalOf(input);
-        if (!reversal.ok) return reversal;
+        if (!reversal.ok) {
+          return reversal;
+        }
         const stripe = await client();
         const key = idempotency(
           call.idempotencyKey ?? `tax-reverse:${input.reference}`,
@@ -409,8 +429,12 @@ export function stripeTax(options: StripeTaxOptions): TaxProvider {
           for (const line of reversal.data.lines) {
             const amount = stripeAmount(line.taxable);
             const tax = stripeAmount(line.tax);
-            if (!amount.ok) return amount;
-            if (!tax.ok) return tax;
+            if (!amount.ok) {
+              return amount;
+            }
+            if (!tax.ok) {
+              return tax;
+            }
             const gross = line.inclusive ? amount.data + tax.data : amount.data;
             if (line.lineId === SHIPPING_LINE) {
               shipping = {
@@ -419,7 +443,7 @@ export function stripeTax(options: StripeTaxOptions): TaxProvider {
               continue;
             }
             const original = byReference.get(line.lineId);
-            if (original === undefined)
+            if (original === undefined) {
               return err(
                 dbError(
                   "not_found",
@@ -427,6 +451,7 @@ export function stripeTax(options: StripeTaxOptions): TaxProvider {
                   { hint: "TAX_REVERSAL_UNKNOWN_LINE" },
                 ),
               );
+            }
             lineItems.push({
               original_line_item: original,
               reference: line.lineId,

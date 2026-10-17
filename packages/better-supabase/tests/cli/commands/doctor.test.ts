@@ -165,7 +165,9 @@ describe("doctor command", () => {
 
   it("reads a hosted project's advisors and statistics through the Management API", async () => {
     const api = fakeFetch((call) => {
-      if (call.url.includes("/advisors/")) return { body: { lints: [] } };
+      if (call.url.includes("/advisors/")) {
+        return { body: { lints: [] } };
+      }
       const query = JSON.parse(String(call.body)) as { query: string };
       return {
         body: query.query.includes("pg_stat_database") ? TEMP_FILES[1] : [],

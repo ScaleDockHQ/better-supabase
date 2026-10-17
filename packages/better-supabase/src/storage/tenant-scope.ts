@@ -24,7 +24,9 @@ function resolveTenant(
   options: TenantScopeOptions,
   claim: string | readonly string[] | undefined,
 ): string | undefined {
-  if (options.tenant !== undefined) return options.tenant;
+  if (options.tenant !== undefined) {
+    return options.tenant;
+  }
   return options.context && tenantFrom(options.context, tenantPathsFor(claim));
 }
 
@@ -50,7 +52,9 @@ export function tenantGuard(
   }
   const tenant = resolveTenant(options, claim);
   const tenantOrThrow = (): string => {
-    if (tenant !== undefined) return tenant;
+    if (tenant !== undefined) {
+      return tenant;
+    }
     throw forbidden(
       bucket,
       `No tenant for bucket "${bucket}": pass { context } or { tenant } to connect(), or { allTenants: true }`,

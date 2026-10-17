@@ -208,7 +208,9 @@ export function compareValues(
   value: number | null,
   previous: number | null,
 ): Pick<Kpi, "change" | "trend"> {
-  if (value === null || previous === null) return { change: null };
+  if (value === null || previous === null) {
+    return { change: null };
+  }
   const trend = value > previous ? "up" : value < previous ? "down" : "flat";
   return {
     change: previous === 0 ? null : (value - previous) / Math.abs(previous),

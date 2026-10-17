@@ -165,7 +165,9 @@ export function createServicePrincipals<
           extra.fields === undefined
             ? ok(undefined)
             : await fields.write({ ...extra.fields });
-        if (!checked.ok) return checked;
+        if (!checked.ok) {
+          return checked;
+        }
         const created = await admin.createUser({
           email: `${crypto.randomUUID()}@service-principals.invalid`,
           email_confirm: true,

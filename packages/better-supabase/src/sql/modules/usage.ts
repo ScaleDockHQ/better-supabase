@@ -82,7 +82,9 @@ const NAMES: ModuleNames = {
 };
 
 function build(ctx: ModuleContext, layout: ModuleLayout): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const id = ctx.idType;
   const counters = ctx.table("counters");
   const events = ctx.table("events");

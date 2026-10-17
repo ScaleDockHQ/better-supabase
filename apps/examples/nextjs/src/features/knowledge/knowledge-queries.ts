@@ -22,7 +22,9 @@ export async function getDocuments(): Promise<readonly DocumentRow[]> {
     bs.context(),
   ]);
   const organizationId = tenantOf(session);
-  if (!organizationId) return [];
+  if (!organizationId) {
+    return [];
+  }
   const documents = await knowledge(supabase)
     .documents.list(organizationId, { limit: 50 })
     .orThrow();

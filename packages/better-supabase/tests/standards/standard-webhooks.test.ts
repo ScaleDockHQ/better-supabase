@@ -178,16 +178,19 @@ describe(`Standard Webhooks ${SPEC_PINS.standardWebhooks}`, () => {
     });
     expect(signed["webhook-signature"]!.split(" ")).toHaveLength(2);
     expect(signed["webhook-signature"]).toContain(SIGNATURE);
-    for (const secret of [next, SECRET])
+    for (const secret of [next, SECRET]) {
       expect((await verify({ headers: signed, body: BODY }, secret)).ok).toBe(
         true,
       );
+    }
   });
 
   it("refuses a replayed webhook-id once seen recorded it", async () => {
     const ids = new Map<string, Temporal.Instant>();
     const seen = (id: string, until: Temporal.Instant) => {
-      if (ids.has(id)) return true;
+      if (ids.has(id)) {
+        return true;
+      }
       ids.set(id, until);
       return false;
     };

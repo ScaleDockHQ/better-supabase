@@ -153,7 +153,9 @@ export function createTags<S extends StandardSchemaV1 | undefined = undefined>(
         ),
     reorder: (id, neighbors) => {
       const key = rankBetweenResult(neighbors);
-      if (!key.ok) return AsyncResult.err(key.error);
+      if (!key.ok) {
+        return AsyncResult.err(key.error);
+      }
       return call("rank_tag", { tag_id: id, rank: key.data }, () => key.data);
     },
     delete: (id) =>

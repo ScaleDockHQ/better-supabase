@@ -21,7 +21,9 @@ function fakeFetch(routes: Record<string, Response>) {
 
 function toolNamed(tools: readonly WebMcpTool[], name: string): WebMcpTool {
   const found = tools.find((tool) => tool.name === name);
-  if (found === undefined) throw new Error(`No tool ${name}`);
+  if (found === undefined) {
+    throw new Error(`No tool ${name}`);
+  }
   return found;
 }
 

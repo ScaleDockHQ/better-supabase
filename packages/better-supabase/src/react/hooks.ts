@@ -190,7 +190,9 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
   }
 
   useEffect(() => {
-    if (!name || auth.status === "loading") return;
+    if (!name || auth.status === "loading") {
+      return;
+    }
     return startBroadcast({
       supabase,
       topic,
@@ -225,7 +227,9 @@ export function useBroadcastAuth(
     readonly userId: string | null;
   }>({ status: "loading", userId: null });
   useEffect(() => {
-    if (client) return;
+    if (client) {
+      return;
+    }
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       setPlain({
         status: session ? "signed-in" : "signed-out",
@@ -250,7 +254,9 @@ function useHeldSpec<S extends QuerySpec>(
 ): { readonly key: string | null; readonly spec: S | null } {
   const key = spec ? specKey(spec) : null;
   const [held, setHeld] = useState({ key, spec: spec ?? null });
-  if (held.key === key) return held;
+  if (held.key === key) {
+    return held;
+  }
   const next = { key, spec: spec ?? null };
   setHeld(next);
   return next;
@@ -287,7 +293,9 @@ export function useLiveQuery(
   latest.current = { auth, options };
 
   useEffect(() => {
-    if (key === null || !held.spec || !queryClient) return;
+    if (key === null || !held.spec || !queryClient) {
+      return;
+    }
     // A rejoin with the same spec (an <Activity> shown again) missed the
     // changes made while it was hidden.
     const resumed = joined.current === held.key;
@@ -344,7 +352,9 @@ export function useLiveCount(
   const { seedAt } = parsed;
 
   useEffect(() => {
-    if (key === null || !held.spec || held.key === null) return;
+    if (key === null || !held.spec || held.key === null) {
+      return;
+    }
     const specKey = held.key;
     // A rejoin with the same spec (an <Activity> shown again) counts again
     // once joined: changes made while it was hidden were missed.
@@ -361,8 +371,9 @@ export function useLiveCount(
       onState: (update) => {
         const next = update(stateRef.current);
         stateRef.current = next;
-        if (next.error === undefined && joined.current?.key === specKey)
+        if (next.error === undefined && joined.current?.key === specKey) {
           joined.current = { key: specKey, at: next.at };
+        }
         setState(next);
       },
       onStatus: setStatus,

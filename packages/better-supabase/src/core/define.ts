@@ -95,9 +95,13 @@ const isStorageApi = (value: unknown): value is StorageApi =>
 const clientStorage = new WeakMap<DbSource, StorageApi>();
 
 function storageOf(source: DbSource): StorageApi {
-  if (source.storage) return source.storage;
+  if (source.storage) {
+    return source.storage;
+  }
   const cached = clientStorage.get(source);
-  if (cached) return cached;
+  if (cached) {
+    return cached;
+  }
   const client = source.client;
   const storage = isRecord(client) ? client["storage"] : undefined;
   if (isStorageApi(storage)) {
@@ -170,7 +174,9 @@ export class BetterSupabase<
   /** The `now` option, else this definition's own `Temporal` clock. */
   #now(): () => Temporal.Instant {
     const { now, temporal } = this.options;
-    if (now) return now;
+    if (now) {
+      return now;
+    }
     return temporal ? () => temporal.Now.instant() : nowInstant;
   }
 
@@ -342,10 +348,11 @@ export class BetterSupabase<
     const invalidate = (target: CacheTarget): void => {
       try {
         const pending = adapter.invalidate(target);
-        if (pending)
+        if (pending) {
           pending.catch((cause: unknown) => {
             report(cause, target.table);
           });
+        }
       } catch (cause) {
         report(cause, target.table);
       }
@@ -354,8 +361,9 @@ export class BetterSupabase<
       invalidate(cacheTargetOf(this.meta, notice));
     });
     const offRpc = this.on("rpc", (notice) => {
-      for (const target of rpcCacheTargets(this.meta, notice))
+      for (const target of rpcCacheTargets(this.meta, notice)) {
         invalidate(target);
+      }
     });
     return () => {
       offMutation();
@@ -423,7 +431,9 @@ export class BetterSupabase<
   ): RequestContext {
     let context = given;
     for (const plugin of plugins) {
-      if (!plugin.context) continue;
+      if (!plugin.context) {
+        continue;
+      }
       try {
         context = plugin.context(context, { schema: this.meta });
       } catch (cause) {
@@ -447,7 +457,9 @@ export class BetterSupabase<
     const context = this.#derive(given, plugins);
     let executor = base;
     for (const plugin of plugins) {
-      if (plugin.wrapExecutor) executor = plugin.wrapExecutor(executor);
+      if (plugin.wrapExecutor) {
+        executor = plugin.wrapExecutor(executor);
+      }
     }
     const wrapped = executor;
     executor = recordStats(executor, recorder);
@@ -493,7 +505,9 @@ export class BetterSupabase<
             return data;
           })
           .mapError((error) => {
-            if (events.has("error")) events.emit("error", errorEvent(error));
+            if (events.has("error")) {
+              events.emit("error", errorEvent(error));
+            }
             return error;
           }),
       $with: (extra: RequestContext) =>
@@ -598,7 +612,9 @@ export class BetterSupabase<
         );
         const data: unknown[] = [];
         for (const result of results) {
-          if (!result.ok) return result;
+          if (!result.ok) {
+            return result;
+          }
           data.push(result.data);
         }
         return ok(data);
@@ -622,13 +638,17 @@ export class BetterSupabase<
         const keys = Object.keys(set.specs);
         const { specs: bound, noCaller } = bindParams(set, values, context);
         if (base.batch || !executor.rpc) {
-          if (noCaller) return err(noCaller);
+          if (noCaller) {
+            return err(noCaller);
+          }
           const result = await many(
             keys.map((key) => bound[key]),
             signal,
             false,
           );
-          if (!result.ok) return result;
+          if (!result.ok) {
+            return result;
+          }
           return ok(
             Object.fromEntries(keys.map((key, i) => [key, result.data[i]])),
           );
@@ -643,7 +663,9 @@ export class BetterSupabase<
             ...(signal ? { signal } : {}),
           },
         );
-        if (!called.ok) return called;
+        if (!called.ok) {
+          return called;
+        }
         return this.#decodeReadSet(source, context, set, bound, called.data);
       });
 
@@ -682,14 +704,16 @@ export class BetterSupabase<
       name: "read-set",
       execute: (op) => {
         if (op.kind === "select" && op.single) {
-          if (rows.length > 1)
+          if (rows.length > 1) {
             return Promise.resolve(
               err(dbError("multiple_rows", `Expected one ${op.table.key} row`)),
             );
-          if (rows.length === 0 && op.single === "one")
+          }
+          if (rows.length === 0 && op.single === "one") {
             return Promise.resolve(
               err(dbError("not_found", `No ${op.table.key} row matched`)),
             );
+          }
         }
         return Promise.resolve(ok({ rows, count }));
       },
@@ -721,7 +745,9 @@ export class BetterSupabase<
       rows = entry.rows ?? [];
       count = entry.count ?? null;
       const result = await runSpec(decoder, spec, undefined);
-      if (!result.ok) return result;
+      if (!result.ok) {
+        return result;
+      }
       out[key] = result.data;
     }
     return ok(out);
@@ -742,12 +768,16 @@ export class BetterSupabase<
   }
 
   #tablePrototype(): object {
-    if (this.#tables) return this.#tables;
+    if (this.#tables) {
+      return this.#tables;
+    }
     const tables = {};
     const throwAs = this.options.throwAs;
     const build = (state: DbState, key: string): Record<string, unknown> => {
       let repository = state.repositories.get(key);
-      if (repository) return repository;
+      if (repository) {
+        return repository;
+      }
       // SAFETY: the prototype only defines getters for keys of meta.tables.
       const table = this.meta.tables[key]!;
       repository = this.#repository(state.runner, key, table, state.plugins);
@@ -790,7 +820,9 @@ export class BetterSupabase<
           Record<string, (...args: never[]) => unknown>
         >,
       });
-      if (!methods) continue;
+      if (!methods) {
+        continue;
+      }
       for (const [name, method] of Object.entries(methods)) {
         if (name in repository) {
           throw new TypeError(
@@ -908,7 +940,9 @@ function rpc(
       ...(options?.retry === undefined ? {} : { retry: options.retry }),
     };
     const invalid = invalidTuning(tuning);
-    if (invalid) return err(dbError("invalid_request", invalid));
+    if (invalid) {
+      return err(dbError("invalid_request", invalid));
+    }
     const limit = deadline(options?.signal, tuning.timeout);
     const schema = options?.schema ?? "public";
     const fn = rpcFunction(meta, name, schema, args ?? {});
@@ -925,21 +959,28 @@ function rpc(
     } finally {
       limit.clear();
     }
-    if (!result.ok && limit.timedOut())
+    if (!result.ok && limit.timedOut()) {
       return err(
         dbError("timeout", `The request timed out after ${tuning.timeout} ms`),
       );
-    if (!result.ok) return result;
+    }
+    if (!result.ok) {
+      return result;
+    }
     let data = result.data;
     if (options?.raw !== true) {
       try {
         data = decodeRpcResult(meta, fn, data);
       } catch (cause) {
-        if (cause instanceof DbException) return err(cause.error);
+        if (cause instanceof DbException) {
+          return err(cause.error);
+        }
         throw cause;
       }
     }
-    if (!options?.returns) return ok(data);
+    if (!options?.returns) {
+      return ok(data);
+    }
     const checked = await validate(options.returns, data, `${name}() result`);
     return checked.ok ? ok(checked.data) : checked;
   });

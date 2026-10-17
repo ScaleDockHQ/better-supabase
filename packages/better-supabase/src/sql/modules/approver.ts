@@ -50,8 +50,9 @@ export function approverCheck(
   request: ApprovalRequestSql,
 ): ApproverCheck | undefined {
   const provider = layout.accessProvider;
-  if (provider === undefined || accessModel(ctx) !== "provider")
+  if (provider === undefined || accessModel(ctx) !== "provider") {
     return undefined;
+  }
   const { isApprover } = provider.functions;
   if (isApprover !== undefined) {
     return {
@@ -69,10 +70,14 @@ export function approverCheck(
       distinct: true,
     };
   }
-  if (request.kind !== AI_TOOL_APPROVAL) return undefined;
+  if (request.kind !== AI_TOOL_APPROVAL) {
+    return undefined;
+  }
   // oxlint-disable-next-line typescript/no-deprecated -- read until every provider sets isApprover.
   const canApprove = provider.functions.canApprove;
-  if (canApprove === undefined) return undefined;
+  if (canApprove === undefined) {
+    return undefined;
+  }
   return {
     sql: fillTemplate("authorization.functions.canApprove", canApprove, {
       scope: provider.scope,

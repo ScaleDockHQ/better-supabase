@@ -883,7 +883,9 @@ $$;`;
 }
 
 function build(ctx: ModuleContext, layout: ModuleLayout): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const names = namesOf(ctx);
   return `${schemaPreamble(ctx)}
 ${tables(ctx, names)}

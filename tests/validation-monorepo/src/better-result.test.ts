@@ -112,7 +112,9 @@ describe("defineBetterResultErrors with TaggedError classes", () => {
     > => toResult(AsyncResult.err(dbError("conflict", "duplicate key")));
     const failed = await load();
     expect(failed.isErr()).toBe(true);
-    if (!failed.isErr()) return;
+    if (!failed.isErr()) {
+      return;
+    }
     expect(TaggedError.is(failed.error)).toBe(true);
     expect(
       matchError(failed.error, {

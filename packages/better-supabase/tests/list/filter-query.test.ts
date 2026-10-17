@@ -27,7 +27,9 @@ const betterSupabase = defineSupabase(schema);
 
 function table(key: string): TableMeta {
   const found = schema.meta.tables[key];
-  if (!found) throw new Error(`No fixture table ${key}`);
+  if (!found) {
+    throw new Error(`No fixture table ${key}`);
+  }
   return found;
 }
 
@@ -170,7 +172,9 @@ describe("parsing filter trees", () => {
     ]);
     const result = list.parse({ filter: tree });
     expect(result.ok).toBe(true);
-    if (!result.ok) return;
+    if (!result.ok) {
+      return;
+    }
     expect(result.value.filter?.rules).toHaveLength(2);
 
     expect(
@@ -195,7 +199,9 @@ describe("parsing filter trees", () => {
 
   it("caps depth and rule count", () => {
     let deep: FilterQuery = group([rule("name", "contains", "a")]);
-    for (let level = 0; level < 4; level += 1) deep = group([deep]);
+    for (let level = 0; level < 4; level += 1) {
+      deep = group([deep]);
+    }
     expect(list.parse({ filter: deep }).ok).toBe(false);
 
     const wide = group(
@@ -220,7 +226,9 @@ describe("parsing filter trees", () => {
     ]);
     const parsed = list.parse({ filter: tree });
     expect(parsed.ok).toBe(true);
-    if (!parsed.ok) return;
+    if (!parsed.ok) {
+      return;
+    }
     const params = list.toSearchParams(parsed.value);
     const encoded = params.get("filter") ?? "";
     expect(encoded).toMatch(/^[A-Za-z0-9_-]+$/);
@@ -332,7 +340,9 @@ describe("compiling filter trees", () => {
       { timeZone: "UTC" },
     );
     expect(parsed.ok).toBe(true);
-    if (!parsed.ok) return;
+    if (!parsed.ok) {
+      return;
+    }
     expect(list.args(parsed.value, { now }).where).toEqual({
       archivedAt: { lt: "2026-10-13T00:00:00Z" },
     });

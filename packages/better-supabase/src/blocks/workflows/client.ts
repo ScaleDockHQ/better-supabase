@@ -55,7 +55,9 @@ export function createWorkflowRunsController(
           ...(runStatus === undefined ? {} : { status: runStatus }),
           ...(limit === undefined ? {} : { limit }),
         });
-        if (run !== state.run()) return;
+        if (run !== state.run()) {
+          return;
+        }
         state.set(
           result.ok
             ? { runs: result.data, error: undefined }
@@ -67,7 +69,9 @@ export function createWorkflowRunsController(
         start: () =>
           whileSignedIn(options.auth, () => {
             void refresh();
-            if (tenant === null) return;
+            if (tenant === null) {
+              return;
+            }
             return options.ports.topic(`workflow-runs:${tenant}`, {
               onMessage: () => void refresh(),
               onRejoin: () => void refresh(),
@@ -139,10 +143,15 @@ export function createWorkflowRunController(
         actions: {
           refresh: watch.refresh,
           cancel: async () => {
-            if (run === null) return;
+            if (run === null) {
+              return;
+            }
             const result = await client.runs.requestCancel(run);
-            if (result.ok) await watch.refresh();
-            else state.set({ error: result.error });
+            if (result.ok) {
+              await watch.refresh();
+            } else {
+              state.set({ error: result.error });
+            }
           },
         },
         start: watch.start,

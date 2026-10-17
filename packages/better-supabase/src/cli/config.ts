@@ -28,13 +28,17 @@ const CONFIG_FILES = [
 function configIn(dir: string): string | undefined {
   for (const name of CONFIG_FILES) {
     const path = join(dir, name);
-    if (existsSync(path)) return path;
+    if (existsSync(path)) {
+      return path;
+    }
   }
   return undefined;
 }
 
 export function findConfig(cwd: string, explicit?: string): string | undefined {
-  if (explicit) return resolve(cwd, explicit);
+  if (explicit) {
+    return resolve(cwd, explicit);
+  }
   return configIn(cwd);
 }
 
@@ -46,7 +50,9 @@ export function discoverConfig(
   cwd: string,
   explicit?: string,
 ): string | undefined {
-  if (explicit) return resolve(cwd, explicit);
+  if (explicit) {
+    return resolve(cwd, explicit);
+  }
   const dir = findUp(cwd, (candidate) => configIn(candidate) !== undefined);
   return dir === undefined ? undefined : configIn(dir);
 }
@@ -56,7 +62,9 @@ export async function importExport(
   path: string,
   name: string,
 ): Promise<unknown> {
-  if (!existsSync(path)) throw new Error(`Module not found: ${path}`);
+  if (!existsSync(path)) {
+    throw new Error(`Module not found: ${path}`);
+  }
   const loaded = await importFresh(path);
   return loaded[name] ?? loaded["default"];
 }
@@ -75,7 +83,9 @@ function mergeConfig(
 ): Record<string, unknown> {
   const merged: Record<string, unknown> = { ...base };
   for (const [key, value] of Object.entries(override)) {
-    if (value === undefined) continue;
+    if (value === undefined) {
+      continue;
+    }
     const current = merged[key];
     merged[key] =
       isPlainObject(current) && isPlainObject(value)
@@ -103,7 +113,9 @@ export function applyEnvironment(
     $ci,
     ...base
   } = config;
-  if (environment === undefined) return base;
+  if (environment === undefined) {
+    return base;
+  }
   const shorthand = new Map<string, EnvironmentConfig | undefined>([
     ["development", $development],
     ["production", $production],
@@ -111,8 +123,11 @@ export function applyEnvironment(
     ["ci", $ci],
   ]).get(environment);
   let merged: Record<string, unknown> = { ...base };
-  for (const block of [$env?.[environment], shorthand])
-    if (block) merged = mergeConfig(merged, block);
+  for (const block of [$env?.[environment], shorthand]) {
+    if (block) {
+      merged = mergeConfig(merged, block);
+    }
+  }
   if (!isConfig(merged)) {
     throw new CliError(
       "config_invalid",
@@ -143,7 +158,9 @@ export async function loadConfig(
   const path = discoverConfig(cwd, explicit);
   const withEnvironment = (resolved: ResolvedConfig): ResolvedConfig =>
     environment === undefined ? resolved : { ...resolved, environment };
-  if (!path) return withEnvironment(resolveConfig({}, cwd));
+  if (!path) {
+    return withEnvironment(resolveConfig({}, cwd));
+  }
   if (!existsSync(path)) {
     throw new CliError("config_not_found", `Config file not found: ${path}`);
   }
@@ -188,7 +205,9 @@ export async function stdinDatabaseUrl(
   enabled: boolean | undefined,
   io: CliIo,
 ): Promise<string | undefined> {
-  if (enabled !== true) return undefined;
+  if (enabled !== true) {
+    return undefined;
+  }
   const url = (await io.stdin?.())?.trim();
   if (!url) {
     throw new CliError(
@@ -210,10 +229,18 @@ export async function databaseUrl(
   env: CliEnv,
   fromStdin?: string,
 ): Promise<string> {
-  if (fromStdin) return fromStdin;
-  if (config.source.dbUrl) return config.source.dbUrl;
-  if (env.DATABASE_URL) return env.DATABASE_URL;
-  if (env.SUPABASE_DB_URL) return env.SUPABASE_DB_URL;
+  if (fromStdin) {
+    return fromStdin;
+  }
+  if (config.source.dbUrl) {
+    return config.source.dbUrl;
+  }
+  if (env.DATABASE_URL) {
+    return env.DATABASE_URL;
+  }
+  if (env.SUPABASE_DB_URL) {
+    return env.SUPABASE_DB_URL;
+  }
   const port = await readSupabasePort(config.root, "db");
   if (port === undefined && (await readSupabaseToml(config.root))) {
     // The stack engine (`[experimental] stack`) picks the ports per checkout,
@@ -222,7 +249,9 @@ export async function databaseUrl(
       () => undefined,
     );
     const url = stack?.ok ? stack.status["DB_URL"] : undefined;
-    if (typeof url === "string" && url.length > 0) return url;
+    if (typeof url === "string" && url.length > 0) {
+      return url;
+    }
   }
   return `postgresql://postgres:postgres@127.0.0.1:${port ?? 54_322}/postgres`;
 }

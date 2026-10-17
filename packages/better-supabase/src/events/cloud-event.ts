@@ -122,8 +122,9 @@ export function forwardBlockEvents(
           ? event.type.startsWith(pattern.slice(0, -1))
           : pattern === event.type,
       )
-    )
+    ) {
       return;
+    }
     const events = [blockCloudEvent(event, options)];
     const report = (error: unknown) => {
       (

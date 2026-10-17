@@ -309,7 +309,9 @@ export function formSchema(definition: FormDefinition): FormJsonSchema {
   for (const step of definition.steps) {
     for (const field of step.fields) {
       properties[field.key] = fieldSchema(field);
-      if (field.required !== true) continue;
+      if (field.required !== true) {
+        continue;
+      }
       const conditions = [step.showIf, field.showIf]
         .filter((condition) => condition !== undefined)
         .map(conditionSchema);
@@ -377,7 +379,9 @@ export function formDefinitionProblems(
     }
   };
   for (const step of definition.steps) {
-    if (steps.has(step.key)) problems.push(`step ${step.key} is listed twice`);
+    if (steps.has(step.key)) {
+      problems.push(`step ${step.key} is listed twice`);
+    }
     steps.add(step.key);
     refers(step.showIf, `step ${step.key}`);
     for (const field of step.fields) {

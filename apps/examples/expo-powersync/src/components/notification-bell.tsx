@@ -23,7 +23,9 @@ export function NotificationBell({
   const { items, count } = useNotifications({
     topic: userId ? `notifications:${userId}` : null,
     load: async () => {
-      if (!tenant) return [];
+      if (!tenant) {
+        return [];
+      }
       const result = await blocks(supabase).notifications.counts({ tenant });
       return result.ok ? [result.data] : [];
     },

@@ -130,7 +130,9 @@ function dispatch(
       perform ${quotedTable(target)}(bulk_row.tenant, bulk_row.subject_type, bulk_row.subject_id, bulk_row.args);`);
   }
   const unknown = fail("BULK_ACTION_UNKNOWN", "unknown bulk action", "22023");
-  if (arms.length === 0) return unknown;
+  if (arms.length === 0) {
+    return unknown;
+  }
   return `case bulk_row.action
 ${arms.join("\n")}
     else
@@ -164,7 +166,9 @@ function rowLoop(
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const runs = ctx.table("runs");
   const c = (name: string): string => ctx.col("runs", name);
   const run = ctx.permission("run", OPERATIONS["bulk.run"]);

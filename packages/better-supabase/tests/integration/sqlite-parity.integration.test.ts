@@ -39,7 +39,9 @@ const ORG = crypto.randomUUID();
 const ids = new Map<number, string>();
 const id = (n: number): string => {
   const existing = ids.get(n);
-  if (existing) return existing;
+  if (existing) {
+    return existing;
+  }
   const created = crypto.randomUUID();
   ids.set(n, created);
   return created;
@@ -117,7 +119,9 @@ describe.skipIf(!live)("SQLite and PostgREST return the same results", () => {
         .from(table)
         .select("*")
         .eq(column, ORG);
-      if (error) throw new Error(error.message);
+      if (error) {
+        throw new Error(error.message);
+      }
       for (const row of data as Record<string, unknown>[]) {
         const columns = Object.keys(row);
         local.sqlite
@@ -139,7 +143,9 @@ describe.skipIf(!live)("SQLite and PostgREST return the same results", () => {
     ) => PromiseLike<Result<T>>,
   ): Promise<T> => {
     const [fromRest, fromSqlite] = await Promise.all([run(rest), run(sqlite)]);
-    if (!fromRest.ok) throw new Error(fromRest.error.message);
+    if (!fromRest.ok) {
+      throw new Error(fromRest.error.message);
+    }
     expect(fromSqlite).toEqual(fromRest);
     return fromRest.data;
   };

@@ -218,7 +218,9 @@ function startedOf(value: unknown): BulkStarted {
 }
 
 function runOf(value: unknown): BulkRun | null {
-  if (!isRecord(value)) return null;
+  if (!isRecord(value)) {
+    return null;
+  }
   return {
     ...resultOf(value),
     id: textOf(value["id"]),
@@ -260,7 +262,9 @@ export function createBulk(options: BulkOptions): Bulk {
       for (;;) {
         drainOptions.signal?.throwIfAborted();
         const result = await step(id, drainOptions.size);
-        if (!result.ok || result.data.done) return result;
+        if (!result.ok || result.data.done) {
+          return result;
+        }
       }
     });
   const client: Bulk = {

@@ -99,7 +99,9 @@ function transportPurgeCalls(
         "audit_events_tenants",
         { older_than: "1 day" },
         (value): readonly (string | null)[] => {
-          if (value === null || value === undefined) return [];
+          if (value === null || value === undefined) {
+            return [];
+          }
           if (!Array.isArray(value)) {
             throw new TypeError(
               "audit_events_tenants returned one value, not rows: pass a SqlClient instead of sqlTransport",
@@ -186,7 +188,9 @@ export function setAuditRetention(
   const kept = (days: number | null | undefined) =>
     typeof days === "number" && days > 0 ? days : undefined;
   const retention: Retention = async (tenant) => {
-    if (tenant === null) return;
+    if (tenant === null) {
+      return;
+    }
     const [row] = await sql.queryRaw<{ days: number | null }>(
       `select ${from} where ${key}::text = $1`,
       [tenant],
@@ -201,7 +205,9 @@ export function setAuditRetention(
     const days = new Map<string, number>();
     for (const row of rows) {
       const value = kept(row.days);
-      if (value !== undefined) days.set(row.tenant, value);
+      if (value !== undefined) {
+        days.set(row.tenant, value);
+      }
     }
     return days;
   });
@@ -454,7 +460,9 @@ limit $5`;
   let done = false;
   return new ReadableStream<Uint8Array>({
     async pull(controller) {
-      if (done) return;
+      if (done) {
+        return;
+      }
       const rows = await sql.queryRaw(text, [
         options.organizationId,
         instantArg(options.from) ?? null,
@@ -532,7 +540,9 @@ export function auditListQuery<
   options: { readonly pageSize?: number; readonly maxPageSize?: number } = {},
 ): AuditListDefinition<M, T, E> {
   const meta: TableMeta | undefined = betterSupabase.meta.tables[table];
-  if (!meta) throw new TypeError(`auditListQuery: unknown table "${table}"`);
+  if (!meta) {
+    throw new TypeError(`auditListQuery: unknown table "${table}"`);
+  }
   const camel = meta.columns["occurredAt"] !== undefined;
   const col = (snake: string, camelName: string) => (camel ? camelName : snake);
   const facets: Record<string, string> = Object.fromEntries(

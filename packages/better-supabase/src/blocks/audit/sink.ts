@@ -33,7 +33,9 @@ function supportFields(
   AuditEventInput,
   "supportSessionId" | "impersonatedBy" | "impersonationReason"
 > {
-  if (!eventType.startsWith("support.") || data === undefined) return {};
+  if (!eventType.startsWith("support.") || data === undefined) {
+    return {};
+  }
   const sessionId = textIn(data["sessionId"]);
   const adminId = textIn(data["adminId"]);
   const reason = textIn(data["reason"]);
@@ -95,9 +97,13 @@ export function auditSink(
       let failure: DbException | undefined;
       for (const event of events) {
         const result = await record(auditEventOf(event, options));
-        if (!result.ok) failure ??= new DbException(result.error);
+        if (!result.ok) {
+          failure ??= new DbException(result.error);
+        }
       }
-      if (failure !== undefined) throw failure;
+      if (failure !== undefined) {
+        throw failure;
+      }
     },
   };
 }

@@ -39,7 +39,9 @@ import { useRoleLabel } from "../use-role-label";
 
 async function loadOrganizationMembers(): Promise<readonly Member[]> {
   const result = await loadMembers({});
-  if (!result.ok) throw new DbException(result.error);
+  if (!result.ok) {
+    throw new DbException(result.error);
+  }
   return result.data;
 }
 
@@ -89,13 +91,19 @@ export function MemberTable({
 
   const changeRole = async (member: Member, role: Role) => {
     const result = await setRole(member.userId, role);
-    if (result.ok) toast.success(t("Role updated"));
-    else toast.error(errorMessage(result.error));
+    if (result.ok) {
+      toast.success(t("Role updated"));
+    } else {
+      toast.error(errorMessage(result.error));
+    }
   };
   const removeMember = async (member: Member) => {
     const result = await remove(member.userId);
-    if (result.ok) toast.success(t("Member removed"));
-    else toast.error(errorMessage(result.error));
+    if (result.ok) {
+      toast.success(t("Member removed"));
+    } else {
+      toast.error(errorMessage(result.error));
+    }
   };
 
   return (
@@ -148,7 +156,9 @@ export function MemberTable({
                   items={roleItems}
                   disabled={busy(member)}
                   onValueChange={(value) => {
-                    if (v.is(Role, value)) void changeRole(member, value);
+                    if (v.is(Role, value)) {
+                      void changeRole(member, value);
+                    }
                   }}
                 >
                   <SelectTrigger

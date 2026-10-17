@@ -562,7 +562,9 @@ function namesOf(ctx: ModuleContext): OrdersNames {
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   paymentWindow(ctx);
   const names = namesOf(ctx);
   return `${schemaPreamble(ctx)}

@@ -76,16 +76,22 @@ function keyOf(table: TableMeta, row: Row): Row {
 
 async function rowsOf(outcome: Outcome): Promise<Row[]> {
   const result = await outcome;
-  if (!result.ok) throw new Error(result.error.message);
+  if (!result.ok) {
+    throw new Error(result.error.message);
+  }
   // SAFETY: repository reads and writes return rows of the table, one or many.
   return (Array.isArray(result.data) ? result.data : [result.data]) as Row[];
 }
 
 function env(names: readonly string[]): string | undefined {
-  if (typeof process === "undefined") return undefined;
+  if (typeof process === "undefined") {
+    return undefined;
+  }
   for (const name of names) {
     const value = process.env[name];
-    if (value) return value;
+    if (value) {
+      return value;
+    }
   }
   return undefined;
 }
@@ -270,6 +276,8 @@ export async function expectTenantIsolation<
     }
     return await conform("Tenant isolation", [...reads, ...deletes]);
   } finally {
-    for (const remove of cleanup.reverse()) await remove();
+    for (const remove of cleanup.reverse()) {
+      await remove();
+    }
   }
 }

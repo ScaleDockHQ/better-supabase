@@ -121,7 +121,9 @@ interface PushNames {
 }
 
 function pushNames(ctx: ModuleContext): PushNames | undefined {
-  if (!ctx.installed("webhooks-out")) return undefined;
+  if (!ctx.installed("webhooks-out")) {
+    return undefined;
+  }
   const w = ctx.of("webhooks-out");
   if (!w.has("endpoints", "format")) {
     throw new TypeError(
@@ -138,7 +140,9 @@ function pushNames(ctx: ModuleContext): PushNames | undefined {
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const t = ctx.table("streams");
   const e = ctx.table("events");
   const r = ctx.table("received");

@@ -36,7 +36,9 @@ function fakeTransport(handlers: Record<string, Handler>) {
     call: (_schema, fn, args) => {
       calls.push({ fn, args });
       const handler = handlers[fn];
-      if (!handler) return Promise.reject(new Error(`unexpected ${fn}`));
+      if (!handler) {
+        return Promise.reject(new Error(`unexpected ${fn}`));
+      }
       return Promise.resolve(handler(args));
     },
   };
@@ -110,7 +112,9 @@ describe("createAiChat sandboxes", () => {
     });
     const { sandboxes } = createAiChat({ transport });
     const stopped = await sandboxes.idleStopJob(async (sandbox) => {
-      if (sandbox.id === "s2") throw new Error("busy");
+      if (sandbox.id === "s2") {
+        throw new Error("busy");
+      }
     })(undefined, job, signal);
     expect(stopped).toBe(1);
     expect(finished).toEqual([

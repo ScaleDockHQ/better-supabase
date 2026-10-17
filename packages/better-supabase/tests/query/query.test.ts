@@ -112,8 +112,9 @@ describe("createQueries", () => {
       q.notes.infinitePages({ where, size: 5 } as never),
       q.$rpc("lookup" as never, { id: 9_007_199_254_740_993n } as never),
     ];
-    for (const option of options)
+    for (const option of options) {
       expect(() => hashKey(option.queryKey)).not.toThrow();
+    }
     expect(options[0]?.queryKey).toEqual([
       "bs",
       "notes",

@@ -111,7 +111,9 @@ async function sources(): Promise<{ path: string; text: string }[]> {
       exclude: (name) => name === "node_modules" || name === ".next",
     },
   )) {
-    if (!/(?:generated|database\.types)\.ts$/.test(path)) paths.push(path);
+    if (!/(?:generated|database\.types)\.ts$/.test(path)) {
+      paths.push(path);
+    }
   }
   const read = paths
     .filter((path) => !HISTORY.has(path))

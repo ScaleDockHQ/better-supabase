@@ -266,7 +266,9 @@ const authorization = v.strictObject({
 const checkedAuthorization = v.pipe(
   authorization,
   v.rawCheck(({ dataset, addIssue }) => {
-    if (!dataset.typed) return;
+    if (!dataset.typed) {
+      return;
+    }
     for (const problem of scopeProblems(dataset.value)) {
       addIssue({ message: problem });
     }
@@ -613,7 +615,9 @@ export function configIssues(value: unknown): string[] {
     }
   }
   const result = v.safeParse(ConfigSchema, value);
-  if (result.success) return [];
+  if (result.success) {
+    return [];
+  }
   return result.issues.map((issue) => {
     const path = v.getDotPath(issue);
     return path ? `${path}: ${issue.message}` : issue.message;

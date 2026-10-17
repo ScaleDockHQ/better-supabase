@@ -15,7 +15,9 @@ function fakeAppState(currentState: string) {
     },
   };
   const change = (state: string): void => {
-    for (const listener of listeners) listener(state);
+    for (const listener of listeners) {
+      listener(state);
+    }
   };
   return { appState, change, listeners };
 }

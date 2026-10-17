@@ -24,7 +24,9 @@ export async function graphExecutor(
   return executeGraph(graph, input, {
     runKey: meta.runKey,
     step: (call) => {
-      if (!isStep(call.step)) throw new Error(`Unknown step ${call.step}`);
+      if (!isStep(call.step)) {
+        throw new Error(`Unknown step ${call.step}`);
+      }
       return graphSteps[call.step](call);
     },
     sleep: (ms) => sleep(ms),

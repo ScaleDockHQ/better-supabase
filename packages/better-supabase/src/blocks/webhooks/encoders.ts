@@ -85,17 +85,29 @@ interface KeyValue {
 
 /** A JSON value as an OTLP `AnyValue`; 64-bit integers are strings in OTLP/JSON. */
 function anyValue(value: unknown): AnyValue {
-  if (value === null || value === undefined) return {};
-  if (typeof value === "string") return { stringValue: value };
-  if (typeof value === "boolean") return { boolValue: value };
-  if (typeof value === "bigint") return { intValue: value.toString() };
-  if (typeof value === "number")
+  if (value === null || value === undefined) {
+    return {};
+  }
+  if (typeof value === "string") {
+    return { stringValue: value };
+  }
+  if (typeof value === "boolean") {
+    return { boolValue: value };
+  }
+  if (typeof value === "bigint") {
+    return { intValue: value.toString() };
+  }
+  if (typeof value === "number") {
     return Number.isSafeInteger(value)
       ? { intValue: String(value) }
       : { doubleValue: value };
-  if (Array.isArray(value))
+  }
+  if (Array.isArray(value)) {
     return { arrayValue: { values: value.map(anyValue) } };
-  if (isRecord(value)) return { kvlistValue: { values: attributes(value) } };
+  }
+  if (isRecord(value)) {
+    return { kvlistValue: { values: attributes(value) } };
+  }
   return { stringValue: String(value) };
 }
 
@@ -177,14 +189,19 @@ export function otlpLogs(options: OtlpLogsOptions = {}): WebhookEncoder {
       };
     },
     classify(response) {
-      if (response.status < 200 || response.status >= 300)
+      if (response.status < 200 || response.status >= 300) {
         return OTLP_RETRYABLE.has(response.status)
           ? { outcome: "retry", error: `HTTP ${String(response.status)}` }
           : { outcome: "dead", error: `HTTP ${String(response.status)}` };
+      }
       const partial = jsonOf(response.body)?.["partialSuccess"];
-      if (!isRecord(partial)) return;
+      if (!isRecord(partial)) {
+        return;
+      }
       const rejected = Number(partial["rejectedLogRecords"] ?? 0);
-      if (!(rejected > 0)) return;
+      if (!(rejected > 0)) {
+        return;
+      }
       const message = partial["errorMessage"];
       return {
         outcome: "succeeded",
@@ -251,11 +268,14 @@ export function splunkHec(options: SplunkHecOptions = {}): WebhookEncoder {
     classify(response) {
       const reply = jsonOf(response.body);
       const code = reply?.["code"];
-      if (typeof code !== "number") return;
-      if (code === 0)
+      if (typeof code !== "number") {
+        return;
+      }
+      if (code === 0) {
         return response.status >= 200 && response.status < 300
           ? { outcome: "succeeded" }
           : undefined;
+      }
       const text = reply?.["text"];
       return {
         outcome: HEC_RETRYABLE.has(code) ? "retry" : "dead",
@@ -281,8 +301,9 @@ export function securityEvents(): WebhookEncoder {
     encode(events) {
       const data: unknown = events[0]?.data;
       const set = isRecord(data) ? data["set"] : undefined;
-      if (typeof set !== "string" || set.split(".").length !== 3)
+      if (typeof set !== "string" || set.split(".").length !== 3) {
         throw new TypeError("A set delivery carries a compact SET in data.set");
+      }
       return {
         body: set,
         headers: {
@@ -292,9 +313,12 @@ export function securityEvents(): WebhookEncoder {
       };
     },
     classify(response) {
-      if (response.status === 202 || response.status === 200)
+      if (response.status === 202 || response.status === 200) {
         return { outcome: "succeeded" };
-      if (response.status !== 400) return;
+      }
+      if (response.status !== 400) {
+        return;
+      }
       const reply = jsonOf(response.body);
       const code = typeof reply?.["err"] === "string" ? reply["err"] : "";
       const description =
@@ -321,10 +345,11 @@ export function encoderRegistry(
     ),
   );
   for (const encoder of encoders) {
-    if (!FORMAT.test(encoder.name))
+    if (!FORMAT.test(encoder.name)) {
       throw new TypeError(
         `createWebhooks: encoder name "${encoder.name}" must match ${String(FORMAT)}`,
       );
+    }
     registry.set(encoder.name, encoder);
   }
   return registry;

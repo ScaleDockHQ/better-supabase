@@ -47,7 +47,7 @@ async function recordApprovals(
   chats: AiChat,
   input: DurableApprovalsInput,
 ): Promise<void> {
-  for (const request of input.requests)
+  for (const request of input.requests) {
     await chats.approvals
       .request(input.chatId, {
         approvalId: request.approvalId,
@@ -61,6 +61,7 @@ async function recordApprovals(
           : { signature: request.signature }),
       })
       .orThrow();
+  }
 }
 
 async function decisionsOf(
@@ -100,11 +101,12 @@ async function release(
     usage?.costMicroUsd === undefined &&
     usage?.generationId !== undefined &&
     options.enqueueCostBackfill
-  )
+  ) {
     await options.enqueueCostBackfill({
       generationId: usage.generationId,
       organizationId: input.organizationId,
     });
+  }
 }
 
 /** A durable turn's database steps on a chat block's service transport. */

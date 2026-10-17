@@ -103,7 +103,9 @@ const scopeMemberships = (
 export function entitlementsMode(
   config: Pick<ResolvedConfig, "entitlements" | "authorization">,
 ): EntitlementsMode {
-  if (config.entitlements.memberships === "tenant") return { kind: "tenant" };
+  if (config.entitlements.memberships === "tenant") {
+    return { kind: "tenant" };
+  }
   const provider = config.authorization;
   if (!provider) {
     return {
@@ -113,7 +115,9 @@ export function entitlementsMode(
     };
   }
   const chosen = tenantScope(provider, "the entitlements module");
-  if (chosen.kind === "invalid") return chosen;
+  if (chosen.kind === "invalid") {
+    return chosen;
+  }
   const { memberIds, memberIdsFor } = provider.functions;
   if (memberIds === undefined || memberIdsFor === undefined) {
     return {
@@ -143,7 +147,9 @@ export function accessProviderMode(
   config: Pick<ResolvedConfig, "authorization" | "blocks">,
 ): AccessProviderMode {
   const access = config.blocks.access;
-  if (access?.model !== "provider") return { kind: "off" };
+  if (access?.model !== "provider") {
+    return { kind: "off" };
+  }
   const provider = config.authorization;
   if (!provider) {
     return {
@@ -153,7 +159,9 @@ export function accessProviderMode(
     };
   }
   const chosen = tenantScope(provider, "the provider access model");
-  if (chosen.kind === "invalid") return chosen;
+  if (chosen.kind === "invalid") {
+    return chosen;
+  }
   const idType =
     access.idType === undefined ? undefined : moduleIdType(access.idType);
   if (idType !== undefined && idType !== chosen.idType) {
@@ -204,12 +212,18 @@ export function keyStatus(
   provider: AuthorizationProvider,
   key: string,
 ): KeyStatus {
-  if (!provider.permissions) return "unknown";
+  if (!provider.permissions) {
+    return "unknown";
+  }
   const entry = provider.permissions.find(
     (permission) => permission.key === key,
   );
-  if (!entry) return "missing";
-  if (entry.sqlComplete === undefined) return "unknown";
+  if (!entry) {
+    return "missing";
+  }
+  if (entry.sqlComplete === undefined) {
+    return "unknown";
+  }
   return entry.sqlComplete ? "complete" : "incomplete";
 }
 
@@ -280,7 +294,9 @@ export function moduleKeyProblems(
   provider: AuthorizationProvider,
   keys: readonly ModulePermissionKey[],
 ): ModuleKeyProblem[] {
-  if (keys.length === 0) return [];
+  if (keys.length === 0) {
+    return [];
+  }
   if (!provider.permissions) {
     return [
       {
@@ -291,7 +307,9 @@ export function moduleKeyProblems(
   }
   return keys.flatMap((entry): ModuleKeyProblem[] => {
     const problem = unsafeKey(provider, entry.key);
-    if (!problem) return [];
+    if (!problem) {
+      return [];
+    }
     const fn =
       entry.scope === "platform"
         ? "authorization.functions.isPlatform"

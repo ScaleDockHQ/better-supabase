@@ -105,7 +105,9 @@ const RANK = { owner: 3, admin: 2, member: 1 } satisfies Record<Role, number>;
  */
 export function roleOf(session: AuthSession<Claims>): Role | undefined {
   const tenant = tenantOf(session);
-  if (session.kind !== "user" || tenant === undefined) return undefined;
+  if (session.kind !== "user" || tenant === undefined) {
+    return undefined;
+  }
   const membership = session.claims.memberships?.find(
     (entry) => entry.scope === MEMBERSHIP_SCOPE && entry.id === tenant,
   );
@@ -120,7 +122,9 @@ export function can(
   permission: Permission,
 ): boolean {
   const role = roleOf(session);
-  if (role === undefined) return false;
+  if (role === undefined) {
+    return false;
+  }
   const granted: "*" | readonly Permission[] = grants[role];
   return granted === "*" || granted.includes(permission);
 }

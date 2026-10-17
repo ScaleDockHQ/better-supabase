@@ -97,11 +97,15 @@ const SOURCES: readonly IdentitySource[] = ["link", "verified_email"];
 
 /** The `principal_by_identity` result, or `null` for anything that names no one. */
 function targetOf(value: unknown): IdentityTarget | null {
-  if (!isRecord(value)) return null;
-  if (value["kind"] === "user" && typeof value["userId"] === "string")
+  if (!isRecord(value)) {
+    return null;
+  }
+  if (value["kind"] === "user" && typeof value["userId"] === "string") {
     return { kind: "user", userId: value["userId"] };
-  if (value["kind"] === "contact" && typeof value["contactId"] === "string")
+  }
+  if (value["kind"] === "contact" && typeof value["contactId"] === "string") {
     return { kind: "contact", contactId: value["contactId"] };
+  }
   return null;
 }
 

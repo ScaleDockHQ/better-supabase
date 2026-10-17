@@ -59,7 +59,9 @@ const PLATFORMS = ["ios", "android", "web"];
 const PROVIDERS = ["expo", "fcm", "apns", "webpush"];
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const d = ctx.table("devices");
   const c = (logical: string): string => ctx.col("devices", logical);
   const fn = (name: string): string => ctx.fn(name);

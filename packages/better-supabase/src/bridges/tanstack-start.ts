@@ -86,7 +86,9 @@ export function tanStackStartServer<Context>(
       // oxlint-disable-next-line typescript/only-throw-error -- TanStack Start sends a thrown Response as the answer, which is how middleware short-circuits.
       throw response;
     }
-    if (responseOf(result) === undefined) return result;
+    if (responseOf(result) === undefined) {
+      return result;
+    }
     return { ...result, response };
   };
 }

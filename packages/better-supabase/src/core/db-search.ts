@@ -74,13 +74,17 @@ async function scoredSearch(
     table,
     args.signal,
   );
-  if (!scored.ok) return err(hint(scored.error));
+  if (!scored.ok) {
+    return err(hint(scored.error));
+  }
   const ranked = scored.data.rows.flatMap((row) =>
     row["score"] === undefined || row["score"] === null
       ? []
       : [{ id: row["id"], score: Number(row["score"]) }],
   );
-  if (ranked.length === 0) return ok([]);
+  if (ranked.length === 0) {
+    return ok([]);
+  }
   const byId = new Map(ranked.map((entry) => [String(entry.id), entry]));
   const op: SelectOp = {
     kind: "select",
@@ -100,7 +104,9 @@ async function scoredSearch(
     single: undefined,
   };
   const result = await runner.run(op, {}, args.signal);
-  if (!result.ok) return result;
+  if (!result.ok) {
+    return result;
+  }
   return ok(
     result.data.rows
       .flatMap((row) => {
@@ -186,7 +192,9 @@ export function searchTable(
       },
     };
     const result = await runner.run(op, {}, args.signal);
-    if (result.ok) return ok(result.data.rows);
+    if (result.ok) {
+      return ok(result.data.rows);
+    }
     return err(hint(result.error));
   });
 }

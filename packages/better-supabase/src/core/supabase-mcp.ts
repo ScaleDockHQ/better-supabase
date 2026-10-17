@@ -83,7 +83,9 @@ function isPlatformModule(value: unknown): value is SupabaseMcpPlatformModule {
  */
 export async function loadSupabaseMcp(): Promise<SupabaseMcpModule> {
   const loaded = await importOptionalPeer("@supabase/mcp-server-supabase");
-  if (!isServerModule(loaded)) throw new TypeError(INSTALL);
+  if (!isServerModule(loaded)) {
+    throw new TypeError(INSTALL);
+  }
   return loaded;
 }
 
@@ -92,6 +94,8 @@ export async function loadSupabaseMcpPlatform(): Promise<SupabaseMcpPlatformModu
   const loaded = await importOptionalPeer(
     "@supabase/mcp-server-supabase/platform/api",
   );
-  if (!isPlatformModule(loaded)) throw new TypeError(INSTALL);
+  if (!isPlatformModule(loaded)) {
+    throw new TypeError(INSTALL);
+  }
   return loaded;
 }

@@ -178,8 +178,9 @@ export function stripePaymentEvents(event: unknown): readonly PaymentEvent[] {
   const type = text(envelope["type"]);
   const object = objectOf(objectOf(envelope["data"])["object"]);
   const created = envelope["created"];
-  if (id === undefined || type === undefined || typeof created !== "number")
+  if (id === undefined || type === undefined || typeof created !== "number") {
     return [];
+  }
   const occurredAt = temporal().Instant.fromEpochMilliseconds(created * 1000);
   const currency = text(object["currency"]);
   const amountOf = (key: string): Money | undefined => {
@@ -191,7 +192,9 @@ export function stripePaymentEvents(event: unknown): readonly PaymentEvent[] {
   const mapped = EVENTS[type];
   if (mapped !== undefined) {
     const paymentId = text(object["id"]);
-    if (paymentId === undefined) return [];
+    if (paymentId === undefined) {
+      return [];
+    }
     const reference = text(objectOf(object["metadata"])[REFERENCE]);
     const amount = amountOf(
       mapped === "payment.succeeded" ? "amount_received" : "amount",
@@ -217,8 +220,9 @@ export function stripePaymentEvents(event: unknown): readonly PaymentEvent[] {
       paymentId === undefined ||
       refundId === undefined ||
       (status !== "succeeded" && status !== "failed")
-    )
+    ) {
       return [];
+    }
     return [
       {
         id,
@@ -251,11 +255,15 @@ export function stripePayments(
     paymentId: string,
     value: Money | undefined,
   ): Promise<Result<number | undefined>> => {
-    if (value === undefined) return ok(undefined);
+    if (value === undefined) {
+      return ok(undefined);
+    }
     const problem = invalidPaymentAmount(value);
-    if (problem) return err(problem);
+    if (problem) {
+      return err(problem);
+    }
     const intent = await (await client()).paymentIntents.retrieve(paymentId);
-    if (intent.currency.toUpperCase() !== value.currency)
+    if (intent.currency.toUpperCase() !== value.currency) {
       return err(
         dbError(
           "invalid_input",
@@ -263,6 +271,7 @@ export function stripePayments(
           { hint: "PAYMENT_CURRENCY_MISMATCH" },
         ),
       );
+    }
     return toStripeAmount(value);
   };
 
@@ -272,9 +281,13 @@ export function stripePayments(
     createPayment: (input, call = {}) =>
       stripeResult(async () => {
         const problem = invalidPaymentAmount(input.amount);
-        if (problem) return err(problem);
+        if (problem) {
+          return err(problem);
+        }
         const amount = toStripeAmount(input.amount);
-        if (!amount.ok) return amount;
+        if (!amount.ok) {
+          return amount;
+        }
         const stripe = await client();
         const intent = await stripe.paymentIntents.create(
           {
@@ -298,7 +311,9 @@ export function stripePayments(
     capture: (paymentId, input = {}, call = {}) =>
       stripeResult(async () => {
         const amount = await sameCurrency(paymentId, input.amount);
-        if (!amount.ok) return amount;
+        if (!amount.ok) {
+          return amount;
+        }
         const intent = await (
           await client()
         ).paymentIntents.capture(
@@ -316,7 +331,9 @@ export function stripePayments(
     refund: (paymentId, input = {}, call = {}) =>
       stripeResult(async () => {
         const amount = await sameCurrency(paymentId, input.amount);
-        if (!amount.ok) return amount;
+        if (!amount.ok) {
+          return amount;
+        }
         const refund = await (
           await client()
         ).refunds.create(
@@ -364,7 +381,9 @@ export function stripePayments(
             ? {}
             : { tolerance: options.tolerance },
         );
-        if (!verified.ok) return verified;
+        if (!verified.ok) {
+          return verified;
+        }
         return ok(stripePaymentEvents(verified.data.payload));
       }),
   };

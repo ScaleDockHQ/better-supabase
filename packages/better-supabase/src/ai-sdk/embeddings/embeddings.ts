@@ -46,7 +46,9 @@ export function embedWith(
     apiVersion: 1,
     model: options.name ?? modelName(model),
     embed: async (values, embedOptions) => {
-      if (values.length === 0) return [];
+      if (values.length === 0) {
+        return [];
+      }
       const { embeddings } = await embedMany({
         model,
         values: [...values],
@@ -75,7 +77,9 @@ export function rerankWith(
   options: { readonly topN?: number } = {},
 ): Reranker {
   return async (query, hits, rerankOptions) => {
-    if (hits.length <= 1) return hits;
+    if (hits.length <= 1) {
+      return hits;
+    }
     const { ranking } = await rerank({
       model,
       query,
@@ -150,7 +154,9 @@ export function searchTool(
         ...search,
         ...(abortSignal === undefined ? {} : { signal: abortSignal }),
       });
-      if (!found.ok) throw new DbException(found.error);
+      if (!found.ok) {
+        throw new DbException(found.error);
+      }
       const readable = results
         ? await results(found.data, { query })
         : found.data;
@@ -183,7 +189,9 @@ export function toSourceParts(
   const seen = new Set<string>();
   const parts: SourceDocumentUIPart[] = [];
   for (const hit of hits) {
-    if (seen.has(hit.documentId)) continue;
+    if (seen.has(hit.documentId)) {
+      continue;
+    }
     seen.add(hit.documentId);
     parts.push({
       type: "source-document",

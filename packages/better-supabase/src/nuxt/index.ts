@@ -82,8 +82,9 @@ function setup(inline: NuxtModuleOptions | undefined, nuxt: NuxtLike): void {
   }
   if (options.composables ?? true) {
     nuxt.hook("imports:extend", (imports) => {
-      for (const name of VUE_COMPOSABLES)
+      for (const name of VUE_COMPOSABLES) {
         imports.push({ name, from: "better-supabase/vue" });
+      }
     });
   }
 }

@@ -222,9 +222,13 @@ function withHeaders(
   response: Response,
   headers: Headers | undefined,
 ): Response {
-  if (headers === undefined) return response;
+  if (headers === undefined) {
+    return response;
+  }
   const copy = new Response(response.body, response);
-  for (const [name, value] of headers) copy.headers.set(name, value);
+  for (const [name, value] of headers) {
+    copy.headers.set(name, value);
+  }
   return copy;
 }
 
@@ -280,7 +284,9 @@ export function createOrpc<
         middlewareOptions.aal,
         middlewareOptions.scopes,
       );
-      if (denied) throw toOrpcError(denied);
+      if (denied) {
+        throw toOrpcError(denied);
+      }
       const caller = await authorizeCaller(
         ctx.auth,
         middlewareOptions,
@@ -288,14 +294,18 @@ export function createOrpc<
         tenantOf(toSession(ctx.auth), tenantClaim),
         options.authorizer,
       );
-      if ("kind" in caller) throw toOrpcError(caller);
+      if ("kind" in caller) {
+        throw toOrpcError(caller);
+      }
       try {
         return await next({
           context: { bs: ctx, db: ctx.db, auth: ctx.auth },
         });
       } catch (cause) {
         const thrown = dbErrorOf(cause);
-        if (thrown) throw toOrpcError(thrown);
+        if (thrown) {
+          throw toOrpcError(thrown);
+        }
         throw cause;
       }
     });
@@ -313,11 +323,17 @@ export function createOrpc<
         .$context<TContext>()
         .middleware(async ({ context, path, next }) => {
           const outcome = await gate({ context, path });
-          if (outcome.kind === "skip") return next();
+          if (outcome.kind === "skip") {
+            return next();
+          }
           const kept = limits.get(context.request) ?? new Headers();
-          for (const [name, value] of outcome.headers) kept.set(name, value);
+          for (const [name, value] of outcome.headers) {
+            kept.set(name, value);
+          }
           limits.set(context.request, kept);
-          if (outcome.kind === "deny") throw toOrpcError(outcome.error);
+          if (outcome.kind === "deny") {
+            throw toOrpcError(outcome.error);
+          }
           return next();
         });
     },
@@ -355,7 +371,9 @@ export function createOrpc<
 
     async unwrap(value: unknown): Promise<never> {
       const settled = await settle(() => value);
-      if (!settled.ok) throw toOrpcError(settled.error);
+      if (!settled.ok) {
+        throw toOrpcError(settled.error);
+      }
       // SAFETY: unwrap returns the settled data, and callers type it through
       // the procedure output.
       return settled.data as never;

@@ -35,8 +35,12 @@ function contract(): readonly ModuleContractFunction[] {
 }
 
 function fileContract(ctx: ModuleContext): readonly ModuleContractFunction[] {
-  if (!ctx.installed("drive") || !ctx.installed("attachments")) return [];
-  if (!ctx.of("drive").has("nodes", "attachment")) return [];
+  if (!ctx.installed("drive") || !ctx.installed("attachments")) {
+    return [];
+  }
+  if (!ctx.of("drive").has("nodes", "attachment")) {
+    return [];
+  }
   return [
     {
       name: "drive_create_file",
@@ -108,7 +112,9 @@ export const DRIVE_FILES: ModuleDefinition = {
   names: { tables: {}, events: FILE_EVENTS },
   contract: fileContract,
   build: (ctx) => {
-    if (ctx.mode === "custom" || !ctx.installed("drive")) return "";
+    if (ctx.mode === "custom" || !ctx.installed("drive")) {
+      return "";
+    }
     const drive = ctx.of("drive");
     return drive.mode === "custom" ? "" : driveFilesSql(driveKit(drive, ctx));
   },

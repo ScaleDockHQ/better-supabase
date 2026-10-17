@@ -16,7 +16,9 @@ const columnsByFunction = new WeakMap<FunctionMeta, Columns | null>();
 
 function columnsOf(meta: SchemaMeta, fn: FunctionMeta): Columns | null {
   const cached = columnsByFunction.get(fn);
-  if (cached !== undefined) return cached;
+  if (cached !== undefined) {
+    return cached;
+  }
   let columns: Map<string, readonly [string, Codec | undefined]> | null = null;
   const { result } = fn;
   if (result && "table" in result) {
@@ -24,7 +26,9 @@ function columnsOf(meta: SchemaMeta, fn: FunctionMeta): Columns | null {
     if (table) {
       columns = new Map();
       for (const [db, [app, column]] of lookupOf(table).byDb) {
-        if (app !== db || column.codec) columns.set(db, [app, column.codec]);
+        if (app !== db || column.codec) {
+          columns.set(db, [app, column.codec]);
+        }
       }
     }
   } else if (result) {
@@ -40,10 +44,14 @@ function columnsOf(meta: SchemaMeta, fn: FunctionMeta): Columns | null {
 }
 
 function decodeRow(columns: Columns, row: unknown): unknown {
-  if (!isPlainObject(row)) return row;
+  if (!isPlainObject(row)) {
+    return row;
+  }
   const out: Record<string, unknown> = {};
   for (const key in row) {
-    if (!Object.hasOwn(row, key)) continue;
+    if (!Object.hasOwn(row, key)) {
+      continue;
+    }
     const column = columns.get(key);
     if (!column) {
       out[key] = row[key];
@@ -70,8 +78,12 @@ export function rpcFunction(
   args: Readonly<Record<string, unknown>>,
 ): FunctionMeta | undefined {
   const fn = meta.functions[name];
-  if (!fn || fn.schema !== schema) return undefined;
-  if (!fn.overloads) return fn;
+  if (!fn || fn.schema !== schema) {
+    return undefined;
+  }
+  if (!fn.overloads) {
+    return fn;
+  }
   const keys = Object.keys(args).filter((key) => args[key] !== undefined);
   const matches = fn.overloads.filter(
     (overload) =>
@@ -81,7 +93,9 @@ export function rpcFunction(
       ),
   );
   const [match] = matches;
-  if (!match || matches.length > 1) return undefined;
+  if (!match || matches.length > 1) {
+    return undefined;
+  }
   let resolved = overloadMeta.get(match);
   if (!resolved) {
     resolved = { ...match, name: fn.name, schema: fn.schema };
@@ -100,9 +114,13 @@ export function decodeRpcResult(
   fn: FunctionMeta | undefined,
   data: unknown,
 ): unknown {
-  if (!fn) return data;
+  if (!fn) {
+    return data;
+  }
   const columns = columnsOf(meta, fn);
-  if (!columns || columns.size === 0) return data;
+  if (!columns || columns.size === 0) {
+    return data;
+  }
   return Array.isArray(data)
     ? data.map((row) => decodeRow(columns, row))
     : decodeRow(columns, data);

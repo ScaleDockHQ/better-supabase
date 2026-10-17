@@ -144,14 +144,18 @@ export function pollingRead(
           controller.error(page.error);
           return;
         }
-        for (const chunk of page.data.chunks) controller.enqueue(chunk);
+        for (const chunk of page.data.chunks) {
+          controller.enqueue(chunk);
+        }
         next = page.data.next;
         if (page.data.done) {
           stop();
           controller.close();
           return;
         }
-        if (page.data.chunks.length > 0) return;
+        if (page.data.chunks.length > 0) {
+          return;
+        }
         await wait();
       }
     },

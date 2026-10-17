@@ -49,8 +49,12 @@ export function entries(ctx: ModuleContext): readonly Entry[] {
       for (const [logical, spec] of Object.entries(of.names.tables)) {
         const column =
           subject === "user" ? spec.lifecycle?.user : spec.lifecycle?.tenant;
-        if (column === undefined) continue;
-        if (!of.hasTable(logical) || !of.has(logical, column)) continue;
+        if (column === undefined) {
+          continue;
+        }
+        if (!of.hasTable(logical) || !of.has(logical, column)) {
+          continue;
+        }
         list.push({
           subject,
           name: unquoted(of, logical),
@@ -68,7 +72,9 @@ export function entries(ctx: ModuleContext): readonly Entry[] {
 
   const where = "blocks.data-lifecycle.options.tables";
   const option = ctx.option("tables");
-  if (option === undefined || option === "auto") return list;
+  if (option === undefined || option === "auto") {
+    return list;
+  }
   const configured: Entry[] = [];
   if (typeof option !== "object" || option === null || Array.isArray(option)) {
     throw new TypeError(
@@ -155,7 +161,9 @@ export function tenantRowOf(
   ctx: ModuleContext,
 ): { readonly table: string; readonly key: string } | undefined {
   const configured = ctx.option("tenantRow");
-  if (configured === false) return undefined;
+  if (configured === false) {
+    return undefined;
+  }
   if (configured !== undefined) {
     if (typeof configured !== "string") {
       throw new TypeError(
@@ -189,7 +197,9 @@ export function disabling(
     return { table: ref.table, key: '"id"', column: ref.column };
   }
   if (configured) {
-    if (configured.disabledAt === undefined) return undefined;
+    if (configured.disabledAt === undefined) {
+      return undefined;
+    }
     return {
       table: configured.table
         .split(".")
@@ -199,7 +209,9 @@ export function disabling(
       column: sqlIdent(configured.disabledAt),
     };
   }
-  if (!ctx.installed("organizations")) return undefined;
+  if (!ctx.installed("organizations")) {
+    return undefined;
+  }
   const organizations = ctx.of("organizations");
   if (
     !organizations.manages ||

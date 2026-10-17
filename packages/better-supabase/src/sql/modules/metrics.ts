@@ -68,7 +68,9 @@ function declaredMetrics(ctx: ModuleContext): readonly MetricDefinition[] {
 
 /** The grains `metric_points` keeps for a metric, none when it is queried directly. */
 function storedGrains(metric: MetricDefinition): readonly MetricGrain[] {
-  if (metric.rollup === false) return [];
+  if (metric.rollup === false) {
+    return [];
+  }
   const grains = metric.rollup ?? ["day"];
   return METRIC_GRAINS.filter((grain) => grains.includes(grain));
 }
@@ -208,8 +210,12 @@ function sourceGrainCase(
   pick: "coarsest" | "finest",
 ): string {
   const stored = storedGrains(metric);
-  if (stored.length === 0) return "null";
-  if (pick === "finest") return sqlString(stored[0]!);
+  if (stored.length === 0) {
+    return "null";
+  }
+  if (pick === "finest") {
+    return sqlString(stored[0]!);
+  }
   const branches = METRIC_GRAINS.map((grain) => {
     const from = stored.findLast((s) => grainDivides(s, grain));
     return `when ${sqlString(grain)} then ${from === undefined ? "null" : sqlString(from)}`;
@@ -316,7 +322,9 @@ function definitionsJson(metrics: readonly MetricDefinition[]): string {
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const points = ctx.table("points");
   const c = (column: string): string => ctx.col("points", column);
   const names: Names = { points, c };

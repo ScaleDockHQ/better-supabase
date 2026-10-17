@@ -149,8 +149,9 @@ function attachmentOf(value: unknown): MessageAttachment {
 
 export function reactionsOf(value: unknown): Record<string, readonly string[]> {
   const out: Record<string, readonly string[]> = {};
-  for (const [emoji, actors] of Object.entries(recordOrEmpty(value)))
+  for (const [emoji, actors] of Object.entries(recordOrEmpty(value))) {
     out[emoji] = stringsOf(actors);
+  }
   return out;
 }
 
@@ -269,8 +270,9 @@ export function templateOf(value: unknown): MessageTemplate {
 export const storedEventsOf = (value: unknown): readonly StoredInboundEvent[] =>
   recordsOf(value, "pending_inbound_events").map((row) => {
     const headers: Record<string, string> = {};
-    for (const [key, header] of Object.entries(recordOrEmpty(row["headers"])))
+    for (const [key, header] of Object.entries(recordOrEmpty(row["headers"]))) {
       headers[key] = textOf(header);
+    }
     return {
       id: textOf(row["id"]),
       adapter: textOf(row["adapter"]),

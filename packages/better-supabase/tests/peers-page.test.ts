@@ -18,9 +18,13 @@ function peersCatalog(): Map<string, string> {
   const lines = workspace.slice(start + "\n  peers:\n".length).split("\n");
   const ranges = new Map<string, string>();
   for (const line of lines) {
-    if (!line.startsWith("    ")) break;
+    if (!line.startsWith("    ")) {
+      break;
+    }
     const match = /^\s+"?([^"#:\s][^":]*)"?:\s*"?([^"]+?)"?\s*$/.exec(line);
-    if (match) ranges.set(match[1]!, match[2]!);
+    if (match) {
+      ranges.set(match[1]!, match[2]!);
+    }
   }
   return ranges;
 }

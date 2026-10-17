@@ -22,7 +22,9 @@ export function sameModuleFile(
   current: string | undefined,
   expected: string,
 ): boolean {
-  if (current === undefined) return false;
+  if (current === undefined) {
+    return false;
+  }
   const strip = (text: string): string =>
     text
       .replaceAll("\r\n", "\n")

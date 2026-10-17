@@ -29,11 +29,17 @@ const doc = createOpenApi(betterSupabase, {
 });
 
 function schemasIn(value: unknown, out: unknown[] = []): unknown[] {
-  if (Array.isArray(value)) for (const item of value) schemasIn(item, out);
-  else if (value && typeof value === "object") {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      schemasIn(item, out);
+    }
+  } else if (value && typeof value === "object") {
     for (const [key, item] of Object.entries(value)) {
-      if (key === "schema") out.push(item);
-      else schemasIn(item, out);
+      if (key === "schema") {
+        out.push(item);
+      } else {
+        schemasIn(item, out);
+      }
     }
   }
   return out;
@@ -58,10 +64,12 @@ describe("OpenAPI 3.1", () => {
 
   it("every component and inline schema is a valid JSON Schema 2020-12 schema", () => {
     const meta = metaSchema2020();
-    for (const [name, component] of Object.entries(doc.components.schemas))
+    for (const [name, component] of Object.entries(doc.components.schemas)) {
       expect([name, problems(meta, component)]).toEqual([name, []]);
-    for (const inline of schemasIn(doc.paths))
+    }
+    for (const inline of schemasIn(doc.paths)) {
       expect(problems(meta, inline)).toEqual([]);
+    }
   });
 
   it("resolves every $ref inside the document", () => {

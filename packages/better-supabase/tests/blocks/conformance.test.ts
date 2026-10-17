@@ -118,8 +118,9 @@ const DIRS = new Map(
 /** The directory a manifest lives in. */
 const dirOf = (block: AnyBlock): string => {
   const dir = DIRS.get(block.name);
-  if (dir === undefined)
+  if (dir === undefined) {
     throw new Error(`No manifest.ts names "${block.name}"`);
+  }
   return dir;
 };
 
@@ -178,9 +179,11 @@ const moduleNames = (name: string) => SQL_MODULES[name]?.names;
 describe("block manifests", () => {
   it("installs every SQL module through exactly one block", () => {
     const owners = new Map<string, string[]>();
-    for (const block of BLOCK_MANIFESTS)
-      for (const module of block.sql)
+    for (const block of BLOCK_MANIFESTS) {
+      for (const module of block.sql) {
         owners.set(module, [...(owners.get(module) ?? []), block.name]);
+      }
+    }
     expect(
       Object.keys(SQL_MODULES).filter(
         (module) => owners.get(module)?.length !== 1,
@@ -201,13 +204,17 @@ describe("block manifests", () => {
       block.sql.flatMap((module) => {
         const keys = [...(moduleNames(module)?.options ?? [])].sort();
         const schema = block.options[module];
-        if (keys.length === 0)
+        if (keys.length === 0) {
           return schema === undefined ? [] : [`${module}: has no options`];
-        if (schema === undefined) return [`${module}: no options schema`];
+        }
+        if (schema === undefined) {
+          return [`${module}: no options schema`];
+        }
         const unknown = schema["~standard"].validate({ notAnOption: 1 });
         const declared = Object.keys(schema.specs).sort();
-        if (JSON.stringify(declared) !== JSON.stringify(keys))
+        if (JSON.stringify(declared) !== JSON.stringify(keys)) {
           return [`${module}: declares ${declared.join(", ")}`];
+        }
         return "issues" in unknown && unknown.issues !== undefined
           ? []
           : [`${module}: accepts unknown options`];
@@ -303,7 +310,9 @@ describe("the block contract", () => {
       failing(withCreator, (block) =>
         block.sql.every((module) => {
           const names = moduleNames(module);
-          if (Object.keys(names?.tables ?? {}).length === 0) return true;
+          if (Object.keys(names?.tables ?? {}).length === 0) {
+            return true;
+          }
           return (
             (names?.options ?? []).includes("extraColumns") &&
             sourcesOf(block).includes("blockFields(")

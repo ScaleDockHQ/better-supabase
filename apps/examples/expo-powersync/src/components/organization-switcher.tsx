@@ -11,7 +11,9 @@ import { API_SCHEMA } from "../lib/blocks";
 export function OrganizationSwitcher() {
   const { organizations, activeId, switching, error, switchTo } =
     useOrganizations({ schema: API_SCHEMA });
-  if (organizations === undefined) return <ActivityIndicator />;
+  if (organizations === undefined) {
+    return <ActivityIndicator />;
+  }
   return (
     <View style={{ gap: 4 }}>
       <Text style={{ fontSize: 17, fontWeight: "600" }}>Organizations</Text>

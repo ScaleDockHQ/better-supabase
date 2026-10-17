@@ -21,6 +21,8 @@ export function subjectWritable(
           `    when ${sqlString(type)} then ${ctx.can("tenant", args.tenant, sqlString(key))}`,
         ];
   });
-  if (whens.length === 0) return "true";
+  if (whens.length === 0) {
+    return "true";
+  }
   return `case ${args.type}\n${whens.join("\n")}\n    else true\n  end`;
 }

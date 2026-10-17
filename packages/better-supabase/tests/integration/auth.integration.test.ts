@@ -76,7 +76,9 @@ describe.skipIf(!live)("auth against the local stack", () => {
       email_confirm: true,
       app_metadata: { tenant_id: ACME },
     });
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     userId = created.user.id;
     postgres = createPostgres({ connectionString: dbUrl, max: 2 });
   });
@@ -102,7 +104,9 @@ describe.skipIf(!live)("auth against the local stack", () => {
       email,
       password,
     });
-    if (signInError) throw signInError;
+    if (signInError) {
+      throw signInError;
+    }
     return jar;
   }
 
@@ -112,9 +116,11 @@ describe.skipIf(!live)("auth against the local stack", () => {
   ): CookieRecord[] {
     const next = new Map(jar.map((cookie) => [cookie.name, cookie.value]));
     for (const cookie of cookies) {
-      if (cookie.options.maxAge === 0 || cookie.value === "")
+      if (cookie.options.maxAge === 0 || cookie.value === "") {
         next.delete(cookie.name);
-      else next.set(cookie.name, cookie.value);
+      } else {
+        next.set(cookie.name, cookie.value);
+      }
     }
     return [...next].map(([cookieName, value]) => ({
       name: cookieName,
@@ -351,7 +357,9 @@ describe.skipIf(!live)("auth against the local stack", () => {
       email,
       password,
     });
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     const token = data.session.access_token;
     const auth = await resolveAuth(
       new Request("https://app.test/", {

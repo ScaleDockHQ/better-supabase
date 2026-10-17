@@ -144,8 +144,11 @@ async function installSchemaModules(pool: Pool): Promise<void> {
         (module) => module.target === "schema" && module.name !== "ensure-rls",
       )
       .map((module) => module.name);
-    for (const file of renderModules(names))
-      if (file.kind !== "test") await client.query(file.contents);
+    for (const file of renderModules(names)) {
+      if (file.kind !== "test") {
+        await client.query(file.contents);
+      }
+    }
     // The default search render has no subjects, and the fixture's customers trigger needs its own.
     await client.query(readFileSync(FIXTURE_SEARCH, "utf-8"));
     await client.query(FIXTURE_TENANT_SQL);
@@ -345,7 +348,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
          where p.pronamespace = 'public'::regnamespace and p.proname = any($1)`,
         [hooks],
       );
-      for (const row of existing.rows) await client.query(row.sql);
+      for (const row of existing.rows) {
+        await client.query(row.sql);
+      }
       const { rows } = await client.query<{
         fn: string;
         level: string;
@@ -417,7 +422,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           headers: { apikey: publishableKey },
         });
         const body = (await response.clone().json()) as { code?: string };
-        if (body.code !== "PGRST205" || attempt === 20) return response;
+        if (body.code !== "PGRST205" || attempt === 20) {
+          return response;
+        }
         await new Promise((done) => {
           setTimeout(done, 250);
         });
@@ -803,10 +810,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       for (const fn of [
         `better_supabase.has_organization_role('${organization}')`,
         "better_supabase.member_organization_ids()",
-      ])
+      ]) {
         await expect(
           postgres.anon.queryRaw(`select ${fn}`),
         ).rejects.toMatchObject({ code: "42501" });
+      }
       const ids = await asInvitee.queryRaw<{ id: string }>(
         `select better_supabase.member_organization_ids('{admin}') as id`,
       );
@@ -1724,8 +1732,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const seen: string[] = [];
     const drained = await jobs.drain(queue, (payload, job) => {
       seen.push(payload.to);
-      if (job.attempts < 3 && payload.to === "a@example.com")
+      if (job.attempts < 3 && payload.to === "a@example.com") {
         throw new Error("retry me");
+      }
       return;
     });
     expect(drained.succeeded + drained.failed).toBeGreaterThan(0);
@@ -1845,14 +1854,18 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         [queue]: v.object({ n: v.number() }),
       },
     });
-    for (const n of [1, 2, 3, 4]) await jobs.enqueue(queue, { n }).orThrow();
+    for (const n of [1, 2, 3, 4]) {
+      await jobs.enqueue(queue, { n }).orThrow();
+    }
     const controller = new AbortController();
     const done: number[] = [];
     const result = await jobs.work(
       queue,
       (payload) => {
         done.push(payload.n);
-        if (done.length === 4) controller.abort();
+        if (done.length === 4) {
+          controller.abort();
+        }
         return;
       },
       { concurrency: 2, pollInterval: 20, signal: controller.signal },
@@ -2808,7 +2821,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const types: string[] = [];
     const result = await inbox.process((message) => {
       types.push(message.type ?? "");
-      if (message.type === "invoice.failed") throw new Error("try later");
+      if (message.type === "invoice.failed") {
+        throw new Error("try later");
+      }
       return;
     });
     expect(result).toEqual({ succeeded: 1, failed: 1 });
@@ -2844,7 +2859,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const cursors: unknown[] = [];
     const first = await inbox.process<{ pages: number }>(async (message) => {
       cursors.push(message.progress["page"] ?? 0);
-      if (message.tenant !== "acct-a") return;
+      if (message.tenant !== "acct-a") {
+        return;
+      }
       await message.checkpoint({ page: 2 });
       throw new Error("provider timed out on page 3");
     });
@@ -3042,10 +3059,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
     const queue = `block_${RUN}_purge`;
     await pool.query("select better_supabase.ensure_job_queue($1)", [queue]);
-    for (let index = 0; index < 2; index += 1)
+    for (let index = 0; index < 2; index += 1) {
       await pool.query("select pgmq.archive($1, pgmq.send($1, '{}'::jsonb))", [
         queue,
       ]);
+    }
     await pool.query(
       `update pgmq.a_${queue} set archived_at = ${old} where msg_id = (select min(msg_id) from pgmq.a_${queue})`,
     );
@@ -3088,8 +3106,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
               'better_supabase.replay_dead_job(text, bigint)'
             ]) as f(fn)`,
     );
-    for (const row of executable.rows)
+    for (const row of executable.rows) {
       expect(row.allowed).toBe(row.role === "service_role");
+    }
   });
 
   it("passes the pgTAP file it writes for an audited table", async () => {
@@ -3410,7 +3429,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
             }),
           ],
         );
-        if (role) await client.query(`set local role ${role}`);
+        if (role) {
+          await client.query(`set local role ${role}`);
+        }
         const { rows } = await client.query<{ id: string }>(
           `select better_supabase.audit_event('job.finished', actor_id => $1,
              actor_kind => 'job', actor_label => 'Nightly export', ip => '198.51.100.7',
@@ -3745,9 +3766,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         modules: {
           audit: { options: { restricted: true, readPolicy: true } },
         },
-      }))
-        if (file.kind === "schema" && file.module === "audit")
+      })) {
+        if (file.kind === "schema" && file.module === "audit") {
           await client.query(file.contents);
+        }
+      }
       await client.query(`
         create table public.${name} (id int primary key, organization_id uuid, title text);
         select better_supabase.audit('public.${name}', label_column => 'title');
@@ -4588,8 +4611,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         [scope],
       );
       const hits = [];
-      for (let i = 0; i < 3; i += 1)
+      for (let i = 0; i < 3; i += 1) {
         hits.push(await limit.check(scope, "token-a").orThrow());
+      }
       expect(hits.map((hit) => [hit.allowed, hit.remaining])).toEqual([
         [true, 1],
         [true, 0],
@@ -4687,8 +4711,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           timeout: 10_000,
         })
         .toBe(200);
-      for (let i = 0; i < 3; i++)
+      for (let i = 0; i < 3; i++) {
         expect((await call("POST", `${probe}_read`)).status).toBe(200);
+      }
       await pool.query(`select better_supabase.set_rate_limit('*', null)`);
 
       expect((await call("POST")).status).toBe(200);

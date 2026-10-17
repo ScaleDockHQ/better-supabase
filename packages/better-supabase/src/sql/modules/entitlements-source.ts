@@ -38,7 +38,9 @@ function providerEntitlementMembers(
           ? ""
           : undefined
         : `\n    and m.${sqlIdent(source.scope.column)}::text = ${sqlString(provider.scope)}`;
-    if (scoped === undefined) return [];
+    if (scoped === undefined) {
+      return [];
+    }
     const [schema, table] = splitTable(source.table);
     return [
       `  select distinct m.${sqlIdent(source.userColumn)}::uuid

@@ -71,9 +71,13 @@ export function parseAiFileUrl(
   } catch {
     return undefined;
   }
-  if (parsed.protocol !== SCHEME || parsed.hostname === "") return undefined;
+  if (parsed.protocol !== SCHEME || parsed.hostname === "") {
+    return undefined;
+  }
   const segments = parsed.pathname.split("/").filter((part) => part !== "");
-  if (segments.length === 0) return undefined;
+  if (segments.length === 0) {
+    return undefined;
+  }
   try {
     return {
       bucket: decodeURIComponent(parsed.hostname),
@@ -98,7 +102,9 @@ function stored<T>(
   return AsyncResult.from(async () => {
     try {
       const { data, error } = await reply;
-      if (error) return err(fromStorageError(error, "storage.objects"));
+      if (error) {
+        return err(fromStorageError(error, "storage.objects"));
+      }
       if (data === null || data === undefined) {
         return err(dbError("network", "Storage returned no data"));
       }
@@ -213,7 +219,9 @@ export function createAiFiles<
       sign,
       read: (file) =>
         fileFrom(file).andThen(async (row) => {
-          if (row.status !== "ready") return err(notReady());
+          if (row.status !== "ready") {
+            return err(notReady());
+          }
           if (row.size > maxBytes) {
             return err(
               dbError("invalid_request", "The file is larger than maxBytes", {
@@ -224,7 +232,9 @@ export function createAiFiles<
           const blob = await stored(
             options.storage.from(row.bucket).download(row.path),
           );
-          if (!blob.ok) return err(blob.error);
+          if (!blob.ok) {
+            return err(blob.error);
+          }
           if (blob.data.size > maxBytes) {
             return err(
               dbError("invalid_request", "The file is larger than maxBytes", {
@@ -240,7 +250,9 @@ export function createAiFiles<
       remove: (fileId) =>
         call("delete_ai_file", { file_id: fileId }, (value) => value).andThen(
           async (value) => {
-            if (!isRecord(value)) return ok(false);
+            if (!isRecord(value)) {
+              return ok(false);
+            }
             const removed = await stored(
               options.storage
                 .from(textOf(value["bucket"]))
@@ -286,7 +298,9 @@ export function createAiFiles<
                 upsert: false,
               }),
             );
-            if (sent.ok) return ok(created);
+            if (sent.ok) {
+              return ok(created);
+            }
             await service(
               "delete_ai_file",
               { file_id: created.id },
@@ -312,7 +326,9 @@ export function createAiFiles<
             const result = await stored(
               serviceStorage.from(bucket).remove(paths),
             );
-            if (!result.ok) return err(result.error);
+            if (!result.ok) {
+              return err(result.error);
+            }
           }
           return ok(removed.length);
         }),
@@ -436,15 +452,23 @@ export function createAiFiles<
       const signed = new Map<string, string | undefined>();
       for (const message of messages) {
         for (const part of message.parts) {
-          if (part.type !== "file" || signed.has(part.url)) continue;
-          if (!parseAiFileUrl(part.url)) continue;
+          if (part.type !== "file" || signed.has(part.url)) {
+            continue;
+          }
+          if (!parseAiFileUrl(part.url)) {
+            continue;
+          }
           const result = await resolve(part.url).andThen(sign);
           signed.set(part.url, result.ok ? result.data : undefined);
         }
       }
-      if (signed.size === 0) return messages;
+      if (signed.size === 0) {
+        return messages;
+      }
       const swap = (part: AiMessagePart): AiMessagePart => {
-        if (part.type !== "file") return part;
+        if (part.type !== "file") {
+          return part;
+        }
         const url = signed.get(part.url);
         return url === undefined ? part : { ...part, url };
       };

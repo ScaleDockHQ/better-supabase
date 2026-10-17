@@ -43,7 +43,9 @@ const NAMES: ModuleNames = {
 };
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const runs = ctx.table("runs");
   const manage = ctx.permission("manage", OPERATIONS["imports.manage"]);
   const tables = ctx.manages

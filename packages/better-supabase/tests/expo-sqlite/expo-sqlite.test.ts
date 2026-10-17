@@ -42,9 +42,11 @@ function fakeExpo(
           .prepare(source)
           .run(...(params as SQLInputValue[]));
         const table = WRITES.exec(source)?.[1];
-        if (table)
-          for (const listener of listeners)
+        if (table) {
+          for (const listener of listeners) {
             listener({ tableName: table, databaseFilePath: "/app.db" });
+          }
+        }
         return Promise.resolve(result);
       } catch (cause) {
         return Promise.reject(cause);
@@ -163,7 +165,9 @@ describe("expoSqliteDatabase", () => {
         {
           tables: sqliteTables(betterSupabase, ["tags"]),
           onResult: (result) => {
-            if (result.ok) results.push(result.data);
+            if (result.ok) {
+              results.push(result.data);
+            }
           },
         },
       );
@@ -191,8 +195,9 @@ describe("expoSqliteDatabase", () => {
     try {
       const controller = new AbortController();
       database.onChange!({ onChange }, { signal: controller.signal });
-      for (const listener of listeners)
+      for (const listener of listeners) {
         listener({ tableName: "tags", databaseFilePath: "/other.db" });
+      }
       vi.advanceTimersByTime(50);
       expect(onChange).not.toHaveBeenCalled();
       controller.abort();

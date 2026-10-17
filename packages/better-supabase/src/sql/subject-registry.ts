@@ -63,7 +63,9 @@ export function registeredSubjects(
       entry.tenant === false
         ? undefined
         : column(`${where}.tenant`, entry.tenant ?? "organization_id");
-    if (entry.title !== undefined) column(`${where}.title`, entry.title);
+    if (entry.title !== undefined) {
+      column(`${where}.title`, entry.title);
+    }
     if (entry.deletedAt !== undefined) {
       column(`${where}.deletedAt`, entry.deletedAt);
     }
@@ -95,7 +97,9 @@ export function registeredSubjects(
       }
     }
     for (const name of [entry.search?.title, ...(entry.search?.body ?? [])]) {
-      if (name !== undefined) column(`${where}.search`, name);
+      if (name !== undefined) {
+        column(`${where}.search`, name);
+      }
     }
     return {
       type,
@@ -117,12 +121,16 @@ export function subjectColumns(
   if (entry.tenant !== false) {
     columns.push(["tenant", entry.tenant ?? "organization_id"]);
   }
-  if (entry.title !== undefined) columns.push(["title", entry.title]);
+  if (entry.title !== undefined) {
+    columns.push(["title", entry.title]);
+  }
   if (entry.deletedAt !== undefined) {
     columns.push(["deletedAt", entry.deletedAt]);
   }
   for (const [, name] of entry.url?.matchAll(PLACEHOLDER) ?? []) {
-    if (name !== undefined) columns.push([`url {${name}}`, name]);
+    if (name !== undefined) {
+      columns.push([`url {${name}}`, name]);
+    }
   }
   if (entry.rank !== undefined) {
     columns.push(["rank.column", entry.rank.column]);
@@ -156,10 +164,14 @@ export function urlExpression(template: string, alias = "s"): string {
   let last = 0;
   for (const match of template.matchAll(PLACEHOLDER)) {
     const index = match.index;
-    if (index > last) parts.push(sqlString(template.slice(last, index)));
+    if (index > last) {
+      parts.push(sqlString(template.slice(last, index)));
+    }
     parts.push(`${alias}.${sqlIdent(match[1] ?? "")}::text`);
     last = index + match[0].length;
   }
-  if (last < template.length) parts.push(sqlString(template.slice(last)));
+  if (last < template.length) {
+    parts.push(sqlString(template.slice(last)));
+  }
   return parts.length === 0 ? "''" : parts.join(" || ");
 }

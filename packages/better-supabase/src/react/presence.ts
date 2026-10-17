@@ -97,9 +97,13 @@ export function usePresence<P extends string, I, O>(
   latest.current = { state, stateKey };
 
   useEffect(() => {
-    if (!name || auth.status === "loading") return;
+    if (!name || auth.status === "loading") {
+      return;
+    }
     const matched = topic.match(name);
-    if (!matched) return;
+    if (!matched) {
+      return;
+    }
     const joined = topic.subscribe(supabase, matched, NO_HANDLERS, {
       onStatus: setStatus,
       onPresence: setMembers,
@@ -118,21 +122,26 @@ export function usePresence<P extends string, I, O>(
 
   useEffect(() => {
     const joined = joinedRef.current;
-    if (joined)
+    if (joined) {
       syncState(joined, { state: latest.current.state, stateKey }, trackedKey);
+    }
   }, [stateKey]);
 
   const calls = useMemo(
     () => ({
       track: async (next: I) => {
         const joined = joinedRef.current;
-        if (!joined) return notJoined();
+        if (!joined) {
+          return notJoined();
+        }
         const result = await joined.track(next);
         return result.ok ? undefined : result.error;
       },
       untrack: async () => {
         const joined = joinedRef.current;
-        if (!joined) return notJoined();
+        if (!joined) {
+          return notJoined();
+        }
         const result = await joined.untrack();
         return result.ok ? undefined : result.error;
       },
@@ -152,10 +161,13 @@ function syncState<I>(
   },
   tracked: { current: string | undefined },
 ): void {
-  if (current.stateKey === undefined || current.stateKey === tracked.current)
+  if (current.stateKey === undefined || current.stateKey === tracked.current) {
     return;
+  }
   tracked.current = current.stateKey;
-  if (current.state === null || current.state === undefined)
+  if (current.state === null || current.state === undefined) {
     void joined.untrack();
-  else void joined.track(current.state);
+  } else {
+    void joined.track(current.state);
+  }
 }

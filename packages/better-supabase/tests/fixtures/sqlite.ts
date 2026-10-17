@@ -8,7 +8,9 @@ import type {
 import type { ColumnMeta, SchemaMeta } from "../../src/schema/types.ts";
 
 function sqliteType(column: ColumnMeta): string {
-  if (column.array || column.json) return "TEXT";
+  if (column.array || column.json) {
+    return "TEXT";
+  }
   switch (column.type) {
     case "bool":
     case "int2":
@@ -25,11 +27,18 @@ function sqliteType(column: ColumnMeta): string {
 }
 
 function defaultOf(column: ColumnMeta): string {
-  if (!column.hasDefault) return "";
-  if (column.type === "timestamptz")
+  if (!column.hasDefault) {
+    return "";
+  }
+  if (column.type === "timestamptz") {
     return " default (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))";
-  if (column.json) return " default '{}'";
-  if (column.type === "bool") return " default 0";
+  }
+  if (column.json) {
+    return " default '{}'";
+  }
+  if (column.type === "bool") {
+    return " default 0";
+  }
   const first = column.enum?.[0];
   return first === undefined ? "" : ` default '${first}'`;
 }
@@ -70,7 +79,9 @@ export function createSqlite(meta: SchemaMeta): {
 } {
   const sqlite = new DatabaseSync(":memory:");
   sqlite.function("uuid", () => randomUUID());
-  for (const statement of sqliteDdl(meta)) sqlite.exec(statement);
+  for (const statement of sqliteDdl(meta)) {
+    sqlite.exec(statement);
+  }
   const statements: string[] = [];
   const listeners = new Set<{
     readonly tables: readonly string[] | undefined;
@@ -80,13 +91,16 @@ export function createSqlite(meta: SchemaMeta): {
   const notify = (): void => {
     const changed = [...pending];
     pending = new Set();
-    if (changed.length === 0) return;
+    if (changed.length === 0) {
+      return;
+    }
     for (const listener of listeners) {
       const relevant = listener.tables
         ? changed.filter((table) => listener.tables!.includes(table))
         : changed;
-      if (relevant.length > 0)
+      if (relevant.length > 0) {
         void listener.onChange({ changedTables: relevant });
+      }
     }
   };
   let depth = 0;
@@ -111,8 +125,12 @@ export function createSqlite(meta: SchemaMeta): {
           .prepare(sql)
           .run(...(parameters as SQLInputValue[]));
         const table = WRITES.exec(sql)?.[1];
-        if (table) pending.add(table);
-        if (depth === 0) notify();
+        if (table) {
+          pending.add(table);
+        }
+        if (depth === 0) {
+          notify();
+        }
         return Promise.resolve(result);
       } catch (cause) {
         return Promise.reject(cause);

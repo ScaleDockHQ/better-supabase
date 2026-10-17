@@ -969,9 +969,13 @@ function reactionWrite(
   jsonbUpdate: string,
 ): string {
   const ctx = q.ctx;
-  if (!ctx.installed("reactions")) return jsonbUpdate;
+  if (!ctx.installed("reactions")) {
+    return jsonbUpdate;
+  }
   const reactions = ctx.of("reactions");
-  if (reactions.mode === "custom") return jsonbUpdate;
+  if (reactions.mode === "custom") {
+    return jsonbUpdate;
+  }
   const table = reactions.table("reactions");
   const r = (column: string): string => reactions.col("reactions", column);
   return `  if coalesce(present, true) then

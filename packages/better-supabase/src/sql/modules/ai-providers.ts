@@ -493,7 +493,9 @@ ${userGrant(`${fn("list_ai_batch_items")}(uuid, text, integer)`)}`;
 // Version 2 leaves ai_sandboxes to ai-chat. Without ai-chat the table would
 // go with this module's old file, so the upgrade stops while it holds rows.
 function upgradeSandboxes(ctx: ModuleContext): string {
-  if (ctx.installed("ai-chat")) return "";
+  if (ctx.installed("ai-chat")) {
+    return "";
+  }
   const table = `${ctx.schema}.ai_sandboxes`;
   return `do $$
 begin

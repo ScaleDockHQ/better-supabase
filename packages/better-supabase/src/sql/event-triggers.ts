@@ -20,7 +20,9 @@ export function eventTriggersOf(body: string): ModuleEventTrigger[] {
       const name = quoted.startsWith('"')
         ? quoted.slice(1, -1)
         : quoted.toLowerCase();
-      if (seen.has(name)) return [];
+      if (seen.has(name)) {
+        return [];
+      }
       seen.add(name);
       return [
         {

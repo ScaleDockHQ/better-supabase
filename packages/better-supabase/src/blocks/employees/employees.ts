@@ -272,8 +272,12 @@ export interface EmployeesOptions<
 }
 
 function argOf(value: unknown): unknown {
-  if (typeof value === "bigint") return value.toString();
-  if (value instanceof temporal().PlainDate) return value.toString();
+  if (typeof value === "bigint") {
+    return value.toString();
+  }
+  if (value instanceof temporal().PlainDate) {
+    return value.toString();
+  }
   return value;
 }
 
@@ -284,7 +288,9 @@ const argsOf = (input: object): Record<string, unknown> =>
 
 function requiredDate(value: unknown, field: string): Temporal.PlainDate {
   const date = plainDate(value);
-  if (date === undefined) throw new TypeError(`${field} is missing`);
+  if (date === undefined) {
+    throw new TypeError(`${field} is missing`);
+  }
   return date;
 }
 
@@ -411,7 +417,9 @@ export function createEmployees<
         const out: OrgChartEntry<F>[] = [];
         for (const row of rows) {
           const read = await parsed(row.employee);
-          if (!read.ok) return read;
+          if (!read.ok) {
+            return read;
+          }
           out.push({
             ...read.data,
             depth: row.depth,
@@ -440,9 +448,13 @@ export function createEmployees<
     update: (changes) =>
       AsyncResult.from(async () => {
         for (const change of changes) {
-          if (BUILT_IN.has(change.field)) continue;
+          if (BUILT_IN.has(change.field)) {
+            continue;
+          }
           const valid = await fields.write({ [change.field]: change.value });
-          if (!valid.ok) return valid;
+          if (!valid.ok) {
+            return valid;
+          }
         }
         return ok(changes);
       }).andThen((checked) =>

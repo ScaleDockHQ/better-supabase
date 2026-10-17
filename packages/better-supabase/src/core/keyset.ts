@@ -37,7 +37,9 @@ export function keysetCondition(
         : nullsFirst || !nullable(term.column)
           ? after
           : or(after, isNull(term.column));
-    if (!step) return [];
+    if (!step) {
+      return [];
+    }
     const equal = orderBy
       .slice(0, index)
       .map((prev, prevIndex) =>
@@ -48,8 +50,9 @@ export function keysetCondition(
     return [and(...equal, step) ?? step];
   });
   // A null in the last nulls-last term leaves nothing after the cursor.
-  if (branches.length === 0)
+  if (branches.length === 0) {
     return columnIs(orderBy[0]?.column ?? "", "in", []);
+  }
   const after = or(...branches);
   // A plain range on the first column next to the OR lets Postgres use its
   // index to start at the cursor; the OR alone can make it scan from the top.
@@ -59,8 +62,9 @@ export function keysetCondition(
     !first ||
     values[0] === null ||
     nullable(first.column)
-  )
+  ) {
     return after;
+  }
   const bound = columnIs(
     first.column,
     first.direction === "asc" ? "gte" : "lte",

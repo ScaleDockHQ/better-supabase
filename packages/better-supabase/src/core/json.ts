@@ -6,8 +6,9 @@ export function jsonReplacer(_key: string, value: unknown): unknown {
 /** `Response.json` that writes `bigint` values as decimal strings instead of throwing. */
 export function jsonResponse(data: unknown, init: ResponseInit = {}): Response {
   const headers = new Headers(init.headers);
-  if (!headers.has("content-type"))
+  if (!headers.has("content-type")) {
     headers.set("content-type", "application/json");
+  }
   return new Response(JSON.stringify(data, jsonReplacer), {
     ...init,
     headers,

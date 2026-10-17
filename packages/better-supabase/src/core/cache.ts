@@ -34,10 +34,13 @@ export function rowKey(
   table: TableMeta,
   row: Readonly<Record<string, unknown>>,
 ): string | undefined {
-  if (table.primaryKey.length === 0) return undefined;
-  const parts = table.primaryKey.map((column) => row[column]);
-  if (parts.some((part) => part === undefined || part === null))
+  if (table.primaryKey.length === 0) {
     return undefined;
+  }
+  const parts = table.primaryKey.map((column) => row[column]);
+  if (parts.some((part) => part === undefined || part === null)) {
+    return undefined;
+  }
   return parts.map(String).join(",");
 }
 

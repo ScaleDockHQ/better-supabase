@@ -18,8 +18,10 @@ function fake(pages: unknown[][], fail = false) {
   const transport: BlockTransport = {
     async call(_schema, fn, args) {
       calls.push([fn, { ...args }]);
-      if (fail) throw Object.assign(new Error("denied"), { code: "42501" });
-      if (fn === "reveal_audit_entry")
+      if (fail) {
+        throw Object.assign(new Error("denied"), { code: "42501" });
+      }
+      if (fn === "reveal_audit_entry") {
         return {
           entry: args["entry"],
           old: { a: 1 },
@@ -27,16 +29,21 @@ function fake(pages: unknown[][], fail = false) {
           changes: { a: { old: 1, new: 2 } },
           metadata: "not an object",
         };
-      if (fn === "count_audit_events") return "3";
-      if (fn === "revert_audit_entries")
+      }
+      if (fn === "count_audit_events") {
+        return "3";
+      }
+      if (fn === "revert_audit_entries") {
         return {
           reverted: (args["entries"] as string[]).length,
           entries: (args["entries"] as string[]).length > 1 ? ["9", 10] : [],
         };
-      if (fn === "reveal_audit_entries")
+      }
+      if (fn === "reveal_audit_entries") {
         return (args["entries"] as string[])
           .filter((id) => id !== "1")
           .map((id) => ({ entry: id, ip: `10.0.0.${id}` }));
+      }
       return pages.shift() ?? [];
     },
   };
@@ -303,8 +310,9 @@ describe("createAudit", () => {
     expect(plain.calls.map(([fn]) => fn)).toEqual(["list_audit_events"]);
     const failing: BlockTransport = {
       async call(_schema, fn) {
-        if (fn === "reveal_audit_entries")
+        if (fn === "reveal_audit_entries") {
           throw Object.assign(new Error("not allowed"), { code: "42501" });
+        }
         return [entry("1")];
       },
     };

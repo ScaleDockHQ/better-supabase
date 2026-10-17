@@ -58,7 +58,9 @@ interface AuthFailure {
 
 /** Maps an `AuthApiError` from `auth.admin.deleteUser` to a `DbError`. */
 export function fromAuthError(raw: unknown): DbError {
-  if (isDbError(raw)) return raw;
+  if (isDbError(raw)) {
+    return raw;
+  }
   // SAFETY: every AuthFailure field is optional and read with a fallback, so
   // any object fits.
   const failure = (
@@ -69,16 +71,21 @@ export function fromAuthError(raw: unknown): DbError {
     table: "auth.users",
     ...(failure.code ? { code: failure.code } : {}),
   };
-  if (failure.code === "user_not_found" || failure.status === 404)
+  if (failure.code === "user_not_found" || failure.status === 404) {
     return dbError("not_found", message, base);
+  }
   if (/database error deleting user/i.test(message)) {
     return dbError("conflict", message, {
       ...base,
       hint: "A foreign key to auth.users without on delete cascade or set null blocks the delete (doctor BS406)",
     });
   }
-  if (failure.status === 401) return dbError("unauthorized", message, base);
-  if (failure.status === 403) return dbError("forbidden", message, base);
+  if (failure.status === 401) {
+    return dbError("unauthorized", message, base);
+  }
+  if (failure.status === 403) {
+    return dbError("forbidden", message, base);
+  }
   return failure.name === "AuthRetryableFetchError" ||
     (failure.status ?? 0) >= 500
     ? dbError("network", message, base)
@@ -97,7 +104,9 @@ async function databaseRefusal(
   sql: SqlClient,
   userId: string,
 ): Promise<DbError | undefined> {
-  if (!UUID.test(userId)) return undefined;
+  if (!UUID.test(userId)) {
+    return undefined;
+  }
   try {
     await sql.queryRaw(`do $$
 begin
@@ -110,7 +119,9 @@ $$`);
     // postgres.admin throws a DbError; a plain pg client its own error.
     const raw = isDbError(cause) ? undefined : fromPgError(cause);
     const error = isDbError(cause) ? cause : raw && mapDbError(raw);
-    if (!error || error.message === PROBE) return undefined;
+    if (!error || error.message === PROBE) {
+      return undefined;
+    }
     return { ...error, table: "auth.users" };
   }
   return undefined;
@@ -143,7 +154,9 @@ export function deleteAccount<
     const listedPaths: [Bucket<string>, string[]][] = [];
     for (const bucket of options.buckets ?? []) {
       const param = bucket.owner;
-      if (!param) continue;
+      if (!param) {
+        continue;
+      }
       options.signal?.throwIfAborted();
       // A user's objects can sit under every tenant they belonged to.
       const storage = bucket.connect(client, { allTenants: true });
@@ -151,7 +164,9 @@ export function deleteAccount<
         { [param]: userId },
         options.signal ? { signal: options.signal } : {},
       );
-      if (!listed.ok) return listed;
+      if (!listed.ok) {
+        return listed;
+      }
       listedPaths.push([
         bucket,
         listed.data
@@ -192,7 +207,9 @@ export function deleteAccount<
         const batch = await storage.remove(
           paths.slice(start, start + REMOVE_BATCH),
         );
-        if (!batch.ok) return batch;
+        if (!batch.ok) {
+          return batch;
+        }
       }
       removed[bucket.id] = paths.length;
     }
@@ -204,13 +221,14 @@ export function deleteAccount<
       rows: [{ id: userId }],
       context,
     });
-    for (const table of options.cascades ?? [])
+    for (const table of options.cascades ?? []) {
       betterSupabase.events.emit("mutation", {
         table,
         kind: "delete",
         rows: [],
         context,
       });
+    }
     return ok({ userId, removed });
   });
 }

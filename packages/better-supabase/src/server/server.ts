@@ -252,7 +252,9 @@ export function createServer<
     options.authorization === undefined
       ? undefined
       : hooksApiProblem(options.authorization);
-  if (hooksProblem !== undefined) throw new TypeError(hooksProblem);
+  if (hooksProblem !== undefined) {
+    throw new TypeError(hooksProblem);
+  }
   const audit = serverAudit(betterSupabase, options.audit);
   const support = options.support
     ? options.support.create(
@@ -446,11 +448,13 @@ export function createServer<
     active?: ActiveSupport,
     ids: RequestIds = {},
   ): ServerContext<M, F, E, C, P> => {
-    if (active)
+    if (active) {
       return supportContextFor(resolution, active, parent, tenant, ids);
+    }
     const { auth } = resolution;
-    if (auth.kind === "apiKey")
+    if (auth.kind === "apiKey") {
       return apiKeyContextFor(resolution, auth, parent, tenant, ids);
+    }
     const context: RequestContext =
       tenant === undefined
         ? authContext(auth)
@@ -477,7 +481,9 @@ export function createServer<
     let replica: ReplicaState | undefined;
     const replicaUrl = (): string | undefined => {
       const url = readUrl();
-      if (url) replica ??= replicaState(until);
+      if (url) {
+        replica ??= replicaState(until);
+      }
       return url;
     };
     return {
@@ -489,7 +495,9 @@ export function createServer<
         return client();
       },
       get db() {
-        if (db) return db;
+        if (db) {
+          return db;
+        }
         const url = replicaUrl();
         const rest: PostgrestClientLike =
           (sharesClient ? undefined : supabase) ??
@@ -522,7 +530,9 @@ export function createServer<
         return replica;
       },
       get sql() {
-        if (!options.postgres || !sqlClaims) return;
+        if (!options.postgres || !sqlClaims) {
+          return;
+        }
         sql ??= sqlFor(sqlClaims, context, recorder, session);
         return sql;
       },
@@ -670,7 +680,9 @@ export function createServer<
           : undefined;
       let byOptions = key ? contextMemo.get(request) : undefined;
       const known = key ? byOptions?.get(key) : undefined;
-      if (known) return known;
+      if (known) {
+        return known;
+      }
       const resolving = (async () => {
         const call: CallState = { options: contextOptions };
         await fold(request, { ...seedContext(), [CALL]: call });
@@ -685,7 +697,9 @@ export function createServer<
         const memo = byOptions;
         memo.set(key, resolving);
         resolving.catch(() => {
-          if (memo.get(key) === resolving) memo.delete(key);
+          if (memo.get(key) === resolving) {
+            memo.delete(key);
+          }
         });
       }
       return resolving;
@@ -773,11 +787,15 @@ export function createServer<
           context,
           forOptions.ticket ?? options.authorization?.tickets?.subject,
         );
-        if (!subject.ok) return subject;
+        if (!subject.ok) {
+          return subject;
+        }
         const target = subject.data;
         const { tenant } = target;
         const checked = contextClaims(target);
-        if (!checked.ok) return err(dbError("forbidden", checked.message));
+        if (!checked.ok) {
+          return err(dbError("forbidden", checked.message));
+        }
         if (!options.postgres) {
           return err(
             dbError(
@@ -803,7 +821,9 @@ export function createServer<
             : { reason: forOptions.reason }),
           ...(permissions === undefined ? {} : { permissions }),
         });
-        if (!built.ok) return err(dbError("forbidden", built.message));
+        if (!built.ok) {
+          return err(dbError("forbidden", built.message));
+        }
         const { claims, impersonator, readOnly } = built;
         const session = sessionWith({}, tenant, readOnly);
         return ok(
@@ -847,7 +867,9 @@ export function createServer<
     ] as const,
     (_request, ctx) => {
       const call = callOf(ctx);
-      if (call) call.context = ctx.bs;
+      if (call) {
+        call.context = ctx.bs;
+      }
       return Promise.resolve(new Response(null, { status: 204 }));
     },
   );
@@ -865,9 +887,13 @@ async function delegationCap(
   userId: string,
   permissions: DelegationPermissions | undefined,
 ): Promise<readonly string[] | undefined> {
-  if (permissions === undefined) return undefined;
+  if (permissions === undefined) {
+    return undefined;
+  }
   const delegated = delegatedClaims(context.claims ?? {});
-  if (!delegated.ok || delegated.delegation === undefined) return undefined;
+  if (!delegated.ok || delegated.delegation === undefined) {
+    return undefined;
+  }
   const { client_id, scope, authorization_details } = delegated.delegation;
   try {
     const keys: unknown = await permissions({
@@ -899,9 +925,12 @@ async function ticketSubject(
   resolve: TicketSubject | undefined,
 ): Promise<Result<RequestContext>> {
   const ticket = context["ticket"];
-  if (ticket === undefined) return ok(context);
-  if (typeof ticket !== "string" || ticket === "")
+  if (ticket === undefined) {
+    return ok(context);
+  }
+  if (typeof ticket !== "string" || ticket === "") {
     return err(dbError("forbidden", "forContext got an invalid ticket"));
+  }
   if (resolve === undefined) {
     return err(
       dbError(
@@ -916,8 +945,9 @@ async function ticketSubject(
   } catch {
     resolved = null;
   }
-  if (typeof resolved !== "object" || resolved === null)
+  if (typeof resolved !== "object" || resolved === null) {
     return err(dbError("forbidden", "The ticket resolver refused the ticket"));
+  }
   // SAFETY: TicketSubject returns a RequestContext or null; null and non-objects were refused above.
   return ok(resolved as RequestContext);
 }

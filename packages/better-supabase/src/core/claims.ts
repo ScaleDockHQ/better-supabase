@@ -38,7 +38,9 @@ export function claimPaths(claims?: Partial<ClaimsMeta>): ClaimPaths {
 export function claimsOf(
   meta: Pick<SchemaMeta, "claims"> | undefined,
 ): ClaimsMeta {
-  if (!meta?.claims) return DEFAULT_CLAIMS;
+  if (!meta?.claims) {
+    return DEFAULT_CLAIMS;
+  }
   let claims = claimsByMeta.get(meta);
   if (!claims) {
     claims = { ...DEFAULT_CLAIMS, ...meta.claims };
@@ -71,7 +73,9 @@ export function tenantPathsFor(
   claim: string | readonly string[] | undefined,
   meta?: Pick<SchemaMeta, "claims">,
 ): readonly string[] {
-  if (typeof claim === "string") return [claim];
+  if (typeof claim === "string") {
+    return [claim];
+  }
   return claim ?? tenantClaimPaths(claimsOf(meta).tenant);
 }
 
@@ -84,10 +88,14 @@ export function tenantFrom(
   context: Pick<RequestContext, "tenant" | "claims">,
   paths: readonly string[],
 ): string | undefined {
-  if (typeof context.tenant === "string") return context.tenant;
+  if (typeof context.tenant === "string") {
+    return context.tenant;
+  }
   for (const path of paths) {
     const value = claimAt(context.claims, path);
-    if (value !== undefined) return value;
+    if (value !== undefined) {
+      return value;
+    }
   }
   return undefined;
 }
@@ -98,7 +106,9 @@ function segmentsOf(path: string): readonly string[] {
   let segments = segmentsByPath.get(path);
   if (!segments) {
     segments = path.split(".");
-    if (segmentsByPath.size < 256) segmentsByPath.set(path, segments);
+    if (segmentsByPath.size < 256) {
+      segmentsByPath.set(path, segments);
+    }
   }
   return segments;
 }

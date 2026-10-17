@@ -126,7 +126,9 @@ export const cancelRun = bs.action(
   { input: v.object({ run: v.string() }), requireTenant: true },
   async ({ run }, { supabase }) => {
     const marked = await blocks(supabase).workflows.runs.requestCancel(run);
-    if (!marked.ok) return marked;
+    if (!marked.ok) {
+      return marked;
+    }
     if (marked.data === undefined) {
       return err(dbError("not_found", "No such run"));
     }
@@ -162,7 +164,9 @@ export const createSchedule = bs.action(
       // The arguments after the run's context, which the tick route prepends.
       input: workflow === "onboarding-drip" ? [] : ["A scheduled document."],
     });
-    if (!created.ok) return created;
+    if (!created.ok) {
+      return created;
+    }
     refresh();
     return ok(created.data.id);
   },
@@ -178,7 +182,9 @@ export const pauseSchedule = bs.action(
       id,
       paused,
     );
-    if (!updated.ok) return updated;
+    if (!updated.ok) {
+      return updated;
+    }
     refresh();
     return ok(updated.data);
   },
@@ -188,7 +194,9 @@ export const removeSchedule = bs.action(
   { input: v.object({ id: v.string() }), requireTenant: true },
   async ({ id }, { supabase }) => {
     const removed = await blocks(supabase).workflows.schedules.remove(id);
-    if (!removed.ok) return removed;
+    if (!removed.ok) {
+      return removed;
+    }
     refresh();
     return ok(removed.data);
   },

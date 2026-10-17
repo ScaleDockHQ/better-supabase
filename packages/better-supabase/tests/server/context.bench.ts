@@ -43,9 +43,13 @@ const bearer = (): Request =>
   });
 
 async function measure(work: () => Promise<unknown>): Promise<number> {
-  for (let warm = 0; warm < 200; warm++) await work();
+  for (let warm = 0; warm < 200; warm++) {
+    await work();
+  }
   const started = performance.now();
-  for (let run = 0; run < RUNS; run++) await work();
+  for (let run = 0; run < RUNS; run++) {
+    await work();
+  }
   return ((performance.now() - started) / RUNS) * 1000;
 }
 

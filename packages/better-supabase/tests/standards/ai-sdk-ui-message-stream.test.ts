@@ -10,9 +10,13 @@ function chunks(body: ReadableStream<Uint8Array<ArrayBuffer>>) {
     new TransformStream<string, unknown>({
       transform(text, controller) {
         for (const line of text.split("\n")) {
-          if (!line.startsWith("data: ")) continue;
+          if (!line.startsWith("data: ")) {
+            continue;
+          }
           const data = line.slice("data: ".length);
-          if (data !== "[DONE]") controller.enqueue(JSON.parse(data));
+          if (data !== "[DONE]") {
+            controller.enqueue(JSON.parse(data));
+          }
         }
       },
     }),
@@ -33,8 +37,9 @@ describe("AI SDK UI message stream protocol", () => {
       post({ id: "c1", message: userMessage() }),
       context,
     );
-    for (const [name, value] of Object.entries(UI_MESSAGE_STREAM_HEADERS))
+    for (const [name, value] of Object.entries(UI_MESSAGE_STREAM_HEADERS)) {
       expect(response.headers.get(name)).toBe(value);
+    }
     const text = await response.clone().text();
     expect(text.trimEnd().endsWith("data: [DONE]")).toBe(true);
     const body = response.body;
@@ -47,8 +52,9 @@ describe("AI SDK UI message stream protocol", () => {
     for await (const message of readUIMessageStream({
       stream,
       terminateOnError: true,
-    }))
+    })) {
       last = message;
+    }
     await Promise.all(pending);
     expect(last).toMatchObject({
       role: "assistant",

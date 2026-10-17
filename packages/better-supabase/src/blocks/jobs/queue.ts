@@ -117,7 +117,9 @@ function mappedTransport(
         args,
         (value) => value,
       );
-      if (!result.ok) throw new DbException(result.error);
+      if (!result.ok) {
+        throw new DbException(result.error);
+      }
       return result.data;
     },
   };
@@ -130,9 +132,15 @@ function backendOf(
   >,
   now: () => Temporal.Instant,
 ): QueueBackend {
-  if (options.backend) return options.backend;
-  if (options.sql) return sqlQueueBackend(options.sql, now);
-  if (options.client) return pgmqPublicBackend(options.client);
+  if (options.backend) {
+    return options.backend;
+  }
+  if (options.sql) {
+    return sqlQueueBackend(options.sql, now);
+  }
+  if (options.client) {
+    return pgmqPublicBackend(options.client);
+  }
   if (options.transport) {
     return transportQueueBackend(
       mappedTransport(options.transport, options.mappers),
@@ -214,7 +222,9 @@ export function createJobs<const Q extends QueueSchemas>(
   ): (() => void) | undefined =>
     transport.leases
       ? leaseHeartbeat(lease, () => {
-          for (const job of held) void run(() => transport.extend(job, lease));
+          for (const job of held) {
+            void run(() => transport.extend(job, lease));
+          }
         })
       : undefined;
 
@@ -292,7 +302,9 @@ export function createJobs<const Q extends QueueSchemas>(
       let wait = firstWait;
       let misses = 0;
       while (!signal.aborted) {
-        if (spent.expired()) return;
+        if (spent.expired()) {
+          return;
+        }
         const claimed = await claim(queue, {
           ...workOptions,
           batch: workOptions.batch ?? 1,
@@ -313,7 +325,9 @@ export function createJobs<const Q extends QueueSchemas>(
         }
         misses = 0;
         if (claimed.data.length === 0) {
-          if (!forever) return;
+          if (!forever) {
+            return;
+          }
           await sleep(wait, signal);
           wait = Math.min(maxWait, wait * 2);
           continue;
@@ -323,8 +337,11 @@ export function createJobs<const Q extends QueueSchemas>(
         const stopHeartbeat = heartbeat(held, lease);
         try {
           for (const job of claimed.data) {
-            if (await handle(job, handler, workOptions)) succeeded += 1;
-            else failed += 1;
+            if (await handle(job, handler, workOptions)) {
+              succeeded += 1;
+            } else {
+              failed += 1;
+            }
             held.delete(job);
           }
         } finally {
@@ -334,7 +351,9 @@ export function createJobs<const Q extends QueueSchemas>(
     });
     const settled = await Promise.allSettled(lanes);
     for (const lane of settled) {
-      if (lane.status === "rejected") throw lane.reason;
+      if (lane.status === "rejected") {
+        throw lane.reason;
+      }
     }
     return { succeeded, failed };
   };
@@ -342,7 +361,9 @@ export function createJobs<const Q extends QueueSchemas>(
   const runSchedules = async (
     scheduleOptions: RunSchedulesOptions,
   ): Promise<number> => {
-    if (!transport.dueSchedules || !transport.advanceSchedule) return 0;
+    if (!transport.dueSchedules || !transport.advanceSchedule) {
+      return 0;
+    }
     const due = await transport.dueSchedules(
       scheduleOptions.lease ?? 60,
       scheduleOptions.batch ?? 100,
@@ -365,8 +386,9 @@ export function createJobs<const Q extends QueueSchemas>(
       );
       if (
         await transport.advanceSchedule(schedule.name, schedule.nextRun, next)
-      )
+      ) {
         ran += 1;
+      }
     }
     return ran;
   };
@@ -389,7 +411,9 @@ export function createJobs<const Q extends QueueSchemas>(
     tenantDefault?: string,
   ): Promise<Result<PreparedSchedule>> => {
     const valid = await validate(schemaOf(queue), payload, "payload");
-    if (!valid.ok) return valid;
+    if (!valid.ok) {
+      return valid;
+    }
     const timeZone = scheduleOptions.timeZone ?? "UTC";
     try {
       nextCronRun(cron, timeZone, now());
@@ -401,7 +425,9 @@ export function createJobs<const Q extends QueueSchemas>(
       );
     }
     const wrapped = wrapPayload(valid.data, scheduleOptions.context);
-    if (!wrapped.ok) return wrapped;
+    if (!wrapped.ok) {
+      return wrapped;
+    }
     return ok({
       name,
       cron,
@@ -430,7 +456,9 @@ export function createJobs<const Q extends QueueSchemas>(
 
   const purge: Jobs<Q>["purge"] = (purgeOptions = {}) =>
     run(async () => {
-      if (!transport.purge) sqlOnly("purge");
+      if (!transport.purge) {
+        sqlOnly("purge");
+      }
       const backendPurge = transport.purge.bind(transport);
       const interval = (value: number | string | undefined) =>
         value === undefined ? undefined : seconds(value);
@@ -480,15 +508,21 @@ export function createJobs<const Q extends QueueSchemas>(
     enqueueOptions: EnqueueOptions,
   ): Promise<Result<{ message: unknown; delay: number }>> => {
     const valid = await validate(schemaOf(queue), payload, "payload");
-    if (!valid.ok) return valid;
+    if (!valid.ok) {
+      return valid;
+    }
     const delay = delayOf(enqueueOptions);
-    if (!delay.ok) return delay;
+    if (!delay.ok) {
+      return delay;
+    }
     const message = wrapPayload(valid.data, enqueueOptions.context, {
       ...(enqueueOptions.ticket === undefined
         ? {}
         : { ticket: enqueueOptions.ticket }),
     });
-    if (!message.ok) return message;
+    if (!message.ok) {
+      return message;
+    }
     return ok({ message: message.data, delay: delay.data });
   };
 
@@ -496,7 +530,9 @@ export function createJobs<const Q extends QueueSchemas>(
     enqueue(queue, payload, enqueueOptions = {}) {
       return AsyncResult.from(async () => {
         const prepared = await prepareSend(queue, payload, enqueueOptions);
-        if (!prepared.ok) return prepared;
+        if (!prepared.ok) {
+          return prepared;
+        }
         const { message, delay } = prepared.data;
         return run(() =>
           transport.send(
@@ -513,10 +549,14 @@ export function createJobs<const Q extends QueueSchemas>(
     enqueueOnce(queue, payload, enqueueOptions) {
       return AsyncResult.from(async () => {
         const prepared = await prepareSend(queue, payload, enqueueOptions);
-        if (!prepared.ok) return prepared;
+        if (!prepared.ok) {
+          return prepared;
+        }
         const { message, delay } = prepared.data;
         return run(() => {
-          if (!transport.sendOnce) sqlOnly("enqueueOnce");
+          if (!transport.sendOnce) {
+            sqlOnly("enqueueOnce");
+          }
           return transport.sendOnce(
             queue,
             message,
@@ -550,7 +590,9 @@ export function createJobs<const Q extends QueueSchemas>(
       }),
     listDead: (queue, listOptions = {}) =>
       run(async () => {
-        if (!transport.listDead) sqlOnly("listDead");
+        if (!transport.listDead) {
+          sqlOnly("listDead");
+        }
         schemaOf(queue);
         const rows = await transport.listDead(
           queue,
@@ -576,7 +618,9 @@ export function createJobs<const Q extends QueueSchemas>(
       }),
     retryDead: (queue, retryOptions = {}) =>
       run(async () => {
-        if (!transport.retryDead) sqlOnly("retryDead");
+        if (!transport.retryDead) {
+          sqlOnly("retryDead");
+        }
         schemaOf(queue);
         return transport.retryDead(
           queue,
@@ -588,7 +632,9 @@ export function createJobs<const Q extends QueueSchemas>(
     purgeJob: (purgeOptions) => async () => purge(purgeOptions).orThrow(),
     replay: (queue, id) =>
       run(() => {
-        if (!transport.replay) sqlOnly("replay");
+        if (!transport.replay) {
+          sqlOnly("replay");
+        }
         return transport.replay(queue, id);
       }),
     schedule(name, cron, queue, payload, scheduleOptions = {}) {
@@ -600,7 +646,9 @@ export function createJobs<const Q extends QueueSchemas>(
           payload,
           scheduleOptions,
         );
-        if (!prepared.ok) return prepared;
+        if (!prepared.ok) {
+          return prepared;
+        }
         return run(() => write(prepared.data));
       });
     },
@@ -641,21 +689,30 @@ export function createJobs<const Q extends QueueSchemas>(
             definition,
             tenant,
           );
-          if (!ready.ok) return ready;
+          if (!ready.ok) {
+            return ready;
+          }
           prepared.push(ready.data);
         }
         return run(async () => {
-          if (!transport.listSchedules) sqlOnly("ensureSchedules");
+          if (!transport.listSchedules) {
+            sqlOnly("ensureSchedules");
+          }
           const existing = await transport.listSchedules({
             prefix,
             ...(tenant === undefined ? {} : { tenant }),
           });
-          for (const schedule of prepared) await write(schedule);
+          for (const schedule of prepared) {
+            await write(schedule);
+          }
           const removed: string[] = [];
           for (const schedule of existing) {
-            if (names.has(schedule.name)) continue;
-            if (await transport.unschedule(schedule.name))
+            if (names.has(schedule.name)) {
+              continue;
+            }
+            if (await transport.unschedule(schedule.name)) {
               removed.push(schedule.name);
+            }
           }
           return { scheduled: [...names], removed };
         });
@@ -663,12 +720,16 @@ export function createJobs<const Q extends QueueSchemas>(
     },
     listSchedules: (filter = {}) =>
       run(async () => {
-        if (!transport.listSchedules) sqlOnly("listSchedules");
+        if (!transport.listSchedules) {
+          sqlOnly("listSchedules");
+        }
         return [...(await transport.listSchedules(filter))];
       }),
     unscheduleAll: (filter) =>
       run(() => {
-        if (!transport.unscheduleTenant) sqlOnly("unscheduleAll");
+        if (!transport.unscheduleTenant) {
+          sqlOnly("unscheduleAll");
+        }
         return transport.unscheduleTenant(filter.tenant);
       }),
     runSchedules: (scheduleOptions = {}) =>
@@ -678,7 +739,9 @@ export function createJobs<const Q extends QueueSchemas>(
     work: (queue, handler, workOptions = {}) =>
       loop(queue, handler, workOptions, true),
     drainRoute(routeOptions) {
-      for (const queue of Object.keys(routeOptions.handlers)) schemaOf(queue);
+      for (const queue of Object.keys(routeOptions.handlers)) {
+        schemaOf(queue);
+      }
       return cronRoute(
         {
           name: "drain",
@@ -707,8 +770,9 @@ export function createJobs<const Q extends QueueSchemas>(
           let scheduled = 0;
           if (routeOptions.schedules ?? true) {
             const ran = await run(() => runSchedules({}));
-            if (ran.ok) scheduled = ran.data;
-            else {
+            if (ran.ok) {
+              scheduled = ran.data;
+            } else {
               errors += 1;
               routeOptions.onError?.(ran.error);
             }
@@ -717,8 +781,12 @@ export function createJobs<const Q extends QueueSchemas>(
           for (const [queue, handler] of Object.entries(
             routeOptions.handlers,
           )) {
-            if (handler === undefined) continue;
-            if (spent.expired()) break;
+            if (handler === undefined) {
+              continue;
+            }
+            if (spent.expired()) {
+              break;
+            }
             try {
               results[queue] = await loop(
                 queue,

@@ -9,8 +9,12 @@ import type { Condition, Operation, Selection } from "./types.ts";
 export function touchedTables(op: Operation): string[] {
   const tables = new Set<string>([op.table.key]);
   const selection = op.kind === "select" ? op.selection : op.returning;
-  if (selection) visitSelection(selection, tables);
-  if (op.kind !== "insert") visitCondition(op.where, tables);
+  if (selection) {
+    visitSelection(selection, tables);
+  }
+  if (op.kind !== "insert") {
+    visitCondition(op.where, tables);
+  }
   return [...tables];
 }
 
@@ -26,11 +30,15 @@ function visitCondition(
   condition: Condition | undefined,
   tables: Set<string>,
 ): void {
-  if (!condition) return;
+  if (!condition) {
+    return;
+  }
   switch (condition.kind) {
     case "and":
     case "or":
-      for (const item of condition.items) visitCondition(item, tables);
+      for (const item of condition.items) {
+        visitCondition(item, tables);
+      }
       break;
     case "not":
       visitCondition(condition.item, tables);
@@ -78,10 +86,16 @@ function computeTargets(meta: SchemaMeta, table: string): string[] {
   for (let key = queue.shift(); key !== undefined; key = queue.shift()) {
     const relations = meta.tables[key]?.relations ?? {};
     for (const relation of Object.values(relations)) {
-      if (relation.direction !== "reverse" || !relation.onDelete) continue;
-      if (targets.has(relation.table)) continue;
+      if (relation.direction !== "reverse" || !relation.onDelete) {
+        continue;
+      }
+      if (targets.has(relation.table)) {
+        continue;
+      }
       targets.add(relation.table);
-      if (relation.onDelete === "cascade") queue.push(relation.table);
+      if (relation.onDelete === "cascade") {
+        queue.push(relation.table);
+      }
     }
   }
   return [...targets];

@@ -53,7 +53,9 @@ const CHUNKS: UIMessageChunk[] = [
 function readable(chunks: readonly unknown[] = CHUNKS): ReadableStream {
   return new ReadableStream({
     start(controller) {
-      for (const chunk of chunks) controller.enqueue(chunk);
+      for (const chunk of chunks) {
+        controller.enqueue(chunk);
+      }
       controller.close();
     },
   });
@@ -494,7 +496,9 @@ describe("durableChat resume", () => {
       expect(cancelled).toBe("client left");
     });
     let reads = 0;
-    while (!(await reader.read()).done) reads += 1;
+    while (!(await reader.read()).done) {
+      reads += 1;
+    }
     expect(reads).toBeLessThan(3);
   });
 

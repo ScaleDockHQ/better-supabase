@@ -91,7 +91,9 @@ function types(ctx: ModuleContext): readonly string[] {
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const keys = moduleOperations("engagements");
   const read = ctx.permission("read", keys.read);
   const write = ctx.permission("write", keys.write);

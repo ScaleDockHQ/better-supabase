@@ -18,7 +18,9 @@ function fakeTarget() {
   return {
     addEventListener: vi.fn(
       (type: string, listener: (event: unknown) => void) => {
-        if (!listeners.has(type)) listeners.set(type, new Set());
+        if (!listeners.has(type)) {
+          listeners.set(type, new Set());
+        }
         listeners.get(type)!.add(listener);
       },
     ),
@@ -28,7 +30,9 @@ function fakeTarget() {
       },
     ),
     dispatch: (type: string, event: unknown = {}) => {
-      for (const listener of listeners.get(type) ?? []) listener(event);
+      for (const listener of listeners.get(type) ?? []) {
+        listener(event);
+      }
     },
     count: (type: string) => listeners.get(type)?.size ?? 0,
   };

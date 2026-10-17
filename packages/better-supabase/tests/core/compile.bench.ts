@@ -40,21 +40,31 @@ const db = betterSupabase.connect(executor);
 
 async function opOf(run: () => PromiseLike<unknown>): Promise<Operation> {
   await run();
-  if (!captured) throw new Error("No operation captured");
+  if (!captured) {
+    throw new Error("No operation captured");
+  }
   return captured;
 }
 
 function measure(work: () => unknown): number {
-  for (let warm = 0; warm < 2000; warm++) work();
+  for (let warm = 0; warm < 2000; warm++) {
+    work();
+  }
   const started = performance.now();
-  for (let run = 0; run < RUNS; run++) work();
+  for (let run = 0; run < RUNS; run++) {
+    work();
+  }
   return ((performance.now() - started) / RUNS) * 1000;
 }
 
 async function measureAsync(work: () => PromiseLike<unknown>): Promise<number> {
-  for (let warm = 0; warm < 2000; warm++) await work();
+  for (let warm = 0; warm < 2000; warm++) {
+    await work();
+  }
   const started = performance.now();
-  for (let run = 0; run < RUNS; run++) await work();
+  for (let run = 0; run < RUNS; run++) {
+    await work();
+  }
   return ((performance.now() - started) / RUNS) * 1000;
 }
 

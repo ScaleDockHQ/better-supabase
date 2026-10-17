@@ -195,7 +195,9 @@ export function createSigningKeys(options: SigningKeysOptions): SigningKeys {
     readonly privateKey: string;
   } | null> =>
     call("signing_key", ownerArgs(owner), (value) => {
-      if (value === null || value === undefined) return null;
+      if (value === null || value === undefined) {
+        return null;
+      }
       const row = recordOf(value, "signing_key");
       return {
         kid: textOf(row["kid"]),
@@ -210,8 +212,9 @@ export function createSigningKeys(options: SigningKeysOptions): SigningKeys {
   ): AsyncResult<ActiveKey> => {
     const cacheKey = `${owner.type}:${owner.id}`;
     const cached = keys.get(cacheKey);
-    if (cached && Date.now() - cached.at < cacheMs)
+    if (cached && Date.now() - cached.at < cacheMs) {
       return AsyncResult.ok(cached);
+    }
     return stored(owner).andThen((found) => {
       if (found) {
         return run(async () => {
@@ -253,7 +256,9 @@ export function createSigningKeys(options: SigningKeysOptions): SigningKeys {
     retire: (kid) =>
       call("retire_signing_key", { kid }, (value) => {
         for (const [owner, entry] of keys) {
-          if (entry.kid === kid) keys.delete(owner);
+          if (entry.kid === kid) {
+            keys.delete(owner);
+          }
         }
         return value === true;
       }),

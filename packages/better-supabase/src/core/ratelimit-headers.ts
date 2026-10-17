@@ -64,7 +64,9 @@ export function rateLimitPolicyHeader(
         item += `;qu=${sfString(policy.unit)}`;
       }
       if (policy.window !== undefined) {
-        if (policy.window <= 0) throw new TypeError("w must be greater than 0");
+        if (policy.window <= 0) {
+          throw new TypeError("w must be greater than 0");
+        }
         item += `;w=${sfInteger(policy.window, "w")}`;
       }
       return item;
@@ -77,8 +79,9 @@ export function rateLimitHeader(states: readonly RateLimitState[]): string {
   return states
     .map((state) => {
       let item = `${sfString(state.policy)};r=${sfInteger(state.remaining, "r")}`;
-      if (state.reset !== undefined)
+      if (state.reset !== undefined) {
         item += `;t=${sfInteger(state.reset, "t")}`;
+      }
       return item;
     })
     .join(", ");
@@ -106,7 +109,9 @@ export function periodSeconds(period: number | string): number | undefined {
       : undefined;
   }
   const match = INTERVAL.exec(period);
-  if (!match) return undefined;
+  if (!match) {
+    return undefined;
+  }
   const word = match[2]!.toLowerCase();
   const unit =
     UNIT_SECONDS[word] ??

@@ -71,7 +71,9 @@ export async function runSeed(
   const state = await fileState(config.root, out, contents);
   const { current } = state;
 
-  if (args.check === true) return staleResult(state, "better-supabase seed");
+  if (args.check === true) {
+    return staleResult(state, "better-supabase seed");
+  }
   if (current !== undefined && !current.startsWith(HEADER)) {
     return {
       code: 1,
@@ -89,7 +91,9 @@ export async function runSeed(
     const { client, close } = await open(await databaseUrl(config, env, dbUrl));
     try {
       await client.query("begin");
-      for (const text of statements) await client.query(text);
+      for (const text of statements) {
+        await client.query(text);
+      }
       await client.query("commit");
     } catch (error) {
       await client.query("rollback");

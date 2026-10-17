@@ -70,7 +70,7 @@ const loadConnect = (): Promise<unknown> =>
 
 function connectRef(ref: CredentialRef): Result<VercelConnectRef> {
   const { connector, installationId, scopes } = ref;
-  if (ref.provider !== "vercel-connect" || typeof connector !== "string")
+  if (ref.provider !== "vercel-connect" || typeof connector !== "string") {
     return err(
       dbError(
         "invalid_input",
@@ -78,6 +78,7 @@ function connectRef(ref: CredentialRef): Result<VercelConnectRef> {
         { hint: "CREDENTIAL_REF_INVALID" },
       ),
     );
+  }
   return ok({
     provider: "vercel-connect",
     connector,
@@ -152,7 +153,7 @@ export function vercelConnectCredentials(
   ): AsyncResult<T> => {
     // Connect has no tenant namespace: the app subject would resolve the
     // app's own installation for every tenant.
-    if (ref.tenant !== undefined && subject.type === "app")
+    if (ref.tenant !== undefined && subject.type === "app") {
       return AsyncResult.err(
         dbError(
           "forbidden",
@@ -160,8 +161,11 @@ export function vercelConnectCredentials(
           { hint: "CREDENTIAL_REF_FOREIGN" },
         ),
       );
+    }
     const parsed = connectRef(ref);
-    if (!parsed.ok) return AsyncResult.err(parsed.error);
+    if (!parsed.ok) {
+      return AsyncResult.err(parsed.error);
+    }
     return AsyncResult.from(async () => {
       const module = await connect();
       try {

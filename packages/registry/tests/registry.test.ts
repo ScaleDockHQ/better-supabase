@@ -108,11 +108,13 @@ describe("registry.json", () => {
       it("links its docs and describes where it runs", () => {
         expect(item.docs).toMatch(/https:\/\/bettersupabase\.com\//);
         expect(item.meta.platforms.length).toBeGreaterThan(0);
-        for (const platform of item.meta.platforms)
+        for (const platform of item.meta.platforms) {
           expect(PLATFORMS).toContain(platform);
+        }
         expect(item.meta.frameworks.length).toBeGreaterThan(0);
-        for (const framework of item.meta.frameworks)
+        for (const framework of item.meta.frameworks) {
           expect(FRAMEWORKS).toContain(framework);
+        }
       });
 
       it("names its variant when it runs on one framework", () => {

@@ -42,7 +42,9 @@ export function sessionWith(
     ...(tenant === undefined ? {} : { "better_supabase.tenant": tenant }),
   };
   const hasSettings = Object.keys(settings).length > 0;
-  if (!hasSettings && !readOnly) return undefined;
+  if (!hasSettings && !readOnly) {
+    return undefined;
+  }
   return {
     ...(readOnly ? { readOnly: true } : {}),
     ...(hasSettings ? { settings } : {}),
@@ -71,9 +73,13 @@ export function requestIdPolicy(
       ? requestIdOrUndefined(request.headers.get(name))
       : undefined;
   const generatedFor = (request: Request | undefined): string | undefined => {
-    if (!generate || !request) return undefined;
+    if (!generate || !request) {
+      return undefined;
+    }
     const known = generated.get(request);
-    if (known !== undefined) return known;
+    if (known !== undefined) {
+      return known;
+    }
     const id = crypto.randomUUID();
     generated.set(request, id);
     return id;

@@ -134,7 +134,9 @@ export function expandOccurrences(
       }
       continue;
     }
-    if (!keep(event)) continue;
+    if (!keep(event)) {
+      continue;
+    }
     const zoned = event.startsAt.toZonedDateTimeISO(event.tz);
     const length = zoned.until(event.endsAt.toZonedDateTimeISO(event.tz), {
       largestUnit: event.allDay ? "days" : "hours",
@@ -149,10 +151,16 @@ export function expandOccurrences(
       window: { from: range.from.subtract(reach), until: range.until },
     })) {
       const start = when.toInstant();
-      if (skipped.has(start.epochMilliseconds)) continue;
-      if (overrides.has(keyOf(event.id, start))) continue;
+      if (skipped.has(start.epochMilliseconds)) {
+        continue;
+      }
+      if (overrides.has(keyOf(event.id, start))) {
+        continue;
+      }
       const end = when.add(length).toInstant();
-      if (!overlaps(start, end, range)) continue;
+      if (!overlaps(start, end, range)) {
+        continue;
+      }
       found.push({
         key: keyOf(event.id, start),
         event,

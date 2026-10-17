@@ -613,8 +613,9 @@ function organizationsClient<F extends object, I extends object>(
         "delete_organization",
         { organization: organizationId },
         (value) => {
-          if (value === true)
+          if (value === true) {
             organizationEvent("organization.deleted", { organizationId });
+          }
           return value === true;
         },
       );
@@ -625,9 +626,16 @@ function organizationsClient<F extends object, I extends object>(
         "organization_slug_problem",
         { value: slug, except_organization: exceptOrganizationId },
         (value) => {
-          if (value === null) return;
-          if (value === "invalid" || value === "reserved" || value === "taken")
+          if (value === null) {
+            return;
+          }
+          if (
+            value === "invalid" ||
+            value === "reserved" ||
+            value === "taken"
+          ) {
             return value;
+          }
           throw new TypeError(`Unknown slug problem ${String(value)}`);
         },
       );
@@ -667,11 +675,12 @@ function organizationsClient<F extends object, I extends object>(
         "suspend_member",
         { organization: organizationId, member: userId },
         (value) => {
-          if (value === true)
+          if (value === true) {
             organizationEvent("organization.member_suspended", {
               organizationId,
               userId,
             });
+          }
           return value === true;
         },
       );
@@ -682,11 +691,12 @@ function organizationsClient<F extends object, I extends object>(
         "resume_member",
         { organization: organizationId, member: userId },
         (value) => {
-          if (value === true)
+          if (value === true) {
             organizationEvent("organization.member_resumed", {
               organizationId,
               userId,
             });
+          }
           return value === true;
         },
       );
@@ -763,7 +773,9 @@ function organizationsClient<F extends object, I extends object>(
               )
             : {};
           const parsed = await fields.read(attributes);
-          if (!parsed.ok) return parsed;
+          if (!parsed.ok) {
+            return parsed;
+          }
           const slug = optionalText(row["slug"]);
           memberships.push({
             ...parsed.data,
@@ -822,7 +834,9 @@ function organizationsClient<F extends object, I extends object>(
           request.fields === undefined
             ? ok(undefined)
             : await invitationFields.write({ ...request.fields });
-        if (!checked.ok) return checked;
+        if (!checked.ok) {
+          return checked;
+        }
         return run(
           "invitations",
           "invite_member",

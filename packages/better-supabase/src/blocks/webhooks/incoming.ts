@@ -151,9 +151,13 @@ export function createIncomingWebhooks(
               { headers: request.headers, body },
               endpoint.previous_secret,
             );
-            if (previous.ok) verified = previous;
+            if (previous.ok) {
+              verified = previous;
+            }
           }
-          if (!verified.ok) return await problem(verified.error, endpoint.id);
+          if (!verified.ok) {
+            return await problem(verified.error, endpoint.id);
+          }
           messageId = verified.data.id;
         } else if (endpoint.verify === "shared-secret") {
           const given =
@@ -185,7 +189,9 @@ export function createIncomingWebhooks(
             endpoint.previous_secret
           ) {
             const previous = await hmacHex(endpoint.previous_secret, body);
-            if (timingSafeEqual(signature, previous)) expected = previous;
+            if (timingSafeEqual(signature, previous)) {
+              expected = previous;
+            }
           }
           if (!timingSafeEqual(signature, expected)) {
             return await problem(
@@ -213,7 +219,9 @@ export function createIncomingWebhooks(
             : undefined;
         const kept: [string, string][] = (options.keepHeaders ?? []).flatMap(
           (name): [string, string][] => {
-            if (name.toLowerCase() === secretHeader) return [];
+            if (name.toLowerCase() === secretHeader) {
+              return [];
+            }
             const header = request.headers.get(name);
             return header === null ? [] : [[name.toLowerCase(), header]];
           },

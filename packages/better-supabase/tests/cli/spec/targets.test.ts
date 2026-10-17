@@ -19,7 +19,9 @@ const error = (run: () => unknown): TargetError => {
   try {
     run();
   } catch (cause) {
-    if (cause instanceof TargetError) return cause;
+    if (cause instanceof TargetError) {
+      return cause;
+    }
   }
   throw new Error("expected a TargetError");
 };

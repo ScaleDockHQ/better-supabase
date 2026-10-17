@@ -20,7 +20,9 @@ const catalogs = {
  */
 export default getRequestConfig(async ({ locale }) => {
   const requested = locale ?? (await rootParams.locale());
-  if (!hasLocale(routing.locales, requested)) notFound();
+  if (!hasLocale(routing.locales, requested)) {
+    notFound();
+  }
   return {
     locale: requested,
     // A fixed zone, so server and browser format dates the same way.

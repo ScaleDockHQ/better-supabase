@@ -36,8 +36,9 @@ function withAuthz(names: readonly string[]): Snapshot {
   };
   copy.schemas = [...copy.schemas, "authz"];
   const functions = copy.functions as CatalogFunction[];
-  for (const name of names)
+  for (const name of names) {
     functions.push({ ...functions[0]!, schema: "authz", name });
+  }
   return fromCatalog(copy);
 }
 

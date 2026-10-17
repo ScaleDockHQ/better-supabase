@@ -43,7 +43,9 @@ function namingOf(
   );
   const tenant = config.sql.naming?.tenant;
   const renames = Object.keys(functions).length > 0;
-  if (tenant === undefined && !renames) return undefined;
+  if (tenant === undefined && !renames) {
+    return undefined;
+  }
   return {
     ...(tenant === undefined ? {} : { tenant }),
     ...(renames ? { functions } : {}),
@@ -69,18 +71,26 @@ export function blockConfigEntries(
   for (const manifest of PRESET_CATALOG.manifests) {
     const modules = manifest.sql.filter((module) => installed.has(module));
     const [main] = modules;
-    if (main === undefined) continue;
+    if (main === undefined) {
+      continue;
+    }
     const resolved = resolveModule(config.blocks[main]);
     const options: Record<string, unknown> = {};
     for (const module of modules) {
-      if (!hasSchema(module)) continue;
+      if (!hasSchema(module)) {
+        continue;
+      }
       const configured = resolveModule(config.blocks[module]).options;
       for (const [key, spec] of Object.entries(
         BLOCK_OPTION_SCHEMAS[module].specs,
       )) {
-        if (!spec.client) continue;
+        if (!spec.client) {
+          continue;
+        }
         const value = configured[key] ?? spec.default;
-        if (value !== undefined) options[key] = value;
+        if (value !== undefined) {
+          options[key] = value;
+        }
       }
     }
     const naming = namingOf(config, modules);
@@ -103,7 +113,9 @@ function literal(value: unknown, indent: string): string {
   }
   if (typeof value === "object" && value !== null) {
     const entries = Object.entries(value);
-    if (entries.length === 0) return "{}";
+    if (entries.length === 0) {
+      return "{}";
+    }
     const inner = `${indent}  `;
     return `{\n${entries
       .map(([key, entry]) => `${inner}${prop(key)}: ${literal(entry, inner)},`)
@@ -121,7 +133,9 @@ export function emitBlockConfig(
   config: Pick<ResolvedConfig, "blocks" | "blockNames" | "output" | "sql">,
   options: { readonly runtimeImport?: string } = {},
 ): GeneratedFile | undefined {
-  if (config.blockNames.length === 0) return undefined;
+  if (config.blockNames.length === 0) {
+    return undefined;
+  }
   const entries = blockConfigEntries(config);
   const runtime = options.runtimeImport ?? "better-supabase";
   return {

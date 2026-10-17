@@ -113,7 +113,9 @@ describe("Markdown forms of MDX components", () => {
   it("keeps components without a Markdown form as JSX", async () => {
     expect(Object.keys(markdownComponents)).not.toContain("Accordion");
     const Accordion = jsxComponents({})["Accordion"];
-    if (Accordion === undefined) throw new Error("expected a stub");
+    if (Accordion === undefined) {
+      throw new Error("expected a stub");
+    }
     const out = await renderToMarkdown(
       <Accordion title="More">Body</Accordion>,
     );

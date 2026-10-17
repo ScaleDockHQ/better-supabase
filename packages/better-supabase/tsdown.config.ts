@@ -313,8 +313,12 @@ const USE_CLIENT_MODULE =
  */
 function librarySubpath(file: string): string | undefined {
   const path = relative(src, file).replace(/(\.d)?\.(ts|js)$/, "");
-  if (path === "index") return "";
-  if (!path.endsWith("/index") || path.startsWith("cli/")) return undefined;
+  if (path === "index") {
+    return "";
+  }
+  if (!path.endsWith("/index") || path.startsWith("cli/")) {
+    return undefined;
+  }
   const subpath = path.slice(0, -"/index".length);
   return entries.includes(`${subpath}/index`) ? subpath : undefined;
 }
@@ -339,8 +343,9 @@ const library = defineConfig({
       // (docs/decisions/0005-temporal.md).
       name: "temporal-lib-reference",
       renderChunk(code, chunk) {
-        if (!chunk.fileName.endsWith(".d.ts") || !code.includes("Temporal."))
+        if (!chunk.fileName.endsWith(".d.ts") || !code.includes("Temporal.")) {
           return null;
+        }
         return `/// <reference lib="esnext.temporal" />\n${code}`;
       },
     },
@@ -352,8 +357,9 @@ const library = defineConfig({
         if (
           source === "./session.js" &&
           importer?.endsWith("src/react/server.ts")
-        )
+        ) {
           return { id: "./session.js", external: true };
+        }
         return null;
       },
     },
@@ -364,8 +370,9 @@ const library = defineConfig({
       if (
         log.code === "MODULE_LEVEL_DIRECTIVE" &&
         USE_CLIENT_MODULE.test(log.id ?? "")
-      )
+      ) {
         return;
+      }
       handler(level, log);
     },
   },
@@ -409,9 +416,13 @@ const cli = defineConfig({
     {
       name: "library-entries",
       resolveId(source, importer) {
-        if (!importer || !source.startsWith(".")) return null;
+        if (!importer || !source.startsWith(".")) {
+          return null;
+        }
         const subpath = librarySubpath(resolve(dirname(importer), source));
-        if (subpath === undefined) return null;
+        if (subpath === undefined) {
+          return null;
+        }
         return {
           id: subpath === "" ? "better-supabase" : `better-supabase/${subpath}`,
           external: true,

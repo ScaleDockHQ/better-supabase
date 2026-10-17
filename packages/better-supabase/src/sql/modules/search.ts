@@ -278,7 +278,9 @@ function userStateFunctions(
   where s.${state.col("user")} = auth.uid()`
     : "select null::text, null::text, null::timestamptz, null::timestamptz where false";
   const upsert = (set: "opened" | "starred"): string => {
-    if (!state) return "return false;";
+    if (!state) {
+      return "return false;";
+    }
     const keys = `${state.col("subjectType")}, ${state.col("subjectId")}, ${state.col("user")}`;
     const value =
       set === "opened"
@@ -430,7 +432,9 @@ function vectorOf(
 }
 
 function build(ctx: ModuleContext, layout: ModuleLayout): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const docs = ctx.table("documents");
   const c = (column: string): string => ctx.col("documents", column);
   const config = configOf(ctx);

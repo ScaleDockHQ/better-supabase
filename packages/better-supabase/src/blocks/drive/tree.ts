@@ -79,7 +79,9 @@ export function fileTypeCategory(
   name = "",
 ): DriveFileType {
   const mime = (mimeType ?? "").toLowerCase().split(";")[0]?.trim() ?? "";
-  if (mime === "inode/directory") return "folder";
+  if (mime === "inode/directory") {
+    return "folder";
+  }
   const extension = /\.([a-z0-9]+)$/i.exec(name)?.[1]?.toLowerCase();
   const known = extension === undefined ? undefined : BY_EXTENSION[extension];
   if (mime === "" || mime === "application/octet-stream") {
@@ -127,8 +129,11 @@ export function driveTree(
   for (const node of nodes) {
     const parent = node.parentId ?? DRIVE_ROOT;
     const list = children.get(parent);
-    if (list === undefined) children.set(parent, [node.id]);
-    else list.push(node.id);
+    if (list === undefined) {
+      children.set(parent, [node.id]);
+    } else {
+      list.push(node.id);
+    }
   }
   return {
     rootItemId: root,

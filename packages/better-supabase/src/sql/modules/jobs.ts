@@ -52,7 +52,9 @@ drop function if exists better_supabase.claim_due_schedules(integer, integer);`;
  */
 function archiveGuard(ctx: ModuleContext): string {
   const held = ctx.held("job_archive", "null");
-  if (held === "false") return "null;";
+  if (held === "false") {
+    return "null;";
+  }
   return `if ${held} then
     return 0;
   end if;

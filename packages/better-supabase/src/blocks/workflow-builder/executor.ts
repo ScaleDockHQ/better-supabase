@@ -90,7 +90,9 @@ const active = (
   ran: ReadonlyMap<string, boolean>,
 ): boolean => {
   const outcome = ran.get(edge.source);
-  if (outcome === undefined) return false;
+  if (outcome === undefined) {
+    return false;
+  }
   return edge.branch === undefined || String(outcome) === edge.branch;
 };
 
@@ -190,10 +192,14 @@ export async function executeGraph(
   const ran = new Map<string, boolean>();
   for (const node of order) {
     if (node.kind === "trigger") {
-      if (node.id !== start) continue;
+      if (node.id !== start) {
+        continue;
+      }
     } else {
       const edges = incoming.get(node.id) ?? [];
-      if (!edges.some((edge) => active(edge, ran))) continue;
+      if (!edges.some((edge) => active(edge, ran))) {
+        continue;
+      }
     }
     const { output, outcome } = await runNode(node, input, results, runtime);
     results[node.id] = output;

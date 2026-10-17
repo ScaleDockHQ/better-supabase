@@ -343,8 +343,9 @@ describe.skipIf(!live)("billing", () => {
           !(await s.value<boolean>(
             `to_regclass('stripe.${table}') is not null`,
           ))
-        )
+        ) {
           await s.rows(`create table stripe.${table} (${columns})`);
+        }
       }
       await s.rows(`insert into stripe.subscriptions (id, customer, status, created) values
           ('sub_bs_old', 'cus_bs_plans', 'canceled', 1), ('sub_bs_new', 'cus_bs_plans', 'active', 5);

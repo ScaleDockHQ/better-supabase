@@ -27,13 +27,17 @@ const VERBS: readonly (readonly [RegExp, Format])[] = [
 
 /** Colors the verb that starts each `Wrote`, `Kept`, `Unchanged` or `Would write` line. */
 export function highlight(text: string, paint: Paint): string {
-  if (paint === plain) return text;
+  if (paint === plain) {
+    return text;
+  }
   return text
     .split("\n")
     .map((line) => {
       for (const [pattern, format] of VERBS) {
         const verb = pattern.exec(line)?.[0];
-        if (verb) return `${paint(format, verb)}${line.slice(verb.length)}`;
+        if (verb) {
+          return `${paint(format, verb)}${line.slice(verb.length)}`;
+        }
       }
       return line;
     })

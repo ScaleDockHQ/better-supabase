@@ -91,7 +91,9 @@ export function threshold(
     tenant: values.tenant,
     audit: false,
   });
-  if (record.trim() === "") return "";
+  if (record.trim() === "") {
+    return "";
+  }
   return `if ${values.point} is not null and ${values.before} > ${values.point} and ${values.after} <= ${values.point} then
     ${record}
   end if;`;

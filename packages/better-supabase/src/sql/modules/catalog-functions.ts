@@ -48,13 +48,19 @@ export function storefrontOption(ctx: ModuleContext): boolean {
  * transition rules, history and `status.changed` to the machine's trigger.
  */
 function machineGoverns(ctx: ModuleContext): boolean {
-  if (!ctx.installed("state-machine")) return false;
+  if (!ctx.installed("state-machine")) {
+    return false;
+  }
   const raw = ctx.of("state-machine").option("machines");
-  if (typeof raw !== "object" || raw === null) return false;
+  if (typeof raw !== "object" || raw === null) {
+    return false;
+  }
   const { schema, name } = ctx.tableName("products");
   const column = ctx.col("products", "status").replaceAll('"', "");
   return Object.values(raw).some((entry: unknown) => {
-    if (!isRecord(entry)) return false;
+    if (!isRecord(entry)) {
+      return false;
+    }
     const table = entry["table"];
     const col = entry["column"];
     return (
@@ -261,7 +267,9 @@ ${variantFunctions(ctx, names, historyCheck)}`;
 }
 
 export function optionFunctions(ctx: ModuleContext, names: Names): string {
-  if (!ctx.hasTable("options") || !ctx.hasTable("optionValues")) return "";
+  if (!ctx.hasTable("options") || !ctx.hasTable("optionValues")) {
+    return "";
+  }
   const { fn } = names;
   const products = ctx.table("products");
   const options = ctx.table("options");

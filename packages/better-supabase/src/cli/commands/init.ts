@@ -141,7 +141,9 @@ async function initTarget(
     return { dir: dir.replace(/\/$/, "") || "." };
   }
   const workspace = await detectWorkspace(cwd);
-  if (!workspace || workspace.packages.length === 0) return { dir: "." };
+  if (!workspace || workspace.packages.length === 0) {
+    return { dir: "." };
+  }
   const suggested = suggestedPackage(workspace) ?? ".";
   if (!prompts) {
     return {
@@ -192,10 +194,16 @@ async function chosenPreset(
       ],
       "none",
     );
-    if (picked === undefined) return CANCELLED;
-    if (picked !== "none") value = picked;
+    if (picked === undefined) {
+      return CANCELLED;
+    }
+    if (picked !== "none") {
+      value = picked;
+    }
   }
-  if (value === undefined) return null;
+  if (value === undefined) {
+    return null;
+  }
   let preset: Preset;
   try {
     preset = presetOf(value);
@@ -225,7 +233,9 @@ export async function runInit(
   now: Now = () => new Date(),
 ): Promise<CommandResult> {
   const chosen = await chosenPreset(args, prompts);
-  if (chosen !== null && "code" in chosen) return chosen;
+  if (chosen !== null && "code" in chosen) {
+    return chosen;
+  }
   const casing =
     args.casing ??
     chosen?.resolved.preset.casing ??
@@ -243,7 +253,9 @@ export async function runInit(
           "camel",
         )
       : "camel");
-  if (casing === undefined) return CANCELLED;
+  if (casing === undefined) {
+    return CANCELLED;
+  }
   if (casing !== "camel" && casing !== "snake") {
     return { code: 2, error: '--casing must be "camel" or "snake"' };
   }
@@ -255,7 +267,9 @@ export async function runInit(
     };
   }
   const target = await initTarget(config.root, args, prompts);
-  if ("code" in target) return target;
+  if ("code" in target) {
+    return target;
+  }
   const root = resolve(config.root, target.dir);
   const inPackage = target.dir !== ".";
   const workspaceProject = await detectProject(config.root);
@@ -270,7 +284,9 @@ export async function runInit(
     ? { dir: target.dir, name: project.name }
     : undefined;
   const requested = parseIntegrations(list(args.with));
-  if (typeof requested === "string") return { code: 2, error: requested };
+  if (typeof requested === "string") {
+    return { code: 2, error: requested };
+  }
   const fromPreset = parseIntegrations(
     chosen === null
       ? []
@@ -281,7 +297,9 @@ export async function runInit(
           ),
         ],
   );
-  if (typeof fromPreset === "string") return { code: 2, error: fromPreset };
+  if (typeof fromPreset === "string") {
+    return { code: 2, error: fromPreset };
+  }
   const detected = resolveIntegrations([
     ...suggestedIntegrations(project.frameworks),
     ...requested,
@@ -291,14 +309,17 @@ export async function runInit(
     args.with === undefined && prompts && chosen === null
       ? await chooseIntegrations(prompts, detected)
       : detected;
-  if (picked === undefined) return CANCELLED;
+  if (picked === undefined) {
+    return CANCELLED;
+  }
   const integrations = resolveIntegrations(picked);
   const hasConfig = findConfig(root) !== undefined;
   let generated = posix.normalize(
     posix.join(project.srcDir, "lib/supabase/generated.ts"),
   );
-  if (hasConfig)
+  if (hasConfig) {
     generated = inPackage ? (await loadConfig(root)).output : config.output;
+  }
   const templateContext = templateContextFor(project, generated);
 
   const files = [
@@ -324,7 +345,9 @@ export async function runInit(
         ]),
   ];
   const force = await overwrite(root, files, args, prompts, config.root);
-  if (force === undefined) return CANCELLED;
+  if (force === undefined) {
+    return CANCELLED;
+  }
   const where = inPackage ? ` in ${target.dir}` : "";
   const lines = [
     project.frameworks.length > 0
@@ -386,12 +409,15 @@ export async function runInit(
     "Next:",
     ...steps.map((step, index) => `  ${index + 1}. ${step}`),
   );
-  if (lite)
+  if (lite) {
     lines.push(
       "  - Pass backend: 'lite' to createServer (or createNext, createHono, createEdge, createOrpc): https://bettersupabase.com/docs/platform/lite",
     );
+  }
   for (const name of integrations) {
-    for (const hint of TEMPLATES[name].next ?? []) lines.push(`  - ${hint}`);
+    for (const hint of TEMPLATES[name].next ?? []) {
+      lines.push(`  - ${hint}`);
+    }
   }
   lines.push("", "Agent skills: better-supabase skills install");
   return { code: 0, output: lines.join("\n") };

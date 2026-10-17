@@ -15,7 +15,9 @@ function memoryStore() {
     values,
     getItemAsync: (key: string) => Promise.resolve(values.get(key) ?? null),
     setItemAsync: (key: string, value: string) => {
-      if (!/^[\w.-]+$/.test(key)) throw new Error(`invalid key ${key}`);
+      if (!/^[\w.-]+$/.test(key)) {
+        throw new Error(`invalid key ${key}`);
+      }
       values.set(key, value);
       return Promise.resolve();
     },
@@ -139,7 +141,9 @@ describe("secureStorage", () => {
     let writes = 0;
     store.setItemAsync = (key, value) => {
       writes += 1;
-      if (writes === 2) return Promise.reject(new Error("keychain locked"));
+      if (writes === 2) {
+        return Promise.reject(new Error("keychain locked"));
+      }
       return set(key, value);
     };
     await expect(storage.setItem("k", "12345678")).rejects.toThrow(/keychain/);

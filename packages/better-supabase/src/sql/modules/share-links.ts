@@ -139,7 +139,9 @@ function versionCheck(ctx: ModuleContext): string {
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const links = ctx.table("links");
   const views = ctx.table("views");
   const state = ctx.table("state");

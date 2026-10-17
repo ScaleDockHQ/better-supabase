@@ -61,7 +61,9 @@ export function registerCore(server: object, core: AnyCore): void {
 /** Copies the registration from `from` to `to` (`extendServer` builds a new object). */
 export function shareCore(from: object, to: object): void {
   const core = cores.get(from);
-  if (core) cores.set(to, core);
+  if (core) {
+    cores.set(to, core);
+  }
 }
 
 /** The core of a server built by `createServer` or one of the adapter factories. */
@@ -118,7 +120,9 @@ export function startSupportLookup<
   request: Request,
   session: AuthResolution<C, P>,
 ): void {
-  if (session.auth.kind !== "user" || supportLookups.has(session)) return;
+  if (session.auth.kind !== "user" || supportLookups.has(session)) {
+    return;
+  }
   const lookup = core.support(request, session.auth);
   // withSupport awaits and reports a failure; a pipeline without it must not leave it unhandled.
   lookup.catch(() => undefined);

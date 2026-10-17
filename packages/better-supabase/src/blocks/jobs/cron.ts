@@ -62,7 +62,9 @@ function field(
   const values = new Set<number>();
   for (const part of text.split(",")) {
     const match = /^(\*|\d+(?:-\d+)?)(?:\/(\d+))?$/.exec(part);
-    if (!match) throw invalid(expression, `"${part}" is not a cron field`);
+    if (!match) {
+      throw invalid(expression, `"${part}" is not a cron field`);
+    }
     const [, range = "", stepText] = match;
     const step = stepText === undefined ? 1 : Number(stepText);
     let from = min;
@@ -79,7 +81,9 @@ function field(
         `"${part}" is outside ${String(min)}-${String(max)}`,
       );
     }
-    for (let value = from; value <= to; value += step) values.add(value);
+    for (let value = from; value <= to; value += step) {
+      values.add(value);
+    }
   }
   return [...values].toSorted((a, b) => a - b);
 }
@@ -114,12 +118,20 @@ function parse(expression: string): CronFields {
 }
 
 function dayMatches(fields: CronFields, date: Temporal.PlainDate): boolean {
-  if (!fields.months.has(date.month)) return false;
+  if (!fields.months.has(date.month)) {
+    return false;
+  }
   const day = fields.days.has(date.day);
   const weekday = fields.weekdays.has(date.dayOfWeek);
-  if (fields.daysRestricted && fields.weekdaysRestricted) return day || weekday;
-  if (fields.daysRestricted) return day;
-  if (fields.weekdaysRestricted) return weekday;
+  if (fields.daysRestricted && fields.weekdaysRestricted) {
+    return day || weekday;
+  }
+  if (fields.daysRestricted) {
+    return day;
+  }
+  if (fields.weekdaysRestricted) {
+    return weekday;
+  }
   return true;
 }
 
@@ -132,14 +144,20 @@ function firstRunOn(
   after: Temporal.Instant,
 ): Temporal.Instant | undefined {
   for (const hour of fields.hours) {
-    if (start && hour < start.hour) continue;
+    if (start && hour < start.hour) {
+      continue;
+    }
     for (const minute of fields.minutes) {
-      if (hour === start?.hour && minute < start.minute) continue;
+      if (hour === start?.hour && minute < start.minute) {
+        continue;
+      }
       const instant = date
         .toPlainDateTime({ hour, minute })
         .toZonedDateTime(timeZone, { disambiguation: "compatible" })
         .toInstant();
-      if (temporal().Instant.compare(instant, after) > 0) return instant;
+      if (temporal().Instant.compare(instant, after) > 0) {
+        return instant;
+      }
     }
   }
   return undefined;
@@ -151,7 +169,9 @@ function firstRunOn(
  * such as `30 seconds`.
  */
 export function assertCron(expression: string): void {
-  if (!INTERVAL.test(expression.trim())) parse(expression);
+  if (!INTERVAL.test(expression.trim())) {
+    parse(expression);
+  }
 }
 
 /**
@@ -171,7 +191,9 @@ export function nextCronRun(
   const interval = INTERVAL.exec(expression.trim());
   if (interval) {
     const amount = Number(interval[1]);
-    if (amount < 1) throw invalid(expression, "the interval must be positive");
+    if (amount < 1) {
+      throw invalid(expression, "the interval must be positive");
+    }
     const unit = interval[2]!.toLowerCase();
     return after.add(
       unit === "second"
@@ -198,7 +220,9 @@ export function nextCronRun(
         timeZone,
         after,
       );
-    if (found) return found;
+    if (found) {
+      return found;
+    }
     date = date.add({ days: 1 });
   }
   throw invalid(expression, "it never matches a date");

@@ -50,11 +50,12 @@ async function providerSchema(
           and (p_role in ('admin', 'member')
             or exists (select 1 from ${schema}.custom_roles r where r.organization_id = p_tenant and r.key = p_role)) $$;
   `);
-  for (const [role, user] of Object.entries(members))
+  for (const [role, user] of Object.entries(members)) {
     await s.client.query(
       `insert into ${schema}.team_members values ($1, $2, $3)`,
       [organization, user.id, role],
     );
+  }
   return schema;
 }
 

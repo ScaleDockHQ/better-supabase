@@ -812,8 +812,9 @@ describe("gen", () => {
   it("prints help and version", async () => {
     const help = (await run(["--help"])).stdout;
     expect(help).toContain("USAGE better-supabase [OPTIONS]");
-    for (const command of ["init", "gen", "doctor", "sql"])
+    for (const command of ["init", "gen", "doctor", "sql"]) {
       expect(help).toMatch(new RegExp(`^ +${command} +\\S`, "m"));
+    }
     expect((await run(["--version"])).stdout).toMatch(/\d+\.\d+\.\d+/);
   });
 });

@@ -17,7 +17,9 @@ export function devDrainSecret(
   name = "CRON_SECRET",
 ): string {
   const current = env[name];
-  if (current) return current;
+  if (current) {
+    return current;
+  }
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   const secret = Array.from(bytes, (byte) =>
     byte.toString(16).padStart(2, "0"),
@@ -44,7 +46,9 @@ export function devDrain(options: DevDrainOptions): DevDrain {
     });
   let running = false;
   const tick = async (): Promise<void> => {
-    if (running || options.signal?.aborted) return;
+    if (running || options.signal?.aborted) {
+      return;
+    }
     running = true;
     try {
       const response = await doFetch(options.url, {

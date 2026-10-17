@@ -71,7 +71,9 @@ export function createInboxController<T>(
       return {
         actions: { refresh },
         start: () => {
-          if (topic === null) return;
+          if (topic === null) {
+            return;
+          }
           return whileSignedIn(options.auth, () => {
             void refresh();
             return options.ports.topic(topic, {
@@ -143,15 +145,19 @@ export function createConversationController<T>(
         const seen = new Map<string, ReturnType<typeof setTimeout>>();
         const typer = (who: string, on: boolean): void => {
           const timer = seen.get(who);
-          if (timer !== undefined) clearTimeout(timer);
-          if (on)
+          if (timer !== undefined) {
+            clearTimeout(timer);
+          }
+          if (on) {
             seen.set(
               who,
               setTimeout(() => {
                 typer(who, false);
               }, typingMs),
             );
-          else seen.delete(who);
+          } else {
+            seen.delete(who);
+          }
           state.set({ typing: [...seen.keys()] });
         };
         const handle = options.ports.topic(name, {
@@ -160,10 +166,13 @@ export function createConversationController<T>(
               void refresh();
               return;
             }
-            if (typeof payload !== "object" || payload === null) return;
+            if (typeof payload !== "object" || payload === null) {
+              return;
+            }
             const who = "user_id" in payload ? String(payload.user_id) : "";
-            if (who !== "" && who !== userId)
+            if (who !== "" && who !== userId) {
               typer(who, !("typing" in payload) || payload.typing !== false);
+            }
           },
           onRejoin: () => void refresh(),
           onStatus: (status) => {
@@ -177,7 +186,9 @@ export function createConversationController<T>(
           },
         };
         return () => {
-          for (const timer of seen.values()) clearTimeout(timer);
+          for (const timer of seen.values()) {
+            clearTimeout(timer);
+          }
           joined = undefined;
           handle.leave();
           state.set({ typing: NO_TYPERS });
@@ -191,7 +202,9 @@ export function createConversationController<T>(
           },
         },
         start: () => {
-          if (topic === null) return;
+          if (topic === null) {
+            return;
+          }
           return whileSignedIn(options.auth, (userId) => {
             void refresh();
             return join(topic, userId);
@@ -287,7 +300,9 @@ export function createInboxWidgetController<T>(
         attach();
       };
       const choose = (id: string | null): void => {
-        if (id === conversationId) return;
+        if (id === conversationId) {
+          return;
+        }
         conversationId = id;
         follow();
       };
@@ -301,7 +316,9 @@ export function createInboxWidgetController<T>(
           submit: async (message) => {
             if (conversationId === null) {
               const id = await options.open(message);
-              if (key !== null) await storage?.set(key, id);
+              if (key !== null) {
+                await storage?.set(key, id);
+              }
               choose(id);
               return;
             }
@@ -309,7 +326,9 @@ export function createInboxWidgetController<T>(
             await inner?.actions.refresh();
           },
           reset: () => {
-            if (key !== null) void storage?.remove(key);
+            if (key !== null) {
+              void storage?.remove(key);
+            }
             choose(null);
           },
         },
@@ -319,7 +338,9 @@ export function createInboxWidgetController<T>(
           if (!restored && key !== null && storage) {
             restored = true;
             void storage.get(key).then((stored) => {
-              if (stored !== null && conversationId === null) choose(stored);
+              if (stored !== null && conversationId === null) {
+                choose(stored);
+              }
             });
           }
           return () => {

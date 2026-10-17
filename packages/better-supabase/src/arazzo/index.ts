@@ -113,7 +113,7 @@ export function createArazzo<V extends ArazzoVersion = "1.0", Ref = string>(
   const errors = result.diagnostics.filter(
     (diagnostic) => diagnostic.severity === "error",
   );
-  if (errors.length > 0)
+  if (errors.length > 0) {
     throw new TypeError(
       `createArazzo: ${errors
         .map(
@@ -122,8 +122,12 @@ export function createArazzo<V extends ArazzoVersion = "1.0", Ref = string>(
         )
         .join("; ")}`,
     );
-  if (onDiagnostic)
-    for (const diagnostic of result.diagnostics) onDiagnostic(diagnostic);
+  }
+  if (onDiagnostic) {
+    for (const diagnostic of result.diagnostics) {
+      onDiagnostic(diagnostic);
+    }
+  }
   // SAFETY: the format lowers version V to ArazzoDocuments[V].
   return result.document as ArazzoDocuments[V];
 }

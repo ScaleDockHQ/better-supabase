@@ -98,8 +98,9 @@ export function problemType(
   status: number = statusOf(kind),
 ): { readonly type: string; readonly title: string } {
   const phrase = GENERIC[kind];
-  if (phrase !== undefined && status === statusOf(kind))
+  if (phrase !== undefined && status === statusOf(kind)) {
     return { type: PROBLEM_TYPE_BLANK, title: phrase };
+  }
   return {
     type: `${PROBLEM_TYPE_BASE}${kind.replaceAll("_", "-")}`,
     title: TITLES[kind],
@@ -154,25 +155,57 @@ export function toProblem(
     status: error.status,
     kind: error.kind,
   };
-  if (!INTERNAL.has(error.kind) || options.expose)
+  if (!INTERNAL.has(error.kind) || options.expose) {
     problem["detail"] = error.message;
-  if (options.instance) problem["instance"] = options.instance;
-  if (error.code) problem["code"] = error.code;
-  if (error.hint) problem["hint"] = error.hint;
-  if ("constraint" in error && error.constraint)
+  }
+  if (options.instance) {
+    problem["instance"] = options.instance;
+  }
+  if (error.code) {
+    problem["code"] = error.code;
+  }
+  if (error.hint) {
+    problem["hint"] = error.hint;
+  }
+  if ("constraint" in error && error.constraint) {
     problem["constraint"] = error.constraint;
-  if ("columns" in error) problem["columns"] = error.columns;
-  if ("column" in error && error.column) problem["column"] = error.column;
-  if ("issues" in error) problem["issues"] = error.issues;
-  if ("required" in error) problem["required"] = error.required;
-  if ("scopes" in error) problem["scopes"] = error.scopes;
-  if ("permission" in error) problem["permission"] = error.permission;
-  if ("permissions" in error) problem["permissions"] = error.permissions;
-  if ("approval" in error) problem["approval"] = error.approval;
-  if ("retryAfter" in error) problem["retryAfter"] = error.retryAfter;
-  if ("meter" in error) problem["meter"] = error.meter;
-  if ("limit" in error) problem["limit"] = error.limit;
-  if ("maxAffected" in error) problem["maxAffected"] = error.maxAffected;
+  }
+  if ("columns" in error) {
+    problem["columns"] = error.columns;
+  }
+  if ("column" in error && error.column) {
+    problem["column"] = error.column;
+  }
+  if ("issues" in error) {
+    problem["issues"] = error.issues;
+  }
+  if ("required" in error) {
+    problem["required"] = error.required;
+  }
+  if ("scopes" in error) {
+    problem["scopes"] = error.scopes;
+  }
+  if ("permission" in error) {
+    problem["permission"] = error.permission;
+  }
+  if ("permissions" in error) {
+    problem["permissions"] = error.permissions;
+  }
+  if ("approval" in error) {
+    problem["approval"] = error.approval;
+  }
+  if ("retryAfter" in error) {
+    problem["retryAfter"] = error.retryAfter;
+  }
+  if ("meter" in error) {
+    problem["meter"] = error.meter;
+  }
+  if ("limit" in error) {
+    problem["limit"] = error.limit;
+  }
+  if ("maxAffected" in error) {
+    problem["maxAffected"] = error.maxAffected;
+  }
   // SAFETY: the fields were copied from a DbError, whose shape matches ProblemDetails.
   // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the fields were copied from a DbError, whose shape matches ProblemDetails.
   return problem as unknown as ProblemDetails;
@@ -205,8 +238,9 @@ export function problemResponse(
       `Bearer realm="${realm}", error="insufficient_scope", scope="${scope}"`,
     );
   }
-  if ("retryAfter" in error && !headers.has("retry-after"))
+  if ("retryAfter" in error && !headers.has("retry-after")) {
     headers.set("retry-after", String(error.retryAfter));
+  }
   const problem = toProblem(error, options);
   const body = options.format ? options.format(problem, error) : problem;
   return Response.json(body, {
@@ -216,7 +250,9 @@ export function problemResponse(
 }
 
 export function isProblem(value: unknown): value is ProblemDetails {
-  if (typeof value !== "object" || value === null) return false;
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
   // SAFETY: value is a non-null object here, and every field is checked below.
   const problem = value as Record<string, unknown>;
   return (
@@ -250,10 +286,14 @@ export function fromProblem(problem: ProblemDetails): DbError {
     "limit",
     "maxAffected",
   ] as const) {
-    if (problem[key] !== undefined) extra[key] = problem[key];
+    if (problem[key] !== undefined) {
+      extra[key] = problem[key];
+    }
   }
   extra["issues"] = problem.issues ?? [];
-  if (kind !== "validation") delete extra["issues"];
+  if (kind !== "validation") {
+    delete extra["issues"];
+  }
   // SAFETY: extra holds the extension fields of the problem, which are optional
   // on every DbError kind.
   return dbError(

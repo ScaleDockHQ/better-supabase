@@ -35,6 +35,9 @@ export function useContext(): Context {
  * scope), and never during server rendering.
  */
 export function onClient(start: () => void): void {
-  if (getCurrentInstance()) onMounted(start);
-  else start();
+  if (getCurrentInstance()) {
+    onMounted(start);
+  } else {
+    start();
+  }
 }

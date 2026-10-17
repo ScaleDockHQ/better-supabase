@@ -99,7 +99,9 @@ function scopesOf(claims: JsonObject | undefined): readonly string[] {
 
 /** A frozen copy of the verified claims, so an authorizer cannot change them. */
 function claimsProperty(claims: unknown): { readonly claims?: JsonObject } {
-  if (!isPlainObject(claims)) return {};
+  if (!isPlainObject(claims)) {
+    return {};
+  }
   // SAFETY: cloneValue keeps the shape of a plain claims object.
   return { claims: deepFreeze(cloneValue(claims) as JsonObject) };
 }
@@ -141,8 +143,9 @@ export function requestOf(context: RequestContext | undefined): {
 }
 
 function isOutcome(value: unknown): value is AuthorizationOutcome {
-  if (typeof value !== "object" || value === null || !("outcome" in value))
+  if (typeof value !== "object" || value === null || !("outcome" in value)) {
     return false;
+  }
   const { outcome } = value;
   return (
     outcome === "granted" ||
@@ -253,7 +256,9 @@ export async function checkEach<Ref>(
   resources: readonly AuthorizationResource[],
   context: RequestContext | undefined,
 ): Promise<readonly boolean[]> {
-  if (!authorizer || resources.length === 0) return resources.map(() => false);
+  if (!authorizer || resources.length === 0) {
+    return resources.map(() => false);
+  }
   const { subject, context: requestContext } = requestOf(context);
   const requests = resources.map((resource) => ({
     subject,

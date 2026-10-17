@@ -123,8 +123,11 @@ describe("toExpress", () => {
         });
       };
       toExpress(entries)(req, response, (error) => {
-        if (error) fail(error);
-        else route(req, response, fail);
+        if (error) {
+          fail(error);
+        } else {
+          route(req, response, fail);
+        }
       });
     });
 
@@ -142,10 +145,13 @@ describe("toExpress", () => {
     const admins = guard({ roles: ["admin"] });
     const url = await app((req, res, next) => {
       admins(req, res, () => {
-        if (req.url === "/throw")
+        if (req.url === "/throw") {
           next(new DbException(dbError("conflict", "Taken")));
-        else if (req.url === "/boom") next(new Error("boom"));
-        else res.end("admin");
+        } else if (req.url === "/boom") {
+          next(new Error("boom"));
+        } else {
+          res.end("admin");
+        }
       });
     });
     expect((await fetch(url, { headers: await bearer("member") })).status).toBe(
@@ -277,8 +283,9 @@ describe("toKoa", () => {
       const ctx = fakeKoa(req, res);
       void middleware(ctx, () =>
         admins(ctx, () => {
-          if (req.url === "/throw")
+          if (req.url === "/throw") {
             throw new DbException(dbError("conflict", "Taken"));
+          }
           const bs = ctx.state["bs"] as { auth: { kind: string } };
           ctx.status = 200;
           ctx.body = bs.auth.kind;

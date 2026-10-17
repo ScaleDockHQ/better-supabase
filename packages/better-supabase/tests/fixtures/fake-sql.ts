@@ -33,8 +33,12 @@ export function pgError(
 }
 
 function matches(rule: SqlRule[0], call: SqlCall): boolean {
-  if (typeof rule === "string") return call.text.includes(rule);
-  if (rule instanceof RegExp) return rule.test(call.text);
+  if (typeof rule === "string") {
+    return call.text.includes(rule);
+  }
+  if (rule instanceof RegExp) {
+    return rule.test(call.text);
+  }
   return rule(call);
 }
 
@@ -56,9 +60,13 @@ export function fakeSql(rules: readonly SqlRule[] = []): {
     const call: SqlCall = { text, values };
     state.calls.push(call);
     const rule = rules.find(([match]) => matches(match, call));
-    if (!rule) return [];
+    if (!rule) {
+      return [];
+    }
     const result = typeof rule[1] === "function" ? rule[1](call) : rule[1];
-    if ("throws" in result) throw result.throws;
+    if ("throws" in result) {
+      throw result.throws;
+    }
     return [...result];
   }
   const sql: SqlClient & {

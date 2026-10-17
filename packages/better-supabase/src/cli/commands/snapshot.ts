@@ -55,11 +55,15 @@ export function managementTarget(
   env: Env,
   source: SnapshotSource,
 ): ManagementTarget | undefined {
-  if (source.dbUrl) return undefined;
+  if (source.dbUrl) {
+    return undefined;
+  }
   const projectRef =
     source.projectRef ??
     (config.source.dbUrl ? undefined : config.source.projectRef);
-  if (!projectRef) return undefined;
+  if (!projectRef) {
+    return undefined;
+  }
   const accessToken = config.source.accessToken ?? env.SUPABASE_ACCESS_TOKEN;
   if (!accessToken) {
     throw new CliError(
@@ -87,19 +91,24 @@ export async function openSource(
   source: SnapshotSource,
   open: typeof connect = connect,
 ): Promise<IntrospectionSource> {
-  if (source.dbUrl) return pgSource(source.dbUrl, open, source.signal);
+  if (source.dbUrl) {
+    return pgSource(source.dbUrl, open, source.signal);
+  }
   const target = managementTarget(config, env, source);
-  if (target)
+  if (target) {
     return managementSource({
       ...target,
       ...(source.signal ? { signal: source.signal } : {}),
     });
+  }
   if (!config.source.dbUrl && config.source.lite !== false) {
     const toml = await readSupabaseToml(config.root);
     const driver =
       liteDriverOf(toml) ??
       (config.source.lite === true ? "sqlite-postgres" : undefined);
-    if (driver) return liteSource(config.root, toml, driver, open);
+    if (driver) {
+      return liteSource(config.root, toml, driver, open);
+    }
   }
   return pgSource(await databaseUrl(config, env), open, source.signal);
 }
@@ -130,17 +139,22 @@ export async function loadSnapshot(
   shared?: () => Promise<IntrospectionSource>,
 ): Promise<Snapshot> {
   const path = snapshotFile(config, source);
-  if (path) return readSnapshotFile(resolve(config.root, path), path);
+  if (path) {
+    return readSnapshotFile(resolve(config.root, path), path);
+  }
   const [tomlRead, opened] = await Promise.allSettled([
     readSupabaseToml(config.root),
     shared ? shared() : openSource(config, env, source, open),
   ]);
   if (tomlRead.status === "rejected") {
-    if (opened.status === "fulfilled" && !shared)
+    if (opened.status === "fulfilled" && !shared) {
       await opened.value.close().catch(() => undefined);
+    }
     throw tomlRead.reason;
   }
-  if (opened.status === "rejected") throw opened.reason;
+  if (opened.status === "rejected") {
+    throw opened.reason;
+  }
   const toml = tomlRead.value;
   const db = opened.value;
   const hooks = toml ? pgFunctionHooks(toml.document) : [];
@@ -152,7 +166,9 @@ export async function loadSnapshot(
       ? cachedIntrospect(config.root, db, [schemas, hooks], read)
       : read());
   } finally {
-    if (!shared) await db.close();
+    if (!shared) {
+      await db.close();
+    }
   }
 }
 
@@ -160,7 +176,9 @@ async function readSnapshotFile(
   absolute: string,
   label: string = absolute,
 ): Promise<Snapshot> {
-  if (!existsSync(absolute)) throw new Error(`Snapshot not found: ${label}`);
+  if (!existsSync(absolute)) {
+    throw new Error(`Snapshot not found: ${label}`);
+  }
   return parseSnapshot(JSON.parse(await readFile(absolute, "utf-8")), label);
 }
 
@@ -187,7 +205,9 @@ export async function parseSnapshot(
   try {
     generator = await validateGeneratorMetadata(doc.generator);
   } catch (cause) {
-    if (cause instanceof TypegenMissingError) throw cause;
+    if (cause instanceof TypegenMissingError) {
+      throw cause;
+    }
     throw new Error(
       `${label} has invalid "generator" metadata: ${errorText(cause)}`,
       { cause },

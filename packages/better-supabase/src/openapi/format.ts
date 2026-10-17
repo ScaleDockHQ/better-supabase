@@ -224,8 +224,12 @@ function pathItem(
       sameJson(operation["security"], firstSecurity),
     );
   const item: Json = {};
-  if (hoist) item["parameters"] = shared;
-  if (hoistSecurity) item["security"] = firstSecurity;
+  if (hoist) {
+    item["parameters"] = shared;
+  }
+  if (hoistSecurity) {
+    item["security"] = firstSecurity;
+  }
   for (const { method, operation } of operations) {
     const out: Json = { ...operation };
     if (hoist) {
@@ -235,10 +239,15 @@ function pathItem(
               !isPlainObject(parameter) || parameter["in"] !== "path",
           )
         : [];
-      if (rest.length > 0) out["parameters"] = rest;
-      else delete out["parameters"];
+      if (rest.length > 0) {
+        out["parameters"] = rest;
+      } else {
+        delete out["parameters"];
+      }
     }
-    if (hoistSecurity) delete out["security"];
+    if (hoistSecurity) {
+      delete out["security"];
+    }
     item[method] = out;
   }
   return item;
@@ -324,13 +333,14 @@ function lowerOpenApi(
     prefix: model.extensionPrefix,
     dropped,
   };
-  for (const name of dropped)
+  for (const name of dropped) {
     ctx.report({
       code: "preview-only",
       severity: "info",
       message: `Security scheme "${name}" uses Security Profiles, which only 3.3-preview emits; it and the requirements that name it are left out`,
       pointer: `/components/securitySchemes/${pointerToken(name)}`,
     });
+  }
 
   const grouped = new Map<string, { method: string; operation: Json }[]>();
   const placed: ModelOperation[] = [];
@@ -353,13 +363,16 @@ function lowerOpenApi(
     placed.push(operation);
   }
   const paths: Json = {};
-  for (const [path, operations] of grouped)
+  for (const [path, operations] of grouped) {
     paths[path] = pathItem(operations, features);
+  }
 
   const securitySchemes: Json = {};
   for (const [name, scheme] of Object.entries(model.securitySchemes)) {
     const lowered = lowerScheme(scheme, features);
-    if (lowered) securitySchemes[name] = lowered;
+    if (lowered) {
+      securitySchemes[name] = lowered;
+    }
   }
   const components: Json = {
     schemas: structuredClone(model.schemas),
@@ -371,23 +384,25 @@ function lowerOpenApi(
     ),
     securitySchemes,
   };
-  if (is33 && model.securityProfileRequirements)
+  if (is33 && model.securityProfileRequirements) {
     components["securityProfileRequirements"] = structuredClone(
       model.securityProfileRequirements,
     );
+  }
 
   let webhooks: Json | undefined;
   if (model.webhooks.length > 0) {
-    if (features.is30)
+    if (features.is30) {
       ctx.report({
         code: "webhooks-unsupported",
         severity: "warning",
         message: `OpenAPI 3.0 has no webhooks; ${model.webhooks.length} webhook(s) are left out`,
       });
-    else
+    } else {
       webhooks = Object.fromEntries(
         model.webhooks.map((webhook) => [webhook.id, lowerWebhook(webhook)]),
       );
+    }
   }
 
   const info = features.is30
@@ -436,17 +451,22 @@ function lowerOpenApi(
     });
   });
   for (const operation of placed) {
-    if (!operation.extend) continue;
+    if (!operation.extend) {
+      continue;
+    }
     const patch: JsonObject = {
       paths: { [operation.path]: { [operation.method]: operation.extend } },
     };
     document = mergeJson(document, patch);
   }
-  if (features.is30) document = lowerDocumentSchemas30(document);
-  if (!isOpenApiDocument(document))
+  if (features.is30) {
+    document = lowerDocumentSchemas30(document);
+  }
+  if (!isOpenApiDocument(document)) {
     throw new TypeError(
       "better-supabase/openapi: a fragment removed a required document field",
     );
+  }
   return document;
 }
 
@@ -465,34 +485,50 @@ function isOpenApiDocument(value: Json): value is Json & AnyOpenApiDocument {
 const PATH_PARAM = /\{([^}]+)\}/g;
 
 function resolves(document: unknown, ref: string): boolean {
-  if (!ref.startsWith("#")) return true;
+  if (!ref.startsWith("#")) {
+    return true;
+  }
   let node: unknown = document;
   for (const raw of ref.slice(2).split("/")) {
-    if (raw === "" && ref === "#") break;
+    if (raw === "" && ref === "#") {
+      break;
+    }
     const key = raw.replaceAll("~1", "/").replaceAll("~0", "~");
-    if (Array.isArray(node)) node = node[Number(key)];
-    else if (isPlainObject(node)) node = node[key];
-    else return false;
-    if (node === undefined) return false;
+    if (Array.isArray(node)) {
+      node = node[Number(key)];
+    } else if (isPlainObject(node)) {
+      node = node[key];
+    } else {
+      return false;
+    }
+    if (node === undefined) {
+      return false;
+    }
   }
   return true;
 }
 
 function collectRefs(value: unknown, pointer: string, out: [string, string][]) {
-  if (Array.isArray(value))
+  if (Array.isArray(value)) {
     value.forEach((item: unknown, index) => {
       collectRefs(item, `${pointer}/${index}`, out);
     });
-  else if (isPlainObject(value))
+  } else if (isPlainObject(value)) {
     for (const [key, item] of Object.entries(value)) {
-      if (key === "$ref" && typeof item === "string") out.push([pointer, item]);
-      else collectRefs(item, `${pointer}/${pointerToken(key)}`, out);
+      if (key === "$ref" && typeof item === "string") {
+        out.push([pointer, item]);
+      } else {
+        collectRefs(item, `${pointer}/${pointerToken(key)}`, out);
+      }
     }
+  }
 }
 
 /** The keys of `value[key]` when it is an object; documents read from disk may omit any field. */
 function keysAt(value: unknown, key: string): string[] {
-  if (!isPlainObject(value)) return [];
+  if (!isPlainObject(value)) {
+    return [];
+  }
   const child = value[key];
   return isPlainObject(child) ? Object.keys(child) : [];
 }
@@ -503,18 +539,24 @@ function lintOpenApi(document: AnyOpenApiDocument): SpecDiagnostic[] {
   const components: unknown = document.components;
   const schemes = new Set(keysAt(components, "securitySchemes"));
   const checkSecurity = (requirements: unknown, pointer: string) => {
-    if (!Array.isArray(requirements)) return;
+    if (!Array.isArray(requirements)) {
+      return;
+    }
     const list: unknown[] = requirements;
     for (const requirement of list) {
-      if (!isPlainObject(requirement)) continue;
-      for (const name of Object.keys(requirement))
-        if (!schemes.has(name))
+      if (!isPlainObject(requirement)) {
+        continue;
+      }
+      for (const name of Object.keys(requirement)) {
+        if (!schemes.has(name)) {
           diagnostics.push({
             code: "security-unresolved",
             severity: "error",
             message: `Security requirement names an unknown scheme "${name}"`,
             pointer,
           });
+        }
+      }
     }
   };
   checkSecurity(document.security, "/security");
@@ -522,7 +564,9 @@ function lintOpenApi(document: AnyOpenApiDocument): SpecDiagnostic[] {
   for (const [path, item] of Object.entries(
     isPlainObject(paths) ? paths : {},
   )) {
-    if (!isPlainObject(item)) continue;
+    if (!isPlainObject(item)) {
+      continue;
+    }
     const base = `/paths/${pointerToken(path)}`;
     const templated = new Set(
       [...path.matchAll(PATH_PARAM)].map((match) => match[1] ?? ""),
@@ -532,19 +576,23 @@ function lintOpenApi(document: AnyOpenApiDocument): SpecDiagnostic[] {
       : [];
     checkSecurity(item["security"], `${base}/security`);
     for (const [method, operation] of Object.entries(item)) {
-      if (!METHODS.has(method) || !isPlainObject(operation)) continue;
+      if (!METHODS.has(method) || !isPlainObject(operation)) {
+        continue;
+      }
       const pointer = `${base}/${method}`;
       const id = operation["operationId"];
       if (typeof id === "string") {
         const seen = ids.get(id);
-        if (seen)
+        if (seen) {
           diagnostics.push({
             code: "operation-id-duplicate",
             severity: "error",
             message: `operationId "${id}" is also used at ${seen}`,
             pointer,
           });
-        else ids.set(id, pointer);
+        } else {
+          ids.set(id, pointer);
+        }
       }
       checkSecurity(operation["security"], `${pointer}/security`);
       const own: unknown[] = Array.isArray(operation["parameters"])
@@ -552,37 +600,44 @@ function lintOpenApi(document: AnyOpenApiDocument): SpecDiagnostic[] {
         : [];
       const declared = new Set<string>();
       for (const parameter of [...shared, ...own]) {
-        if (!isPlainObject(parameter) || parameter["in"] !== "path") continue;
+        if (!isPlainObject(parameter) || parameter["in"] !== "path") {
+          continue;
+        }
         const name = String(parameter["name"]);
         declared.add(name);
-        if (!templated.has(name))
+        if (!templated.has(name)) {
           diagnostics.push({
             code: "path-param-unknown",
             severity: "error",
             message: `Path parameter "${name}" is not in the path template`,
             pointer,
           });
+        }
       }
-      for (const name of templated)
-        if (!declared.has(name))
+      for (const name of templated) {
+        if (!declared.has(name)) {
           diagnostics.push({
             code: "path-param-missing",
             severity: "error",
             message: `Path template parameter "${name}" has no parameter`,
             pointer,
           });
+        }
+      }
     }
   }
   const refs: [string, string][] = [];
   collectRefs(document, "", refs);
-  for (const [pointer, ref] of refs)
-    if (!resolves(document, ref))
+  for (const [pointer, ref] of refs) {
+    if (!resolves(document, ref)) {
       diagnostics.push({
         code: "ref-unresolved",
         severity: "error",
         message: `$ref "${ref}" does not resolve inside the document`,
         pointer,
       });
+    }
+  }
   return diagnostics;
 }
 

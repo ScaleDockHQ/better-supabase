@@ -11,7 +11,9 @@ import {
 } from "./orders-shared.ts";
 
 function restock(ctx: ModuleContext): string {
-  if (!ctx.installed("inventory")) return "";
+  if (!ctx.installed("inventory")) {
+    return "";
+  }
   const inventory = ctx.of("inventory");
   const catalog = ctx.of("catalog");
   const v = columns(catalog, "variants");

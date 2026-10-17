@@ -24,7 +24,7 @@ import {
 import { accessModel, OPERATIONS, roleNames } from "./access-model.ts";
 import { DURATION, policyOf, policySnapshot } from "./approvals-policies.ts";
 import { ACCESS_REQUEST_SUBJECT } from "./approvals.ts";
-import { roleValue } from "./organizations.ts";
+import { roleValue } from "./organizations-roles.ts";
 import { roleNameOf } from "./tenant.ts";
 
 const WHERE = "blocks.access-requests.options";
@@ -131,7 +131,9 @@ function accessPolicy(ctx: ModuleContext): string {
 
 function maxDuration(ctx: ModuleContext): string | undefined {
   const raw = ctx.option("maxDuration");
-  if (raw === undefined) return undefined;
+  if (raw === undefined) {
+    return undefined;
+  }
   if (typeof raw !== "string" || !DURATION.test(raw)) {
     throw new TypeError(
       `${WHERE}.maxDuration must be an ISO 8601 duration such as P7D`,
@@ -141,7 +143,9 @@ function maxDuration(ctx: ModuleContext): string | undefined {
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const requests = ctx.table("requests");
   const c = (column: string): string => ctx.col("requests", column);
   const fn = (name: string): string => ctx.fn(name);

@@ -22,11 +22,19 @@ export function conditionHolds(
   condition: FormCondition | undefined,
   answers: FormAnswers,
 ): boolean {
-  if (condition === undefined) return true;
-  if (!(condition.field in answers)) return false;
+  if (condition === undefined) {
+    return true;
+  }
+  if (!(condition.field in answers)) {
+    return false;
+  }
   const value = answers[condition.field];
-  if ("equals" in condition) return same(value, condition.equals);
-  if ("in" in condition) return condition.in.some((item) => same(value, item));
+  if ("equals" in condition) {
+    return same(value, condition.equals);
+  }
+  if ("in" in condition) {
+    return condition.in.some((item) => same(value, item));
+  }
   return !(
     value === undefined ||
     EMPTY.has(value) ||
@@ -139,7 +147,9 @@ function stepAfterAnswer(
   const visible = new Set(
     visibleSteps(form.definition, answers).map((item) => item.key),
   );
-  if (visible.has(step)) return step;
+  if (visible.has(step)) {
+    return step;
+  }
   const order = form.definition.steps.map((item) => item.key);
   const before = order.slice(0, Math.max(order.indexOf(step), 0)).toReversed();
   return (
@@ -164,8 +174,11 @@ export function questionnaireReducer(
   switch (action.type) {
     case "answer": {
       const answers = { ...state.answers };
-      if (action.value === undefined) delete answers[action.key];
-      else answers[action.key] = action.value;
+      if (action.value === undefined) {
+        delete answers[action.key];
+      } else {
+        answers[action.key] = action.value;
+      }
       const issues = state.issues.filter(
         (issue) => issue.path?.[0] !== action.key,
       );
@@ -178,9 +191,13 @@ export function questionnaireReducer(
     }
     case "next": {
       const current = steps[index];
-      if (current === undefined) return state;
+      if (current === undefined) {
+        return state;
+      }
       const issues = stepIssues(form.schema, current, state.answers);
-      if (issues.length > 0) return { ...state, issues };
+      if (issues.length > 0) {
+        return { ...state, issues };
+      }
       const completed = state.completed.includes(current.key)
         ? state.completed
         : [...state.completed, current.key];

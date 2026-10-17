@@ -12,10 +12,14 @@ function unguardedWrites(sql: string): string[] {
   for (const match of sql.matchAll(
     /grant\s+execute\s+on\s+function\s+((?:"[^"]+"|[a-z_][\w$]*)(?:\s*\.\s*(?:"[^"]+"|[a-z_][\w$]*))?)\s*\([^;]*?\)\s+to\s+([^;]+)/gi,
   )) {
-    if (!/\b(authenticated|anon)\b/i.test(match[2] ?? "")) continue;
+    if (!/\b(authenticated|anon)\b/i.test(match[2] ?? "")) {
+      continue;
+    }
     const name = /(?:"([^"]+)"|([a-z_][\w$]*))\s*$/i.exec(match[1] ?? "");
     const found = name?.[1] ?? name?.[2];
-    if (found !== undefined) granted.add(found);
+    if (found !== undefined) {
+      granted.add(found);
+    }
   }
   const missing: string[] = [];
   for (const match of sql.matchAll(
@@ -23,19 +27,29 @@ function unguardedWrites(sql: string): string[] {
   )) {
     const at = match.index;
     const tagged = /as\s+(\$[a-zA-Z0-9_]*\$)/i.exec(sql.slice(at));
-    if (tagged === null) continue;
+    if (tagged === null) {
+      continue;
+    }
     const header = sql.slice(at, at + tagged.index);
     const bodyStart = at + tagged.index + tagged[0].length;
     const bodyEnd = sql.indexOf(tagged[1] ?? "$$", bodyStart);
-    if (bodyEnd === -1) continue;
+    if (bodyEnd === -1) {
+      continue;
+    }
     const name =
       /function\s+(?:(?:"[^"]+"|[a-z_][\w$]*)\s*\.\s*)?(?:"([^"]+)"|([a-z_][\w$]*))\s*\(/i.exec(
         header,
       );
     const found = name?.[1] ?? name?.[2];
-    if (found === undefined || !granted.has(found)) continue;
-    if (WRITE_GUARD_ALLOWLIST.has(found)) continue;
-    if (!/\bsecurity\s+definer\b/i.test(header)) continue;
+    if (found === undefined || !granted.has(found)) {
+      continue;
+    }
+    if (WRITE_GUARD_ALLOWLIST.has(found)) {
+      continue;
+    }
+    if (!/\bsecurity\s+definer\b/i.test(header)) {
+      continue;
+    }
     const body = sql.slice(bodyStart, bodyEnd);
     if (
       WRITE.test(body) &&

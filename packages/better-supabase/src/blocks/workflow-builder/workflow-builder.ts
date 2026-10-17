@@ -184,7 +184,9 @@ export function createWorkflowBuilder<
     input: RunInput & { readonly trigger?: WorkflowTrigger },
   ): AsyncResult<string> => {
     const start = starterOf();
-    if (start === undefined) return AsyncResult.err(missingStarter());
+    if (start === undefined) {
+      return AsyncResult.err(missingStarter());
+    }
     return startTarget(
       caller,
       {
@@ -321,8 +323,12 @@ export function createWorkflowBuilder<
               found,
               publishOptions.claims,
             );
-            if (!refusal.ok) return refusal;
-            if (refusal.data !== undefined) return err(refusal.data);
+            if (!refusal.ok) {
+              return refusal;
+            }
+            if (refusal.data !== undefined) {
+              return err(refusal.data);
+            }
           }
           let compiled: unknown = null;
           if (options.compile !== undefined && found.status !== "published") {
@@ -370,7 +376,9 @@ export function createWorkflowBuilder<
       diff: (from, to) =>
         getVersion(from).andThen(async (before) => {
           const after = await getVersion(to);
-          if (!after.ok) return after;
+          if (!after.ok) {
+            return after;
+          }
           if (before === undefined || after.data === undefined) {
             return err(dbError("not_found", "No such workflow version"));
           }
@@ -385,7 +393,9 @@ export function createWorkflowBuilder<
     run: (input) => runWith(call, input),
     test: (input) => {
       const start = starterOf();
-      if (start === undefined) return AsyncResult.err(missingStarter());
+      if (start === undefined) {
+        return AsyncResult.err(missingStarter());
+      }
       return call(
         "start_test_run",
         {
@@ -519,7 +529,9 @@ export function createWorkflowBuilder<
               ...(tenant === undefined ? {} : { tenant }),
               ...(subject === undefined ? {} : { subject }),
             });
-            if (!started.ok) return started;
+            if (!started.ok) {
+              return started;
+            }
             runs.push(started.data);
           }
           return ok(runs);
@@ -600,7 +612,9 @@ export function createWorkflowBuilder<
             (value) =>
               credentialOf(recordOf(value, "save_workflow_credential")),
           );
-        if (input.secret === undefined) return save();
+        if (input.secret === undefined) {
+          return save();
+        }
         if (!credentialRefInTenant(input.ref, input.tenant)) {
           return AsyncResult.err(foreignCredentialRef(input.tenant));
         }
@@ -626,7 +640,9 @@ export function createWorkflowBuilder<
             return err(dbError("not_found", "No such credential"));
           }
           const provider = providerFor(row.ref);
-          if (provider === undefined) return err(noProvider(row.ref));
+          if (provider === undefined) {
+            return err(noProvider(row.ref));
+          }
           if (
             provider.startAuthorization === undefined ||
             !provider.capabilities(row.ref).authorization
@@ -653,11 +669,19 @@ export function createWorkflowBuilder<
         call("remove_workflow_credential", { credential: id }, (value) =>
           isRecord(value) ? credentialOf(value) : undefined,
         ).andThen(async (row) => {
-          if (row === undefined) return ok(false);
-          if (!credentialRefInTenant(row.ref, row.tenant)) return ok(true);
+          if (row === undefined) {
+            return ok(false);
+          }
+          if (!credentialRefInTenant(row.ref, row.tenant)) {
+            return ok(true);
+          }
           const provider = providerFor(row.ref);
-          if (provider === undefined) return err(noProvider(row.ref));
-          if (!provider.capabilities(row.ref).revoke) return ok(true);
+          if (provider === undefined) {
+            return err(noProvider(row.ref));
+          }
+          if (!provider.capabilities(row.ref).revoke) {
+            return ok(true);
+          }
           const revoked = await provider.revoke(row.ref, {
             subject: { type: "app" },
           });
@@ -672,7 +696,9 @@ export function createWorkflowBuilder<
             return err(foreignCredentialRef(row.tenant));
           }
           const provider = providerFor(row.ref);
-          if (provider === undefined) return err(noProvider(row.ref));
+          if (provider === undefined) {
+            return err(noProvider(row.ref));
+          }
           return provider.getToken(row.ref, {
             subject: { type: "app" },
             scopes: row.scopes,
@@ -761,7 +787,9 @@ function hooked<F extends object>(
   },
 ): WorkflowBuilder<F> {
   const hooks = options.hooks;
-  if (hooks === undefined) return builder;
+  if (hooks === undefined) {
+    return builder;
+  }
   const logger = options.logger ? { logger: options.logger } : {};
   const block = (group: string) => ({
     block: `workflow-builder.${group}`,
@@ -823,9 +851,13 @@ function exampleStubs(
   const schemas = new Map(steps.map((step) => [step.name, step.outputSchema]));
   const stubs: Record<string, unknown> = {};
   for (const node of version.graph?.nodes ?? []) {
-    if (node.kind !== "step" || node.step === undefined) continue;
+    if (node.kind !== "step" || node.step === undefined) {
+      continue;
+    }
     const schema = schemas.get(node.step);
-    if (schema === undefined) continue;
+    if (schema === undefined) {
+      continue;
+    }
     const examples = schema["examples"];
     if (Array.isArray(examples) && examples.length > 0) {
       stubs[node.id] = examples[0];
@@ -893,7 +925,9 @@ function webhookToken(request: Request): string | undefined {
 
 async function bodyOf(request: Request): Promise<unknown> {
   const text = await request.text();
-  if (text.length === 0) return {};
+  if (text.length === 0) {
+    return {};
+  }
   try {
     const parsed: unknown = JSON.parse(text);
     return parsed;

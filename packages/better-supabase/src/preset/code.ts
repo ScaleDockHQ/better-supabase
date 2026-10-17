@@ -32,7 +32,9 @@ const LAYOUT: PresetLayout = {
 };
 
 function toBase62(value: bigint): string {
-  if (value === 0n) return "0";
+  if (value === 0n) {
+    return "0";
+  }
   let out = "";
   let rest = value;
   while (rest > 0n) {
@@ -45,7 +47,9 @@ function toBase62(value: bigint): string {
 /** `text` holds only base62 digits (`isPresetCode`). */
 function fromBase62(text: string): bigint {
   let value = 0n;
-  for (const char of text) value = value * 62n + BigInt(BASE62.indexOf(char));
+  for (const char of text) {
+    value = value * 62n + BigInt(BASE62.indexOf(char));
+  }
   return value;
 }
 
@@ -59,7 +63,9 @@ function valueOf(
   const entry: unknown = Object.entries(preset).find(
     ([name]) => name === key,
   )?.[1];
-  if (typeof entry === "string") return entry;
+  if (typeof entry === "string") {
+    return entry;
+  }
   return Array.isArray(entry) &&
     entry.every((each): each is string => typeof each === "string")
     ? entry
@@ -100,7 +106,9 @@ function encodeWith(
     if (field.multi === true) {
       const list = typeof given === "string" ? [given] : given;
       bits = 0n;
-      for (const each of list) bits |= 1n << BigInt(indexIn(field, each));
+      for (const each of list) {
+        bits |= 1n << BigInt(indexIn(field, each));
+      }
     } else {
       bits = BigInt(indexIn(field, typeof given === "string" ? given : ""));
     }
@@ -182,22 +190,34 @@ export function decodePreset(
     if (field.multi === true) {
       const list: string[] = [];
       field.values.forEach((each, index) => {
-        if ((bits >> BigInt(index)) & 1n) list.push(each);
+        if ((bits >> BigInt(index)) & 1n) {
+          list.push(each);
+        }
       });
-      if (bits >> BigInt(field.values.length) !== 0n) newer(code, field.key);
+      if (bits >> BigInt(field.values.length) !== 0n) {
+        newer(code, field.key);
+      }
       conventions[field.key] = list;
     } else {
       const each = field.values[Number(bits)];
-      if (each === undefined) newer(code, field.key);
+      if (each === undefined) {
+        newer(code, field.key);
+      }
       conventions[field.key] = each;
     }
   }
   const blocks: string[] = [];
   for (let index = 0; value > 0n; index += 1, value >>= 1n) {
-    if ((value & 1n) === 0n) continue;
-    if (index >= layout.blocks.length) newer(code, "blocks");
+    if ((value & 1n) === 0n) {
+      continue;
+    }
+    if (index >= layout.blocks.length) {
+      newer(code, "blocks");
+    }
     const name = layout.blocks[index];
-    if (name !== null && name !== undefined) blocks.push(name);
+    if (name !== null && name !== undefined) {
+      blocks.push(name);
+    }
   }
   return {
     // Every field in the layout was read or defaulted above, each to one of

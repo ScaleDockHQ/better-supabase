@@ -112,7 +112,9 @@ function visibleCase(
     );
   }
   const rest = subjectReadable(ctx, subjects, args);
-  if (whens.length === 0) return rest;
+  if (whens.length === 0) {
+    return rest;
+  }
   return `case ${args.type}
 ${whens.join("\n")}
     else ${rest}
@@ -120,9 +122,13 @@ ${whens.join("\n")}
 }
 
 function inboxBackfill(ctx: ModuleContext): string {
-  if (!ctx.manages || !ctx.installed("inbox")) return "";
+  if (!ctx.manages || !ctx.installed("inbox")) {
+    return "";
+  }
   const inbox = ctx.of("inbox");
-  if (inbox.mode === "custom") return "";
+  if (inbox.mode === "custom") {
+    return "";
+  }
   const mc = (column: string): string => inbox.col("messages", column);
   const c = (column: string): string => ctx.col("reactions", column);
   return `-- Copies the reactions inbox messages kept in their jsonb column, without
@@ -142,7 +148,9 @@ select set_config('better_supabase.reactions_backfill', '', true);
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const reactions = ctx.table("reactions");
   const emojiTable = ctx.table("emoji");
   const c = (column: string): string => ctx.col("reactions", column);

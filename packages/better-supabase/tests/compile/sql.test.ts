@@ -14,13 +14,17 @@ import { schema } from "../fixtures/generated-camel.ts";
 
 function table(key: string): TableMeta {
   const found = schema.meta.tables[key];
-  if (!found) throw new Error(`No fixture table ${key}`);
+  if (!found) {
+    throw new Error(`No fixture table ${key}`);
+  }
   return found;
 }
 
 function relation(from: TableMeta, name: string): RelationMeta {
   const found = from.relations[name];
-  if (!found) throw new Error(`No relation ${name} on ${from.key}`);
+  if (!found) {
+    throw new Error(`No relation ${name} on ${from.key}`);
+  }
   return found;
 }
 
@@ -84,7 +88,9 @@ const pathCol = (
 
 function rows(op: SelectOp): { text: string; params: readonly unknown[] } {
   const plan = compileSql(op);
-  if (!plan.rows) throw new Error("Expected a rows query");
+  if (!plan.rows) {
+    throw new Error("Expected a rows query");
+  }
   return plan.rows;
 }
 
@@ -92,8 +98,9 @@ function invalid(fn: () => unknown): string {
   try {
     fn();
   } catch (error) {
-    if (error instanceof DbException && error.kind === "invalid_request")
+    if (error instanceof DbException && error.kind === "invalid_request") {
       return error.message;
+    }
     throw error;
   }
   throw new Error("Expected an invalid_request DbException");

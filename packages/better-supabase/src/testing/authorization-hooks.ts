@@ -35,11 +35,12 @@ export function testAuthorizationHooks(
     where: string,
   ): Promise<void> => {
     const kept = await policy(event, subscribers);
-    for (const entry of kept)
+    for (const entry of kept) {
       expect(
         subscribers.includes(entry),
         `${where} returned a subscriber it was not given`,
       );
+    }
     expect(
       (await policy(event, [])).length === 0,
       `${where} returned subscribers from an empty list`,

@@ -19,7 +19,9 @@ const NOT_FOUND_PATH = "/_not-found-docs";
  */
 export function proxy(request: NextRequest): NextResponse {
   const slug = docsPathSlug(request.nextUrl.pathname);
-  if (slug === undefined) return NextResponse.next();
+  if (slug === undefined) {
+    return NextResponse.next();
+  }
 
   if (!pageSlugs.has(slug)) {
     return NextResponse.rewrite(new URL(NOT_FOUND_PATH, request.url));

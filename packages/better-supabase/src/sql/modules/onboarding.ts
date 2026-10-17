@@ -59,7 +59,9 @@ function idOf(value: unknown, path: string): string {
 }
 
 function eventsOf(value: unknown, path: string): readonly string[] {
-  if (value === undefined) return [];
+  if (value === undefined) {
+    return [];
+  }
   if (!Array.isArray(value)) {
     throw new TypeError(`${path}: pass an array of outbox event types`);
   }
@@ -75,7 +77,9 @@ function eventsOf(value: unknown, path: string): readonly string[] {
 /** The steps of every `defineChecklist()` result in `options.checklists`. */
 function checklistSteps(ctx: ModuleContext): readonly StepOption[] {
   const option = ctx.option("checklists");
-  if (option === undefined) return [];
+  if (option === undefined) {
+    return [];
+  }
   if (!Array.isArray(option) && !isObject(option)) {
     throw new TypeError(`${where}: pass an array of defineChecklist() results`);
   }
@@ -86,7 +90,9 @@ function checklistSteps(ctx: ModuleContext): readonly StepOption[] {
   const seen = new Set<string>();
   for (const [index, entry] of list.entries()) {
     const path = `${where}[${index}]`;
-    if (!isObject(entry)) throw new TypeError(`${path}: not a checklist`);
+    if (!isObject(entry)) {
+      throw new TypeError(`${path}: not a checklist`);
+    }
     const checklist = idOf(entry["id"], `${path}.id`);
     if (seen.has(checklist)) {
       throw new TypeError(`${path}.id: "${checklist}" is listed twice`);
@@ -97,13 +103,15 @@ function checklistSteps(ctx: ModuleContext): readonly StepOption[] {
       throw new TypeError(`${path}.scope: use "user" or "organization"`);
     }
     const raw = entry["steps"];
-    if (!Array.isArray(raw))
+    if (!Array.isArray(raw)) {
       throw new TypeError(`${path}.steps: pass an array`);
+    }
     const entries: readonly unknown[] = raw;
     const ids = new Set<string>();
     for (const [n, item] of entries.entries()) {
-      if (!isObject(item))
+      if (!isObject(item)) {
         throw new TypeError(`${path}.steps[${n}]: not a step`);
+      }
       const step = idOf(item["id"], `${path}.steps[${n}].id`);
       if (ids.has(step)) {
         throw new TypeError(
@@ -123,7 +131,9 @@ function checklistSteps(ctx: ModuleContext): readonly StepOption[] {
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const id = ctx.idType;
   const p = ctx.table("progress");
   const c = (logical: string): string => ctx.col("progress", logical);
@@ -291,7 +301,9 @@ ${eventSteps(ctx, steps)}`;
  */
 function eventSteps(ctx: ModuleContext, steps: readonly StepOption[]): string {
   const rows = steps.flatMap((s) => s.events.map((event) => ({ ...s, event })));
-  if (rows.length === 0) return "";
+  if (rows.length === 0) {
+    return "";
+  }
   if (!ctx.installed("outbox")) {
     throw new TypeError(`${where}: steps with events need the outbox module`);
   }

@@ -65,10 +65,14 @@ export function createUsageMeterController(
     { meters: undefined, error: undefined },
     (state) => {
       const refresh = async (): Promise<void> => {
-        if (organizationId === null) return;
+        if (organizationId === null) {
+          return;
+        }
         const run = state.run();
         const result = await client.overview(organizationId);
-        if (run !== state.run()) return;
+        if (run !== state.run()) {
+          return;
+        }
         state.set(
           result.ok
             ? { meters: pick(result.data).map(readingOf), error: undefined }

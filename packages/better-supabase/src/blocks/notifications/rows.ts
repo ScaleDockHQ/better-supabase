@@ -38,7 +38,9 @@ export function cursorOf(before: ListOptions["cursor"]): {
   readonly before: string | null;
   readonly before_id: string | null;
 } {
-  if (before === undefined) return { before: null, before_id: null };
+  if (before === undefined) {
+    return { before: null, before_id: null };
+  }
   if ("epochNanoseconds" in before) {
     return { before: before.toString(), before_id: null };
   }

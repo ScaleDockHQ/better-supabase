@@ -1,9 +1,15 @@
 import { isPlainObject } from "./clone.ts";
 
 function sameValue(prev: unknown, next: unknown): boolean {
-  if (Object.is(prev, next)) return true;
-  if (typeof prev !== "object" || typeof next !== "object") return false;
-  if (prev === null || next === null) return false;
+  if (Object.is(prev, next)) {
+    return true;
+  }
+  if (typeof prev !== "object" || typeof next !== "object") {
+    return false;
+  }
+  if (prev === null || next === null) {
+    return false;
+  }
   // Temporal values and dates: equal when their full-precision JSON is.
   return (
     Object.getPrototypeOf(prev) === Object.getPrototypeOf(next) &&
@@ -36,14 +42,18 @@ export function shareStructure<T>(prev: unknown, next: T): T {
     const byId = new Map<unknown, unknown>();
     for (const item of before) {
       const id = idOf(item);
-      if (id !== undefined) byId.set(id, item);
+      if (id !== undefined) {
+        byId.set(id, item);
+      }
     }
     let same = before.length === after.length;
     const shared = after.map((item, index) => {
       const id = idOf(item);
       const match = id === undefined ? before[index] : byId.get(id);
       const value = shareStructure(match, item);
-      if (value !== before[index]) same = false;
+      if (value !== before[index]) {
+        same = false;
+      }
       return value;
     });
     // SAFETY: `shared` holds `next`'s items or equal ones from `prev`.
@@ -55,7 +65,9 @@ export function shareStructure<T>(prev: unknown, next: T): T {
     const shared: Record<string, unknown> = {};
     for (const key of keys) {
       const value = shareStructure(prev[key], next[key]);
-      if (!Object.hasOwn(prev, key) || value !== prev[key]) same = false;
+      if (!Object.hasOwn(prev, key) || value !== prev[key]) {
+        same = false;
+      }
       shared[key] = value;
     }
     // SAFETY: `shared` has `next`'s keys with equal values.

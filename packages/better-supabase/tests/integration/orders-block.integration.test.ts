@@ -40,7 +40,9 @@ function fakePayments(): PaymentProvider & {
     createPayment(input, options) {
       const key = options?.idempotencyKey ?? "";
       const existing = byKey.get(key);
-      if (existing) return AsyncResult.ok(existing);
+      if (existing) {
+        return AsyncResult.ok(existing);
+      }
       const payment: Payment = {
         id: `${prefix}${String(created.size + 1)}`,
         provider: "fake",

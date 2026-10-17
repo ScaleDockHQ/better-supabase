@@ -34,11 +34,15 @@ export interface ModuleFileState {
 export async function moduleFiles(
   context: DoctorContext,
 ): Promise<ModuleFileState[]> {
-  if (context.config.blockNames.length === 0) return [];
+  if (context.config.blockNames.length === 0) {
+    return [];
+  }
   // BS411 reports a provider access model the provider can't back; the module
   // can't render without it, so there is nothing to compare.
   const access = accessModule(context);
-  if (access.kind === "invalid") return [];
+  if (access.kind === "invalid") {
+    return [];
+  }
   const readSets = context.readSets;
   const skipped = readSets !== undefined && "skipped" in readSets;
   let rendered: ModuleFile[];
@@ -70,7 +74,9 @@ export async function moduleFiles(
       `${migrationsDir(context.config)}/<stamp>${MODULES_SUFFIX}`;
     return Promise.all(
       files.map(async (file): Promise<ModuleFileState> => {
-        if (file.kind === "test") return fileState(context, file);
+        if (file.kind === "test") {
+          return fileState(context, file);
+        }
         const installed = versions.get(file.module);
         return {
           file,

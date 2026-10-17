@@ -109,7 +109,9 @@ export function docsWebMcpTools(fetcher: Fetch = fetch): readonly WebMcpTool[] {
       annotations: { readOnlyHint: true },
       async execute(input, options) {
         const parsed = v.safeParse(PageInput, input);
-        if (!parsed.success) return { error: "Pass the page's url." };
+        if (!parsed.success) {
+          return { error: "Pass the page's url." };
+        }
         const url = docsUrl(parsed.output.url);
         const response = await fetcher(markdownUrl(url), {
           signal: options?.signal ?? null,

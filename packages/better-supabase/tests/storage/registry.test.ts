@@ -109,7 +109,9 @@ describe("defineBuckets", () => {
       { bucket: "files", path: "o1/files/f1.pdf" },
       { tenant: "o1" },
     );
-    if (!ref.ok) throw new Error(ref.error.message);
+    if (!ref.ok) {
+      throw new Error(ref.error.message);
+    }
     expect(ref.data.bucket).toBe(files);
     expect(ref.data.path).toBe("o1/files/f1.pdf");
     expect(ref.data.storage.bucket).toBe(files);

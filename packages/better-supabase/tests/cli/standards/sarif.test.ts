@@ -90,9 +90,10 @@ describe("SARIF 2.1.0", () => {
   });
 
   it("every result has a physical location (GitHub code scanning needs one)", async () => {
-    for (const result of (await report()).runs[0]!.results)
+    for (const result of (await report()).runs[0]!.results) {
       expect(
         result.locations?.[0]?.physicalLocation.artifactLocation.uri,
       ).toMatch(/\S/);
+    }
   });
 });

@@ -189,10 +189,18 @@ function audienceFields(audience: AnnouncementAudience): {
 /** The columns `save_announcement` sets, from the fields the input names. */
 function fieldsOf(input: Partial<AnnouncementInput>): Record<string, unknown> {
   const fields: Record<string, unknown> = {};
-  if (input.title !== undefined) fields["title"] = input.title;
-  if (input.body !== undefined) fields["body"] = input.body;
-  if (input.severity !== undefined) fields["severity"] = input.severity;
-  if (input.href !== undefined) fields["href"] = input.href;
+  if (input.title !== undefined) {
+    fields["title"] = input.title;
+  }
+  if (input.body !== undefined) {
+    fields["body"] = input.body;
+  }
+  if (input.severity !== undefined) {
+    fields["severity"] = input.severity;
+  }
+  if (input.href !== undefined) {
+    fields["href"] = input.href;
+  }
   if (input.audience !== undefined) {
     Object.assign(fields, audienceFields(input.audience));
   }

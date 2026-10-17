@@ -71,10 +71,13 @@ async function unmigratedExtensions(
   );
   const created = new Set<string>();
   for (const name of existing) {
-    if (!name.endsWith(".sql") || name.endsWith(DATA_SUFFIX)) continue;
+    if (!name.endsWith(".sql") || name.endsWith(DATA_SUFFIX)) {
+      continue;
+    }
     const text = await readFile(resolve(config.root, dir, name), "utf-8");
-    for (const match of text.matchAll(MIGRATION_EXTENSION))
+    for (const match of text.matchAll(MIGRATION_EXTENSION)) {
       created.add(match[1]!.toLowerCase());
+    }
   }
   return {
     dir,
@@ -92,9 +95,13 @@ export async function writeExtensionsMigration(
   now: Now,
 ): Promise<string[]> {
   const { dir, existing, missing } = await unmigratedExtensions(config, files);
-  if (missing.length === 0) return [];
+  if (missing.length === 0) {
+    return [];
+  }
   const path = `${dir}/${stampAfter(existing, new Date(now().getTime() - 1000))}${EXTENSIONS_SUFFIX}`;
-  if (dryRun) return [`Would write ${path}`];
+  if (dryRun) {
+    return [`Would write ${path}`];
+  }
   await writeIfChanged(
     resolve(config.root, path),
     `-- better-supabase sql: the extensions of ${missing.map((extension) => extension.name).join(", ")}, created before the schema migration that needs them.\n\n${missing.map((extension) => extension.statement).join("\n")}\n`,

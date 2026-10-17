@@ -108,7 +108,9 @@ function meta(
   const set = Object.entries(entries).filter(
     ([, value]) => value !== undefined,
   );
-  if (set.length === 0) return "";
+  if (set.length === 0) {
+    return "";
+  }
   const object = `{ ${set.map(([key, value]) => `${key}: ${JSON.stringify(value)}`).join(", ")} }`;
   return flavor === "mini" ? `.check(z.meta(${object}))` : `.meta(${object})`;
 }
@@ -129,14 +131,19 @@ function field(
       : plan.column.storage === undefined
         ? `${scalar(plan.scalar)}${bounds(docs, flavor)}`
         : `(z.string() as unknown as ${typeName(flavor)}<${rowType(table, plan)}>)`);
-  if (plan.column.array) expr = `z.array(${expr})`;
-  if (plan.nullable) expr = mini ? `z.nullable(${expr})` : `${expr}.nullable()`;
+  if (plan.column.array) {
+    expr = `z.array(${expr})`;
+  }
+  if (plan.nullable) {
+    expr = mini ? `z.nullable(${expr})` : `${expr}.nullable()`;
+  }
   expr += meta(
     { description: docs.description, examples: docs.examples },
     flavor,
   );
-  if (plan.optional)
+  if (plan.optional) {
     expr = mini ? `z.exactOptional(${expr})` : `${expr}.exactOptional()`;
+  }
   return `  ${propertyKey(plan.name)}: ${expr},`;
 }
 
@@ -220,7 +227,9 @@ export function zod(options: ZodGeneratorOptions = {}): Generator {
         "export const validators: {",
       );
       for (const [key, table] of tableEntries(input)) {
-        if (!variantsFor(table).includes("Insert")) continue;
+        if (!variantsFor(table).includes("Insert")) {
+          continue;
+        }
         lines.push(
           `  readonly ${propertyKey(key)}: { readonly insert: typeof ${schemaName(key, "Insert")}; readonly update: typeof ${schemaName(key, "Update")} };`,
         );

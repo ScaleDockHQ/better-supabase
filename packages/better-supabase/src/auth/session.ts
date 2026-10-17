@@ -70,7 +70,9 @@ export function sessionCookieName(url: string): string {
   let name = cookieNames.get(url);
   if (name === undefined) {
     name = `sb-${new URL(url).hostname.split(".")[0] ?? ""}-auth-token`;
-    if (cookieNames.size < 16) cookieNames.set(url, name);
+    if (cookieNames.size < 16) {
+      cookieNames.set(url, name);
+    }
   }
   return name;
 }
@@ -139,7 +141,9 @@ function readSessionParts(
 ): ReadParts {
   let memo = readParts.get(cookies);
   const known = memo?.get(name);
-  if (known) return known;
+  if (known) {
+    return known;
+  }
   const byName = byNameOf(cookies);
   let result: ReadParts = { session: null, used: [] };
   const whole = byName.get(name);
@@ -149,7 +153,9 @@ function readSessionParts(
     const parts: string[] = [];
     for (let index = 0; ; index++) {
       const part = byName.get(`${name}.${index}`);
-      if (!part) break;
+      if (!part) {
+        break;
+      }
       parts.push(part);
     }
     for (let length = parts.length; length > 0; length--) {
@@ -172,7 +178,9 @@ function readSessionParts(
 }
 
 function isStoredSession(value: unknown): value is StoredSession {
-  if (typeof value !== "object" || value === null) return false;
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
   // SAFETY: value is a non-null object here, and every field is checked below.
   const session = value as Record<string, unknown>;
   return (
@@ -205,7 +213,9 @@ export function pruneSessionChunks(
   options: CookieOptions = {},
 ): CookieWrite[] {
   const { session, used } = readSessionParts(cookies, name);
-  if (!session) return [];
+  if (!session) {
+    return [];
+  }
   const kept = new Set(used);
   const base: CookieOptions = { ...DEFAULT_COOKIE_OPTIONS, ...options };
   return cookies
@@ -292,7 +302,9 @@ export function clearSessionAtScopes(
   name: string,
   scopes: readonly CookieScope[],
 ): CookieWrite[] {
-  if (scopes.length === 0) return [];
+  if (scopes.length === 0) {
+    return [];
+  }
   const chunks = existing
     .map((cookie) => cookie.name)
     .filter((cookie) => isChunkLike(cookie, name));
@@ -314,8 +326,11 @@ export function applyCookieWrites(
 ): CookieRecord[] {
   const next = new Map(cookies.map((cookie) => [cookie.name, cookie.value]));
   for (const write of writes) {
-    if (write.options.maxAge === 0) next.delete(write.name);
-    else next.set(write.name, write.value);
+    if (write.options.maxAge === 0) {
+      next.delete(write.name);
+    } else {
+      next.set(write.name, write.value);
+    }
   }
   return [...next].map(([name, value]) => ({ name, value }));
 }

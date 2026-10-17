@@ -99,7 +99,9 @@ function teamIdType(ctx: ModuleContext): "uuid" | "bigint" {
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const idType = teamIdType(ctx);
   const teams = ctx.table("teams");
   const members = ctx.table("members");
@@ -369,7 +371,9 @@ function membershipFk(
   tenant: string,
   user: string,
 ): string {
-  if (!ctx.installed("tenant")) return "";
+  if (!ctx.installed("tenant")) {
+    return "";
+  }
   const memberships = ctx.of("tenant");
   return `alter table ${members} drop constraint if exists team_members_membership_fkey;
 alter table ${members}
@@ -383,7 +387,9 @@ function membershipCheck(
   tenant: string,
   user: string,
 ): string {
-  if (!ctx.installed("tenant")) return "";
+  if (!ctx.installed("tenant")) {
+    return "";
+  }
   const memberships = ctx.of("tenant");
   return `if not exists (
     select 1 from ${memberships.table("memberships")} m
@@ -403,7 +409,9 @@ function inboxMove(
   name: string,
   slug: string,
 ): string {
-  if (!ctx.installed("inbox") || !ctx.manages) return "";
+  if (!ctx.installed("inbox") || !ctx.manages) {
+    return "";
+  }
   const inbox = ctx.of("inbox");
   const oldTeams = inbox.table("teams");
   const oldMembers = inbox.table("teamMembers");

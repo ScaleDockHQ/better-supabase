@@ -46,12 +46,16 @@ function scripted(answer: Answer = () => rowsOf([])) {
   };
   const op = (index = 0): Operation => {
     const found = ops[index];
-    if (!found) throw new Error(`No operation ${index}`);
+    if (!found) {
+      throw new Error(`No operation ${index}`);
+    }
     return found;
   };
   const select = (index = 0): SelectOp => {
     const found = op(index);
-    if (found.kind !== "select") throw new Error("Expected a select");
+    if (found.kind !== "select") {
+      throw new Error("Expected a select");
+    }
     return found;
   };
   return { executor, ops, contexts, op, select };
@@ -60,7 +64,9 @@ function scripted(answer: Answer = () => rowsOf([])) {
 function connect(answer?: Answer, plugins: AnyPlugin[] = []) {
   const fake = scripted(answer);
   let betterSupabase = defineSupabase(schema);
-  for (const plugin of plugins) betterSupabase = betterSupabase.use(plugin);
+  for (const plugin of plugins) {
+    betterSupabase = betterSupabase.use(plugin);
+  }
   return { db: betterSupabase.connect(fake.executor), ...fake };
 }
 
@@ -183,7 +189,9 @@ describe("single-row reads", () => {
 
   it("skips the default order for a table without a primary key", async () => {
     const tags = schema.meta.tables["tags"];
-    if (!tags) throw new Error("No tags table");
+    if (!tags) {
+      throw new Error("No tags table");
+    }
     const keyless: typeof schema = {
       meta: {
         ...schema.meta,
@@ -249,9 +257,13 @@ describe("count, exists and aggregate", () => {
 
   it("exists reads one non-sensitive column of a table without a primary key", async () => {
     const tags = schema.meta.tables["tags"];
-    if (!tags) throw new Error("No tags table");
+    if (!tags) {
+      throw new Error("No tags table");
+    }
     const [first, ...rest] = Object.entries(tags.columns);
-    if (!first) throw new Error("No tags columns");
+    if (!first) {
+      throw new Error("No tags columns");
+    }
     const keyless: typeof schema = {
       meta: {
         ...schema.meta,
@@ -1148,7 +1160,9 @@ describe("cursor pagination", () => {
         after: null,
       })
       .orThrow();
-    if (!("nextCursor" in first)) throw new Error("Expected a cursor page");
+    if (!("nextCursor" in first)) {
+      throw new Error("Expected a cursor page");
+    }
     expect(first.nextCursor).not.toBeNull();
     const again = await db.customers.paginate({
       select: ["id", "name"],

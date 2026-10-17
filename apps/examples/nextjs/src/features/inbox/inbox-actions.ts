@@ -51,15 +51,21 @@ export const loadThread = bs.action(
       inbox.conversations.get(conversationId),
       inbox.messages.list(conversationId, { limit: 100 }),
     ]);
-    if (!conversation.ok) return conversation;
-    if (!messages.ok) return messages;
+    if (!conversation.ok) {
+      return conversation;
+    }
+    if (!messages.ok) {
+      return messages;
+    }
     const { lastMessageAt, lastReadAt } = conversation.data ?? {};
     if (
       lastMessageAt &&
       (!lastReadAt || Temporal.Instant.compare(lastReadAt, lastMessageAt) < 0)
     ) {
       const read = await inbox.conversations.markRead(conversationId);
-      if (!read.ok) return read;
+      if (!read.ok) {
+        return read;
+      }
     }
     return ok({
       conversation:
@@ -135,7 +141,9 @@ export const askForHelp = bs.action(
       HELP_INBOX_ID,
       { subject: message.slice(0, 80), message, botMode: "bot" },
     );
-    if (!opened.ok) return opened;
+    if (!opened.ok) {
+      return opened;
+    }
     if (auth.kind === "user") {
       const userId = auth.user.id;
       after(() => answerHelp(supabase, userId, opened.data.id, message));
@@ -151,7 +159,9 @@ export const sendHelp = bs.action(
     const sent = await blocks(supabase).inbox.messages.send(conversationId, {
       body: message,
     });
-    if (!sent.ok) return sent;
+    if (!sent.ok) {
+      return sent;
+    }
     if (auth.kind === "user") {
       const userId = auth.user.id;
       after(() => answerHelp(supabase, userId, conversationId, message));

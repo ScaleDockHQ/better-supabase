@@ -292,7 +292,9 @@ const idOf = (value: unknown): { readonly id: string } => ({
 function itemOf(input: object): Record<string, unknown> {
   const item: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(input)) {
-    if (value === undefined) continue;
+    if (value === undefined) {
+      continue;
+    }
     item[key] =
       value !== null && typeof value === "object" && !Array.isArray(value)
         ? String(value)

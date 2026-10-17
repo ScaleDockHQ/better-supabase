@@ -46,8 +46,9 @@ const supabase = (cwd: string, args: string[]) => {
     encoding: "utf-8",
     maxBuffer: 64 * 1024 * 1024,
   });
-  if (run.status !== 0)
+  if (run.status !== 0) {
     throw new Error(`supabase ${args.join(" ")}:\n${run.stdout}${run.stderr}`);
+  }
   return run.stdout;
 };
 
@@ -73,18 +74,22 @@ const startWhenPortFree = async (cwd: string) => {
         env: ENV,
         encoding: "utf-8",
       });
-      if (run.status === 0) return;
+      if (run.status === 0) {
+        return;
+      }
       const output = `${run.stdout}${run.stderr}`;
-      if (!/address already in use|port is already allocated/i.test(output))
+      if (!/address already in use|port is already allocated/i.test(output)) {
         throw new Error(`supabase db start:\n${output}`);
+      }
       spawnSync(SUPABASE, ["stop", "--no-backup"], {
         cwd,
         env: ENV,
         stdio: "ignore",
       });
     }
-    if (Date.now() > deadline)
+    if (Date.now() > deadline) {
       throw new Error(`Port ${String(DB_PORT)} stayed in use`);
+    }
     await sleep(1000);
   }
 };
@@ -120,7 +125,9 @@ declarative_schema_path = "./schemas"
     });
 
     afterAll(async () => {
-      if (root === "") return;
+      if (root === "") {
+        return;
+      }
       spawnSync(SUPABASE, ["stop", "--no-backup"], {
         cwd: root,
         env: ENV,

@@ -92,7 +92,9 @@ function dedupe(diagnostics: readonly SpecDiagnostic[]): SpecDiagnostic[] {
   const seen = new Set<string>();
   return diagnostics.filter((diagnostic) => {
     const key = `${diagnostic.code}\u0000${diagnostic.pointer ?? ""}\u0000${diagnostic.message}`;
-    if (seen.has(key)) return false;
+    if (seen.has(key)) {
+      return false;
+    }
     seen.add(key);
     return true;
   });

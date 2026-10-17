@@ -63,8 +63,9 @@ export function paginationWorkflows(
             (parameter) =>
               parameter.name === "after" && parameter.in === "query",
           )
-        )
+        ) {
           return [];
+        }
         const name = pascal(table);
         return [
           {
@@ -144,7 +145,9 @@ export function createThenGetWorkflows(
         const create = resourceOf(operations, table, "create");
         const get = resourceOf(operations, table, "get");
         const key = get ? pathParameter(get) : undefined;
-        if (!create || !get || key === undefined) return [];
+        if (!create || !get || key === undefined) {
+          return [];
+        }
         const name = pascal(table);
         return [
           {

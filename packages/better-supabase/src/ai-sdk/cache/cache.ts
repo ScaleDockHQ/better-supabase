@@ -46,39 +46,58 @@ const DATE = "$date";
 const URL_TAG = "$url";
 
 function encode(value: unknown): unknown {
-  if (value instanceof Date) return { [DATE]: value.toISOString() };
+  if (value instanceof Date) {
+    return { [DATE]: value.toISOString() };
+  }
   if (value instanceof Uint8Array) {
     let binary = "";
-    for (const byte of value) binary += String.fromCodePoint(byte);
+    for (const byte of value) {
+      binary += String.fromCodePoint(byte);
+    }
     return { [BYTES]: btoa(binary) };
   }
-  if (value instanceof URL) return { [URL_TAG]: value.href };
-  if (Array.isArray(value)) return value.map(encode);
+  if (value instanceof URL) {
+    return { [URL_TAG]: value.href };
+  }
+  if (Array.isArray(value)) {
+    return value.map(encode);
+  }
   if (isRecord(value)) {
     const out: Record<string, unknown> = {};
-    for (const [key, item] of Object.entries(value))
-      if (item !== undefined && typeof item !== "function")
+    for (const [key, item] of Object.entries(value)) {
+      if (item !== undefined && typeof item !== "function") {
         out[key] = encode(item);
+      }
+    }
     return out;
   }
   return value;
 }
 
 function decode(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(decode);
-  if (!isRecord(value)) return value;
+  if (Array.isArray(value)) {
+    return value.map(decode);
+  }
+  if (!isRecord(value)) {
+    return value;
+  }
   const keys = Object.keys(value);
-  if (keys.length === 1 && typeof value[DATE] === "string")
+  if (keys.length === 1 && typeof value[DATE] === "string") {
     return new Date(value[DATE]);
-  if (keys.length === 1 && typeof value[URL_TAG] === "string")
+  }
+  if (keys.length === 1 && typeof value[URL_TAG] === "string") {
     return new URL(value[URL_TAG]);
-  if (keys.length === 1 && typeof value[BYTES] === "string")
+  }
+  if (keys.length === 1 && typeof value[BYTES] === "string") {
     return Uint8Array.from(
       atob(value[BYTES]),
       (char) => char.codePointAt(0) ?? 0,
     );
+  }
   const out: Record<string, unknown> = {};
-  for (const [key, item] of Object.entries(value)) out[key] = decode(item);
+  for (const [key, item] of Object.entries(value)) {
+    out[key] = decode(item);
+  }
   return out;
 }
 
@@ -133,13 +152,17 @@ export function cacheMiddleware(
         ? {}
         : { organizationId: options.organizationId }),
     });
-    if (!saved.ok) options.onError?.(saved.error);
+    if (!saved.ok) {
+      options.onError?.(saved.error);
+    }
   };
 
   return {
     specificationVersion: "v4",
     wrapGenerate: async (call) => {
-      if (options.when?.(call) === false) return call.doGenerate();
+      if (options.when?.(call) === false) {
+        return call.doGenerate();
+      }
       const key = await keyOf(call, "generate");
       const cached = await read(key);
       if (isRecord(cached)) {
@@ -158,7 +181,9 @@ export function cacheMiddleware(
       return result;
     },
     wrapStream: async (call) => {
-      if (options.when?.(call) === false) return call.doStream();
+      if (options.when?.(call) === false) {
+        return call.doStream();
+      }
       const key = await keyOf(call, "stream");
       const cached = await read(key);
       if (isRecord(cached) && Array.isArray(cached["parts"])) {
@@ -181,13 +206,18 @@ export function cacheMiddleware(
             if (
               part.type === "error" ||
               (part.type === "finish" && part.finishReason.unified === "error")
-            )
+            ) {
               failed = true;
-            if (part.type !== "raw") parts.push(part);
+            }
+            if (part.type !== "raw") {
+              parts.push(part);
+            }
             controller.enqueue(part);
           },
           async flush() {
-            if (!failed) await write(key, { parts }, call, "stream");
+            if (!failed) {
+              await write(key, { parts }, call, "stream");
+            }
           },
         }),
       );

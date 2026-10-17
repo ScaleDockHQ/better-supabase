@@ -18,7 +18,9 @@ export function toEventCalendarBookings(
   options: BookingEventOptions = {},
 ): EventCalendarEvent<Booking>[] {
   return bookings.flatMap((booking) => {
-    if (booking.status === "cancelled") return [];
+    if (booking.status === "cancelled") {
+      return [];
+    }
     const color = options.colorOf?.(booking);
     return [
       {
@@ -46,8 +48,11 @@ export function slotsByDay(
   for (const slot of sorted) {
     const day = slot.localStart.toPlainDate().toString();
     const list = days.get(day);
-    if (list === undefined) days.set(day, [slot]);
-    else list.push(slot);
+    if (list === undefined) {
+      days.set(day, [slot]);
+    } else {
+      list.push(slot);
+    }
   }
   return days;
 }

@@ -20,7 +20,9 @@ export function reportFormat(
     }
     return "json";
   }
-  if (args.format === undefined) return configured;
+  if (args.format === undefined) {
+    return configured;
+  }
   const format = FLAG_FORMATS.find((candidate) => candidate === args.format);
   if (!format) {
     throw new CliError(
@@ -40,18 +42,28 @@ export function explainClaims(args: {
 }): Record<string, unknown> | { error: string } {
   const as = args.as;
   const claims = args.claims;
-  if (as && claims) return { error: "Pass --as or --claims, not both" };
+  if (as && claims) {
+    return { error: "Pass --as or --claims, not both" };
+  }
   if (as) {
-    if (!UUID.test(as))
+    if (!UUID.test(as)) {
       return { error: `--as takes a user id (uuid), got "${as}"` };
+    }
     return { sub: as, role: "authenticated" };
   }
-  if (!claims) return { role: "anon" };
+  if (!claims) {
+    return { role: "anon" };
+  }
   try {
     // SAFETY: JSON.parse returns any, and the object check below narrows it.
     const parsed = JSON.parse(claims) as unknown;
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      Array.isArray(parsed)
+    ) {
       return { error: "--claims takes a JSON object" };
+    }
     // SAFETY: the check above narrows parsed to a plain object.
     return { role: "anon", ...(parsed as Record<string, unknown>) };
   } catch (cause) {

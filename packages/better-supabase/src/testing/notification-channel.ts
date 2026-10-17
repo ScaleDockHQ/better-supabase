@@ -77,16 +77,19 @@ export function testNotificationChannel(
       "sends a message without mutating it and returns a valid result",
       async () => {
         const result = await channel.send(message);
-        if (result === undefined) return;
+        if (result === undefined) {
+          return;
+        }
         expect(
           result.status === undefined || STATUSES.has(result.status),
           `status must be "sent" or "skipped", got ${String(result.status)}`,
         );
-        for (const key of ["provider", "providerMessageId"] as const)
+        for (const key of ["provider", "providerMessageId"] as const) {
           expect(
             result[key] === undefined || typeof result[key] === "string",
             `${key} must be a string`,
           );
+        }
       },
     ],
     options.received && [

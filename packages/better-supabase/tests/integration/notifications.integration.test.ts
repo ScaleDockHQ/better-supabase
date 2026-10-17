@@ -132,8 +132,9 @@ describe.skipIf(!live)("notifications", () => {
       for (const file of renderModules(
         ["organizations", "outbox", "notifications"],
         LAYOUT,
-      ))
+      )) {
         await client.query(file.contents);
+      }
 
       await s.as("owner");
       const organization = await s.value<string>(
@@ -507,8 +508,9 @@ describe.skipIf(!live)("notifications", () => {
         modules: {
           notifications: { columns: { events: { key: null } } },
         },
-      }))
+      })) {
         await client.query(file.contents);
+      }
       await s.as("owner");
       const organization = await s.value<string>(
         "better_supabase.create_organization($1)",
@@ -597,8 +599,9 @@ describe.skipIf(!live)("notifications", () => {
       for (const file of renderModules(
         ["organizations", "profiles", "notifications"],
         LAYOUT,
-      ))
+      )) {
         await client.query(file.contents);
+      }
       await client.query("select better_supabase.backfill_profiles()");
       await client.query(
         "update auth.users set raw_user_meta_data = jsonb_build_object('avatar_path', 'evil', 'picture', 'https://img.test/a.png') where id = $1",
@@ -726,8 +729,9 @@ describe.skipIf(!live)("notifications", () => {
       for (const file of renderModules(
         ["organizations", "notifications"],
         LAYOUT,
-      ))
+      )) {
         await client.query(file.contents);
+      }
       await s.as("owner");
       const organization = await s.value<string>(
         "better_supabase.create_organization($1)",

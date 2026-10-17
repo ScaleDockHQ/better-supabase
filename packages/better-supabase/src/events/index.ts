@@ -40,10 +40,13 @@ function subjectOf(
   row: Readonly<Record<string, unknown>>,
 ): string | undefined {
   const key = meta?.tables[table]?.primaryKey;
-  if (!key || key.length === 0) return undefined;
-  const values = key.map((column) => row[column]);
-  if (values.some((value) => value === undefined || value === null))
+  if (!key || key.length === 0) {
     return undefined;
+  }
+  const values = key.map((column) => row[column]);
+  if (values.some((value) => value === undefined || value === null)) {
+    return undefined;
+  }
   return `${table}/${values.map((value) => encodeURIComponent(String(value))).join(",")}`;
 }
 
@@ -103,12 +106,16 @@ export function forwardMutations(
   options: ForwardOptions,
 ): () => void {
   return betterSupabase.events.on("mutation", (notice) => {
-    if (options.filter && !options.filter(notice)) return;
+    if (options.filter && !options.filter(notice)) {
+      return;
+    }
     const events = toCloudEvents(notice, {
       ...options,
       meta: betterSupabase.meta,
     });
-    if (events.length === 0) return;
+    if (events.length === 0) {
+      return;
+    }
     const report = (error: unknown) => {
       (
         options.onError ??
@@ -163,8 +170,9 @@ export function toHttp(
             key === "data" ||
             key === "datacontenttype" ||
             value === undefined
-          )
+          ) {
             continue;
+          }
           headers[`ce-${key}`] = encodeURIComponent(String(value)).replaceAll(
             "%20",
             " ",
@@ -187,7 +195,9 @@ export function toHttp(
 }
 
 export function isCloudEvent(value: unknown): value is CloudEvent {
-  if (typeof value !== "object" || value === null) return false;
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
   // SAFETY: value is a non-null object here, and every field is checked below.
   const event = value as Record<string, unknown>;
   return (
@@ -204,26 +214,36 @@ export async function fromHttp(request: Request): Promise<CloudEvent[]> {
   const text = await request.text();
   if (contentType.startsWith(BATCH)) {
     const parsed: unknown = JSON.parse(text);
-    if (!Array.isArray(parsed) || !parsed.every(isCloudEvent))
+    if (!Array.isArray(parsed) || !parsed.every(isCloudEvent)) {
       throw new TypeError("Invalid CloudEvents batch");
+    }
     return parsed;
   }
   if (contentType.startsWith(STRUCTURED)) {
     const parsed: unknown = JSON.parse(text);
-    if (!isCloudEvent(parsed)) throw new TypeError("Invalid CloudEvent");
+    if (!isCloudEvent(parsed)) {
+      throw new TypeError("Invalid CloudEvent");
+    }
     return [parsed];
   }
   const event: Record<string, unknown> = {};
   for (const [key, value] of request.headers) {
-    if (key.startsWith("ce-")) event[key.slice(3)] = decodeURIComponent(value);
+    if (key.startsWith("ce-")) {
+      event[key.slice(3)] = decodeURIComponent(value);
+    }
   }
-  if (contentType) event["datacontenttype"] = contentType;
-  if (text)
+  if (contentType) {
+    event["datacontenttype"] = contentType;
+  }
+  if (text) {
     // SAFETY: JSON.parse returns any; this keeps the event data unknown.
     event["data"] = contentType.includes("json")
       ? (JSON.parse(text) as unknown)
       : text;
-  if (!isCloudEvent(event)) throw new TypeError("Request is not a CloudEvent");
+  }
+  if (!isCloudEvent(event)) {
+    throw new TypeError("Request is not a CloudEvent");
+  }
   return [event];
 }
 
@@ -254,8 +274,9 @@ export function httpSink(
             options.timeoutMs ?? HTTP_SINK_TIMEOUT_MS,
           ),
         });
-        if (!response.ok)
+        if (!response.ok) {
           throw new Error(`Event sink responded ${String(response.status)}`);
+        }
       }
     },
   };

@@ -41,8 +41,11 @@ export function keyValue(store: KeyValueStoreLike): KeyValue {
       return Promise.resolve();
     },
     remove: (key) => {
-      if (store.remove) store.remove(key);
-      else store.delete?.(key);
+      if (store.remove) {
+        store.remove(key);
+      } else {
+        store.delete?.(key);
+      }
       return Promise.resolve();
     },
   };

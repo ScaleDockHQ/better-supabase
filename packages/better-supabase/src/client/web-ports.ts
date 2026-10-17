@@ -80,8 +80,9 @@ function keyEvent(event: unknown): KeyEventLike | undefined {
     event === null ||
     !("key" in event) ||
     typeof event.key !== "string"
-  )
+  ) {
     return undefined;
+  }
   // SAFETY: an event with a string `key` is a KeyboardEvent, which carries the modifier flags and preventDefault.
   return event as KeyEventLike;
 }
@@ -137,7 +138,9 @@ export function webStorage(kind: "local" | "session" = "local"): StoragePort {
 export function webKeyboard(): KeyboardPort {
   return (shortcut, run) => {
     const target = browser().window;
-    if (!target) return () => undefined;
+    if (!target) {
+      return () => undefined;
+    }
     const onKey = (raw: unknown): void => {
       const event = keyEvent(raw);
       if (
@@ -146,8 +149,9 @@ export function webKeyboard(): KeyboardPort {
         (event.metaKey || event.ctrlKey) !== (shortcut.mod ?? false) ||
         event.shiftKey !== (shortcut.shift ?? false) ||
         event.altKey !== (shortcut.alt ?? false)
-      )
+      ) {
         return;
+      }
       event.preventDefault();
       run();
     };
@@ -180,7 +184,9 @@ export function webFilePicker(): FilePickerPort {
       const input = page.createElement("input");
       input.type = "file";
       input.multiple = options.multiple ?? false;
-      if (options.accept) input.accept = options.accept.join(",");
+      if (options.accept) {
+        input.accept = options.accept.join(",");
+      }
       input.addEventListener("change", () => {
         resolve([...(input.files ?? [])].map(pickedFile));
       });
@@ -197,7 +203,9 @@ export function webDeepLinks(): DeepLinkPort {
     initial: () => Promise.resolve(browser().window?.location.href ?? null),
     subscribe: (listener) => {
       const target = browser().window;
-      if (!target) return () => undefined;
+      if (!target) {
+        return () => undefined;
+      }
       const onChange = (): void => {
         listener(target.location.href);
       };
@@ -234,11 +242,16 @@ export function webPushToken(options: WebPushTokenOptions): PushTokenPort {
     token: async ({ request = true } = {}) => {
       const notification = browser().Notification;
       const worker = browser().navigator?.serviceWorker;
-      if (!notification || !worker) return null;
+      if (!notification || !worker) {
+        return null;
+      }
       let permission = notification.permission;
-      if (permission === "default" && request)
+      if (permission === "default" && request) {
         permission = await notification.requestPermission();
-      if (permission !== "granted") return null;
+      }
+      if (permission !== "granted") {
+        return null;
+      }
       const registration = await (options.registration?.() ?? worker.ready);
       const subscription =
         (await registration.pushManager.getSubscription()) ??

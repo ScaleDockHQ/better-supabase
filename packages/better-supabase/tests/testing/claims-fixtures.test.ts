@@ -31,7 +31,9 @@ describe("supabaseClaimFixtures", () => {
       );
       const session = toSession(user(fixture.claims));
       expect(session).toMatchObject({ actor: fixture.expect.actor });
-      if (session.kind !== "user") throw new Error("expected a user session");
+      if (session.kind !== "user") {
+        throw new Error("expected a user session");
+      }
       expect(session.impersonator).toEqual(fixture.expect.impersonator);
       expect(session.delegation).toEqual(fixture.expect.delegation);
     });

@@ -30,10 +30,15 @@ export function autoRefreshOnForeground(
   appState: AppStateLike,
 ): () => void {
   const apply = (state: string): void => {
-    if (state === "active") void supabase.auth.startAutoRefresh();
-    else void supabase.auth.stopAutoRefresh();
+    if (state === "active") {
+      void supabase.auth.startAutoRefresh();
+    } else {
+      void supabase.auth.stopAutoRefresh();
+    }
   };
-  if (appState.currentState === "active") apply("active");
+  if (appState.currentState === "active") {
+    apply("active");
+  }
   const subscription = appState.addEventListener("change", apply);
   return () => {
     subscription.remove();

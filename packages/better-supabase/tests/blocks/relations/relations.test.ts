@@ -15,7 +15,9 @@ function transport(results: Record<string, unknown>) {
     call(_schema: string, fn: string, args: Record<string, unknown>) {
       calls.push({ fn, args });
       const result = results[fn];
-      if (result instanceof Error) return Promise.reject(result);
+      if (result instanceof Error) {
+        return Promise.reject(result);
+      }
       return Promise.resolve(result);
     },
   };

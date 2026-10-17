@@ -622,7 +622,9 @@ export function providerPlatformRoles(
     return undefined;
   }
   const value = ctx.of("invitations").option("platformRoles");
-  if (value === undefined) return undefined;
+  if (value === undefined) {
+    return undefined;
+  }
   const where = "blocks.invitations.options.platformRoles";
   if (
     !isPlain(value) ||
@@ -684,7 +686,9 @@ export function providerPlatformRoles(
 
 /** Whether the catalog has platform roles, and so platform invitations. */
 export function hasPlatformRoles(ctx: ModuleContext): boolean {
-  if (providerPlatformRoles(ctx)) return true;
+  if (providerPlatformRoles(ctx)) {
+    return true;
+  }
   return (
     accessModel(ctx) === "catalog" &&
     ctx.of("access").hasTable("platformAssignments")
@@ -702,7 +706,9 @@ export function roleScopeIs(
   alias: string,
   scope: "tenant" | "platform",
 ): string | undefined {
-  if (accessModel(ctx) !== "catalog") return undefined;
+  if (accessModel(ctx) !== "catalog") {
+    return undefined;
+  }
   const access = ctx.of("access");
   if (!access.manages && access.config.columns["roles"]?.["scope"] == null) {
     return undefined;
@@ -735,7 +741,9 @@ export function modulePermissionKey(
   fallback: string,
 ): string {
   const shorthand = MODULE_PERMISSION_SHORTHANDS[ctx.module]?.[action];
-  if (shorthand === undefined) return ctx.permissionKey(action, fallback);
+  if (shorthand === undefined) {
+    return ctx.permissionKey(action, fallback);
+  }
   const target =
     typeof shorthand === "string"
       ? modulePermissionKey(ctx, shorthand, fallback)

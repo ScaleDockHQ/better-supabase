@@ -8,7 +8,9 @@ import { display } from "../io.ts";
 function redactUrl(url: string): string {
   try {
     const parsed = new URL(url);
-    if (parsed.password === "") return url;
+    if (parsed.password === "") {
+      return url;
+    }
     parsed.password = "redacted";
     return parsed.toString();
   } catch {

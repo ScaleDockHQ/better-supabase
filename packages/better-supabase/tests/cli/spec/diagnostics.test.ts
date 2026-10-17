@@ -16,8 +16,11 @@ async function emittedCodes(): Promise<Set<string>> {
   const codes = new Set<string>();
   for (const path of SOURCES) {
     const source = await readFile(new URL(path, import.meta.url), "utf-8");
-    for (const [line] of source.matchAll(CODE_LINE))
-      for (const [, code] of line.matchAll(KEBAB)) codes.add(code!);
+    for (const [line] of source.matchAll(CODE_LINE)) {
+      for (const [, code] of line.matchAll(KEBAB)) {
+        codes.add(code!);
+      }
+    }
   }
   return codes;
 }

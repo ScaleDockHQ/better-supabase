@@ -294,7 +294,9 @@ export function createMcpAuth<
   ): Promise<ServerContext<M, F, E, C, P>> => {
     const info = ctx.http?.authInfo;
     const state = info?.extra?.[MCP_AUTH_STATE_KEY];
-    if (isUserState<C, P>(state, verified)) return server.contextFor(state);
+    if (isUserState<C, P>(state, verified)) {
+      return server.contextFor(state);
+    }
     if (info?.token) {
       const auth = await resolveToken(server, info.token);
       const allowed =
@@ -326,7 +328,9 @@ export function createMcpAuth<
     request: Request,
   ): Promise<Response> => {
     const header = request.headers.get("authorization");
-    if (!header && allow.includes("anon")) return handler.fetch(request);
+    if (!header && allow.includes("anon")) {
+      return handler.fetch(request);
+    }
     const resourceMetadataUrl = metadataUrl(request);
     try {
       const authInfo = await verifyBearerToken(header, {
@@ -335,7 +339,9 @@ export function createMcpAuth<
       });
       return await handler.fetch(request, { authInfo });
     } catch (error) {
-      if (!(error instanceof OAuthError)) throw error;
+      if (!(error instanceof OAuthError)) {
+        throw error;
+      }
       return bearerAuthChallengeResponse(error, {
         resourceMetadataUrl,
         ...(scopes.length > 0 || advertised.length > 0

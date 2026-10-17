@@ -136,7 +136,9 @@ function supportPayload(session: string, extra = ""): string {
 }
 
 function table(ctx: ModuleContext): string {
-  if (!ctx.manages) return "";
+  if (!ctx.manages) {
+    return "";
+  }
   const sessions = ctx.table("sessions");
   const c = (logical: string) => ctx.col("sessions", logical);
   return `
@@ -176,8 +178,12 @@ grant select on ${sessions} to authenticated;
  * tables, or in `adopt` mode while `tables.requests` keeps its default name.
  */
 function ownsRequests(ctx: ModuleContext): boolean {
-  if (!ctx.hasTable("requests")) return false;
-  if (ctx.manages) return true;
+  if (!ctx.hasTable("requests")) {
+    return false;
+  }
+  if (ctx.manages) {
+    return true;
+  }
   const { schema, name } = ctx.tableName("requests");
   return schema === ctx.schemaName && name === NAMES.tables["requests"]!.name;
 }
@@ -202,7 +208,9 @@ function requestJson(ctx: ModuleContext, row: string): string {
 }
 
 function requestsTable(ctx: ModuleContext): string {
-  if (!ownsRequests(ctx)) return "";
+  if (!ownsRequests(ctx)) {
+    return "";
+  }
   const requests = ctx.table("requests");
   const c = (logical: string) => ctx.col("requests", logical);
   const isPlatform = ctx.of("access").fn("is_platform");
@@ -260,7 +268,9 @@ function approverOf(
     tenant: c("tenant"),
     requester: c("admin"),
   });
-  if (check) return `coalesce((${check.sql}), false)`;
+  if (check) {
+    return `coalesce((${check.sql}), false)`;
+  }
   const isPlatform = ctx.of("access").fn("is_platform");
   return `${isPlatform}(${ctx.permission("approve", OPERATIONS["support-sessions.start"])})`;
 }
@@ -295,7 +305,9 @@ function usableRequest(
 
 /** `request_support_session`, `approve_support_request` and their reads. */
 function requestFunctions(ctx: ModuleContext, layout: ModuleLayout): string {
-  if (!ctx.hasTable("requests")) return "";
+  if (!ctx.hasTable("requests")) {
+    return "";
+  }
   const requests = ctx.table("requests");
   const c = (logical: string) => ctx.col("requests", logical);
   const id = ctx.idType;
@@ -555,7 +567,9 @@ function platformTarget(ctx: ModuleContext): string {
     select 1 from ${platform.table} a where a.${platform.user} = target
   ))`;
   }
-  if (!hasPlatformRoles(ctx)) return claimed;
+  if (!hasPlatformRoles(ctx)) {
+    return claimed;
+  }
   const access = ctx.of("access");
   return `(${claimed} or exists (
     select 1 from ${access.table("platformAssignments")} a
@@ -968,7 +982,9 @@ function approvalMode(ctx: ModuleContext): ApprovalMode {
 }
 
 function build(ctx: ModuleContext, layout: ModuleLayout): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   approvalMode(ctx);
   const claimsHook = ctx.text("claimsHook", "");
   if (

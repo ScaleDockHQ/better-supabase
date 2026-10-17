@@ -240,11 +240,12 @@ export function staticAuthorizer<Ref extends string>(
     request: AuthorizationRequest<Ref>,
   ): AuthorizationOutcome => {
     const { subject, action } = request;
-    if (approvals.has(action))
+    if (approvals.has(action)) {
       return {
         outcome: "approval-required",
         approval: { id: `approval:${action}` },
       };
+    }
     const role = subject.properties?.["role"];
     const granted = [
       ...(options.roles?.[typeof role === "string" ? role : subject.type] ??

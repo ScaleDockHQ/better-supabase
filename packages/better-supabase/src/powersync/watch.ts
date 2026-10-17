@@ -62,7 +62,9 @@ export function watch<T>(
     );
   }
   const signal = options.signal;
-  if (signal?.aborted) return () => undefined;
+  if (signal?.aborted) {
+    return () => undefined;
+  }
   const controller = new AbortController();
   const stop = (): void => {
     controller.abort();
@@ -80,10 +82,14 @@ export function watch<T>(
     } catch (cause) {
       result = err(toDbError(cause));
     }
-    if (run !== latest || controller.signal.aborted) return;
+    if (run !== latest || controller.signal.aborted) {
+      return;
+    }
     if (sharing) {
       const shared = shareStructure(previous, result);
-      if (shared === previous) return;
+      if (shared === previous) {
+        return;
+      }
       result = shared;
     }
     previous = result;
@@ -104,7 +110,9 @@ export function watch<T>(
     refresh.everyMs === undefined
       ? undefined
       : setInterval(() => {
-          if (db.currentStatus?.connected === false) return;
+          if (db.currentStatus?.connected === false) {
+            return;
+          }
           void rerun();
         }, refresh.everyMs);
   let connected = db.currentStatus?.connected ?? true;
@@ -114,7 +122,9 @@ export function watch<T>(
           statusChanged: (status) => {
             const reconnected = status.connected && !connected;
             connected = status.connected;
-            if (reconnected) void rerun();
+            if (reconnected) {
+              void rerun();
+            }
           },
         })
       : undefined;
@@ -142,7 +152,9 @@ export function sqliteTables(
 ): string[] {
   return keys.map((key) => {
     const table = betterSupabase.meta.tables[key];
-    if (!table) throw new TypeError(`better-supabase: unknown table "${key}"`);
+    if (!table) {
+      throw new TypeError(`better-supabase: unknown table "${key}"`);
+    }
     return options.tableName ? options.tableName(table) : table.name;
   });
 }

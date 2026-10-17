@@ -277,7 +277,9 @@ export function chunk(
     if (content !== "") {
       chunks.push({ content, tokens: Math.ceil(content.length / 4) });
     }
-    if (end >= clean.length) break;
+    if (end >= clean.length) {
+      break;
+    }
     const back = Math.max(end - overlap, start + 1);
     const word = /\s/.test(clean.charAt(back - 1))
       ? back - 1
@@ -476,15 +478,23 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
           { document_id: documentId, batch: batchSize },
           (value) => recordsOf(value, "pending_knowledge_chunks"),
         );
-        if (!pending.ok) return pending;
-        if (pending.data.length === 0) return ok(0);
+        if (!pending.ok) {
+          return pending;
+        }
+        if (pending.data.length === 0) {
+          return ok(0);
+        }
         const vectors = await embed(
           pending.data.map((row) => textOf(row["content"])),
           processOptions.signal,
         );
-        if (!vectors.ok) return vectors;
+        if (!vectors.ok) {
+          return vectors;
+        }
         const invalid = checkVectors(vectors.data, pending.data.length);
-        if (invalid) return err(invalid);
+        if (invalid) {
+          return err(invalid);
+        }
         const remaining = await service(
           "set_knowledge_embeddings",
           {
@@ -500,11 +510,17 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
           },
           Number,
         );
-        if (!remaining.ok || remaining.data === 0) return remaining;
-        if (processOptions.signal?.aborted) return ok(remaining.data);
+        if (!remaining.ok || remaining.data === 0) {
+          return remaining;
+        }
+        if (processOptions.signal?.aborted) {
+          return ok(remaining.data);
+        }
         // Chunks rewritten while they were embedded stay pending; stop when a
         // round makes no progress instead of embedding them in a loop.
-        if (remaining.data >= before) return ok(remaining.data);
+        if (remaining.data >= before) {
+          return ok(remaining.data);
+        }
         before = remaining.data;
       }
     });
@@ -575,7 +591,9 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
     process,
     embedJob: () => async (payload, job, signal) => {
       const result = await process(payload.document_id, { signal });
-      if (result.ok) return;
+      if (result.ok) {
+        return;
+      }
       if (job.attempts >= job.maxAttempts) {
         await service(
           "fail_knowledge_document",
@@ -595,7 +613,9 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
           const attempts = Math.max(1, drainOptions.attempts ?? 3);
           let done = 0;
           for (const id of ids) {
-            if (drainOptions.signal?.aborted) break;
+            if (drainOptions.signal?.aborted) {
+              break;
+            }
             let result = await process(id, drainOptions);
             for (
               let attempt = 1;

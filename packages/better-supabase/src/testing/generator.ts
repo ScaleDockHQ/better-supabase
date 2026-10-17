@@ -21,8 +21,9 @@ function relativeImport(from: string, to: string): string {
   const fromParts = from.split("/").slice(0, -1);
   const toParts = to.split("/");
   let common = 0;
-  while (common < fromParts.length && fromParts[common] === toParts[common])
+  while (common < fromParts.length && fromParts[common] === toParts[common]) {
     common += 1;
+  }
   const path = [
     ...Array.from({ length: fromParts.length - common }, () => ".."),
     ...toParts.slice(common),

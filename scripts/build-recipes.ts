@@ -449,21 +449,30 @@ function extractRegion(source: string, slug: string, file = ""): string {
     const marker = REGION.exec(line);
     if (marker?.[2] === slug) {
       if (marker[1] === "region") {
-        if (current) throw new Error(`${file}: nested region recipe:${slug}`);
+        if (current) {
+          throw new Error(`${file}: nested region recipe:${slug}`);
+        }
         current = [];
       } else {
-        if (!current)
+        if (!current) {
           throw new Error(`${file}: #endregion recipe:${slug} without #region`);
+        }
         parts.push(current.join("\n").trim());
         current = null;
       }
       continue;
     }
-    if (marker) continue;
+    if (marker) {
+      continue;
+    }
     current?.push(line);
   }
-  if (current) throw new Error(`${file}: region recipe:${slug} is not closed`);
-  if (parts.length === 0) throw new Error(`${file}: no region recipe:${slug}`);
+  if (current) {
+    throw new Error(`${file}: region recipe:${slug} is not closed`);
+  }
+  if (parts.length === 0) {
+    throw new Error(`${file}: no region recipe:${slug}`);
+  }
   return `${parts.join("\n\n")}\n`;
 }
 
@@ -483,8 +492,9 @@ function checkRegions(recipes: readonly RecipeSource[]): void {
   const owners = new Map<string, string[]>();
   for (const recipe of recipes) {
     for (const side of [recipe.web, recipe.native]) {
-      if (side)
+      if (side) {
         owners.set(side.file, [...(owners.get(side.file) ?? []), recipe.slug]);
+      }
     }
   }
   for (const file of [
@@ -503,7 +513,9 @@ function checkRegions(recipes: readonly RecipeSource[]): void {
 }
 
 function withSnippet(side: Side | undefined, slug: string) {
-  if (!side) return null;
+  if (!side) {
+    return null;
+  }
   const source = readFileSync(join(ROOT, side.file), "utf-8");
   return {
     ...side,
@@ -548,7 +560,9 @@ const fence = (language: string, code: string, title?: string): string =>
 
 /** One recipe as Markdown, shared by the docs page and the skill. */
 function recipeMarkdown(recipe: Recipe, heading: string): string {
-  if (!recipe.web || !recipe.native || !recipe.hook) return "";
+  if (!recipe.web || !recipe.native || !recipe.hook) {
+    return "";
+  }
   const lines = [
     `${heading} ${recipe.title}`,
     "",
@@ -610,7 +624,9 @@ function plannedSection(
   lead: readonly string[] = [],
 ): readonly string[] {
   const planned = recipes.filter((recipe) => recipe.status === "planned");
-  if (planned.length === 0) return [];
+  if (planned.length === 0) {
+    return [];
+  }
   return [
     "## Planned",
     "",
@@ -677,7 +693,9 @@ if (import.meta.main) {
       [SKILL_FILE, renderSkill(recipes)],
     ]);
     if (argv.includes("--write")) {
-      for (const [file, contents] of outputs) writeFileSync(file, contents);
+      for (const [file, contents] of outputs) {
+        writeFileSync(file, contents);
+      }
     }
     if (argv.includes("--check")) {
       const stale = [...outputs]

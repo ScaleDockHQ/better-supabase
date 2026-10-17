@@ -48,7 +48,9 @@ describe("contact-scoped and staff reads", () => {
     const ctx = await server.context(
       await request({ sub: USER, customer_id: "42" }),
     );
-    if (ctx.auth.kind !== "user") throw new Error("expected a user");
+    if (ctx.auth.kind !== "user") {
+      throw new Error("expected a user");
+    }
     expect(ctx.auth.claims.customer_id).toBe("42");
 
     const [quotes, invoices] = await Promise.all([
@@ -83,7 +85,9 @@ describe("contact-scoped and staff reads", () => {
     const ctx = await server.context(
       await request({ sub: USER, organization_id: ORG }),
     );
-    if (ctx.auth.kind !== "user") throw new Error("expected a user");
+    if (ctx.auth.kind !== "user") {
+      throw new Error("expected a user");
+    }
 
     const [quotes, invoices] = await Promise.all([
       ctx.db.quotes

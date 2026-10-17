@@ -48,7 +48,9 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
   const positionals: string[] = [];
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
-    if (token === undefined) continue;
+    if (token === undefined) {
+      continue;
+    }
     if (token === "--") {
       positionals.push(...argv.slice(index + 1));
       break;

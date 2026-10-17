@@ -54,8 +54,9 @@ function tableRef(table: TableMeta): string {
 
 function dbColumn(table: TableMeta, app: string): string {
   const meta = table.columns[app];
-  if (!meta)
+  if (!meta) {
     invalidRequest(`Unknown column "${app}" on "${table.key}"`, table.key);
+  }
   return meta.db;
 }
 
@@ -71,15 +72,20 @@ function jsonText(value: unknown): unknown {
 
 function columnValue(table: TableMeta, db: string, value: unknown): unknown {
   const meta = lookupOf(table).byDb.get(db)?.[1];
-  if (!meta?.json) return value;
-  if (meta.array && Array.isArray(value)) return value.map(jsonText);
+  if (!meta?.json) {
+    return value;
+  }
+  if (meta.array && Array.isArray(value)) {
+    return value.map(jsonText);
+  }
   return jsonText(value);
 }
 
 function comparedValue(table: TableMeta, condition: ColumnCondition): unknown {
   const { value } = condition;
-  if (condition.path || typeof value !== "object" || value === null)
+  if (condition.path || typeof value !== "object" || value === null) {
     return value;
+  }
   const meta = lookupOf(table).byDb.get(condition.column)?.[1];
   return meta?.json && !meta.array ? JSON.stringify(value) : value;
 }
@@ -97,14 +103,17 @@ function rowComparison(condition: Extract<Condition, { kind: "or" }>): {
   const steps: ColumnCondition[] = [];
   for (const [index, item] of condition.items.entries()) {
     const terms = index === 0 ? [item] : item.kind === "and" ? item.items : [];
-    if (terms.length !== index + 1) return null;
+    if (terms.length !== index + 1) {
+      return null;
+    }
     const step = terms[index]!;
     if (
       step.kind !== "column" ||
       step.path ||
       (step.op !== "gt" && step.op !== "lt")
-    )
+    ) {
       return null;
+    }
     for (const [at, term] of terms.slice(0, index).entries()) {
       const prev = steps[at]!;
       if (
@@ -112,14 +121,19 @@ function rowComparison(condition: Extract<Condition, { kind: "or" }>): {
         term.op !== "eq" ||
         term.column !== prev.column ||
         !Object.is(term.value, prev.value)
-      )
+      ) {
         return null;
+      }
     }
     steps.push(step);
   }
   const op = steps[0]?.op;
-  if (op !== "gt" && op !== "lt") return null;
-  if (steps.length < 2 || steps.some((step) => step.op !== op)) return null;
+  if (op !== "gt" && op !== "lt") {
+    return null;
+  }
+  if (steps.length < 2 || steps.some((step) => step.op !== op)) {
+    return null;
+  }
   return {
     columns: steps.map((step) => step.column),
     op,
@@ -150,8 +164,9 @@ class SqlCompiler {
     switch (condition.kind) {
       case "and":
       case "or": {
-        if (condition.items.length === 0)
+        if (condition.items.length === 0) {
           return condition.kind === "and" ? "true" : "false";
+        }
         const row = condition.kind === "or" ? rowComparison(condition) : null;
         if (row) {
           const columns = row.columns.map((name) => this.column(alias, name));
@@ -223,12 +238,20 @@ class SqlCompiler {
       case "imatch":
         return `${column} ~* ${this.param(value)}`;
       case "in":
-        if (!Array.isArray(value)) invalidRequest('"in" needs an array');
+        if (!Array.isArray(value)) {
+          invalidRequest('"in" needs an array');
+        }
         return `${column} = any(${this.param(value)})`;
       case "is":
-        if (value === null) return `${column} is null`;
-        if (value === true) return `${column} is true`;
-        if (value === false) return `${column} is false`;
+        if (value === null) {
+          return `${column} is null`;
+        }
+        if (value === true) {
+          return `${column} is true`;
+        }
+        if (value === false) {
+          return `${column} is false`;
+        }
         return invalidRequest('"is" needs null, true or false');
       case "contains":
       case "containedBy":
@@ -268,13 +291,15 @@ class SqlCompiler {
     target: TableMeta,
     targetAlias: string,
   ): string {
-    if (relation.columns.length !== relation.references.length)
+    if (relation.columns.length !== relation.references.length) {
       invalidRequest(`Relation to "${target.key}" has mismatched columns`);
+    }
     return relation.columns
       .map((column, index) => {
         const reference = relation.references[index];
-        if (reference === undefined)
+        if (reference === undefined) {
           invalidRequest(`Relation to "${target.key}" has mismatched columns`);
+        }
         return `${this.column(targetAlias, dbColumn(target, reference))} = ${this.column(sourceAlias, dbColumn(source, column))}`;
       })
       .join(" and ");
@@ -298,12 +323,19 @@ class SqlCompiler {
    * relation's row as a scalar subquery.
    */
   private sortKey(term: OrderTerm, alias: string, table?: TableMeta): string {
-    if (term.aggregate === "count") return "count(*)";
-    if (term.aggregate)
+    if (term.aggregate === "count") {
+      return "count(*)";
+    }
+    if (term.aggregate) {
       return `${term.aggregate}(${this.column(alias, term.column)})`;
+    }
     const { relation } = term;
-    if (!relation) return this.column(alias, term.column);
-    if (!table) invalidRequest("A relation sort needs the root table");
+    if (!relation) {
+      return this.column(alias, term.column);
+    }
+    if (!table) {
+      invalidRequest("A relation sort needs the root table");
+    }
     const target = this.alias();
     const join = this.join(
       relation.relation,
@@ -322,7 +354,9 @@ class SqlCompiler {
         `'${entry.alias.replaceAll("'", "''")}', ${this.column(alias, entry.column)}${entry.cast ? `::${entry.cast}` : ""}`,
     );
     if (selection.aggregate) {
-      if (selection.aggregate.count) pairs.push(`'_count', count(*)`);
+      if (selection.aggregate.count) {
+        pairs.push(`'_count', count(*)`);
+      }
       for (const measure of selection.aggregate.measures) {
         pairs.push(
           `'${measure.key.replaceAll("'", "''")}', ${measure.fn}(${this.column(alias, measure.column)})${measure.cast ? `::${measure.cast}` : ""}`,
@@ -334,8 +368,9 @@ class SqlCompiler {
         `'${include.alias.replaceAll("'", "''")}', ${this.include(include, table, alias)}`,
       );
     }
-    if (pairs.length <= MAX_PAIRS)
+    if (pairs.length <= MAX_PAIRS) {
       return `json_build_object(${pairs.join(", ")})`;
+    }
     const chunks: string[] = [];
     for (let index = 0; index < pairs.length; index += MAX_PAIRS) {
       chunks.push(
@@ -370,9 +405,11 @@ class SqlCompiler {
       this.join(include.relation, parent, parentAlias, include.target, alias),
     ];
     const simple = simplifyOrFalse(include.where);
-    if (simple.never) parts.push("false");
-    else if (simple.condition)
+    if (simple.never) {
+      parts.push("false");
+    } else if (simple.condition) {
       parts.push(this.condition(simple.condition, include.target, alias));
+    }
     parts.push(
       ...this.requiredIncludes(include.selection, include.target, alias),
     );
@@ -387,9 +424,13 @@ class SqlCompiler {
     const alias = this.alias();
     const where = this.includeWhere(include, parent, parentAlias, alias);
     const from = `from ${tableRef(include.target)} as ${alias} where ${where}`;
-    if (include.count !== undefined) return `(select count(*) ${from})`;
+    if (include.count !== undefined) {
+      return `(select count(*) ${from})`;
+    }
     const row = this.rowExpression(include.selection, include.target, alias);
-    if (include.selection.aggregate) return `(select ${row} ${from})`;
+    if (include.selection.aggregate) {
+      return `(select ${row} ${from})`;
+    }
     if (include.relation.kind === "one") {
       return `(select ${row} ${from} limit 1)`;
     }
@@ -407,8 +448,11 @@ class SqlCompiler {
 
 function insertColumns(op: InsertOp): string[] {
   const columns = new Set<string>();
-  for (const row of op.rows)
-    for (const key of Object.keys(row)) columns.add(key);
+  for (const row of op.rows) {
+    for (const key of Object.keys(row)) {
+      columns.add(key);
+    }
+  }
   return [...columns];
 }
 
@@ -440,8 +484,9 @@ export function compileSql(op: Operation): SqlPlan {
   switch (op.kind) {
     case "select": {
       const simple = simplifyOrFalse(op.where);
-      if (simple.never)
+      if (simple.never) {
         return { rows: undefined, count: undefined, never: true };
+      }
       const where = simple.condition
         ? compiler.condition(simple.condition, op.table, alias)
         : undefined;
@@ -483,12 +528,14 @@ export function compileSql(op: Operation): SqlPlan {
       };
     }
     case "insert": {
-      if (op.rows.length === 0)
+      if (op.rows.length === 0) {
         return { rows: undefined, count: undefined, never: true };
+      }
       const columns = insertColumns(op);
       const perChunk = Math.floor(MAX_PARAMS / Math.max(columns.length, 1));
-      if (op.rows.length <= perChunk)
+      if (op.rows.length <= perChunk) {
         return insertPlan(compiler, from, alias, op, columns);
+      }
       const [first, ...rest] = chunk(op.rows, perChunk).map((rows) => {
         const own = new SqlCompiler();
         const ownAlias = own.alias();
@@ -504,11 +551,13 @@ export function compileSql(op: Operation): SqlPlan {
     }
     case "update": {
       const simple = simplifyOrFalse(op.where);
-      if (simple.never)
+      if (simple.never) {
         return { rows: undefined, count: undefined, never: true };
+      }
       const entries = Object.entries(op.set);
-      if (entries.length === 0)
+      if (entries.length === 0) {
         invalidRequest(`Update on "${op.table.key}" sets no columns`);
+      }
       const set = entries
         .map(
           ([column, value]) =>
@@ -528,8 +577,9 @@ export function compileSql(op: Operation): SqlPlan {
     }
     case "delete": {
       const simple = simplifyOrFalse(op.where);
-      if (simple.never)
+      if (simple.never) {
         return { rows: undefined, count: undefined, never: true };
+      }
       const where = simple.condition
         ? compiler.condition(simple.condition, op.table, alias)
         : undefined;
@@ -550,8 +600,9 @@ export function compileSql(op: Operation): SqlPlan {
 
 function chunk<T>(items: readonly T[], size: number): T[][] {
   const out: T[][] = [];
-  for (let start = 0; start < items.length; start += size)
+  for (let start = 0; start < items.length; start += size) {
     out.push(items.slice(start, start + size));
+  }
   return out;
 }
 
@@ -564,8 +615,9 @@ function insertPlan(
 ): SqlPlan {
   let body: string;
   if (columns.length === 0) {
-    if (op.rows.length > 1)
+    if (op.rows.length > 1) {
       invalidRequest("Cannot insert several rows without columns");
+    }
     body = "default values";
   } else {
     const values = op.rows.map(
@@ -601,17 +653,22 @@ function insertPlan(
 function tenantGuard(op: InsertOp, alias: string): string {
   const app = op.table.flags.tenant;
   const column = app === undefined ? undefined : op.table.columns[app]?.db;
-  if (column === undefined) return "";
+  if (column === undefined) {
+    return "";
+  }
   return ` where ${alias}.${quoteIdent(column)} = excluded.${quoteIdent(column)}`;
 }
 
 function maxAffectedOf(op: UpdateOp | DeleteOp): number | undefined {
-  if (op.maxAffected === undefined) return undefined;
-  if (!Number.isInteger(op.maxAffected) || op.maxAffected < 0)
+  if (op.maxAffected === undefined) {
+    return undefined;
+  }
+  if (!Number.isInteger(op.maxAffected) || op.maxAffected < 0) {
     invalidRequest(
       `"maxAffected" must be a non-negative integer, got ${op.maxAffected}`,
       op.table.key,
     );
+  }
   return op.maxAffected;
 }
 
@@ -652,12 +709,13 @@ function mutation(
           never: false,
         };
   }
-  if (returning)
+  if (returning) {
     return {
       rows: { text: statement, params },
       count: undefined,
       never: false,
     };
+  }
   return {
     rows: undefined,
     count: {

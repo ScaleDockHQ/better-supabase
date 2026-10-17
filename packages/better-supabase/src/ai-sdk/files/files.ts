@@ -46,10 +46,14 @@ export function aiFileDownload(
           const read = await files.files
             .resolve(request.url)
             .andThen((file) => files.files.read(file));
-          if (!read.ok) throw new AiFileDownloadError(request.url, read.error);
+          if (!read.ok) {
+            throw new AiFileDownloadError(request.url, read.error);
+          }
           return { data: read.data.data, mediaType: read.data.file.mediaType };
         }
-        if (request.isUrlSupportedByModel) return null;
+        if (request.isUrlSupportedByModel) {
+          return null;
+        }
         if (fallback === false) {
           throw new AiFileDownloadError(
             request.url,
@@ -129,7 +133,9 @@ export function saveGeneratedFiles(
         source: options.source ?? "generated",
         ...(options.chatId === undefined ? {} : { chatId: options.chatId }),
       });
-      if (!stored.ok) return err(stored.error);
+      if (!stored.ok) {
+        return err(stored.error);
+      }
       parts.push({
         type: "file",
         mediaType: stored.data.mediaType,
@@ -163,9 +169,13 @@ export function providerFile(
   }) => Promise<ProviderFileUpload>,
 ): AsyncResult<string> {
   return files.providerFiles.get(fileId, provider).andThen(async (cached) => {
-    if (cached) return ok(cached.reference);
+    if (cached) {
+      return ok(cached.reference);
+    }
     const read = await files.files.read(fileId);
-    if (!read.ok) return err(read.error);
+    if (!read.ok) {
+      return err(read.error);
+    }
     let uploaded: ProviderFileUpload;
     try {
       uploaded = await upload({

@@ -242,7 +242,9 @@ function own(n: NotifyNames, table: string, user: string): string {
 }
 
 function tables(ctx: ModuleContext, n: NotifyNames): string {
-  if (!ctx.manages) return "";
+  if (!ctx.manages) {
+    return "";
+  }
   const id = ctx.idType;
   const c = n.col;
   const opt = (table: string, logical: string, definition: string) =>
@@ -373,7 +375,9 @@ grant all on ${n.table("deliveries")} to service_role;${policy(
   }
 
   for (const table of ["subscriptions", "preferences"] as const) {
-    if (!ctx.hasTable(table)) continue;
+    if (!ctx.hasTable(table)) {
+      continue;
+    }
     const columns =
       table === "subscriptions"
         ? [
@@ -565,7 +569,9 @@ $$;`;
 }
 
 function build(ctx: ModuleContext, layout: ModuleLayout): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const n = notifyNames(
     ctx,
     accessModel(ctx) !== "provider" || providerForUser(layout).permitted,

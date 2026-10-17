@@ -187,7 +187,9 @@ function columnsOf<T extends Readonly<Record<string, string>>>(
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const id = ctx.idType;
   const fn = (name: string): string => ctx.fn(name);
   const f = columnsOf(ctx, "files", FILES);
@@ -852,7 +854,9 @@ ${userGrant(`${fn("delete_ai_document")}(uuid)`)}`;
 
 // An existing bucket keeps its settings.
 function data(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const { bucket, maxSize, mimeTypes } = bucketOptions(ctx);
   const mimeArray =
     mimeTypes.length === 0

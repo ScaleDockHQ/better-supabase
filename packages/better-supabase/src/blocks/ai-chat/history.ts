@@ -50,7 +50,9 @@ export function repairDanglingToolCalls(
   const waiting = new Set<string>();
   for (const message of messages) {
     for (const part of message.parts) {
-      if (part.type === "tool-result") answered.add(part.toolCallId);
+      if (part.type === "tool-result") {
+        answered.add(part.toolCallId);
+      }
       if (part.type === "tool-approval" && part.state === "requested") {
         waiting.add(part.toolCallId);
       }

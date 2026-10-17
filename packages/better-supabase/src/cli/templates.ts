@@ -62,7 +62,9 @@ export function importFrom(
   keepTs: boolean = context.tsExtensions,
 ): string {
   let path = posix.relative(posix.dirname(from), to);
-  if (!path.startsWith(".")) path = `./${path}`;
+  if (!path.startsWith(".")) {
+    path = `./${path}`;
+  }
   return keepTs ? path : path.replace(/\.tsx?$/, "");
 }
 
@@ -77,11 +79,15 @@ function publicEnv(context: TemplateContext): { url: string; key: string } {
           url: `process.env.${prefix}SUPABASE_URL!`,
           key: `process.env.${prefix}SUPABASE_PUBLISHABLE_KEY!`,
         };
-  if (context.frameworks.includes("next"))
+  if (context.frameworks.includes("next")) {
     return read("NEXT_PUBLIC_", "process");
-  if (context.frameworks.includes("expo"))
+  }
+  if (context.frameworks.includes("expo")) {
     return read("EXPO_PUBLIC_", "process");
-  if (context.frameworks.includes("vite")) return read("VITE_", "vite");
+  }
+  if (context.frameworks.includes("vite")) {
+    return read("VITE_", "vite");
+  }
   return read("", "process");
 }
 
@@ -160,7 +166,9 @@ export default defineConfig({${
 });
 `,
   };
-  if (!lib) return [config];
+  if (!lib) {
+    return [config];
+  }
   const path = libEntry(context);
   const generated = importFrom(context, path, context.generated);
   // Hermes has no Temporal, and patching the global breaks other libraries.
@@ -472,11 +480,17 @@ export function resolveIntegrations(
 ): Integration[] {
   const ordered: Integration[] = [];
   const visit = (name: Integration): void => {
-    if (ordered.includes(name)) return;
-    for (const dependency of TEMPLATES[name].requires) visit(dependency);
+    if (ordered.includes(name)) {
+      return;
+    }
+    for (const dependency of TEMPLATES[name].requires) {
+      visit(dependency);
+    }
     ordered.push(name);
   };
-  for (const name of names) visit(name);
+  for (const name of names) {
+    visit(name);
+  }
   return ordered;
 }
 

@@ -132,7 +132,9 @@ export function strict(): RuleSet {
 }
 
 function levelOf(setting: RuleSetting<unknown> | undefined): RuleLevel {
-  if (setting === undefined) return "off";
+  if (setting === undefined) {
+    return "off";
+  }
   return typeof setting === "string" ? setting : setting[0];
 }
 
@@ -158,9 +160,11 @@ function includeDepth(selection: Selection): number {
 function computeIncludeDepth(selection: Selection): number {
   let depth = 0;
   for (const include of selection.includes) {
-    if (include.count !== undefined || include.aggregate !== undefined)
+    if (include.count !== undefined || include.aggregate !== undefined) {
       depth = Math.max(depth, 1);
-    else depth = Math.max(depth, 1 + includeDepth(include.selection));
+    } else {
+      depth = Math.max(depth, 1 + includeDepth(include.selection));
+    }
   }
   return depth;
 }
@@ -185,12 +189,14 @@ function sensitiveColumns(selection: Selection, table: TableMeta): string[] {
   const sensitive = sensitiveOf(table);
   if (sensitive.size > 0) {
     for (const column of selection.columns) {
-      if (sensitive.has(column.column))
+      if (sensitive.has(column.column)) {
         found.push(`${table.key}.${column.column}`);
+      }
     }
     for (const measure of selection.aggregate?.measures ?? []) {
-      if (sensitive.has(measure.column))
+      if (sensitive.has(measure.column)) {
         found.push(`${table.key}.${measure.column}`);
+      }
     }
   }
   for (const include of selection.includes) {
@@ -267,12 +273,17 @@ function storedObjectColumn(
 ): string | undefined {
   const rows =
     op.kind === "insert" ? op.rows : op.kind === "update" ? [op.set] : [];
-  if (rows.length === 0) return undefined;
+  if (rows.length === 0) {
+    return undefined;
+  }
   for (const column of urlColumns(op.table)) {
-    if (!rows.some((row) => column.db in row)) continue;
+    if (!rows.some((row) => column.db in row)) {
+      continue;
+    }
     const path = `${column.db.slice(0, -4)}_path`;
-    if (column.storage !== undefined)
+    if (column.storage !== undefined) {
       return `"${column.db}" holds paths in bucket "${column.storage}"; name it "${path}"`;
+    }
     const stored = rows.some((row) => {
       const value = row[column.db];
       return (
@@ -281,8 +292,9 @@ function storedObjectColumn(
           bucketTemplates(schema).some((template) => template.test(value)))
       );
     });
-    if (stored)
+    if (stored) {
       return `"${column.db}" is given a storage object; store its path in "${path}" and build URLs with signedUrl() or renderUrl()`;
+    }
   }
   return undefined;
 }
@@ -294,7 +306,9 @@ function pinsPrimaryKey(
   table: TableMeta,
   where: Condition | undefined,
 ): boolean {
-  if (!where || table.primaryKey.length === 0) return false;
+  if (!where || table.primaryKey.length === 0) {
+    return false;
+  }
   let columns = primaryColumnsByTable.get(table);
   if (!columns) {
     columns = table.primaryKey.map((name) => table.columns[name]?.db ?? name);
@@ -302,13 +316,15 @@ function pinsPrimaryKey(
   }
   const pinned = new Set<string>();
   const visit = (condition: Condition): void => {
-    if (condition.kind === "and") condition.items.forEach(visit);
-    else if (
+    if (condition.kind === "and") {
+      condition.items.forEach(visit);
+    } else if (
       condition.kind === "column" &&
       condition.op === "eq" &&
       condition.path === undefined
-    )
+    ) {
       pinned.add(condition.column);
+    }
   };
   visit(where);
   return columns.every((column) => pinned.has(column));
@@ -330,7 +346,9 @@ function checks(rules: RuleSet): Record<RuleName, Check> {
         ? "findMany without limit reads every visible row"
         : undefined,
     maxLimit: (op) => {
-      if (op.kind !== "select" || op.limit === undefined) return;
+      if (op.kind !== "select" || op.limit === undefined) {
+        return;
+      }
       const limit = op.lookAhead === true ? op.limit - 1 : op.limit;
       return limit > maxLimit
         ? `limit ${limit} is above the maximum of ${maxLimit}`
@@ -354,13 +372,17 @@ function checks(rules: RuleSet): Record<RuleName, Check> {
         : undefined;
     },
     requireTenantContext: (op, { context, schema }) => {
-      if (!op.table.flags.tenant || context.actor?.kind === "service") return;
+      if (!op.table.flags.tenant || context.actor?.kind === "service") {
+        return;
+      }
       const claim = optionOf<string | undefined>(
         rules.requireTenantContext,
         undefined,
       );
       const paths = tenantPathsFor(claim, schema);
-      if (tenantFrom(context, paths) !== undefined) return;
+      if (tenantFrom(context, paths) !== undefined) {
+        return;
+      }
       return `"${op.table.key}" is tenant-scoped but the request has no tenant (context.tenant or claim ${paths.map((path) => `"${path}"`).join(" or ")})`;
     },
     noAdminInBrowser: (_op, { context }) =>
@@ -368,7 +390,9 @@ function checks(rules: RuleSet): Record<RuleName, Check> {
         ? "a service-role connection is running in a browser"
         : undefined,
     noSensitiveSelect: (op, { options }) => {
-      if (options["sensitive"] === true || op.kind !== "select") return;
+      if (options["sensitive"] === true || op.kind !== "select") {
+        return;
+      }
       const columns = sensitiveColumns(op.selection, op.table);
       return columns.length > 0
         ? `reads sensitive column(s) ${columns.join(", ")}; pass { sensitive: true } to allow`
@@ -379,11 +403,14 @@ function checks(rules: RuleSet): Record<RuleName, Check> {
         ? "delete without where removes every visible row"
         : undefined,
     requireMaxAffected: (op) => {
-      if (op.kind !== "update" && op.kind !== "delete") return;
-      if (op.maxAffected === undefined)
+      if (op.kind !== "update" && op.kind !== "delete") {
+        return;
+      }
+      if (op.maxAffected === undefined) {
         return pinsPrimaryKey(op.table, op.where)
           ? undefined
           : `${op.kind === "update" ? "updateMany" : "deleteMany"} without maxAffected can change every row its where matches`;
+      }
       return op.maxAffected > maxAffected
         ? `maxAffected ${op.maxAffected} is above the maximum of ${maxAffected}`
         : undefined;
@@ -431,7 +458,9 @@ export function rules(
     transformQuery(op, hook): Operation {
       for (const { rule, level, check } of active) {
         const message = check(op, hook);
-        if (message === undefined) continue;
+        if (message === undefined) {
+          continue;
+        }
         const violation: RuleViolation = {
           rule,
           level,

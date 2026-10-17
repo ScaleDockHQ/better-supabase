@@ -65,8 +65,9 @@ export async function runOpenApi(
   }
   const contents = `${JSON.stringify(document, null, 2)}\n`;
   const state = await fileState(config.root, out, contents);
-  if (args.check === true)
+  if (args.check === true) {
     return staleResult(state, "better-supabase openapi emit");
+  }
   const { line } = await writeLine(state.path, contents, state.file);
   return { code: 0, output: line };
 }

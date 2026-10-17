@@ -20,9 +20,13 @@ async function findSigningKeys(from: string): Promise<string | undefined> {
         await readFile(toml, "utf-8"),
       )?.[1];
       const path = resolve(supabase, configured ?? "signing_keys.json");
-      if (existsSync(path)) return path;
+      if (existsSync(path)) {
+        return path;
+      }
     }
-    if (dirname(dir) === dir) return undefined;
+    if (dirname(dir) === dir) {
+      return undefined;
+    }
   }
 }
 
@@ -51,8 +55,9 @@ export async function localSigningKey(path?: string): Promise<SigningJwk> {
   }
   const keys: unknown = JSON.parse(await readFile(file, "utf-8"));
   const first: unknown = Array.isArray(keys) ? keys[0] : undefined;
-  if (!isSigningKey(first))
+  if (!isSigningKey(first)) {
     throw new TypeError(`${file} has no private ES256 key first.`);
+  }
   return first;
 }
 

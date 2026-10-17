@@ -225,17 +225,20 @@ function snapshot(profile: Profile, extraColumnOn?: string): Snapshot {
       column("updated_at", "timestamptz", { default: "now()" }),
       column("archived_at", "timestamptz", { nullable: true }),
     ];
-    for (let c = 0; c < 8; c++)
+    for (let c = 0; c < 8; c++) {
       columns.push(column(`field_${String(c)}`, "text", { nullable: true }));
-    if (profile.composite)
+    }
+    if (profile.composite) {
       columns.push(
         column("priority", "priority", { default: "'normal'", enum: true }),
         column("kind", "text", { default: "'task'" }),
       );
-    if (tableName === extraColumnOn)
+    }
+    if (tableName === extraColumnOn) {
       columns.push(column("extra", "text", { nullable: true }));
+    }
     const keys = [foreignKey(tableName, ["organization_id"], "organizations")];
-    if (i > 0)
+    if (i > 0) {
       keys.push(
         profile.composite
           ? foreignKey(
@@ -246,6 +249,7 @@ function snapshot(profile: Profile, extraColumnOn?: string): Snapshot {
             )
           : foreignKey(tableName, ["parent_id"], name(i - 1)),
       );
+    }
     const uniques = profile.composite
       ? [
           {
@@ -322,7 +326,7 @@ function consumer(profile: Profile): string {
     "const db = defineSupabase(schema).use(timestamps()).use(softDelete()).use(tenant()).connect(client);",
     "export async function run(): Promise<void> {",
   ];
-  if (profile.composite)
+  if (profile.composite) {
     lines.push(
       "  const typed = createClient<Database>('https://x.supabase.co', 'key');",
       "  await typed.from('item_summaries').select('id, priority');",
@@ -331,6 +335,7 @@ function consumer(profile: Profile): string {
       "  await db.itemSummaries.findMany({ where: { priority: 'high' } }).orThrow();",
       `  await db.${name(1)}.update('id', { kind: 'note', priority: 'low', metadata: { tags: ['a'] } }).orThrow();`,
     );
+  }
   for (let i = 1; i <= profile.queried; i++) {
     const key = name(i);
     const child = name(i + 1);
@@ -400,7 +405,9 @@ function measure(tsc: string): Measurement {
   }
   const read = (label: string): string => {
     const match = new RegExp(`^${label}:\\s+(\\S+)`, "m").exec(output);
-    if (!match?.[1]) throw new Error(`tsc output has no "${label}" line`);
+    if (!match?.[1]) {
+      throw new Error(`tsc output has no "${label}" line`);
+    }
     return match[1];
   };
   return {
@@ -513,7 +520,9 @@ for (const [profileName, profile] of Object.entries(PROFILES)) {
   for (const compiler of ["ts6", "ts7"] as const) {
     console.log(`  ${compiler}: ${describe(current.measurement[compiler])}`);
   }
-  if (update) continue;
+  if (update) {
+    continue;
+  }
   const previous = baseline.profiles[profileName];
   if (!previous) {
     console.error(
@@ -526,7 +535,9 @@ for (const [profileName, profile] of Object.entries(PROFILES)) {
     const now = current.measurement[compiler];
     const before = previous.measurement[compiler];
     for (const metric of ["instantiations", "types"] as const) {
-      if (now[metric] <= before[metric] * (1 + TOLERANCE)) continue;
+      if (now[metric] <= before[metric] * (1 + TOLERANCE)) {
+        continue;
+      }
       console.error(
         `${profileName} (${compiler}): ${metric} grew from ${String(before[metric])} to ${String(now[metric])} (tolerance ${String(TOLERANCE * 100)}%). Run \`pnpm --filter @better-supabase/types-perf update\` if the growth is intended.`,
       );
@@ -568,7 +579,9 @@ function checkGen(
   for (const phase of ["cold", "warm", "incremental"] as const) {
     const expected = before[phase] * speed;
     const limit = Math.max(expected * TIME_FACTOR, expected + TIME_SLACK);
-    if (now[phase] <= limit) continue;
+    if (now[phase] <= limit) {
+      continue;
+    }
     console.error(
       `${profileName}: ${phase} gen grew from ${expected.toFixed(2)}s to ${now[phase].toFixed(2)}s (limit ${limit.toFixed(2)}s).`,
     );

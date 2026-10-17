@@ -294,7 +294,9 @@ const failure = (hint: string, message: string): DbError =>
   dbError("invalid_request", message, { hint });
 
 function maxRowsOf(payload: unknown): number | undefined {
-  if (!isRecord(payload)) return undefined;
+  if (!isRecord(payload)) {
+    return undefined;
+  }
   const value = payload["maxRows"];
   return typeof value === "number" ? value : undefined;
 }
@@ -372,17 +374,27 @@ export function createOrders<
 
   const commitTax: Orders["commitTax"] = (orderId) =>
     AsyncResult.from(async (): Promise<Result<TaxTransaction | null>> => {
-      if (!tax) return ok(null);
+      if (!tax) {
+        return ok(null);
+      }
       const order = await loadOrder(orderId);
-      if (!order.ok) return order;
+      if (!order.ok) {
+        return order;
+      }
       const { taxQuote, taxTransaction } = order.data;
-      if (taxTransaction) return ok(taxTransaction);
-      if (!taxQuote || order.data.invoiceNumber === null) return ok(null);
+      if (taxTransaction) {
+        return ok(taxTransaction);
+      }
+      if (!taxQuote || order.data.invoiceNumber === null) {
+        return ok(null);
+      }
       const committed = await tax.commit(
         { quote: taxQuote, reference: order.data.number },
         { idempotencyKey: `tax:${orderId}` },
       );
-      if (!committed.ok) return committed;
+      if (!committed.ok) {
+        return committed;
+      }
       const stored = await service(
         "set_order_tax_transaction",
         {
@@ -396,13 +408,16 @@ export function createOrders<
 
   /** Commits the tax once a payment paid the order; a failure is logged and retried with `commitTax`. */
   const afterPayment = async (record: PaymentRecord): Promise<void> => {
-    if (!record.newlyPaid) return;
+    if (!record.newlyPaid) {
+      return;
+    }
     const committed = await commitTax(record.orderId);
-    if (!committed.ok)
+    if (!committed.ok) {
       logger.warn("orders: tax commit failed; retry with commitTax", {
         orderId: record.orderId,
         error: committed.error,
       });
+    }
   };
 
   const record = (
@@ -459,33 +474,42 @@ export function createOrders<
         input.fields === undefined
           ? ok(undefined)
           : await fields.write({ ...input.fields });
-      if (!checked.ok) return checked;
+      if (!checked.ok) {
+        return checked;
+      }
       const priced = await call("price_cart", { cart: cartId }, pricedCartOf);
-      if (!priced.ok) return priced;
+      if (!priced.ok) {
+        return priced;
+      }
       const cart = priced.data;
       if (cart.status === "open") {
-        if (cart.lines.length === 0)
+        if (cart.lines.length === 0) {
           return err(failure("ORDERS_CART_EMPTY", "the cart has no lines"));
-        if (cart.problems.length > 0)
+        }
+        if (cart.problems.length > 0) {
           return err(
             failure(
               "ORDERS_CART_INVALID",
               `the cart can't check out: ${cart.problems.map((problem) => problem.problem).join(", ")}`,
             ),
           );
+        }
       }
       let quote: Record<string, unknown> | null = null;
       if (tax && cart.status === "open") {
         const address = cart.shippingAddress ?? cart.billingAddress;
-        if (!address)
+        if (!address) {
           return err(
             failure(
               "ORDERS_ADDRESS_REQUIRED",
               "tax needs a shipping or billing address on the cart",
             ),
           );
+        }
         const quoted = await tax.quote(taxCartOf(cart, address));
-        if (!quoted.ok) return quoted;
+        if (!quoted.ok) {
+          return quoted;
+        }
         quote = quoteToJson(quoted.data);
       }
       const placed = await parsed(
@@ -501,10 +525,13 @@ export function createOrders<
           orderOf,
         ),
       );
-      if (!placed.ok) return placed;
+      if (!placed.ok) {
+        return placed;
+      }
       const order = placed.data;
-      if (order.status !== "pending_payment")
+      if (order.status !== "pending_payment") {
         return ok({ order, payment: null });
+      }
       if (order.total.amount === 0n) {
         const zero = money(0, order.currency);
         const free = await record(order.id, {
@@ -517,11 +544,15 @@ export function createOrders<
           reference: order.id,
           metadata: {},
         });
-        if (!free.ok) return free;
+        if (!free.ok) {
+          return free;
+        }
         const paid = await loadOrder(order.id);
         return paid.ok ? ok({ order: paid.data, payment: null }) : paid;
       }
-      if (!payments) return ok({ order, payment: null });
+      if (!payments) {
+        return ok({ order, payment: null });
+      }
       const created = await payments.createPayment(
         {
           amount: order.total,
@@ -540,9 +571,13 @@ export function createOrders<
         },
         { idempotencyKey: `order:${order.id}:payment` },
       );
-      if (!created.ok) return created;
+      if (!created.ok) {
+        return created;
+      }
       const stored = await record(order.id, created.data);
-      if (!stored.ok) return stored;
+      if (!stored.ok) {
+        return stored;
+      }
       const current = await loadOrder(order.id);
       return current.ok
         ? ok({ order: current.data, payment: created.data })
@@ -551,26 +586,34 @@ export function createOrders<
 
   const capture: Orders<F>["capture"] = (orderId) =>
     AsyncResult.from(async (): Promise<Result<Order<F>>> => {
-      if (!payments)
+      if (!payments) {
         return err(
           failure("ORDERS_NO_PAYMENTS", "capture needs a payments provider"),
         );
+      }
       const order = await loadOrder(orderId);
-      if (!order.ok) return order;
+      if (!order.ok) {
+        return order;
+      }
       for (const payment of order.data.payments) {
         if (
           payment.status !== "authorized" ||
           payment.provider !== payments.name
-        )
+        ) {
           continue;
+        }
         const captured = await payments.capture(
           payment.reference,
           {},
           { idempotencyKey: `capture:${payment.id}` },
         );
-        if (!captured.ok) return captured;
+        if (!captured.ok) {
+          return captured;
+        }
         const stored = await record(orderId, captured.data);
-        if (!stored.ok) return stored;
+        if (!stored.ok) {
+          return stored;
+        }
       }
       return loadOrder(orderId);
     });
@@ -590,7 +633,9 @@ export function createOrders<
       (value) => recordOf(value, "complete_refund"),
     ).andThen(async (row) => {
       const order = await loadOrder(textOf(row["orderId"]));
-      if (!order.ok) return order;
+      if (!order.ok) {
+        return order;
+      }
       const { currency } = order.data;
       return ok({
         id: textOf(row["id"]),
@@ -609,11 +654,14 @@ export function createOrders<
   const reverseTax = async (
     outcome: Omit<RefundOutcome, "taxReversal">,
   ): Promise<RefundOutcome> => {
-    if (!tax || outcome.status !== "succeeded")
+    if (!tax || outcome.status !== "succeeded") {
       return { ...outcome, taxReversal: null };
+    }
     const order = await loadOrder(outcome.orderId);
     const transaction = order.ok ? order.data.taxTransaction : undefined;
-    if (!order.ok || !transaction) return { ...outcome, taxReversal: null };
+    if (!order.ok || !transaction) {
+      return { ...outcome, taxReversal: null };
+    }
     const whole = outcome.amount.amount >= order.data.total.amount;
     const reversed = await tax.reverse(
       {
@@ -631,7 +679,9 @@ export function createOrders<
       },
       { idempotencyKey: `tax-reverse:${outcome.id}` },
     );
-    if (reversed.ok) return { ...outcome, taxReversal: reversed.data };
+    if (reversed.ok) {
+      return { ...outcome, taxReversal: reversed.data };
+    }
     logger.warn("orders: tax reversal failed", {
       refundId: outcome.id,
       error: reversed.error,
@@ -641,10 +691,11 @@ export function createOrders<
 
   const refund: Orders["refund"] = (orderId, input = {}) =>
     AsyncResult.from(async (): Promise<Result<RefundOutcome>> => {
-      if (!payments)
+      if (!payments) {
         return err(
           failure("ORDERS_NO_PAYMENTS", "refunds need a payments provider"),
         );
+      }
       const created = await call(
         "create_refund",
         {
@@ -655,7 +706,9 @@ export function createOrders<
         },
         (value) => recordOf(value, "create_refund"),
       );
-      if (!created.ok) return created;
+      if (!created.ok) {
+        return created;
+      }
       const row = created.data;
       const refundId = textOf(row["id"]);
       const amount = moneyOf(row["amount"], textOf(row["currency"]));
@@ -676,31 +729,35 @@ export function createOrders<
         refundStatusOf(providerRefund.data.status),
         providerRefund.data.id,
       );
-      if (!completed.ok) return completed;
+      if (!completed.ok) {
+        return completed;
+      }
       return ok(await reverseTax(completed.data));
     });
 
   const handlePaymentEvent: Orders["handlePaymentEvent"] = (event) =>
     AsyncResult.from(async (): Promise<Result<PaymentEventOutcome>> => {
       if (event.type === "refund.succeeded" || event.type === "refund.failed") {
-        if (event.refundId === undefined)
+        if (event.refundId === undefined) {
           return ok({
             event: event.id,
             kind: "ignored",
             reason: "no refund id",
           });
+        }
         const completed = await completeRefund(
           null,
           event.type === "refund.succeeded" ? "succeeded" : "failed",
           event.refundId,
         );
         if (!completed.ok) {
-          if (completed.error.hint === "ORDERS_REFUND_NOT_FOUND")
+          if (completed.error.hint === "ORDERS_REFUND_NOT_FOUND") {
             return ok({
               event: event.id,
               kind: "ignored",
               reason: "unknown refund",
             });
+          }
           return completed;
         }
         return ok({
@@ -712,11 +769,14 @@ export function createOrders<
       let payment: Payment;
       if (payments?.get) {
         const fetched = await payments.get(event.paymentId);
-        if (!fetched.ok) return fetched;
+        if (!fetched.ok) {
+          return fetched;
+        }
         payment = fetched.data;
       } else {
-        if (event.amount === undefined)
+        if (event.amount === undefined) {
           return ok({ event: event.id, kind: "ignored", reason: "no amount" });
+        }
         const status = PAYMENT_EVENT_STATUS[event.type];
         const zero = money(0, event.amount.currency);
         payment = {
@@ -736,12 +796,13 @@ export function createOrders<
           : payment.reference;
       const stored = await record(orderId, payment);
       if (!stored.ok) {
-        if (stored.error.hint === "ORDERS_ORDER_NOT_FOUND")
+        if (stored.error.hint === "ORDERS_ORDER_NOT_FOUND") {
           return ok({
             event: event.id,
             kind: "ignored",
             reason: "unknown order",
           });
+        }
         return stored;
       }
       return ok({ event: event.id, kind: "payment", record: stored.data });
@@ -750,16 +811,21 @@ export function createOrders<
   const webhook: Orders["webhook"] = (input) =>
     AsyncResult.from(
       async (): Promise<Result<readonly PaymentEventOutcome[]>> => {
-        if (!payments)
+        if (!payments) {
           return err(
             failure("ORDERS_NO_PAYMENTS", "webhooks need a payments provider"),
           );
+        }
         const parsed = await payments.parseWebhook(input);
-        if (!parsed.ok) return parsed;
+        if (!parsed.ok) {
+          return parsed;
+        }
         const outcomes: PaymentEventOutcome[] = [];
         for (const event of parsed.data) {
           const outcome = await handlePaymentEvent(event);
-          if (!outcome.ok) return outcome;
+          if (!outcome.ok) {
+            return outcome;
+          }
           outcomes.push(outcome.data);
         }
         return ok(outcomes);
@@ -772,27 +838,34 @@ export function createOrders<
       { order_id: orderId, reason: reason ?? null },
       isTrue,
     ).andThen(async (cancelled) => {
-      if (!cancelled || !payments?.cancel) return ok(cancelled);
+      if (!cancelled || !payments?.cancel) {
+        return ok(cancelled);
+      }
       const order = await loadOrder(orderId);
-      if (!order.ok) return ok(cancelled);
+      if (!order.ok) {
+        return ok(cancelled);
+      }
       for (const payment of order.data.payments) {
         if (
           payment.provider !== payments.name ||
           !["requires_action", "processing", "authorized"].includes(
             payment.status,
           )
-        )
+        ) {
           continue;
+        }
         const released = await payments.cancel(payment.reference, {
           idempotencyKey: `cancel:${payment.id}`,
         });
-        if (released.ok) await recordPayment(orderId, released.data);
-        else
+        if (released.ok) {
+          await recordPayment(orderId, released.data);
+        } else {
           logger.warn("orders: cancelling the payment failed", {
             orderId,
             paymentId: payment.reference,
             error: released.error,
           });
+        }
       }
       return ok(cancelled);
     });

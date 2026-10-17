@@ -54,7 +54,9 @@ function fakeClient(
     realtime: { setAuth: vi.fn(async () => undefined) },
   };
   const emit = (topic: string) => {
-    for (const listener of channels.get(topic) ?? []) listener();
+    for (const listener of channels.get(topic) ?? []) {
+      listener();
+    }
   };
   const status = (topic: string, value: string) =>
     statusCallbacks.get(topic)?.(value);
@@ -130,7 +132,9 @@ describe("liveQuery join states", () => {
     const notes = liveQuery(betterSupabase, client, ["notes"], {
       onChange: vi.fn(),
       onStatus: (status, error) => {
-        if (status === "error") errors.push(error);
+        if (status === "error") {
+          errors.push(error);
+        }
       },
     });
     await expect(notes.ready).rejects.toBe(cause);
@@ -251,7 +255,9 @@ describe("liveQuery join states", () => {
     const live = liveQuery(betterSupabase, client, ["notes"], {
       onChange: vi.fn(),
       onStatus: (status, error) => {
-        if (status === "error") errors.push(error);
+        if (status === "error") {
+          errors.push(error);
+        }
       },
     });
     await expect(live.ready).rejects.toThrow("Unknown realtime status WEIRD");
@@ -273,7 +279,9 @@ describe("liveQuery join states", () => {
     const live = liveQuery(betterSupabase, client, ["notes"], {
       onChange: vi.fn(),
       onStatus: (status, error) => {
-        if (status === "error") errors.push(error);
+        if (status === "error") {
+          errors.push(error);
+        }
       },
     });
     await expect(live.ready).rejects.toThrow("no token");

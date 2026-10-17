@@ -30,8 +30,12 @@ export function UsageCard() {
     meters: ["api.calls", "customers.created"],
     schema: API_SCHEMA,
   });
-  if (!organizationId) return null;
-  if (meters === undefined) return <UsageCardSkeleton />;
+  if (!organizationId) {
+    return null;
+  }
+  if (meters === undefined) {
+    return <UsageCardSkeleton />;
+  }
   const labels = new Map([
     ["api.calls", t("API calls")],
     ["customers.created", t("Customers added")],

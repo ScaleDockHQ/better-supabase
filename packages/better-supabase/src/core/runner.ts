@@ -83,11 +83,14 @@ const KNOWN_KEYS = new Set([
 const NO_OPTIONS: CallOptions = Object.freeze({});
 
 export function optionsOf(args: Args | undefined): CallOptions {
-  if (!args) return NO_OPTIONS;
+  if (!args) {
+    return NO_OPTIONS;
+  }
   let options: Record<string, unknown> | undefined;
   for (const key in args) {
-    if (!KNOWN_KEYS.has(key) && Object.hasOwn(args, key))
+    if (!KNOWN_KEYS.has(key) && Object.hasOwn(args, key)) {
       (options ??= {})[key] = args[key];
+    }
   }
   return options ?? NO_OPTIONS;
 }
@@ -134,7 +137,9 @@ function cloneRows(rows: readonly Row[]): Row[] {
 }
 
 function mutationKind(op: MutationOp): MutationKind {
-  if (op.kind === "insert") return op.onConflict ? "upsert" : "insert";
+  if (op.kind === "insert") {
+    return op.onConflict ? "upsert" : "insert";
+  }
   return op.kind;
 }
 
@@ -171,12 +176,14 @@ export class OperationRunner {
   ): Promise<Result<ExecuteResult>> {
     const { runtime } = this;
     const hooks = this.#hooks;
-    if ("invalid" in tuning)
+    if ("invalid" in tuning) {
       return this.fail(op.table, dbError("invalid_request", tuning.invalid));
+    }
     const { timeout, retry } = { ...runtime.tuning, ...tuning };
     const invalid = invalidTuning({ timeout, retry });
-    if (invalid)
+    if (invalid) {
       return this.fail(op.table, dbError("invalid_request", invalid));
+    }
     let current = op;
     if (hooks.transformQuery.length > 0 || hooks.beforeMutation.length > 0) {
       const hook = this.hookArgs(op.table, options, signal);
@@ -196,8 +203,9 @@ export class OperationRunner {
           current = mutation;
         }
       } catch (cause) {
-        if (cause instanceof DbException)
+        if (cause instanceof DbException) {
           return this.fail(op.table, cause.error);
+        }
         return this.fail(op.table, {
           ...toDbError(cause),
           details: `${active} threw`,
@@ -228,8 +236,9 @@ export class OperationRunner {
           rows: decodeRows(selection, executed.data.rows, true),
         });
       } catch (cause) {
-        if (cause instanceof DbException)
+        if (cause instanceof DbException) {
           return this.fail(op.table, cause.error);
+        }
         throw cause;
       }
     }
@@ -258,7 +267,9 @@ export class OperationRunner {
         truncated,
       });
     }
-    if (!result.ok) return this.fail(op.table, result.error);
+    if (!result.ok) {
+      return this.fail(op.table, result.error);
+    }
 
     if (current.kind !== "select") {
       await this.afterMutation(current, result.data);
@@ -278,7 +289,9 @@ export class OperationRunner {
   ): Promise<Result<ExecuteResult>> {
     const { timeout, retry } = this.runtime.tuning ?? NO_TUNING;
     const invalid = invalidTuning({ timeout, retry });
-    if (invalid) return this.fail(table, dbError("invalid_request", invalid));
+    if (invalid) {
+      return this.fail(table, dbError("invalid_request", invalid));
+    }
     const executed = await this.#execute(op, signal, timeout, retry);
     return executed.ok
       ? executed
@@ -318,7 +331,9 @@ export class OperationRunner {
     const { runtime } = this;
     const plugins = this.#hooks.afterMutation;
     const listening = runtime.events.has("mutation");
-    if (plugins.length === 0 && !listening) return;
+    if (plugins.length === 0 && !listening) {
+      return;
+    }
     const kind = mutationKind(op);
     const rows = cloneRows(data.rows);
     const keys = keysOf(op, rows);
@@ -335,7 +350,9 @@ export class OperationRunner {
     for (const plugin of plugins) {
       try {
         const pending = plugin.afterMutation!(event);
-        if (isThenable(pending)) await pending;
+        if (isThenable(pending)) {
+          await pending;
+        }
       } catch (cause) {
         runtime.events.logger.error(
           `plugin "${plugin.name}" afterMutation threw`,
@@ -358,8 +375,9 @@ export class OperationRunner {
 
   fail<T>(table: TableMeta, error: DbError): Result<T> {
     const withTable = error.table ? error : { ...error, table: table.key };
-    if (this.runtime.events.has("error"))
+    if (this.runtime.events.has("error")) {
       this.runtime.events.emit("error", errorEvent(withTable, table.key));
+    }
     return err(withTable);
   }
 }

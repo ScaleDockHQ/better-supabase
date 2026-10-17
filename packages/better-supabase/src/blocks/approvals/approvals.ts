@@ -302,9 +302,13 @@ export function createApprovals<
     then: () => AsyncResult<T>,
   ): AsyncResult<T> => {
     const approver = options.approver;
-    if (approverOf === undefined || approver === undefined) return then();
+    if (approverOf === undefined || approver === undefined) {
+      return then();
+    }
     return getRequest(id).andThen(async (request) => {
-      if (!request.canDecide) return err(refused);
+      if (!request.canDecide) {
+        return err(refused);
+      }
       let allowed = false;
       try {
         allowed = await approverOf(approver, {

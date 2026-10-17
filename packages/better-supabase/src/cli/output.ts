@@ -56,7 +56,9 @@ export function renderError(
   error: CliError,
   options: RenderOptions & { readonly usage?: string },
 ): Rendered {
-  if (options.json) return { stdout: document(error.problem) };
+  if (options.json) {
+    return { stdout: document(error.problem) };
+  }
   return {
     stderr: options.usage
       ? `${error.message}\n\n${options.usage}`

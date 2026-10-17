@@ -150,8 +150,9 @@ export function expectDbBudget(
   target: Response | BudgetPage,
   expectation: DbBudgetExpectation | ResponseBudgetExpectation,
 ): ResponseDbStats | Promise<readonly MeasuredRender[]> {
-  if (target instanceof Response)
+  if (target instanceof Response) {
     return expectResponseBudget(target, expectation);
+  }
   return expectPageBudget(target, expectation);
 }
 
@@ -165,8 +166,9 @@ async function expectPageBudget(
     const headers = response.headers();
     const id = headers["x-bs-request-id"];
     const stats = headers["x-bs-stats"];
-    if (!id || !stats || (!expectation.prefetches && isPrefetch(response)))
+    if (!id || !stats || (!expectation.prefetches && isPrefetch(response))) {
       return;
+    }
     lastSeen = Date.now();
     seen.push({ response, id, url: new URL(stats, response.url()).href });
   };
@@ -178,7 +180,9 @@ async function expectPageBudget(
     lastSeen = Math.max(lastSeen, start);
     for (;;) {
       const left = lastSeen + settleMs - Date.now();
-      if (left <= 0 || Date.now() - start >= timeoutMs) return;
+      if (left <= 0 || Date.now() - start >= timeoutMs) {
+        return;
+      }
       await sleep(left);
     }
   };
@@ -190,7 +194,9 @@ async function expectPageBudget(
   };
   const ended = (response: BudgetResponse): Promise<unknown> => {
     const request = response.request();
-    if (failed.has(request)) return Promise.resolve();
+    if (failed.has(request)) {
+      return Promise.resolve();
+    }
     return Promise.race([
       response.finished(),
       new Promise<void>((done) => {
@@ -208,7 +214,9 @@ async function expectPageBudget(
       page.off("response", listener);
     }
     if (seen.length === 0) {
-      if (expectation.requireRequest === false) return [];
+      if (expectation.requireRequest === false) {
+        return [];
+      }
       throw new Error(
         "expectDbBudget: no response carried x-bs-request-id. Enable createNext(betterSupabase, { debug: { enabled: true } }) and run the proxy.",
       );

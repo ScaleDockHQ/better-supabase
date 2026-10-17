@@ -279,8 +279,12 @@ function createSupport(
     store: SupportSessionStore,
     targetUserId: string,
   ): Promise<Readonly<Record<string, unknown>>> => {
-    if (options.claims) return options.claims(targetUserId);
-    if (store.claims) return store.claims(targetUserId);
+    if (options.claims) {
+      return options.claims(targetUserId);
+    }
+    if (store.claims) {
+      return store.claims(targetUserId);
+    }
     return { role: "authenticated" };
   };
 
@@ -293,7 +297,9 @@ function createSupport(
     session: SupportSession,
   ): Promise<Readonly<Record<string, unknown>>> => {
     const cached = claimsCache.get(session.id);
-    if (cached) return cached;
+    if (cached) {
+      return cached;
+    }
     const claims = await targetClaims(store, session.targetUserId);
     claimsCache.set(
       session.id,
@@ -309,23 +315,27 @@ function createSupport(
     reason: string,
     seconds: number,
   ): DbError | undefined => {
-    if (admin.claims["act"] !== undefined)
+    if (admin.claims["act"] !== undefined) {
       return denied(
         "An impersonated session cannot start a support session",
         "SUPPORT_NESTED",
       );
-    if (request.targetUserId === admin.user.id)
+    }
+    if (request.targetUserId === admin.user.id) {
       return invalid(
         "An admin cannot start a support session as themselves",
         "SUPPORT_SELF",
       );
-    if ((policy.requireReason ?? true) && reason === "")
+    }
+    if ((policy.requireReason ?? true) && reason === "") {
       return invalid("A reason is required", "SUPPORT_REASON_REQUIRED");
-    if (!Number.isFinite(seconds) || seconds <= 0 || seconds > maxTtl)
+    }
+    if (!Number.isFinite(seconds) || seconds <= 0 || seconds > maxTtl) {
       return invalid(
         `ttl must be between 1 and ${String(maxTtl)} seconds`,
         "SUPPORT_TTL",
       );
+    }
     return;
   };
 
@@ -336,8 +346,12 @@ function createSupport(
   const decide = async (
     input: SupportAuthorizeInput,
   ): Promise<SupportDecision> => {
-    if (authorize === undefined) return false;
-    if (authorize === "store") return true;
+    if (authorize === undefined) {
+      return false;
+    }
+    if (authorize === "store") {
+      return true;
+    }
     try {
       return await authorize(input);
     } catch {
@@ -350,7 +364,9 @@ function createSupport(
     request: SupportRequest,
   ): Promise<boolean> => {
     const approverOf = authorization?.approverOf;
-    if (approverOf === undefined) return true;
+    if (approverOf === undefined) {
+      return true;
+    }
     try {
       return await approverOf(
         { userId: approver.user.id, claims: approver.claims },
@@ -452,10 +468,16 @@ function createSupport(
     id: string,
     auth: AuthState,
   ): Promise<ActiveSupport | undefined> => {
-    if (auth.kind !== "user") return;
+    if (auth.kind !== "user") {
+      return;
+    }
     // A support session's own token never nests another one.
-    if (auth.claims["act"] !== undefined) return;
-    if (!id) return;
+    if (auth.claims["act"] !== undefined) {
+      return;
+    }
+    if (!id) {
+      return;
+    }
     let session: SupportSession | undefined;
     let claims: Readonly<Record<string, unknown>>;
     try {
@@ -516,10 +538,11 @@ function createSupport(
       ),
     start(admin, request) {
       return AsyncResult.from(async () => {
-        if (admin.kind !== "user")
+        if (admin.kind !== "user") {
           return err(
             dbError("unauthorized", "Sign in to start a support session"),
           );
+        }
         const reason = request.reason?.trim() ?? "";
         const seconds = request.ttl ?? ttl;
         const readOnly =
@@ -537,7 +560,9 @@ function createSupport(
           return err(error);
         };
         const violation = checkPolicy(admin, request, reason, seconds);
-        if (violation) return deny(violation, "policy");
+        if (violation) {
+          return deny(violation, "policy");
+        }
         const tenant =
           request.tenant === undefined ? {} : { tenant: request.tenant };
         const input: SupportAuthorizeInput = {
@@ -549,11 +574,14 @@ function createSupport(
           metadata: request.metadata ?? {},
         };
         const decision = await decide(input);
-        if (decision === false) return deny(forbidden(), "authorize");
+        if (decision === false) {
+          return deny(forbidden(), "authorize");
+        }
         const approvedBy =
           typeof decision === "object" ? decision.approvedBy : undefined;
-        if (approvedBy === admin.user.id)
+        if (approvedBy === admin.user.id) {
           return deny(selfApproval(), "authorize");
+        }
         let requestId: string | undefined;
         if (approval === "distinct") {
           let approved: SupportRequest | undefined;
@@ -611,10 +639,11 @@ function createSupport(
 
     request(admin, request) {
       return AsyncResult.from(async () => {
-        if (admin.kind !== "user")
+        if (admin.kind !== "user") {
           return err(
             dbError("unauthorized", "Sign in to ask for a support session"),
           );
+        }
         const reason = request.reason?.trim() ?? "";
         const violation = checkPolicy(
           admin,
@@ -622,8 +651,12 @@ function createSupport(
           reason,
           request.ttl ?? ttl,
         );
-        if (violation) return err(violation);
-        if (!store.request) return err(noApprovals());
+        if (violation) {
+          return err(violation);
+        }
+        if (!store.request) {
+          return err(noApprovals());
+        }
         try {
           return ok(
             await store.request({
@@ -649,27 +682,34 @@ function createSupport(
 
     approve(approver, requestId) {
       return AsyncResult.from(async () => {
-        if (approver.kind !== "user")
+        if (approver.kind !== "user") {
           return err(
             dbError("unauthorized", "Sign in to approve a support session"),
           );
-        if (approver.claims["act"] !== undefined)
+        }
+        if (approver.claims["act"] !== undefined) {
           return err(
             denied(
               "An impersonated session cannot approve a support session",
               "SUPPORT_NESTED",
             ),
           );
-        if (!store.approve || !store.getRequest) return err(noApprovals());
+        }
+        if (!store.approve || !store.getRequest) {
+          return err(noApprovals());
+        }
         try {
           const found = await store.getRequest(requestId);
-          if (!found)
+          if (!found) {
             return err(
               dbError("not_found", "No such support request", {
                 code: "SUPPORT_REQUEST_MISSING",
               }),
             );
-          if (found.adminId === approver.user.id) return err(selfApproval());
+          }
+          if (found.adminId === approver.user.id) {
+            return err(selfApproval());
+          }
           if (authorization?.approverOf === undefined) {
             return ok(
               await store.approve(requestId, {
@@ -678,13 +718,14 @@ function createSupport(
               }),
             );
           }
-          if (!(await mayApprove(approver, found)))
+          if (!(await mayApprove(approver, found))) {
             return err(
               denied(
                 "Not allowed to approve this support session",
                 "SUPPORT_FORBIDDEN",
               ),
             );
+          }
           return ok(await store.approve(requestId, { id: approver.user.id }));
         } catch (cause) {
           return err(storeError(cause));
@@ -695,17 +736,20 @@ function createSupport(
     stop(admin, sessionId) {
       return AsyncResult.from(async () => {
         const cookie = clearSupportCookie(options.cookie);
-        if (admin.kind !== "user")
+        if (admin.kind !== "user") {
           return err(
             dbError("unauthorized", "Sign in to stop a support session"),
           );
+        }
         try {
           const session = await store.get(
             sessionId,
             admin.user.id,
             admin.claims,
           );
-          if (!session) return ok({ ended: false, cookie });
+          if (!session) {
+            return ok({ ended: false, cookie });
+          }
           const ended = await store.end(sessionId, "admin", admin.claims);
           if (ended) {
             emit("support.ended", {
@@ -724,10 +768,11 @@ function createSupport(
 
     revoke(caller, sessionId) {
       return AsyncResult.from(async () => {
-        if (caller.kind !== "user")
+        if (caller.kind !== "user") {
           return err(
             dbError("unauthorized", "Sign in to revoke a support session"),
           );
+        }
         try {
           return ok(await store.end(sessionId, "revoked", caller.claims));
         } catch (cause) {
@@ -745,10 +790,11 @@ function createSupport(
 
     list(caller, filter) {
       return AsyncResult.from(async () => {
-        if (caller.kind !== "user")
+        if (caller.kind !== "user") {
           return err(
             dbError("unauthorized", "Sign in to list support sessions"),
           );
+        }
         try {
           return ok(await store.list(filter, caller.claims));
         } catch (cause) {

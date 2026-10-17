@@ -71,7 +71,9 @@ export function createCommentsController(
     (state) => {
       let ticket = 0;
       const refresh = async (): Promise<void> => {
-        if (organizationId === null) return;
+        if (organizationId === null) {
+          return;
+        }
         const request = ++ticket;
         const result = await client.list(
           organizationId,
@@ -79,7 +81,9 @@ export function createCommentsController(
           subjectId,
           options.limit === undefined ? {} : { limit: options.limit },
         );
-        if (request !== ticket) return;
+        if (request !== ticket) {
+          return;
+        }
         state.set(
           result.ok
             ? { comments: result.data, error: undefined }
@@ -105,8 +109,9 @@ export function createCommentsController(
         actions: {
           refresh,
           add: async (body, draft = {}) => {
-            if (organizationId === null)
+            if (organizationId === null) {
               return err(dbError("invalid_input", "No organization is active"));
+            }
             const result = await client.create({
               ...draft,
               organizationId,
@@ -114,20 +119,29 @@ export function createCommentsController(
               subjectId,
               body,
             });
-            if (result.ok) replace(result.data);
-            else state.set({ error: result.error });
+            if (result.ok) {
+              replace(result.data);
+            } else {
+              state.set({ error: result.error });
+            }
             return result;
           },
           edit: async (id, edit) => {
             const result = await client.edit(id, edit);
-            if (result.ok) replace(result.data);
-            else state.set({ error: result.error });
+            if (result.ok) {
+              replace(result.data);
+            } else {
+              state.set({ error: result.error });
+            }
             return result;
           },
           remove: async (id) => {
             const result = await client.remove(id);
-            if (result.ok) await refresh();
-            else state.set({ error: result.error });
+            if (result.ok) {
+              await refresh();
+            } else {
+              state.set({ error: result.error });
+            }
             return result;
           },
         },
@@ -136,7 +150,9 @@ export function createCommentsController(
             ? undefined
             : whileSignedIn(options.auth, () => {
                 void refresh();
-                if (topic === null) return;
+                if (topic === null) {
+                  return;
+                }
                 const { leave } = options.ports.topic(topic, {
                   onMessage: () => void refresh(),
                   onRejoin: () => void refresh(),

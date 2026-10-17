@@ -213,7 +213,9 @@ export function createEngagements<
       const out: Engagement<F>[] = [];
       for (const engagement of engagements) {
         const read = await parsed(engagement);
-        if (!read.ok) return read;
+        if (!read.ok) {
+          return read;
+        }
         out.push(read.data);
       }
       return ok(out);
@@ -223,7 +225,9 @@ export function createEngagements<
     input: EngagementInput<F>,
   ): AsyncResult<Record<string, unknown>> => {
     const { fields: extra, ...rest } = input;
-    if (extra === undefined) return AsyncResult.ok(attrsOf(rest));
+    if (extra === undefined) {
+      return AsyncResult.ok(attrsOf(rest));
+    }
     return AsyncResult.from(() => fields.write({ ...extra })).map((valid) => ({
       ...attrsOf(rest),
       fields: valid,

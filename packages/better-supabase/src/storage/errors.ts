@@ -16,13 +16,21 @@ interface StorageFailure {
 
 /** Maps a Storage error (`StorageApiError`, fetch failures) to a `DbError`. */
 export function fromStorageError(raw: unknown, table?: string): DbError {
-  if (isDbError(raw)) return raw;
-  if (raw instanceof DbException) return raw.error;
-  if (typeof raw !== "object" || raw === null) return toDbError(raw);
+  if (isDbError(raw)) {
+    return raw;
+  }
+  if (raw instanceof DbException) {
+    return raw.error;
+  }
+  if (typeof raw !== "object" || raw === null) {
+    return toDbError(raw);
+  }
   // SAFETY: the check above narrows raw to an object; every StorageFailure
   // field is optional.
   const failure = raw as StorageFailure;
-  if (failure.name === "AbortError") return toDbError(raw);
+  if (failure.name === "AbortError") {
+    return toDbError(raw);
+  }
   const message = failure.message ?? "Storage request failed";
   const code = failure.code ?? failure.statusCode;
   const base = { ...(code ? { code } : {}), ...(table ? { table } : {}) };
@@ -31,8 +39,9 @@ export function fromStorageError(raw: unknown, table?: string): DbError {
     Number.isFinite(statusCode) && statusCode >= 400
       ? statusCode
       : (failure.status ?? 0);
-  if (code === "FeatureNotEnabled" || /^Route \S+ not found$/.test(message))
+  if (code === "FeatureNotEnabled" || /^Route \S+ not found$/.test(message)) {
     return dbError("unsupported", message, base);
+  }
   if (
     /row-level security|unauthorized to|AccessDenied/i.test(
       `${message} ${code ?? ""}`,
@@ -40,10 +49,12 @@ export function fromStorageError(raw: unknown, table?: string): DbError {
   ) {
     return dbError("forbidden", message, base);
   }
-  if (/already exists|duplicate/i.test(`${message} ${code ?? ""}`))
+  if (/already exists|duplicate/i.test(`${message} ${code ?? ""}`)) {
     return dbError("conflict", message, base);
-  if (failure.name === "StorageUnknownError" && status === 0)
+  }
+  if (failure.name === "StorageUnknownError" && status === 0) {
     return dbError("network", message, base);
+  }
   switch (status) {
     case 400:
       return dbError("invalid_request", message, base);

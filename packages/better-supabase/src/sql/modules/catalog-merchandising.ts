@@ -247,7 +247,9 @@ grant execute on function ${fn("variant_price")}(uuid, text, uuid, timestamptz) 
 }
 
 export function categoryFunctions(ctx: ModuleContext, names: Names): string {
-  if (!ctx.hasTable("categories")) return "";
+  if (!ctx.hasTable("categories")) {
+    return "";
+  }
   const { fn } = names;
   const categories = ctx.table("categories");
   const k = (column: string): string => ctx.col("categories", column);
@@ -412,7 +414,9 @@ ${links}`;
 }
 
 export function collectionFunctions(ctx: ModuleContext, names: Names): string {
-  if (!ctx.hasTable("collections")) return "";
+  if (!ctx.hasTable("collections")) {
+    return "";
+  }
   const { fn } = names;
   const collections = ctx.table("collections");
   const k = (column: string): string => ctx.col("collections", column);
@@ -572,7 +576,9 @@ ${members}`;
 }
 
 export function storefrontFunctions(ctx: ModuleContext, names: Names): string {
-  if (!ctx.hasTable("storefronts")) return "";
+  if (!ctx.hasTable("storefronts")) {
+    return "";
+  }
   const { fn } = names;
   const storefronts = ctx.table("storefronts");
   const products = ctx.table("products");

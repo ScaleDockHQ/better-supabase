@@ -132,7 +132,7 @@ describe("import paths", () => {
     const files = INTEGRATIONS.flatMap((name) =>
       TEMPLATES[name].files(context()),
     );
-    for (const file of files.filter((f) => !f.path.endsWith(".json")))
+    for (const file of files.filter((f) => !f.path.endsWith(".json"))) {
       expect({
         path: file.path,
         legacy:
@@ -140,6 +140,7 @@ describe("import paths", () => {
             file.contents,
           ),
       }).toEqual({ path: file.path, legacy: false });
+    }
   });
 });
 

@@ -36,15 +36,18 @@ function stackContextManager(): ContextManager {
 const w3c: TextMapPropagator = {
   inject(ctx, carrier, setter) {
     const span = trace.getSpanContext(ctx);
-    if (!span) return;
+    if (!span) {
+      return;
+    }
     const flags = `0${(span.traceFlags & TraceFlags.SAMPLED).toString(16)}`;
     setter.set(
       carrier,
       "traceparent",
       `00-${span.traceId}-${span.spanId}-${flags}`,
     );
-    if (span.traceState)
+    if (span.traceState) {
       setter.set(carrier, "tracestate", span.traceState.serialize());
+    }
   },
   extract: (ctx) => ctx,
   fields: () => ["traceparent", "tracestate"],

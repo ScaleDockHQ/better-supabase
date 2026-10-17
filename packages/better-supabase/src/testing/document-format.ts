@@ -133,28 +133,48 @@ function sampleModel(): ApiModel {
 }
 
 function isPlainJson(value: unknown): boolean {
-  if (value === null || typeof value === "string" || typeof value === "boolean")
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "boolean"
+  ) {
     return true;
-  if (typeof value === "number") return Number.isFinite(value);
-  if (Array.isArray(value)) return value.every(isPlainJson);
-  if (typeof value !== "object") return false;
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value);
+  }
+  if (Array.isArray(value)) {
+    return value.every(isPlainJson);
+  }
+  if (typeof value !== "object") {
+    return false;
+  }
   const prototype: unknown = Object.getPrototypeOf(value);
-  if (prototype !== Object.prototype && prototype !== null) return false;
+  if (prototype !== Object.prototype && prototype !== null) {
+    return false;
+  }
   return Object.values(value).every(
     (entry) => entry !== undefined && isPlainJson(entry),
   );
 }
 
 function diagnosticProblem(diagnostic: SpecDiagnostic): string | undefined {
-  if (typeof diagnostic.code !== "string" || !CODE.test(diagnostic.code))
+  if (typeof diagnostic.code !== "string" || !CODE.test(diagnostic.code)) {
     return `the code ${JSON.stringify(diagnostic.code)} is not kebab-case`;
+  }
   const severity: unknown = diagnostic.severity;
-  if (typeof severity !== "string" || !SEVERITIES.has(severity))
+  if (typeof severity !== "string" || !SEVERITIES.has(severity)) {
     return `${diagnostic.code} has the severity ${String(severity)}`;
-  if (typeof diagnostic.message !== "string" || diagnostic.message === "")
+  }
+  if (typeof diagnostic.message !== "string" || diagnostic.message === "") {
     return `${diagnostic.code} has no message`;
-  if (diagnostic.pointer !== undefined && !/^(?:\/|$)/.test(diagnostic.pointer))
+  }
+  if (
+    diagnostic.pointer !== undefined &&
+    !/^(?:\/|$)/.test(diagnostic.pointer)
+  ) {
     return `${diagnostic.code} has the pointer ${diagnostic.pointer}, which is not a JSON Pointer`;
+  }
   return undefined;
 }
 
@@ -219,11 +239,12 @@ export function testDocumentFormat<F extends AnyDocumentFormat>(
             `version ${version} has the status ${String(status)}`,
           );
         }
-        for (const version of versions)
+        for (const version of versions) {
           expect(
             Object.hasOwn(subject.versions, version),
             `options.versions names ${version}, which the format does not list`,
           );
+        }
       },
     ],
     [
@@ -307,8 +328,11 @@ export function testDocumentFormat<F extends AnyDocumentFormat>(
       () => {
         for (const version of versions) {
           const { document, diagnostics } = lower(version, modelOf());
-          if (diagnostics.some((diagnostic) => diagnostic.severity === "error"))
+          if (
+            diagnostics.some((diagnostic) => diagnostic.severity === "error")
+          ) {
             continue;
+          }
           const errors = (subject.lint?.(document, version) ?? []).filter(
             (diagnostic) => diagnostic.severity === "error",
           );

@@ -25,7 +25,9 @@ import { loadPlanCatalog, startCheckout } from "../billing-actions";
 
 async function loadCatalog(): Promise<PlanCatalog<PlanOption>> {
   const result = await loadPlanCatalog({});
-  if (!result.ok) throw new DbException(result.error);
+  if (!result.ok) {
+    throw new DbException(result.error);
+  }
   return result.data;
 }
 
@@ -100,7 +102,9 @@ export function PlanPicker({
                 disabled={active || !canManage || pending !== undefined}
                 onClick={() => {
                   void choose(plan.key).then((started) => {
-                    if (!started.ok) toast.error(errorMessage(started.error));
+                    if (!started.ok) {
+                      toast.error(errorMessage(started.error));
+                    }
                   });
                 }}
               >

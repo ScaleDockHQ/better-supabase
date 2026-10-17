@@ -26,7 +26,9 @@ function store() {
       const previous = rows.find(
         (row) => row.owner === owner(args) && row.state === "active",
       );
-      if (previous) previous.state = "retired";
+      if (previous) {
+        previous.state = "retired";
+      }
       rows.push({
         owner: owner(args),
         kid: String(args["kid"]),
@@ -62,7 +64,9 @@ function store() {
       const row = rows.find(
         (item) => item.kid === args["kid"] && item.state === "active",
       );
-      if (row) row.state = "retired";
+      if (row) {
+        row.state = "retired";
+      }
       return row !== undefined;
     },
     delete_signing_keys: () => 0,
@@ -74,7 +78,9 @@ function store() {
     call(_schema: string, fn: string, args: Record<string, unknown>) {
       calls.push([fn, args]);
       const handler = fns[fn];
-      if (!handler) return Promise.reject(new Error(`unexpected ${fn}`));
+      if (!handler) {
+        return Promise.reject(new Error(`unexpected ${fn}`));
+      }
       return Promise.resolve(handler(args));
     },
   };

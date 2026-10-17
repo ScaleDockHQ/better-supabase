@@ -89,8 +89,12 @@ function actorAt(
   const readOnly = outer["read_only"];
   const reason = outer["reason"];
   if (kind === "support") {
-    if (typeof sessionId !== "string" || sessionId === "") return INVALID;
-    if (readOnly !== undefined && typeof readOnly !== "boolean") return INVALID;
+    if (typeof sessionId !== "string" || sessionId === "") {
+      return INVALID;
+    }
+    if (readOnly !== undefined && typeof readOnly !== "boolean") {
+      return INVALID;
+    }
     return {
       ok: true,
       actor: {
@@ -113,7 +117,9 @@ function actorAt(
     };
   }
   if (kind === "agent") {
-    if (sessionId !== undefined) return INVALID;
+    if (sessionId !== undefined) {
+      return INVALID;
+    }
     const tools = outer["tools"];
     if (
       tools !== undefined &&
@@ -134,7 +140,9 @@ function actorAt(
       },
     };
   }
-  if (kind !== undefined || sessionId !== undefined) return INVALID;
+  if (kind !== undefined || sessionId !== undefined) {
+    return INVALID;
+  }
   return {
     ok: true,
     actor: { kind: "oauth-client", id, chain: copyAct(outer) },
@@ -154,21 +162,30 @@ export function actorOf(
 ): ActorOutcome {
   const outer = claims["act"];
   if (outer !== undefined) {
-    if (!isRecord(outer)) return INVALID;
+    if (!isRecord(outer)) {
+      return INVALID;
+    }
     const id = outer["sub"];
-    if (typeof id !== "string" || id === "") return INVALID;
+    if (typeof id !== "string" || id === "") {
+      return INVALID;
+    }
     let level: unknown = outer["act"];
     while (level !== undefined) {
-      if (!isRecord(level)) return INVALID;
+      if (!isRecord(level)) {
+        return INVALID;
+      }
       const sub = level["sub"];
-      if (typeof sub !== "string" || sub === "") return INVALID;
+      if (typeof sub !== "string" || sub === "") {
+        return INVALID;
+      }
       level = level["act"];
     }
     return actorAt(outer, id);
   }
   const client = claims["client_id"];
-  if (typeof client === "string" && client !== "")
+  if (typeof client === "string" && client !== "") {
     return { ok: true, actor: { id: client, kind: "oauth-client" } };
+  }
   return { ok: true };
 }
 

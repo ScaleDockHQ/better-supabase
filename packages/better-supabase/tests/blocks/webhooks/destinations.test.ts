@@ -39,8 +39,9 @@ function onceBackend(withOnce = true) {
             key: string,
           ) {
             const seen = keys.get(`${queue}:${key}`);
-            if (seen !== undefined)
+            if (seen !== undefined) {
               return Promise.resolve({ id: seen, duplicate: true });
+            }
             const id = keys.size + 1;
             keys.set(`${queue}:${key}`, id);
             sent.push(payload);
@@ -79,8 +80,9 @@ describe("incoming destinations", () => {
         (call) => {
           const key = `${String(call.values[0])}:${String(call.values[1])}:${String(call.values[5])}`;
           const seen = stored.get(key);
-          if (seen !== undefined)
+          if (seen !== undefined) {
             return [{ value: { id: seen, duplicate: true } }];
+          }
           stored.set(key, stored.size + 1);
           return [{ value: { id: stored.size, duplicate: false } }];
         },

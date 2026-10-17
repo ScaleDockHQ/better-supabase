@@ -33,7 +33,9 @@ export function fakeFetch(
     };
     calls.push(call);
     const answer = await respond(call);
-    if (answer instanceof Response) return answer;
+    if (answer instanceof Response) {
+      return answer;
+    }
     const text =
       answer.text ??
       (answer.body === undefined ? "" : JSON.stringify(answer.body));

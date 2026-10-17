@@ -43,7 +43,9 @@ async function createRun(
 }
 
 beforeAll(async () => {
-  if (!live) return;
+  if (!live) {
+    return;
+  }
   await installWorld(pool);
   world = createSupabaseWorld({ pool });
 });
@@ -54,11 +56,12 @@ afterAll(async () => {
       "delete from better_supabase.workflow_runs where external_id = any($1)",
       [created],
     );
-    for (const table of ["events", "steps", "hooks", "waits", "runs"])
+    for (const table of ["events", "steps", "hooks", "waits", "runs"]) {
       await pool.query(
         `delete from workflow.workflow_${table} where ${table === "runs" ? "id" : "run_id"} = any($1)`,
         [created],
       );
+    }
     await world.close();
   }
   await pool.end();
@@ -107,7 +110,9 @@ describe.skipIf(!live)("Supabase World", () => {
       [WORKFLOW_ATTRIBUTES.key]: KEY,
     });
     const analytics = world.analytics;
-    if (analytics === undefined) throw new Error("no analytics");
+    if (analytics === undefined) {
+      throw new Error("no analytics");
+    }
 
     const runs = await analytics.runs.list({
       attributes: { [WORKFLOW_ATTRIBUTES.key]: KEY },

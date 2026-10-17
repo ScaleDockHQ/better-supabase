@@ -278,7 +278,9 @@ export function codeRanges(text: string): [number, number][] {
   let start = 0;
   let index = 0;
   const skip = (end: number): void => {
-    if (index > start) ranges.push([start, index]);
+    if (index > start) {
+      ranges.push([start, index]);
+    }
     index = end;
     start = end;
   };
@@ -294,8 +296,12 @@ export function codeRanges(text: string): [number, number][] {
     } else if (char === '"' || char === "'" || char === "`") {
       let end = index + 1;
       while (end < text.length && text[end] !== char) {
-        if (text[end] === "\\") end += 1;
-        if (char !== "`" && text[end] === "\n") break;
+        if (text[end] === "\\") {
+          end += 1;
+        }
+        if (char !== "`" && text[end] === "\n") {
+          break;
+        }
         end += 1;
       }
       skip(text[end] === char ? end + 1 : Math.min(end, text.length));
@@ -303,7 +309,9 @@ export function codeRanges(text: string): [number, number][] {
       index += 1;
     }
   }
-  if (index > start) ranges.push([start, index]);
+  if (index > start) {
+    ranges.push([start, index]);
+  }
   return ranges;
 }
 
@@ -317,7 +325,9 @@ function applyEdits(text: string, edits: readonly Edit[]): string {
   let out = "";
   let cursor = 0;
   for (const edit of [...edits].sort((a, b) => a.start - b.start)) {
-    if (edit.start < cursor) continue;
+    if (edit.start < cursor) {
+      continue;
+    }
     out += text.slice(cursor, edit.start) + edit.text;
     cursor = edit.end;
   }
@@ -333,9 +343,13 @@ function inCode(ranges: readonly [number, number][], index: number): boolean {
   while (low <= high) {
     const middle = (low + high) >> 1;
     const [start, end] = ranges[middle]!;
-    if (index < start) high = middle - 1;
-    else if (index >= end) low = middle + 1;
-    else return true;
+    if (index < start) {
+      high = middle - 1;
+    } else if (index >= end) {
+      low = middle + 1;
+    } else {
+      return true;
+    }
   }
   return false;
 }
@@ -371,8 +385,12 @@ function renameImports(
       /(\btype\s+)?([\w$]+)(\s+as\s+[\w$]+)?/g,
       (spec, type: string | undefined, name: string, alias?: string) => {
         const to = renames[name];
-        if (to === undefined) return spec;
-        if (alias === undefined && match[1] === "import") locals.add(name);
+        if (to === undefined) {
+          return spec;
+        }
+        if (alias === undefined && match[1] === "import") {
+          locals.add(name);
+        }
         return `${type ?? ""}${to}${alias ?? ""}`;
       },
     );
@@ -391,7 +409,9 @@ function renameIdentifiers(
   text: string,
   renames: ReadonlyMap<string, string>,
 ): string {
-  if (renames.size === 0) return text;
+  if (renames.size === 0) {
+    return text;
+  }
   const ranges = codeRanges(text);
   const names = [...renames.keys()].map(escapeRegExp).join("|");
   const pattern = new RegExp(`(?<![\\w$.])(?:${names})(?![\\w$])`, "g");
@@ -410,7 +430,9 @@ function renameStrings(
   strings: Readonly<Record<string, string>>,
 ): string {
   const names = Object.keys(strings).map(escapeRegExp).join("|");
-  if (names === "") return text;
+  if (names === "") {
+    return text;
+  }
   const ranges = codeRanges(text);
   const pattern = new RegExp(`(["'\`])(${names})\\1`, "g");
   return applyEdits(
@@ -456,11 +478,17 @@ function renameProps(text: string, props: readonly PropRename[]): string {
         index < text.length;
         index += 1
       ) {
-        if (!inCode(ranges, index)) continue;
+        if (!inCode(ranges, index)) {
+          continue;
+        }
         const char = text[index]!;
-        if (char === "{") depth += 1;
-        else if (char === "}") depth -= 1;
-        else if (char === ">" && depth === 0) break;
+        if (char === "{") {
+          depth += 1;
+        } else if (char === "}") {
+          depth -= 1;
+        } else if (char === ">" && depth === 0) {
+          break;
+        }
         if (
           depth === 0 &&
           /\s/.test(text[index - 1] ?? "") &&
@@ -486,12 +514,17 @@ function closing(
 ): number {
   let depth = 0;
   for (let index = open; index < text.length; index += 1) {
-    if (!inCode(ranges, index)) continue;
+    if (!inCode(ranges, index)) {
+      continue;
+    }
     const char = text[index]!;
-    if (OPENING.includes(char)) depth += 1;
-    else if (CLOSING.includes(char)) {
+    if (OPENING.includes(char)) {
+      depth += 1;
+    } else if (CLOSING.includes(char)) {
       depth -= 1;
-      if (depth === 0) return index + 1;
+      if (depth === 0) {
+        return index + 1;
+      }
     }
   }
   return text.length;
@@ -507,10 +540,15 @@ function walkBrackets(
   const end = closing(text, open, ranges);
   let depth = 0;
   for (let index = open; index < end; index += 1) {
-    if (!inCode(ranges, index)) continue;
+    if (!inCode(ranges, index)) {
+      continue;
+    }
     const char = text[index]!;
-    if (OPENING.includes(char)) depth += 1;
-    else if (CLOSING.includes(char)) depth -= 1;
+    if (OPENING.includes(char)) {
+      depth += 1;
+    } else if (CLOSING.includes(char)) {
+      depth -= 1;
+    }
     visit(index, depth, char);
   }
 }
@@ -532,12 +570,15 @@ function topLevelKeys(
       !/[\w$]/.test(text[index + key.length] ?? "")
     ) {
       const after = /^\s*(\S)/.exec(text.slice(index + key.length))?.[1];
-      if (after === ":") keys.push({ index, shorthand: false });
-      else if (after === "," || after === "}") {
+      if (after === ":") {
+        keys.push({ index, shorthand: false });
+      } else if (after === "," || after === "}") {
         keys.push({ index, shorthand: true });
       }
     }
-    if (depth === 1 && !/\s/.test(char)) previous = char;
+    if (depth === 1 && !/\s/.test(char)) {
+      previous = char;
+    }
   });
   return keys;
 }
@@ -557,7 +598,9 @@ function renameOptions(text: string, options: readonly OptionRename[]): string {
         match.index + match[0].length - 1,
         ranges,
         (index, depth, char) => {
-          if (depth === 2 && char === "{") objects.push(index);
+          if (depth === 2 && char === "{") {
+            objects.push(index);
+          }
         },
       );
       for (const object of objects) {
@@ -600,10 +643,18 @@ export function applyCodemod(codemod: Codemod, source: string): CodemodResult {
       ),
     );
   }
-  if (codemod.members) text = renameMembers(text, codemod.members);
-  if (codemod.props) text = renameProps(text, codemod.props);
-  if (codemod.options) text = renameOptions(text, codemod.options);
-  if (codemod.strings) text = renameStrings(text, codemod.strings);
+  if (codemod.members) {
+    text = renameMembers(text, codemod.members);
+  }
+  if (codemod.props) {
+    text = renameProps(text, codemod.props);
+  }
+  if (codemod.options) {
+    text = renameOptions(text, codemod.options);
+  }
+  if (codemod.strings) {
+    text = renameStrings(text, codemod.strings);
+  }
   const review = (codemod.review ?? []).flatMap((hint) =>
     text
       .split("\n")

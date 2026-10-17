@@ -146,8 +146,12 @@ export function aiSandboxes(call: BlockCall, service: BlockCall): AiSandboxes {
             error === undefined,
             error,
           );
-          if (!finished.ok) return finished;
-          if (error === undefined) stopped += 1;
+          if (!finished.ok) {
+            return finished;
+          }
+          if (error === undefined) {
+            stopped += 1;
+          }
         }
         return ok(stopped);
       }),

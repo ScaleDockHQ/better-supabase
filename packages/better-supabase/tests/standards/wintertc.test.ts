@@ -39,7 +39,9 @@ async function closure(entry: string) {
   const files = new Set<string>();
   const externals = new Map<string, string>();
   const visit = async (file: string): Promise<void> => {
-    if (files.has(file)) return;
+    if (files.has(file)) {
+      return;
+    }
     files.add(file);
     const source = await readFile(file, "utf-8");
     for (const match of source.matchAll(SPECIFIER)) {
@@ -50,9 +52,12 @@ async function closure(entry: string) {
           specifier.replace(/\.js$/, ".ts"),
         );
         // Relative specifiers that don't resolve are inside generated-code templates.
-        if (existsSync(target)) await visit(target);
-      } else if (!externals.has(specifier))
+        if (existsSync(target)) {
+          await visit(target);
+        }
+      } else if (!externals.has(specifier)) {
         externals.set(specifier, relative(SRC, file));
+      }
     }
   };
   await visit(resolve(SRC, `${entry}.ts`));
@@ -64,7 +69,9 @@ describe("WinterTC runtime entries", async () => {
   const runtime = all.filter((entry) => !NODE_ENTRIES.has(entry));
 
   it("lists the Node-only entries that exist", () => {
-    for (const entry of NODE_ENTRIES) expect(all).toContain(entry);
+    for (const entry of NODE_ENTRIES) {
+      expect(all).toContain(entry);
+    }
   });
 
   it.each(runtime)("%s imports no Node built-in or pg", async (entry) => {
@@ -84,7 +91,9 @@ describe("WinterTC runtime entries", async () => {
         "",
       );
       const hit = NODE_GLOBALS.exec(code);
-      if (hit) offenders.push(`${relative(SRC, file)}: ${hit[0]}`);
+      if (hit) {
+        offenders.push(`${relative(SRC, file)}: ${hit[0]}`);
+      }
     }
     expect(offenders).toEqual([]);
   });

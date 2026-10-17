@@ -25,11 +25,17 @@ const doc = createOpenApi(betterSupabase, {
 });
 
 function refs(value: unknown, out: string[] = []): string[] {
-  if (Array.isArray(value)) for (const item of value) refs(item, out);
-  else if (value && typeof value === "object") {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      refs(item, out);
+    }
+  } else if (value && typeof value === "object") {
     for (const [key, item] of Object.entries(value)) {
-      if (key === "$ref" && typeof item === "string") out.push(item);
-      else refs(item, out);
+      if (key === "$ref" && typeof item === "string") {
+        out.push(item);
+      } else {
+        refs(item, out);
+      }
     }
   }
   return out;

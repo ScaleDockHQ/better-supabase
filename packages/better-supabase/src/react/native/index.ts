@@ -108,7 +108,9 @@ export function useOAuth(options: UseOAuthOptions): OAuth {
               ...(queryParams ? { queryParams } : {}),
             },
           );
-          if (result.type === "error") return { error: result.error };
+          if (result.type === "error") {
+            return { error: result.error };
+          }
           return NOT_FINISHED;
         }),
       idToken: (credentials: {
@@ -174,10 +176,14 @@ export function useAuthDeepLinks(
     let active = true;
     const seen = new Set<string>();
     const handle = (url: string | null) => {
-      if (!url || seen.has(url)) return;
+      if (!url || seen.has(url)) {
+        return;
+      }
       seen.add(url);
       void handleAuthDeepLink(client, url).then((result) => {
-        if (!active || result.type === "none") return;
+        if (!active || result.type === "none") {
+          return;
+        }
         setLast(result);
         latest.current.onResult?.(result);
       });
@@ -228,9 +234,14 @@ export function useProtectedRoute(
   const isPublic = segments[0] === group;
 
   useEffect(() => {
-    if (status === "loading") return;
-    if (status === "signed-out" && !isPublic) router.replace(signInHref);
-    else if (status === "signed-in" && isPublic) router.replace(homeHref);
+    if (status === "loading") {
+      return;
+    }
+    if (status === "signed-out" && !isPublic) {
+      router.replace(signInHref);
+    } else if (status === "signed-in" && isPublic) {
+      router.replace(homeHref);
+    }
   }, [status, isPublic, router, signInHref, homeHref]);
 
   return status;
@@ -251,7 +262,11 @@ export interface AuthGateProps {
  */
 export function AuthGate(props: AuthGateProps): ReactNode {
   const { status } = useAuth();
-  if (status === "loading") return props.fallback ?? null;
-  if (status === "signed-out") return props.signedOut ?? null;
+  if (status === "loading") {
+    return props.fallback ?? null;
+  }
+  if (status === "signed-out") {
+    return props.signedOut ?? null;
+  }
   return props.children ?? null;
 }

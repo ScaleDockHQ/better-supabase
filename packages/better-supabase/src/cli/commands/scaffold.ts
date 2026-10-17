@@ -65,10 +65,14 @@ async function generatedTables(
   config: ResolvedConfig,
 ): Promise<string[] | undefined> {
   const path = resolve(config.root, metaPaths(config.output).js);
-  if (!existsSync(path)) return undefined;
+  if (!existsSync(path)) {
+    return undefined;
+  }
   const meta = (await importFresh(path))["default"];
   const tables = isRecord(meta) ? meta["tables"] : undefined;
-  if (!isRecord(tables)) return undefined;
+  if (!isRecord(tables)) {
+    return undefined;
+  }
   return Object.entries(tables)
     .filter(
       ([, table]) =>
@@ -92,17 +96,18 @@ export async function runScaffold(
   options: ScaffoldOptions = {},
 ): Promise<CommandResult> {
   const [kind] = args._ ?? [];
-  if (kind !== "api")
+  if (kind !== "api") {
     return {
       code: 2,
       error: `${kind ? `Unknown scaffold "${kind}"` : "Name what to scaffold"}. Run \`better-supabase scaffold api\`.`,
     };
+  }
   const configured = config.scaffold.api ?? {};
   const project = await detectProject(config.root);
   const detected = project.frameworks.filter(isFramework);
   const chosen = args.framework ?? configured.framework;
   const framework = chosen ?? (detected.length === 1 ? detected[0] : undefined);
-  if (!isFramework(framework))
+  if (!isFramework(framework)) {
     return {
       code: 2,
       error:
@@ -110,12 +115,14 @@ export async function runScaffold(
           ? "Pass --framework hono or --framework next, or set scaffold.api.framework."
           : `--framework takes hono or next, got "${chosen}".`,
     };
+  }
   const name = args.name ?? configured.name ?? "api";
-  if (!/^[a-z][\w-]*$/i.test(name))
+  if (!/^[a-z][\w-]*$/i.test(name)) {
     return {
       code: 2,
       error: `--name must be a file name without a folder, got "${name}".`,
     };
+  }
   const basePath = `/${(args["base-path"] ?? configured.basePath ?? "/api").replaceAll(/^\/+|\/+$/g, "")}`;
 
   const known = await generatedTables(config);
@@ -123,25 +130,28 @@ export async function runScaffold(
     args.tables === undefined
       ? [...(configured.tables ?? [])]
       : list(args.tables);
-  if (requested.length === 0 && !known)
+  if (requested.length === 0 && !known) {
     return {
       code: 1,
       error: `No ${display(config.root, metaPaths(config.output).js)}. Run \`better-supabase gen\` first, or pass --tables.`,
     };
+  }
   const unknown = known
     ? requested.filter((table) => !known.includes(table))
     : [];
-  if (unknown.length > 0)
+  if (unknown.length > 0) {
     return {
       code: 1,
       error: `Unknown tables: ${unknown.join(", ")}. Known tables: ${known?.join(", ")}.`,
     };
+  }
   const tables = requested.length > 0 ? requested : (known ?? []);
-  if (tables.length === 0)
+  if (tables.length === 0) {
     return {
       code: 1,
       error: "There are no public tables to serve. Pass --tables.",
     };
+  }
 
   const context = {
     framework,
@@ -154,7 +164,9 @@ export async function runScaffold(
   const lines: string[] = [];
   const stale: string[] = [];
   for (const file of scaffoldApiFiles(context)) {
-    if (options.generatedOnly === true && !file.generated) continue;
+    if (options.generatedOnly === true && !file.generated) {
+      continue;
+    }
     const path = resolve(config.root, file.path);
     const exists = existsSync(path);
     if (!file.generated && exists) {
@@ -162,26 +174,31 @@ export async function runScaffold(
       continue;
     }
     const current = exists ? await readFile(path, "utf-8") : undefined;
-    if (current !== undefined && !current.startsWith(GENERATED_HEADER))
+    if (current !== undefined && !current.startsWith(GENERATED_HEADER)) {
       return {
         code: 1,
         error: `${file.path} was not written by better-supabase scaffold. Move it, or pass another --name.`,
       };
+    }
     if (options.check === true) {
-      if (sameText(current, file.contents))
+      if (sameText(current, file.contents)) {
         lines.push(`${file.path} is up to date.`);
-      else stale.push(file.path);
+      } else {
+        stale.push(file.path);
+      }
       continue;
     }
     lines.push((await writeLine(path, file.contents, file.path)).line);
   }
-  if (stale.length > 0)
+  if (stale.length > 0) {
     return {
       code: 1,
       error: `Out of date: ${stale.join(", ")}. Run \`better-supabase scaffold api\`.`,
     };
-  if (options.generatedOnly === true || options.check === true)
+  }
+  if (options.generatedOnly === true || options.check === true) {
     return { code: 0, output: lines.join("\n") };
+  }
   const steps = scaffoldNextSteps(context, config.specs.entry);
   const save =
     config.scaffold.api === undefined

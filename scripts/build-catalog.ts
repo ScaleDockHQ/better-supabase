@@ -120,17 +120,22 @@ function docsPages(): ReadonlyMap<string, string> {
     const row = /^\| \[[^\]]+\]\((\/docs\/[^)]+)\)\s*\|[^|]*\|([^|]*)\|/.exec(
       line,
     );
-    if (!row?.[1] || row[2] === undefined) continue;
+    if (!row?.[1] || row[2] === undefined) {
+      continue;
+    }
     for (const match of row[2].matchAll(/`([a-z0-9-]+)`/g)) {
-      if (match[1] && !pages.has(match[1])) pages.set(match[1], row[1]);
+      if (match[1] && !pages.has(match[1])) {
+        pages.set(match[1], row[1]);
+      }
     }
   }
   return pages;
 }
 
 function docsPage(name: string, pages: ReadonlyMap<string, string>): string {
-  if (existsSync(join(DOCS_BLOCKS, `${name}.mdx`)))
+  if (existsSync(join(DOCS_BLOCKS, `${name}.mdx`))) {
     return `/docs/blocks/${name}`;
+  }
   return pages.get(name) ?? "/docs/blocks/sql";
 }
 
@@ -344,8 +349,12 @@ function presetBlock(module: SqlModule): PresetCatalogBlock {
     integrates: module.integrates ?? [],
     manifest: manifest.name,
   };
-  if (module.scopes !== undefined) block = { ...block, scopes: module.scopes };
-  if (clashes.length > 0) block = { ...block, tenantNameClashes: clashes };
+  if (module.scopes !== undefined) {
+    block = { ...block, scopes: module.scopes };
+  }
+  if (clashes.length > 0) {
+    block = { ...block, tenantNameClashes: clashes };
+  }
   return Object.keys(byAccess).length === 0
     ? block
     : { ...block, requiresByAccess: byAccess };

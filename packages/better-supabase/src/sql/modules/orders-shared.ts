@@ -78,13 +78,19 @@ export function asService(statements: string): string {
 
 /** Whether a `state-machine` machine governs the orders status column. */
 function machineGoverns(ctx: ModuleContext): boolean {
-  if (!ctx.installed("state-machine")) return false;
+  if (!ctx.installed("state-machine")) {
+    return false;
+  }
   const raw = ctx.of("state-machine").option("machines");
-  if (!isRecord(raw)) return false;
+  if (!isRecord(raw)) {
+    return false;
+  }
   const { schema, name } = ctx.tableName("orders");
   const column = ctx.col("orders", "status").replaceAll('"', "");
   return Object.values(raw).some((entry: unknown) => {
-    if (!isRecord(entry)) return false;
+    if (!isRecord(entry)) {
+      return false;
+    }
     const table = entry["table"];
     return (
       (table === `${schema}.${name}` ||
@@ -99,11 +105,17 @@ function sequenceFormat(
   ctx: ModuleContext,
   entity: "order" | "invoice",
 ): string | undefined {
-  if (!ctx.installed("number-sequences")) return undefined;
+  if (!ctx.installed("number-sequences")) {
+    return undefined;
+  }
   const entities = ctx.of("number-sequences").option("entities");
-  if (!isRecord(entities)) return undefined;
+  if (!isRecord(entities)) {
+    return undefined;
+  }
   const entry = entities[entity];
-  if (!isRecord(entry) || typeof entry["format"] !== "string") return undefined;
+  if (!isRecord(entry) || typeof entry["format"] !== "string") {
+    return undefined;
+  }
   return entry["format"];
 }
 

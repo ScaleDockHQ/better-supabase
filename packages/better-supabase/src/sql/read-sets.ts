@@ -91,8 +91,9 @@ function placeholderRef(set: ReadSet, placeholder: Placeholder): string {
 
 function paramRef(set: ReadSet, name: string, array: boolean): string {
   const type = set.params[name];
-  if (!type)
+  if (!type) {
     throw new TypeError(`Read set "${set.name}" has no parameter "${name}"`);
+  }
   if (array !== type.endsWith("[]")) {
     throw new TypeError(
       `Read set "${set.name}": parameter "${name}" (${type}) is used as ${array ? "a list" : "a single value"}`,
@@ -105,7 +106,9 @@ function paramRef(set: ReadSet, name: string, array: boolean): string {
 }
 
 function arrayElement(value: unknown): string {
-  if (value === null || value === undefined) return "NULL";
+  if (value === null || value === undefined) {
+    return "NULL";
+  }
   const text = temporalText(value) ?? String(value);
   if (hasPlaceholder(text)) {
     throw new TypeError("A placeholder cannot sit inside a literal list");
@@ -116,18 +119,32 @@ function arrayElement(value: unknown): string {
 /** A parameter value as SQL: a reference to `p` for placeholders, else a literal. */
 function literal(set: ReadSet, value: unknown): string {
   const placeholder = placeholderOf(value);
-  if (placeholder) return placeholderRef(set, placeholder);
-  if (value === null || value === undefined) return "null";
-  if (typeof value === "boolean") return value ? "true" : "false";
+  if (placeholder) {
+    return placeholderRef(set, placeholder);
+  }
+  if (value === null || value === undefined) {
+    return "null";
+  }
+  if (typeof value === "boolean") {
+    return value ? "true" : "false";
+  }
   if (typeof value === "number") {
-    if (!Number.isFinite(value)) throw new TypeError(`Cannot inline ${value}`);
+    if (!Number.isFinite(value)) {
+      throw new TypeError(`Cannot inline ${value}`);
+    }
     return String(value);
   }
-  if (typeof value === "bigint") return value.toString();
+  if (typeof value === "bigint") {
+    return value.toString();
+  }
   const temporalValue = temporalText(value);
-  if (temporalValue !== undefined) return sqlString(temporalValue);
+  if (temporalValue !== undefined) {
+    return sqlString(temporalValue);
+  }
   if (typeof value === "string") {
-    if (!hasPlaceholder(value)) return sqlString(value);
+    if (!hasPlaceholder(value)) {
+      return sqlString(value);
+    }
     const parts = splitPlaceholders(value).map((part) =>
       "text" in part
         ? sqlString(part.text)
@@ -158,9 +175,13 @@ export function substituteParams(
     if (char === '"' || char === "'") {
       let end = index + 1;
       while (end < text.length) {
-        if (text[end] !== char) end += 1;
-        else if (text[end + 1] === char) end += 2;
-        else break;
+        if (text[end] !== char) {
+          end += 1;
+        } else if (text[end + 1] === char) {
+          end += 2;
+        } else {
+          break;
+        }
       }
       out += text.slice(index, end + 1);
       index = end + 1;
@@ -186,7 +207,9 @@ function inline(set: ReadSet, query: SqlQuery): string {
 
 function entry(set: ReadSet, op: Operation): string {
   const plan = compileSql(op);
-  if (plan.never) return `jsonb_build_object('rows', '[]'::jsonb, 'count', 0)`;
+  if (plan.never) {
+    return `jsonb_build_object('rows', '[]'::jsonb, 'count', 0)`;
+  }
   const rows = plan.rows
     ? `(select coalesce(jsonb_agg(s.row), '[]'::jsonb) from (${inline(set, plan.rows)}) s)`
     : `'[]'::jsonb`;

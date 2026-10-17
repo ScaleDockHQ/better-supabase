@@ -95,9 +95,13 @@ export function persistSessions(
     ctx: EveSessionContext,
   ): Promise<string | undefined> => {
     const auth = ctx.session.auth.initiator ?? ctx.session.auth.current;
-    if (auth?.principalType !== "user") return undefined;
+    if (auth?.principalType !== "user") {
+      return undefined;
+    }
     const organizationId = organizationOf(auth);
-    if (organizationId === undefined) return undefined;
+    if (organizationId === undefined) {
+      return undefined;
+    }
     const id = await chatIdOf(ctx.session.id);
     await chats.chats
       .create(organizationId, {
@@ -114,8 +118,9 @@ export function persistSessions(
     ctx: EveSessionContext,
   ): Promise<string | undefined> => {
     const auth = ctx.session.auth.initiator ?? ctx.session.auth.current;
-    if (auth?.principalType !== "user" || organizationOf(auth) === undefined)
+    if (auth?.principalType !== "user" || organizationOf(auth) === undefined) {
       return undefined;
+    }
     return chatIdOf(ctx.session.id);
   };
 
@@ -126,7 +131,9 @@ export function persistSessions(
     error?: string,
   ): Promise<void> => {
     const chatId = await knownChat(ctx);
-    if (chatId === undefined) return;
+    if (chatId === undefined) {
+      return;
+    }
     await chats.runs
       .release(chatId, streamOf(ctx.session.id, turnId), {
         status,
@@ -141,7 +148,9 @@ export function persistSessions(
     },
     "turn.started": async (event, ctx) => {
       const chatId = await chatFor(ctx);
-      if (chatId === undefined) return;
+      if (chatId === undefined) {
+        return;
+      }
       await chats.runs
         .claim(chatId, streamOf(ctx.session.id, event.data.turnId), {
           engine: "eve",
@@ -150,7 +159,9 @@ export function persistSessions(
     },
     "message.received": async (event, ctx) => {
       const chatId = await chatFor(ctx);
-      if (chatId === undefined || event.data.message.length === 0) return;
+      if (chatId === undefined || event.data.message.length === 0) {
+        return;
+      }
       const id = `${event.data.turnId}:${String(event.data.sequence)}`;
       await chats.messages
         .appendUser(chatId, {
@@ -162,9 +173,13 @@ export function persistSessions(
     },
     "message.completed": async (event, ctx) => {
       const chatId = await knownChat(ctx);
-      if (chatId === undefined || event.data.message.length === 0) return;
+      if (chatId === undefined || event.data.message.length === 0) {
+        return;
+      }
       const chat = await chats.chats.get(chatId).orThrow();
-      if (chat.leafId === undefined) return;
+      if (chat.leafId === undefined) {
+        return;
+      }
       const id = `${event.data.turnId}:${String(event.data.stepIndex)}:${String(event.data.sequence)}`;
       await chats.messages
         .saveAssistant(

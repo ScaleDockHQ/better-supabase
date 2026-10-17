@@ -68,7 +68,9 @@ function fakeStorage(
     calls.push([method, ...args]);
     const found = replies[method];
     const value = typeof found === "function" ? found(...args) : found;
-    if (value instanceof Error) return Promise.reject(value);
+    if (value instanceof Error) {
+      return Promise.reject(value);
+    }
     return Promise.resolve(value ?? { data: fallback, error: null });
   };
   const storage = {
@@ -679,7 +681,9 @@ describe("createObjectScanner", () => {
         storage: storage.storage,
         scan: (_file, object) => {
           seen.push(`${object.bucket}/${object.path}`);
-          if (fail) throw new Error("boom");
+          if (fail) {
+            throw new Error("boom");
+          }
           return { status: "clean" };
         },
       }),

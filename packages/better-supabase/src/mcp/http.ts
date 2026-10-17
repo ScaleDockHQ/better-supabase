@@ -27,7 +27,9 @@ function onEdgeFunctions(): boolean {
 /** The public origin: `SUPABASE_PUBLIC_URL`, else the gateway's `X-Forwarded-*` headers. */
 function edgeOrigin(request: Request): string {
   const publicUrl = getEnv("SUPABASE_PUBLIC_URL");
-  if (publicUrl) return trim(publicUrl);
+  if (publicUrl) {
+    return trim(publicUrl);
+  }
   const url = new URL(request.url);
   const host = request.headers.get("x-forwarded-host") ?? url.hostname;
   const proto = (
@@ -43,14 +45,20 @@ function edgeOrigin(request: Request): string {
 }
 
 function stripMetadata(pathname: string): string {
-  if (pathname.startsWith(WELL_KNOWN)) return pathname.slice(WELL_KNOWN.length);
-  if (pathname.endsWith(SUFFIX)) return pathname.slice(0, -SUFFIX.length);
+  if (pathname.startsWith(WELL_KNOWN)) {
+    return pathname.slice(WELL_KNOWN.length);
+  }
+  if (pathname.endsWith(SUFFIX)) {
+    return pathname.slice(0, -SUFFIX.length);
+  }
   return pathname;
 }
 
 function edgePath(request: Request): string {
   const slug = getEnv("SUPABASE_FUNCTION_SLUG");
-  if (slug) return `${EDGE_PREFIX}/${slug}`;
+  if (slug) {
+    return `${EDGE_PREFIX}/${slug}`;
+  }
   return trim(`${EDGE_PREFIX}${stripMetadata(new URL(request.url).pathname)}`);
 }
 
@@ -88,10 +96,15 @@ export function discovery(
   supabaseUrl: () => string,
 ): Discovery {
   const resource = (request: Request): string => {
-    if (typeof options.resource === "function")
+    if (typeof options.resource === "function") {
       return options.resource(request);
-    if (options.resource) return options.resource;
-    if (onEdgeFunctions()) return `${edgeOrigin(request)}${edgePath(request)}`;
+    }
+    if (options.resource) {
+      return options.resource;
+    }
+    if (onEdgeFunctions()) {
+      return `${edgeOrigin(request)}${edgePath(request)}`;
+    }
     const url = new URL(request.url);
     return trim(`${url.origin}${stripMetadata(url.pathname)}`);
   };
@@ -105,7 +118,9 @@ export function discovery(
         : `${target.origin}${WELL_KNOWN}${path}`;
     },
     authorizationServers: (request) => {
-      if (options.authorizationServers) return options.authorizationServers;
+      if (options.authorizationServers) {
+        return options.authorizationServers;
+      }
       return onEdgeFunctions()
         ? [`${edgeOrigin(request)}/auth/v1`]
         : [fromSupabaseUrl(supabaseUrl())];
@@ -170,7 +185,9 @@ export function withCors(
   const apply = (headers: Headers): void => {
     if (allow && !headers.has("access-control-allow-origin")) {
       headers.set("access-control-allow-origin", allow);
-      if (allow !== "*") headers.append("vary", "Origin");
+      if (allow !== "*") {
+        headers.append("vary", "Origin");
+      }
     }
     if (!headers.has("access-control-expose-headers")) {
       headers.set("access-control-expose-headers", "WWW-Authenticate");

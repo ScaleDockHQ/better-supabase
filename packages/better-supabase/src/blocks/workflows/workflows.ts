@@ -403,7 +403,9 @@ export function createWorkflows(options: WorkflowsOptions): Workflows {
         try {
           const run = await options.start(step.call);
           const done = await step.done(run);
-          if (!done.ok) return err(done.error);
+          if (!done.ok) {
+            return err(done.error);
+          }
           started += 1;
         } catch (cause) {
           failed.push({ id, error: errorText(cause) });

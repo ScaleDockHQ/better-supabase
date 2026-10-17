@@ -37,8 +37,9 @@ describe.skipIf(!live)("organizations on CentraKit's tables", () => {
         );
 
       await s.as("service");
-      for (const user of Object.values(USERS))
+      for (const user of Object.values(USERS)) {
         await s.value("better_supabase.sync_profile($1)", [user]);
+      }
       expect(
         await s.rows(
           "select display_name from centrakit.contact_profiles where user_id = $1",

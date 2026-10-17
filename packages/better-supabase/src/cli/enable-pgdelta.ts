@@ -22,10 +22,14 @@ export async function enablePgDelta(
 ): Promise<string[]> {
   const supabaseRoot = findSupabaseRoot(root);
   const toml = await readSupabaseToml(root);
-  if (supabaseRoot === undefined || toml === undefined) return [];
+  if (supabaseRoot === undefined || toml === undefined) {
+    return [];
+  }
   const path = join(supabaseRoot, "supabase/config.toml");
   const shown = display(base, path);
-  if (diffEngine(toml) === "pg-delta") return [];
+  if (diffEngine(toml) === "pg-delta") {
+    return [];
+  }
   if (
     tomlGet(toml.document, ["experimental", "pgdelta"]) !== undefined ||
     toml.text.includes("pgdelta")
@@ -34,7 +38,9 @@ export async function enablePgDelta(
       `Kept    ${shown} (pg-delta is off; set [experimental.pgdelta] enabled = true, remove [db.migrations] schema_paths and use \`supabase db schema declarative sync\` instead of \`supabase db diff\`)`,
     ];
   }
-  if (dryRun) return [`Would enable pg-delta in ${shown}`];
+  if (dryRun) {
+    return [`Would enable pg-delta in ${shown}`];
+  }
   const separator =
     toml.text === "" || toml.text.endsWith("\n\n")
       ? ""

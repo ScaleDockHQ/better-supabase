@@ -46,7 +46,9 @@ const loadGeneration = (): typeof Generation => generation ?? missing();
 
 /** The installed postgrest-typegen release, `undefined` when it is missing. */
 export async function typegenVersion(): Promise<string | undefined> {
-  if (generation === undefined) return undefined;
+  if (generation === undefined) {
+    return undefined;
+  }
   return versionAt(fileURLToPath(import.meta.resolve(`${TYPEGEN}/generation`)));
 }
 
@@ -54,8 +56,9 @@ export async function typegenVersion(): Promise<string | undefined> {
 export function typegenVersionNotice(
   installed: string | undefined,
 ): string | undefined {
-  if (installed === undefined || installed === TYPEGEN_VERSION)
+  if (installed === undefined || installed === TYPEGEN_VERSION) {
     return undefined;
+  }
   return `Notice: ${TYPEGEN}@${installed} is installed; this better-supabase release is tested against ${TYPEGEN_VERSION}. database.types.ts can differ from \`supabase gen types\` output until both use the same release. Pin it: pnpm add -D ${TYPEGEN}@${TYPEGEN_VERSION}`;
 }
 const metadataModule = () =>
@@ -127,7 +130,9 @@ export function orderArgsByPosition(
     ...metadata,
     functions: metadata.functions.map((fn) => {
       const row = byId.get(fn.id);
-      if (!row?.types || fn.args.length < 2) return fn;
+      if (!row?.types || fn.args.length < 2) {
+        return fn;
+      }
       const pending = [...fn.args];
       const ordered: (typeof fn.args)[number][] = [];
       row.types.forEach((type, index) => {
@@ -135,7 +140,9 @@ export function orderArgsByPosition(
         const at = pending.findIndex(
           (arg) => arg.type_id === Number(type) && arg.name === name,
         );
-        if (at !== -1) ordered.push(...pending.splice(at, 1));
+        if (at !== -1) {
+          ordered.push(...pending.splice(at, 1));
+        }
       });
       return { ...fn, args: [...ordered, ...pending] };
     }),
@@ -163,7 +170,9 @@ export function stabilizeMetadata(metadata: GeneratorMetadata): {
     [...entries]
       .sort((a, b) => byCodePoint(a.key, b.key))
       .forEach((entry, index) => {
-        if (entry.id >= FIRST_NORMAL_OID) ids.set(entry.id, base + index);
+        if (entry.id >= FIRST_NORMAL_OID) {
+          ids.set(entry.id, base + index);
+        }
       });
   };
   assign(
@@ -380,7 +389,9 @@ export async function oxfmtInstalled(): Promise<boolean> {
 /** Formats like `supabase gen types`, or returns `code` as it is without oxfmt. */
 async function formatTypes(code: string): Promise<string> {
   const formatter = await loadOxfmt();
-  if (!formatter) return code;
+  if (!formatter) {
+    return code;
+  }
   const { code: formatted, errors } = await formatter.format(
     "output.ts",
     code,
@@ -461,14 +472,23 @@ function pruneTypes(
   );
   const keep = new Set<number>();
   const visit = (id: number | null | undefined): void => {
-    if (id === null || id === undefined || keep.has(id)) return;
+    if (id === null || id === undefined || keep.has(id)) {
+      return;
+    }
     const type = byId.get(id);
-    if (!type) return;
+    if (!type) {
+      return;
+    }
     keep.add(id);
-    for (const attribute of type.attributes) visit(attribute.type_id);
+    for (const attribute of type.attributes) {
+      visit(attribute.type_id);
+    }
   };
-  for (const type of metadata.types)
-    if (schemas.includes(type.schema)) visit(type.id);
+  for (const type of metadata.types) {
+    if (schemas.includes(type.schema)) {
+      visit(type.id);
+    }
+  }
   for (const column of metadata.columns) {
     visit(byName.get(`${column.type_schema}.${column.format}`)?.id);
     visit(
@@ -478,7 +498,9 @@ function pruneTypes(
   }
   for (const fn of metadata.functions) {
     visit(fn.return_type_id);
-    for (const arg of fn.args) visit(arg.type_id);
+    for (const arg of fn.args) {
+      visit(arg.type_id);
+    }
   }
   return {
     ...metadata,

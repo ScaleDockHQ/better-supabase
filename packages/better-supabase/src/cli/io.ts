@@ -61,21 +61,27 @@ export async function writeIfChanged(
   if (existsSync(path)) {
     const current = await readFile(path, "utf-8");
     if (sameText(current, contents)) {
-      if (mode !== undefined) await chmod(path, mode);
+      if (mode !== undefined) {
+        await chmod(path, mode);
+      }
       return false;
     }
   }
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, contents, mode === undefined ? {} : { mode });
   // writeFile applies `mode` only when it creates the file, and through the umask.
-  if (mode !== undefined) await chmod(path, mode);
+  if (mode !== undefined) {
+    await chmod(path, mode);
+  }
   return true;
 }
 
 /** Relative ESM import specifier from one file to another, keeping `.ts`. */
 export function importPath(fromFile: string, toFile: string): string {
   let path = relative(dirname(fromFile), toFile).split(sep).join("/");
-  if (!path.startsWith(".")) path = `./${path}`;
+  if (!path.startsWith(".")) {
+    path = `./${path}`;
+  }
   return path;
 }
 

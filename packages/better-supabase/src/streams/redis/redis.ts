@@ -86,10 +86,11 @@ async function connectUrl(
   load: () => Promise<unknown>,
 ): Promise<Connected> {
   const module = await load();
-  if (!isNodeRedis(module))
+  if (!isNodeRedis(module)) {
     throw new TypeError(
       "redisStreamStore({ url }) needs the redis package: pnpm add redis, or pass a connected client",
     );
+  }
   const client = module.createClient({ url });
   const subscriber = client.duplicate();
   await Promise.all([client.connect(), subscriber.connect()]);
@@ -106,8 +107,9 @@ const UNITS: Readonly<Record<string, number>> = {
 const INTERVAL = /^(\d+)\s*(second|minute|hour|day)s?$/;
 
 function ttlSeconds(value: number | string): number | undefined {
-  if (typeof value === "number")
+  if (typeof value === "number") {
     return value > 0 ? Math.ceil(value) : undefined;
+  }
   const match = INTERVAL.exec(value.trim());
   const unit = match?.[2] === undefined ? undefined : UNITS[match[2]];
   return match && unit ? Number(match[1]) * unit : undefined;
@@ -135,9 +137,12 @@ export function redisStreamStore(
         })
       : undefined;
   const connection = (): Promise<Connected> => {
-    if (connected) return connected;
-    if (!("url" in options))
+    if (connected) {
+      return connected;
+    }
+    if (!("url" in options)) {
       throw new TypeError("redisStreamStore needs a client or a url");
+    }
     const pending = connectUrl(options.url, load);
     connected = pending;
     pending.catch(() => {
@@ -160,12 +165,15 @@ export function redisStreamStore(
     id: string,
   ): Promise<Record<string, string> | undefined> => {
     const value = await (await redis()).hGetAll(meta(id));
-    if (!isRecord(value) || text(value["created"]) === undefined)
+    if (!isRecord(value) || text(value["created"]) === undefined) {
       return undefined;
+    }
     const fields: Record<string, string> = {};
     for (const [key, entry] of Object.entries(value)) {
       const field = text(entry);
-      if (field !== undefined) fields[key] = field;
+      if (field !== undefined) {
+        fields[key] = field;
+      }
     }
     return fields;
   };
@@ -181,7 +189,9 @@ export function redisStreamStore(
   const status = (id: string): AsyncResult<StreamStatus | undefined> =>
     attempt(async () => {
       const fields = await state(id);
-      if (!fields) return;
+      if (!fields) {
+        return;
+      }
       return {
         next: await length(id),
         closed: fields["closed"] !== undefined,
@@ -192,8 +202,12 @@ export function redisStreamStore(
   const mark = (id: string, field: "closed" | "cancelled") =>
     attempt(async () => {
       const fields = await state(id);
-      if (!fields || fields[field] !== undefined) return false;
-      if (field === "cancelled" && fields["closed"] !== undefined) return false;
+      if (!fields || fields[field] !== undefined) {
+        return false;
+      }
+      if (field === "cancelled" && fields["closed"] !== undefined) {
+        return false;
+      }
       const client = await redis();
       await client.hSet(meta(id), field, new Date().toISOString());
       await client.publish(
@@ -201,8 +215,9 @@ export function redisStreamStore(
         field === "closed" ? "close" : "cancel",
       );
       // Writers on other instances subscribe here to stop generating.
-      if (field === "cancelled")
+      if (field === "cancelled") {
         await client.publish(`${channel(id)}:cancel`, "cancel");
+      }
       return true;
     });
 
@@ -226,12 +241,16 @@ export function redisStreamStore(
           "created",
           new Date().toISOString(),
         );
-        if (created !== true && Number(created) !== 1) return false;
+        if (created !== true && Number(created) !== 1) {
+          return false;
+        }
         await client.hSet(meta(id), "kind", open.kind ?? "default");
-        if (open.owner !== undefined)
+        if (open.owner !== undefined) {
           await client.hSet(meta(id), "owner", open.owner);
-        if (open.tenant !== undefined)
+        }
+        if (open.tenant !== undefined) {
           await client.hSet(meta(id), "tenant", open.tenant);
+        }
         await client.hSet(meta(id), "ttl", String(ttl));
         await client.expire(meta(id), ttl);
         return true;
@@ -240,7 +259,9 @@ export function redisStreamStore(
     append: (id, fromIdx, chunks) =>
       AsyncResult.from(async () => {
         const fields = await state(id);
-        if (!fields) return err(missing(id));
+        if (!fields) {
+          return err(missing(id));
+        }
         if (fields["closed"] !== undefined) {
           return err(
             dbError("raised", `stream ${id} is closed`, {
@@ -300,7 +321,9 @@ export function redisStreamStore(
         fetch: (from) =>
           attempt(async (): Promise<StreamPage> => {
             const fields = await state(id);
-            if (!fields) return { chunks: [], next: from, done: true };
+            if (!fields) {
+              return { chunks: [], next: from, done: true };
+            }
             const value = await (
               await redis()
             ).lRange(list(id), from, from + batch - 1);

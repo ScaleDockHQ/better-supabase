@@ -50,7 +50,9 @@ function columnOf(
   value: unknown,
   fallback?: string,
 ): string | undefined {
-  if (value === undefined) return fallback;
+  if (value === undefined) {
+    return fallback;
+  }
   if (typeof value !== "string" || !COLUMN.test(value)) {
     throw new TypeError(`${where} must be a column name`);
   }
@@ -103,7 +105,9 @@ function stagesOf(
   const keys = new Set<string>();
   const stages = value.map((item: unknown, index): StageTemplate => {
     const at = `${where}.stages[${String(index)}]`;
-    if (!isRecord(item)) throw new TypeError(`${at} must be an object`);
+    if (!isRecord(item)) {
+      throw new TypeError(`${at} must be an object`);
+    }
     const { key, name, category, probability } = item;
     if (typeof key !== "string" || !NAME.test(key) || keys.has(key)) {
       throw new TypeError(`${at}.key must be a distinct lowercase name`);
@@ -142,7 +146,9 @@ function statusOf(
   value: unknown,
   categories: Readonly<Record<string, PipelineOutcome>>,
 ): PipelineBinding["status"] {
-  if (value === undefined) return undefined;
+  if (value === undefined) {
+    return undefined;
+  }
   if (!isRecord(value) || !isRecord(value["values"])) {
     throw new TypeError(`${where}.status needs column and values`);
   }
@@ -316,7 +322,9 @@ export function pipelineBindings(
   const raw: Record<string, unknown> = {};
   const builtInSubjects: Record<string, SubjectConfig> = {};
   for (const builtIn of BUILT_IN_BINDINGS) {
-    if (!ctx.installed(builtIn.module)) continue;
+    if (!ctx.installed(builtIn.module)) {
+      continue;
+    }
     const own = configured[builtIn.type];
     raw[builtIn.type] = { ...builtIn.entry, ...(isRecord(own) ? own : {}) };
     const { schema, name } = ctx.of(builtIn.module).tableName(builtIn.table);
@@ -327,7 +335,9 @@ export function pipelineBindings(
     };
   }
   for (const [type, entry] of Object.entries(configured)) {
-    if (!(type in raw)) raw[type] = entry;
+    if (!(type in raw)) {
+      raw[type] = entry;
+    }
   }
   const registry = registeredSubjects({ ...builtInSubjects, ...ctx.subjects });
   return Object.entries(raw).map(([type, entry]) => {
@@ -343,7 +353,9 @@ export function pipelineBindings(
         `${where}: config.subjects.${type} needs a tenant column`,
       );
     }
-    if (!isRecord(entry)) throw new TypeError(`${where} must be an object`);
+    if (!isRecord(entry)) {
+      throw new TypeError(`${where} must be an object`);
+    }
     const categories = categoriesOf(where, entry["categories"]);
     const optional = (key: string): string | undefined =>
       columnOf(`${where}.${key}`, entry[key]);
@@ -395,7 +407,9 @@ export function byType(
   branch: (binding: PipelineBinding) => string,
   otherwise: string,
 ): string {
-  if (bindings.length === 0) return otherwise;
+  if (bindings.length === 0) {
+    return otherwise;
+  }
   return `case ${selector}
 ${bindings.map((binding) => `    when ${sqlString(binding.type)} then\n${branch(binding)}`).join("\n")}
     else

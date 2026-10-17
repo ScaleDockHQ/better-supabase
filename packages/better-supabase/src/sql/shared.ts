@@ -161,7 +161,9 @@ export function memberAddedRecord(
 
 /** Creates the module's schema when it isn't `better_supabase`, then the module schema. */
 export function schemaPreamble(ctx: ModuleContext): string {
-  if (ctx.schemaName === "better_supabase") return SCHEMA;
+  if (ctx.schemaName === "better_supabase") {
+    return SCHEMA;
+  }
   return `${SCHEMA}
 create schema if not exists ${ctx.schema};
 grant usage on schema ${ctx.schema} to anon, authenticated, service_role;`;
@@ -311,7 +313,9 @@ export function renameSql(renames: ModuleRenames): string {
     and to_regclass(${sqlString(`${renames.schema}.${to}`)}) is null then
     alter table ${q(from)} rename to ${sqlIdent(to)};
   end if;`);
-    if (from === table) table = to;
+    if (from === table) {
+      table = to;
+    }
   }
   for (const [from, to] of renames.columns ?? []) {
     lines.push(`  if exists (select 1 from information_schema.columns c
@@ -333,7 +337,9 @@ export function renameSql(renames: ModuleRenames): string {
     alter function ${q(from)}(${args}) rename to ${sqlIdent(to)};
   end if;`);
   }
-  if (lines.length === 0) return "";
+  if (lines.length === 0) {
+    return "";
+  }
   return `do $$
 begin
 ${lines.join("\n")}
@@ -349,20 +355,27 @@ export function organizationMissing(
   ctx: ModuleContext,
   organization: string,
 ): string {
-  if (!ctx.installed("organizations")) return "false";
+  if (!ctx.installed("organizations")) {
+    return "false";
+  }
   const organizations = ctx.of("organizations");
   return `not exists (select 1 from ${organizations.table("organizations")} o where o.${organizations.col("organizations", "id")} = ${organization})`;
 }
 
 export function membershipDisabledAt(ctx: ModuleContext): string | undefined {
-  if (ctx.module !== "tenant" && !ctx.installed("tenant")) return undefined;
+  if (ctx.module !== "tenant" && !ctx.installed("tenant")) {
+    return undefined;
+  }
   const tenant = ctx.module === "tenant" ? ctx : ctx.of("tenant");
-  if (!tenant.has("memberships", "disabledAt")) return undefined;
+  if (!tenant.has("memberships", "disabledAt")) {
+    return undefined;
+  }
   if (
     !tenant.manages &&
     typeof tenant.config.columns["memberships"]?.["disabledAt"] !== "string"
-  )
+  ) {
     return undefined;
+  }
   return tenant.col("memberships", "disabledAt");
 }
 
@@ -377,7 +390,9 @@ export function membershipSuspended(
   user: string,
 ): string | undefined {
   const column = membershipDisabledAt(ctx);
-  if (column === undefined) return undefined;
+  if (column === undefined) {
+    return undefined;
+  }
   const t = ctx.module === "tenant" ? ctx : ctx.of("tenant");
   return `exists (select 1 from ${t.table("memberships")} sm where sm.${t.col("memberships", "tenant")} = ${tenant} and sm.${t.col("memberships", "user")} = ${user} and sm.${column} is not null)`;
 }
@@ -469,8 +484,9 @@ function disabledCheck(
     );
   }
   const active = [`${d}.${sqlIdent(config.id)} = ${value}`];
-  if (config.disabledAt !== undefined)
+  if (config.disabledAt !== undefined) {
     active.push(`${d}.${sqlIdent(config.disabledAt)} is null`);
+  }
   if (config.status !== undefined) {
     if (!config.active || config.active.length === 0) {
       throw new TypeError(`${where}.status needs the active values in active`);
@@ -493,7 +509,9 @@ function disabledCheck(
  */
 export function accessDefinesDisabledHelpers(ctx: ModuleContext): boolean {
   const access = ctx.modules.access;
-  if (!ctx.installed("access") && access === undefined) return false;
+  if (!ctx.installed("access") && access === undefined) {
+    return false;
+  }
   return (access?.mode ?? "managed") !== "custom";
 }
 
@@ -512,13 +530,19 @@ function managedOrganizations(ctx: ModuleContext):
       readonly flags: readonly string[];
     }
   | undefined {
-  if (!ctx.installed("organizations")) return undefined;
+  if (!ctx.installed("organizations")) {
+    return undefined;
+  }
   const organizations = ctx.of("organizations");
-  if (!organizations.manages) return undefined;
+  if (!organizations.manages) {
+    return undefined;
+  }
   const flags = ["disabledAt", "deletedAt"]
     .filter((logical) => organizations.has("organizations", logical))
     .map((logical) => organizations.col("organizations", logical));
-  if (flags.length === 0) return undefined;
+  if (flags.length === 0) {
+    return undefined;
+  }
   return {
     table: organizations.table("organizations"),
     id: organizations.col("organizations", "id"),
@@ -623,16 +647,22 @@ $$;`;
  */
 function jsonCheckName(check: JsonSchemaCheck): string {
   const base = `bs_json_${check.column}`;
-  if (!check.where) return base.slice(0, 63);
+  if (!check.where) {
+    return base.slice(0, 63);
+  }
   const key = check.where.value;
   const clean = key.replaceAll(/[^a-z0-9_]/gi, "_");
   const plain = `${base}_${clean}`;
-  if (clean === key && plain.length <= 63) return plain;
+  if (clean === key && plain.length <= 63) {
+    return plain;
+  }
   return `${plain.slice(0, 54)}_${shortHash(key)}`;
 }
 
 export function jsonSchemaChecks(checks: readonly JsonSchemaCheck[]): string {
-  if (checks.length === 0) return "";
+  if (checks.length === 0) {
+    return "";
+  }
   const statements = checks.map((check) => {
     const target = quotedTable(check.table);
     const name = sqlIdent(jsonCheckName(check));

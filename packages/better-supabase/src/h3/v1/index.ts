@@ -69,7 +69,9 @@ export function toH3V1<const Entries extends readonly AnyEntry[]>(
       headRequest(event.node.req, options.trustProxy),
       env,
     );
-    if (!outcome.reached) return outcome.response;
+    if (!outcome.reached) {
+      return outcome.response;
+    }
     applyWebHeaders(event.node.res, outcome.headers);
     Object.assign(event.context, outcome.contributions);
     return;

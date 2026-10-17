@@ -305,8 +305,12 @@ function compact<T extends object>(value: Loose<T>): T {
 }
 
 const num = (value: unknown): number | undefined => {
-  if (typeof value === "number") return value;
-  if (typeof value === "string" && value !== "") return Number(value);
+  if (typeof value === "number") {
+    return value;
+  }
+  if (typeof value === "string" && value !== "") {
+    return Number(value);
+  }
   return undefined;
 };
 const date = (value: unknown): Temporal.PlainDate | undefined =>
@@ -459,9 +463,13 @@ export function createWorkItems<
     update: (changes) =>
       AsyncResult.from(async () => {
         for (const change of changes) {
-          if (BUILT_IN.has(change.field)) continue;
+          if (BUILT_IN.has(change.field)) {
+            continue;
+          }
           const valid = await fields.write({ [change.field]: change.value });
-          if (!valid.ok) return valid;
+          if (!valid.ok) {
+            return valid;
+          }
         }
         return ok(changes);
       }).andThen((checked) =>

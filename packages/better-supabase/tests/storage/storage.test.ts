@@ -777,8 +777,9 @@ describe("BucketClient remove and list", () => {
 
   it("lists sibling folders four at a time, in order", async () => {
     const files: Record<string, string> = {};
-    for (const org of ["o1", "o2", "o3", "o4", "o5", "o6"])
+    for (const org of ["o1", "o2", "o3", "o4", "o5", "o6"]) {
       files[`docs/${org}/u1/a.txt`] = "a";
+    }
     const { client } = fakeStorage({ files });
     let active = 0;
     let peak = 0;
@@ -849,8 +850,9 @@ describe("BucketClient remove and list", () => {
 
   it("pages through folders of more than 1000 entries", async () => {
     const files: Record<string, string> = {};
-    for (let index = 0; index < 1001; index += 1)
+    for (let index = 0; index < 1001; index += 1) {
       files[`docs/o1/u1/${String(index).padStart(4, "0")}.txt`] = "x";
+    }
     const { client, calls } = fakeStorage({ files });
     const listed = await docs
       .connect(client)
@@ -950,8 +952,9 @@ describe("BucketClient URLs", () => {
   it("keeps at most 500 signed URLs per connection", async () => {
     const { client, calls } = fakeStorage();
     const cached = docs.connect(client, { cacheSignedUrls: true });
-    for (let index = 0; index <= 500; index++)
+    for (let index = 0; index <= 500; index++) {
       await cached.signedUrl({ ...A, file: `f${String(index)}.txt` });
+    }
     expect(calls).toHaveLength(501);
     await cached.signedUrl({ ...A, file: "f500.txt" });
     expect(calls).toHaveLength(501);
@@ -1491,8 +1494,9 @@ describe("BucketClient sweep", () => {
 
   it("pages through large folders and removes only after the walk", async () => {
     const many: Record<string, string> = {};
-    for (let index = 0; index < 1005; index++)
+    for (let index = 0; index < 1005; index++) {
       many[`docs/o1/u1/f${String(index).padStart(4, "0")}.txt`] = "x";
+    }
     const storage = fakeStorage({ files: many });
     const referenced = vi.fn((paths: readonly string[]) =>
       paths.filter((path) => !path.endsWith("0.txt")),
@@ -1735,8 +1739,9 @@ describe("path layouts", () => {
       "o1/legacy/./b",
       "/o1/legacy/a",
       "o1/other/a",
-    ])
+    ]) {
       expect(files.match(path)).toBeNull();
+    }
   });
 
   it("refuses unsafe rest values", () => {

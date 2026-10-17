@@ -142,12 +142,16 @@ export function createSpecs(meta: SchemaMeta): Record<string, unknown> {
 
 function trimUndefined(args: readonly unknown[]): unknown[] {
   const out = [...args];
-  while (out.length > 0 && out.at(-1) === undefined) out.pop();
+  while (out.length > 0 && out.at(-1) === undefined) {
+    out.pop();
+  }
   return out;
 }
 
 export function isQuerySpec(value: unknown): value is QuerySpec {
-  if (typeof value !== "object" || value === null) return false;
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
   // SAFETY: value is a non-null object here, and every field is checked below.
   const spec = value as Partial<QuerySpec>;
   // includes only compares values, so a missing method is safe to look up.
@@ -185,8 +189,9 @@ export function specTables(meta: SchemaMeta, spec: QuerySpec): string[] {
     table &&
     args?.["include"] === undefined &&
     !touchesRelations(table, args?.["where"])
-  )
+  ) {
     return [spec.table];
+  }
   const key = specKey(spec);
   let byKey = tablesByMeta.get(meta);
   if (!byKey) {
@@ -194,7 +199,9 @@ export function specTables(meta: SchemaMeta, spec: QuerySpec): string[] {
     tablesByMeta.set(meta, byKey);
   }
   const known = key === undefined ? undefined : byKey.get(key);
-  if (known) return [...known];
+  if (known) {
+    return [...known];
+  }
   let tables: string[];
   try {
     tables = readTables(meta, spec);
@@ -202,7 +209,9 @@ export function specTables(meta: SchemaMeta, spec: QuerySpec): string[] {
     tables = [spec.table];
   }
   if (key !== undefined) {
-    if (byKey.size >= SPEC_CACHE_SIZE) byKey.clear();
+    if (byKey.size >= SPEC_CACHE_SIZE) {
+      byKey.clear();
+    }
     byKey.set(key, tables);
   }
   return [...tables];
@@ -225,16 +234,22 @@ function specKey(spec: QuerySpec): string | undefined {
 }
 
 function touchesRelations(table: TableMeta, where: unknown): boolean {
-  if (typeof where !== "object" || where === null) return false;
-  if (Array.isArray(where))
+  if (typeof where !== "object" || where === null) {
+    return false;
+  }
+  if (Array.isArray(where)) {
     return where.some((item) => touchesRelations(table, item));
+  }
   for (const [key, value] of Object.entries(where)) {
-    if (key in table.relations) return true;
+    if (key in table.relations) {
+      return true;
+    }
     if (
       (key === "AND" || key === "OR" || key === "NOT") &&
       touchesRelations(table, value)
-    )
+    ) {
       return true;
+    }
   }
   return false;
 }

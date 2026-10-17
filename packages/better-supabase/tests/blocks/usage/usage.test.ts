@@ -64,7 +64,7 @@ describe("batches", () => {
 describe("usage history", () => {
   it("passes who and what used it, and reads the history and breakdown", async () => {
     const { transport, calls } = fakeTransport((fn) => {
-      if (fn === "usage_history")
+      if (fn === "usage_history") {
         return [
           {
             id: "7",
@@ -85,8 +85,10 @@ describe("usage history", () => {
             recorded_at: "2026-01-01T00:00:00Z",
           },
         ];
-      if (fn === "usage_breakdown")
+      }
+      if (fn === "usage_breakdown") {
         return [{ actor: "u1", source: null, quantity: "3.5" }];
+      }
       return { recorded: true, used: 1 };
     });
     const usage = createUsage({ transport });
@@ -343,7 +345,7 @@ describe("reportUsageToStripe", () => {
       window_before: before,
     });
     const { transport, calls } = fakeTransport((fn) => {
-      if (fn === "unreported_usage")
+      if (fn === "unreported_usage") {
         return [
           counter("2026-10-01", 60, 0, 0),
           counter("2026-10-02", 70, 0, 60),
@@ -351,7 +353,10 @@ describe("reportUsageToStripe", () => {
           counter("2026-10-04", 5, 0, 0, null),
           { ...counter("2026-10-05", 7, 0, 0, null), unlimited: true },
         ];
-      if (fn === "tenant_stripe_customer") return "cus_1";
+      }
+      if (fn === "tenant_stripe_customer") {
+        return "cus_1";
+      }
       return true;
     });
     const sent: string[] = [];
@@ -391,7 +396,9 @@ describe("reportUsageToStripe", () => {
           )
           .slice(0, Number(args["max_rows"]));
       }
-      if (fn === "mark_usage_reported") marked.add(keyOf(args));
+      if (fn === "mark_usage_reported") {
+        marked.add(keyOf(args));
+      }
       return true;
     };
   }
@@ -411,8 +418,9 @@ describe("reportUsageToStripe", () => {
   it("sends each delta once per total and marks it reported", async () => {
     const counters = counterStore(rows);
     const { transport, calls } = fakeTransport((fn, args) => {
-      if (fn === "tenant_stripe_customer")
+      if (fn === "tenant_stripe_customer") {
         return args["tenant"] === "org-1" ? "cus_1" : null;
+      }
       return counters(fn, args);
     });
     const sent: unknown[] = [];
@@ -476,10 +484,11 @@ describe("reportUsageToStripe", () => {
       counter("org-3", "api_calls", "2026-10-03"),
     ]);
     const { transport, calls } = fakeTransport((fn, args) => {
-      if (fn === "tenant_stripe_customer")
+      if (fn === "tenant_stripe_customer") {
         return args["tenant"] === "org-2"
           ? null
           : `cus_${String(args["tenant"])}`;
+      }
       return counters(fn, args);
     });
     const sent: unknown[] = [];

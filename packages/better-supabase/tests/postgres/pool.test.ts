@@ -278,8 +278,12 @@ describe("createPostgres", () => {
       code: "23505",
     });
     const fake = recordingPool((text) => {
-      if (text === "insert") throw failure;
-      if (text === "rollback") throw new Error("connection lost");
+      if (text === "insert") {
+        throw failure;
+      }
+      if (text === "rollback") {
+        throw new Error("connection lost");
+      }
       return [];
     });
     const pg = createPostgres({ pool: fake.pool });

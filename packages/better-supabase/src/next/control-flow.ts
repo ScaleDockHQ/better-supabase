@@ -21,16 +21,24 @@ function authInterrupt(fn: () => never): never {
   try {
     fn();
   } catch (cause) {
-    if (isNextInterrupt(cause)) throw cause;
+    if (isNextInterrupt(cause)) {
+      throw cause;
+    }
   }
   notFound();
 }
 
 /** The Next.js interrupt for a refused Server Component render. */
 export function interrupt(error: DbError): never {
-  if (error.kind === "unauthorized") authInterrupt(unauthorized);
-  if (error.kind === "forbidden") authInterrupt(forbidden);
-  if (error.kind === "not_found") notFound();
+  if (error.kind === "unauthorized") {
+    authInterrupt(unauthorized);
+  }
+  if (error.kind === "forbidden") {
+    authInterrupt(forbidden);
+  }
+  if (error.kind === "not_found") {
+    notFound();
+  }
   throw new DbException(error);
 }
 
@@ -51,7 +59,9 @@ const REACT_POSTPONE = Symbol.for("react.postpone");
  * digests are the ones Next 16 checks.
  */
 export function rethrowNextControlFlow(error: unknown): void {
-  if (typeof error !== "object" || error === null) return;
+  if (typeof error !== "object" || error === null) {
+    return;
+  }
   const digest = "digest" in error ? error.digest : undefined;
   if (
     (typeof digest === "string" &&
@@ -63,5 +73,7 @@ export function rethrowNextControlFlow(error: unknown): void {
     // oxlint-disable-next-line typescript/only-throw-error -- React's postpone signal is not an Error, and Next needs the original value.
     throw error;
   }
-  if ("cause" in error) rethrowNextControlFlow(error.cause);
+  if ("cause" in error) {
+    rethrowNextControlFlow(error.cause);
+  }
 }

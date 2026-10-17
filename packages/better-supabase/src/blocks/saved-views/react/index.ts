@@ -86,6 +86,8 @@ export function useSavedViews<V extends SavedViewLike>(
 }
 
 function needs<T>(value: T | undefined, name: string): T {
-  if (value === undefined) throw new Error(`useSavedViews: pass \`${name}\``);
+  if (value === undefined) {
+    throw new Error(`useSavedViews: pass \`${name}\``);
+  }
   return value;
 }

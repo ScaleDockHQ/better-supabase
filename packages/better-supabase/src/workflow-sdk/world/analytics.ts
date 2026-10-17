@@ -104,8 +104,11 @@ function paged<T>(
 /** Converts SQL nulls to the optional fields the analytics schemas allow. */
 function compact<T>(row: Record<string, unknown>): T {
   const out: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(row))
-    if (value !== null) out[key] = value;
+  for (const [key, value] of Object.entries(row)) {
+    if (value !== null) {
+      out[key] = value;
+    }
+  }
   // SAFETY: each query selects the columns of its analytics schema under their names.
   return out as T;
 }
@@ -138,7 +141,9 @@ export function createAnalytics(pool: Pool): Analytics {
     id: string,
   ): Promise<T> => {
     const [row] = await rows<T>(sql, params);
-    if (row === undefined) throw notFound(what, id);
+    if (row === undefined) {
+      throw notFound(what, id);
+    }
     return row;
   };
   const window = (
@@ -151,8 +156,9 @@ export function createAnalytics(pool: Pool): Analytics {
         "better-supabase: analytics startTime and endTime go together",
       );
     }
-    if (params.startTime === undefined || params.endTime === undefined)
+    if (params.startTime === undefined || params.endTime === undefined) {
       return "";
+    }
     values.push(params.startTime, params.endTime);
     return ` and ${utc(column)} between $${String(values.length - 1)}::timestamptz and $${String(values.length)}::timestamptz`;
   };

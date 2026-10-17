@@ -24,7 +24,9 @@ function Chat(): ReactNode {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const message = String(form.get("message") ?? "").trim();
-    if (message.length === 0 || resuming) return;
+    if (message.length === 0 || resuming) {
+      return;
+    }
     void agent.send(message, busy ? { turnPolicy: "steer" } : undefined);
     event.currentTarget.reset();
   };

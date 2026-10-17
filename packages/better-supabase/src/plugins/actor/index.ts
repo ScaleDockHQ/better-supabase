@@ -33,13 +33,17 @@ export function actor(options: ActorOptions = {}): Plugin<"actor"> {
     name: "actor",
     beforeMutation(op, { table, context, options }): MutationOp {
       const flags = table.flags.actor;
-      if (!flags) return op;
+      if (!flags) {
+        return op;
+      }
       const created = dbName(table, flags.createdBy);
       const updated = dbName(table, flags.updatedBy);
       const impersonated = dbName(table, flags.impersonatedBy);
       guardManaged(op, [created, updated, impersonated], "actor", options);
       const id = resolve(context);
-      if (id === undefined) return op;
+      if (id === undefined) {
+        return op;
+      }
       const impersonator = context.actor?.impersonator;
       const stamp = (row: Row): Row => {
         const stamped = withDefault(row, updated, id);

@@ -67,8 +67,9 @@ describe("standards registry", async () => {
   );
 
   it("tracked standards name no test", () => {
-    for (const row of rows.filter((item) => item.posture === "Tracked"))
+    for (const row of rows.filter((item) => item.posture === "Tracked")) {
       expect(row.tests).toEqual([]);
+    }
   });
 
   it("every test file in tests/standards backs a registry row", () => {

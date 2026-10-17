@@ -83,8 +83,9 @@ describe.skipIf(!live)("profiles", () => {
       for (const file of renderModules(
         ["tenant", "access", "profiles"],
         layout,
-      ))
+      )) {
         await client.query(file.contents);
+      }
 
       const meta = {
         ada: {
@@ -271,8 +272,9 @@ describe.skipIf(!live)("profiles", () => {
           },
         },
       };
-      for (const file of renderModules(["profiles"], layout))
+      for (const file of renderModules(["profiles"], layout)) {
         await client.query(file.contents);
+      }
       const meta = {
         ada: { first_name: "Ada", last_name: "Lovelace", user_name: "al" },
         bob: { first_name: "Bob", user_name: "bobby" },
@@ -340,8 +342,9 @@ describe.skipIf(!live)("profiles", () => {
           },
         },
       };
-      for (const file of renderModules(["profiles"], layout))
+      for (const file of renderModules(["profiles"], layout)) {
         await client.query(file.contents);
+      }
       const users = [crypto.randomUUID(), crypto.randomUUID()];
       for (const [index, id] of users.entries()) {
         await client.query(
@@ -375,8 +378,9 @@ describe.skipIf(!live)("profiles", () => {
       for (const file of renderModules(
         ["organizations", "tenant", "access"],
         {},
-      ))
+      )) {
         await client.query(file.contents);
+      }
       for (const who of ["ada", "bob"] as const) {
         await client.query(
           `insert into auth.users (id, email, aud, role, instance_id)

@@ -98,7 +98,9 @@ const extrasOf = (ctx: ModuleContext) =>
   ctx.extraColumns("views", ["ownerId", "teamId", "updatedAt", "preferences"]);
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const extras = extrasOf(ctx);
   const views = ctx.table("views");
   const c = (column: string): string => ctx.col("views", column);

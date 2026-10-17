@@ -86,7 +86,9 @@ describe("private-cache scopes", () => {
         new Request("https://app.test/", { headers: bearer }),
       );
       expect(ctx.auth.kind).toBe("user");
-      if (island % 3 === 0) void ctx.db.customers;
+      if (island % 3 === 0) {
+        void ctx.db.customers;
+      }
     }
     expect(mocks.verifications).toBe(1);
     // A user's ctx.db runs on a bare PostgREST client.

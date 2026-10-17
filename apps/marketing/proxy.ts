@@ -23,7 +23,9 @@ const NOT_FOUND_PATH = "/_not-found-blocks";
 export function proxy(request: NextRequest): NextResponse {
   const [, section, name = ""] = request.nextUrl.pathname.split("/");
   const known = section === "blocks" ? blockNames : recipeSlugs;
-  if (known.has(name)) return NextResponse.next();
+  if (known.has(name)) {
+    return NextResponse.next();
+  }
   return NextResponse.rewrite(new URL(NOT_FOUND_PATH, request.url));
 }
 

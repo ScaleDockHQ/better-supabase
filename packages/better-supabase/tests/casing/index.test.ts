@@ -12,7 +12,8 @@ describe("toCamel", () => {
   });
 
   it("round-trips through toSnake", () => {
-    for (const name of ["first_name", "_internal_id", "customer_tags"])
+    for (const name of ["first_name", "_internal_id", "customer_tags"]) {
       expect(toSnake(toCamel(name))).toBe(name);
+    }
   });
 });

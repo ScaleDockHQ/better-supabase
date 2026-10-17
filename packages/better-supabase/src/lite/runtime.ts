@@ -79,7 +79,9 @@ export async function migrateLite(
   sql: readonly string[],
 ): Promise<void> {
   const ddl = sql.filter((part) => part.trim() !== "").join("\n;\n");
-  if (ddl !== "") await connection.createMigrator(ddl).migrate();
+  if (ddl !== "") {
+    await connection.createMigrator(ddl).migrate();
+  }
 }
 
 /** Runs seed SQL: as is on PGlite, translated to SQLite on `sqlite-postgres`. */
@@ -92,7 +94,9 @@ export async function seedLite(
       },
   sql: string,
 ): Promise<void> {
-  if (sql.trim() === "") return;
+  if (sql.trim() === "") {
+    return;
+  }
   if (target.driver === "pglite") {
     await target.connection.driver.exec(sql);
     return;
@@ -108,5 +112,7 @@ export async function seedLite(
           typeof translated.ddl === "string"
         ? translated.ddl
         : "";
-  if (statements !== "") await connection.transaction([statements]);
+  if (statements !== "") {
+    await connection.transaction([statements]);
+  }
 }

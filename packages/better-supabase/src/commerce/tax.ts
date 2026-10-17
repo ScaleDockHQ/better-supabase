@@ -146,10 +146,11 @@ export interface TaxProvider {
 /** Checks the provider's `apiVersion` before a block uses it. */
 export function taxProviderOf(provider: TaxProvider): TaxProvider {
   const version: unknown = provider.apiVersion;
-  if (version !== 1)
+  if (version !== 1) {
     throw new TypeError(
       `tax "${provider.name}" targets tax provider API ${String(version)}; this better-supabase supports 1. Upgrade better-supabase or use a release of the provider for API 1.`,
     );
+  }
   return provider;
 }
 
@@ -162,26 +163,29 @@ const invalid = (message: string, hint: string): DbError =>
  * two capital letters.
  */
 export function invalidTaxCart(cart: TaxCart): DbError | undefined {
-  if (!/^[A-Z]{2}$/.test(cart.address.country))
+  if (!/^[A-Z]{2}$/.test(cart.address.country)) {
     return invalid(
       `"${cart.address.country}" is not an ISO 3166-1 alpha-2 country code`,
       "TAX_ADDRESS_INVALID",
     );
+  }
   const amounts = [
     ...cart.lines.map((line) => line.amount),
     ...(cart.shipping ? [cart.shipping.amount] : []),
   ];
   for (const amount of amounts) {
-    if (!isMoney(amount) || amount.amount < 0n)
+    if (!isMoney(amount) || amount.amount < 0n) {
       return invalid(
         "Every cart line is Money of zero or more",
         "TAX_AMOUNT_INVALID",
       );
-    if (amount.currency !== cart.currency)
+    }
+    if (amount.currency !== cart.currency) {
       return invalid(
         `A ${amount.currency} line in a ${cart.currency} cart: lines never mix currencies`,
         "TAX_CURRENCY_MISMATCH",
       );
+    }
   }
   return undefined;
 }
@@ -203,13 +207,14 @@ export function reversalOf(
   const lines: TaxLine[] = [];
   for (const part of input.lines) {
     const sold = byId.get(part.lineId);
-    if (sold === undefined)
+    if (sold === undefined) {
       return err(
         invalid(
           `The sale has no line "${part.lineId}"`,
           "TAX_REVERSAL_UNKNOWN_LINE",
         ),
       );
+    }
     if (
       !isMoney(part.amount) ||
       !isMoney(part.tax) ||
@@ -219,13 +224,14 @@ export function reversalOf(
       part.tax.amount < 0n ||
       part.tax.amount > sold.tax.amount ||
       part.amount.amount > sold.taxable.amount
-    )
+    ) {
       return err(
         invalid(
           `The reversal of "${part.lineId}" is not a part of the sold line in ${transaction.currency}`,
           "TAX_REVERSAL_TOO_LARGE",
         ),
       );
+    }
     lines.push({
       ...sold,
       taxable: negateMoney(part.amount),
@@ -270,15 +276,18 @@ export interface FixedRatesOptions {
  */
 export function fixedRates(options: FixedRatesOptions): TaxProvider {
   for (const [region, rates] of Object.entries(options.rates)) {
-    if (!/^[A-Z]{2}(-[A-Z0-9]{1,3})?$/.test(region))
+    if (!/^[A-Z]{2}(-[A-Z0-9]{1,3})?$/.test(region)) {
       throw new TypeError(
         `fixedRates: "${region}" is not a country code (NL) or a country and state (US-CA)`,
       );
-    for (const [category, rate] of Object.entries(rates))
-      if (!isRate(rate))
+    }
+    for (const [category, rate] of Object.entries(rates)) {
+      if (!isRate(rate)) {
         throw new TypeError(
           `fixedRates: the ${region} "${category}" rate "${String(rate)}" is not a decimal fraction such as "0.21"`,
         );
+      }
+    }
   }
   const name = options.name ?? "fixed-rates";
   const defaultCategory = options.defaultCategory ?? "standard";
@@ -294,7 +303,9 @@ export function fixedRates(options: FixedRatesOptions): TaxProvider {
     ];
     for (const region of keys) {
       const rates = options.rates[region];
-      if (rates !== undefined) return { region, rates };
+      if (rates !== undefined) {
+        return { region, rates };
+      }
     }
     return undefined;
   };
@@ -308,12 +319,13 @@ export function fixedRates(options: FixedRatesOptions): TaxProvider {
     exempt: boolean,
   ): Result<TaxLine> => {
     const rate = exempt || region === undefined ? "0" : region.rates[category];
-    if (rate === undefined)
+    if (rate === undefined) {
       return err(
         dbError("not_found", `No "${category}" tax rate for this region`, {
           hint: "TAX_RATE_UNKNOWN",
         }),
       );
+    }
     const tax = applyRate(amount, rate, { included: inclusive });
     return ok({
       lineId,
@@ -351,9 +363,11 @@ export function fixedRates(options: FixedRatesOptions): TaxProvider {
 
   function quoteOf(cart: TaxCart): Result<TaxQuote> {
     const problem = invalidTaxCart(cart);
-    if (problem) return err(problem);
+    if (problem) {
+      return err(problem);
+    }
     const rates = regionFor(cart.address);
-    if (rates === undefined && options.unknownRegion !== "zero")
+    if (rates === undefined && options.unknownRegion !== "zero") {
       return err(
         dbError(
           "not_found",
@@ -361,6 +375,7 @@ export function fixedRates(options: FixedRatesOptions): TaxProvider {
           { hint: "TAX_REGION_UNKNOWN" },
         ),
       );
+    }
     const exempt = cart.customer?.exempt === true;
     const lines: TaxLine[] = [];
     for (const line of cart.lines) {
@@ -372,7 +387,9 @@ export function fixedRates(options: FixedRatesOptions): TaxProvider {
         rates,
         exempt,
       );
-      if (!taxed.ok) return taxed;
+      if (!taxed.ok) {
+        return taxed;
+      }
       lines.push(taxed.data);
     }
     if (cart.shipping) {
@@ -384,7 +401,9 @@ export function fixedRates(options: FixedRatesOptions): TaxProvider {
         rates,
         exempt,
       );
-      if (!taxed.ok) return taxed;
+      if (!taxed.ok) {
+        return taxed;
+      }
       lines.push(taxed.data);
     }
     return ok({

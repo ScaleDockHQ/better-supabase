@@ -41,7 +41,9 @@ const escape = (token: string): string =>
 
 /** The reference tokens of an RFC 6901 pointer. */
 function tokensOf(pointer: string, index: number): string[] {
-  if (pointer === "") return [];
+  if (pointer === "") {
+    return [];
+  }
   if (!pointer.startsWith("/")) {
     throw new JsonPatchError(`"${pointer}" is not a JSON Pointer`, index);
   }
@@ -64,7 +66,9 @@ function arrayIndex(
   index: number,
   adding: boolean,
 ): number {
-  if (adding && token === "-") return array.length;
+  if (adding && token === "-") {
+    return array.length;
+  }
   if (!ARRAY_INDEX.test(token)) {
     throw new JsonPatchError(`"${token}" is not an array index`, index);
   }
@@ -77,7 +81,9 @@ function arrayIndex(
 
 /** Deep equality of two JSON values; object key order doesn't matter. */
 export function jsonEqual(a: JsonValue, b: JsonValue): boolean {
-  if (a === b) return true;
+  if (a === b) {
+    return true;
+  }
   if (Array.isArray(a) || Array.isArray(b)) {
     if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) {
       return false;
@@ -86,9 +92,13 @@ export function jsonEqual(a: JsonValue, b: JsonValue): boolean {
     const right: readonly JsonValue[] = b;
     return left.every((item, i) => jsonEqual(item, right[i] ?? null));
   }
-  if (!isObject(a) || !isObject(b)) return false;
+  if (!isObject(a) || !isObject(b)) {
+    return false;
+  }
   const keys = Object.keys(a);
-  if (keys.length !== Object.keys(b).length) return false;
+  if (keys.length !== Object.keys(b).length) {
+    return false;
+  }
   return keys.every(
     (key) => Object.hasOwn(b, key) && jsonEqual(a[key] ?? null, b[key] ?? null),
   );
@@ -226,7 +236,9 @@ function diff(
   path: string,
   out: JsonPatchOperation[],
 ): void {
-  if (jsonEqual(from, to)) return;
+  if (jsonEqual(from, to)) {
+    return;
+  }
   if (Array.isArray(from) && Array.isArray(to)) {
     const left: readonly JsonValue[] = from;
     const right: readonly JsonValue[] = to;
@@ -254,8 +266,11 @@ function diff(
     }
     for (const [key, value] of Object.entries(to)) {
       const child = `${path}/${escape(key)}`;
-      if (Object.hasOwn(from, key)) diff(from[key] ?? null, value, child, out);
-      else out.push({ op: "add", path: child, value });
+      if (Object.hasOwn(from, key)) {
+        diff(from[key] ?? null, value, child, out);
+      } else {
+        out.push({ op: "add", path: child, value });
+      }
     }
     return;
   }

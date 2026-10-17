@@ -82,7 +82,9 @@ export function createOnboardingController<
       const refresh = async (): Promise<void> => {
         const run = state.run();
         const result = await client.progress(checklist, ...subject);
-        if (run !== state.run()) return;
+        if (run !== state.run()) {
+          return;
+        }
         state.set(
           result.ok
             ? { progress: result.data, error: undefined }
@@ -94,8 +96,11 @@ export function createOnboardingController<
         step: Id,
       ): Promise<void> => {
         const result = await client[action](checklist, step, ...subject);
-        if (result.ok) await refresh();
-        else state.set({ error: result.error });
+        if (result.ok) {
+          await refresh();
+        } else {
+          state.set({ error: result.error });
+        }
       };
       return {
         actions: {

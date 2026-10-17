@@ -52,7 +52,9 @@ export function raise(
  */
 export function tokenHash(ctx: ModuleContext, token: string): string {
   const storage = ctx.text("tokenStorage", "sha256");
-  if (storage === "plain") return token;
+  if (storage === "plain") {
+    return token;
+  }
   if (storage !== "sha256") {
     throw new TypeError(
       `blocks.invitations.options.tokenStorage must be "sha256" or "plain", got "${storage}"`,

@@ -17,7 +17,7 @@ import {
   raise,
 } from "../shared.ts";
 import { accessModel, moduleOperations, roleNames } from "./access-model.ts";
-import { roleValue } from "./organizations.ts";
+import { roleValue } from "./organizations-roles.ts";
 import {
   SCIM_SYNC_LOG_CONTRACT,
   type ScimSqlNames,
@@ -220,7 +220,9 @@ function prefixOf(ctx: ModuleContext): string {
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const id = ctx.idType;
   const roles = rolesFor(ctx);
   const prefix = prefixOf(ctx);

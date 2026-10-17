@@ -39,7 +39,9 @@ const FRAMEWORK_PACKAGES: readonly (readonly [Framework, string])[] = [
 async function readJson(
   path: string,
 ): Promise<Record<string, unknown> | undefined> {
-  if (!existsSync(path)) return undefined;
+  if (!existsSync(path)) {
+    return undefined;
+  }
   const text = await readFile(path, "utf-8");
   try {
     // SAFETY: callers only read optional fields and check their types.
@@ -54,13 +56,27 @@ async function readJson(
 function packageManager(root: string, declared: unknown): PackageManager {
   if (typeof declared === "string") {
     const name = declared.split("@")[0];
-    if (name === "pnpm" || name === "npm" || name === "yarn" || name === "bun")
+    if (
+      name === "pnpm" ||
+      name === "npm" ||
+      name === "yarn" ||
+      name === "bun"
+    ) {
       return name;
+    }
   }
-  if (existsSync(join(root, "pnpm-lock.yaml"))) return "pnpm";
-  if (existsSync(join(root, "bun.lock")) || existsSync(join(root, "bun.lockb")))
+  if (existsSync(join(root, "pnpm-lock.yaml"))) {
+    return "pnpm";
+  }
+  if (
+    existsSync(join(root, "bun.lock")) ||
+    existsSync(join(root, "bun.lockb"))
+  ) {
     return "bun";
-  if (existsSync(join(root, "yarn.lock"))) return "yarn";
+  }
+  if (existsSync(join(root, "yarn.lock"))) {
+    return "yarn";
+  }
   return existsSync(join(root, "package-lock.json")) ? "npm" : "pnpm";
 }
 
@@ -117,7 +133,9 @@ export function installCommand(
       return `bun add ${dev ? "-d " : ""}${list}${target ? ` --cwd ${target.dir}` : ""}`;
     case "yarn": {
       const command = `add ${dev ? "-D " : ""}${list}`;
-      if (!target) return `yarn ${command}`;
+      if (!target) {
+        return `yarn ${command}`;
+      }
       return target.name
         ? `yarn workspace ${target.name} ${command}`
         : `cd ${target.dir} && yarn ${command}`;
@@ -133,8 +151,14 @@ export function installCommand(
 
 /** Env variable prefix the framework exposes to the browser. */
 export function publicPrefix(project: Project): string {
-  if (project.frameworks.includes("next")) return "NEXT_PUBLIC_";
-  if (project.frameworks.includes("expo")) return "EXPO_PUBLIC_";
-  if (project.frameworks.includes("vite")) return "VITE_";
+  if (project.frameworks.includes("next")) {
+    return "NEXT_PUBLIC_";
+  }
+  if (project.frameworks.includes("expo")) {
+    return "EXPO_PUBLIC_";
+  }
+  if (project.frameworks.includes("vite")) {
+    return "VITE_";
+  }
   return "";
 }

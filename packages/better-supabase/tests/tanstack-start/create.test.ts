@@ -36,8 +36,10 @@ async function serve(
       return new Response(null);
     },
   });
-  // oxlint-disable-next-line typescript/only-throw-error -- rethrows the thrown Response the adapter answers with.
-  if (thrown !== undefined) throw thrown;
+  if (thrown !== undefined) {
+    // oxlint-disable-next-line typescript/only-throw-error -- rethrows the thrown Response the adapter answers with.
+    throw thrown;
+  }
   return out;
 }
 

@@ -50,14 +50,19 @@ export function ApiKeyTable({
       organizationId,
       schema: blockConfig["api-keys"].api,
       onChanged: async ({ kind }) => {
-        if (kind === "created") await apiKeyCreated({});
+        if (kind === "created") {
+          await apiKeyCreated({});
+        }
       },
     });
 
   const revokeKey = async (id: string) => {
     const result = await revoke(id);
-    if (result.ok) toast.success(t("Key revoked"));
-    else toast.error(errorMessage(result.error));
+    if (result.ok) {
+      toast.success(t("Key revoked"));
+    } else {
+      toast.error(errorMessage(result.error));
+    }
   };
   const date = (value: Temporal.Instant | undefined) =>
     value

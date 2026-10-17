@@ -154,7 +154,9 @@ function timesheetPolicy(ctx: ModuleContext): string {
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const approvals = ctx.of("approvals");
   if (approvals.mode === "custom") {
     throw new TypeError(

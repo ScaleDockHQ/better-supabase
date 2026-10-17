@@ -41,7 +41,9 @@ function fakeSql(replies: Record<string, unknown[]>): {
       calls.push({ fn, args: params });
       const queue = replies[fn];
       const value = queue && queue.length > 0 ? queue.shift() : null;
-      if (value instanceof Error) throw value;
+      if (value instanceof Error) {
+        throw value;
+      }
       return [{ value }] as T[];
     },
   };
@@ -468,8 +470,9 @@ describe("createOutbox subscribers", () => {
       transport: sqlTransport(sql),
       ...OPTIONS,
       subscribers: (event, subscribers) => {
-        for (const subscriber of subscribers)
+        for (const subscriber of subscribers) {
           asked.push({ type: event.type, ...subscriber });
+        }
         return event.type === "invoice.paid" ? [] : subscribers;
       },
     });

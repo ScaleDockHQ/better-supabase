@@ -15,7 +15,9 @@ function transport(
     call(_schema: string, fn: string, args: Record<string, unknown>) {
       calls.push([fn, args]);
       const result = results[fn];
-      if (!result) return Promise.reject(new Error(`unexpected ${fn}`));
+      if (!result) {
+        return Promise.reject(new Error(`unexpected ${fn}`));
+      }
       return Promise.resolve(result(args));
     },
   };

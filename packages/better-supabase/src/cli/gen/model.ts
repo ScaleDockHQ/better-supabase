@@ -59,8 +59,11 @@ export function functionGroups(
   const groups = new Map<string, FunctionModel[]>();
   for (const fn of functions) {
     const group = groups.get(fn.key);
-    if (group) group.push(fn);
-    else groups.set(fn.key, [fn]);
+    if (group) {
+      group.push(fn);
+    } else {
+      groups.set(fn.key, [fn]);
+    }
   }
   return groups;
 }
@@ -95,7 +98,9 @@ function tableKey(
   schemas: readonly string[],
 ): string {
   const base = applyCasing(table.name, casing);
-  if (schemas.length === 1 || table.schema === "public") return base;
+  if (schemas.length === 1 || table.schema === "public") {
+    return base;
+  }
   return applyCasing(`${table.schema}_${table.name}`, casing);
 }
 
@@ -105,7 +110,9 @@ const TEXT_UDTS = new Set(["text", "varchar", "bpchar"]);
 function storagePathsOf(config: ResolvedConfig) {
   const bucketId = (name: string): string => {
     const bucket = config.buckets[name];
-    if (!bucket) return name;
+    if (!bucket) {
+      return name;
+    }
     return (
       bucket.id ?? name.replaceAll(/[A-Z]/g, (char) => `-${char.toLowerCase()}`)
     );
@@ -116,7 +123,9 @@ function storagePathsOf(config: ResolvedConfig) {
       const key = [`${schema}.${table}.${column}`, `${table}.${column}`].find(
         (candidate) => candidate in config.storagePaths,
       );
-      if (key === undefined) return;
+      if (key === undefined) {
+        return;
+      }
       unused.delete(key);
       if (!TEXT_UDTS.has(udt)) {
         throw new TypeError(
@@ -164,9 +173,13 @@ function prepareCatalog(
       (candidate) => candidate in config.json,
     );
     const override = key === undefined ? undefined : config.json[key];
-    if (key === undefined || !override) return undefined;
+    if (key === undefined || !override) {
+      return undefined;
+    }
     unusedJson.delete(key);
-    if ("type" in override) return override.type;
+    if ("type" in override) {
+      return override.type;
+    }
     const [from, name] = override.import.split("#");
     if (!from || !name) {
       throw new TypeError(
@@ -223,9 +236,12 @@ function draftTables(ctx: ModelContext): DraftTable[] {
     const checkedNotNull = new Set<string>();
     for (const check of table.checks) {
       const union = parseCheckUnion(check.definition);
-      if (union) checks.set(union.column, union.values);
-      for (const column of parseCheckNotNull(check.definition))
+      if (union) {
+        checks.set(union.column, union.values);
+      }
+      for (const column of parseCheckNotNull(check.definition)) {
         checkedNotNull.add(column);
+      }
     }
     const beforeInsert = table.triggers.some(
       (trigger) =>
@@ -235,10 +251,11 @@ function draftTables(ctx: ModelContext): DraftTable[] {
     );
     const insertOptional = new Set(optionsOf(table)?.insertOptional);
     for (const name of insertOptional) {
-      if (!table.columns.some((column) => column.name === name))
+      if (!table.columns.some((column) => column.name === name)) {
         throw new TypeError(
           `tables.${table.name}.insertOptional: "${name}" is not a column of ${table.schema}.${table.name}`,
         );
+      }
     }
     const columns = table.columns.map((column): ColumnModel => {
       const enumValues = column.isEnum
@@ -327,7 +344,9 @@ function configWarnings(ctx: ModelContext): string[] {
   const { config, catalog, unusedJson } = ctx;
   const schemasOf = new Map<string, string[]>();
   for (const table of catalog.tables) {
-    if (!config.schemas.includes(table.schema)) continue;
+    if (!config.schemas.includes(table.schema)) {
+      continue;
+    }
     schemasOf.set(table.name, [
       ...(schemasOf.get(table.name) ?? []),
       table.schema,
@@ -335,7 +354,9 @@ function configWarnings(ctx: ModelContext): string[] {
   }
   const known = (key: string): boolean => {
     const dot = key.indexOf(".");
-    if (dot === -1) return schemasOf.has(key);
+    if (dot === -1) {
+      return schemasOf.has(key);
+    }
     return (
       schemasOf.get(key.slice(dot + 1))?.includes(key.slice(0, dot)) ?? false
     );
@@ -422,7 +443,9 @@ function toTableModels(
       }
       if (flagsConfig.tenant) {
         const column = has(flagsConfig.tenant.column);
-        if (column) flags.tenant = column;
+        if (column) {
+          flags.tenant = column;
+        }
       }
       if (flagsConfig.actor) {
         const createdBy = has(flagsConfig.actor.createdBy);
@@ -448,31 +471,53 @@ function toTableModels(
           nullable: column.nullable,
           hasDefault: column.filled,
         };
-        if (column.readonly) meta.generated = true;
-        if (column.snapshot.identity) meta.identity = column.snapshot.identity;
-        if (!column.readonly && !column.insertable) meta.insertable = false;
-        if (!column.readonly && !column.updatable) meta.updatable = false;
-        if (column.snapshot.isArray) meta.array = true;
-        if (column.json) meta.json = true;
-        if (column.values) meta.enum = column.values;
-        if (column.codec) meta.codec = column.codec;
-        if (column.storage) meta.storage = column.storage;
+        if (column.readonly) {
+          meta.generated = true;
+        }
+        if (column.snapshot.identity) {
+          meta.identity = column.snapshot.identity;
+        }
+        if (!column.readonly && !column.insertable) {
+          meta.insertable = false;
+        }
+        if (!column.readonly && !column.updatable) {
+          meta.updatable = false;
+        }
+        if (column.snapshot.isArray) {
+          meta.array = true;
+        }
+        if (column.json) {
+          meta.json = true;
+        }
+        if (column.values) {
+          meta.enum = column.values;
+        }
+        if (column.codec) {
+          meta.codec = column.codec;
+        }
+        if (column.storage) {
+          meta.storage = column.storage;
+        }
         if (
           config.sensitive.includes(`${table.name}.${column.db}`) ||
           config.sensitive.includes(
             `${table.schema}.${table.name}.${column.db}`,
           )
-        )
+        ) {
           meta.sensitive = true;
+        }
         Object.assign(meta, commentMeta(column.snapshot.comment));
         columnMeta[column.app] = meta;
       }
       const app = (db: string): string => byDb.get(db)?.app ?? db;
       const uniqueKeys: Record<string, readonly string[]> = {};
-      for (const unique of table.uniques)
+      for (const unique of table.uniques) {
         uniqueKeys[unique.name] = unique.columns.map(app);
+      }
       const relationMeta: Record<string, RelationMeta> = {};
-      for (const relation of list) relationMeta[relation.name] = relation.meta;
+      for (const relation of list) {
+        relationMeta[relation.name] = relation.meta;
+      }
 
       return {
         key,
@@ -504,8 +549,9 @@ function buildEnums(ctx: ModelContext): EnumModel[] {
     config.schemas.includes(entry.schema),
   );
   const enumNameCount = new Map<string, number>();
-  for (const entry of includedEnums)
+  for (const entry of includedEnums) {
     enumNameCount.set(entry.name, (enumNameCount.get(entry.name) ?? 0) + 1);
+  }
   const enums: EnumModel[] = includedEnums.map((entry) => {
     const key =
       entry.schema !== "public" && (enumNameCount.get(entry.name) ?? 0) > 1
@@ -530,13 +576,19 @@ function assembleMeta(
   functions: readonly FunctionModel[],
 ): SchemaMeta {
   const tablesMeta: Record<string, TableMeta> = {};
-  for (const table of tableModels) tablesMeta[table.key] = table.meta;
+  for (const table of tableModels) {
+    tablesMeta[table.key] = table.meta;
+  }
   const enumsMeta: Record<string, readonly string[]> = {};
-  for (const entry of enums) enumsMeta[entry.key] = entry.values;
+  for (const entry of enums) {
+    enumsMeta[entry.key] = entry.values;
+  }
   const functionsMeta: Record<string, FunctionMeta> = {};
   for (const [key, group] of functionGroups(functions)) {
     const [first] = group;
-    if (!first) continue;
+    if (!first) {
+      continue;
+    }
     functionsMeta[key] =
       group.length === 1
         ? first.meta
@@ -643,7 +695,9 @@ export function buildModel(snapshot: Snapshot, config: ResolvedConfig): Model {
 function deepFreeze<T>(value: T): T {
   if (typeof value === "object" && value !== null && !Object.isFrozen(value)) {
     Object.freeze(value);
-    for (const entry of Object.values(value)) deepFreeze(entry);
+    for (const entry of Object.values(value)) {
+      deepFreeze(entry);
+    }
   }
   return value;
 }
@@ -699,7 +753,9 @@ function dedupeRelations(
   const repeated = (names: readonly string[]): Set<string> => {
     const seen = new Set<string>();
     const twice = new Set<string>();
-    for (const name of names) (seen.has(name) ? twice : seen).add(name);
+    for (const name of names) {
+      (seen.has(name) ? twice : seen).add(name);
+    }
     return twice;
   };
 
@@ -726,7 +782,9 @@ function dedupeRelations(
   const used = new Set<string>();
   return list.map((relation, index) => {
     let name = names[index] ?? relation.name;
-    while (used.has(name) || columns.has(name)) name = `${name}_`;
+    while (used.has(name) || columns.has(name)) {
+      name = `${name}_`;
+    }
     used.add(name);
     return { ...relation, name };
   });

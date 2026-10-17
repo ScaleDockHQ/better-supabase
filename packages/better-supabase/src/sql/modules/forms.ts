@@ -140,7 +140,9 @@ function handlersOf(
   ctx: ModuleContext,
 ): readonly (readonly [string, string])[] {
   const raw = ctx.option("handlers");
-  if (raw === undefined) return [];
+  if (raw === undefined) {
+    return [];
+  }
   if (!isObject(raw)) {
     throw new TypeError(
       `${WHERE}.handlers must map form keys to functions, such as { contact: "public.lead_from_submission" }`,
@@ -167,8 +169,12 @@ interface PublicLimit {
 /** `options.publicLimit`: public submissions per form and caller, or `false`. */
 function publicLimitOf(ctx: ModuleContext): PublicLimit | undefined {
   const raw = ctx.option("publicLimit");
-  if (raw === false) return undefined;
-  if (raw === undefined) return { max: 20, period: "PT1H" };
+  if (raw === false) {
+    return undefined;
+  }
+  if (raw === undefined) {
+    return { max: 20, period: "PT1H" };
+  }
   const max = isObject(raw) ? raw["max"] : undefined;
   const period = isObject(raw) ? raw["period"] : undefined;
   if (
@@ -191,7 +197,9 @@ const answersInvalid = (table: string): string =>
       using errcode = '23514', column = 'answers', detail = to_jsonb(v_errors)::text, hint = 'JSON_SCHEMA_INVALID';`;
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const forms = ctx.table("forms");
   const versions = ctx.table("versions");
   const submissions = ctx.table("submissions");
@@ -259,7 +267,9 @@ ${handlers.map(([key, name]) => `        when ${sqlString(key)} then v_link := $
     end if;`;
   const links = shares ? ctx.of("share-links") : undefined;
   const linkCheck = (token: string): string => {
-    if (links === undefined) return "";
+    if (links === undefined) {
+      return "";
+    }
     const l = (column: string): string => links.col("links", column);
     return `select x.${f("id")} into v_form_id
   from ${links.table("links")} k

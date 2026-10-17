@@ -35,7 +35,9 @@ export function serverAudit(
   betterSupabase: { readonly events: EventHub },
   sink: EventSink | undefined,
 ): ServerAudit {
-  if (sink === undefined) return OFF;
+  if (sink === undefined) {
+    return OFF;
+  }
   const { events } = betterSupabase;
   forwardBlockEvents(betterSupabase, sink, {
     source: SERVER_EVENT_SOURCE,

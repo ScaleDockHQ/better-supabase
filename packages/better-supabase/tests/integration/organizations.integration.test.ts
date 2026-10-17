@@ -152,8 +152,9 @@ describe.skipIf(!live)("organizations and invitations", () => {
       for (const file of renderModules(
         ["organizations", "invitations"],
         LAYOUT,
-      ))
+      )) {
         await client.query(file.contents);
+      }
 
       await s.as("owner");
       const slug = `acme-${USERS.owner.slice(0, 8)}`;
@@ -320,8 +321,9 @@ describe.skipIf(!live)("organizations and invitations", () => {
           },
         },
       };
-      for (const file of renderModules(["organizations"], layout))
+      for (const file of renderModules(["organizations"], layout)) {
         await client.query(file.contents);
+      }
 
       await s.as("owner");
       const organization = await s.value<string>(
@@ -438,8 +440,9 @@ describe.skipIf(!live)("organizations and invitations", () => {
       for (const file of renderModules(
         ["organizations", "invitations"],
         layout,
-      ))
+      )) {
         await client.query(file.contents);
+      }
       await client.query(`
         insert into ${schema}.roles (id, key) values
           ('00000000-0000-4000-8000-00000000f001', 'owner'),
@@ -567,8 +570,9 @@ describe.skipIf(!live)("organizations and invitations", () => {
       for (const file of renderModules(
         ["organizations", "invitations"],
         layout,
-      ))
+      )) {
         await client.query(file.contents);
+      }
       const roleOf = (organization: string, who: Who) =>
         s.value<string>(
           `(select role_id::text from ${schema}.team_members where organization_id = $1 and user_id = $2)`,
@@ -658,8 +662,9 @@ describe.skipIf(!live)("organizations and invitations", () => {
           },
         },
       };
-      for (const file of renderModules(["organizations"], layout))
+      for (const file of renderModules(["organizations"], layout)) {
         await client.query(file.contents);
+      }
       expect(
         await s.value(
           `(select count(*)::int from pg_trigger where tgrelid = '${schema}.team_members'::regclass and tgname = 'bs_organization_role_guard')`,
@@ -753,8 +758,9 @@ describe.skipIf(!live)("organizations and invitations", () => {
           },
         },
       };
-      for (const file of renderModules(["invitations"], layout))
+      for (const file of renderModules(["invitations"], layout)) {
         await client.query(file.contents);
+      }
 
       await s.as("member");
       expect(
@@ -874,8 +880,9 @@ describe.skipIf(!live)("organizations and invitations", () => {
           },
         },
       };
-      for (const file of renderModules(["invitations"], layout))
+      for (const file of renderModules(["invitations"], layout)) {
         await client.query(file.contents);
+      }
 
       await s.as("owner");
       const platform = await s.value<{ id: string }>(
@@ -1034,8 +1041,9 @@ describe.skipIf(!live)("organizations and invitations", () => {
           invitations: { schema },
         },
       };
-      for (const file of renderModules(["invitations"], layout))
+      for (const file of renderModules(["invitations"], layout)) {
         await client.query(file.contents);
+      }
 
       await s.as("owner");
       expect(
@@ -1083,8 +1091,9 @@ describe.skipIf(!live)("organizations and invitations", () => {
           language sql as $$ select $$;`);
       for (const file of renderModules(["organizations", "invitations"], {
         modules: { organizations: { api }, invitations: { api } },
-      }))
+      })) {
         await client.query(file.contents);
+      }
       const exists = (signature: string) =>
         s.value<boolean>(`to_regprocedure($1) is not null`, [
           `${api}.${signature}`,
@@ -1124,8 +1133,9 @@ describe.skipIf(!live)("organizations and invitations", () => {
       for (const file of renderModules(
         ["organizations", "invitations"],
         LAYOUT,
-      ))
+      )) {
         await client.query(file.contents);
+      }
 
       await s.as("owner");
       const organization = await s.value<string>(
@@ -1272,8 +1282,9 @@ describe.skipIf(!live)("organizations and invitations", () => {
       for (const file of renderModules(
         ["organizations", "invitations", "reserved-slugs", "profiles"],
         layout,
-      ))
+      )) {
         await client.query(file.contents);
+      }
       await client.query(
         `insert into ${schema}.profiles (id, full_name) values ($1, 'Grace Hopper')
           on conflict (id) do update set full_name = excluded.full_name`,
@@ -1392,8 +1403,9 @@ describe.skipIf(!live)("organizations and invitations", () => {
       for (const file of renderModules(
         ["organizations", "invitations"],
         layout,
-      ))
+      )) {
         await client.query(file.contents);
+      }
       await client.query(`
         insert into ${schema}.roles (id, key, scope) values
           ('${role(1)}', 'owner', 'tenant'), ('${role(2)}', 'member', 'tenant'),
@@ -1505,8 +1517,9 @@ describe.skipIf(!live)("organizations and invitations", () => {
       for (const file of renderModules(
         ["organizations", "invitations"],
         LAYOUT,
-      ))
+      )) {
         await client.query(file.contents);
+      }
 
       const events = new EventHub();
       const seen: string[] = [];

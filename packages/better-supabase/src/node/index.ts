@@ -74,7 +74,9 @@ async function continueWith(
     next(error);
     return;
   }
-  if (proceed) next();
+  if (proceed) {
+    next();
+  }
 }
 
 /** The part of an Express response the middleware writes. */
@@ -151,7 +153,9 @@ export function guard(options: RouteGuardOptions = {}): ExpressMiddleware {
       toWebRequest(req, { body: false }),
       options,
     );
-    if (!refused) return true;
+    if (!refused) {
+      return true;
+    }
     await sendWebResponse(res, refused);
     return false;
   };
@@ -270,7 +274,9 @@ export function fastifyGuard(options: RouteGuardOptions = {}): FastifyHook {
       toWebRequest(request.raw, { body: false }),
       options,
     );
-    if (refused) await sendReply(reply, refused);
+    if (refused) {
+      await sendReply(reply, refused);
+    }
   };
 }
 
@@ -340,7 +346,9 @@ export function toKoa<const Entries extends readonly AnyEntry[]>(
       await next();
     } catch (error) {
       const response = errorResponse(error, web, options);
-      if (!response) throw error;
+      if (!response) {
+        throw error;
+      }
       await sendKoa(ctx, response);
     }
   };

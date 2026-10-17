@@ -17,7 +17,9 @@ export function NotificationList() {
   const { items } = useNotifications({
     topic: userId ? `notifications:${userId}` : null,
     load: async () => {
-      if (!tenant) return [];
+      if (!tenant) {
+        return [];
+      }
       const result = await blocks(supabase).notifications.list({
         tenant,
         limit: 20,
@@ -25,7 +27,9 @@ export function NotificationList() {
       return result.ok ? result.data : [];
     },
   });
-  if (items === undefined) return <ActivityIndicator />;
+  if (items === undefined) {
+    return <ActivityIndicator />;
+  }
   return (
     <FlatList
       data={items}

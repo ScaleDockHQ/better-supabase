@@ -257,18 +257,30 @@ function serverOf(value: unknown): ConnectorServer {
 /** The server's own columns a save sets, keyed by database name. */
 function fieldsArg(fields: ConnectorServerFields): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  if (fields.name !== undefined) out["name"] = fields.name;
-  if (fields.url !== undefined) out["url"] = fields.url;
-  if (fields.transport !== undefined) out["transport"] = fields.transport;
-  if (fields.authType !== undefined) out["auth_type"] = fields.authType;
+  if (fields.name !== undefined) {
+    out["name"] = fields.name;
+  }
+  if (fields.url !== undefined) {
+    out["url"] = fields.url;
+  }
+  if (fields.transport !== undefined) {
+    out["transport"] = fields.transport;
+  }
+  if (fields.authType !== undefined) {
+    out["auth_type"] = fields.authType;
+  }
   if (fields.credentialRef !== undefined) {
     out["credential_ref"] = fields.credentialRef;
   }
-  if (fields.scopes !== undefined) out["scopes"] = fields.scopes;
+  if (fields.scopes !== undefined) {
+    out["scopes"] = fields.scopes;
+  }
   if (fields.clientMetadata !== undefined) {
     out["client_metadata"] = fields.clientMetadata;
   }
-  if (fields.enabled !== undefined) out["enabled"] = fields.enabled;
+  if (fields.enabled !== undefined) {
+    out["enabled"] = fields.enabled;
+  }
   return out;
 }
 
@@ -304,7 +316,9 @@ export function createConnectors<
     AsyncResult.from(async () => {
       for (const grant of grants) {
         const revoked = await revokeCredential(grant);
-        if (!revoked.ok) return revoked;
+        if (!revoked.ok) {
+          return revoked;
+        }
       }
       return ok(grants.length);
     });

@@ -237,7 +237,9 @@ describe("named presets", () => {
 
   it("builds every other preset on saas", () => {
     for (const name of PRESET_NAMES) {
-      if (name === "minimal" || name === "saas") continue;
+      if (name === "minimal" || name === "saas") {
+        continue;
+      }
       expect(PRESETS[name].blocks).toEqual(
         expect.arrayContaining([...PRESETS.saas.blocks]),
       );

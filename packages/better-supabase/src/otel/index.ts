@@ -47,7 +47,9 @@ export interface OtelOptions {
 const SQLSTATE = /^[0-9A-Z]{5}$/;
 
 function serverAttributes(server: OtelOptions["server"]): Attributes {
-  if (!server) return {};
+  if (!server) {
+    return {};
+  }
   return server.port === undefined
     ? { "server.address": server.address }
     : { "server.address": server.address, "server.port": server.port };
@@ -61,9 +63,12 @@ const OPERATION_NAME: { readonly [K in Operation["kind"]]: string } = {
 };
 
 function operationName(op: Operation): string {
-  if (op.kind === "insert" && op.onConflict?.action === "update")
+  if (op.kind === "insert" && op.onConflict?.action === "update") {
     return "UPSERT";
-  if (op.kind === "select" && op.head) return "COUNT";
+  }
+  if (op.kind === "select" && op.head) {
+    return "COUNT";
+  }
   return OPERATION_NAME[op.kind];
 }
 
@@ -247,12 +252,15 @@ export function otel(options: OtelOptions = {}): Plugin<"otel"> {
             metric,
             () => executor.execute(op, executeContext),
             (span, result) => {
-              if (!result.ok) return failed(span, result.error);
-              if (span.isRecording())
+              if (!result.ok) {
+                return failed(span, result.error);
+              }
+              if (span.isRecording()) {
                 span.setAttribute(
                   "db.response.returned_rows",
                   result.data.rows.length,
                 );
+              }
               return;
             },
           );
@@ -295,8 +303,10 @@ export function otel(options: OtelOptions = {}): Plugin<"otel"> {
                   () => batch(ops, executeContext),
                   (span, results) => {
                     const failure = results.find((result) => !result.ok);
-                    if (failure) return failed(span, failure.error);
-                    if (span.isRecording())
+                    if (failure) {
+                      return failed(span, failure.error);
+                    }
+                    if (span.isRecording()) {
                       span.setAttribute(
                         "db.response.returned_rows",
                         results.reduce(
@@ -305,6 +315,7 @@ export function otel(options: OtelOptions = {}): Plugin<"otel"> {
                           0,
                         ),
                       );
+                    }
                     return;
                   },
                 );
@@ -335,7 +346,9 @@ export function traceAuth(
         ...(event.userId ? { "enduser.id": event.userId } : {}),
       },
     });
-    if (!event.ok) span.setStatus({ code: SpanStatusCode.ERROR });
+    if (!event.ok) {
+      span.setStatus({ code: SpanStatusCode.ERROR });
+    }
     span.end();
   });
   const offRefresh = betterSupabase.events.on("refresh", (event) => {
@@ -348,7 +361,9 @@ export function traceAuth(
         "better_supabase.refresh.shared": event.shared,
       },
     });
-    if (!event.ok) span.setStatus({ code: SpanStatusCode.ERROR });
+    if (!event.ok) {
+      span.setStatus({ code: SpanStatusCode.ERROR });
+    }
     span.end(end);
   });
   return () => {
@@ -385,7 +400,9 @@ export function traceBlockEvents(
       kind: SpanKind.INTERNAL,
       attributes,
     });
-    if (failed) span.setStatus({ code: SpanStatusCode.ERROR });
+    if (failed) {
+      span.setStatus({ code: SpanStatusCode.ERROR });
+    }
     span.end();
   });
 }

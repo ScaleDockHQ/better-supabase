@@ -180,8 +180,9 @@ describe("topic.fanOut", () => {
       channel: (topic: string) => ({
         topic: `realtime:${topic}`,
         httpSend: async (event: string, payload: unknown) => {
-          if (topic.endsWith(`:${fail ?? "-"}`))
+          if (topic.endsWith(`:${fail ?? "-"}`)) {
             return { success: false, status: 500, error: "down" };
+          }
           sent.push({ topic, event, payload });
           return { success: true };
         },

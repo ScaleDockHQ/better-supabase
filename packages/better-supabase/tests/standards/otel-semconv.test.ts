@@ -117,8 +117,9 @@ describe(`OpenTelemetry database semantic conventions ${SPEC_PINS.otelSemconv}`,
     });
     for (const key of Object.keys(span!.attributes).filter(
       (name) => !name.startsWith("better_supabase."),
-    ))
+    )) {
       expect(DB_SPAN_ATTRIBUTES).toContain(key);
+    }
     expect(span!.status).toBeUndefined();
   });
 

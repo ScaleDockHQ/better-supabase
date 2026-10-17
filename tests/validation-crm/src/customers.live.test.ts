@@ -20,7 +20,9 @@ describe.skipIf(!url || !secretKey)(
       const organization = await db.organizations
         .findFirst({ select: ["id"] })
         .orThrow();
-      if (!organization) return;
+      if (!organization) {
+        return;
+      }
       for (const filter of [
         {},
         { q: "a", types: ["business"] as const, sortBy: "updatedAt" as const },

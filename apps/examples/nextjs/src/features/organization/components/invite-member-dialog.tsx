@@ -70,7 +70,9 @@ export function InviteMemberDialog({
     organizationId,
     schema: blockConfig.organizations.api,
     onChanged: async ({ kind }) => {
-      if (kind === "invited") await invitationSent({});
+      if (kind === "invited") {
+        await invitationSent({});
+      }
     },
   });
   const link = sent ? inviteLink(sent.token) : null;
@@ -92,7 +94,9 @@ export function InviteMemberDialog({
       onOpenChange={(next) => {
         setOpen(next);
         setEmail("");
-        if (!next) clear();
+        if (!next) {
+          clear();
+        }
       }}
     >
       <DialogTrigger render={<Button size="sm" />}>
@@ -168,7 +172,9 @@ export function InviteMemberDialog({
                   value={role}
                   items={roles}
                   onValueChange={(value) => {
-                    if (v.is(Role, value)) setRole(value);
+                    if (v.is(Role, value)) {
+                      setRole(value);
+                    }
                   }}
                 >
                   <SelectTrigger id={`${fieldId}-invite-role`} className="w-40">

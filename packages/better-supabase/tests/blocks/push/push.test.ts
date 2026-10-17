@@ -49,9 +49,15 @@ function expoFetch(
 describe("createPush", () => {
   it("maps calls to the module functions", async () => {
     const { call, transport: t } = transport((fn) => {
-      if (fn === "register_push_device") return "d1";
-      if (fn === "unregister_push_device") return true;
-      if (fn === "prune_push_tokens") return 2;
+      if (fn === "register_push_device") {
+        return "d1";
+      }
+      if (fn === "unregister_push_device") {
+        return true;
+      }
+      if (fn === "prune_push_tokens") {
+        return 2;
+      }
       return [
         { userId: "u1", token: "a", platform: "ios", provider: "expo" },
         { userId: "u1", token: "b", platform: "tv", provider: "expo" },

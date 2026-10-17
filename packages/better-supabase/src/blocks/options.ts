@@ -77,11 +77,21 @@ export interface BlockOptionsSchema<
 }
 
 function kindOf(value: unknown): OptionKind | undefined {
-  if (typeof value === "string") return "string";
-  if (typeof value === "boolean") return "boolean";
-  if (typeof value === "number") return "number";
-  if (Array.isArray(value) && value.every((entry) => typeof entry === "string"))
+  if (typeof value === "string") {
+    return "string";
+  }
+  if (typeof value === "boolean") {
+    return "boolean";
+  }
+  if (typeof value === "number") {
+    return "number";
+  }
+  if (
+    Array.isArray(value) &&
+    value.every((entry) => typeof entry === "string")
+  ) {
     return "strings";
+  }
   return undefined;
 }
 
@@ -123,7 +133,9 @@ export function blockOptions<T extends object>(
             });
           }
         }
-        if (issues.length > 0) return { issues };
+        if (issues.length > 0) {
+          return { issues };
+        }
         // SAFETY: every key is one `specs` declares, and every value has the
         // kind its `OptionSpec` names, which is what `T` describes.
         return { value: value as T };

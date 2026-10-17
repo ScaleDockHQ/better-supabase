@@ -5,7 +5,9 @@ const decoder = /* @__PURE__ */ new TextDecoder();
 export function toBase64(input: Uint8Array | string): string {
   const bytes = typeof input === "string" ? encoder.encode(input) : input;
   let binary = "";
-  for (const byte of bytes) binary += String.fromCodePoint(byte);
+  for (const byte of bytes) {
+    binary += String.fromCodePoint(byte);
+  }
   return btoa(binary);
 }
 
@@ -41,7 +43,9 @@ export function decodeJwtPayload(
   token: string,
 ): Record<string, unknown> | undefined {
   const part = token.split(".")[1];
-  if (!part) return undefined;
+  if (!part) {
+    return undefined;
+  }
   try {
     const parsed: unknown = JSON.parse(base64ToText(part));
     // SAFETY: parsed is a non-null object, and callers check each claim they read.

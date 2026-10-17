@@ -15,7 +15,9 @@ const operation = (
   id: string,
 ) => {
   const found = model.operations.find((entry) => entry.id === id);
-  if (!found) throw new Error(`no operation ${id}`);
+  if (!found) {
+    throw new Error(`no operation ${id}`);
+  }
   return found;
 };
 
@@ -395,7 +397,9 @@ describe("buildApiModel: permissions", () => {
   const authorizer = defineAuthorizer<{ readonly id: string }>({
     name: "test",
     key: (ref) => {
-      if (ref.id === "broken") throw new Error("no key");
+      if (ref.id === "broken") {
+        throw new Error("no key");
+      }
       return `perm:${ref.id}`;
     },
     forOperation: (table, op) =>

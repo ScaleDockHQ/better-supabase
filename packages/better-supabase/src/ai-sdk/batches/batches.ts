@@ -238,7 +238,9 @@ export function aiBatches(options: AiBatchesOptions): AiBatches {
         let saved = 0;
         let page: AiBatchItemInput[] = [];
         const flush = async () => {
-          if (page.length === 0) return ok(0);
+          if (page.length === 0) {
+            return ok(0);
+          }
           const written = await store.saveItems(batch.id, page);
           page = [];
           return written;
@@ -255,7 +257,9 @@ export function aiBatches(options: AiBatchesOptions): AiBatches {
             );
             if (page.length >= PAGE) {
               const written = await flush();
-              if (!written.ok) return written;
+              if (!written.ok) {
+                return written;
+              }
               saved += written.data;
             }
           }
@@ -267,13 +271,17 @@ export function aiBatches(options: AiBatchesOptions): AiBatches {
           );
         }
         const written = await flush();
-        if (!written.ok) return written;
+        if (!written.ok) {
+          return written;
+        }
         saved += written.data;
         const done = await store.update(batch.id, {
           resultsSaved: true,
           nextPollAt: null,
         });
-        if (!done.ok) return done;
+        if (!done.ok) {
+          return done;
+        }
         await options.onDone?.(done.data);
         return ok(saved);
       }),
@@ -299,7 +307,9 @@ export function aiBatches(options: AiBatchesOptions): AiBatches {
             const noted = await store.update(batch.id, {
               error: polled.error.message,
             });
-            if (!noted.ok) return noted;
+            if (!noted.ok) {
+              return noted;
+            }
           }
         }
         return ok(due.length);

@@ -38,7 +38,9 @@ function memoryCache(fail?: "get" | "set") {
               : undefined,
           ),
     set: (key, value, options) => {
-      if (fail === "set") return AsyncResult.err(dbError("network", "down"));
+      if (fail === "set") {
+        return AsyncResult.err(dbError("network", "down"));
+      }
       entries.set(key, value);
       sets.push({ key, options });
       return AsyncResult.ok({

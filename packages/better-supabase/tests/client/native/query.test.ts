@@ -22,7 +22,9 @@ function fakeAppState(currentState: string) {
     appState,
     listeners,
     change: (state: string) => {
-      for (const listener of listeners) listener(state);
+      for (const listener of listeners) {
+        listener(state);
+      }
     },
   };
 }

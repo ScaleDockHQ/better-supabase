@@ -69,8 +69,9 @@ describe("refreshSession", () => {
   it("drops the oldest reused refresh past its cap", async () => {
     const fetch = vi.fn<typeof globalThis.fetch>(async () => answer("n"));
     const options = { url: "https://cap.test", publishableKey: "pk", fetch };
-    for (let index = 0; index <= 1000; index++)
+    for (let index = 0; index <= 1000; index++) {
       await refreshSession(`cap-${String(index)}`, options);
+    }
     expect(fetch).toHaveBeenCalledTimes(1001);
     await refreshSession("cap-1000", options);
     expect(fetch).toHaveBeenCalledTimes(1001);

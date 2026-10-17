@@ -737,7 +737,9 @@ describe("createNotifications().deliver", () => {
   const claim = (deliveries: Record<string, unknown>[]) => {
     let served = false;
     return () => {
-      if (served) return [];
+      if (served) {
+        return [];
+      }
       served = true;
       return deliveries;
     };

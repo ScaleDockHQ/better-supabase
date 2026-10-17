@@ -284,12 +284,15 @@ const ADDRESS_FIELDS = [
 ] as const;
 
 function addressOf(value: unknown): Address | undefined {
-  if (!isRecord(value) || typeof value["country"] !== "string")
+  if (!isRecord(value) || typeof value["country"] !== "string") {
     return undefined;
+  }
   const fields: { -readonly [K in keyof Address]?: string } = {};
   for (const key of ADDRESS_FIELDS) {
     const entry = value[key];
-    if (typeof entry === "string") fields[key] = entry;
+    if (typeof entry === "string") {
+      fields[key] = entry;
+    }
   }
   return { ...fields, country: value["country"] };
 }
@@ -298,7 +301,9 @@ function shippingOf(
   value: unknown,
   currency: string,
 ): PricedCart["shipping"] | undefined {
-  if (!isRecord(value)) return undefined;
+  if (!isRecord(value)) {
+    return undefined;
+  }
   return {
     rateId: textOf(value["rateId"]),
     name: textOf(value["name"]),
@@ -310,7 +315,9 @@ function promotionsOf(
   value: unknown,
   currency: string,
 ): readonly AppliedPromotion[] {
-  if (!Array.isArray(value)) return [];
+  if (!Array.isArray(value)) {
+    return [];
+  }
   return value.filter(isRecord).map((entry) => {
     const code = optionalText(entry["code"]);
     const kind = enumOrThrow(entry["kind"], PROMOTION_KINDS, "promotion kind");
@@ -326,7 +333,9 @@ function promotionsOf(
 }
 
 function problemsOf(value: unknown): readonly CartProblem[] {
-  if (!Array.isArray(value)) return [];
+  if (!Array.isArray(value)) {
+    return [];
+  }
   return value.filter(isRecord).map((entry) => {
     const lineId = optionalText(entry["lineId"]);
     const variantId = optionalText(entry["variantId"]);
@@ -453,8 +462,9 @@ export function quoteToJson(quote: TaxQuote): Record<string, unknown> {
 }
 
 function quoteOf(value: unknown): TaxQuote | undefined {
-  if (!isRecord(value) || typeof value["quoteId"] !== "string")
+  if (!isRecord(value) || typeof value["quoteId"] !== "string") {
     return undefined;
+  }
   const currency = textOf(value["currency"]);
   const expiresAt = optionalInstant(value["expiresAt"]);
   return {
@@ -482,7 +492,9 @@ export function transactionToJson(
 }
 
 function transactionOf(value: unknown): TaxTransaction | undefined {
-  if (!isRecord(value) || typeof value["id"] !== "string") return undefined;
+  if (!isRecord(value) || typeof value["id"] !== "string") {
+    return undefined;
+  }
   const currency = textOf(value["currency"]);
   return {
     id: value["id"],
@@ -630,7 +642,9 @@ export function refundedTaxLines(
   total: Money,
 ): readonly { lineId: string; amount: Money; tax: Money }[] {
   const share = (value: Money): Money => {
-    if (total.amount === 0n) return value;
+    if (total.amount === 0n) {
+      return value;
+    }
     const part = (value.amount * amount.amount) / total.amount;
     return money(
       part > value.amount ? value.amount : part,

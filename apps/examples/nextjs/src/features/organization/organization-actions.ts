@@ -46,7 +46,9 @@ export const createOrganization = bs.action(
   async ({ name }, { supabase }) => {
     const { organizations } = blocks(supabase);
     const created = await organizations.create({ name, slug: slugify(name) });
-    if (!created.ok) return created;
+    if (!created.ok) {
+      return created;
+    }
     after(() =>
       recordAudit(supabase, {
         eventType: "organization.created",
@@ -75,7 +77,9 @@ export const updateOrganization = bs.action(
         slug,
       },
     );
-    if (!updated.ok) return updated;
+    if (!updated.ok) {
+      return updated;
+    }
     after(() =>
       recordAudit(supabase, {
         eventType: "organization.updated",
@@ -133,7 +137,9 @@ export const revokeInvitation = bs.action(
   async ({ invitationId }, { tenant: organizationId, supabase }) => {
     const revoked =
       await blocks(supabase).organizations.revokeInvitation(invitationId);
-    if (!revoked.ok) return revoked;
+    if (!revoked.ok) {
+      return revoked;
+    }
     after(() =>
       recordAudit(supabase, {
         eventType: "invitation.revoked",
@@ -186,9 +192,13 @@ export const acceptInvitation = bs.action(
     const { organizations } = blocks(supabase);
     const preview = await organizations.previewInvitation(token);
     const accepted = await organizations.acceptInvitation(token);
-    if (!accepted.ok) return accepted;
+    if (!accepted.ok) {
+      return accepted;
+    }
     const organizationId = accepted.data.organizationId;
-    if (!organizationId) return ok({ organizationId: null, refresh: false });
+    if (!organizationId) {
+      return ok({ organizationId: null, refresh: false });
+    }
     const name = preview.ok ? preview.data?.organization?.["name"] : undefined;
     const event = {
       eventType: "invitation.accepted",

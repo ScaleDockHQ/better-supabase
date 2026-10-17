@@ -303,7 +303,9 @@ function recordOfEntry<Columns extends AuditColumns>(
   const text: Partial<Record<(typeof TEXT_KEYS)[number], string>> = {};
   for (const key of TEXT_KEYS) {
     const found = optionalText(row[key]);
-    if (found !== undefined) text[key] = found;
+    if (found !== undefined) {
+      text[key] = found;
+    }
   }
   const json = (key: string) => {
     const found = row[key];
@@ -440,7 +442,9 @@ export function createAudit<Columns extends AuditColumns = AuditColumns>(
         };
       },
     );
-    if (list.count !== true) return page;
+    if (list.count !== true) {
+      return page;
+    }
     return page.andThen((data) =>
       call("count_audit_events", filters, (value) => ({
         ...data,
@@ -494,7 +498,9 @@ export function createAudit<Columns extends AuditColumns = AuditColumns>(
     let done = false;
     return new ReadableStream<Uint8Array>({
       async pull(controller) {
-        if (done) return;
+        if (done) {
+          return;
+        }
         const page = await list({
           ...filters,
           ...(before ? { cursor: before } : {}),
@@ -533,7 +539,9 @@ export function createAudit<Columns extends AuditColumns = AuditColumns>(
             )
             .join("\n")}\n`;
         }
-        if (text.length > 0) controller.enqueue(encoder.encode(text));
+        if (text.length > 0) {
+          controller.enqueue(encoder.encode(text));
+        }
         before = next;
         if (next === undefined) {
           done = true;

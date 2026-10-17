@@ -221,7 +221,9 @@ const NODE_RUN_STATUSES = [
 ] as const;
 
 function build(ctx: ModuleContext, layout: ModuleLayout): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const s = builderSql(ctx, layout.accessProvider?.operations);
   const {
     id,

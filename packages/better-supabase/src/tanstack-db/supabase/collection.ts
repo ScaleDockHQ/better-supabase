@@ -61,8 +61,9 @@ type Handler<
 > = NonNullable<SupabaseCollectionConfig<Schema>[K]>;
 
 function field(row: unknown, name: string): unknown {
-  if (typeof row !== "object" || row === null || !(name in row))
+  if (typeof row !== "object" || row === null || !(name in row)) {
     return undefined;
+  }
   return Object.getOwnPropertyDescriptor(row, name)?.value;
 }
 
@@ -97,23 +98,27 @@ export function supabaseCollection<
   options: SupabaseCollectionOptions<M, F, E, Schema>,
 ): SupabaseCollectionConfig<Schema> {
   const { meta } = betterSupabase;
-  if (meta.casing !== "snake")
+  if (meta.casing !== "snake") {
     throw new TypeError(
       `better-supabase: supabaseCollection() needs casing: "snake"; @supabase-labs/tanstack-db reads and writes database column names. Use collectionOptions() with camel casing.`,
     );
+  }
   const tableMeta = meta.tables[table];
-  if (!tableMeta)
+  if (!tableMeta) {
     throw new TypeError(`better-supabase: unknown table "${table}"`);
-  if (tableMeta.schema !== "public")
+  }
+  if (tableMeta.schema !== "public") {
     throw new TypeError(
       `better-supabase: supabaseCollection() supports tables in the public schema; "${tableMeta.schema}.${tableMeta.name}" is not.`,
     );
+  }
   const primaryKey = tableMeta.primaryKey;
   const [single] = primaryKey;
-  if (single === undefined)
+  if (single === undefined) {
     throw new TypeError(
       `better-supabase: the "${table}" collection needs a table with a primary key`,
     );
+  }
   const labs = supabaseCollectionOptions({
     tableName: tableMeta.name,
     // SAFETY: with snake casing the primary key names are the row's keys.
@@ -131,7 +136,9 @@ export function supabaseCollection<
   // SAFETY: only the declared types differ; createCollection() treats an
   // undefined optional property as unset.
   const config = labs as SupabaseCollectionConfig<Schema>;
-  if (options.writes === "direct") return config;
+  if (options.writes === "direct") {
+    return config;
+  }
 
   const { db } = options;
   // Codec columns decode on the repository (Temporal, bigint) but stay raw in
@@ -151,15 +158,18 @@ export function supabaseCollection<
       | Readonly<Record<string, Write | undefined>>
       | undefined;
     const fn = repository?.[method];
-    if (!fn)
+    if (!fn) {
       throw new TypeError(
         `better-supabase: ${table}.${method} is not available`,
       );
+    }
     return fn;
   };
   const orThrow = async (result: AsyncResult<unknown>): Promise<unknown> => {
     const settled = await result;
-    if (!settled.ok) throw new DbException(settled.error);
+    if (!settled.ok) {
+      throw new DbException(settled.error);
+    }
     return settled.data;
   };
   const done = { refetch: !writeBack };
@@ -171,7 +181,9 @@ export function supabaseCollection<
     const create = write("create");
     for (const mutation of transaction.mutations) {
       const row = await orThrow(create(mutation.modified));
-      if (!writeBack) continue;
+      if (!writeBack) {
+        continue;
+      }
       // SAFETY: the repository returns the inserted row in database column
       // names (snake casing) with no codec columns, the collection's row shape.
       mutation.modified = row as typeof mutation.modified;
@@ -190,7 +202,9 @@ export function supabaseCollection<
       const row = await orThrow(
         update(idOf(mutation.original), mutation.changes),
       );
-      if (!writeBack) continue;
+      if (!writeBack) {
+        continue;
+      }
       // SAFETY: as in onInsert, the updated row has the collection's row shape.
       mutation.modified = row as typeof mutation.modified;
       void collection.utils.writeUpdate(mutation.modified);
@@ -204,12 +218,15 @@ export function supabaseCollection<
     const remove = write("delete");
     for (const mutation of transaction.mutations) {
       await orThrow(remove(idOf(mutation.original)));
-      if (!writeBack) continue;
+      if (!writeBack) {
+        continue;
+      }
       const key = collection.getKeyFromItem(mutation.original);
       // A row with a pending local delete is gone from has() but still synced.
       // oxlint-disable-next-line eslint/no-underscore-dangle -- TanStack DB exposes synced rows only on _state; @supabase-labs/tanstack-db reads the same field.
-      if (collection._state.syncedData.has(key))
+      if (collection._state.syncedData.has(key)) {
         void collection.utils.writeDelete(key);
+      }
     }
     return done;
   };

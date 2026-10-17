@@ -267,13 +267,14 @@ describe("shared-signals receiver", () => {
         eventsRequested: [CAEP_EVENTS.sessionRevoked],
       })
       .orThrow();
-    for (const id of ["u1", "u2", "u3"])
+    for (const id of ["u1", "u2", "u3"]) {
       await transmitter
         .emit({
           subject: { format: "opaque", id },
           event: { type: CAEP_EVENTS.sessionRevoked, claims: {} },
         })
         .orThrow();
+    }
     const seen: unknown[] = [];
     const receiver = blocks.receiver({
       issuer: ISSUER,
@@ -377,7 +378,9 @@ describe("shared-signals receiver", () => {
       },
       handlers: {
         "*": () => {
-          if (fail) throw new Error("down");
+          if (fail) {
+            throw new Error("down");
+          }
         },
       },
     });

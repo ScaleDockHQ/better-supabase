@@ -28,7 +28,9 @@ function router(handlers: Record<string, Handler>) {
       call(_schema: string, fn: string, args: Record<string, unknown>) {
         calls.push({ fn, args });
         const handler = handlers[fn];
-        if (!handler) return Promise.reject(new Error(`unexpected ${fn}`));
+        if (!handler) {
+          return Promise.reject(new Error(`unexpected ${fn}`));
+        }
         try {
           return Promise.resolve(handler(args));
         } catch (cause) {

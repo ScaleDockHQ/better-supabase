@@ -49,7 +49,9 @@ export interface WatcherSinkOptions<K extends NotificationTypes> {
 
 function subjectData(event: CloudEvent): WatchedEventData | undefined {
   const data = isRecord(event.data) ? event.data : undefined;
-  if (data === undefined) return undefined;
+  if (data === undefined) {
+    return undefined;
+  }
   const subjectType = optionalText(data["subjectType"]);
   const subjectId = optionalText(data["subjectId"]);
   const organizationId =
@@ -82,9 +84,13 @@ export function watcherSink<K extends NotificationTypes>(
       : { typePrefix: options.typePrefix }),
     map(event) {
       const entry = options.types[event.type];
-      if (entry === undefined) return null;
+      if (entry === undefined) {
+        return null;
+      }
       const data = subjectData(event);
-      if (data === undefined) return null;
+      if (data === undefined) {
+        return null;
+      }
       const rule: WatcherRule<K> =
         typeof entry === "string" ? { type: entry } : entry;
       const actorId =

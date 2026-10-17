@@ -18,7 +18,9 @@ function check(
   value: unknown,
 ): StandardSchemaV1.Result<Row> {
   const result = tableSchema<Row>(spec)["~standard"].validate(value);
-  if (result instanceof Promise) throw new Error("expected a sync result");
+  if (result instanceof Promise) {
+    throw new TypeError("expected a sync result");
+  }
   return result;
 }
 

@@ -25,8 +25,12 @@ function ticketOf(
   options: WrapOptions,
 ): Result<string | undefined> {
   const ticket = options.ticket ?? context?.["ticket"];
-  if (ticket === undefined) return ok(undefined);
-  if (typeof ticket === "string" && ticket !== "") return ok(ticket);
+  if (ticket === undefined) {
+    return ok(undefined);
+  }
+  if (typeof ticket === "string" && ticket !== "") {
+    return ok(ticket);
+  }
   return err(
     dbError("validation", "A job ticket is a non-empty string", {
       issues: [{ message: "Expected a non-empty string", path: ["ticket"] }],
@@ -45,7 +49,9 @@ function recordContext(
   options: WrapOptions = {},
 ): Result<JobContext | undefined> {
   const ticket = ticketOf(context, options);
-  if (!ticket.ok) return ticket;
+  if (!ticket.ok) {
+    return ticket;
+  }
   if (!context) {
     return ok(ticket.data === undefined ? undefined : { ticket: ticket.data });
   }
@@ -94,7 +100,9 @@ export function wrapPayload(
   options: WrapOptions = {},
 ): Result<unknown> {
   const recorded = recordContext(context, options);
-  if (!recorded.ok) return recorded;
+  if (!recorded.ok) {
+    return recorded;
+  }
   return ok(
     recorded.data === undefined
       ? payload
@@ -109,7 +117,9 @@ export function withContext(
   options: WrapOptions = {},
 ): unknown {
   const wrapped = wrapPayload(payload, context, options);
-  if (!wrapped.ok) throw new TypeError(wrapped.error.message);
+  if (!wrapped.ok) {
+    throw new TypeError(wrapped.error.message);
+  }
   return wrapped.data;
 }
 

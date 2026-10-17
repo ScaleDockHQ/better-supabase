@@ -32,24 +32,34 @@ function engineFor(schema: Json): Ajv | Ajv2020 {
 function staticDynamicRefs(schema: Json): void {
   const anchors = new Map<string, string>();
   const findAnchors = (node: unknown, pointer: string) => {
-    if (!node || typeof node !== "object") return;
+    if (!node || typeof node !== "object") {
+      return;
+    }
     for (const [key, value] of Object.entries(node)) {
       if (key === "$dynamicAnchor" && typeof value === "string") {
-        if (anchors.has(value)) throw new Error(`Two $dynamicAnchor ${value}`);
+        if (anchors.has(value)) {
+          throw new Error(`Two $dynamicAnchor ${value}`);
+        }
         anchors.set(value, `#${pointer}`);
-      } else findAnchors(value, `${pointer}/${key}`);
+      } else {
+        findAnchors(value, `${pointer}/${key}`);
+      }
     }
   };
   findAnchors(schema, "");
   const rewrite = (node: unknown) => {
-    if (!node || typeof node !== "object") return;
+    if (!node || typeof node !== "object") {
+      return;
+    }
     const record = node as Json;
     const dynamic = record["$dynamicRef"];
     if (typeof dynamic === "string" && anchors.has(dynamic.slice(1))) {
       delete record["$dynamicRef"];
       record["$ref"] = anchors.get(dynamic.slice(1));
     }
-    for (const value of Object.values(record)) rewrite(value);
+    for (const value of Object.values(record)) {
+      rewrite(value);
+    }
   };
   rewrite(schema);
 }
@@ -59,19 +69,27 @@ function staticDynamicRefs(schema: Json): void {
  * draft-07 writes `exclusiveMinimum: n`. Same meaning, so rewrite it.
  */
 function draft07Bounds(node: unknown): void {
-  if (!node || typeof node !== "object") return;
+  if (!node || typeof node !== "object") {
+    return;
+  }
   const record = node as Json;
   for (const [bound, exclusive] of [
     ["minimum", "exclusiveMinimum"],
     ["maximum", "exclusiveMaximum"],
   ] as const) {
-    if (typeof record[exclusive] !== "boolean") continue;
+    if (typeof record[exclusive] !== "boolean") {
+      continue;
+    }
     if (record[exclusive] && typeof record[bound] === "number") {
       record[exclusive] = record[bound];
       delete record[bound];
-    } else if (!record[exclusive]) delete record[exclusive];
+    } else if (!record[exclusive]) {
+      delete record[exclusive];
+    }
   }
-  for (const value of Object.values(record)) draft07Bounds(value);
+  for (const value of Object.values(record)) {
+    draft07Bounds(value);
+  }
 }
 
 /**
@@ -80,13 +98,15 @@ function draft07Bounds(node: unknown): void {
  */
 function builtInDraft07(schema: Json): void {
   const definitions = schema["definitions"] as Json | undefined;
-  for (const [key, definition] of Object.entries(definitions ?? {}))
+  for (const [key, definition] of Object.entries(definitions ?? {})) {
     if (
       String((definition as Json)["$id"]).startsWith(
         "http://json-schema.org/draft-07/schema",
       )
-    )
+    ) {
       delete definitions![key];
+    }
+  }
 }
 
 /**
@@ -95,8 +115,9 @@ function builtInDraft07(schema: Json): void {
  */
 function shadcnItemSchema(engine: Ajv | Ajv2020, file: string): void {
   const url = "https://ui.shadcn.com/schema/registry-item.json";
-  if (!engine.getSchema(url))
+  if (!engine.getSchema(url)) {
     engine.addSchema(shadcnDraft07(vendored(file)), url);
+  }
 }
 
 /**
@@ -104,8 +125,9 @@ function shadcnItemSchema(engine: Ajv | Ajv2020, file: string): void {
  * meta-schema under `http`. Same dialect, so use Ajv's name for it.
  */
 function shadcnDraft07(schema: Json): Json {
-  if (schema["$schema"] === "https://json-schema.org/draft-07/schema#")
+  if (schema["$schema"] === "https://json-schema.org/draft-07/schema#") {
     schema["$schema"] = "http://json-schema.org/draft-07/schema#";
+  }
   return schema;
 }
 
@@ -119,14 +141,21 @@ function load(file: string): { engine: Ajv | Ajv2020; key: string } {
       delete schema["id"];
       draft07Bounds(schema);
     }
-    if (file.startsWith("openapi-")) staticDynamicRefs(schema);
-    if (file.startsWith("asyncapi-")) builtInDraft07(schema);
-    if (file.startsWith("shadcn-registry-")) shadcnDraft07(schema);
-    if (file.startsWith("shadcn-registry-") && !file.includes("-item-"))
+    if (file.startsWith("openapi-")) {
+      staticDynamicRefs(schema);
+    }
+    if (file.startsWith("asyncapi-")) {
+      builtInDraft07(schema);
+    }
+    if (file.startsWith("shadcn-registry-")) {
+      shadcnDraft07(schema);
+    }
+    if (file.startsWith("shadcn-registry-") && !file.includes("-item-")) {
       shadcnItemSchema(
         engine,
         file.replace("shadcn-registry-", "shadcn-registry-item-"),
       );
+    }
     engine.addSchema(schema, file);
   }
   return { engine, key: file };
@@ -139,7 +168,9 @@ function load(file: string): { engine: Ajv | Ajv2020; key: string } {
 export function validatorFor(file: string, definition = ""): ValidateFunction {
   const { engine, key } = load(file);
   const validate = engine.getSchema(`${key}${definition}`);
-  if (!validate) throw new Error(`No schema ${key}${definition}`);
+  if (!validate) {
+    throw new Error(`No schema ${key}${definition}`);
+  }
   return validate;
 }
 
@@ -148,13 +179,17 @@ export function metaSchema2020(): ValidateFunction {
   const validate = draft2020.getSchema(
     "https://json-schema.org/draft/2020-12/schema",
   );
-  if (!validate) throw new Error("ajv has no 2020-12 meta-schema");
+  if (!validate) {
+    throw new Error("ajv has no 2020-12 meta-schema");
+  }
   return validate;
 }
 
 /** Errors as readable lines, for `expect(...).toEqual([])`. */
 export function problems(validate: ValidateFunction, value: unknown): string[] {
-  if (validate(value)) return [];
+  if (validate(value)) {
+    return [];
+  }
   return (validate.errors ?? []).map(
     (error: ErrorObject) =>
       `${error.instancePath || "/"} ${error.message ?? ""} ${JSON.stringify(error.params)}`,

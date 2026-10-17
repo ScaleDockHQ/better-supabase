@@ -33,9 +33,11 @@ async function reinstall(
   layout: ModuleLayout,
 ): Promise<void> {
   await s.client.query("reset role");
-  for (const file of renderModules(modules, layout))
-    if (file.module === module && file.kind === "schema")
+  for (const file of renderModules(modules, layout)) {
+    if (file.module === module && file.kind === "schema") {
       await s.client.query(file.contents);
+    }
+  }
 }
 
 /** A provider whose `isApprover` allows everyone for `kind`, so only the requester check can refuse. */

@@ -21,7 +21,9 @@ export const loadNotifications = bs.action(
       tenant,
       limit: 20,
     });
-    if (!items.ok) return items;
+    if (!items.ok) {
+      return items;
+    }
     return ok(
       items.data.map((item): NotificationRow => ({
         id: item.id,

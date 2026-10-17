@@ -175,7 +175,9 @@ const instant = (value: unknown): Temporal.Instant =>
   value instanceof Date ? toInstant(value) : toInstant(textOf(value));
 
 function scopesOf(value: unknown): readonly AgentKnowledgeScope[] {
-  if (!Array.isArray(value)) return [];
+  if (!Array.isArray(value)) {
+    return [];
+  }
   return value.filter(isRecord).map((item) => {
     const id = optionalText(item["id"]);
     // SAFETY: the table only stores scopes the knowledge block wrote.
@@ -185,7 +187,9 @@ function scopesOf(value: unknown): readonly AgentKnowledgeScope[] {
 }
 
 function skillsOf(value: unknown): readonly AgentSkill[] {
-  if (!Array.isArray(value)) return [];
+  if (!Array.isArray(value)) {
+    return [];
+  }
   return value.filter(isRecord).map((item) => ({
     id: textOf(item["id"]),
     provider: textOf(item["provider"]),
@@ -244,21 +248,33 @@ const AGENT_FIELDS: ReadonlySet<string> = new Set([
 
 function fieldsArg(fields: AgentFields): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  if (fields.slug !== undefined) out["slug"] = fields.slug;
-  if (fields.name !== undefined) out["name"] = fields.name;
-  if (fields.description !== undefined) out["description"] = fields.description;
+  if (fields.slug !== undefined) {
+    out["slug"] = fields.slug;
+  }
+  if (fields.name !== undefined) {
+    out["name"] = fields.name;
+  }
+  if (fields.description !== undefined) {
+    out["description"] = fields.description;
+  }
   if (fields.instructions !== undefined) {
     out["instructions"] = fields.instructions;
   }
-  if (fields.model !== undefined) out["model"] = fields.model;
-  if (fields.tools !== undefined) out["tools"] = fields.tools;
+  if (fields.model !== undefined) {
+    out["model"] = fields.model;
+  }
+  if (fields.tools !== undefined) {
+    out["tools"] = fields.tools;
+  }
   if (fields.connectorIds !== undefined) {
     out["connector_ids"] = fields.connectorIds;
   }
   if (fields.knowledgeScopes !== undefined) {
     out["knowledge_scope"] = fields.knowledgeScopes;
   }
-  if (fields.starters !== undefined) out["starters"] = fields.starters;
+  if (fields.starters !== undefined) {
+    out["starters"] = fields.starters;
+  }
   return out;
 }
 

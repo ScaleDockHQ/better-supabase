@@ -28,7 +28,7 @@ const stripeDecimals = (currency: string): number =>
 export function toStripeAmount(value: Money): Result<number> {
   const shift = stripeDecimals(value.currency) - minorUnits(value.currency);
   const scale = 10n ** BigInt(Math.abs(shift));
-  if (shift < 0 && value.amount % scale !== 0n)
+  if (shift < 0 && value.amount % scale !== 0n) {
     return err(
       dbError(
         "invalid_input",
@@ -36,7 +36,8 @@ export function toStripeAmount(value: Money): Result<number> {
         { hint: "STRIPE_AMOUNT_PRECISION" },
       ),
     );
-  if (STRIPE_ROUND_TO_TEN.has(value.currency) && value.amount % 10n !== 0n)
+  }
+  if (STRIPE_ROUND_TO_TEN.has(value.currency) && value.amount % 10n !== 0n) {
     return err(
       dbError(
         "invalid_input",
@@ -44,13 +45,15 @@ export function toStripeAmount(value: Money): Result<number> {
         { hint: "STRIPE_AMOUNT_PRECISION" },
       ),
     );
+  }
   const amount = shift < 0 ? value.amount / scale : value.amount * scale;
-  if (amount > BigInt(Number.MAX_SAFE_INTEGER))
+  if (amount > BigInt(Number.MAX_SAFE_INTEGER)) {
     return err(
       dbError("invalid_input", "The amount is too large for Stripe", {
         hint: "STRIPE_AMOUNT_PRECISION",
       }),
     );
+  }
   return ok(Number(amount));
 }
 
@@ -69,28 +72,38 @@ export function fromStripeAmount(amount: number, currency: string): Money {
  * `invalid_input`, and the rest by HTTP status.
  */
 export function stripeError(cause: unknown): DbError {
-  if (typeof cause !== "object" || cause === null) return toDbError(cause);
+  if (typeof cause !== "object" || cause === null) {
+    return toDbError(cause);
+  }
   const fields: Readonly<Record<string, unknown>> = { ...cause };
   const { type, statusCode: status, code } = fields;
   const message =
     cause instanceof Error ? cause.message : String(fields["message"]);
   const extra = typeof code === "string" ? { code } : {};
-  if (type === "StripeCardError")
+  if (type === "StripeCardError") {
     return dbError("raised", message, { hint: "PAYMENT_DECLINED", ...extra });
-  if (code === "resource_missing" || status === 404)
+  }
+  if (code === "resource_missing" || status === 404) {
     return dbError("not_found", message, extra);
-  if (type === "StripeIdempotencyError" || status === 409)
+  }
+  if (type === "StripeIdempotencyError" || status === 409) {
     return dbError("conflict", message, extra);
-  if (type === "StripeRateLimitError" || status === 429)
+  }
+  if (type === "StripeRateLimitError" || status === 429) {
     return dbError("rate_limited", message, extra);
-  if (type === "StripeAuthenticationError" || status === 401)
+  }
+  if (type === "StripeAuthenticationError" || status === 401) {
     return dbError("unauthorized", message, extra);
-  if (type === "StripePermissionError" || status === 403)
+  }
+  if (type === "StripePermissionError" || status === 403) {
     return dbError("forbidden", message, extra);
-  if (type === "StripeInvalidRequestError" || status === 400)
+  }
+  if (type === "StripeInvalidRequestError" || status === 400) {
     return dbError("invalid_input", message, extra);
-  if (type === "StripeConnectionError")
+  }
+  if (type === "StripeConnectionError") {
     return dbError("network", message, extra);
+  }
   return toDbError(cause);
 }
 

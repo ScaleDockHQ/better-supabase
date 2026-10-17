@@ -78,7 +78,9 @@ export function syncQueryWithApp(options: SyncQueryWithAppOptions): () => void {
     : undefined;
   return () => {
     focusManager.setEventListener(NOOP);
-    if (onlineManager && netInfo) onlineManager.setEventListener(NOOP);
+    if (onlineManager && netInfo) {
+      onlineManager.setEventListener(NOOP);
+    }
     stopRefresh?.();
   };
 }

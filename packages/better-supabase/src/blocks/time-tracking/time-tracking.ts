@@ -270,14 +270,22 @@ function patchOf(patch: TimeEntryPatch<object>): Record<string, unknown> {
   if (patch.startedAt !== undefined) {
     out["startedAt"] = patch.startedAt.toString();
   }
-  if (patch.endedAt !== undefined) out["endedAt"] = patch.endedAt.toString();
+  if (patch.endedAt !== undefined) {
+    out["endedAt"] = patch.endedAt.toString();
+  }
   if (patch.subject !== undefined) {
     out["subjectType"] = patch.subject?.subjectType ?? null;
     out["subjectId"] = patch.subject?.subjectId ?? null;
   }
-  if (patch.billable !== undefined) out["billable"] = patch.billable;
-  if (patch.rate !== undefined) out["rate"] = patch.rate;
-  if (patch.note !== undefined) out["note"] = patch.note;
+  if (patch.billable !== undefined) {
+    out["billable"] = patch.billable;
+  }
+  if (patch.rate !== undefined) {
+    out["rate"] = patch.rate;
+  }
+  if (patch.note !== undefined) {
+    out["note"] = patch.note;
+  }
   return out;
 }
 

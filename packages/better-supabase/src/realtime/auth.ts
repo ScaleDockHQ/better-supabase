@@ -10,13 +10,17 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export async function refreshRealtimeAuth(
   client: Pick<SupabaseClient, "realtime">,
 ): Promise<void> {
-  if (manualToken(client.realtime)) return;
+  if (manualToken(client.realtime)) {
+    return;
+  }
   await client.realtime.setAuth();
 }
 
 /** Whether realtime-js says the token came from `setAuth(token)`. */
 function manualToken(realtime: object): boolean {
-  if (!("_isManualToken" in realtime)) return false;
+  if (!("_isManualToken" in realtime)) {
+    return false;
+  }
   // oxlint-disable-next-line no-underscore-dangle -- realtime-js names its internal check this way.
   const check = realtime._isManualToken;
   return typeof check === "function" && check.call(realtime) === true;

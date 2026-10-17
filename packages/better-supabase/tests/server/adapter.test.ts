@@ -108,7 +108,9 @@ describe("handle", () => {
         {
           allow: ["anon"],
           rethrow: (cause) => {
-            if (cause === control) throw control;
+            if (cause === control) {
+              throw control;
+            }
           },
         },
       ),
@@ -135,7 +137,9 @@ describe("handle", () => {
           allow: ["anon"],
           waitUntil,
           rethrow: (cause) => {
-            if (cause === control) throw control;
+            if (cause === control) {
+              throw control;
+            }
           },
         },
       ),

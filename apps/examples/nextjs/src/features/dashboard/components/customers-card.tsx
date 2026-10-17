@@ -16,7 +16,9 @@ import { getCustomerCounts } from "../dashboard-queries";
 /** Render inside `<Suspense>`: new customers over 30 days, by status. */
 export async function CustomersCard() {
   const organizationId = tenantOf(await getSession());
-  if (!organizationId) return null;
+  if (!organizationId) {
+    return null;
+  }
   const [counts, t, format] = await Promise.all([
     getCustomerCounts(organizationId),
     getExtracted("dashboard"),

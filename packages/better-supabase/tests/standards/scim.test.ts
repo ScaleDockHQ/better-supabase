@@ -132,7 +132,9 @@ function missing(
   for (const attribute of attributes) {
     const value = doc[attribute.name];
     if (value === undefined) {
-      if (attribute.required) problems.push(`${where}.${attribute.name}`);
+      if (attribute.required) {
+        problems.push(`${where}.${attribute.name}`);
+      }
       continue;
     }
     if (attribute.type === "complex" && attribute.subAttributes) {

@@ -84,7 +84,9 @@ export function createBilling(options: BillingOptions): Billing {
     details: CustomerDetails = {},
   ): AsyncResult<string> =>
     customer(organizationId).andThen(async (existing) => {
-      if (existing !== undefined) return ok(existing);
+      if (existing !== undefined) {
+        return ok(existing);
+      }
       const created = await withStripe((client) =>
         client.customers.create(
           {
@@ -96,7 +98,9 @@ export function createBilling(options: BillingOptions): Billing {
           { idempotencyKey: `customer:${organizationId}` },
         ),
       );
-      if (!created.ok) return created;
+      if (!created.ok) {
+        return created;
+      }
       const linked = await link(organizationId, created.data.id);
       if (linked.ok && linked.data === created.data.id) {
         emit("billing.customer_linked", {
@@ -128,7 +132,9 @@ export function createBilling(options: BillingOptions): Billing {
     seats(organizationId).andThen(
       async (quantity): Promise<Result<SeatSync>> => {
         const current = await item(organizationId);
-        if (!current.ok) return current;
+        if (!current.ok) {
+          return current;
+        }
         const found = current.data;
         if (found === undefined || found.quantity === quantity) {
           return ok({
@@ -149,7 +155,9 @@ export function createBilling(options: BillingOptions): Billing {
             { idempotencyKey: key },
           ),
         );
-        if (!updated.ok) return updated;
+        if (!updated.ok) {
+          return updated;
+        }
         emit("billing.seats_synced", {
           organizationId,
           subscriptionId: found.subscriptionId,
@@ -165,10 +173,16 @@ export function createBilling(options: BillingOptions): Billing {
     );
 
   const invalidate = async (event: StripeEvent): Promise<readonly string[]> => {
-    if (!options.sessions) return [];
+    if (!options.sessions) {
+      return [];
+    }
     const members = await entitlementMembers(options.sessions.sql, event);
-    if (!members.ok) return [];
-    for (const userId of members.data) options.sessions.invalidate(userId);
+    if (!members.ok) {
+      return [];
+    }
+    for (const userId of members.data) {
+      options.sessions.invalidate(userId);
+    }
     return members.data;
   };
 
@@ -180,9 +194,13 @@ export function createBilling(options: BillingOptions): Billing {
         customerId: undefined,
         invalidated: [],
       };
-      if (!isStripeEvent(input)) return ok(ignored);
+      if (!isStripeEvent(input)) {
+        return ok(ignored);
+      }
       const object = input.data.object;
-      if (!isRecord(object)) return ok(ignored);
+      if (!isRecord(object)) {
+        return ok(ignored);
+      }
       const customerId = customerIdOf(object["customer"]);
 
       if (input.type === "checkout.session.completed") {
@@ -192,7 +210,9 @@ export function createBilling(options: BillingOptions): Billing {
           return ok({ ...ignored, customerId });
         }
         const linked = await link(organizationId, customerId);
-        if (!linked.ok) return linked;
+        if (!linked.ok) {
+          return linked;
+        }
         emit("billing.checkout_completed", {
           organizationId,
           customerId: linked.data,
@@ -216,22 +236,32 @@ export function createBilling(options: BillingOptions): Billing {
           "customer.subscription.deleted": "billing.subscription_deleted",
         } as const
       )[input.type];
-      if (type === undefined || customerId === undefined) return ok(ignored);
+      if (type === undefined || customerId === undefined) {
+        return ok(ignored);
+      }
 
       const tenant = await call(
         "billing_customer_tenant",
         { customer: customerId },
         optionalText,
       );
-      if (!tenant.ok) return tenant;
+      if (!tenant.ok) {
+        return tenant;
+      }
       let organizationId = tenant.data;
       const claimed = metadataTenant(object);
       if (organizationId === undefined && claimed !== undefined) {
         const linked = await link(claimed, customerId);
-        if (!linked.ok) return linked;
-        if (linked.data === customerId) organizationId = claimed;
+        if (!linked.ok) {
+          return linked;
+        }
+        if (linked.data === customerId) {
+          organizationId = claimed;
+        }
       }
-      if (organizationId === undefined) return ok({ ...ignored, customerId });
+      if (organizationId === undefined) {
+        return ok({ ...ignored, customerId });
+      }
       emit(type, {
         organizationId,
         customerId,
@@ -256,8 +286,9 @@ export function createBilling(options: BillingOptions): Billing {
     readonly variant?: string;
   }): AsyncResult<string> => {
     const given = choice.price;
-    if (given !== undefined)
+    if (given !== undefined) {
       return AsyncResult.from<string>(() => Promise.resolve(ok(given)));
+    }
     if (choice.plan === undefined) {
       return AsyncResult.from<string>(() =>
         Promise.resolve(
@@ -386,9 +417,12 @@ export function createBilling(options: BillingOptions): Billing {
                 : { idempotencyKey: change.idempotencyKey },
             ),
           );
-          if (!updated.ok) return updated;
-          if (updated.data === undefined)
+          if (!updated.ok) {
+            return updated;
+          }
+          if (updated.data === undefined) {
             return missing("subscriptions.update");
+          }
           emit("billing.subscription_updated", {
             organizationId,
             subscriptionId: found.subscriptionId,
@@ -403,7 +437,9 @@ export function createBilling(options: BillingOptions): Billing {
             cancel_at_period_end: cancel,
           }),
         );
-        if (!updated.ok) return updated;
+        if (!updated.ok) {
+          return updated;
+        }
         return updated.data === undefined
           ? missing("subscriptions.update")
           : ok(updated.data.id);
@@ -416,7 +452,9 @@ export function createBilling(options: BillingOptions): Billing {
         const voided = await withStripe(async (client) =>
           client.invoices?.voidInvoice(invoiceId),
         );
-        if (!voided.ok) return voided;
+        if (!voided.ok) {
+          return voided;
+        }
         return voided.data === undefined
           ? missing("invoices.voidInvoice")
           : ok(voided.data.id);
@@ -426,7 +464,9 @@ export function createBilling(options: BillingOptions): Billing {
         const marked = await withStripe(async (client) =>
           client.invoices?.markUncollectible(invoiceId),
         );
-        if (!marked.ok) return marked;
+        if (!marked.ok) {
+          return marked;
+        }
         return marked.data === undefined
           ? missing("invoices.markUncollectible")
           : ok(marked.data.id);
@@ -441,11 +481,15 @@ export function createBilling(options: BillingOptions): Billing {
             Array.isArray(value) ? value.filter(isRecord).map(syncedTaxId) : [],
           )
         : customer(organizationId).andThen(async (customerId) => {
-            if (customerId === undefined) return ok([]);
+            if (customerId === undefined) {
+              return ok([]);
+            }
             const listed = await withStripe(async (client) =>
               client.customers.listTaxIds?.(customerId, { limit: 100 }),
             );
-            if (!listed.ok) return listed;
+            if (!listed.ok) {
+              return listed;
+            }
             return listed.data === undefined
               ? missing("customers.listTaxIds")
               : ok(listed.data.data);
@@ -458,7 +502,9 @@ export function createBilling(options: BillingOptions): Billing {
             value: taxId.value,
           }),
         );
-        if (!created.ok) return created;
+        if (!created.ok) {
+          return created;
+        }
         return created.data === undefined
           ? missing("customers.createTaxId")
           : ok(created.data);
@@ -475,7 +521,9 @@ export function createBilling(options: BillingOptions): Billing {
         const deleted = await withStripe(async (client) =>
           client.customers.deleteTaxId?.(customerId, taxId),
         );
-        if (!deleted.ok) return deleted;
+        if (!deleted.ok) {
+          return deleted;
+        }
         return deleted.data === undefined
           ? missing("customers.deleteTaxId")
           : ok(deleted.data.id);
@@ -493,7 +541,9 @@ export function createBilling(options: BillingOptions): Billing {
             ...update.params,
           }),
         );
-        if (!updated.ok) return updated;
+        if (!updated.ok) {
+          return updated;
+        }
         return updated.data === undefined
           ? missing("customers.update")
           : ok(updated.data.id);
@@ -505,11 +555,15 @@ export function createBilling(options: BillingOptions): Billing {
             checkout.quantity === "seats"
               ? await seats(organizationId)
               : ok(checkout.quantity ?? 1);
-          if (!quantity.ok) return quantity;
+          if (!quantity.ok) {
+            return quantity;
+          }
           const lineItems = [{ price, quantity: quantity.data }];
           for (const extra of checkout.items ?? []) {
             const extraPrice = await priceOf(extra);
-            if (!extraPrice.ok) return extraPrice;
+            if (!extraPrice.ok) {
+              return extraPrice;
+            }
             lineItems.push({
               price: extraPrice.data,
               quantity: extra.quantity ?? 1,
@@ -593,7 +647,9 @@ export function createBilling(options: BillingOptions): Billing {
       ),
     cancelSubscription: (organizationId) =>
       item(organizationId).andThen(async (found) => {
-        if (found === undefined) return ok(undefined);
+        if (found === undefined) {
+          return ok(undefined);
+        }
         const cancelled = await withStripe((client) =>
           client.subscriptions.cancel(found.subscriptionId),
         );

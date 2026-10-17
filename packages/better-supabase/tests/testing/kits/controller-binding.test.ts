@@ -18,7 +18,9 @@ function direct(options: { follow?: boolean; stop?: boolean } = {}) {
       const controller = create();
       let state = controller.getSnapshot();
       const unsubscribe = controller.subscribe(() => {
-        if (options.follow ?? true) state = controller.getSnapshot();
+        if (options.follow ?? true) {
+          state = controller.getSnapshot();
+        }
       });
       return {
         read: () => state,
@@ -39,7 +41,9 @@ const failures = async (report: Promise<unknown>): Promise<string[]> => {
     await report;
     return [];
   } catch (error) {
-    if (!(error instanceof ConformanceError)) throw error;
+    if (!(error instanceof ConformanceError)) {
+      throw error;
+    }
     return error.report.checks
       .filter((check) => !check.ok)
       .map((check) => check.name);

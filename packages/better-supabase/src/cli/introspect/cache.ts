@@ -46,7 +46,9 @@ export async function cachedIntrospect(
   const fingerprint = await catalogFingerprint(source.queryable).catch(
     () => undefined,
   );
-  if (fingerprint === undefined) return read();
+  if (fingerprint === undefined) {
+    return read();
+  }
   const key = sha256(
     JSON.stringify([
       VERSION,
@@ -64,7 +66,9 @@ export async function cachedIntrospect(
   const cached: unknown = await readFile(file, "utf-8")
     .then((text): unknown => JSON.parse(text))
     .catch(() => undefined);
-  if (isEntry(cached) && cached.key === key) return cached.snapshot;
+  if (isEntry(cached) && cached.key === key) {
+    return cached.snapshot;
+  }
   const snapshot = await read();
   const entry: CacheEntry = { key, snapshot };
   await writeAtomic(file, JSON.stringify(entry)).catch(() => undefined);
@@ -94,8 +98,9 @@ export async function cachedDatabaseTypes(
     cached.key === key &&
     "contents" in cached &&
     typeof cached.contents === "string"
-  )
+  ) {
     return cached.contents;
+  }
   const contents = await produce();
   await writeAtomic(file, JSON.stringify({ key, contents })).catch(
     () => undefined,

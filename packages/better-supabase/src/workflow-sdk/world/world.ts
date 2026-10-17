@@ -49,7 +49,9 @@ function serialize(value: unknown): Buffer {
 }
 
 function isStoredMessage(value: unknown): value is StoredMessage {
-  if (typeof value !== "object" || value === null) return false;
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
   const record: Record<string, unknown> = { ...value };
   return (
     typeof record["queueName"] === "string" &&
@@ -262,7 +264,9 @@ export function createSupabaseWorld(
         "timeoutSeconds" in parsed
       ) {
         const value = Number(parsed.timeoutSeconds);
-        if (Number.isFinite(value) && value >= 0) timeoutSeconds = value;
+        if (Number.isFinite(value) && value >= 0) {
+          timeoutSeconds = value;
+        }
       }
     } catch {
       timeoutSeconds = undefined;
@@ -396,12 +400,16 @@ export function createSupabaseWorld(
     while (isRunning()) {
       const room = concurrency - inflight.size;
       const claimed = room > 0 ? await claimInto(room) : 0;
-      if (claimed === 0 || room <= claimed) await idle();
+      if (claimed === 0 || room <= claimed) {
+        await idle();
+      }
     }
   };
 
   function startPolling(): void {
-    if (delivery !== "poll" || running || closed) return;
+    if (delivery !== "poll" || running || closed) {
+      return;
+    }
     running = true;
     loop = poll();
   }
@@ -424,7 +432,9 @@ export function createSupabaseWorld(
       }
       if (job === null) {
         if (secret === undefined && delivery === "poll") {
-          if (allowUnsigned) return inner(req);
+          if (allowUnsigned) {
+            return inner(req);
+          }
           return deliveryProblem(
             "unauthorized",
             "Unsigned workflow delivery: set WORKFLOW_DELIVERY_SECRET or the Vault secret workflow_delivery_secret",
@@ -520,7 +530,9 @@ export function createSupabaseWorld(
     run: string | { readonly runId: string },
   ): Promise<Uint8Array | undefined> {
     const master = await masterKey();
-    if (master === undefined) return undefined;
+    if (master === undefined) {
+      return undefined;
+    }
     return deriveRunKey(master, typeof run === "string" ? run : run.runId);
   }
 
@@ -548,7 +560,9 @@ export function createSupabaseWorld(
       await loop;
       await Promise.all(inflight);
       await base.close?.();
-      if (options.pool === undefined) await pool.end();
+      if (options.pool === undefined) {
+        await pool.end();
+      }
     },
   };
 }

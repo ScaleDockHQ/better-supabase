@@ -26,7 +26,9 @@ export async function getChats(): Promise<readonly ChatRow[]> {
     bs.context(),
   ]);
   const organizationId = tenantOf(session);
-  if (!organizationId) return [];
+  if (!organizationId) {
+    return [];
+  }
   const page = await aiChat(supabase)
     .chats.list({ organizationId, limit: 50 })
     .orThrow();
@@ -53,7 +55,9 @@ export async function getStoredChat(
   const chats = aiChat(supabase);
   const chat = await chats.chats.get(chatId);
   if (!chat.ok) {
-    if (chat.error.kind === "not_found") return undefined;
+    if (chat.error.kind === "not_found") {
+      return undefined;
+    }
     throw new Error(chat.error.message);
   }
   const [path, runs] = await Promise.all([

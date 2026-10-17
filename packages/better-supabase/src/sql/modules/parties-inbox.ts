@@ -9,7 +9,9 @@ import { fail, lockTable, userGrant } from "../shared.ts";
  * has many contacts (an email, a WhatsApp number); a contact has one person.
  */
 export function partiesInboxSql(ctx: ModuleContext, names: PartyNames): string {
-  if (!ctx.installed("inbox")) return "";
+  if (!ctx.installed("inbox")) {
+    return "";
+  }
   const inbox = ctx.of("inbox");
   const { t, c, fn } = names;
   const pc = (column: string): string => c("personContacts", column);

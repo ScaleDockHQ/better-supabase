@@ -85,10 +85,13 @@ export function xhrUpload(
       (typeof Blob !== "undefined" && body instanceof Blob && body.type
         ? body.type
         : undefined);
-    if (type) xhr.setRequestHeader("content-type", type);
+    if (type) {
+      xhr.setRequestHeader("content-type", type);
+    }
     xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable && event.total > 0)
+      if (event.lengthComputable && event.total > 0) {
         options.onProgress(Math.min(1, event.loaded / event.total));
+      }
     };
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
@@ -125,8 +128,12 @@ function parseFailure(status: number, text: string): XhrFailure {
     if (typeof parsed === "object" && parsed !== null) {
       // SAFETY: an object; each field read is type-checked below.
       const fields = parsed as { message?: unknown; statusCode?: unknown };
-      if (typeof fields.message === "string") message = fields.message;
-      if (typeof fields.statusCode === "string") statusCode = fields.statusCode;
+      if (typeof fields.message === "string") {
+        message = fields.message;
+      }
+      if (typeof fields.statusCode === "string") {
+        statusCode = fields.statusCode;
+      }
     }
   } catch {
     // a non-JSON error body keeps the status message

@@ -331,7 +331,9 @@ export function createEdge<
       return serve(
         async (request, ctx, tenant) => {
           const found = find(request);
-          if (found instanceof Response) return found;
+          if (found instanceof Response) {
+            return found;
+          }
           const { route, params } = found;
           const caller = await requireCaller(
             ctx.auth,
@@ -339,7 +341,9 @@ export function createEdge<
             tenant,
             options.authorizer,
           );
-          if ("kind" in caller) return err(caller);
+          if ("kind" in caller) {
+            return err(caller);
+          }
           return route.handler(
             request,
             withExtra(ctx, {
@@ -373,7 +377,9 @@ export function createEdge<
           // a new Request, so the early check and the handler see different
           // objects.
           const route = router.match(request);
-          if (route instanceof Response) return route;
+          if (route instanceof Response) {
+            return route;
+          }
           return route.handler.serve(request, ctx.db, route.segments, {
             instance: route.instance,
             expose,

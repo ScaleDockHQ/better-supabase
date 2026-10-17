@@ -173,7 +173,9 @@ export function UserMenuDropdown({
               <DropdownMenuRadioGroup
                 value={locale}
                 onValueChange={(value: string) => {
-                  if (!isLocale(value)) return;
+                  if (!isLocale(value)) {
+                    return;
+                  }
                   startTransition(() => {
                     router.replace(pathname, { locale: value });
                   });

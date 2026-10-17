@@ -242,7 +242,9 @@ export function stored<T>(
   return AsyncResult.from(async () => {
     try {
       const { data, error } = await reply;
-      if (error) return err(fromStorageError(error, "storage.objects"));
+      if (error) {
+        return err(fromStorageError(error, "storage.objects"));
+      }
       if (data === null || data === undefined) {
         return err(dbError("network", "Storage returned no data"));
       }
@@ -263,7 +265,9 @@ async function settle(
   gone: (error: DbError) => boolean,
 ): Promise<void> {
   const result = await scanned;
-  if (result.ok || gone(result.error)) return;
+  if (result.ok || gone(result.error)) {
+    return;
+  }
   await scanned.orThrow();
 }
 
@@ -369,7 +373,9 @@ export function createAttachments<
       const url = await stored(
         bucket(created).createSignedUploadUrl(created.path),
       );
-      if (!url.ok) return discard(created, url.error);
+      if (!url.ok) {
+        return discard(created, url.error);
+      }
       return ok({
         attachment: created,
         signedUrl: url.data.signedUrl,
@@ -396,7 +402,9 @@ export function createAttachments<
     download: (id, download = {}) =>
       find(id).andThen((attachment) => {
         const blocked = gate(attachment);
-        if (blocked) return Promise.resolve(err(blocked));
+        if (blocked) {
+          return Promise.resolve(err(blocked));
+        }
         return stored(
           bucket(attachment).createSignedUrl(
             attachment.path,
@@ -422,13 +430,17 @@ export function createAttachments<
             upsert: false,
           }),
         );
-        if (!sent.ok) return discard(created, sent.error);
+        if (!sent.ok) {
+          return discard(created, sent.error);
+        }
         return confirm(created.id);
       }),
     read: (id) =>
       find(id).andThen((attachment) => {
         const blocked = gate(attachment);
-        if (blocked) return Promise.resolve(err(blocked));
+        if (blocked) {
+          return Promise.resolve(err(blocked));
+        }
         return stored(bucket(attachment).download(attachment.path)).map(
           (file) => ({ attachment, file }),
         );
@@ -561,9 +573,13 @@ export function createAttachmentScanner(
           const type = event.type.startsWith(prefix)
             ? event.type.slice(prefix.length)
             : event.type;
-          if (type !== "attachment.uploaded" || !isRecord(event.data)) continue;
+          if (type !== "attachment.uploaded" || !isRecord(event.data)) {
+            continue;
+          }
           const id = optionalText(event.data["attachmentId"]);
-          if (id !== undefined) await settle(scan(id), attachmentGone);
+          if (id !== undefined) {
+            await settle(scan(id), attachmentGone);
+          }
         }
       },
     }),
@@ -702,11 +718,14 @@ export function createObjectScanner(
           const type = event.type.startsWith(prefix)
             ? event.type.slice(prefix.length)
             : event.type;
-          if (type !== "object.uploaded" || !isRecord(event.data)) continue;
+          if (type !== "object.uploaded" || !isRecord(event.data)) {
+            continue;
+          }
           const bucket = optionalText(event.data["bucket"]);
           const path = optionalText(event.data["path"]);
-          if (bucket !== undefined && path !== undefined)
+          if (bucket !== undefined && path !== undefined) {
             await settle(scan(bucket, path), objectGone);
+          }
         }
       },
     }),

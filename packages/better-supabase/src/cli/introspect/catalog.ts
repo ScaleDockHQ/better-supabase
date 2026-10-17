@@ -81,8 +81,9 @@ function toFunction(
         hasDefault: arg.has_default === true,
       });
     }
-    if (arg.mode === "table" || arg.mode === "out" || arg.mode === "inout")
+    if (arg.mode === "table" || arg.mode === "out" || arg.mode === "inout") {
       table.push({ name, udt: raw, ...typeSchema });
+    }
   });
   const returnType = typeOf(fn.return_type_id);
   const searchPath = fn.config_params?.["search_path"];
@@ -115,14 +116,20 @@ export function toCatalog(snapshot: Snapshot): Catalog {
   const columns = new Map<number, PostgresColumn[]>();
   for (const column of meta.columns) {
     const list = columns.get(column.table_id);
-    if (list) list.push(column);
-    else columns.set(column.table_id, [column]);
+    if (list) {
+      list.push(column);
+    } else {
+      columns.set(column.table_id, [column]);
+    }
   }
   const primaryKeys = new Map<number, string[]>();
   for (const key of meta.primaryKeys) {
     const list = primaryKeys.get(key.table_id);
-    if (list) list.push(key.name);
-    else primaryKeys.set(key.table_id, [key.name]);
+    if (list) {
+      list.push(key.name);
+    } else {
+      primaryKeys.set(key.table_id, [key.name]);
+    }
   }
   const relationNames = new Map<number, string>();
   for (const list of [
@@ -131,8 +138,9 @@ export function toCatalog(snapshot: Snapshot): Catalog {
     meta.views,
     meta.materializedViews,
   ]) {
-    for (const entry of list)
+    for (const entry of list) {
       relationNames.set(entry.id, `${entry.schema}.${entry.name}`);
+    }
   }
 
   // PostgREST also lists a foreign key once per view over the referenced

@@ -95,7 +95,9 @@ export function defineResource<
     resource: AuthorizationResource,
   ): Promise<Result<void>> | Result<void> => {
     const permission = plan.permissions[name];
-    if (permission === undefined) return ok(undefined);
+    if (permission === undefined) {
+      return ok(undefined);
+    }
     return checkPermission({
       authorizer,
       permission,
@@ -115,7 +117,9 @@ export function defineResource<
     result: Result<unknown>,
   ): Promise<Result<unknown>> => {
     const run = hooks[name];
-    if (!run || !result.ok) return result;
+    if (!run || !result.ok) {
+      return result;
+    }
     // SAFETY: the hook takes the row (or page) the repository just returned.
     return runHook(name, () => run.call(hooks, ctx, result.data as never));
   };
@@ -134,7 +138,9 @@ export function defineResource<
   const repositoryOf = (db: object): AnyRepository => {
     // SAFETY: the db is indexed by table name, and a missing repository is checked below.
     const repository = (db as Record<string, AnyRepository>)[table];
-    if (!repository) throw new TypeError(`The db has no "${table}" repository`);
+    if (!repository) {
+      throw new TypeError(`The db has no "${table}" repository`);
+    }
     return repository;
   };
   const key = (raw: unknown): Result<unknown> =>
@@ -147,7 +153,9 @@ export function defineResource<
     db: object,
     id: unknown,
   ): Promise<Result<unknown>> => {
-    if (plan.permissions[name] === undefined) return ok(undefined);
+    if (plan.permissions[name] === undefined) {
+      return ok(undefined);
+    }
     // SAFETY: the resource erases table generics; id was parsed for this key.
     return settled(repositoryOf(db).findById(id as never));
   };
@@ -157,7 +165,9 @@ export function defineResource<
     result: Result<unknown>,
   ): Promise<Result<unknown>> => {
     const permission = plan.permissions["list"];
-    if (permission === undefined || !result.ok) return result;
+    if (permission === undefined || !result.ok) {
+      return result;
+    }
     if (!authorizer) {
       const denied = await checkPermission({
         authorizer,
@@ -165,10 +175,14 @@ export function defineResource<
         resource: { type: table },
         context: contextOf(db),
       });
-      if (!denied.ok) return denied;
+      if (!denied.ok) {
+        return denied;
+      }
     }
     const page = result.data;
-    if (!isRecord(page) || !Array.isArray(page["items"])) return result;
+    if (!isRecord(page) || !Array.isArray(page["items"])) {
+      return result;
+    }
     const items: readonly unknown[] = page["items"];
     const granted = await checkEach(
       authorizer,
@@ -218,7 +232,9 @@ export function defineResource<
             );
         } else {
           const page = pageArgs(input.query, maxPageSize, pagination);
-          if (!page.ok) return page;
+          if (!page.ok) {
+            return page;
+          }
           query = page.data;
           run = () =>
             settled(
@@ -232,53 +248,73 @@ export function defineResource<
             );
         }
         const allowed = await authorize(ctx, "list", { query });
-        if (!allowed.ok) return allowed;
+        if (!allowed.ok) {
+          return allowed;
+        }
         return after("afterList", ctx, await filterRows(db, await run()));
       }
       case "get": {
         const id = key(input.id);
-        if (!id.ok) return id;
+        if (!id.ok) {
+          return id;
+        }
         // SAFETY: the resource erases table generics; key() parsed the id for
         // this table's primary key.
         const row = await settled(
           repository.findById(id.data as never, extra as never),
         );
-        if (!row.ok) return row;
+        if (!row.ok) {
+          return row;
+        }
         const permitted = await permit(
           "get",
           db,
           resourceOf(id.data, row.data),
         );
-        if (!permitted.ok) return permitted;
+        if (!permitted.ok) {
+          return permitted;
+        }
         const allowed = await authorize(ctx, "get", {
           id: id.data,
           row: row.data,
         });
-        if (!allowed.ok) return allowed;
+        if (!allowed.ok) {
+          return allowed;
+        }
         return after("afterGet", ctx, row);
       }
       case "create": {
         const body = asObject(input.data);
-        if (!body.ok) return body;
+        if (!body.ok) {
+          return body;
+        }
         const data = options.input?.create
           ? await validate(options.input.create, body.data, "data")
           : body;
-        if (!data.ok) return data;
+        if (!data.ok) {
+          return data;
+        }
         const permitted = await permit(
           "create",
           db,
           resourceOf(undefined, data.data),
         );
-        if (!permitted.ok) return permitted;
+        if (!permitted.ok) {
+          return permitted;
+        }
         const allowed = await authorize(ctx, "create", { data: data.data });
-        if (!allowed.ok) return allowed;
+        if (!allowed.ok) {
+          return allowed;
+        }
         const values = hooks.beforeCreate
           ? await runHook("beforeCreate", () =>
               // SAFETY: the resource erases table generics; data was validated for this table.
               hooks.beforeCreate!(ctx, data.data as never),
             )
           : data;
-        if (!values.ok) return values;
+        if (!values.ok) {
+          return values;
+        }
         // SAFETY: the resource erases table generics; the body was validated
         // against the table's insert schema.
         const created = await settled(
@@ -288,35 +324,49 @@ export function defineResource<
       }
       case "update": {
         const id = key(input.id);
-        if (!id.ok) return id;
+        if (!id.ok) {
+          return id;
+        }
         const body = asObject(input.data);
-        if (!body.ok) return body;
+        if (!body.ok) {
+          return body;
+        }
         const data = options.input?.update
           ? await validate(options.input.update, body.data, "data")
           : body;
-        if (!data.ok) return data;
+        if (!data.ok) {
+          return data;
+        }
         const row = await rowFor("update", db, id.data);
-        if (!row.ok) return row;
+        if (!row.ok) {
+          return row;
+        }
         const permitted = await permit(
           "update",
           db,
           resourceOf(id.data, row.data),
         );
-        if (!permitted.ok) return permitted;
+        if (!permitted.ok) {
+          return permitted;
+        }
         const target = {
           id: id.data,
           data: data.data,
           ...(row.data === undefined ? {} : { row: row.data }),
         };
         const allowed = await authorize(ctx, "update", target);
-        if (!allowed.ok) return allowed;
+        if (!allowed.ok) {
+          return allowed;
+        }
         const values = hooks.beforeUpdate
           ? await runHook("beforeUpdate", () =>
               // SAFETY: the resource erases table generics; data was validated for this table.
               hooks.beforeUpdate!(ctx, data.data as never, target as never),
             )
           : data;
-        if (!values.ok) return values;
+        if (!values.ok) {
+          return values;
+        }
         // SAFETY: the resource erases table generics; the id and body were
         // parsed for this table.
         const updated = await settled(
@@ -330,27 +380,37 @@ export function defineResource<
       }
       case "delete": {
         const id = key(input.id);
-        if (!id.ok) return id;
+        if (!id.ok) {
+          return id;
+        }
         const row = await rowFor("delete", db, id.data);
-        if (!row.ok) return row;
+        if (!row.ok) {
+          return row;
+        }
         const permitted = await permit(
           "delete",
           db,
           resourceOf(id.data, row.data),
         );
-        if (!permitted.ok) return permitted;
+        if (!permitted.ok) {
+          return permitted;
+        }
         const target = {
           id: id.data,
           ...(row.data === undefined ? {} : { row: row.data }),
         };
         const allowed = await authorize(ctx, "delete", target);
-        if (!allowed.ok) return allowed;
+        if (!allowed.ok) {
+          return allowed;
+        }
         if (hooks.beforeDelete) {
           const before = await runHook("beforeDelete", () =>
             // SAFETY: the target holds this table's row, typed per table for callers.
             hooks.beforeDelete!(ctx, target as never),
           );
-          if (!before.ok) return before;
+          if (!before.ok) {
+            return before;
+          }
         }
         // SAFETY: the resource erases table generics; key() parsed the id for
         // this table's primary key.
@@ -378,7 +438,9 @@ export function defineResource<
     let id: unknown;
     if (planned.params.length > 0) {
       const parsed = key(input.id);
-      if (!parsed.ok) return parsed;
+      if (!parsed.ok) {
+        return parsed;
+      }
       id = parsed.data;
     }
     let data: unknown = input.data;
@@ -389,7 +451,9 @@ export function defineResource<
         data,
         "data",
       );
-      if (!parsed.ok) return parsed;
+      if (!parsed.ok) {
+        return parsed;
+      }
       data = parsed.data;
     }
     let query: unknown = queryObject(input.query);
@@ -400,13 +464,19 @@ export function defineResource<
         query,
         "query",
       );
-      if (!parsed.ok) return parsed;
+      if (!parsed.ok) {
+        return parsed;
+      }
       query = parsed.data;
     }
     const row = id === undefined ? ok(undefined) : await rowFor(name, db, id);
-    if (!row.ok) return row;
+    if (!row.ok) {
+      return row;
+    }
     const permitted = await permit(name, db, resourceOf(id, row.data ?? data));
-    if (!permitted.ok) return permitted;
+    if (!permitted.ok) {
+      return permitted;
+    }
     const ctx = ctxOf(db, input);
     const allowed = await authorize(ctx, name, {
       id,
@@ -414,7 +484,9 @@ export function defineResource<
       query,
       ...(row.data === undefined ? {} : { row: row.data }),
     });
-    if (!allowed.ok) return allowed;
+    if (!allowed.ok) {
+      return allowed;
+    }
     return runHandler(name, () => definition.handler(ctx, { id, data, query }));
   };
 
@@ -461,7 +533,9 @@ export function defineResource<
       }
       if (found) {
         const body = method === "GET" ? ok(undefined) : await readJson(request);
-        if (!body.ok) return [body];
+        if (!body.ok) {
+          return [body];
+        }
         const id = keyParam ? found.params[keyParam] : undefined;
         const value = await action(db, found.action.name, {
           id,
@@ -492,11 +566,13 @@ export function defineResource<
       }
       return [methodNotAllowed(collectionMethods)];
     }
-    if (segments.length > 1 || !keyParam)
+    if (segments.length > 1 || !keyParam) {
       return [new Response(null, { status: 404 })];
+    }
     const id = segments[0];
-    if (request.method === "GET" && has("get"))
+    if (request.method === "GET" && has("get")) {
       return [await execute(db, "get", { id, request })];
+    }
     if (request.method === "PATCH" && has("update")) {
       const body = await readBody(request);
       return [

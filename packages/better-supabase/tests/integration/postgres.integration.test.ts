@@ -660,7 +660,9 @@ describe.skipIf(!live)("Postgres executor", async () => {
       const executor = postgresExecutor(tx);
       const run = async (op: Operation) => {
         const result = await executor.execute(op, { errorMappers: [] });
-        if (!result.ok) throw new Error(result.error.message);
+        if (!result.ok) {
+          throw new Error(result.error.message);
+        }
         return result.data.rows;
       };
       const inserted = await run({

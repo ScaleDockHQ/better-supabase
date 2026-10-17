@@ -25,8 +25,9 @@ function authFailure(error: object): DbError {
       : "Auth request failed";
   const status = typeof failure.status === "number" ? failure.status : 0;
   const base = typeof failure.code === "string" ? { code: failure.code } : {};
-  if (failure.name === "AuthRetryableFetchError" || status >= 500)
+  if (failure.name === "AuthRetryableFetchError" || status >= 500) {
     return dbError("network", message, base);
+  }
   switch (status) {
     case 400:
     case 422:

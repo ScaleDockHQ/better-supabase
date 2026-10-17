@@ -12,7 +12,9 @@ export async function validate<S extends StandardSchemaV1>(
   label = "value",
 ): Promise<Result<StandardSchemaV1.InferOutput<S>>> {
   let outcome = schema["~standard"].validate(value);
-  if (outcome instanceof Promise) outcome = await outcome;
+  if (outcome instanceof Promise) {
+    outcome = await outcome;
+  }
   if (outcome.issues) {
     return err(
       dbError("validation", `Invalid ${label}`, {

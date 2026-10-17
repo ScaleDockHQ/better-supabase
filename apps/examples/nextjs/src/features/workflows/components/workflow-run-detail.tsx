@@ -37,7 +37,9 @@ export function WorkflowRunDetail({
 }) {
   const { run: id } = use(params);
   const { run, refresh } = useWorkflowRun(id, { schema: "api" });
-  if (run === undefined) return <WorkflowRunDetailSkeleton />;
+  if (run === undefined) {
+    return <WorkflowRunDetailSkeleton />;
+  }
   return <RunCard run={run} onChange={refresh} />;
 }
 

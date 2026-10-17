@@ -193,23 +193,26 @@ function checkField(
       return;
     }
     case "boolean": {
-      if (typeof value !== "boolean")
+      if (typeof value !== "boolean") {
         issues.push({ message: "Expected a boolean", path });
+      }
       return;
     }
     case "object": {
-      if (!isRecord(value))
+      if (!isRecord(value)) {
         issues.push({ message: "Expected an object", path });
+      }
       return;
     }
     case "string": {
-      if (typeof value !== "string")
+      if (typeof value !== "string") {
         issues.push({ message: "Expected a string", path });
-      else if (field.values !== undefined && !field.values.includes(value))
+      } else if (field.values !== undefined && !field.values.includes(value)) {
         issues.push({
           message: `Expected one of ${field.values.join(", ")}`,
           path,
         });
+      }
       return;
     }
     default: {
@@ -234,46 +237,61 @@ function checkPart(value: unknown, path: Path, issues: Issue[]): void {
   }
   const fields = FIELDS[type];
   for (const [key, entry] of Object.entries(value)) {
-    if (key === "type") continue;
+    if (key === "type") {
+      continue;
+    }
     if (key === "providerMetadata") {
       checkField(entry, { kind: "object" }, [...path, key], issues);
       continue;
     }
     const field = fields[key];
-    if (field === undefined)
+    if (field === undefined) {
       issues.push({
         message: `Unknown ${type} part field`,
         path: [...path, key],
       });
-    else if (entry !== undefined)
+    } else if (entry !== undefined) {
       checkField(entry, field, [...path, key], issues);
+    }
   }
-  for (const [key, field] of Object.entries(fields))
-    if (field.required === true && value[key] === undefined)
+  for (const [key, field] of Object.entries(fields)) {
+    if (field.required === true && value[key] === undefined) {
       issues.push({ message: "Required", path: [...path, key] });
+    }
+  }
 }
 
 function checkMessage(value: unknown): readonly Issue[] {
   const issues: Issue[] = [];
-  if (!isRecord(value)) return [{ message: "Expected a message object" }];
-  for (const key of Object.keys(value))
-    if (!["id", "role", "parts", "metadata"].includes(key))
+  if (!isRecord(value)) {
+    return [{ message: "Expected a message object" }];
+  }
+  for (const key of Object.keys(value)) {
+    if (!["id", "role", "parts", "metadata"].includes(key)) {
       issues.push({ message: "Unknown message field", path: [key] });
-  if (typeof value["id"] !== "string" || value["id"].length === 0)
+    }
+  }
+  if (typeof value["id"] !== "string" || value["id"].length === 0) {
     issues.push({ message: "Expected a non-empty id", path: ["id"] });
+  }
   const role = value["role"];
-  if (typeof role !== "string" || !ROLES.has(role))
+  if (typeof role !== "string" || !ROLES.has(role)) {
     issues.push({
       message: "Expected system, user, assistant or tool",
       path: ["role"],
     });
+  }
   const parts = value["parts"];
-  if (Array.isArray(parts))
-    for (const [index, part] of parts.entries())
+  if (Array.isArray(parts)) {
+    for (const [index, part] of parts.entries()) {
       checkPart(part, ["parts", index], issues);
-  else issues.push({ message: "Expected a parts array", path: ["parts"] });
-  if (value["metadata"] !== undefined && !isRecord(value["metadata"]))
+    }
+  } else {
+    issues.push({ message: "Expected a parts array", path: ["parts"] });
+  }
+  if (value["metadata"] !== undefined && !isRecord(value["metadata"])) {
     issues.push({ message: "Expected an object", path: ["metadata"] });
+  }
   return issues;
 }
 

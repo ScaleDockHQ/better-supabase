@@ -33,10 +33,14 @@ function serviceInbox() {
 async function streamedText(response: Response): Promise<string> {
   let text = "";
   for (const line of (await response.text()).split("\n")) {
-    if (!line.startsWith("data: ")) continue;
+    if (!line.startsWith("data: ")) {
+      continue;
+    }
     try {
       const part = v.safeParse(TextDelta, JSON.parse(line.slice(6)));
-      if (part.success) text += part.output.delta;
+      if (part.success) {
+        text += part.output.delta;
+      }
     } catch {
       // `data: [DONE]` ends the stream and is not JSON.
     }
@@ -57,7 +61,9 @@ export async function answerHelp(
 ): Promise<void> {
   const inbox = serviceInbox();
   const conversation = await inbox.conversations.get(conversationId);
-  if (!conversation.ok || conversation.data?.botMode !== "bot") return;
+  if (!conversation.ok || conversation.data?.botMode !== "bot") {
+    return;
+  }
   await inbox.conversations.typing(conversationId, true, BOT);
   try {
     const response = await assistant().respond(
@@ -75,10 +81,14 @@ export async function answerHelp(
       }),
       assistantContext(supabase, userId, conversation.data.tenant),
     );
-    if (!response.ok) return;
+    if (!response.ok) {
+      return;
+    }
     const answer = await streamedText(response);
     const current = await inbox.conversations.get(conversationId);
-    if (answer === "" || !current.ok || current.data?.botMode !== "bot") return;
+    if (answer === "" || !current.ok || current.data?.botMode !== "bot") {
+      return;
+    }
     await inbox.messages.send(conversationId, {
       body: answer,
       format: "markdown",

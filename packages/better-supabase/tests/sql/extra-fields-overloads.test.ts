@@ -29,15 +29,25 @@ function params(list: string): string[] {
   let quoted = false;
   let current = "";
   for (const char of list) {
-    if (char === "'") quoted = !quoted;
-    if (!quoted && char === "(") depth += 1;
-    if (!quoted && char === ")") depth -= 1;
+    if (char === "'") {
+      quoted = !quoted;
+    }
+    if (!quoted && char === "(") {
+      depth += 1;
+    }
+    if (!quoted && char === ")") {
+      depth -= 1;
+    }
     if (!quoted && depth === 0 && char === ",") {
       out.push(current.trim());
       current = "";
-    } else current += char;
+    } else {
+      current += char;
+    }
   }
-  if (current.trim() !== "") out.push(current.trim());
+  if (current.trim() !== "") {
+    out.push(current.trim());
+  }
   return out;
 }
 

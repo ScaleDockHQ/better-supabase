@@ -92,7 +92,9 @@ export function createNotificationsController<T>(
         start: () =>
           whileSignedIn(options.auth, () => {
             void refresh();
-            if (!options.topic) return;
+            if (!options.topic) {
+              return;
+            }
             const { leave } = options.ports.topic(options.topic, {
               onMessage: (event, payload) => {
                 options.onMessage?.(event, payload);

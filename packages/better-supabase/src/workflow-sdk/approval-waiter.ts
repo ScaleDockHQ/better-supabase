@@ -36,12 +36,16 @@ const RFC_3339 =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/u;
 
 function tokenOf(token: string): string {
-  if (token === "") throw new TypeError("An approval token is non-empty");
+  if (token === "") {
+    throw new TypeError("An approval token is non-empty");
+  }
   return token;
 }
 
 function epochOf(expiresAt: Temporal.Instant | string): number {
-  if (typeof expiresAt !== "string") return expiresAt.epochMilliseconds;
+  if (typeof expiresAt !== "string") {
+    return expiresAt.epochMilliseconds;
+  }
   const text = expiresAt.toUpperCase();
   const epoch = RFC_3339.test(text) ? Date.parse(text) : Number.NaN;
   if (Number.isNaN(epoch)) {
@@ -62,7 +66,9 @@ export const approvalWaiter: ApprovalWaiter = Object.freeze({
     const until = epochOf(options.expiresAt);
     // The workflow runtime replays Date.now() from the event log, so the
     // comparison is deterministic and Temporal need not exist in its sandbox.
-    if (until <= Date.now()) return { status: "expired" };
+    if (until <= Date.now()) {
+      return { status: "expired" };
+    }
     const hook = createHook<P>({ token: key });
     try {
       return await Promise.race([
@@ -118,7 +124,9 @@ export async function wakeOnApproval(
   event: ApprovalOutcomeEvent,
   waiter: Pick<ApprovalWaiter, "wake"> = approvalWaiter,
 ): Promise<boolean> {
-  if (!APPROVAL_OUTCOME_EVENTS.includes(event.type)) return false;
+  if (!APPROVAL_OUTCOME_EVENTS.includes(event.type)) {
+    return false;
+  }
   const payload = event.payload;
   const requestId =
     typeof payload === "object" &&
@@ -127,7 +135,9 @@ export async function wakeOnApproval(
     typeof payload.id === "string"
       ? payload.id
       : undefined;
-  if (requestId === undefined) return false;
+  if (requestId === undefined) {
+    return false;
+  }
   const status = statusOf(event.type);
   const outcome: ApprovalOutcome = {
     approved: status === "approved",
@@ -137,7 +147,9 @@ export async function wakeOnApproval(
   try {
     await waiter.wake(requestId, outcome);
   } catch (cause) {
-    if (!isMissingHook(cause)) throw cause;
+    if (!isMissingHook(cause)) {
+      throw cause;
+    }
   }
   return true;
 }

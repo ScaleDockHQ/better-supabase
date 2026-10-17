@@ -13,7 +13,9 @@ function positiveInt(value: string | undefined): number | undefined {
 /** The flow route: `flowUrl`, `WORKFLOW_FLOW_URL`, or the local server. */
 export function resolveFlowUrl(flowUrl?: string): string {
   const explicit = flowUrl ?? env("WORKFLOW_FLOW_URL");
-  if (explicit !== undefined) return explicit;
+  if (explicit !== undefined) {
+    return explicit;
+  }
   const base =
     env("WORKFLOW_LOCAL_BASE_URL") ??
     `http://localhost:${env("PORT") ?? "3000"}`;

@@ -25,9 +25,15 @@ export function CommandSearch() {
   const t = useExtracted("search");
   const search = useCommandSearch({ schema: API_SCHEMA });
   const heading = (key: string) => {
-    if (key === "favorites") return t("Favorites");
-    if (key === "recents") return t("Recent");
-    if (key === "customer") return t("Customers");
+    if (key === "favorites") {
+      return t("Favorites");
+    }
+    if (key === "recents") {
+      return t("Recent");
+    }
+    if (key === "customer") {
+      return t("Customers");
+    }
     return key;
   };
   return (

@@ -388,6 +388,8 @@ async function captureSelect(): Promise<Operation> {
   };
   await defineSupabase(schema).connect(capture).tags.findMany({ limit: 1 });
   const [op] = ops;
-  if (!op) throw new Error("no operation");
+  if (!op) {
+    throw new Error("no operation");
+  }
   return op;
 }

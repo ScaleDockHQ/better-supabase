@@ -29,15 +29,18 @@ const events = toCloudEvents(
 describe("CloudEvents 1.0", () => {
   it("specversion is the major.minor of SPEC_PINS.cloudevents", () => {
     expect(SPEC_PINS.cloudevents).toMatch(/^1\.0\.\d+$/);
-    for (const event of events)
+    for (const event of events) {
       expect(event.specversion).toBe(
         SPEC_PINS.cloudevents.split(".").slice(0, 2).join("."),
       );
+    }
   });
 
   it("every event validates against the official JSON format schema", () => {
     const validate = validatorFor("cloudevents-1.0.2.json");
-    for (const event of events) expect(problems(validate, event)).toEqual([]);
+    for (const event of events) {
+      expect(problems(validate, event)).toEqual([]);
+    }
   });
 
   it("has the REQUIRED context attributes (spec section 3.1) and unique ids", () => {
@@ -62,9 +65,11 @@ describe("CloudEvents 1.0", () => {
       "data",
       "data_base64",
     ]);
-    for (const event of events)
-      for (const name of Object.keys(event).filter((key) => !core.has(key)))
+    for (const event of events) {
+      for (const name of Object.keys(event).filter((key) => !core.has(key))) {
         expect(name).toMatch(/^[a-z0-9]{1,20}$/);
+      }
+    }
   });
 
   it("time is RFC 3339 (section 3.1.1 OPTIONAL attributes)", () => {
@@ -165,8 +170,9 @@ describe("CloudEvents 1.0 from webhooks-out", () => {
             rows = [];
             return next;
           }
-          if (fn === "webhook_secrets")
+          if (fn === "webhook_secrets") {
             return ["whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw"];
+          }
           return "ok";
         },
       },
@@ -232,7 +238,9 @@ describe("CloudEvents 1.0 from webhooks-out", () => {
       "del-1",
       "del-2",
     ]);
-    for (const event of events) expect(problems(validate, event)).toEqual([]);
+    for (const event of events) {
+      expect(problems(validate, event)).toEqual([]);
+    }
     const parsed = await fromHttp(
       new Request("https://sink.test", {
         method: "POST",

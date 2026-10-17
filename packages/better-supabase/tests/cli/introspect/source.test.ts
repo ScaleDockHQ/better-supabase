@@ -18,8 +18,11 @@ describe("pgSource", () => {
         return new Promise<{ rows: R[] }>((done, fail) => {
           pending.set(text, () => {
             events.push(`end ${text}`);
-            if (text === "bad") fail(new Error("syntax error"));
-            else done({ rows: [{ text }] as R[] });
+            if (text === "bad") {
+              fail(new Error("syntax error"));
+            } else {
+              done({ rows: [{ text }] as R[] });
+            }
           });
         });
       },

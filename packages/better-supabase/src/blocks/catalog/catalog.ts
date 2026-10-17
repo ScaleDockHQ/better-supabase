@@ -299,7 +299,9 @@ function variantOf(value: unknown): SavedVariant {
 }
 
 function priceOf(value: unknown): Price | null {
-  if (!isRecord(value)) return null;
+  if (!isRecord(value)) {
+    return null;
+  }
   const currency = textOf(value["currency"]);
   const compareAt = moneyOf(value["compareAt"], currency);
   const priceListId = optionalText(value["priceListId"]);
@@ -409,7 +411,9 @@ export function createCatalog<
       call("save_variant", variantArgs(productId, variantId, input), variantOf),
     reorderVariant: (variantId, neighbors) => {
       const key = rankBetweenResult(neighbors);
-      if (!key.ok) return AsyncResult.err(key.error);
+      if (!key.ok) {
+        return AsyncResult.err(key.error);
+      }
       return call(
         "rank_variant",
         { variant: variantId, rank: key.data },
@@ -506,7 +510,9 @@ export function createCatalog<
       ),
     moveCategory: (categoryId, parentId, neighbors) => {
       const key = rankBetweenResult(neighbors);
-      if (!key.ok) return AsyncResult.err(key.error);
+      if (!key.ok) {
+        return AsyncResult.err(key.error);
+      }
       return call(
         "move_category",
         { category: categoryId, parent: parentId, rank: key.data },
@@ -558,7 +564,9 @@ export function createCatalog<
           { collection: collectionId, product: productId, rank },
           textOf,
         );
-      if (neighbors === undefined) return add(null);
+      if (neighbors === undefined) {
+        return add(null);
+      }
       const key = rankBetweenResult(neighbors);
       return key.ok ? add(key.data) : AsyncResult.err(key.error);
     },

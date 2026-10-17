@@ -76,7 +76,9 @@ describe.skipIf(!live)("Storage module", async () => {
       organizationId: ACME,
       customerId: CUSTOMER,
     });
-    if (all.ok) await admin.remove(all.data.map((object) => object.path));
+    if (all.ok) {
+      await admin.remove(all.data.map((object) => object.path));
+    }
     await publicAdmin.remove([
       { organizationId: ACME, file: `${CUSTOMER}.webp` },
     ]);

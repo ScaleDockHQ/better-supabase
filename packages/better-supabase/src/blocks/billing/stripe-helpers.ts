@@ -12,7 +12,9 @@ export const SEAT_EVENT: RegExp =
 export function subscriptionItemOf(
   value: unknown,
 ): SubscriptionItem | undefined {
-  if (!isRecord(value)) return undefined;
+  if (!isRecord(value)) {
+    return undefined;
+  }
   return {
     subscriptionId: textOf(value["subscription"]),
     itemId: textOf(value["item"]),
@@ -45,7 +47,9 @@ export function syncedTaxId(
 }
 
 export const customerIdOf = (value: unknown): string | undefined => {
-  if (typeof value === "string") return value;
+  if (typeof value === "string") {
+    return value;
+  }
   return isRecord(value) ? optionalText(value["id"]) : undefined;
 };
 

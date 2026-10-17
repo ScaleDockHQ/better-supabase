@@ -72,13 +72,17 @@ export function createTagInputController(
     (state) => {
       let ticket = 0;
       const refresh = async (): Promise<void> => {
-        if (organizationId === null) return;
+        if (organizationId === null) {
+          return;
+        }
         const request = ++ticket;
         const [tags, available] = await Promise.all([
           client.forSubject(organizationId, subjectType, subjectId),
           client.list(organizationId, kind),
         ]);
-        if (request !== ticket) return;
+        if (request !== ticket) {
+          return;
+        }
         if (tags.ok && available.ok) {
           state.set({
             tags: tags.data,
@@ -100,7 +104,9 @@ export function createTagInputController(
         tag: Tag,
         created: boolean,
       ): Promise<Result<Tag>> => {
-        if (organizationId === null) return noOrganization();
+        if (organizationId === null) {
+          return noOrganization();
+        }
         // A load that started before the change would answer without it.
         ticket += 1;
         state.set((current) => ({
@@ -125,7 +131,9 @@ export function createTagInputController(
                 tags: current.tags?.filter((each) => each.id !== tag.id),
               }),
         }));
-        if (!result.ok) return result;
+        if (!result.ok) {
+          return result;
+        }
         await changed({ kind: "added", tag, created });
         return ok(tag);
       };
@@ -136,13 +144,19 @@ export function createTagInputController(
             const tag = state
               .get()
               .available?.find((each) => each.id === tagId);
-            if (!tag) return err(dbError("not_found", "No such tag"));
+            if (!tag) {
+              return err(dbError("not_found", "No such tag"));
+            }
             return apply(tag, false);
           },
           remove: async (tagId) => {
-            if (organizationId === null) return noOrganization();
+            if (organizationId === null) {
+              return noOrganization();
+            }
             const tag = state.get().tags?.find((each) => each.id === tagId);
-            if (!tag) return ok(false);
+            if (!tag) {
+              return ok(false);
+            }
             ticket += 1;
             state.set((current) => ({
               tags: current.tags?.filter((each) => each.id !== tagId),
@@ -164,11 +178,15 @@ export function createTagInputController(
                     tags: [...(current.tags ?? []), tag],
                   }),
             }));
-            if (result.ok) await changed({ kind: "removed", tag });
+            if (result.ok) {
+              await changed({ kind: "removed", tag });
+            }
             return result;
           },
           create: async (name) => {
-            if (organizationId === null) return noOrganization();
+            if (organizationId === null) {
+              return noOrganization();
+            }
             const label = name.trim();
             if (label === "") {
               return err(dbError("invalid_input", "A tag needs a name"));
@@ -178,7 +196,9 @@ export function createTagInputController(
               .available?.find(
                 (each) => each.name.toLowerCase() === label.toLowerCase(),
               );
-            if (existing) return apply(existing, false);
+            if (existing) {
+              return apply(existing, false);
+            }
             state.set((current) => ({
               pending: [...current.pending, label],
               error: undefined,
@@ -195,7 +215,9 @@ export function createTagInputController(
                   }
                 : { error: made.error }),
             }));
-            if (!made.ok) return made;
+            if (!made.ok) {
+              return made;
+            }
             return apply({ ...made.data, kind }, true);
           },
         },

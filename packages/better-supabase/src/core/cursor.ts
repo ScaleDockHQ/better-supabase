@@ -34,7 +34,9 @@ export function encodeCursor(values: readonly unknown[]): string {
 /** The values of a cursor from `encodeCursor` or from `paginate()`. */
 export function decodeCursor(cursor: string): unknown[] | undefined {
   const parsed = parse(cursor);
-  if (isList(parsed)) return [...parsed];
+  if (isList(parsed)) {
+    return [...parsed];
+  }
   return isBound(parsed) ? parsed.v : undefined;
 }
 
@@ -65,6 +67,8 @@ export function decodeBoundCursor(
   key: string,
 ): { readonly values: unknown[] } | { readonly invalid: "cursor" | "sort" } {
   const parsed = parse(cursor);
-  if (!isBound(parsed)) return { invalid: "cursor" };
+  if (!isBound(parsed)) {
+    return { invalid: "cursor" };
+  }
   return parsed.s === key ? { values: parsed.v } : { invalid: "sort" };
 }

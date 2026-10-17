@@ -38,8 +38,12 @@ function importFrom(
   to: string,
 ): string {
   let path = posix.relative(posix.dirname(from), to);
-  if (!path.startsWith(".")) path = `./${path}`;
-  if (context.tsExtensions) return path;
+  if (!path.startsWith(".")) {
+    path = `./${path}`;
+  }
+  if (context.tsExtensions) {
+    return path;
+  }
   return path.replace(/\.tsx?$/, "").replace(/^(\.\.?\/.+)\/index$/, "$1");
 }
 
@@ -186,14 +190,16 @@ export function scaffoldNextSteps(
 ): string[] {
   const api = join(context.srcDir, "lib", `${context.name}.ts`);
   const steps: string[] = [];
-  if (context.framework === "hono")
+  if (context.framework === "hono") {
     steps.push(
       `Mount the routes in ${join(context.srcDir, "server.ts")}: \`.route('/', apiRoutes(bs))\`.`,
     );
-  if (specsEntry !== api)
+  }
+  if (specsEntry !== api) {
     steps.push(
       `Set \`specs: { entry: '${api}' }\` in better-supabase.config.ts, so \`better-supabase spec emit\` reads the API model.`,
     );
+  }
   steps.push(
     `Describe the resources in ${api}; \`scaffold api\` only rewrites ${context.name}.generated.ts.`,
   );

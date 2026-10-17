@@ -22,8 +22,12 @@ describe("createFlags", () => {
     const transport: BlockTransport = {
       call: (schema, fn, args) => {
         calls.push([schema, fn, { ...args }]);
-        if (fn === "list_flags") return Promise.resolve([row]);
-        if (fn === "save_flag") return Promise.resolve(row);
+        if (fn === "list_flags") {
+          return Promise.resolve([row]);
+        }
+        if (fn === "save_flag") {
+          return Promise.resolve(row);
+        }
         return Promise.resolve(true);
       },
     };

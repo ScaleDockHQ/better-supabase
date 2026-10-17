@@ -18,7 +18,9 @@ const VERSION =
 
 function parseVersion(text: string): Version | undefined {
   const match = VERSION.exec(text.trim());
-  if (!match) return undefined;
+  if (!match) {
+    return undefined;
+  }
   return [
     Number(match[1]),
     Number(match[2] ?? 0),
@@ -31,26 +33,39 @@ const NUMERIC = /^\d+$/;
 
 function compareIdentifiers(a: string, b: string): number {
   const numeric = NUMERIC.test(a);
-  if (numeric !== NUMERIC.test(b)) return numeric ? -1 : 1;
-  if (numeric) return Number(a) - Number(b);
+  if (numeric !== NUMERIC.test(b)) {
+    return numeric ? -1 : 1;
+  }
+  if (numeric) {
+    return Number(a) - Number(b);
+  }
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
 function compare(a: Version, b: Version): number {
   for (const index of [0, 1, 2] as const) {
-    if (a[index] !== b[index]) return a[index] - b[index];
+    if (a[index] !== b[index]) {
+      return a[index] - b[index];
+    }
   }
   const [, , , left] = a;
   const [, , , right] = b;
-  if (left.length === 0 || right.length === 0)
+  if (left.length === 0 || right.length === 0) {
     return right.length - left.length;
+  }
   for (let index = 0; index < Math.max(left.length, right.length); index++) {
     const x = left[index];
     const y = right[index];
-    if (x === undefined) return -1;
-    if (y === undefined) return 1;
+    if (x === undefined) {
+      return -1;
+    }
+    if (y === undefined) {
+      return 1;
+    }
     const order = compareIdentifiers(x, y);
-    if (order !== 0) return order;
+    if (order !== 0) {
+      return order;
+    }
   }
   return 0;
 }
@@ -69,8 +84,12 @@ const COMPARATOR = /^(>=|<=|>|<|=|\^)?\s*(\S+)$/;
 
 /** The next version a caret range excludes: `^1.2` is below 2, `^0.4` below 0.5. */
 function caretCeiling([major, minor, patch]: Version): Version {
-  if (major > 0) return [major + 1, 0, 0, []];
-  if (minor > 0) return [0, minor + 1, 0, []];
+  if (major > 0) {
+    return [major + 1, 0, 0, []];
+  }
+  if (minor > 0) {
+    return [0, minor + 1, 0, []];
+  }
   return [0, 0, patch + 1, []];
 }
 
@@ -84,7 +103,9 @@ function comparators(range: string): Comparator[] | undefined {
   for (const part of parts) {
     const match = COMPARATOR.exec(part);
     const version = match ? parseVersion(match[2]!) : undefined;
-    if (!match || !version) return undefined;
+    if (!match || !version) {
+      return undefined;
+    }
     const operator = match[1] ?? "=";
     if (operator === "^") {
       result.push(
@@ -131,9 +152,13 @@ function holds(
  */
 export function satisfies(version: string, range: string): boolean | undefined {
   const parsed = parseVersion(version);
-  if (!parsed) return undefined;
+  if (!parsed) {
+    return undefined;
+  }
   const sets = range.split("||").map(comparators);
-  if (sets.some((set) => set === undefined)) return undefined;
+  if (sets.some((set) => set === undefined)) {
+    return undefined;
+  }
   return sets.some(
     (set) =>
       set !== undefined &&
@@ -170,9 +195,13 @@ export async function installedVersion(
     const manifest = await readManifest(
       join(dir, "node_modules", name, "package.json"),
     );
-    if (typeof manifest?.["version"] === "string") return manifest["version"];
+    if (typeof manifest?.["version"] === "string") {
+      return manifest["version"];
+    }
     const parent = dirname(dir);
-    if (parent === dir) return undefined;
+    if (parent === dir) {
+      return undefined;
+    }
     dir = parent;
   }
 }
@@ -182,10 +211,13 @@ export async function versionAt(file: string): Promise<string | undefined> {
   let dir = dirname(file);
   for (;;) {
     const manifest = await readManifest(join(dir, "package.json"));
-    if (manifest && typeof manifest["version"] === "string")
+    if (manifest && typeof manifest["version"] === "string") {
       return manifest["version"];
+    }
     const parent = dirname(dir);
-    if (parent === dir) return undefined;
+    if (parent === dir) {
+      return undefined;
+    }
     dir = parent;
   }
 }
@@ -196,7 +228,9 @@ export async function declaredPeers(): Promise<Record<string, string>> {
     fileURLToPath(import.meta.resolve("better-supabase/package.json")),
   );
   const peers = manifest?.["peerDependencies"];
-  if (typeof peers !== "object" || peers === null) return {};
+  if (typeof peers !== "object" || peers === null) {
+    return {};
+  }
   return Object.fromEntries(
     Object.entries(peers).filter(
       (entry): entry is [string, string] => typeof entry[1] === "string",

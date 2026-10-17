@@ -28,7 +28,9 @@ export async function decide<A extends readonly unknown[]>(
   args: A,
   fallback: boolean,
 ): Promise<PolicyDecision> {
-  if (!policy) return fallback ? ALLOWED : DENIED;
+  if (!policy) {
+    return fallback ? ALLOWED : DENIED;
+  }
   try {
     const allowed: unknown = await policy(...args);
     return allowed === true ? ALLOWED : DENIED;

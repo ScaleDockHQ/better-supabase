@@ -45,7 +45,9 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 /** The tenant module's `roleThrough` option, quoted; `undefined` when unset. */
 export function roleThrough(tenant: ModuleContext): RoleThrough | undefined {
   const value = tenant.option("roleThrough");
-  if (value === undefined) return undefined;
+  if (value === undefined) {
+    return undefined;
+  }
   const where = "blocks.tenant.options.roleThrough";
   if (
     !isRecord(value) ||
@@ -67,7 +69,9 @@ export function roleThrough(tenant: ModuleContext): RoleThrough | undefined {
   }
   const ref = columnRef(`${where}.table`, `${value["table"]}.${value["id"]}`);
   const problem = sharedRolesProblem(tenant);
-  if (problem) throw new TypeError(problem);
+  if (problem) {
+    throw new TypeError(problem);
+  }
   return {
     table: ref.table,
     id: ref.column,
@@ -94,8 +98,9 @@ export function roleThroughTable(
     !isRecord(value) ||
     typeof value["table"] !== "string" ||
     typeof value["id"] !== "string"
-  )
+  ) {
     return undefined;
+  }
   try {
     return {
       table: columnRef("roleThrough", `${value["table"]}.${value["id"]}`).table,
@@ -114,9 +119,12 @@ export function roleThroughTable(
  */
 export function sharedRolesProblem(tenant: ModuleContext): string | undefined {
   const own = roleThroughTable(tenant);
-  if (!own || own.where) return undefined;
-  if (providerPlatformRoles(tenant)?.through?.table !== own.table)
+  if (!own || own.where) {
     return undefined;
+  }
+  if (providerPlatformRoles(tenant)?.through?.table !== own.table) {
+    return undefined;
+  }
   return `blocks.tenant.options.roleThrough.where: ${own.table} also holds the platform roles (blocks.invitations.options.platformRoles.through), so name the tenant roles with a condition such as "{row}.scope = 'organization'". A roleThrough from the authorization provider's roleSources has no where; set blocks.tenant.options.roleThrough in the config.`;
 }
 
@@ -126,7 +134,9 @@ export function sharedRolesProblem(tenant: ModuleContext): string | undefined {
  * that the condition names. Removed when `where` is unset.
  */
 function roleScope(ctx: ModuleContext): string {
-  if (ctx.manages) return "";
+  if (ctx.manages) {
+    return "";
+  }
   const m = ctx.table("memberships");
   const role = ctx.col("memberships", "role");
   const through = roleThrough(ctx);
@@ -171,7 +181,9 @@ export function roleNameFrom(tenant: ModuleContext, value: string): string {
   if (through) {
     return `(select r.${through.column}::text from ${through.table} r where r.${through.id}::text = (${value})::text)`;
   }
-  if (accessModel(tenant) !== "catalog") return value;
+  if (accessModel(tenant) !== "catalog") {
+    return value;
+  }
   const access = tenant.of("access");
   return `(select r.${access.col("roles", "key")} from ${access.table("roles")} r where r.${access.col("roles", "id")} = ${value})`;
 }
@@ -246,7 +258,9 @@ export function activeTenantSource(ctx: ModuleContext): ActiveTenantSource {
  * points at it, so the next token carries no tenant.
  */
 function clearClaim(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const m = ctx.table("memberships");
   const tenant = ctx.col("memberships", "tenant");
   const user = ctx.col("memberships", "user");
@@ -284,7 +298,9 @@ export function providerMembers(
 ): { readonly ids?: string; readonly idsFor?: (user: string) => string } {
   const provider =
     accessModel(ctx) === "provider" ? layout.accessProvider : undefined;
-  if (provider === undefined) return {};
+  if (provider === undefined) {
+    return {};
+  }
   const { memberIds, memberIdsFor } = provider.functions;
   return {
     ...(memberIds === undefined

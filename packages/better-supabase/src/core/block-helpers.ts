@@ -40,7 +40,9 @@ export interface BlockOptions extends BlockTemporalOptions {
 
 /** Provides `options.temporal`, when set, for the block's time values. */
 export function applyTemporal(options: BlockTemporalOptions | undefined): void {
-  if (options?.temporal !== undefined) provideTemporal(options.temporal);
+  if (options?.temporal !== undefined) {
+    provideTemporal(options.temporal);
+  }
 }
 
 /** The block schema when the options name none. */
@@ -62,7 +64,9 @@ export function toBlockError(
   mappers: readonly ErrorMapper[] = [],
 ): DbError {
   const known = dbErrorOf(cause);
-  if (known) return known;
+  if (known) {
+    return known;
+  }
   const raw = rawError(cause);
   return raw ? mapDbError(raw, mappers) : toDbError(cause);
 }
@@ -143,7 +147,9 @@ export function recordsOf(
   value: unknown,
   fn: string,
 ): Record<string, unknown>[] {
-  if (value === null || value === undefined) return [];
+  if (value === null || value === undefined) {
+    return [];
+  }
   if (!Array.isArray(value) || !value.every(isRecord)) {
     throw new TypeError(`${fn} returned ${JSON.stringify(value)}`);
   }
@@ -216,7 +222,9 @@ export function requiredInstant(
   field: string,
 ): Temporal.Instant {
   const instant = optionalInstant(value);
-  if (instant === undefined) throw new TypeError(`${field} is missing`);
+  if (instant === undefined) {
+    throw new TypeError(`${field} is missing`);
+  }
   return instant;
 }
 
@@ -241,7 +249,9 @@ export async function sha256Hex(value: string): Promise<string> {
 export function randomToken(bytes = 24): string {
   const data = crypto.getRandomValues(new Uint8Array(bytes));
   let binary = "";
-  for (const byte of data) binary += String.fromCodePoint(byte);
+  for (const byte of data) {
+    binary += String.fromCodePoint(byte);
+  }
   return btoa(binary)
     .replaceAll("+", "-")
     .replaceAll("/", "_")
@@ -273,14 +283,20 @@ export async function readBodyCapped(
   limit: number,
 ): Promise<string | undefined> {
   const length = Number(request.headers.get("content-length") ?? Number.NaN);
-  if (Number.isFinite(length) && length > limit) return undefined;
-  if (!request.body) return "";
+  if (Number.isFinite(length) && length > limit) {
+    return undefined;
+  }
+  if (!request.body) {
+    return "";
+  }
   const reader = request.body.getReader();
   const chunks: Uint8Array[] = [];
   let size = 0;
   for (;;) {
     const { done, value } = await reader.read();
-    if (done) break;
+    if (done) {
+      break;
+    }
     size += value.byteLength;
     if (size > limit) {
       // Not awaited: a branch of a cloned request settles its cancel only
@@ -332,7 +348,9 @@ export async function eachLimit<T>(
   await Promise.all(
     Array.from({ length: Math.min(Math.max(1, limit), items.length) }, lane),
   );
-  if (failure) throw failure.cause;
+  if (failure) {
+    throw failure.cause;
+  }
 }
 
 export const sleep = (ms: number, signal?: AbortSignal): Promise<void> =>
@@ -357,7 +375,9 @@ export const toInstant = (value: Date | string): Temporal.Instant =>
     : temporal().Instant.from(value);
 
 export function errorText(error: unknown): string {
-  if (error instanceof Error) return error.message;
+  if (error instanceof Error) {
+    return error.message;
+  }
   if (typeof error === "object" && error !== null && "message" in error) {
     return String(error.message);
   }
@@ -381,7 +401,9 @@ export function injectableOf<T extends { readonly apiVersion?: 1 }>(
   what: string,
   value: T | undefined,
 ): T | undefined {
-  if (value === undefined) return undefined;
+  if (value === undefined) {
+    return undefined;
+  }
   const version: unknown = value.apiVersion;
   if (version !== undefined && version !== 1) {
     throw new TypeError(

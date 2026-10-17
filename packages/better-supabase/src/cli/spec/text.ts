@@ -19,7 +19,9 @@ export function documentText(
   serialization: SpecSerialization,
 ): string {
   const json = serializeDocument(document);
-  if (serialization === "json") return json;
+  if (serialization === "json") {
+    return json;
+  }
   const plain: unknown = JSON.parse(json);
   return stringify(plain, {
     version: "1.2",

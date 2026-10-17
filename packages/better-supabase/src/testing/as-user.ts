@@ -57,10 +57,14 @@ export interface TestUser<M extends AnyModels, F extends AnyFunctions, E> {
 }
 
 function env(...names: readonly string[]): string | undefined {
-  if (typeof process === "undefined") return undefined;
+  if (typeof process === "undefined") {
+    return undefined;
+  }
   for (const name of names) {
     const value = process.env[name];
-    if (value) return value;
+    if (value) {
+      return value;
+    }
   }
   return undefined;
 }

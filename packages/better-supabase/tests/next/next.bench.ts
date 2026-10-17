@@ -43,14 +43,20 @@ async function before(): Promise<void> {
 async function after(): Promise<void> {
   for (let island = 0; island < ISLANDS; island++) {
     const ctx = await server.context(request());
-    if (readsData(island)) void ctx.db;
+    if (readsData(island)) {
+      void ctx.db;
+    }
   }
 }
 
 async function measure(render: () => Promise<void>): Promise<number> {
-  for (let warm = 0; warm < 20; warm++) await render();
+  for (let warm = 0; warm < 20; warm++) {
+    await render();
+  }
   const started = performance.now();
-  for (let run = 0; run < RENDERS; run++) await render();
+  for (let run = 0; run < RENDERS; run++) {
+    await render();
+  }
   return (performance.now() - started) / RENDERS;
 }
 

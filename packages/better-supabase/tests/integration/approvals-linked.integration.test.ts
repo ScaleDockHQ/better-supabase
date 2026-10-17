@@ -31,7 +31,9 @@ describe.skipIf(!live)("requests other modules file in approvals", () => {
       "select id::text from better_supabase.approval_requests where subject_id = $1",
       [subjectId],
     );
-    if (row === undefined) throw new Error(`no approval for ${subjectId}`);
+    if (row === undefined) {
+      throw new Error(`no approval for ${subjectId}`);
+    }
     return s.value<Approval>("better_supabase.get_approval($1)", [row.id]);
   }
 
@@ -48,11 +50,12 @@ describe.skipIf(!live)("requests other modules file in approvals", () => {
         [tenant],
       );
       await s.service();
-      for (const id of ["ap1", "ap2", "ap3"])
+      for (const id of ["ap1", "ap2", "ap3"]) {
         await s.value("better_supabase.record_ai_tool_approval($1, $2)", [
           chat.id,
           { approval_id: id, tool: "send_email", tool_call_id: `tc-${id}` },
         ]);
+      }
       expect(await linked(s, "ap1")).toMatchObject({
         status: "pending",
         subjectType: "ai_tool_approval",

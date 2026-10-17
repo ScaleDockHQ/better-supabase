@@ -199,7 +199,9 @@ export class EventHub {
 
   emit<K extends EventName>(name: K, event: BetterSupabaseEvents[K]): void {
     const set = this.#handlers.get(name);
-    if (!set) return;
+    if (!set) {
+      return;
+    }
     for (const handler of set) {
       try {
         // SAFETY: on() files each handler under its event name, so this set

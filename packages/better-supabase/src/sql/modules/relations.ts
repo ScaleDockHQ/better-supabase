@@ -162,7 +162,9 @@ function relationKinds(ctx: ModuleContext): readonly ResolvedKind[] {
         `${where}.${name}: a symmetric kind has no inverse and no cardinality`,
       );
     }
-    if (inverse !== undefined) claim(inverse);
+    if (inverse !== undefined) {
+      claim(inverse);
+    }
     kinds.push({
       name,
       inverse,
@@ -191,7 +193,9 @@ function kindTable(kinds: readonly ResolvedKind[]): string {
 
 /** Subject type to table, id column and id type, for `rollup`. */
 function subjectTables(list: readonly (readonly [string, Subject])[]): string {
-  if (list.length === 0) return "";
+  if (list.length === 0) {
+    return "";
+  }
   return list
     .map(
       ([type, subject]) =>
@@ -213,7 +217,9 @@ const extrasOf = (ctx: ModuleContext) =>
   ]);
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const extras = extrasOf(ctx);
   const relations = ctx.table("relations");
   const c = (column: string): string => ctx.col("relations", column);

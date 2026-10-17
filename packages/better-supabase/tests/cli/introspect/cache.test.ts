@@ -32,8 +32,9 @@ function source(fingerprint: () => string | undefined): IntrospectionSource {
     close: () => Promise.resolve(),
     queryable: {
       query: async (sql: string) => {
-        if (!sql.includes("as fingerprint"))
+        if (!sql.includes("as fingerprint")) {
           throw new Error(`unexpected ${sql}`);
+        }
         const value = fingerprint();
         return { rows: value === undefined ? [] : [{ fingerprint: value }] };
       },

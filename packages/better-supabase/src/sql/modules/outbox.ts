@@ -125,14 +125,18 @@ ${lockTable(n.d)}
 
 /** Adopt mode adds the xid column; existing rows get the migration's transaction id. */
 function adoptXid(n: Names): string {
-  if (!n.has("xid")) return "";
+  if (!n.has("xid")) {
+    return "";
+  }
   return `
 alter table ${n.t} add column if not exists ${n.e("xid")} xid8 not null default pg_current_xact_id();
 create index if not exists outbox_events_xid_idx on ${n.t} (${n.e("xid")}, ${n.e("position")});`;
 }
 
 function tables(ctx: ModuleContext, n: Names): string {
-  if (!ctx.manages) return `${adoptXid(n)}${consumersTable(n)}`;
+  if (!ctx.manages) {
+    return `${adoptXid(n)}${consumersTable(n)}`;
+  }
   const samePosition = n.e("position") === n.e("id");
   const columns = [
     samePosition
@@ -199,11 +203,18 @@ function emit(ctx: ModuleContext, n: Names): string {
       fallback ? `coalesce(source, ${sqlString(fallback)})` : "source",
     ]);
   }
-  if (n.has("subject"))
+  if (n.has("subject")) {
     insert.push([n.e("subject"), "coalesce(subject, payload ->> 'subject')"]);
-  if (n.has("tenant")) insert.push([n.e("tenant"), `tenant::${ctx.idType}`]);
-  if (n.has("key")) insert.push([n.e("key"), "key"]);
-  if (n.has("actor")) insert.push([n.e("actor"), "auth.uid()"]);
+  }
+  if (n.has("tenant")) {
+    insert.push([n.e("tenant"), `tenant::${ctx.idType}`]);
+  }
+  if (n.has("key")) {
+    insert.push([n.e("key"), "key"]);
+  }
+  if (n.has("actor")) {
+    insert.push([n.e("actor"), "auth.uid()"]);
+  }
   const sameTenant = n.has("tenant")
     ? ` and e.${n.e("tenant")} is not distinct from tenant::${ctx.idType}`
     : "";
@@ -646,7 +657,9 @@ revoke execute on function ${ctx.fn("track_events")}(regclass, text, text) from 
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const n = names(ctx);
   return [
     `${schemaPreamble(ctx)}${tables(ctx, n)}`,

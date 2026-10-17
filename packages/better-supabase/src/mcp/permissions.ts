@@ -23,10 +23,14 @@ export function missingRole(
   auth: AuthState,
   required: RequiredRoles | undefined,
 ): DbError | undefined {
-  if (!required || auth.kind === "service") return undefined;
+  if (!required || auth.kind === "service") {
+    return undefined;
+  }
   const { roles, claim } =
     "roles" in required ? required : { roles: required, claim: undefined };
-  if (roles.length === 0 || hasRole(auth, roles, claim)) return undefined;
+  if (roles.length === 0 || hasRole(auth, roles, claim)) {
+    return undefined;
+  }
   return dbError(
     "forbidden",
     `This server needs the role ${roles.join(" or ")}`,
@@ -63,7 +67,9 @@ export interface PermissionGate {
 
 /** The context of a `tools/call` or `tools/list` request, if the client has one. */
 export function contextOf(db: unknown): RequestContext | undefined {
-  if (typeof db !== "object" || db === null || !("$context" in db)) return;
+  if (typeof db !== "object" || db === null || !("$context" in db)) {
+    return;
+  }
   // SAFETY: `$context` on a connected client is the request's RequestContext.
   return db.$context as RequestContext | undefined;
 }
@@ -84,7 +90,9 @@ export async function checkTool(
   args: unknown,
   db: unknown,
 ): Promise<Result<void>> {
-  if (tool.permission === undefined) return ok(undefined);
+  if (tool.permission === undefined) {
+    return ok(undefined);
+  }
   const isObject =
     typeof args === "object" && args !== null && !Array.isArray(args);
   // SAFETY: a non-array object is a JSON object of arguments.
@@ -115,7 +123,9 @@ export async function permittedTools(
   const shown = tools.map((tool) => tool.permission === undefined);
   const groups = new Map<string, { permission: unknown; indexes: number[] }>();
   for (const [index, tool] of tools.entries()) {
-    if (tool.permission === undefined || !authorizer) continue;
+    if (tool.permission === undefined || !authorizer) {
+      continue;
+    }
     let key: string;
     try {
       key = authorizer.key(tool.permission);
@@ -137,8 +147,9 @@ export async function permittedTools(
         indexes.map((index) => ({ type: "mcp_tool", id: tools[index]!.name })),
         context,
       );
-      for (const [position, index] of indexes.entries())
+      for (const [position, index] of indexes.entries()) {
         shown[index] = granted[position] ?? false;
+      }
     }),
   );
   return shown;

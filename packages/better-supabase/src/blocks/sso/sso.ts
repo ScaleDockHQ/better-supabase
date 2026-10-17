@@ -131,7 +131,9 @@ function providerOf(value: unknown): SsoProvider {
 }
 
 function ssoDomainOf(value: unknown): SsoDomain | undefined {
-  if (!isRecord(value)) return undefined;
+  if (!isRecord(value)) {
+    return undefined;
+  }
   return {
     domain: textOf(value["domain"]),
     organizationId: textOf(value["organizationId"]),
@@ -227,9 +229,12 @@ export function dohResolver(options: DohResolverOptions = {}): TxtResolver {
       throw new Error(`DNS lookup of ${name} failed with ${response.status}`);
     }
     const body: unknown = await response.json();
-    if (!isRecord(body))
+    if (!isRecord(body)) {
       throw new Error(`DNS lookup of ${name} returned no JSON`);
-    if (body["Status"] === NXDOMAIN) return [];
+    }
+    if (body["Status"] === NXDOMAIN) {
+      return [];
+    }
     if (body["Status"] !== 0) {
       throw new Error(
         `DNS lookup of ${name} failed with status ${String(body["Status"])}`,
@@ -313,13 +318,24 @@ export interface SsoAdmin {
 }
 
 function authStatusError(status: number, message: string): DbError {
-  if (status === 400 || status === 422)
+  if (status === 400 || status === 422) {
     return dbError("invalid_input", message);
-  if (status === 401) return dbError("unauthorized", message);
-  if (status === 403) return dbError("forbidden", message);
-  if (status === 404) return dbError("not_found", message);
-  if (status === 409) return dbError("conflict", message);
-  if (status === 429) return dbError("rate_limited", message);
+  }
+  if (status === 401) {
+    return dbError("unauthorized", message);
+  }
+  if (status === 403) {
+    return dbError("forbidden", message);
+  }
+  if (status === 404) {
+    return dbError("not_found", message);
+  }
+  if (status === 409) {
+    return dbError("conflict", message);
+  }
+  if (status === 429) {
+    return dbError("rate_limited", message);
+  }
   return dbError("network", message);
 }
 
@@ -496,12 +512,16 @@ export function createSsoAdmin(options: SsoAdminOptions): SsoAdmin {
             input.metadataUrl,
             actor,
           );
-          if (!recorded.ok) await auth("DELETE", path(providerId));
+          if (!recorded.ok) {
+            await auth("DELETE", path(providerId));
+          }
           return recorded;
         }),
     updateSamlProvider: (providerId, input, actor = {}) =>
       providerFor(providerId, actor).andThen(async (found) => {
-        if (found === undefined) return missing();
+        if (found === undefined) {
+          return missing();
+        }
         const checked = await call(
           "check_sso_provider",
           {
@@ -511,13 +531,17 @@ export function createSsoAdmin(options: SsoAdminOptions): SsoAdmin {
           },
           () => undefined,
         );
-        if (!checked.ok) return checked;
+        if (!checked.ok) {
+          return checked;
+        }
         const updated = await auth(
           "PUT",
           path(providerId),
           providerBody(input),
         );
-        if (!updated.ok) return updated;
+        if (!updated.ok) {
+          return updated;
+        }
         const metadataUrl =
           input.metadataXml === undefined
             ? (input.metadataUrl ?? found.metadataUrl)
@@ -532,9 +556,13 @@ export function createSsoAdmin(options: SsoAdminOptions): SsoAdmin {
       }),
     removeSamlProvider: (providerId, actor = {}) =>
       providerFor(providerId, actor).andThen(async (found) => {
-        if (found === undefined) return ok(undefined);
+        if (found === undefined) {
+          return ok(undefined);
+        }
         const deleted = await auth("DELETE", path(providerId));
-        if (!deleted.ok && deleted.error.kind !== "not_found") return deleted;
+        if (!deleted.ok && deleted.error.kind !== "not_found") {
+          return deleted;
+        }
         return call(
           "unregister_sso_provider",
           { provider: providerId, actor: actor.actorId ?? null },

@@ -81,7 +81,9 @@ export function resolveTenant<C = unknown>(
   options: TenantOptions<C> = {},
   schema?: Pick<SchemaMeta, "claims">,
 ): string | undefined {
-  if (options.resolve) return options.resolve(context);
+  if (options.resolve) {
+    return options.resolve(context);
+  }
   // SAFETY: TenantOptions types claim as ClaimPath<C> or a list of them, and
   // both are strings at runtime.
   const claim = options.claim as string | readonly string[] | undefined;
@@ -90,7 +92,9 @@ export function resolveTenant<C = unknown>(
 
 /** Tenant columns may be numeric; the resolved tenant is always a string. */
 function sameTenant(value: unknown, id: string): boolean {
-  if (value === id) return true;
+  if (value === id) {
+    return true;
+  }
   return (
     (typeof value === "number" || typeof value === "bigint") &&
     String(value) === id
@@ -154,9 +158,11 @@ export function tenant<C = unknown>(
     describe(api): void {
       for (const { table } of api.resources) {
         const flag = table.flags.tenant;
-        if (!flag) continue;
+        if (!flag) {
+          continue;
+        }
         api.markReadOnly(table.key, flag, "Set from the request's tenant.");
-        if (options.header)
+        if (options.header) {
           api.addParameter(table.key, {
             name: options.header,
             in: "header",
@@ -164,18 +170,25 @@ export function tenant<C = unknown>(
             description: "The tenant the request acts for.",
             schema: { type: "string" },
           });
+        }
       }
     },
     context(context, { schema }): RequestContext {
-      if (spansAllTenants(context)) return context;
+      if (spansAllTenants(context)) {
+        return context;
+      }
       const id = resolvedFor(context, schema);
-      if (id === undefined || id === context.tenant) return context;
+      if (id === undefined || id === context.tenant) {
+        return context;
+      }
       const derived = { ...context, tenant: id };
       resolved.set(derived, id);
       return derived;
     },
     transformQuery(op, { context, schema, options: call }): Operation {
-      if (call["allTenants"] === true || spansAllTenants(context)) return op;
+      if (call["allTenants"] === true || spansAllTenants(context)) {
+        return op;
+      }
       const id = resolvedFor(context, schema);
       if (id === undefined) {
         if (onMissing === "error") {
@@ -192,10 +205,13 @@ export function tenant<C = unknown>(
     },
     beforeMutation(op, { table, context, schema, options: call }): MutationOp {
       const column = tenantColumn(table);
-      if (!column || call["allTenants"] === true || spansAllTenants(context))
+      if (!column || call["allTenants"] === true || spansAllTenants(context)) {
         return op;
+      }
       const id = current(table, context, schema);
-      if (id === undefined) return op;
+      if (id === undefined) {
+        return op;
+      }
       switch (op.kind) {
         case "insert":
           if (!insertsOnly(op) && !op.onConflict?.columns.includes(column)) {

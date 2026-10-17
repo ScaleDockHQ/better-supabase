@@ -93,8 +93,11 @@ export async function connect(
   const close = (): Promise<void> => (ended ??= client.end());
   const onAbort = (): void => void close().catch(() => undefined);
   try {
-    if (pool) (await pool.connect()).release();
-    else await client.connect();
+    if (pool) {
+      (await pool.connect()).release();
+    } else {
+      await client.connect();
+    }
   } catch (cause) {
     await close().catch(() => undefined);
     const message = errorText(cause);

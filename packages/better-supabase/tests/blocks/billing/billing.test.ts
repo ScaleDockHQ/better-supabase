@@ -63,7 +63,9 @@ describe("createBilling", () => {
   it("creates a customer once and opens checkout and the portal", async () => {
     let linked: string | undefined;
     const t = setup((fn, args) => {
-      if (fn === "billing_customer") return linked ?? null;
+      if (fn === "billing_customer") {
+        return linked ?? null;
+      }
       if (fn === "link_billing_customer") {
         linked ??= String(args["customer"]);
         return linked;
@@ -332,16 +334,22 @@ describe("createBilling", () => {
     const t = setup((fn, args) => {
       if (fn === "link_billing_customer") {
         const tenant = String(args["tenant"]);
-        if (!tenants.has(tenant)) tenants.set(tenant, String(args["customer"]));
+        if (!tenants.has(tenant)) {
+          tenants.set(tenant, String(args["customer"]));
+        }
         return tenants.get(tenant);
       }
       if (fn === "billing_customer_tenant") {
-        for (const [tenant, customer] of tenants)
-          if (customer === args["customer"]) return tenant;
+        for (const [tenant, customer] of tenants) {
+          if (customer === args["customer"]) {
+            return tenant;
+          }
+        }
         return null;
       }
-      if (fn === "billing_status")
+      if (fn === "billing_status") {
         return { customer: "cus_1", seats: 1, subscription: null };
+      }
       return null;
     });
     const invalidated: string[] = [];
@@ -478,12 +486,17 @@ describe("createBilling", () => {
     };
     const t = setup(
       (fn, args) => {
-        if (fn === "billing_customer") return "cus_1";
-        if (fn === "billing_plan_price")
+        if (fn === "billing_customer") {
+          return "cus_1";
+        }
+        if (fn === "billing_plan_price") {
           return args["plan"] === "pro"
             ? `price_pro_${String(args["billing_interval"] ?? "month")}`
             : null;
-        if (fn === "billing_subscription_item") return item;
+        }
+        if (fn === "billing_subscription_item") {
+          return item;
+        }
         return null;
       },
       {
@@ -544,9 +557,13 @@ describe("createBilling", () => {
 
   it("checks out a plan variant with add-on line items", async () => {
     const t = setup((fn, args) => {
-      if (fn === "billing_customer") return "cus_1";
+      if (fn === "billing_customer") {
+        return "cus_1";
+      }
       if (fn === "billing_plan_price") {
-        if (args["plan"] === "missing") return null;
+        if (args["plan"] === "missing") {
+          return null;
+        }
         return `price_${String(args["plan"])}_${String(args["variant"] ?? "base")}`;
       }
       return null;
@@ -594,12 +611,15 @@ describe("createBilling", () => {
 
   it("reads the full subscription and every tenant's for platform staff", async () => {
     const t = setup((fn) => {
-      if (fn === "billing_subscription") return { id: "sub_1", items: [] };
-      if (fn === "billing_all_subscriptions")
+      if (fn === "billing_subscription") {
+        return { id: "sub_1", items: [] };
+      }
+      if (fn === "billing_all_subscriptions") {
         return [
           { tenant: "org", customer: "cus_1", subscription: { id: "sub_1" } },
           { tenant: "broken", customer: "cus_2", subscription: null },
         ];
+      }
       return null;
     });
     const billing = createBilling(t);
@@ -646,7 +666,9 @@ describe("createBilling", () => {
     const taxId = { id: "txi_1", type: "eu_vat", value: "DE123456789" };
     const t = setup(
       (fn, args) => {
-        if (fn === "billing_customer") return linked ?? null;
+        if (fn === "billing_customer") {
+          return linked ?? null;
+        }
         if (fn === "link_billing_customer") {
           linked = String(args["customer"]);
           return linked;
@@ -820,13 +842,18 @@ describe("createBilling", () => {
   it("reads invoices and payment methods and voids only the tenant's invoices", async () => {
     const t = setup(
       (fn) => {
-        if (fn === "billing_invoices")
+        if (fn === "billing_invoices") {
           return [{ id: "in_1", status: "open" }, "junk"];
-        if (fn === "billing_payment_methods")
+        }
+        if (fn === "billing_payment_methods") {
           return [{ id: "pm_1", type: "card" }];
-        if (fn === "billing_customer_details")
+        }
+        if (fn === "billing_customer_details") {
           return { id: "cus_1", email: "a@b.c" };
-        if (fn === "billing_customer") return "cus_1";
+        }
+        if (fn === "billing_customer") {
+          return "cus_1";
+        }
         return null;
       },
       {

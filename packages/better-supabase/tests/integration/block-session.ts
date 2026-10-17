@@ -59,8 +59,11 @@ export class BlockSession {
     names: readonly string[],
     layout: ModuleLayout = {},
   ): Promise<void> {
-    for (const file of renderModules(names, layout))
-      if (file.kind !== "test") await this.client.query(file.contents);
+    for (const file of renderModules(names, layout)) {
+      if (file.kind !== "test") {
+        await this.client.query(file.contents);
+      }
+    }
   }
 
   async user(name: string, emailDomain = "example.test"): Promise<TestUser> {
@@ -126,7 +129,9 @@ export class BlockSession {
    */
   async clear(tables: readonly string[]): Promise<void> {
     await this.client.query("reset role");
-    for (const table of tables) await this.client.query(`delete from ${table}`);
+    for (const table of tables) {
+      await this.client.query(`delete from ${table}`);
+    }
   }
 
   async service(): Promise<void> {

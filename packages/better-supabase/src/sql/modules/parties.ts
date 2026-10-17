@@ -141,7 +141,9 @@ const textArray = (items: readonly string[]): string =>
   `${sqlString(`{${items.join(",")}}`)}::text[]`;
 
 function tables(ctx: ModuleContext, names: PartyNames): string {
-  if (!ctx.manages) return "";
+  if (!ctx.manages) {
+    return "";
+  }
   const { t, c } = names;
   const read = (
     table: string,
@@ -218,7 +220,9 @@ ${read("links")}
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const keys = moduleOperations("parties");
   const names: PartyNames = {
     scope: ctx.scope,

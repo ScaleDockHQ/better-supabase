@@ -160,8 +160,12 @@ export async function stripeClient<C extends object = StripeClient>(
   source: StripeSource<NoInfer<C>>,
   load: () => Promise<unknown> = loadStripeModule,
 ): Promise<C> {
-  if (typeof source === "function") return source();
-  if (!("secretKey" in source)) return source;
+  if (typeof source === "function") {
+    return source();
+  }
+  if (!("secretKey" in source)) {
+    return source;
+  }
   const loaded = await load();
   if (!isModule(loaded)) {
     throw new TypeError(
@@ -183,7 +187,9 @@ export async function stripeClient<C extends object = StripeClient>(
 export function lazyStripe<C extends object = StripeClient>(
   source: StripeSource<NoInfer<C>>,
 ): () => Promise<C> {
-  if (typeof source === "function") return async () => source();
+  if (typeof source === "function") {
+    return async () => source();
+  }
   let client: Promise<C> | undefined;
   return () => (client ??= stripeClient<C>(source));
 }

@@ -14,7 +14,9 @@ export async function getWorkspaceSummary() {
   "use cache: private";
   const { db, session } = await bs.cached();
   bs.cacheTags(workspaceSummary);
-  if (session.kind !== "user") return null;
+  if (session.kind !== "user") {
+    return null;
+  }
   return db.$many(workspaceSummary, {}).orThrow();
 }
 

@@ -40,11 +40,17 @@ export function TagInput({
 
   const submit = async (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!name.trim()) return;
-    if ((await create(name)).ok) setName("");
+    if (!name.trim()) {
+      return;
+    }
+    if ((await create(name)).ok) {
+      setName("");
+    }
   };
 
-  if (tags === undefined) return <Skeleton className="h-16" />;
+  if (tags === undefined) {
+    return <Skeleton className="h-16" />;
+  }
   return (
     <div className="space-y-3">
       <ul className="flex flex-wrap gap-1.5" data-testid="tags">

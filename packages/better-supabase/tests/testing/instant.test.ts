@@ -35,13 +35,14 @@ function fakePage(
     ) => {
       for (const cookie of cookies) {
         jar = jar.filter((kept) => kept.name !== cookie.name);
-        if (cookie.expires !== 1)
+        if (cookie.expires !== 1) {
           jar.push({
             name: cookie.name,
             value: cookie.value,
             domain: cookie.domain ?? "",
             path: cookie.path ?? "/",
           });
+        }
       }
       return Promise.resolve();
     },
@@ -51,10 +52,14 @@ function fakePage(
     url: () => options.url ?? "https://app.test/",
     context: () => context,
     on: (event: string, fn: (response: BudgetResponse) => void) => {
-      if (event === "response") listener = fn;
+      if (event === "response") {
+        listener = fn;
+      }
     },
     off: (event: string) => {
-      if (event === "response") listener = undefined;
+      if (event === "response") {
+        listener = undefined;
+      }
     },
     reload: () => Promise.resolve(),
     request: {

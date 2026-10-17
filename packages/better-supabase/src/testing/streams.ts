@@ -25,7 +25,9 @@ async function collect(
   try {
     for (;;) {
       const { done, value } = await Promise.race([reader.read(), timeout]);
-      if (done) return chunks;
+      if (done) {
+        return chunks;
+      }
       chunks.push(value);
     }
   } finally {

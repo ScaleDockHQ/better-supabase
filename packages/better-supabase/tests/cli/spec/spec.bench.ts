@@ -40,7 +40,9 @@ const targetsFor = (versions: readonly string[]): readonly SpecTarget[] =>
     {},
   );
 const [single] = targetsFor(["3.1"]);
-if (!single) throw new Error("No OpenAPI 3.1 target");
+if (!single) {
+  throw new Error("No OpenAPI 3.1 target");
+}
 const every = targetsFor(["3.0", "3.1", "3.2"]);
 
 const root = await mkdtemp(join(tmpdir(), "better-supabase-spec-bench-"));
@@ -49,9 +51,13 @@ async function measure(
   work: () => Promise<unknown>,
   runs = RUNS,
 ): Promise<number> {
-  for (let warm = 0; warm < 20; warm++) await work();
+  for (let warm = 0; warm < 20; warm++) {
+    await work();
+  }
   const started = performance.now();
-  for (let run = 0; run < runs; run++) await work();
+  for (let run = 0; run < runs; run++) {
+    await work();
+  }
   return (performance.now() - started) / runs;
 }
 

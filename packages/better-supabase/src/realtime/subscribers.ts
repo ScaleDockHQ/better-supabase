@@ -20,8 +20,9 @@ export async function allowedSubscribers<S extends Subscriber>(
   event: SubscriberEvent,
   subscribers: readonly S[],
 ): Promise<AllowedSubscribers<S>> {
-  if (policy === undefined || subscribers.length === 0)
+  if (policy === undefined || subscribers.length === 0) {
     return { ok: true, allowed: subscribers };
+  }
   let kept: Set<string>;
   try {
     const returned: unknown = await policy(event, subscribers);

@@ -101,7 +101,9 @@ function record(
   name: string,
 ): Readonly<Record<string, unknown>> | undefined {
   const value = ctx.option(name);
-  if (value === undefined) return undefined;
+  if (value === undefined) {
+    return undefined;
+  }
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new TypeError(`blocks.profiles.options.${name} must be an object`);
   }
@@ -157,7 +159,9 @@ function syncValues(ctx: ModuleContext): Map<string, string> {
   const has = (logical: string) => ctx.has("profiles", logical);
   const col = (logical: string) => ctx.col("profiles", logical);
   const meta = metadataColumns(ctx);
-  for (const [name, keys] of meta) values.set(name, fromMeta(keys));
+  for (const [name, keys] of meta) {
+    values.set(name, fromMeta(keys));
+  }
   if (has("fullName") && values.has(col("fullName"))) {
     const first = has("firstName") ? (meta.get(col("firstName")) ?? []) : [];
     const last = has("lastName") ? (meta.get(col("lastName")) ?? []) : [];
@@ -182,7 +186,9 @@ function syncValues(ctx: ModuleContext): Map<string, string> {
       }
     }
   }
-  if (has("email")) values.set(col("email"), "u.email");
+  if (has("email")) {
+    values.set(col("email"), "u.email");
+  }
   if (has("username") && ctx.flag("username", true)) {
     values.set(
       col("username"),
@@ -208,7 +214,9 @@ function usernameParts(ctx: ModuleContext): readonly (string | UsernamePart)[] {
     throw new TypeError(`${where} must be a list`);
   }
   return configured.map((entry: unknown): string | UsernamePart => {
-    if (typeof entry === "string") return entry;
+    if (typeof entry === "string") {
+      return entry;
+    }
     const joined =
       typeof entry === "object" && entry !== null
         ? {
@@ -274,9 +282,13 @@ function usernameSource(
   }
   const where = "blocks.profiles.options.usernameFrom";
   const expressions = parts.map((part) => {
-    if (typeof part === "string") return fromMeta([part]);
+    if (typeof part === "string") {
+      return fromMeta([part]);
+    }
     const keys = part.keys.map((key) => {
-      if (part.kind === "names") return fromMeta([key]);
+      if (part.kind === "names") {
+        return fromMeta([key]);
+      }
       const value = values.get(column(`${where}.columns`, key));
       if (value === undefined) {
         throw new TypeError(
@@ -384,7 +396,9 @@ $$;`;
 }
 
 function table(ctx: ModuleContext): string {
-  if (!ctx.manages) return "";
+  if (!ctx.manages) {
+    return "";
+  }
   const t = ctx.table("profiles");
   const c = (logical: string) => ctx.col("profiles", logical);
   const id = ctx.idType;
@@ -484,7 +498,9 @@ function readPolicy(ctx: ModuleContext): {
 /** Platform staff read every profile: a policy of its own, in either mode. */
 function platformRead(ctx: ModuleContext): string {
   const platform = readPolicy(ctx).platform;
-  if (platform === undefined) return "";
+  if (platform === undefined) {
+    return "";
+  }
   const t = ctx.table("profiles");
   return `
 -- Platform staff with ${platform} read every profile (readPolicy.platform).
@@ -517,7 +533,9 @@ function membersRead(ctx: ModuleContext): string {
  * them. Security definer, so the memberships policies don't hide peers.
  */
 function peers(ctx: ModuleContext): string {
-  if (!readPolicy(ctx).members) return "";
+  if (!readPolicy(ctx).members) {
+    return "";
+  }
   if (!ctx.installed("tenant")) {
     throw new TypeError(
       "blocks.profiles.options.readPolicy 'members' needs the tenant module",
@@ -548,7 +566,9 @@ grant execute on function ${ctx.fn("profile_peer_ids")}() to authenticated, serv
 
 /** Column grants: users update only the columns in `options.updatable`. */
 function grants(ctx: ModuleContext): string {
-  if (!ctx.flag("columnGrants", ctx.manages)) return "";
+  if (!ctx.flag("columnGrants", ctx.manages)) {
+    return "";
+  }
   const defaults = [
     "fullName",
     "firstName",
@@ -571,8 +591,9 @@ function grants(ctx: ModuleContext): string {
       : ctx
           .list("updatable", [])
           .map((name) => column("blocks.profiles.options.updatable", name));
-  if (ctx.has("profiles", "updatedAt"))
+  if (ctx.has("profiles", "updatedAt")) {
     columns.push(ctx.col("profiles", "updatedAt"));
+  }
   const t = ctx.table("profiles");
   return `
 -- Users update only these columns; the rest go through the module's functions.
@@ -839,7 +860,9 @@ function selfUpdates(ctx: ModuleContext): string {
  */
 function updatableExtras(ctx: ModuleContext): readonly ExtraColumn[] {
   const extras = ctx.extraColumns("profiles");
-  if (ctx.option("updatable") === undefined) return extras;
+  if (ctx.option("updatable") === undefined) {
+    return extras;
+  }
   const updatable = new Set(ctx.list("updatable", []));
   return extras.filter((extra) => updatable.has(extra.name));
 }
@@ -903,7 +926,9 @@ create trigger ${mirror} after update of email on auth.users
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   readPolicy(ctx);
   return [
     `${schemaPreamble(ctx)}${peers(ctx)}${table(ctx)}${platformRead(ctx)}`,

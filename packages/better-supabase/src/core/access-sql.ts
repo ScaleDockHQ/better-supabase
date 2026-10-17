@@ -72,7 +72,9 @@ export function scopeProblems(provider: {
       current = byName.get(current)?.parent;
     }
     if (current !== undefined && !cyclic.has(current)) {
-      for (const name of seen) cyclic.add(name);
+      for (const name of seen) {
+        cyclic.add(name);
+      }
       problems.push(`scope "${current}" is its own ancestor (a parent cycle)`);
     }
   }
@@ -121,11 +123,15 @@ export function templateProblems(template: string): string[] {
     .replaceAll(/\{(\w+)\}/g, "$1");
   const problems: string[] = [];
   for (const token of ["$$", ";", "--"]) {
-    if (code.includes(token)) problems.push(`contains "${token}"`);
+    if (code.includes(token)) {
+      problems.push(`contains "${token}"`);
+    }
   }
   for (const match of code.matchAll(/(?<![\w$.":])"?([a-z_][\w$]*)"?\s*\(/gi)) {
     const name = match[1]!;
-    if (CALL_KEYWORDS.has(name.toLowerCase())) continue;
+    if (CALL_KEYWORDS.has(name.toLowerCase())) {
+      continue;
+    }
     problems.push(`calls ${name}() without a schema`);
   }
   return problems;
@@ -191,7 +197,9 @@ export function resolveProviderSql<T extends AccessTarget>(
   target: T,
   functions: AuthorizationFunctions | undefined,
 ): T {
-  if (target.sql !== "provider") return target;
+  if (target.sql !== "provider") {
+    return target;
+  }
   if (functions === undefined) {
     throw new TypeError(
       `${where}: sql "provider" needs \`authorization\` in better-supabase.config.ts`,
@@ -215,7 +223,9 @@ export function accessCheck(
   key: string,
   id: string | undefined,
 ): string {
-  if (key === "") throw new TypeError(`${where}: a permission key is empty`);
+  if (key === "") {
+    throw new TypeError(`${where}: a permission key is empty`);
+  }
   const scope = target.scope ?? "tenant";
   const permission = sqlString(key);
   if (target.sql === "provider") {
@@ -224,23 +234,27 @@ export function accessCheck(
     );
   }
   if (!target.sql) {
-    if (scope === "platform")
+    if (scope === "platform") {
       return `(select better_supabase.is_platform(${permission}))`;
+    }
     if (scope !== "tenant") {
       throw new TypeError(
         `${where}: scope "${scope}" needs sql templates; without them use "tenant" or "platform"`,
       );
     }
-    if (id === undefined)
+    if (id === undefined) {
       throw new TypeError(`${where}: scope "tenant" needs a segment`);
+    }
     return `${id} in (select t::text from better_supabase.tenant_ids_with(${permission}) t)`;
   }
   if (scope === "platform") {
     return `(select ${fillTemplate(`${where} sql.isPlatform`, target.sql.isPlatform, { permission })})`;
   }
-  if (!isScopeName(scope))
+  if (!isScopeName(scope)) {
     throw new TypeError(`${where}: invalid scope "${scope}"`);
-  if (id === undefined)
+  }
+  if (id === undefined) {
     throw new TypeError(`${where}: scope "${scope}" needs a segment`);
+  }
   return `${id} in (select t.id::text from ${fillTemplate(`${where} sql.idsWith`, target.sql.idsWith, { permission, scope })} as t(id))`;
 }

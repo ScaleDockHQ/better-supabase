@@ -20,7 +20,9 @@ type Part = UIMessage["parts"][number];
 
 /** One line for a tool call, such as "Searched the docs for verify token". */
 function toolStep(part: Part): string | undefined {
-  if (!isToolUIPart(part)) return undefined;
+  if (!isToolUIPart(part)) {
+    return undefined;
+  }
   const done = part.state === "output-available";
   const failed = part.state === "output-error";
   const name = getToolName(part);
@@ -42,7 +44,9 @@ function MessageParts({ parts }: { parts: readonly Part[] }) {
   let text = "";
   let after = "start";
   const flush = () => {
-    if (text !== "") nodes.push(<span key={`text-${after}`}>{text}</span>);
+    if (text !== "") {
+      nodes.push(<span key={`text-${after}`}>{text}</span>);
+    }
     text = "";
   };
   for (const part of parts) {
@@ -50,7 +54,9 @@ function MessageParts({ parts }: { parts: readonly Part[] }) {
       text += part.text;
       continue;
     }
-    if (!isToolUIPart(part)) continue;
+    if (!isToolUIPart(part)) {
+      continue;
+    }
     flush();
     after = part.toolCallId;
     const step = toolStep(part);

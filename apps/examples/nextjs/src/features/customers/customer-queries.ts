@@ -55,7 +55,9 @@ export async function getCustomer(id: string) {
       },
     })
     .orThrow();
-  if (!customer) return null;
+  if (!customer) {
+    return null;
+  }
   return {
     ...customer,
     logoUrl: customer.logoPath

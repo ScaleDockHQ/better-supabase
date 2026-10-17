@@ -25,19 +25,26 @@ function operationKeys(
 ): ReadonlyMap<string, string> {
   const keys = new Map<string, string>();
   for (const module of ctx.installedModules) {
-    if (!isOperationModule(module)) continue;
+    if (!isOperationModule(module)) {
+      continue;
+    }
     const of = moduleContext(module, layout, ctx.installedModules);
-    if (of.mode === "custom") continue;
-    for (const [action, fallback] of Object.entries(moduleOperations(module)))
+    if (of.mode === "custom") {
+      continue;
+    }
+    for (const [action, fallback] of Object.entries(moduleOperations(module))) {
       keys.set(
         `${module}.${action}`,
         modulePermissionKey(of, action, fallback),
       );
+    }
   }
   const operations = layout.accessProvider?.operations;
   for (const name of Object.keys(operations ?? {})) {
     const key = operationPermission(operations, name, keys.get(name));
-    if (key !== undefined) keys.set(name, key);
+    if (key !== undefined) {
+      keys.set(name, key);
+    }
   }
   return keys;
 }

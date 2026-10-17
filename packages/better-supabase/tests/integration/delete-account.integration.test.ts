@@ -73,7 +73,9 @@ describe.skipIf(!(await reachable()))("deleteAccount", () => {
       password: `pw-${crypto.randomUUID()}`,
       email_confirm: true,
     });
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     return data.user.id;
   };
   const file = (text: string) => new Blob([text], { type: "text/plain" });
@@ -88,8 +90,9 @@ describe.skipIf(!(await reachable()))("deleteAccount", () => {
     const docs = documents.connect(service);
     const organization = shared.connect(service);
     for (const owner of [userId, otherId]) {
-      for (const name of ["a.txt", "b.txt"])
+      for (const name of ["a.txt", "b.txt"]) {
         await docs.upload({ userId: owner, file: name }, file(name)).orThrow();
+      }
       await organization
         .upload(
           { organizationId: ORG, userId: owner, file: "c.txt" },
@@ -110,11 +113,15 @@ describe.skipIf(!(await reachable()))("deleteAccount", () => {
     await pool.query(`drop table if exists public.${table}`);
     for (const bucket of [documents, shared]) {
       const all = await bucket.connect(service).list();
-      if (all.ok)
+      if (all.ok) {
         await bucket.connect(service).remove(all.data.map((o) => o.path));
+      }
     }
-    for (const id of [userId, otherId])
-      if (id) await service.auth.admin.deleteUser(id);
+    for (const id of [userId, otherId]) {
+      if (id) {
+        await service.auth.admin.deleteUser(id);
+      }
+    }
     await pool.end();
   });
 

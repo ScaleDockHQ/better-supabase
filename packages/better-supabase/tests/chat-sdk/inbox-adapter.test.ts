@@ -160,8 +160,9 @@ describe("inboxAdapter", () => {
     ).rejects.toThrow(/initialize/);
     await adapter.initialize(chat);
     const processMessage = vi.spyOn(chat, "processMessage");
-    for (const id of ["note", "other", "missing", "self"])
+    for (const id of ["note", "other", "missing", "self"]) {
       await adapter.dispatch({ conversation_id: "c1", message_id: id });
+    }
     expect(processMessage).not.toHaveBeenCalled();
     await adapter.dispatch({ conversation_id: "c1", message_id: "m1" });
     expect(processMessage).toHaveBeenCalledWith(

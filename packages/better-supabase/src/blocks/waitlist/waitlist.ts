@@ -323,7 +323,9 @@ export function waitlistHook(
         },
         (value) => recordOf(value, "waitlist_admit")["allowed"] === true,
       );
-      if (!result.ok) throw new Error(result.error.message);
+      if (!result.ok) {
+        throw new Error(result.error.message);
+      }
       return result.data ? {} : hookError(403, message);
     },
     options.verify,

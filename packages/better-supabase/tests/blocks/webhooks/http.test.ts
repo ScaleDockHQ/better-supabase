@@ -111,7 +111,9 @@ describe("fetchTransport", () => {
       pull(controller) {
         pulled += 1;
         controller.enqueue(new TextEncoder().encode("abcdefgh"));
-        if (pulled > 100) controller.close();
+        if (pulled > 100) {
+          controller.close();
+        }
       },
     });
     const { fetch } = fakeFetch(() => new Response(stream, { status: 500 }));

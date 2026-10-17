@@ -159,7 +159,9 @@ export async function assertModelAllowed(
   } catch {
     throw refused(modelId);
   }
-  if (allowed !== true) throw refused(modelId);
+  if (allowed !== true) {
+    throw refused(modelId);
+  }
 }
 
 /**
@@ -172,8 +174,12 @@ export async function toolPermitted(
   operation: AgentToolOperation,
   context: AgentToolCallContext,
 ): Promise<boolean> {
-  if (operation.permission === false) return true;
-  if (operation.permission === undefined) return false;
+  if (operation.permission === false) {
+    return true;
+  }
+  if (operation.permission === undefined) {
+    return false;
+  }
   try {
     const permitted: unknown = await authorize(operation.permission, context);
     return permitted === true;

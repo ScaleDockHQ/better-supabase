@@ -43,11 +43,21 @@ export type {
 
 const nsArg = (ns: MemoryNamespace = {}): Record<string, string> => {
   const arg: Record<string, string> = {};
-  if (ns.scope !== undefined) arg["scope"] = ns.scope;
-  if (ns.agentId !== undefined) arg["agent_id"] = ns.agentId;
-  if (ns.chatId !== undefined) arg["chat_id"] = ns.chatId;
-  if (ns.projectId !== undefined) arg["project_id"] = ns.projectId;
-  if (ns.ownerId !== undefined) arg["owner_id"] = ns.ownerId;
+  if (ns.scope !== undefined) {
+    arg["scope"] = ns.scope;
+  }
+  if (ns.agentId !== undefined) {
+    arg["agent_id"] = ns.agentId;
+  }
+  if (ns.chatId !== undefined) {
+    arg["chat_id"] = ns.chatId;
+  }
+  if (ns.projectId !== undefined) {
+    arg["project_id"] = ns.projectId;
+  }
+  if (ns.ownerId !== undefined) {
+    arg["owner_id"] = ns.ownerId;
+  }
   return arg;
 };
 
@@ -231,7 +241,9 @@ export function createMemory(options: MemoryOptions): Memory {
     switch (command.command) {
       case "view":
         return view(organizationId, command.path, ns).map((result) => {
-          if (result === undefined) return `${command.path} does not exist.`;
+          if (result === undefined) {
+            return `${command.path} does not exist.`;
+          }
           if (result.type === "file") {
             return `Here's the content of ${result.path} with line numbers:\n${numbered(result.content, command.view_range)}`;
           }
@@ -355,7 +367,9 @@ export function createMemory(options: MemoryOptions): Memory {
     },
     render: (organizationId, ns) =>
       core.list(organizationId, ns).map((files) => {
-        if (files.length === 0) return "";
+        if (files.length === 0) {
+          return "";
+        }
         const close = "</memories>";
         let text = "<memories>\n";
         for (const file of files) {
@@ -374,13 +388,19 @@ export function createMemory(options: MemoryOptions): Memory {
         const contents = facts
           .map((fact) => fact.trim())
           .filter((content) => content !== "");
-        if (contents.length === 0) return ok(saved);
+        if (contents.length === 0) {
+          return ok(saved);
+        }
         let embeddings: readonly (string | undefined)[] = [];
         if (embedder) {
           const vectors = await run(() => embedder.embed(contents));
-          if (!vectors.ok) return vectors;
+          if (!vectors.ok) {
+            return vectors;
+          }
           const invalid = checkVectors(vectors.data, contents.length);
-          if (invalid) return err(invalid);
+          if (invalid) {
+            return err(invalid);
+          }
           embeddings = vectors.data.map((vector) => vectorLiteral(vector));
         }
         for (const [index, content] of contents.entries()) {
@@ -393,7 +413,9 @@ export function createMemory(options: MemoryOptions): Memory {
             true,
             embedding,
           );
-          if (!similar.ok) return similar;
+          if (!similar.ok) {
+            return similar;
+          }
           const nearest = similar.data[0];
           if (
             nearest !== undefined &&
@@ -410,7 +432,9 @@ export function createMemory(options: MemoryOptions): Memory {
             true,
             embedding,
           );
-          if (!record.ok) return record;
+          if (!record.ok) {
+            return record;
+          }
           saved.push(record.data);
         }
         return ok(saved);
@@ -423,7 +447,9 @@ export function createMemory(options: MemoryOptions): Memory {
             (value) => recordsOf(value, "pending_memory_embeddings"),
           ).andThen((rows) =>
             AsyncResult.from(async () => {
-              if (rows.length === 0) return ok(0);
+              if (rows.length === 0) {
+                return ok(0);
+              }
               const vectors = await run(() =>
                 embedder.embed(
                   rows.map((row) => textOf(row["content"])),
@@ -432,9 +458,13 @@ export function createMemory(options: MemoryOptions): Memory {
                     : { signal: embedOptions.signal },
                 ),
               );
-              if (!vectors.ok) return vectors;
+              if (!vectors.ok) {
+                return vectors;
+              }
               const invalid = checkVectors(vectors.data, rows.length);
-              if (invalid) return err(invalid);
+              if (invalid) {
+                return err(invalid);
+              }
               return service(
                 "set_memory_embeddings",
                 {

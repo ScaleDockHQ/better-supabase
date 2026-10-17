@@ -18,7 +18,9 @@ export function autoTablesOf(ctx: ModuleContext): AutoTables | undefined {
   const where = "blocks.data-lifecycle.options.autoTables";
   const option =
     ctx.option("tables") === "auto" ? {} : ctx.option("autoTables");
-  if (option === undefined) return undefined;
+  if (option === undefined) {
+    return undefined;
+  }
   if (typeof option !== "object" || option === null || Array.isArray(option)) {
     throw new TypeError(
       `${where} must be an object of { schemas?, tenant?, user?, exclude?, purge? }`,
@@ -31,26 +33,35 @@ export function autoTablesOf(ctx: ModuleContext): AutoTables | undefined {
     fallback: readonly string[],
   ): readonly string[] => {
     const value = config[key];
-    if (value === undefined) return fallback;
+    if (value === undefined) {
+      return fallback;
+    }
     if (
       !Array.isArray(value) ||
       !value.every((item) => typeof item === "string")
-    )
+    ) {
       throw new TypeError(`${where}.${key} must be a list of strings`);
+    }
     return value;
   };
   const column = (key: string, fallback?: string): string | undefined => {
     const value = config[key];
-    if (value === undefined) return fallback;
-    if (value === null) return undefined;
-    if (typeof value !== "string" || !IDENT.test(value))
+    if (value === undefined) {
+      return fallback;
+    }
+    if (value === null) {
+      return undefined;
+    }
+    if (typeof value !== "string" || !IDENT.test(value)) {
       throw new TypeError(`${where}.${key} must be a lowercase column name`);
+    }
     return value;
   };
   const schemas = list("schemas", ["public"]);
   for (const schema of schemas) {
-    if (!IDENT.test(schema))
+    if (!IDENT.test(schema)) {
       throw new TypeError(`${where}.schemas: "${schema}" is not a schema name`);
+    }
   }
   return {
     schemas,

@@ -14,7 +14,9 @@ export async function StoredChat({
 }) {
   const { id } = await params;
   const chat = await getStoredChat(id);
-  if (chat === undefined) notFound();
+  if (chat === undefined) {
+    notFound();
+  }
   return (
     <AssistantChat
       id={id}

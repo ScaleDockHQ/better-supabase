@@ -27,7 +27,9 @@ export function block(
   children: readonly string[],
   empty = "{ [_ in never]: never }",
 ): string[] {
-  if (children.length === 0) return [`${name}: ${empty};`];
+  if (children.length === 0) {
+    return [`${name}: ${empty};`];
+  }
   return [`${name}: {`, ...indent(children, 1), "};"];
 }
 
@@ -42,9 +44,15 @@ export function sameColumns(
 }
 
 export function singular(name: string): string {
-  if (name.endsWith("ies")) return `${name.slice(0, -3)}y`;
-  if (name.endsWith("sses")) return name.slice(0, -2);
-  if (name.endsWith("s") && !name.endsWith("ss")) return name.slice(0, -1);
+  if (name.endsWith("ies")) {
+    return `${name.slice(0, -3)}y`;
+  }
+  if (name.endsWith("sses")) {
+    return name.slice(0, -2);
+  }
+  if (name.endsWith("s") && !name.endsWith("ss")) {
+    return name.slice(0, -1);
+  }
   return name;
 }
 
@@ -105,8 +113,12 @@ export function parseCheckUnion(
     const values: string[] = [];
     for (const term of terms) {
       const match = OR_TERM.exec(term.trim());
-      if (!match?.[1]) return undefined;
-      if (column && column !== match[1]) return undefined;
+      if (!match?.[1]) {
+        return undefined;
+      }
+      if (column && column !== match[1]) {
+        return undefined;
+      }
       column = match[1];
       values.push((match[2] ?? "").replaceAll("''", "'"));
     }
@@ -123,14 +135,19 @@ function unwrap(text: string): string {
     let wraps = true;
     for (let index = 0; index < current.length; index++) {
       const char = current[index];
-      if (char === "(") depth++;
-      else if (char === ")") depth--;
+      if (char === "(") {
+        depth++;
+      } else if (char === ")") {
+        depth--;
+      }
       if (depth === 0 && index < current.length - 1) {
         wraps = false;
         break;
       }
     }
-    if (!wraps) break;
+    if (!wraps) {
+      break;
+    }
     current = current.slice(1, -1).trim();
   }
   return current;
@@ -146,13 +163,18 @@ function splitTopLevel(text: string, keyword: "AND" | "OR"): string[] {
   for (let index = 0; index < text.length; index++) {
     const char = text[index];
     if (quote) {
-      if (char === quote) quote = undefined;
+      if (char === quote) {
+        quote = undefined;
+      }
       continue;
     }
-    if (char === "'" || char === '"') quote = char;
-    else if (char === "(") depth++;
-    else if (char === ")") depth--;
-    else if (
+    if (char === "'" || char === '"') {
+      quote = char;
+    } else if (char === "(") {
+      depth++;
+    } else if (char === ")") {
+      depth--;
+    } else if (
       depth === 0 &&
       text.slice(index, index + separator.length).toUpperCase() === separator
     ) {
@@ -175,14 +197,22 @@ const IS_NOT_NULL = /^(?:"((?:[^"]|"")+)"|([\w$]+)) IS NOT NULL$/i;
 export function parseCheckNotNull(definition: string): string[] {
   const text = definition.trim();
   // A NOT VALID constraint says nothing about the rows already there.
-  if (/\bNOT VALID$/i.test(text)) return [];
+  if (/\bNOT VALID$/i.test(text)) {
+    return [];
+  }
   const body = /^CHECK\s*(.*)$/is.exec(text)?.[1];
-  if (!body) return [];
+  if (!body) {
+    return [];
+  }
   const expression = unwrap(body);
-  if (splitTopLevel(expression, "OR").length > 1) return [];
+  if (splitTopLevel(expression, "OR").length > 1) {
+    return [];
+  }
   return splitTopLevel(expression, "AND").flatMap((term) => {
     const match = IS_NOT_NULL.exec(unwrap(term));
-    if (!match) return [];
+    if (!match) {
+      return [];
+    }
     return [match[1]?.replaceAll('""', '"') ?? match[2] ?? ""];
   });
 }

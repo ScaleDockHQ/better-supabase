@@ -48,10 +48,14 @@ export function useSessionChange(
     async (to?: string): Promise<void> => {
       if (refresher) {
         const { error } = await refresher.auth.refreshSession();
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       }
       await changed();
-      if (to !== undefined) used.push(to);
+      if (to !== undefined) {
+        used.push(to);
+      }
       used.refresh();
     },
     [changed, used, refresher],

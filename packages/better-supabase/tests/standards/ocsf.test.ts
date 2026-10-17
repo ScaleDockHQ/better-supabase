@@ -88,12 +88,15 @@ describe("OCSF events from exportAuditLog", () => {
     "entry %s has the base and class attributes",
     (_id, entry) => {
       const event = toOcsf(entry, { name: "Acme", vendor_name: "Acme Inc." });
-      for (const attribute of BASE) expect(event).toHaveProperty(attribute);
+      for (const attribute of BASE) {
+        expect(event).toHaveProperty(attribute);
+      }
       const classUid = Number(event["class_uid"]);
       const activity = Number(event["activity_id"]);
       expect(event["category_uid"]).toBe(CATEGORY[classUid]);
-      for (const attribute of CLASS_REQUIRED[classUid] ?? [])
+      for (const attribute of CLASS_REQUIRED[classUid] ?? []) {
         expect(event).toHaveProperty(attribute);
+      }
       expect(ACTIVITIES[classUid]).toContain(activity);
       // type_uid is class_uid * 100 + activity_id.
       expect(event["type_uid"]).toBe(classUid * 100 + activity);

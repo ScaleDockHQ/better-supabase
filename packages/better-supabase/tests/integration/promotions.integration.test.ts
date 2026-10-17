@@ -516,8 +516,9 @@ describe.skipIf(!live)("promotions module in Postgres", () => {
         endsAt: "2026-01-01T00:00:00Z",
       },
       { name: "x", kind: "free_shipping", usageLimit: 0 },
-    ])
+    ]) {
       expect(await invalid(data)).toBe("PROMOTIONS_INVALID");
+    }
 
     const ended = await promotion({
       name: "Ended",
@@ -532,8 +533,9 @@ describe.skipIf(!live)("promotions module in Postgres", () => {
       [ended],
     );
     expect(generated).toHaveLength(3);
-    for (const entry of generated)
+    for (const entry of generated) {
       expect(entry.code).toMatch(/^BF-[A-HJ-NP-Z2-9]{8}$/);
+    }
     expect(
       await session.hint(
         "better_supabase.create_promotion_codes($1, $2, null, null, null)",

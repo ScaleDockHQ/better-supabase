@@ -147,11 +147,16 @@ export function createSolidStart<
           ? options.platformEnv(event)
           : event.nativeEvent?.context?.cloudflare?.env;
         const outcome = await run(event.request, env);
-        if (!outcome.reached) return outcome.response;
-        for (const cookie of outcome.headers.getSetCookie())
+        if (!outcome.reached) {
+          return outcome.response;
+        }
+        for (const cookie of outcome.headers.getSetCookie()) {
           event.response.headers.append("set-cookie", cookie);
+        }
         for (const [name, value] of outcome.headers) {
-          if (name !== "set-cookie") event.response.headers.set(name, value);
+          if (name !== "set-cookie") {
+            event.response.headers.set(name, value);
+          }
         }
         Object.assign(
           event.locals,

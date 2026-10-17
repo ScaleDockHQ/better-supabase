@@ -56,8 +56,11 @@ export function useOAuthConsent(
         authorizationId,
         redirect: (url) => {
           const redirect = latest.current.redirect;
-          if (redirect) redirect(url);
-          else globalThis.location.assign(url);
+          if (redirect) {
+            redirect(url);
+          } else {
+            globalThis.location.assign(url);
+          }
         },
       }),
     [supabase, auth, authorizationId, latest],

@@ -68,7 +68,9 @@ export async function startCheckout(
     body: JSON.stringify({ plan }),
   });
   const body: unknown = await response.json();
-  if (isProblem(body)) return err(fromProblem(body));
+  if (isProblem(body)) {
+    return err(fromProblem(body));
+  }
   const started = v.safeParse(CheckoutStarted, body);
   if (!response.ok || !started.success) {
     return err(dbError("unexpected", `Checkout answered ${response.status}`));

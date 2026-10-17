@@ -65,7 +65,9 @@ function approver(
   check: ApproverCheck | undefined,
 ): string {
   const a = names.c.approvals;
-  if (check === undefined) return `v_row.${a.owner} = (select auth.uid())`;
+  if (check === undefined) {
+    return `v_row.${a.owner} = (select auth.uid())`;
+  }
   const distinct = check.distinct
     ? `v_row.${a.owner} is distinct from (select auth.uid()) and `
     : "";

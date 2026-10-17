@@ -63,25 +63,35 @@ const signParams = (alg: SigningAlgorithm) =>
 
 /** The key type behind a JWS `alg`, or undefined for one this module doesn't verify. */
 function keyAlgorithmOf(alg: string): SigningAlgorithm | undefined {
-  if (alg === "ES256") return "ES256";
-  if (alg === "EdDSA" || alg === "Ed25519") return "Ed25519";
+  if (alg === "ES256") {
+    return "ES256";
+  }
+  if (alg === "EdDSA" || alg === "Ed25519") {
+    return "Ed25519";
+  }
   return undefined;
 }
 
 /** The key type of a JWK: `OKP`/`Ed25519` or `EC`/`P-256`. */
 function jwkAlgorithm(jwk: Jwk): SigningAlgorithm | undefined {
-  if (jwk.kty === "OKP" && jwk.crv === "Ed25519") return "Ed25519";
-  if (jwk.kty === "EC" && jwk.crv === "P-256") return "ES256";
+  if (jwk.kty === "OKP" && jwk.crv === "Ed25519") {
+    return "Ed25519";
+  }
+  if (jwk.kty === "EC" && jwk.crv === "P-256") {
+    return "ES256";
+  }
   return undefined;
 }
 
 /** The public members of `jwk`, without `d` and other private parts. */
 export function publicJwk(jwk: Jwk): Jwk {
   const alg = jwkAlgorithm(jwk);
-  if (alg === "Ed25519")
+  if (alg === "Ed25519") {
     return { kty: "OKP", crv: "Ed25519", x: String(jwk.x) };
-  if (alg === "ES256")
+  }
+  if (alg === "ES256") {
     return { kty: "EC", crv: "P-256", x: String(jwk.x), y: String(jwk.y) };
+  }
   throw new TypeError("Only Ed25519 and P-256 keys are supported");
 }
 
@@ -199,15 +209,18 @@ export class JwsError extends Error {
 }
 
 function part(text: string | undefined): Record<string, unknown> {
-  if (text === undefined) throw new JwsError("JWS_MALFORMED", "Not a JWS");
+  if (text === undefined) {
+    throw new JwsError("JWS_MALFORMED", "Not a JWS");
+  }
   let value: unknown;
   try {
     value = JSON.parse(decoder.decode(fromBase64(text)));
   } catch {
     throw new JwsError("JWS_MALFORMED", "A JWS part is not base64url JSON");
   }
-  if (!isRecord(value))
+  if (!isRecord(value)) {
     throw new JwsError("JWS_MALFORMED", "A JWS part is not a JSON object");
+  }
   return value;
 }
 
@@ -222,8 +235,9 @@ export async function verifyCompact(
   options: VerifyCompactOptions = {},
 ): Promise<VerifiedJws> {
   const pieces = token.split(".");
-  if (pieces.length !== 3)
+  if (pieces.length !== 3) {
     throw new JwsError("JWS_MALFORMED", "A compact JWS has three parts");
+  }
   const header = part(pieces[0]);
   const payload = part(pieces[1]);
   const alg = typeof header["alg"] === "string" ? header["alg"] : "";
@@ -254,7 +268,9 @@ export async function verifyCompact(
     fromBase64(pieces[2] ?? ""),
     encoder.encode(`${pieces[0]}.${pieces[1]}`),
   );
-  if (!valid) throw new JwsError("JWS_SIGNATURE", "The signature is invalid");
+  if (!valid) {
+    throw new JwsError("JWS_SIGNATURE", "The signature is invalid");
+  }
   return { header, payload };
 }
 

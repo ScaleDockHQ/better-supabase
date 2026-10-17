@@ -75,7 +75,9 @@ describe.skipIf(!live)("support storage against the local stack", () => {
     const admin = service.storage.from(files.id);
     for (const path of [...own, hidden]) {
       const { error } = await admin.upload(path, text(path), { upsert: true });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     }
   });
   afterAll(async () => {
@@ -235,7 +237,9 @@ create policy bs_it_insert_only_select on storage.objects for select to authenti
     const { error } = await service.storage
       .from(files.id)
       .upload(hidden, text(hidden), { upsert: true });
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
   });
   afterAll(async () => {
     for (const bucket of [files.id, plain.id, INSERT_ONLY]) {
@@ -243,8 +247,9 @@ create policy bs_it_insert_only_select on storage.objects for select to authenti
         "select name from storage.objects where bucket_id = $1 and name like $2",
         [bucket, `%/${RUN}/w/%`],
       );
-      if (rows.length > 0)
+      if (rows.length > 0) {
         await service.storage.from(bucket).remove(rows.map((r) => r.name));
+      }
     }
     await postgres.end();
     await pool.end();
@@ -304,7 +309,9 @@ create policy bs_it_insert_only_select on storage.objects for select to authenti
     const { error } = await service.storage
       .from(files.id)
       .upload(path, text("old"));
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     expect(await row(files.id, path)).toMatchObject({ owner_id: null });
     expect((await asTarget.update(path, text("new"))).error).toBeNull();
     expect(await row(files.id, path)).toMatchObject({
@@ -352,7 +359,9 @@ create policy bs_it_insert_only_select on storage.objects for select to authenti
     const { error } = await service.storage
       .from(files.id)
       .upload(unowned, text("service"));
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     expect(await row(files.id, unowned)).toMatchObject({ owner_id: null });
     expect((await asTarget.move(unowned, claimed)).error).toBeNull();
     expect(await row(files.id, claimed)).toMatchObject({

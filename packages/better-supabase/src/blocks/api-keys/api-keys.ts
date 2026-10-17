@@ -145,8 +145,9 @@ const CRC_TABLE = ((): Uint32Array => {
   const table = new Uint32Array(256);
   for (let index = 0; index < 256; index += 1) {
     let value = index;
-    for (let bit = 0; bit < 8; bit += 1)
+    for (let bit = 0; bit < 8; bit += 1) {
       value = value & 1 ? 0xed_b8_83_20 ^ (value >>> 1) : value >>> 1;
+    }
     table[index] = value >>> 0;
   }
   return table;
@@ -159,10 +160,11 @@ const CRC_TABLE = ((): Uint32Array => {
  */
 export function apiKeyChecksum(text: string): string {
   let crc = 0xff_ff_ff_ff;
-  for (let index = 0; index < text.length; index += 1)
+  for (let index = 0; index < text.length; index += 1) {
     crc =
       (CRC_TABLE[(crc ^ (text.codePointAt(index) ?? 0)) & 0xff] ?? 0) ^
       (crc >>> 8);
+  }
   let value = (crc ^ 0xff_ff_ff_ff) >>> 0;
   let out = "";
   for (let index = 0; index < CHECKSUM_LENGTH; index += 1) {
@@ -179,8 +181,9 @@ function base62Secret(): string {
     crypto.getRandomValues(bytes);
     for (const byte of bytes) {
       // 248 = 4 * 62: rejecting the rest keeps every character equally likely.
-      if (byte < 248 && secret.length < SECRET_LENGTH)
+      if (byte < 248 && secret.length < SECRET_LENGTH) {
         secret += ALPHABET[byte % 62];
+      }
     }
   }
   return secret;
@@ -195,7 +198,9 @@ function base62Secret(): string {
  */
 export function parseApiKey(token: string): ParsedApiKey | undefined {
   const match = TOKEN.exec(token.trim());
-  if (!match) return undefined;
+  if (!match) {
+    return undefined;
+  }
   const prefix = match[1]!;
   const publicId = match[2]!;
   const tail = match[3]!;
@@ -229,12 +234,18 @@ function stateOf(
   expiresAt: Temporal.Instant | undefined,
 ): ApiKeyState {
   const known = STATES.find((state) => state === value);
-  if (known) return known;
+  if (known) {
+    return known;
+  }
   const now = temporal().Now.instant();
   const past = (at: Temporal.Instant | undefined): boolean =>
     at !== undefined && temporal().Instant.compare(at, now) <= 0;
-  if (past(revokedAt)) return "revoked";
-  if (past(expiresAt)) return "expired";
+  if (past(revokedAt)) {
+    return "revoked";
+  }
+  if (past(expiresAt)) {
+    return "expired";
+  }
   return revokedAt === undefined ? "active" : "grace";
 }
 
@@ -385,8 +396,9 @@ export function createApiKeys<
     verify: (token) =>
       AsyncResult.from(async () => {
         const parsed = parseApiKey(token);
-        if (!parsed || parsed.prefix !== prefix)
+        if (!parsed || parsed.prefix !== prefix) {
           return ok<ApiKeyCheck<F>>({ status: "invalid" });
+        }
         return call(
           "verify_api_key",
           {
@@ -396,7 +408,9 @@ export function createApiKeys<
           (value) => value,
         ).andThen(async (value): Promise<Result<ApiKeyCheck<F>>> => {
           const check = checkOf(value);
-          if (check.status !== "ok") return ok(check);
+          if (check.status !== "ok") {
+            return ok(check);
+          }
           const raw = recordOf(value, "verify_api_key")["key"];
           const key = await withFields(fields, raw, check.key);
           return key.ok ? ok({ status: "ok", key: key.data }) : key;
@@ -522,8 +536,12 @@ export function apiKeyClaims<F extends object = Record<never, never>>(
     const target: Record<string, unknown> =
       claim === "api_key" ? base : { id: key.id, name: key.name };
     target[names.scopes ?? "scopes"] = scopes.filter((scope) => scope !== "*");
-    if (service) target[names.tenant ?? "tenant"] = key.organizationId;
-    if (roles && roles.length > 0) target[names.roles ?? "roles"] = [...roles];
+    if (service) {
+      target[names.tenant ?? "tenant"] = key.organizationId;
+    }
+    if (roles && roles.length > 0) {
+      target[names.roles ?? "roles"] = [...roles];
+    }
     claims[claim] = target;
   }
   if (
@@ -539,7 +557,9 @@ export function apiKeyClaims<F extends object = Record<never, never>>(
 
 function presented(request: Request, header: string): string | undefined {
   const direct = request.headers.get(header)?.trim();
-  if (direct) return direct;
+  if (direct) {
+    return direct;
+  }
   const authorization = request.headers.get("authorization");
   const bearer = authorization?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
   return bearer && parseApiKey(bearer) ? bearer : undefined;
@@ -558,9 +578,13 @@ export function apiKeyResolver<F extends object = Record<never, never>>(
     name: "api-keys",
     async resolve(request): Promise<ResolvedState | undefined> {
       const token = presented(request, header);
-      if (token === undefined) return undefined;
+      if (token === undefined) {
+        return undefined;
+      }
       const checked = await options.keys.verify(token);
-      if (!checked.ok) return { kind: "invalid", error: checked.error };
+      if (!checked.ok) {
+        return { kind: "invalid", error: checked.error };
+      }
       const check = checked.data;
       switch (check.status) {
         case "ok": {

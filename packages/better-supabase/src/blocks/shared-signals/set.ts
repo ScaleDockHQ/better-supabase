@@ -188,7 +188,9 @@ const fail = (err: SetErrorCode, description: string): SetVerification => ({
 });
 
 const jwsFailure = (cause: unknown): SetVerification => {
-  if (!(cause instanceof JwsError)) throw cause;
+  if (!(cause instanceof JwsError)) {
+    throw cause;
+  }
   switch (cause.code) {
     case "JWS_MALFORMED":
     case "JWS_TYP":
@@ -216,10 +218,12 @@ export async function verifySet(
   }
   const typ =
     typeof header["typ"] === "string" ? header["typ"].toLowerCase() : "";
-  if (typ !== SET_TYP && typ !== SET_CONTENT_TYPE)
+  if (typ !== SET_TYP && typ !== SET_CONTENT_TYPE) {
     return fail("invalid_request", `The typ must be ${SET_TYP}`);
-  if (payload["iss"] !== options.issuer)
+  }
+  if (payload["iss"] !== options.issuer) {
     return fail("invalid_issuer", "The iss is not the transmitter's issuer");
+  }
   const aud = payload["aud"];
   const audience =
     typeof aud === "string"
@@ -227,33 +231,40 @@ export async function verifySet(
       : Array.isArray(aud)
         ? aud.filter((value): value is string => typeof value === "string")
         : [];
-  if (!audience.includes(options.audience))
+  if (!audience.includes(options.audience)) {
     return fail("invalid_audience", "The aud does not name this receiver");
+  }
   const jti = payload["jti"];
-  if (typeof jti !== "string" || jti === "")
+  if (typeof jti !== "string" || jti === "") {
     return fail("invalid_request", "The SET has no jti");
+  }
   const iat = payload["iat"];
-  if (typeof iat !== "number" || !Number.isFinite(iat))
+  if (typeof iat !== "number" || !Number.isFinite(iat)) {
     return fail("invalid_request", "The SET has no iat");
-  if (iat > Date.now() / 1000 + (options.skewSeconds ?? 300))
+  }
+  if (iat > Date.now() / 1000 + (options.skewSeconds ?? 300)) {
     return fail("invalid_request", "The iat is in the future");
+  }
   const events = payload["events"];
   const entries = isRecord(events) ? Object.entries(events) : [];
   const [entry] = entries;
-  if (entry === undefined || entries.length !== 1 || !isRecord(entry[1]))
+  if (entry === undefined || entries.length !== 1 || !isRecord(entry[1])) {
     return fail("invalid_request", "A SET carries exactly one event");
+  }
   const subject = payload["sub_id"];
-  if (!isRecord(subject) || typeof subject["format"] !== "string")
+  if (!isRecord(subject) || typeof subject["format"] !== "string") {
     return fail("invalid_request", "The SET has no sub_id");
+  }
   const understood = options.understoodSubjectMembers ?? SSF_MEMBERS;
   const unknown = (options.criticalSubjectMembers ?? []).find(
     (member) => member in subject && !understood.includes(member),
   );
-  if (unknown !== undefined)
+  if (unknown !== undefined) {
     return fail(
       "invalid_request",
       `The critical subject member ${unknown} is not understood`,
     );
+  }
   const txn = payload["txn"];
   return {
     ok: true,

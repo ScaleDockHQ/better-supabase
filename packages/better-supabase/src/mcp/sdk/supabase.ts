@@ -46,7 +46,9 @@ export interface SupabaseMcpLoaders {
 }
 
 function userOf<C, P>(authInfo: unknown): UserAuth<C, P> | undefined {
-  if (!isRecord(authInfo) || !isRecord(authInfo["extra"])) return undefined;
+  if (!isRecord(authInfo) || !isRecord(authInfo["extra"])) {
+    return undefined;
+  }
   const state = authInfo["extra"][MCP_AUTH_STATE_KEY];
   // SAFETY: auth.serve puts the AuthState its verifier resolved under this key.
   return isRecord(state) && state["kind"] === "user"
@@ -119,7 +121,9 @@ export function supabaseMcpHandler<
       const token = await options.credentials.getToken(options.credentialRef, {
         subject: { type: "app" },
       });
-      if (!token.ok) return problemResponse(token.error);
+      if (!token.ok) {
+        return problemResponse(token.error);
+      }
       const [server, platform] = await Promise.all([
         loadServer(),
         loadPlatform(),
@@ -139,7 +143,9 @@ export function supabaseMcpHandler<
       });
       let closed = false;
       const close = (): void => {
-        if (closed) return;
+        if (closed) {
+          return;
+        }
         closed = true;
         void handler.close().catch(() => {});
       };

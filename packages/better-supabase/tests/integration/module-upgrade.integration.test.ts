@@ -40,8 +40,9 @@ describe.skipIf(!live)("upgrading SQL modules installed by 0.4.0", () => {
     try {
       await client.query("begin");
       await client.query("drop schema if exists better_supabase cascade");
-      for (const name of (await readdir(FIXTURES)).toSorted())
+      for (const name of (await readdir(FIXTURES)).toSorted()) {
         await client.query(await readFile(new URL(name, FIXTURES), "utf-8"));
+      }
 
       const { rows: users } = await client.query<{ id: string }>(
         "select id from auth.users order by created_at limit 1",
@@ -70,10 +71,16 @@ describe.skipIf(!live)("upgrading SQL modules installed by 0.4.0", () => {
       expect(plans.map((plan) => plan.module).toSorted()).toEqual(
         MODULES.toSorted(),
       );
-      for (const plan of plans)
-        for (const step of plan.steps) await client.query(step.sql);
-      for (const file of renderModules(MODULES))
-        if (file.kind !== "test") await client.query(file.contents);
+      for (const plan of plans) {
+        for (const step of plan.steps) {
+          await client.query(step.sql);
+        }
+      }
+      for (const file of renderModules(MODULES)) {
+        if (file.kind !== "test") {
+          await client.query(file.contents);
+        }
+      }
 
       await client.query(
         `insert into ${table} (organization_id, name) values ($1, 'after')`,

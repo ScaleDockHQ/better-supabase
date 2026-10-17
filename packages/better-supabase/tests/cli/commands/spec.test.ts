@@ -157,7 +157,9 @@ describe("spec emit --watch", () => {
     );
     const waitFor = async (pattern: RegExp): Promise<void> => {
       for (let attempt = 0; attempt < 200; attempt += 1) {
-        if (lines.some((line) => pattern.test(line))) return;
+        if (lines.some((line) => pattern.test(line))) {
+          return;
+        }
         await new Promise((done) => {
           setTimeout(done, 20);
         });

@@ -136,8 +136,9 @@ function eventFields(
     [e("exdates"), "v_exdates"],
   ];
   for (const column of ["description", "location", "color"] as const) {
-    if (ctx.has("events", column))
+    if (ctx.has("events", column)) {
       fields.push([e(column), `v_item ->> '${column}'`]);
+    }
   }
   if (ctx.has("events", "subjectType") && ctx.has("events", "subjectId")) {
     fields.push(
@@ -167,10 +168,14 @@ function updateSet(ctx: ModuleContext): string {
   const values = new Map(eventFields(ctx));
   const sets: string[] = [];
   for (const [column, key] of Object.entries(keys)) {
-    if (!ctx.has("events", column)) continue;
+    if (!ctx.has("events", column)) {
+      continue;
+    }
     const ident = ctx.col("events", column);
     const value = values.get(ident);
-    if (value === undefined) continue;
+    if (value === undefined) {
+      continue;
+    }
     sets.push(
       `${ident} = case when v_item ? '${key}' then ${value} else ${ident} end`,
     );
@@ -218,9 +223,13 @@ function eventJson(ctx: ModuleContext, attendees: string): string {
 
 /** The reminders rule that mirrors an event, so reminders can attach to it. */
 function reminderRule(ctx: ModuleContext, op: "save" | "delete"): string {
-  if (!ctx.installed("reminders")) return "";
+  if (!ctx.installed("reminders")) {
+    return "";
+  }
   const r = ctx.of("reminders");
-  if (!r.has("rules", "rrule")) return "";
+  if (!r.has("rules", "rrule")) {
+    return "";
+  }
   const rules = r.table("rules");
   const col = (column: string) => r.col("rules", column);
   if (op === "delete") {
@@ -239,7 +248,9 @@ function feed(
   calendars: string,
   attendees: string,
 ): string {
-  if (!ctx.installed("share-links")) return "";
+  if (!ctx.installed("share-links")) {
+    return "";
+  }
   const s = ctx.of("share-links");
   const links = s.table("links");
   const l = (column: string) => `l.${s.col("links", column)}`;
@@ -290,7 +301,9 @@ grant execute on function ${ctx.fn("calendar_feed")}(text) to anon, authenticate
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const calendars = ctx.table("calendars");
   const events = ctx.table("events");
   const attendees = ctx.hasTable("attendees") ? ctx.table("attendees") : "";

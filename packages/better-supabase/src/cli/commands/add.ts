@@ -80,7 +80,9 @@ async function addBlocks(
     names,
     deps,
   );
-  if (added.code !== 0) return added;
+  if (added.code !== 0) {
+    return added;
+  }
   const lines = [added.output ?? ""];
   const project = await detectProject(config.root);
   const context = templateContextFor(project, config.output);
@@ -113,7 +115,9 @@ async function addBlocks(
     const edit =
       current === undefined ? undefined : addBlocksToWiring(current, clients);
     if (edit?.ok === true && edit.text !== current) {
-      if (args["dry-run"] !== true) await writeFile(path, edit.text);
+      if (args["dry-run"] !== true) {
+        await writeFile(path, edit.text);
+      }
       lines.push(
         "",
         `${args["dry-run"] === true ? "Would wire" : "Wired"} ${clients.map((client) => client.key).join(", ")} in ${wiring}.`,
@@ -198,28 +202,36 @@ async function addIntegrations(
       (file) => !existsSync(resolve(config.root, file.path)),
     ),
   );
-  if (fromConfig && missing.length === 0)
+  if (fromConfig && missing.length === 0) {
     return {
       code: 0,
       output: `Every integration in the config is set up: ${config.integrations.join(", ")}.`,
     };
+  }
   const named = fromConfig
     ? missing
     : args._.length === 0 && prompts
       ? await chooseIntegrations(prompts, [])
       : args._;
-  if (named === undefined) return CANCELLED;
-  if (named.length === 0)
+  if (named === undefined) {
+    return CANCELLED;
+  }
+  if (named.length === 0) {
     return {
       code: 2,
       error: `Name at least one integration (${INTEGRATIONS.join(", ")}), or list them in integrations in the config.`,
     };
+  }
   const requested = parseIntegrations(named);
-  if (typeof requested === "string") return { code: 2, error: requested };
+  if (typeof requested === "string") {
+    return { code: 2, error: requested };
+  }
   const integrations = resolveIntegrations(requested);
   const files = integrationFiles(integrations, templateContext);
   const force = await overwrite(config.root, files, args, prompts);
-  if (force === undefined) return CANCELLED;
+  if (force === undefined) {
+    return CANCELLED;
+  }
   const lines = await writeFiles(config.root, files, args, force);
   const lib = libEntry(templateContext);
   if (
@@ -234,23 +246,27 @@ async function addIntegrations(
   const packages = packagesFor(project, integrations).filter(
     (name) => name !== "better-supabase" && name !== "@supabase/supabase-js",
   );
-  if (packages.length > 0)
+  if (packages.length > 0) {
     lines.push(
       "",
       `Install: ${installCommand(project.packageManager, packages)}`,
     );
+  }
   for (const name of integrations) {
-    for (const hint of TEMPLATES[name].next ?? []) lines.push(`- ${hint}`);
+    for (const hint of TEMPLATES[name].next ?? []) {
+      lines.push(`- ${hint}`);
+    }
   }
   const unlisted = integrations.filter(
     (name) => !config.integrations.includes(name),
   );
-  if (unlisted.length > 0)
+  if (unlisted.length > 0) {
     lines.push(
       "",
       "Add them to your config so `better-supabase add` sets them up in a fresh checkout:",
       `  integrations: [${[...config.integrations, ...unlisted].map((name) => `'${name}'`).join(", ")}]`,
     );
+  }
   return { code: 0, output: lines.join("\n") };
 }
 

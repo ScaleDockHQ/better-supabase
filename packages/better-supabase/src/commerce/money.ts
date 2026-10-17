@@ -36,20 +36,22 @@ export function isCurrency(code: unknown): code is string {
 
 /** The number of minor units of `currency`: 2 for EUR, 0 for JPY, 3 for KWD. */
 export function minorUnits(currency: string): number {
-  if (!isCurrency(currency))
+  if (!isCurrency(currency)) {
     throw new RangeError(
       `"${String(currency)}" is not an ISO 4217 currency code with minor units`,
     );
+  }
   return ISO_4217_MINOR_UNITS[currency] ?? 0;
 }
 
 /** `Money` from an integer number of minor units: `money(1999n, "EUR")` is 19.99 EUR. */
 export function money(amount: bigint | number, currency: string): Money {
   minorUnits(currency);
-  if (typeof amount === "number" && !Number.isSafeInteger(amount))
+  if (typeof amount === "number" && !Number.isSafeInteger(amount)) {
     throw new RangeError(
       `${amount} is not a whole number of minor units; use parseMoney for a decimal`,
     );
+  }
   return Object.freeze({ amount: BigInt(amount), currency });
 }
 
@@ -72,12 +74,15 @@ export function isMoney(value: unknown): value is Money {
 export function parseMoney(decimal: string, currency: string): Money {
   const units = minorUnits(currency);
   const match = DECIMAL.exec(decimal.trim());
-  if (!match) throw new RangeError(`"${decimal}" is not a decimal amount`);
+  if (!match) {
+    throw new RangeError(`"${decimal}" is not a decimal amount`);
+  }
   const [, sign, whole = "0", fraction = ""] = match;
-  if (fraction.length > units)
+  if (fraction.length > units) {
     throw new RangeError(
       `"${decimal}" has more decimals than ${currency}'s ${units} minor units`,
     );
+  }
   const amount = BigInt(whole + fraction.padEnd(units, "0"));
   return money(sign === "-" ? -amount : amount, currency);
 }
@@ -129,16 +134,18 @@ export function moneyFromJson(value: unknown): Money {
     typeof value.amount !== "string" ||
     typeof value.currency !== "string" ||
     !/^-?\d+$/.test(value.amount)
-  )
+  ) {
     throw new TypeError(
       'Money JSON is { amount: "<minor units>", currency: "<ISO 4217 code>" }',
     );
+  }
   return money(BigInt(value.amount), value.currency);
 }
 
 const sameCurrency = (a: Money, b: Money): void => {
-  if (a.currency !== b.currency)
+  if (a.currency !== b.currency) {
     throw new CurrencyMismatchError(a.currency, b.currency);
+  }
 };
 
 export function addMoney(a: Money, b: Money): Money {
@@ -154,14 +161,17 @@ export function subtractMoney(a: Money, b: Money): Money {
 /** The total of `values`, all in `currency`; zero for an empty list. */
 export function sumMoney(values: readonly Money[], currency: string): Money {
   let total = money(0n, currency);
-  for (const value of values) total = addMoney(total, value);
+  for (const value of values) {
+    total = addMoney(total, value);
+  }
   return total;
 }
 
 /** `value` times a whole `quantity`, such as a unit price times the line's quantity. */
 export function multiplyMoney(value: Money, quantity: bigint | number): Money {
-  if (typeof quantity === "number" && !Number.isSafeInteger(quantity))
+  if (typeof quantity === "number" && !Number.isSafeInteger(quantity)) {
     throw new RangeError(`${quantity} is not a whole quantity`);
+  }
   return money(value.amount * BigInt(quantity), value.currency);
 }
 
@@ -172,7 +182,9 @@ export function negateMoney(value: Money): Money {
 /** -1, 0 or 1; throws for different currencies. */
 export function compareMoney(a: Money, b: Money): -1 | 0 | 1 {
   sameCurrency(a, b);
-  if (a.amount === b.amount) return 0;
+  if (a.amount === b.amount) {
+    return 0;
+  }
   return a.amount < b.amount ? -1 : 1;
 }
 
@@ -181,15 +193,21 @@ export function compareMoney(a: Money, b: Money): -1 | 0 | 1 {
  * go to the even neighbour, so rounding many lines doesn't drift one way.
  */
 export function roundHalfEven(numerator: bigint, denominator: bigint): bigint {
-  if (denominator === 0n) throw new RangeError("Division by zero");
+  if (denominator === 0n) {
+    throw new RangeError("Division by zero");
+  }
   const [n, d] =
     denominator < 0n ? [-numerator, -denominator] : [numerator, denominator];
   const quotient = n / d;
   const remainder = n % d;
   const twice = 2n * (remainder < 0n ? -remainder : remainder);
-  if (twice < d) return quotient;
+  if (twice < d) {
+    return quotient;
+  }
   const away = n < 0n ? quotient - 1n : quotient + 1n;
-  if (twice > d) return away;
+  if (twice > d) {
+    return away;
+  }
   return quotient % 2n === 0n ? quotient : away;
 }
 
@@ -200,10 +218,11 @@ export function isRate(rate: unknown): rate is string {
 
 const rateParts = (rate: string): readonly [bigint, bigint] => {
   const match = RATE.exec(rate);
-  if (!match)
+  if (!match) {
     throw new RangeError(
       `"${rate}" is not a rate; write a decimal fraction such as "0.21"`,
     );
+  }
   const [, whole = "0", fraction = ""] = match;
   return [BigInt(whole + fraction), 10n ** BigInt(fraction.length)];
 };
@@ -237,14 +256,19 @@ export function allocateMoney(
   weights: readonly (bigint | number)[],
 ): Money[] {
   const shares = weights.map((weight) => {
-    if (typeof weight === "number" && !Number.isSafeInteger(weight))
+    if (typeof weight === "number" && !Number.isSafeInteger(weight)) {
       throw new RangeError(`${weight} is not a whole weight`);
+    }
     const share = BigInt(weight);
-    if (share < 0n) throw new RangeError("Weights can't be negative");
+    if (share < 0n) {
+      throw new RangeError("Weights can't be negative");
+    }
     return share;
   });
   const total = shares.reduce((sum, share) => sum + share, 0n);
-  if (total === 0n) throw new RangeError("Weights must add up to more than 0");
+  if (total === 0n) {
+    throw new RangeError("Weights must add up to more than 0");
+  }
   const negative = value.amount < 0n;
   const amount = negative ? -value.amount : value.amount;
   const parts = shares.map((share) => ({
@@ -263,7 +287,9 @@ export function allocateMoney(
     );
   const extra = new Set<number>();
   for (const { index } of order) {
-    if (left === 0n) break;
+    if (left === 0n) {
+      break;
+    }
     extra.add(index);
     left -= 1n;
   }

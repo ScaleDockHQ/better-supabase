@@ -19,7 +19,9 @@ export async function getSchedules(): Promise<readonly ScheduleRow[]> {
   "use cache: private";
   const { session, supabase } = await bs.cached();
   const tenant = tenantOf(session);
-  if (!tenant) return [];
+  if (!tenant) {
+    return [];
+  }
   const schedules = await blocks(supabase)
     .workflows.schedules.list(tenant)
     .orThrow();

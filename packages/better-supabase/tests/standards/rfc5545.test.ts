@@ -88,8 +88,9 @@ describe("RFC 5545", () => {
     );
     const lines = text.split("\r\n");
     expect(text.endsWith("\r\n")).toBe(true);
-    for (const line of lines)
+    for (const line of lines) {
       expect(new TextEncoder().encode(line).length).toBeLessThanOrEqual(75);
+    }
     expect(lines).toContain("BEGIN:VTIMEZONE");
     expect(lines).toContain("TZID:America/New_York");
     expect(lines).toContain("DTSTART;TZID=America/New_York:20260701T040000");

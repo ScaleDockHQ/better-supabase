@@ -175,7 +175,9 @@ describe("createClient", () => {
       {},
       {
         get: (_target, property) => {
-          if (property === "__isUserNotAvailableProxy") return true;
+          if (property === "__isUserNotAvailableProxy") {
+            return true;
+          }
           throw new Error(`read ${String(property)}`);
         },
       },

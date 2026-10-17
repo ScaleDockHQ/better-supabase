@@ -54,8 +54,9 @@ describe.skipIf(!live)("outbox", () => {
     const client = await pool.connect();
     try {
       await client.query("begin");
-      for (const file of renderModules(["outbox"], layout))
+      for (const file of renderModules(["outbox"], layout)) {
         await client.query(file.contents);
+      }
       await client.query(
         `create table ${SCHEMA}.widgets (id bigint primary key, organization text, name text)`,
       );
@@ -243,8 +244,9 @@ describe.skipIf(!live)("outbox", () => {
     expect((await outbox.emit("poison.good", { n: 2 })).ok).toBe(true);
     const handled: string[] = [];
     const handler = (events: readonly { type: string }[]) => {
-      if (events.some((event) => event.type === "poison.bad"))
+      if (events.some((event) => event.type === "poison.bad")) {
         throw new Error("No such customer");
+      }
       handled.push(...events.map((event) => event.type));
     };
     const options = { maxAttempts: 2 };
@@ -296,8 +298,9 @@ describe.skipIf(!live)("outbox", () => {
       `update ${SCHEMA}.outbox_consumers set updated_at = now() - interval '2 days' where name = 'idle'`,
     );
     expect((await outbox.emit("purge.me")).ok).toBe(true);
-    for (const consumer of ["crm", "audit", "poison"])
+    for (const consumer of ["crm", "audit", "poison"]) {
       await outbox.relay(consumer, { send: () => undefined });
+    }
 
     expect((await outbox.purge("0 seconds")).data).toBe(0);
     expect(

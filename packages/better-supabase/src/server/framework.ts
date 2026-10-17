@@ -105,9 +105,13 @@ function isWaitUntilHost(value: unknown): value is WaitUntilHost {
 export function platformWaitUntil(
   platform: unknown,
 ): ((promise: Promise<unknown>) => void) | undefined {
-  if (typeof platform !== "object" || platform === null) return undefined;
+  if (typeof platform !== "object" || platform === null) {
+    return undefined;
+  }
   const context: unknown = "context" in platform ? platform.context : platform;
-  if (!isWaitUntilHost(context)) return undefined;
+  if (!isWaitUntilHost(context)) {
+    return undefined;
+  }
   return (promise) => {
     context.waitUntil(promise);
   };
@@ -116,11 +120,14 @@ export function platformWaitUntil(
 /** The form body as `FormData`, JSON as a value, nothing as `undefined`. */
 export async function actionInput(request: Request): Promise<unknown> {
   const type = request.headers.get("content-type") ?? "";
-  if (type.includes("application/json")) return request.json();
+  if (type.includes("application/json")) {
+    return request.json();
+  }
   if (
     type.includes("form-data") ||
     type.includes("application/x-www-form-urlencoded")
-  )
+  ) {
     return request.formData();
+  }
   return undefined;
 }

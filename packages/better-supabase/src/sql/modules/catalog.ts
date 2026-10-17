@@ -259,7 +259,9 @@ const NAMES: ModuleNames = {
 };
 
 function tables(ctx: ModuleContext, names: Names): string {
-  if (!ctx.manages) return "";
+  if (!ctx.manages) {
+    return "";
+  }
   const t = (name: string): string => ctx.table(name);
   const c = (table: string, column: string): string => ctx.col(table, column);
   const read = (
@@ -427,7 +429,9 @@ ${read("storefronts")}
 
 /** Anon read policies for active products of tenants with a published storefront. */
 function storefrontPolicies(ctx: ModuleContext, names: Names): string {
-  if (!ctx.manages) return "";
+  if (!ctx.manages) {
+    return "";
+  }
   const t = (name: string): string => ctx.table(name);
   const c = (table: string, column: string): string => ctx.col(table, column);
   const publicTables: readonly (readonly [string, string])[] = [
@@ -477,7 +481,9 @@ function storefrontPolicies(ctx: ModuleContext, names: Names): string {
     .map(([table, condition]) => {
       const policy = `${ctx.tableName(table).name}_storefront`;
       const drop = `drop policy if exists ${policy} on ${t(table)};`;
-      if (!on) return drop;
+      if (!on) {
+        return drop;
+      }
       return `${drop}
 grant select on ${t(table)} to anon;
 create policy ${policy} on ${t(table)} for select to anon, authenticated
@@ -487,7 +493,9 @@ using (${condition});`;
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const keys = moduleOperations("catalog");
   const names: Names = {
     scope: ctx.scope,

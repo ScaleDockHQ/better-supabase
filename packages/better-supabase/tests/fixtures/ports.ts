@@ -40,7 +40,9 @@ export function fakeAuth(initial: AuthSnapshot = signedIn()): AuthPort & {
     },
     set: (next) => {
       snapshot = next;
-      for (const listener of [...listeners]) listener();
+      for (const listener of [...listeners]) {
+        listener();
+      }
     },
     listeners: () => listeners.size,
   };
@@ -74,7 +76,9 @@ export function fakeTopic(): {
       watch.onStatus("subscribed");
       return {
         leave: () => {
-          if (entry.left) return;
+          if (entry.left) {
+            return;
+          }
           entry.left = true;
           watch.onStatus("closed");
         },
@@ -85,13 +89,19 @@ export function fakeTopic(): {
     },
     open: () => joined.filter((each) => !each.left).map((each) => each.topic),
     emit: (topic, event, payload = {}) => {
-      for (const each of live(topic)) each.watch.onMessage(event, payload);
+      for (const each of live(topic)) {
+        each.watch.onMessage(event, payload);
+      }
     },
     rejoin: (topic) => {
-      for (const each of live(topic)) each.watch.onRejoin();
+      for (const each of live(topic)) {
+        each.watch.onRejoin();
+      }
     },
     status: (topic, status) => {
-      for (const each of live(topic)) each.watch.onStatus(status);
+      for (const each of live(topic)) {
+        each.watch.onStatus(status);
+      }
     },
   };
 }

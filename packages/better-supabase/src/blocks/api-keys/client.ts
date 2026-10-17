@@ -86,7 +86,9 @@ export function createApiKeysController(
       const refresh = async (): Promise<void> => {
         const request = ++ticket;
         const result = await client.list(organizationId ?? undefined);
-        if (request !== ticket) return;
+        if (request !== ticket) {
+          return;
+        }
         state.set(
           result.ok
             ? { keys: newestFirst(result.data), error: undefined }

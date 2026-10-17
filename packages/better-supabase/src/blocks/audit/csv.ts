@@ -80,9 +80,12 @@ function defaultRow<Columns extends AuditColumns>(
   for (const key of keys) {
     const [scope, ...rest] = key.split(".");
     const name = rest.join(".");
-    if (scope === "columns" && name !== "") row[key] = record.columns?.[name];
-    if (scope === "restricted" && name !== "")
+    if (scope === "columns" && name !== "") {
+      row[key] = record.columns?.[name];
+    }
+    if (scope === "restricted" && name !== "") {
       row[key] = new Map(Object.entries(details ?? {})).get(name);
+    }
   }
   return row;
 }
@@ -112,7 +115,9 @@ export function csvPage<Columns extends AuditColumns>(
   });
   const csv = toCsv(rows, { columns: keys });
   const body = csv.slice(csv.indexOf("\r\n") + 2);
-  if (!first) return body;
+  if (!first) {
+    return body;
+  }
   const header = toCsv([], {
     columns: columns.map((column) =>
       typeof column === "string" ? column : column.label,

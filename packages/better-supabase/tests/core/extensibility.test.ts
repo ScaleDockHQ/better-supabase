@@ -18,12 +18,14 @@ function echo(): Executor {
   return {
     name: "echo",
     execute: (op) => {
-      if (op.kind === "insert")
+      if (op.kind === "insert") {
         return Promise.resolve(
           ok({ rows: op.rows.map((row) => ({ ...row })), count: null }),
         );
-      if (op.kind === "delete" || op.kind === "update")
+      }
+      if (op.kind === "delete" || op.kind === "update") {
         return Promise.resolve(ok({ rows: [{ id: "t1" }], count: null }));
+      }
       return Promise.resolve(ok({ rows: [{ id: "t1", name: "a" }], count: 1 }));
     },
   };

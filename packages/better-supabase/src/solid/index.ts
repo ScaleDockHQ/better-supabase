@@ -116,7 +116,9 @@ export function BetterSupabaseProvider(
         setAuth(client.auth.current());
       }),
     );
-    if (queryClient) onCleanup(clearOnUserChange(queryClient, client.auth));
+    if (queryClient) {
+      onCleanup(clearOnUserChange(queryClient, client.auth));
+    }
   });
   const value: Context = {
     client,
@@ -213,9 +215,13 @@ function useCaller(
   context: Context | undefined,
   client: SupabaseClient | undefined,
 ): Accessor<Caller> {
-  if (context && client === undefined) return () => callerOf(context.auth());
+  if (context && client === undefined) {
+    return () => callerOf(context.auth());
+  }
   const supabase = client ?? context?.client.supabase;
-  if (!supabase) throw new Error("better-supabase: no supabase client");
+  if (!supabase) {
+    throw new Error("better-supabase: no supabase client");
+  }
   const store = plainCaller(supabase);
   const [caller, setCaller] = createSignal(store.current());
   onMount(() => {
@@ -269,12 +275,16 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
   follow(
     createMemo(() => {
       const current = name();
-      if (current === null || caller().status === "loading") return null;
+      if (current === null || caller().status === "loading") {
+        return null;
+      }
       return JSON.stringify([current, caller().userId]);
     }),
     () => {
       const current = name();
-      if (current === null) return;
+      if (current === null) {
+        return;
+      }
       return startBroadcast({
         supabase,
         topic,
@@ -318,7 +328,9 @@ export function useLiveQuery(
     }),
     (key) => {
       const value = current();
-      if (!value || !queryClient) return;
+      if (!value || !queryClient) {
+        return;
+      }
       const resumed = joined === key;
       joined = key;
       return startLiveQuery({
@@ -367,7 +379,9 @@ export function useLiveCount(
   const key = createMemo(() => liveKey(client, parsed().spec, auth(), options));
   follow(key, (next) => {
     const { spec, initial, seedAt } = parsed();
-    if (!spec) return;
+    if (!spec) {
+      return;
+    }
     const previous = joined?.key === next ? joined : null;
     joined = { key: next, at: previous?.at ?? seedAt ?? 0 };
     return startLiveCount({
@@ -380,7 +394,9 @@ export function useLiveCount(
       since: previous ? previous.at : seedAt,
       onState: (update) => {
         const value = setState(update);
-        if (joined?.key === next) joined = { key: next, at: value.at };
+        if (joined?.key === next) {
+          joined = { key: next, at: value.at };
+        }
       },
       onStatus: (next) => {
         setStatus(next);
@@ -449,12 +465,16 @@ export function usePresence<P extends string, I, O>(
   follow(
     createMemo(() => {
       const current = name();
-      if (current === null || caller().status === "loading") return null;
+      if (current === null || caller().status === "loading") {
+        return null;
+      }
       return JSON.stringify([current, caller().userId]);
     }),
     () => {
       const current = name();
-      if (current === null) return;
+      if (current === null) {
+        return;
+      }
       const joined = joinPresence(supabase, topic, current, {
         onStatus: (next) => {
           setStatus(next);
@@ -463,7 +483,9 @@ export function usePresence<P extends string, I, O>(
           setMembers(next);
         },
       });
-      if (!joined) return;
+      if (!joined) {
+        return;
+      }
       setJoin(() => joined);
       return () => {
         setJoin(undefined);

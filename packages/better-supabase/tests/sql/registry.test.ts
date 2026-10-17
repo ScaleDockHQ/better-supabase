@@ -134,12 +134,15 @@ describe("renderModules", () => {
 
   it("keeps every schema module in the better_supabase schema", () => {
     for (const module of Object.values(SQL_MODULES)) {
-      if (module.target !== "schema") continue;
+      if (module.target !== "schema") {
+        continue;
+      }
       const functions = [
         ...module.sql.matchAll(/create or replace function ([\w.]+)\(/g),
       ];
-      for (const [, name] of functions)
+      for (const [, name] of functions) {
         expect(name).toMatch(/^better_supabase\./);
+      }
       expect(module.sql).not.toMatch(/create table (?!if not exists)/);
     }
   });
@@ -332,8 +335,9 @@ describe("ensure-rls", () => {
     expect(file!.contents).toContain(
       "when tag in ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')",
     );
-    for (const schema of ["auth", "storage", "realtime", "extensions"])
+    for (const schema of ["auth", "storage", "realtime", "extensions"]) {
       expect(file!.contents).toContain(`'${schema}'`);
+    }
     expect(file!.contents).toContain(String.raw`like 'pg\_%'`);
   });
 });
@@ -913,8 +917,9 @@ describe("entitlements with provider memberships", () => {
         `tenant_entitlements(${idType})`,
         `tenant_stripe_customer(tenant ${idType})`,
         `tenant_stripe_customer(${idType})`,
-      ])
+      ]) {
         expect(sql).toContain(signature);
+      }
       expect(sql).toContain(`returns setof ${idType}`);
       expect(sql).toContain("feature_claims(user_id uuid)");
       expect(

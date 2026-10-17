@@ -94,7 +94,9 @@ function fakeStore(due: AiBatch[] = []) {
 }
 
 async function* results(count: number) {
-  for (let index = 0; index < count; index++) yield textItem(`r${index}`);
+  for (let index = 0; index < count; index++) {
+    yield textItem(`r${index}`);
+  }
 }
 
 describe("batchItemOf", () => {

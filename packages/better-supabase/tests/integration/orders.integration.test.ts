@@ -41,7 +41,9 @@ interface Order {
 
 const line = (order: Order, sku: string): Order["lines"][number] => {
   const found = order.lines.find((entry) => entry.sku === sku);
-  if (found === undefined) throw new Error(`no ${sku} line`);
+  if (found === undefined) {
+    throw new Error(`no ${sku} line`);
+  }
   return found;
 };
 
@@ -117,12 +119,13 @@ describe.skipIf(!live)("orders module in Postgres", () => {
       "delete from better_supabase.cart_lines where cart_id = $1",
       [created.id],
     );
-    for (const [id, quantity] of lines)
+    for (const [id, quantity] of lines) {
       await call("better_supabase.add_to_cart($1, $2, $3)", [
         created.id,
         id,
         quantity,
       ]);
+    }
     await call("better_supabase.set_cart_details($1, null, $2, $2)", [
       created.id,
       JSON.stringify(ADDRESS),

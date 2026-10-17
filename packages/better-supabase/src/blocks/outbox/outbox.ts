@@ -264,7 +264,9 @@ function toEvent(row: OutboxRow): OutboxEvent {
 }
 
 function toEvents(value: unknown): readonly OutboxEvent[] {
-  if (!Array.isArray(value)) return [];
+  if (!Array.isArray(value)) {
+    return [];
+  }
   return value.filter(isOutboxRow).map(toEvent);
 }
 
@@ -313,12 +315,18 @@ const PARAMS: Readonly<Record<string, readonly string[]>> = {
 };
 
 function toDeadLetters(value: unknown): readonly OutboxDeadLetter[] {
-  if (!Array.isArray(value)) return [];
+  if (!Array.isArray(value)) {
+    return [];
+  }
   return value.flatMap((entry: unknown): OutboxDeadLetter[] => {
-    if (typeof entry !== "object" || entry === null) return [];
+    if (typeof entry !== "object" || entry === null) {
+      return [];
+    }
     const row: Record<string, unknown> = { ...entry };
     const event = row["event"];
-    if (!isOutboxRow(event)) return [];
+    if (!isOutboxRow(event)) {
+      return [];
+    }
     return [
       {
         consumer: String(row["consumer"]),
@@ -374,7 +382,9 @@ export function createOutbox(options: OutboxOptions): Outbox {
     consumer: string,
     events: readonly OutboxEvent[],
   ): Promise<readonly OutboxEvent[]> {
-    if (!subscribers) return events;
+    if (!subscribers) {
+      return events;
+    }
     const allowed = await Promise.all(
       events.map(async (event) => {
         const subscriber = { principal: consumer, kind: "service" as const };
@@ -429,7 +439,9 @@ export function createOutbox(options: OutboxOptions): Outbox {
       let handed: readonly OutboxEvent[];
       try {
         handed = await permitted(consumer, events);
-        if (handed.length > 0) await handler(handed);
+        if (handed.length > 0) {
+          await handler(handed);
+        }
       } catch (cause) {
         const error = toDbError(cause);
         const state = await call("outbox_fail", [
@@ -451,7 +463,9 @@ export function createOutbox(options: OutboxOptions): Outbox {
       }
       delivered += handed.length;
       refused += events.length - handed.length;
-      if (events.length < batch) break;
+      if (events.length < batch) {
+        break;
+      }
     }
     return done({});
   }
@@ -506,7 +520,9 @@ export function createOutbox(options: OutboxOptions): Outbox {
                 routeOptions,
                 spent,
               );
-              if (result.error) routeOptions.onError?.(result.error, consumer);
+              if (result.error) {
+                routeOptions.onError?.(result.error, consumer);
+              }
               return result;
             }),
           );

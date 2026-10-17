@@ -76,9 +76,13 @@ function fakeStripe() {
     work: () => T,
   ): T => {
     const key = options?.idempotencyKey;
-    if (key !== undefined && keys.has(key)) return keys.get(key) as T;
+    if (key !== undefined && keys.has(key)) {
+      return keys.get(key) as T;
+    }
     const result = work();
-    if (key !== undefined) keys.set(key, result);
+    if (key !== undefined) {
+      keys.set(key, result);
+    }
     return result;
   };
   const client: StripeTaxClient = {
@@ -129,7 +133,9 @@ function fakeStripe() {
           once(options, () => {
             calls.push({ method: "commit", params });
             const lines = calculations.get(params.calculation);
-            if (!lines) throw new Error("No such calculation");
+            if (!lines) {
+              throw new Error("No such calculation");
+            }
             const id = `tax_${++next}`;
             transactions.set(
               id,
@@ -144,13 +150,17 @@ function fakeStripe() {
           once(options, () => {
             calls.push({ method: "reversal", params });
             const original = transactions.get(params.original_transaction);
-            if (!original) throw new Error("No such transaction");
+            if (!original) {
+              throw new Error("No such transaction");
+            }
             for (const line of (params["line_items"] as Params[] | undefined) ??
-              [])
+              []) {
               if (
                 !original.some((each) => each.id === line["original_line_item"])
-              )
+              ) {
                 throw new Error("No such line item");
+              }
+            }
             return {
               id: `tax_${++next}`,
               reference: params.reference,

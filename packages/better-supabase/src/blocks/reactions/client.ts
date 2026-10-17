@@ -66,7 +66,9 @@ export function createReactionsController(
           subjectType,
           subjects,
         );
-        if (request !== ticket) return;
+        if (request !== ticket) {
+          return;
+        }
         state.set(
           result.ok
             ? { reactions: result.data, error: undefined }
@@ -85,9 +87,13 @@ export function createReactionsController(
         actions: {
           refresh,
           setSubjects: (subjectIds) => {
-            if (sameIds(subjects, subjectIds)) return;
+            if (sameIds(subjects, subjectIds)) {
+              return;
+            }
             subjects = [...subjectIds];
-            if (watching) void refresh();
+            if (watching) {
+              void refresh();
+            }
           },
           toggle: async (subjectId, emoji) => {
             const present = !state
@@ -119,7 +125,9 @@ export function createReactionsController(
             const leave = topic
               ? options.ports.topic(reactionsTopic(organizationId, topic), {
                   onMessage: (_event, payload) => {
-                    if (watched(payload)) void refresh();
+                    if (watched(payload)) {
+                      void refresh();
+                    }
                   },
                   onRejoin: () => void refresh(),
                   onStatus: (status) => {

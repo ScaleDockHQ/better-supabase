@@ -75,7 +75,9 @@ function markdownFiles(dir: string, extension: string): string[] {
  */
 function readmeImports(readme: string): string[] {
   return readme.split("\n").flatMap((line) => {
-    if (!line.startsWith("|")) return [];
+    if (!line.startsWith("|")) {
+      return [];
+    }
     return line
       .split("|")
       .map((cell) => cell.trim())

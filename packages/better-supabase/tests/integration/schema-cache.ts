@@ -23,7 +23,9 @@ function target(name: string): { schema: string; name: string } {
 }
 
 async function missing(response: Response): Promise<boolean> {
-  if (response.ok) return false;
+  if (response.ok) {
+    return false;
+  }
   const body = (await response.json().catch(() => ({}))) as {
     code?: string;
   };
@@ -68,7 +70,9 @@ export async function reloadSchemaCache(
   const deadline = Date.now() + (wait.timeout ?? 30_000);
   let pending = probes;
   for (let attempt = 0; ; attempt++) {
-    if (attempt % 8 === 0) await pool.query(`notify pgrst, 'reload schema'`);
+    if (attempt % 8 === 0) {
+      await pool.query(`notify pgrst, 'reload schema'`);
+    }
     const results = await Promise.all(
       pending.map(async (probe) => ({
         probe,
@@ -78,7 +82,9 @@ export async function reloadSchemaCache(
     pending = results
       .filter((entry) => entry.missing)
       .map((entry) => entry.probe);
-    if (pending.length === 0) return;
+    if (pending.length === 0) {
+      return;
+    }
     if (Date.now() > deadline) {
       throw new Error(
         `PostgREST's schema cache still misses ${pending.length} of the objects after ${wait.timeout ?? 30_000} ms`,

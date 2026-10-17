@@ -81,7 +81,9 @@ export function createCalendarController(
           from: time.Instant.fromEpochMilliseconds(range.start.getTime()),
           until: time.Instant.fromEpochMilliseconds(range.end.getTime()),
         });
-        if (request !== ticket) return;
+        if (request !== ticket) {
+          return;
+        }
         state.set(
           result.ok
             ? {
@@ -105,7 +107,9 @@ export function createCalendarController(
         actions: {
           refresh,
           setRange: (next) => {
-            if (sameRange(range, next)) return;
+            if (sameRange(range, next)) {
+              return;
+            }
             range = next;
             void refresh();
           },

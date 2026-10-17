@@ -104,7 +104,9 @@ function markerFileFor(
   fn: Pick<ExtrasHookFunction, "schema" | "name">,
 ): TextFile | undefined {
   const marker = providerHook(context)?.markers?.hook;
-  if (marker === undefined) return undefined;
+  if (marker === undefined) {
+    return undefined;
+  }
   const creates = createsFunction(fn);
   return (context.sqlFiles ?? []).find(
     (file) => file.text.includes(marker) && creates.test(file.text),
@@ -117,8 +119,12 @@ function isProviderHook(
   fn: Pick<ExtrasHookFunction, "schema" | "name">,
 ): boolean {
   const hook = providerHook(context);
-  if (!hook) return false;
-  if (hook.function === `${fn.schema}.${fn.name}`) return true;
+  if (!hook) {
+    return false;
+  }
+  if (hook.function === `${fn.schema}.${fn.name}`) {
+    return true;
+  }
   return markerFileFor(context, fn) !== undefined;
 }
 
@@ -157,7 +163,9 @@ export interface ConfiguredHook {
 
 /** Hooks enabled in `config.toml`, matched with their introspected functions. */
 export function configuredHooks(context: DoctorContext): ConfiguredHook[] {
-  if (!context.configToml) return [];
+  if (!context.configToml) {
+    return [];
+  }
   const introspected = context.snapshot.extras.hooks ?? [];
   return pgFunctionHooks(context.configToml.document).map((config) => ({
     config,
@@ -174,7 +182,9 @@ function hookLocation(
   context: DoctorContext,
   hook: string,
 ): Location | undefined {
-  if (!context.configToml) return undefined;
+  if (!context.configToml) {
+    return undefined;
+  }
   const line = lineOf(
     context.configToml.text,
     new RegExp(`^\\s*\\[auth\\.hook\\.${hook}\\]`),
@@ -275,7 +285,9 @@ export function hookGrantProblems(context: DoctorContext): HookGrantProblem[] {
   return configuredHooks(context).flatMap(({ config, extras }) =>
     (extras?.functions ?? []).flatMap((fn): HookGrantProblem[] => {
       const { problems, fix } = grantProblems(fn);
-      if (problems.length === 0) return [];
+      if (problems.length === 0) {
+        return [];
+      }
       const file = grantsSourceFor(context, fn, workflow);
       const provider = context.config.authorization;
       const command = provider?.tokenHook?.grantsCommand;
@@ -340,8 +352,9 @@ export function hookGrantBlock(
   problems: readonly HookGrantProblem[],
   workflow: SqlWorkflow = "pg-delta",
 ): string {
-  if (problems.length === 0)
+  if (problems.length === 0) {
     return "-- Every configured Auth hook function has its grants.";
+  }
   const lines = [
     "-- Auth hook grants (better-supabase doctor --fix-grants).",
     workflow === "migra"
@@ -427,13 +440,17 @@ async function withHookEvent<T>(
       )::text, true) as event
       from auth.users u where u.id = ${literal(userId)}::uuid`,
     );
-    if (!user?.event) return undefined;
+    if (!user?.event) {
+      return undefined;
+    }
     // Supabase's `postgres` may not become supabase_auth_admin; BS404 checks its grants.
     const [role] = await db.query<{ member: boolean }>(
       `select case when exists(select 1 from pg_roles where rolname = 'supabase_auth_admin')
         then pg_has_role('supabase_auth_admin', 'member') else false end as member`,
     );
-    if (role?.member) await db.query("set local role supabase_auth_admin");
+    if (role?.member) {
+      await db.query("set local role supabase_auth_admin");
+    }
     return await run();
   } finally {
     await db.query("rollback");
@@ -516,7 +533,9 @@ function secretsFromEnv(text: string, hook: string): boolean {
   const start = text.search(
     new RegExp(`^\\s*\\[auth\\.hook\\.${hook}\\]`, "m"),
   );
-  if (start < 0) return false;
+  if (start < 0) {
+    return false;
+  }
   const rest = text.slice(start).split("\n").slice(1);
   const end = rest.findIndex((line) => /^\s*\[/.test(line));
   const section = (end === -1 ? rest : rest.slice(0, end)).join("\n");
@@ -529,7 +548,9 @@ function secretsFromEnv(text: string, hook: string): boolean {
  */
 function secretProblem(secret: string): string | undefined {
   const match = /^v1,whsec_([A-Za-z0-9+/]+={0,2})$/.exec(secret.trim());
-  if (!match) return "is not in the `v1,whsec_<base64>` format";
+  if (!match) {
+    return "is not in the `v1,whsec_<base64>` format";
+  }
   const bytes = atob(match[1]!).length;
   return bytes < 24 || bytes > 64
     ? `decodes to ${bytes} bytes; Standard Webhooks secrets are 24 to 64`
@@ -546,7 +567,9 @@ export const HOOK_RULES: readonly Rule[] = [
     check: (context) => [
       ...configuredHooks(context).flatMap(
         ({ config, extras }): FindingInput[] => {
-          if (!extras || extras.functions.length > 0) return [];
+          if (!extras || extras.functions.length > 0) {
+            return [];
+          }
           const location = hookLocation(context, config.hook);
           return [
             {
@@ -575,7 +598,9 @@ export const HOOK_RULES: readonly Rule[] = [
       const findings: FindingInput[] = [];
       const limits = claimsLimits(context);
       for (const { config, extras } of configuredHooks(context)) {
-        if (config.hook !== "custom_access_token" || !extras) continue;
+        if (config.hook !== "custom_access_token" || !extras) {
+          continue;
+        }
         for (const fn of extras.functions) {
           const object = {
             kind: "function" as const,
@@ -598,7 +623,9 @@ export const HOOK_RULES: readonly Rule[] = [
               object,
             });
           }
-          if (!context.hookUser) continue;
+          if (!context.hookUser) {
+            continue;
+          }
           const db = context.database;
           if (!db || "skipped" in db || !db.session) {
             findings.push({
@@ -669,7 +696,9 @@ export const HOOK_RULES: readonly Rule[] = [
     check: (context) => {
       const provider = context.config.authorization;
       const hook = provider?.tokenHook;
-      if (!provider || !hook) return [];
+      if (!provider || !hook) {
+        return [];
+      }
       const label = providerLabel(provider);
       const registered = new Map(
         (hook.registeredClaims ?? []).map((claim) => [
@@ -680,9 +709,13 @@ export const HOOK_RULES: readonly Rule[] = [
       const owned = ownedClaims(hook);
       const findings: FindingInput[] = [];
       for (const { config, extras } of configuredHooks(context)) {
-        if (config.hook !== "custom_access_token" || !extras) continue;
+        if (config.hook !== "custom_access_token" || !extras) {
+          continue;
+        }
         for (const fn of extras.functions) {
-          if (fn.source === undefined || isProviderHook(context, fn)) continue;
+          if (fn.source === undefined || isProviderHook(context, fn)) {
+            continue;
+          }
           const module =
             owned.includes("memberships") && MODULE_MEMBERSHIPS.test(fn.source);
           const wrapper = wrapsProviderHook(hook, fn.source);
@@ -690,7 +723,9 @@ export const HOOK_RULES: readonly Rule[] = [
             ...owned,
             ...(wrapper ? registered.keys() : []),
           ]);
-          if (!module && written.length === 0) continue;
+          if (!module && written.length === 0) {
+            continue;
+          }
           const location = hookLocation(context, config.hook);
           const what = [
             ...(module ? ["calls better_supabase.membership_claims"] : []),
@@ -719,7 +754,9 @@ export const HOOK_RULES: readonly Rule[] = [
       "Auth calls an `http://` or `https://` hook with a request signed by the Standard Webhooks secret in `secrets` (`v1,whsec_<base64>`, several joined with `|`). Doctor can't read the endpoint's code, so it reports each HTTP hook and checks what it can: the secret's format, that it comes from `env()` rather than the committed file, and that a non-local endpoint uses https. Verify the request in the endpoint with `authHook` from `better-supabase/blocks/webhooks`.",
     check: (context) => {
       const toml = context.configToml;
-      if (!toml) return [];
+      if (!toml) {
+        return [];
+      }
       return httpHooks(toml.document).flatMap(({ hook, uri, secrets }) => {
         const location = hookLocation(context, hook);
         const at = location ? { location } : {};
@@ -756,7 +793,9 @@ export const HOOK_RULES: readonly Rule[] = [
             ...at,
           });
         }
-        if (fromEnv && secrets.trim().startsWith("env(")) return findings;
+        if (fromEnv && secrets.trim().startsWith("env(")) {
+          return findings;
+        }
         const problems = secrets.split("|").flatMap((secret, index) => {
           const problem = secretProblem(secret);
           return problem ? [`secret ${index + 1} ${problem}`] : [];

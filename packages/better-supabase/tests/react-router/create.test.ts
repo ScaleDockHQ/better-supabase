@@ -19,7 +19,9 @@ function contextProvider(): ReactRouterArgs["context"] {
   const values = new Map<unknown, unknown>();
   return {
     get: (key) => {
-      if (!values.has(key)) throw new Error("no value");
+      if (!values.has(key)) {
+        throw new Error("no value");
+      }
       return values.get(key);
     },
     set: (key, value) => {
@@ -52,8 +54,10 @@ async function serve(
     }
     return new Response(null);
   });
-  // oxlint-disable-next-line typescript/only-throw-error -- rethrows the thrown Response the adapter answers with.
-  if (thrown !== undefined) throw thrown;
+  if (thrown !== undefined) {
+    // oxlint-disable-next-line typescript/only-throw-error -- rethrows the thrown Response the adapter answers with.
+    throw thrown;
+  }
   return out;
 }
 

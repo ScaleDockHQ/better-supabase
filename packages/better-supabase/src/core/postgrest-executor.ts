@@ -96,7 +96,9 @@ function scope(client: PostgrestClientLike, schema: string): ScopedClient {
   // from() and may have schema() and rpc().
   // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- PostgrestClientLike is structural and `schema()` is optional at runtime.
   const loose = client as unknown as LooseClient;
-  if (schema === "public" || !loose.schema) return loose;
+  if (schema === "public" || !loose.schema) {
+    return loose;
+  }
   let schemas = scopedClients.get(client);
   if (!schemas) {
     schemas = new Map();
@@ -169,8 +171,12 @@ function applyOrderAndLimits(
     } = {
       ascending: order.ascending,
     };
-    if (order.nullsFirst !== undefined) options.nullsFirst = order.nullsFirst;
-    if (order.referencedTable) options.referencedTable = order.referencedTable;
+    if (order.nullsFirst !== undefined) {
+      options.nullsFirst = order.nullsFirst;
+    }
+    if (order.referencedTable) {
+      options.referencedTable = order.referencedTable;
+    }
     query = query.order(order.column, options);
   }
   for (const limit of plan.limits) {
@@ -179,7 +185,9 @@ function applyOrderAndLimits(
       limit.referencedTable ? { referencedTable: limit.referencedTable } : {},
     );
   }
-  if (plan.range) query = query.range(plan.range.from, plan.range.to);
+  if (plan.range) {
+    query = query.range(plan.range.from, plan.range.to);
+  }
   return query;
 }
 
@@ -193,7 +201,9 @@ function bounded(
   op: MutationOp,
   plan: PostgrestPlan,
 ): BuilderLike {
-  if (plan.maxAffected === undefined) return query;
+  if (plan.maxAffected === undefined) {
+    return query;
+  }
   if (!query.maxAffected) {
     invalidRequest(
       '"maxAffected" needs @supabase/postgrest-js 2 or later',
@@ -212,14 +222,22 @@ function build(
   switch (op.kind) {
     case "select": {
       const options: { count?: string; head?: boolean } = {};
-      if (op.count) options.count = op.count;
-      if (op.head) options.head = true;
+      if (op.count) {
+        options.count = op.count;
+      }
+      if (op.head) {
+        options.head = true;
+      }
       const selected = op.source
         ? fromFunction(client, op.source, options).select(plan.select)
         : base.select(plan.select, options);
       let query = applyOrderAndLimits(applyFilters(selected, plan), plan);
-      if (op.single === "one") query = query.single();
-      if (op.single === "maybe") query = query.maybeSingle();
+      if (op.single === "one") {
+        query = query.single();
+      }
+      if (op.single === "maybe") {
+        query = query.maybeSingle();
+      }
       return query;
     }
     case "insert": {
@@ -233,17 +251,23 @@ function build(
             ...count,
           })
         : base.insert(rows, { defaultToNull: op.defaultToNull, ...count });
-      if (plan.select !== undefined) query = query.select(plan.select);
+      if (plan.select !== undefined) {
+        query = query.select(plan.select);
+      }
       return query;
     }
     case "update": {
       let query = applyFilters(base.update(op.set, countOf(op, plan)), plan);
-      if (plan.select !== undefined) query = query.select(plan.select);
+      if (plan.select !== undefined) {
+        query = query.select(plan.select);
+      }
       return bounded(query, op, plan);
     }
     case "delete": {
       let query = applyFilters(base.delete(countOf(op, plan)), plan);
-      if (plan.select !== undefined) query = query.select(plan.select);
+      if (plan.select !== undefined) {
+        query = query.select(plan.select);
+      }
       return bounded(query, op, plan);
     }
     default: {
@@ -254,7 +278,9 @@ function build(
 }
 
 function rowsOf(data: unknown): readonly Record<string, unknown>[] {
-  if (data === null || data === undefined) return [];
+  if (data === null || data === undefined) {
+    return [];
+  }
   if (Array.isArray(data)) {
     // SAFETY: PostgREST returns a list of row objects for a multi-row query.
     return data as Record<string, unknown>[];
@@ -285,8 +311,12 @@ function tune(
   retry: boolean | undefined,
 ): BuilderLike {
   let query = builder;
-  if (signal) query = query.abortSignal(signal);
-  if (retry !== undefined && query.retry) query = query.retry(retry);
+  if (signal) {
+    query = query.abortSignal(signal);
+  }
+  if (retry !== undefined && query.retry) {
+    query = query.retry(retry);
+  }
   return query;
 }
 
@@ -340,7 +370,9 @@ export function resolveUrlLengthLimit(
   options: Pick<PostgrestExecutorOptions, "urlLengthLimit">,
 ): number {
   const explicit = options.urlLengthLimit;
-  if (explicit !== undefined) return explicit;
+  if (explicit !== undefined) {
+    return explicit;
+  }
   const fromClient = clientUrlLengthLimit(client);
   return fromClient === undefined
     ? DEFAULT_URL_LENGTH_LIMIT
@@ -371,8 +403,12 @@ export function postgrestExecutor(
     } catch (cause) {
       return err(toDbError(cause));
     }
-    if (plan.never) return ok({ rows: [], count: 0 });
-    if (context.signal?.aborted) return err(aborted());
+    if (plan.never) {
+      return ok({ rows: [], count: 0 });
+    }
+    if (context.signal?.aborted) {
+      return err(aborted());
+    }
     const length = queryLength(plan);
     if (op.kind !== "select" && length > urlLengthLimit) {
       return err(
@@ -386,7 +422,9 @@ export function postgrestExecutor(
     }
     if (op.kind === "select" && length > urlLengthLimit) {
       const chunked = chunkRead(op, plan, urlLengthLimit);
-      if (!("ops" in chunked)) return err(chunked);
+      if (!("ops" in chunked)) {
+        return err(chunked);
+      }
       const results: Result<ExecuteResult>[] = [];
       let next = 0;
       const lane = async (): Promise<void> => {
@@ -398,7 +436,9 @@ export function postgrestExecutor(
             ? run(chunk, chunkPlan, context)
             : send(chunk, context));
           results[index] = result;
-          if (!result.ok) next = chunked.ops.length;
+          if (!result.ok) {
+            next = chunked.ops.length;
+          }
         }
       };
       await Promise.all(
@@ -409,8 +449,12 @@ export function postgrestExecutor(
       );
       const rows: Record<string, unknown>[] = [];
       for (const result of results) {
-        if (!result.ok) return result;
-        for (const row of result.data.rows) rows.push(row);
+        if (!result.ok) {
+          return result;
+        }
+        for (const row of result.data.rows) {
+          rows.push(row);
+        }
       }
       return ok({
         rows: chunked.sort ? chunked.sort(rows) : rows,
@@ -449,11 +493,16 @@ export function postgrestExecutor(
       query = tune(query, limit.signal, context.retry ?? options.retry);
       const response = await query;
       if (response.error) {
-        if (limit.timedOut() && timeout !== undefined)
+        if (limit.timedOut() && timeout !== undefined) {
           return err(timedOut(timeout));
-        if (limit.signal?.aborted) return err(aborted());
+        }
+        if (limit.signal?.aborted) {
+          return err(aborted());
+        }
         const total = pastLastRow(op, response.error);
-        if (total !== undefined) return ok({ rows: [], count: total });
+        if (total !== undefined) {
+          return ok({ rows: [], count: total });
+        }
         return err(
           withMaxAffected(
             mapDbError(response.error, context.errorMappers),
@@ -483,7 +532,9 @@ export function postgrestExecutor(
       if (!scoped.rpc) {
         return err(toDbError(new Error("The client does not support rpc()")));
       }
-      if (context.signal?.aborted) return err(aborted());
+      if (context.signal?.aborted) {
+        return err(aborted());
+      }
       // SAFETY: rpc() on a supabase-js or postgrest-js client returns a filter
       // builder with these methods.
       const built = (
@@ -499,9 +550,12 @@ export function postgrestExecutor(
           context.retry ?? options.retry,
         );
         if (response.error) {
-          if (limit.timedOut() && timeout !== undefined)
+          if (limit.timedOut() && timeout !== undefined) {
             return err(timedOut(timeout));
-          if (limit.signal?.aborted) return err(aborted());
+          }
+          if (limit.signal?.aborted) {
+            return err(aborted());
+          }
           return err(mapDbError(response.error, context.errorMappers));
         }
         return ok(response.data);

@@ -23,7 +23,9 @@ describe("memoized", () => {
   it("does not keep a rejection", async () => {
     let calls = 0;
     const load = memoized(async () => {
-      if (++calls === 1) throw new Error("first");
+      if (++calls === 1) {
+        throw new Error("first");
+      }
       return calls;
     });
     await expect(load()).rejects.toThrow("first");

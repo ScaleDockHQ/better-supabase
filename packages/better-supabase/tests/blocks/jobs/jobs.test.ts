@@ -104,7 +104,9 @@ afterEach(() => {
 describe("createJobs over pgmq_public", () => {
   it("sends, reads and archives through PostgREST", async () => {
     const { client, calls } = fakeClient(({ fn }) => {
-      if (fn === "send") return [7];
+      if (fn === "send") {
+        return [7];
+      }
       if (fn === "read") {
         return [
           {
@@ -1811,7 +1813,9 @@ describe("drain and work", () => {
       "emails",
       async () => {
         started += 1;
-        if (started === 2) bothStarted();
+        if (started === 2) {
+          bothStarted();
+        }
         await barrier;
       },
       { concurrency: 2, batch: 3 },
@@ -1960,7 +1964,9 @@ describe("drain and work", () => {
       "emails",
       () => {
         calls += 1;
-        if (calls > 1) return;
+        if (calls > 1) {
+          return;
+        }
         return new Promise<void>((resolve) => {
           finish = resolve;
         });

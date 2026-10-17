@@ -13,21 +13,29 @@ function normalize(
   sortKeys: boolean,
   pointer: string,
 ): unknown {
-  if (typeof value === "number" && !Number.isFinite(value))
+  if (typeof value === "number" && !Number.isFinite(value)) {
     throw new TypeError(
       `better-supabase/spec: ${String(value)} at "${pointer}" has no JSON form`,
     );
-  if (Array.isArray(value))
+  }
+  if (Array.isArray(value)) {
     return value.map((item: unknown, index) =>
       normalize(item, sortKeys, `${pointer}/${index}`),
     );
-  if (!isPlainObject(value)) return value;
+  }
+  if (!isPlainObject(value)) {
+    return value;
+  }
   const keys = Object.keys(value);
-  if (sortKeys) keys.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  if (sortKeys) {
+    keys.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  }
   const out: Record<string, unknown> = {};
   for (const key of keys) {
     const entry = value[key];
-    if (entry === undefined) continue;
+    if (entry === undefined) {
+      continue;
+    }
     out[key] = normalize(entry, sortKeys, `${pointer}/${key}`);
   }
   return out;
@@ -63,8 +71,9 @@ const encoded = new WeakMap<object, Map<string, Encoded>>();
 
 function base64url(bytes: ArrayBuffer): string {
   let binary = "";
-  for (const byte of new Uint8Array(bytes))
+  for (const byte of new Uint8Array(bytes)) {
     binary += String.fromCodePoint(byte);
+  }
   return btoa(binary)
     .replaceAll("+", "-")
     .replaceAll("/", "_")
@@ -115,8 +124,9 @@ export async function specResponse(
     indent = 2,
   } = options;
   const method = request?.method.toUpperCase() ?? "GET";
-  if (method !== "GET" && method !== "HEAD")
+  if (method !== "GET" && method !== "HEAD") {
     return methodNotAllowed(["GET", "HEAD"]);
+  }
   const { body, etag } = encode(document, indent);
   const tag = await etag;
   const headers = {
@@ -124,8 +134,9 @@ export async function specResponse(
     etag: tag,
   };
   const ifNoneMatch = request?.headers.get("if-none-match");
-  if (ifNoneMatch && matches(ifNoneMatch, tag))
+  if (ifNoneMatch && matches(ifNoneMatch, tag)) {
     return new Response(null, { status: 304, headers });
+  }
   return new Response(method === "HEAD" ? null : body, {
     status: 200,
     headers: { ...headers, "content-type": contentType },

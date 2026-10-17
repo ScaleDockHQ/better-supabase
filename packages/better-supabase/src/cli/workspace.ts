@@ -27,7 +27,9 @@ const unquote = (value: string): string =>
 export function pnpmWorkspacePatterns(text: string): string[] {
   const lines = text.split(/\r?\n/);
   const start = lines.findIndex((line) => /^packages\s*:/.test(line));
-  if (start === -1) return [];
+  if (start === -1) {
+    return [];
+  }
   const inline = /^packages\s*:\s*\[(.*)\]\s*(?:#.*)?$/.exec(lines[start]!);
   if (inline) {
     return inline[1]!
@@ -37,9 +39,13 @@ export function pnpmWorkspacePatterns(text: string): string[] {
   }
   const patterns: string[] = [];
   for (const line of lines.slice(start + 1)) {
-    if (/^\s*(?:#.*)?$/.test(line)) continue;
+    if (/^\s*(?:#.*)?$/.test(line)) {
+      continue;
+    }
     const item = /^\s+-\s*(.+)$/.exec(line);
-    if (!item) break;
+    if (!item) {
+      break;
+    }
     patterns.push(unquote(item[1]!));
   }
   return patterns.filter((entry) => entry !== "");
@@ -51,8 +57,9 @@ function packageJsonPatterns(workspaces: unknown): string[] {
     typeof workspaces === "object" &&
     workspaces !== null &&
     "packages" in workspaces
-  )
+  ) {
     list = workspaces.packages;
+  }
   return Array.isArray(list)
     ? list.filter((entry): entry is string => typeof entry === "string")
     : [];
@@ -86,25 +93,34 @@ export async function detectWorkspace(
     patterns = pnpmWorkspacePatterns(await readFile(yaml, "utf-8"));
   } else {
     const path = join(root, "package.json");
-    if (!existsSync(path)) return undefined;
+    if (!existsSync(path)) {
+      return undefined;
+    }
     let pkg: unknown;
     try {
       pkg = JSON.parse(await readFile(path, "utf-8"));
     } catch {
       return undefined;
     }
-    if (typeof pkg !== "object" || pkg === null || !("workspaces" in pkg))
+    if (typeof pkg !== "object" || pkg === null || !("workspaces" in pkg)) {
       return undefined;
+    }
     file = "package.json";
     patterns = packageJsonPatterns(pkg.workspaces);
-    if (patterns.length === 0) return undefined;
+    if (patterns.length === 0) {
+      return undefined;
+    }
   }
   const included = new Set<string>();
   const excluded = new Set<string>();
   for (const pattern of patterns) {
     const negated = pattern.startsWith("!");
-    for (const dir of await matches(root, negated ? pattern.slice(1) : pattern))
+    for (const dir of await matches(
+      root,
+      negated ? pattern.slice(1) : pattern,
+    )) {
       (negated ? excluded : included).add(dir);
+    }
   }
   const dirs = [...included]
     .filter((dir) => dir !== "." && !excluded.has(dir))

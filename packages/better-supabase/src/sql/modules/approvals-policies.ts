@@ -1,5 +1,7 @@
 import type { ModuleContext } from "../context.ts";
 
+import { sqlString } from "../../core/template.ts";
+
 /** Who may decide one step. Any match is enough. */
 export interface ApprovalApprovers {
   /** Holders of this permission in the request's tenant. */
@@ -52,7 +54,9 @@ function approversOf(value: unknown, where: string): ApprovalApprovers {
   }
   const text = (key: string): string | undefined => {
     const item = value[key];
-    if (item === undefined) return undefined;
+    if (item === undefined) {
+      return undefined;
+    }
     if (typeof item !== "string" || item.trim() === "") {
       throw new TypeError(`${where}.approvers.${key} must be a string`);
     }
@@ -83,7 +87,9 @@ function approversOf(value: unknown, where: string): ApprovalApprovers {
 }
 
 function stepOf(value: unknown, where: string): ApprovalStep {
-  if (!isFields(value)) throw new TypeError(`${where} must be an object`);
+  if (!isFields(value)) {
+    throw new TypeError(`${where} must be an object`);
+  }
   const approvers = approversOf(value["approvers"], where);
   const required = value["required"] ?? 1;
   if (required === "all") {
@@ -113,7 +119,9 @@ function stepOf(value: unknown, where: string): ApprovalStep {
 }
 
 function runOf(value: unknown, where: string): ApprovalRun | undefined {
-  if (value === undefined) return undefined;
+  if (value === undefined) {
+    return undefined;
+  }
   if (isFields(value) && typeof value["transition"] === "string") {
     return { kind: "transition", to: value["transition"] };
   }
@@ -136,8 +144,12 @@ export function policyOf(
   value: unknown,
   where = `${WHERE}.${subjectType}.${action}`,
 ): ApprovalPolicy {
-  if (!KEY.test(action)) throw new TypeError(`${where} has an invalid name`);
-  if (!isFields(value)) throw new TypeError(`${where} must be an object`);
+  if (!KEY.test(action)) {
+    throw new TypeError(`${where} has an invalid name`);
+  }
+  if (!isFields(value)) {
+    throw new TypeError(`${where} must be an object`);
+  }
   const steps = value["steps"];
   if (!Array.isArray(steps) || steps.length === 0) {
     throw new TypeError(`${where}.steps must be a non-empty list`);
@@ -173,8 +185,12 @@ export function approvalPolicies(
   ctx: ModuleContext,
 ): readonly ApprovalPolicy[] {
   const raw = ctx.option("policies");
-  if (raw === undefined) return [];
-  if (!isFields(raw)) throw new TypeError(`${WHERE} must be an object`);
+  if (raw === undefined) {
+    return [];
+  }
+  if (!isFields(raw)) {
+    throw new TypeError(`${WHERE} must be an object`);
+  }
   return Object.entries(raw).flatMap(([subjectType, actions]) => {
     if (!KEY.test(subjectType)) {
       throw new TypeError(`${WHERE}.${subjectType} has an invalid name`);
@@ -198,4 +214,48 @@ export function policySnapshot(policy: ApprovalPolicy): string {
     expiresIn: policy.expiresIn ?? null,
     run: policy.run ?? null,
   });
+}
+
+/** The policy snapshot for the requested subject type and action, as SQL. */
+export function policyCase(policies: readonly ApprovalPolicy[]): string {
+  if (policies.length === 0) {
+    return "null::jsonb";
+  }
+  return `case approval_policy.subject_type || ':' || approval_policy.action
+${policies
+  .map(
+    (policy) =>
+      `    when ${sqlString(`${policy.subjectType}:${policy.action}`)} then ${sqlString(policySnapshot(policy))}::jsonb`,
+  )
+  .join("\n")}
+    else null::jsonb
+  end`;
+}
+
+/** Throws when a policy runs a transition or queue whose module is missing. */
+export function validateRuns(
+  ctx: ModuleContext,
+  policies: readonly ApprovalPolicy[],
+): void {
+  for (const policy of policies) {
+    const where = `blocks.approvals.options.policies.${policy.subjectType}.${policy.action}.run`;
+    if (policy.run?.kind === "transition") {
+      if (!ctx.installed("state-machine")) {
+        throw new TypeError(`${where} needs the state-machine module`);
+      }
+      const machines = ctx.of("state-machine").option("machines");
+      const names =
+        typeof machines === "object" && machines !== null
+          ? Object.keys(machines)
+          : [];
+      if (!names.includes(policy.subjectType)) {
+        throw new TypeError(
+          `${where}: "${policy.subjectType}" is not a state-machine machine`,
+        );
+      }
+    }
+    if (policy.run?.kind === "queue" && !ctx.installed("jobs")) {
+      throw new TypeError(`${where} needs the jobs module`);
+    }
+  }
 }

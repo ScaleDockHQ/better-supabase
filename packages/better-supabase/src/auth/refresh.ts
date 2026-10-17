@@ -61,7 +61,9 @@ function shared(outcome: RefreshOutcome): RefreshOutcome {
 function prune(now: number): void {
   // Entries are inserted in expiry order, so the first fresh one ends the scan.
   for (const [token, entry] of recent) {
-    if (entry.until > now) return;
+    if (entry.until > now) {
+      return;
+    }
     recent.delete(token);
   }
 }
@@ -164,9 +166,13 @@ export function refreshSession(
   // Two projects can't share a refresh token, but one process can serve both.
   const key = `${options.url}\n${refreshToken}`;
   const cached = recent.get(key);
-  if (cached) return Promise.resolve(shared(cached.outcome));
+  if (cached) {
+    return Promise.resolve(shared(cached.outcome));
+  }
   const pending = inflight.get(key);
-  if (pending) return pending.then(shared);
+  if (pending) {
+    return pending.then(shared);
+  }
 
   // A rejection is reused too, so parallel requests with a dead token don't
   // each ask Auth again.
@@ -178,7 +184,9 @@ export function refreshSession(
         recent.set(key, { outcome, until: clock() + REUSE_MS });
         if (recent.size > RECENT_MAX) {
           const oldest = recent.keys().next();
-          if (!oldest.done) recent.delete(oldest.value);
+          if (!oldest.done) {
+            recent.delete(oldest.value);
+          }
         }
       }
       return outcome;

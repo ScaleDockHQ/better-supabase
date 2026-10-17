@@ -31,7 +31,9 @@ export type Check = readonly [name: string, run: () => void | Promise<void>];
 export class Violation extends Error {}
 
 export function expect(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new Violation(message);
+  if (!condition) {
+    throw new Violation(message);
+  }
 }
 
 export async function conform(
@@ -40,7 +42,9 @@ export async function conform(
 ): Promise<ConformanceReport> {
   const results: ConformanceCheck[] = [];
   for (const entry of checks) {
-    if (!entry) continue;
+    if (!entry) {
+      continue;
+    }
     const [name, run] = entry;
     try {
       await run();
@@ -54,16 +58,19 @@ export async function conform(
     }
   }
   const report = { subject, checks: results };
-  if (results.some((check) => !check.ok)) throw new ConformanceError(report);
+  if (results.some((check) => !check.ok)) {
+    throw new ConformanceError(report);
+  }
   return report;
 }
 
 export function deepFreeze<T>(value: T): T {
   if (typeof value === "object" && value !== null && !Object.isFrozen(value)) {
     Object.freeze(value);
-    for (const key of Reflect.ownKeys(value))
+    for (const key of Reflect.ownKeys(value)) {
       // SAFETY: value is a non-null object here, and Reflect.ownKeys lists its keys.
       deepFreeze((value as Record<PropertyKey, unknown>)[key]);
+    }
   }
   return value;
 }

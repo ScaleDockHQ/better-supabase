@@ -97,8 +97,11 @@ export function fanOutTopic<S extends Subscriber>(
     const failed: { subscriber: S; error: DbError }[] = [];
     for (const subscriber of checked.allowed) {
       const result = await send(subscriber);
-      if (result.ok) sent.push(subscriber);
-      else failed.push({ subscriber, error: result.error });
+      if (result.ok) {
+        sent.push(subscriber);
+      } else {
+        failed.push({ subscriber, error: result.error });
+      }
     }
     return ok({
       sent,

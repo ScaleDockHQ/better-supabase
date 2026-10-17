@@ -64,9 +64,15 @@ const GLOBAL_VALUE_FLAGS: ReadonlySet<string> = new Set(
 function commandIndex(argv: readonly string[]): number {
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index]!;
-    if (token === "--") return -1;
-    if (!token.startsWith("-")) return index;
-    if (GLOBAL_VALUE_FLAGS.has(token)) index += 1;
+    if (token === "--") {
+      return -1;
+    }
+    if (!token.startsWith("-")) {
+      return index;
+    }
+    if (GLOBAL_VALUE_FLAGS.has(token)) {
+      index += 1;
+    }
   }
   return -1;
 }
@@ -92,7 +98,9 @@ async function suggestCommand(
   name: string,
   names: readonly string[],
 ): Promise<string | undefined> {
-  if (names.length === 0) return undefined;
+  if (names.length === 0) {
+    return undefined;
+  }
   const { closest, distance } = await import("fastest-levenshtein");
   const candidate = closest(name, [...names]);
   return distance(name, candidate) <= Math.max(2, Math.floor(name.length / 3))
@@ -150,12 +158,16 @@ export function createCli(init: CreateCliOptions): Cli {
     };
     const out = (text: string): void => {
       const line = text.endsWith("\n") ? text : `${text}\n`;
-      if (options.io) stdout.push(line);
+      if (options.io) {
+        stdout.push(line);
+      }
       io.stdout(line);
     };
     const fail = (text: string): void => {
       const line = text.endsWith("\n") ? text : `${text}\n`;
-      if (options.io) stderr.push(line);
+      if (options.io) {
+        stderr.push(line);
+      }
       io.stderr(line);
     };
     const paint = painter(io.color);
@@ -176,8 +188,12 @@ export function createCli(init: CreateCliOptions): Cli {
     const wantsHelp = flags.has("--help") || flags.has("-h");
     const json = flags.has("--json");
     const report = (rendered: Rendered): void => {
-      if (rendered.stdout) out(rendered.stdout);
-      if (rendered.stderr) fail(rendered.stderr);
+      if (rendered.stdout) {
+        out(rendered.stdout);
+      }
+      if (rendered.stderr) {
+        fail(rendered.stderr);
+      }
     };
     const reportError = async (cause: unknown): Promise<RunResult> => {
       const error = toCliError(cause);
@@ -275,7 +291,9 @@ export function createCli(init: CreateCliOptions): Cli {
         rawArgs: joinRepeated(rest, listArgs(command)),
         data: context,
       });
-      if (!isCommandResult(result)) return finish(0);
+      if (!isCommandResult(result)) {
+        return finish(0);
+      }
       report(renderResult(result, { json, paint }));
       return finish(result.code);
     } catch (cause) {

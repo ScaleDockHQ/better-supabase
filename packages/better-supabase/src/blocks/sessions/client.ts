@@ -103,7 +103,9 @@ async function readDetails(
   const result = await authResult(() =>
     oauth.getAuthorizationDetails(authorizationId),
   );
-  if (!result.ok) return result;
+  if (!result.ok) {
+    return result;
+  }
   const data = result.data;
   if (!("authorization_id" in data)) {
     return ok({ redirectUrl: data.redirect_url });
@@ -188,7 +190,9 @@ export function createOAuthConsentController(
         }
         const run = state.run();
         const result = await read;
-        if (run !== state.run()) return;
+        if (run !== state.run()) {
+          return;
+        }
         if (!result.ok) {
           reads.delete(id);
           state.set({ error: result.error });
@@ -230,7 +234,9 @@ export function createOAuthConsentController(
         },
         start: () =>
           whileSignedIn(options.auth, () => {
-            if (authorizationId !== undefined) void load(authorizationId);
+            if (authorizationId !== undefined) {
+              void load(authorizationId);
+            }
             return;
           }),
       };
@@ -285,7 +291,9 @@ export function createOAuthGrantsController(
       const refresh = async (): Promise<void> => {
         const request = ++ticket;
         const result = await authResult(() => oauth.listGrants());
-        if (request !== ticket) return;
+        if (request !== ticket) {
+          return;
+        }
         if (!result.ok) {
           state.set({ error: result.error });
           return;
@@ -319,7 +327,9 @@ export function createOAuthGrantsController(
               revoking: current.revoking.filter((each) => each !== clientId),
               ...(result.ok ? {} : { error: result.error }),
             }));
-            if (!result.ok) return result;
+            if (!result.ok) {
+              return result;
+            }
             await refresh();
             return ok(true);
           },

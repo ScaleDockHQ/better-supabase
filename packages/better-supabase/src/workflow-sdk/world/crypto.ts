@@ -62,7 +62,9 @@ export async function verifyDelivery(
   body: string,
   now: number = Date.now(),
 ): Promise<boolean> {
-  if (header === null) return false;
+  if (header === null) {
+    return false;
+  }
   const parts = new Map(
     header.split(",").map((part) => {
       const index = part.indexOf("=");
@@ -71,7 +73,9 @@ export async function verifyDelivery(
   );
   const t = parts.get("t");
   const v1 = parts.get("v1");
-  if (t === undefined || v1 === undefined || !/^\d+$/.test(t)) return false;
+  if (t === undefined || v1 === undefined || !/^\d+$/.test(t)) {
+    return false;
+  }
   if (Math.abs(now / 1000 - Number(t)) > SIGNATURE_TOLERANCE_SECONDS) {
     return false;
   }

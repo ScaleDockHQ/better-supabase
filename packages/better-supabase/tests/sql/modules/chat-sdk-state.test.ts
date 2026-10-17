@@ -23,7 +23,9 @@ describe("chat-sdk-state module", () => {
       ...sql.matchAll(/grant execute on function [^;]+ to ([^;]+);/g),
     ];
     expect(grants.length).toBeGreaterThan(20);
-    for (const grant of grants) expect(grant[1]).toBe("service_role");
+    for (const grant of grants) {
+      expect(grant[1]).toBe("service_role");
+    }
   });
 
   it("reads the wall clock so TTLs pass inside one transaction", () => {

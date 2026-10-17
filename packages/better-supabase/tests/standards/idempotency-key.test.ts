@@ -30,10 +30,12 @@ function store() {
             },
           ];
         }
-        if (row.fingerprint !== fingerprint)
+        if (row.fingerprint !== fingerprint) {
           return [{ state: "mismatch", status_code: null, response: null }];
-        if (row.status === null)
+        }
+        if (row.status === null) {
           return [{ state: "running", status_code: null, response: null }];
+        }
         return [
           { state: "replay", status_code: row.status, response: row.response },
         ];

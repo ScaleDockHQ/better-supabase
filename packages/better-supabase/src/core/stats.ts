@@ -43,14 +43,18 @@ export class StatsRecorder {
   begin(table: string): () => void {
     const end = this.#parent?.begin(table);
     const started = this.#now();
-    if (this.#inFlight === 0) this.#waves += 1;
+    if (this.#inFlight === 0) {
+      this.#waves += 1;
+    }
     this.#inFlight += 1;
     this.#calls += 1;
     this.#tables.add(table);
     this.#first ??= started;
     let ended = false;
     return () => {
-      if (ended) return;
+      if (ended) {
+        return;
+      }
       ended = true;
       this.#inFlight -= 1;
       this.#last = Math.max(this.#last ?? 0, this.#now());

@@ -24,8 +24,9 @@ function checkFor(
   policy: SessionEntryConfig["checkSession"],
   request: Request,
 ): boolean {
-  if (policy === undefined || typeof policy === "boolean")
+  if (policy === undefined || typeof policy === "boolean") {
     return policy ?? false;
+  }
   return policy === "navigation"
     ? shouldCheckSession(request)
     : policy(request);
@@ -99,7 +100,9 @@ export async function outageResponse(
   logger: Logger,
 ): Promise<Response | undefined> {
   const outage = resolution.outage;
-  if (!hook || !outage) return;
+  if (!hook || !outage) {
+    return;
+  }
   try {
     const response = await hook(outage, request);
     return outage.kept || !(response instanceof Response)
@@ -123,12 +126,16 @@ function clearOldScopes(
     name,
     scopes,
   );
-  if (writes.length === 0) return response;
+  if (writes.length === 0) {
+    return response;
+  }
   const headers = new Headers(response.headers);
-  for (const write of writes)
+  for (const write of writes) {
     headers.append("set-cookie", serializeCookie(write));
-  for (const [key, value] of Object.entries(AUTH_CACHE_HEADERS))
+  }
+  for (const [key, value] of Object.entries(AUTH_CACHE_HEADERS)) {
     headers.set(key, value);
+  }
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
@@ -180,7 +187,9 @@ export function withSession<
           request,
           core.events.logger,
         );
-        if (outage) return session.apply(outage);
+        if (outage) {
+          return session.apply(outage);
+        }
         try {
           const response = yield { session };
           const applied = session.apply(response);

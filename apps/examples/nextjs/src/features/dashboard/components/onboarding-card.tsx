@@ -32,9 +32,15 @@ export function OnboardingCard() {
     organizationId,
     schema: API_SCHEMA,
   });
-  if (!organizationId) return null;
-  if (progress === undefined) return <OnboardingCardSkeleton />;
-  if (progress.done) return null;
+  if (!organizationId) {
+    return null;
+  }
+  if (progress === undefined) {
+    return <OnboardingCardSkeleton />;
+  }
+  if (progress.done) {
+    return null;
+  }
   const titles = {
     customer: t("Add your first customer"),
     invite: t("Invite a teammate"),

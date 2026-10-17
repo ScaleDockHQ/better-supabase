@@ -111,7 +111,9 @@ export interface SplinterOptions {
 /** The `[api] schemas` list of a `config.toml`, when it names any. */
 export function apiSchemas(document: TomlTable | undefined): string[] {
   const value = document ? tomlGet(document, ["api", "schemas"]) : undefined;
-  if (!Array.isArray(value)) return [];
+  if (!Array.isArray(value)) {
+    return [];
+  }
   return value.filter(
     (schema): schema is string =>
       typeof schema === "string" && schema.trim() !== "",
@@ -140,7 +142,9 @@ async function splinterSql(options: SplinterOptions): Promise<string> {
   const file = resolve(options.cacheDir, `splinter-${SPLINTER_COMMIT}.sql`);
   if (existsSync(file)) {
     const cached = await readFile(file, "utf-8");
-    if (sha256(cached) === SPLINTER_SHA256) return cached;
+    if (sha256(cached) === SPLINTER_SHA256) {
+      return cached;
+    }
   }
   const response = await (options.fetch ?? fetch)(SPLINTER_URL, {
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),

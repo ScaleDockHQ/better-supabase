@@ -45,8 +45,9 @@ export function createFeatureGateController(
 ): FeatureGateController {
   const read = (): FeatureGateSnapshot => {
     const session = options.auth.current();
-    if (session.status === "loading")
+    if (session.status === "loading") {
       return { allowed: undefined, organizationId: undefined };
+    }
     const organizationId =
       options.organizationId ?? tenantOf(session, options.tenantClaim);
     return {

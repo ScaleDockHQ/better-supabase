@@ -51,8 +51,12 @@ const quote = (text: string): string => `'${text.replaceAll("'", "''")}'`;
 
 function arrayLiteral(values: readonly unknown[]): string {
   const items = values.map((value) => {
-    if (value === null) return "NULL";
-    if (Array.isArray(value)) return arrayLiteral(value);
+    if (value === null) {
+      return "NULL";
+    }
+    if (Array.isArray(value)) {
+      return arrayLiteral(value);
+    }
     const text = temporalText(value) ?? String(value);
     return `"${text.replaceAll(/[\\"]/g, "\\$&")}"`;
   });
@@ -60,11 +64,19 @@ function arrayLiteral(values: readonly unknown[]): string {
 }
 
 function literal(value: unknown, column: ColumnMeta, where: string): string {
-  if (value === null) return "null";
-  if (column.json) return quote(JSON.stringify(value));
-  if (Array.isArray(value)) return quote(arrayLiteral(value));
+  if (value === null) {
+    return "null";
+  }
+  if (column.json) {
+    return quote(JSON.stringify(value));
+  }
+  if (Array.isArray(value)) {
+    return quote(arrayLiteral(value));
+  }
   const temporalValue = temporalText(value);
-  if (temporalValue !== undefined) return quote(temporalValue);
+  if (temporalValue !== undefined) {
+    return quote(temporalValue);
+  }
   const kind = typeof value;
   switch (kind) {
     case "string":
@@ -74,10 +86,11 @@ function literal(value: unknown, column: ColumnMeta, where: string): string {
     case "bigint":
       return String(value);
     case "number":
-      if (!Number.isFinite(value))
+      if (!Number.isFinite(value)) {
         throw new TypeError(
           `${where}: ${String(value)} is not a finite number`,
         );
+      }
       return String(value);
     case "object":
     case "function":
@@ -100,7 +113,9 @@ function order(meta: SchemaMeta, keys: readonly string[]): string[] {
   const sorted: string[] = [];
   const visiting = new Set<string>();
   const visit = (key: string): void => {
-    if (sorted.includes(key) || visiting.has(key)) return;
+    if (sorted.includes(key) || visiting.has(key)) {
+      return;
+    }
     visiting.add(key);
     for (const relation of Object.values(meta.tables[key]?.relations ?? {})) {
       if (
@@ -114,7 +129,9 @@ function order(meta: SchemaMeta, keys: readonly string[]): string[] {
     visiting.delete(key);
     sorted.push(key);
   };
-  for (const key of keys) visit(key);
+  for (const key of keys) {
+    visit(key);
+  }
   return sorted;
 }
 
@@ -123,18 +140,24 @@ function statement(
   rows: Readonly<Record<string, Record<string, unknown>>>,
 ): string | undefined {
   const entries = Object.entries(rows);
-  if (entries.length === 0) return undefined;
+  if (entries.length === 0) {
+    return undefined;
+  }
   const columns: string[] = [];
   for (const [, row] of entries) {
     for (const [key, value] of Object.entries(row)) {
-      if (value === undefined || columns.includes(key)) continue;
+      if (value === undefined || columns.includes(key)) {
+        continue;
+      }
       const column = table.columns[key];
-      if (!column)
+      if (!column) {
         throw new TypeError(`seed ${table.key}: unknown column "${key}"`);
-      if (column.generated)
+      }
+      if (column.generated) {
         throw new TypeError(
           `seed ${table.key}: "${key}" is a generated column`,
         );
+      }
       columns.push(key);
     }
   }
@@ -183,9 +206,12 @@ export function defineSeed<
     );
     for (const key of keys) {
       const table = meta.tables[key];
-      if (!table) throw new TypeError(`seed: unknown table "${key}"`);
-      if (table.kind === "view")
+      if (!table) {
+        throw new TypeError(`seed: unknown table "${key}"`);
+      }
+      if (table.kind === "view") {
         throw new TypeError(`seed: "${key}" is a view`);
+      }
     }
     return order(meta, keys).flatMap((key) => {
       // SAFETY: the loop above rejected unknown tables, and each fixture maps
@@ -203,7 +229,9 @@ export function defineSeed<
     statements,
     sql: () => statements().join("\n\n"),
     async insert(sql) {
-      for (const text of statements()) await sql.queryRaw(text);
+      for (const text of statements()) {
+        await sql.queryRaw(text);
+      }
     },
   };
 }

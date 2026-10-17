@@ -135,7 +135,9 @@ describe("bridges pass testAdapter", () => {
             });
             return result.response;
           } catch (thrown) {
-            if (thrown instanceof Response) return thrown;
+            if (thrown instanceof Response) {
+              return thrown;
+            }
             throw thrown;
           }
         };

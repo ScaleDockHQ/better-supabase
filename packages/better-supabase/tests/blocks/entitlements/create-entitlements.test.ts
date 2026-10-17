@@ -11,7 +11,9 @@ describe("createEntitlements", () => {
       transport: {
         call: (schema, fn, args) => {
           calls.push([schema, fn, { ...args }]);
-          if (fn === "has_entitlement") return Promise.resolve(true);
+          if (fn === "has_entitlement") {
+            return Promise.resolve(true);
+          }
           return Promise.resolve(args["key"] === "seats" ? 10 : null);
         },
       },

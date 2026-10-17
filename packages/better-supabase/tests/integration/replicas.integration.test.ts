@@ -52,8 +52,9 @@ describe.skipIf(!(await reachable()) || readUrl === url)(
     const created: string[] = [];
     afterAll(async () => {
       vi.restoreAllMocks();
-      if (created.length > 0)
+      if (created.length > 0) {
         await admin.customers.deleteMany({ where: { id: { in: created } } });
+      }
     });
 
     it("reads its own write from the primary right after writing", async () => {
@@ -64,8 +65,9 @@ describe.skipIf(!(await reachable()) || readUrl === url)(
         const target = new URL(
           input instanceof Request ? input.url : String(input),
         );
-        if (target.pathname.startsWith("/rest/"))
+        if (target.pathname.startsWith("/rest/")) {
           hosts.push(`${init?.method ?? "GET"} ${target.hostname}`);
+        }
         return real(input, init);
       });
       const request = (cookie?: string) =>

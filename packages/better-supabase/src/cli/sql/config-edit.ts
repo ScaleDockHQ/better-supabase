@@ -48,11 +48,15 @@ function mask(source: string): string {
     }
   };
   for (const [start, end] of ranges) {
-    if (start > cursor) hide(start);
+    if (start > cursor) {
+      hide(start);
+    }
     out += source.slice(start, end);
     cursor = end;
   }
-  if (cursor < source.length) hide(source.length);
+  if (cursor < source.length) {
+    hide(source.length);
+  }
   return out;
 }
 
@@ -63,11 +67,16 @@ function closingIndex(code: string, open: number): number {
     const char = code[index]!;
     if (char === '"' || char === "'" || char === "`") {
       index = code.indexOf(char, index + 1);
-      if (index === -1) return -1;
-    } else if (OPENING.includes(char)) depth += 1;
-    else if (CLOSING.includes(char)) {
+      if (index === -1) {
+        return -1;
+      }
+    } else if (OPENING.includes(char)) {
+      depth += 1;
+    } else if (CLOSING.includes(char)) {
       depth -= 1;
-      if (depth === 0) return index;
+      if (depth === 0) {
+        return index;
+      }
     }
   }
   return -1;
@@ -75,7 +84,9 @@ function closingIndex(code: string, open: number): number {
 
 const skipSpace = (code: string, from: number): number => {
   let index = from;
-  while (index < code.length && /\s/.test(code[index]!)) index += 1;
+  while (index < code.length && /\s/.test(code[index]!)) {
+    index += 1;
+  }
   return index;
 };
 
@@ -87,14 +98,23 @@ function valueEnd(code: string, index: number): number {
     const char = code[end]!;
     if (char === '"' || char === "'" || char === "`") {
       end = code.indexOf(char, end + 1);
-      if (end === -1) return code.length;
-    } else if (OPENING.includes(char)) depth += 1;
-    else if (CLOSING.includes(char)) {
-      if (depth === 0) break;
+      if (end === -1) {
+        return code.length;
+      }
+    } else if (OPENING.includes(char)) {
+      depth += 1;
+    } else if (CLOSING.includes(char)) {
+      if (depth === 0) {
+        break;
+      }
       depth -= 1;
-    } else if (char === "," && depth === 0) break;
+    } else if (char === "," && depth === 0) {
+      break;
+    }
   }
-  while (end > index && /\s/.test(code[end - 1]!)) end -= 1;
+  while (end > index && /\s/.test(code[end - 1]!)) {
+    end -= 1;
+  }
   return end;
 }
 
@@ -105,7 +125,9 @@ function properties(
   open: number,
 ): readonly Property[] | undefined {
   const close = closingIndex(code, open);
-  if (close === -1) return undefined;
+  if (close === -1) {
+    return undefined;
+  }
   const found: Property[] = [];
   let index = skipSpace(code, open + 1);
   while (index < close) {
@@ -121,7 +143,9 @@ function properties(
       index = closingIndex(code, index) + 1;
     } else {
       const name = /^[A-Za-z_$][\w$]*/.exec(code.slice(index))?.[0];
-      if (!name) return undefined;
+      if (!name) {
+        return undefined;
+      }
       key = name;
       index += name.length;
     }
@@ -138,8 +162,11 @@ function properties(
     const end = valueEnd(code, valueStart);
     found.push({ key, start, valueStart, valueEnd: end });
     index = skipSpace(code, end);
-    if (code[index] === ",") index = skipSpace(code, index + 1);
-    else if (index !== close) return undefined;
+    if (code[index] === ",") {
+      index = skipSpace(code, index + 1);
+    } else if (index !== close) {
+      return undefined;
+    }
   }
   return found;
 }
@@ -147,7 +174,9 @@ function properties(
 /** The `{` of the config object: `defineConfig({...})` or `export default {...}`. */
 function configObject(code: string): number | undefined {
   const call = /\bdefineConfig\s*(?:<[^>]*>)?\s*\(\s*\{/.exec(code);
-  if (call) return call.index + call[0].length - 1;
+  if (call) {
+    return call.index + call[0].length - 1;
+  }
   const literal =
     /\bexport\s+default\s*\{/.exec(code) ??
     /\bmodule\.exports\s*=\s*\{/.exec(code);
@@ -176,7 +205,9 @@ function elements(code: string, open: number): readonly Span[] {
     const end = valueEnd(code, index);
     found.push({ start: index, end });
     index = skipSpace(code, end);
-    if (code[index] !== ",") break;
+    if (code[index] !== ",") {
+      break;
+    }
     index = skipSpace(code, index + 1);
   }
   return found;
@@ -255,8 +286,9 @@ export function addBlocksToConfig(
     };
   }
   const rootProps = properties(source, code, root);
-  if (!rootProps)
+  if (!rootProps) {
     return { ok: false, reason: "its config object can't be read" };
+  }
   const blocks = rootProps.find((prop) => prop.key === "blocks");
   const edit = (start: number, end: number, text: string): ConfigEdit => ({
     ok: true,
@@ -272,11 +304,14 @@ export function addBlocksToConfig(
   const open = blocks.valueStart;
   if (code[open] === "{") {
     const listed = properties(source, code, open);
-    if (!listed)
+    if (!listed) {
       return { ok: false, reason: "its blocks object can't be read" };
+    }
     const keys = new Set(listed.map((prop) => prop.key));
     const missing = names.filter((name) => !keys.has(name));
-    if (missing.length === 0) return { ok: true, text: source };
+    if (missing.length === 0) {
+      return { ok: true, text: source };
+    }
     const change = append(
       source,
       code,
@@ -295,7 +330,9 @@ export function addBlocksToConfig(
     const quote = items[0]?.[1] ?? '"';
     const present = new Set(items.map((item) => item[2]));
     const missing = names.filter((name) => !present.has(name));
-    if (missing.length === 0) return { ok: true, text: source };
+    if (missing.length === 0) {
+      return { ok: true, text: source };
+    }
     const last = elements(code, open).at(-1);
     const change = append(
       source,
@@ -320,7 +357,9 @@ export function addBlocksToJson(
   } catch {
     return { ok: false, reason: "it isn't valid JSON" };
   }
-  if (!isObject(config)) return { ok: false, reason: "it isn't a JSON object" };
+  if (!isObject(config)) {
+    return { ok: false, reason: "it isn't a JSON object" };
+  }
   const blocks: unknown = config["blocks"] ?? {};
   let next: unknown;
   if (Array.isArray(blocks)) {
@@ -371,8 +410,9 @@ export function setPresetInConfig(source: string, value: string): ConfigEdit {
     };
   }
   const rootProps = properties(source, code, root);
-  if (!rootProps)
+  if (!rootProps) {
     return { ok: false, reason: "its config object can't be read" };
+  }
   const current = rootProps.find((prop) => prop.key === "preset");
   // Keep the file's quotes: a value of the preset alphabet needs no escaping.
   const quote =
@@ -408,7 +448,9 @@ export function setPresetInJson(source: string, value: string): ConfigEdit {
   } catch {
     return { ok: false, reason: "it isn't valid JSON" };
   }
-  if (!isObject(config)) return { ok: false, reason: "it isn't a JSON object" };
+  if (!isObject(config)) {
+    return { ok: false, reason: "it isn't a JSON object" };
+  }
   const indent = /^[ \t]+/m.exec(source)?.[0] ?? "  ";
   return jsonEdit(source, config, { ...config, preset: value }, indent);
 }
@@ -434,7 +476,9 @@ export function addBlocksToWiring(
   const missing = blocks.filter(
     (block) => !new RegExp(`\\b${block.export}\\b`).test(code),
   );
-  if (missing.length === 0) return { ok: true, text: source };
+  if (missing.length === 0) {
+    return { ok: true, text: source };
+  }
   const call = /\b(createBlocks|defineBlocks)\s*(?:<[^>]*>)?\s*\(/.exec(code);
   if (!call) {
     return {
@@ -454,7 +498,9 @@ export function addBlocksToWiring(
     };
   }
   const listed = properties(source, code, second);
-  if (!listed) return { ok: false, reason: "its blocks object can't be read" };
+  if (!listed) {
+    return { ok: false, reason: "its blocks object can't be read" };
+  }
   const change = append(
     source,
     code,
@@ -478,11 +524,19 @@ export function addBlocksToWiring(
 
 /** `value` as a TypeScript literal, one key per line, indented from `indent`. */
 function literal(value: unknown, indent: string, quote: string): string {
-  if (value === null) return "null";
-  if (typeof value === "string") return `${quote}${value}${quote}`;
-  if (typeof value !== "object") return String(value);
+  if (value === null) {
+    return "null";
+  }
+  if (typeof value === "string") {
+    return `${quote}${value}${quote}`;
+  }
+  if (typeof value !== "object") {
+    return String(value);
+  }
   const entries = Object.entries(value);
-  if (entries.length === 0) return "{}";
+  if (entries.length === 0) {
+    return "{}";
+  }
   const inner = `${indent}  `;
   return `{\n${entries.map(([key, entry]) => `${inner}${keyText(key)}: ${literal(entry, inner, quote)},`).join("\n")}\n${indent}}`;
 }
@@ -505,8 +559,9 @@ export function setBlockInConfig(
     };
   }
   const rootProps = properties(source, code, root);
-  if (!rootProps)
+  if (!rootProps) {
     return { ok: false, reason: "its config object can't be read" };
+  }
   const quote = source.includes("'better-supabase/config'") ? "'" : '"';
   const edit = (start: number, end: number, text: string): ConfigEdit => ({
     ok: true,
@@ -526,8 +581,9 @@ export function setBlockInConfig(
   const indent = indentAt(source, blocks.start);
   if (code[open] === "{") {
     const listed = properties(source, code, open);
-    if (!listed)
+    if (!listed) {
       return { ok: false, reason: "its blocks object can't be read" };
+    }
     const current = listed.find((prop) => prop.key === name);
     if (current) {
       return edit(
@@ -568,7 +624,9 @@ export function setBlockInJson(
   } catch {
     return { ok: false, reason: "it isn't valid JSON" };
   }
-  if (!isObject(config)) return { ok: false, reason: "it isn't a JSON object" };
+  if (!isObject(config)) {
+    return { ok: false, reason: "it isn't a JSON object" };
+  }
   const blocks: unknown = config["blocks"] ?? {};
   let current: Record<string, unknown>;
   if (Array.isArray(blocks)) {

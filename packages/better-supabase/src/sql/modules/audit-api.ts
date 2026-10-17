@@ -64,20 +64,24 @@ export function listEntries(
     const value = `l.${c(logical)}`;
     return `'${key}', ${isAuditValueColumn(logical) ? auditRead(ctx, logical, value) : value}`;
   });
-  if (extra.length > 0)
+  if (extra.length > 0) {
     pairs.push(
       `'columns', jsonb_build_object(${extra.map(([column]) => `${sqlString(column)}, l.${sqlIdent(column)}`).join(", ")})`,
     );
+  }
   // jsonb_build_object takes at most 100 arguments; split in chunks of 20 keys.
   const chunks: string[] = [];
-  for (let index = 0; index < pairs.length; index += 20)
+  for (let index = 0; index < pairs.length; index += 20) {
     chunks.push(
       `jsonb_build_object(${pairs.slice(index, index + 20).join(", ")})`,
     );
+  }
   // The filters and their positions in the dynamic query's `using` list.
   const conditions: string[] = [];
   const filter = (logical: string, param: string, position: number) => {
-    if (!hasColumn(ctx, "log", logical)) return;
+    if (!hasColumn(ctx, "log", logical)) {
+      return;
+    }
     const value = `l.${c(logical)}`;
     const read = isAuditValueColumn(logical)
       ? auditRead(ctx, logical, value)
@@ -234,7 +238,9 @@ ${revokeUsers(ctx.fn("count_audit_events"), filterTypes)}grant execute on functi
  * `audit.revealed` entry that records who looked.
  */
 export function reveal(ctx: ModuleContext, restricted: boolean): string {
-  if (!restricted || !ctx.installed("access")) return "";
+  if (!restricted || !ctx.installed("access")) {
+    return "";
+  }
   const log = ctx.table("log");
   const c = (logical: string) => ctx.col("log", logical);
   const r = (logical: string) => ctx.col("restricted", logical);

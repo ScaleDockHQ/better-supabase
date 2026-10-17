@@ -255,7 +255,9 @@ const STATUSES: ReadonlySet<string> = new Set([
 ]);
 
 function statusOf(value: unknown): WebhookInboxEntry["status"] {
-  if (typeof value !== "string" || !STATUSES.has(value)) return "pending";
+  if (typeof value !== "string" || !STATUSES.has(value)) {
+    return "pending";
+  }
   // SAFETY: the set holds exactly the status values.
   return value as WebhookInboxEntry["status"];
 }
@@ -274,7 +276,9 @@ const headersOf = (value: unknown): Readonly<Record<string, string>> =>
     : {};
 
 function defaultType(payload: unknown): string | null {
-  if (typeof payload !== "object" || payload === null) return null;
+  if (typeof payload !== "object" || payload === null) {
+    return null;
+  }
   // SAFETY: payload is a non-null object here, and type is checked below.
   const type = (payload as { type?: unknown }).type;
   return typeof type === "string" ? type : null;
@@ -355,7 +359,9 @@ export function createWebhookInbox<
   ): Promise<
     Result<{ id: string; payload: unknown; tenant?: string | null }>
   > => {
-    if (options.verify) return options.verify(request, body);
+    if (options.verify) {
+      return options.verify(request, body);
+    }
     const result = await verifyWebhook(
       { headers: request.headers, body },
       options.secrets ?? [],
@@ -458,8 +464,9 @@ export function createWebhookInbox<
         );
       }
       const message = await verified(request, body);
-      if (!message.ok)
+      if (!message.ok) {
         return problemResponse(message.error, { instance, format });
+      }
       const headers = Object.fromEntries(
         (options.keepHeaders ?? []).flatMap((name) => {
           const value = request.headers.get(name);
@@ -474,8 +481,9 @@ export function createWebhookInbox<
           ? {}
           : { tenant: message.data.tenant }),
       });
-      if (!stored.ok)
+      if (!stored.ok) {
         return problemResponse(stored.error, { instance, format });
+      }
       return Response.json(stored.data, {
         status: stored.data.duplicate ? 200 : 202,
       });
@@ -487,7 +495,9 @@ export function createWebhookInbox<
       const lease = seconds(processOptions.lease ?? 300);
       const spent = budget(processOptions.budgetMs);
       for (;;) {
-        if (spent.expired()) return { succeeded, failed };
+        if (spent.expired()) {
+          return { succeeded, failed };
+        }
         const rows = await must(
           "claim_webhooks",
           {
@@ -498,7 +508,9 @@ export function createWebhookInbox<
           },
           (value) => recordsOf(value, "claim_webhooks"),
         );
-        if (rows.length === 0) return { succeeded, failed };
+        if (rows.length === 0) {
+          return { succeeded, failed };
+        }
         for (const row of rows) {
           const id = Number(row["id"]);
           const attempt = Number(row["attempts"]);
@@ -514,7 +526,9 @@ export function createWebhookInbox<
                   : Number(value),
             );
           const leaseSeconds = await extend();
-          if (leaseSeconds === undefined) continue;
+          if (leaseSeconds === undefined) {
+            continue;
+          }
           const stopHeartbeat = leaseHeartbeat(
             leaseSeconds,
             () => void extend().catch(() => undefined),
@@ -523,7 +537,9 @@ export function createWebhookInbox<
             const parsed = await fields.read(
               isRecord(row["fields"]) ? row["fields"] : {},
             );
-            if (!parsed.ok) throw new Error(parsed.error.message);
+            if (!parsed.ok) {
+              throw new Error(parsed.error.message);
+            }
             const message: WebhookInboxMessage<never, F> = {
               id,
               source: String(row["source"]),
@@ -571,7 +587,9 @@ export function createWebhookInbox<
               { inbox_id: id, worker, attempt },
               (value) => value !== false,
             );
-            if (done) succeeded += 1;
+            if (done) {
+              succeeded += 1;
+            }
           } catch (cause) {
             await must(
               "fail_webhook",

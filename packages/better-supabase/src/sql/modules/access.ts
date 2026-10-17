@@ -79,7 +79,9 @@ function membershipNames(ctx: ModuleContext): Names {
 function catalogEffective(ctx: ModuleContext, n: Names): string {
   const rp = ctx.table("rolePermissions");
   const fallback = `exists (select 1 from ${rp} rp where rp.${ctx.col("rolePermissions", "role")} = m.${n.role} and rp.${ctx.col("rolePermissions", "permission")} = p.${ctx.col("permissions", "id")})`;
-  if (!ctx.hasTable("overrides")) return fallback;
+  if (!ctx.hasTable("overrides")) {
+    return fallback;
+  }
   const o = ctx.table("overrides");
   return `coalesce(
       (select bool_and(o.${ctx.col("overrides", "granted")}) from ${o} o
@@ -233,7 +235,9 @@ $$;${catalogAudit(ctx)}${membershipRoleKey(ctx)}`;
  * override and platform-role writes are audited under `access`.
  */
 function catalogAudit(ctx: ModuleContext): string {
-  if (!ctx.installedModules.includes("audit")) return "";
+  if (!ctx.installedModules.includes("audit")) {
+    return "";
+  }
   const tables = (
     [
       "roles",
@@ -267,7 +271,9 @@ $$;`;
 /** A catalog role can't be deleted while a membership still holds it. */
 function membershipRoleKey(ctx: ModuleContext): string {
   const tenant = ctx.of("tenant");
-  if (!tenant.manages) return "";
+  if (!tenant.manages) {
+    return "";
+  }
   return `
 ${addForeignKey({
   table: tenant.table("memberships"),
@@ -444,7 +450,9 @@ $$;`;
 
 /** `platform_can_assign(member, role)`: the platform role ceiling. */
 function platformCanAssign(ctx: ModuleContext): string {
-  if (!hasPlatformRoles(ctx)) return "";
+  if (!hasPlatformRoles(ctx)) {
+    return "";
+  }
   const platformRole = roleScopeIs(ctx, "r", "platform");
   return `
 -- A platform role is assignable by a member who holds every key it grants.
@@ -502,8 +510,9 @@ function providerSql(
   values: Readonly<Record<string, string>>,
 ): string {
   const template = provider.functions[name];
-  if (template === undefined)
+  if (template === undefined) {
     throw new TypeError(`authorization.functions.${name} is not set`);
+  }
   return fillTemplate(`authorization.functions.${name}`, template, {
     scope: provider.scope,
     ...values,
@@ -619,8 +628,12 @@ function assignAsCheck(
     role: "can_assign_as.role",
   };
   const template = ctx.modules.access?.functions?.canAssignFor;
-  if (template) return fill(template, values);
-  if (accessModel(ctx) !== "provider") return undefined;
+  if (template) {
+    return fill(template, values);
+  }
+  if (accessModel(ctx) !== "provider") {
+    return undefined;
+  }
   const provider = providerOf(ctx, layout);
   return provider.functions.canAssignFor === undefined
     ? undefined
@@ -643,7 +656,9 @@ export function hasCanAssignAs(
 /** `can_assign_as` for the provider and custom models, when it has a body. */
 function assignAsFunction(ctx: ModuleContext, layout: ModuleLayout): string {
   const check = assignAsCheck(ctx, layout);
-  if (check === undefined) return "";
+  if (check === undefined) {
+    return "";
+  }
   return `
 
 -- Whether member may assign role in tenant, for trusted SQL that acts later

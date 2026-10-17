@@ -56,7 +56,9 @@ export async function getDefinitions(): Promise<readonly DefinitionRow[]> {
   "use cache: private";
   const { session, supabase } = await bs.cached();
   const tenant = tenantOf(session);
-  if (!tenant) return [];
+  if (!tenant) {
+    return [];
+  }
   const definitions = await builderFor(supabase)
     .definitions.list(tenant)
     .orThrow();
@@ -77,10 +79,14 @@ export async function getBuilderDetail(
   "use cache: private";
   const { session, supabase } = await bs.cached();
   const tenant = tenantOf(session);
-  if (!tenant) return null;
+  if (!tenant) {
+    return null;
+  }
   const builder = builderFor(supabase);
   const definition = await builder.definitions.get(id).orThrow();
-  if (definition?.tenant !== tenant) return null;
+  if (definition?.tenant !== tenant) {
+    return null;
+  }
   const [versions, steps, triggers, credentials] = await Promise.all([
     builder.versions.list(id).orThrow(),
     builder.steps.list().orThrow(),

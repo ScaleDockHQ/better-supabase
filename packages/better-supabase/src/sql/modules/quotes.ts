@@ -89,7 +89,9 @@ const NAMES: ModuleNames = {
 };
 
 function tables(ctx: ModuleContext, n: QuoteNames): string {
-  if (!ctx.manages) return "";
+  if (!ctx.manages) {
+    return "";
+  }
   const { t, c } = n;
   const q = (column: string): string => c("quotes", column);
   return `
@@ -138,7 +140,9 @@ using (${ctx.scope.check(q("tenant"), n.read)});
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const keys = moduleOperations("quotes");
   const validDays = ctx.number("validDays", 30);
   if (!Number.isInteger(validDays) || validDays < 1) {

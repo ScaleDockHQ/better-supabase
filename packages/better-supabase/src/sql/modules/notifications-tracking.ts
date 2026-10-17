@@ -48,7 +48,9 @@ export const keepsTemplateKey = (ctx: ModuleContext): boolean =>
  * recipients read for their own deliveries.
  */
 export function trackingTables(ctx: ModuleContext, n: NotifyNames): string {
-  if (!ctx.manages || !tracking(ctx)) return "";
+  if (!ctx.manages || !tracking(ctx)) {
+    return "";
+  }
   const d = (logical: string) => n.col("deliveries", logical);
   const e = (logical: string) => n.col("deliveryEvents", logical);
   const deliveries = n.table("deliveries");
@@ -118,7 +120,9 @@ function recordKinds(ctx: ModuleContext, fn: string): string {
       audit: false,
     }),
   }));
-  if (statements.every(({ statement }) => statement === NOTHING)) return "";
+  if (statements.every(({ statement }) => statement === NOTHING)) {
+    return "";
+  }
   const branches = statements.map(
     ({ kind, statement }, index) =>
       `${index === 0 ? "if" : "elsif"} v_kind = ${sqlString(kind)} then
@@ -134,7 +138,9 @@ function recordKinds(ctx: ModuleContext, fn: string): string {
  * `list_subject_deliveries`, which a sender reads for one record.
  */
 export function trackingFunctions(ctx: ModuleContext, n: NotifyNames): string {
-  if (!tracking(ctx)) return "";
+  if (!tracking(ctx)) {
+    return "";
+  }
   const id = ctx.idType;
   const d = (logical: string) => n.col("deliveries", logical);
   const r = (logical: string) => n.col("recipients", logical);
@@ -291,7 +297,9 @@ ${serviceGrant(`${ctx.fn(record)}(text, text, text, text, timestamptz, jsonb, bo
       ["delivered_at", "deliveredAt"],
     ];
     for (const [key, logical] of optional) {
-      if (n.has("deliveries", logical)) fields.push([key, `d.${d(logical)}`]);
+      if (n.has("deliveries", logical)) {
+        fields.push([key, `d.${d(logical)}`]);
+      }
     }
     fields.push([
       "events",
@@ -354,7 +362,9 @@ grant execute on function ${signature} to authenticated, service_role;`
 export function trackingContract(
   ctx: ModuleContext,
 ): readonly ModuleContractFunction[] {
-  if (!tracking(ctx)) return [];
+  if (!tracking(ctx)) {
+    return [];
+  }
   const fns: ModuleContractFunction[] = [
     {
       name: "record_delivery_event",

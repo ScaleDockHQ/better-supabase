@@ -257,7 +257,9 @@ export function createRelations<
               : null;
             const calls: UndoCall[] = [];
             const args = linkArgs(input.organizationId, kind, source, target);
-            if (created) calls.push({ fn: "unlink", args });
+            if (created) {
+              calls.push({ fn: "unlink", args });
+            }
             if (replaced) {
               calls.push({
                 fn: "link",

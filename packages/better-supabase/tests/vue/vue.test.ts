@@ -54,10 +54,11 @@ function withApp(
   >["queryClient"],
 ): App {
   const app = createApp({ render: () => null });
-  if (client)
+  if (client) {
     app.use(
       betterSupabase(client, queryClient === undefined ? {} : { queryClient }),
     );
+  }
   return app;
 }
 

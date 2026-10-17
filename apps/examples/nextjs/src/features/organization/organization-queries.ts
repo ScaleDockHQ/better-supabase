@@ -68,7 +68,9 @@ export async function getMyOrganizations(): Promise<
 > {
   "use cache: private";
   const { db, session } = await bs.cached();
-  if (session.kind !== "user") return [];
+  if (session.kind !== "user") {
+    return [];
+  }
   return toOrganizationSummaries(await db.$rpc("my_organizations").orThrow());
 }
 

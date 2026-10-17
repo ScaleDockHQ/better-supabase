@@ -23,11 +23,12 @@ export function locate(
     );
     for (const file of files) {
       const match = onTable.exec(file.text);
-      if (match)
+      if (match) {
         return {
           file: file.path,
           line: file.text.slice(0, match.index).split("\n").length,
         };
+      }
     }
     return undefined;
   }
@@ -45,7 +46,9 @@ export function locate(
         : new RegExp(`create\\s+policy\\s+${name}`, "i");
   for (const file of files) {
     const line = lineOf(file.text, pattern);
-    if (line) return { file: file.path, line };
+    if (line) {
+      return { file: file.path, line };
+    }
   }
   return undefined;
 }

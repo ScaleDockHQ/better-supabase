@@ -62,7 +62,9 @@ async function declarativeTexts(
     toml,
     sqlWorkflow(config, toml),
   );
-  if (files.length === 0) return schemaTexts(config);
+  if (files.length === 0) {
+    return schemaTexts(config);
+  }
   return Promise.all(
     files.map(async (path) => ({
       text: await readFile(resolve(config.root, path), "utf-8"),
@@ -108,7 +110,9 @@ export async function moduleLayoutFor(
     await declarativeTexts(config),
     config.schemas,
   );
-  if (adopted.length > 0) throw new TypeError(adopted.join("\n"));
+  if (adopted.length > 0) {
+    throw new TypeError(adopted.join("\n"));
+  }
   const fromPolicies =
     resolved.has("grants") &&
     config.blocks["grants"]?.options?.["fromPolicies"] === true;
@@ -172,13 +176,20 @@ export function migrationsDir(config: ResolvedConfig): string {
   const root = resolve(config.root);
   let dir = resolve(root, config.sql.dir);
   let stop = root;
-  while (dir !== stop && !dir.startsWith(stop + sep) && dirname(stop) !== stop)
+  while (
+    dir !== stop &&
+    !dir.startsWith(stop + sep) &&
+    dirname(stop) !== stop
+  ) {
     stop = dirname(stop);
+  }
   for (;;) {
     if (existsSync(join(dir, "config.toml"))) {
       return relative(root, join(dir, "migrations")).replaceAll("\\", "/");
     }
-    if (dir === stop || dirname(dir) === dir) break;
+    if (dir === stop || dirname(dir) === dir) {
+      break;
+    }
     dir = dirname(dir);
   }
   return "supabase/migrations";

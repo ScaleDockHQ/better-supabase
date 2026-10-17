@@ -112,7 +112,9 @@ function allowedScopes(
   layout: ModuleLayout,
 ): readonly string[] | undefined {
   const option = ctx.option("scopes");
-  if (option === undefined) return undefined;
+  if (option === undefined) {
+    return undefined;
+  }
   if (option === "catalog") {
     if (!layout.permissionCatalog) {
       throw new TypeError(
@@ -156,7 +158,9 @@ function prefixOf(ctx: ModuleContext): string {
 }
 
 function build(ctx: ModuleContext, layout: ModuleLayout): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const id = ctx.idType;
   const t = ctx.table("keys");
   const c = (logical: string): string => ctx.col("keys", logical);

@@ -53,9 +53,13 @@ export function SignupForm() {
           emailRedirectTo: `${window.location.origin}/${locale}`,
         },
       });
-      if (error) return { error: error.message };
+      if (error) {
+        return { error: error.message };
+      }
       // With email confirmations on, there is no session until the link is opened.
-      if (!data.session) return { confirm: email };
+      if (!data.session) {
+        return { confirm: email };
+      }
       await changeSession(safeNext(`/${locale}`));
       return null;
     },

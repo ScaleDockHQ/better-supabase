@@ -46,8 +46,11 @@ export function useBlockController<O, S, A>(
       });
       set(controller.getSnapshot());
     };
-    if (mounted) start();
-    else pending = start;
+    if (mounted) {
+      start();
+    } else {
+      pending = start;
+    }
     return () => {
       pending = undefined;
       stop?.();

@@ -17,7 +17,9 @@ expect.addEqualityTesters([
     const type = temporalTypes.find(
       (candidate) => a instanceof candidate || b instanceof candidate,
     );
-    if (type === undefined) return;
+    if (type === undefined) {
+      return;
+    }
     return a instanceof type && b instanceof type && String(a) === String(b);
   },
 ]);

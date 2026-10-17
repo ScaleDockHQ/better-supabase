@@ -107,14 +107,18 @@ function platformKeys(ctx: ModuleContext): {
     throw new TypeError(`${where}.platform must be { permission?, read? }`);
   }
   const readOf = (value: unknown, at: string): PlatformRead | undefined => {
-    if (value === undefined) return undefined;
+    if (value === undefined) {
+      return undefined;
+    }
     if (!isRead(value)) {
       throw new TypeError(`${at}.read must be ${READS.join(", ")}`);
     }
     return value;
   };
   const permissionOf = (value: unknown, at: string): string | undefined => {
-    if (value === undefined) return undefined;
+    if (value === undefined) {
+      return undefined;
+    }
     if (typeof value !== "string" || value.length === 0) {
       throw new TypeError(`${at}.permission must be a permission key`);
     }
@@ -129,7 +133,9 @@ function platformKeys(ctx: ModuleContext): {
   const raw = ctx.option("schemas");
   const schemas = isObject(raw) && "schemas" in raw ? raw["schemas"] : raw;
   const entries = isObject(schemas) ? schemas["platform"] : undefined;
-  if (entries === undefined) return { fallback, keys: [] };
+  if (entries === undefined) {
+    return { fallback, keys: [] };
+  }
   if (!isObject(entries)) {
     throw new TypeError(
       `${where}.schemas.platform: pass an object of key to schema`,
@@ -170,16 +176,24 @@ const isObject = (value: unknown): value is Readonly<Record<string, unknown>> =>
 function jsonSchemaOf(
   entry: unknown,
 ): Readonly<Record<string, unknown>> | undefined {
-  if (!isObject(entry)) return undefined;
+  if (!isObject(entry)) {
+    return undefined;
+  }
   const standard = entry["~standard"];
   if (standard === undefined) {
     return "schema" in entry ? jsonSchemaOf(entry["schema"]) : entry;
   }
-  if (!isObject(standard)) return undefined;
+  if (!isObject(standard)) {
+    return undefined;
+  }
   const jsonSchema = standard["jsonSchema"];
-  if (!isObject(jsonSchema)) return undefined;
+  if (!isObject(jsonSchema)) {
+    return undefined;
+  }
   const input = jsonSchema["input"];
-  if (typeof input !== "function") return undefined;
+  if (typeof input !== "function") {
+    return undefined;
+  }
   // SAFETY: Standard JSON Schema defines input as (options) => a JSON Schema object.
   const toJson = input as (options: { readonly target: string }) => unknown;
   const document = toJson({ target: "draft-2020-12" });
@@ -192,7 +206,9 @@ function jsonSchemaOf(
  */
 function settingsChecks(ctx: ModuleContext): readonly JsonSchemaCheck[] {
   const option = ctx.option("schemas");
-  if (option === undefined) return [];
+  if (option === undefined) {
+    return [];
+  }
   const raw =
     isObject(option) && "schemas" in option ? option["schemas"] : option;
   if (!isObject(raw)) {
@@ -207,7 +223,9 @@ function settingsChecks(ctx: ModuleContext): readonly JsonSchemaCheck[] {
     ["platform", "platform"],
   ] as const) {
     const entries = raw[scope];
-    if (entries === undefined) continue;
+    if (entries === undefined) {
+      continue;
+    }
     if (!isObject(entries)) {
       throw new TypeError(
         `blocks.settings.options.schemas.${scope}: pass an object of key to schema`,
@@ -216,7 +234,9 @@ function settingsChecks(ctx: ModuleContext): readonly JsonSchemaCheck[] {
     const target = ctx.tableName(table);
     for (const [key, entry] of Object.entries(entries)) {
       const schema = jsonSchemaOf(entry);
-      if (!schema) continue;
+      if (!schema) {
+        continue;
+      }
       checks.push({
         table: `${target.schema}.${target.name}`,
         column: unquote(ctx.col(table, "value")),
@@ -234,7 +254,9 @@ function settingsChecks(ctx: ModuleContext): readonly JsonSchemaCheck[] {
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const id = ctx.idType;
   const u = ctx.table("user");
   const o = ctx.table("organization");

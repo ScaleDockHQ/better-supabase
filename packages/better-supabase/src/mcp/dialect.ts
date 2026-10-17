@@ -27,7 +27,9 @@ export function toolDialects<
   const built = new Map<ToolSchemaTarget, T>();
   return (target) => {
     const cached = built.get(target);
-    if (cached) return cached;
+    if (cached) {
+      return cached;
+    }
     const input = convert?.(target);
     const lower = target === "draft-07";
     const result: T =

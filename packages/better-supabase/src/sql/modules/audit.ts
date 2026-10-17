@@ -431,7 +431,9 @@ function restrictedInsert(
     sessionId?: string;
   },
 ): string {
-  if (!restricted) return "";
+  if (!restricted) {
+    return "";
+  }
   const r = (logical: string) => ctx.col("restricted", logical);
   const pairs: (readonly [string, string])[] = [
     ["entry", "entry_id"],
@@ -461,7 +463,9 @@ function eventRestricted(ctx: ModuleContext, restricted: boolean): string {
     userAgent: "user_agent",
     sessionId: "session_id",
   });
-  if (insert === "") return "";
+  if (insert === "") {
+    return "";
+  }
   return `
   if coalesce(restricted, '{}') <> '{}' or ip is not null or nullif(user_agent, '') is not null or nullif(session_id, '') is not null then${insert.replaceAll("\n  ", "\n    ")}
   end if;`;

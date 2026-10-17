@@ -46,12 +46,18 @@ function fakePage(
       event: string,
       fn: (value: BudgetResponse & BudgetRequest) => void,
     ) => {
-      if (event === "response") listener = fn as typeof listener;
-      else onFailed = fn as typeof onFailed;
+      if (event === "response") {
+        listener = fn as typeof listener;
+      } else {
+        onFailed = fn as typeof onFailed;
+      }
     },
     off: (event: string) => {
-      if (event === "response") listener = undefined;
-      else onFailed = undefined;
+      if (event === "response") {
+        listener = undefined;
+      } else {
+        onFailed = undefined;
+      }
     },
     reload: () => {
       if (during) {

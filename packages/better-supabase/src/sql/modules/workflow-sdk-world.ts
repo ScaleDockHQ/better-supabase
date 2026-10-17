@@ -46,7 +46,9 @@ function deliveryQueueOf(ctx: ModuleContext): string {
 const PRINCIPAL_KINDS = "'user', 'service_principal', 'system', 'external'";
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const fn = (name: string): string => ctx.fn(name);
   const workflows = ctx.of("workflows");
   const record = workflows.fn("record_workflow_run");
@@ -208,7 +210,9 @@ grant execute on function ${fn("dispatch_workflow_deliveries")}(integer) to serv
 }
 
 function data(ctx: ModuleContext): string {
-  if (ctx.mode === "custom" || deliveryModeOf(ctx) !== "pg_net") return "";
+  if (ctx.mode === "custom" || deliveryModeOf(ctx) !== "pg_net") {
+    return "";
+  }
   const schedule = ctx.text("schedule", "1 seconds");
   return `-- Delivers workflow messages through pg_net every ${schedule} when pg_cron is installed.
 do $$

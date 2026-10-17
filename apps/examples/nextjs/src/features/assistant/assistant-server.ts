@@ -75,7 +75,9 @@ let providersInstance: AiProviders | undefined;
 
 /** The organizations' own provider keys, read from Vault as the service role. */
 function aiProviders(): AiProviders {
-  if (providersInstance) return providersInstance;
+  if (providersInstance) {
+    return providersInstance;
+  }
   const service = serviceTransport();
   providersInstance = createAiProviders({
     transport: service,
@@ -91,9 +93,13 @@ async function withTenantKeys<T extends { readonly gateway: object }>(
   providerOptions: T,
   organizationId: string,
 ): Promise<T> {
-  if (demoMode()) return providerOptions;
+  if (demoMode()) {
+    return providerOptions;
+  }
   const keys = await aiProviders().keys.resolve(organizationId);
-  if (!keys.ok || keys.data.length === 0) return providerOptions;
+  if (!keys.ok || keys.data.length === 0) {
+    return providerOptions;
+  }
   return {
     ...providerOptions,
     gateway: { ...providerOptions.gateway, ...byokOptions(keys.data) },

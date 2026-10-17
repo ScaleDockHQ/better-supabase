@@ -91,8 +91,12 @@ export function createAuditLogController(
       let ticket = 0;
       let next: AuditCursor | undefined;
       const load = async (more: boolean): Promise<void> => {
-        if (organizationId === null) return;
-        if (more && next === undefined) return;
+        if (organizationId === null) {
+          return;
+        }
+        if (more && next === undefined) {
+          return;
+        }
         const request = ++ticket;
         state.set({ loading: true });
         const result = await client.list(
@@ -103,7 +107,9 @@ export function createAuditLogController(
             more ? next : undefined,
           ),
         );
-        if (request !== ticket) return;
+        if (request !== ticket) {
+          return;
+        }
         if (!result.ok) {
           state.set({ loading: false, error: result.error });
           return;

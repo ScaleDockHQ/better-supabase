@@ -48,8 +48,9 @@ describe("pgTAP", () => {
       "tests.authenticate_as",
       "tests.authenticate_as_anon",
       "tests.rls_enabled",
-    ])
+    ]) {
       expect(file.contents).toContain(`create or replace function ${helper}(`);
+    }
   });
 });
 
@@ -69,8 +70,9 @@ describe(`pgvector iterative index scans (${SPEC_PINS.pgvector}+)`, () => {
       ),
     ].map((match) => match[1]);
     expect(values).toHaveLength(6);
-    for (const value of values)
+    for (const value of values) {
       expect(["strict_order", "relaxed_order"]).toContain(value);
+    }
   });
 
   it("uses the pgvector distance operator for each metric, schema-qualified", () => {
@@ -124,7 +126,9 @@ describe(`Stripe Sync Engine schema (${SPEC_PINS.stripeSyncEngine})`, () => {
       [...statement.matchAll(/\be\.([a-z_]+)/g)].map((match) => match[1]),
     );
     expect(used.size).toBeGreaterThan(0);
-    for (const column of used) expect(columns).toContain(column);
+    for (const column of used) {
+      expect(columns).toContain(column);
+    }
   });
 
   it("returns no entitlements until the engine's table exists", () => {

@@ -33,7 +33,9 @@ async function install(
   await client.query("begin");
   try {
     for (const file of renderModules(["number-sequences"], next)) {
-      if (file.kind !== "test") await client.query(file.contents);
+      if (file.kind !== "test") {
+        await client.query(file.contents);
+      }
     }
     // `tenant` replaces the fixture helper. Put it back before commit so
     // other suites never see the member-checked version.

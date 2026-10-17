@@ -106,7 +106,9 @@ export function withLease<T>(
       : sqlCalls(source);
   return run(async (): Promise<LeaseOutcome<T>> => {
     const holder = await calls.acquire(key, ttl, scope);
-    if (!holder) return { acquired: false };
+    if (!holder) {
+      return { acquired: false };
+    }
     const lease: Lease = {
       holder,
       extend: (next = ttl) => run(() => calls.extend(key, holder, next, scope)),

@@ -30,7 +30,9 @@ function insertEntries(
   name: "app" | "db",
 ): string[] {
   return columns.map((column) => {
-    if (!column.insertable) return `${prop(column[name])}?: never;`;
+    if (!column.insertable) {
+      return `${prop(column[name])}?: never;`;
+    }
     const optional = column.optional ? "?" : "";
     return `${prop(column[name])}${optional}: ${nullable(column.tsType, column.nullable)};`;
   });
@@ -41,7 +43,9 @@ function updateEntries(
   name: "app" | "db",
 ): string[] {
   return columns.map((column) => {
-    if (!column.updatable) return `${prop(column[name])}?: never;`;
+    if (!column.updatable) {
+      return `${prop(column[name])}?: never;`;
+    }
     return `${prop(column[name])}?: ${nullable(column.tsType, column.nullable)};`;
   });
 }
@@ -73,7 +77,9 @@ function enrichedDatabase(model: Model): string[] {
       });
     return tables.length > 0 ? block(prop(schema), tables) : [];
   });
-  if (schemas.length === 0) return ["export type Database = SupabaseDatabase;"];
+  if (schemas.length === 0) {
+    return ["export type Database = SupabaseDatabase;"];
+  }
   return [
     "export type Database = EnrichDatabase<",
     "  SupabaseDatabase,",
@@ -97,11 +103,18 @@ function modelsType(model: Model): string[] {
     );
     const flags: string[] = [];
     const tableFlags = table.meta.flags;
-    if (tableFlags.softDelete)
+    if (tableFlags.softDelete) {
       flags.push(`softDelete: ${q(tableFlags.softDelete)};`);
-    if (tableFlags.timestamps) flags.push("timestamps: true;");
-    if (tableFlags.tenant) flags.push(`tenant: ${q(tableFlags.tenant)};`);
-    if (tableFlags.actor) flags.push("actor: true;");
+    }
+    if (tableFlags.timestamps) {
+      flags.push("timestamps: true;");
+    }
+    if (tableFlags.tenant) {
+      flags.push(`tenant: ${q(tableFlags.tenant)};`);
+    }
+    if (tableFlags.actor) {
+      flags.push("actor: true;");
+    }
     const none = "Record<never, never>";
     const union = (names: readonly string[]): string =>
       names.length === 0 ? "never" : names.map(q).join(" | ");
@@ -125,16 +138,18 @@ function modelsType(model: Model): string[] {
 }
 
 function functionsType(model: Model): string[] {
-  if (model.functions.length === 0)
+  if (model.functions.length === 0) {
     return ["export type Functions = Record<never, never>;"];
+  }
   const entries = [...functionGroups(model.functions)].flatMap(
     ([key, group]) => {
       const [first] = group;
-      if (group.length === 1 && first)
+      if (group.length === 1 && first) {
         return block(prop(key), [
           ...block("Args", argEntries(first), "Record<never, never>"),
           `Returns: ${first.returns};`,
         ]);
+      }
       // An overload without arguments rejects every key, so it never
       // matches a call that names one.
       return [
@@ -182,8 +197,9 @@ export function metaPaths(output: string): { js: string; dts: string } {
 function compactJson(meta: Readonly<Record<string, unknown>>): string {
   const entries = Object.entries(meta).map(([key, value]) => {
     const name = JSON.stringify(key);
-    if (typeof value !== "object" || value === null || Array.isArray(value))
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
       return `  ${name}: ${JSON.stringify(value)}`;
+    }
     const inner = Object.entries(value).map(
       ([entry, item]) =>
         `    ${JSON.stringify(entry)}: ${JSON.stringify(item)}`,
@@ -349,7 +365,9 @@ export function emitModule(model: Model, options: EmitOptions): string {
       }
     }
   }
-  if (model.enums.length > 0) lines.push("");
+  if (model.enums.length > 0) {
+    lines.push("");
+  }
 
   lines.push(
     ...modelsType(model),

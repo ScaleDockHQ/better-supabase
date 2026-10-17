@@ -16,8 +16,9 @@ export function sharedRolesProblems(
   layout: ModuleLayout,
 ): { readonly setting: string; readonly message: string }[] {
   const installed = resolveModules(names, layout).map((module) => module.name);
-  if (!installed.includes("tenant") || !installed.includes("invitations"))
+  if (!installed.includes("tenant") || !installed.includes("invitations")) {
     return [];
+  }
   const ctx = moduleContext("invitations", layout, installed);
   return [sharedRolesProblem(ctx.of("tenant")), platformRolesProblem(ctx)]
     .filter((problem): problem is string => problem !== undefined)

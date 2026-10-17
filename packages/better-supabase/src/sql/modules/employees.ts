@@ -164,7 +164,9 @@ const NAMES: ModuleNames = {
 const RESERVED = ["depth", "direct_reports"];
 
 function tablesSql(ctx: ModuleContext, n: EmployeeNames): string {
-  if (!ctx.manages) return "";
+  if (!ctx.manages) {
+    return "";
+  }
   const { t } = n;
   const e = (column: string): string => n.c("employees", column);
   const p = (column: string): string => n.c("privateDetails", column);
@@ -320,7 +322,9 @@ ${mirror}`;
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const keys = moduleOperations("employees");
   const names: EmployeeNames = {
     fn: (name) => ctx.fn(name),

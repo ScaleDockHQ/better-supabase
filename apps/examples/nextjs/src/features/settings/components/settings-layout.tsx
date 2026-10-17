@@ -87,7 +87,9 @@ function SettingControl({
           disabled={disabled}
           onValueChange={(next) => {
             const choice = field.choices.find((each) => String(each) === next);
-            if (choice !== undefined) onChange(choice);
+            if (choice !== undefined) {
+              onChange(choice);
+            }
           }}
         >
           <SelectTrigger id={id} className="w-48 capitalize">
@@ -178,7 +180,9 @@ function SettingsSection<E extends SettingEntries>({
                   disabled={!editable || state.saving === field.key}
                   onChange={(value) => {
                     void state.setField(field.key, value).then((saved) => {
-                      if (!saved.ok) toast.error(errorMessage(saved.error));
+                      if (!saved.ok) {
+                        toast.error(errorMessage(saved.error));
+                      }
                     });
                   }}
                 />

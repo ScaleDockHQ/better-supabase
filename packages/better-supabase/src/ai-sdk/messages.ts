@@ -75,8 +75,11 @@ function toolParts(part: ToolPart): AiMessagePart[] {
   const { approval } = part;
   if (approval !== undefined) {
     let state: AiToolApprovalPart["state"] = "requested";
-    if (approval.approved === true) state = "approved";
-    else if (approval.approved === false) state = "denied";
+    if (approval.approved === true) {
+      state = "approved";
+    } else if (approval.approved === false) {
+      state = "denied";
+    }
     parts.push({
       type: "tool-approval",
       toolCallId: part.toolCallId,
@@ -125,7 +128,9 @@ function toolParts(part: ToolPart): AiMessagePart[] {
 }
 
 function fromPart(part: UIPart): AiMessagePart[] {
-  if (isToolPart(part)) return toolParts(part);
+  if (isToolPart(part)) {
+    return toolParts(part);
+  }
   switch (part.type) {
     case "text":
     case "reasoning": {
@@ -197,7 +202,7 @@ function fromPart(part: UIPart): AiMessagePart[] {
       ];
     }
     default: {
-      if (part.type.startsWith("data-") && "data" in part)
+      if (part.type.startsWith("data-") && "data" in part) {
         return [
           {
             type: "data",
@@ -208,6 +213,7 @@ function fromPart(part: UIPart): AiMessagePart[] {
             data: part.data,
           },
         ];
+      }
       return [];
     }
   }
@@ -248,7 +254,7 @@ function toToolPart({ call, approval, result }: ToolState): UIPart {
   };
   const reason =
     approval?.reason === undefined ? {} : { reason: approval.reason };
-  if (approval?.state === "denied")
+  if (approval?.state === "denied") {
     return result === undefined
       ? {
           ...base,
@@ -260,6 +266,7 @@ function toToolPart({ call, approval, result }: ToolState): UIPart {
           state: "output-denied",
           approval: { id: approval.approvalId, approved: false, ...reason },
         };
+  }
   const approved =
     approval?.state === "approved"
       ? { approval: { id: approval.approvalId, approved: true as const } }
@@ -268,7 +275,7 @@ function toToolPart({ call, approval, result }: ToolState): UIPart {
     const resultMeta = isProviderMetadata(result.providerMetadata)
       ? { resultProviderMetadata: result.providerMetadata }
       : {};
-    if (result.isError === true)
+    if (result.isError === true) {
       return {
         ...base,
         ...approved,
@@ -279,6 +286,7 @@ function toToolPart({ call, approval, result }: ToolState): UIPart {
             ? result.output
             : JSON.stringify(result.output),
       };
+    }
     return {
       ...base,
       ...approved,
@@ -287,18 +295,20 @@ function toToolPart({ call, approval, result }: ToolState): UIPart {
       output: result.output,
     };
   }
-  if (approval?.state === "requested")
+  if (approval?.state === "requested") {
     return {
       ...base,
       state: "approval-requested",
       approval: { id: approval.approvalId },
     };
-  if (approval?.state === "approved")
+  }
+  if (approval?.state === "approved") {
     return {
       ...base,
       state: "approval-responded",
       approval: { id: approval.approvalId, approved: true, ...reason },
     };
+  }
   return { ...base, state: "input-available" };
 }
 
@@ -402,16 +412,22 @@ function render(
           into.push(toToolPart(state));
         }
       } else if (state !== undefined) {
-        if (part.type === "tool-result") state.result = part;
-        else state.approval = part;
+        if (part.type === "tool-result") {
+          state.result = part;
+        } else {
+          state.approval = part;
+        }
       }
       const slot = slots.get(part.toolCallId);
-      if (state !== undefined && slot !== undefined)
+      if (state !== undefined && slot !== undefined) {
         into[slot] = toToolPart(state);
+      }
       continue;
     }
     const converted = toPart(part);
-    if (converted !== undefined) into.push(converted);
+    if (converted !== undefined) {
+      into.push(converted);
+    }
   }
 }
 
@@ -429,7 +445,9 @@ function nativeOf(message: AiMessage): UIMessage | undefined {
  */
 export function toUIMessage(message: AiMessage): UIMessage {
   const native = nativeOf(message);
-  if (native !== undefined) return native;
+  if (native !== undefined) {
+    return native;
+  }
   const parts: UIPart[] = [];
   render(message.parts, new Map(), parts, new Map());
   return {

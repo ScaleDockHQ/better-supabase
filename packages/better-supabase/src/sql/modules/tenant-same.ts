@@ -31,7 +31,9 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 function entriesOf(ctx: ModuleContext): readonly SameTenant[] {
   const where = "blocks.tenant.options.sameTenant";
   const value = ctx.option("sameTenant");
-  if (value === undefined) return [];
+  if (value === undefined) {
+    return [];
+  }
   if (!Array.isArray(value)) {
     throw new TypeError(
       `${where} must be a list of { table, column, references, tenant?, match?, through? }`,
@@ -149,7 +151,9 @@ function triggerName(column: string): string {
  */
 export function sameTenantSql(ctx: ModuleContext): string {
   const entries = entriesOf(ctx);
-  if (entries.length === 0) return "";
+  if (entries.length === 0) {
+    return "";
+  }
   const triggers = entries.map((entry) => {
     const conditions = [
       ...(entry.where === undefined

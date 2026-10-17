@@ -73,7 +73,9 @@ function mount<T>(
       },
     });
     const rendered: unknown = element;
-    if (typeof rendered === "function") rendered();
+    if (typeof rendered === "function") {
+      rendered();
+    }
   });
   // SAFETY: the provider renders its children synchronously.
   return { result: result as T, dispose };

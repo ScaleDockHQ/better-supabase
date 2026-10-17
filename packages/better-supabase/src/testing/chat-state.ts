@@ -132,8 +132,9 @@ export function testChatState(
       "appends to a list and keeps the newest maxLength",
       async () => {
         const key = fresh();
-        for (const value of ["a", "b", "c", "d"])
+        for (const value of ["a", "b", "c", "d"]) {
           await state.appendToList(key, value, { maxLength: 3 });
+        }
         const list = await state.getList<string>(key);
         expect(list.join(",") === "b,c,d", `list is ${list.join(",")}`);
         expect(
@@ -152,8 +153,9 @@ export function testChatState(
         );
         expect((await state.dequeue(thread)) === null, "empty queue dequeued");
         let depth = 0;
-        for (const text of ["one", "two", "three"])
+        for (const text of ["one", "two", "three"]) {
           depth = await state.enqueue(thread, entry(thread, text), 2);
+        }
         expect(
           depth === 2,
           `depth after three with maxSize 2 is ${String(depth)}`,

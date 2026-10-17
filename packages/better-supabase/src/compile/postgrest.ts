@@ -43,7 +43,9 @@ export interface PostgrestCompileOptions {
 
 /** `false` only for a version string whose major is known to be below 13. */
 export function supportsMaxAffected(version: string | undefined): boolean {
-  if (version === undefined) return true;
+  if (version === undefined) {
+    return true;
+  }
   const major = /^v?(\d+)/i.exec(version)?.[1];
   return major === undefined || Number(major) >= 13;
 }
@@ -90,14 +92,25 @@ interface EmbedNode {
 // Value formatting
 
 function scalar(value: unknown): string {
-  if (typeof value === "string") return value;
-  if (typeof value === "number" || typeof value === "boolean")
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
     return String(value);
+  }
   const temporalValue = temporalText(value);
-  if (temporalValue !== undefined) return temporalValue;
-  if (value instanceof Date) return dateText(value);
-  if (typeof value === "bigint") return String(value);
-  if (value === null) return "null";
+  if (temporalValue !== undefined) {
+    return temporalValue;
+  }
+  if (value instanceof Date) {
+    return dateText(value);
+  }
+  if (typeof value === "bigint") {
+    return String(value);
+  }
+  if (value === null) {
+    return "null";
+  }
   return JSON.stringify(value);
 }
 
@@ -129,7 +142,9 @@ function list(values: readonly unknown[], open: string, close: string): string {
 /** The filter target: the column, or `column->a->>b` for a json path. */
 function target(condition: Extract<Condition, { kind: "column" }>): string {
   const { column, path } = condition;
-  if (!path || path.length === 0) return column;
+  if (!path || path.length === 0) {
+    return column;
+  }
   const last = path.length - 1;
   return `${column}${path.map((key, index) => `${index === last ? "->>" : "->"}${key}`).join("")}`;
 }
@@ -148,9 +163,13 @@ function likeToRegex(pattern: string): string {
       index += 1;
       const next = pattern.charAt(index);
       regex += REGEX_SPECIAL.test(next) ? `\\${next}` : next;
-    } else if (char === "%") regex += ".*";
-    else if (char === "_") regex += ".";
-    else regex += REGEX_SPECIAL.test(char) ? `\\${char}` : char;
+    } else if (char === "%") {
+      regex += ".*";
+    } else if (char === "_") {
+      regex += ".";
+    } else {
+      regex += REGEX_SPECIAL.test(char) ? `\\${char}` : char;
+    }
   }
   return `${regex}$`;
 }
@@ -179,20 +198,26 @@ function operatorAndValue(
     case "like":
     case "ilike": {
       const text = scalar(value);
-      if (!text.includes("*")) return { operator: op, value: plain(text) };
+      if (!text.includes("*")) {
+        return { operator: op, value: plain(text) };
+      }
       return {
         operator: op === "like" ? "match" : "imatch",
         value: plain(likeToRegex(text)),
       };
     }
     case "in":
-      if (!Array.isArray(value)) invalidRequest('"in" needs an array');
+      if (!Array.isArray(value)) {
+        invalidRequest('"in" needs an array');
+      }
       return {
         operator: "in",
         value: `(${value.map(listItem).join(",")})`,
       };
     case "is":
-      if (!isBoolLike(value)) invalidRequest('"is" needs null, true or false');
+      if (!isBoolLike(value)) {
+        invalidRequest('"is" needs null, true or false');
+      }
       return { operator: "is", value: String(value) };
     case "contains":
     case "containedBy":
@@ -241,7 +266,9 @@ class PostgrestCompiler {
   ): void {
     switch (condition.kind) {
       case "and":
-        for (const item of condition.items) this.andContext(item, path, embeds);
+        for (const item of condition.items) {
+          this.andContext(item, path, embeds);
+        }
         return;
       case "column": {
         const { operator, value } = operatorAndValue(condition, false);
@@ -304,7 +331,9 @@ class PostgrestCompiler {
     path: string | undefined,
     embeds: EmbedNode[],
   ): void {
-    if (condition.quantifier === "every" && !condition.where) return;
+    if (condition.quantifier === "every" && !condition.where) {
+      return;
+    }
     const alias = this.nextAlias();
     const aliasPath = path ? `${path}.${alias}` : alias;
     const node = filterEmbed(alias, condition, condition.quantifier === "some");
@@ -315,7 +344,9 @@ class PostgrestCompiler {
       condition.quantifier === "every" && condition.where
         ? ({ kind: "not", item: condition.where } as const)
         : condition.where;
-    if (where) this.andContext(where, aliasPath, node.children);
+    if (where) {
+      this.andContext(where, aliasPath, node.children);
+    }
     if (condition.quantifier !== "some") {
       this.filters.push({
         kind: "filter",
@@ -343,7 +374,9 @@ class PostgrestCompiler {
         if (inner.kind === "relation") {
           return this.logic(negateRelation(inner), embeds);
         }
-        if (inner.kind === "not") return this.logic(inner.item, embeds);
+        if (inner.kind === "not") {
+          return this.logic(inner.item, embeds);
+        }
         return `not.${this.logic(inner, embeds)}`;
       }
       case "column": {
@@ -365,7 +398,9 @@ class PostgrestCompiler {
             : condition.where;
         // The embed's own filters are request parameters under the embed
         // path; only the null check goes in the logic tree.
-        if (where) this.andContext(where, nodePath, node.children);
+        if (where) {
+          this.andContext(where, nodePath, node.children);
+        }
         return condition.quantifier === "some"
           ? `${alias}.not.is.null`
           : `${alias}.is.null`;
@@ -418,8 +453,9 @@ class PostgrestCompiler {
       // No related row can match: an impossible filter keeps the embed empty.
       const [first] = include.target.primaryKey;
       const column = first ? include.target.columns[first]?.db : undefined;
-      if (!column)
+      if (!column) {
         invalidRequest(`Cannot filter "${include.alias}" to nothing`);
+      }
       this.filters.push(
         {
           kind: "filter",
@@ -437,7 +473,9 @@ class PostgrestCompiler {
     } else if (where.condition) {
       this.andContext(where.condition, aliasPath, node.children);
     }
-    for (const term of include.orderBy) this.order(term, aliasPath);
+    for (const term of include.orderBy) {
+      this.order(term, aliasPath);
+    }
     if (include.limit !== undefined) {
       this.limits.push({ count: include.limit, referencedTable: aliasPath });
     }
@@ -449,7 +487,9 @@ class PostgrestCompiler {
    */
   relationOrder(term: OrderTerm, embeds: EmbedNode[]): void {
     const { relation } = term;
-    if (!relation) return;
+    if (!relation) {
+      return;
+    }
     let alias = embeds.find(
       (node) =>
         node.relation.foreignKey === relation.relation.foreignKey &&
@@ -559,9 +599,12 @@ function aggregateList(aggregate: Aggregation): string[] {
 function renderEmbeds(embeds: readonly EmbedNode[]): string[] {
   return embeds.map((node) => {
     const hint = `${node.target.name}!${node.relation.foreignKey}${node.inner ? "!inner" : ""}`;
-    if (node.count) return `${node.alias}:${hint}(count)`;
-    if (node.measures)
+    if (node.count) {
+      return `${node.alias}:${hint}(count)`;
+    }
+    if (node.measures) {
       return `${node.alias}:${hint}(${measureList(node.measures).join(",")})`;
+    }
     const inside = [
       ...columnList(node.columns),
       ...renderEmbeds(node.children),
@@ -574,8 +617,9 @@ function renderSelect(
   selection: Selection,
   embeds: readonly EmbedNode[],
 ): string {
-  if (!selection.aggregate && embeds.length === 0)
+  if (!selection.aggregate && embeds.length === 0) {
     return selection.columns.length > 0 ? columnText(selection.columns) : "*";
+  }
   const parts = [
     ...columnList(selection.columns),
     ...(selection.aggregate ? aggregateList(selection.aggregate) : []),
@@ -615,8 +659,12 @@ function applyWhere(
   embeds: EmbedNode[],
 ): boolean {
   const where = simplifyOrFalse(condition);
-  if (where.never) return false;
-  if (where.condition) compiler.andContext(where.condition, undefined, embeds);
+  if (where.never) {
+    return false;
+  }
+  if (where.condition) {
+    compiler.andContext(where.condition, undefined, embeds);
+  }
   return true;
 }
 
@@ -628,16 +676,18 @@ export function compilePostgrest(
   const maxAffected =
     op.kind === "update" || op.kind === "delete" ? op.maxAffected : undefined;
   if (maxAffected !== undefined) {
-    if (!Number.isInteger(maxAffected) || maxAffected < 0)
+    if (!Number.isInteger(maxAffected) || maxAffected < 0) {
       invalidRequest(
         `"maxAffected" must be a non-negative integer, got ${maxAffected}`,
         op.table.key,
       );
-    if (!supportsMaxAffected(options.postgrestVersion))
+    }
+    if (!supportsMaxAffected(options.postgrestVersion)) {
       invalidRequest(
         `"maxAffected" needs PostgREST 13 or later; postgrestVersion is "${options.postgrestVersion}"`,
         op.table.key,
       );
+    }
   }
   const compiler = new PostgrestCompiler();
   const embeds = compiler.withPath([], undefined);
@@ -650,8 +700,9 @@ export function compilePostgrest(
         : op.returning;
 
   if (selection) {
-    for (const include of selection.includes)
+    for (const include of selection.includes) {
       compiler.include(include, undefined, embeds);
+    }
   }
 
   let matches = true;
@@ -669,9 +720,13 @@ export function compilePostgrest(
   let range: PostgrestPlan["range"];
   if (op.kind === "select") {
     for (const term of op.orderBy) {
-      if (term.relation) compiler.relationOrder(term, embeds);
-      else if (term.aggregate) aggregateOrder(compiler, term, op.table);
-      else compiler.order(term, undefined);
+      if (term.relation) {
+        compiler.relationOrder(term, embeds);
+      } else if (term.aggregate) {
+        aggregateOrder(compiler, term, op.table);
+      } else {
+        compiler.order(term, undefined);
+      }
     }
     if (op.offset !== undefined) {
       const from = op.offset;

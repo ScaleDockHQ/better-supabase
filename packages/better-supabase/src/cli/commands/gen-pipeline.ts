@@ -48,7 +48,9 @@ export function selectTasks(
   requested: readonly GenTask[] | undefined,
 ): readonly GenTask[] {
   const named = requested ?? config.gen.tasks;
-  if (named === undefined) return configuredTasks(config);
+  if (named === undefined) {
+    return configuredTasks(config);
+  }
   return [...new Set(named)].toSorted(
     (a, b) => (ORDER.get(a) ?? 0) - (ORDER.get(b) ?? 0),
   );
@@ -126,9 +128,12 @@ export async function runSteps(
 ): Promise<TaskResult[]> {
   const results = [...previous];
   for (const task of tasks) {
-    if (task === "types") continue;
-    if (!options.check && results.some(({ result }) => result.code !== 0))
+    if (task === "types") {
+      continue;
+    }
+    if (!options.check && results.some(({ result }) => result.code !== 0)) {
       break;
+    }
     const result = await STEPS[task](options).catch(failedResult);
     results.push({ task, result });
   }
@@ -148,7 +153,9 @@ const indent = (text: string): string =>
  */
 export function combineResults(results: readonly TaskResult[]): CommandResult {
   const [only] = results;
-  if (results.length === 1 && only) return only.result;
+  if (results.length === 1 && only) {
+    return only.result;
+  }
   const output = results
     .flatMap(({ task, result }) =>
       result.output

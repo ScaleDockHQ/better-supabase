@@ -76,7 +76,9 @@ function keyEvent(
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const t = ctx.table("keys");
   const c = (logical: string): string => ctx.col("keys", logical);
   const fn = (name: string): string => ctx.fn(name);

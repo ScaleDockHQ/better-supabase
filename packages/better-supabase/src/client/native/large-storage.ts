@@ -73,10 +73,11 @@ export function largeSecureStorage(
 
   const cryptoOf = (): AesCryptoLike => {
     const found = options.crypto ?? globalCrypto();
-    if (!found)
+    if (!found) {
       throw new Error(
         "better-supabase: largeSecureStorage needs WebCrypto; pass { crypto } from react-native-quick-crypto",
       );
+    }
     return found;
   };
   const importKey = (raw: Uint8Array<ArrayBuffer>) =>
@@ -91,10 +92,13 @@ export function largeSecureStorage(
         getSecret(key),
         store.get(key),
       ]);
-      if (secret === null || sealed === null) return null;
-      const [version, iv, data] = sealed.split(".");
-      if (version !== VERSION || iv === undefined || data === undefined)
+      if (secret === null || sealed === null) {
         return null;
+      }
+      const [version, iv, data] = sealed.split(".");
+      if (version !== VERSION || iv === undefined || data === undefined) {
+        return null;
+      }
       try {
         const plain = await cryptoOf().subtle.decrypt(
           { name: "AES-GCM", iv: fromBase64(iv) },

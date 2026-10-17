@@ -230,7 +230,9 @@ function optional<K extends string, V>(
   value: V | undefined,
 ): Partial<Record<K, V>> {
   const out: Partial<Record<K, V>> = {};
-  if (value !== undefined) out[key] = value;
+  if (value !== undefined) {
+    out[key] = value;
+  }
   return out;
 }
 
@@ -379,7 +381,9 @@ export function createCollections<
       ),
     reorder: (id, subjectId, neighbors) => {
       const key = rankBetweenResult(neighbors);
-      if (!key.ok) return AsyncResult.err(key.error);
+      if (!key.ok) {
+        return AsyncResult.err(key.error);
+      }
       return call(
         "rank_collection_entry",
         { collection: id, subject_id: subjectId, rank: key.data },
@@ -439,7 +443,9 @@ export function createCollections<
       ),
     reorderStar: (subject, neighbors) => {
       const key = rankBetweenResult(neighbors);
-      if (!key.ok) return AsyncResult.err(key.error);
+      if (!key.ok) {
+        return AsyncResult.err(key.error);
+      }
       return call(
         "rank_star",
         { subject_type: subject.type, subject_id: subject.id, rank: key.data },

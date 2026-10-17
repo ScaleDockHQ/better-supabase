@@ -8,7 +8,7 @@ import {
   roleNames,
   roleScopeIs,
 } from "./access-model.ts";
-import { roleValue, tenantRoleScope } from "./organizations.ts";
+import { roleValue, tenantRoleScope } from "./organizations-roles.ts";
 import { roleThrough, roleThroughTable } from "./tenant.ts";
 
 /**
@@ -21,9 +21,13 @@ function roleIn(
   scope: "tenant" | "platform",
   tenant?: string,
 ): string {
-  if (accessModel(ctx) !== "catalog") return roleValue(ctx, expr, tenant);
+  if (accessModel(ctx) !== "catalog") {
+    return roleValue(ctx, expr, tenant);
+  }
   const scoped = roleScopeIs(ctx, "r", scope);
-  if (!scoped) return roleValue(ctx, expr, tenant);
+  if (!scoped) {
+    return roleValue(ctx, expr, tenant);
+  }
   const access = ctx.of("access");
   const rid = access.col("roles", "id");
   const key = access.col("roles", "key");
@@ -55,9 +59,12 @@ export interface PlatformAssignment {
  */
 export function platformRolesProblem(ctx: ModuleContext): string | undefined {
   const through = providerPlatformRoles(ctx)?.through;
-  if (!through || through.where) return undefined;
-  if (roleThroughTable(ctx.of("tenant"))?.table !== through.table)
+  if (!through || through.where) {
     return undefined;
+  }
+  if (roleThroughTable(ctx.of("tenant"))?.table !== through.table) {
+    return undefined;
+  }
   return `blocks.invitations.options.platformRoles.through.where: ${through.table} also holds the tenant roles (blocks.tenant.options.roleThrough), so name the platform roles with a condition such as "{row}.scope = 'platform'"`;
 }
 
@@ -66,7 +73,9 @@ export function platformAssignment(ctx: ModuleContext): PlatformAssignment {
   if (platform) {
     const through = platform.through;
     const problem = platformRolesProblem(ctx);
-    if (problem) throw new TypeError(problem);
+    if (problem) {
+      throw new TypeError(problem);
+    }
     const platformOnly = through?.where
       ? ` and (${through.where.replaceAll("{row}", "r")})`
       : "";
@@ -122,7 +131,9 @@ export function platformAssignment(ctx: ModuleContext): PlatformAssignment {
  */
 export function platformRoleScope(ctx: ModuleContext): string {
   const platform = providerPlatformRoles(ctx);
-  if (!platform) return "";
+  if (!platform) {
+    return "";
+  }
   const through = platform.through;
   const fn = ctx.fn("platform_role_scope");
   const trigger = ctx.trigger("role_scope");

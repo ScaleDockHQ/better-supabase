@@ -14,7 +14,9 @@ const schemaFile = (name: string, api: NonNullable<BlockConfig["api"]>) =>
 describe("blocks.<module>.api", () => {
   it("wraps every function a module grants to anon, authenticated or service_role", () => {
     for (const module of Object.values(SQL_MODULES)) {
-      if (module.target !== "schema") continue;
+      if (module.target !== "schema") {
+        continue;
+      }
       try {
         renderModules([module.name]);
       } catch {
@@ -120,7 +122,9 @@ grant execute on function better_supabase.only_helper() to authenticated;`;
       );
     }
     for (const module of Object.values(SQL_MODULES)) {
-      if (module.target !== "schema") continue;
+      if (module.target !== "schema") {
+        continue;
+      }
       try {
         expect({
           module: module.name,
@@ -131,7 +135,9 @@ grant execute on function better_supabase.only_helper() to authenticated;`;
           ),
         }).toEqual({ module: module.name, loops: false });
       } catch (cause) {
-        if (cause instanceof TypeError) continue;
+        if (cause instanceof TypeError) {
+          continue;
+        }
         throw cause;
       }
     }
@@ -161,7 +167,9 @@ grant execute on function "api"."set_user_setting"(text, jsonb) to authenticated
       text.replaceAll('"', "").replaceAll(/\s+/g, " ").trim();
     const missing: string[] = [];
     for (const module of Object.values(SQL_MODULES)) {
-      if (module.target !== "schema") continue;
+      if (module.target !== "schema") {
+        continue;
+      }
       let file: string;
       try {
         file = schemaFile(module.name, "api");
@@ -183,7 +191,9 @@ grant execute on function "api"."set_user_setting"(text, jsonb) to authenticated
         /^grant execute on function ([^\n]+?\)) to ([^;]+);/gm,
       )) {
         const roles = match[2]!.split(",").map((role) => role.trim());
-        if (roles.includes("anon")) continue;
+        if (roles.includes("anon")) {
+          continue;
+        }
         if (!revoked.has(signature(match[1]!))) {
           missing.push(`${module.name}: ${signature(match[1]!)}`);
         }

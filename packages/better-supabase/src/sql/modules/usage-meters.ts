@@ -37,7 +37,9 @@ function meterTableOf(
 ): MeterTable {
   const text = (name: string): string | undefined => {
     const value = option[name];
-    if (value === undefined) return undefined;
+    if (value === undefined) {
+      return undefined;
+    }
     if (
       typeof value !== "string" ||
       !value.split(".").every((part) => IDENT.test(part))
@@ -88,7 +90,9 @@ export function metersOf(
 ): Readonly<Record<string, UsageMeter>> | MeterTable | undefined {
   const where = "blocks.usage.options.meters";
   const option = ctx.option("meters");
-  if (option === undefined) return undefined;
+  if (option === undefined) {
+    return undefined;
+  }
   if (isObject(option) && typeof option["table"] === "string") {
     return meterTableOf(where, option);
   }

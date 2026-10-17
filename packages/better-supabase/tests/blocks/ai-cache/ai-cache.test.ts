@@ -27,7 +27,9 @@ function fakeTransport(handlers: Record<string, Handler>) {
     call: (_schema, fn, args) => {
       calls.push({ fn, args });
       const handler = handlers[fn];
-      if (!handler) return Promise.reject(new Error(`unexpected ${fn}`));
+      if (!handler) {
+        return Promise.reject(new Error(`unexpected ${fn}`));
+      }
       return Promise.resolve(handler(args));
     },
   };

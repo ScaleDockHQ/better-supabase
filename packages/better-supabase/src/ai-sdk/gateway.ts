@@ -128,8 +128,9 @@ export function usageEntries(
       quantity: usage.outputTokens,
     },
   ];
-  if (meters.cost !== undefined && usage.costMicroUsd !== undefined)
+  if (meters.cost !== undefined && usage.costMicroUsd !== undefined) {
     entries.push({ meter: meters.cost, quantity: usage.costMicroUsd });
+  }
   return entries.filter((entry) => (entry.quantity ?? 0) > 0);
 }
 
@@ -142,7 +143,9 @@ export function problem429(
   decision: DbError | UsageStatus,
   now: Temporal.Instant = nowInstant(),
 ): Response {
-  if ("kind" in decision) return problemResponse(decision);
+  if ("kind" in decision) {
+    return problemResponse(decision);
+  }
   const retryAfter = Math.max(
     1,
     Math.ceil(now.until(decision.resetsAt).total("seconds")),
@@ -166,9 +169,13 @@ export function usageQuota(
 ): (organizationId: string) => Promise<DbError | undefined> {
   return async (organizationId) => {
     const status = await usage.current(organizationId, meter);
-    if (!status.ok) return status.error;
+    if (!status.ok) {
+      return status.error;
+    }
     const { remaining, limit } = status.data;
-    if (remaining === undefined || remaining > 0) return;
+    if (remaining === undefined || remaining > 0) {
+      return;
+    }
     const retryAfter = Math.max(
       1,
       Math.ceil(nowInstant().until(status.data.resetsAt).total("seconds")),
@@ -247,7 +254,7 @@ export function costBackfill(
       options.meter !== undefined &&
       payload.organizationId !== undefined &&
       cost > 0
-    )
+    ) {
       await options.usage
         .record(payload.organizationId, options.meter, {
           quantity: cost,
@@ -255,6 +262,7 @@ export function costBackfill(
           source: "ai:gateway",
         })
         .orThrow();
+    }
     return cost;
   };
 }
@@ -282,8 +290,11 @@ export function modelInputOf(
   plans?: readonly string[],
 ): AiModelInput {
   const pricing: Record<string, string> = {};
-  for (const [key, value] of Object.entries(model.pricing ?? {}))
-    if (typeof value === "string") pricing[key] = value;
+  for (const [key, value] of Object.entries(model.pricing ?? {})) {
+    if (typeof value === "string") {
+      pricing[key] = value;
+    }
+  }
   return {
     id: model.id,
     provider: model.id.split("/", 1)[0] ?? "gateway",

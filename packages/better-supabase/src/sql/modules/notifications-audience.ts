@@ -26,11 +26,15 @@ export function permissionAudience(
     ${fail("NOTIFICATION_PERMISSION_NEEDS_TENANT", "A permission audience needs a tenant", "22023")}
   end if;`;
   const model = accessModel(ctx);
-  if (model === "provider")
+  if (model === "provider") {
     return providerAudience(layout, needsTenant, unavailable, named);
-  if (model === "custom")
+  }
+  if (model === "custom") {
     return customAudience(ctx, needsTenant, unavailable, named);
-  if (!ctx.installed("tenant")) return unavailable;
+  }
+  if (!ctx.installed("tenant")) {
+    return unavailable;
+  }
   return membershipAudience(ctx, model, needsTenant, named);
 }
 
@@ -41,9 +45,13 @@ function providerAudience(
   named: string,
 ): string {
   const provider = layout.accessProvider;
-  if (provider === undefined) return unavailable;
+  if (provider === undefined) {
+    return unavailable;
+  }
   const template = provider.functions.holdersOf;
-  if (template === undefined) return unavailable;
+  if (template === undefined) {
+    return unavailable;
+  }
   const call = fillTemplate("authorization.functions.holdersOf", template, {
     permission: "(notification ->> 'permission')",
     tenant: "v_tenant",
@@ -59,7 +67,9 @@ function customAudience(
   named: string,
 ): string {
   const template = ctx.modules.access?.functions?.holdersOf;
-  if (template === undefined) return unavailable;
+  if (template === undefined) {
+    return unavailable;
+  }
   const call = fillTemplate("blocks.access.functions.holdersOf", template, {
     permission: "(notification ->> 'permission')",
     tenant: "v_tenant",

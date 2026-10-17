@@ -74,7 +74,9 @@ function privateSql(
   reader: Reader,
   load: Loader,
 ): string {
-  if (!ctx.hasTable("privateDetails")) return "";
+  if (!ctx.hasTable("privateDetails")) {
+    return "";
+  }
   const p = (column: string): string => n.c("privateDetails", column);
   const has = (column: string): boolean => ctx.has("privateDetails", column);
   const e = (column: string): string => n.c("employees", column);
@@ -149,7 +151,9 @@ function contractsSql(
   reader: Reader,
   load: Loader,
 ): string {
-  if (!ctx.hasTable("contracts")) return "";
+  if (!ctx.hasTable("contracts")) {
+    return "";
+  }
   const k = (column: string): string => n.c("contracts", column);
   const has = (column: string): boolean => ctx.has("contracts", column);
   const e = (column: string): string => n.c("employees", column);

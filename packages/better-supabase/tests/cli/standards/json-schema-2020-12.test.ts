@@ -22,7 +22,7 @@ const shipped = new URL(
 
 async function shippedSchemas(): Promise<Map<string, Record<string, unknown>>> {
   const out = new Map<string, Record<string, unknown>>();
-  for (const file of await readdir(shipped))
+  for (const file of await readdir(shipped)) {
     out.set(
       file,
       JSON.parse(await readFile(new URL(file, shipped), "utf-8")) as Record<
@@ -30,6 +30,7 @@ async function shippedSchemas(): Promise<Map<string, Record<string, unknown>>> {
         unknown
       >,
     );
+  }
   return out;
 }
 
@@ -37,7 +38,9 @@ async function shippedSchemas(): Promise<Map<string, Record<string, unknown>>> {
 async function shippedValidator() {
   const ajv = new Ajv2020({ strict: true, allErrors: true });
   addFormats(ajv);
-  for (const schema of (await shippedSchemas()).values()) ajv.addSchema(schema);
+  for (const schema of (await shippedSchemas()).values()) {
+    ajv.addSchema(schema);
+  }
   return ajv;
 }
 
@@ -60,8 +63,9 @@ describe("JSON Schema 2020-12", () => {
 
   it("every shipped schema compiles in strict mode (no unknown keywords or formats)", async () => {
     const ajv = await shippedValidator();
-    for (const schema of (await shippedSchemas()).values())
+    for (const schema of (await shippedSchemas()).values()) {
       expect(ajv.getSchema(String(schema["$id"]))).toBeTypeOf("function");
+    }
   });
 
   it("the generated table schemas are valid 2020-12 schemas", () => {

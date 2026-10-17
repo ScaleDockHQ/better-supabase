@@ -120,14 +120,16 @@ export async function runKeys(
     if (
       existsSync(file) &&
       (await readFile(file, "utf-8")).includes("signing_keys")
-    )
+    ) {
       ignored = true;
+    }
   }
-  if (!ignored)
+  if (!ignored) {
     lines.push(
       "",
       `Warning: add ${out} to .gitignore; it holds a private key.`,
     );
+  }
   return { code: 0, output: lines.join("\n") };
 }
 

@@ -140,7 +140,9 @@ export function dbError<K extends DbErrorKind>(
   };
   if (extra) {
     for (const [key, value] of Object.entries(extra)) {
-      if (value !== undefined) error[key] = value;
+      if (value !== undefined) {
+        error[key] = value;
+      }
     }
   }
   // SAFETY: the loop above copied the detail fields for K onto the error.
@@ -164,8 +166,12 @@ export function isDbError(value: unknown): value is DbError {
  * is a `DbError` (what `betterSupabase.mapError()` mappers should set).
  */
 export function dbErrorOf(value: unknown): DbError | undefined {
-  if (value instanceof DbException) return value.error;
-  if (value instanceof Error && isDbError(value.cause)) return value.cause;
+  if (value instanceof DbException) {
+    return value.error;
+  }
+  if (value instanceof Error && isDbError(value.cause)) {
+    return value.cause;
+  }
   return isDbError(value) ? value : undefined;
 }
 
@@ -177,7 +183,9 @@ function constraintGuard<K extends "conflict" | "check" | "foreign_key">(
     constraint?: NoInfer<C>,
   ): error is DbErrorOf<K> & { readonly constraint: C } => {
     const found = dbErrorOf(error);
-    if (found?.kind !== kind) return false;
+    if (found?.kind !== kind) {
+      return false;
+    }
     // SAFETY: found.kind === kind, and every kind that takes a constraint has
     // the constraint field.
     return (
@@ -286,9 +294,15 @@ function optional(raw: RawDbError): {
   hint?: string;
 } {
   const out: { code?: string; details?: string; hint?: string } = {};
-  if (raw.code) out.code = raw.code;
-  if (raw.details) out.details = raw.details;
-  if (raw.hint) out.hint = raw.hint;
+  if (raw.code) {
+    out.code = raw.code;
+  }
+  if (raw.details) {
+    out.details = raw.details;
+  }
+  if (raw.hint) {
+    out.hint = raw.hint;
+  }
   return out;
 }
 
@@ -299,14 +313,18 @@ function optional(raw: RawDbError): {
 function permissionsOf(details: string | undefined): {
   permissions?: readonly string[];
 } {
-  if (details === undefined || !details.startsWith("{")) return {};
+  if (details === undefined || !details.startsWith("{")) {
+    return {};
+  }
   let parsed: unknown;
   try {
     parsed = JSON.parse(details);
   } catch {
     return {};
   }
-  if (typeof parsed !== "object" || parsed === null) return {};
+  if (typeof parsed !== "object" || parsed === null) {
+    return {};
+  }
   const permissions = "permissions" in parsed ? parsed.permissions : undefined;
   return Array.isArray(permissions) &&
     permissions.every((key) => typeof key === "string")
@@ -337,7 +355,9 @@ export function mapDbError(
   const fallback = mapBuiltin(raw);
   for (const mapper of mappers) {
     const mapped = mapper(raw, fallback);
-    if (mapped) return mapped;
+    if (mapped) {
+      return mapped;
+    }
   }
   return fallback;
 }
@@ -360,16 +380,24 @@ function mapBuiltin(raw: RawDbError): DbError {
       const extra: DbErrorKinds["conflict"] = {};
       const constraint = constraintOf(raw);
       const columns = columnsOf(raw);
-      if (constraint) extra.constraint = constraint;
-      if (columns) extra.columns = columns;
+      if (constraint) {
+        extra.constraint = constraint;
+      }
+      if (columns) {
+        extra.columns = columns;
+      }
       return dbError("conflict", message, { ...base, ...extra });
     }
     case "23503": {
       const extra: DbErrorKinds["foreign_key"] = {};
       const constraint = constraintOf(raw);
       const columns = columnsOf(raw);
-      if (constraint) extra.constraint = constraint;
-      if (columns) extra.columns = columns;
+      if (constraint) {
+        extra.constraint = constraint;
+      }
+      if (columns) {
+        extra.columns = columns;
+      }
       return dbError("foreign_key", message, { ...base, ...extra });
     }
     case "23514": {
@@ -405,11 +433,12 @@ function mapBuiltin(raw: RawDbError): DbError {
     case "42501": {
       const object = PERMISSION_DENIED.exec(message);
       const postgrestHint = base.hint?.startsWith("Grant the required");
-      if (!object || (base.hint && !postgrestHint))
+      if (!object || (base.hint && !postgrestHint)) {
         return dbError("forbidden", message, {
           ...base,
           ...permissionsOf(base.details),
         });
+      }
       const advice =
         object[1] === "table" || object[1] === "view"
           ? `Supabase no longer grants new tables to the Data API roles: add ${object[2]} to \`expose\` and run \`better-supabase sql add grants\`. \`better-supabase doctor\` (BS106) lists every missing grant.`
@@ -484,7 +513,9 @@ function mapBuiltin(raw: RawDbError): DbError {
       break;
   }
 
-  if (code.startsWith("22")) return dbError("invalid_input", message, base);
+  if (code.startsWith("22")) {
+    return dbError("invalid_input", message, base);
+  }
   if (code.startsWith("PGRST1") || code.startsWith("PGRST2")) {
     return dbError("invalid_request", message, base);
   }
@@ -506,7 +537,9 @@ function quotaDetails(details: string | null | undefined): {
   } catch {
     return {};
   }
-  if (typeof parsed !== "object" || parsed === null) return {};
+  if (typeof parsed !== "object" || parsed === null) {
+    return {};
+  }
   // SAFETY: parsed is a non-null object, and each field read is type-checked below.
   const record = parsed as Record<string, unknown>;
   const field = (key: string): unknown => record[key];

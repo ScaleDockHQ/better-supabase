@@ -125,24 +125,41 @@ function columnMeta(table: TableMeta, db: string): ColumnMeta | undefined {
 }
 
 function decodeOf(meta: ColumnMeta | undefined, cast?: "text"): SqliteDecode {
-  if (!meta) return "raw";
-  if (meta.type === "timestamptz") return "timestamptz";
-  if (cast === "text") return "raw";
-  if (meta.json || meta.array) return "json";
-  if (meta.type === "bool") return "boolean";
+  if (!meta) {
+    return "raw";
+  }
+  if (meta.type === "timestamptz") {
+    return "timestamptz";
+  }
+  if (cast === "text") {
+    return "raw";
+  }
+  if (meta.json || meta.array) {
+    return "json";
+  }
+  if (meta.type === "bool") {
+    return "boolean";
+  }
   return "raw";
 }
 
 /** A JavaScript value as a SQLite parameter. */
 export function sqliteValue(value: unknown): SqliteValue {
-  if (value === null || value === undefined) return null;
-  if (typeof value === "boolean") return value ? 1 : 0;
-  if (typeof value === "number" || typeof value === "string") return value;
-  if (typeof value === "bigint")
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value === "boolean") {
+    return value ? 1 : 0;
+  }
+  if (typeof value === "number" || typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "bigint") {
     return value >= BigInt(Number.MIN_SAFE_INTEGER) &&
       value <= BigInt(Number.MAX_SAFE_INTEGER)
       ? Number(value)
       : value;
+  }
   return JSON.stringify(value);
 }
 
@@ -157,9 +174,13 @@ export function likeToGlob(pattern: string): string {
     if (char === "\\" && index + 1 < pattern.length) {
       index += 1;
       out += globLiteral(pattern[index]!);
-    } else if (char === "%") out += "*";
-    else if (char === "_") out += "?";
-    else out += globLiteral(char);
+    } else if (char === "%") {
+      out += "*";
+    } else if (char === "_") {
+      out += "?";
+    } else {
+      out += globLiteral(char);
+    }
   }
   return out;
 }
@@ -215,8 +236,9 @@ class SqliteCompiler {
     switch (condition.kind) {
       case "and":
       case "or": {
-        if (condition.items.length === 0)
+        if (condition.items.length === 0) {
           return condition.kind === "and" ? "1" : "0";
+        }
         const joiner = condition.kind === "and" ? " and " : " or ";
         return `(${condition.items.map((item) => this.condition(item, table, alias)).join(joiner)})`;
       }
@@ -252,8 +274,9 @@ class SqliteCompiler {
     targetAlias: string,
   ): string {
     const { relation, target } = condition;
-    if (relation.columns.length !== relation.references.length)
+    if (relation.columns.length !== relation.references.length) {
       invalidRequest(`Relation to "${target.key}" has mismatched columns`);
+    }
     return relation.columns
       .map((column, index) => {
         const reference = relation.references[index]!;
@@ -268,7 +291,9 @@ class SqliteCompiler {
     alias: string,
   ): string {
     const name = condition.column;
-    if (condition.path) unsupported("a json path filter", table);
+    if (condition.path) {
+      unsupported("a json path filter", table);
+    }
     const column = this.comparable(table, alias, name);
     const raw = this.column(alias, name);
     const { value } = condition;
@@ -291,15 +316,25 @@ class SqliteCompiler {
       case "ilike":
         return `${raw} like ${this.param(value)} escape '\\'`;
       case "in": {
-        if (!Array.isArray(value)) invalidRequest('"in" needs an array');
-        if (value.length === 0) return "0";
+        if (!Array.isArray(value)) {
+          invalidRequest('"in" needs an array');
+        }
+        if (value.length === 0) {
+          return "0";
+        }
         const items: unknown[] = value;
         return `${column} in (${items.map((item) => this.comparableParam(table, name, item)).join(", ")})`;
       }
       case "is":
-        if (value === null) return `${raw} is null`;
-        if (value === true) return `${raw} is 1`;
-        if (value === false) return `${raw} is 0`;
+        if (value === null) {
+          return `${raw} is null`;
+        }
+        if (value === true) {
+          return `${raw} is 1`;
+        }
+        if (value === false) {
+          return `${raw} is 0`;
+        }
         return invalidRequest('"is" needs null, true or false');
       case "contains":
       case "containedBy":
@@ -327,8 +362,9 @@ class SqliteCompiler {
     if (Array.isArray(value)) {
       const items: unknown[] = value;
       const distinct = [...new Set(items.map(sqliteValue))];
-      if (distinct.some((item) => item === null))
+      if (distinct.some((item) => item === null)) {
         unsupported(`"${op}" with null elements`, table);
+      }
       const list = distinct.map((item) => this.param(item)).join(", ");
       switch (op) {
         case "contains":
@@ -347,12 +383,14 @@ class SqliteCompiler {
         }
       }
     }
-    if (op !== "contains" || typeof value !== "object" || value === null)
+    if (op !== "contains" || typeof value !== "object" || value === null) {
       return unsupported(`"${op}" on a JSON object`, table);
+    }
     const parts: string[] = [];
     for (const [key, item] of Object.entries(value)) {
-      if (key.includes('"') || (typeof item === "object" && item !== null))
+      if (key.includes('"') || (typeof item === "object" && item !== null)) {
         unsupported('"contains" with a nested JSON value', table);
+      }
       parts.push(
         item === null
           ? `json_type(${column}, ${this.param(`$."${key}"`)}) = 'null'`
@@ -377,8 +415,9 @@ class SqliteCompiler {
         .join(" ");
       return `case ${column} ${cases} end`;
     }
-    if (meta && TEXT.has(meta.type) && !meta.array && !meta.json)
+    if (meta && TEXT.has(meta.type) && !meta.array && !meta.json) {
       return `${column} collate nocase`;
+    }
     return this.comparable(table, alias, name);
   }
 
@@ -390,8 +429,9 @@ class SqliteCompiler {
   ): string {
     return terms
       .map((term) => {
-        if (term.relation)
+        if (term.relation) {
           unsupported(`a sort by the relation "${term.relation.name}"`, table);
+        }
         const nulls =
           term.nulls ?? (term.direction === "asc" ? "last" : "first");
         const key =
@@ -453,21 +493,25 @@ class SqliteCompiler {
         });
       }
     }
-    if (items.length === 0) items.push('1 as "_"');
+    if (items.length === 0) {
+      items.push('1 as "_"');
+    }
     return { list: items.join(", "), columns };
   }
 }
 
 function dbName(table: TableMeta, app: string): string {
   const meta = table.columns[app];
-  if (!meta)
+  if (!meta) {
     invalidRequest(`Unknown column "${app}" on "${table.key}"`, table.key);
+  }
   return meta.db;
 }
 
 function keyColumns(table: TableMeta): string[] {
-  if (table.primaryKey.length === 0)
+  if (table.primaryKey.length === 0) {
     unsupported("a write to a table without a primary key", table);
+  }
   return table.primaryKey.map((app) => dbName(table, app));
 }
 
@@ -479,9 +523,12 @@ function byKeys(
   keys: SqliteKeys,
 ): string {
   const columns = keyColumns(table);
-  if (keys.length === 0) return "0";
-  if (columns.length === 1)
+  if (keys.length === 0) {
+    return "0";
+  }
+  if (columns.length === 1) {
     return `${compiler.column(alias, columns[0]!)} in (${keys.map((key) => compiler.param(key[0])).join(", ")})`;
+  }
   const tuple = `(${columns.map((column) => compiler.column(alias, column)).join(", ")})`;
   const values = keys
     .map((key) => `(${key.map((value) => compiler.param(value)).join(", ")})`)
@@ -501,8 +548,9 @@ export function compileSqlite(
 ): SqlitePlan {
   const tableName = options.tableName ?? ((table: TableMeta) => table.name);
   const make = (): SqliteCompiler => new SqliteCompiler(tableName);
-  if (op.kind === "select" && op.source)
+  if (op.kind === "select" && op.source) {
     unsupported(`the function source "${op.source.name}"`, op.table);
+  }
   switch (op.kind) {
     case "select":
       return selectPlan(make(), op);
@@ -520,7 +568,9 @@ export function compileSqlite(
 
 function selectPlan(compiler: SqliteCompiler, op: SelectOp): SqlitePlan {
   const simple = simplifyOrFalse(op.where);
-  if (simple.never) return { kind: "never" };
+  if (simple.never) {
+    return { kind: "never" };
+  }
   const alias = compiler.alias();
   const { list, columns } = compiler.selection(op.selection, op.table, alias);
   const where = simple.condition
@@ -536,7 +586,9 @@ function selectPlan(compiler: SqliteCompiler, op: SelectOp): SqlitePlan {
           params: filterParams,
         }
       : undefined;
-  if (op.head) return { kind: "select", rows: undefined, count, columns: [] };
+  if (op.head) {
+    return { kind: "select", rows: undefined, count, columns: [] };
+  }
   const group =
     op.selection.aggregate && op.selection.columns.length > 0
       ? ` group by ${op.selection.columns.map((entry) => compiler.column(alias, entry.column)).join(", ")}`
@@ -567,7 +619,9 @@ function returning(
   make: () => SqliteCompiler,
   op: { readonly table: TableMeta; readonly returning: Selection | undefined },
 ): SqliteReturning | undefined {
-  if (!op.returning) return undefined;
+  if (!op.returning) {
+    return undefined;
+  }
   const probe = make();
   const columns = probe.selection(op.returning, op.table, "t0").columns;
   const selection = op.returning;
@@ -586,11 +640,16 @@ function returning(
 }
 
 function insertPlan(make: () => SqliteCompiler, op: InsertOp): SqlitePlan {
-  if (op.rows.length === 0) return { kind: "never" };
+  if (op.rows.length === 0) {
+    return { kind: "never" };
+  }
   const keys = keyColumns(op.table);
   const columns = new Set<string>();
-  for (const row of op.rows)
-    for (const key of Object.keys(row)) columns.add(key);
+  for (const row of op.rows) {
+    for (const key of Object.keys(row)) {
+      columns.add(key);
+    }
+  }
   const ordered = [...columns];
   const conflict = op.onConflict;
   const tenant = op.table.flags.tenant;
@@ -676,16 +735,19 @@ function keyedPlan(
   op: UpdateOp | DeleteOp,
 ): SqlitePlan {
   const simple = simplifyOrFalse(op.where);
-  if (simple.never) return { kind: "never" };
+  if (simple.never) {
+    return { kind: "never" };
+  }
   const { maxAffected } = op;
   if (
     maxAffected !== undefined &&
     (!Number.isInteger(maxAffected) || maxAffected < 0)
-  )
+  ) {
     invalidRequest(
       `"maxAffected" must be a non-negative integer, got ${maxAffected}`,
       op.table.key,
     );
+  }
   const keys = keyColumns(op.table);
   const compiler = make();
   const alias = compiler.alias();
@@ -699,8 +761,9 @@ function keyedPlan(
   let set: readonly [string, unknown][] = [];
   if (op.kind === "update") {
     set = Object.entries(op.set);
-    if (set.length === 0)
+    if (set.length === 0) {
       invalidRequest(`Update on "${op.table.key}" sets no columns`);
+    }
   }
   return {
     kind: op.kind,
@@ -731,7 +794,8 @@ function keyedPlan(
 /** Splits keys into pages that stay under SQLite's parameter limit. */
 export function keyPages(keys: SqliteKeys): SqliteKeys[] {
   const pages: SqliteKeys[] = [];
-  for (let start = 0; start < keys.length; start += KEYS_PER_STATEMENT)
+  for (let start = 0; start < keys.length; start += KEYS_PER_STATEMENT) {
     pages.push(keys.slice(start, start + KEYS_PER_STATEMENT));
+  }
   return pages;
 }

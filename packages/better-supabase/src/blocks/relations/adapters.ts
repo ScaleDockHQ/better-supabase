@@ -35,7 +35,9 @@ export function toGanttTasks<T extends { readonly id: string }>(
   const ids = new Set(tasks.map((task) => task.id));
   const byTask = new Map<string, GanttDependency[]>();
   for (const edge of edges) {
-    if (!ids.has(edge.source.id) || !ids.has(edge.target.id)) continue;
+    if (!ids.has(edge.source.id) || !ids.has(edge.target.id)) {
+      continue;
+    }
     const type = edge.data["type"];
     const lag = edge.data["lag"];
     const list = byTask.get(edge.target.id) ?? [];

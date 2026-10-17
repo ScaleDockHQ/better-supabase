@@ -37,8 +37,9 @@ export interface StandardWebhooksOptions {
 }
 
 function needSecrets(secrets: readonly string[]): void {
-  if (secrets.length === 0)
+  if (secrets.length === 0) {
     throw new TypeError("The endpoint has no signing secret");
+  }
 }
 
 /**
@@ -116,7 +117,9 @@ export function standardWebhooksAsymmetric(
       const result = await options.signer.sign(
         encoder.encode(`${id}.${seconds}.${body}`),
       );
-      if (!result.ok) throw new Error(result.error.message);
+      if (!result.ok) {
+        throw new Error(result.error.message);
+      }
       if (result.data.alg !== "EdDSA" && result.data.alg !== "Ed25519") {
         throw new TypeError(
           `v1a signatures need an Ed25519 key, not ${result.data.alg}`,

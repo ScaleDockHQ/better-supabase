@@ -101,8 +101,12 @@ function isCittyUsageError(cause: unknown): cause is Error {
 
 /** Any thrown value as a `CliError`: citty's argument errors become `usage`, the rest `internal`. */
 export function toCliError(cause: unknown): CliError {
-  if (cause instanceof CliError) return cause;
-  if (isCittyUsageError(cause)) return new CliError("usage", cause.message);
+  if (cause instanceof CliError) {
+    return cause;
+  }
+  if (isCittyUsageError(cause)) {
+    return new CliError("usage", cause.message);
+  }
   return new CliError("internal", errorText(cause), { cause });
 }
 
@@ -127,7 +131,8 @@ export function parseNames<T extends string>(
   available: readonly string[],
 ): readonly T[] | string {
   const unknown = values.filter((value) => !isValid(value));
-  if (unknown.length > 0)
+  if (unknown.length > 0) {
     return `Unknown ${noun} ${unknown.map((value) => `"${value}"`).join(", ")}. Available: ${available.join(", ")}.`;
+  }
   return values.filter(isValid);
 }

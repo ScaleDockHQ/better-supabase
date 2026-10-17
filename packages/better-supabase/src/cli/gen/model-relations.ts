@@ -21,8 +21,11 @@ export function buildRelations(
   const relations = new Map<string, RelationModel[]>();
   const push = (tableId: string, relation: RelationModel): void => {
     const list = relations.get(tableId);
-    if (list) list.push(relation);
-    else relations.set(tableId, [relation]);
+    if (list) {
+      list.push(relation);
+    } else {
+      relations.set(tableId, [relation]);
+    }
   };
 
   for (const { table, casing, byDb: own } of tables) {
@@ -30,7 +33,9 @@ export function buildRelations(
     for (const fk of table.foreignKeys) {
       const targetId = `${fk.refSchema}.${fk.refTable}`;
       const target = byKey.get(targetId);
-      if (!target) continue;
+      if (!target) {
+        continue;
+      }
       const targetKey = keyOf.get(targetId) ?? fk.refTable;
 
       const sourceColumns = fk.columns.map((column) =>

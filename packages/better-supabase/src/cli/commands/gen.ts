@@ -83,8 +83,9 @@ async function poll(
   const fingerprint = db
     ? await catalogFingerprint(db.queryable).catch(() => undefined)
     : undefined;
-  if (fingerprint !== undefined && fingerprint === last)
+  if (fingerprint !== undefined && fingerprint === last) {
     return { marker: last };
+  }
   const snapshot = await loadSnapshot(
     options.config,
     options.env,
@@ -151,7 +152,9 @@ async function watch(
   let db: IntrospectionSource | undefined;
   const aborted = (): boolean => signal?.aborted ?? false;
   const report = (message: string): void => {
-    if (fresh(message)) io.stderr(`${message}\n`);
+    if (fresh(message)) {
+      io.stderr(`${message}\n`);
+    }
   };
   const closeDb = async (): Promise<void> => {
     await db?.close().catch(() => undefined);
@@ -205,8 +208,12 @@ async function watch(
       if (result && result.code !== 0) {
         report(result.error ?? `gen exited with code ${result.code}`);
       } else {
-        if (result?.output) io.stdout(`${result.output}\n`);
-        if (polled) last = polled.marker;
+        if (result?.output) {
+          io.stdout(`${result.output}\n`);
+        }
+        if (polled) {
+          last = polled.marker;
+        }
         inputs = current;
         fresh("");
       }
@@ -261,9 +268,13 @@ export const genCommand: AnyCommand = defineCliCommand({
     }
     const requested =
       args.tasks === undefined ? undefined : parseTasks(list(args.tasks));
-    if (typeof requested === "string") return { code: 2, error: requested };
+    if (typeof requested === "string") {
+      return { code: 2, error: requested };
+    }
     const tasks = selectTasks(context.config, requested);
-    if (tasks.length === 0) return { code: 2, error: "--tasks names no task." };
+    if (tasks.length === 0) {
+      return { code: 2, error: "--tasks names no task." };
+    }
     const options: GenOptions = {
       config: context.config,
       env: context.env,
@@ -277,7 +288,9 @@ export const genCommand: AnyCommand = defineCliCommand({
       args.interval,
       context.config.gen.watchInterval,
     );
-    if (typeof interval === "string") return { code: 2, error: interval };
+    if (typeof interval === "string") {
+      return { code: 2, error: interval };
+    }
     return args.watch === true
       ? watch(options, requested, interval, context)
       : withSpinner(context.io.prompts, "Generating from the schema", () =>

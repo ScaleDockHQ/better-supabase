@@ -12,7 +12,9 @@ function transport(
       expect(schema).toBe("better_supabase");
       calls.push([fn, args]);
       const result = results[fn];
-      if (!result) return Promise.reject(new Error(`unexpected ${fn}`));
+      if (!result) {
+        return Promise.reject(new Error(`unexpected ${fn}`));
+      }
       return Promise.resolve(result(args));
     },
   };

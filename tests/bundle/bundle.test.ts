@@ -83,14 +83,19 @@ async function closure(entry: string, dynamic = true): Promise<Closure> {
   const files = new Set<string>();
   const externals = new Set<string>();
   const visit = async (file: string): Promise<void> => {
-    if (files.has(file)) return;
+    if (files.has(file)) {
+      return;
+    }
     files.add(file);
     const source = await readFile(file, "utf-8");
     for (const [, fromClause, lazy] of source.matchAll(SPECIFIER)) {
-      if (lazy !== undefined && !dynamic) continue;
+      if (lazy !== undefined && !dynamic) {
+        continue;
+      }
       const specifier = (fromClause ?? lazy)!;
-      if (!specifier.startsWith(".")) externals.add(specifier);
-      else if (
+      if (!specifier.startsWith(".")) {
+        externals.add(specifier);
+      } else if (
         specifier.endsWith(".js") &&
         existsSync(resolve(dirname(file), specifier))
       ) {
@@ -100,8 +105,9 @@ async function closure(entry: string, dynamic = true): Promise<Closure> {
   };
   await visit(entry);
   let gzip = 0;
-  for (const file of files)
+  for (const file of files) {
     gzip += gzipSync(await readFile(file), { level: 9 }).length;
+  }
   return { files: [...files], externals: [...externals].toSorted(), gzip };
 }
 
@@ -128,10 +134,14 @@ async function shipped(name: string, source: string): Promise<number> {
   const entry = [...chunks.values()].find((chunk) => chunk.isEntry)!;
   const seen = new Set<string>();
   const visit = (name: string): number => {
-    if (seen.has(name)) return 0;
+    if (seen.has(name)) {
+      return 0;
+    }
     seen.add(name);
     const chunk = chunks.get(name);
-    if (!chunk) return 0;
+    if (!chunk) {
+      return 0;
+    }
     return chunk.imports.reduce(
       (total, imported) => total + visit(imported),
       gzipSync(chunk.code, { level: 9 }).length,
@@ -207,10 +217,14 @@ function exportsSubpath(
   subpath: string,
 ): boolean {
   const keys = Object.keys(exports);
-  if (!keys.some((key) => key.startsWith("."))) return subpath === ".";
+  if (!keys.some((key) => key.startsWith("."))) {
+    return subpath === ".";
+  }
   return keys.some((key) => {
     const star = key.indexOf("*");
-    if (star === -1) return key === subpath;
+    if (star === -1) {
+      return key === subpath;
+    }
     return (
       subpath.startsWith(key.slice(0, star)) &&
       subpath.endsWith(key.slice(star + 1))
@@ -221,7 +235,9 @@ function exportsSubpath(
 async function nodeResolvable(specifier: string): Promise<boolean> {
   const parts = specifier.split("/");
   const size = specifier.startsWith("@") ? 2 : 1;
-  if (parts.length <= size) return true;
+  if (parts.length <= size) {
+    return true;
+  }
   const name = parts.slice(0, size).join("/");
   const root =
     name === "better-supabase" ? PACKAGE : join(PACKAGE, "node_modules", name);
@@ -242,7 +258,9 @@ const subpaths = async (): Promise<Map<string, string>> => {
   };
   const entries = new Map<string, string>();
   for (const [subpath, target] of Object.entries(manifest.exports)) {
-    if (!(target instanceof Object)) continue;
+    if (!(target instanceof Object)) {
+      continue;
+    }
     entries.set(subpath, join(PACKAGE, target.default));
   }
   return entries;
@@ -254,12 +272,14 @@ describe("bundle", () => {
   beforeAll(async () => {
     const entries = await subpaths();
     for (const [subpath, file] of entries) {
-      if (!existsSync(file))
+      if (!existsSync(file)) {
         throw new Error(`${file} is missing. Run \`pnpm build\` first.`);
+      }
       closures.set(subpath, await closure(file));
     }
-    if (!existsSync(CLI_BIN))
+    if (!existsSync(CLI_BIN)) {
       throw new Error(`${CLI_BIN} is missing. Run \`pnpm build\` first.`);
+    }
     closures.set(CLI_STARTUP, await closure(CLI_BIN, false));
     // Bundles every entry in turn; under `pnpm verify` it shares the CPU with the other tasks.
   }, 60_000);
@@ -284,9 +304,12 @@ describe("bundle", () => {
     const offenders: string[] = [];
     for (const [subpath, { externals }] of closures) {
       for (const specifier of externals) {
-        if (BUILTINS.has(specifier)) continue;
-        if (!(await nodeResolvable(specifier)))
+        if (BUILTINS.has(specifier)) {
+          continue;
+        }
+        if (!(await nodeResolvable(specifier))) {
           offenders.push(`${subpath} imports ${specifier}`);
+        }
       }
     }
     expect(offenders).toEqual([]);
@@ -397,8 +420,9 @@ describe("bundle", () => {
       join(PACKAGE, "tests/fixtures/generated.meta.js"),
       join(WORK, "generated.meta.js"),
     );
-    for (const [name, source] of Object.entries(CONSUMERS))
+    for (const [name, source] of Object.entries(CONSUMERS)) {
       sizes[name] = await shipped(name, source);
+    }
     if (process.env["BUNDLE_UPDATE"]) {
       await writeFile(SHIPPED_BASELINE, `${JSON.stringify(sizes, null, 2)}\n`);
       return;

@@ -70,8 +70,9 @@ const column = (overrides: Partial<CatalogColumn>): CatalogColumn => ({
 
 describe("schema design rules", () => {
   it("pass the fixture schema", async () => {
-    for (const code of ["BS216", "BS217", "BS218", "BS219", "BS220", "BS221"])
+    for (const code of ["BS216", "BS217", "BS218", "BS219", "BS220", "BS221"]) {
       expect(await run(context(base), code)).toEqual([]);
+    }
   });
 
   it("flags foreign keys without an index and defers to splinter's lint (BS216)", async () => {

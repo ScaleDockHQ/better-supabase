@@ -48,7 +48,9 @@ describe("Standard Schema v1", () => {
   it("maps issues, flattening PathSegment objects to their keys", async () => {
     const result = await validate(handRolled(nameCheck), {}, "input");
     expect(result.ok).toBe(false);
-    if (result.ok) return;
+    if (result.ok) {
+      return;
+    }
     expect(result.error).toMatchObject({
       kind: "validation",
       message: "Invalid input",
@@ -92,8 +94,9 @@ describe("Standard Schema v1", () => {
     });
     const missing = props.validate({});
     expect(missing).toHaveProperty("issues");
-    if (missing instanceof Promise || !missing.issues)
+    if (missing instanceof Promise || !missing.issues) {
       throw new Error("expected issues");
+    }
     for (const issue of missing.issues) {
       expect(typeof issue.message).toBe("string");
       expect(issue.path?.every((segment) => typeof segment === "string")).toBe(

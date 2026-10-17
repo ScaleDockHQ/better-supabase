@@ -50,7 +50,9 @@ export function createAnnouncementsController(
       const refresh = async (): Promise<void> => {
         const run = state.run();
         const result = await client.listActive(organizationId);
-        if (run !== state.run()) return;
+        if (run !== state.run()) {
+          return;
+        }
         state.set(
           result.ok
             ? { items: result.data, error: undefined }
@@ -76,7 +78,9 @@ export function createAnnouncementsController(
         start: () =>
           whileSignedIn(options.auth, () => {
             void refresh();
-            if (!topic) return;
+            if (!topic) {
+              return;
+            }
             return options.ports.topic(topic, {
               onMessage: () => void refresh(),
               onRejoin: () => void refresh(),

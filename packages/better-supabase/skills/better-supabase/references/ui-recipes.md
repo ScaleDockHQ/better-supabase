@@ -120,7 +120,9 @@ export function NotificationBell({
   const { items, count } = useNotifications({
     topic: userId ? `notifications:${userId}` : null,
     load: async () => {
-      if (!tenant) return [];
+      if (!tenant) {
+        return [];
+      }
       const result = await blocks(supabase).notifications.counts({ tenant });
       return result.ok ? [result.data] : [];
     },
@@ -205,7 +207,9 @@ export function NotificationList() {
     topic: userId ? `notifications:${userId}` : null,
     load: loadRows,
   });
-  if (items === undefined) return <NotificationListSkeleton />;
+  if (items === undefined) {
+    return <NotificationListSkeleton />;
+  }
   if (items.length === 0) {
     return (
       <Empty className="border">
@@ -278,7 +282,9 @@ export function NotificationList() {
   const { items } = useNotifications({
     topic: userId ? `notifications:${userId}` : null,
     load: async () => {
-      if (!tenant) return [];
+      if (!tenant) {
+        return [];
+      }
       const result = await blocks(supabase).notifications.list({
         tenant,
         limit: 20,
@@ -286,7 +292,9 @@ export function NotificationList() {
       return result.ok ? result.data : [];
     },
   });
-  if (items === undefined) return <ActivityIndicator />;
+  if (items === undefined) {
+    return <ActivityIndicator />;
+  }
   return (
     <FlatList
       data={items}
@@ -346,9 +354,15 @@ export function CommandSearch() {
   const t = useExtracted("search");
   const search = useCommandSearch({ schema: API_SCHEMA });
   const heading = (key: string) => {
-    if (key === "favorites") return t("Favorites");
-    if (key === "recents") return t("Recent");
-    if (key === "customer") return t("Customers");
+    if (key === "favorites") {
+      return t("Favorites");
+    }
+    if (key === "recents") {
+      return t("Recent");
+    }
+    if (key === "customer") {
+      return t("Customers");
+    }
     return key;
   };
   return (
@@ -440,9 +454,15 @@ import {
 import { API_SCHEMA } from "../lib/blocks";
 
 function heading(key: string): string {
-  if (key === "favorites") return "Favorites";
-  if (key === "recents") return "Recent";
-  if (key === "customer") return "Customers";
+  if (key === "favorites") {
+    return "Favorites";
+  }
+  if (key === "recents") {
+    return "Recent";
+  }
+  if (key === "customer") {
+    return "Customers";
+  }
   return key;
 }
 
@@ -573,9 +593,15 @@ export function OnboardingCard() {
     organizationId,
     schema: API_SCHEMA,
   });
-  if (!organizationId) return null;
-  if (progress === undefined) return <OnboardingCardSkeleton />;
-  if (progress.done) return null;
+  if (!organizationId) {
+    return null;
+  }
+  if (progress === undefined) {
+    return <OnboardingCardSkeleton />;
+  }
+  if (progress.done) {
+    return null;
+  }
   const titles = {
     customer: t("Add your first customer"),
     invite: t("Invite a teammate"),
@@ -654,9 +680,15 @@ export function OnboardingChecklist() {
     organizationId,
     schema: API_SCHEMA,
   });
-  if (!organizationId) return null;
-  if (progress === undefined) return <ActivityIndicator />;
-  if (progress.done) return null;
+  if (!organizationId) {
+    return null;
+  }
+  if (progress === undefined) {
+    return <ActivityIndicator />;
+  }
+  if (progress.done) {
+    return null;
+  }
   return (
     <View style={{ gap: 8, padding: 16, borderWidth: 1, borderRadius: 12 }}>
       <Text style={{ fontSize: 17, fontWeight: "600" }}>Get started</Text>
@@ -744,9 +776,13 @@ export function CommentThread({
   const submit = async (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     const text = body.trim();
-    if (!text) return;
+    if (!text) {
+      return;
+    }
     setPending(true);
-    if ((await add(text)).ok) setBody("");
+    if ((await add(text)).ok) {
+      setBody("");
+    }
     setPending(false);
   };
 
@@ -837,13 +873,19 @@ export function CommentThread({ customerId }: { readonly customerId: string }) {
 
   const submit = async () => {
     const text = body.trim();
-    if (!text) return;
+    if (!text) {
+      return;
+    }
     setPending(true);
-    if ((await add(text)).ok) setBody("");
+    if ((await add(text)).ok) {
+      setBody("");
+    }
     setPending(false);
   };
 
-  if (comments === undefined) return <ActivityIndicator />;
+  if (comments === undefined) {
+    return <ActivityIndicator />;
+  }
   return (
     <View style={{ flex: 1, gap: 12 }}>
       <FlatList
@@ -928,7 +970,9 @@ function Mark({ name }: { name: string }) {
 
 async function loadOrganizations(): Promise<readonly OrganizationSummary[]> {
   const result = await loadMyOrganizations({});
-  if (!result.ok) throw new DbException(result.error);
+  if (!result.ok) {
+    throw new DbException(result.error);
+  }
   return result.data;
 }
 
@@ -1004,7 +1048,9 @@ export function OrganizationSwitcherMenu({
                 key={organization.id}
                 className="gap-2"
                 onClick={() => {
-                  if (organization.id !== activeId) choose(organization);
+                  if (organization.id !== activeId) {
+                    choose(organization);
+                  }
                 }}
               >
                 <Mark name={organization.name} />
@@ -1050,7 +1096,9 @@ import { API_SCHEMA } from "../lib/blocks";
 export function OrganizationSwitcher() {
   const { organizations, activeId, switching, error, switchTo } =
     useOrganizations({ schema: API_SCHEMA });
-  if (organizations === undefined) return <ActivityIndicator />;
+  if (organizations === undefined) {
+    return <ActivityIndicator />;
+  }
   return (
     <View style={{ gap: 4 }}>
       <Text style={{ fontSize: 17, fontWeight: "600" }}>Organizations</Text>
@@ -1116,7 +1164,9 @@ import { loadPlanCatalog, startCheckout } from "../billing-actions";
 
 async function loadCatalog(): Promise<PlanCatalog<PlanOption>> {
   const result = await loadPlanCatalog({});
-  if (!result.ok) throw new DbException(result.error);
+  if (!result.ok) {
+    throw new DbException(result.error);
+  }
   return result.data;
 }
 
@@ -1191,7 +1241,9 @@ export function PlanPicker({
                 disabled={active || !canManage || pending !== undefined}
                 onClick={() => {
                   void choose(plan.key).then((started) => {
-                    if (!started.ok) toast.error(errorMessage(started.error));
+                    if (!started.ok) {
+                      toast.error(errorMessage(started.error));
+                    }
                   });
                 }}
               >
@@ -1240,7 +1292,9 @@ export function PlanPicker() {
       await WebBrowser.openBrowserAsync(url);
     },
   });
-  if (plans === undefined) return <ActivityIndicator />;
+  if (plans === undefined) {
+    return <ActivityIndicator />;
+  }
   return (
     <View style={{ gap: 8 }}>
       <Text style={{ fontSize: 17, fontWeight: "600" }}>Plans</Text>
@@ -1321,8 +1375,12 @@ export function UsageCard() {
     meters: ["api.calls", "customers.created"],
     schema: API_SCHEMA,
   });
-  if (!organizationId) return null;
-  if (meters === undefined) return <UsageCardSkeleton />;
+  if (!organizationId) {
+    return null;
+  }
+  if (meters === undefined) {
+    return <UsageCardSkeleton />;
+  }
   const labels = new Map([
     ["api.calls", t("API calls")],
     ["customers.created", t("Customers added")],
@@ -1402,8 +1460,12 @@ export function UsageMeter() {
     meters: ["api.calls", "customers.created"],
     schema: API_SCHEMA,
   });
-  if (!organizationId) return null;
-  if (meters === undefined) return <ActivityIndicator />;
+  if (!organizationId) {
+    return null;
+  }
+  if (meters === undefined) {
+    return <ActivityIndicator />;
+  }
   return (
     <View style={{ gap: 12, padding: 16, borderWidth: 1, borderRadius: 12 }}>
       <Text style={{ fontSize: 17, fontWeight: "600" }}>Usage this period</Text>
@@ -1481,9 +1543,12 @@ export function FeatureGate({
 }) {
   const t = useExtracted("billing");
   const { allowed } = useFeatureGate(feature);
-  if (allowed === undefined)
+  if (allowed === undefined) {
     return <Skeleton className="h-8 w-28" aria-busy="true" />;
-  if (allowed) return children;
+  }
+  if (allowed) {
+    return children;
+  }
   return (
     <Link
       href="/settings/billing"
@@ -1518,8 +1583,12 @@ export function FeatureGate({
   readonly children: ReactNode;
 }) {
   const { allowed } = useFeatureGate(feature);
-  if (allowed === undefined) return <ActivityIndicator />;
-  if (allowed) return children;
+  if (allowed === undefined) {
+    return <ActivityIndicator />;
+  }
+  if (allowed) {
+    return children;
+  }
   return (
     <View style={{ padding: 12, borderWidth: 1, borderRadius: 12 }}>
       <Text style={{ fontWeight: "600" }}>Not in your plan</Text>
@@ -1630,7 +1699,9 @@ function SettingControl({
           disabled={disabled}
           onValueChange={(next) => {
             const choice = field.choices.find((each) => String(each) === next);
-            if (choice !== undefined) onChange(choice);
+            if (choice !== undefined) {
+              onChange(choice);
+            }
           }}
         >
           <SelectTrigger id={id} className="w-48 capitalize">
@@ -1721,7 +1792,9 @@ function SettingsSection<E extends SettingEntries>({
                   disabled={!editable || state.saving === field.key}
                   onChange={(value) => {
                     void state.setField(field.key, value).then((saved) => {
-                      if (!saved.ok) toast.error(errorMessage(saved.error));
+                      if (!saved.ok) {
+                        toast.error(errorMessage(saved.error));
+                      }
                     });
                   }}
                 />
@@ -1875,7 +1948,9 @@ function SettingsSection<E extends SettingEntries>({
   readonly title: string;
   readonly state: SettingsState<E>;
 }) {
-  if (state.values === undefined) return <ActivityIndicator />;
+  if (state.values === undefined) {
+    return <ActivityIndicator />;
+  }
   return (
     <View style={{ gap: 12 }}>
       <Text style={{ fontSize: 17, fontWeight: "600" }}>{title}</Text>
@@ -1973,7 +2048,9 @@ import { useRoleLabel } from "../use-role-label";
 
 async function loadOrganizationMembers(): Promise<readonly Member[]> {
   const result = await loadMembers({});
-  if (!result.ok) throw new DbException(result.error);
+  if (!result.ok) {
+    throw new DbException(result.error);
+  }
   return result.data;
 }
 
@@ -2023,13 +2100,19 @@ export function MemberTable({
 
   const changeRole = async (member: Member, role: Role) => {
     const result = await setRole(member.userId, role);
-    if (result.ok) toast.success(t("Role updated"));
-    else toast.error(errorMessage(result.error));
+    if (result.ok) {
+      toast.success(t("Role updated"));
+    } else {
+      toast.error(errorMessage(result.error));
+    }
   };
   const removeMember = async (member: Member) => {
     const result = await remove(member.userId);
-    if (result.ok) toast.success(t("Member removed"));
-    else toast.error(errorMessage(result.error));
+    if (result.ok) {
+      toast.success(t("Member removed"));
+    } else {
+      toast.error(errorMessage(result.error));
+    }
   };
 
   return (
@@ -2082,7 +2165,9 @@ export function MemberTable({
                   items={roleItems}
                   disabled={busy(member)}
                   onValueChange={(value) => {
-                    if (v.is(Role, value)) void changeRole(member, value);
+                    if (v.is(Role, value)) {
+                      void changeRole(member, value);
+                    }
                   }}
                 >
                   <SelectTrigger
@@ -2156,7 +2241,9 @@ export function MembersTable() {
     organizationId: tenantOf(auth),
     schema: API_SCHEMA,
   });
-  if (members === undefined) return <ActivityIndicator />;
+  if (members === undefined) {
+    return <ActivityIndicator />;
+  }
   return (
     <View style={{ gap: 4 }}>
       <Text style={{ fontSize: 17, fontWeight: "600" }}>Members</Text>
@@ -2290,7 +2377,9 @@ export function InviteMemberDialog({
     organizationId,
     schema: blockConfig.organizations.api,
     onChanged: async ({ kind }) => {
-      if (kind === "invited") await invitationSent({});
+      if (kind === "invited") {
+        await invitationSent({});
+      }
     },
   });
   const link = sent ? inviteLink(sent.token) : null;
@@ -2312,7 +2401,9 @@ export function InviteMemberDialog({
       onOpenChange={(next) => {
         setOpen(next);
         setEmail("");
-        if (!next) clear();
+        if (!next) {
+          clear();
+        }
       }}
     >
       <DialogTrigger render={<Button size="sm" />}>
@@ -2388,7 +2479,9 @@ export function InviteMemberDialog({
                   value={role}
                   items={roles}
                   onValueChange={(value) => {
-                    if (v.is(Role, value)) setRole(value);
+                    if (v.is(Role, value)) {
+                      setRole(value);
+                    }
                   }}
                 >
                   <SelectTrigger id={`${fieldId}-invite-role`} className="w-40">
@@ -2596,14 +2689,19 @@ export function ApiKeyTable({
       organizationId,
       schema: blockConfig["api-keys"].api,
       onChanged: async ({ kind }) => {
-        if (kind === "created") await apiKeyCreated({});
+        if (kind === "created") {
+          await apiKeyCreated({});
+        }
       },
     });
 
   const revokeKey = async (id: string) => {
     const result = await revoke(id);
-    if (result.ok) toast.success(t("Key revoked"));
-    else toast.error(errorMessage(result.error));
+    if (result.ok) {
+      toast.success(t("Key revoked"));
+    } else {
+      toast.error(errorMessage(result.error));
+    }
   };
   const date = (value: Temporal.Instant | undefined) =>
     value
@@ -2737,10 +2835,14 @@ export function ApiKeysTable({ personal = false }: { personal?: boolean }) {
     useApiKeys({ organizationId: tenantOf(useAuth()), schema: API_SCHEMA });
 
   const submit = async () => {
-    if ((await create({ name: name.trim(), personal })).ok) setName("");
+    if ((await create({ name: name.trim(), personal })).ok) {
+      setName("");
+    }
   };
 
-  if (keys === undefined) return <ActivityIndicator />;
+  if (keys === undefined) {
+    return <ActivityIndicator />;
+  }
   return (
     <View style={{ gap: 8 }}>
       <Text style={{ fontSize: 17, fontWeight: "600" }}>API keys</Text>
@@ -3141,11 +3243,17 @@ export function TagInput({
 
   const submit = async (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!name.trim()) return;
-    if ((await create(name)).ok) setName("");
+    if (!name.trim()) {
+      return;
+    }
+    if ((await create(name)).ok) {
+      setName("");
+    }
   };
 
-  if (tags === undefined) return <Skeleton className="h-16" />;
+  if (tags === undefined) {
+    return <Skeleton className="h-16" />;
+  }
   return (
     <div className="space-y-3">
       <ul className="flex flex-wrap gap-1.5" data-testid="tags">
@@ -3234,7 +3342,9 @@ export function TagInput({ customerId }: { readonly customerId: string }) {
     kind: "customer",
     schema: API_SCHEMA,
   });
-  if (tags === undefined) return <ActivityIndicator />;
+  if (tags === undefined) {
+    return <ActivityIndicator />;
+  }
   const applied = new Set(tags.map((tag) => tag.id));
   const suggestions = (available ?? []).filter((tag) => !applied.has(tag.id));
 
@@ -3286,7 +3396,9 @@ export function TagInput({ customerId }: { readonly customerId: string }) {
         disabled={!name.trim()}
         onPress={() =>
           void create(name).then((result) => {
-            if (result.ok) setName("");
+            if (result.ok) {
+              setName("");
+            }
           })
         }
       />

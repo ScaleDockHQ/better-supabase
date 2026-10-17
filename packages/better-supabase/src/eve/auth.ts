@@ -47,7 +47,9 @@ function rolesIn(
     Array.isArray(value)
       ? value.filter((role): role is string => typeof role === "string")
       : [];
-  if (tenantId === undefined) return [];
+  if (tenantId === undefined) {
+    return [];
+  }
   if (Array.isArray(memberships)) {
     return [
       ...new Set(
@@ -70,7 +72,9 @@ export function principalOf(
     "tenantClaim" | "membershipsClaim" | "attributes"
   > = {},
 ): EveSessionAuth | null {
-  if (auth.kind !== "user") return null;
+  if (auth.kind !== "user") {
+    return null;
+  }
   const claims: Readonly<Record<string, unknown>> = auth.claims;
   let tenantId: string | undefined;
   for (const path of tenantClaimPaths(options.tenantClaim)) {
@@ -106,8 +110,9 @@ export function supabaseAuth(
 ): (request: Request) => Promise<EveSessionAuth | null> {
   return async (request) => {
     const { auth } = await resolveAuth(request, options);
-    if (auth.kind === "invalid")
+    if (auth.kind === "invalid") {
       throw new EveAuthRejection("The Supabase session is not valid");
+    }
     return principalOf(auth, options);
   };
 }

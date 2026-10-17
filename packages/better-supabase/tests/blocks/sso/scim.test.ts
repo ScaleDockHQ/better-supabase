@@ -91,8 +91,9 @@ function memoryStore() {
         return userJson(created);
       }
       const row = inTenant(users, tenant, id);
-      if (!row)
+      if (!row) {
         throw pgError("P0002", "No SCIM user has this id", "SCIM_NOT_FOUND");
+      }
       checkVersion(row, version);
       Object.assign(row, fields, {
         version: Number(row["version"]) + 1,
@@ -101,9 +102,13 @@ function memoryStore() {
       return userJson(row);
     },
     scim_delete_user: ({ tenant, id }) => {
-      if (!inTenant(users, tenant, id)) return false;
+      if (!inTenant(users, tenant, id)) {
+        return false;
+      }
       users.delete(String(id));
-      for (const set of membership.values()) set.delete(String(id));
+      for (const set of membership.values()) {
+        set.delete(String(id));
+      }
       return true;
     },
     scim_list_groups: ({ tenant }) =>
@@ -139,7 +144,9 @@ function memoryStore() {
         groups.set(String(row["id"]), row);
       } else {
         const found = inTenant(groups, tenant, id);
-        if (!found) throw pgError("P0002", "No SCIM group", "SCIM_NOT_FOUND");
+        if (!found) {
+          throw pgError("P0002", "No SCIM group", "SCIM_NOT_FOUND");
+        }
         checkVersion(found, version);
         row = Object.assign(found, fields, {
           version: Number(found["version"]) + 1,
@@ -150,7 +157,9 @@ function memoryStore() {
       return groupJson(row);
     },
     scim_delete_group: ({ tenant, id }) => {
-      if (!inTenant(groups, tenant, id)) return false;
+      if (!inTenant(groups, tenant, id)) {
+        return false;
+      }
       groups.delete(String(id));
       membership.delete(String(id));
       return true;
@@ -160,7 +169,9 @@ function memoryStore() {
   const transport: BlockTransport = {
     call(_schema, fn, args) {
       const answer = functions[fn];
-      if (!answer) return Promise.reject(new Error(`no fake for ${fn}`));
+      if (!answer) {
+        return Promise.reject(new Error(`no fake for ${fn}`));
+      }
       try {
         return Promise.resolve(answer({ ...args }));
       } catch (error) {

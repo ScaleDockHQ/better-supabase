@@ -78,7 +78,9 @@ export function urlStateFromQuery(
 }
 
 function canonical(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonical);
+  if (Array.isArray(value)) {
+    return value.map(canonical);
+  }
   if (typeof value === "object" && value !== null) {
     return Object.fromEntries(
       Object.entries(value)
@@ -114,7 +116,9 @@ export function sameQuery(
   const strip = (
     query: ListQueryInput<string, string> | undefined,
   ): unknown => {
-    if (!query) return {};
+    if (!query) {
+      return {};
+    }
     const { page: _page, after: _after, facets, ...rest } = query;
     const kept = Object.entries(facets ?? {}).filter(
       ([, values]) => values !== undefined && values.length > 0,

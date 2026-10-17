@@ -72,7 +72,9 @@ const unqualified = (column: string): string =>
  * its SQLSTATE, and the columns in Postgres's `Key (...)` detail format.
  */
 export function fromSqliteError(cause: unknown): RawDbError | undefined {
-  if (!(cause instanceof Error)) return undefined;
+  if (!(cause instanceof Error)) {
+    return undefined;
+  }
   const message = cause.message;
   const unique = UNIQUE.exec(message);
   if (unique?.[1]) {
@@ -83,17 +85,21 @@ export function fromSqliteError(cause: unknown): RawDbError | undefined {
       details: `Key (${columns.join(", ")})=(...) already exists.`,
     };
   }
-  if (message.includes("FOREIGN KEY constraint failed"))
+  if (message.includes("FOREIGN KEY constraint failed")) {
     return { code: "23503", message };
+  }
   const notNull = NOT_NULL.exec(message);
-  if (notNull?.[1]) return { code: "23502", message, column: notNull[1] };
+  if (notNull?.[1]) {
+    return { code: "23502", message, column: notNull[1] };
+  }
   const check = CHECK.exec(message);
-  if (check)
+  if (check) {
     return {
       code: "23514",
       message,
       ...(check[1] ? { constraint: check[1] } : {}),
     };
+  }
   return undefined;
 }
 
@@ -106,7 +112,9 @@ const TIMESTAMP =
  */
 export function postgrestTimestamp(value: string): string {
   const match = TIMESTAMP.exec(value);
-  if (!match) return value;
+  if (!match) {
+    return value;
+  }
   const [, date, time, fraction, zone] = match;
   const trimmed = fraction?.replace(/0+$/, "");
   let offset = "+00:00";
@@ -118,12 +126,16 @@ export function postgrestTimestamp(value: string): string {
 }
 
 function decodeValue(column: SqliteColumn, value: unknown): unknown {
-  if (value === null || value === undefined) return null;
+  if (value === null || value === undefined) {
+    return null;
+  }
   switch (column.decode) {
     case "boolean":
       return value === 1 || value === true || value === "1" || value === "true";
     case "json":
-      if (typeof value !== "string") return value;
+      if (typeof value !== "string") {
+        return value;
+      }
       try {
         const parsed: unknown = JSON.parse(value);
         return parsed;
@@ -133,7 +145,9 @@ function decodeValue(column: SqliteColumn, value: unknown): unknown {
     case "timestamptz":
       return typeof value === "string" ? postgrestTimestamp(value) : value;
     case "raw":
-      if (typeof value !== "bigint") return value;
+      if (typeof value !== "bigint") {
+        return value;
+      }
       // A Number above 2^53 would silently change the value.
       return value >= Number.MIN_SAFE_INTEGER &&
         value <= Number.MAX_SAFE_INTEGER
@@ -152,8 +166,9 @@ function decode(
 ): Record<string, unknown>[] {
   return rows.map((row) => {
     const out: Record<string, unknown> = {};
-    for (const column of columns)
+    for (const column of columns) {
       out[column.alias] = decodeValue(column, row[column.alias]);
+    }
     return out;
   });
 }
@@ -166,13 +181,16 @@ async function all(
 }
 
 function keyValue(value: unknown): SqliteValue {
-  if (value === null || value === undefined) return null;
+  if (value === null || value === undefined) {
+    return null;
+  }
   if (
     typeof value === "string" ||
     typeof value === "number" ||
     typeof value === "bigint"
-  )
+  ) {
     return value;
+  }
   return String(value);
 }
 
@@ -189,10 +207,13 @@ async function readBack(
   plan: SqliteInsertPlan | SqliteKeyedPlan,
   keys: SqliteKeys,
 ): Promise<Record<string, unknown>[]> {
-  if (!plan.returning) return [];
+  if (!plan.returning) {
+    return [];
+  }
   const rows: Record<string, unknown>[] = [];
-  for (const page of keyPages(keys))
+  for (const page of keyPages(keys)) {
     rows.push(...(await all(context, plan.returning.read(page))));
+  }
   return decode(rows, plan.returning.columns);
 }
 
@@ -206,7 +227,9 @@ async function runInsert(
     if (found) {
       const { _tenant: tenant, ...key } = found;
       const otherTenant = row.tenant !== undefined && tenant !== row.tenant;
-      if (plan.conflict === "ignore" || otherTenant || !row.update) continue;
+      if (plan.conflict === "ignore" || otherTenant || !row.update) {
+        continue;
+      }
       const existingKey = Object.values(key).map(keyValue);
       const statement = row.update(existingKey);
       await tx.execute(statement.text, [...statement.params]);
@@ -236,9 +259,12 @@ async function runKeyed(
   plan: SqliteKeyedPlan,
 ): Promise<ExecuteResult> {
   const keys = await keysOf(tx, plan.keys);
-  if (keys.length === 0) return { rows: [], count: 0 };
-  if (plan.maxAffected !== undefined && keys.length > plan.maxAffected)
+  if (keys.length === 0) {
+    return { rows: [], count: 0 };
+  }
+  if (plan.maxAffected !== undefined && keys.length > plan.maxAffected) {
     throw new MaxAffected(keys.length, plan.maxAffected);
+  }
   const before =
     plan.kind === "delete" ? await readBack(tx, plan, keys) : undefined;
   for (const page of keyPages(keys)) {
@@ -300,25 +326,38 @@ async function withIds(
   newId: ((table: TableMeta) => string | Promise<string>) | undefined,
 ): Promise<InsertOp> {
   const [key, ...rest] = op.table.primaryKey;
-  if (key === undefined || rest.length > 0) return op;
+  if (key === undefined || rest.length > 0) {
+    return op;
+  }
   const column = op.table.columns[key];
-  if (!column || (column.type !== "uuid" && column.type !== "text")) return op;
-  if (op.rows.every((row) => row[column.db] !== undefined)) return op;
+  if (!column || (column.type !== "uuid" && column.type !== "text")) {
+    return op;
+  }
+  if (op.rows.every((row) => row[column.db] !== undefined)) {
+    return op;
+  }
   const next = async (): Promise<string> => {
-    if (newId) return newId(op.table);
+    if (newId) {
+      return newId(op.table);
+    }
     const random = randomId();
-    if (random !== undefined) return random;
+    if (random !== undefined) {
+      return random;
+    }
     const [row] = await db.getAll<{ id: string }>("select uuid() as id");
-    if (!row) throw new TypeError("select uuid() returned no row");
+    if (!row) {
+      throw new TypeError("select uuid() returned no row");
+    }
     return row.id;
   };
   const rows: Record<string, unknown>[] = [];
-  for (const row of op.rows)
+  for (const row of op.rows) {
     rows.push(
       row[column.db] === undefined
         ? { ...row, [column.db]: await next() }
         : row,
     );
+  }
   return { ...op, rows };
 }
 
@@ -329,7 +368,9 @@ async function executeOn(
   options: SqliteExecutorOptions,
 ): Promise<Result<ExecuteResult>> {
   const aborted = (): boolean => context.signal?.aborted === true;
-  if (aborted()) return err(dbError("aborted", "The request was aborted"));
+  if (aborted()) {
+    return err(dbError("aborted", "The request was aborted"));
+  }
   let plan: SqlitePlan;
   try {
     const prepared =
@@ -338,13 +379,18 @@ async function executeOn(
   } catch (cause) {
     const error = toDbError(cause);
     const { fallback } = options;
-    if (fallback && op.kind === "select" && error.kind === "unsupported")
+    if (fallback && op.kind === "select" && error.kind === "unsupported") {
       return fallback.execute(op, context);
+    }
     return err(error);
   }
-  if (plan.kind === "never") return ok({ rows: [], count: 0 });
+  if (plan.kind === "never") {
+    return ok({ rows: [], count: 0 });
+  }
   // Generating ids can wait on SQLite: an abort in between skips the write.
-  if (aborted()) return err(dbError("aborted", "The request was aborted"));
+  if (aborted()) {
+    return err(dbError("aborted", "The request was aborted"));
+  }
   let result: ExecuteResult;
   try {
     result = await run(db, plan);
@@ -352,16 +398,20 @@ async function executeOn(
     return err(mapped(cause, context.errorMappers));
   }
   if (op.kind === "select" && op.single) {
-    if (result.rows.length > 1)
+    if (result.rows.length > 1) {
       return err(dbError("multiple_rows", `Expected one ${op.table.key} row`));
-    if (result.rows.length === 0 && op.single === "one")
+    }
+    if (result.rows.length === 0 && op.single === "one") {
       return err(dbError("not_found", `No ${op.table.key} row matched`));
+    }
   }
   return ok(result);
 }
 
 function mapped(cause: unknown, mappers: readonly ErrorMapper[]): DbError {
-  if (cause instanceof MaxAffected) return cause.error;
+  if (cause instanceof MaxAffected) {
+    return cause.error;
+  }
   const raw = fromSqliteError(cause);
   return raw ? mapDbError(raw, mappers) : toDbError(cause);
 }

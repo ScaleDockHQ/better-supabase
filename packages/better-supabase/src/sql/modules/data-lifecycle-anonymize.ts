@@ -21,10 +21,18 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 /** A `set` value: a literal, `null`, or `{ sql }` with `{row}` for the row. */
 function valueSql(at: string, value: unknown): string {
-  if (value === null) return "null";
-  if (typeof value === "string") return sqlString(value);
-  if (typeof value === "number" && Number.isFinite(value)) return String(value);
-  if (typeof value === "boolean") return String(value);
+  if (value === null) {
+    return "null";
+  }
+  if (typeof value === "string") {
+    return sqlString(value);
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+  if (typeof value === "boolean") {
+    return String(value);
+  }
   if (isRecord(value) && typeof value["sql"] === "string") {
     return `(${value["sql"].replaceAll("{row}", "r")})`;
   }
@@ -36,7 +44,9 @@ function valueSql(at: string, value: unknown): string {
 function rulesOf(ctx: ModuleContext): readonly AnonymizeRule[] {
   const where = "blocks.data-lifecycle.options.anonymize";
   const value = ctx.option("anonymize");
-  if (value === undefined) return [];
+  if (value === undefined) {
+    return [];
+  }
   if (!Array.isArray(value)) {
     throw new TypeError(
       `${where} must be a list of { table, after, from, set, markedBy, unless? }`,

@@ -218,7 +218,9 @@ const strings = (value: unknown): value is readonly string[] =>
   Array.isArray(value) && value.every((item) => typeof item === "string");
 
 function columnIssues(value: unknown): ValidationIssue[] {
-  if (value === undefined) return [];
+  if (value === undefined) {
+    return [];
+  }
   if (!isRecord(value)) {
     return [{ message: "columns must be an object", path: ["columns"] }];
   }
@@ -266,7 +268,9 @@ export function savedViewIssues(
   state: unknown,
   list?: SavedViewList,
 ): readonly ValidationIssue[] {
-  if (!isRecord(state)) return [{ message: "state must be an object" }];
+  if (!isRecord(state)) {
+    return [{ message: "state must be an object" }];
+  }
   const issues = columnIssues(state["columns"]);
   if (state["grouping"] !== undefined && !strings(state["grouping"])) {
     issues.push({
@@ -346,7 +350,9 @@ export function savedViewStateSchema(
 }
 
 function storedState(state: SavedViewState): Record<string, unknown> {
-  if (!state.query) return { ...state };
+  if (!state.query) {
+    return { ...state };
+  }
   return {
     ...state,
     query: Object.fromEntries(
@@ -445,7 +451,9 @@ export function createSavedViews<
       ).andThen((views) => readAllFields(fields, views)),
     reorder: (id, neighbors) => {
       const key = rankBetweenResult(neighbors);
-      if (!key.ok) return AsyncResult.err(key.error);
+      if (!key.ok) {
+        return AsyncResult.err(key.error);
+      }
       return call("rank_view", { view_id: id, rank: key.data }, () => key.data);
     },
     setDefault: (id, on = true) =>
@@ -504,10 +512,14 @@ export function defaultView<V extends DefaultViewCandidate>(
 ): V | undefined {
   const shown = views.filter((view) => view.preference?.hidden !== true);
   const preferred = shown.find((view) => view.preference?.isDefault === true);
-  if (preferred) return preferred;
+  if (preferred) {
+    return preferred;
+  }
   for (const scope of SAVED_VIEW_SCOPES) {
     const match = shown.find((view) => view.isDefault && view.scope === scope);
-    if (match) return match;
+    if (match) {
+      return match;
+    }
   }
   return shown[0];
 }

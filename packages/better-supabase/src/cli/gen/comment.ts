@@ -8,7 +8,9 @@ export function commentMeta(comment: string | null | undefined): {
   description?: string;
   deprecated?: true;
 } {
-  if (!comment) return {};
+  if (!comment) {
+    return {};
+  }
   const deprecated = /^\s*@deprecated\b/m.test(comment);
   const description = comment
     .replaceAll(/^\s*@example\s+(.+?)\s*$/gm, "")

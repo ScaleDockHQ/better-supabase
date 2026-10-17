@@ -14,7 +14,9 @@ const live = await reachable();
 
 async function text(stream: ReadableStream<string>): Promise<string> {
   let out = "";
-  for await (const chunk of stream) out += chunk;
+  for await (const chunk of stream) {
+    out += chunk;
+  }
   return out;
 }
 
@@ -55,7 +57,9 @@ describe.skipIf(!live)("streams module", () => {
         "chat-1",
         new ReadableStream<string>({
           start(controller) {
-            for (const chunk of ["hel", "lo"]) controller.enqueue(chunk);
+            for (const chunk of ["hel", "lo"]) {
+              controller.enqueue(chunk);
+            }
             controller.close();
           },
         }),

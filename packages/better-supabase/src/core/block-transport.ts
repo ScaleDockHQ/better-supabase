@@ -162,8 +162,12 @@ export function dbTransport(
         schema: options.schema ?? schema,
         errorMappers: [capture],
       });
-      if (result.ok) return result.data;
-      if (raw === undefined) throw new DbException(result.error);
+      if (result.ok) {
+        return result.data;
+      }
+      if (raw === undefined) {
+        throw new DbException(result.error);
+      }
       throw Object.assign(new Error(raw.message ?? result.error.message), raw);
     },
   };
@@ -174,16 +178,22 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 /** The Postgres or PostgREST error a transport rejected with, if it is one. */
 export function rawError(cause: unknown): RawDbError | undefined {
-  if (!isRecord(cause)) return undefined;
+  if (!isRecord(cause)) {
+    return undefined;
+  }
   const field = (key: string): string | undefined => {
     const value = cause[key];
     return typeof value === "string" ? value : undefined;
   };
-  if (field("code") === undefined) return undefined;
+  if (field("code") === undefined) {
+    return undefined;
+  }
   const raw: Record<string, string> = {};
   for (const key of ["message", "code", "details", "hint", "constraint"]) {
     const value = field(key);
-    if (value !== undefined) raw[key] = value;
+    if (value !== undefined) {
+      raw[key] = value;
+    }
   }
   // pg names it `detail`; PostgREST, `details`.
   const detail = field("detail");

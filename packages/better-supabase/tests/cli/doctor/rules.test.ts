@@ -589,7 +589,9 @@ describe("generated and module files (BS303, BS304)", () => {
     const audit = files.find(
       (file) => file.module === "audit" && file.kind === "schema",
     );
-    for (const file of files) await write(file.path, file.contents);
+    for (const file of files) {
+      await write(file.path, file.contents);
+    }
     await write(
       audit!.path,
       audit!.contents.replace("create schema", "-- changed\ncreate schema"),
@@ -657,7 +659,9 @@ describe("generated and module files (BS303, BS304)", () => {
   it("reports a module behind its version in BS311, not BS304", async () => {
     const ctx = rooted({ blocks: ["tenant"] });
     const files = renderModules(["tenant"], moduleLayout(ctx.config));
-    for (const module of files) await write(module.path, module.contents);
+    for (const module of files) {
+      await write(module.path, module.contents);
+    }
     const file = files.find(
       (module) => module.module === "tenant" && module.kind === "schema",
     );
@@ -964,8 +968,9 @@ describe("rate limits wired to PostgREST (BS313)", () => {
     for (const row of [
       { hook: "better_supabase.check_request", calls: false },
       { hook: "public.pre_request", calls: true },
-    ])
+    ]) {
       expect(await run("BS313", live(["rate-limit"], [row]))).toEqual([]);
+    }
     expect(
       await run("BS313", live(["tenant"], [{ hook: null, calls: false }])),
     ).toEqual([]);
@@ -1204,7 +1209,9 @@ describe("unpartitioned audit log (BS335)", () => {
         (entry) =>
           entry.schema === "better_supabase" && entry.name === "audit_events",
       );
-      if (log) log.primaryKey = primaryKey;
+      if (log) {
+        log.primaryKey = primaryKey;
+      }
     });
   const partitioned = {
     blocks: { audit: { options: { partitioned: true } } },

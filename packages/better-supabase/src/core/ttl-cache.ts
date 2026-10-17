@@ -16,7 +16,9 @@ export function boundedTtlCache<K, V>(options: {
   return {
     get(key) {
       const entry = entries.get(key);
-      if (entry && entry.until > now()) return entry.value;
+      if (entry && entry.until > now()) {
+        return entry.value;
+      }
       entries.delete(key);
       return;
     },
@@ -24,7 +26,9 @@ export function boundedTtlCache<K, V>(options: {
       entries.delete(key);
       if (entries.size >= options.max) {
         const oldest = entries.keys().next();
-        if (!oldest.done) entries.delete(oldest.value);
+        if (!oldest.done) {
+          entries.delete(oldest.value);
+        }
       }
       entries.set(key, { value, until: expiresAt });
     },

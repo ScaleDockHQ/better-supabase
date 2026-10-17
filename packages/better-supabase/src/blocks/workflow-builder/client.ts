@@ -54,7 +54,9 @@ export function createWorkflowBuilderController(
           options.client.definitions.list(tenant ?? undefined),
           options.client.steps.list(),
         ]);
-        if (run !== state.run()) return;
+        if (run !== state.run()) {
+          return;
+        }
         state.set({
           ...(listed.ok ? { definitions: listed.data } : {}),
           ...(library.ok ? { steps: library.data } : {}),

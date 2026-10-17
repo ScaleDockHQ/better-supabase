@@ -25,8 +25,9 @@ describe("recipes", () => {
     expect(recipeStaticParams().map((param) => param.slug)).toEqual(
       availableRecipes.map((recipe) => recipe.slug),
     );
-    for (const recipe of availableRecipes)
+    for (const recipe of availableRecipes) {
       expect(getRecipe(recipe.slug)).toBe(recipe);
+    }
     expect(availableRecipes.length).toBeGreaterThan(0);
     expect(plannedRecipes.length + availableRecipes.length).toBe(15);
   });
@@ -57,8 +58,9 @@ describe("recipes", () => {
       for (const item of [
         ...(recipe.web?.glue ?? []),
         ...(recipe.native?.glue ?? []),
-      ])
+      ]) {
         expect(items).toContain(item);
+      }
     }
   });
 });

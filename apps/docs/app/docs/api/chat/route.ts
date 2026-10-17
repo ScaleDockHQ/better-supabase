@@ -72,7 +72,9 @@ function lastUserText(messages: readonly UIMessage[]): string {
 /** Candidate pages for the question, so the first step can read instead of search. */
 function candidates(question: string): string {
   const matches = searchDocs(getPageSummaries(), question, SEED_PAGES);
-  if (matches.length === 0) return "No page title matches the question.";
+  if (matches.length === 0) {
+    return "No page title matches the question.";
+  }
   return matches
     .map(
       (match) =>

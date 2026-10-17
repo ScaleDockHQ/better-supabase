@@ -42,7 +42,9 @@ function search(visible: readonly string[], call: SqlCall) {
     a.toLowerCase().localeCompare(b.toLowerCase()),
   );
   for (const name of sorted) {
-    if (!name.toLowerCase().startsWith(start)) continue;
+    if (!name.toLowerCase().startsWith(start)) {
+      continue;
+    }
     const rest = name.slice(prefix.length);
     const slash = rest.indexOf("/");
     if (slash === -1) {
@@ -57,7 +59,9 @@ function search(visible: readonly string[], call: SqlCall) {
       continue;
     }
     const folder = rest.slice(0, slash);
-    if (seen.has(folder)) continue;
+    if (seen.has(folder)) {
+      continue;
+    }
     seen.add(folder);
     entries.push({
       name: folder,
@@ -414,8 +418,9 @@ describe("supportStorage listings", () => {
       { limit: 0 },
       { sortBy: { column: "size" as "name" } },
       { sortBy: { column: "name" as const, order: "up" as "asc" } },
-    ])
+    ]) {
       expect((await docs.listV2(options)).error?.status).toBe(400);
+    }
     expect((await docs.listV2({ cursor: "!" })).error).toMatchObject({
       code: "InvalidParameter",
     });
@@ -673,10 +678,11 @@ describe("supportStorage writes", () => {
     await docs.update("b", "y");
     const upserts = sql.texts().filter((text) => text.includes("insert"));
     expect(upserts).toHaveLength(2);
-    for (const text of upserts)
+    for (const text of upserts) {
       expect(text).toContain(
         "on conflict (bucket_id, name) do update\nset owner = excluded.owner, owner_id = excluded.owner_id, user_metadata = excluded.user_metadata",
       );
+    }
     expect(calls.map((call) => call.method)).toEqual(["upload", "update"]);
     expect(calls[0]?.args[2]).toEqual({ upsert: true, metadata: STAMP });
   });
@@ -896,10 +902,11 @@ describe("supportStorage writes", () => {
     ).toHaveLength(1);
     const upserts = sql.texts().filter((text) => text.includes("on conflict"));
     expect(upserts).toHaveLength(2);
-    for (const text of upserts)
+    for (const text of upserts) {
       expect(text).toContain(
         'on conflict (bucket_id, name collate "C") where archived_at is null do update',
       );
+    }
   });
 
   it("answers a hidden or unmovable source like a missing one", async () => {
@@ -907,8 +914,9 @@ describe("supportStorage writes", () => {
     for (const reply of [
       await hidden.docs.copy("org/a", "org/b"),
       await hidden.docs.move("org/a", "org/b"),
-    ])
+    ]) {
       expect(reply.error).toMatchObject({ statusCode: "404" });
+    }
     const pinned = writableOf(["org/a"]);
     expect((await pinned.docs.move("org/a", "org/b")).error).toMatchObject({
       code: "NoSuchKey",
@@ -991,7 +999,9 @@ describe("supportStorage refusals and failures", () => {
       adminSql: owner.sql,
       session: SESSION,
     }).from("docs");
-    for (const write of writes) refused(await write(docs), "SUPPORT_READ_ONLY");
+    for (const write of writes) {
+      refused(await write(docs), "SUPPORT_READ_ONLY");
+    }
     expect(service.calls).toEqual([]);
     expect(sql.calls).toEqual([]);
     expect((await docs.upload("a", "x")).error?.message).toBe(
@@ -1033,8 +1043,9 @@ describe("supportStorage refusals and failures", () => {
         readOnly: false,
         ...options,
       }).from("docs");
-      for (const write of writes)
+      for (const write of writes) {
         refused(await write(docs), "SUPPORT_STORAGE_WRITES");
+      }
     }
     expect(service.calls).toEqual([]);
     expect(sql.calls).toEqual([]);
@@ -1065,8 +1076,9 @@ describe("supportStorage refusals and failures", () => {
       await docs.listV2(),
       await docs.info("a"),
       await docs.createSignedUrls(["a"], 60),
-    ])
+    ]) {
       expect(fromStorageError(reply.error).kind).toBe("forbidden");
+    }
     const thrown = fakeSql([[() => true, { throws: "boom" }]]);
     const download = await supportStorage({
       admin: service.admin,

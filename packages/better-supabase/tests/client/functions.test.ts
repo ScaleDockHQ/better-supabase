@@ -69,7 +69,9 @@ function client(fail?: Error) {
     auth: { persistSession: false, autoRefreshToken: false },
     global: {
       fetch: (input, init) => {
-        if (fail) return Promise.reject(fail);
+        if (fail) {
+          return Promise.reject(fail);
+        }
         const request = new Request(input, init);
         const name = new URL(request.url).pathname.split("/").at(-1) ?? "";
         const handler = handlers[name];
@@ -113,7 +115,9 @@ describe("functions()", () => {
   it("returns the function's Problem Details as its DbError", async () => {
     const result = await fns.invoke("send-invite", { email: "nope" }, asUser);
     expect(result.ok).toBe(false);
-    if (result.ok) return;
+    if (result.ok) {
+      return;
+    }
     expect(result.error).toMatchObject({ kind: "validation", status: 422 });
 
     const anonymous = await fns.invoke("send-invite", { email: "a@b.test" });

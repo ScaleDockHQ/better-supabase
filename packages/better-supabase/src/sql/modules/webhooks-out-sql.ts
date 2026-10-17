@@ -117,16 +117,18 @@ function userMay(
 ): HookNames["userMay"] {
   const provider = layout.accessProvider;
   const template = provider?.functions.idsWithFor;
-  if (provider !== undefined && template !== undefined)
+  if (provider !== undefined && template !== undefined) {
     return (user, tenant, permission) =>
       `${tenant}::text in (select t.id::text from ${fillTemplate(
         "authorization.functions.idsWithFor",
         template,
         { user, permission, scope: provider.scope },
       )} as t(id))`;
-  if (ctx.installed("access"))
+  }
+  if (ctx.installed("access")) {
     return (user, tenant, permission) =>
       ctx.scope.canUser(user, tenant, permission);
+  }
   return () => "false";
 }
 
@@ -245,20 +247,23 @@ function publish(ctx: ModuleContext, n: HookNames): string {
     [v("type"), "publish_webhook_event.event_type"],
     [v("payload"), "coalesce(publish_webhook_event.payload, '{}')"],
   ];
-  if (n.has("deliveries", "tenant"))
+  if (n.has("deliveries", "tenant")) {
     columns.push([
       v("tenant"),
       n.has("endpoints", "tenant")
         ? `d.${d("tenant")}`
         : "publish_webhook_event.tenant",
     ]);
-  if (n.has("deliveries", "event"))
+  }
+  if (n.has("deliveries", "event")) {
     columns.push([
       v("event"),
       `publish_webhook_event.event_id::${n.eventIdType}`,
     ]);
-  if (n.has("deliveries", "subject"))
+  }
+  if (n.has("deliveries", "subject")) {
     columns.push([v("subject"), "publish_webhook_event.subject"]);
+  }
   const tenant = n.has("endpoints", "tenant")
     ? `\n    and d.${d("tenant")} is not distinct from publish_webhook_event.tenant`
     : "";
@@ -352,12 +357,16 @@ function dispatch(ctx: ModuleContext, n: HookNames): string {
     [v("type"), "dispatch_webhook.event_type"],
     [v("payload"), "coalesce(dispatch_webhook.payload, '{}')"],
   ];
-  if (n.has("deliveries", "tenant")) columns.push([v("tenant"), "v_tenant"]);
-  if (n.has("deliveries", "run"))
+  if (n.has("deliveries", "tenant")) {
+    columns.push([v("tenant"), "v_tenant"]);
+  }
+  if (n.has("deliveries", "run")) {
     columns.push([v("run"), `dispatch_webhook.run_id::${n.runIdType}`]);
+  }
   const event = n.has("deliveries", "event");
-  if (event)
+  if (event) {
     columns.push([v("event"), `dispatch_webhook.event_id::${n.eventIdType}`]);
+  }
   const existing = `select v.${v("id")} into v_id from ${n.table("deliveries")} v
     where v.${v("endpoint")} = dispatch_webhook.endpoint and v.${v("event")} = dispatch_webhook.event_id::${n.eventIdType};`;
   return `
@@ -539,8 +548,11 @@ function complete(ctx: ModuleContext, n: HookNames): string {
     ["processedAt", "case when v_status = 'retrying' then null else now() end"],
     ["updatedAt", "now()"],
   ];
-  for (const [logical, value] of optional)
-    if (n.has("deliveries", logical)) sets.push(`${v(logical)} = ${value}`);
+  for (const [logical, value] of optional) {
+    if (n.has("deliveries", logical)) {
+      sets.push(`${v(logical)} = ${value}`);
+    }
+  }
   const tenantSelect = n.has("endpoints", "tenant")
     ? `, d.${d("tenant")}`
     : ", null";
@@ -739,7 +751,9 @@ function secrets(ctx: ModuleContext, n: HookNames): string {
     [s("endpoint"), "rotate_webhook_secret.endpoint"],
     n.vault ? [s("vaultId"), "v_vault"] : [s("secret"), "v_secret"],
   ];
-  if (n.has("secrets", "tenant")) columns.push([s("tenant"), "v_tenant"]);
+  if (n.has("secrets", "tenant")) {
+    columns.push([s("tenant"), "v_tenant"]);
+  }
   const value = n.vault ? "ds.decrypted_secret" : `s.${s("secret")}`;
   const join = n.vault
     ? `\n    join vault.decrypted_secrets ds on ds.id = s.${s("vaultId")}`

@@ -338,9 +338,9 @@ const config: OxlintConfig = defineConfig({
     "anti-slop/require-readable-spacing": "off",
 
     // These prefer a different form than the one the repo writes (function
-    // declarations, one-line guards, keys in reading order, interfaces);
-    // adopting one is a repo-wide codemod.
-    // Findings when measured: sort-keys 21,748, curly 6,255, func-style 5,465,
+    // declarations, keys in reading order, interfaces); adopting one is a
+    // repo-wide codemod.
+    // Findings when measured: sort-keys 21,748, func-style 5,465,
     // method-signature-style 1,896, consistent-type-specifier-style 1,826,
     // no-await-expression-member 1,472, switch-case-braces 593,
     // prefer-named-capture-group 488, no-use-before-define 476,
@@ -357,7 +357,6 @@ const config: OxlintConfig = defineConfig({
     // no-inferrable-types (25) flags exported template constants, which
     // isolatedDeclarations requires to carry their type.
     "eslint/sort-keys": "off",
-    "eslint/curly": "off",
     "eslint/func-style": "off",
     "typescript/method-signature-style": "off",
     "import/consistent-type-specifier-style": "off",

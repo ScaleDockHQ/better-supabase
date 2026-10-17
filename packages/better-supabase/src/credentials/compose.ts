@@ -117,10 +117,14 @@ export function revokeIfConfigured(
   ref: CredentialRef,
   options: RevokeIfConfiguredOptions,
 ): AsyncResult<boolean> {
-  if (provider === undefined) return AsyncResult.ok(false);
+  if (provider === undefined) {
+    return AsyncResult.ok(false);
+  }
   if ("tenant" in options && !credentialRefInTenant(ref, options.tenant)) {
     return AsyncResult.ok(false);
   }
-  if (!provider.capabilities(ref).revoke) return AsyncResult.ok(false);
+  if (!provider.capabilities(ref).revoke) {
+    return AsyncResult.ok(false);
+  }
   return provider.revoke(ref, { subject: options.subject });
 }

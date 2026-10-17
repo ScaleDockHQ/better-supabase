@@ -310,7 +310,9 @@ describe("requirements", () => {
         "/project",
       ),
     );
-    if (mode.kind !== "provider") throw new Error("expected provider mode");
+    if (mode.kind !== "provider") {
+      throw new Error("expected provider mode");
+    }
     expect(accessRequirements(mode.access)).toEqual([
       {
         function: "authz.ids_organization",
@@ -329,7 +331,9 @@ describe("requirements", () => {
     const mode = entitlementsMode(
       resolveConfig({ authorization: stubProvider }, "/project"),
     );
-    if (mode.kind !== "provider") throw new Error("expected provider mode");
+    if (mode.kind !== "provider") {
+      throw new Error("expected provider mode");
+    }
     expect(entitlementRequirements(mode.provider)).toEqual([
       {
         kind: "member",

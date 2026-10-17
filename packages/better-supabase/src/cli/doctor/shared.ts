@@ -15,8 +15,9 @@ const catalogs = new WeakMap<Snapshot, Catalog>();
 /** The project's SQL workflow: `sql.workflow`, or the one `config.toml` and the schema files imply. */
 export function workflowOf(context: DoctorContext): SqlWorkflow {
   const toml = context.configToml;
-  if (context.config.sql.workflow !== undefined || toml === undefined)
+  if (context.config.sql.workflow !== undefined || toml === undefined) {
     return sqlWorkflow(context.config, toml);
+  }
   const schemas = `${toml.dir}/schemas/`;
   return detectWorkflow(
     context.config.root,
@@ -79,7 +80,9 @@ const SPLIT_CACHE_SIZE = 64;
 function linesOf(text: string): readonly string[] {
   let lines = splitTexts.get(text);
   if (!lines) {
-    if (splitTexts.size >= SPLIT_CACHE_SIZE) splitTexts.clear();
+    if (splitTexts.size >= SPLIT_CACHE_SIZE) {
+      splitTexts.clear();
+    }
     lines = text.split("\n");
     splitTexts.set(text, lines);
   }

@@ -313,7 +313,9 @@ const TIME = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 const UNITS = new Set(["day", "week", "month", "year"]);
 
 function validDay(date: string): boolean {
-  if (!DATE.test(date)) return false;
+  if (!DATE.test(date)) {
+    return false;
+  }
   const [year = 0, month = 0, day = 0] = date.split("-").map(Number);
   const probe = new Date(Date.UTC(year, month - 1, day));
   return (
@@ -324,7 +326,9 @@ function validDay(date: string): boolean {
 }
 
 function dateValueIssue(value: unknown): string | undefined {
-  if (!isObject(value)) return "Must be a date value";
+  if (!isObject(value)) {
+    return "Must be a date value";
+  }
   const { date, relative, time } = value;
   if ((date === undefined) === (relative === undefined)) {
     return "Give either date or relative";
@@ -355,7 +359,9 @@ function scalarIssue(
 ): string | undefined {
   switch (field.type) {
     case "text":
-      if (typeof value !== "string") return "Must be text";
+      if (typeof value !== "string") {
+        return "Must be text";
+      }
       if (value.length > limits.maxValueLength) {
         return `At most ${String(limits.maxValueLength)} characters`;
       }
@@ -373,7 +379,9 @@ function scalarIssue(
     case "select":
     case "multiselect":
     case "relation":
-      if (typeof value !== "string" || value === "") return "Must be a value";
+      if (typeof value !== "string" || value === "") {
+        return "Must be a value";
+      }
       if (value.length > limits.maxValueLength) {
         return `At most ${String(limits.maxValueLength)} characters`;
       }
@@ -401,7 +409,9 @@ function valueIssue(
     case "none":
       return undefined;
     case "one":
-      if (value === undefined || value === null) return "Needs a value";
+      if (value === undefined || value === null) {
+        return "Needs a value";
+      }
       return scalarIssue(field, value, limits);
     case "many":
       if (!Array.isArray(value) || value.length === 0) {
@@ -412,7 +422,9 @@ function valueIssue(
       }
       for (const entry of value) {
         const issue = scalarIssue(field, entry, limits);
-        if (issue) return issue;
+        if (issue) {
+          return issue;
+        }
       }
       return undefined;
     case "range": {
@@ -421,7 +433,9 @@ function valueIssue(
       }
       for (const entry of value) {
         const issue = scalarIssue(field, entry, limits);
-        if (issue) return issue;
+        if (issue) {
+          return issue;
+        }
       }
       return undefined;
     }
@@ -453,8 +467,12 @@ export function checkFilterQuery(
       issues.push({ message, path: at });
       return null;
     };
-    if (!isObject(node)) return fail("Must be a filter group or rule");
-    if (typeof node["id"] !== "string") return fail("Needs an id");
+    if (!isObject(node)) {
+      return fail("Must be a filter group or rule");
+    }
+    if (typeof node["id"] !== "string") {
+      return fail("Needs an id");
+    }
     if (node["type"] === "group") {
       if (depth > limits.maxDepth) {
         return fail(`At most ${String(limits.maxDepth)} levels of groups`);
@@ -474,10 +492,14 @@ export function checkFilterQuery(
         const next = visit(child, [...path, "rules", index], depth + 1);
         return next === null ? [] : [next];
       });
-      if (kept.length === 0) return null;
+      if (kept.length === 0) {
+        return null;
+      }
       return { id: node["id"], type: "group", combinator, rules: kept };
     }
-    if (node["type"] !== "rule") return fail('type must be "group" or "rule"');
+    if (node["type"] !== "rule") {
+      return fail('type must be "group" or "rule"');
+    }
     rules += 1;
     if (rules > limits.maxRules) {
       return rules === limits.maxRules + 1
@@ -504,7 +526,9 @@ export function checkFilterQuery(
     if (typeof operator !== "string") {
       return fail("operator must be text", [...path, "operator"]);
     }
-    if (operator === "") return null;
+    if (operator === "") {
+      return null;
+    }
     const spec = field.operators.find((entry) => entry.value === operator);
     if (!spec) {
       return fail(
@@ -518,7 +542,9 @@ export function checkFilterQuery(
     }
     const value = node["value"];
     const issue = valueIssue(field, spec.arity, value, limits);
-    if (issue) return fail(issue, [...path, "value"]);
+    if (issue) {
+      return fail(issue, [...path, "value"]);
+    }
     return {
       id: node["id"],
       type: "rule",
@@ -552,7 +578,9 @@ function dateBounds(
   clock: FilterClock,
 ): { readonly start: string; readonly end: string } {
   const T = optionalTemporal();
-  if (T === undefined) throw new TypeError(TEMPORAL_MISSING);
+  if (T === undefined) {
+    throw new TypeError(TEMPORAL_MISSING);
+  }
   const zone = clock.timeZone ?? "UTC";
   const now = clock.now ?? T.Now.instant();
   let day: Temporal.PlainDate;
@@ -656,8 +684,9 @@ function positive(
     case "has_all_of":
       return { [column]: { hasEvery: value } };
     case "is":
-      if (field.type === "date")
+      if (field.type === "date") {
         return dateWhere(field, operator, value, clock);
+      }
       return {
         [column]: {
           eq:
@@ -698,7 +727,9 @@ function ruleWhere(
   const base = NEGATIVE[rule.operator];
   const negative = (base !== undefined) !== (rule.negated === true);
   const predicate = positive(field, base ?? rule.operator, rule.value, clock);
-  if (!negative) return predicate;
+  if (!negative) {
+    return predicate;
+  }
   // "is not x" also matches rows without a value, except for "is not empty".
   const emptiness = (base ?? rule.operator) === "empty";
   return field.columnMeta.nullable && !emptiness
@@ -715,7 +746,9 @@ export function filterWhere(
   const byId = new Map(fields.map((field) => [field.id, field]));
   const visit = (node: FilterNode): Where | undefined => {
     if (node.type === "rule") {
-      if (node.operator === "") return undefined;
+      if (node.operator === "") {
+        return undefined;
+      }
       const field = byId.get(node.path.join("."));
       return field ? ruleWhere(field, node, clock) : undefined;
     }
@@ -723,8 +756,12 @@ export function filterWhere(
       const next = visit(child);
       return next === undefined ? [] : [next];
     });
-    if (parts.length === 0) return undefined;
-    if (parts.length === 1) return parts[0];
+    if (parts.length === 0) {
+      return undefined;
+    }
+    if (parts.length === 1) {
+      return parts[0];
+    }
     return node.combinator === "and" ? { AND: parts } : { OR: parts };
   };
   return visit(query);
@@ -826,7 +863,9 @@ export function toFilterFields(
 export function encodeFilterQuery(query: FilterQuery): string {
   const bytes = new TextEncoder().encode(JSON.stringify(query));
   let binary = "";
-  for (const byte of bytes) binary += String.fromCodePoint(byte);
+  for (const byte of bytes) {
+    binary += String.fromCodePoint(byte);
+  }
   return btoa(binary)
     .replaceAll("+", "-")
     .replaceAll("/", "_")
@@ -835,7 +874,9 @@ export function encodeFilterQuery(query: FilterQuery): string {
 
 /** The JSON a `filter` URL parameter holds, or `undefined` when it is not base64url JSON. */
 export function decodeFilterQuery(encoded: string): unknown {
-  if (!/^[A-Za-z0-9_-]*$/.test(encoded)) return undefined;
+  if (!/^[A-Za-z0-9_-]*$/.test(encoded)) {
+    return undefined;
+  }
   try {
     const binary = atob(encoded.replaceAll("-", "+").replaceAll("_", "/"));
     const bytes = Uint8Array.from(binary, (char) => char.codePointAt(0) ?? 0);

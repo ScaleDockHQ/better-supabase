@@ -87,8 +87,9 @@ export function standardSchema(
             lines.push(
               `  title: ${JSON.stringify(variantTitle(docs, variant))},`,
             );
-            if (docs.description !== undefined)
+            if (docs.description !== undefined) {
               lines.push(`  description: ${JSON.stringify(docs.description)},`);
+            }
           }
           lines.push("  fields: {");
           for (const plan of fieldsFor(table, variant, input)) {
@@ -96,7 +97,9 @@ export function standardSchema(
             const entries = Object.entries(
               fieldSpec(plan, fieldDocs(docs, plan)),
             ).map(([name, value]) => `${name}: ${JSON.stringify(value)}`);
-            if (imported) entries.push(`schema: ${imported}`);
+            if (imported) {
+              entries.push(`schema: ${imported}`);
+            }
             lines.push(
               `    ${propertyKey(plan.name)}: { ${entries.join(", ")} },`,
             );

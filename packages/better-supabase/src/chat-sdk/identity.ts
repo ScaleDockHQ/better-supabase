@@ -89,11 +89,13 @@ export function botJobs<P, R>(options: BotJobsOptions<P, R>): BotJobs<P, R> {
   return {
     async enqueue(identity, payload) {
       const author = await resolveChatAuthor(identity, options);
-      if (author?.kind !== "user")
+      if (author?.kind !== "user") {
         return { result: await options.enqueue(payload, {}), author };
+      }
       const ticket = await options.ticketFor(author.userId);
-      if (typeof ticket !== "string" || ticket === "")
+      if (typeof ticket !== "string" || ticket === "") {
         throw new TypeError("botJobs: ticketFor returned an empty ticket");
+      }
       return { result: await options.enqueue(payload, { ticket }), author };
     },
   };
@@ -159,16 +161,24 @@ export function chatActions(
     } catch {
       return { allowed: false, reason: "error" };
     }
-    if (author === null) return { allowed: false, reason: "unlinked" };
-    if (!hook) return { allowed: false, reason: "unhandled" };
+    if (author === null) {
+      return { allowed: false, reason: "unlinked" };
+    }
+    if (!hook) {
+      return { allowed: false, reason: "unhandled" };
+    }
     let decision: Awaited<ReturnType<ChatActionHook>>;
     try {
       decision = await hook(action, author);
     } catch {
       return { allowed: false, reason: "error" };
     }
-    if (decision === undefined) return { allowed: false, reason: "unhandled" };
-    if (!decision.allowed) return { allowed: false, reason: "refused" };
+    if (decision === undefined) {
+      return { allowed: false, reason: "unhandled" };
+    }
+    if (!decision.allowed) {
+      return { allowed: false, reason: "refused" };
+    }
     switch (author.kind) {
       case "user":
         return decision.userId === undefined ||

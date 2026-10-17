@@ -21,7 +21,9 @@ function fakeAuth(initial: Snapshot) {
   };
   const set = (next: Snapshot) => {
     snapshot = next;
-    for (const listener of listeners) listener();
+    for (const listener of listeners) {
+      listener();
+    }
   };
   return { auth, set, listeners };
 }

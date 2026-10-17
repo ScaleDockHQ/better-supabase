@@ -42,7 +42,9 @@ export function flushEvents(
   server: Pick<BetterServer<AnyModels, AnyFunctions, unknown>, "events">,
   waitUntil: ((promise: Promise<unknown>) => void) | undefined,
 ): void {
-  if (waitUntil && server.events.pending) waitUntil(server.events.settled());
+  if (waitUntil && server.events.pending) {
+    waitUntil(server.events.settled());
+  }
 }
 
 /** Runs `run`, then hands pending event sink sends to `waitUntil` even when it throws. */

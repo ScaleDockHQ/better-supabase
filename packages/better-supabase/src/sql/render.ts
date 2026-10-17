@@ -42,8 +42,9 @@ function moduleSql(
   ctx: ModuleContext,
   layout: ModuleLayout,
 ) {
-  if (module.build)
+  if (module.build) {
     return applyActorWriteGuards(module.build(ctx, layout), layout);
+  }
   if (
     module.render &&
     (layout.claims ||
@@ -51,11 +52,12 @@ function moduleSql(
       layout.entitlementsProvider ||
       layout.tenantColumn ||
       (layout.entitlements?.source ?? "stripe-sync") !== "stripe-sync")
-  )
+  ) {
     return applyActorWriteGuards(
       module.render(layout.claims ?? DEFAULT_CLAIMS, layout),
       layout,
     );
+  }
   return applyActorWriteGuards(module.sql, layout);
 }
 
@@ -117,7 +119,9 @@ export function renderModules(
   const installed = modules.map((module) => module.name);
   return modules.flatMap((module): ModuleFile[] => {
     const ctx = moduleContext(module.name, layout, installed);
-    if (ctx.mode === "custom") return [];
+    if (ctx.mode === "custom") {
+      return [];
+    }
     const title = `-- better-supabase module: ${module.name}${layout.version ? ` (${layout.version})` : ""}`;
     const managed = [
       "-- Managed by `better-supabase sql add`; re-running it overwrites this file.",
@@ -211,10 +215,14 @@ function checkTenantName(
   layout: ModuleLayout,
 ): void {
   const tenant = layout.naming?.tenant;
-  if (tenant === undefined) return;
+  if (tenant === undefined) {
+    return;
+  }
   for (const module of modules) {
     const clashes = tenantNameClashes(module, tenant, SQL_MODULES);
-    if (clashes.length === 0) continue;
+    if (clashes.length === 0) {
+      continue;
+    }
     throw new TypeError(
       `sql.naming.tenant: "${tenant}" renames the tenant tables and columns to names the ${module.name} module already uses (${clashes.join(", ")}). Choose another name.`,
     );
@@ -224,7 +232,9 @@ function checkTenantName(
 /** Throws on a `blocks.<name>.functions` key the module writes no function for. */
 function checkFunctionRenames(ctx: ModuleContext): void {
   const unknown = ctx.unusedFunctions();
-  if (unknown.length === 0) return;
+  if (unknown.length === 0) {
+    return;
+  }
   throw new TypeError(
     `blocks.${ctx.module}.functions: the ${ctx.module} module writes no function ${unknown.map((name) => `"${name}"`).join(", ")}`,
   );
@@ -242,9 +252,13 @@ export function moduleTopics(
   const modules = resolveModules(names, layout);
   const installed = modules.map((module) => module.name);
   return modules.flatMap((module) => {
-    if (module.topics === undefined) return [];
+    if (module.topics === undefined) {
+      return [];
+    }
     const ctx = moduleContext(module.name, layout, installed);
-    if (ctx.mode === "custom") return [];
+    if (ctx.mode === "custom") {
+      return [];
+    }
     return module.topics(ctx).map((topic) => ({ module: module.name, topic }));
   });
 }
@@ -263,7 +277,9 @@ export function customContracts(
   const installed = modules.map((module) => module.name);
   return modules.flatMap((module) => {
     const ctx = moduleContext(module.name, layout, installed);
-    if (ctx.mode !== "custom" || !module.contract) return [];
+    if (ctx.mode !== "custom" || !module.contract) {
+      return [];
+    }
     return [
       {
         module: module.name,

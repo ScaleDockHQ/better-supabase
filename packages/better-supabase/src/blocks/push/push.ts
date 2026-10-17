@@ -207,11 +207,15 @@ export function registerDevice(
 ): AsyncResult<RegisteredDevice | null> {
   return run(async (): Promise<RegisteredDevice | null> => {
     const { notifications, platform } = options;
-    if (!isPlatform(platform)) return null;
+    if (!isPlatform(platform)) {
+      return null;
+    }
     const token = await expoPushToken(notifications, {
       projectId: options.projectId,
     }).token({ request: options.request ?? true });
-    if (token === null) return null;
+    if (token === null) {
+      return null;
+    }
     const deviceId = await options.devices
       .register({
         token,
@@ -249,7 +253,9 @@ export function unregisterOnSignOut<R>(options: {
 }): () => Promise<R> {
   return async () => {
     const token = options.token();
-    if (token) await options.devices.unregister(token);
+    if (token) {
+      await options.devices.unregister(token);
+    }
     return options.signOut();
   };
 }
@@ -317,8 +323,9 @@ const NOT_REGISTERED = "DeviceNotRegistered";
 
 function chunks<T>(items: readonly T[], size: number): T[][] {
   const out: T[][] = [];
-  for (let at = 0; at < items.length; at += size)
+  for (let at = 0; at < items.length; at += size) {
     out.push(items.slice(at, at + size));
+  }
   return out;
 }
 
@@ -350,18 +357,22 @@ export function expoPush(options: ExpoPushOptions = {}): ExpoPush {
       body: JSON.stringify(body),
     });
     const text = await response.text();
-    if (!response.ok)
+    if (!response.ok) {
       throw new Error(
         `Expo Push API ${path} answered ${String(response.status)}: ${text.slice(0, 500)}`,
       );
+    }
     const parsed: unknown = text === "" ? {} : JSON.parse(text);
     return recordOrEmpty(parsed)["data"];
   };
   const prune = async (tokens: readonly string[]): Promise<number> => {
-    if (!options.devices || tokens.length === 0) return 0;
+    if (!options.devices || tokens.length === 0) {
+      return 0;
+    }
     let pruned = 0;
-    for (const chunk of chunks([...new Set(tokens)], RECEIPT_CHUNK))
+    for (const chunk of chunks([...new Set(tokens)], RECEIPT_CHUNK)) {
       pruned += await options.devices.prune(chunk).orThrow();
+    }
     return pruned;
   };
   return {
@@ -397,15 +408,20 @@ export function expoPush(options: ExpoPushOptions = {}): ExpoPush {
     },
     checkReceipts: async (tickets) => {
       const byId = new Map<string, string>();
-      for (const ticket of tickets)
-        if (ticket.id !== undefined) byId.set(ticket.id, ticket.token);
+      for (const ticket of tickets) {
+        if (ticket.id !== undefined) {
+          byId.set(ticket.id, ticket.token);
+        }
+      }
       let delivered = 0;
       const failed: ExpoPushTicket[] = [];
       for (const ids of chunks([...byId.keys()], RECEIPT_CHUNK)) {
         const receipts = recordOrEmpty(await post("getReceipts", { ids }));
         for (const id of ids) {
           const receipt = receipts[id];
-          if (receipt === undefined) continue;
+          if (receipt === undefined) {
+            continue;
+          }
           const entry = recordOrEmpty(receipt);
           if (entry["status"] === "ok") {
             delivered += 1;
@@ -490,19 +506,23 @@ export function expoPushChannel(
       const tokens = targets
         .filter((target) => target.provider === "expo")
         .map((target) => target.token);
-      if (tokens.length === 0) return { status: "skipped", provider: "expo" };
+      if (tokens.length === 0) {
+        return { status: "skipped", provider: "expo" };
+      }
       const tickets = await options.push.send(tokens, build(message));
       await options.onTickets?.(tickets, message);
       const sent = tickets.find((ticket) => ticket.id !== undefined);
-      if (sent?.id !== undefined)
+      if (sent?.id !== undefined) {
         return { provider: "expo", providerMessageId: sent.id };
+      }
       const retryable = tickets.find(
         (ticket) => ticket.error !== NOT_REGISTERED,
       );
-      if (retryable)
+      if (retryable) {
         throw new Error(
           `Expo rejected the push: ${retryable.error ?? "Unknown"}${retryable.message ? ` (${retryable.message})` : ""}`,
         );
+      }
       return { status: "skipped", provider: "expo" };
     },
   };

@@ -278,7 +278,9 @@ function settingsOf(config: readonly string[] | null): Record<string, string> {
   const settings: Record<string, string> = {};
   for (const entry of config ?? []) {
     const at = entry.indexOf("=");
-    if (at > 0) settings[entry.slice(0, at)] = entry.slice(at + 1);
+    if (at > 0) {
+      settings[entry.slice(0, at)] = entry.slice(at + 1);
+    }
   }
   return settings;
 }
@@ -316,7 +318,9 @@ async function readHooks(
   db: Queryable,
   targets: readonly HookTarget[],
 ): Promise<ExtrasHook[]> {
-  if (targets.length === 0) return [];
+  if (targets.length === 0) {
+    return [];
+  }
   const found = await rows<HookRow>(
     db,
     HOOKS(literalArray(targets.map((t) => `${t.schema}.${t.name}`))),
@@ -389,8 +393,11 @@ function groupById<T extends { table_id: number | string }>(
   for (const row of list) {
     const id = Number(row.table_id);
     const entry = map.get(id);
-    if (entry) entry.push(row);
-    else map.set(id, [row]);
+    if (entry) {
+      entry.push(row);
+    } else {
+      map.set(id, [row]);
+    }
   }
   return map;
 }

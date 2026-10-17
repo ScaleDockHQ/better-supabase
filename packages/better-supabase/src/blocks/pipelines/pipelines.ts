@@ -372,7 +372,9 @@ export function createPipelines<
       ),
     reorderStage: (stageId, neighbors) => {
       const key = rankBetweenResult(neighbors);
-      if (!key.ok) return AsyncResult.err(key.error);
+      if (!key.ok) {
+        return AsyncResult.err(key.error);
+      }
       return call(
         "rank_pipeline_stage",
         { stage: stageId, rank: key.data },

@@ -18,7 +18,9 @@ import { createSqlite } from "../fixtures/sqlite.ts";
 
 function table(key: string): TableMeta {
   const found = schema.meta.tables[key];
-  if (!found) throw new Error(`No fixture table ${key}`);
+  if (!found) {
+    throw new Error(`No fixture table ${key}`);
+  }
   return found;
 }
 
@@ -48,8 +50,9 @@ const col = (
 ): Condition => ({ kind: "column", column, op, value });
 
 function selectPlan(plan: SqlitePlan) {
-  if (plan.kind !== "select")
+  if (plan.kind !== "select") {
     throw new Error(`expected select, got ${plan.kind}`);
+  }
   return plan;
 }
 
@@ -57,7 +60,9 @@ function unsupportedOf(run: () => unknown): unknown {
   try {
     run();
   } catch (cause) {
-    if (cause instanceof DbException) return cause.error;
+    if (cause instanceof DbException) {
+      return cause.error;
+    }
     throw cause;
   }
   throw new Error("expected an unsupported error");

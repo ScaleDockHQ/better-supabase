@@ -100,13 +100,17 @@ export function usePending(options: {
         try {
           ({ error } = await call());
         } catch (cause) {
-          if (id === latest.current.call)
+          if (id === latest.current.call) {
             setState({ pending: false, error: undefined });
+          }
           throw cause;
         }
-        if (id === latest.current.call)
+        if (id === latest.current.call) {
           setState({ pending: false, error: error ?? undefined });
-        if (!error) latest.current.options.onSuccess?.();
+        }
+        if (!error) {
+          latest.current.options.onSuccess?.();
+        }
         return error ?? undefined;
       },
     [],

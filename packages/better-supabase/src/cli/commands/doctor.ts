@@ -155,15 +155,18 @@ export async function runDoctor(
   const unknown = [...only, ...ignore].filter(
     (code) => !RULE_CODES.includes(code),
   );
-  if (unknown.length > 0)
+  if (unknown.length > 0) {
     return {
       code: 2,
       error: `Unknown check ${unknown.join(", ")}. Checks: ${RULE_CODES.join(", ")}`,
     };
+  }
   const explainTables = list(args.explain);
   const stats = args.stats === true;
   const claims = explainClaims(args);
-  if ("error" in claims) return { code: 2, error: String(claims.error) };
+  if ("error" in claims) {
+    return { code: 2, error: String(claims.error) };
+  }
   // --stats and --explain ask for their checks even when --only leaves them out.
   const hookUser = args.as;
   const asked = new Set([
@@ -281,7 +284,9 @@ export async function runDoctor(
     await opened.close();
   }
   const findings: Finding[] = ran.map((finding) => {
-    if (finding.location || !finding.object) return finding;
+    if (finding.location || !finding.object) {
+      return finding;
+    }
     const location = locate(sql, finding.object);
     return location ? { ...finding, location } : finding;
   });
@@ -365,8 +370,9 @@ export const doctorCommand: AnyCommand = defineCliCommand({
       try {
         snapshot = await readMetadataSnapshot(args.metadata, cwd, io);
       } catch (cause) {
-        if (cause instanceof MetadataRejectedError)
+        if (cause instanceof MetadataRejectedError) {
           return { code: METADATA_REJECTED, error: cause.message };
+        }
         throw cause;
       }
       const skipped = `reading a GeneratorMetadata document; set $DATABASE_URL or $SUPABASE_DB_URL, or pass --db-url-stdin or --project-ref, to check a database.`;

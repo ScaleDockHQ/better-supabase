@@ -215,7 +215,9 @@ function vectorSearchFunctions(
   tables: readonly VectorSearchTable[],
   vector: string,
 ): string {
-  if (tables.length === 0) return "";
+  if (tables.length === 0) {
+    return "";
+  }
   const functions = tables.map((entry) => {
     const [schema, table] = splitTable(entry.table);
     const target = `${sqlIdent(schema)}.${sqlIdent(table)}`;

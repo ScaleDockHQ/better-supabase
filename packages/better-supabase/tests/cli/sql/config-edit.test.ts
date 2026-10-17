@@ -12,7 +12,9 @@ import {
 
 const edited = (source: string, names: readonly string[]): string => {
   const result = addBlocksToConfig(source, names);
-  if (!result.ok) throw new Error(result.reason);
+  if (!result.ok) {
+    throw new Error(result.reason);
+  }
   return result.text;
 };
 
@@ -354,7 +356,9 @@ const ADOPTED = {
 
 const setBlock = (source: string): string => {
   const result = setBlockInConfig(source, "teams", ADOPTED);
-  if (!result.ok) throw new Error(result.reason);
+  if (!result.ok) {
+    throw new Error(result.reason);
+  }
   return result.text;
 };
 

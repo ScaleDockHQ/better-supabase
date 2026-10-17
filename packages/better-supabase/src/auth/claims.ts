@@ -23,7 +23,9 @@ export function withAuth<C, P>(): SingleKeyEntry<
 
 /** `jwtClaims` as `withSupabase` contributes it: the verified token's payload, or `null`. */
 export function jwtClaimsOf<C>(auth: AuthState<C>): (JWTClaims & C) | null {
-  if (auth.kind === "user") return auth.claims;
+  if (auth.kind === "user") {
+    return auth.claims;
+  }
   if (auth.kind === "apiKey") {
     // API key claims are synthesized, not parsed by the claims schema.
     // SAFETY: downstream entries (withPostgresClient, withOpenFeature) read only `sub` and `role`.

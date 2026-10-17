@@ -11,11 +11,14 @@ import { schema } from "../fixtures/generated-camel.ts";
 const customers = schema.meta.tables["customers"];
 const notes = schema.meta.tables["notes"];
 const notesRelation = customers?.relations["notes"];
-if (!customers || !notes || !notesRelation)
+if (!customers || !notes || !notesRelation) {
   throw new Error("Fixture tables missing");
+}
 
 function include(overrides: Partial<Include>): Include {
-  if (!notes || !notesRelation) throw new Error("Fixture tables missing");
+  if (!notes || !notesRelation) {
+    throw new Error("Fixture tables missing");
+  }
   return {
     alias: "notes",
     relation: notesRelation,

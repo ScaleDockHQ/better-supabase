@@ -63,8 +63,9 @@ export interface CollectionConfig<Row> {
 type Write = (...args: unknown[]) => AsyncResult<unknown>;
 
 function field(row: unknown, name: string): unknown {
-  if (typeof row !== "object" || row === null || !(name in row))
+  if (typeof row !== "object" || row === null || !(name in row)) {
     return undefined;
+  }
   return Object.getOwnPropertyDescriptor(row, name)?.value;
 }
 
@@ -102,16 +103,18 @@ export function collectionOptions<
 ): CollectionConfig<Row> {
   const { query, queryClient } = options;
   const queryFn = query.queryFn;
-  if (typeof queryFn !== "function")
+  if (typeof queryFn !== "function") {
     throw new TypeError(
       `better-supabase: the "${table}" collection needs a query that runs, not skipToken`,
     );
+  }
   const primaryKey = betterSupabase.meta.tables[table]?.primaryKey ?? [];
   const [single] = primaryKey;
-  if (single === undefined)
+  if (single === undefined) {
     throw new TypeError(
       `better-supabase: the "${table}" collection needs a table with a primary key`,
     );
+  }
   const composite = primaryKey.length > 1;
   const idOf = (row: unknown): unknown =>
     composite
@@ -124,15 +127,18 @@ export function collectionOptions<
       | Readonly<Record<string, Write | undefined>>
       | undefined;
     const fn = repository?.[method];
-    if (!fn)
+    if (!fn) {
       throw new TypeError(
         `better-supabase: ${table}.${method} is not available`,
       );
+    }
     return fn;
   };
   const orThrow = async (result: AsyncResult<unknown>): Promise<void> => {
     const settled = await result;
-    if (!settled.ok) throw new DbException(settled.error);
+    if (!settled.ok) {
+      throw new DbException(settled.error);
+    }
   };
   return {
     id: options.id ?? table,
@@ -149,22 +155,25 @@ export function collectionOptions<
     },
     onInsert: async ({ transaction }) => {
       const create = write("create");
-      for (const mutation of transaction.mutations)
+      for (const mutation of transaction.mutations) {
         await orThrow(create(mutation.modified, { returning: false }));
+      }
     },
     onUpdate: async ({ transaction }) => {
       const update = write("update");
-      for (const mutation of transaction.mutations)
+      for (const mutation of transaction.mutations) {
         await orThrow(
           update(idOf(mutation.original), mutation.changes, {
             returning: false,
           }),
         );
+      }
     },
     onDelete: async ({ transaction }) => {
       const remove = write("delete");
-      for (const mutation of transaction.mutations)
+      for (const mutation of transaction.mutations) {
         await orThrow(remove(idOf(mutation.original)));
+      }
     },
   };
 }

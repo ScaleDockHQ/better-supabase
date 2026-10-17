@@ -46,13 +46,17 @@ export function applyBucket(
       const missing =
         found.error !== null &&
         fromStorageError(found.error).kind === "not_found";
-      if (found.error && !missing) return fail(found.error);
+      if (found.error && !missing) {
+        return fail(found.error);
+      }
       if (missing) {
         const created = await storage.createBucket(settings.id, {
           ...limits,
           ...(settings.versioning ? { versioningStatus: "ENABLED" } : {}),
         });
-        if (created.error) return fail(created.error);
+        if (created.error) {
+          return fail(created.error);
+        }
       } else {
         // `versioning_status` is absent on Storage versions without versioning.
         const current: VersioningStatus | undefined =
@@ -66,17 +70,25 @@ export function applyBucket(
           ...limits,
           ...(versioningStatus ? { versioningStatus } : {}),
         });
-        if (updated.error) return fail(updated.error);
+        if (updated.error) {
+          return fail(updated.error);
+        }
       }
       if (settings.lifecycle) {
         const set = await storage.updateBucketLifecycle(settings.id, {
           rules: settings.lifecycle.rules.map((rule) => ({ ...rule })),
         });
-        if (set.error) return fail(set.error);
+        if (set.error) {
+          return fail(set.error);
+        }
       } else if (!missing) {
         const removed = await storage.deleteBucketLifecycle(settings.id);
-        if (removed.error && !lifecycleAbsent(fromStorageError(removed.error)))
+        if (
+          removed.error &&
+          !lifecycleAbsent(fromStorageError(removed.error))
+        ) {
           return fail(removed.error);
+        }
       }
       return ok({ created: missing });
     } catch (cause) {

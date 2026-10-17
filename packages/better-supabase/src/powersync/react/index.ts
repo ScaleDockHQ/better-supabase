@@ -72,7 +72,9 @@ export function useWatch<T>(options: UseWatchOptions<T>): WatchState<T> {
   latest.current = { query: options.query, tables };
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      return;
+    }
     // `key` covers the tables, so the ones read here match it.
     return watch(db, () => latest.current.query(), {
       tables: latest.current.tables,
@@ -162,7 +164,9 @@ function statusStore(db: SyncStatusSource) {
   return {
     read: (): SyncState => {
       const next = stateOf(db.currentStatus);
-      if (!sameState(snapshot, next)) snapshot = next;
+      if (!sameState(snapshot, next)) {
+        snapshot = next;
+      }
       return snapshot;
     },
     subscribe: (listener: () => void) =>

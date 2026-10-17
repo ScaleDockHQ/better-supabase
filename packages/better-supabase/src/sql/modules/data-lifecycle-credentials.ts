@@ -53,7 +53,9 @@ function credentialColumns(ctx: ModuleContext): readonly CredentialColumn[] {
         );
       }
       for (const column of lifecycle.credentials) {
-        if (!of.has(logical, column)) continue;
+        if (!of.has(logical, column)) {
+          continue;
+        }
         list.push({
           name: `${of.tableName(logical).schema}.${of.tableName(logical).name}`,
           table: of.table(logical),

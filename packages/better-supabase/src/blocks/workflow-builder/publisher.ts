@@ -78,7 +78,9 @@ export function mayPublishRefusal(
       { graph: version.graph ?? graphOf(undefined) },
       (value) => (Array.isArray(value) ? stringsOf(value) : []),
     );
-    if (!permissions.ok) return permissions;
+    if (!permissions.ok) {
+      return permissions;
+    }
     const sub = claims["sub"];
     const allowed = await settled(() =>
       mayPublish({

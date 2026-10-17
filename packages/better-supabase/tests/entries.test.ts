@@ -149,10 +149,11 @@ describe("subpath entries", () => {
       .split(/;\s*\n/)
       .map((statement) => statement.trim())
       .filter(Boolean);
-    for (const statement of statements)
+    for (const statement of statements) {
       expect(statement).toMatch(
         /^export\s+(type\s+)?(\*|\{[^}]*\})\s+from\s+"[^"]+"$/,
       );
+    }
   });
 });
 
@@ -162,7 +163,9 @@ describe("the source export condition", () => {
       packageJson.publishConfig.exports;
     const withoutSource = Object.fromEntries(
       Object.entries(packageJson.exports).map(([key, value]) => {
-        if (typeof value === "string") return [key, value];
+        if (typeof value === "string") {
+          return [key, value];
+        }
         const { "@better-supabase/source": _, ...rest } = value;
         return [key, rest];
       }),
@@ -173,7 +176,9 @@ describe("the source export condition", () => {
   it.each(Object.entries(packageJson.exports))(
     "%s points the source condition at the file its build starts from",
     (_, value) => {
-      if (typeof value === "string") return;
+      if (typeof value === "string") {
+        return;
+      }
       expect(value["@better-supabase/source"]).toBe(
         value.default.replace(/^\.\/dist\//, "./src/").replace(/\.js$/, ".ts"),
       );

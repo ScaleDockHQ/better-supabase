@@ -22,9 +22,13 @@ function fake(
   const transport: BlockTransport = {
     async call(_schema, fn, args) {
       calls.push({ fn, args });
-      if (fn === "mark_reminder_sent") return true;
+      if (fn === "mark_reminder_sent") {
+        return true;
+      }
       const result = results[fn];
-      if (!result) throw new Error(`unexpected ${fn}`);
+      if (!result) {
+        throw new Error(`unexpected ${fn}`);
+      }
       return result({ ...args });
     },
   };

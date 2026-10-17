@@ -40,10 +40,15 @@ const ADVISOR_SEVERITY: Record<Lint["level"], Severity> = {
 
 function lintObject(lint: Lint): SqlObject | undefined {
   const { schema, name, type } = lint.metadata ?? {};
-  if (typeof schema !== "string" || typeof name !== "string") return undefined;
-  if (type === "table" || type === "view")
+  if (typeof schema !== "string" || typeof name !== "string") {
+    return undefined;
+  }
+  if (type === "table" || type === "view") {
     return { kind: "table", schema, name };
-  if (type === "function") return { kind: "function", schema, name };
+  }
+  if (type === "function") {
+    return { kind: "function", schema, name };
+  }
   return undefined;
 }
 
@@ -74,7 +79,9 @@ export function advisorRule(
     description,
     async check(context) {
       const { advisors } = context;
-      if (!advisors) return [];
+      if (!advisors) {
+        return [];
+      }
       if ("skipped" in advisors) {
         return [
           {
@@ -111,8 +118,12 @@ export async function splinterTables(
   lint: string,
 ): Promise<ReadonlySet<string> | undefined> {
   const { advisors } = context;
-  if (!advisors || "skipped" in advisors) return undefined;
-  if (!context.codes?.includes(PERFORMANCE_ADVISOR)) return undefined;
+  if (!advisors || "skipped" in advisors) {
+    return undefined;
+  }
+  if (!context.codes?.includes(PERFORMANCE_ADVISOR)) {
+    return undefined;
+  }
   let lints: readonly Lint[];
   try {
     lints = await lintsOf(advisors, "performance");
@@ -121,7 +132,9 @@ export async function splinterTables(
   }
   return new Set(
     lints.flatMap((entry) => {
-      if (entry.name !== lint) return [];
+      if (entry.name !== lint) {
+        return [];
+      }
       const object = lintObject(entry);
       return object ? [`${object.schema}.${object.name}`] : [];
     }),

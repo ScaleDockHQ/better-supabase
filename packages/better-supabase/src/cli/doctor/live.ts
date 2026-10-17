@@ -135,10 +135,15 @@ export function summarizePlan(output: ExplainOutput): PlanSummary {
     const on = node["Relation Name"] ? ` on ${node["Relation Name"]}` : "";
     const sub = node["Subplan Name"] ? `${node["Subplan Name"]}: ` : "";
     nodes.push(`${sub}${node["Node Type"]}${on} ${ms} ms ×${loops}`);
-    if (node["Parent Relationship"] === "InitPlan") initPlans += 1;
-    if (node["Parent Relationship"] === "SubPlan" && loops > 1)
+    if (node["Parent Relationship"] === "InitPlan") {
+      initPlans += 1;
+    }
+    if (node["Parent Relationship"] === "SubPlan" && loops > 1) {
       perRowSubPlans.push(`${sub}${node["Node Type"]}${on} ×${loops}`);
-    for (const child of node.Plans ?? []) walk(child);
+    }
+    for (const child of node.Plans ?? []) {
+      walk(child);
+    }
   };
   walk(output.Plan);
   return {
@@ -157,7 +162,9 @@ async function explainTable(
   claims: Readonly<Record<string, unknown>>,
 ): Promise<{ summary: PlanSummary; functions: FunctionTime[] | undefined }> {
   const role = typeof claims["role"] === "string" ? claims["role"] : "anon";
-  if (!ROLE.test(role)) throw new Error(`Invalid role "${role}" in the claims`);
+  if (!ROLE.test(role)) {
+    throw new Error(`Invalid role "${role}" in the claims`);
+  }
   await db.query("begin");
   try {
     await db.query(`set local statement_timeout = '30s'`);
@@ -185,7 +192,9 @@ async function explainTable(
     const plan = (typeof raw === "string" ? JSON.parse(raw) : raw) as
       | ExplainOutput[]
       | undefined;
-    if (!plan?.[0]) throw new Error("EXPLAIN returned no plan");
+    if (!plan?.[0]) {
+      throw new Error("EXPLAIN returned no plan");
+    }
     const functions = tracked
       ? [...(await functionTimes(db))]
           .map(([name, after]): FunctionTime => {
@@ -223,7 +232,9 @@ export const LIVE_RULES: readonly Rule[] = [
       "Sorts and hashes that exceed `work_mem` write temporary files, which is slow. Reads `pg_stat_database` and, when installed, the top statements from `pg_stat_statements`.",
     async check(context) {
       const db = live(context);
-      if (!db || "skipped" in db) return [];
+      if (!db || "skipped" in db) {
+        return [];
+      }
       try {
         const [stats] = await db.query<{
           temp_files: number | string;
@@ -233,7 +244,9 @@ export const LIVE_RULES: readonly Rule[] = [
           `select temp_files, temp_bytes, current_setting('work_mem') as work_mem from pg_stat_database where datname = current_database()`,
         );
         const files = Number(stats?.temp_files ?? 0);
-        if (files === 0) return [];
+        if (files === 0) {
+          return [];
+        }
         let top = "";
         const view = await statementsView(db);
         if (view) {
@@ -273,16 +286,21 @@ export const LIVE_RULES: readonly Rule[] = [
     title: "Slow frequent statements",
     description: `Statements from \`pg_stat_statements\` with a mean time above ${SLOW_MEAN_MS} ms and more than ${SLOW_CALLS} calls. Runs with \`--stats\`.`,
     async check(context) {
-      if (!context.stats) return [];
+      if (!context.stats) {
+        return [];
+      }
       const db = live(context);
-      if (!db) return [];
-      if ("skipped" in db)
+      if (!db) {
+        return [];
+      }
+      if ("skipped" in db) {
         return [
           {
             severity: "info",
             message: `Skipped --stats: ${db.skipped}`,
           },
         ];
+      }
       try {
         const view = await statementsView(db);
         if (!view) {
@@ -328,7 +346,9 @@ export const LIVE_RULES: readonly Rule[] = [
     description: `\`--explain <tables>\` runs \`EXPLAIN (ANALYZE, BUFFERS)\` on \`select * from <table> limit ${EXPLAIN_LIMIT}\` as the given claims, in a transaction that is rolled back. It reports node types, timings and loops, never rows, and warns when a policy SubPlan runs once per row.`,
     async check(context) {
       const request = context.explain;
-      if (!request) return [];
+      if (!request) {
+        return [];
+      }
       const db = live(context);
       if (!db || "skipped" in db || !db.session) {
         return [

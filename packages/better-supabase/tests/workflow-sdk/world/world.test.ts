@@ -87,8 +87,11 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllEnvs();
   for (const key of ENV_KEYS) {
-    if (saved[key] === undefined) delete process.env[key];
-    else process.env[key] = saved[key];
+    if (saved[key] === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = saved[key];
+    }
   }
   vi.unstubAllGlobals();
 });
@@ -275,7 +278,9 @@ describe("createSupabaseWorld", () => {
       },
       claim_jobs: () => {
         claims += 1;
-        if (claims === 1) throw new Error("claim failed");
+        if (claims === 1) {
+          throw new Error("claim failed");
+        }
         return jobs.splice(0).map((payload, index) => ({
           id: index + 1,
           attempts: 1,
@@ -355,7 +360,9 @@ describe("createSupabaseWorld", () => {
     const { pool } = fakePool({
       enqueue_job: () => {
         calls += 1;
-        if (calls === 2) throw new Error("full");
+        if (calls === 2) {
+          throw new Error("full");
+        }
         return [];
       },
     });
@@ -502,7 +509,9 @@ describe("createSupabaseWorld", () => {
     const master = Buffer.alloc(32, 3).toString("base64");
     const { pool, queries } = fakePool({
       vault: (params) => {
-        if (broken) throw new Error("permission denied for schema vault");
+        if (broken) {
+          throw new Error("permission denied for schema vault");
+        }
         return params[0] === "workflow_encryption_key"
           ? [{ secret: master }]
           : [{ secret: "sec" }];

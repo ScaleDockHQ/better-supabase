@@ -98,7 +98,9 @@ export async function runForKey(
   world: World | undefined,
 ): Promise<string | undefined> {
   const target = world ?? (await getWorld());
-  if (target.analytics === undefined) return undefined;
+  if (target.analytics === undefined) {
+    return undefined;
+  }
   const page = await target.analytics.runs.list({
     attributes: { [WORKFLOW_ATTRIBUTES.key]: key },
     pagination: { limit: 1 },
@@ -142,11 +144,15 @@ async function startRun<TArgs extends unknown[], TResult>(
   const key = options.idempotencyKey;
   if (key !== undefined) {
     const existing = await runForKey(key, options.world);
-    if (existing !== undefined) return getRun<TResult>(existing);
+    if (existing !== undefined) {
+      return getRun<TResult>(existing);
+    }
   }
   const attributes: Record<string, string> = {};
   for (const [name, value] of Object.entries(options.attributes ?? {})) {
-    if (!RUN_AS_ATTRIBUTES.has(name)) attributes[name] = value;
+    if (!RUN_AS_ATTRIBUTES.has(name)) {
+      attributes[name] = value;
+    }
   }
   Object.assign(
     attributes,
@@ -160,8 +166,11 @@ async function startRun<TArgs extends unknown[], TResult>(
     key === undefined ? {} : { [WORKFLOW_ATTRIBUTES.key]: key },
   );
   for (const [name, value] of Object.entries(trusted)) {
-    if (value === undefined) delete attributes[name];
-    else attributes[name] = value;
+    if (value === undefined) {
+      delete attributes[name];
+    } else {
+      attributes[name] = value;
+    }
   }
   return start(workflow, args, {
     attributes,
@@ -213,7 +222,9 @@ async function resolveRunAs<T>(
   source: T,
 ): Promise<WorkflowRunAs | undefined> {
   const resolved = typeof runAs === "function" ? await runAs(source) : runAs;
-  if (resolved === null || resolved === undefined) return undefined;
+  if (resolved === null || resolved === undefined) {
+    return undefined;
+  }
   if (
     typeof resolved.publisher !== "string" ||
     resolved.publisher === "" ||
@@ -381,7 +392,9 @@ export interface AuthorizeHookOptions {
 }
 
 function stringField(value: unknown, key: string): string | undefined {
-  if (typeof value !== "object" || value === null) return undefined;
+  if (typeof value !== "object" || value === null) {
+    return undefined;
+  }
   const record: Record<string, unknown> = { ...value };
   const field = record[key];
   return typeof field === "string" ? field : undefined;
@@ -402,7 +415,9 @@ export async function authorizeHook(
   const metadata: unknown = await hook.metadata;
   const actor = context.actor?.kind === "user" ? context.actor.id : undefined;
   const owner = stringField(metadata, WORKFLOW_ATTRIBUTES.actor);
-  if (actor !== undefined && owner === actor) return hook;
+  if (actor !== undefined && owner === actor) {
+    return hook;
+  }
   const tenant = stringField(metadata, WORKFLOW_ATTRIBUTES.tenant);
   const permission = stringField(metadata, "bs.permission");
   if (
@@ -421,7 +436,9 @@ export async function authorizeHook(
 
 /** Whether `type` matches `pattern` (`invoice.paid`, `organization.*` or `*`). */
 function matches(pattern: string, type: string): boolean {
-  if (pattern === "*" || pattern === type) return true;
+  if (pattern === "*" || pattern === type) {
+    return true;
+  }
   return pattern.endsWith(".*") && type.startsWith(pattern.slice(0, -1));
 }
 
@@ -455,10 +472,13 @@ export function startOnEvent<TArgs extends unknown[]>(
 ): OutboxHandler {
   return async (events) => {
     for (const event of events) {
-      if (!options.types.some((pattern) => matches(pattern, event.type)))
+      if (!options.types.some((pattern) => matches(pattern, event.type))) {
         continue;
+      }
       const runAs = await resolveRunAs(options.runAs, event);
-      if (runAs === undefined) continue;
+      if (runAs === undefined) {
+        continue;
+      }
       const { context, attributes, trusted } = runAsStart(runAs, {
         tenant: event.tenant ?? undefined,
         trigger: event.actorId ?? undefined,
@@ -516,8 +536,12 @@ export function protectWebHandler(
 ): (request: Request) => Promise<Response> {
   return async (request) => {
     const allowed = await options.can(request, permission);
-    if (allowed === undefined) return problem(401);
-    if (!allowed) return problem(403);
+    if (allowed === undefined) {
+      return problem(401);
+    }
+    if (!allowed) {
+      return problem(403);
+    }
     return handler(request);
   };
 }

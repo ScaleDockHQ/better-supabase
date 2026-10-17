@@ -388,7 +388,9 @@ export function createForms<S extends StandardSchemaV1 | undefined = undefined>(
           const out: Form<F>[] = [];
           for (const form of forms) {
             const read = await parsed(form);
-            if (!read.ok) return read;
+            if (!read.ok) {
+              return read;
+            }
             out.push(read.data);
           }
           return ok(out);

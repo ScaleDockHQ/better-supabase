@@ -95,7 +95,9 @@ describe("createAssistant", () => {
     expect(replay.status).toBe(200);
     expect(await replay.text()).toBe(live);
     const chat = fake.raw.get("c1");
-    if (chat) fake.raw.set("c1", { ...chat, activeStreamId: undefined });
+    if (chat) {
+      fake.raw.set("c1", { ...chat, activeStreamId: undefined });
+    }
     expect((await assistant.resume("c1", context)).status).toBe(204);
     expect((await assistant.resume("nope", context)).status).toBe(204);
     const done = await assistant.resume("c1", context, { fromIdx: 0 });
@@ -358,7 +360,9 @@ describe("createAssistant", () => {
       { id: "c1", message: userMessage() },
       context,
     );
-    if (turn instanceof Response) throw new Error("expected a turn");
+    if (turn instanceof Response) {
+      throw new TypeError("expected a turn");
+    }
     expect(turn.chat.id).toBe("c1");
     expect(turn.model).toBe("openai/gpt-5");
     expect(turn.parentId).toBe("u1");

@@ -101,11 +101,15 @@ const text = (value: unknown): string | undefined =>
   typeof value === "string" && value !== "" ? value : undefined;
 
 function snapshotOf(session: Session | null): AuthSnapshot {
-  if (!session) return SIGNED_OUT;
+  if (!session) {
+    return SIGNED_OUT;
+  }
   const claims = decodeJwtPayload(session.access_token) ?? {};
   const stored = storedUser(session);
   const id = text(claims["sub"]) ?? stored?.id;
-  if (id === undefined) return SIGNED_OUT;
+  if (id === undefined) {
+    return SIGNED_OUT;
+  }
   const email = text(claims["email"]) ?? text(stored?.email);
   const role = text(claims["role"]) ?? text(stored?.role);
   return {
@@ -156,11 +160,14 @@ export function bindClient<
     if (
       next.status === snapshot.status &&
       identityKey(next) === identityKey(snapshot)
-    )
+    ) {
       return;
+    }
     snapshot = next;
     db = undefined;
-    for (const listener of listeners) listener();
+    for (const listener of listeners) {
+      listener();
+    }
   });
 
   const client: BetterClient<M, F, E, C, P> = {

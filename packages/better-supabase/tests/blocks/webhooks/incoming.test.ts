@@ -549,7 +549,9 @@ describe("createIncomingWebhooks", () => {
       pull(controller) {
         pulled += 1;
         controller.enqueue(new TextEncoder().encode("abcdefgh"));
-        if (pulled > 100) controller.close();
+        if (pulled > 100) {
+          controller.close();
+        }
       },
     });
     const fake = fakeSql([["incoming_webhook_by_token", [endpoint()]]]);

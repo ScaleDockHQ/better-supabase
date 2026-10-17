@@ -16,7 +16,9 @@ const column = (
 ): ColumnMeta => ({ db, type, nullable: true, hasDefault: false, ...extra });
 
 const customers = schema.meta.tables["customers"];
-if (!customers) throw new Error("No fixture table customers");
+if (!customers) {
+  throw new Error("No fixture table customers");
+}
 
 const items: TableMeta = {
   ...customers,

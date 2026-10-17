@@ -85,7 +85,9 @@ export function TwoFactorCard({
   };
 
   const verify = () => {
-    if (!enrollment) return;
+    if (!enrollment) {
+      return;
+    }
     startTransition(async () => {
       const { error: verifyError } = await supabase.auth.mfa.challengeAndVerify(
         {
@@ -106,7 +108,9 @@ export function TwoFactorCard({
   };
 
   const remove = () => {
-    if (!factorId) return;
+    if (!factorId) {
+      return;
+    }
     startTransition(async () => {
       const { error: removeError } = await supabase.auth.mfa.unenroll({
         factorId,

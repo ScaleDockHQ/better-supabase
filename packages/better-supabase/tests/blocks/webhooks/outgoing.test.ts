@@ -68,11 +68,16 @@ function fakeBlock(
         batches = rest;
         return next;
       }
-      if (fn === "webhook_secrets") return [SECRET];
-      if (fn === "complete_webhook_delivery")
+      if (fn === "webhook_secrets") {
+        return [SECRET];
+      }
+      if (fn === "complete_webhook_delivery") {
         return results[fn]?.(args) ?? "completed";
+      }
       const result = results[fn];
-      if (!result) throw new Error(`unexpected ${fn}`);
+      if (!result) {
+        throw new Error(`unexpected ${fn}`);
+      }
       return result(args);
     },
   };
@@ -98,7 +103,9 @@ function fakeHttp(
     async send(request) {
       sent.push(request);
       const response = respond(request);
-      if (response instanceof Error) throw response;
+      if (response instanceof Error) {
+        throw response;
+      }
       return response;
     },
   };
@@ -315,7 +322,9 @@ describe("createWebhooks: deliver", () => {
       ok,
       {
         shouldDeliver: (delivery) => {
-          if (delivery.id === "del-2") throw new Error("tenant suspended");
+          if (delivery.id === "del-2") {
+            throw new Error("tenant suspended");
+          }
           return false;
         },
       },
@@ -1027,7 +1036,9 @@ describe("sqlSecretStore", () => {
       {
         async call(schema, fn, args) {
           calls.push({ schema, fn, args });
-          if (fn === "webhook_secrets") return [...secrets, 42];
+          if (fn === "webhook_secrets") {
+            return [...secrets, 42];
+          }
           const next = `whsec_${String(secrets.length)}`;
           secrets = [next, ...secrets];
           return next;

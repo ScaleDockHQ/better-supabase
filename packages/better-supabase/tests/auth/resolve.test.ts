@@ -117,7 +117,9 @@ describe("verified token memo", () => {
         signer.sign({ sub: USER, n: index }),
       ),
     );
-    for (const token of tokens) await resolveAuth(bearer(token), options);
+    for (const token of tokens) {
+      await resolveAuth(bearer(token), options);
+    }
     jwks.keys.length = 0;
     expect((await resolveAuth(bearer(tokens[0]!), options)).auth.kind).toBe(
       "invalid",

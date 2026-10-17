@@ -94,8 +94,9 @@ describe("tables without a policy that are still granted (BS115)", () => {
       { expose: { tags: ["select" as const] } },
       { tables: { tags: { exclude: true } } },
       { tables: { tags: { serviceRole: true } } },
-    ])
+    ]) {
       expect(await run(withConfig(config), "BS115")).toEqual([]);
+    }
     const covered = snapshot((tables) => {
       table(tables, "tags").policies = [policy({ name: "tags_read" })];
       table(tables, "tags").grants = [
@@ -159,8 +160,9 @@ describe("policy security rules", () => {
       "BS115",
       "BS116",
       "BS215",
-    ])
+    ]) {
       expect(await run(context(base), code)).toEqual([]);
+    }
   });
 
   it("flags auth.role() in policies and functions (BS109)", async () => {

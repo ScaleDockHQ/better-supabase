@@ -98,8 +98,9 @@ export function inboxIdentityOf(contactId: string): IdentityRef {
 
 /** `inbox:<conversation id>` to the conversation id. */
 export function conversationIdOf(threadId: string): string {
-  if (!threadId.startsWith(PREFIX) || threadId.length === PREFIX.length)
+  if (!threadId.startsWith(PREFIX) || threadId.length === PREFIX.length) {
     throw new Error(`"${threadId}" is not an inbox thread id`);
+  }
   return threadId.slice(PREFIX.length);
 }
 
@@ -107,10 +108,15 @@ function bodyOf(message: AdapterPostableMessage): {
   readonly body: string;
   readonly format: "text" | "markdown";
 } {
-  if (typeof message === "string") return { body: message, format: "text" };
-  if ("raw" in message) return { body: message.raw, format: "text" };
-  if ("markdown" in message)
+  if (typeof message === "string") {
+    return { body: message, format: "text" };
+  }
+  if ("raw" in message) {
+    return { body: message.raw, format: "text" };
+  }
+  if ("markdown" in message) {
     return { body: message.markdown, format: "markdown" };
+  }
   return { body: converter.renderPostable(message), format: "markdown" };
 }
 
@@ -120,7 +126,9 @@ const emojiOf = (value: EmojiValue | string): string =>
 function attachmentsOf(message: InboxMessage): Attachment[] {
   return message.attachments.flatMap((file) => {
     const url = file.url;
-    if (url === undefined) return [];
+    if (url === undefined) {
+      return [];
+    }
     const type = file.contentType?.startsWith("image/")
       ? "image"
       : file.contentType?.startsWith("video/")
@@ -146,8 +154,11 @@ async function* textOnly(
   source: AsyncIterable<string | StreamChunk>,
 ): AsyncIterable<string> {
   for await (const chunk of source) {
-    if (typeof chunk === "string") yield chunk;
-    else if (chunk.type === "markdown_text") yield chunk.text;
+    if (typeof chunk === "string") {
+      yield chunk;
+    } else if (chunk.type === "markdown_text") {
+      yield chunk.text;
+    }
   }
 }
 
@@ -237,21 +248,26 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
     );
 
   const dispatch = async (job: InboxBotJob): Promise<void> => {
-    if (!chat) throw new Error("inboxAdapter: initialize() has not run");
+    if (!chat) {
+      throw new Error("inboxAdapter: initialize() has not run");
+    }
     const message = await inbox.messages.get(job.message_id).orThrow();
     if (
       message?.conversationId !== job.conversation_id ||
       message.authorType !== "contact" ||
       message.kind !== "message"
-    )
+    ) {
       return;
+    }
     const parsed = parseMessage(message);
     if (ticketJobs !== undefined && message.authorId !== null) {
       const { result } = await ticketJobs.enqueue(
         inboxIdentityOf(message.authorId),
         parsed,
       );
-      if (result !== undefined) tickets.set(message.id, result);
+      if (result !== undefined) {
+        tickets.set(message.id, result);
+      }
     }
     try {
       await chat.processMessage(
@@ -282,8 +298,9 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
     dispatch,
     ticketOf: (message) => tickets.get(message.id),
     handleWebhook: async (request) => {
-      if (!options.verify || !(await options.verify(request)))
+      if (!options.verify || !(await options.verify(request))) {
         return new Response("unauthorized", { status: 401 });
+      }
       let job: unknown;
       try {
         job = await request.json();
@@ -294,10 +311,11 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
         !isRecord(job) ||
         typeof job["conversation_id"] !== "string" ||
         typeof job["message_id"] !== "string"
-      )
+      ) {
         return new Response("expected conversation_id and message_id", {
           status: 400,
         });
+      }
       await dispatch({
         conversation_id: job["conversation_id"],
         message_id: job["message_id"],
@@ -399,20 +417,27 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
       const readable = new ReadableStream<string>({
         async start(controller) {
           for await (const chunk of chunks) {
-            if (streamOptions?.signal?.aborted) break;
+            if (streamOptions?.signal?.aborted) {
+              break;
+            }
             text += chunk;
             controller.enqueue(chunk);
           }
           controller.close();
         },
       });
-      if (store && streamId) await writeToStore(store, streamId, readable);
-      else {
+      if (store && streamId) {
+        await writeToStore(store, streamId, readable);
+      } else {
         const reader = readable.getReader();
-        while (!(await reader.read()).done);
+        while (!(await reader.read()).done) {
+          // Every chunk is read so the producer can finish.
+        }
       }
       await inbox.conversations.typing(conversationId, false, userName);
-      if (text.trim().length === 0) return null;
+      if (text.trim().length === 0) {
+        return null;
+      }
       return post(
         threadId,
         text,

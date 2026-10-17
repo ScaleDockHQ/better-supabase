@@ -38,7 +38,9 @@ function notifyThrough(
   options: Pick<RemindersOptions, "notifier" | "notification">,
 ): ((delivery: DeliveryPayload) => unknown) | undefined {
   const { notifier, notification } = options;
-  if (notifier === undefined || notification === undefined) return undefined;
+  if (notifier === undefined || notification === undefined) {
+    return undefined;
+  }
   return (delivery) =>
     notifier.send(notification, {
       recipients: delivery.userId === undefined ? [] : [delivery.userId],
@@ -164,8 +166,9 @@ export function createReminders<
   /** Whether `audience` lets the reminder's user have it, or the policy's failure. */
   const permitted = (delivery: DeliveryPayload): AsyncResult<boolean> =>
     AsyncResult.from(async () => {
-      if (audience === undefined || delivery.userId === undefined)
+      if (audience === undefined || delivery.userId === undefined) {
         return ok(true);
+      }
       const subscriber = { principal: delivery.userId, kind: "user" as const };
       const checked = await allowedSubscribers(
         audience,

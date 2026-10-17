@@ -42,7 +42,9 @@ function keyFor(secret: string): ImportedKey {
     keys.set(secret, key);
     if (keys.size > KEYS_SIZE) {
       const oldest = keys.keys().next();
-      if (!oldest.done) keys.delete(oldest.value);
+      if (!oldest.done) {
+        keys.delete(oldest.value);
+      }
     }
   }
   return key;
@@ -103,11 +105,13 @@ export async function verifyHs256(
     !encodedHeader ||
     !encodedPayload ||
     encodedSignature === undefined
-  )
+  ) {
     return fail("The token is not a JWT");
+  }
   const header = parseJson(encodedHeader);
-  if (header?.["alg"] !== "HS256")
+  if (header?.["alg"] !== "HS256") {
     return fail("The token is not signed with HS256");
+  }
   let signature: Uint8Array<ArrayBuffer>;
   try {
     signature = fromBase64(encodedSignature);
@@ -120,23 +124,35 @@ export async function verifyHs256(
     signature,
     encoder.encode(`${encodedHeader}.${encodedPayload}`),
   );
-  if (!valid) return fail("The token signature does not match the JWT secret");
+  if (!valid) {
+    return fail("The token signature does not match the JWT secret");
+  }
   const payload = parseJson(encodedPayload);
-  if (!payload) return fail("The token payload is not a JSON object");
+  if (!payload) {
+    return fail("The token payload is not a JSON object");
+  }
   const { exp, nbf, sub } = payload;
-  if (typeof exp === "number" && exp <= options.now)
+  if (typeof exp === "number" && exp <= options.now) {
     return fail("The token has expired");
-  if (typeof nbf === "number" && nbf > options.now)
+  }
+  if (typeof nbf === "number" && nbf > options.now) {
     return fail("The token is not valid yet");
+  }
   if (
     options.audience !== undefined &&
     !matches(payload["aud"], options.audience)
-  )
+  ) {
     return fail("The token audience does not match");
-  if (options.issuer !== undefined && !matches(payload["iss"], options.issuer))
+  }
+  if (
+    options.issuer !== undefined &&
+    !matches(payload["iss"], options.issuer)
+  ) {
     return fail("The token issuer does not match");
-  if (typeof sub !== "string")
+  }
+  if (typeof sub !== "string") {
     return fail("The token has no sub claim, so it identifies no user");
+  }
   // SAFETY: the payload is an object with a string `sub`, the only required JWTClaims field.
   const claims = payload as JWTClaims;
   return {

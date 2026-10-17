@@ -163,7 +163,9 @@ export function testGraphCompiler(
       "returns a JSON value",
       async () => {
         const compiled: unknown = await compile(graph);
-        if (compiled === undefined) return;
+        if (compiled === undefined) {
+          return;
+        }
         const json = JSON.stringify(compiled);
         expect(
           same(JSON.parse(json), compiled),

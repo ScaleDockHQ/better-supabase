@@ -106,10 +106,13 @@ export function useOrganizations(
       ...(claim === undefined ? {} : { claim }),
       onSwitched: async (result) => {
         const { onSwitched } = latest.current;
-        if (onSwitched) await onSwitched(result);
-        else if (result.refresh) {
+        if (onSwitched) {
+          await onSwitched(result);
+        } else if (result.refresh) {
           const { error } = await supabase.auth.refreshSession();
-          if (error) throw error;
+          if (error) {
+            throw error;
+          }
         }
       },
     });

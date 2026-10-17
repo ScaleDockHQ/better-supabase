@@ -149,7 +149,9 @@ const NAMES: ModuleNames = {
 };
 
 function tables(ctx: ModuleContext, names: Names): string {
-  if (!ctx.manages) return "";
+  if (!ctx.manages) {
+    return "";
+  }
   const { t, c } = names;
   const read = (
     table: string,
@@ -252,7 +254,9 @@ const extrasOf = (ctx: ModuleContext) =>
   ctx.extraColumns("pipelines", ["stages", "fields"]);
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const keys = moduleOperations("pipelines");
   const names: Names = {
     fn: (name) => ctx.fn(name),

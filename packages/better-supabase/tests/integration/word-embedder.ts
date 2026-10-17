@@ -14,8 +14,9 @@ export function wordEmbedder(model = "words-v1"): Embedder & {
           const vector = Array.from({ length: 1536 }, () => 0);
           for (const word of value.toLowerCase().match(/[a-z]+/g) ?? []) {
             let hash = 0;
-            for (const char of word)
+            for (const char of word) {
               hash = (hash * 31 + (char.codePointAt(0) ?? 0)) % 1536;
+            }
             vector[hash] = (vector[hash] ?? 0) + 1;
           }
           const norm = Math.hypot(...vector) || 1;

@@ -142,9 +142,13 @@ export function createNext<
     ctx: ServerContext<M, F, E, C, P>,
   ): Promise<void> => {
     const writes = ctx.cookies();
-    if (writes.length === 0) return;
+    if (writes.length === 0) {
+      return;
+    }
     const jar = await cookies();
-    for (const write of writes) jar.set(write.name, write.value, write.options);
+    for (const write of writes) {
+      jar.set(write.name, write.value, write.options);
+    }
   };
 
   const incomingRequest = async (): Promise<Request> =>
@@ -206,7 +210,9 @@ export function createNext<
         { ...statsFor(request), ...(support ? { support } : {}) },
         tenant,
       );
-      if (tenant !== undefined) scopedTenants.set(ctx, tenant);
+      if (tenant !== undefined) {
+        scopedTenants.set(ctx, tenant);
+      }
       return ctx;
     },
   );
@@ -245,12 +251,16 @@ export function createNext<
   ): Promise<ServerContext<M, F, E, C, P>> => {
     const ctx = await base.context(bearerRequest(token));
     // An expired token or an unreachable JWKS keeps its own error.
-    if (ctx.auth.kind === "invalid") return ctx;
+    if (ctx.auth.kind === "invalid") {
+      return ctx;
+    }
     const matches =
       ctx.auth.kind === "user"
         ? view.kind === "user" && view.user.id === ctx.auth.user.id
         : view.kind === ctx.auth.kind;
-    if (matches) return ctx;
+    if (matches) {
+      return ctx;
+    }
     return base.contextFor({
       kind: "invalid",
       reason: "token",
@@ -315,7 +325,9 @@ export function createNext<
             ? [tagFor(first, cachedOptions.id)]
             : []),
         ];
-        if (tags.length > 0) cacheTag(...tags);
+        if (tags.length > 0) {
+          cacheTag(...tags);
+        }
         return withExtra(ctx, { session: view });
       },
 
@@ -414,7 +426,9 @@ export function createNext<
               )
               .join("; ");
           }
-          if (id) forwarded[REQUEST_ID_HEADER] = id;
+          if (id) {
+            forwarded[REQUEST_ID_HEADER] = id;
+          }
           if (Object.keys(forwarded).length > 0 || early) {
             overrideRequestHeaders(response, request, forwarded);
           }
@@ -425,7 +439,9 @@ export function createNext<
         }
         if (proxyOptions.after) {
           const replaced = await proxyOptions.after(response, resolution.auth);
-          if (replaced) response = mutableResponse(replaced);
+          if (replaced) {
+            response = mutableResponse(replaced);
+          }
         }
         if (proxyOptions.serverTiming) {
           response.headers.append(
@@ -457,7 +473,9 @@ export function createNext<
                   segment.params,
                   authorizeCaller(ctx, guardOptions, request),
                 ]);
-                if ("kind" in caller) return err(caller);
+                if ("kind" in caller) {
+                  return err(caller);
+                }
                 // SAFETY: requireTenant refused a missing tenant.
                 return handler(
                   request,
@@ -476,7 +494,9 @@ export function createNext<
             );
           } catch (cause) {
             // Next builds the redirect response itself and adds the jar's cookies to it.
-            if (current) await writeCookies(current);
+            if (current) {
+              await writeCookies(current);
+            }
             throw cause;
           }
           if (collector && stats) {
@@ -500,7 +520,9 @@ export function createNext<
         });
         return resourceRoutes(async (request) => {
           const route = router.match(request);
-          if (route instanceof Response) return route;
+          if (route instanceof Response) {
+            return route;
+          }
           return handle(
             base,
             request,
@@ -562,7 +584,9 @@ export function createNext<
             actionOptions.aal,
             actionOptions.scopes,
           );
-          if (denied) return { ok: false, data: null, error: denied };
+          if (denied) {
+            return { ok: false, data: null, error: denied };
+          }
           let parsed: unknown =
             input instanceof FormData ? formDataObject(input) : input;
           if (actionOptions.input) {
@@ -571,8 +595,9 @@ export function createNext<
               parsed,
               "input",
             );
-            if (!checked.ok)
+            if (!checked.ok) {
               return { ok: false, data: null, error: checked.error };
+            }
             parsed = checked.data;
           }
           // SAFETY: parsed is the validated input, or the raw input when the
@@ -588,7 +613,9 @@ export function createNext<
             actionOptions,
             parsed as never,
           );
-          if ("kind" in caller) return { ok: false, data: null, error: caller };
+          if ("kind" in caller) {
+            return { ok: false, data: null, error: caller };
+          }
           const scope = ctx;
           let settled: Settled;
           try {
@@ -619,7 +646,9 @@ export function createNext<
           tenantFor(ctx, toSession(ctx.auth)),
           options.authorizer,
         );
-        if ("kind" in caller) interrupt(caller);
+        if ("kind" in caller) {
+          interrupt(caller);
+        }
         // SAFETY: requireTenant refused a missing tenant.
         return withExtra(ctx, caller) as never;
       },
@@ -628,7 +657,9 @@ export function createNext<
         const { resolution } = await incoming();
         const started = await base.support.start(resolution.auth, request);
         flushAfter();
-        if (!started.ok) return { ok: false, data: null, error: started.error };
+        if (!started.ok) {
+          return { ok: false, data: null, error: started.error };
+        }
         const { session: support } = started.data;
         (await cookies()).set(supportCookieName, support.id, {
           ...supportCookieOptions,
@@ -657,7 +688,9 @@ export function createNext<
           name: supportCookieName,
           path: supportCookieOptions.path,
         });
-        if (!id) return { ok: true, data: { ended: false }, error: null };
+        if (!id) {
+          return { ok: true, data: { ended: false }, error: null };
+        }
         const stopped = await base.support.stop(resolution.auth, id);
         flushAfter();
         invalidateAll([
@@ -686,8 +719,11 @@ export function createNext<
             : [target];
         const tags = new Set<string>();
         for (const spec of specs) {
-          for (const table of betterSupabase.tablesOf(spec))
-            for (const tag of tableTags(table, tagOptions)) tags.add(tag);
+          for (const table of betterSupabase.tablesOf(spec)) {
+            for (const tag of tableTags(table, tagOptions)) {
+              tags.add(tag);
+            }
+          }
           const [id] = spec.args;
           if (
             spec.method === "findById" &&

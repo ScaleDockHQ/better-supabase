@@ -18,7 +18,9 @@ export async function getSimilarNotes() {
       orderBy: { id: "desc" },
     })
     .orThrow();
-  if (!source?.embedding) return null;
+  if (!source?.embedding) {
+    return null;
+  }
   const similar = await db
     .$search("notes", {
       vector: source.embedding,

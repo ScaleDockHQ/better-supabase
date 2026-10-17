@@ -58,19 +58,25 @@ async function signIn(): Promise<Session & { remove: () => Promise<void> }> {
     email_confirm: true,
     app_metadata: { tenant_id: ACME },
   });
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   const cookies = new Map<string, string>();
   const client = createServerClient(stack.url, stack.publishableKey, {
     cookies: {
       getAll: () => [...cookies].map(([name, value]) => ({ name, value })),
       setAll: (writes) => {
-        for (const write of writes) cookies.set(write.name, write.value);
+        for (const write of writes) {
+          cookies.set(write.name, write.value);
+        }
       },
     },
   });
   const { data: session, error: signInError } =
     await client.auth.signInWithPassword({ email, password });
-  if (signInError) throw signInError;
+  if (signInError) {
+    throw signInError;
+  }
   return {
     id: data.user.id,
     accessToken: session.session.access_token,

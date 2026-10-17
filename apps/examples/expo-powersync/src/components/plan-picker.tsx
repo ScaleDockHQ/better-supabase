@@ -26,7 +26,9 @@ export function PlanPicker() {
       await WebBrowser.openBrowserAsync(url);
     },
   });
-  if (plans === undefined) return <ActivityIndicator />;
+  if (plans === undefined) {
+    return <ActivityIndicator />;
+  }
   return (
     <View style={{ gap: 8 }}>
       <Text style={{ fontSize: 17, fontWeight: "600" }}>Plans</Text>

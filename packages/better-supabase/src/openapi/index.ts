@@ -80,7 +80,7 @@ export function createOpenApi<V extends OpenApiVersion = "3.1", Ref = string>(
   const errors = result.diagnostics.filter(
     (diagnostic) => diagnostic.severity === "error",
   );
-  if (errors.length > 0)
+  if (errors.length > 0) {
     throw new TypeError(
       `createOpenApi: ${errors
         .map(
@@ -89,7 +89,11 @@ export function createOpenApi<V extends OpenApiVersion = "3.1", Ref = string>(
         )
         .join("; ")}`,
     );
-  if (onDiagnostic)
-    for (const diagnostic of result.diagnostics) onDiagnostic(diagnostic);
+  }
+  if (onDiagnostic) {
+    for (const diagnostic of result.diagnostics) {
+      onDiagnostic(diagnostic);
+    }
+  }
   return result.document;
 }

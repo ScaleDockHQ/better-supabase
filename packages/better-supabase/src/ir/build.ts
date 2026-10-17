@@ -78,13 +78,17 @@ const FIELD_OPS = new Set([
 ]);
 
 function isOpsObject(value: unknown): value is Input {
-  if (!isPlainObject(value)) return false;
+  if (!isPlainObject(value)) {
+    return false;
+  }
   const keys = Object.keys(value);
   return keys.length > 0 && keys.every((key) => FIELD_OPS.has(key));
 }
 
 function writable(meta: ColumnMeta, mode: "insert" | "update"): boolean {
-  if (meta.generated || meta.identity === "always") return false;
+  if (meta.generated || meta.identity === "always") {
+    return false;
+  }
   return mode === "insert"
     ? meta.insertable !== false
     : meta.updatable !== false;
@@ -111,7 +115,9 @@ function inList(
   make: (op: "in" | "is", value: unknown) => Condition,
 ): Condition {
   const present = values.filter((value) => value !== null);
-  if (present.length === values.length) return make("in", values);
+  if (present.length === values.length) {
+    return make("in", values);
+  }
   const isNull = make("is", null);
   return present.length === 0 ? isNull : or(make("in", present), isNull);
 }
@@ -153,14 +159,17 @@ export class IrBuilder {
 
   table(key: string): TableMeta {
     const table = this.meta.tables[key];
-    if (!table) invalidRequest(`Unknown table "${key}"`);
+    if (!table) {
+      invalidRequest(`Unknown table "${key}"`);
+    }
     return table;
   }
 
   column(table: TableMeta, name: string): string {
     const column = table.columns[name];
-    if (!column)
+    if (!column) {
       invalidRequest(`Unknown column "${name}" on "${table.key}"`, table.key);
+    }
     return column.db;
   }
 
@@ -168,13 +177,17 @@ export class IrBuilder {
   // Where
 
   where(table: TableMeta, input: unknown): Condition | undefined {
-    if (input === undefined) return undefined;
+    if (input === undefined) {
+      return undefined;
+    }
     if (!isPlainObject(input)) {
       invalidRequest(`"where" on "${table.key}" must be an object`, table.key);
     }
     const items: (Condition | undefined)[] = [];
     for (const [key, value] of Object.entries(input)) {
-      if (value === undefined) continue;
+      if (value === undefined) {
+        continue;
+      }
       if (key === "AND") {
         const list = Array.isArray(value) ? value : [value];
         items.push(
@@ -195,7 +208,9 @@ export class IrBuilder {
         );
       } else if (key === "NOT") {
         const inner = this.where(table, value);
-        if (inner) items.push(not(inner));
+        if (inner) {
+          items.push(not(inner));
+        }
       } else if (key in table.relations) {
         items.push(this.relationFilter(table, key, value));
       } else {
@@ -232,7 +247,9 @@ export class IrBuilder {
       }
       const items: Condition[] = [];
       for (const [quantifier, where] of Object.entries(value)) {
-        if (where === undefined) continue;
+        if (where === undefined) {
+          continue;
+        }
         if (
           quantifier !== "some" &&
           quantifier !== "none" &&
@@ -248,7 +265,9 @@ export class IrBuilder {
       return and(...items) ?? make("some", {});
     }
 
-    if (value === null) return make("none", null);
+    if (value === null) {
+      return make("none", null);
+    }
     if (isPlainObject(value)) {
       const keys = Object.keys(value);
       if (
@@ -282,8 +301,9 @@ export class IrBuilder {
     value: unknown,
   ): Condition {
     const column = this.column(table, name);
-    if (value === null)
+    if (value === null) {
       return { kind: "column", column, op: "is", value: null };
+    }
     if (isPlainObject(value) && Array.isArray(value["path"])) {
       return this.pathFilter(table, name, column, value);
     }
@@ -292,7 +312,9 @@ export class IrBuilder {
     }
     const items: Condition[] = [];
     for (const [op, operand] of Object.entries(value)) {
-      if (operand === undefined) continue;
+      if (operand === undefined) {
+        continue;
+      }
       items.push(this.fieldOp(table, name, column, op, operand));
     }
     return and(...items) ?? { kind: "and", items: [] };
@@ -329,7 +351,9 @@ export class IrBuilder {
     ): Condition => ({ kind: "column", column, op, value, path: keys });
     const items: Condition[] = [];
     for (const [op, operand] of Object.entries(input)) {
-      if (op === "path" || operand === undefined) continue;
+      if (op === "path" || operand === undefined) {
+        continue;
+      }
       switch (op) {
         case "eq":
           items.push(
@@ -437,14 +461,18 @@ export class IrBuilder {
       case "imatch":
         return col(op, operand);
       case "contains":
-        if (meta?.json || meta?.array) return containment("contains", operand);
+        if (meta?.json || meta?.array) {
+          return containment("contains", operand);
+        }
         return col("ilike", `%${escapeLike(String(operand))}%`);
       case "startsWith":
         return col("like", `${escapeLike(String(operand))}%`);
       case "endsWith":
         return col("like", `%${escapeLike(String(operand))}`);
       case "search": {
-        if (typeof operand === "string") return col("fts", operand);
+        if (typeof operand === "string") {
+          return col("fts", operand);
+        }
         // SAFETY: a search operand is a query string or a query object, and the
         // string case returned above.
         const { query, config } = operand as { query: string; config?: string };
@@ -488,7 +516,9 @@ export class IrBuilder {
     select: readonly string[] | undefined,
     include: unknown,
   ): Selection {
-    if (include === undefined) return this.#columnsOnly(table, select);
+    if (include === undefined) {
+      return this.#columnsOnly(table, select);
+    }
     const columns =
       select?.map((alias) => this.selectColumn(table, alias)) ??
       this.allColumns(table);
@@ -500,11 +530,17 @@ export class IrBuilder {
       );
     }
     for (const [name, value] of Object.entries(include)) {
-      if (value === undefined || value === false) continue;
+      if (value === undefined || value === false) {
+        continue;
+      }
       const fn = AGGREGATE_KEYS[name];
-      if (name === "_count") includes.push(...this.counts(table, value));
-      else if (fn) includes.push(...this.relationAggregates(table, fn, value));
-      else includes.push(this.include(table, name, value));
+      if (name === "_count") {
+        includes.push(...this.counts(table, value));
+      } else if (fn) {
+        includes.push(...this.relationAggregates(table, fn, value));
+      } else {
+        includes.push(this.include(table, name, value));
+      }
     }
     return { columns, includes };
   }
@@ -531,7 +567,9 @@ export class IrBuilder {
           this.allColumns(table),
         includes: [],
       };
-      if (byList.size >= SELECTION_CACHE_SIZE) byList.clear();
+      if (byList.size >= SELECTION_CACHE_SIZE) {
+        byList.clear();
+      }
       byList.set(key, selection);
     }
     return selection;
@@ -552,7 +590,9 @@ export class IrBuilder {
     const measures: Measure[] = [];
     for (const [key, fn] of Object.entries(AGGREGATE_KEYS)) {
       const value = args[key];
-      if (value === undefined) continue;
+      if (value === undefined) {
+        continue;
+      }
       for (const alias of this.measured(table, key, value)) {
         measures.push(this.measure(table, fn, alias, `${key}_${alias}`));
       }
@@ -581,7 +621,9 @@ export class IrBuilder {
     }
     const includes: Include[] = [];
     for (const [name, entry] of Object.entries(value)) {
-      if (entry === undefined || entry === false) continue;
+      if (entry === undefined || entry === false) {
+        continue;
+      }
       const { relation, target } = relationMeta(this.meta, table, name);
       if (relation.kind !== "many") {
         invalidRequest(
@@ -592,7 +634,9 @@ export class IrBuilder {
       const measures = this.measured(target, `${key}.${name}`, entry).map(
         (alias) => this.measure(target, fn, alias, alias),
       );
-      if (measures.length === 0) continue;
+      if (measures.length === 0) {
+        continue;
+      }
       includes.push({
         alias: `${key}_${name}`,
         relation,
@@ -644,7 +688,9 @@ export class IrBuilder {
     }
     // avg is always a plain number; sum keeps exact int8/numeric codecs.
     const codec = fn === "avg" ? undefined : meta?.codec;
-    if (!codec) return { fn, key, alias, column };
+    if (!codec) {
+      return { fn, key, alias, column };
+    }
     return { fn, key, alias, column, cast: "text", codec };
   }
 
@@ -663,7 +709,9 @@ export class IrBuilder {
   selectColumn(table: TableMeta, alias: string): SelectColumn {
     const column = this.column(table, alias);
     const codec = table.columns[alias]?.codec;
-    if (!codec) return { alias, column };
+    if (!codec) {
+      return { alias, column };
+    }
     return { alias, column, cast: "text", codec };
   }
 
@@ -676,7 +724,9 @@ export class IrBuilder {
     }
     const counts: Include[] = [];
     for (const [name, entry] of Object.entries(value)) {
-      if (entry === undefined || entry === false) continue;
+      if (entry === undefined || entry === false) {
+        continue;
+      }
       const { relation, target } = relationMeta(this.meta, table, name);
       if (relation.kind !== "many") {
         invalidRequest(
@@ -729,7 +779,9 @@ export class IrBuilder {
     input: unknown,
     scope: "root" | "include" | "relation" = "root",
   ): OrderTerm[] {
-    if (input === undefined) return [];
+    if (input === undefined) {
+      return [];
+    }
     const list: unknown[] = Array.isArray(input) ? input : [input];
     const terms: OrderTerm[] = [];
     for (const item of list) {
@@ -740,7 +792,9 @@ export class IrBuilder {
         );
       }
       for (const [name, spec] of Object.entries(item)) {
-        if (spec === undefined) continue;
+        if (spec === undefined) {
+          continue;
+        }
         if (!(name in table.columns) && name in table.relations) {
           terms.push(...this.relationOrder(table, name, spec, scope));
           continue;
@@ -760,7 +814,9 @@ export class IrBuilder {
     input: unknown,
     grouped: Selection,
   ): OrderTerm[] {
-    if (input === undefined) return [];
+    if (input === undefined) {
+      return [];
+    }
     const list: unknown[] = Array.isArray(input) ? input : [input];
     const columns = new Set(grouped.columns.map((entry) => entry.column));
     const terms: OrderTerm[] = [];
@@ -772,7 +828,9 @@ export class IrBuilder {
         );
       }
       for (const [name, spec] of Object.entries(item)) {
-        if (spec === undefined) continue;
+        if (spec === undefined) {
+          continue;
+        }
         if (
           Object.hasOwn(table.columns, name) ||
           Object.hasOwn(table.relations, name)
@@ -831,7 +889,9 @@ export class IrBuilder {
     }
     const terms: OrderTerm[] = [];
     for (const [alias, direction] of Object.entries(spec)) {
-      if (direction === undefined) continue;
+      if (direction === undefined) {
+        continue;
+      }
       const { column } = this.measure(table, fn, alias, alias);
       terms.push({
         ...this.sortTerm(table, `${key}.${alias}`, column, direction),
@@ -848,7 +908,9 @@ export class IrBuilder {
     column: string,
     spec: unknown,
   ): OrderTerm {
-    if (spec === "asc" || spec === "desc") return { column, direction: spec };
+    if (spec === "asc" || spec === "desc") {
+      return { column, direction: spec };
+    }
     if (!isPlainObject(spec)) {
       invalidRequest(`Invalid sort for "${name}" on "${table.key}"`, table.key);
     }
@@ -907,7 +969,9 @@ export class IrBuilder {
     }
     const out: Record<string, unknown> = {};
     for (const [name, value] of Object.entries(input)) {
-      if (value === undefined) continue;
+      if (value === undefined) {
+        continue;
+      }
       const column = this.column(table, name);
       const meta = table.columns[name];
       if (meta && !writable(meta, mode)) {

@@ -9,7 +9,9 @@ import { DatabaseError, Pool, type PoolClient } from "pg";
 export const dbUrl: string | undefined = process.env["SUPABASE_DB_URL"];
 
 export async function reachable(): Promise<boolean> {
-  if (dbUrl === undefined) return false;
+  if (dbUrl === undefined) {
+    return false;
+  }
   const pool = new Pool({
     connectionString: dbUrl,
     max: 1,
@@ -69,7 +71,9 @@ export async function installAndRollBack(
         if (!(error instanceof DatabaseError) || error.code !== "40P01") {
           throw error;
         }
-        if (attempt === 5) throw error;
+        if (attempt === 5) {
+          throw error;
+        }
       }
     }
     await body(client);

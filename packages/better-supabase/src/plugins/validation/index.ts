@@ -37,7 +37,9 @@ function decoded(
   const app = toApp(table, row);
   for (const [name, value] of Object.entries(app)) {
     const codec = table.columns[name]?.codec;
-    if (codec === undefined || typeof value !== "string") continue;
+    if (codec === undefined || typeof value !== "string") {
+      continue;
+    }
     try {
       app[name] = decodeValue(codec, value);
     } catch {
@@ -48,8 +50,9 @@ function decoded(
 }
 
 function encoded(row: Record<string, unknown>): Record<string, unknown> {
-  for (const [name, value] of Object.entries(row))
+  for (const [name, value] of Object.entries(row)) {
     row[name] = encodeValue(value);
+  }
   return row;
 }
 
@@ -72,8 +75,9 @@ async function check(
       : { ...row };
   }
   const error = result.error;
-  if (index === undefined || error.kind !== "validation")
+  if (index === undefined || error.kind !== "validation") {
     throw new DbException(error);
+  }
   const issues: ValidationIssue[] = error.issues.map((issue) => ({
     message: issue.message,
     path: [index, ...(issue.path ?? [])],
@@ -93,11 +97,15 @@ export function validation(options: ValidationOptions): Plugin<"validation"> {
     enforce: "post",
     async beforeMutation(op, { table }): Promise<MutationOp> {
       const validators = options.schemas[table.key];
-      if (!validators) return op;
+      if (!validators) {
+        return op;
+      }
       switch (op.kind) {
         case "insert": {
           const schema = validators.insert;
-          if (!schema) return op;
+          if (!schema) {
+            return op;
+          }
           const many = op.rows.length > 1;
           const rows = await Promise.all(
             op.rows.map((row, index) =>
@@ -114,7 +122,9 @@ export function validation(options: ValidationOptions): Plugin<"validation"> {
         }
         case "update": {
           const schema = validators.update;
-          if (!schema) return op;
+          if (!schema) {
+            return op;
+          }
           return {
             ...op,
             set: await check(

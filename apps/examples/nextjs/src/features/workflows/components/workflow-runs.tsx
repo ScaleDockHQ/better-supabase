@@ -37,7 +37,9 @@ export function WorkflowRuns({ tenant }: { tenant: string | null }) {
     schema: "api",
     limit: 50,
   });
-  if (runs === undefined) return <WorkflowRunsSkeleton />;
+  if (runs === undefined) {
+    return <WorkflowRunsSkeleton />;
+  }
   if (runs.length === 0) {
     return (
       <Empty className="border">

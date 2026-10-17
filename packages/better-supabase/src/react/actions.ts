@@ -95,8 +95,11 @@ export function useAction<I, T>(
               : (current) => ({ data: current.data, error: result.error }),
           );
           const { onSuccess, onError } = latest.current.options;
-          if (result.ok) onSuccess?.(result.data, input);
-          else onError?.(result.error, input);
+          if (result.ok) {
+            onSuccess?.(result.data, input);
+          } else {
+            onError?.(result.error, input);
+          }
           resolve(result);
         });
       });
@@ -171,7 +174,9 @@ export function useActionForm<T>(
               options.onError?.(result.error, form);
               return;
             }
-            if (options.resetOnSuccess ?? true) form.reset();
+            if (options.resetOnSuccess ?? true) {
+              form.reset();
+            }
             options.onSuccess?.(result.data, form);
           },
           () => undefined,

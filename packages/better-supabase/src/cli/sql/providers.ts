@@ -48,8 +48,9 @@ function entitlementsProviderFor(
         !resolveModules(names, {}).some(
           (module) => module.name === "entitlements",
         )
-      )
+      ) {
         return undefined;
+      }
       throw new TypeError(mode.problem);
     default: {
       const unreachable: never = mode;
@@ -76,7 +77,9 @@ function accessProviderFor(
     case "off":
       return undefined;
     case "provider": {
-      if (!renders || !config.authorization) return mode.access;
+      if (!renders || !config.authorization) {
+        return mode.access;
+      }
       const problems = moduleKeyProblems(
         config.authorization,
         modulePermissionKeys(config.blocks, names),
@@ -89,7 +92,9 @@ function accessProviderFor(
       return mode.access;
     }
     case "invalid":
-      if (!renders) return undefined;
+      if (!renders) {
+        return undefined;
+      }
       throw new TypeError(mode.problem);
     default: {
       const unreachable: never = mode;

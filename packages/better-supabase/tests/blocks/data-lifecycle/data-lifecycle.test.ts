@@ -79,8 +79,12 @@ function fakeStorage(
   const reply = (method: string, fallback: unknown, ...args: unknown[]) => {
     calls.push([method, ...args]);
     const value = replies[method];
-    if (value instanceof Error) return Promise.reject(value);
-    if (typeof value === "function") return Promise.resolve(value(...args));
+    if (value instanceof Error) {
+      return Promise.reject(value);
+    }
+    if (typeof value === "function") {
+      return Promise.resolve(value(...args));
+    }
     return Promise.resolve(value ?? { data: fallback, error: null });
   };
   const storage = {
@@ -292,8 +296,9 @@ describe("createDataExporter", () => {
             setTimeout(resolve, 5);
           });
           active -= 1;
-          if (table === failOn)
+          if (table === failOn) {
             throw Object.assign(new Error("boom"), { code: "XX000" });
+          }
           return { rows: [{ table }], after: null };
         },
         complete_data_export: (args: Record<string, unknown>) =>

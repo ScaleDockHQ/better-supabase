@@ -101,7 +101,9 @@ function adoptBlocks(
     if (!adoptable.has(block) || !hasDefaultTable(block, tables, schemas)) {
       continue;
     }
-    if ((config.blocks[block]?.mode ?? "managed") !== "managed") continue;
+    if ((config.blocks[block]?.mode ?? "managed") !== "managed") {
+      continue;
+    }
     const proposal = proposeAdoption(block, tables, {
       blocks: config.blocks,
       schemas,
@@ -199,7 +201,9 @@ export async function runApply(
   const conflict = describeConflicts(
     only === "conventions" ? { ...preset, blocks: [] } : preset,
   );
-  if (conflict !== undefined) return { code: 2, error: conflict };
+  if (conflict !== undefined) {
+    return { code: 2, error: conflict };
+  }
   const source = await readFile(file, "utf-8");
   const edit = edited(file, source, input, preset, only);
   const shown = display(config.root, file);

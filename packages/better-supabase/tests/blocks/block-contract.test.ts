@@ -34,7 +34,9 @@ function fake(
   const call = vi.fn(
     async (_schema: string, fn: string, args: Record<string, unknown>) => {
       const answer = answers[fn];
-      if (!answer) throw new Error(`unexpected ${fn}`);
+      if (!answer) {
+        throw new Error(`unexpected ${fn}`);
+      }
       return answer(args);
     },
   );

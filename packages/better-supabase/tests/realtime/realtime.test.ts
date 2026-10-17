@@ -54,8 +54,11 @@ function fakeClient(
   const channel = {
     topic: "",
     on: vi.fn((type: string, _filter: unknown, listener: Listener) => {
-      if (type === "presence") syncs.push(listener as () => void);
-      else listeners.push(listener);
+      if (type === "presence") {
+        syncs.push(listener as () => void);
+      } else {
+        listeners.push(listener);
+      }
       return channel;
     }),
     presenceState: () => presence,
@@ -77,7 +80,9 @@ function fakeClient(
   };
   const client = {
     channel: vi.fn((topic: string) => {
-      if (!open.includes(channel)) channel.topic = `realtime:${topic}`;
+      if (!open.includes(channel)) {
+        channel.topic = `realtime:${topic}`;
+      }
       return channel;
     }),
     getChannels: vi.fn(() => open),
@@ -90,11 +95,15 @@ function fakeClient(
     realtime: { setAuth: vi.fn(async () => undefined) },
   };
   const emit = (event: string, payload: unknown) => {
-    for (const listener of listeners) listener({ event, payload });
+    for (const listener of listeners) {
+      listener({ event, payload });
+    }
   };
   const sync = (state: Record<string, Record<string, unknown>[]>) => {
     presence = state;
-    for (const listener of syncs) listener();
+    for (const listener of syncs) {
+      listener();
+    }
   };
   return {
     client: client as unknown as RealtimeClient,

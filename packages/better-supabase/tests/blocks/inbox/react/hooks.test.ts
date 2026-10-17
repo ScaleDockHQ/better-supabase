@@ -57,8 +57,11 @@ const runtime = vi.hoisted(() => {
     before.length !== after.length ||
     before.some((value, index) => !Object.is(value, after[index]));
   const schedule = (): void => {
-    if (state.rendering || state.flushing) state.dirty = true;
-    else state.render();
+    if (state.rendering || state.flushing) {
+      state.dirty = true;
+    } else {
+      state.render();
+    }
   };
   return { state, slot, changed, schedule };
 });
@@ -74,8 +77,9 @@ vi.mock("react", async (importOriginal) => {
       ...children: unknown[]
     ) => {
       // A context object is its own provider in React 19.
-      if (typeof type === "object" && type !== null && "Consumer" in type)
+      if (typeof type === "object" && type !== null && "Consumer" in type) {
         state.provided.set(type, props?.value);
+      }
       return { type, props, children };
     },
     // The only context here is the browser context, whose default is null.
@@ -86,7 +90,9 @@ vi.mock("react", async (importOriginal) => {
         cell.value = typeof initial === "function" ? initial() : initial;
         cell.setter = (next) => {
           const value = typeof next === "function" ? next(cell.value) : next;
-          if (Object.is(value, cell.value)) return;
+          if (Object.is(value, cell.value)) {
+            return;
+          }
           cell.value = value;
           schedule();
         };
@@ -95,7 +101,9 @@ vi.mock("react", async (importOriginal) => {
     },
     useRef: (initial: unknown) => {
       const cell = slot();
-      if (!("value" in cell)) cell.value = { current: initial };
+      if (!("value" in cell)) {
+        cell.value = { current: initial };
+      }
       return cell.value;
     },
     useMemo: (factory: () => unknown, deps: readonly unknown[]) => {
@@ -119,7 +127,9 @@ vi.mock("react", async (importOriginal) => {
       deps?: readonly unknown[],
     ) => {
       const cell = slot();
-      if (!changed(cell.deps, deps)) return;
+      if (!changed(cell.deps, deps)) {
+        return;
+      }
       cell.deps = deps;
       state.pending.push(() => {
         cell.cleanup?.();
@@ -132,7 +142,9 @@ vi.mock("react", async (importOriginal) => {
       false,
       (fn: () => unknown) => {
         const result = fn();
-        if (result instanceof Promise) result.catch(() => undefined);
+        if (result instanceof Promise) {
+          result.catch(() => undefined);
+        }
       },
     ],
     useSyncExternalStore: (
@@ -144,7 +156,9 @@ vi.mock("react", async (importOriginal) => {
         cell.cleanup?.();
         cell.subscribe = subscribe;
         cell.cleanup = subscribe(() => {
-          if (!Object.is(getSnapshot(), cell.value)) schedule();
+          if (!Object.is(getSnapshot(), cell.value)) {
+            schedule();
+          }
         });
       }
       cell.value = getSnapshot();
@@ -174,7 +188,9 @@ function renderHook<P, R>(
       state.index = 0;
       state.renders += 1;
       try {
-        if (provider) BetterSupabaseProvider(provider);
+        if (provider) {
+          BetterSupabaseProvider(provider);
+        }
         out.result = hook(props);
         delete out.error;
       } catch (cause) {
@@ -184,7 +200,9 @@ function renderHook<P, R>(
       }
       state.flushing = true;
       try {
-        for (const effect of state.pending.splice(0)) effect();
+        for (const effect of state.pending.splice(0)) {
+          effect();
+        }
       } finally {
         state.flushing = false;
       }
@@ -193,7 +211,9 @@ function renderHook<P, R>(
   state.render();
   return {
     get result(): R {
-      if (out.error) throw out.error;
+      if (out.error) {
+        throw out.error;
+      }
       return out.result!;
     },
     get error() {
@@ -204,7 +224,9 @@ function renderHook<P, R>(
       state.render();
     },
     unmount() {
-      for (const cell of state.slots) cell.cleanup?.();
+      for (const cell of state.slots) {
+        cell.cleanup?.();
+      }
       state.slots = [];
       state.render = () => undefined;
     },
@@ -267,8 +289,9 @@ function fakeRealtime() {
     realtime: { setAuth: vi.fn(async () => undefined) },
   };
   const emit = (topic: string, event: string, payload: unknown = {}) => {
-    for (const listener of channels.get(topic)?.broadcast ?? [])
+    for (const listener of channels.get(topic)?.broadcast ?? []) {
       listener({ event, payload });
+    }
   };
   return { client, channels, emit };
 }
@@ -293,7 +316,9 @@ function fakeBrowser(initial: AuthSnapshot, run?: ClientLike["db"]) {
   } as unknown as ClientLike;
   const setAuth = (next: AuthSnapshot) => {
     snapshot = next;
-    for (const listener of [...listeners]) listener();
+    for (const listener of [...listeners]) {
+      listener();
+    }
   };
   return { browser, setAuth, listeners, ...realtime };
 }

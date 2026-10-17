@@ -33,7 +33,9 @@ function fakeRealtime() {
         listeners: new Set(),
         joined: false,
       };
-      if (!open.includes(entry)) open.push(entry);
+      if (!open.includes(entry)) {
+        open.push(entry);
+      }
       const channel = {
         topic,
         on: (_type: string, _filter: unknown, listener: Listener) => {
@@ -41,8 +43,9 @@ function fakeRealtime() {
           return channel;
         },
         subscribe: (callback: (state: string) => void) => {
-          if (entry.joined)
+          if (entry.joined) {
             throw new Error("tried to subscribe multiple times");
+          }
           entry.joined = true;
           entry.status = callback;
           subscribe(name);
@@ -71,7 +74,9 @@ function fakeRealtime() {
   };
   const emit = (name: string, event: string, payload: unknown = {}) => {
     const entry = open.find((each) => each.topic === `realtime:${name}`);
-    for (const listener of entry?.listeners ?? []) listener({ event, payload });
+    for (const listener of entry?.listeners ?? []) {
+      listener({ event, payload });
+    }
   };
   const status = (name: string, state: string) => {
     open.find((each) => each.topic === `realtime:${name}`)?.status?.(state);

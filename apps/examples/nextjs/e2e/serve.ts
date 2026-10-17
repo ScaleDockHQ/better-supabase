@@ -28,7 +28,9 @@ function start(
 async function ready(url: string): Promise<void> {
   for (;;) {
     try {
-      if ((await fetch(url)).ok) return;
+      if ((await fetch(url)).ok) {
+        return;
+      }
     } catch {
       // Not listening yet.
     }
@@ -38,7 +40,9 @@ async function ready(url: string): Promise<void> {
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {
-    for (const server of servers) server.kill(signal);
+    for (const server of servers) {
+      server.kill(signal);
+    }
     process.exit(0);
   });
 }

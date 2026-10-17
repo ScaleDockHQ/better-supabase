@@ -28,7 +28,9 @@ export function AnnouncementBanner({
     schema: "api",
   });
   const announcement = items?.[0];
-  if (!announcement) return null;
+  if (!announcement) {
+    return null;
+  }
   return (
     <Alert
       variant={announcement.severity === "critical" ? "destructive" : "default"}

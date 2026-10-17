@@ -73,7 +73,9 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
       ),
     reorderDefinition: (id, neighbors) => {
       const key = rankBetweenResult(neighbors);
-      if (!key.ok) return AsyncResult.err(key.error);
+      if (!key.ok) {
+        return AsyncResult.err(key.error);
+      }
       return call(
         "rank_field_definition",
         { definition: id, rank: key.data },

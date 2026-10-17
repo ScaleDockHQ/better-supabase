@@ -37,10 +37,15 @@ export interface FromModelMessagesOptions {
 const FETCHABLE_URL = /^(?:https?|data):/u;
 
 function fileUrl(data: unknown): string | undefined {
-  if (data instanceof URL) return data.href;
-  if (typeof data === "string")
+  if (data instanceof URL) {
+    return data.href;
+  }
+  if (typeof data === "string") {
     return FETCHABLE_URL.test(data) ? data : undefined;
-  if (isRecord(data) && data["type"] === "url") return fileUrl(data["url"]);
+  }
+  if (isRecord(data) && data["type"] === "url") {
+    return fileUrl(data["url"]);
+  }
   return undefined;
 }
 
@@ -82,8 +87,9 @@ class TurnParts {
   readonly #callOf = new Map<string, string>();
 
   constructor(approvals: readonly ModelApproval[]) {
-    for (const approval of approvals)
+    for (const approval of approvals) {
       this.#callOf.set(approval.approvalId, approval.toolCallId);
+    }
   }
 
   approval(part: AiToolApprovalPart): void {
@@ -92,7 +98,9 @@ class TurnParts {
     if (at === undefined) {
       this.#approvalAt.set(part.toolCallId, this.parts.length);
       this.parts.push(part);
-    } else this.parts[at] = part;
+    } else {
+      this.parts[at] = part;
+    }
   }
 
   callOf(approvalId: string): string | undefined {
@@ -127,8 +135,9 @@ class TurnParts {
 
 function assistantParts(message: AssistantModelMessage, turn: TurnParts): void {
   if (typeof message.content === "string") {
-    if (message.content !== "")
+    if (message.content !== "") {
       turn.parts.push({ type: "text", text: message.content, state: "done" });
+    }
     return;
   }
   for (const part of message.content) {
@@ -140,23 +149,25 @@ function assistantParts(message: AssistantModelMessage, turn: TurnParts): void {
       }
       case "file": {
         const url = fileUrl(part.data);
-        if (url !== undefined)
+        if (url !== undefined) {
           turn.parts.push({
             type: "file",
             mediaType: part.mediaType,
             url,
             ...(part.filename === undefined ? {} : { filename: part.filename }),
           });
+        }
         break;
       }
       case "reasoning-file": {
         const url = fileUrl(part.data);
-        if (url !== undefined)
+        if (url !== undefined) {
           turn.parts.push({
             type: "data",
             name: "ui.reasoning-file",
             data: { mediaType: part.mediaType, url },
           });
+        }
         break;
       }
       case "custom": {
@@ -209,7 +220,7 @@ function toolMessageParts(message: ToolModelMessage, turn: TurnParts): void {
       }
       case "tool-approval-response": {
         const toolCallId = turn.callOf(part.approvalId);
-        if (toolCallId !== undefined)
+        if (toolCallId !== undefined) {
           turn.approval({
             type: "tool-approval",
             toolCallId,
@@ -217,6 +228,7 @@ function toolMessageParts(message: ToolModelMessage, turn: TurnParts): void {
             state: part.approved ? "approved" : "denied",
             ...(part.reason === undefined ? {} : { reason: part.reason }),
           });
+        }
         break;
       }
       default: {
@@ -250,9 +262,11 @@ export function fromModelMessages(
       });
       step += 1;
       assistantParts(message, turn);
-    } else if (message.role === "tool") toolMessageParts(message, turn);
+    } else if (message.role === "tool") {
+      toolMessageParts(message, turn);
+    }
   }
-  for (const approval of approvals)
+  for (const approval of approvals) {
     turn.approval({
       type: "tool-approval",
       toolCallId: approval.toolCallId,
@@ -260,7 +274,8 @@ export function fromModelMessages(
       state: approval.state,
       ...(approval.reason === undefined ? {} : { reason: approval.reason }),
     });
-  for (const source of options.sources ?? [])
+  }
+  for (const source of options.sources ?? []) {
     turn.parts.push({
       type: "source",
       sourceType: source.sourceType,
@@ -272,5 +287,6 @@ export function fromModelMessages(
         : { mediaType: source.mediaType }),
       ...meta(source.providerMetadata),
     });
+  }
   return { id, role: "assistant", parts: turn.parts };
 }

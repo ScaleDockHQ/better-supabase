@@ -106,10 +106,13 @@ function part(text: string): Rule {
 
 function dayRule(text: string): DayRule {
   const match = /^([+-]?\d+)?(MO|TU|WE|TH|FR|SA|SU)$/.exec(text.toUpperCase());
-  if (!match) throw new TypeError(`BYDAY value ${text} is not a weekday`);
-  const day = DAYS[match[2] ?? ""];
-  if (day === undefined)
+  if (!match) {
     throw new TypeError(`BYDAY value ${text} is not a weekday`);
+  }
+  const day = DAYS[match[2] ?? ""];
+  if (day === undefined) {
+    throw new TypeError(`BYDAY value ${text} is not a weekday`);
+  }
   return {
     ordinal: match[1] === undefined ? undefined : Number(match[1]),
     day,
@@ -117,7 +120,9 @@ function dayRule(text: string): DayRule {
 }
 
 function numbers(text: string | undefined): readonly number[] {
-  if (text === undefined || text === "") return [];
+  if (text === undefined || text === "") {
+    return [];
+  }
   return text.split(",").map((item) => {
     const value = Number(item);
     if (!Number.isInteger(value) || value === 0) {
@@ -129,7 +134,9 @@ function numbers(text: string | undefined): readonly number[] {
 
 function until(text: string): Temporal.Instant {
   const match = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/.exec(text);
-  if (!match) throw new TypeError("UNTIL must be a UTC date-time");
+  if (!match) {
+    throw new TypeError("UNTIL must be a UTC date-time");
+  }
   const [, year, month, day, hour, minute, second] = match;
   return temporal().Instant.from(
     `${year}-${month}-${day}T${hour}:${minute}:${second}Z`,
@@ -199,7 +206,9 @@ function monthDay(
   const dates = temporal().PlainDate;
   const length = dates.from({ year, month, day: 1 }).daysInMonth;
   const day = which > 0 ? which : length + which + 1;
-  if (day < 1 || day > length) return undefined;
+  if (day < 1 || day > length) {
+    return undefined;
+  }
   return dates.from({ year, month, day });
 }
 
@@ -215,13 +224,17 @@ function nthWeekday(
   if (ordinal > 0) {
     const delta = (weekday - first.dayOfWeek + 7) % 7;
     const day = 1 + delta + (ordinal - 1) * 7;
-    if (day > length) return undefined;
+    if (day > length) {
+      return undefined;
+    }
     return dates.from({ year, month, day });
   }
   const last = dates.from({ year, month, day: length });
   const delta = (last.dayOfWeek - weekday + 7) % 7;
   const day = length - delta + (ordinal + 1) * 7;
-  if (day < 1) return undefined;
+  if (day < 1) {
+    return undefined;
+  }
   return dates.from({ year, month, day });
 }
 
@@ -271,9 +284,13 @@ function periodDates(
     const year = rule.frequency === "YEARLY" ? moved.year : moved.year;
     if (rule.byDay.some((item) => item.ordinal !== undefined)) {
       for (const item of rule.byDay) {
-        if (item.ordinal === undefined) continue;
+        if (item.ordinal === undefined) {
+          continue;
+        }
         const date = nthWeekday(year, month, item.ordinal, item.day);
-        if (date) dates.push(date);
+        if (date) {
+          dates.push(date);
+        }
       }
       continue;
     }
@@ -282,17 +299,22 @@ function periodDates(
       const length = datesOf.from({ year, month, day: 1 }).daysInMonth;
       for (let day = 1; day <= length; day += 1) {
         const date = datesOf.from({ year, month, day });
-        if (rule.byDay.some((item) => item.day === date.dayOfWeek))
+        if (rule.byDay.some((item) => item.day === date.dayOfWeek)) {
           dates.push(date);
+        }
       }
     } else if (rule.byMonthDay.length > 0) {
       for (const which of rule.byMonthDay) {
         const date = monthDay(year, month, which);
-        if (date) dates.push(date);
+        if (date) {
+          dates.push(date);
+        }
       }
     } else {
       const date = monthDay(year, month, moved.day);
-      if (date) dates.push(date);
+      if (date) {
+        dates.push(date);
+      }
     }
   }
   return dates;
@@ -307,7 +329,9 @@ function applySetPos(
   for (const position of positions) {
     const index = position > 0 ? position - 1 : sorted.length + position;
     const date = sorted[index];
-    if (date) picked.add(date.toString());
+    if (date) {
+      picked.add(date.toString());
+    }
   }
   return sorted.filter((date) => picked.has(date.toString()));
 }
@@ -339,12 +363,16 @@ export function expandRule(input: ExpandInput): Temporal.ZonedDateTime[] {
     index += 1
   ) {
     let dates = periodDates(start, rule, index);
-    if (rule.bySetPos.length > 0) dates = applySetPos(dates, rule.bySetPos);
+    if (rule.bySetPos.length > 0) {
+      dates = applySetPos(dates, rule.bySetPos);
+    }
     const time = temporal();
     const ordered = dates.toSorted((a, b) => time.PlainDate.compare(a, b));
     for (const date of ordered) {
       const when = at(date, start);
-      if (time.ZonedDateTime.compare(when, start) < 0) continue;
+      if (time.ZonedDateTime.compare(when, start) < 0) {
+        continue;
+      }
       const instant = when.toInstant();
       if (
         rule.until !== undefined &&
@@ -353,13 +381,21 @@ export function expandRule(input: ExpandInput): Temporal.ZonedDateTime[] {
         return found;
       }
       generated += 1;
-      if (rule.count !== undefined && generated > rule.count) return found;
+      if (rule.count !== undefined && generated > rule.count) {
+        return found;
+      }
       if (span !== undefined) {
-        if (time.Instant.compare(instant, span.until) >= 0) return found;
-        if (time.Instant.compare(instant, span.from) < 0) continue;
+        if (time.Instant.compare(instant, span.until) >= 0) {
+          return found;
+        }
+        if (time.Instant.compare(instant, span.from) < 0) {
+          continue;
+        }
       }
       found.push(when);
-      if (found.length >= cap) return found;
+      if (found.length >= cap) {
+        return found;
+      }
     }
   }
   return found;
@@ -373,7 +409,9 @@ function skipTo(
 ): number {
   const anchor = start.toPlainDate();
   const target = from.toZonedDateTimeISO(start.timeZoneId).toPlainDate();
-  if (temporal().PlainDate.compare(target, anchor) <= 0) return 0;
+  if (temporal().PlainDate.compare(target, anchor) <= 0) {
+    return 0;
+  }
   let periods: number;
   switch (rule.frequency) {
     case "DAILY":

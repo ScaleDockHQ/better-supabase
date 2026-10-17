@@ -156,9 +156,12 @@ describe("module sources", () => {
           /^(\*|\/\/|\/\*|--)/.test(code) ||
           code.startsWith('"') ||
           code.includes("-- ")
-        )
+        ) {
           return;
-        if (literal.test(line)) sites.push(`${file}:${String(index + 1)}`);
+        }
+        if (literal.test(line)) {
+          sites.push(`${file}:${String(index + 1)}`);
+        }
       });
     }
     expect(sites).toEqual([]);

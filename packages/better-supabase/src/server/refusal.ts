@@ -35,10 +35,14 @@ export function refusalTarget(
       : isAalRefusal(error)
         ? redirects.mfa
         : undefined;
-  if (page === undefined) return undefined;
+  if (page === undefined) {
+    return undefined;
+  }
   const url = new URL(request.url);
   const target = new URL(page, url);
-  if (target.pathname === url.pathname) return undefined;
+  if (target.pathname === url.pathname) {
+    return undefined;
+  }
   target.searchParams.set("next", `${url.pathname}${url.search}`);
   return target;
 }
@@ -89,7 +93,9 @@ export async function routeRefusal(
     locals.tenant,
     options.authorizer,
   );
-  if (!("kind" in caller)) return undefined;
+  if (!("kind" in caller)) {
+    return undefined;
+  }
   return refusalResponse(
     caller,
     request,
@@ -109,7 +115,9 @@ export function errorResponse(
   options: { readonly expose?: boolean } = {},
 ): Response | undefined {
   const found = dbErrorOf(cause);
-  if (!found) return undefined;
+  if (!found) {
+    return undefined;
+  }
   return problemResponse(found, {
     instance: new URL(request.url).pathname,
     expose: options.expose ?? defaultExpose(),

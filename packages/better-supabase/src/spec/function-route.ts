@@ -19,8 +19,9 @@ function isDescriptor(value: unknown): value is FunctionDescriptor {
 }
 
 function descriptorOf(fn: unknown): FunctionDescriptor | undefined {
-  if (typeof fn !== "function" || !(FUNCTION_DESCRIPTOR in fn))
+  if (typeof fn !== "function" || !(FUNCTION_DESCRIPTOR in fn)) {
     return undefined;
+  }
   const descriptor: unknown = fn[FUNCTION_DESCRIPTOR];
   return isDescriptor(descriptor) ? descriptor : undefined;
 }

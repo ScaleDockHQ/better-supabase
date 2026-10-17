@@ -97,11 +97,16 @@ export function createDataExporter(options: DataExporterOptions): DataExporter {
           { id: claimed.id, table_name: table, after, page_size: pageSize },
           (value) => recordOf(value, "data_export_rows"),
         );
-        if (!page.ok) return page;
+        if (!page.ok) {
+          return page;
+        }
         const rows = Array.isArray(page.data["rows"]) ? page.data["rows"] : [];
         for (const row of rows) {
-          if (csv) records.push(isRecord(row) ? row : { value: row });
-          else lines.push(JSON.stringify(row));
+          if (csv) {
+            records.push(isRecord(row) ? row : { value: row });
+          } else {
+            lines.push(JSON.stringify(row));
+          }
         }
         after = optionalText(page.data["after"]);
       } while (after !== undefined);
@@ -192,7 +197,9 @@ export function createDataExporter(options: DataExporterOptions): DataExporter {
 
   const settle = async (ran: AsyncResult<DataExport>): Promise<void> => {
     const result = await ran;
-    if (result.ok || result.error.hint === "DATA_EXPORT_NOT_FOUND") return;
+    if (result.ok || result.error.hint === "DATA_EXPORT_NOT_FOUND") {
+      return;
+    }
     await ran.orThrow();
   };
 
@@ -211,7 +218,9 @@ export function createDataExporter(options: DataExporterOptions): DataExporter {
             continue;
           }
           const id = optionalText(event.data["exportId"]);
-          if (id !== undefined) await settle(run(id));
+          if (id !== undefined) {
+            await settle(run(id));
+          }
         }
       },
     }),

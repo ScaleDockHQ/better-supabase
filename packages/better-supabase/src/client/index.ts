@@ -109,25 +109,31 @@ type UserStorage = NonNullable<
 >;
 
 function clientFor(options: ClientOptions): SupabaseClient {
-  if (options.client) return options.client;
-  if (!options.env)
+  if (options.client) {
+    return options.client;
+  }
+  if (!options.env) {
     throw new TypeError(
       "createClient needs `env` ({ url, publishableKey }) or `client`",
     );
+  }
   const checked = parseEnv({
     SUPABASE_URL: options.env.url,
     SUPABASE_PUBLISHABLE_KEY: options.env.publishableKey,
   });
-  if (!checked.ok) throw new EnvValidationError(checked.issues);
+  if (!checked.ok) {
+    throw new EnvValidationError(checked.issues);
+  }
   const userStorage = options.auth?.userStorage;
   const auth = userStorage ? { auth: { userStorage } } : {};
-  if (options.storage === "local")
+  if (options.storage === "local") {
     // oxlint-disable-next-line typescript/no-unsafe-return -- supabase-js infers `any` for the schema name without a Database type.
     return createSupabaseClient(
       checked.env.url,
       checked.env.publishableKey,
       auth,
     );
+  }
   const encode = options.cookies?.encode;
   // oxlint-disable-next-line typescript/no-unsafe-return -- supabase-js infers `any` for the schema name without a Database type.
   return createBrowserClient(checked.env.url, checked.env.publishableKey, {

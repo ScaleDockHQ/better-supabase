@@ -110,7 +110,9 @@ describe("RFC 9457 Problem Details", () => {
         message: "different occurrence",
       });
       expect(two.title).toBe(one.title);
-      if (one.type !== "about:blank") titles.set(one.type, one.title);
+      if (one.type !== "about:blank") {
+        titles.set(one.type, one.title);
+      }
     }
     expect(titles.size).toBe(KINDS.length - GENERIC.size);
   });
@@ -158,8 +160,9 @@ describe("RFC 9457 Problem Details", () => {
   });
 
   it("round-trips through fromProblem, and unknown kinds fall back to unexpected (extension members, section 3.2)", () => {
-    for (const kind of KINDS)
+    for (const kind of KINDS) {
       expect(fromProblem(toProblem(sample(kind))).kind).toBe(kind);
+    }
     expect(
       fromProblem({
         type: "about:blank",

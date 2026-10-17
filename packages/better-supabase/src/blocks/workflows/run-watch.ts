@@ -35,7 +35,9 @@ export function watchRun<S extends { readonly status: SubscriptionStatus }>(
   let joined: { readonly id: string; readonly leave: () => void } | undefined;
   let live = false;
   const join = (id: string | null): void => {
-    if (!live || id === null || joined?.id === id) return;
+    if (!live || id === null || joined?.id === id) {
+      return;
+    }
     joined?.leave();
     joined = {
       id,
@@ -50,17 +52,23 @@ export function watchRun<S extends { readonly status: SubscriptionStatus }>(
     };
   };
   const refresh = async (): Promise<void> => {
-    if (options.run === null) return;
+    if (options.run === null) {
+      return;
+    }
     const run = state.run();
     const loaded = await options.load();
-    if (run !== state.run()) return;
+    if (run !== state.run()) {
+      return;
+    }
     state.set(loaded.patch);
     join(loaded.id);
   };
   return {
     refresh,
     start: () => {
-      if (options.run === null) return;
+      if (options.run === null) {
+        return;
+      }
       return whileSignedIn(options.auth, () => {
         live = true;
         void refresh();
@@ -78,6 +86,10 @@ export function watchRun<S extends { readonly status: SubscriptionStatus }>(
 export function firstError(
   ...results: readonly Result<unknown>[]
 ): DbError | undefined {
-  for (const result of results) if (!result.ok) return result.error;
+  for (const result of results) {
+    if (!result.ok) {
+      return result.error;
+    }
+  }
   return;
 }

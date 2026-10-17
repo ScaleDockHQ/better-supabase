@@ -86,7 +86,9 @@ function metrics(
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const keys = moduleOperations("targets");
   const read = ctx.permission("read", keys.read);
   const manage = ctx.permission("manage", keys.manage);

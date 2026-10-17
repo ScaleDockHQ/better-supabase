@@ -95,7 +95,9 @@ const delivery = (
 const claimOnce = (rows: Record<string, unknown>[]) => {
   let served = false;
   return () => {
-    if (served) return [];
+    if (served) {
+      return [];
+    }
     served = true;
     return rows;
   };
@@ -136,8 +138,9 @@ describe("mailHeaders", () => {
   };
 
   it("marks every category auto-generated (RFC 3834)", () => {
-    for (const category of ["notification", "security", "approval"] as const)
+    for (const category of ["notification", "security", "approval"] as const) {
       expect(mailHeaders(category)["Auto-Submitted"]).toBe("auto-generated");
+    }
   });
 
   it("gives notification mail List-Unsubscribe and one-click (RFC 2369, RFC 8058)", () => {
@@ -520,7 +523,9 @@ describe("createNotifications delivery tracking", () => {
         transport: {
           ...mail,
           send: (message, options) => {
-            if (options.idempotencyKey === "d2") throw new Error("smtp down");
+            if (options.idempotencyKey === "d2") {
+              throw new Error("smtp down");
+            }
             return mail.send(message, options);
           },
         },

@@ -323,7 +323,9 @@ export function WorkflowCanvas({ detail }: { detail: BuilderDetail }) {
               removeNode(selectedNode.id);
             }}
             onDecide={(approved) => {
-              if (runId === null) return;
+              if (runId === null) {
+                return;
+              }
               void decide.run({ run: runId, node: selectedNode.id, approved });
             }}
           />

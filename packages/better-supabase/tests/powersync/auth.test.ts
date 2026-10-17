@@ -30,7 +30,9 @@ function fakeAuth(initial: AuthSnapshot) {
     listeners,
     set: (next: AuthSnapshot) => {
       snapshot = next;
-      for (const listener of [...listeners]) listener();
+      for (const listener of [...listeners]) {
+        listener();
+      }
     },
   };
 }

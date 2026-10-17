@@ -40,8 +40,11 @@ const changed = (before: Deps | undefined, after: Deps | undefined): boolean =>
   before.some((value, index) => !Object.is(value, after[index]));
 
 const schedule = (): void => {
-  if (state.busy) state.dirty = true;
-  else state.render();
+  if (state.busy) {
+    state.dirty = true;
+  } else {
+    state.render();
+  }
 };
 
 export interface ReactHooks {
@@ -65,8 +68,9 @@ export interface ReactHooks {
 export const reactHooks: ReactHooks = {
   createElement(type, props, ...children) {
     // A context object is its own provider in React 19.
-    if (typeof type === "object" && type !== null && "Consumer" in type)
+    if (typeof type === "object" && type !== null && "Consumer" in type) {
       state.provided.set(type, props?.value);
+    }
     return { type, props, children };
   },
   useContext: (context) => state.provided.get(context) ?? null,
@@ -76,7 +80,9 @@ export const reactHooks: ReactHooks = {
       cell.setter ??
       ((next: unknown) => {
         const value = typeof next === "function" ? next(cell.value) : next;
-        if (Object.is(value, cell.value)) return;
+        if (Object.is(value, cell.value)) {
+          return;
+        }
         cell.value = value;
         schedule();
       });
@@ -104,7 +110,9 @@ export const reactHooks: ReactHooks = {
   },
   useEffect(effect, deps) {
     const cell = slot();
-    if (!changed(cell.deps, deps)) return;
+    if (!changed(cell.deps, deps)) {
+      return;
+    }
     cell.deps = deps;
     state.pending.push(() => {
       cell.cleanup?.();
@@ -114,7 +122,9 @@ export const reactHooks: ReactHooks = {
   },
   useRef(initial) {
     const cell = slot();
-    if (!("value" in cell)) cell.value = { current: initial };
+    if (!("value" in cell)) {
+      cell.value = { current: initial };
+    }
     // SAFETY: the branch above stored a ref object in this slot.
     return cell.value as { current: unknown };
   },
@@ -124,7 +134,9 @@ export const reactHooks: ReactHooks = {
       cell.cleanup?.();
       cell.subscribe = subscribe;
       cell.cleanup = subscribe(() => {
-        if (!Object.is(getSnapshot(), cell.value)) schedule();
+        if (!Object.is(getSnapshot(), cell.value)) {
+          schedule();
+        }
       });
     }
     cell.value = getSnapshot();
@@ -161,7 +173,9 @@ export function renderHook<P, R>(
         state.index = 0;
         before?.();
         result = hook(props);
-        for (const effect of state.pending.splice(0)) effect();
+        for (const effect of state.pending.splice(0)) {
+          effect();
+        }
       } finally {
         state.busy = false;
       }
@@ -178,7 +192,9 @@ export function renderHook<P, R>(
       state.render();
     },
     unmount(): void {
-      for (const cell of state.slots) cell.cleanup?.();
+      for (const cell of state.slots) {
+        cell.cleanup?.();
+      }
       state.slots = [];
       state.render = () => undefined;
     },

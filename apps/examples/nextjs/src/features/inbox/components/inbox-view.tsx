@@ -57,7 +57,9 @@ export function InboxView({
           <Tabs
             value={status}
             onValueChange={(value) => {
-              if (!v.is(ConversationStatus, value)) return;
+              if (!v.is(ConversationStatus, value)) {
+                return;
+              }
               setStatus(value);
             }}
           >
@@ -72,7 +74,9 @@ export function InboxView({
             value={assignee}
             items={assigneeItems}
             onValueChange={(value) => {
-              if (!v.is(AssigneeFilter, value)) return;
+              if (!v.is(AssigneeFilter, value)) {
+                return;
+              }
               setAssignee(value);
             }}
           >

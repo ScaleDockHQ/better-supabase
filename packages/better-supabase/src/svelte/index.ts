@@ -193,7 +193,9 @@ function followed(
   });
   return () => {
     subscribe();
-    if (notify) update();
+    if (notify) {
+      update();
+    }
   };
 }
 
@@ -208,12 +210,13 @@ export function createBetterSvelte<B extends ClientLike>(
   const auth = reactive(client.auth);
   const plainCallers = new WeakMap<SupabaseClient, Current<Caller>>();
   const callerFor = (supabase: SupabaseClient | undefined): Current<Caller> => {
-    if (supabase === undefined)
+    if (supabase === undefined) {
       return {
         get current() {
           return callerOf(auth.current);
         },
       };
+    }
     let caller = plainCallers.get(supabase);
     if (!caller) {
       caller = reactive(plainCaller(supabase));
@@ -243,12 +246,16 @@ export function createBetterSvelte<B extends ClientLike>(
         () => {
           const current = name();
           const who = caller.current;
-          if (current === null || who.status === "loading") return null;
+          if (current === null || who.status === "loading") {
+            return null;
+          }
           return JSON.stringify([current, who.userId]);
         },
         (_key, notify) => {
           const current = name();
-          if (current === null) return;
+          if (current === null) {
+            return;
+          }
           return startBroadcast({
             supabase,
             topic,
@@ -284,7 +291,9 @@ export function createBetterSvelte<B extends ClientLike>(
         },
         (key, notify) => {
           const current = spec();
-          if (!current || !queryClient) return;
+          if (!current || !queryClient) {
+            return;
+          }
           const resumed = joined === key;
           joined = key;
           return startLiveQuery({
@@ -316,7 +325,9 @@ export function createBetterSvelte<B extends ClientLike>(
       const key = () => liveKey(client, parsed().spec, auth.current, options);
       const track = followed(key, (next, notify) => {
         const { spec, initial, seedAt } = parsed();
-        if (!spec) return;
+        if (!spec) {
+          return;
+        }
         const previous = joined?.key === next ? joined : null;
         joined = { key: next, at: previous?.at ?? seedAt ?? 0 };
         return startLiveCount({
@@ -329,7 +340,9 @@ export function createBetterSvelte<B extends ClientLike>(
           since: previous ? previous.at : seedAt,
           onState: (update) => {
             state = update(state);
-            if (joined?.key === next) joined = { key: next, at: state.at };
+            if (joined?.key === next) {
+              joined = { key: next, at: state.at };
+            }
             notify();
           },
           onStatus: (value) => {
@@ -373,12 +386,16 @@ export function createBetterSvelte<B extends ClientLike>(
         () => {
           const current = name();
           const who = caller.current;
-          if (current === null || who.status === "loading") return null;
+          if (current === null || who.status === "loading") {
+            return null;
+          }
           return JSON.stringify([current, who.userId]);
         },
         (_key, notify) => {
           const current = name();
-          if (current === null) return;
+          if (current === null) {
+            return;
+          }
           const joined = joinPresence(supabase, topic, current, {
             onStatus: (next) => {
               status = next;
@@ -389,7 +406,9 @@ export function createBetterSvelte<B extends ClientLike>(
               notify();
             },
           });
-          if (!joined) return;
+          if (!joined) {
+            return;
+          }
           join = joined;
           joined.sync(options.state?.());
           return () => {
@@ -469,7 +488,9 @@ export function setBetterSupabase<B extends ClientLike>(
 ): BetterSvelte<B> {
   const bound = createBetterSvelte(client, options);
   const { queryClient } = options;
-  if (queryClient) onMount(() => clearOnUserChange(queryClient, client.auth));
+  if (queryClient) {
+    onMount(() => clearOnUserChange(queryClient, client.auth));
+  }
   return setContext(CLIENT, bound);
 }
 

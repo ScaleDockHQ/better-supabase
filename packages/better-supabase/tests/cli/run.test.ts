@@ -285,7 +285,9 @@ describe("run", () => {
     let printed = false;
     const controller = new AbortController();
     const api = fakeFetch((call) => {
-      if (printed && call.body?.includes("t_enums")) controller.abort();
+      if (printed && call.body?.includes("t_enums")) {
+        controller.abort();
+      }
       return failing ? { status: 500, text: "upstream down" } : { body: [] };
     });
     vi.stubGlobal("fetch", api.fetch);
@@ -332,9 +334,13 @@ describe("run", () => {
     const controller = new AbortController();
     let polls = 0;
     const api = fakeFetch((call) => {
-      if (!call.body?.includes("as fingerprint")) return { body: [] };
+      if (!call.body?.includes("as fingerprint")) {
+        return { body: [] };
+      }
       polls += 1;
-      if (polls === 6) controller.abort();
+      if (polls === 6) {
+        controller.abort();
+      }
       return { body: [{ fingerprint: polls < 4 ? "a" : "b" }] };
     });
     vi.stubGlobal("fetch", api.fetch);

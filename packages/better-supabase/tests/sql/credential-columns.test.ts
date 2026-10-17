@@ -44,16 +44,20 @@ const ADD_COLUMN = /add column(?: if not exists)?\s+"?(\w+)"?/gi;
 /** `table.column` for every column a module's SQL creates or adds. */
 function columnsOf(sql: string): string[] {
   const columns: string[] = [];
-  for (const [, table, body] of sql.matchAll(CREATE_TABLE))
+  for (const [, table, body] of sql.matchAll(CREATE_TABLE)) {
     for (const line of body!.split("\n")) {
       const name = /^\s*"?([a-z_][a-z0-9_]*)"?\s+[a-z]/i.exec(line)?.[1];
       if (
         name !== undefined &&
         !/^(constraint|primary|unique|check|foreign|exclude|like)$/i.test(name)
-      )
+      ) {
         columns.push(`${table}.${name}`);
+      }
     }
-  for (const [, name] of sql.matchAll(ADD_COLUMN)) columns.push(`?.${name}`);
+  }
+  for (const [, name] of sql.matchAll(ADD_COLUMN)) {
+    columns.push(`?.${name}`);
+  }
   return columns;
 }
 

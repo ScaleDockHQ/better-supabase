@@ -36,8 +36,9 @@ export function ResetPasswordForm() {
   const [error, submit, pending] = useActionState(
     async (_previous: string | null, form: FormData) => {
       const password = String(form.get("password"));
-      if (password !== String(form.get("confirm")))
+      if (password !== String(form.get("confirm"))) {
         return t("The passwords don't match.");
+      }
       const { error: updateError } = await supabase.auth.updateUser({
         password,
       });

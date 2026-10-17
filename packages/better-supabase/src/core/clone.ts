@@ -1,7 +1,9 @@
 export function isPlainObject(
   value: unknown,
 ): value is Readonly<Record<string, unknown>> {
-  if (typeof value !== "object" || value === null) return false;
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
   const proto: unknown = Object.getPrototypeOf(value);
   return proto === Object.prototype || proto === null;
 }
@@ -11,11 +13,14 @@ export function isPlainObject(
  * caller's result (invariant 5). Temporal values are immutable and stay shared.
  */
 export function cloneValue(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(cloneValue);
+  if (Array.isArray(value)) {
+    return value.map(cloneValue);
+  }
   if (isPlainObject(value)) {
     const copy: Record<string, unknown> = {};
-    for (const [key, item] of Object.entries(value))
+    for (const [key, item] of Object.entries(value)) {
       copy[key] = cloneValue(item);
+    }
     return copy;
   }
   return value;
@@ -24,7 +29,9 @@ export function cloneValue(value: unknown): unknown {
 /** Freezes plain objects and arrays in place, recursively, and returns the value. */
 export function deepFreeze<T>(value: T): T {
   if (Array.isArray(value) || isPlainObject(value)) {
-    for (const item of Object.values(value)) deepFreeze(item);
+    for (const item of Object.values(value)) {
+      deepFreeze(item);
+    }
     Object.freeze(value);
   }
   return value;

@@ -122,8 +122,9 @@ describe("deleteAccount", () => {
 
   it("removes objects in batches of 1000", async () => {
     const files: Record<string, string> = {};
-    for (let index = 0; index < 1001; index += 1)
+    for (let index = 0; index < 1001; index += 1) {
       files[`documents/${USER}/${String(index).padStart(4, "0")}.txt`] = "x";
+    }
     const { betterSupabase, storage, service } = setup({ files });
     const result = await deleteAccount(betterSupabase, service, USER, {
       buckets: [documents],

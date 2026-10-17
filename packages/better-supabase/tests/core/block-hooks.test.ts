@@ -81,7 +81,9 @@ describe("withBlockHooks", () => {
 
   it("gives after a copy it can't change the result through", async () => {
     const after = vi.fn((result: Result<{ tags: string[] }>) => {
-      if (result.ok) result.data.tags.push("mutated");
+      if (result.ok) {
+        result.data.tags.push("mutated");
+      }
     });
     const hooked = withBlockHooks(counter(), { read: { after } });
     const result = await hooked.read();

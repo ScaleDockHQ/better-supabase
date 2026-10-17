@@ -257,7 +257,9 @@ export function createSearch(options: SearchOptions): Search {
     embedPending: (embed, limit = 100) =>
       pendingEmbeddings(limit).andThen((pending) =>
         run(async () => {
-          if (pending.length === 0) return 0;
+          if (pending.length === 0) {
+            return 0;
+          }
           const vectors = await embed(pending.map((item) => item.text));
           if (vectors.length !== pending.length) {
             throw new TypeError(

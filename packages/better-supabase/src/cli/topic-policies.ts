@@ -67,7 +67,11 @@ export async function topicPolicyFile(
     if (found.length === 0) {
       throw new Error(`${entry} exports no topic (defineTopic)`);
     }
-    for (const topic of found) if (!topics.includes(topic)) topics.push(topic);
+    for (const topic of found) {
+      if (!topics.includes(topic)) {
+        topics.push(topic);
+      }
+    }
   }
   topics.sort((a, b) =>
     a.template < b.template ? -1 : a.template > b.template ? 1 : 0,
@@ -78,7 +82,9 @@ export async function topicPolicyFile(
   const skipped: string[] = [];
   const written = topics.filter((topic) => {
     const owner = owned.find((entry) => owns(entry.topic, topic.template));
-    if (owner === undefined || !receivesOnly(sqlOf(topic))) return true;
+    if (owner === undefined || !receivesOnly(sqlOf(topic))) {
+      return true;
+    }
     skipped.push(
       `-- Skipped topic ${topic.template}: the ${owner.module} module writes its receive policy.`,
     );

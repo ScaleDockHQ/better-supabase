@@ -240,7 +240,9 @@ async function dueOf(
       continue;
     }
     const first = firstRun(row, now);
-    if (first === undefined) continue;
+    if (first === undefined) {
+      continue;
+    }
     if (temporal().Instant.compare(first, now()) <= 0) {
       due.push({ ...schedule, nextRun: first });
     } else {
@@ -289,7 +291,9 @@ interface OnceRow {
 const onceOf = (
   row: OnceRow | undefined,
 ): { readonly id: number; readonly duplicate: boolean } => {
-  if (!row) throw new TypeError("enqueue_job_once returned no row");
+  if (!row) {
+    throw new TypeError("enqueue_job_once returned no row");
+  }
   return { id: Number(row.id), duplicate: row.duplicate };
 };
 
@@ -503,7 +507,9 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
  * return an array; a single object is one row.
  */
 export function transportRows<T>(fn: string, value: unknown): readonly T[] {
-  if (value === null || value === undefined) return [];
+  if (value === null || value === undefined) {
+    return [];
+  }
   if (Array.isArray(value)) {
     // SAFETY: T is the row type the caller declares for this function's result.
     return value as T[];
@@ -571,7 +577,9 @@ export function transportQueueBackend(
           dedupe !== "waiting",
         ),
       );
-      if (sent === null) throw new TypeError("enqueue_job returned no id");
+      if (sent === null) {
+        throw new TypeError("enqueue_job returned no id");
+      }
       return sent;
     },
     sendOnce: async (queue, payload, delay, maxAttempts, dedupeKey) =>
@@ -699,7 +707,9 @@ export function pgmqPublicBackend(client: QueueRpcClient): QueueBackend {
     name: "pgmq_public",
     leases: false,
     async send(queue, payload, delay, maxAttempts, dedupeKey) {
-      if (dedupeKey !== undefined) sqlOnly("dedupeKey");
+      if (dedupeKey !== undefined) {
+        sqlOnly("dedupeKey");
+      }
       const ids = await call<readonly (number | string)[]>("send", {
         queue_name: queue,
         message: { payload: payload ?? {}, max_attempts: maxAttempts },
@@ -725,7 +735,9 @@ export function pgmqPublicBackend(client: QueueRpcClient): QueueBackend {
             queue_name: queue,
             message_id: row.msg_id,
           });
-        } else live.push(row);
+        } else {
+          live.push(row);
+        }
       }
       return live.map((row) => ({
         id: row.msg_id,
@@ -737,7 +749,9 @@ export function pgmqPublicBackend(client: QueueRpcClient): QueueBackend {
     },
     complete: archive,
     async fail(job) {
-      if (job.attempts < job.maxAttempts) return "queued";
+      if (job.attempts < job.maxAttempts) {
+        return "queued";
+      }
       await archive(job);
       return "dead";
     },

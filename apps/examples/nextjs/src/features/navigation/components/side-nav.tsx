@@ -107,7 +107,9 @@ export function SideNav({ visible }: { visible: readonly NavId[] }) {
         const items = navItems.filter(
           (item) => item.group === group.id && visible.includes(item.id),
         );
-        if (items.length === 0) return null;
+        if (items.length === 0) {
+          return null;
+        }
         return (
           <SidebarGroup key={group.id}>
             <SidebarGroupLabel>{group.label}</SidebarGroupLabel>

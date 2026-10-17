@@ -30,7 +30,9 @@ describe("rateLimitGate", () => {
     });
     const outcome = await gate("k");
     expect(outcome.kind).toBe("allow");
-    if (outcome.kind !== "allow") return;
+    if (outcome.kind !== "allow") {
+      return;
+    }
     expect(outcome.headers.get("ratelimit")).toBe('"api";r=4');
     expect(outcome.headers.get("ratelimit-policy")).toBe('"api";q=5;w=60');
   });
@@ -44,7 +46,9 @@ describe("rateLimitGate", () => {
     });
     const outcome = await gate("k");
     expect(outcome.kind).toBe("deny");
-    if (outcome.kind !== "deny") return;
+    if (outcome.kind !== "deny") {
+      return;
+    }
     expect(outcome.error).toMatchObject({
       kind: "rate_limited",
       retryAfter: 13,

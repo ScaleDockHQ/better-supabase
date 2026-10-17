@@ -117,9 +117,13 @@ export async function readMetadataSnapshot(
 ): Promise<Snapshot> {
   let text: string;
   try {
-    if (source !== "-") text = await readFile(resolve(cwd, source), "utf-8");
-    else if (io.stdin) text = await io.stdin();
-    else throw new Error("there is no stdin to read");
+    if (source !== "-") {
+      text = await readFile(resolve(cwd, source), "utf-8");
+    } else if (io.stdin) {
+      text = await io.stdin();
+    } else {
+      throw new Error("there is no stdin to read");
+    }
   } catch (cause) {
     throw new MetadataRejectedError(
       `Could not read ${source === "-" ? "stdin" : source}: ${errorText(cause)}`,
@@ -207,12 +211,16 @@ export async function runMetadataGen(
   }
 
   const refused = refuseRowConditionedBuckets(config);
-  if (refused) return refused;
+  if (refused) {
+    return refused;
+  }
   const { contents, warnings } = await renderEmit(config, snapshot, emit);
   io.stdout(contents);
   const notices = await generationNotices(snapshot, warnings);
   const shown =
     emit === "types" ? notices : notices.filter((line) => line !== UNFORMATTED);
-  for (const line of shown) io.stderr(`${line}\n`);
+  for (const line of shown) {
+    io.stderr(`${line}\n`);
+  }
   return { code: 0 };
 }

@@ -21,7 +21,7 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
-import { checkRole, roleValue } from "./organizations.ts";
+import { checkRole, roleValue } from "./organizations-roles.ts";
 
 /** The `app_metadata` key that marks an `auth.users` row as a service principal. */
 const SERVICE_PRINCIPAL_CLAIM = "bs_service_principal";
@@ -66,7 +66,9 @@ const NAMES: ModuleNames = {
 const extrasOf = (ctx: ModuleContext) => ctx.extraColumns("principals");
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const extras = extrasOf(ctx);
   const t = ctx.table("principals");
   const c = (column: string): string => ctx.col("principals", column);

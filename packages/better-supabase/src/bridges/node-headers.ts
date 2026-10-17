@@ -21,9 +21,16 @@ function first(
 export function toWebHeaders(incoming: NodeIncomingHeaders): Headers {
   const headers = new Headers();
   for (const [name, value] of Object.entries(incoming)) {
-    if (value === undefined || name.startsWith(":")) continue;
-    if (typeof value === "string") headers.set(name, value);
-    else for (const item of value) headers.append(name, item);
+    if (value === undefined || name.startsWith(":")) {
+      continue;
+    }
+    if (typeof value === "string") {
+      headers.set(name, value);
+    } else {
+      for (const item of value) {
+        headers.append(name, item);
+      }
+    }
   }
   return headers;
 }
@@ -78,7 +85,9 @@ export function applyWebHeaders(
   headers: Headers,
 ): void {
   const append = (name: string, values: readonly string[]): void => {
-    if (values.length === 0) return;
+    if (values.length === 0) {
+      return;
+    }
     const existing = target.getHeader(name);
     const before =
       existing === undefined
@@ -90,8 +99,13 @@ export function applyWebHeaders(
   };
   append("set-cookie", headers.getSetCookie());
   for (const [name, value] of headers) {
-    if (name === "set-cookie") continue;
-    if (name === "server-timing") append(name, [value]);
-    else target.setHeader(name, value);
+    if (name === "set-cookie") {
+      continue;
+    }
+    if (name === "server-timing") {
+      append(name, [value]);
+    } else {
+      target.setHeader(name, value);
+    }
   }
 }

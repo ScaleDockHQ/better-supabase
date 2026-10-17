@@ -188,7 +188,9 @@ function promotionData(
 }
 
 function codesOf(value: unknown): readonly PromotionCode[] {
-  if (!Array.isArray(value)) return [];
+  if (!Array.isArray(value)) {
+    return [];
+  }
   return value.filter(isRecord).map((entry) => ({
     id: textOf(entry["id"]),
     code: textOf(entry["code"]),

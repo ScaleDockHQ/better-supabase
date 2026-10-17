@@ -29,7 +29,9 @@ function fakeUsage(fail = false) {
   }[] = [];
   const usage: Pick<Usage, "recordMany"> = {
     recordMany: (organizationId, entries, options) => {
-      if (fail) return AsyncResult.err(dbError("network", "down"));
+      if (fail) {
+        return AsyncResult.err(dbError("network", "down"));
+      }
       rows.push({ organizationId, entries, options });
       return AsyncResult.ok({ recorded: entries.length } as never);
     },

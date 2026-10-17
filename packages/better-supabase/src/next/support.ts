@@ -24,21 +24,34 @@ export function shouldCheckSession(
   request: NextRequest,
   options: EndedSessionOptions = {},
 ): boolean {
-  if (request.method !== "GET" && request.method !== "HEAD") return false;
-  if (isPrefetch(request)) return false;
-  if (request.headers.get("sec-fetch-dest") === "document") return true;
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    return false;
+  }
+  if (isPrefetch(request)) {
+    return false;
+  }
+  if (request.headers.get("sec-fetch-dest") === "document") {
+    return true;
+  }
   return options.paths?.includes(request.nextUrl.pathname) ?? false;
 }
 
 /** Page loads, client navigations and server actions; never prefetches or assets. */
 export function shouldRefresh(request: Request): boolean {
   const h = request.headers;
-  if (request.method !== "GET" && request.method !== "HEAD")
+  if (request.method !== "GET" && request.method !== "HEAD") {
     return h.has("next-action");
-  if (isPrefetch(request)) return false;
-  if (h.get("rsc") === "1") return true;
+  }
+  if (isPrefetch(request)) {
+    return false;
+  }
+  if (h.get("rsc") === "1") {
+    return true;
+  }
   const dest = h.get("sec-fetch-dest");
-  if (dest) return dest === "document";
+  if (dest) {
+    return dest === "document";
+  }
   return h.get("accept")?.includes("text/html") ?? false;
 }
 
@@ -60,11 +73,19 @@ export function requireAal(
 ): (auth: AuthState, request: NextRequest) => Response | undefined {
   return (auth, request) => {
     const { pathname, search } = request.nextUrl;
-    if (options.redirect !== undefined && pathname === options.redirect) return;
-    if (options.match && !options.match(pathname)) return;
+    if (options.redirect !== undefined && pathname === options.redirect) {
+      return;
+    }
+    if (options.match && !options.match(pathname)) {
+      return;
+    }
     const denied = checkAal(auth, level);
-    if (!denied) return;
-    if (options.redirect === undefined) return problemResponse(denied);
+    if (!denied) {
+      return;
+    }
+    if (options.redirect === undefined) {
+      return problemResponse(denied);
+    }
     const target = new URL(options.redirect, request.url);
     target.searchParams.set("next", `${pathname}${search}`);
     return NextResponse.redirect(target);

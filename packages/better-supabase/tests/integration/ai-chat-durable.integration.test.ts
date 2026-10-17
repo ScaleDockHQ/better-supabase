@@ -366,8 +366,9 @@ describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
         "better_supabase.save_ai_harness_session($1, 'claude', '{}')",
         "better_supabase.lock_ai_harness_session($1, 'claude', 'me')",
         "better_supabase.unlock_ai_harness_session($1, 'claude', 'me')",
-      ])
+      ]) {
         expect(await s.hint(call, [chat])).toBe("AI_CHAT_FORBIDDEN");
+      }
 
       await s.asRole(owner);
       expect(

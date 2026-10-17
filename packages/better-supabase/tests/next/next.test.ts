@@ -550,13 +550,21 @@ describe("createNext", () => {
 
   it("guards route handlers and answers with Problem Details", async () => {
     const handler = bs.route<{ id: string }>(async (_request, ctx) => {
-      if (ctx.params.id === "missing")
+      if (ctx.params.id === "missing") {
         throw new DbException(dbError("not_found", "No customer"));
-      if (ctx.params.id === "result")
+      }
+      if (ctx.params.id === "result") {
         return { ok: false, data: null, error: dbError("conflict", "Taken") };
-      if (ctx.params.id === "crash") throw new Error("secret detail");
-      if (ctx.params.id === "redirect") redirect("/login");
-      if (ctx.params.id === "gone") notFound();
+      }
+      if (ctx.params.id === "crash") {
+        throw new Error("secret detail");
+      }
+      if (ctx.params.id === "redirect") {
+        redirect("/login");
+      }
+      if (ctx.params.id === "gone") {
+        notFound();
+      }
       if (ctx.params.id === "wrapped") {
         try {
           redirect("/login");
@@ -708,8 +716,9 @@ describe("createNext", () => {
         }),
       },
       async (input, ctx) => {
-        if (input.name === "boom")
+        if (input.name === "boom") {
           throw new DbException(dbError("conflict", "Taken"));
+        }
         return {
           ...input,
           by: ctx.auth.kind === "user" ? ctx.auth.user.id : null,

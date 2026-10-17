@@ -98,11 +98,16 @@ const omitUndefined = (value: Json): Json =>
 function collectRefs(value: unknown, out: Set<string>): void {
   if (Array.isArray(value)) {
     // SAFETY: Array.isArray narrows to any[]; each item is read as unknown.
-    for (const item of value as readonly unknown[]) collectRefs(item, out);
+    for (const item of value as readonly unknown[]) {
+      collectRefs(item, out);
+    }
   } else if (isPlainObject(value)) {
     for (const [key, item] of Object.entries(value)) {
-      if (key === "$ref" && typeof item === "string") out.add(item);
-      else collectRefs(item, out);
+      if (key === "$ref" && typeof item === "string") {
+        out.add(item);
+      } else {
+        collectRefs(item, out);
+      }
     }
   }
 }
@@ -113,7 +118,9 @@ function uses2020(value: unknown): boolean {
     const items = value as readonly unknown[];
     return items.some(uses2020);
   }
-  if (!isPlainObject(value)) return false;
+  if (!isPlainObject(value)) {
+    return false;
+  }
   return Object.entries(value).some(
     ([key, item]) => KEYWORDS_2020.has(key) || uses2020(item),
   );
@@ -130,25 +137,35 @@ function referencedSchemas(
     const refs = new Set<string>();
     collectRefs(value, refs);
     for (const ref of refs) {
-      if (!ref.startsWith(SCHEMA_PREFIX)) continue;
+      if (!ref.startsWith(SCHEMA_PREFIX)) {
+        continue;
+      }
       const name = ref
         .slice(SCHEMA_PREFIX.length)
         .replaceAll("~1", "/")
         .replaceAll("~0", "~");
-      if (name in out || !model.schemas[name]) continue;
+      if (name in out || !model.schemas[name]) {
+        continue;
+      }
       out[name] = model.schemas[name];
       pending.push(name);
     }
   };
-  for (const root of roots) visit(root);
+  for (const root of roots) {
+    visit(root);
+  }
   while (pending.length > 0) {
     const name = pending.pop();
-    if (name !== undefined) visit(out[name]);
+    if (name !== undefined) {
+      visit(out[name]);
+    }
   }
   const sorted: Record<string, JsonSchema> = {};
   for (const name of Object.keys(out).toSorted()) {
     const schema = out[name];
-    if (schema) sorted[name] = structuredClone(schema);
+    if (schema) {
+      sorted[name] = structuredClone(schema);
+    }
   }
   return sorted;
 }
@@ -283,7 +300,9 @@ function lowerAsyncApi(
 ): AnyAsyncApiDocument {
   const prefix = model.extensionPrefix;
   const keyOf = (id: string, where: string): string => {
-    if (KEY.test(id)) return id;
+    if (KEY.test(id)) {
+      return id;
+    }
     const key = safeKey(id);
     ctx.report({
       code: "asyncapi-key-invalid",
@@ -296,18 +315,21 @@ function lowerAsyncApi(
   const securitySchemes: Json = {};
   for (const [name, scheme] of Object.entries(model.securitySchemes)) {
     const lowered = lowerScheme(name, scheme, ctx);
-    if (lowered) securitySchemes[safeKey(name)] = lowered;
+    if (lowered) {
+      securitySchemes[safeKey(name)] = lowered;
+    }
   }
   const security: Json[] = [];
   for (const requirement of model.security) {
     const names = Object.keys(requirement);
-    if (names.length > 1)
+    if (names.length > 1) {
       ctx.report({
         code: "asyncapi-security-combined",
         severity: "info",
         message: `A requirement that needs ${names.join(" and ")} together is listed as alternatives; AsyncAPI security lists have no AND`,
         pointer: "/security",
       });
+    }
     for (const name of names) {
       const key = safeKey(name);
       if (
@@ -315,16 +337,19 @@ function lowerAsyncApi(
         !security.some(
           (entry) => entry["$ref"] === `#/components/securitySchemes/${key}`,
         )
-      )
+      ) {
         security.push({ $ref: `#/components/securitySchemes/${key}` });
+      }
     }
   }
 
   const webhookMessages = model.webhooks.map(webhookMessage);
   const allMessages: Record<string, ModelMessage> = { ...model.messages };
-  for (const message of webhookMessages) allMessages[message.id] = message;
+  for (const message of webhookMessages) {
+    allMessages[message.id] = message;
+  }
   const channels: ModelChannel[] = [...model.channels];
-  if (webhookMessages.length > 0)
+  if (webhookMessages.length > 0) {
     channels.push({
       id: "webhooks",
       address: "",
@@ -340,6 +365,7 @@ function lowerAsyncApi(
         messages: [webhookMessages[index]?.id ?? webhook.id],
       })),
     });
+  }
 
   const servers: Json = {};
   const wsServers: Json[] = [];
@@ -360,14 +386,15 @@ function lowerAsyncApi(
     if (server) {
       servers["realtime"] = server;
       wsServers.push({ $ref: "#/servers/realtime" });
-    } else
+    } else {
       ctx.report({
         code: "asyncapi-realtime-url-invalid",
         severity: "error",
         message: `realtimeUrl "${model.realtimeUrl}" is not an absolute URL`,
         pointer: "/servers/realtime",
       });
-  } else if (hasWs)
+    }
+  } else if (hasWs) {
     ctx.report({
       code: "asyncapi-server-missing",
       severity: "warning",
@@ -375,7 +402,8 @@ function lowerAsyncApi(
         "Realtime channels are described without a server; set realtimeUrl to add the Realtime websocket",
       pointer: "/servers",
     });
-  if (hasHttp)
+  }
+  if (hasHttp) {
     model.servers.forEach((entry, index) => {
       const key = safeKey(
         entry.name ?? (index === 0 ? "api" : `api${String(index + 1)}`),
@@ -385,10 +413,13 @@ function lowerAsyncApi(
         omitUndefined({ description: entry.description }),
         false,
       );
-      if (!server || key in servers) return;
+      if (!server || key in servers) {
+        return;
+      }
       servers[key] = server;
       httpServers.push({ $ref: `#/servers/${key}` });
     });
+  }
 
   const messageKeys = new Map<string, string>();
   const messages: Json = {};
@@ -396,13 +427,14 @@ function lowerAsyncApi(
     const key = keyOf(id, "Message");
     messageKeys.set(id, key);
     messages[key] = lowerMessage(message, prefix);
-    if (uses2020(message.payload) || uses2020(message.headers))
+    if (uses2020(message.payload) || uses2020(message.headers)) {
       ctx.report({
         code: "asyncapi-schema-dialect",
         severity: "warning",
         message: `Message "${id}" uses JSON Schema 2020-12 keywords that the AsyncAPI Schema Object (draft-07) does not define`,
         pointer: `/components/messages/${pointerToken(key)}`,
       });
+    }
   }
 
   const channelObjects: Json = {};
@@ -512,11 +544,15 @@ function lowerAsyncApi(
 
   for (const operation of model.operations) {
     const emits = operation.extensions[`${prefix}emits`];
-    if (!Array.isArray(emits)) continue;
+    if (!Array.isArray(emits)) {
+      continue;
+    }
     const byChannel = new Map<string, string[]>();
     // SAFETY: Array.isArray narrowed it; each entry is checked to be a string.
     for (const event of emits as readonly unknown[]) {
-      if (typeof event !== "string") continue;
+      if (typeof event !== "string") {
+        continue;
+      }
       const target = placed.find(({ channel }) =>
         channel.messages.some((id) => {
           const message = allMessages[id];
@@ -572,8 +608,9 @@ function lowerAsyncApi(
   }
 
   const traits: Json = {};
-  for (const [name, trait] of Object.entries(model.messageTraits ?? {}))
+  for (const [name, trait] of Object.entries(model.messageTraits ?? {})) {
     traits[safeKey(name)] = lowerTrait(trait);
+  }
 
   const schemas = referencedSchemas(model, [
     Object.values(messages),
@@ -604,10 +641,11 @@ function lowerAsyncApi(
         Object.keys(securitySchemes).length > 0 ? securitySchemes : undefined,
     }),
   });
-  if (!isAsyncApiDocument(document))
+  if (!isAsyncApiDocument(document)) {
     throw new TypeError(
       "better-supabase/asyncapi: lowering lost a required field",
     );
+  }
   return document;
 }
 
@@ -622,11 +660,15 @@ function isAsyncApiDocument(value: Json): value is Json & AnyAsyncApiDocument {
 }
 
 function resolve(document: unknown, ref: string): unknown {
-  if (!ref.startsWith("#/")) return undefined;
+  if (!ref.startsWith("#/")) {
+    return undefined;
+  }
   let node: unknown = document;
   for (const raw of ref.slice(2).split("/")) {
     const key = raw.replaceAll("~1", "/").replaceAll("~0", "~");
-    if (!isPlainObject(node)) return undefined;
+    if (!isPlainObject(node)) {
+      return undefined;
+    }
     node = node[key];
   }
   return node;
@@ -642,22 +684,25 @@ function lintAsyncApi(document: AnyAsyncApiDocument): SpecDiagnostic[] {
   const diagnostics: SpecDiagnostic[] = [];
   const refs = new Set<string>();
   collectRefs(document, refs);
-  for (const ref of refs)
-    if (ref.startsWith("#") && resolve(document, ref) === undefined)
+  for (const ref of refs) {
+    if (ref.startsWith("#") && resolve(document, ref) === undefined) {
       diagnostics.push({
         code: "asyncapi-ref-unresolved",
         severity: "error",
         message: `$ref "${ref}" does not resolve inside the document`,
       });
+    }
+  }
   for (const [key, channel] of Object.entries(document.channels)) {
     const pointer = `/channels/${pointerToken(key)}`;
-    if (!KEY.test(key))
+    if (!KEY.test(key)) {
       diagnostics.push({
         code: "asyncapi-key-invalid",
         severity: "error",
         message: `Channel id "${key}" has characters AsyncAPI keys do not allow`,
         pointer,
       });
+    }
     const address = channel["address"];
     const names = new Set(
       typeof address === "string"
@@ -667,22 +712,26 @@ function lintAsyncApi(document: AnyAsyncApiDocument): SpecDiagnostic[] {
     const parameters = isPlainObject(channel["parameters"])
       ? Object.keys(channel["parameters"])
       : [];
-    for (const name of parameters)
-      if (!names.has(name))
+    for (const name of parameters) {
+      if (!names.has(name)) {
         diagnostics.push({
           code: "asyncapi-parameter-unknown",
           severity: "error",
           message: `Parameter "${name}" is not in the address of channel "${key}"`,
           pointer: `${pointer}/parameters`,
         });
-    for (const name of names)
-      if (!parameters.includes(name))
+      }
+    }
+    for (const name of names) {
+      if (!parameters.includes(name)) {
         diagnostics.push({
           code: "asyncapi-parameter-missing",
           severity: "error",
           message: `Address expression "{${name}}" of channel "${key}" has no parameter`,
           pointer: `${pointer}/parameters`,
         });
+      }
+    }
   }
   for (const [key, operation] of Object.entries(document.operations)) {
     const pointer = `/operations/${pointerToken(key)}`;
@@ -701,13 +750,14 @@ function lintAsyncApi(document: AnyAsyncApiDocument): SpecDiagnostic[] {
       : [];
     for (const entry of list) {
       const ref = refOf(entry);
-      if (!ref?.startsWith(`${channelRef}/messages/`))
+      if (!ref?.startsWith(`${channelRef}/messages/`)) {
         diagnostics.push({
           code: "asyncapi-operation-message-unknown",
           severity: "error",
           message: `Operation "${key}" lists a message outside its channel`,
           pointer: `${pointer}/messages`,
         });
+      }
     }
   }
   return diagnostics;

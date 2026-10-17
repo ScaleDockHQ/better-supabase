@@ -178,7 +178,9 @@ describe("generateInviteCode", () => {
   it("draws from an alphabet without look-alike characters", () => {
     const codes = new Set(Array.from({ length: 50 }, generateInviteCode));
     expect(codes.size).toBe(50);
-    for (const value of codes) expect(value).not.toMatch(/[01IO]/);
+    for (const value of codes) {
+      expect(value).not.toMatch(/[01IO]/);
+    }
   });
 });
 
@@ -233,7 +235,9 @@ describe("waitlistHook", () => {
   it("reads another field, says its own message and fails closed", async () => {
     let fail = false;
     const { call, transport } = fake(() => {
-      if (fail) throw Object.assign(new Error("down"), { code: "08006" });
+      if (fail) {
+        throw Object.assign(new Error("down"), { code: "08006" });
+      }
       return { allowed: false };
     });
     const hook = waitlistHook({

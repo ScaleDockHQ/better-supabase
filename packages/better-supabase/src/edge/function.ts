@@ -68,10 +68,13 @@ export interface FunctionDefinition<
 }
 
 async function readInput(request: Request): Promise<Result<unknown>> {
-  if (request.method === "GET" || request.method === "HEAD")
+  if (request.method === "GET" || request.method === "HEAD") {
     return ok(undefined);
+  }
   const text = await request.text();
-  if (text === "") return ok(undefined);
+  if (text === "") {
+    return ok(undefined);
+  }
   try {
     return ok(JSON.parse(text));
   } catch {
@@ -109,15 +112,22 @@ export function defineFunction<
   const { input, output, summary, handler, ...options } = definition;
   const fn = edge.handler(async (request, ctx) => {
     const body = await readInput(request);
-    if (!body.ok) return body;
+    if (!body.ok) {
+      return body;
+    }
     const parsed = await validate(input, body.data, "input");
-    if (!parsed.ok) return parsed;
+    if (!parsed.ok) {
+      return parsed;
+    }
     const settled = await settle(() =>
       handler(parsed.data, withExtra(ctx, { request })),
     );
-    if (!settled.ok) return err(settled.error);
-    if (output === undefined || settled.data instanceof Response)
+    if (!settled.ok) {
+      return err(settled.error);
+    }
+    if (output === undefined || settled.data instanceof Response) {
       return settled.data;
+    }
     const checked = await validate(output, settled.data, "output");
     return checked.ok
       ? checked.data

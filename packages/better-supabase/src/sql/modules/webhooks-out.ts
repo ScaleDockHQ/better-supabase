@@ -149,7 +149,9 @@ function added(
 }
 
 function tables(ctx: ModuleContext, n: HookNames): string {
-  if (!ctx.manages) return "";
+  if (!ctx.manages) {
+    return "";
+  }
   const id = ctx.idType;
   const d = (logical: string) => n.col("endpoints", logical);
   const s = (logical: string) => n.col("secrets", logical);
@@ -309,8 +311,9 @@ function reenable(ctx: ModuleContext, n: HookNames): string {
       : "",
   ].filter(Boolean);
   const trigger = ctx.trigger("webhook_endpoint_reenable");
-  if (resets.length === 0)
+  if (resets.length === 0) {
     return `drop trigger if exists ${trigger} on ${n.table("endpoints")};`;
+  }
   return `
 create or replace function ${ctx.fn("reset_webhook_endpoint")}()
 returns trigger
@@ -334,7 +337,9 @@ create trigger ${trigger} before update of ${d("enabled")} on ${n.table("endpoin
 function vaultCleanup(ctx: ModuleContext, n: HookNames): string {
   const t = n.table("secrets");
   const trigger = ctx.trigger("webhook_secret_vault");
-  if (!n.vault) return `drop trigger if exists ${trigger} on ${t};`;
+  if (!n.vault) {
+    return `drop trigger if exists ${trigger} on ${t};`;
+  }
   return `
 create or replace function ${ctx.fn("drop_webhook_vault_secret")}()
 returns trigger
@@ -354,7 +359,9 @@ create trigger ${trigger} after delete on ${t}
 }
 
 function build(ctx: ModuleContext, layout: ModuleLayout): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const n = hookNames(ctx, layout);
   return [
     `${schemaPreamble(ctx)}${tables(ctx, n)}`,

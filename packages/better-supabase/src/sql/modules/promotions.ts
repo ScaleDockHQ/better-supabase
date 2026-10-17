@@ -231,7 +231,9 @@ function namesOf(ctx: ModuleContext): PromotionsNames {
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const names = namesOf(ctx);
   return `${schemaPreamble(ctx)}
 -- Promotions (percentage, fixed or free shipping), automatic or by code,

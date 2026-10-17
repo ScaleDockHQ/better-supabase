@@ -17,12 +17,15 @@ const ESCAPES: Readonly<Record<string, string>> = {
  * its segments. Throws for anything else, because the engine promised one.
  */
 export function parseNormalizedPath(path: string): PathSegment[] {
-  if (!path.startsWith("$"))
+  if (!path.startsWith("$")) {
     throw new TypeError(`Not a normalized path: ${path}`);
+  }
   const segments: PathSegment[] = [];
   let i = 1;
   while (i < path.length) {
-    if (path[i] !== "[") throw new TypeError(`Not a normalized path: ${path}`);
+    if (path[i] !== "[") {
+      throw new TypeError(`Not a normalized path: ${path}`);
+    }
     i++;
     if (path[i] === "'") {
       i++;
@@ -43,21 +46,24 @@ export function parseNormalizedPath(path: string): PathSegment[] {
           continue;
         }
         const escaped = ESCAPES[next];
-        if (escaped === undefined)
+        if (escaped === undefined) {
           throw new TypeError(`Not a normalized path: ${path}`);
+        }
         name += escaped;
         i += 2;
       }
-      if (path[i] !== "'" || path[i + 1] !== "]")
+      if (path[i] !== "'" || path[i + 1] !== "]") {
         throw new TypeError(`Not a normalized path: ${path}`);
+      }
       segments.push(name);
       i += 2;
       continue;
     }
     const end = path.indexOf("]", i);
     const digits = end === -1 ? "" : path.slice(i, end);
-    if (!/^(?:0|[1-9]\d*)$/.test(digits))
+    if (!/^(?:0|[1-9]\d*)$/.test(digits)) {
       throw new TypeError(`Not a normalized path: ${path}`);
+    }
     segments.push(Number(digits));
     i = end + 1;
   }
@@ -70,15 +76,25 @@ function quote(name: string): string {
   let out = "";
   for (const char of name) {
     const code = char.codePointAt(0) ?? 0;
-    if (char === "\\") out += "\\\\";
-    else if (char === "'") out += "\\'";
-    else if (char === "\b") out += "\\b";
-    else if (char === "\f") out += "\\f";
-    else if (char === "\n") out += "\\n";
-    else if (char === "\r") out += "\\r";
-    else if (char === "\t") out += "\\t";
-    else if (code < 0x20) out += `\\u${code.toString(16).padStart(4, "0")}`;
-    else out += char;
+    if (char === "\\") {
+      out += "\\\\";
+    } else if (char === "'") {
+      out += "\\'";
+    } else if (char === "\b") {
+      out += "\\b";
+    } else if (char === "\f") {
+      out += "\\f";
+    } else if (char === "\n") {
+      out += "\\n";
+    } else if (char === "\r") {
+      out += "\\r";
+    } else if (char === "\t") {
+      out += "\\t";
+    } else if (code < 0x20) {
+      out += `\\u${code.toString(16).padStart(4, "0")}`;
+    } else {
+      out += char;
+    }
   }
   return `['${out}']`;
 }
@@ -90,9 +106,13 @@ function quote(name: string): string {
 export function formatPath(segments: readonly PathSegment[]): string {
   let out = "$";
   for (const segment of segments) {
-    if (typeof segment === "number") out += `[${segment}]`;
-    else if (SHORTHAND.test(segment)) out += `.${segment}`;
-    else out += quote(segment);
+    if (typeof segment === "number") {
+      out += `[${segment}]`;
+    } else if (SHORTHAND.test(segment)) {
+      out += `.${segment}`;
+    } else {
+      out += quote(segment);
+    }
   }
   return out;
 }

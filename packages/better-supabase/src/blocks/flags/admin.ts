@@ -90,7 +90,9 @@ const rowOf = (
 ): Record<string, unknown> => {
   const row: Record<string, unknown> = {};
   const set = (name: string, value: unknown): void => {
-    if (value !== undefined) row[name] = value;
+    if (value !== undefined) {
+      row[name] = value;
+    }
   };
   set("type", input.type);
   set("description", input.description);
@@ -130,7 +132,9 @@ export function createFlags<S extends StandardSchemaV1 | undefined = undefined>(
       const out: FlagRecord<F>[] = [];
       for (const flag of flags) {
         const parsed = await recordOf(fields, flag);
-        if (!parsed.ok) return parsed;
+        if (!parsed.ok) {
+          return parsed;
+        }
         out.push(parsed.data);
       }
       return ok(out);

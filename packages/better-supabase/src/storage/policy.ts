@@ -19,7 +19,9 @@ export function policyChecks(
   policy: BucketPolicyName | AccessBucketPolicy,
   segmentOf: (kind: string) => number,
 ): PolicyChecks | undefined {
-  if (typeof policy === "string") return undefined;
+  if (typeof policy === "string") {
+    return undefined;
+  }
   const where = `defineBucket(${config.id})`;
   const segment =
     policy.segment ??

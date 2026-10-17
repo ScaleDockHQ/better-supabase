@@ -136,7 +136,9 @@ export type Placeholder =
   | { readonly kind: "auth"; readonly name: "uid"; readonly array: boolean };
 
 function tagged(name: string, array: boolean): Placeholder | undefined {
-  if (!name.startsWith("@")) return { kind: "param", name, array };
+  if (!name.startsWith("@")) {
+    return { kind: "param", name, array };
+  }
   return name === "@uid" ? { kind: "auth", name: "uid", array } : undefined;
 }
 
@@ -240,7 +242,9 @@ function warnUnscopedReads(
     (plugin) =>
       plugin.transformQuery !== undefined && plugin.scopes?.length !== 0,
   );
-  if (filtering.length === 0) return;
+  if (filtering.length === 0) {
+    return;
+  }
   const { meta } = betterSupabase;
   const filters = (plugin: AnyPlugin, key: string): boolean => {
     const flags = meta.tables[key]?.flags;
@@ -255,7 +259,9 @@ function warnUnscopedReads(
   const tables = read.filter((key) =>
     filtering.some((plugin) => filters(plugin, key)),
   );
-  if (tables.length === 0) return;
+  if (tables.length === 0) {
+    return;
+  }
   const scoping = filtering
     .filter((plugin) => tables.some((key) => filters(plugin, key)))
     .map((plugin) => plugin.name);
@@ -295,13 +301,16 @@ export function splitPlaceholders(
   const parts: ({ text: string } | Placeholder)[] = [];
   let last = 0;
   for (const match of value.matchAll(SENTINEL)) {
-    if (match.index > last)
+    if (match.index > last) {
       parts.push({ text: value.slice(last, match.index) });
+    }
     const placeholder = tagged(match[1]!, false);
     parts.push(placeholder ?? { text: match[0] });
     last = match.index + match[0].length;
   }
-  if (last < value.length) parts.push({ text: value.slice(last) });
+  if (last < value.length) {
+    parts.push({ text: value.slice(last) });
+  }
   return parts;
 }
 
@@ -311,8 +320,12 @@ export function hasPlaceholder(value: string): boolean {
 
 /** Whether any string inside `value` is (or holds) a placeholder. */
 export function containsPlaceholder(value: unknown): boolean {
-  if (typeof value === "string") return hasPlaceholder(value);
-  if (Array.isArray(value)) return value.some(containsPlaceholder);
+  if (typeof value === "string") {
+    return hasPlaceholder(value);
+  }
+  if (Array.isArray(value)) {
+    return value.some(containsPlaceholder);
+  }
   if (typeof value === "object" && value !== null) {
     return Object.values(value).some(containsPlaceholder);
   }
@@ -330,7 +343,9 @@ function usesAuth(value: unknown): boolean {
       match[1]!.startsWith("@"),
     );
   }
-  if (Array.isArray(value)) return value.some(usesAuth);
+  if (Array.isArray(value)) {
+    return value.some(usesAuth);
+  }
   if (typeof value === "object" && value !== null) {
     return Object.values(value).some(usesAuth);
   }
@@ -381,16 +396,22 @@ export function bindParams(
       return placeholder.kind === "auth" && placeholder.array ? [bound] : bound;
     }
     if (typeof value === "string") {
-      if (!hasPlaceholder(value)) return value;
+      if (!hasPlaceholder(value)) {
+        return value;
+      }
       return splitPlaceholders(value)
         .map((part) =>
           "text" in part ? part.text : String(valueOf(part) ?? ""),
         )
         .join("");
     }
-    if (Array.isArray(value)) return value.map(bind);
+    if (Array.isArray(value)) {
+      return value.map(bind);
+    }
     if (typeof value === "object" && value !== null) {
-      if (Object.getPrototypeOf(value) !== Object.prototype) return value;
+      if (Object.getPrototypeOf(value) !== Object.prototype) {
+        return value;
+      }
       return Object.fromEntries(
         Object.entries(value).map(([key, entry]) => [key, bind(entry)]),
       );

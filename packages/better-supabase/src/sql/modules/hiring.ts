@@ -140,7 +140,9 @@ const NAMES: ModuleNames = {
 };
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const keys = moduleOperations("hiring");
   const read = ctx.permission("read", keys.read);
   const write = ctx.permission("write", keys.write);

@@ -118,7 +118,9 @@ function HelpChat() {
         onSubmit={(event) => {
           event.preventDefault();
           const message = body.trim();
-          if (message === "") return;
+          if (message === "") {
+            return;
+          }
           setSending(true);
           widget
             .submit(message)

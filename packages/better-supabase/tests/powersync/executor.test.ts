@@ -607,7 +607,9 @@ describe("watch", () => {
     const stop = watch(db, () => client.tags.count(), {
       tables: sqliteTables(betterSupabase, ["tags"]),
       onResult: (result) => {
-        if (result.ok) results.push(result.data);
+        if (result.ok) {
+          results.push(result.data);
+        }
       },
     });
     await tick();
@@ -636,7 +638,9 @@ describe("watch", () => {
       {
         tables: sqliteTables(betterSupabase, ["tags"]),
         onResult: (result) => {
-          if (result.ok) results.push(result.data);
+          if (result.ok) {
+            results.push(result.data);
+          }
         },
       },
     );

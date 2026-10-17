@@ -86,7 +86,9 @@ export async function render(
     { path: metaFiles.dts, contents: meta.dts },
   ];
   const blockConfig = emitBlockConfig(config, runtime);
-  if (blockConfig) files.push(blockConfig);
+  if (blockConfig) {
+    files.push(blockConfig);
+  }
   const owners = new Map(
     files.map((file) => [resolve(config.root, file.path), "gen"]),
   );

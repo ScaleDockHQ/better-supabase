@@ -137,8 +137,9 @@ function planAction<Ref>(
   const params: string[] = [];
   for (const segment of segments) {
     const match = /^\{(\w+)\}$/u.exec(segment);
-    if (match) params.push(match[1]!);
-    else if (segment === "" || /[{}]/u.test(segment)) {
+    if (match) {
+      params.push(match[1]!);
+    } else if (segment === "" || /[{}]/u.test(segment)) {
       throw new TypeError(
         `${table}.actions.${name}: "${action.path}" has an invalid segment`,
       );
@@ -163,7 +164,9 @@ export function planResource<Ref = string>(
   authorizer?: AnyAuthorizer,
 ): ResourcePlan<Ref> {
   const meta = schema.tables[table];
-  if (!meta) throw new TypeError(`Unknown table "${table}"`);
+  if (!meta) {
+    throw new TypeError(`Unknown table "${table}"`);
+  }
   const operations: readonly ResourceOperation[] =
     description.operations ??
     (meta.kind === "view"
@@ -187,16 +190,21 @@ export function planResource<Ref = string>(
     for (const operation of operations) {
       // SAFETY: forOperation returns the authorizer's own reference type, Ref.
       const ref = authorizer.forOperation(table, operation) as Ref | undefined;
-      if (ref !== undefined) permissions[operation] = ref;
+      if (ref !== undefined) {
+        permissions[operation] = ref;
+      }
     }
   } else if (description.permissions) {
     for (const [operation, ref] of Object.entries(description.permissions)) {
-      if (ref !== undefined) permissions[operation] = ref;
+      if (ref !== undefined) {
+        permissions[operation] = ref;
+      }
     }
   }
   for (const action of actions) {
-    if (action.permission !== undefined)
+    if (action.permission !== undefined) {
       permissions[action.name] = action.permission;
+    }
   }
   return {
     table,
@@ -225,7 +233,9 @@ export function matchAction<Ref>(
   | undefined {
   let wrongMethod = false;
   for (const action of plan.actions) {
-    if (action.segments.length !== segments.length) continue;
+    if (action.segments.length !== segments.length) {
+      continue;
+    }
     const params: Record<string, string> = {};
     const fits = action.segments.every((segment, index) => {
       const value = segments[index]!;
@@ -235,8 +245,12 @@ export function matchAction<Ref>(
       }
       return segment === value;
     });
-    if (!fits) continue;
-    if (action.method === method) return { action, params };
+    if (!fits) {
+      continue;
+    }
+    if (action.method === method) {
+      return { action, params };
+    }
     wrongMethod = true;
   }
   return wrongMethod ? "method" : undefined;

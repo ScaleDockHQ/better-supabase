@@ -480,7 +480,9 @@ export function createModuleContext(
             `${where}.columns.${table}.${column} is required and can't be null`,
           );
         }
-      } else checkIdent(`${where}.columns.${table}.${column}`, name);
+      } else {
+        checkIdent(`${where}.columns.${table}.${column}`, name);
+      }
     }
   }
 
@@ -561,7 +563,9 @@ export function createModuleContext(
     requested.add(name);
     requested.add(renamed);
     const written = renames[name] ?? renames[renamed] ?? renamed;
-    if (written !== name) applied.set(name, written);
+    if (written !== name) {
+      applied.set(name, written);
+    }
     return written;
   };
 
@@ -614,7 +618,9 @@ export function createModuleContext(
     fallback: string | number | boolean,
   ): string | number | boolean {
     const value = option(name);
-    if (value === undefined) return fallback;
+    if (value === undefined) {
+      return fallback;
+    }
     if (
       typeof value !== "string" &&
       typeof value !== "number" &&
@@ -648,7 +654,9 @@ export function createModuleContext(
     }
   };
   const checkEvent = (event: ModuleEmit): void => {
-    if (!names.events) return;
+    if (!names.events) {
+      return;
+    }
     const spec: CheckedEventSpec | undefined = Object.entries(
       names.events,
     ).find(([type]) => type === event.type)?.[1];
@@ -671,7 +679,9 @@ export function createModuleContext(
     const missing = spec.payload.filter(
       (key) => !event.payload.includes(`'${key}'`),
     );
-    if (missing.length > 0) fault(`payload lacks ${missing.join(", ")}`);
+    if (missing.length > 0) {
+      fault(`payload lacks ${missing.join(", ")}`);
+    }
     const tenanted = event.tenant !== undefined && event.tenant !== "null";
     if (tenanted && !spec.payload.includes("organizationId")) {
       fault("has a tenant, so its payload needs organizationId");
@@ -682,7 +692,9 @@ export function createModuleContext(
   };
   const outbox = (event: ModuleEmit): string => {
     checkEvent(event);
-    if (!config.events || !installed.has("outbox")) return "";
+    if (!config.events || !installed.has("outbox")) {
+      return "";
+    }
     const outboxConfig = resolveModule(modules["outbox"]);
     const template =
       outboxConfig.options["blockSource"] ?? "better-supabase/{module}";
@@ -700,7 +712,9 @@ export function createModuleContext(
   };
   const auditEntry = (action: ModuleAction): string => {
     const audit = action.audit;
-    if (!audit || !config.audit || !installed.has("audit")) return "";
+    if (!audit || !config.audit || !installed.has("audit")) {
+      return "";
+    }
     // auditCategory is the deprecated per-module override of every category.
     const legacy = declared.has("auditCategory")
       ? config.options["auditCategory"]
@@ -834,7 +848,9 @@ export function createModuleContext(
     option,
     list(name, fallback) {
       const value = option(name);
-      if (value === undefined) return fallback;
+      if (value === undefined) {
+        return fallback;
+      }
       if (
         !Array.isArray(value) ||
         !value.every((item) => typeof item === "string")
@@ -845,7 +861,9 @@ export function createModuleContext(
     },
     extraColumns(table, reserved = []) {
       const value = option("extraColumns");
-      if (value === undefined) return [];
+      if (value === undefined) {
+        return [];
+      }
       const at = `${where}.options.extraColumns`;
       if (typeof value !== "object" || value === null || Array.isArray(value)) {
         throw new TypeError(`${at} must be an object`);
@@ -908,7 +926,9 @@ export function createModuleContext(
     },
     notify(fields, options = {}) {
       declares("notifications");
-      if (!installed.has("notifications")) return NOTHING;
+      if (!installed.has("notifications")) {
+        return NOTHING;
+      }
       const indent = options.indent ?? "  ";
       const target = createModuleContext("notifications", namesOf, source);
       return [
@@ -920,7 +940,9 @@ export function createModuleContext(
     },
     enqueue(queue, payload, dedupe) {
       declares("jobs");
-      if (!installed.has("jobs")) return NOTHING;
+      if (!installed.has("jobs")) {
+        return NOTHING;
+      }
       const jobs = createModuleContext("jobs", namesOf, source);
       return `perform ${jobs.fn("enqueue_job")}(queue => ${sqlString(queue)}, payload => ${payload}, dedupe_key => ${dedupe}, dedupe_running => false);`;
     },
@@ -929,7 +951,9 @@ export function createModuleContext(
     held,
     expired(kind, row) {
       const floor = lifecycle("retention_floor", sqlString(kind));
-      if (!floor) return `${row.at} < now() - ${row.fallback}`;
+      if (!floor) {
+        return `${row.at} < now() - ${row.fallback}`;
+      }
       return `(${row.at} < now() - least(${row.fallback}, ${floor})
       and ${row.at} < now() - ${retention(kind, row.tenant, row.fallback)}
       and not ${held(kind, row.tenant)})`;

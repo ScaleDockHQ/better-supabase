@@ -267,7 +267,9 @@ async function readValue(
   entry: SettingEntry,
   stored: unknown,
 ): Promise<unknown> {
-  if (stored === undefined) return entry.default;
+  if (stored === undefined) {
+    return entry.default;
+  }
   const parsed = await validate(entry.schema, stored);
   return parsed.ok ? parsed.data : entry.default;
 }
@@ -286,7 +288,9 @@ function reader(
   args: Readonly<Record<string, unknown>>,
   key: string | undefined,
 ): AsyncResult<unknown> {
-  if (key !== undefined && !(key in entries)) return unknownSetting(key);
+  if (key !== undefined && !(key in entries)) {
+    return unknownSetting(key);
+  }
   return call(fn, args, async (stored) => {
     const values = await merged(entries, stored);
     return key === undefined ? values : values[key];
@@ -303,7 +307,9 @@ function writer(
   value: unknown,
 ): AsyncResult<unknown> {
   const entry = entries[key];
-  if (!entry) return unknownSetting(key);
+  if (!entry) {
+    return unknownSetting(key);
+  }
   return AsyncResult.from(() =>
     validate(entry.schema, value, `setting "${key}"`),
   ).andThen((output) =>
@@ -318,6 +324,8 @@ function remover(
   args: Readonly<Record<string, unknown>>,
   key: string,
 ): AsyncResult<boolean> {
-  if (!(key in entries)) return unknownSetting(key);
+  if (!(key in entries)) {
+    return unknownSetting(key);
+  }
   return call(fn, { ...args, key }, (removed) => removed === true);
 }

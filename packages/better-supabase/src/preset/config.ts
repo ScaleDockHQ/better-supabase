@@ -23,8 +23,12 @@ export function presetOf(input: PresetInput): Preset {
     return { ...DEFAULT_CONVENTIONS, ...input, blocks: input.blocks ?? [] };
   }
   const value = /[?&]preset=([^&#]+)/.exec(input)?.[1] ?? input;
-  if (isPresetName(value)) return namedPreset(value);
-  if (isPresetCode(value)) return decodePreset(value).preset;
+  if (isPresetName(value)) {
+    return namedPreset(value);
+  }
+  if (isPresetCode(value)) {
+    return decodePreset(value).preset;
+  }
   throw new TypeError(
     `preset: "${input}" is not a preset. Use a name (${PRESET_NAMES.join(", ")}), a code from /create, or its URL.`,
   );
@@ -35,7 +39,9 @@ function conventionEntry(
   name: string,
   preset: Preset,
 ): BlockConfig | AccessBlockConfig {
-  if (name !== "access") return {};
+  if (name !== "access") {
+    return {};
+  }
   return {
     ...(preset.access === "roles" ? {} : { model: preset.access }),
     ...(preset.idType === "uuid" ? {} : { idType: preset.idType }),
@@ -85,8 +91,12 @@ function isBlockList(
 }
 
 function blocksOf(blocks: BetterSupabaseConfig["blocks"]): AnyBlocksConfig {
-  if (blocks === undefined) return {};
-  if (!isBlockList(blocks)) return blocks;
+  if (blocks === undefined) {
+    return {};
+  }
+  if (!isBlockList(blocks)) {
+    return blocks;
+  }
   return Object.fromEntries(blocks.map((name) => [name, {}]));
 }
 
@@ -99,7 +109,9 @@ function blocksOf(blocks: BetterSupabaseConfig["blocks"]): AnyBlocksConfig {
 export function expandPreset(
   config: BetterSupabaseConfig,
 ): BetterSupabaseConfig {
-  if (config.preset === undefined) return config;
+  if (config.preset === undefined) {
+    return config;
+  }
   const resolved = resolvePreset(presetOf(config.preset));
   if (resolved.conflicts.length > 0) {
     throw new TypeError(

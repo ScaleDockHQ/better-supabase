@@ -6,11 +6,18 @@ import { type Paint, plain } from "./style.ts";
 export const DIFF_LINES = 40;
 
 function paintLine(line: string, paint: Paint): string {
-  if (line.startsWith("---") || line.startsWith("+++"))
+  if (line.startsWith("---") || line.startsWith("+++")) {
     return paint("bold", line);
-  if (line.startsWith("@@")) return paint("cyan", line);
-  if (line.startsWith("+")) return paint("green", line);
-  if (line.startsWith("-")) return paint("red", line);
+  }
+  if (line.startsWith("@@")) {
+    return paint("cyan", line);
+  }
+  if (line.startsWith("+")) {
+    return paint("green", line);
+  }
+  if (line.startsWith("-")) {
+    return paint("red", line);
+  }
   return line;
 }
 

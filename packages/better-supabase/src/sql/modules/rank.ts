@@ -35,7 +35,9 @@ function cases(
   branch: (subject: RegisteredSubject) => string,
   otherwise: string,
 ): string {
-  if (subjects.length === 0) return otherwise;
+  if (subjects.length === 0) {
+    return otherwise;
+  }
   return `case ${selector}
 ${subjects.map((subject) => `    when ${sqlString(subject.type)} then\n${branch(subject)}`).join("\n")}
     else
@@ -124,7 +126,9 @@ function rebalanceBranch(
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
   const subjects = ranked(ctx);
   const fn = (name: string): string => ctx.fn(name);
   const unknown = fail(

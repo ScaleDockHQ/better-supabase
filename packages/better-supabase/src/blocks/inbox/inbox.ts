@@ -392,7 +392,9 @@ function conversationCursor(
 function compact(value: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [key, item] of Object.entries(value)) {
-    if (item === undefined) continue;
+    if (item === undefined) {
+      continue;
+    }
     out[key] =
       isRecord(item) && Object.getPrototypeOf(item) === Object.prototype
         ? compact(item)
@@ -574,8 +576,9 @@ export function createInbox(options: InboxOptions): Inbox {
           "mark_conversation_read",
           { conversation: conversationId },
           (value) => {
-            if (typeof value !== "string" && !(value instanceof Date))
+            if (typeof value !== "string" && !(value instanceof Date)) {
               throw new TypeError("mark_conversation_read returned no time");
+            }
             return toInstant(value);
           },
         ),

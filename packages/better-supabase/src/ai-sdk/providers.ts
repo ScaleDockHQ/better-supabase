@@ -36,8 +36,11 @@ export function byokOptions(
     const name =
       typeof field === "string" && field.length > 0 ? field : "apiKey";
     const entry: Record<string, JSONValue> = {};
-    for (const [option, value] of Object.entries(settings))
-      if (value !== undefined) entry[option] = jsonOf(value);
+    for (const [option, value] of Object.entries(settings)) {
+      if (value !== undefined) {
+        entry[option] = jsonOf(value);
+      }
+    }
     entry[name] = key.token;
     (byok[key.provider] ??= []).push(entry);
   }
@@ -89,7 +92,9 @@ export function trackedSandbox(
   let last = Number.NEGATIVE_INFINITY;
   const touch = (): void => {
     const at = now();
-    if (at - last < every) return;
+    if (at - last < every) {
+      return;
+    }
     last = at;
     void options.sandboxes.touch(options.id);
   };
@@ -98,7 +103,9 @@ export function trackedSandbox(
       // SAFETY: the proxy only forwards reads of the session's own members.
       const value: unknown =
         target[property as keyof Experimental_SandboxSession];
-      if (typeof value !== "function") return value;
+      if (typeof value !== "function") {
+        return value;
+      }
       return (...args: unknown[]): unknown => {
         touch();
         return value.apply(target, args);

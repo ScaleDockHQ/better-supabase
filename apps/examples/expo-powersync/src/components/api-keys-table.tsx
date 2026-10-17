@@ -24,10 +24,14 @@ export function ApiKeysTable({ personal = false }: { personal?: boolean }) {
     useApiKeys({ organizationId: tenantOf(useAuth()), schema: API_SCHEMA });
 
   const submit = async () => {
-    if ((await create({ name: name.trim(), personal })).ok) setName("");
+    if ((await create({ name: name.trim(), personal })).ok) {
+      setName("");
+    }
   };
 
-  if (keys === undefined) return <ActivityIndicator />;
+  if (keys === undefined) {
+    return <ActivityIndicator />;
+  }
   return (
     <View style={{ gap: 8 }}>
       <Text style={{ fontSize: 17, fontWeight: "600" }}>API keys</Text>

@@ -116,10 +116,16 @@ describe("MutableWhere and WhereOf", () => {
   it("builds a filter one key at a time", () => {
     const filter = (status?: CustomersStatus, search?: string) => {
       const where: WhereOf<"customers"> = {};
-      if (status) where.status = { in: [status] };
-      if (search) where.OR = [{ kvk: null }, { name: { ilike: search } }];
-      // @ts-expect-error status only takes its CHECK values
-      if (!status) where.status = "gone";
+      if (status) {
+        where.status = { in: [status] };
+      }
+      if (search) {
+        where.OR = [{ kvk: null }, { name: { ilike: search } }];
+      }
+      if (!status) {
+        // @ts-expect-error status only takes its CHECK values
+        where.status = "gone";
+      }
       return db.customers.findMany({ where });
     };
     void filter;

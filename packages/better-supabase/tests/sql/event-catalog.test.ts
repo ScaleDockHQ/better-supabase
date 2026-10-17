@@ -48,7 +48,9 @@ describe("SQL module event catalog", () => {
     expect(RECORDED.size).toBeGreaterThan(20);
     const mismatches = [...RECORDED].flatMap(([module, types]) => {
       const catalog = declared(module);
-      if (catalog.length === 0) return [`${module}: no catalog`];
+      if (catalog.length === 0) {
+        return [`${module}: no catalog`];
+      }
       return catalog
         .filter((type) => !types.has(type) && !OPTIONAL.has(type))
         .map((type) => `${module}: ${type} is never recorded`);

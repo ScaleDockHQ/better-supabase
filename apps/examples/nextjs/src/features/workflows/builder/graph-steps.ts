@@ -52,7 +52,9 @@ async function notifyMember(call: GraphStepCall): Promise<boolean> {
   "use step";
   return report(call, async () => {
     const { tenant, actor } = await runOwner();
-    if (tenant === undefined || actor === undefined) return false;
+    if (tenant === undefined || actor === undefined) {
+      return false;
+    }
     await serviceNotifications()
       .send("workflow.message", {
         tenant,
@@ -92,7 +94,9 @@ async function postToSlack(call: GraphStepCall): Promise<boolean> {
         text: text(call.config, "text"),
       }),
     });
-    if (!response.ok) throw new Error(`Slack answered ${response.status}`);
+    if (!response.ok) {
+      throw new Error(`Slack answered ${response.status}`);
+    }
     return true;
   });
 }

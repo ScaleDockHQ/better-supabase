@@ -226,7 +226,9 @@ describe("createServer claims", () => {
       }),
     );
     expect(ctx.auth.kind).toBe("user");
-    if (ctx.auth.kind !== "user") return;
+    if (ctx.auth.kind !== "user") {
+      return;
+    }
     expect(ctx.auth.claims).toMatchObject(extra);
   });
 });

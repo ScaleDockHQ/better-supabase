@@ -51,7 +51,9 @@ export function CreateApiKeyDialog({
 
   const submit = async (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (name.trim()) await onCreate(name.trim());
+    if (name.trim()) {
+      await onCreate(name.trim());
+    }
   };
 
   return (
@@ -61,7 +63,9 @@ export function CreateApiKeyDialog({
         setOpen(next);
         setName("");
         // The key is shown once: a reopened dialog starts empty.
-        if (!next) onClose();
+        if (!next) {
+          onClose();
+        }
       }}
     >
       <DialogTrigger render={<Button size="sm" />}>

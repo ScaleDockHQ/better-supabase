@@ -20,10 +20,16 @@ export function encodeValue(value: unknown): unknown {
   if (typeof value !== "object" || value === null) {
     return typeof value === "bigint" ? value.toString() : value;
   }
-  if (value instanceof Date) return dateText(value);
+  if (value instanceof Date) {
+    return dateText(value);
+  }
   const text = temporalText(value);
-  if (text !== undefined) return text;
-  if (Array.isArray(value)) return value.map(encodeValue);
+  if (text !== undefined) {
+    return text;
+  }
+  if (Array.isArray(value)) {
+    return value.map(encodeValue);
+  }
   return value;
 }
 
@@ -40,7 +46,9 @@ function finite(value: unknown, type: string): string {
 
 /** App form of one wire scalar for a column with `codec`. */
 export function decodeScalar(codec: Codec, value: unknown): unknown {
-  if (value === null || value === undefined) return value;
+  if (value === null || value === undefined) {
+    return value;
+  }
   switch (codec) {
     case "instant":
       return temporal().Instant.from(finite(value, "Instant"));

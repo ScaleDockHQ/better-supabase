@@ -165,8 +165,9 @@ async function chooseVariant(
   flag: FlagDefinition,
   context: FlagContext,
 ): Promise<{ variant: string; reason: FlagReason }> {
-  if (!flag.enabled)
+  if (!flag.enabled) {
     return { variant: flag.defaultVariant, reason: "DISABLED" };
+  }
   const override =
     flag.overrides.find(
       (entry) =>
@@ -232,8 +233,9 @@ const flagTypeOf = (value: unknown): FlagType => {
 };
 
 function ruleOf(value: unknown): FlagRule | undefined {
-  if (!isRecord(value) || typeof value["variant"] !== "string")
+  if (!isRecord(value) || typeof value["variant"] !== "string") {
     return undefined;
+  }
   const list = (key: string): readonly string[] | undefined =>
     Array.isArray(value[key]) ? stringsOf(value[key]) : undefined;
   const tenants = list("tenants");
@@ -382,14 +384,18 @@ export function createFlagsProvider<Code extends string = FlagErrorCode>(
     | undefined;
 
   const load = (): Promise<ReadonlyMap<string, FlagDefinition>> => {
-    if (cache && now() - cache.at < ttl) return cache.flags;
+    if (cache && now() - cache.at < ttl) {
+      return cache.flags;
+    }
     const flags = fetchFlags().then(
       (list) => new Map(list.map((flag) => [flag.key, flag])),
     );
     const entry = { at: now(), flags };
     cache = entry;
     flags.catch(() => {
-      if (cache === entry) cache = undefined;
+      if (cache === entry) {
+        cache = undefined;
+      }
     });
     return flags;
   };
@@ -579,7 +585,9 @@ function membershipRoles(
     const role = optionalText(memberships[tenant]);
     return role === undefined ? [] : [role];
   }
-  if (!Array.isArray(memberships)) return [];
+  if (!Array.isArray(memberships)) {
+    return [];
+  }
   const entry = memberships.find(
     (item): item is Record<string, unknown> =>
       isRecord(item) &&
@@ -588,7 +596,9 @@ function membershipRoles(
         ? item["within"] === undefined
         : optionalText(item["scope"]) === scope),
   );
-  if (!entry) return [];
+  if (!entry) {
+    return [];
+  }
   const role = optionalText(entry["role"]);
   return [...(role === undefined ? [] : [role]), ...stringsOf(entry["roles"])];
 }

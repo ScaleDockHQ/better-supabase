@@ -24,7 +24,9 @@ function isJson(value: unknown): value is Json {
 /** `config-v1.json` with `blocks` and the `$defs/blocks` entries rendered. */
 export async function renderConfigSchema(): Promise<string> {
   const schema: unknown = JSON.parse(await readFile(CONFIG_SCHEMA, "utf-8"));
-  if (!isJson(schema)) throw new TypeError("config-v1.json is not an object");
+  if (!isJson(schema)) {
+    throw new TypeError("config-v1.json is not an object");
+  }
   const { properties, $defs } = schema;
   if (!isJson(properties) || !isJson($defs)) {
     throw new TypeError("config-v1.json has no properties or $defs");

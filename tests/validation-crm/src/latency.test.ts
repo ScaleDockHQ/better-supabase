@@ -39,7 +39,9 @@ describe("CRM latency ports", () => {
     const query = customerOverview.parse(
       new URLSearchParams("q=acme&status=active"),
     );
-    if (!query.ok) throw new Error("invalid query");
+    if (!query.ok) {
+      throw new Error("invalid query");
+    }
 
     const page = await customerOverview
       .run(db, query.value, {

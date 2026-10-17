@@ -10,12 +10,16 @@ import { qualifiedTable } from "./grants.ts";
  * every table the schema files create in `schemas`, except `exclude`.
  */
 function sessionPolicies(ctx: ModuleContext, layout: ModuleLayout): string {
-  if (!ctx.flag("policies", false)) return "";
+  if (!ctx.flag("policies", false)) {
+    return "";
+  }
   const exclude = tableGlobs(ctx.list("exclude", []));
   const tables = (layout.declaredTables ?? []).filter(
     (table) => !exclude.some((pattern) => pattern.test(table)),
   );
-  if (tables.length === 0) return "";
+  if (tables.length === 0) {
+    return "";
+  }
   const statements = tables.map((table) => {
     const target = qualifiedTable(table);
     return `drop policy if exists bs_session_active on ${target};

@@ -140,7 +140,9 @@ function rejectedStore(): RejectedStore & {
   const listeners = new Set<() => void>();
   const set = (next: readonly RejectedChange[]) => {
     changes = next;
-    for (const listener of [...listeners]) listener();
+    for (const listener of [...listeners]) {
+      listener();
+    }
   };
   return {
     current: () => changes,
@@ -163,7 +165,9 @@ function replay(
   route: UploadRoute,
   entry: CrudEntryLike,
 ): PromiseLike<Result<unknown>> {
-  if (typeof route === "function") return route(entry);
+  if (typeof route === "function") {
+    return route(entry);
+  }
   const data = entry.opData ?? {};
   switch (entry.op) {
     case "PUT":
@@ -220,7 +224,9 @@ export function createUploadConnector(
     async fetchCredentials() {
       const { data } = await options.supabase.auth.getSession();
       const session = data.session;
-      if (!session) return null;
+      if (!session) {
+        return null;
+      }
       return {
         endpoint: options.endpoint,
         token: session.access_token,
@@ -231,7 +237,9 @@ export function createUploadConnector(
     },
     async uploadData(database) {
       const batch = await database.getCrudBatch(batchSize);
-      if (!batch) return;
+      if (!batch) {
+        return;
+      }
       for (const entry of batch.crud) {
         const route = options.tables[entry.table];
         if (!route) {
@@ -240,13 +248,17 @@ export function createUploadConnector(
           );
         }
         const result = await replay(route, entry);
-        if (result.ok) continue;
+        if (result.ok) {
+          continue;
+        }
         const { error } = result;
         const outcome =
           options.classify?.(error, entry) ?? uploadOutcome(error.kind);
         switch (outcome) {
           case "retry":
-            if (error.kind === "unauthorized" && !(await signedIn())) return;
+            if (error.kind === "unauthorized" && !(await signedIn())) {
+              return;
+            }
             // PowerSync keeps the batch queued and calls uploadData again.
             throw new Error(error.message);
           case "conflict": {

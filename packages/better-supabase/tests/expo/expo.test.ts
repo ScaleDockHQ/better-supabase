@@ -17,10 +17,13 @@ vi.mock("expo-server", async (importOriginal) => ({
   setResponseHeaders: (
     update: Headers | Record<string, string> | ((headers: Headers) => void),
   ) => {
-    if (typeof update === "function") update(written.headers);
-    else
-      for (const [name, value] of new Headers(update))
+    if (typeof update === "function") {
+      update(written.headers);
+    } else {
+      for (const [name, value] of new Headers(update)) {
         written.headers.append(name, value);
+      }
+    }
   },
 }));
 
@@ -169,14 +172,16 @@ describe("createExpo", () => {
       redirectTo: "/sign-in",
       publicPaths: ["/", "/legal"],
     });
-    for (const path of ["/sign-in/callback", "/", "/legal", "/legal/terms"])
+    for (const path of ["/sign-in/callback", "/", "/legal", "/legal/terms"]) {
       expect(
         await middleware(immutable(`https://app.test${path}`)),
       ).toBeUndefined();
-    for (const path of ["/sign-inx", "/legalese", "/account"])
+    }
+    for (const path of ["/sign-inx", "/legalese", "/account"]) {
       expect(
         (await middleware(immutable(`https://app.test${path}`)))?.status,
       ).toBe(303);
+    }
   });
 
   it("answers API routes with JSON and Problem Details", async () => {

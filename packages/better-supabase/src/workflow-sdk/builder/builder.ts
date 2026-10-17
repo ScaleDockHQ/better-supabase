@@ -244,7 +244,9 @@ export function compiledGraphOf(value: unknown): CompiledGraph | undefined {
   }
   const aliases: Record<string, string> = {};
   for (const [alias, step] of Object.entries(value["aliases"])) {
-    if (typeof step !== "string") return undefined;
+    if (typeof step !== "string") {
+      return undefined;
+    }
     aliases[alias] = step;
   }
   return {
@@ -347,7 +349,9 @@ export function graphStarter(options: GraphStarterOptions): BuilderStarter {
   return async (call) => {
     const key = call.idempotencyKey;
     const existing = await runForKey(key, options.world);
-    if (existing !== undefined) return existing;
+    if (existing !== undefined) {
+      return existing;
+    }
     const graph = call.version.graph ?? { nodes: [], edges: [] };
     const testing = call.mode === "test";
     const triggerNode = startNodeOf(graph, call.triggerNode);

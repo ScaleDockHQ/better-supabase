@@ -56,7 +56,9 @@ export interface GenOptions extends SnapshotSource {
 async function readSetFile(
   config: ResolvedConfig,
 ): Promise<ModuleFile | undefined> {
-  if (config.readSets.length === 0) return undefined;
+  if (config.readSets.length === 0) {
+    return undefined;
+  }
   const readSets = await compiledReadSets(config);
   return renderModules(
     ["read-sets"],
@@ -71,7 +73,9 @@ async function readSetFile(
  */
 function rowConditionedBuckets(config: ResolvedConfig): string[] {
   const provider = config.authorization;
-  if (!provider) return [];
+  if (!provider) {
+    return [];
+  }
   return providerBucketKeys(config).flatMap(({ bucket, keys }) =>
     keys.flatMap((key) => {
       const problem = unsafeKey(provider, key);
@@ -98,7 +102,9 @@ export function refuseRowConditionedBuckets(
 export async function runGen(options: GenOptions): Promise<CommandResult> {
   const { config } = options;
   const refused = refuseRowConditionedBuckets(config);
-  if (refused) return refused;
+  if (refused) {
+    return refused;
+  }
   const snapshot =
     options.snapshot ?? (await loadSnapshot(config, options.env, options));
   const { files, warnings } = await render(config, snapshot);
@@ -138,7 +144,9 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
       const current = existsSync(path)
         ? await readFile(path, "utf-8")
         : undefined;
-      if (!sameText(current, file.contents)) compare(file, current);
+      if (!sameText(current, file.contents)) {
+        compare(file, current);
+      }
     }
     if (readSets && migrations) {
       const latest = await latestMigration(config, READ_SETS_SUFFIX);
@@ -158,8 +166,9 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
       const current = existsSync(path)
         ? await readFile(path, "utf-8")
         : undefined;
-      if (!sameModuleFile(current, readSets.contents))
+      if (!sameModuleFile(current, readSets.contents)) {
         compare(readSets, current);
+      }
     }
     if (stale.length > 0 || leftovers.length > 0) {
       const lines = [
@@ -195,7 +204,9 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
       readSets.contents,
       { now: new Date(), dryRun: false },
     );
-    if (migration.wrote) written.push(migration.path);
+    if (migration.wrote) {
+      written.push(migration.path);
+    }
   } else if (
     readSets &&
     (await writeIfChanged(
@@ -211,7 +222,9 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
     await rm(resolve(config.root, path), { force: true });
     removed.push(path);
   }
-  if (!options.isolated) await writeManifest(config.root, generated);
+  if (!options.isolated) {
+    await writeManifest(config.root, generated);
+  }
   const tables = snapshot.extras.tables.filter((table) =>
     config.schemas.includes(table.schema),
   ).length;

@@ -57,9 +57,12 @@ export const live = (p: Parts, alias: string): string =>
 /** The calendar event that mirrors a confirmed booking, when the resource has a calendar. */
 export function calendarMirror(p: Parts, op: "confirm" | "cancel"): string {
   const { ctx } = p;
-  if (!ctx.installed("calendar") || !ctx.has("resources", "calendar"))
+  if (!ctx.installed("calendar") || !ctx.has("resources", "calendar")) {
     return "";
-  if (!ctx.has("bookings", "calendarEvent")) return "";
+  }
+  if (!ctx.has("bookings", "calendarEvent")) {
+    return "";
+  }
   const c = ctx.of("calendar");
   const events = c.table("events");
   const e = (column: string) => c.col("events", column);
@@ -90,7 +93,9 @@ export function calendarMirror(p: Parts, op: "confirm" | "cancel"): string {
 /** The reminders rule and reminders of a confirmed booking, for its customer. */
 export function reminderMirror(p: Parts, op: "confirm" | "cancel"): string {
   const { ctx } = p;
-  if (!ctx.installed("reminders")) return "";
+  if (!ctx.installed("reminders")) {
+    return "";
+  }
   const m = ctx.of("reminders");
   const rules = m.table("rules");
   const reminders = m.table("reminders");
@@ -99,7 +104,9 @@ export function reminderMirror(p: Parts, op: "confirm" | "cancel"): string {
   const id = `v_booking.${p.b("id")}::text`;
   const remove = `delete from ${reminders} where ${n("subjectType")} = 'booking' and ${n("subjectId")} = ${id};
   delete from ${rules} where ${u("subjectType")} = 'booking' and ${u("subjectId")} = ${id};`;
-  if (op === "cancel") return remove;
+  if (op === "cancel") {
+    return remove;
+  }
   const rrule = m.has("rules", "rrule")
     ? { column: `, ${u("rrule")}`, value: ", 'FREQ=DAILY;COUNT=1'" }
     : { column: "", value: "" };
@@ -118,7 +125,9 @@ export function reminderMirror(p: Parts, op: "confirm" | "cancel"): string {
 
 /** Throttles a public call by share link and client address, when `rate-limit` is installed. */
 function rateLimit(p: Parts, link: string): string {
-  if (!p.ctx.installed("rate-limit")) return "";
+  if (!p.ctx.installed("rate-limit")) {
+    return "";
+  }
   return `select l.allowed, l.retry_after into v_allowed, v_retry
   from better_supabase.hit_rate_limit(
     '${RATE_SCOPE}',
@@ -143,7 +152,9 @@ export const slotsJson = (
 
 export function publicBooking(p: Parts): string {
   const { ctx, r, s } = p;
-  if (!ctx.installed("share-links")) return "";
+  if (!ctx.installed("share-links")) {
+    return "";
+  }
   const fn = (name: string) => ctx.fn(name);
   const links = ctx.of("share-links");
   const l = (column: string) => `l.${links.col("links", column)}`;

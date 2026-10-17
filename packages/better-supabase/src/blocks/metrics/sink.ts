@@ -26,7 +26,9 @@ export interface MetricsSinkOptions {
 type Window = { since: Temporal.Instant; until: Temporal.Instant };
 
 function widen(window: Window | undefined, at: Temporal.Instant): Window {
-  if (window === undefined) return { since: at, until: at };
+  if (window === undefined) {
+    return { since: at, until: at };
+  }
   return {
     since: temporal().Instant.compare(window.since, at) < 0 ? window.since : at,
     until: temporal().Instant.compare(window.until, at) > 0 ? window.until : at,
@@ -64,7 +66,9 @@ export function metricsSink(
       for (const event of events) {
         const entry =
           options.on[stripTypePrefix(event.type, options.typePrefix)];
-        if (entry === undefined) continue;
+        if (entry === undefined) {
+          continue;
+        }
         const times = timesOf(event, options);
         for (const metric of typeof entry === "string" ? [entry] : entry) {
           const days = windows.get(metric) ?? new Map<string, Window>();

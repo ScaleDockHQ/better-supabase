@@ -28,7 +28,9 @@ type Kind = "company" | "person";
  * extra columns.
  */
 function extraFields(ctx: ModuleContext, kind: Kind, alias: string): string {
-  if (kind !== "company") return "";
+  if (kind !== "company") {
+    return "";
+  }
   const extras = ctx.extraColumns("companies");
   return extras.length === 0
     ? ""

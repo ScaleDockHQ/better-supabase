@@ -53,7 +53,9 @@ function typeMatches(type: unknown, value: unknown): boolean {
 }
 
 function equal(a: unknown, b: unknown): boolean {
-  if (a === b) return true;
+  if (a === b) {
+    return true;
+  }
   if (Array.isArray(a) && Array.isArray(b)) {
     return a.length === b.length && a.every((item, i) => equal(item, b[i]));
   }
@@ -69,7 +71,9 @@ function equal(a: unknown, b: unknown): boolean {
 
 function validDate(value: string): boolean {
   const match = DATE.exec(value);
-  if (match === null) return false;
+  if (match === null) {
+    return false;
+  }
   const [year, month, day] = [
     Number(match[1]),
     Number(match[2]),
@@ -120,7 +124,9 @@ function check(
   if ("not" in schema) {
     const inner: ValidationIssue[] = [];
     check(schemaOf(schema["not"]), value, path, inner);
-    if (inner.length === 0) at("is required");
+    if (inner.length === 0) {
+      at("is required");
+    }
   }
   if (typeof value === "string") {
     const { minLength, maxLength, pattern, format } = schema;
@@ -143,10 +149,12 @@ function check(
   }
   if (typeof value === "number") {
     const { minimum, maximum } = schema;
-    if (typeof minimum === "number" && value < minimum)
+    if (typeof minimum === "number" && value < minimum) {
       at(`must be at least ${minimum}`);
-    if (typeof maximum === "number" && value > maximum)
+    }
+    if (typeof maximum === "number" && value > maximum) {
       at(`must be at most ${maximum}`);
+    }
   }
   if (Array.isArray(value)) {
     const { minItems, maxItems, uniqueItems } = schema;
@@ -194,7 +202,9 @@ function check(
   }
   const all = schema["allOf"];
   if (Array.isArray(all)) {
-    for (const part of all) check(schemaOf(part), value, path, issues);
+    for (const part of all) {
+      check(schemaOf(part), value, path, issues);
+    }
   }
   if ("if" in schema) {
     const condition: ValidationIssue[] = [];

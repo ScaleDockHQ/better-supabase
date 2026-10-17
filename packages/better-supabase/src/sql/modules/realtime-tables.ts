@@ -208,7 +208,9 @@ function realtimeRegistrations(
   tenantColumn: string | undefined,
   users: Readonly<Record<string, string>>,
 ): string {
-  if (tables.length === 0) return "";
+  if (tables.length === 0) {
+    return "";
+  }
   const qualify = (table: string): string =>
     table.includes(".") ? table : `public.${table}`;
   const unscoped = new Set(global.map(qualify));

@@ -74,7 +74,9 @@ function timeZone(where: string, value: unknown): string {
 }
 
 function measureOf(where: string, value: unknown): MetricMeasure {
-  if (value === "count") return "count";
+  if (value === "count") {
+    return "count";
+  }
   if (isObject(value)) {
     const keys = Object.keys(value);
     if (keys.length === 1 && (keys[0] === "sum" || keys[0] === "avg")) {
@@ -100,7 +102,9 @@ function assertMetric(
   value: unknown,
   where: string,
 ): asserts value is MetricDefinition {
-  if (!isObject(value)) throw new TypeError(`${where} must be an object`);
+  if (!isObject(value)) {
+    throw new TypeError(`${where} must be an object`);
+  }
   const key = value["key"];
   if (typeof key !== "string" || !KEY.test(key)) {
     throw new TypeError(
@@ -173,8 +177,12 @@ function assertMetric(
   }
   measureOf(`${at}.measure`, value["measure"]);
   column(`${at}.timeColumn`, value["timeColumn"]);
-  if (value["tenant"] !== undefined) column(`${at}.tenant`, value["tenant"]);
-  if (value["tz"] !== undefined) timeZone(`${at}.tz`, value["tz"]);
+  if (value["tenant"] !== undefined) {
+    column(`${at}.tenant`, value["tenant"]);
+  }
+  if (value["tz"] !== undefined) {
+    timeZone(`${at}.tz`, value["tz"]);
+  }
 }
 
 /**
@@ -204,7 +212,9 @@ export function metricsOf(
   value: unknown,
   where = "blocks.metrics.options.metrics",
 ): readonly MetricDefinition[] {
-  if (value === undefined) return [];
+  if (value === undefined) {
+    return [];
+  }
   if (!Array.isArray(value) && !isObject(value)) {
     throw new TypeError(
       `${where} must be a list of defineMetric() definitions or an object of key to definition`,

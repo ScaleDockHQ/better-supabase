@@ -38,7 +38,9 @@ const Properties = v.looseObject({});
 /** A config field as the text an input shows: strings as they are, other values as JSON. */
 function text(config: NodeConfig, key: string): string {
   const value = config[key];
-  if (v.is(v.string(), value)) return value;
+  if (v.is(v.string(), value)) {
+    return value;
+  }
   return value === undefined ? "" : JSON.stringify(value);
 }
 

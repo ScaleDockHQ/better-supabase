@@ -83,7 +83,9 @@ export function mailHeaders(
   const headers: Record<string, string> = {
     "Auto-Submitted": "auto-generated",
   };
-  if (category !== "notification" || unsubscribe === undefined) return headers;
+  if (category !== "notification" || unsubscribe === undefined) {
+    return headers;
+  }
   const targets: string[] = [];
   if (unsubscribe.url !== undefined) {
     if (!URL.canParse(unsubscribe.url)) {
@@ -106,7 +108,9 @@ export function mailHeaders(
     }
     targets.push(`<${unsubscribe.mailto}>`);
   }
-  if (targets.length === 0) return headers;
+  if (targets.length === 0) {
+    return headers;
+  }
   headers["List-Unsubscribe"] = targets.join(", ");
   if (unsubscribe.url !== undefined) {
     headers["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click";

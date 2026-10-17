@@ -26,7 +26,9 @@ export const DEFAULT_PRESET: PresetName = "saas";
 
 /** The preset in `?preset=`, a name or a code; the default when it is missing or unreadable. */
 export function initialPreset(param: string | null): Preset {
-  if (param === null || param === "") return namedPreset(DEFAULT_PRESET);
+  if (param === null || param === "") {
+    return namedPreset(DEFAULT_PRESET);
+  }
   try {
     return presetOf(param);
   } catch {
@@ -115,10 +117,16 @@ export function blockGroups(
   );
   const stateOf = (name: string): BlockRowState => {
     const block = installed.get(name);
-    if (block?.selected === true) return { kind: "selected" };
-    if (block !== undefined) return { kind: "required", by: block.requiredBy };
+    if (block?.selected === true) {
+      return { kind: "selected" };
+    }
+    if (block !== undefined) {
+      return { kind: "required", by: block.requiredBy };
+    }
     const reason = presetBlockConflict(preset, name);
-    if (reason !== undefined) return { kind: "conflict", reason };
+    if (reason !== undefined) {
+      return { kind: "conflict", reason };
+    }
     const worksWith = resolved.blocks
       .filter(
         (each) =>
@@ -185,7 +193,9 @@ export function graphLayout(resolved: ResolvedPreset): GraphLayout {
   const depth = new Map<string, number>();
   const depthOf = (name: string): number => {
     const known = depth.get(name);
-    if (known !== undefined) return known;
+    if (known !== undefined) {
+      return known;
+    }
     const own =
       Math.max(-1, ...(requires.get(name) ?? []).map((each) => depthOf(each))) +
       1;

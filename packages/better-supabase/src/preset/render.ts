@@ -15,10 +15,14 @@ const camel = (name: string): string =>
 
 /** A JSON value as a TypeScript literal, one line. */
 function literal(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(literal).join(", ")}]`;
+  if (Array.isArray(value)) {
+    return `[${value.map(literal).join(", ")}]`;
+  }
   if (typeof value === "object" && value !== null) {
     const entries = Object.entries(value);
-    if (entries.length === 0) return "{}";
+    if (entries.length === 0) {
+      return "{}";
+    }
     return `{ ${entries.map(([name, each]) => `${key(name)}: ${literal(each)}`).join(", ")} }`;
   }
   return JSON.stringify(value);
@@ -36,9 +40,12 @@ export function presetConfigSource(resolved: ResolvedPreset): string {
     `// ${CREATE_URL}?preset=${encodePreset(resolved.preset)}`,
     "export default defineConfig({",
   ];
-  if (config.casing !== undefined)
+  if (config.casing !== undefined) {
     lines.push(`  casing: ${literal(config.casing)},`);
-  if (config.sql !== undefined) lines.push(`  sql: ${literal(config.sql)},`);
+  }
+  if (config.sql !== undefined) {
+    lines.push(`  sql: ${literal(config.sql)},`);
+  }
   if (config.integrations !== undefined) {
     lines.push(`  integrations: ${literal(config.integrations)},`);
   }

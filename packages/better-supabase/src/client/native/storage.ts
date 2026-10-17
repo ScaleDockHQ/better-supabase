@@ -103,10 +103,11 @@ export function secureStorage(
       : store.setItemAsync(key, value);
   const remove = (key: string) =>
     extra ? store.deleteItemAsync(key, extra) : store.deleteItemAsync(key);
-  if (!Number.isInteger(size) || size < 1)
+  if (!Number.isInteger(size) || size < 1) {
     throw new TypeError(
       "better-supabase: chunkSize must be a positive integer",
     );
+  }
   const countKey = (key: string): string => `${safeKey(key)}.chunks`;
   const chunkKey = (key: string, slot: Slot, index: number): string =>
     `${safeKey(key)}.${index}${slot}`;
@@ -143,7 +144,9 @@ export function secureStorage(
     );
     queues.set(key, settled);
     void settled.then(() => {
-      if (queues.get(key) === settled) queues.delete(key);
+      if (queues.get(key) === settled) {
+        queues.delete(key);
+      }
     });
     return run;
   };
@@ -152,21 +155,28 @@ export function secureStorage(
     getItem: (key) =>
       serial(key, async () => {
         const { count, slot } = await pointerOf(key);
-        if (count === 0) return null;
+        if (count === 0) {
+          return null;
+        }
         const chunks = await Promise.all(
           Array.from({ length: count }, (_, index) =>
             get(chunkKey(key, slot, index)),
           ),
         );
-        if (chunks.some((chunk) => chunk === null)) return null;
+        if (chunks.some((chunk) => chunk === null)) {
+          return null;
+        }
         return chunks.join("");
       }),
     setItem: (key, value) =>
       serial(key, async () => {
         const chunks: string[] = [];
-        for (let start = 0; start < value.length; start += size)
+        for (let start = 0; start < value.length; start += size) {
           chunks.push(value.slice(start, start + size));
-        if (chunks.length === 0) chunks.push("");
+        }
+        if (chunks.length === 0) {
+          chunks.push("");
+        }
         const previous = await pointerOf(key);
         const slot: Slot = previous.slot === "b" ? "" : "b";
         await Promise.all(

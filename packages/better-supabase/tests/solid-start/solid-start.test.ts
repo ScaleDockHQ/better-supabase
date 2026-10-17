@@ -38,7 +38,9 @@ async function serve<T>(
     locals: {},
   };
   const short = await bs.middleware.onRequest(event);
-  if (short) return { event, short };
+  if (short) {
+    return { event, short };
+  }
   current = event;
   try {
     return { event, out: await fn() };

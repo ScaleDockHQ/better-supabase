@@ -46,13 +46,15 @@ function parseSegment(segment: string): Part[] {
   const parts: Part[] = [];
   let last = 0;
   for (const match of segment.matchAll(PLACEHOLDER)) {
-    if (match.index > last)
+    if (match.index > last) {
       parts.push({ kind: "literal", text: segment.slice(last, match.index) });
+    }
     parts.push({ kind: match[1] ? "rest" : "param", name: match[2]! });
     last = match.index + match[0].length;
   }
-  if (last < segment.length)
+  if (last < segment.length) {
     parts.push({ kind: "literal", text: segment.slice(last) });
+  }
   return parts;
 }
 
@@ -69,8 +71,9 @@ export function parseTemplate(
   const params: string[] = [];
   let rest: string | undefined;
   for (const [position, segment] of segments.entries()) {
-    if (segment.length === 0)
+    if (segment.length === 0) {
       throw new TypeError(`Template "${source}" has an empty segment`);
+    }
     for (let index = 1; index < segment.length; index++) {
       if (
         segment[index]!.kind !== "literal" &&
@@ -80,20 +83,25 @@ export function parseTemplate(
       }
     }
     for (const part of segment) {
-      if (part.kind === "literal") continue;
+      if (part.kind === "literal") {
+        continue;
+      }
       if (part.kind === "rest") {
-        if (!options.rest)
+        if (!options.rest) {
           throw new TypeError(
             `Template "${source}" uses {...${part.name}}, which is not supported here`,
           );
-        if (segment.length !== 1 || position !== segments.length - 1)
+        }
+        if (segment.length !== 1 || position !== segments.length - 1) {
           throw new TypeError(
             `Template "${source}": {...${part.name}} must be the whole last segment`,
           );
+        }
         rest = part.name;
       }
-      if (params.includes(part.name))
+      if (params.includes(part.name)) {
         throw new TypeError(`Template "${source}" repeats {${part.name}}`);
+      }
       params.push(part.name);
     }
   }
@@ -116,7 +124,9 @@ export function parseTemplate(
       .map((segment) =>
         segment
           .map((part) => {
-            if (part.kind === "literal") return escapeRegex(part.text);
+            if (part.kind === "literal") {
+              return escapeRegex(part.text);
+            }
             const pattern = part.kind === "rest" ? restClass : valueClass;
             return withNames ? `(?<${part.name}>${pattern})` : pattern;
           })
@@ -132,11 +142,15 @@ export function parseTemplate(
         ? `contains "${separator}"`
         : validate(name, value);
   const restProblem = (name: string, value: string): string | undefined => {
-    if (value === "") return "is empty";
+    if (value === "") {
+      return "is empty";
+    }
     for (const part of value.split(separator)) {
       const problem =
         part === "" ? "has an empty segment" : validate(name, part);
-      if (problem) return problem;
+      if (problem) {
+        return problem;
+      }
     }
     return undefined;
   };
@@ -152,10 +166,11 @@ export function parseTemplate(
     const value = String(raw);
     const problem =
       rest === name ? restProblem(name, value) : valueProblem(name, value);
-    if (problem)
+    if (problem) {
       throw new DbException(
         dbError("invalid_input", `Value for {${name}} ${problem}`),
       );
+    }
     return value;
   };
   const renderSegment = (
@@ -179,12 +194,15 @@ export function parseTemplate(
       segments.map((segment) => renderSegment(segment, values)).join(separator),
     match(value) {
       const found = matcher.exec(value);
-      if (!found?.groups) return found ? {} : null;
+      if (!found?.groups) {
+        return found ? {} : null;
+      }
       const out: Record<string, string> = {};
       for (const name of params) {
         const part = found.groups[name]!;
-        if (rest === name ? restProblem(name, part) : validate(name, part))
+        if (rest === name ? restProblem(name, part) : validate(name, part)) {
           return null;
+        }
         out[name] = part;
       }
       return out;
@@ -197,8 +215,9 @@ export function parseTemplate(
             (part) =>
               part.kind !== "literal" && values[part.name] === undefined,
           )
-        )
+        ) {
           break;
+        }
         out.push(renderSegment(segment, values));
       }
       return out.join(separator);

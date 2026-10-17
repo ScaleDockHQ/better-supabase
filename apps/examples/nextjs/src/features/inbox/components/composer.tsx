@@ -49,7 +49,9 @@ export function Composer({
       className="space-y-2 border-t p-3"
       onSubmit={(event) => {
         event.preventDefault();
-        if (body.trim() === "") return;
+        if (body.trim() === "") {
+          return;
+        }
         void send.run({ conversationId, body, note });
       }}
     >

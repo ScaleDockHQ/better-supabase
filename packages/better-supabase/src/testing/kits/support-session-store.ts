@@ -135,7 +135,9 @@ export function testSupportSessionStore(
     [
       "expires only sessions past their expiry, when it has expire",
       async () => {
-        if (!store.expire) return;
+        if (!store.expire) {
+          return;
+        }
         const session = await start(first);
         try {
           const expired = await store.expire();

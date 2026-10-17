@@ -17,7 +17,9 @@ function inherit<T>(
   next: AsyncResult<T>,
 ): AsyncResult<T> {
   const mapper = throwMappers.get(from);
-  if (mapper) throwMappers.set(next, mapper);
+  if (mapper) {
+    throwMappers.set(next, mapper);
+  }
   return next;
 }
 
@@ -88,7 +90,9 @@ export class AsyncResult<T> implements PromiseLike<Result<T>> {
    */
   async orThrow(factory?: (error: DbError) => unknown): Promise<T> {
     const result = await this.#promise;
-    if (result.ok) return result.data;
+    if (result.ok) {
+      return result.data;
+    }
     const mapper = factory ?? throwMappers.get(this);
     throw mapper ? mapper(result.error) : new DbException(result.error);
   }
@@ -353,7 +357,9 @@ export function fromBetterResult<T>(
 }
 
 export function toDbError(cause: unknown): DbError {
-  if (cause instanceof DbException) return cause.error;
+  if (cause instanceof DbException) {
+    return cause.error;
+  }
   if (cause instanceof Error && cause.name === "AbortError") {
     return dbError("aborted", cause.message || "The operation was aborted");
   }

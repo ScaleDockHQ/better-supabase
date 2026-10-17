@@ -20,7 +20,7 @@ import {
   tenantTable,
   type InviteTable,
 } from "./invitations-tables.ts";
-import { assignableRole } from "./organizations.ts";
+import { assignableRole } from "./organizations-roles.ts";
 
 /**
  * The invitation's organization: its id plus
@@ -55,7 +55,9 @@ function inviterJson(
   t: InviteTable,
   row: string,
 ): string | undefined {
-  if (!ctx.installed("profiles") || !t.has("invitedBy")) return undefined;
+  if (!ctx.installed("profiles") || !t.has("invitedBy")) {
+    return undefined;
+  }
   const profiles = ctx.of("profiles");
   const p = (logical: string) => profiles.col("profiles", logical);
   const fields = (

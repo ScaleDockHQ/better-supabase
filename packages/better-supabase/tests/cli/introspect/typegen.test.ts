@@ -312,8 +312,13 @@ describe("restrictSchemas", () => {
       foreignTables: [relation("private", "f"), relation("public", "f")],
     } as GeneratorMetadata;
     const only = restrictSchemas(metadata, ["public"]);
-    for (const list of [only.views, only.materializedViews, only.foreignTables])
+    for (const list of [
+      only.views,
+      only.materializedViews,
+      only.foreignTables,
+    ]) {
       expect(list.map((entry) => entry.schema)).toEqual(["public"]);
+    }
   });
 });
 

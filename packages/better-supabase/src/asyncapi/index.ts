@@ -86,7 +86,7 @@ export function createAsyncApi<V extends AsyncApiVersion = "3.0", Ref = string>(
   const errors = result.diagnostics.filter(
     (diagnostic) => diagnostic.severity === "error",
   );
-  if (errors.length > 0)
+  if (errors.length > 0) {
     throw new TypeError(
       `createAsyncApi: ${errors
         .map(
@@ -95,8 +95,12 @@ export function createAsyncApi<V extends AsyncApiVersion = "3.0", Ref = string>(
         )
         .join("; ")}`,
     );
-  if (onDiagnostic)
-    for (const diagnostic of result.diagnostics) onDiagnostic(diagnostic);
+  }
+  if (onDiagnostic) {
+    for (const diagnostic of result.diagnostics) {
+      onDiagnostic(diagnostic);
+    }
+  }
   // SAFETY: asyncapiFormat.lower(model, V) returns AsyncApiDocuments[V];
   // the two versions differ only in the `asyncapi` field.
   return result.document as AsyncApiDocuments[V];

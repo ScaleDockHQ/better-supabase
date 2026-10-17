@@ -66,15 +66,17 @@ function rewrite<T, V>(
       );
       const previous = list.map((target) => {
         const data = client.getQueryData<T>(target.queryKey);
-        if (data !== undefined)
+        if (data !== undefined) {
           client.setQueryData<T>(target.queryKey, apply(data, variables));
+        }
         return [target.queryKey, data] as const;
       });
       return { previous };
     },
     onError(_error, _variables, snapshot, { client }) {
-      for (const [queryKey, data] of snapshot?.previous ?? [])
+      for (const [queryKey, data] of snapshot?.previous ?? []) {
         client.setQueryData(queryKey, data);
+      }
     },
     async onSettled(_data, _error, _variables, _snapshot, { client }) {
       await Promise.all(

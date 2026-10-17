@@ -15,8 +15,9 @@ afterEach(() => {
 
 describe("env loading", () => {
   it("waits for the first use, so builds without runtime env can import server modules", () => {
-    for (const name of Object.values(ENV_VARIABLES).flat())
+    for (const name of Object.values(ENV_VARIABLES).flat()) {
       vi.stubEnv(name, "");
+    }
     const betterSupabase = defineSupabase(schema);
     const servers = [
       createServer(betterSupabase),

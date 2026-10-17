@@ -30,7 +30,9 @@ export const addDocument = bs.action(
       text,
       source: "pasted",
     });
-    if (!created.ok) return created;
+    if (!created.ok) {
+      return created;
+    }
     after(() => base.process(created.data.id));
     refresh();
     return ok(created.data.id);
@@ -45,7 +47,9 @@ export const removeDocument = bs.action(
   },
   async ({ id }, { supabase }) => {
     const removed = await knowledge(supabase).documents.remove(id);
-    if (!removed.ok) return removed;
+    if (!removed.ok) {
+      return removed;
+    }
     refresh();
     return ok(removed.data);
   },

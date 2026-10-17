@@ -64,8 +64,9 @@ describe.skipIf(!live)("PostgREST integration", () => {
   const created: string[] = [];
 
   afterAll(async () => {
-    if (created.length > 0)
+    if (created.length > 0) {
       await admin.customers.deleteMany({ where: { id: { in: created } } });
+    }
   });
 
   it("decodes timestamptz to Temporal.Instant and filters with it exactly", async () => {
@@ -617,8 +618,9 @@ describe.skipIf(!live)("PostgREST integration", () => {
 
     const all = await acme.customers.findMany({ select: ["status"] }).orThrow();
     const expected: Record<string, number> = {};
-    for (const row of all)
+    for (const row of all) {
       expected[row.status] = (expected[row.status] ?? 0) + 1;
+    }
     expect(
       Object.fromEntries(
         Object.entries(page.facetCounts.status).filter(([, n]) => n > 0),

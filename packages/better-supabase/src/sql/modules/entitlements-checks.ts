@@ -50,7 +50,9 @@ function featureClaimsBody(
   rows: string,
   claim: FeatureClaimOption | undefined,
 ): string {
-  if (claim === false) return "  select '{}'::jsonb";
+  if (claim === false) {
+    return "  select '{}'::jsonb";
+  }
   const max = claim?.maxTenants;
   if (max !== undefined && (!Number.isInteger(max) || max < 1)) {
     throw new TypeError(

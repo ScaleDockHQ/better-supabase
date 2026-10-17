@@ -48,7 +48,9 @@ export function liteBackend(
   options: LiteBackendOptions,
   env: () => BetterSupabaseEnv,
 ): LiteBackend | undefined {
-  if (options.backend !== "lite") return undefined;
+  if (options.backend !== "lite") {
+    return undefined;
+  }
   const driver = options.liteDriver ?? DEFAULT_LITE_DRIVER;
   if (options.postgres && driver !== "postgres") {
     throw new TypeError(
@@ -57,7 +59,9 @@ export function liteBackend(
   }
   return {
     auth() {
-      if (options.auth?.jwtSecret !== undefined) return options.auth;
+      if (options.auth?.jwtSecret !== undefined) {
+        return options.auth;
+      }
       const jwtSecret = env().jwtSecret;
       if (jwtSecret === undefined) {
         throw new TypeError(
