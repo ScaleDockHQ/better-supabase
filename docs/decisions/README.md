@@ -42,3 +42,4 @@ add one, and link it from the code or config it explains.
 | [0034](0034-retention-holds-and-audit-chain.md)       | Retention policies and legal holds in data-lifecycle; a hash-chained, partitionable audit log            |
 | [0035](0035-flags-sdk-adapter-and-custom-contexts.md) | The Flags SDK adapter is typed structurally; brand-like targeting uses custom flag contexts              |
 | [0036](0036-optional-peers-for-every-integration.md)  | Every SDK integration is an optional peer with a tested range                                            |
+| [0037](0037-money-on-the-wire.md)                     | Every amount with a currency is `Money`; block SQL functions return int8 as text, decoded strictly       |
