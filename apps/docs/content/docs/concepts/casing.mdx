@@ -47,12 +47,18 @@ rows[0].organizationId;
 ```
 
 `returns` validates the decoded value, so a schema for the cased row works.
-`{ raw: true }` skips the decoding and returns database names, typed as
-`unknown`. PostgREST sends `int8` as a JSON number in function results, so
-values above 2^53 lose precision before a `bigint` codec sees them; cast
-them to `text` in the function when they can be that large. The blocks'
-own functions return every `int8` as text for this reason, and their
-clients read it back as a `bigint` or a `Money`.
+When a result column has a codec, such as an `int8` read as a `bigint` or a
+`numeric` read as a string, `$rpc` selects the result columns and casts
+those to `text`, as repository reads do. A JSON number would already have
+lost an `int8` above 2^53 or a `numeric`'s digits before the codec saw it.
+`{ raw: true }` skips the decoding and the cast, and returns database names,
+typed as `unknown`.
+
+A scalar `int8` or `numeric` result, or one inside a `json` or `jsonb`
+result, has no columns to cast: return it as `text` from the function when
+it can be that large. `doctor` reports scalar ones as BS223. The blocks'
+own functions return every `int8` as text, and their clients read it back
+as a `bigint` or a `Money`.
 
 ## What stays in database names
 

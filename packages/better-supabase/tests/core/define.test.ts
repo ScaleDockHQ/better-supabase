@@ -926,5 +926,23 @@ describe("$rpc result decoding", () => {
       .$rpc("customer_note_counts", {});
 
     expect(bad.error?.kind).toBe("invalid_value");
+
+    const recorded = fake({
+      rpc: () => ok([{ note_count: "9007199254740993" }]),
+    });
+
+    const capturing = coded.connect(recorded);
+
+    expect(await capturing.$rpc("customer_note_counts", {}).orThrow()).toEqual([
+      { noteCount: 9_007_199_254_740_993n },
+    ]);
+    await capturing.$rpc("customer_note_counts", {}, { raw: true });
+    expect(recorded.calls.map((call) => call.context.select)).toEqual([
+      [
+        { column: "note_count", cast: "text" },
+        { column: "last_note_at", cast: "text" },
+      ],
+      undefined,
+    ]);
   });
 });

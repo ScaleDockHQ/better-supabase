@@ -626,11 +626,19 @@ export function postgrestExecutor(
 
       // SAFETY: rpc() on a supabase-js or postgrest-js client returns a filter
       // builder with these methods.
-      const built = (
+      const called = (
         context.get
           ? scoped.rpc(name, queryArgs(args), { get: true })
           : scoped.rpc(name, args)
       ) as BuilderLike;
+
+      const built = context.select
+        ? called.select(
+            context.select
+              .map(({ column, cast }) => (cast ? `${column}::${cast}` : column))
+              .join(","),
+          )
+        : called;
 
       const limit = deadline(context.signal, timeout);
 

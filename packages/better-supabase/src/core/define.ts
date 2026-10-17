@@ -63,7 +63,7 @@ import {
   type Result,
   type ThrowMapper,
 } from "./result.ts";
-import { decodeRpcResult, rpcFunction } from "./rpc-result.ts";
+import { decodeRpcResult, rpcFunction, rpcSelect } from "./rpc-result.ts";
 import { OperationRunner } from "./runner.ts";
 import {
   createSpecs,
@@ -1051,6 +1051,7 @@ function rpc(
     const limit = deadline(options?.signal, tuning.timeout);
     const schema = options?.schema ?? "public";
     const fn = rpcFunction(meta, name, schema, args ?? {});
+    const select = options?.raw === true ? undefined : rpcSelect(meta, fn);
 
     const context = {
       schema,
@@ -1058,6 +1059,7 @@ function rpc(
       ...(limit.signal ? { signal: limit.signal } : {}),
       ...(tuning.retry === undefined ? {} : { retry: tuning.retry }),
       ...(fn ? { function: fn } : {}),
+      ...(select ? { select } : {}),
     };
 
     let result: Result<unknown>;

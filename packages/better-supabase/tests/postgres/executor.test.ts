@@ -585,6 +585,25 @@ describe("postgresExecutor rpc", () => {
     ]);
   });
 
+  it("selects the listed columns from the call, cast where asked", async () => {
+    const fake = fakeSql([["to_json(bs_call)", [{ value: { amount: "1" } }]]]);
+
+    await postgresExecutor(fake.sql).rpc!(
+      "rs_workspace_summary",
+      { p: [1] },
+      {
+        schema: "public",
+        errorMappers: [],
+        function: fn,
+        select: [{ column: "label" }, { column: "amount", cast: "text" }],
+      },
+    );
+
+    expect(fake.calls.at(-1)?.text).toBe(
+      'select to_json(bs_call) as value from (select bs_call."label", bs_call."amount"::text as "amount" from "public"."rs_workspace_summary"("p" => $1) as bs_call) as bs_call',
+    );
+  });
+
   it.each([
     ["jsonb", { data: "Acme" }, '"Acme"', ["data"], ["i"]],
     ["text", { data: "Acme" }, "Acme", ["data"], ["i"]],
