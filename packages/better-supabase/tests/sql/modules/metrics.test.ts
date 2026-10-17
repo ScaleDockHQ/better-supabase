@@ -52,6 +52,22 @@ describe("metrics module", () => {
     expect(sql).toContain("now() - interval '3 days'");
   });
 
+  it("skips a subject's soft-deleted rows unless the metric opts out", () => {
+    const layout: ModuleLayout = {
+      subjects: { order: { table: "shop.orders", deletedAt: "archived_at" } },
+    };
+
+    expect(sqlOf({ metrics: [orders] }, layout)).toContain(
+      `from "shop"."orders" t\n        where t."archived_at" is null`,
+    );
+    expect(
+      sqlOf({ metrics: [{ ...orders, includeDeleted: true }] }, layout),
+    ).not.toContain(`t."archived_at"`);
+    expect(
+      sqlOf({ metrics: [{ ...orders, where: { archived_at: "x" } }] }, layout),
+    ).not.toContain(`t."archived_at" is null`);
+  });
+
   it("reads small tables directly and filters rows with where", () => {
     const sql = sqlOf({
       metrics: {

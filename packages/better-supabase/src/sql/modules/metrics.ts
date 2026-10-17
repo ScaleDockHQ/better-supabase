@@ -63,9 +63,34 @@ function windowOf(ctx: ModuleContext): string {
   return window;
 }
 
-/** The metrics declared in `options.metrics`. */
+const qualified = (table: string): string =>
+  table.includes(".") ? table : `public.${table}`;
+
+/**
+ * The metrics declared in `options.metrics`. A metric over a subject table
+ * with `deletedAt` skips soft-deleted rows unless `where` names that column
+ * or the metric sets `includeDeleted`.
+ */
 function declaredMetrics(ctx: ModuleContext): readonly MetricDefinition[] {
-  return metricsOf(ctx.option("metrics"));
+  return metricsOf(ctx.option("metrics")).map((metric) => {
+    if (metric.includeDeleted === true) {
+      return metric;
+    }
+
+    const subject = Object.values(ctx.subjects).find(
+      (entry) =>
+        entry.deletedAt !== undefined &&
+        qualified(entry.table) === qualified(metric.table),
+    );
+
+    const column = subject?.deletedAt;
+
+    if (column === undefined || Object.hasOwn(metric.where ?? {}, column)) {
+      return metric;
+    }
+
+    return { ...metric, where: { ...metric.where, [column]: null } };
+  });
 }
 
 /** The grains `metric_points` keeps for a metric, none when it is queried directly. */

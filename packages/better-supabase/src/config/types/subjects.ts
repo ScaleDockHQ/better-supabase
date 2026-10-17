@@ -40,7 +40,11 @@ export interface SubjectConfig {
   readonly scope?: string;
   /** Delete module rows for a subject when its row is deleted. */
   readonly cascade?: boolean;
-  /** The column holding the soft-delete time, for blocks that hide trashed rows. */
+  /**
+   * The column holding the soft-delete time. Blocks hide rows where it is
+   * set, metrics skip them, and `gen` makes it the table's `softDelete()`
+   * column.
+   */
   readonly deletedAt?: string;
   /** The columns a search index reads. */
   readonly search?: {

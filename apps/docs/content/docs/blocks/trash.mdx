@@ -59,7 +59,7 @@ create policy "projects_read" on public.projects for select to authenticated
   using (deleted_at is null and organization_id in (select better_supabase.tenant_ids_with('projects.read')));
 ```
 
-The [subject registry](/docs/blocks/sql#subject-registry) functions (`can_subject`, `subject_title`) already skip rows with `deletedAt` set.
+The [subject registry](/docs/blocks/sql#subject-registry) functions (`can_subject`, `subject_title`) already skip rows with `deletedAt` set. The [`softDelete()`](/docs/plugins/soft-delete#which-column) plugin reads the same column, so repository reads hide trashed rows and `delete()` sets it. The two share the column and not the bin: a repository `delete()` writes no `trash_items` row and trashes no children, so use `trash` when the row should show in the trash list and restore with its batch.
 
 ## Purge
 

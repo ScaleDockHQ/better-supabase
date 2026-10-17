@@ -174,6 +174,7 @@ export type Models = {
     Checks: "customers_archived_check" | "customers_name_check" | "customers_status_check";
     ForeignKeys: "customers_organization_id_fkey" | "customers_primary_contact_id_fkey";
     Flags: {
+      softDelete: "archivedAt";
       tenant: "organizationId";
     };
   };

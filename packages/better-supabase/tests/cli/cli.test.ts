@@ -584,6 +584,49 @@ describe("plugin flags", () => {
       "plugins.softDelete.column: public.customers.name is text, but softDelete() writes a timestamp",
     );
   });
+
+  const flagsOf = async (config: BetterSupabaseConfig, key: string) =>
+    buildModel(
+      await loadFixtureSnapshot(),
+      resolveConfig(config, fixtures),
+    ).tables.find((table) => table.key === key)?.meta.flags;
+
+  it("takes the soft-delete column from the subject's deletedAt", async () => {
+    const subjects = {
+      customer: { table: "customers", deletedAt: "archived_at" },
+    };
+
+    expect(await flagsOf({ subjects }, "customers")).toMatchObject({
+      softDelete: "archived_at",
+    });
+    expect(
+      await flagsOf(
+        { subjects, plugins: { softDelete: { column: "created_at" } } },
+        "customers",
+      ),
+    ).toMatchObject({ softDelete: "archived_at" });
+    expect(
+      await flagsOf(
+        {
+          subjects: { customer: { table: "customers", deletedAt: "gone_at" } },
+          plugins: { softDelete: { column: "archived_at" } },
+        },
+        "customers",
+      ),
+    ).toMatchObject({ softDelete: "archived_at" });
+  });
+
+  it("rejects a subject deletedAt that is not a timestamp", async () => {
+    const config = resolveConfig(
+      { subjects: { customer: { table: "customers", deletedAt: "name" } } },
+      fixtures,
+    );
+
+    const snapshot = await loadFixtureSnapshot();
+    expect(() => buildModel(snapshot, config)).toThrow(
+      "subjects.customer.deletedAt: public.customers.name is text, but softDelete() writes a timestamp",
+    );
+  });
 });
 
 describe("codecs", () => {
