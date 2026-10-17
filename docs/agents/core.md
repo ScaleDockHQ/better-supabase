@@ -62,3 +62,42 @@ instead of a new mechanism:
   `apiVersion: 1`, a conformance kit in `src/testing/kits`, an
   entry in `tests/core/extensibility.test-d.ts` and a row on the interfaces
   page.
+
+## Considered and rejected
+
+Earlier audits raised these and the code settled them. Don't reopen one
+without new evidence.
+
+- **`actingAs` mints `service_role` sessions.** By design: it trusts its
+  caller like `admin()`, and the docs say to call it only after the
+  signature check and the lookup (`guides/without-a-session.mdx`).
+- **The auth memo grows without bound.** `secretIds` holds 64 entries with
+  eviction, and `clearVerifiedTokens()` clears the URL, JWKS, secret and
+  HS256 caches (`src/auth/resolve.ts`).
+- **No statement timeout on the direct path.** `createPostgres` takes a
+  per-role or single `statementTimeout` and `idleInTransactionTimeout`, and
+  `SessionOptions.statementTimeout` overrides it per call.
+- **`begin()` leaks a transaction when `set_config` fails.** The catch rolls
+  back and the `finally` releases the client (`src/postgres/pool.ts`).
+- **`https_proxy` in the webhook safe-fetch is an SSRF vector.** Proxy
+  variables are the standard convention.
+- **Chunked writes coerce a null count to 0.** Only inserts are chunked, and
+  every insert plan returns a number.
+- **The sessions, mfa, grants, actor and ensure-rls modules are untested.**
+  `sql-modules.integration.test.ts` covers them; only `realtime-tables` has
+  no behavioural test.
+- **`tracedFetch` is missing from `otel`, or `checkReceipts` keeps stale
+  push tokens.** Both are wrong: `tracedFetch` is public and tested, and
+  `checkReceipts` prunes.
+- **29 `raise exception` sites stay inline.** `raise` can't reproduce them
+  byte for byte (multi-line `using`, no errcode, computed hints); its doc
+  comment in `src/sql/shared.ts` names the shapes. The inline grants in
+  `rate-limit.ts`, `grants.ts`, `access.ts`, `workflow-sdk-world.ts`,
+  `webhooks-out-sql.ts` and `audit-api.ts` differ from `revokeTable` the
+  same way.
+- **`functionRoute` takes the name, and `basePath` prefixes it.** The name
+  is the deployed function's directory, which the handler doesn't know. A
+  per-route `basePath` opt-out waits for an app that needs it.
+- **`tablesOf` and two sequential loops could be faster.** `tablesOf` is
+  cached, and running the loops in parallel changes which error is
+  reported first.

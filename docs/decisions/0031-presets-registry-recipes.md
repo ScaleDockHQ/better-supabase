@@ -81,6 +81,6 @@ append-only forever, and every released preset version needs a fixture
 that must keep decoding. The registry build and the recipe extraction
 become dependencies of the marketing build. Revisit the glue-only rule if
 a shadcn-style React Native library with a working registry makes native
-recipes too long to copy, and the open decisions in
-`plans/003-presets-registry-create.md` (default tenant name, whether
-`everything` is public) settle before the preset model ships.
+recipes too long to copy. The decisions this left open settled on
+2026-10-16: the default tenant name stays "organization" (renamed with
+`sql.naming.tenant`), and the `everything` preset is public.
