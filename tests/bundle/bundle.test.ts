@@ -287,7 +287,10 @@ const subpaths = async (): Promise<Map<string, string>> => {
   const manifest = JSON.parse(
     await readFile(join(PACKAGE, "package.json"), "utf-8"),
   ) as {
-    exports: Record<string, string | { default: string }>;
+    exports: Record<
+      string,
+      string | { default: string; "react-server"?: string }
+    >;
   };
 
   const entries = new Map<string, string>();
@@ -298,6 +301,13 @@ const subpaths = async (): Promise<Map<string, string>> => {
     }
 
     entries.set(subpath, join(PACKAGE, target.default));
+
+    if (target["react-server"] !== undefined) {
+      entries.set(
+        `${subpath} (react-server)`,
+        join(PACKAGE, target["react-server"]),
+      );
+    }
   }
 
   return entries;

@@ -273,7 +273,6 @@ const entries = [
   "blocks/settings/vue/index",
   "blocks/settings/svelte/index",
   "blocks/settings/solid/index",
-  "blocks/audit/index",
   "blocks/api-keys/index",
   "blocks/mfa/index",
   "blocks/sessions/index",

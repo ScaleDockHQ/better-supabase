@@ -3,6 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "gen": "better-supabase gen",
+    "gen:check": "better-supabase gen --check",
     "lint": "oxlint",
     "transit": "true"
   },

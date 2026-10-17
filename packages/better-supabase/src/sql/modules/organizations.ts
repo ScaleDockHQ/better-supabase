@@ -17,6 +17,7 @@ import {
 } from "../shared.ts";
 import { accessModel, OPERATIONS, moduleOperations } from "./access-model.ts";
 import { ORGANIZATION_CUSTOMER_COLUMN } from "./entitlements-source.ts";
+import { deleteMode, organizationDeletion } from "./organizations-deletion.ts";
 import { ORGANIZATION_EVENTS } from "./organizations-events.ts";
 import {
   organizationAttributes,
@@ -428,117 +429,6 @@ function platformOverride(
   return key === ""
     ? ""
     : `\n    and not coalesce(${ctx.scope.platform(sqlString(key))}, false)`;
-}
-
-type DeleteMode = "hard" | "soft" | "lifecycle" | "none";
-
-/** `blocks.organizations.options.deleteMode`. */
-function deleteMode(ctx: ModuleContext): DeleteMode {
-  const mode = ctx.text("deleteMode", "hard");
-
-  if (
-    mode !== "hard" &&
-    mode !== "soft" &&
-    mode !== "lifecycle" &&
-    mode !== "none"
-  ) {
-    throw new TypeError(
-      `blocks.organizations.options.deleteMode must be "hard", "soft", "lifecycle" or "none", not "${mode}"`,
-    );
-  }
-
-  if (mode === "lifecycle" && !ctx.installed("data-lifecycle")) {
-    throw new TypeError(
-      'blocks.organizations.options.deleteMode "lifecycle" schedules the deletion with request_organization_deletion, so it needs the data-lifecycle module in blocks',
-    );
-  }
-
-  return mode;
-}
-
-/** `delete_organization(organization)`: requests the purge through data-lifecycle. */
-function requestDeletion(ctx: ModuleContext): string {
-  return `
--- Deletes an organization through data-lifecycle (blocks.organizations.options.deleteMode
--- "lifecycle"): schedules the purge after the grace period and disables it.
-create or replace function ${ctx.fn("delete_organization")}(organization ${ctx.idType})
-returns boolean
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_variable
-begin
-  if not (${SERVICE_CALLER}) and not coalesce(better_supabase.member_can(auth.uid(), organization, ${ctx.permission("delete", OPERATIONS["organizations.delete"])}), false)${platformOverride(ctx, "deletePlatform")} then
-    ${fail("ORGANIZATION_FORBIDDEN", "Not allowed to delete the organization")}
-  end if;
-  perform ${ctx.of("data-lifecycle").fn("request_organization_deletion")}(organization);
-  return true;
-end;
-$$;
-`;
-}
-
-function remove(ctx: ModuleContext, n: OrganizationNames): string {
-  const id = ctx.idType;
-  const mode = deleteMode(ctx);
-
-  if (mode === "none") {
-    return `
--- blocks.organizations.options.deleteMode is "none": no delete function.
-drop function if exists ${ctx.fn("delete_organization")}(${id});
-`;
-  }
-
-  if (mode === "lifecycle") {
-    return requestDeletion(ctx);
-  }
-
-  const soft = mode === "soft";
-
-  if (soft && !ctx.has("organizations", "deletedAt")) {
-    throw new TypeError(
-      "blocks.organizations.options.deleteMode 'soft' needs the deletedAt column",
-    );
-  }
-
-  const action = soft
-    ? `update ${n.organization} set ${ctx.col("organizations", "deletedAt")} = now() where ${n.id} = organization and ${ctx.col("organizations", "deletedAt")} is null;`
-    : `delete from ${n.organization} where ${n.id} = organization;`;
-
-  return `
--- Deletes an organization (blocks.organizations.options.deleteMode: ${soft ? "soft, setting deleted_at" : "hard, with its memberships"}).
-create or replace function ${ctx.fn("delete_organization")}(organization ${id})
-returns boolean
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_variable
-begin
-  if not (${SERVICE_CALLER}) and not coalesce(better_supabase.member_can(auth.uid(), organization, ${ctx.permission("delete", OPERATIONS["organizations.delete"])}), false)${platformOverride(ctx, "deletePlatform")} then
-    ${fail("ORGANIZATION_FORBIDDEN", "Not allowed to delete the organization")}
-  end if;
-  ${action}
-  if not found then
-    return false;
-  end if;${soft ? "" : `\n  delete from ${n.m} where ${n.tenant} = organization;`}
-  ${ctx.record({
-    type: "organization.deleted",
-    payload: event("organization", "auth.uid()"),
-    subject: "'organizations/' || organization::text",
-    tenant: "organization",
-    audit: {
-      category: "configuration",
-      targetType: "organization",
-      recordId: "organization::text",
-      metadata: `jsonb_build_object('mode', ${sqlString(soft ? "soft" : "hard")})`,
-    },
-  })}
-  return true;
-end;
-$$;
-`;
 }
 
 /**
@@ -1015,18 +905,21 @@ grant execute on function ${ctx.fn(name)}(${args}) to authenticated, service_rol
     .join("\n");
 
   return `${schemaPreamble(ctx)}
-${table(ctx, n)}${tenantKeys(ctx, n)}${slugCheck(ctx, n)}${create(ctx, n)}${remove(ctx, n)}${guards(ctx, n)}${members(ctx, n)}${memberSuspension(
+${table(ctx, n)}${tenantKeys(ctx, n)}${slugCheck(ctx, n)}${create(ctx, n)}${organizationDeletion(
     ctx,
     n,
     {
-      isOwner: (alias) => isOwner(ctx, n, alias),
-      activeOrganization: (organization) =>
-        activeOrganization(ctx, n, organization),
-      platformOverride: platformOverride(ctx, "removeMemberPlatform"),
-      assignableRole: (stored) => assignableRole(ctx, stored),
+      platformOverride: platformOverride(ctx, "deletePlatform"),
       event,
     },
-  )}${switcher(ctx, n)}${organizationReads(ctx, n)}
+  )}${guards(ctx, n)}${members(ctx, n)}${memberSuspension(ctx, n, {
+    isOwner: (alias) => isOwner(ctx, n, alias),
+    activeOrganization: (organization) =>
+      activeOrganization(ctx, n, organization),
+    platformOverride: platformOverride(ctx, "removeMemberPlatform"),
+    assignableRole: (stored) => assignableRole(ctx, stored),
+    event,
+  })}${switcher(ctx, n)}${organizationReads(ctx, n)}
 ${grants}`;
 }
 

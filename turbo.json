@@ -117,7 +117,8 @@
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/tests/types/shared/*.json",
-        "$TURBO_ROOT$/tests/types/shared/*.ts"
+        "$TURBO_ROOT$/tests/types/shared/*.ts",
+        "$TURBO_ROOT$/tests/types/shared/*.js"
       ]
     },
     "typecheck:perf": {

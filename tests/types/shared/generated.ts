@@ -2,19 +2,12 @@
 /* oxlint-disable */
 /* eslint-disable */
 
-import type { EnrichDatabase } from "better-supabase";
-
 import { defineSchema, type Schema } from "better-supabase";
-
+import type { EnrichDatabase, MutableWhere, OrderByArg, OrderByInput } from "better-supabase";
 import type { Database as SupabaseDatabase } from "./database.types.ts";
+import meta from "./generated.meta.js";
 
-export type Json =
-  | string
-  | number
-  | boolean
-  | null
-  | { [key: string]: Json | undefined }
-  | Json[];
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type Database = EnrichDatabase<
   SupabaseDatabase,
@@ -22,7 +15,13 @@ export type Database = EnrichDatabase<
     public: {
       customers: {
         status: "lead" | "active" | "archived";
-        metadata: { source?: string; tier?: "free" | "pro" };
+        metadata: { source?: string; tier?: 'free' | 'pro' };
+      };
+      memberships: {
+        role: "owner" | "admin" | "member";
+      };
+      subscriptions: {
+        status: "active" | "trialing" | "past_due" | "canceled";
       };
       tags: {
         color: "gray" | "red" | "green" | "blue";
@@ -35,6 +34,10 @@ export const noteKindValues = ["call", "meeting", "email"] as const;
 export type NoteKind = (typeof noteKindValues)[number];
 export const customersStatusValues = ["lead", "active", "archived"] as const;
 export type CustomersStatus = (typeof customersStatusValues)[number];
+export const membershipsRoleValues = ["owner", "admin", "member"] as const;
+export type MembershipsRole = (typeof membershipsRoleValues)[number];
+export const subscriptionsStatusValues = ["active", "trialing", "past_due", "canceled"] as const;
+export type SubscriptionsStatus = (typeof subscriptionsStatusValues)[number];
 export const tagsColorValues = ["gray", "red", "green", "blue"] as const;
 export type TagsColor = (typeof tagsColorValues)[number];
 
@@ -69,7 +72,11 @@ export type Models = {
       customers: { table: "customers"; kind: "many"; nullable: true };
     };
     PrimaryKey: "id";
-    UniqueKeys: Record<never, never>;
+    UniqueKeys: {
+      contacts_id_organization_id_key: readonly ["id", "organizationId"];
+    };
+    Checks: never;
+    ForeignKeys: "contacts_organization_id_fkey";
     Flags: {
       timestamps: true;
       tenant: "organizationId";
@@ -80,16 +87,19 @@ export type Models = {
       customerId: string;
       tagId: string;
       organizationId: string;
+      createdAt: string;
     };
     Insert: {
       customerId: string;
       tagId: string;
       organizationId: string;
+      createdAt?: string;
     };
     Update: {
       customerId?: string;
       tagId?: string;
       organizationId?: string;
+      createdAt?: string;
     };
     Relations: {
       customer: { table: "customers"; kind: "one"; nullable: false };
@@ -98,7 +108,10 @@ export type Models = {
     };
     PrimaryKey: "customerId" | "tagId";
     UniqueKeys: Record<never, never>;
+    Checks: never;
+    ForeignKeys: "customer_tags_customer_id_fkey" | "customer_tags_organization_id_fkey" | "customer_tags_tag_id_fkey";
     Flags: {
+      timestamps: true;
       tenant: "organizationId";
     };
   };
@@ -110,12 +123,13 @@ export type Models = {
       kvk: string | null;
       status: "lead" | "active" | "archived";
       primaryContactId: string | null;
-      metadata: { source?: string; tier?: "free" | "pro" };
-      createdBy: string | null;
+      metadata: { source?: string; tier?: 'free' | 'pro' };
       updatedBy: string | null;
       archivedAt: string | null;
       createdAt: string;
       updatedAt: string;
+      logoPath: string | null;
+      createdBy: string | null;
     };
     Insert: {
       id?: string;
@@ -124,12 +138,13 @@ export type Models = {
       kvk?: string | null;
       status?: "lead" | "active" | "archived";
       primaryContactId?: string | null;
-      metadata?: { source?: string; tier?: "free" | "pro" };
-      createdBy?: string | null;
+      metadata?: { source?: string; tier?: 'free' | 'pro' };
       updatedBy?: string | null;
       archivedAt?: string | null;
       createdAt?: string;
       updatedAt?: string;
+      logoPath?: string | null;
+      createdBy?: string | null;
     };
     Update: {
       id?: string;
@@ -138,12 +153,13 @@ export type Models = {
       kvk?: string | null;
       status?: "lead" | "active" | "archived";
       primaryContactId?: string | null;
-      metadata?: { source?: string; tier?: "free" | "pro" };
-      createdBy?: string | null;
+      metadata?: { source?: string; tier?: 'free' | 'pro' };
       updatedBy?: string | null;
       archivedAt?: string | null;
       createdAt?: string;
       updatedAt?: string;
+      logoPath?: string | null;
+      createdBy?: string | null;
     };
     Relations: {
       customerTags: { table: "customerTags"; kind: "many"; nullable: true };
@@ -154,8 +170,11 @@ export type Models = {
     };
     PrimaryKey: "id";
     UniqueKeys: {
+      customers_id_organization_id_key: readonly ["id", "organizationId"];
       customers_organization_id_kvk_key: readonly ["organizationId", "kvk"];
     };
+    Checks: "customers_archived_check" | "customers_name_check" | "customers_status_check";
+    ForeignKeys: "customers_organization_id_fkey" | "customers_primary_contact_id_fkey";
     Flags: {
       softDelete: "archivedAt";
       timestamps: true;
@@ -200,6 +219,42 @@ export type Models = {
     };
     PrimaryKey: "id";
     UniqueKeys: Record<never, never>;
+    Checks: never;
+    ForeignKeys: "locations_customer_id_fkey" | "locations_organization_id_fkey";
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
+    };
+  };
+  memberships: {
+    Row: {
+      organizationId: string;
+      userId: string;
+      role: "owner" | "admin" | "member";
+      createdAt: string;
+      lastUsedAt: string | null;
+    };
+    Insert: {
+      organizationId: string;
+      userId: string;
+      role?: "owner" | "admin" | "member";
+      createdAt?: string;
+      lastUsedAt?: string | null;
+    };
+    Update: {
+      organizationId?: string;
+      userId?: string;
+      role?: "owner" | "admin" | "member";
+      createdAt?: string;
+      lastUsedAt?: string | null;
+    };
+    Relations: {
+      organization: { table: "organizations"; kind: "one"; nullable: false };
+    };
+    PrimaryKey: "organizationId" | "userId";
+    UniqueKeys: Record<never, never>;
+    Checks: "memberships_role_check";
+    ForeignKeys: "memberships_organization_id_fkey" | "memberships_user_id_fkey";
     Flags: {
       timestamps: true;
       tenant: "organizationId";
@@ -210,31 +265,34 @@ export type Models = {
       id: number;
       organizationId: string;
       customerId: string;
-      kind: "call" | "meeting" | "email";
       body: string;
       attachments: Json | null;
       createdAt: string;
       updatedAt: string;
+      embedding: string | null;
+      kind: "call" | "meeting" | "email";
     };
     Insert: {
       id?: never;
       organizationId: string;
       customerId: string;
-      kind?: "call" | "meeting" | "email";
       body: string;
       attachments?: Json | null;
       createdAt?: string;
       updatedAt?: string;
+      embedding?: string | null;
+      kind?: "call" | "meeting" | "email";
     };
     Update: {
       id?: never;
       organizationId?: string;
       customerId?: string;
-      kind?: "call" | "meeting" | "email";
       body?: string;
       attachments?: Json | null;
       createdAt?: string;
       updatedAt?: string;
+      embedding?: string | null;
+      kind?: "call" | "meeting" | "email";
     };
     Relations: {
       customer: { table: "customers"; kind: "one"; nullable: false };
@@ -242,6 +300,8 @@ export type Models = {
     };
     PrimaryKey: "id";
     UniqueKeys: Record<never, never>;
+    Checks: never;
+    ForeignKeys: "notes_customer_id_fkey" | "notes_organization_id_fkey";
     Flags: {
       timestamps: true;
       tenant: "organizationId";
@@ -274,15 +334,111 @@ export type Models = {
       customerTags: { table: "customerTags"; kind: "many"; nullable: true };
       customers: { table: "customers"; kind: "many"; nullable: true };
       locations: { table: "locations"; kind: "many"; nullable: true };
+      memberships: { table: "memberships"; kind: "many"; nullable: true };
       notes: { table: "notes"; kind: "many"; nullable: true };
+      subscription: { table: "subscriptions"; kind: "one"; nullable: true };
       tags: { table: "tags"; kind: "many"; nullable: true };
     };
     PrimaryKey: "id";
     UniqueKeys: {
       organizations_slug_key: readonly ["slug"];
     };
+    Checks: never;
+    ForeignKeys: never;
     Flags: {
       timestamps: true;
+    };
+  };
+  planFeatures: {
+    Row: {
+      planKey: string;
+      featureKey: string;
+      included: boolean;
+      value: Json | null;
+    };
+    Insert: {
+      planKey: string;
+      featureKey: string;
+      included?: boolean;
+      value?: Json | null;
+    };
+    Update: {
+      planKey?: string;
+      featureKey?: string;
+      included?: boolean;
+      value?: Json | null;
+    };
+    Relations: {
+      plan: { table: "plans"; kind: "one"; nullable: false };
+    };
+    PrimaryKey: "planKey" | "featureKey";
+    UniqueKeys: Record<never, never>;
+    Checks: never;
+    ForeignKeys: "plan_features_plan_key_fkey";
+    Flags: Record<never, never>;
+  };
+  plans: {
+    Row: {
+      key: string;
+      name: string;
+      priceCents: number;
+      position: number;
+    };
+    Insert: {
+      key: string;
+      name: string;
+      priceCents?: number;
+      position?: number;
+    };
+    Update: {
+      key?: string;
+      name?: string;
+      priceCents?: number;
+      position?: number;
+    };
+    Relations: {
+      planFeatures: { table: "planFeatures"; kind: "many"; nullable: true };
+      subscriptions: { table: "subscriptions"; kind: "many"; nullable: true };
+    };
+    PrimaryKey: "key";
+    UniqueKeys: Record<never, never>;
+    Checks: never;
+    ForeignKeys: never;
+    Flags: Record<never, never>;
+  };
+  subscriptions: {
+    Row: {
+      organizationId: string;
+      planKey: string;
+      status: "active" | "trialing" | "past_due" | "canceled";
+      currentPeriodEnd: string | null;
+      updatedAt: string;
+    };
+    Insert: {
+      organizationId: string;
+      planKey: string;
+      status?: "active" | "trialing" | "past_due" | "canceled";
+      currentPeriodEnd?: string | null;
+      updatedAt?: string;
+    };
+    Update: {
+      organizationId?: string;
+      planKey?: string;
+      status?: "active" | "trialing" | "past_due" | "canceled";
+      currentPeriodEnd?: string | null;
+      updatedAt?: string;
+    };
+    Relations: {
+      organization: { table: "organizations"; kind: "one"; nullable: false };
+      plan: { table: "plans"; kind: "one"; nullable: false };
+    };
+    PrimaryKey: "organizationId";
+    UniqueKeys: Record<never, never>;
+    Checks: "subscriptions_status_check";
+    ForeignKeys: "subscriptions_organization_id_fkey" | "subscriptions_plan_key_fkey";
+    Flags: {
+      timestamps: true;
+      tenant: "organizationId";
     };
   };
   tags: {
@@ -291,18 +447,24 @@ export type Models = {
       organizationId: string;
       name: string;
       color: "gray" | "red" | "green" | "blue";
+      createdAt: string;
+      updatedAt: string;
     };
     Insert: {
       id?: string;
       organizationId: string;
       name: string;
       color?: "gray" | "red" | "green" | "blue";
+      createdAt?: string;
+      updatedAt?: string;
     };
     Update: {
       id?: string;
       organizationId?: string;
       name?: string;
       color?: "gray" | "red" | "green" | "blue";
+      createdAt?: string;
+      updatedAt?: string;
     };
     Relations: {
       customerTags: { table: "customerTags"; kind: "many"; nullable: true };
@@ -310,675 +472,121 @@ export type Models = {
     };
     PrimaryKey: "id";
     UniqueKeys: {
+      tags_id_organization_id_key: readonly ["id", "organizationId"];
       tags_organization_id_name_key: readonly ["organizationId", "name"];
     };
+    Checks: "tags_color_check";
+    ForeignKeys: "tags_organization_id_fkey";
     Flags: {
+      timestamps: true;
       tenant: "organizationId";
     };
   };
 };
 
-export type Functions = Record<never, never>;
+export type Functions = {
+  customer_note_counts: {
+    Args: {
+      p_customer_ids?: string[] | null;
+    };
+    Returns: { "customerId": string | null; "lastNoteAt": string | null; "noteCount": number | null }[];
+  };
+  customers_by_status: {
+    Args: {
+      p_limit?: number | null;
+      p_status: string | null;
+    };
+    Returns: (Models["customers"]['Row'])[];
+  };
+  my_organizations: {
+    Args: Record<never, never>;
+    Returns: { "id": string | null; "lastUsedAt": string | null; "name": string | null; "plan": string | null; "role": string | null; "slug": string | null }[];
+  };
+  my_profile: {
+    Args: Record<never, never>;
+    Returns: { "avatarPath": string | null; "avatarUrl": string | null; "email": string | null; "fullName": string | null; "username": string | null }[];
+  };
+  organization_invitations: {
+    Args: {
+      organization: string | null;
+    };
+    Returns: { "createdAt": string | null; "email": string | null; "expiresAt": string | null; "id": string | null; "invitedBy": string | null; "role": string | null }[];
+  };
+  organization_members: {
+    Args: {
+      organization: string | null;
+    };
+    Returns: { "avatarPath": string | null; "avatarUrl": string | null; "email": string | null; "fullName": string | null; "joinedAt": string | null; "role": string | null; "userId": string | null }[];
+  };
+  rs_workspace_summary: {
+    Args: {
+      p: Json | null;
+    };
+    Returns: Json;
+  };
+  search_notes: {
+    Args: {
+      k?: number | null;
+      query: string | null;
+    };
+    Returns: (Models["notes"]['Row'])[];
+  };
+  search_notes_scores: {
+    Args: {
+      k?: number | null;
+      query: string | null;
+    };
+    Returns: { "id": Json; "score": number | null }[];
+  };
+  set_my_avatar_path: {
+    Args: {
+      avatar_path: string | null;
+    };
+    Returns: undefined;
+  };
+  update_my_profile: {
+    Args: {
+      full_name: string | null;
+    };
+    Returns: undefined;
+  };
+};
 
 export type TableName = keyof Models;
-export type RowOf<T extends TableName> = Models[T]["Row"];
-export type InsertOf<T extends TableName> = Models[T]["Insert"];
-export type UpdateOf<T extends TableName> = Models[T]["Update"];
+/** Constraint names for `isConflict`, `isCheck` and `isForeignKey`. */
+export type UniqueConstraint = { [T in TableName]: Extract<keyof Models[T]['UniqueKeys'], string> }[TableName];
+export type CheckConstraint = Models[TableName]['Checks'];
+export type ForeignKeyConstraint = Models[TableName]['ForeignKeys'];
+export type RowOf<T extends TableName> = Models[T]['Row'];
+export type InsertOf<T extends TableName> = Models[T]['Insert'];
+export type UpdateOf<T extends TableName> = Models[T]['Update'];
+/** A `where` for `T` you can assign to one key at a time. */
+export type WhereOf<T extends TableName> = MutableWhere<Models, T>;
+/** An `orderBy` for `T`: one sort or a list, by column or to-one relation. */
+export type OrderByOf<T extends TableName> = OrderByArg<Models, T>;
+/** One sort term of `T`'s `orderBy`, by column or to-one relation. */
+export type OrderTermOf<T extends TableName> = OrderByInput<Models, T>;
 
 /** Bucket configs for `defineBucket` from `better-supabase/storage`. */
 export const buckets = {
-  customerLogos: {
-    id: "customer-logos",
-    public: false,
-    path: "{orgId}/{customerId}/logo/{version}.webp",
-    policy: "tenant",
-    fileSizeLimit: "5MiB",
-    allowedMimeTypes: ["image/png", "image/jpeg", "image/webp"],
-  },
+  "customerLogos": {
+    "id": "customer-logos",
+    "public": false,
+    "path": "{organizationId}/{customerId}/logo/{version}.webp",
+    "policy": "tenant",
+    "fileSizeLimit": "5MiB",
+    "allowedMimeTypes": [
+      "image/png",
+      "image/jpeg",
+      "image/webp"
+    ]
+  }
 } as const;
 
 /** Topic templates for `defineTopic` from `better-supabase/realtime`. */
 export const topics = {
-  notifications: "org:{orgId}:notifications:{userId}",
-  customers: "org:{orgId}:customers",
+  "notifications": "organization:{organizationId}:notifications:{userId}",
+  "customers": "organization:{organizationId}:customers"
 } as const;
 
-export const schema: Schema<Models, Database, Functions> = defineSchema({
-  version: 1,
-  casing: "camel",
-  tables: {
-    contacts: {
-      key: "contacts",
-      name: "contacts",
-      schema: "public",
-      kind: "table",
-      columns: {
-        id: {
-          db: "id",
-          type: "uuid",
-          nullable: false,
-          hasDefault: true,
-        },
-        organizationId: {
-          db: "organization_id",
-          type: "uuid",
-          nullable: false,
-          hasDefault: false,
-        },
-        email: {
-          db: "email",
-          type: "text",
-          nullable: false,
-          hasDefault: false,
-        },
-        fullName: {
-          db: "full_name",
-          type: "text",
-          nullable: true,
-          hasDefault: false,
-        },
-        createdAt: {
-          db: "created_at",
-          type: "timestamptz",
-          nullable: false,
-          hasDefault: true,
-        },
-        updatedAt: {
-          db: "updated_at",
-          type: "timestamptz",
-          nullable: false,
-          hasDefault: true,
-        },
-      },
-      primaryKey: ["id"],
-      uniqueKeys: {},
-      relations: {
-        organization: {
-          table: "organizations",
-          kind: "one",
-          nullable: false,
-          foreignKey: "contacts_organization_id_fkey",
-          columns: ["organizationId"],
-          references: ["id"],
-          direction: "forward",
-        },
-        customers: {
-          table: "customers",
-          kind: "many",
-          nullable: true,
-          foreignKey: "customers_primary_contact_id_fkey",
-          columns: ["id"],
-          references: ["primaryContactId"],
-          direction: "reverse",
-        },
-      },
-      flags: {
-        timestamps: {
-          createdAt: "createdAt",
-          updatedAt: "updatedAt",
-        },
-        tenant: "organizationId",
-      },
-    },
-    customerTags: {
-      key: "customerTags",
-      name: "customer_tags",
-      schema: "public",
-      kind: "table",
-      columns: {
-        customerId: {
-          db: "customer_id",
-          type: "uuid",
-          nullable: false,
-          hasDefault: false,
-        },
-        tagId: {
-          db: "tag_id",
-          type: "uuid",
-          nullable: false,
-          hasDefault: false,
-        },
-        organizationId: {
-          db: "organization_id",
-          type: "uuid",
-          nullable: false,
-          hasDefault: false,
-        },
-      },
-      primaryKey: ["customerId", "tagId"],
-      uniqueKeys: {},
-      relations: {
-        customer: {
-          table: "customers",
-          kind: "one",
-          nullable: false,
-          foreignKey: "customer_tags_customer_id_fkey",
-          columns: ["customerId"],
-          references: ["id"],
-          direction: "forward",
-        },
-        organization: {
-          table: "organizations",
-          kind: "one",
-          nullable: false,
-          foreignKey: "customer_tags_organization_id_fkey",
-          columns: ["organizationId"],
-          references: ["id"],
-          direction: "forward",
-        },
-        tag: {
-          table: "tags",
-          kind: "one",
-          nullable: false,
-          foreignKey: "customer_tags_tag_id_fkey",
-          columns: ["tagId"],
-          references: ["id"],
-          direction: "forward",
-        },
-      },
-      flags: {
-        tenant: "organizationId",
-      },
-    },
-    customers: {
-      key: "customers",
-      name: "customers",
-      schema: "public",
-      kind: "table",
-      columns: {
-        id: {
-          db: "id",
-          type: "uuid",
-          nullable: false,
-          hasDefault: true,
-        },
-        organizationId: {
-          db: "organization_id",
-          type: "uuid",
-          nullable: false,
-          hasDefault: false,
-        },
-        name: {
-          db: "name",
-          type: "text",
-          nullable: false,
-          hasDefault: false,
-        },
-        kvk: {
-          db: "kvk",
-          type: "text",
-          nullable: true,
-          hasDefault: false,
-        },
-        status: {
-          db: "status",
-          type: "text",
-          nullable: false,
-          hasDefault: true,
-          enum: ["lead", "active", "archived"],
-        },
-        primaryContactId: {
-          db: "primary_contact_id",
-          type: "uuid",
-          nullable: true,
-          hasDefault: false,
-        },
-        metadata: {
-          db: "metadata",
-          type: "jsonb",
-          nullable: false,
-          hasDefault: true,
-          json: true,
-        },
-        createdBy: {
-          db: "created_by",
-          type: "uuid",
-          nullable: true,
-          hasDefault: false,
-        },
-        updatedBy: {
-          db: "updated_by",
-          type: "uuid",
-          nullable: true,
-          hasDefault: false,
-        },
-        archivedAt: {
-          db: "archived_at",
-          type: "timestamptz",
-          nullable: true,
-          hasDefault: false,
-        },
-        createdAt: {
-          db: "created_at",
-          type: "timestamptz",
-          nullable: false,
-          hasDefault: true,
-        },
-        updatedAt: {
-          db: "updated_at",
-          type: "timestamptz",
-          nullable: false,
-          hasDefault: true,
-        },
-      },
-      primaryKey: ["id"],
-      uniqueKeys: {
-        customers_organization_id_kvk_key: ["organizationId", "kvk"],
-      },
-      relations: {
-        customerTags: {
-          table: "customerTags",
-          kind: "many",
-          nullable: true,
-          foreignKey: "customer_tags_customer_id_fkey",
-          columns: ["id"],
-          references: ["customerId"],
-          direction: "reverse",
-        },
-        organization: {
-          table: "organizations",
-          kind: "one",
-          nullable: false,
-          foreignKey: "customers_organization_id_fkey",
-          columns: ["organizationId"],
-          references: ["id"],
-          direction: "forward",
-        },
-        primaryContact: {
-          table: "contacts",
-          kind: "one",
-          nullable: true,
-          foreignKey: "customers_primary_contact_id_fkey",
-          columns: ["primaryContactId"],
-          references: ["id"],
-          direction: "forward",
-        },
-        locations: {
-          table: "locations",
-          kind: "many",
-          nullable: true,
-          foreignKey: "locations_customer_id_fkey",
-          columns: ["id"],
-          references: ["customerId"],
-          direction: "reverse",
-        },
-        notes: {
-          table: "notes",
-          kind: "many",
-          nullable: true,
-          foreignKey: "notes_customer_id_fkey",
-          columns: ["id"],
-          references: ["customerId"],
-          direction: "reverse",
-        },
-      },
-      flags: {
-        softDelete: "archivedAt",
-        timestamps: {
-          createdAt: "createdAt",
-          updatedAt: "updatedAt",
-        },
-        tenant: "organizationId",
-        actor: {
-          createdBy: "createdBy",
-          updatedBy: "updatedBy",
-        },
-      },
-    },
-    locations: {
-      key: "locations",
-      name: "locations",
-      schema: "public",
-      kind: "table",
-      columns: {
-        id: {
-          db: "id",
-          type: "uuid",
-          nullable: false,
-          hasDefault: true,
-        },
-        organizationId: {
-          db: "organization_id",
-          type: "uuid",
-          nullable: false,
-          hasDefault: false,
-        },
-        customerId: {
-          db: "customer_id",
-          type: "uuid",
-          nullable: false,
-          hasDefault: false,
-        },
-        label: {
-          db: "label",
-          type: "text",
-          nullable: false,
-          hasDefault: false,
-        },
-        city: {
-          db: "city",
-          type: "text",
-          nullable: true,
-          hasDefault: false,
-        },
-        isPrimary: {
-          db: "is_primary",
-          type: "bool",
-          nullable: false,
-          hasDefault: true,
-        },
-        createdAt: {
-          db: "created_at",
-          type: "timestamptz",
-          nullable: false,
-          hasDefault: true,
-        },
-        updatedAt: {
-          db: "updated_at",
-          type: "timestamptz",
-          nullable: false,
-          hasDefault: true,
-        },
-      },
-      primaryKey: ["id"],
-      uniqueKeys: {},
-      relations: {
-        customer: {
-          table: "customers",
-          kind: "one",
-          nullable: false,
-          foreignKey: "locations_customer_id_fkey",
-          columns: ["customerId"],
-          references: ["id"],
-          direction: "forward",
-        },
-        organization: {
-          table: "organizations",
-          kind: "one",
-          nullable: false,
-          foreignKey: "locations_organization_id_fkey",
-          columns: ["organizationId"],
-          references: ["id"],
-          direction: "forward",
-        },
-      },
-      flags: {
-        timestamps: {
-          createdAt: "createdAt",
-          updatedAt: "updatedAt",
-        },
-        tenant: "organizationId",
-      },
-    },
-    notes: {
-      key: "notes",
-      name: "notes",
-      schema: "public",
-      kind: "table",
-      columns: {
-        id: {
-          db: "id",
-          type: "int8",
-          nullable: false,
-          hasDefault: true,
-          generated: true,
-        },
-        organizationId: {
-          db: "organization_id",
-          type: "uuid",
-          nullable: false,
-          hasDefault: false,
-        },
-        customerId: {
-          db: "customer_id",
-          type: "uuid",
-          nullable: false,
-          hasDefault: false,
-        },
-        kind: {
-          db: "kind",
-          type: "note_kind",
-          nullable: false,
-          hasDefault: true,
-          enum: ["call", "meeting", "email"],
-        },
-        body: {
-          db: "body",
-          type: "text",
-          nullable: false,
-          hasDefault: false,
-        },
-        attachments: {
-          db: "attachments",
-          type: "jsonb",
-          nullable: true,
-          hasDefault: false,
-          json: true,
-        },
-        createdAt: {
-          db: "created_at",
-          type: "timestamptz",
-          nullable: false,
-          hasDefault: true,
-        },
-        updatedAt: {
-          db: "updated_at",
-          type: "timestamptz",
-          nullable: false,
-          hasDefault: true,
-        },
-      },
-      primaryKey: ["id"],
-      uniqueKeys: {},
-      relations: {
-        customer: {
-          table: "customers",
-          kind: "one",
-          nullable: false,
-          foreignKey: "notes_customer_id_fkey",
-          columns: ["customerId"],
-          references: ["id"],
-          direction: "forward",
-        },
-        organization: {
-          table: "organizations",
-          kind: "one",
-          nullable: false,
-          foreignKey: "notes_organization_id_fkey",
-          columns: ["organizationId"],
-          references: ["id"],
-          direction: "forward",
-        },
-      },
-      flags: {
-        timestamps: {
-          createdAt: "createdAt",
-          updatedAt: "updatedAt",
-        },
-        tenant: "organizationId",
-      },
-    },
-    organizations: {
-      key: "organizations",
-      name: "organizations",
-      schema: "public",
-      kind: "table",
-      columns: {
-        id: {
-          db: "id",
-          type: "uuid",
-          nullable: false,
-          hasDefault: true,
-        },
-        name: {
-          db: "name",
-          type: "text",
-          nullable: false,
-          hasDefault: false,
-        },
-        slug: {
-          db: "slug",
-          type: "text",
-          nullable: false,
-          hasDefault: false,
-        },
-        createdAt: {
-          db: "created_at",
-          type: "timestamptz",
-          nullable: false,
-          hasDefault: true,
-        },
-        updatedAt: {
-          db: "updated_at",
-          type: "timestamptz",
-          nullable: false,
-          hasDefault: true,
-        },
-      },
-      primaryKey: ["id"],
-      uniqueKeys: {
-        organizations_slug_key: ["slug"],
-      },
-      relations: {
-        contacts: {
-          table: "contacts",
-          kind: "many",
-          nullable: true,
-          foreignKey: "contacts_organization_id_fkey",
-          columns: ["id"],
-          references: ["organizationId"],
-          direction: "reverse",
-        },
-        customerTags: {
-          table: "customerTags",
-          kind: "many",
-          nullable: true,
-          foreignKey: "customer_tags_organization_id_fkey",
-          columns: ["id"],
-          references: ["organizationId"],
-          direction: "reverse",
-        },
-        customers: {
-          table: "customers",
-          kind: "many",
-          nullable: true,
-          foreignKey: "customers_organization_id_fkey",
-          columns: ["id"],
-          references: ["organizationId"],
-          direction: "reverse",
-        },
-        locations: {
-          table: "locations",
-          kind: "many",
-          nullable: true,
-          foreignKey: "locations_organization_id_fkey",
-          columns: ["id"],
-          references: ["organizationId"],
-          direction: "reverse",
-        },
-        notes: {
-          table: "notes",
-          kind: "many",
-          nullable: true,
-          foreignKey: "notes_organization_id_fkey",
-          columns: ["id"],
-          references: ["organizationId"],
-          direction: "reverse",
-        },
-        tags: {
-          table: "tags",
-          kind: "many",
-          nullable: true,
-          foreignKey: "tags_organization_id_fkey",
-          columns: ["id"],
-          references: ["organizationId"],
-          direction: "reverse",
-        },
-      },
-      flags: {
-        timestamps: {
-          createdAt: "createdAt",
-          updatedAt: "updatedAt",
-        },
-      },
-    },
-    tags: {
-      key: "tags",
-      name: "tags",
-      schema: "public",
-      kind: "table",
-      columns: {
-        id: {
-          db: "id",
-          type: "uuid",
-          nullable: false,
-          hasDefault: true,
-        },
-        organizationId: {
-          db: "organization_id",
-          type: "uuid",
-          nullable: false,
-          hasDefault: false,
-        },
-        name: {
-          db: "name",
-          type: "text",
-          nullable: false,
-          hasDefault: false,
-        },
-        color: {
-          db: "color",
-          type: "text",
-          nullable: false,
-          hasDefault: true,
-          enum: ["gray", "red", "green", "blue"],
-        },
-      },
-      primaryKey: ["id"],
-      uniqueKeys: {
-        tags_organization_id_name_key: ["organizationId", "name"],
-      },
-      relations: {
-        customerTags: {
-          table: "customerTags",
-          kind: "many",
-          nullable: true,
-          foreignKey: "customer_tags_tag_id_fkey",
-          columns: ["id"],
-          references: ["tagId"],
-          direction: "reverse",
-        },
-        organization: {
-          table: "organizations",
-          kind: "one",
-          nullable: false,
-          foreignKey: "tags_organization_id_fkey",
-          columns: ["organizationId"],
-          references: ["id"],
-          direction: "forward",
-        },
-      },
-      flags: {
-        tenant: "organizationId",
-      },
-    },
-  },
-  enums: {
-    note_kind: ["call", "meeting", "email"],
-  },
-  functions: {},
-  buckets: {
-    customerLogos: {
-      id: "customer-logos",
-      public: false,
-      path: "{orgId}/{customerId}/logo/{version}.webp",
-      policy: "tenant",
-      fileSizeLimit: "5MiB",
-      allowedMimeTypes: ["image/png", "image/jpeg", "image/webp"],
-    },
-  },
-  topics: {
-    notifications: "org:{orgId}:notifications:{userId}",
-    customers: "org:{orgId}:customers",
-  },
-});
+export const schema: Schema<Models, Database, Functions> = defineSchema(meta);

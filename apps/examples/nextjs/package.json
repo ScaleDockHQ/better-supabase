@@ -8,6 +8,7 @@
     "./supabase": "./src/lib/supabase/index.ts"
   },
   "scripts": {
+    "analyze": "next experimental-analyze",
     "build": "next build",
     "dev": "next dev -p 3100",
     "dev:portless": "portless run --force --name example next dev",
