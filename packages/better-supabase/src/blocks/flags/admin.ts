@@ -45,6 +45,8 @@ export interface FlagInput<F extends object = Record<never, never>> {
   readonly variants?: Readonly<Record<string, FlagValue>>;
   readonly defaultVariant?: string;
   readonly enabled?: boolean;
+  /** Archives the flag: it serves its default variant and leaves Flags Explorer. */
+  readonly archived?: boolean;
   readonly rules?: readonly FlagRule[];
   /** 0 to 100. */
   readonly rolloutPercentage?: number;
@@ -60,10 +62,25 @@ export type FlagRecord<F extends object = Record<never, never>> =
     readonly fields: Readonly<Record<string, unknown>> & F;
   };
 
-/** The override target: one tenant or one user. */
+/** The override target: one tenant, one user or one custom context value. */
 export type FlagOverrideTarget =
-  | { readonly organizationId: string; readonly userId?: never }
-  | { readonly userId: string; readonly organizationId?: never };
+  | {
+      readonly organizationId: string;
+      readonly userId?: never;
+      readonly context?: never;
+    }
+  | {
+      readonly userId: string;
+      readonly organizationId?: never;
+      readonly context?: never;
+    }
+  | {
+      /** A custom context, such as `brand`, and its value, such as `acme`. */
+      readonly context: string;
+      readonly contextKey: string;
+      readonly organizationId?: never;
+      readonly userId?: never;
+    };
 
 /** `F` types the extra columns the `fields` schema describes. */
 export interface Flags<F extends object = Record<never, never>> {
@@ -76,7 +93,7 @@ export interface Flags<F extends object = Record<never, never>> {
   ): AsyncResult<FlagRecord<F> | undefined>;
   /** `false` when there was no such flag. */
   remove(key: string): AsyncResult<boolean>;
-  /** Sets a tenant's or a user's variant; `null` removes the override. */
+  /** Sets the variant of a tenant, a user or a context value; `null` removes the override. */
   override(
     key: string,
     target: FlagOverrideTarget,
@@ -101,6 +118,7 @@ const rowOf = (
   set("variants", input.variants);
   set("default_variant", input.defaultVariant);
   set("enabled", input.enabled);
+  set("archived", input.archived);
   set("rules", input.rules);
   set("rollout_percentage", input.rolloutPercentage);
   set("rollout_variant", input.rolloutVariant);
@@ -174,6 +192,10 @@ export function createFlags<S extends StandardSchemaV1 | undefined = undefined>(
           variant,
           tenant: target.organizationId,
           member: target.userId,
+          ...(target.context !== undefined && {
+            context: target.context,
+            context_key: target.contextKey,
+          }),
         },
         (value) => value === true,
       ),

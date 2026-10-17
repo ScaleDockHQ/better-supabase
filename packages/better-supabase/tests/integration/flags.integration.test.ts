@@ -294,4 +294,97 @@ describe.skipIf(!live)("flags", () => {
       await s.close();
     }
   });
+
+  it("evaluates custom contexts as evaluateFlag() does", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.rows(
+        "create table public.tenant_brands (tenant uuid primary key, brand text not null)",
+      );
+      await s.install(["organizations", "flags"], {
+        modules: {
+          flags: {
+            options: {
+              contexts: {
+                brand: {
+                  table: "public.tenant_brands",
+                  column: "brand",
+                  tenant: "tenant",
+                },
+                region: {
+                  table: "public.tenant_brands",
+                  column: "brand",
+                  tenant: "tenant",
+                },
+              },
+            },
+          },
+        },
+      });
+      await s.clear(["better_supabase.flags"]);
+      const owner = await s.user("owner");
+      const outsider = await s.user("outsider");
+      const acme = await s.organization(owner);
+      const globex = await s.organization(outsider);
+
+      await s.service();
+      await s.rows(
+        "insert into public.tenant_brands values ($1, 'acme'), ($2, 'globex')",
+        [acme, globex],
+      );
+      await s.rows(
+        `insert into better_supabase.flags (key, rules) values
+           ('brand_banner', $1), ('brand_override', '[]')`,
+        [JSON.stringify([{ variant: "on", contexts: { brand: ["acme"] } }])],
+      );
+      await s.rows(
+        `insert into better_supabase.flag_overrides (flag_key, context, context_key, variant)
+         values ('brand_override', 'region', 'globex', 'off'),
+                ('brand_override', 'brand', 'globex', 'on')`,
+      );
+
+      const overrides = await s.value<readonly { context: string }[]>(
+        "(select x -> 'overrides' from jsonb_array_elements(better_supabase.flag_definitions()) x where x ->> 'key' = 'brand_override')",
+      );
+
+      expect(overrides.map((entry) => entry.context)).toEqual([
+        "brand",
+        "region",
+      ]);
+
+      const provider = createFlagsProvider({ transport: sqlTransport(s.sql) });
+
+      const cases: readonly [string, string, string | null, string][] = [
+        ["brand_banner", acme, null, "acme"],
+        ["brand_banner", globex, null, "globex"],
+        ["brand_banner", globex, '{"brand": "acme"}', "acme"],
+        ["brand_override", globex, null, "globex"],
+        ["brand_override", acme, null, "acme"],
+      ];
+
+      for (const [key, tenant, contexts, brand] of cases) {
+        const sql = await s.value<Record<string, unknown>>(
+          "better_supabase.flag_evaluation($1, $2, null, $3::jsonb)",
+          [key, tenant, contexts],
+        );
+
+        const typed = await provider.resolveBooleanEvaluation(key, false, {
+          tenant,
+          contexts: { brand, region: brand },
+        });
+
+        expect({ key, brand, ...typed }).toEqual({ key, brand, ...sql });
+      }
+
+      expect(
+        await s.value(
+          "(better_supabase.flag_evaluation('brand_override', $1, null) ->> 'variant')",
+          [globex],
+        ),
+      ).toBe("on");
+    } finally {
+      await s.close();
+    }
+  });
 });

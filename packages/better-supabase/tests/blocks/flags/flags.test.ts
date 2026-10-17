@@ -141,6 +141,68 @@ describe("evaluateFlag", () => {
     expect(await evaluateFlag(at(100))).toMatchObject({ reason: "DEFAULT" });
   });
 
+  it("serves the default variant for an archived flag", async () => {
+    expect(
+      await evaluateFlag(flag({ archived: true, rules: [{ variant: "on" }] })),
+    ).toMatchObject({ variant: "off", reason: "DISABLED" });
+  });
+
+  it("matches custom contexts in overrides after the user and tenant", async () => {
+    const definition = flag({
+      variants: { on: true, off: false, beta: true },
+      overrides: [
+        { organizationId: "org-1", userId: undefined, variant: "on" },
+        {
+          organizationId: undefined,
+          userId: undefined,
+          context: "brand",
+          contextKey: "acme",
+          variant: "beta",
+        },
+        {
+          organizationId: undefined,
+          userId: undefined,
+          context: "region",
+          contextKey: "eu",
+          variant: "off",
+        },
+      ],
+    });
+
+    expect(
+      await evaluateFlag(definition, {
+        tenant: "org-1",
+        contexts: { brand: "acme" },
+      }),
+    ).toMatchObject({ variant: "on" });
+    expect(
+      await evaluateFlag(definition, {
+        tenant: "org-2",
+        contexts: { brand: "acme", region: "eu" },
+      }),
+    ).toMatchObject({ variant: "beta", reason: "TARGETING_MATCH" });
+    expect(
+      await evaluateFlag(definition, { contexts: { region: "eu" } }),
+    ).toMatchObject({ variant: "off", reason: "TARGETING_MATCH" });
+    expect(
+      await evaluateFlag(definition, { contexts: { brand: "other" } }),
+    ).toMatchObject({ reason: "DEFAULT" });
+  });
+
+  it("matches rule contexts only when every named context matches", async () => {
+    const definition = flag({
+      rules: [{ variant: "on", contexts: { brand: ["acme", "globex"] } }],
+    });
+
+    expect(
+      await evaluateFlag(definition, { contexts: { brand: "globex" } }),
+    ).toMatchObject({ variant: "on", reason: "TARGETING_MATCH" });
+    expect(
+      await evaluateFlag(definition, { contexts: { region: "eu" } }),
+    ).toMatchObject({ reason: "DEFAULT" });
+    expect(await evaluateFlag(definition)).toMatchObject({ reason: "DEFAULT" });
+  });
+
   it("falls back to the default for a variant that does not exist", async () => {
     expect(await evaluateFlag(flag({ rules: [{ variant: "gone" }] }))).toEqual({
       value: false,
@@ -160,15 +222,25 @@ describe("flagDefinitionsOf", () => {
           variants: { a: "blue", b: "green" },
           default_variant: "a",
           enabled: true,
+          archived: true,
           rules: [
             { variant: "b", plans: ["pro"], tenants: "bad" },
+            { variant: "a", contexts: { brand: ["acme", 3], region: "eu" } },
             { nope: 1 },
           ],
           rollout_percentage: "12.50",
           rollout_variant: null,
           overrides: [
             { organization_id: "org-1", user_id: null, variant: "b" },
+            {
+              organization_id: null,
+              user_id: null,
+              context: "brand",
+              context_key: "acme",
+              variant: "a",
+            },
           ],
+          updated_at: "2026-10-17T10:00:00+00:00",
         },
         { key: "odd", type: "weird", variants: null, enabled: false },
       ]),
@@ -179,12 +251,24 @@ describe("flagDefinitionsOf", () => {
         variants: { a: "blue", b: "green" },
         defaultVariant: "a",
         enabled: true,
-        rules: [{ variant: "b", plans: ["pro"] }],
+        archived: true,
+        rules: [
+          { variant: "b", plans: ["pro"] },
+          { variant: "a", contexts: { brand: ["acme", "3"], region: [] } },
+        ],
         rolloutPercentage: 12.5,
         rolloutVariant: undefined,
         overrides: [
           { organizationId: "org-1", userId: undefined, variant: "b" },
+          {
+            organizationId: undefined,
+            userId: undefined,
+            context: "brand",
+            contextKey: "acme",
+            variant: "a",
+          },
         ],
+        updatedAt: "2026-10-17T10:00:00+00:00",
       },
       {
         key: "odd",
@@ -457,5 +541,32 @@ describe("flagContext", () => {
         jwtClaims: { tenant_id: "org-2", memberships: jwtClaims.memberships },
       }),
     ).toEqual({ tenant: "org-2" });
+  });
+
+  it("reads custom contexts from claims and lets the source override them", () => {
+    const jwtClaims = {
+      sub: USER,
+      brand_id: "acme",
+      app_metadata: { region: "eu" },
+    };
+
+    const options = { contextClaims: { brand: "brand_id", region: "region" } };
+
+    expect(flagContext({ jwtClaims }, options)).toEqual({
+      targetingKey: USER,
+      contexts: { brand: "acme", region: "eu" },
+    });
+    expect(
+      flagContext(
+        { jwtClaims, contexts: { brand: "globex", region: null } },
+        options,
+      ),
+    ).toEqual({ targetingKey: USER, contexts: { brand: "globex" } });
+    expect(
+      flagContext(
+        { jwtClaims, contexts: { brand: null } },
+        { contextClaims: { brand: "brand_id" } },
+      ),
+    ).toEqual({ targetingKey: USER });
   });
 });
