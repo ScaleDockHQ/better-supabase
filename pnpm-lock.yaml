@@ -616,7 +616,7 @@ catalogs:
       specifier: ^1.0.0
       version: 1.0.0
     '@supabase/postgrest-js':
-      specifier: ^2.117.3
+      specifier: ^2.118.0
       version: 2.118.0
     '@supabase/server':
       specifier: ^1.9.1
