@@ -254,10 +254,10 @@ describe.skipIf(!(await reachable()))("deleteAccount", () => {
     ]);
   });
 
-  it("returns not_found for a user that no longer exists", async () => {
+  it("succeeds on a retry for a user that no longer exists", async () => {
     expect(await server.deleteAccount(userId)).toMatchObject({
-      ok: false,
-      error: { kind: "not_found" },
+      ok: true,
+      data: { userId },
     });
   });
 });
