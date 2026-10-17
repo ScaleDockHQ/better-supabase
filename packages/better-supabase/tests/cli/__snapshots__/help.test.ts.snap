@@ -386,7 +386,7 @@ OPTIONS
          --manifest=<file>    Also write the diagnostics manifest (JSON) to this file. Defaults to specs.manifest                            
                    --cache    Reuse renders whose inputs did not change (Default: true)                                                      
                 --no-cache    Render every output again                                                                                      
-                   --watch    With emit, render again whenever the entry, the config or an overlay changes                                   
+                   --watch    With emit, render again whenever the entry, the config, an overlay or a topic module changes                   
            --interval=<ms>    Milliseconds between checks in --watch. Defaults to gen.watchInterval, then 2000                               
                --cwd=<dir>    Project directory                                                                                              
            --config=<file>    Config file, relative to --cwd                                                                                 

@@ -76,7 +76,7 @@ const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
  * `sql`, `trigger` and `subscribe` methods. `better-supabase sql sync` and
  * `spec` use the same check.
  */
-export function isTopicLike(value: unknown): value is TopicInput & {
+function isTopicLike(value: unknown): value is TopicInput & {
   sql(...args: never[]): string;
   trigger(...args: never[]): string;
 } {

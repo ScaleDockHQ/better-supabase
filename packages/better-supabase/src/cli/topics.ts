@@ -4,9 +4,8 @@ import type {
   AuthorizationFunctions,
   TopicTriggerConfig,
 } from "../config/index.ts";
-import type { TopicInput } from "../spec/events.ts";
+import type { TopicInput } from "../spec/index.ts";
 
-import { isTopicLike } from "../spec/events.ts";
 import { importFresh } from "./fresh-import.ts";
 
 /** A `defineTopic` result, as `sql sync` and `spec` read it. */
@@ -26,6 +25,18 @@ export interface TopicExport {
   readonly topic: LoadedTopic;
 }
 
+const isLoadedTopic = (value: unknown): value is LoadedTopic =>
+  typeof value === "object" &&
+  value !== null &&
+  "template" in value &&
+  typeof value.template === "string" &&
+  "sql" in value &&
+  typeof value.sql === "function" &&
+  "trigger" in value &&
+  typeof value.trigger === "function" &&
+  "subscribe" in value &&
+  typeof value.subscribe === "function";
+
 /**
  * The topics the `from` modules export (`realtime.policies.from`), loaded
  * fresh, each once, sorted by template. Throws for a module that exports
@@ -42,15 +53,13 @@ export async function loadTopics(
     let count = 0;
 
     for (const [exportName, value] of Object.entries(loaded)) {
-      if (!isTopicLike(value)) {
+      if (!isLoadedTopic(value)) {
         continue;
       }
 
       count += 1;
 
       if (!found.some((each) => each.topic === value)) {
-        // SAFETY: isTopicLike checked `sql` and `trigger` are functions, and
-        // defineTopic is the only producer of that shape.
         found.push({ entry, exportName, topic: value });
       }
     }
