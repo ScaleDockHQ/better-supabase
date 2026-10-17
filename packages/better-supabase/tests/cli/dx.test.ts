@@ -510,6 +510,30 @@ describe("env", () => {
     );
   });
 
+  it.each([
+    ["--out", "../.env.local"],
+    ["--out", "/tmp/better-supabase-escape.env"],
+    ["--from", "../status.json"],
+  ])("refuses %s %s outside the project root", async (flag, path) => {
+    await project({}, { "status.json": JSON.stringify(status) });
+
+    const args =
+      flag === "--from"
+        ? ["env", "--from", path, "--cwd", dir]
+        : ["env", "--from", "status.json", "--out", path, "--cwd", dir];
+
+    const result = await run(args, {
+      io: { stdout: () => {}, stderr: () => {} },
+    });
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain(
+      `${flag} ${path} is outside the project root`,
+    );
+    expect(existsSync(join(dir, "..", ".env.local"))).toBe(false);
+    expect(existsSync("/tmp/better-supabase-escape.env")).toBe(false);
+  });
+
   it("names the exit code when supabase status fails", async () => {
     await project({});
     const bin = join(dir, "fake-supabase");

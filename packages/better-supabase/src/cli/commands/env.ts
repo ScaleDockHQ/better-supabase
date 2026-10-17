@@ -8,7 +8,7 @@ import type { CliEnv } from "../env.ts";
 import type { CommandResult } from "../io.ts";
 
 import { defineCliCommand } from "../command.ts";
-import { writeLine } from "../files.ts";
+import { insideRoot, writeLine } from "../files.ts";
 import { display, readIfExists } from "../io.ts";
 import { detectProject, publicPrefix } from "../project.ts";
 import {
@@ -53,7 +53,7 @@ async function readStatus(
 
   if (from) {
     const status = parseStackStatus(
-      await readFile(resolve(config.root, from), "utf-8"),
+      await readFile(insideRoot(config.root, from, "--from"), "utf-8"),
     );
 
     if (!status) {
@@ -185,7 +185,7 @@ export async function runEnv(
   }
 
   const out = args.out ?? config.env.output;
-  const path = resolve(config.root, out);
+  const path = insideRoot(config.root, out, args.out ? "--out" : "env.output");
   const current = (await readIfExists(path)) ?? "";
 
   const { line } = await writeLine(
