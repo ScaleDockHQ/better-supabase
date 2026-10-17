@@ -631,34 +631,38 @@ export const POST = (request: Request) =>
   );
 ```
 
-| Situation                                         | Response                                                 |
-| ------------------------------------------------- | -------------------------------------------------------- |
-| First request                                     | The handler's response, stored                           |
-| Same key and same body                            | The stored response, with `idempotency-replayed: true`   |
-| Same key while the first request is still running | `409` with `Retry-After`                                 |
-| Same key and a different body                     | `422` with code `IDEMPOTENCY_KEY_REUSED`                 |
-| Handler throws or returns a 5xx                   | The key is released, so the client can retry             |
-| The lock ran out before the response was stored   | `409` with code `IDEMPOTENCY_KEY_LOST` and `Retry-After` |
+| Situation                                          | Response                                                 |
+| -------------------------------------------------- | -------------------------------------------------------- |
+| First request                                      | The handler's response, stored                           |
+| Same key and same body                             | The stored response, with `idempotency-replayed: true`   |
+| Same key while the first request is still running  | `409` with `Retry-After`                                 |
+| Same key and a different body                      | `422` with code `IDEMPOTENCY_KEY_REUSED`                 |
+| Handler throws or returns a 5xx                    | The key is released, so the client can retry             |
+| Another request took the key over before the store | `409` with code `IDEMPOTENCY_KEY_LOST` and `Retry-After` |
 
 Pass a service SQL connection as `sql`, or a service-role `transport` such
 as the `rpcTransport` above. `hooks` runs your code around `begin`,
-`complete`, `release` and `purge` (see
+`extend`, `complete`, `release` and `purge` (see
 [extending blocks](/docs/extending/blocks#hooks)); `handle` calls them
 through the hooks.
 
 The fingerprint is a SHA-256 of the method, path, query string and body.
-The lock (`lock`, one minute by default) isn't renewed while the handler
-runs, so set it longer than your slowest handler. Set
+The lock (`lock`, one minute by default) is renewed at half its length while
+the handler runs, so a slow handler keeps its key. The lock only runs out
+when the process stops renewing it, for example when it crashes; another
+request with the same key then takes it over. Set
 `required: true` to reject requests that have no key. The error responses
 are Problem Details; pass `problem` to answer in your app's error format
 instead (see [Problem Details](/docs/auth/problems#your-own-error-format)).
 
 Outside HTTP, `begin(key, fingerprint, scope)` returns a `holder` token with
-the `started` state, and `complete(key, holder, status, body, scope)` and
-`release(key, holder, scope)` need it. A caller whose lock ran out may find
-that another caller took the key over; its `complete` and `release` then
-return `false` and change nothing, so it can't store its late result over
-the new holder's or free a key someone else holds:
+the `started` state, and `extend(key, holder, scope)`,
+`complete(key, holder, status, body, scope)` and `release(key, holder, scope)`
+need it. Call `extend` before the lock runs out to keep the key for work that
+takes longer; it returns `false` once the lock has run out. A caller whose
+lock ran out may find that another caller took the key over; its `complete`
+and `release` then return `false` and change nothing, so it can't store its
+late result over the new holder's or free a key someone else holds:
 
 ```ts
 const started = await idempotency.begin(key, fingerprint).orThrow();

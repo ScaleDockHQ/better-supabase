@@ -2971,6 +2971,52 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     ).toMatchObject({ state: "replay", status: 201, body: { ok: true } });
   });
 
+  it("extends the lock only for the running holder before it runs out", async () => {
+    const idempotency = createIdempotency({
+      sql: postgres.admin,
+      scope: RUN,
+      lock: 30,
+    });
+
+    const lockOf = async () =>
+      (
+        await pool.query<{ left: number }>(
+          "select extract(epoch from locked_until - now())::integer as left from better_supabase.idempotency_keys where scope = $1 and key = 'extend'",
+          [RUN],
+        )
+      ).rows[0]?.left;
+
+    const first = await idempotency.begin("extend", "fp", RUN).orThrow();
+    await pool.query(
+      "update better_supabase.idempotency_keys set locked_until = now() + interval '2 seconds' where scope = $1 and key = 'extend'",
+      [RUN],
+    );
+    expect(
+      await idempotency.extend("extend", first.holder!, RUN).orThrow(),
+    ).toBe(true);
+    expect(await lockOf()).toBeGreaterThan(20);
+    expect(
+      await idempotency.extend("extend", crypto.randomUUID(), RUN).orThrow(),
+    ).toBe(false);
+
+    await pool.query(
+      "update better_supabase.idempotency_keys set locked_until = now() - interval '1 second' where scope = $1 and key = 'extend'",
+      [RUN],
+    );
+    expect(
+      await idempotency.extend("extend", first.holder!, RUN).orThrow(),
+    ).toBe(false);
+
+    const second = await idempotency.begin("extend", "fp", RUN).orThrow();
+    expect(second.state).toBe("started");
+    await idempotency
+      .complete("extend", second.holder!, 200, { ok: true }, RUN)
+      .orThrow();
+    expect(
+      await idempotency.extend("extend", second.holder!, RUN).orThrow(),
+    ).toBe(false);
+  });
+
   it("holds a lease for one holder until it is released or expires", async () => {
     const key = `lease-${RUN}`;
     const order: string[] = [];
