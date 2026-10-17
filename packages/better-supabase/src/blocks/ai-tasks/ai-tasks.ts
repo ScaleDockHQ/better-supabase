@@ -33,7 +33,7 @@ import {
   recordOf,
   recordsOf,
   textOf,
-  toInstant,
+  instantOf,
   injectableOf,
 } from "../shared.ts";
 
@@ -209,9 +209,6 @@ const STATUSES: readonly AiTaskRunStatus[] = [
   "failed",
 ];
 
-const instant = (value: unknown): Temporal.Instant =>
-  value instanceof Date ? toInstant(value) : toInstant(textOf(value));
-
 function runOf(value: unknown): AiTaskRun {
   const row = recordOf(value, "ai_task_runs");
 
@@ -221,12 +218,12 @@ function runOf(value: unknown): AiTaskRun {
     organizationId: textOf(row["organization_id"]),
     userId: textOf(row["user_id"]),
     status: runStateOf(row["status"], STATUSES, "failed"),
-    scheduledFor: instant(row["scheduled_for"]),
+    scheduledFor: instantOf(row["scheduled_for"]),
     chatId: optionalText(row["chat_id"]),
     error: optionalText(row["error"]),
     startedAt: optionalInstant(row["started_at"]),
     finishedAt: optionalInstant(row["finished_at"]),
-    createdAt: instant(row["created_at"]),
+    createdAt: instantOf(row["created_at"]),
   };
 }
 
@@ -247,8 +244,8 @@ function taskOf(value: unknown): AiTask {
     nextRunAt: optionalInstant(row["next_run_at"]),
     lastRunAt: optionalInstant(row["last_run_at"]),
     lastRun: isRecord(row["last_run"]) ? runOf(row["last_run"]) : undefined,
-    createdAt: instant(row["created_at"]),
-    updatedAt: instant(row["updated_at"]),
+    createdAt: instantOf(row["created_at"]),
+    updatedAt: instantOf(row["updated_at"]),
   };
 }
 

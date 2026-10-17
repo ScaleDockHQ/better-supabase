@@ -29,12 +29,12 @@ import {
   textOf,
   oneOf,
   pageOf,
+  instantOf,
 } from "../shared.ts";
 import { aiRunLookups } from "./durable.ts";
 import {
   approvalOf,
   record,
-  instant,
   chatOf,
   projectOf,
   ROLES,
@@ -717,7 +717,7 @@ export function createAiChat<
             recordsOf(value, "ai_message_siblings").map((row) => ({
               id: textOf(row["id"]),
               role: oneOf(row["role"], ROLES, "user"),
-              createdAt: instant(row["created_at"]),
+              createdAt: instantOf(row["created_at"]),
             })),
         ),
       switchBranch: (chatId, messageId) =>
@@ -889,7 +889,7 @@ export function createAiChat<
             id: textOf(row["id"]),
             token: textOf(row["token"]),
             leafId: textOf(row["leaf_id"]),
-            createdAt: instant(row["created_at"]),
+            createdAt: instantOf(row["created_at"]),
           };
         }),
       revoke: (shareId) =>

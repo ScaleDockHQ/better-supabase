@@ -17,6 +17,7 @@ import type {
 import type { ApiOptions } from "./options.ts";
 
 import { isPlainObject } from "../core/clone.ts";
+import { isRecord } from "../core/guards.ts";
 import { type RealtimeStatus, topicStatus } from "../core/realtime-status.ts";
 import { dataschemaOf, DEFAULT_TYPE_PREFIX } from "../events/cloud-event.ts";
 import { ROW_EVENT_TYPES } from "../events/index.ts";
@@ -67,9 +68,6 @@ export interface TopicInput<Ref = string> {
   readonly summary?: string;
   readonly description?: string;
 }
-
-const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 /**
  * Whether a value is a `defineTopic()` result: a template string and the

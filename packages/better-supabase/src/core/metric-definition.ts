@@ -1,3 +1,5 @@
+import { isRecord } from "./guards.ts";
+
 /** What a metric adds up per bucket. */
 export type MetricMeasure =
   | "count"
@@ -58,9 +60,6 @@ const COLUMN = /^[a-z_][a-z0-9_]{0,62}$/;
 const TABLE = /^(?:[a-z_][a-z0-9_]{0,62}\.)?[a-z_][a-z0-9_]{0,62}$/;
 const PERMISSION = /^[a-z][a-z0-9_.*-]{0,127}$/;
 
-const isObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
 function column(where: string, value: unknown): string {
   if (typeof value !== "string" || !COLUMN.test(value)) {
     throw new TypeError(`${where} must be a column name`);
@@ -88,7 +87,7 @@ function measureOf(where: string, value: unknown): MetricMeasure {
     return "count";
   }
 
-  if (isObject(value)) {
+  if (isRecord(value)) {
     const keys = Object.keys(value);
 
     if (keys.length === 1 && (keys[0] === "sum" || keys[0] === "avg")) {
@@ -117,7 +116,7 @@ function assertMetric(
   value: unknown,
   where: string,
 ): asserts value is MetricDefinition {
-  if (!isObject(value)) {
+  if (!isRecord(value)) {
     throw new TypeError(`${where} must be an object`);
   }
 
@@ -180,7 +179,7 @@ function assertMetric(
   const filter = value["where"];
 
   if (filter !== undefined) {
-    if (!isObject(filter)) {
+    if (!isRecord(filter)) {
       throw new TypeError(`${at}.where must be an object of column to value`);
     }
 
@@ -259,7 +258,7 @@ export function metricsOf(
     return [];
   }
 
-  if (!Array.isArray(value) && !isObject(value)) {
+  if (!Array.isArray(value) && !isRecord(value)) {
     throw new TypeError(
       `${where} must be a list of defineMetric() definitions or an object of key to definition`,
     );
@@ -268,7 +267,7 @@ export function metricsOf(
   const entries: unknown[] = Array.isArray(value)
     ? value
     : Object.entries(value).map(([key, entry]) =>
-        isObject(entry) ? { key, ...entry } : entry,
+        isRecord(entry) ? { key, ...entry } : entry,
       );
 
   const metrics = entries.map((entry, index) =>

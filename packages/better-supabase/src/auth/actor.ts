@@ -1,3 +1,5 @@
+import { isRecord } from "../core/guards.ts";
+
 /** One level of an RFC 8693 `act` chain: who acts, and who acted before it. */
 export interface ActClaim {
   readonly sub: string;
@@ -58,10 +60,6 @@ export interface SessionDelegation {
 export type ActorOutcome =
   | { readonly ok: true; readonly actor?: SessionActor }
   | { readonly ok: false; readonly reason: "invalid-chain" };
-
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function copyAct(level: Readonly<Record<string, unknown>>): ActClaim {
   const entries = Object.entries(level).map(

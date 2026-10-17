@@ -14,7 +14,7 @@ import {
   recordOf,
   recordsOf,
   textOf,
-  toInstant,
+  instantOf,
 } from "../shared.ts";
 
 const SCOPES: readonly MemoryScope[] = [
@@ -27,9 +27,6 @@ const SCOPES: readonly MemoryScope[] = [
 
 const scopeOf = (value: unknown): MemoryScope =>
   oneOf(textOf(value), SCOPES, "user");
-
-const instant = (value: unknown): Temporal.Instant =>
-  value instanceof Date ? toInstant(value) : toInstant(textOf(value));
 
 export function memoryOf(value: unknown): MemoryRecord {
   const row = recordOf(value, "memories");
@@ -48,8 +45,8 @@ export function memoryOf(value: unknown): MemoryRecord {
     version: Number(row["version"] ?? 1),
     embeddingModel: optionalText(row["embedding_model"]),
     sourceMessageId: optionalText(row["source_message_id"]),
-    createdAt: instant(row["created_at"]),
-    updatedAt: instant(row["updated_at"]),
+    createdAt: instantOf(row["created_at"]),
+    updatedAt: instantOf(row["updated_at"]),
   };
 }
 

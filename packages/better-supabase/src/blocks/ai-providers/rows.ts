@@ -16,7 +16,7 @@ import {
   recordOf,
   recordOrEmpty,
   textOf,
-  toInstant,
+  instantOf,
 } from "../shared.ts";
 
 const BATCH_STATUSES: readonly AiBatchStatus[] = [
@@ -32,9 +32,6 @@ const ITEM_STATUSES: readonly AiBatchItemStatus[] = [
   "cancelled",
   "expired",
 ];
-
-const instant = (value: unknown): Temporal.Instant =>
-  value instanceof Date ? toInstant(value) : toInstant(textOf(value));
 
 const numberOf = (value: unknown): number =>
   typeof value === "number" && Number.isFinite(value) ? value : 0;
@@ -61,8 +58,8 @@ export function keyOf(value: unknown): AiProviderKey {
     settings: recordOrEmpty(row["settings"]),
     enabled: row["enabled"] !== false,
     createdBy: optionalText(row["created_by"]),
-    createdAt: instant(row["created_at"]),
-    updatedAt: instant(row["updated_at"]),
+    createdAt: instantOf(row["created_at"]),
+    updatedAt: instantOf(row["updated_at"]),
   };
 }
 
@@ -99,8 +96,8 @@ export function batchOf(value: unknown): AiBatch {
     nextPollAt: optionalInstant(row["next_poll_at"]),
     expiresAt: optionalInstant(row["expires_at"]),
     completedAt: optionalInstant(row["completed_at"]),
-    createdAt: instant(row["created_at"]),
-    updatedAt: instant(row["updated_at"]),
+    createdAt: instantOf(row["created_at"]),
+    updatedAt: instantOf(row["updated_at"]),
   };
 }
 
@@ -115,6 +112,6 @@ export function itemOf(value: unknown): AiBatchItem {
     output: row["output"] ?? undefined,
     usage: row["usage"] ?? undefined,
     error: optionalText(row["error"]),
-    createdAt: instant(row["created_at"]),
+    createdAt: instantOf(row["created_at"]),
   };
 }

@@ -11,6 +11,7 @@ import type {
   TextFile,
 } from "./rules.ts";
 
+import { isRecord } from "../../core/guards.ts";
 import { providerLabel } from "../authorization.ts";
 import { errorText } from "../errors.ts";
 import {
@@ -513,11 +514,6 @@ async function withHookEvent<T>(
     await db.query("rollback");
   }
 }
-
-export const isRecord = (
-  value: unknown,
-): value is Readonly<Record<string, unknown>> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 const hookCall = (fn: ExtrasHookFunction): string =>
   `${ident(fn.schema)}.${ident(fn.name)}(current_setting('better_supabase.hook_event')::jsonb) -> 'claims'`;

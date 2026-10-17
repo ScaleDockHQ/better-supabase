@@ -1,3 +1,5 @@
+import { isRecord } from "../guards.ts";
+
 /**
  * The forms block's definition format and the JSON Schema each published
  * version gets. The SQL module embeds `FORM_DEFINITION_SCHEMA` and builds the
@@ -367,24 +369,21 @@ export function formSchema(definition: FormDefinition): FormJsonSchema {
   };
 }
 
-const isObject = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
 /**
  * Whether `value` has a definition's outline: steps with a key and fields
  * with a key. `FORM_DEFINITION_SCHEMA` checks the rest.
  */
 export function isFormDefinition(value: unknown): value is FormDefinition {
   return (
-    isObject(value) &&
+    isRecord(value) &&
     Array.isArray(value["steps"]) &&
     value["steps"].every(
       (step) =>
-        isObject(step) &&
+        isRecord(step) &&
         typeof step["key"] === "string" &&
         Array.isArray(step["fields"]) &&
         step["fields"].every(
-          (field) => isObject(field) && typeof field["key"] === "string",
+          (field) => isRecord(field) && typeof field["key"] === "string",
         ),
     )
   );

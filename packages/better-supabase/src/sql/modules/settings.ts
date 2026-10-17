@@ -8,6 +8,7 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 import type { ModuleScope } from "../scope.ts";
 
+import { isRecord } from "../../core/guards.ts";
 import { sqlString } from "../../core/template.ts";
 import {
   recordTrigger,
@@ -105,7 +106,7 @@ function platformKeys(ctx: ModuleContext): {
   const where = "blocks.settings.options";
   const option = ctx.option("platform") ?? {};
 
-  if (!isObject(option)) {
+  if (!isRecord(option)) {
     throw new TypeError(`${where}.platform must be { permission?, read? }`);
   }
 
@@ -141,14 +142,14 @@ function platformKeys(ctx: ModuleContext): {
   };
 
   const raw = ctx.option("schemas");
-  const schemas = isObject(raw) && "schemas" in raw ? raw["schemas"] : raw;
-  const entries = isObject(schemas) ? schemas["platform"] : undefined;
+  const schemas = isRecord(raw) && "schemas" in raw ? raw["schemas"] : raw;
+  const entries = isRecord(schemas) ? schemas["platform"] : undefined;
 
   if (entries === undefined) {
     return { fallback, keys: [] };
   }
 
-  if (!isObject(entries)) {
+  if (!isRecord(entries)) {
     throw new TypeError(
       `${where}.schemas.platform: pass an object of key to schema`,
     );
@@ -156,7 +157,7 @@ function platformKeys(ctx: ModuleContext): {
 
   const keys = Object.entries(entries).map(([key, entry]): PlatformKey => {
     const at = `${where}.schemas.platform.${key}`;
-    const config = isObject(entry) ? entry : {};
+    const config = isRecord(entry) ? entry : {};
 
     return {
       key,
@@ -180,9 +181,6 @@ const readRule = (
 const unquote = (ident: string): string =>
   ident.startsWith('"') ? ident.slice(1, -1).replaceAll('""', '"') : ident;
 
-const isObject = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
 /**
  * The JSON Schema for one settings entry: a JSON Schema object, a Standard
  * Schema that implements Standard JSON Schema, or `{ schema }` holding either.
@@ -191,7 +189,7 @@ const isObject = (value: unknown): value is Readonly<Record<string, unknown>> =>
 function jsonSchemaOf(
   entry: unknown,
 ): Readonly<Record<string, unknown>> | undefined {
-  if (!isObject(entry)) {
+  if (!isRecord(entry)) {
     return undefined;
   }
 
@@ -201,13 +199,13 @@ function jsonSchemaOf(
     return "schema" in entry ? jsonSchemaOf(entry["schema"]) : entry;
   }
 
-  if (!isObject(standard)) {
+  if (!isRecord(standard)) {
     return undefined;
   }
 
   const jsonSchema = standard["jsonSchema"];
 
-  if (!isObject(jsonSchema)) {
+  if (!isRecord(jsonSchema)) {
     return undefined;
   }
 
@@ -221,7 +219,7 @@ function jsonSchemaOf(
   const toJson = input as (options: { readonly target: string }) => unknown;
   const document = toJson({ target: "draft-2020-12" });
 
-  return isObject(document) ? document : undefined;
+  return isRecord(document) ? document : undefined;
 }
 
 /**
@@ -236,9 +234,9 @@ function settingsChecks(ctx: ModuleContext): readonly JsonSchemaCheck[] {
   }
 
   const raw =
-    isObject(option) && "schemas" in option ? option["schemas"] : option;
+    isRecord(option) && "schemas" in option ? option["schemas"] : option;
 
-  if (!isObject(raw)) {
+  if (!isRecord(raw)) {
     throw new TypeError(
       "blocks.settings.options.schemas: pass { user, organization, platform } or a defineSettings() result",
     );
@@ -257,7 +255,7 @@ function settingsChecks(ctx: ModuleContext): readonly JsonSchemaCheck[] {
       continue;
     }
 
-    if (!isObject(entries)) {
+    if (!isRecord(entries)) {
       throw new TypeError(
         `blocks.settings.options.schemas.${scope}: pass an object of key to schema`,
       );

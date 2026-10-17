@@ -1,6 +1,7 @@
 import type { SubjectConfig } from "../../config/types/subjects.ts";
 import type { ExtraColumn, ModuleContext } from "../context.ts";
 
+import { isRecord } from "../../core/guards.ts";
 import { sqlString } from "../../core/template.ts";
 import {
   type RegisteredSubject,
@@ -42,9 +43,6 @@ export interface PipelineBinding {
   };
   readonly stages: readonly StageTemplate[];
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 function columnOf(
   where: string,

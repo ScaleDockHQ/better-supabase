@@ -7,6 +7,7 @@ import type {
   RenderResult,
 } from "../../spec/index.ts";
 
+import { isRecord } from "../../core/guards.ts";
 import { importFresh } from "../fresh-import.ts";
 import { isDocumentFormat } from "./formats.ts";
 
@@ -32,9 +33,6 @@ export interface SpecEntry {
 }
 
 const DOCUMENT_KEYS = ["openapi", "asyncapi", "arazzo"] as const;
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 function isApi(value: unknown): value is ApiLike {
   return (

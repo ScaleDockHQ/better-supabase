@@ -10,6 +10,7 @@ import {
 import { impersonatorClaim, impersonatorOf } from "../../auth/impersonation.ts";
 import { tenantFrom, tenantPathsFor } from "../../core/claims.ts";
 import { dbError } from "../../core/errors.ts";
+import { isRecord } from "../../core/guards.ts";
 import { err, ok, type Result } from "../../core/result.ts";
 
 /** Marks a payload that carries a job context; pgmq stores it as the payload. */
@@ -138,10 +139,6 @@ export function withContext(
   }
 
   return wrapped.data;
-}
-
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function isActor(value: unknown): value is Actor {

@@ -15,7 +15,7 @@ import {
   optionalText,
   recordOf,
   textOf,
-  toInstant,
+  instantOf,
 } from "../shared.ts";
 
 const FILE_STATUSES: readonly AiFileStatus[] = ["pending", "ready", "failed"];
@@ -32,9 +32,6 @@ const DOCUMENT_KINDS: readonly AiDocumentKind[] = [
   "sheet",
   "image",
 ];
-
-const instant = (value: unknown): Temporal.Instant =>
-  value instanceof Date ? toInstant(value) : toInstant(textOf(value));
 
 export function fileOf(value: unknown): AiFile {
   const row = recordOf(value, "ai_files");
@@ -53,7 +50,7 @@ export function fileOf(value: unknown): AiFile {
     sha256: optionalText(row["sha256"]),
     status: oneOf(textOf(row["status"]), FILE_STATUSES, "failed"),
     source: oneOf(textOf(row["source"]), FILE_SOURCES, "upload"),
-    createdAt: instant(row["created_at"]),
+    createdAt: instantOf(row["created_at"]),
     uploadedAt: optionalInstant(row["uploaded_at"]),
     expiresAt: optionalInstant(row["expires_at"]),
   };
@@ -81,8 +78,8 @@ export function documentOf(value: unknown): AiDocument {
     kind: oneOf(textOf(row["kind"]), DOCUMENT_KINDS, "text"),
     title: textOf(row["title"]),
     version: Number(row["current_version"] ?? 1),
-    createdAt: instant(row["created_at"]),
-    updatedAt: instant(row["updated_at"]),
+    createdAt: instantOf(row["created_at"]),
+    updatedAt: instantOf(row["updated_at"]),
   };
 }
 
@@ -96,7 +93,7 @@ export function versionOf(value: unknown): AiDocumentVersion {
     storagePath: optionalText(row["storage_path"]),
     messageId: optionalText(row["created_by_message_id"]),
     createdBy: optionalText(row["created_by"]),
-    createdAt: instant(row["created_at"]),
+    createdAt: instantOf(row["created_at"]),
   };
 }
 
@@ -112,7 +109,7 @@ export function suggestionOf(value: unknown): AiSuggestion {
     suggestedText: textOf(row["suggested_text"]),
     description: optionalText(row["description"]),
     createdBy: optionalText(row["created_by"]),
-    createdAt: instant(row["created_at"]),
+    createdAt: instantOf(row["created_at"]),
     resolvedAt: optionalInstant(row["resolved_at"]),
     accepted: typeof accepted === "boolean" ? accepted : undefined,
   };

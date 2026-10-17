@@ -2,6 +2,7 @@ import type { ModuleContext } from "../context.ts";
 import type { ModuleLayout } from "../module-types.ts";
 
 import { fillTemplate } from "../../core/access-sql.ts";
+import { isRecord } from "../../core/guards.ts";
 import { sqlString } from "../../core/template.ts";
 import { fail } from "../shared.ts";
 import { accessModel } from "./access-model.ts";
@@ -141,9 +142,6 @@ function audienceAppend(
 }
 
 const NAME = /^[a-z][a-z0-9_]*$/;
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 /** A channel nobody chose is on for `in_app` and off for the rest, unless `channelDefaults` says otherwise. */
 export function channelDefaults(ctx: ModuleContext, channel: string): string {

@@ -2,6 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { TableMeta } from "../../schema/types.ts";
 
+import { isRecord } from "../../core/guards.ts";
+
 type Rename = (name: string) => string;
 
 type Fetch = typeof fetch;
@@ -21,10 +23,6 @@ interface ChangesPayload {
 const PLAIN_PARAMS = new Set(["limit", "offset"]);
 const LIST_PARAMS = new Set(["columns", "on_conflict", "order", "select"]);
 const LOGIC_PARAM = /^(not\.)?(and|or)$/;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function renameRows(
   value: unknown,

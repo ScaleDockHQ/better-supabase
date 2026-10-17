@@ -2,6 +2,7 @@ import type { AnyDocumentFormat } from "../../spec/index.ts";
 
 import { arazzoFormat } from "../../arazzo/index.ts";
 import { asyncapiFormat } from "../../asyncapi/index.ts";
+import { isRecord } from "../../core/guards.ts";
 import { openapiFormat } from "../../openapi/index.ts";
 
 /**
@@ -14,9 +15,6 @@ const BUILTIN_FORMATS: readonly AnyDocumentFormat[] = [
   asyncapiFormat,
   arazzoFormat,
 ];
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 /** A value that implements `DocumentFormat` API v1. */
 export function isDocumentFormat(value: unknown): value is AnyDocumentFormat {

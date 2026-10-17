@@ -3,6 +3,7 @@
 import type { ValidationIssue } from "../core/errors.ts";
 import type { ColumnMeta, TableMeta } from "../schema/types.ts";
 
+import { isRecord } from "../core/guards.ts";
 import { optionalTemporal, TEMPORAL_MISSING } from "../core/temporal.ts";
 import { escapeLike } from "../ir/escape-like.ts";
 
@@ -322,9 +323,6 @@ export interface FilterLimits {
   readonly maxValues: number;
 }
 
-const isObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 const UNITS = new Set(["day", "week", "month", "year"]);
@@ -345,7 +343,7 @@ function validDay(date: string): boolean {
 }
 
 function dateValueIssue(value: unknown): string | undefined {
-  if (!isObject(value)) {
+  if (!isRecord(value)) {
     return "Must be a date value";
   }
 
@@ -361,7 +359,7 @@ function dateValueIssue(value: unknown): string | undefined {
 
   if (
     relative !== undefined &&
-    (!isObject(relative) ||
+    (!isRecord(relative) ||
       typeof relative["unit"] !== "string" ||
       !UNITS.has(relative["unit"]) ||
       !Number.isSafeInteger(relative["offset"]) ||
@@ -527,7 +525,7 @@ export function checkFilterQuery(
       return null;
     };
 
-    if (!isObject(node)) {
+    if (!isRecord(node)) {
       return fail("Must be a filter group or rule");
     }
 

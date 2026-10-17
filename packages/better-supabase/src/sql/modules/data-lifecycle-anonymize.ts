@@ -1,5 +1,6 @@
 import type { ModuleContext } from "../context.ts";
 
+import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { SERVICE_CALLER, splitTable, fail } from "../shared.ts";
 
@@ -15,9 +16,6 @@ interface AnonymizeRule {
 }
 
 const IDENT = /^[a-z_][a-z0-9_$]{0,62}$/;
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 /** A `set` value: a literal, `null`, or `{ sql }` with `{row}` for the row. */
 function valueSql(at: string, value: unknown): string {

@@ -4,6 +4,7 @@ import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 
 import { DEFAULT_ACTIVE_TENANT } from "../../config/blocks.ts";
 import { fillTemplate } from "../../core/access-sql.ts";
+import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   activeMembership,
@@ -38,9 +39,6 @@ export interface RoleThrough {
   /** A condition on the roles row `{row}` that holds for tenant roles only. */
   readonly where?: string;
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 /** The tenant module's `roleThrough` option, quoted; `undefined` when unset. */
 export function roleThrough(tenant: ModuleContext): RoleThrough | undefined {

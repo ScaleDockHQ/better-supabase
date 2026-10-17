@@ -1,5 +1,6 @@
 import type { RequestContext } from "../core/plugin.ts";
 
+import { isRecord } from "../core/guards.ts";
 import { actorOf, type ActClaim } from "./actor.ts";
 import { actClaim, impersonatorClaim } from "./impersonation.ts";
 
@@ -98,10 +99,6 @@ const INVALID: DelegatedClaimsOutcome = {
   ok: false,
   reason: "invalid-delegation",
 };
-
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function isDetail(value: unknown): value is AuthorizationDetail {
   return (

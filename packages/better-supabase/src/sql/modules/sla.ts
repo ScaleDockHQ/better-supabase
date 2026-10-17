@@ -7,6 +7,7 @@ import type {
 } from "../context.ts";
 import type { ModuleDefinition } from "../module-types.ts";
 
+import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   addExtraColumns,
@@ -86,9 +87,6 @@ const NAMES: ModuleNames = {
     },
   },
 };
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 const COLUMN = /^[a-z_][a-z0-9_]{0,62}$/;

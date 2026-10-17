@@ -4,6 +4,7 @@ import type { Job, ScheduleFilter, ScheduleInfo } from "./types.ts";
 
 import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import { dbError, DbException } from "../../core/errors.ts";
+import { isRecord } from "../../core/guards.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import { nowInstant } from "../../core/temporal.ts";
 import { toInstant } from "../shared.ts";
@@ -520,9 +521,6 @@ export interface TransportQueueBackendOptions {
   /** Dates a schedule's first run. */
   readonly now?: () => Temporal.Instant;
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 /**
  * The rows a set-returning function answered with. PostgREST and `dbTransport`
