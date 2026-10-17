@@ -33,10 +33,22 @@ Flags SDK type test check each structural type against the peer's real types
 at the pinned version, so a Renovate bump that breaks a contract fails CI
 before the range is widened. `getting-started/peers.mdx` lists every peer.
 
-Frameworks the adapters type structurally (React Router, SvelteKit, Nuxt,
-h3, Express, Fastify, Koa, Astro) stay out of this change. Each needs a
-conformance test against the real framework before it gets a range;
-declaring one without that would break strict installs on majors that work.
+The frameworks the adapters type structurally follow the same rule: React
+Router, SvelteKit, H3, Nuxt, Astro, SolidStart, TanStack Start, Elysia,
+Express, Fastify and Koa. `tests/frameworks.test-d.ts` hands each adapter's
+output to the framework's real API at the current major. A range that still
+covers the previous major (SvelteKit 2, H3 1, Nuxt 3, React Router 7) is
+checked in the `tests/types/frameworks-previous` workspace, because
+SvelteKit declares its types as an ambient module and two majors can't share
+one TypeScript program. Majors no conformance test runs against (Astro 6,
+SolidStart 1) are outside the ranges.
+
+The first run of these tests found drift the structural types had hidden.
+SvelteKit 3 moved `Handle` to `@sveltejs/kit/hooks`, and our `handle`
+didn't accept SvelteKit's `resolve`. TanStack Start's `next()` may return
+without a promise. Nitro 3 (H3 2, SolidStart 2) puts the Cloudflare bindings
+on `event.req.runtime.cloudflare.env`, so the H3 2 and SolidStart adapters
+read no env there. Astro allows any string as `quality`.
 
 ## Alternatives considered
 
@@ -50,5 +62,6 @@ is the problem this fixes.
 A new major of an integration needs the peer range, the catalog pin and the
 structural type updated together, and the conformance test proves it. Apps
 on a major outside the range see a warning even if the part we call still
-works; they can allow it with `peerDependencyRules.allowedVersions`. Revisit
-the framework list once each framework has a conformance test.
+works; they can allow it with `peerDependencyRules.allowedVersions`. A new
+framework major either joins the tested set (the previous one moves to
+`tests/types/frameworks-previous`) or stays outside the range.
