@@ -104,13 +104,14 @@ export function buildJsonSchema(
     }
   }
   switch (target) {
-    case "draft-2020-12":
+    case "draft-2020-12": {
       return {
         $schema: "https://json-schema.org/draft/2020-12/schema",
         ...(id ? { $id: id } : {}),
         $defs: defs,
       };
-    case "draft-07":
+    }
+    case "draft-07": {
       return forTarget(
         {
           ...(id ? { $id: id } : {}),
@@ -120,7 +121,8 @@ export function buildJsonSchema(
         },
         "draft-07",
       );
-    case "openapi-3.0":
+    }
+    case "openapi-3.0": {
       return {
         ...(id ? { $id: id } : {}),
         definitions: Object.fromEntries(
@@ -130,6 +132,7 @@ export function buildJsonSchema(
           ]),
         ),
       };
+    }
     default: {
       const exhaustive: never = target;
       return exhaustive;

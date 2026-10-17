@@ -38,11 +38,13 @@ function entitlementsProviderFor(
 ): ModuleEntitlementsProvider | undefined {
   const mode = entitlementsMode(config);
   switch (mode.kind) {
-    case "tenant":
+    case "tenant": {
       return undefined;
-    case "provider":
+    }
+    case "provider": {
       return mode.provider;
-    case "invalid":
+    }
+    case "invalid": {
       if (
         names === undefined ||
         !resolveModules(names, {}).some(
@@ -52,6 +54,7 @@ function entitlementsProviderFor(
         return undefined;
       }
       throw new TypeError(mode.problem);
+    }
     default: {
       const unreachable: never = mode;
       return unreachable;
@@ -74,8 +77,9 @@ function accessProviderFor(
     names !== undefined &&
     resolveModules(names, {}).some((module) => module.name === "access");
   switch (mode.kind) {
-    case "off":
+    case "off": {
       return undefined;
+    }
     case "provider": {
       if (!renders || !config.authorization) {
         return mode.access;
@@ -91,11 +95,12 @@ function accessProviderFor(
       }
       return mode.access;
     }
-    case "invalid":
+    case "invalid": {
       if (!renders) {
         return undefined;
       }
       throw new TypeError(mode.problem);
+    }
     default: {
       const unreachable: never = mode;
       return unreachable;

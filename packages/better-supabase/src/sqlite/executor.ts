@@ -130,9 +130,10 @@ function decodeValue(column: SqliteColumn, value: unknown): unknown {
     return null;
   }
   switch (column.decode) {
-    case "boolean":
+    case "boolean": {
       return value === 1 || value === true || value === "1" || value === "true";
-    case "json":
+    }
+    case "json": {
       if (typeof value !== "string") {
         return value;
       }
@@ -142,9 +143,11 @@ function decodeValue(column: SqliteColumn, value: unknown): unknown {
       } catch {
         return value;
       }
-    case "timestamptz":
+    }
+    case "timestamptz": {
       return typeof value === "string" ? postgrestTimestamp(value) : value;
-    case "raw":
+    }
+    case "raw": {
       if (typeof value !== "bigint") {
         return value;
       }
@@ -153,6 +156,7 @@ function decodeValue(column: SqliteColumn, value: unknown): unknown {
         value <= Number.MAX_SAFE_INTEGER
         ? Number(value)
         : value.toString();
+    }
     default: {
       const exhaustive: never = column.decode;
       return exhaustive;
@@ -294,15 +298,18 @@ async function run(
   plan: Exclude<SqlitePlan, { kind: "never" }>,
 ): Promise<ExecuteResult> {
   switch (plan.kind) {
-    case "select":
+    case "select": {
       return plan.rows && plan.count && db.readTransaction
         ? db.readTransaction((tx) => runSelect(tx, plan))
         : runSelect(db, plan);
-    case "insert":
+    }
+    case "insert": {
       return db.writeTransaction((tx) => runInsert(tx, plan));
+    }
     case "update":
-    case "delete":
+    case "delete": {
       return db.writeTransaction((tx) => runKeyed(tx, plan));
+    }
     default: {
       const exhaustive: never = plan;
       return exhaustive;

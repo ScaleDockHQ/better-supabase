@@ -193,8 +193,9 @@ function operatorAndValue(
     case "lt":
     case "lte":
     case "match":
-    case "imatch":
+    case "imatch": {
       return { operator: op, value: plain(value) };
+    }
     case "like":
     case "ilike": {
       const text = scalar(value);
@@ -206,7 +207,7 @@ function operatorAndValue(
         value: plain(likeToRegex(text)),
       };
     }
-    case "in":
+    case "in": {
       if (!Array.isArray(value)) {
         invalidRequest('"in" needs an array');
       }
@@ -214,11 +215,13 @@ function operatorAndValue(
         operator: "in",
         value: `(${value.map(listItem).join(",")})`,
       };
-    case "is":
+    }
+    case "is": {
       if (!isBoolLike(value)) {
         invalidRequest('"is" needs null, true or false');
       }
       return { operator: "is", value: String(value) };
+    }
     case "contains":
     case "containedBy":
     case "overlaps": {
@@ -265,11 +268,12 @@ class PostgrestCompiler {
     embeds: EmbedNode[],
   ): void {
     switch (condition.kind) {
-      case "and":
+      case "and": {
         for (const item of condition.items) {
           this.andContext(item, path, embeds);
         }
         return;
+      }
       case "column": {
         const { operator, value } = operatorAndValue(condition, false);
         this.filters.push({
@@ -307,7 +311,7 @@ class PostgrestCompiler {
         });
         return;
       }
-      case "or":
+      case "or": {
         this.filters.push({
           kind: "or",
           expression: this.logic(condition, embeds)
@@ -316,9 +320,11 @@ class PostgrestCompiler {
           referencedTable: path,
         });
         return;
-      case "relation":
+      }
+      case "relation": {
         this.relationAnd(condition, path, embeds);
         return;
+      }
       default: {
         const exhaustive: never = condition;
         return exhaustive;
@@ -361,10 +367,11 @@ class PostgrestCompiler {
   logic(condition: Condition, embeds: EmbedNode[]): string {
     switch (condition.kind) {
       case "and":
-      case "or":
+      case "or": {
         return `${condition.kind}(${condition.items
           .map((item) => this.logic(item, embeds))
           .join(",")})`;
+      }
       case "not": {
         const inner = condition.item;
         if (inner.kind === "column") {
@@ -526,11 +533,13 @@ function negateRelation(
   condition: Extract<Condition, { kind: "relation" }>,
 ): Extract<Condition, { kind: "relation" }> {
   switch (condition.quantifier) {
-    case "some":
+    case "some": {
       return { ...condition, quantifier: "none" };
-    case "none":
+    }
+    case "none": {
       return { ...condition, quantifier: "some" };
-    case "every":
+    }
+    case "every": {
       return {
         ...condition,
         quantifier: "some",
@@ -538,6 +547,7 @@ function negateRelation(
           ? { kind: "not", item: condition.where }
           : undefined,
       };
+    }
     default: {
       const exhaustive: never = condition.quantifier;
       return exhaustive;

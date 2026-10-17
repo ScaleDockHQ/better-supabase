@@ -317,7 +317,7 @@ export function createIdempotency(options: IdempotencyOptions): Idempotency {
             },
           });
         }
-        case "running":
+        case "running": {
           return problemResponse(
             dbError(
               "conflict",
@@ -328,7 +328,8 @@ export function createIdempotency(options: IdempotencyOptions): Idempotency {
             ),
             { instance, format, headers: { "retry-after": "1" } },
           );
-        case "mismatch":
+        }
+        case "mismatch": {
           return problemResponse(
             dbError(
               "validation",
@@ -345,8 +346,10 @@ export function createIdempotency(options: IdempotencyOptions): Idempotency {
             ),
             { instance, format },
           );
-        case "started":
+        }
+        case "started": {
           break;
+        }
         default: {
           const unknown: never = state;
           throw new TypeError(`Unknown idempotency state ${String(unknown)}`);

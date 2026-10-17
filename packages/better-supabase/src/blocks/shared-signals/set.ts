@@ -193,10 +193,12 @@ const jwsFailure = (cause: unknown): SetVerification => {
   }
   switch (cause.code) {
     case "JWS_MALFORMED":
-    case "JWS_TYP":
+    case "JWS_TYP": {
       return fail("invalid_request", cause.message);
-    default:
+    }
+    default: {
       return fail("invalid_key", cause.message);
+    }
   }
 };
 

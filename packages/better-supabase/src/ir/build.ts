@@ -355,16 +355,18 @@ export class IrBuilder {
         continue;
       }
       switch (op) {
-        case "eq":
+        case "eq": {
           items.push(
             operand === null ? at("is", null) : at("eq", text(operand)),
           );
           break;
-        case "neq":
+        }
+        case "neq": {
           items.push(
             operand === null ? not(at("is", null)) : at("neq", text(operand)),
           );
           break;
+        }
         case "in":
         case "notIn": {
           if (!Array.isArray(operand)) {
@@ -374,9 +376,10 @@ export class IrBuilder {
           items.push(op === "in" ? condition : not(condition));
           break;
         }
-        case "isNull":
+        case "isNull": {
           items.push(operand ? at("is", null) : not(at("is", null)));
           break;
+        }
         case "gt":
         case "gte":
         case "lt":
@@ -384,14 +387,16 @@ export class IrBuilder {
         case "like":
         case "ilike":
         case "match":
-        case "imatch":
+        case "imatch": {
           items.push(at(op, text(operand)));
           break;
-        default:
+        }
+        default: {
           invalidRequest(
             `Unknown operator "${op}" on a path of "${name}"`,
             table.key,
           );
+        }
       }
     }
     const condition = and(...items);
@@ -433,10 +438,12 @@ export class IrBuilder {
         : col(kind, value);
 
     switch (op) {
-      case "eq":
+      case "eq": {
         return operand === null ? col("is", null) : col("eq", operand);
-      case "neq":
+      }
+      case "neq": {
         return operand === null ? not(col("is", null)) : col("neq", operand);
+      }
       case "in":
       case "notIn": {
         if (!Array.isArray(operand)) {
@@ -445,8 +452,9 @@ export class IrBuilder {
         const condition = inList(operand, col);
         return op === "in" ? condition : not(condition);
       }
-      case "isNull":
+      case "isNull": {
         return operand ? col("is", null) : not(col("is", null));
+      }
       case "not": {
         const inner = this.fieldFilter(table, name, operand);
         return not(inner);
@@ -458,17 +466,21 @@ export class IrBuilder {
       case "like":
       case "ilike":
       case "match":
-      case "imatch":
+      case "imatch": {
         return col(op, operand);
-      case "contains":
+      }
+      case "contains": {
         if (meta?.json || meta?.array) {
           return containment("contains", operand);
         }
         return col("ilike", `%${escapeLike(String(operand))}%`);
-      case "startsWith":
+      }
+      case "startsWith": {
         return col("like", `${escapeLike(String(operand))}%`);
-      case "endsWith":
+      }
+      case "endsWith": {
         return col("like", `%${escapeLike(String(operand))}`);
+      }
       case "search": {
         if (typeof operand === "string") {
           return col("fts", operand);
@@ -486,11 +498,13 @@ export class IrBuilder {
           ? { kind: "column", column, op: "fts", value: query, config }
           : col("fts", query);
       }
-      case "hasEvery":
+      case "hasEvery": {
         return containment("contains", operand);
-      case "has":
+      }
+      case "has": {
         return containment("contains", [operand]);
-      case "hasSome":
+      }
+      case "hasSome": {
         if (meta?.json) {
           invalidRequest(
             `"hasSome" on json column "${name}" has no PostgREST operator; use OR with "has"`,
@@ -498,13 +512,16 @@ export class IrBuilder {
           );
         }
         return col("overlaps", operand);
-      case "containedBy":
+      }
+      case "containedBy": {
         return containment("containedBy", operand);
-      default:
+      }
+      default: {
         return invalidRequest(
           `Unknown operator "${op}" on "${name}"`,
           table.key,
         );
+      }
     }
   }
 

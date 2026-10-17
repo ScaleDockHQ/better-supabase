@@ -689,7 +689,7 @@ function addTableOperation<Ref>(
       });
       break;
     }
-    case "get":
+    case "get": {
       if (!item || !idParameter) {
         break;
       }
@@ -703,6 +703,7 @@ function addTableOperation<Ref>(
         },
       });
       break;
+    }
     case "update": {
       if (!item || !idParameter) {
         break;
@@ -725,7 +726,7 @@ function addTableOperation<Ref>(
       });
       break;
     }
-    case "delete":
+    case "delete": {
       if (!item || !idParameter) {
         break;
       }
@@ -739,6 +740,7 @@ function addTableOperation<Ref>(
         },
       });
       break;
+    }
     default: {
       const unknown: never = operation;
       throw new TypeError(

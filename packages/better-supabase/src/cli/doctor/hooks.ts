@@ -314,16 +314,19 @@ export function hookGrantProblems(context: DoctorContext): HookGrantProblem[] {
 /** The sentence that tells the reader how to apply `fix`. */
 function grantFixText(fix: HookGrantFix, workflow: SqlWorkflow): string {
   switch (fix.kind) {
-    case "sql":
+    case "sql": {
       return `${grantFixPlace(workflow)} (\`doctor --fix-grants\` prints every block):\n${fix.sql.join("\n")}`;
-    case "provider":
+    }
+    case "provider": {
       return fix.command
         ? `It is the hook of ${fix.name}, so let the provider write the grants: \`${fix.command}\`.`
         : `It is the hook of ${fix.name}, so let the provider write the grants.`;
-    case "migration":
+    }
+    case "migration": {
       return workflow === "pg-delta"
         ? `${fix.file} grants it, so the database is behind: run \`supabase db schema declarative sync\`, then apply the migrations (\`supabase migration up\`).`
         : `${fix.file} grants it, so the database is behind the migrations: apply them (\`supabase migration up\`).`;
+    }
     default: {
       const unreachable: never = fix;
       return unreachable;
@@ -334,12 +337,15 @@ function grantFixText(fix: HookGrantFix, workflow: SqlWorkflow): string {
 /** Where the grants go under `workflow`. */
 function grantFixPlace(workflow: SqlWorkflow): string {
   switch (workflow) {
-    case "pg-delta":
+    case "pg-delta": {
       return "Add to the schema file that defines the function, then run `supabase db schema declarative sync`";
-    case "migra":
+    }
+    case "migra": {
       return "Append to the migration `supabase db diff` wrote";
-    case "migrations":
+    }
+    case "migrations": {
       return "Add to a new migration (`supabase migration new auth_hook_grants`), then apply it (`supabase migration up`)";
+    }
     default: {
       const unreachable: never = workflow;
       return unreachable;
@@ -364,16 +370,18 @@ export function hookGrantBlock(
   for (const { fn, hook, fix } of problems) {
     const name = `${signatureOf(fn)} ([auth.hook.${hook}])`;
     switch (fix.kind) {
-      case "sql":
+      case "sql": {
         lines.push("", `-- ${name}`, ...fix.sql);
         break;
-      case "provider":
+      }
+      case "provider": {
         lines.push(
           "",
           `-- ${name} is the hook of ${fix.name}${fix.command ? `: ${fix.command}` : ""}`,
         );
         break;
-      case "migration":
+      }
+      case "migration": {
         lines.push(
           "",
           workflow === "pg-delta"
@@ -381,6 +389,7 @@ export function hookGrantBlock(
             : `-- ${name}: ${fix.file} grants it; run \`supabase migration up\`.`,
         );
         break;
+      }
       default: {
         const unreachable: never = fix;
         return unreachable;

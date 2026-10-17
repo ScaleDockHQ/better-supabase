@@ -164,16 +164,21 @@ function search(text: string | undefined): CommandResult {
 export function runBlocks(args: BlocksOptions): CommandResult {
   const [action, ...rest] = args._ ?? [];
   switch (action) {
-    case "list":
+    case "list": {
       return list(args.category);
-    case "view":
+    }
+    case "view": {
       return view(rest[0]);
-    case "search":
+    }
+    case "search": {
       return search(rest.join(" "));
-    case undefined:
+    }
+    case undefined: {
       return { code: 2, error: `Name an action.\n${USAGE}` };
-    default:
+    }
+    default: {
       return { code: 2, error: `Unknown blocks action "${action}".\n${USAGE}` };
+    }
   }
 }
 

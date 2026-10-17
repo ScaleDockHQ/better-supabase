@@ -310,19 +310,23 @@ function compare(
   const a = exact ? actual : actual.toLowerCase();
   const b = exact ? expected : expected.toLowerCase();
   switch (op) {
-    case "co":
+    case "co": {
       return a.includes(b);
-    case "sw":
+    }
+    case "sw": {
       return a.startsWith(b);
-    case "ew":
+    }
+    case "ew": {
       return a.endsWith(b);
+    }
     case "eq":
     case "ne":
     case "gt":
     case "ge":
     case "lt":
-    case "le":
+    case "le": {
       return order(op, a < b ? -1 : a > b ? 1 : 0);
+    }
     default: {
       const unreachable: never = op;
       throw new ScimFilterError(`Unknown operator ${String(unreachable)}`);
@@ -332,22 +336,29 @@ function compare(
 
 function order(op: CompareOp, difference: number): boolean {
   switch (op) {
-    case "eq":
+    case "eq": {
       return difference === 0;
-    case "ne":
+    }
+    case "ne": {
       return difference !== 0;
-    case "gt":
+    }
+    case "gt": {
       return difference > 0;
-    case "ge":
+    }
+    case "ge": {
       return difference >= 0;
-    case "lt":
+    }
+    case "lt": {
       return difference < 0;
-    case "le":
+    }
+    case "le": {
       return difference <= 0;
+    }
     case "co":
     case "sw":
-    case "ew":
+    case "ew": {
       throw new ScimFilterError(`${op} applies to strings`);
+    }
     default: {
       const unreachable: never = op;
       throw new ScimFilterError(`Unknown operator ${String(unreachable)}`);
@@ -361,17 +372,21 @@ export function matches(
   filter: ScimFilter,
 ): boolean {
   switch (filter.op) {
-    case "and":
+    case "and": {
       return matches(resource, filter.left) && matches(resource, filter.right);
-    case "or":
+    }
+    case "or": {
       return matches(resource, filter.left) || matches(resource, filter.right);
-    case "not":
+    }
+    case "not": {
       return !matches(resource, filter.filter);
-    case "pr":
+    }
+    case "pr": {
       return valuesAt(resource, filter.path).some(
         (value) =>
           value !== "" && !(Array.isArray(value) && value.length === 0),
       );
+    }
     case "value": {
       const local = relative(resource, filter.path);
       const items = local === undefined ? undefined : lookup(resource, local);

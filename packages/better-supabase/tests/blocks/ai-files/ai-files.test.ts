@@ -293,13 +293,16 @@ describe("createAiFiles", () => {
     };
     const { files, user } = setup((fn) => {
       switch (fn) {
-        case "delete_ai_document":
+        case "delete_ai_document": {
           return true;
+        }
         case "suggest_ai_document_edit":
-        case "resolve_ai_suggestion":
+        case "resolve_ai_suggestion": {
           return suggestion;
-        default:
+        }
+        default: {
           return documentRow;
+        }
       }
     });
     const rolled = await files.documents.rollback("d1", 1);
@@ -364,9 +367,10 @@ describe("createAiFiles", () => {
   it("versions documents and maps their rows", async () => {
     const { files, user } = setup((fn) => {
       switch (fn) {
-        case "get_ai_document":
+        case "get_ai_document": {
           return { ...documentRow, content: "let a = 1", storage_path: null };
-        case "list_ai_document_versions":
+        }
+        case "list_ai_document_versions": {
           return [
             {
               document_id: "d1",
@@ -378,7 +382,8 @@ describe("createAiFiles", () => {
               created_at: AT,
             },
           ];
-        case "list_ai_suggestions":
+        }
+        case "list_ai_suggestions": {
           return [
             {
               id: "s1",
@@ -393,8 +398,10 @@ describe("createAiFiles", () => {
               accepted: null,
             },
           ];
-        default:
+        }
+        default: {
           return documentRow;
+        }
       }
     });
     const doc = await files.documents.get("d1");

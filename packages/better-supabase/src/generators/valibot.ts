@@ -33,32 +33,45 @@ export interface ValibotGeneratorOptions {
 
 function scalar(kind: ScalarKind): string {
   switch (kind.kind) {
-    case "uuid":
+    case "uuid": {
       return "v.pipe(v.string(), v.uuid())";
-    case "string":
+    }
+    case "string": {
       return "v.string()";
-    case "integer":
+    }
+    case "integer": {
       return "v.pipe(v.number(), v.integer())";
-    case "number":
+    }
+    case "number": {
       return "v.number()";
-    case "boolean":
+    }
+    case "boolean": {
       return "v.boolean()";
-    case "datetime":
+    }
+    case "datetime": {
       return "v.pipe(v.string(), v.isoTimestamp())";
-    case "date":
+    }
+    case "date": {
       return "v.pipe(v.string(), v.isoDate())";
-    case "instant":
+    }
+    case "instant": {
       return "v.custom<Temporal.Instant>(isInstant)";
-    case "plainDateTime":
+    }
+    case "plainDateTime": {
       return "v.custom<Temporal.PlainDateTime>(isPlainDateTime)";
-    case "bigint":
+    }
+    case "bigint": {
       return "v.bigint()";
-    case "json":
+    }
+    case "json": {
       return "json";
-    case "enum":
+    }
+    case "enum": {
       return `v.picklist([${kind.values.map((value) => JSON.stringify(value)).join(", ")}])`;
-    case "unknown":
+    }
+    case "unknown": {
       return "v.unknown()";
+    }
     default: {
       const exhaustive: never = kind;
       return exhaustive;

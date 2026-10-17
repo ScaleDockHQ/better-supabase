@@ -65,16 +65,21 @@ export function PlanPicker({
         });
   const featureLabel = ({ key, value }: PlanOption["features"][number]) => {
     switch (key) {
-      case "seats":
+      case "seats": {
         return t("{seats} seats", { seats: String(value) });
-      case "exports":
+      }
+      case "exports": {
         return t("CSV exports");
-      case "audit":
+      }
+      case "audit": {
         return t("Audit log");
-      case "sso":
+      }
+      case "sso": {
         return t("Single sign-on");
-      default:
+      }
+      default: {
         return key;
+      }
     }
   };
   return (

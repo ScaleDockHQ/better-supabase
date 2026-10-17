@@ -33,15 +33,18 @@ export function sessionStale(
   const min = Math.max(MIN_CLIENT_STALE, options.min ?? MIN_CLIENT_STALE);
   const max = options.max ?? 300;
   switch (session.kind) {
-    case "invalid":
+    case "invalid": {
       return 0;
-    case "anon":
+    }
+    case "anon": {
       return session.reason === "expired" || session.reason === "refresh_failed"
         ? 0
         : max;
+    }
     case "service":
-    case "apiKey":
+    case "apiKey": {
       return max;
+    }
     case "user": {
       if (session.expiresAt === null) {
         return max;

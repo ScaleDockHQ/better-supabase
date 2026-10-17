@@ -118,16 +118,18 @@ export function joinTopic(
             return;
           }
           switch (state) {
-            case REALTIME_SUBSCRIBE_STATES.SUBSCRIBED:
+            case REALTIME_SUBSCRIBE_STATES.SUBSCRIBED: {
               entry.subscribed = true;
               status("subscribed");
               resolve();
               return;
-            case REALTIME_SUBSCRIBE_STATES.CLOSED:
+            }
+            case REALTIME_SUBSCRIBE_STATES.CLOSED: {
               entry.subscribed = false;
               status("closed");
               resolve();
               return;
+            }
             case REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR:
             case REALTIME_SUBSCRIBE_STATES.TIMED_OUT: {
               const failure =

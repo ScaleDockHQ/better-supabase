@@ -61,11 +61,13 @@ export function impersonatorOf(
   }
   switch (actor.kind) {
     case "oauth-client":
-    case "agent":
+    case "agent": {
       return undefined;
+    }
     case "support":
-    case "impersonation":
+    case "impersonation": {
       return { ...actor };
+    }
     default: {
       const unreachable: never = actor;
       return unreachable;

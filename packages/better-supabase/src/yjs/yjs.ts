@@ -234,7 +234,7 @@ export function createDocumentProvider<P extends PresenceState = PresenceState>(
 
   const onChannel = (next: SubscriptionStatus): void => {
     switch (next) {
-      case "subscribed":
+      case "subscribed": {
         // The first join follows the open; later ones are reconnects.
         if (joined) {
           void catchUp();
@@ -242,14 +242,17 @@ export function createDocumentProvider<P extends PresenceState = PresenceState>(
         joined = true;
         setStatus("synced");
         return;
+      }
       case "closed":
-      case "error":
+      case "error": {
         if (status !== "closed") {
           setStatus("offline");
         }
         return;
-      case "joining":
+      }
+      case "joining": {
         return;
+      }
       default: {
         const never: never = next;
         throw new TypeError(`unknown subscription status ${String(never)}`);

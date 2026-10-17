@@ -763,12 +763,15 @@ describe("createNotifications().deliver", () => {
     });
     const send = vi.fn<NotificationChannel["send"]>((message) => {
       switch (message.deliveryId) {
-        case "d1":
+        case "d1": {
           return { provider: "resend", providerMessageId: "m1" };
-        case "d2":
+        }
+        case "d2": {
           return { status: "skipped" };
-        default:
+        }
+        default: {
           throw new Error("smtp down");
+        }
       }
     });
     const events = new EventHub();

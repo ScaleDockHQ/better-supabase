@@ -366,14 +366,18 @@ export function parseCheckBounds(
 function boundOf({ length, operator, value }: Comparison): Bounds {
   if (length) {
     switch (operator) {
-      case ">=":
+      case ">=": {
         return { minLength: value };
-      case ">":
+      }
+      case ">": {
         return { minLength: value + 1 };
-      case "<=":
+      }
+      case "<=": {
         return { maxLength: value };
-      case "<":
+      }
+      case "<": {
         return { maxLength: value - 1 };
+      }
       default: {
         const exhaustive: never = operator;
         return exhaustive;
@@ -381,14 +385,18 @@ function boundOf({ length, operator, value }: Comparison): Bounds {
     }
   }
   switch (operator) {
-    case ">=":
+    case ">=": {
       return { minimum: value };
-    case ">":
+    }
+    case ">": {
       return { exclusiveMinimum: value };
-    case "<=":
+    }
+    case "<=": {
       return { maximum: value };
-    case "<":
+    }
+    case "<": {
       return { exclusiveMaximum: value };
+    }
     default: {
       const exhaustive: never = operator;
       return exhaustive;
@@ -522,23 +530,30 @@ function exampleFits(scalar: ScalarKind, value: unknown): boolean {
     case "uuid":
     case "string":
     case "datetime":
-    case "date":
+    case "date": {
       return typeof value === "string";
-    case "enum":
+    }
+    case "enum": {
       return typeof value === "string" && scalar.values.includes(value);
-    case "integer":
+    }
+    case "integer": {
       return Number.isInteger(value);
-    case "number":
+    }
+    case "number": {
       return typeof value === "number";
-    case "boolean":
+    }
+    case "boolean": {
       return typeof value === "boolean";
+    }
     case "json":
-    case "unknown":
+    case "unknown": {
       return true;
+    }
     case "instant":
     case "plainDateTime":
-    case "bigint":
+    case "bigint": {
       return false;
+    }
     default: {
       const exhaustive: never = scalar;
       return exhaustive;

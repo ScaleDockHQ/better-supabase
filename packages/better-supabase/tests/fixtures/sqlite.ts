@@ -15,14 +15,17 @@ function sqliteType(column: ColumnMeta): string {
     case "bool":
     case "int2":
     case "int4":
-    case "int8":
+    case "int8": {
       return "INTEGER";
+    }
     case "float4":
     case "float8":
-    case "numeric":
+    case "numeric": {
       return "REAL";
-    default:
+    }
+    default: {
       return "TEXT";
+    }
   }
 }
 

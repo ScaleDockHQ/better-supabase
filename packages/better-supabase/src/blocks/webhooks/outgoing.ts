@@ -539,14 +539,15 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
         return;
       }
       switch (outcome) {
-        case "succeeded":
+        case "succeeded": {
           counts.succeeded += 1;
           emit("webhook.delivered", delivery, {
             status: result.response?.status ?? 200,
           });
           break;
+        }
         case "retrying":
-        case "dead":
+        case "dead": {
           if (outcome === "retrying") {
             counts.retrying += 1;
           } else {
@@ -557,9 +558,11 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
             ...(result.error ? { error: result.error } : {}),
           });
           break;
-        case "canceled":
+        }
+        case "canceled": {
           counts.canceled += 1;
           break;
+        }
         default: {
           const unknown: never = outcome;
           throw new TypeError(`Unknown outcome ${String(unknown)}`);

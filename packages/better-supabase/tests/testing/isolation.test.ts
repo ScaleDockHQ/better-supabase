@@ -136,8 +136,9 @@ function fakePostgrest(
 
       switch (request.method) {
         case "GET":
-        case "HEAD":
+        case "HEAD": {
           return respond(200, project(matching("select"), select));
+        }
         case "POST": {
           const body = (await request.json()) as Row | Row[];
           const incoming = Array.isArray(body) ? body : [body];
@@ -181,8 +182,9 @@ function fakePostgrest(
             ? respond(200, project(removed, select))
             : respond(204);
         }
-        default:
+        default: {
           return respond(405, { message: "method not allowed" });
+        }
       }
     },
   );

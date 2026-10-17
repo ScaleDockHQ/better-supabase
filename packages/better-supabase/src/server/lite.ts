@@ -11,11 +11,13 @@ const DEFAULT_LITE_DRIVER: LiteDriver = "sqlite-postgres";
 function isSqliteDriver(driver: LiteDriver): boolean {
   switch (driver) {
     case "sqlite-postgres":
-    case "sqlite":
+    case "sqlite": {
       return true;
+    }
     case "pglite":
-    case "postgres":
+    case "postgres": {
       return false;
+    }
     default: {
       const exhaustive: never = driver;
       return exhaustive;

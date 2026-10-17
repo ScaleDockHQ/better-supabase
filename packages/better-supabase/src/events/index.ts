@@ -150,19 +150,21 @@ export function toHttp(
     ? events
     : [events as CloudEvent];
   switch (mode) {
-    case "batch":
+    case "batch": {
       return [
         {
           headers: { "content-type": BATCH },
           body: JSON.stringify(list, jsonReplacer),
         },
       ];
-    case "structured":
+    }
+    case "structured": {
       return list.map((event) => ({
         headers: { "content-type": STRUCTURED },
         body: JSON.stringify(event, jsonReplacer),
       }));
-    case "binary":
+    }
+    case "binary": {
       return list.map((event) => {
         const headers: Record<string, string> = {};
         for (const [key, value] of Object.entries(event)) {
@@ -187,6 +189,7 @@ export function toHttp(
               : JSON.stringify(event.data, jsonReplacer),
         };
       });
+    }
     default: {
       const unknown: never = mode;
       throw new TypeError(`Unknown CloudEvents mode ${String(unknown)}`);

@@ -556,8 +556,9 @@ export function defineBucket<
       }
       case "public":
       case "none":
-      case "access":
+      case "access": {
         return undefined;
+      }
       default: {
         const unknown: never = mode;
         throw new TypeError(

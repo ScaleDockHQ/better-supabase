@@ -50,15 +50,19 @@ export function decodeScalar(codec: Codec, value: unknown): unknown {
     return value;
   }
   switch (codec) {
-    case "instant":
+    case "instant": {
       return temporal().Instant.from(finite(value, "Instant"));
-    case "plainDateTime":
+    }
+    case "plainDateTime": {
       return temporal().PlainDateTime.from(finite(value, "PlainDateTime"));
-    case "bigint":
+    }
+    case "bigint": {
       // SAFETY: codec columns are selected with a text cast, so they arrive as strings.
       return BigInt(value as string);
-    case "string":
+    }
+    case "string": {
       return String(value);
+    }
     default: {
       const exhaustive: never = codec;
       return exhaustive;

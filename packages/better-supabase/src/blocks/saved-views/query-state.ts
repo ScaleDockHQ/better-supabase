@@ -54,24 +54,30 @@ export function urlStateFromQuery(
   const next: Record<string, unknown> = {};
   for (const key of keys) {
     switch (key) {
-      case "q":
+      case "q": {
         next[key] = query?.q ?? null;
         break;
-      case "sort":
+      }
+      case "sort": {
         next[key] = query?.sort ?? null;
         break;
-      case "size":
+      }
+      case "size": {
         next[key] = query?.size ?? null;
         break;
-      case "filter":
+      }
+      case "filter": {
         next[key] = query?.filter ?? null;
         break;
+      }
       case "page":
-      case "after":
+      case "after": {
         next[key] = null;
         break;
-      default:
+      }
+      default: {
         next[key] = facets[key]?.length ? facets[key] : null;
+      }
     }
   }
   return next;

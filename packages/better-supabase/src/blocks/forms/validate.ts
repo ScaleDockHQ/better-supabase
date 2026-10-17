@@ -33,22 +33,30 @@ function schemaOf(value: unknown): FormJsonSchema {
 
 function typeMatches(type: unknown, value: unknown): boolean {
   switch (type) {
-    case "string":
+    case "string": {
       return typeof value === "string";
-    case "number":
+    }
+    case "number": {
       return typeof value === "number" && Number.isFinite(value);
-    case "integer":
+    }
+    case "integer": {
       return typeof value === "number" && Number.isInteger(value);
-    case "boolean":
+    }
+    case "boolean": {
       return typeof value === "boolean";
-    case "array":
+    }
+    case "array": {
       return Array.isArray(value);
-    case "object":
+    }
+    case "object": {
       return isObject(value);
-    case "null":
+    }
+    case "null": {
       return value === null;
-    default:
+    }
+    default: {
       return true;
+    }
   }
 }
 
@@ -85,14 +93,18 @@ function validDate(value: string): boolean {
 
 function formatMatches(format: unknown, value: string): boolean {
   switch (format) {
-    case "email":
+    case "email": {
       return EMAIL.test(value);
-    case "date":
+    }
+    case "date": {
       return validDate(value);
-    case "uri":
+    }
+    case "uri": {
       return URI_SCHEME.test(value) && URL.canParse(value);
-    default:
+    }
+    default: {
       return true;
+    }
   }
 }
 

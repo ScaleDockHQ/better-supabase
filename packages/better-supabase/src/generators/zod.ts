@@ -41,32 +41,45 @@ export type ZodFlavor = "classic" | "mini";
 
 function scalar(kind: ScalarKind): string {
   switch (kind.kind) {
-    case "uuid":
+    case "uuid": {
       return "z.guid()";
-    case "string":
+    }
+    case "string": {
       return "z.string()";
-    case "integer":
+    }
+    case "integer": {
       return "z.int()";
-    case "number":
+    }
+    case "number": {
       return "z.number()";
-    case "boolean":
+    }
+    case "boolean": {
       return "z.boolean()";
-    case "datetime":
+    }
+    case "datetime": {
       return "z.iso.datetime({ offset: true })";
-    case "date":
+    }
+    case "date": {
       return "z.iso.date()";
-    case "instant":
+    }
+    case "instant": {
       return "z.custom<Temporal.Instant>(isInstant)";
-    case "plainDateTime":
+    }
+    case "plainDateTime": {
       return "z.custom<Temporal.PlainDateTime>(isPlainDateTime)";
-    case "bigint":
+    }
+    case "bigint": {
       return "z.bigint()";
-    case "json":
+    }
+    case "json": {
       return "z.json()";
-    case "enum":
+    }
+    case "enum": {
       return `z.enum([${kind.values.map((value) => JSON.stringify(value)).join(", ")}])`;
-    case "unknown":
+    }
+    case "unknown": {
       return "z.unknown()";
+    }
     default: {
       const exhaustive: never = kind;
       return exhaustive;

@@ -195,14 +195,18 @@ export function runPreset(
 ): CommandResult {
   const [action, value] = args._ ?? [];
   switch (action) {
-    case "decode":
+    case "decode": {
       return decode(value);
-    case "info":
+    }
+    case "info": {
       return info(config);
-    case undefined:
+    }
+    case undefined: {
       return { code: 2, error: `Name an action.\n${USAGE}` };
-    default:
+    }
+    default: {
       return { code: 2, error: `Unknown preset action "${action}".\n${USAGE}` };
+    }
   }
 }
 

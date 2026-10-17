@@ -146,14 +146,18 @@ function announcementOf(value: unknown): Announcement {
 function audienceOf(type: unknown, targets: unknown): AnnouncementAudience {
   const values = stringsOf(targets);
   switch (type) {
-    case "tenant":
+    case "tenant": {
       return { type, organizationIds: values };
-    case "role":
+    }
+    case "role": {
       return { type, roles: values };
-    case "plan":
+    }
+    case "plan": {
       return { type, plans: values };
-    default:
+    }
+    default: {
       return { type: "all" };
+    }
   }
 }
 
@@ -171,14 +175,18 @@ function audienceFields(audience: AnnouncementAudience): {
   readonly targets: readonly string[];
 } {
   switch (audience.type) {
-    case "all":
+    case "all": {
       return { audience: "all", targets: [] };
-    case "tenant":
+    }
+    case "tenant": {
       return { audience: "tenant", targets: audience.organizationIds };
-    case "role":
+    }
+    case "role": {
       return { audience: "role", targets: audience.roles };
-    case "plan":
+    }
+    case "plan": {
       return { audience: "plan", targets: audience.plans };
+    }
     default: {
       const unknown: never = audience;
       throw new TypeError(`Unknown audience ${JSON.stringify(unknown)}`);

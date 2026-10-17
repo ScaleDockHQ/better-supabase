@@ -55,10 +55,12 @@ export function timestamps(): Plugin<"timestamps"> {
             ),
           };
         }
-        case "update":
+        case "update": {
           return { ...op, set: withDefault(op.set, updated, stamp) };
-        case "delete":
+        }
+        case "delete": {
           return op;
+        }
         default: {
           const exhaustive: never = op;
           return exhaustive;

@@ -343,10 +343,12 @@ export function fromBetterResult<T>(
   mapError: (error: unknown) => DbError = toDbError,
 ): Result<T> {
   switch (result.status) {
-    case "ok":
+    case "ok": {
       return ok(result.value);
-    case "error":
+    }
+    case "error": {
       return err(dbErrorOf(result.error) ?? mapError(result.error));
+    }
     default: {
       const never: never = result;
       throw new TypeError(

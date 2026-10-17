@@ -124,17 +124,20 @@ export function resendSuppressions(
   const bounce = isRecord(data["bounce"]) ? data["bounce"] : undefined;
   let reason: SuppressInput["reason"];
   switch (event["type"]) {
-    case "email.bounced":
+    case "email.bounced": {
       if (bounce?.["type"] === "Transient") {
         return [];
       }
       reason = "bounce";
       break;
-    case "email.complained":
+    }
+    case "email.complained": {
       reason = "complaint";
       break;
-    default:
+    }
+    default: {
       return [];
+    }
   }
   const to = Array.isArray(data["to"]) ? data["to"] : [data["to"]];
   const detail: Record<string, unknown> = {};

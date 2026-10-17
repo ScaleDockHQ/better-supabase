@@ -239,7 +239,7 @@ export function createMemory(options: MemoryOptions): Memory {
     ns?: MemoryNamespace,
   ): AsyncResult<string> => {
     switch (command.command) {
-      case "view":
+      case "view": {
         return view(organizationId, command.path, ns).map((result) => {
           if (result === undefined) {
             return `${command.path} does not exist.`;
@@ -252,11 +252,13 @@ export function createMemory(options: MemoryOptions): Memory {
           );
           return `Here are the files in ${result.path}:\n${entries.join("\n")}`;
         });
-      case "create":
+      }
+      case "create": {
         return core
           .write(organizationId, command.path, command.file_text, ns)
           .map(() => `File created successfully at: ${command.path}`);
-      case "str_replace":
+      }
+      case "str_replace": {
         return core
           .strReplace(
             organizationId,
@@ -266,7 +268,8 @@ export function createMemory(options: MemoryOptions): Memory {
             ns,
           )
           .map(() => `The memory file ${command.path} has been edited.`);
-      case "insert":
+      }
+      case "insert": {
         return core
           .insert(
             organizationId,
@@ -276,7 +279,8 @@ export function createMemory(options: MemoryOptions): Memory {
             ns,
           )
           .map(() => `The memory file ${command.path} has been edited.`);
-      case "delete":
+      }
+      case "delete": {
         return core
           .remove(organizationId, command.path, ns)
           .map((count) =>
@@ -284,13 +288,15 @@ export function createMemory(options: MemoryOptions): Memory {
               ? `${command.path} does not exist.`
               : `Successfully deleted ${command.path}`,
           );
-      case "rename":
+      }
+      case "rename": {
         return core
           .rename(organizationId, command.old_path, command.new_path, ns)
           .map(
             () =>
               `Successfully renamed ${command.old_path} to ${command.new_path}`,
           );
+      }
       default: {
         const unknown: never = command;
         return AsyncResult.err(

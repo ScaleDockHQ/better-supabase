@@ -197,29 +197,34 @@ function attributes(values: Readonly<Record<string, unknown>>): string {
 
 function body(ui: SpecUi, specUrl: string, config: Record<string, unknown>) {
   switch (ui) {
-    case "scalar":
+    case "scalar": {
       return {
         markup: '<div id="app"></div>',
         init: `Scalar.createApiReference("#app", ${scriptJson({ url: specUrl, ...config })});`,
       };
-    case "swagger":
+    }
+    case "swagger": {
       return {
         markup: '<div id="swagger-ui"></div>',
         init: `window.ui = SwaggerUIBundle(${scriptJson({ url: specUrl, dom_id: "#swagger-ui", ...config })});`,
       };
-    case "redoc":
+    }
+    case "redoc": {
       return {
         markup: '<div id="redoc"></div>',
         init: `Redoc.init(${scriptJson(specUrl)}, ${scriptJson(config)}, document.getElementById("redoc"));`,
       };
-    case "elements":
+    }
+    case "elements": {
       return {
         markup: `<elements-api${attributes({ apiDescriptionUrl: specUrl, router: "hash", layout: "sidebar", ...config })}></elements-api>`,
       };
-    case "rapidoc":
+    }
+    case "rapidoc": {
       return {
         markup: `<rapi-doc${attributes({ "spec-url": specUrl, ...config })}></rapi-doc>`,
       };
+    }
     default: {
       const unknown: never = ui;
       throw new TypeError(`Unknown docs UI "${String(unknown)}"`);

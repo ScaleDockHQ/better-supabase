@@ -10,12 +10,15 @@ import { SignInScreen } from "./sign-in-screen";
 export function AuthGate({ children }: { readonly children: ReactNode }) {
   const auth = useAuth();
   switch (auth.status) {
-    case "loading":
+    case "loading": {
       return <ActivityIndicator style={{ flex: 1 }} />;
-    case "signed-out":
+    }
+    case "signed-out": {
       return <SignInScreen />;
-    case "signed-in":
+    }
+    case "signed-in": {
       return <SignedIn>{children}</SignedIn>;
+    }
     default: {
       const unhandled: never = auth;
       throw new TypeError(`Unhandled auth state ${JSON.stringify(unhandled)}`);

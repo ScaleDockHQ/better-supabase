@@ -75,7 +75,7 @@ export function simplify(
       }
       return { ...condition, where };
     }
-    case "column":
+    case "column": {
       if (
         condition.op === "in" &&
         Array.isArray(condition.value) &&
@@ -84,6 +84,7 @@ export function simplify(
         return false;
       }
       return condition;
+    }
     default: {
       const exhaustive: never = condition;
       return exhaustive;

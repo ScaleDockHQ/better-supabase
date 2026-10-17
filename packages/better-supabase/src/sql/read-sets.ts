@@ -73,15 +73,17 @@ const AUTH_UID = "(select auth.uid())";
 
 function placeholderRef(set: ReadSet, placeholder: Placeholder): string {
   switch (placeholder.kind) {
-    case "param":
+    case "param": {
       return paramRef(set, placeholder.name, placeholder.array);
-    case "auth":
+    }
+    case "auth": {
       if (placeholder.array) {
         throw new TypeError(
           `Read set "${set.name}": auth.uid is a single value; compare with it directly instead of putting it in a list`,
         );
       }
       return AUTH_UID;
+    }
     default: {
       const unknown: never = placeholder;
       throw new TypeError(`Unknown placeholder ${String(unknown)}`);

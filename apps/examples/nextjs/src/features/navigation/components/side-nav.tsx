@@ -55,36 +55,51 @@ function useNavLabel() {
   const t = useExtracted("navigation");
   return (id: NavId): string => {
     switch (id) {
-      case "dashboard":
+      case "dashboard": {
         return t("Dashboard");
-      case "customers":
+      }
+      case "customers": {
         return t("Customers");
-      case "notifications":
+      }
+      case "notifications": {
         return t("Notifications");
-      case "workflows":
+      }
+      case "workflows": {
         return t("Workflows");
-      case "workflowBuilder":
+      }
+      case "workflowBuilder": {
         return t("Workflow builder");
-      case "inbox":
+      }
+      case "inbox": {
         return t("Inbox");
-      case "assistant":
+      }
+      case "assistant": {
         return t("Assistant");
-      case "knowledge":
+      }
+      case "knowledge": {
         return t("Knowledge");
-      case "agentActivity":
+      }
+      case "agentActivity": {
         return t("Agent activity");
-      case "beta":
+      }
+      case "beta": {
         return t("Beta");
-      case "members":
+      }
+      case "members": {
         return t("Members");
-      case "billing":
+      }
+      case "billing": {
         return t("Billing");
-      case "apiKeys":
+      }
+      case "apiKeys": {
         return t("API keys");
-      case "audit":
+      }
+      case "audit": {
         return t("Audit log");
-      case "settings":
+      }
+      case "settings": {
         return t("Settings");
+      }
       default: {
         const unknown: never = id;
         return unknown;

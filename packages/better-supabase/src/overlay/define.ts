@@ -125,15 +125,17 @@ export function defineOverlay(input: OverlayInput): Overlay {
     }
   }
   switch (version) {
-    case "1.2.0":
+    case "1.2.0": {
       return { overlay: version, ...rest };
+    }
     case "1.1.0":
-    case "1.0.0":
+    case "1.0.0": {
       return {
         overlay: version,
         ...rest,
         actions: input.actions.filter(isPlain),
       };
+    }
     default: {
       const unknown: never = version;
       throw new TypeError(

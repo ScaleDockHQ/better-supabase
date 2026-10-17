@@ -70,12 +70,15 @@ function text(findings: readonly Finding[], paint: Paint): string {
 
 function sarifLevel(severity: Severity): "error" | "warning" | "note" {
   switch (severity) {
-    case "error":
+    case "error": {
       return "error";
-    case "warning":
+    }
+    case "warning": {
       return "warning";
-    case "info":
+    }
+    case "info": {
       return "note";
+    }
     default: {
       const unreachable: never = severity;
       return unreachable;
@@ -194,18 +197,22 @@ export function formatReport(
   options: FormatOptions,
 ): string {
   switch (options.format) {
-    case "text":
+    case "text": {
       return text(findings, options.paint ?? plain);
-    case "json":
+    }
+    case "json": {
       return JSON.stringify(jsonReport(findings, options.version), null, 2);
-    case "sarif":
+    }
+    case "sarif": {
       return JSON.stringify(
         sarif(findings, options.rules, options.version, options.fallbackFile),
         null,
         2,
       );
-    case "github":
+    }
+    case "github": {
       return github(findings);
+    }
     default: {
       const unreachable: never = options.format;
       return unreachable;

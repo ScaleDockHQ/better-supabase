@@ -22,19 +22,22 @@ export interface SupabaseAuthContext {
 /** Repository context from a `@supabase/server` context. */
 export function contextFromSupabase(ctx: SupabaseAuthContext): RequestContext {
   switch (ctx.authMode) {
-    case "user":
+    case "user": {
       if (!ctx.userClaims) {
         break;
       }
       return userContext(ctx.userClaims, ctx.jwtClaims ?? {});
-    case "secret":
+    }
+    case "secret": {
       return {
         actor: { id: "service", kind: "service", role: "service_role" },
         claims: { role: "service_role" },
       };
+    }
     case "publishable":
-    case "none":
+    case "none": {
       break;
+    }
     default: {
       const unknown: never = ctx.authMode;
       throw new TypeError(

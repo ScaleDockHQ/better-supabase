@@ -64,7 +64,7 @@ function SettingControl({
   onChange: (value: ControlValue) => void;
 }) {
   switch (field.kind) {
-    case "boolean":
+    case "boolean": {
       return (
         <Switch
           id={id}
@@ -75,6 +75,7 @@ function SettingControl({
           }}
         />
       );
+    }
     case "choice": {
       const items = field.choices.map((choice) => ({
         value: String(choice),
@@ -111,7 +112,7 @@ function SettingControl({
     }
     case "number":
     case "text":
-    case "json":
+    case "json": {
       return (
         <Input
           id={id}
@@ -125,6 +126,7 @@ function SettingControl({
           }}
         />
       );
+    }
     default: {
       const unknown: never = field.kind;
       return unknown;

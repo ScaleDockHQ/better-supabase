@@ -129,8 +129,9 @@ export function installCommand(
         : "";
       return `pnpm ${filter}add ${dev ? "-D " : ""}${list}`;
     }
-    case "bun":
+    case "bun": {
       return `bun add ${dev ? "-d " : ""}${list}${target ? ` --cwd ${target.dir}` : ""}`;
+    }
     case "yarn": {
       const command = `add ${dev ? "-D " : ""}${list}`;
       if (!target) {
@@ -140,8 +141,9 @@ export function installCommand(
         ? `yarn workspace ${target.name} ${command}`
         : `cd ${target.dir} && yarn ${command}`;
     }
-    case "npm":
+    case "npm": {
       return `npm install ${dev ? "-D " : ""}${list}${target ? ` -w ${target.dir}` : ""}`;
+    }
     default: {
       const unreachable: never = manager;
       return unreachable;

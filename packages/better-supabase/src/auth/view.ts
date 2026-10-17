@@ -129,9 +129,10 @@ export function toSession<C, P>(auth: AuthState<C, P>): AuthSession<C, P> {
         ...(delegation ? { delegation } : {}),
       };
     }
-    case "service":
+    case "service": {
       return { kind: "service", keyName: auth.keyName };
-    case "apiKey":
+    }
+    case "apiKey": {
       return {
         kind: "apiKey",
         keyId: auth.keyId,
@@ -144,10 +145,13 @@ export function toSession<C, P>(auth: AuthState<C, P>): AuthSession<C, P> {
           : {}),
         ...(auth.createdBy ? { createdBy: auth.createdBy } : {}),
       };
-    case "anon":
+    }
+    case "anon": {
       return { kind: "anon", reason: auth.reason };
-    case "invalid":
+    }
+    case "invalid": {
       return { kind: "invalid", reason: auth.reason, error: auth.error };
+    }
     default: {
       const unhandled: never = auth;
       return unhandled;

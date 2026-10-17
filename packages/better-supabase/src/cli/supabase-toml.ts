@@ -406,16 +406,19 @@ export const PGDELTA_TABLE = "[experimental.pgdelta]\nenabled = true\n";
  */
 export function migrationCommand(workflow: SqlWorkflow, name?: string): string {
   switch (workflow) {
-    case "pg-delta":
+    case "pg-delta": {
       return name === undefined
         ? "supabase db schema declarative sync"
         : `supabase db schema declarative sync -f ${name}`;
-    case "migra":
+    }
+    case "migra": {
       return name === undefined
         ? "supabase db diff"
         : `supabase db diff -f ${name}`;
-    case "migrations":
+    }
+    case "migrations": {
       return "supabase migration up";
+    }
     default: {
       const unreachable: never = workflow;
       return unreachable;

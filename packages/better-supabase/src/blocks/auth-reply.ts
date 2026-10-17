@@ -30,18 +30,24 @@ function authFailure(error: object): DbError {
   }
   switch (status) {
     case 400:
-    case 422:
+    case 422: {
       return dbError("invalid_input", message, base);
-    case 401:
+    }
+    case 401: {
       return dbError("unauthorized", message, base);
-    case 403:
+    }
+    case 403: {
       return dbError("forbidden", message, base);
-    case 404:
+    }
+    case 404: {
       return dbError("not_found", message, base);
-    case 429:
+    }
+    case 429: {
       return dbError("rate_limited", message, base);
-    default:
+    }
+    default: {
       return dbError("unexpected", message, base);
+    }
   }
 }
 

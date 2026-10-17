@@ -874,18 +874,22 @@ function accessSql(ctx: ModuleContext, layout: ModuleLayout): string {
   const scope = sqlString(tenantScope(ctx));
   let body: string;
   switch (model) {
-    case "roles":
+    case "roles": {
       body = `${rolesFunctions(ctx)}\n${membershipFunctions(ctx)}`;
       break;
-    case "catalog":
+    }
+    case "catalog": {
       body = `${catalogTables(ctx)}\n${membershipFunctions(ctx)}`;
       break;
-    case "provider":
+    }
+    case "provider": {
       body = providerFunctions(ctx, layout);
       break;
-    case "custom":
+    }
+    case "custom": {
       body = `${customFunctions(ctx)}${assignAsFunction(ctx, layout)}`;
       break;
+    }
     default: {
       const unreachable: never = model;
       return unreachable;

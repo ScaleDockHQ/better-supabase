@@ -1204,16 +1204,21 @@ export function PlanPicker({
         });
   const featureLabel = ({ key, value }: PlanOption["features"][number]) => {
     switch (key) {
-      case "seats":
+      case "seats": {
         return t("{seats} seats", { seats: String(value) });
-      case "exports":
+      }
+      case "exports": {
         return t("CSV exports");
-      case "audit":
+      }
+      case "audit": {
         return t("Audit log");
-      case "sso":
+      }
+      case "sso": {
         return t("Single sign-on");
-      default:
+      }
+      default: {
         return key;
+      }
     }
   };
   return (
@@ -1676,7 +1681,7 @@ function SettingControl({
   onChange: (value: ControlValue) => void;
 }) {
   switch (field.kind) {
-    case "boolean":
+    case "boolean": {
       return (
         <Switch
           id={id}
@@ -1687,6 +1692,7 @@ function SettingControl({
           }}
         />
       );
+    }
     case "choice": {
       const items = field.choices.map((choice) => ({
         value: String(choice),
@@ -1723,7 +1729,7 @@ function SettingControl({
     }
     case "number":
     case "text":
-    case "json":
+    case "json": {
       return (
         <Input
           id={id}
@@ -1737,6 +1743,7 @@ function SettingControl({
           }}
         />
       );
+    }
     default: {
       const unknown: never = field.kind;
       return unknown;
@@ -1885,7 +1892,7 @@ function SettingControl({
   readonly onChange: (value: ControlValue) => void;
 }) {
   switch (field.kind) {
-    case "boolean":
+    case "boolean": {
       return (
         <Switch
           value={value === true}
@@ -1893,7 +1900,8 @@ function SettingControl({
           onValueChange={onChange}
         />
       );
-    case "choice":
+    }
+    case "choice": {
       return (
         <View style={{ flexDirection: "row", gap: 6 }}>
           {field.choices.map((choice) => (
@@ -1918,9 +1926,10 @@ function SettingControl({
           ))}
         </View>
       );
+    }
     case "number":
     case "text":
-    case "json":
+    case "json": {
       return (
         <TextInput
           defaultValue={field.kind === "json" ? "" : String(value ?? "")}
@@ -1933,6 +1942,7 @@ function SettingControl({
           style={{ minWidth: 120, borderWidth: 1, borderRadius: 8, padding: 6 }}
         />
       );
+    }
     default: {
       const unknown: never = field.kind;
       return unknown;

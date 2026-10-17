@@ -766,11 +766,12 @@ function routes(
           ? new Response(null, { status: 204 })
           : failure(deleted.error);
       }
-      default:
+      default: {
         return new Response(null, {
           status: 405,
           headers: { allow: "GET, POST, PATCH, PUT, DELETE" },
         });
+      }
     }
   };
 

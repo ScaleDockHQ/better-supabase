@@ -66,9 +66,10 @@ function formatNodes(
   const lines: string[] = [];
   for (const node of nodes) {
     switch (node.type) {
-      case "page":
+      case "page": {
         lines.push(formatItem(node, options, depth));
         break;
+      }
       case "folder": {
         const name = text(node.name);
         // A folder named like its section adds a level that says nothing new.
@@ -84,8 +85,9 @@ function formatNodes(
         );
         break;
       }
-      case "separator":
+      case "separator": {
         break;
+      }
       default: {
         const exhaustive: never = node;
         throw new Error(`Unknown page tree node ${String(exhaustive)}`);

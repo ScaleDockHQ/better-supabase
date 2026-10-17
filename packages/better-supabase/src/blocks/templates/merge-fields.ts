@@ -77,8 +77,9 @@ function defaultFormat(value: unknown): string {
     case "string":
     case "number":
     case "bigint":
-    case "boolean":
+    case "boolean": {
       return String(value);
+    }
     case "object": {
       if (typeof value !== "object" || value === null) {
         return "";
@@ -93,8 +94,9 @@ function defaultFormat(value: unknown): string {
     }
     case "undefined":
     case "symbol":
-    case "function":
+    case "function": {
       return "";
+    }
     default: {
       const unreachable: never = kind;
       return String(unreachable);

@@ -61,10 +61,12 @@ export function actor(options: ActorOptions = {}): Plugin<"actor"> {
             ),
           };
         }
-        case "update":
+        case "update": {
           return { ...op, set: stamp(op.set) };
-        case "delete":
+        }
+        case "delete": {
           return op;
+        }
         default: {
           const exhaustive: never = op;
           return exhaustive;

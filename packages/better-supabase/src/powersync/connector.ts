@@ -170,17 +170,20 @@ function replay(
   }
   const data = entry.opData ?? {};
   switch (entry.op) {
-    case "PUT":
+    case "PUT": {
       // SAFETY: PowerSync recorded these columns from a write to the local
       // table, whose columns mirror the repository's table.
       return route.upsert({ ...data, id: entry.id } as never);
-    case "PATCH":
+    }
+    case "PATCH": {
       // SAFETY: as above; the id is the row's text primary key.
       return route.update(entry.id as never, data as never);
-    case "DELETE":
+    }
+    case "DELETE": {
       // SAFETY: as above.
       return route.delete(entry.id as never);
-    default:
+    }
+    default: {
       return Promise.resolve(
         err(
           dbError(
@@ -189,6 +192,7 @@ function replay(
           ),
         ),
       );
+    }
   }
 }
 
@@ -255,12 +259,13 @@ export function createUploadConnector(
         const outcome =
           options.classify?.(error, entry) ?? uploadOutcome(error.kind);
         switch (outcome) {
-          case "retry":
+          case "retry": {
             if (error.kind === "unauthorized" && !(await signedIn())) {
               return;
             }
             // PowerSync keeps the batch queued and calls uploadData again.
             throw new Error(error.message);
+          }
           case "conflict": {
             const change: RejectedChange = { entry, error, outcome };
             rejected.add(change);

@@ -126,16 +126,21 @@ function holds(
 ): boolean {
   const order = compare(version, bound);
   switch (operator) {
-    case ">=":
+    case ">=": {
       return order >= 0;
-    case ">":
+    }
+    case ">": {
       return order > 0;
-    case "<=":
+    }
+    case "<=": {
       return order <= 0;
-    case "<":
+    }
+    case "<": {
       return order < 0;
-    case "=":
+    }
+    case "=": {
       return order === 0;
+    }
     default: {
       const unreachable: never = operator;
       return unreachable;

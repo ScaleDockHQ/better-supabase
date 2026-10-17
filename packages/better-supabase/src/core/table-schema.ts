@@ -117,46 +117,60 @@ function isJson(value: unknown): boolean {
 /** The issue message for a scalar, or `undefined` when the value passes. */
 function scalarIssue(field: FieldSpec, value: unknown): string | undefined {
   switch (field.kind) {
-    case "uuid":
+    case "uuid": {
       return typeof value === "string" && UUID.test(value)
         ? undefined
         : "Expected a UUID";
-    case "string":
+    }
+    case "string": {
       return typeof value === "string" ? undefined : "Expected a string";
-    case "integer":
+    }
+    case "integer": {
       return Number.isSafeInteger(value) ? undefined : "Expected an integer";
-    case "number":
+    }
+    case "number": {
       return typeof value === "number" && Number.isFinite(value)
         ? undefined
         : "Expected a number";
-    case "boolean":
+    }
+    case "boolean": {
       return typeof value === "boolean" ? undefined : "Expected a boolean";
-    case "datetime":
+    }
+    case "datetime": {
       return typeof value === "string" && DATETIME.test(value)
         ? undefined
         : "Expected an ISO 8601 date-time with an offset";
-    case "date":
+    }
+    case "date": {
       return typeof value === "string" && DATE.test(value)
         ? undefined
         : "Expected an ISO 8601 date";
-    case "instant":
+    }
+    case "instant": {
       return isInstant(value) ? undefined : "Expected a Temporal.Instant";
-    case "plainDateTime":
+    }
+    case "plainDateTime": {
       return isPlainDateTime(value)
         ? undefined
         : "Expected a Temporal.PlainDateTime";
-    case "bigint":
+    }
+    case "bigint": {
       return typeof value === "bigint" ? undefined : "Expected a bigint";
-    case "json":
+    }
+    case "json": {
       return isJson(value) ? undefined : "Expected a JSON value";
-    case "enum":
+    }
+    case "enum": {
       return typeof value === "string" && field.values.includes(value)
         ? undefined
         : `Expected one of ${field.values.map((entry) => JSON.stringify(entry)).join(", ")}`;
-    case "unknown":
+    }
+    case "unknown": {
       return undefined;
-    case "custom":
+    }
+    case "custom": {
       return value === undefined ? "Expected a value" : undefined;
+    }
     default: {
       const exhaustive: never = field;
       return exhaustive;

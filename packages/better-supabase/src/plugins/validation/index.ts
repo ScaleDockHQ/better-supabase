@@ -136,8 +136,9 @@ export function validation(options: ValidationOptions): Plugin<"validation"> {
             ),
           };
         }
-        case "delete":
+        case "delete": {
           return op;
+        }
         default: {
           const exhaustive: never = op;
           return exhaustive;

@@ -252,13 +252,14 @@ async function settle(
         stale,
       };
     }
-    case "validate":
+    case "validate": {
       return {
         status: "validated",
         lines: [`Checked ${shown} ${label}`],
         diagnostics,
         stale: false,
       };
+    }
     default: {
       const unknown: never = action;
       throw new Error(`Unknown spec action: ${String(unknown)}`);

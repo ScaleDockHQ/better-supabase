@@ -24,12 +24,15 @@ import { removeDocument } from "../knowledge-actions";
 function StatusBadge({ status }: { status: DocumentRow["status"] }) {
   const t = useExtracted("knowledge");
   switch (status) {
-    case "pending":
+    case "pending": {
       return <Badge variant="secondary">{t("Embedding")}</Badge>;
-    case "ready":
+    }
+    case "ready": {
       return <Badge variant="outline">{t("Ready")}</Badge>;
-    case "failed":
+    }
+    case "failed": {
       return <Badge variant="destructive">{t("Failed")}</Badge>;
+    }
     default: {
       const unknown: never = status;
       return unknown;

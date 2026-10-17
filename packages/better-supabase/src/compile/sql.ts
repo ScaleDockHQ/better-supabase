@@ -176,10 +176,12 @@ class SqlCompiler {
         const joiner = condition.kind === "and" ? " and " : " or ";
         return `(${condition.items.map((item) => this.condition(item, table, alias)).join(joiner)})`;
       }
-      case "not":
+      case "not": {
         return `not ${this.condition(condition.item, table, alias)}`;
-      case "column":
+      }
+      case "column": {
         return this.columnCondition(condition, table, alias);
+      }
       case "relation": {
         const target = this.alias();
         const join = this.join(
@@ -217,32 +219,43 @@ class SqlCompiler {
       : this.column(alias, condition.column);
     const { value } = condition;
     switch (condition.op) {
-      case "eq":
+      case "eq": {
         return `${column} = ${this.param(comparedValue(table, condition))}`;
-      case "neq":
+      }
+      case "neq": {
         return `${column} <> ${this.param(comparedValue(table, condition))}`;
-      case "gt":
+      }
+      case "gt": {
         return `${column} > ${this.param(comparedValue(table, condition))}`;
-      case "gte":
+      }
+      case "gte": {
         return `${column} >= ${this.param(comparedValue(table, condition))}`;
-      case "lt":
+      }
+      case "lt": {
         return `${column} < ${this.param(comparedValue(table, condition))}`;
-      case "lte":
+      }
+      case "lte": {
         return `${column} <= ${this.param(comparedValue(table, condition))}`;
-      case "like":
+      }
+      case "like": {
         return `${column} like ${this.param(value)}`;
-      case "ilike":
+      }
+      case "ilike": {
         return `${column} ilike ${this.param(value)}`;
-      case "match":
+      }
+      case "match": {
         return `${column} ~ ${this.param(value)}`;
-      case "imatch":
+      }
+      case "imatch": {
         return `${column} ~* ${this.param(value)}`;
-      case "in":
+      }
+      case "in": {
         if (!Array.isArray(value)) {
           invalidRequest('"in" needs an array');
         }
         return `${column} = any(${this.param(value)})`;
-      case "is":
+      }
+      case "is": {
         if (value === null) {
           return `${column} is null`;
         }
@@ -253,6 +266,7 @@ class SqlCompiler {
           return `${column} is false`;
         }
         return invalidRequest('"is" needs null, true or false');
+      }
       case "contains":
       case "containedBy":
       case "overlaps": {

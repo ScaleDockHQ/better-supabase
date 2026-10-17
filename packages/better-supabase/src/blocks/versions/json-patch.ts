@@ -181,16 +181,19 @@ export function applyPatch(
   patch.forEach((operation, index) => {
     const tokens = tokensOf(operation.path, index);
     switch (operation.op) {
-      case "add":
+      case "add": {
         add(root, tokens, clone(operation.value), index);
         break;
-      case "remove":
+      }
+      case "remove": {
         remove(root, tokens, index);
         break;
-      case "replace":
+      }
+      case "replace": {
         remove(root, tokens, index);
         add(root, tokens, clone(operation.value), index);
         break;
+      }
       case "move": {
         if (
           operation.path !== operation.from &&
@@ -205,7 +208,7 @@ export function applyPatch(
         add(root, tokens, value, index);
         break;
       }
-      case "copy":
+      case "copy": {
         add(
           root,
           tokens,
@@ -213,11 +216,13 @@ export function applyPatch(
           index,
         );
         break;
-      case "test":
+      }
+      case "test": {
         if (!jsonEqual(get(root.value, tokens, index), operation.value)) {
           throw new JsonPatchError(`test failed at "${operation.path}"`, index);
         }
         break;
+      }
       default: {
         const unknown: never = operation;
         throw new JsonPatchError(

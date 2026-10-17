@@ -238,8 +238,9 @@ export function sessionEncoding(session: StoredSession): SessionEncoding {
 
 function encoded(session: StoredSession, encode: SessionEncoding): string {
   switch (encode) {
-    case "user-and-tokens":
+    case "user-and-tokens": {
       return JSON.stringify(session);
+    }
     case "tokens-only": {
       const { user: _user, ...tokens } = session;
       return JSON.stringify(tokens);

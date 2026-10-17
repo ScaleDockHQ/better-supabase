@@ -316,14 +316,17 @@ function status(outcome: string | undefined): {
   switch (outcome) {
     case undefined:
     case "success":
-    case "succeeded":
+    case "succeeded": {
       return { status_id: 1, status: "Success" };
+    }
     case "failure":
     case "failed":
-    case "denied":
+    case "denied": {
       return { status_id: 2, status: "Failure" };
-    default:
+    }
+    default: {
       return { status_id: 99, status: outcome };
+    }
   }
 }
 

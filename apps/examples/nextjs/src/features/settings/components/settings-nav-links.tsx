@@ -11,22 +11,30 @@ function useTabLabel() {
   const t = useExtracted("settings");
   return (id: SettingsTabId): string => {
     switch (id) {
-      case "profile":
+      case "profile": {
         return t("Profile");
-      case "preferences":
+      }
+      case "preferences": {
         return t("Preferences");
-      case "security":
+      }
+      case "security": {
         return t("Security");
-      case "organization":
+      }
+      case "organization": {
         return t("Organization");
-      case "members":
+      }
+      case "members": {
         return t("Members");
-      case "billing":
+      }
+      case "billing": {
         return t("Billing");
-      case "apiKeys":
+      }
+      case "apiKeys": {
         return t("API keys");
-      case "audit":
+      }
+      case "audit": {
         return t("Audit log");
+      }
       default: {
         const unknown: never = id;
         return unknown;

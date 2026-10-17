@@ -2558,21 +2558,25 @@ describe("ai-chat hooks", () => {
         throw new Error("denied");
       }
       switch (fn) {
-        case "list_ai_chats":
+        case "list_ai_chats": {
           return args["after"]
             ? { items: [chat("c")], next: null }
             : { items: first, next: "cursor" };
-        case "create_ai_chat":
+        }
+        case "create_ai_chat": {
           return chat(
             "n",
             (args["fields"] as { is_temporary?: boolean }).is_temporary
               ? { is_temporary: true }
               : {},
           );
-        case "update_ai_chat":
+        }
+        case "update_ai_chat": {
           return chat("a", { title: "Renamed" });
-        default:
+        }
+        default: {
           return true;
+        }
       }
     });
     const view = renderHook(
@@ -2864,12 +2868,15 @@ describe("ai-chat hooks", () => {
         throw new Error("gone");
       }
       switch (fn) {
-        case "ai_message_path":
+        case "ai_message_path": {
           return path;
-        case "ai_message_siblings":
+        }
+        case "ai_message_siblings": {
           return siblings;
-        default:
+        }
+        default: {
           return { leaf_id: "a2" };
+        }
       }
     });
     const view = renderHook<string | null, ReturnType<typeof useAiChatTree>>(
@@ -2972,14 +2979,17 @@ describe("ai-chat hooks", () => {
         throw new Error("not yours");
       }
       switch (fn) {
-        case "share_ai_chat":
+        case "share_ai_chat": {
           shares = [{ id: "s1", leaf_id: "a1", created_at: AT }];
           return { id: "s1", token: "tok", leaf_id: "a1", created_at: AT };
-        case "revoke_ai_chat_share":
+        }
+        case "revoke_ai_chat_share": {
           shares = [];
           return true;
-        default:
+        }
+        default: {
           return shares;
+        }
       }
     });
     const view = renderHook<string | null, ReturnType<typeof useAiShare>>(

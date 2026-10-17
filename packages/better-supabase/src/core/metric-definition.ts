@@ -241,14 +241,18 @@ export function metricsOf(
 /** The grain a stored rollup at `stored` can be summed into. */
 export function grainDivides(stored: MetricGrain, grain: MetricGrain): boolean {
   switch (stored) {
-    case "hour":
+    case "hour": {
       return true;
-    case "day":
+    }
+    case "day": {
       return grain !== "hour";
-    case "week":
+    }
+    case "week": {
       return grain === "week";
-    case "month":
+    }
+    case "month": {
       return grain === "month";
+    }
     default: {
       const never: never = stored;
       return never;

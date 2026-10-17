@@ -36,7 +36,7 @@ function SettingControl({
   readonly onChange: (value: ControlValue) => void;
 }) {
   switch (field.kind) {
-    case "boolean":
+    case "boolean": {
       return (
         <Switch
           value={value === true}
@@ -44,7 +44,8 @@ function SettingControl({
           onValueChange={onChange}
         />
       );
-    case "choice":
+    }
+    case "choice": {
       return (
         <View style={{ flexDirection: "row", gap: 6 }}>
           {field.choices.map((choice) => (
@@ -69,9 +70,10 @@ function SettingControl({
           ))}
         </View>
       );
+    }
     case "number":
     case "text":
-    case "json":
+    case "json": {
       return (
         <TextInput
           defaultValue={field.kind === "json" ? "" : String(value ?? "")}
@@ -84,6 +86,7 @@ function SettingControl({
           style={{ minWidth: 120, borderWidth: 1, borderRadius: 8, padding: 6 }}
         />
       );
+    }
     default: {
       const unknown: never = field.kind;
       return unknown;

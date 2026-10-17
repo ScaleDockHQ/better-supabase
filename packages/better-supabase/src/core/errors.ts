@@ -448,7 +448,7 @@ function mapBuiltin(raw: RawDbError): DbError {
         hint: postgrestHint ? `${base.hint} ${advice}` : advice,
       });
     }
-    case "25006":
+    case "25006": {
       return dbError(
         "forbidden",
         "This connection is read-only, so the write was refused",
@@ -460,26 +460,34 @@ function mapBuiltin(raw: RawDbError): DbError {
             "The transaction is read-only, such as in a read-only support session; writes need a writable connection.",
         },
       );
-    case "P0001":
+    }
+    case "P0001": {
       return dbError("raised", message, base);
-    case "P0002":
+    }
+    case "P0002": {
       return dbError("not_found", message, base);
-    case "57014":
+    }
+    case "57014": {
       return dbError("timeout", message, base);
+    }
     case "40001":
-    case "40P01":
+    case "40P01": {
       return dbError("serialization", message, base);
-    case "PGRST116":
+    }
+    case "PGRST116": {
       return /multiple|more than one/i.test(raw.details ?? message)
         ? dbError("multiple_rows", message, base)
         : dbError("not_found", message, base);
+    }
     case "PGRST301":
     case "PGRST302":
-    case "PGRST303":
+    case "PGRST303": {
       return dbError("unauthorized", message, base);
-    case "PGRST124":
+    }
+    case "PGRST124": {
       return dbError("max_affected", message, base);
-    case "22P02":
+    }
+    case "22P02": {
       if (message.includes(MAX_AFFECTED_MARKER)) {
         const affected = MAX_AFFECTED_COUNT.exec(message)?.[1];
         return dbError(
@@ -489,13 +497,15 @@ function mapBuiltin(raw: RawDbError): DbError {
         );
       }
       break;
-    case "PGRST123":
+    }
+    case "PGRST123": {
       return dbError("invalid_request", message, {
         ...base,
         hint:
           base.hint ??
           "PostgREST aggregates are off. Run `alter role authenticator set pgrst.db_aggregates_enabled = 'true'; notify pgrst, 'reload config';` (see BS210), or use better-supabase/postgres.",
       });
+    }
     case "BS429":
     case "PT429": {
       const seconds = RETRY_AFTER.exec(raw.details ?? "")?.[1];
@@ -504,13 +514,15 @@ function mapBuiltin(raw: RawDbError): DbError {
         ...(seconds ? { retryAfter: Number(seconds) } : {}),
       });
     }
-    case "BSQ29":
+    case "BSQ29": {
       return dbError("quota_exceeded", message, {
         ...base,
         ...quotaDetails(raw.details),
       });
-    default:
+    }
+    default: {
       break;
+    }
   }
 
   if (code.startsWith("22")) {

@@ -56,25 +56,33 @@ export function fromStorageError(raw: unknown, table?: string): DbError {
     return dbError("network", message, base);
   }
   switch (status) {
-    case 400:
+    case 400: {
       return dbError("invalid_request", message, base);
-    case 401:
+    }
+    case 401: {
       return dbError("unauthorized", message, base);
-    case 403:
+    }
+    case 403: {
       return dbError("forbidden", message, base);
-    case 404:
+    }
+    case 404: {
       return dbError("not_found", message, base);
-    case 409:
+    }
+    case 409: {
       return dbError("conflict", message, base);
+    }
     case 413:
-    case 415:
+    case 415: {
       return dbError("invalid_input", message, { ...base, status });
+    }
     case 408:
-    case 429:
+    case 429: {
       return dbError("network", message, { ...base, status });
-    default:
+    }
+    default: {
       return status >= 500
         ? dbError("network", message, base)
         : dbError("unexpected", message, base);
+    }
   }
 }

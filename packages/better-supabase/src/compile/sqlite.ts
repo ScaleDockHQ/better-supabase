@@ -242,10 +242,12 @@ class SqliteCompiler {
         const joiner = condition.kind === "and" ? " and " : " or ";
         return `(${condition.items.map((item) => this.condition(item, table, alias)).join(joiner)})`;
       }
-      case "not":
+      case "not": {
         return `not ${this.condition(condition.item, table, alias)}`;
-      case "column":
+      }
+      case "column": {
         return this.columnCondition(condition, table, alias);
+      }
       case "relation": {
         const target = this.alias();
         const join = this.join(condition, table, alias, target);
@@ -299,22 +301,30 @@ class SqliteCompiler {
     const { value } = condition;
     const operand = (): string => this.comparableParam(table, name, value);
     switch (condition.op) {
-      case "eq":
+      case "eq": {
         return `${column} = ${operand()}`;
-      case "neq":
+      }
+      case "neq": {
         return `${column} <> ${operand()}`;
-      case "gt":
+      }
+      case "gt": {
         return `${column} > ${operand()}`;
-      case "gte":
+      }
+      case "gte": {
         return `${column} >= ${operand()}`;
-      case "lt":
+      }
+      case "lt": {
         return `${column} < ${operand()}`;
-      case "lte":
+      }
+      case "lte": {
         return `${column} <= ${operand()}`;
-      case "like":
+      }
+      case "like": {
         return `${raw} glob ${this.param(likeToGlob(String(value)))}`;
-      case "ilike":
+      }
+      case "ilike": {
         return `${raw} like ${this.param(value)} escape '\\'`;
+      }
       case "in": {
         if (!Array.isArray(value)) {
           invalidRequest('"in" needs an array');
@@ -325,7 +335,7 @@ class SqliteCompiler {
         const items: unknown[] = value;
         return `${column} in (${items.map((item) => this.comparableParam(table, name, item)).join(", ")})`;
       }
-      case "is":
+      case "is": {
         if (value === null) {
           return `${raw} is null`;
         }
@@ -336,15 +346,19 @@ class SqliteCompiler {
           return `${raw} is 0`;
         }
         return invalidRequest('"is" needs null, true or false');
+      }
       case "contains":
       case "containedBy":
-      case "overlaps":
+      case "overlaps": {
         return this.jsonCondition(condition.op, table, raw, value);
-      case "fts":
+      }
+      case "fts": {
         return unsupported("full-text search", table);
+      }
       case "match":
-      case "imatch":
+      case "imatch": {
         return unsupported("a regular expression filter", table);
+      }
       default: {
         const exhaustive: never = condition.op;
         return exhaustive;
@@ -367,16 +381,19 @@ class SqliteCompiler {
       }
       const list = distinct.map((item) => this.param(item)).join(", ");
       switch (op) {
-        case "contains":
+        case "contains": {
           return distinct.length === 0
             ? `${column} is not null`
             : `(select count(distinct value) from json_each(${column}) where value in (${list})) = ${distinct.length}`;
-        case "overlaps":
+        }
+        case "overlaps": {
           return distinct.length === 0
             ? "0"
             : `exists (select 1 from json_each(${column}) where value in (${list}))`;
-        case "containedBy":
+        }
+        case "containedBy": {
           return `(${column} is not null and not exists (select 1 from json_each(${column})${distinct.length === 0 ? "" : ` where value not in (${list})`}))`;
+        }
         default: {
           const exhaustive: never = op;
           return exhaustive;
@@ -552,13 +569,16 @@ export function compileSqlite(
     unsupported(`the function source "${op.source.name}"`, op.table);
   }
   switch (op.kind) {
-    case "select":
+    case "select": {
       return selectPlan(make(), op);
-    case "insert":
+    }
+    case "insert": {
       return insertPlan(make, op);
+    }
     case "update":
-    case "delete":
+    case "delete": {
       return keyedPlan(make, op);
+    }
     default: {
       const exhaustive: never = op;
       return exhaustive;

@@ -172,10 +172,12 @@ export function scaffoldApiFiles(context: ScaffoldContext): ScaffoldFile[] {
     },
   ];
   switch (context.framework) {
-    case "next":
+    case "next": {
       return [...shared, ...nextFiles(context, api)];
-    case "hono":
+    }
+    case "hono": {
       return [...shared, ...honoFiles(context, api)];
+    }
     default: {
       const unknown: never = context.framework;
       throw new Error(`Unknown framework: ${String(unknown)}`);

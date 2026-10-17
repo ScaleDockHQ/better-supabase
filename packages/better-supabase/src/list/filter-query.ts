@@ -358,7 +358,7 @@ function scalarIssue(
   limits: FilterLimits,
 ): string | undefined {
   switch (field.type) {
-    case "text":
+    case "text": {
       if (typeof value !== "string") {
         return "Must be text";
       }
@@ -366,19 +366,23 @@ function scalarIssue(
         return `At most ${String(limits.maxValueLength)} characters`;
       }
       return undefined;
-    case "number":
+    }
+    case "number": {
       return typeof value === "number" && Number.isFinite(value)
         ? undefined
         : "Must be a number";
-    case "boolean":
+    }
+    case "boolean": {
       return typeof value === "boolean" || value === "true" || value === "false"
         ? undefined
         : "Must be true or false";
-    case "date":
+    }
+    case "date": {
       return dateValueIssue(value);
+    }
     case "select":
     case "multiselect":
-    case "relation":
+    case "relation": {
       if (typeof value !== "string" || value === "") {
         return "Must be a value";
       }
@@ -392,6 +396,7 @@ function scalarIssue(
         return `Must be one of: ${field.options.map((option) => option.value).join(", ")}`;
       }
       return undefined;
+    }
     default: {
       const never: never = field.type;
       return `Unknown field type ${String(never)}`;
@@ -406,14 +411,16 @@ function valueIssue(
   limits: FilterLimits,
 ): string | undefined {
   switch (arity) {
-    case "none":
+    case "none": {
       return undefined;
-    case "one":
+    }
+    case "one": {
       if (value === undefined || value === null) {
         return "Needs a value";
       }
       return scalarIssue(field, value, limits);
-    case "many":
+    }
+    case "many": {
       if (!Array.isArray(value) || value.length === 0) {
         return "Needs a list of values";
       }
@@ -427,6 +434,7 @@ function valueIssue(
         }
       }
       return undefined;
+    }
     case "range": {
       if (!Array.isArray(value) || value.length !== 2) {
         return "Needs two values, from and to";
@@ -635,18 +643,24 @@ function dateWhere(
   // SAFETY: checkFilterQuery accepted one date value for this operator.
   const { start, end } = dateBounds(field, value as FilterDateValue, clock);
   switch (operator) {
-    case "is":
+    case "is": {
       return { [column]: { gte: start, lt: end } };
-    case "is_before":
+    }
+    case "is_before": {
       return { [column]: { lt: start } };
-    case "is_after":
+    }
+    case "is_after": {
       return { [column]: { gte: end } };
-    case "is_on_or_before":
+    }
+    case "is_on_or_before": {
       return { [column]: { lt: end } };
-    case "is_on_or_after":
+    }
+    case "is_on_or_after": {
       return { [column]: { gte: start } };
-    default:
+    }
+    default: {
       throw new TypeError(`Unknown date operator "${operator}"`);
+    }
   }
 }
 
@@ -659,31 +673,40 @@ function positive(
 ): Where {
   const column = field.column;
   switch (operator) {
-    case "empty":
+    case "empty": {
       return field.type === "text"
         ? { OR: [{ [column]: { isNull: true } }, { [column]: { eq: "" } }] }
         : { [column]: { isNull: true } };
-    case "contains":
+    }
+    case "contains": {
       return { [column]: { contains: value } };
+    }
     // Case-insensitive, like `contains`.
-    case "starts_with":
+    case "starts_with": {
       return { [column]: { ilike: `${escapeLike(String(value))}%` } };
-    case "ends_with":
+    }
+    case "ends_with": {
       return { [column]: { ilike: `%${escapeLike(String(value))}` } };
-    case "eq":
+    }
+    case "eq": {
       return { [column]: { eq: value } };
+    }
     case "gt":
     case "gte":
     case "lt":
-    case "lte":
+    case "lte": {
       return { [column]: { [operator]: value } };
-    case "is_any_of":
+    }
+    case "is_any_of": {
       return { [column]: { in: value } };
-    case "has_any_of":
+    }
+    case "has_any_of": {
       return { [column]: { hasSome: value } };
-    case "has_all_of":
+    }
+    case "has_all_of": {
       return { [column]: { hasEvery: value } };
-    case "is":
+    }
+    case "is": {
       if (field.type === "date") {
         return dateWhere(field, operator, value, clock);
       }
@@ -695,6 +718,7 @@ function positive(
               : value,
         },
       };
+    }
     case "between": {
       if (field.type === "date") {
         return dateWhere(field, operator, value, clock);
@@ -703,8 +727,9 @@ function positive(
       const [from, to] = value as readonly [number, number];
       return { [column]: { gte: Math.min(from, to), lte: Math.max(from, to) } };
     }
-    default:
+    default: {
       return dateWhere(field, operator, value, clock);
+    }
   }
 }
 

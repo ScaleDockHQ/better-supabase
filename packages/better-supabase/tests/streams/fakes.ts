@@ -108,12 +108,13 @@ export function fakeStreamsTransport(): {
       calls.push({ fn, args });
       const id = String(args["stream_id"]);
       switch (fn) {
-        case "stream_open":
+        case "stream_open": {
           if (streams.has(id)) {
             return false;
           }
           streams.set(id, { chunks: [], closed: false, cancelled: false });
           return true;
+        }
         case "stream_append": {
           const stream = must(id);
           if (stream.closed) {
@@ -181,10 +182,12 @@ export function fakeStreamsTransport(): {
           stream.cancelled = true;
           return true;
         }
-        case "purge_streams":
+        case "purge_streams": {
           return 0;
-        default:
+        }
+        default: {
           throw new Error(`unexpected ${fn}`);
+        }
       }
     },
   };

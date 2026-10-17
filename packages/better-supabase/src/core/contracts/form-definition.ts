@@ -240,7 +240,7 @@ export function fieldSchema(field: FormField): FormJsonSchema {
   const floor = field.required === true ? 1 : undefined;
   switch (type) {
     case "text":
-    case "textarea":
+    case "textarea": {
       return {
         type: "string",
         maxLength: maxLength(FORM_MAX_LENGTH[type]),
@@ -250,36 +250,44 @@ export function fieldSchema(field: FormField): FormJsonSchema {
         }),
         ...annotations,
       };
-    case "email":
+    }
+    case "email": {
       return {
         type: "string",
         format: "email",
         maxLength: FORM_MAX_LENGTH.email,
         ...annotations,
       };
-    case "url":
+    }
+    case "url": {
       return {
         type: "string",
         format: "uri",
         maxLength: FORM_MAX_LENGTH.url,
         ...annotations,
       };
+    }
     case "number":
-    case "integer":
+    case "integer": {
       return {
         type,
         ...defined({ minimum: field.min, maximum: field.max }),
         ...annotations,
       };
-    case "date":
+    }
+    case "date": {
       return { type: "string", format: "date", ...annotations };
-    case "bool":
+    }
+    case "bool": {
       return { type: "boolean", ...annotations };
-    case "consent":
+    }
+    case "consent": {
       return { type: "boolean", const: true, ...annotations };
-    case "option":
+    }
+    case "option": {
       return { type: "string", enum: values, ...annotations };
-    case "multi":
+    }
+    case "multi": {
       return {
         type: "array",
         items: { type: "string", enum: values },
@@ -287,8 +295,10 @@ export function fieldSchema(field: FormField): FormJsonSchema {
         ...defined({ minItems: field.min ?? floor, maxItems: field.max }),
         ...annotations,
       };
-    case "json":
+    }
+    case "json": {
       return { ...annotations };
+    }
     default: {
       const unknown: never = type;
       throw new TypeError(`unknown form field type ${String(unknown)}`);

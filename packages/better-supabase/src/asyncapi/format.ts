@@ -176,17 +176,20 @@ function lowerScheme(
   ctx: LowerContext,
 ): Json | undefined {
   switch (scheme.type) {
-    case "http":
+    case "http": {
       return omitUndefined({ ...scheme });
-    case "apiKey":
+    }
+    case "apiKey": {
       return omitUndefined({
         type: "httpApiKey",
         name: scheme.name,
         in: scheme.in,
         description: scheme.description,
       });
-    case "openIdConnect":
+    }
+    case "openIdConnect": {
       return omitUndefined({ ...scheme });
+    }
     case "oauth2": {
       const flows: Json = {};
       for (const [flow, value] of Object.entries(scheme.flows)) {
@@ -202,7 +205,7 @@ function lowerScheme(
         flows,
       });
     }
-    case "profile":
+    case "profile": {
       ctx.report({
         code: "asyncapi-security-unsupported",
         severity: "info",
@@ -210,6 +213,7 @@ function lowerScheme(
         pointer: `/components/securitySchemes/${pointerToken(name)}`,
       });
       return undefined;
+    }
     default: {
       const unknown: never = scheme;
       return unknown;

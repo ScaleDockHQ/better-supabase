@@ -285,15 +285,18 @@ function apiKeyOf(value: unknown): ApiKey {
 function checkOf(value: unknown): ApiKeyCheck {
   const row = recordOf(value, "verify_api_key");
   switch (row["status"]) {
-    case "ok":
+    case "ok": {
       return { status: "ok", key: apiKeyOf(row["key"]) };
-    case "rate_limited":
+    }
+    case "rate_limited": {
       return {
         status: "rate_limited",
         retryAfter: Number(row["retry_after"] ?? 60),
       };
-    default:
+    }
+    default: {
       return { status: "invalid" };
+    }
   }
 }
 
@@ -603,7 +606,7 @@ export function apiKeyResolver<F extends object = Record<never, never>>(
             claims: apiKeyClaims(key, options),
           };
         }
-        case "rate_limited":
+        case "rate_limited": {
           return {
             kind: "invalid",
             error: dbError("rate_limited", "API key rate limit exceeded", {
@@ -611,13 +614,15 @@ export function apiKeyResolver<F extends object = Record<never, never>>(
               retryAfter: check.retryAfter,
             }),
           };
-        case "invalid":
+        }
+        case "invalid": {
           return {
             kind: "invalid",
             error: dbError("unauthorized", "Invalid API key", {
               code: "INVALID_API_KEY",
             }),
           };
+        }
         default: {
           const exhaustive: never = check;
           return exhaustive;

@@ -47,15 +47,19 @@ export function userClaimsOf(auth: AuthState): UserClaims | null {
  */
 export function authModeOf(auth: AuthState): AuthMode {
   switch (auth.kind) {
-    case "user":
+    case "user": {
       return "user";
-    case "service":
+    }
+    case "service": {
       return "secret";
-    case "apiKey":
+    }
+    case "apiKey": {
       return auth.userId ? "user" : "secret";
+    }
     case "anon":
-    case "invalid":
+    case "invalid": {
       return "none";
+    }
     default: {
       const exhaustive: never = auth;
       return exhaustive;

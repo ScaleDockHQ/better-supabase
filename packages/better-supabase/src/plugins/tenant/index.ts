@@ -213,7 +213,7 @@ export function tenant<C = unknown>(
         return op;
       }
       switch (op.kind) {
-        case "insert":
+        case "insert": {
           if (!insertsOnly(op) && !op.onConflict?.columns.includes(column)) {
             forbidden(
               `An upsert on ${table.key} that updates on conflict needs the tenant column "${column}" in its conflict target`,
@@ -228,13 +228,16 @@ export function tenant<C = unknown>(
               return { ...row, [column]: id };
             }),
           };
-        case "update":
+        }
+        case "update": {
           if (column in op.set && !sameTenant(op.set[column], id)) {
             forbidden(`Cannot move a ${table.key} row to another tenant`);
           }
           return op;
-        case "delete":
+        }
+        case "delete": {
           return op;
+        }
         default: {
           const exhaustive: never = op;
           return exhaustive;

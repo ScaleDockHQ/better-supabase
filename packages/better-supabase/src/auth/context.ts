@@ -6,9 +6,10 @@ import { userContext } from "./impersonation.ts";
 /** The repository context (`actor`, `claims`) for an auth state. */
 export function authContext(auth: AuthState): RequestContext {
   switch (auth.kind) {
-    case "user":
+    case "user": {
       return userContext(auth.user, auth.claims);
-    case "service":
+    }
+    case "service": {
       return {
         actor: {
           id: `service:${auth.keyName}`,
@@ -17,7 +18,8 @@ export function authContext(auth: AuthState): RequestContext {
         },
         claims: { role: "service_role" },
       };
-    case "apiKey":
+    }
+    case "apiKey": {
       return {
         actor: auth.userId
           ? { id: auth.userId, kind: "user", role: "authenticated" }
@@ -29,12 +31,14 @@ export function authContext(auth: AuthState): RequestContext {
         claims: auth.claims,
         ...(auth.organizationId ? { tenant: auth.organizationId } : {}),
       };
+    }
     case "anon":
-    case "invalid":
+    case "invalid": {
       return {
         actor: { id: "anon", kind: "anon", role: "anon" },
         claims: { role: "anon" },
       };
+    }
     default: {
       const exhaustive: never = auth;
       return exhaustive;

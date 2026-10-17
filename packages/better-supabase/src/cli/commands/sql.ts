@@ -33,25 +33,33 @@ export async function runSql(
 ): Promise<CommandResult> {
   const [action, ...names] = args._ ?? [];
   switch (action) {
-    case "list":
+    case "list": {
       return listModules(config, args);
-    case "add":
+    }
+    case "add": {
       return addModules(config, args, names, deps);
-    case "sync":
+    }
+    case "sync": {
       return syncModules(config, args, paint, deps.now);
-    case "upgrade":
+    }
+    case "upgrade": {
       return upgrade(config, args, paint, deps.now);
-    case "data":
+    }
+    case "data": {
       return dataMigration(config, args, deps.now);
-    case "print":
+    }
+    case "print": {
       return printModule(config, args, names);
-    case undefined:
+    }
+    case undefined: {
       return { code: 2, error: `Name an action.\n${USAGE}` };
-    default:
+    }
+    default: {
       return {
         code: 2,
         error: `Unknown sql action "${action}".\n${USAGE}`,
       };
+    }
   }
 }
 

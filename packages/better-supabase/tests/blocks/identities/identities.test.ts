@@ -145,7 +145,7 @@ describe("createIdentities", () => {
   it("lists, unlinks and backfills", async () => {
     const { transport: t } = transport((fn) => {
       switch (fn) {
-        case "my_identities":
+        case "my_identities": {
           return [
             {
               id: "link-1",
@@ -157,12 +157,16 @@ describe("createIdentities", () => {
               created_at: AT,
             },
           ];
-        case "unlink_identity":
+        }
+        case "unlink_identity": {
           return true;
-        case "backfill_verified_emails":
+        }
+        case "backfill_verified_emails": {
           return "3";
-        default:
+        }
+        default: {
           return null;
+        }
       }
     });
     const identities = createIdentities({ transport: t });

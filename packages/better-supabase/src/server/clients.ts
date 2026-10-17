@@ -103,19 +103,21 @@ export function createClients(input: ClientsInput): Clients {
       : sharedGlobal;
     const shared = !custom && url === env().url;
     switch (auth.kind) {
-      case "user":
+      case "user": {
         // oxlint-disable-next-line typescript/no-unsafe-return -- supabase-js infers `any` for the schema name without a Database type.
         return createClient(url, env().publishableKey, {
           accessToken: () => Promise.resolve(auth.token),
           ...global,
         });
-      case "service":
+      }
+      case "service": {
         // oxlint-disable-next-line typescript/no-unsafe-return -- supabase-js infers `any` for the schema name without a Database type.
         return shared
           ? serviceClient()
           : createClient(url, secretKey(), { auth: STATELESS, ...global });
+      }
       case "anon":
-      case "invalid":
+      case "invalid": {
         if (!shared) {
           // oxlint-disable-next-line typescript/no-unsafe-return -- supabase-js infers `any` for the schema name without a Database type.
           return createClient(url, env().publishableKey, {
@@ -128,8 +130,10 @@ export function createClients(input: ClientsInput): Clients {
           ...sharedGlobal,
         });
         return anonClient;
-      case "apiKey":
+      }
+      case "apiKey": {
         return apiKeyClient();
+      }
       default: {
         const exhaustive: never = auth;
         return exhaustive;
@@ -165,21 +169,24 @@ export function createClients(input: ClientsInput): Clients {
     let key: string;
     let bearer: string;
     switch (auth.kind) {
-      case "user":
+      case "user": {
         key = env().publishableKey;
         bearer = auth.token;
         break;
+      }
       case "service":
       case "anon":
-      case "invalid":
+      case "invalid": {
         if (Object.keys(headers).length === 0 && url === env().url) {
           return supabaseAt(url, auth, headers);
         }
         key = auth.kind === "service" ? secretKey() : env().publishableKey;
         bearer = key;
         break;
-      case "apiKey":
+      }
+      case "apiKey": {
         return apiKeyClient();
+      }
       default: {
         const exhaustive: never = auth;
         return exhaustive;

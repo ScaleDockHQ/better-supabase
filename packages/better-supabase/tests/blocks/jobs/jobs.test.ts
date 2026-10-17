@@ -2633,14 +2633,18 @@ describe("createWebhookInbox", () => {
       (message) => {
         seen.push(message);
         switch (message.payload.n) {
-          case 2:
+          case 2: {
             throw new Error("handler crashed");
-          case 3:
+          }
+          case 3: {
             return { ok: false, error: { message: "already handled" } };
-          case 4:
+          }
+          case 4: {
             return { ok: false };
-          default:
+          }
+          default: {
             return { ok: true };
+          }
         }
       },
       { batch: 2, lease: "5 minutes" },

@@ -476,17 +476,19 @@ export function scimHandler(
     }
     const check = checked.data;
     switch (check.status) {
-      case "invalid":
+      case "invalid": {
         throw new ScimError(
           401,
           "The token is not valid",
           undefined,
           challenge,
         );
-      case "rate_limited":
+      }
+      case "rate_limited": {
         throw new ScimError(429, "Too many requests", undefined, {
           "retry-after": String(check.retryAfter),
         });
+      }
       case "ok": {
         const { key } = check;
         if (key.organizationId === undefined) {
@@ -779,8 +781,9 @@ export function scimHandler(
         }
         return new Response(null, { status: 204 });
       }
-      default:
+      default: {
         throw new ScimError(405, `${method} is not allowed`);
+      }
     }
   };
 

@@ -93,10 +93,12 @@ export function App() {
   const auth = useAuth();
   const { signOut } = useSignOut();
   switch (auth.status) {
-    case "loading":
+    case "loading": {
       return <p>Loading…</p>;
-    case "signed-out":
+    }
+    case "signed-out": {
       return <SignIn />;
+    }
     case "signed-in": {
       const organizationId = tenantOf(auth);
       return (

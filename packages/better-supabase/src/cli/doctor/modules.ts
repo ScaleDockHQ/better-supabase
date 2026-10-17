@@ -417,11 +417,13 @@ function deprecationPattern(entry: ModuleDeprecation): RegExp {
   const qualified =
     second === undefined ? ident(first) : `${ident(first)}\\.${ident(second)}`;
   switch (entry.kind) {
-    case "function":
+    case "function": {
       return new RegExp(`${qualified}\\s*\\(`, "i");
+    }
     case "table":
-    case "column":
+    case "column": {
       return new RegExp(`(?<![\\w."])${qualified}(?![\\w"])`, "i");
+    }
     case "claim": {
       const name = escapeRegExp(entry.symbol);
       return new RegExp(

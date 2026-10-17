@@ -112,9 +112,10 @@ describe("createServicePrincipals", () => {
   it("changes roles, disables, resolves the default and lists", async () => {
     const { call, transport: t } = transport((fn) => {
       switch (fn) {
-        case "default_service_principal":
+        case "default_service_principal": {
           return "sp-1";
-        case "service_principals_list":
+        }
+        case "service_principals_list": {
           return [
             {
               id: "sp-1",
@@ -126,8 +127,10 @@ describe("createServicePrincipals", () => {
               disabledAt: null,
             },
           ];
-        default:
+        }
+        default: {
           return true;
+        }
       }
     });
     const principals = createServicePrincipals({

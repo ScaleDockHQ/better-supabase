@@ -520,12 +520,13 @@ function tableTools(
         );
         break;
       }
-      case "get":
+      case "get": {
         if (keyParam) {
           add("get", `Get one ${table} row by ${keyParam}.`, keyInput(), row);
         }
         break;
-      case "create":
+      }
+      case "create": {
         add(
           "create",
           `Create a ${table} row. Returns the created row.`,
@@ -533,7 +534,8 @@ function tableTools(
           row,
         );
         break;
-      case "update":
+      }
+      case "update": {
         if (keyParam) {
           add(
             "update",
@@ -543,11 +545,13 @@ function tableTools(
           );
         }
         break;
-      case "delete":
+      }
+      case "delete": {
         if (keyParam) {
           add("delete", `Delete one ${table} row by ${keyParam}.`, keyInput());
         }
         break;
+      }
       default: {
         const unknown: never = operation;
         throw new TypeError(`Unknown operation ${String(unknown)}`);
@@ -1041,7 +1045,7 @@ export function createMcp<
       );
 
     switch (message.method) {
-      case "server/discover":
+      case "server/discover": {
         return reply({
           supportedVersions: [...SUPPORTED_VERSIONS],
           capabilities,
@@ -1051,6 +1055,7 @@ export function createMcp<
           ttlMs: LIST_TTL_MS,
           cacheScope: "private",
         });
+      }
       case "initialize": {
         if (modern) {
           return notFound();
@@ -1068,9 +1073,10 @@ export function createMcp<
             : {}),
         });
       }
-      case "ping":
+      case "ping": {
         return modern ? notFound() : reply({});
-      case "tools/list":
+      }
+      case "tools/list": {
         return reply({
           // A request without the header is on 2025-03-26, the revision
           // before the header existed.
@@ -1082,6 +1088,7 @@ export function createMcp<
           ),
           ...(modern ? { ttlMs: LIST_TTL_MS, cacheScope: "private" } : {}),
         });
+      }
       case "tools/call": {
         const name = message.params?.["name"];
         const entry = typeof name === "string" ? registry.get(name) : undefined;
@@ -1112,8 +1119,9 @@ export function createMcp<
         }
         return reply(failure(dbError("forbidden", outcome.refusal)));
       }
-      default:
+      default: {
         return notFound();
+      }
     }
   };
 

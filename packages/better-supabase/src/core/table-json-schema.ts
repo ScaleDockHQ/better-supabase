@@ -57,35 +57,47 @@ function scalarJsonSchema(
   kind: ScalarKind | { readonly kind: "custom" },
 ): JsonSchema {
   switch (kind.kind) {
-    case "uuid":
+    case "uuid": {
       return { type: "string", format: "uuid" };
-    case "string":
+    }
+    case "string": {
       return { type: "string" };
-    case "integer":
+    }
+    case "integer": {
       return { type: "integer" };
-    case "number":
+    }
+    case "number": {
       return { type: "number" };
-    case "boolean":
+    }
+    case "boolean": {
       return { type: "boolean" };
-    case "datetime":
+    }
+    case "datetime": {
       return { type: "string", format: "date-time" };
-    case "date":
+    }
+    case "date": {
       return { type: "string", format: "date" };
-    case "instant":
+    }
+    case "instant": {
       return { type: "string", format: "date-time" };
-    case "plainDateTime":
+    }
+    case "plainDateTime": {
       return {
         type: "string",
         pattern: "^\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?$",
       };
-    case "bigint":
+    }
+    case "bigint": {
       return { type: "string", pattern: "^-?\\d+$" };
+    }
     case "json":
     case "unknown":
-    case "custom":
+    case "custom": {
       return {};
-    case "enum":
+    }
+    case "enum": {
       return { type: "string", enum: [...kind.values] };
+    }
     default: {
       const exhaustive: never = kind;
       return exhaustive;

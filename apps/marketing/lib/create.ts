@@ -87,16 +87,20 @@ export interface BlockGroup {
 /** What the row says under the block's name. */
 export function rowNote(state: BlockRowState): string | undefined {
   switch (state.kind) {
-    case "selected":
+    case "selected": {
       return undefined;
-    case "required":
+    }
+    case "required": {
       return `Required by ${listNames(state.by)}`;
-    case "conflict":
+    }
+    case "conflict": {
       return `Unavailable: ${state.reason}`;
-    case "available":
+    }
+    case "available": {
       return state.worksWith.length === 0
         ? undefined
         : `Works with ${listNames(state.worksWith)}`;
+    }
     default: {
       const unknown: never = state;
       return unknown;

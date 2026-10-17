@@ -238,40 +238,48 @@ function eventOf(
   const attendees: CalendarAttendee[] = [];
   for (const line of lines) {
     switch (line.name) {
-      case "UID":
+      case "UID": {
         uid = line.value.trim();
         break;
-      case "DTSTART":
+      }
+      case "DTSTART": {
         start = dateValue(line.value, line.params, fallback);
         break;
-      case "DTEND":
+      }
+      case "DTEND": {
         end = dateValue(line.value, line.params, fallback);
         break;
-      case "DURATION":
+      }
+      case "DURATION": {
         try {
           duration = time.Duration.from(line.value.trim());
         } catch {
           duration = undefined;
         }
         break;
-      case "SUMMARY":
+      }
+      case "SUMMARY": {
         title = unescapeText(line.value);
         break;
-      case "DESCRIPTION":
+      }
+      case "DESCRIPTION": {
         description = unescapeText(line.value);
         break;
-      case "LOCATION":
+      }
+      case "LOCATION": {
         location = unescapeText(line.value);
         break;
+      }
       case "STATUS": {
         const value = line.value.trim().toLowerCase();
         status = STATUSES.find((item) => item === value) ?? "confirmed";
         break;
       }
-      case "RRULE":
+      case "RRULE": {
         rrule = line.value.trim();
         break;
-      case "EXDATE":
+      }
+      case "EXDATE": {
         for (const value of line.value.split(",")) {
           const date = dateValue(value.trim(), line.params, fallback);
           if (date !== undefined) {
@@ -279,9 +287,11 @@ function eventOf(
           }
         }
         break;
-      case "RECURRENCE-ID":
+      }
+      case "RECURRENCE-ID": {
         originalStart = dateValue(line.value, line.params, fallback)?.instant;
         break;
+      }
       case "ATTENDEE": {
         const attendee = attendeeOf(line);
         if (attendee !== undefined) {
@@ -289,8 +299,9 @@ function eventOf(
         }
         break;
       }
-      default:
+      default: {
         break;
+      }
     }
   }
   if (uid === undefined || uid === "" || start === undefined) {

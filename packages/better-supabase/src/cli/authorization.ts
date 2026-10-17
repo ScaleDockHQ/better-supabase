@@ -249,15 +249,17 @@ export function unsafeKey(
   | undefined {
   const status = keyStatus(provider, key);
   switch (status) {
-    case "complete":
+    case "complete": {
       return undefined;
-    case "incomplete":
+    }
+    case "incomplete": {
       return {
         status,
         reason: `has conditions ${providerLabel(provider)}'s SQL functions don't check (sqlComplete: false)`,
         fix: INCOMPLETE_FIX,
       };
-    case "unknown":
+    }
+    case "unknown": {
       return {
         status,
         reason: provider.permissions
@@ -265,12 +267,14 @@ export function unsafeKey(
           : "can't be checked: authorization.permissions is not set, so whether the SQL functions answer for it completely is unknown",
         fix: UNKNOWN_FIX,
       };
-    case "missing":
+    }
+    case "missing": {
       return {
         status,
         reason: "is not in authorization.permissions",
         fix: UNKNOWN_FIX,
       };
+    }
     default: {
       const unreachable: never = status;
       return unreachable;

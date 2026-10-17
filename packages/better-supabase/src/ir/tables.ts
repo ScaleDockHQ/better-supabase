@@ -35,20 +35,24 @@ function visitCondition(
   }
   switch (condition.kind) {
     case "and":
-    case "or":
+    case "or": {
       for (const item of condition.items) {
         visitCondition(item, tables);
       }
       break;
-    case "not":
+    }
+    case "not": {
       visitCondition(condition.item, tables);
       break;
-    case "column":
+    }
+    case "column": {
       break;
-    case "relation":
+    }
+    case "relation": {
       tables.add(condition.target.key);
       visitCondition(condition.where, tables);
       break;
+    }
     default: {
       const exhaustive: never = condition;
       throw new TypeError(`Unknown condition: ${String(exhaustive)}`);

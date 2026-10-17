@@ -140,8 +140,9 @@ function lowerScheme(
   switch (scheme.type) {
     case "http":
     case "apiKey":
-    case "openIdConnect":
+    case "openIdConnect": {
       return omitUndefined({ ...scheme });
+    }
     case "oauth2": {
       const { metadataUrl, ...rest } = scheme;
       return omitUndefined({
@@ -151,8 +152,9 @@ function lowerScheme(
           : `${features.prefix}oauth2MetadataUrl`]: metadataUrl,
       });
     }
-    case "profile":
+    case "profile": {
       return features.is33 ? omitUndefined({ ...scheme }) : undefined;
+    }
     default: {
       const unknown: never = scheme;
       return unknown;

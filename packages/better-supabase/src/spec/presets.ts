@@ -183,7 +183,7 @@ export function resolveSecurity(
       continue;
     }
     switch (preset) {
-      case "bearer":
+      case "bearer": {
         schemes["supabaseJwt"] = {
           type: "http",
           scheme: "bearer",
@@ -193,6 +193,7 @@ export function resolveSecurity(
         };
         requirements.push({ supabaseJwt: [] });
         break;
+      }
       case "oauth2": {
         if (!supabaseUrl) {
           throw new TypeError(
@@ -216,7 +217,7 @@ export function resolveSecurity(
         requirements.push({ [OAUTH_SCHEME]: [] });
         break;
       }
-      case "apiKey":
+      case "apiKey": {
         schemes["supabaseApiKey"] = {
           type: "apiKey",
           name: "apikey",
@@ -225,6 +226,7 @@ export function resolveSecurity(
         };
         requirements.push({ supabaseApiKey: [] });
         break;
+      }
       default: {
         const exhaustive: never = preset;
         throw new TypeError(`Unknown security preset "${String(exhaustive)}"`);

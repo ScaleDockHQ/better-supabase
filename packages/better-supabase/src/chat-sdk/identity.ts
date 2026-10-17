@@ -180,15 +180,17 @@ export function chatActions(
       return { allowed: false, reason: "refused" };
     }
     switch (author.kind) {
-      case "user":
+      case "user": {
         return decision.userId === undefined ||
           decision.userId === author.userId
           ? { allowed: true, author, userId: author.userId }
           : { allowed: false, reason: "refused" };
-      case "contact":
+      }
+      case "contact": {
         return decision.userId === undefined
           ? { allowed: true, author }
           : { allowed: true, author, userId: decision.userId };
+      }
       default: {
         const unknown: never = author;
         throw new TypeError(`unknown identity target ${String(unknown)}`);

@@ -158,14 +158,18 @@ function recordOf(value: object): Record<string, unknown> {
 function periodSql(item: SequenceEntity, at: string): string {
   const stamp = `${at} at time zone 'utc'`;
   switch (item.period) {
-    case "none":
+    case "none": {
       return "''";
-    case "year":
+    }
+    case "year": {
       return `to_char(${stamp}, 'YYYY')`;
-    case "month":
+    }
+    case "month": {
       return `to_char(${stamp}, 'YYYY-MM')`;
-    case "fiscal":
+    }
+    case "fiscal": {
       return `case when extract(month from ${stamp}) >= ${String(item.fiscalMonth)} then to_char(${stamp}, 'YYYY') else (extract(year from ${stamp})::int - 1)::text end`;
+    }
     default: {
       const never: never = item.period;
       return never;

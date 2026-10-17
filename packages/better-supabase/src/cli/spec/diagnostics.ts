@@ -35,12 +35,15 @@ export const SPEC_CLI_CODES: Readonly<Record<string, string>> = {
 /** True when the diagnostic fails the run under `failOn`. */
 export function fails(diagnostic: SpecDiagnostic, failOn: FailOn): boolean {
   switch (failOn) {
-    case "error":
+    case "error": {
       return diagnostic.severity === "error";
-    case "warning":
+    }
+    case "warning": {
       return diagnostic.severity !== "info";
-    case "never":
+    }
+    case "never": {
       return false;
+    }
     default: {
       const unknown: never = failOn;
       throw new Error(`Unknown fail-on level: ${String(unknown)}`);

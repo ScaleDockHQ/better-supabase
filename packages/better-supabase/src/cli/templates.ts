@@ -506,24 +506,30 @@ export function suggestedIntegrations(
   const names: Integration[] = [];
   for (const framework of frameworks) {
     switch (framework) {
-      case "next":
+      case "next": {
         names.push("next");
         break;
-      case "hono":
+      }
+      case "hono": {
         names.push("hono");
         break;
-      case "orpc":
+      }
+      case "orpc": {
         names.push("orpc");
         break;
-      case "vite":
+      }
+      case "vite": {
         names.push("client");
         break;
-      case "expo":
+      }
+      case "expo": {
         names.push("expo");
         break;
-      case "tanstack-query":
+      }
+      case "tanstack-query": {
         names.push("react");
         break;
+      }
       default: {
         const unreachable: never = framework;
         throw new TypeError(`Unknown framework ${String(unreachable)}`);

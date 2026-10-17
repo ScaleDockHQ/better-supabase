@@ -616,16 +616,21 @@ function matches(row: Row, where: Condition | undefined): boolean {
     return true;
   }
   switch (where.kind) {
-    case "and":
+    case "and": {
       return where.items.every((item) => matches(row, item));
-    case "or":
+    }
+    case "or": {
       return where.items.some((item) => matches(row, item));
-    case "not":
+    }
+    case "not": {
       return !matches(row, where.item);
-    case "column":
+    }
+    case "column": {
       return where.op !== "eq" || row[where.column] === where.value;
-    case "relation":
+    }
+    case "relation": {
       return true;
+    }
     default: {
       const unknown: never = where;
       return unknown;
@@ -715,8 +720,9 @@ function storeExecutor(
           ok({ rows: project(removed, op.returning), count: removed.length }),
         );
       }
-      case "update":
+      case "update": {
         return Promise.resolve(err(dbError("invalid_request", "read only")));
+      }
       default: {
         const unknown: never = op;
         return unknown;

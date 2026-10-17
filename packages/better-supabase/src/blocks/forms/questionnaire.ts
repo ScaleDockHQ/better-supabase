@@ -224,8 +224,9 @@ export function questionnaireReducer(
           .every((step) => state.completed.includes(step.key));
       return reachable ? { ...state, step: action.step, issues: [] } : state;
     }
-    case "reset":
+    case "reset": {
       return initialQuestionnaire(form, action.answers);
+    }
     default: {
       const never: never = action;
       return never;

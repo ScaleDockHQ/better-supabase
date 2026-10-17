@@ -170,20 +170,23 @@ function outcomeError(
     );
   }
   switch (outcome.outcome) {
-    case "granted":
+    case "granted": {
       return undefined;
-    case "denied":
+    }
+    case "denied": {
       return dbError(
         "forbidden",
         outcome.reason ?? `Permission ${permission} is required`,
         { code: "PERMISSION_DENIED", permission },
       );
-    case "approval-required":
+    }
+    case "approval-required": {
       return dbError("forbidden", `${permission} needs an approval`, {
         code: "APPROVAL_REQUIRED",
         permission,
         ...(outcome.approval ? { approval: { id: outcome.approval.id } } : {}),
       });
+    }
     default: {
       const exhaustive: never = outcome;
       return exhaustive;

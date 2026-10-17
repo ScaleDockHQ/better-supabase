@@ -342,7 +342,7 @@ const config: OxlintConfig = defineConfig({
     // repo-wide codemod.
     // Findings when measured: sort-keys 21,748, func-style 5,465,
     // method-signature-style 1,896, consistent-type-specifier-style 1,826,
-    // no-await-expression-member 1,472, switch-case-braces 593,
+    // no-await-expression-member 1,472,
     // prefer-named-capture-group 488, no-use-before-define 476,
     // prefer-destructuring 436, catch-error-name 249,
     // consistent-type-definitions 202, no-nested-ternary 200, no-plusplus 123,
@@ -361,7 +361,6 @@ const config: OxlintConfig = defineConfig({
     "typescript/method-signature-style": "off",
     "import/consistent-type-specifier-style": "off",
     "unicorn/no-await-expression-member": "off",
-    "unicorn/switch-case-braces": "off",
     "eslint/prefer-named-capture-group": "off",
     "eslint/no-use-before-define": "off",
     "eslint/prefer-destructuring": "off",

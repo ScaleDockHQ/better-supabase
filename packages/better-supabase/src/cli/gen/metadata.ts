@@ -49,16 +49,21 @@ function emitGenerator(
   );
   switch (emit) {
     case "schema":
-    case "types":
+    case "types": {
       return undefined;
-    case "zod":
+    }
+    case "zod": {
       return configured ?? zod();
-    case "valibot":
+    }
+    case "valibot": {
       return configured ?? valibot();
-    case "json-schema":
+    }
+    case "json-schema": {
       return configured ?? jsonSchema();
-    case "standard-schema":
+    }
+    case "standard-schema": {
       return configured ?? standardSchema();
+    }
     default: {
       const unhandled: never = emit;
       throw new Error(`unknown --emit ${String(unhandled)}`);

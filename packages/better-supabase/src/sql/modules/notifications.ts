@@ -494,9 +494,10 @@ function realtime(ctx: ModuleContext, n: NotifyNames): string {
   const drop = `drop trigger if exists ${trigger} on ${t};
 drop trigger if exists ${updateTrigger} on ${t};`;
   switch (mode) {
-    case "none":
+    case "none": {
       return drop;
-    case "changes":
+    }
+    case "changes": {
       return `${drop}
 do $$
 begin
@@ -510,6 +511,7 @@ begin
   end if;
 end;
 $$;`;
+    }
     case "broadcast": {
       const { expression, pattern } = topic(ctx, n);
       const created = sqlString(
@@ -561,10 +563,11 @@ begin
 end;
 $$;`;
     }
-    default:
+    default: {
       throw new TypeError(
         `blocks.notifications.options.realtime must be "broadcast", "changes" or "none", not "${mode}"`,
       );
+    }
   }
 }
 

@@ -83,11 +83,12 @@ async function signFor(
 ): Promise<string> {
   const alg = stack.alg ?? "ES256";
   switch (alg) {
-    case "ES256":
+    case "ES256": {
       return signTestJwtWithKey(
         stack.signingKey ?? (await localSigningKey(stack.signingKeysPath)),
         claims,
       );
+    }
     case "HS256": {
       if (!LOCAL_HOSTS.has(new URL(url).hostname)) {
         throw new TypeError(

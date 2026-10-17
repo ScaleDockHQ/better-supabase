@@ -414,21 +414,25 @@ function skipTo(
   }
   let periods: number;
   switch (rule.frequency) {
-    case "DAILY":
+    case "DAILY": {
       periods = target.since(anchor, { largestUnit: "days" }).days;
       break;
-    case "WEEKLY":
+    }
+    case "WEEKLY": {
       periods = Math.floor(
         target.since(weekOf(anchor, rule.weekStart), { largestUnit: "days" })
           .days / 7,
       );
       break;
-    case "MONTHLY":
+    }
+    case "MONTHLY": {
       periods = (target.year - anchor.year) * 12 + target.month - anchor.month;
       break;
-    case "YEARLY":
+    }
+    case "YEARLY": {
       periods = target.year - anchor.year;
       break;
+    }
     default: {
       const never: never = rule.frequency;
       throw new TypeError(`unknown frequency ${String(never)}`);

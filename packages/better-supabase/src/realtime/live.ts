@@ -139,7 +139,7 @@ function join(
       await new Promise<void>((resolve, reject) => {
         channel.subscribe((status, error) => {
           switch (status) {
-            case REALTIME_SUBSCRIBE_STATES.SUBSCRIBED:
+            case REALTIME_SUBSCRIBE_STATES.SUBSCRIBED: {
               // Broadcasts sent while disconnected are lost: a rejoin counts as a change.
               if (joined) {
                 for (const notify of listeners) {
@@ -152,9 +152,11 @@ function join(
               joined = true;
               resolve();
               return;
-            case REALTIME_SUBSCRIBE_STATES.CLOSED:
+            }
+            case REALTIME_SUBSCRIBE_STATES.CLOSED: {
               resolve();
               return;
+            }
             case REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR:
             case REALTIME_SUBSCRIBE_STATES.TIMED_OUT: {
               const failure =
