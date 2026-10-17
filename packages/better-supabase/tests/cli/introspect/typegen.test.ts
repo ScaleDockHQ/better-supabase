@@ -116,7 +116,25 @@ describe("readGeneratorMetadata", () => {
     ).toEqual([23, 25, 100, 200, 300, 1009]);
     expect(metadata.functions.map((fn) => fn.name)).toEqual(["make_address"]);
     expect(metadata.functions[0]!.id).toBe(30_000);
+    expect(metadata).not.toHaveProperty("rpcFunctions");
     expect(db.calls.length).toBeGreaterThan(5);
+  });
+});
+
+describe("rpcFunctions", () => {
+  const derived: GeneratorMetadata = {
+    ...generator,
+    rpcFunctions: [{ schema: "private", name: "stale", overloads: [] }],
+  };
+
+  it("is dropped wherever functions are reordered, renumbered or filtered", () => {
+    expect(orderArgsByPosition(derived, [])).not.toHaveProperty("rpcFunctions");
+    expect(stabilizeMetadata(derived).metadata).not.toHaveProperty(
+      "rpcFunctions",
+    );
+    expect(restrictSchemas(derived, ["public"])).not.toHaveProperty(
+      "rpcFunctions",
+    );
   });
 });
 

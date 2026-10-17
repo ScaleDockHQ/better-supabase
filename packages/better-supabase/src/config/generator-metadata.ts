@@ -54,6 +54,52 @@ export interface PostgresFunction {
   config_params: { [x: string]: string } | null;
 }
 
+/** A reference to a `types` entry by oid; `null` names when it is not in `types`. */
+export interface RpcTypeReference {
+  type_id: number;
+  format: string | null;
+  type_schema: string | null;
+}
+
+export interface RpcFunctionArg extends RpcTypeReference {
+  name: string;
+  mode: "in" | "inout" | "variadic";
+  has_default: boolean;
+  relation_id: number | null;
+}
+
+export interface RpcReturnColumn extends RpcTypeReference {
+  name: string;
+}
+
+export interface RpcFunctionReturns extends RpcTypeReference {
+  relation_id: number | null;
+  columns: RpcReturnColumn[] | null;
+}
+
+export interface RpcFunctionOverload {
+  function_id: number;
+  args: RpcFunctionArg[];
+  returns: RpcFunctionReturns;
+  is_set_returning: boolean;
+  rows_estimate: number | null;
+  setof_options: {
+    from: string;
+    to: string;
+    is_one_to_one: boolean;
+    is_setof_return: boolean;
+  } | null;
+  computed_field_of: number | null;
+  error: string | null;
+}
+
+/** A function PostgREST exposes under `/rpc`, with its overloads resolved. */
+export interface RpcFunction {
+  schema: string;
+  name: string;
+  overloads: RpcFunctionOverload[];
+}
+
 export interface GeneratorMetadata {
   version: 1;
   schemas: { id: number; name: string; owner: string }[];
@@ -120,4 +166,9 @@ export interface GeneratorMetadata {
     comment: string | null;
     type_relation_id: number | null;
   }[];
+  /**
+   * Derived from `functions`; generators resolve it themselves when it is
+   * absent, which is how better-supabase stores metadata.
+   */
+  rpcFunctions?: RpcFunction[] | undefined;
 }

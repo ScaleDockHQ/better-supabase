@@ -6,6 +6,7 @@ import type {
   GeneratorMetadata,
   PostgresColumn,
   PostgresFunction,
+  RpcFunction,
 } from "../../src/config/index.ts";
 
 describe("the vendored GeneratorMetadata", () => {
@@ -13,5 +14,6 @@ describe("the vendored GeneratorMetadata", () => {
     expectTypeOf<GeneratorMetadata>().toEqualTypeOf<Typegen.GeneratorMetadata>();
     expectTypeOf<PostgresColumn>().toEqualTypeOf<Typegen.PostgresColumn>();
     expectTypeOf<PostgresFunction>().toEqualTypeOf<Typegen.PostgresFunction>();
+    expectTypeOf<RpcFunction>().toEqualTypeOf<Typegen.RpcFunction>();
   });
 });

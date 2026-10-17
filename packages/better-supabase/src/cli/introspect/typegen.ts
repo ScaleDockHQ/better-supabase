@@ -124,6 +124,18 @@ where p.prokind = 'f'
 }
 
 /**
+ * `rpcFunctions` is derived from `functions`, so it goes stale when they are
+ * reordered, renumbered or filtered. Generators resolve it again when it is
+ * absent.
+ */
+function withoutRpcFunctions({
+  rpcFunctions: _derived,
+  ...metadata
+}: GeneratorMetadata): GeneratorMetadata {
+  return metadata;
+}
+
+/**
  * Puts every function's arguments back in declaration order, so the sort by
  * name that follows (stable) keeps unnamed arguments by position.
  */
@@ -134,7 +146,7 @@ export function orderArgsByPosition(
   const byId = new Map(rows.map((row) => [Number(row.id), row]));
 
   return {
-    ...metadata,
+    ...withoutRpcFunctions(metadata),
     functions: metadata.functions.map((fn) => {
       const row = byId.get(fn.id);
 
@@ -222,7 +234,7 @@ export function stabilizeMetadata(metadata: GeneratorMetadata): {
     id === null ? null : map(id);
 
   const stable: GeneratorMetadata = {
-    ...metadata,
+    ...withoutRpcFunctions(metadata),
     schemas: metadata.schemas.map((entry) => ({ ...entry, id: map(entry.id) })),
     tables: metadata.tables.map((entry) => ({
       ...entry,
@@ -375,7 +387,7 @@ export function restrictSchemas(
   const keep = new Set(schemas);
 
   return {
-    ...metadata,
+    ...withoutRpcFunctions(metadata),
     schemas: metadata.schemas.filter((schema) => keep.has(schema.name)),
     tables: metadata.tables.filter((table) => keep.has(table.schema)),
     foreignTables: metadata.foreignTables.filter((table) =>
@@ -441,7 +453,7 @@ async function formatTypes(code: string): Promise<string> {
 
 /**
  * Renders `database.types.ts` as `supabase gen types` prints it when oxfmt is
- * installed, plus the `ComputedFields` keys Supabase CLI 2.119 doesn't write.
+ * installed.
  */
 export function generateDatabaseTypes(
   metadata: GeneratorMetadata,

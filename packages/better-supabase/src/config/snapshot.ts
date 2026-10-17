@@ -5,6 +5,12 @@ export type {
   PostgresColumn,
   PostgresFunction,
   PostgresFunctionArg,
+  RpcFunction,
+  RpcFunctionArg,
+  RpcFunctionOverload,
+  RpcFunctionReturns,
+  RpcReturnColumn,
+  RpcTypeReference,
 } from "./generator-metadata.ts";
 
 /**

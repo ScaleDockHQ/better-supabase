@@ -585,6 +585,256 @@
             },
             "required": ["comment", "id", "is_updatable", "name", "schema"]
           }
+        },
+        "rpcFunctions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "overloads": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "args": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "format": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "has_default": {
+                            "type": "boolean"
+                          },
+                          "mode": {
+                            "enum": ["in", "inout", "variadic"]
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "relation_id": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "type_id": {
+                            "type": "number"
+                          },
+                          "type_schema": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "format",
+                          "has_default",
+                          "mode",
+                          "name",
+                          "relation_id",
+                          "type_id",
+                          "type_schema"
+                        ]
+                      }
+                    },
+                    "computed_field_of": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "error": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "function_id": {
+                      "type": "number"
+                    },
+                    "is_set_returning": {
+                      "type": "boolean"
+                    },
+                    "returns": {
+                      "type": "object",
+                      "properties": {
+                        "columns": {
+                          "anyOf": [
+                            {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "format": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "type_id": {
+                                    "type": "number"
+                                  },
+                                  "type_schema": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "format",
+                                  "name",
+                                  "type_id",
+                                  "type_schema"
+                                ]
+                              }
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "format": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "relation_id": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "type_id": {
+                          "type": "number"
+                        },
+                        "type_schema": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "columns",
+                        "format",
+                        "relation_id",
+                        "type_id",
+                        "type_schema"
+                      ]
+                    },
+                    "rows_estimate": {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "setof_options": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "from": {
+                              "type": "string"
+                            },
+                            "is_one_to_one": {
+                              "type": "boolean"
+                            },
+                            "is_setof_return": {
+                              "type": "boolean"
+                            },
+                            "to": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "from",
+                            "is_one_to_one",
+                            "is_setof_return",
+                            "to"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "args",
+                    "computed_field_of",
+                    "error",
+                    "function_id",
+                    "is_set_returning",
+                    "returns",
+                    "rows_estimate",
+                    "setof_options"
+                  ]
+                }
+              },
+              "schema": {
+                "type": "string"
+              }
+            },
+            "required": ["name", "overloads", "schema"]
+          }
         }
       },
       "required": [

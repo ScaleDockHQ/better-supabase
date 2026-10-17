@@ -48,7 +48,7 @@ catalog:
   "@supabase/lite": 0.11.0
   "@supabase/mcp-server-supabase": 0.14.0
   "@supabase/middleware": 1.0.0
-  "@supabase/postgrest-typegen": 0.4.0
+  "@supabase/postgrest-typegen": 0.6.0
   "@supabase/server": 1.9.2
   "@supabase/ssr": 0.12.7
   "@supabase/supabase-js": 2.118.0
@@ -212,7 +212,7 @@ catalogs:
     # A range, so a newer patch an app installs doesn't fail strict peer
     # checks. The default catalog stays exact (AGENTS.md invariant 11), and
     # `gen` prints a notice for any release but TYPEGEN_VERSION (ADR 0016).
-    "@supabase/postgrest-typegen": ">=0.4.0 <0.5"
+    "@supabase/postgrest-typegen": ">=0.6.0 <0.7"
     "@supabase/supabase-js": "^2.116.0"
     # 0.1.0 is the first release with Realtime and the on-demand query sync supabaseCollection() spreads.
     "@supabase-labs/tanstack-db": ">=0.1.0 <0.2"
