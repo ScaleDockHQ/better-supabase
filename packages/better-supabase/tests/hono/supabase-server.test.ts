@@ -1,10 +1,10 @@
 import type { Hono } from "hono";
 
-import { withSupabase } from "@supabase/server/adapters/hono";
+import { withSupabase } from "@supabase/server";
 import { describe, expect, it } from "vitest";
 
 import { defineSupabase } from "../../src/core/define.ts";
-import { createHono } from "../../src/hono/index.ts";
+import { createHono, toHono } from "../../src/hono/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
@@ -28,7 +28,7 @@ const supabaseEnv = {
   jwks: signer.jwks as never,
 };
 
-describe("better-supabase/hono after @supabase/server's withSupabase", () => {
+describe("better-supabase/hono after @supabase/server's withSupabase through toHono", () => {
   const betterSupabase = defineSupabase(schema);
 
   const alone = createHono(betterSupabase, {
@@ -54,8 +54,7 @@ describe("better-supabase/hono after @supabase/server's withSupabase", () => {
 
   const combined = alone
     .app()
-    // oxlint-disable-next-line typescript/no-deprecated -- apps keep the upstream Hono adapter until its 2026-12-01 removal, so the trust boundary stays tested.
-    .use("*", withSupabase({ auth: "user", env: supabaseEnv }))
+    .use("*", toHono([withSupabase({ auth: "user", env: supabaseEnv })]))
     .use("*", alone.middleware())
     .get("/who", who(alone));
 
@@ -63,8 +62,7 @@ describe("better-supabase/hono after @supabase/server's withSupabase", () => {
 
   const trusting = distrusting
     .app()
-    // oxlint-disable-next-line typescript/no-deprecated -- apps keep the upstream Hono adapter until its 2026-12-01 removal, so the trust boundary stays tested.
-    .use("*", withSupabase({ auth: "user", env: supabaseEnv }))
+    .use("*", toHono([withSupabase({ auth: "user", env: supabaseEnv })]))
     .use("*", distrusting.middleware())
     .get("/who", who(distrusting));
 

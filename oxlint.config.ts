@@ -9,6 +9,7 @@ import ultraciteNextJsPlugins from "ultracite/oxlint/next/js-plugins";
 import ultraciteReact from "ultracite/oxlint/react";
 import ultraciteShadcn from "ultracite/oxlint/shadcn";
 import vitest from "ultracite/oxlint/vitest";
+import * as v from "valibot";
 
 function plugin(specifier: string): string {
   return fileURLToPath(import.meta.resolve(specifier));
@@ -80,9 +81,15 @@ const testFiles = [
 
 const reactDoctor = selectJsPlugins(["react-doctor"]);
 
+// The plugin types its configs with ESLint's types, and ESLint isn't
+// installed (Oxlint runs the rules), so the config is parsed.
+const FlatConfig = v.object({
+  rules: v.optional(v.record(v.string(), v.unknown()), {}),
+});
+
 /** The recommended Playwright rules, all at error like every other rule. */
 const playwrightRules: NonNullable<OxlintConfig["rules"]> = Object.fromEntries(
-  Object.keys(playwright.configs["flat/recommended"].rules ?? {})
+  Object.keys(v.parse(FlatConfig, playwright.configs["flat/recommended"]).rules)
     .filter((name) => name.startsWith("playwright/"))
     .map((name) => [name, "error"]),
 );
