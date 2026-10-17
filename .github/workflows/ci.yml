@@ -61,10 +61,53 @@ jobs:
     secrets:
       TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
 
+  # A pull request that touches neither the library, the suites that run on the stack, nor the
+  # stack itself skips Integration and Realtime. Pushes to main always run them.
+  affected:
+    name: Affected
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      stack: ${{ steps.query.outputs.stack }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          # `turbo query affected` needs the merge base; a shallow checkout marks everything.
+          fetch-depth: 0
+
+      - uses: $/.github/actions/setup
+
+      - id: query
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          packages=$(pnpm exec turbo query affected --base "$BASE" --head HEAD --packages \
+            better-supabase \
+            @better-supabase/validation-centrakit \
+            @better-supabase/validation-recipes \
+            @better-supabase/validation-presets \
+            @better-supabase/validation-request-context \
+            | jq '.data.affectedPackages.length')
+          files=$(git diff --name-only "$BASE"...HEAD -- \
+            supabase .github/actions/supabase-stack .github/workflows/ci.yml | wc -l)
+          if [ "$packages" -gt 0 ] || [ "$files" -gt 0 ]; then
+            echo "stack=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "stack=false" >> "$GITHUB_OUTPUT"
+          fi
+
   # Runs next to verify, not after it: Integration is the longest job, so waiting for verify would
   # add its whole runtime to the critical path. Each shard starts its own stack.
   stack:
     name: Integration (${{ matrix.shard }}/2)
+    needs: affected
+    # `affected` is skipped on push, and a skipped need skips this job unless `!cancelled()`.
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.affected.outputs.stack == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -112,6 +155,8 @@ jobs:
   # that the Docker stack allows, so these suites also run on the legacy engine.
   realtime:
     name: Integration (Realtime on the legacy engine)
+    needs: affected
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.affected.outputs.stack == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:

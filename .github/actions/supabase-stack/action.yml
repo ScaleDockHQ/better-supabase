@@ -13,7 +13,9 @@ runs:
       run: echo "version=$(pnpm exec supabase --version)" >> "$GITHUB_OUTPUT"
 
     # The native runtime downloads each service's binaries on first start.
-    - if: env.SUPABASE_EXPERIMENTAL_STACK != '0'
+    # An unset variable is null, and Actions coerces null and '0' to the
+    # number 0; format() makes it '' so the comparison stays a string one.
+    - if: format('{0}', env.SUPABASE_EXPERIMENTAL_STACK) != '0'
       uses: actions/cache@v6
       with:
         path: ~/.supabase/cache/stack/slim-services
