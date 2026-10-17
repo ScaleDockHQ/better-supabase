@@ -88,6 +88,9 @@ describe("search module", () => {
     expect(sql).toContain("vector_hits as materialized");
     expect(sql).toContain("coalesce(1.0 / (60 + t.rank), 0)");
     expect(sql).toContain("search_set_embedding");
+    expect(sql).toContain(
+      `create index if not exists search_documents_pending_idx on "better_supabase"."search_documents" ("updated_at") where "embedding" is null;`,
+    );
     expect(sql).toContain("to_tsvector('english'");
     expect(sql).toContain(
       `"embedding" = case when "better_supabase"."search_documents"."content_hash" = excluded."content_hash"`,
@@ -98,6 +101,7 @@ describe("search module", () => {
         modules: { search: { options: { dimensions: 384 } } },
       }),
     ).not.toContain("vector_hits");
+    expect(sqlOf()).not.toContain("search_documents_pending_idx");
   });
 
   it("reindexes in the data file, only when a subject is searched", () => {
