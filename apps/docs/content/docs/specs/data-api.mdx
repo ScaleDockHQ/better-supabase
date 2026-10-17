@@ -1,0 +1,101 @@
+---
+title: Data API
+description: Document the Supabase Data API (PostgREST) next to your own routes, with database column names, PostgREST filters and the RPCs from your schema.
+---
+
+`dataApi` on [`defineApi`](/docs/specs) adds the Supabase Data API to the
+same OpenAPI document as your resources and routes: the `/rest/v1/<table>`
+endpoints PostgREST serves for your tables and views, and
+`POST /rest/v1/rpc/<name>` for your functions. Use it when clients call the
+Data API directly, for example a mobile app with `supabase-js`, and you want
+one document for everything they call.
+
+```ts title="src/api/openapi.ts"
+import { defineApi } from "better-supabase/spec";
+import { betterSupabase } from "../lib/supabase";
+
+export const api = defineApi(betterSupabase, {
+  info: { title: "CRM", version: "1.0.0" },
+  servers: [{ url: "https://crm.example.com/api" }],
+  supabaseUrl: "https://example.supabase.co",
+  resources: { customers: true },
+  dataApi: {
+    tables: ["customers", "notes"],
+    functions: ["customers_by_status"],
+    operations: { notes: ["select"] },
+  },
+});
+
+const { document } = api.openapi();
+```
+
+| Field        | What it does                                                                                         |
+| ------------ | ---------------------------------------------------------------------------------------------------- |
+| `tables`     | Tables and views by app key, or `true` for all of them                                               |
+| `functions`  | Functions by key, or `true` for all of them                                                          |
+| `operations` | The operations per table: `select`, `insert`, `update` and `delete`. A table listed here is included |
+| `tag`        | The tag of every Data API operation; defaults to `Data API`                                          |
+
+A table gets all four operations; a view gets the ones its columns allow.
+
+## Database names
+
+The Data API reads and writes database column names, so its schemas do too,
+whatever `casing` your client uses. Each table gets its own components,
+`DataApiCustomersRow`, `DataApiCustomersInsert` and `DataApiCustomersUpdate`,
+next to the app-cased `CustomersRow` your resources use. A table outside
+`public` gets the schema in its name (`DataApiBillingInvoicesRow`) and a
+required `Accept-Profile` or `Content-Profile` header.
+
+## Tables
+
+| Operation | Request                   | What it documents                                                                               |
+| --------- | ------------------------- | ----------------------------------------------------------------------------------------------- |
+| `select`  | `GET /rest/v1/<table>`    | `select`, `order`, `limit`, `offset`, a filter per column, and the `Range` and `Prefer` headers |
+| `insert`  | `POST /rest/v1/<table>`   | One row or an array of rows, `columns`, `on_conflict` and `Prefer`                              |
+| `update`  | `PATCH /rest/v1/<table>`  | The Update body and a filter per column                                                         |
+| `delete`  | `DELETE /rest/v1/<table>` | A filter per column                                                                             |
+
+A column filter takes an operator and a value, such as `eq.42`,
+`in.(a,b)` or `is.null`. A column named like a reserved parameter (`select`,
+`order`, `limit`, `offset`, `columns`, `on_conflict`, `or`, `and`, `not`)
+gets no filter. Writes answer with the rows when the request sends
+`Prefer: return=representation`, and without a body otherwise.
+
+## Functions
+
+Each function is a `POST /rest/v1/rpc/<name>` whose body holds the
+arguments by name, typed from their Postgres types. An overloaded function's
+body is a `oneOf` of its signatures. The response is the function's result:
+rows of a table (as its `DataApi...Row` component), the columns of a
+`returns table (...)`, or a scalar, and an array for a set-returning
+function. A function that returns `void` answers `204`.
+
+## Servers and security
+
+The Data API runs on your Supabase project, not on your app's servers, so
+every Data API operation lists `supabaseUrl` as its own server. Without
+`supabaseUrl` the paths resolve against the document's `servers`, with a
+`data-api-server-missing` warning.
+
+Every operation needs the project's publishable key in the `apikey` header,
+and takes a user's access token as a bearer token: the requirements are
+`supabaseApiKey` with `supabaseJwt`, or `supabaseApiKey` alone. The document
+gets both schemes, whatever `security` says for your own routes.
+`requirePermissions` skips Data API operations, because row-level security
+guards them.
+
+Errors use the PostgREST error body (`code`, `message`, `details`, `hint`),
+the shared `DataApiError` response for every `4XX` status.
+
+## Diagnostics
+
+| Code                        | Severity | Cause                                                                  |
+| --------------------------- | -------- | ---------------------------------------------------------------------- |
+| `data-api-table-unknown`    | error    | `tables` or `operations` names a table or view the schema doesn't have |
+| `data-api-function-unknown` | error    | `functions` names a function the schema doesn't have                   |
+| `data-api-server-missing`   | warning  | `supabaseUrl` is not set                                               |
+
+Each Data API operation has the source `{ kind: "data-api", table, operation }`
+or `{ kind: "data-api", function, operation: "rpc" }`, so `enrich` and
+`operationId` can tell them apart from your resources.

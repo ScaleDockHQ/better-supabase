@@ -241,6 +241,7 @@
   "specs/arazzo",
   "specs/asyncapi",
   "specs/customize",
+  "specs/data-api",
   "specs/diagnostics",
   "specs/openapi",
   "specs/overlay",

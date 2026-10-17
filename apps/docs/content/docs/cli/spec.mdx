@@ -165,16 +165,30 @@ path, code and JSON Pointer:
 
 The codes `spec` adds:
 
-| Code                 | Severity | Meaning                                                                                  |
-| -------------------- | -------- | ---------------------------------------------------------------------------------------- |
-| `output-stale`       | error    | `check`: the file on disk differs from the rendered document                             |
-| `output-missing`     | error    | `check`: the file does not exist yet                                                     |
-| `schema-invalid`     | error    | `validate`: the document does not match the format's official JSON Schema                |
-| `schema-unavailable` | info     | `validate`: no official schema is bundled for this version; only the semantic checks ran |
-| `overlay-invalid`    | error    | An overlay file does not parse or is not an Overlay document                             |
-| `document-version`   | error    | The entry exports a finished document in another version than the one asked for          |
-| `lint-failed`        | warning  | The format's lint threw on a finished document the entry exports                         |
-| `ui-unsupported`     | info     | `ui` is set on an output that is not OpenAPI                                             |
+| Code                          | Severity | Meaning                                                                                  |
+| ----------------------------- | -------- | ---------------------------------------------------------------------------------------- |
+| `output-stale`                | error    | `check`: the file on disk differs from the rendered document                             |
+| `output-missing`              | error    | `check`: the file does not exist yet                                                     |
+| `schema-invalid`              | error    | `validate`: the document does not match the format's official JSON Schema                |
+| `schema-unavailable`          | info     | `validate`: no official schema is bundled for this version; only the semantic checks ran |
+| `overlay-invalid`             | error    | An overlay file does not parse or is not an Overlay document                             |
+| `document-version`            | error    | The entry exports a finished document in another version than the one asked for          |
+| `lint-failed`                 | warning  | The format's lint threw on a finished document the entry exports                         |
+| `ui-unsupported`              | info     | `ui` is set on an output that is not OpenAPI                                             |
+| `asyncapi-topic-undocumented` | warning  | A topic in `realtime.policies.from` has no channel in the AsyncAPI document              |
+
+## Topics from `realtime.policies`
+
+When the config sets `realtime.policies` (see
+[writing the policies to a file](/docs/platform/realtime#writing-the-policies-to-a-file)),
+`spec` loads its `from` modules with the same
+loader `sql sync` uses, for every AsyncAPI output. Each `defineTopic` export
+whose template no channel address matches gets an
+`asyncapi-topic-undocumented` warning naming the export, so a topic you add
+for its policies can't go missing from the document. Pass the module to
+`defineApi` with `events: { topics: topicsFrom(topics) }` to document it
+(see [broadcast topics](/docs/specs/asyncapi#broadcast-topics)). A module
+that fails to load, or exports no topic, exits with code 1.
 
 `validate` checks against the official schemas the CLI bundles: OpenAPI
 3.0, 3.1 and 3.2, AsyncAPI 3.0 and 3.1, and Arazzo 1.0 and 1.1. The OpenAPI
@@ -203,8 +217,9 @@ pnpm better-supabase spec emit --watch
 ```
 
 `--watch` runs `emit`, then checks every `--interval` milliseconds whether
-the config file, the entry module, the generated module (`output`) or an
-overlay file changed, and runs again when one did. A changed config file is
+the config file, the entry module, the generated module (`output`), an
+overlay file or a `realtime.policies.from` module changed, and runs again
+when one did. A changed config file is
 loaded again first. A failed run is retried on the next change, and the same
 error prints once. Files the entry imports are not watched, apart from the
 generated module.
