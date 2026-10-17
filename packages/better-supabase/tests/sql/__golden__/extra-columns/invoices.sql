@@ -417,6 +417,13 @@ begin
   if coalesce(record_invoice_payment.amount, 0) = 0 then
     raise exception 'a payment has an amount' using errcode = '22023', hint = 'INVOICE_PAYMENT_INVALID';
   end if;
+  -- A recorded reference is a replay that adds nothing, so it skips the check.
+  if record_invoice_payment.amount < 0 and v_row."paid_total" + record_invoice_payment.amount < 0 and not exists (
+    select 1 from "better_supabase"."invoice_payments" y
+    where y."tenant_id" = v_row."tenant_id" and y."reference" = nullif(trim(record_invoice_payment.reference), '')
+  ) then
+    raise exception 'a refund can''t exceed what was paid' using errcode = '23514', hint = 'INVOICE_REFUND_TOO_LARGE';
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_invoice_payment"(uuid, bigint)');
   begin
