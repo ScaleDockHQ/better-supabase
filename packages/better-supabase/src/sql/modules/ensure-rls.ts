@@ -1,4 +1,4 @@
-import type { SqlModule } from "../module-types.ts";
+import type { ModuleDefinition } from "../module-types.ts";
 
 import { SCHEMA } from "../shared.ts";
 
@@ -23,14 +23,14 @@ const ENSURE_RLS_SKIPPED_SCHEMAS = [
   "information_schema",
 ];
 
-export const ENSURE_RLS: SqlModule = {
+export const ENSURE_RLS: ModuleDefinition = {
   name: "ensure-rls",
   title: "RLS on every new table",
   description:
     "An event trigger that enables row level security on every table created outside the Supabase-managed schemas, so a new table is never readable through the Data API before it has policies. Install it as postgres: supautils lets that role create event triggers.",
   requires: [],
   target: "schema",
-  sql: `${SCHEMA}
+  build: () => `${SCHEMA}
 
 -- Runs after CREATE TABLE, CREATE TABLE AS and SELECT INTO. A table without
 -- policies then denies every API role until you add one.

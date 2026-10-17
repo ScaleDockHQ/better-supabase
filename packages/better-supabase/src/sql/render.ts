@@ -7,7 +7,6 @@ import type {
 import type { ModuleFile, ModuleLayout, SqlModule } from "./module-types.ts";
 
 import { CONFIG_DEFAULTS } from "../config/defaults.ts";
-import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { sqlString } from "../core/template.ts";
 import { applyActorWriteGuards } from "./actor-guard.ts";
 import { apiWrappers } from "./api-schema.ts";
@@ -44,25 +43,7 @@ function moduleSql(
   ctx: ModuleContext,
   layout: ModuleLayout,
 ) {
-  if (module.build) {
-    return applyActorWriteGuards(module.build(ctx, layout), layout);
-  }
-
-  if (
-    module.render &&
-    (layout.claims ||
-      layout.naming?.tenant !== undefined ||
-      layout.entitlementsProvider ||
-      layout.tenantColumn ||
-      (layout.entitlements?.source ?? "stripe-sync") !== "stripe-sync")
-  ) {
-    return applyActorWriteGuards(
-      module.render(layout.claims ?? DEFAULT_CLAIMS, layout),
-      layout,
-    );
-  }
-
-  return applyActorWriteGuards(module.sql, layout);
+  return applyActorWriteGuards(module.build(ctx, layout), layout);
 }
 
 /** A module's SQL for `layout`, without header; `undefined` in custom mode. */

@@ -100,10 +100,8 @@ export interface SqlModule {
   readonly dependencies?: (layout: ModuleLayout) => readonly string[];
   /** `schema` files go with your schemas; `test` files go to `supabase/tests`. */
   readonly target: "schema" | "test";
-  /** The module with the default claim names. */
+  /** The module built for the default layout. */
   readonly sql: string;
-  /** The module for configured claim names (`config.claims`), when it reads claims. */
-  readonly render?: (claims: ClaimsMeta, layout: ModuleLayout) => string;
   /** Bumped when installed databases need an upgrade step. Defaults to 1. */
   readonly version?: number;
   /** The modes `blocks.<name>.mode` accepts. Defaults to `managed` only. */
@@ -112,8 +110,8 @@ export interface SqlModule {
   readonly names?: ModuleNames;
   /** The functions other modules and the TypeScript side call. */
   readonly contract?: (ctx: ModuleContext) => readonly ModuleContractFunction[];
-  /** Renders the module for a layout; takes precedence over `render`. */
-  readonly build?: (ctx: ModuleContext, layout: ModuleLayout) => string;
+  /** Renders the module for a layout. */
+  readonly build: (ctx: ModuleContext, layout: ModuleLayout) => string;
   /**
    * SQL appended after the module's body that depends on the whole layout, for
    * example the grants for the tables in `expose`. Unlike `build`, it stays out
@@ -164,10 +162,8 @@ export interface ModuleTestFile {
 
 export const moduleVersion = (module: SqlModule): number => module.version ?? 1;
 
-/** A module rendered by `build`; its `sql` is the build with the defaults. */
-export type ModuleDefinition = Omit<SqlModule, "sql" | "render" | "build"> & {
-  readonly build: NonNullable<SqlModule["build"]>;
-};
+/** A module as written; `built` adds `sql`, the build for the default layout. */
+export type ModuleDefinition = Omit<SqlModule, "sql">;
 
 export interface ModuleFile {
   readonly module: string;

@@ -1,8 +1,8 @@
-import type { SqlModule } from "../module-types.ts";
+import type { ModuleDefinition } from "../module-types.ts";
 
 import { SCHEMA } from "../shared.ts";
 
-export const MFA: SqlModule = {
+export const MFA: ModuleDefinition = {
   internal: ["mfa_satisfied"],
   name: "mfa",
   title: "MFA enforcement",
@@ -10,7 +10,7 @@ export const MFA: SqlModule = {
     "mfa_satisfied() for restrictive policies: true when the caller has no verified factor, or verified one in this session (aal2).",
   requires: [],
   target: "schema",
-  sql: `${SCHEMA}
+  build: () => `${SCHEMA}
 
 -- authenticated can't read auth.mfa_factors, so the check runs as the owner.
 create or replace function better_supabase.mfa_satisfied()
