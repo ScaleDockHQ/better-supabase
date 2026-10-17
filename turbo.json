@@ -1,5 +1,5 @@
 {
-  "$schema": "https://v2-11-7.turborepo.dev/schema.json",
+  "$schema": "https://v2-11-8.turborepo.dev/schema.json",
   "agentGuidance": true,
   "futureFlags": {
     "affectedUsingTaskInputs": true,
@@ -8,7 +8,8 @@
     "pruneIncludesGlobalFiles": true,
     "githubActionsRemoteBaseRefFallback": true,
     "errorsOnlyShowHash": true,
-    "longerSignatureKey": true
+    "longerSignatureKey": true,
+    "strictTaskEntrypointSelection": true
   },
   "envMode": "strict",
   "cacheMaxAge": "14d",
@@ -83,6 +84,10 @@
     },
     "lint": {
       "dependsOn": ["transit"]
+    },
+    "//#format:check": {},
+    "//#audit:high": {
+      "cache": false
     },
     "//#lint:root": {
       "inputs": [
