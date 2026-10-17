@@ -262,6 +262,36 @@ read the subject row. In 0.8 a comment could name any type. Register the
 types you comment on, or give `comments` its own `subjects`. See
 [Comments](/docs/blocks/comments#subjects).
 
+## Money in the sales blocks
+
+Every amount with a currency in the deals, quotes, invoices, pipelines and
+employees blocks is a `Money` value from `better-supabase/commerce` instead of
+a bare `bigint`. Build one with `money(amount, currency)` and read `.amount`
+for the `bigint`. Target goals and progress stay `bigint`.
+
+| 0.8                                                                  | 0.9                                                                           |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `deals.create(org, { amount: 4_800_000n, currency: "EUR" })`         | `deals.create(org, { amount: money(4_800_000n, "EUR") })`                     |
+| `{ description, unitAmount: 9_500n }`                                | `{ description, unitAmount: money(9_500n, "EUR") }`                           |
+| `invoices.recordPayment(id, { amount: 137_940n })`                   | `invoices.recordPayment(id, { amount: money(137_940n, "EUR") })`              |
+| `deals.forecast(org, { currency: "EUR", target: 60_000_000n })`      | `deals.forecast(org, { currency: "EUR", target: money(60_000_000n, "EUR") })` |
+| `employees.addContract(id, { salary: 5_400_000n, currency: "EUR" })` | `employees.addContract(id, { salary: money(5_400_000n, "EUR") })`             |
+
+An amount in another currency than its record returns an `invalid_request`
+error with hint `CURRENCY_MISMATCH` before any database call, and an unknown
+ISO 4217 code returns `CURRENCY_INVALID`. The SQL enforces the same rule, and
+`record_invoice_payment` takes a `currency` after the amount: grants your SQL
+wrote on the five-argument signature no longer exist after the sync.
+
+The block functions return every `int8` as text, so amounts past 2^53 survive
+the round trip, and the clients reject a missing or malformed amount instead
+of reading `0n`. Code that calls these functions through `$rpc` or `queryRaw`
+gets strings where it got numbers. `db.$rpc` also casts the `int8` and
+`numeric` columns of a typed table function to text and decodes them with the
+column's codec. Doctor BS223 lists exposed functions that return a bare
+`bigint` or `numeric`, which PostgREST sends as a JSON number. See
+[ADR 0037](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0037-money-on-the-wire.md).
+
 ## AI SDK and notifications
 
 `gatewayOptions` ignores a `user` in its second argument; the AI Gateway
