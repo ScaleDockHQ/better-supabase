@@ -11,7 +11,10 @@ import { DbException } from "../../../src/core/errors.ts";
 import { defineSchema } from "../../../src/schema/define.ts";
 import { supabaseCollection } from "../../../src/tanstack-db/supabase/index.ts";
 import { capturingClient } from "../../fixtures/client.ts";
-import { schema as camelSchema } from "../../fixtures/generated-camel.ts";
+import {
+  schema as camelSchema,
+  type Models as CamelModels,
+} from "../../fixtures/generated-camel.ts";
 import { schema, type Models } from "../../fixtures/generated.ts";
 
 const betterSupabase = defineSupabase(schema);
@@ -87,32 +90,57 @@ describe("supabaseCollection", () => {
     expect(config.onInsert?.name).not.toBe("onInsert");
   });
 
-  it("rejects camel casing, other schemas and tables without a primary key", () => {
-    const { client } = capturingClient();
-    expect(() =>
-      supabaseCollection(defineSupabase(camelSchema), client, "customers", {
-        schema: customerRow,
-        writes: "direct",
+  it("reads and writes camel casing in the table's own schema", async () => {
+    const { meta } = camelSchema;
+    const customersMeta = meta.tables["customers"]!;
+
+    const crm = defineSupabase(
+      defineSchema<CamelModels>({
+        ...meta,
+        tables: {
+          ...meta.tables,
+          customers: { ...customersMeta, schema: "crm" },
+        },
       }),
-    ).toThrow(/casing: "snake"/);
+    );
+
+    const { client, requests } = capturingClient(() => ({
+      body: [{ id: "c1", name: "Acme", organization_id: "o1" }],
+    }));
+
+    const customers = createCollection(
+      supabaseCollection(crm, client, "customers", {
+        schema: rowSchema<{
+          id: string;
+          name: string;
+          organizationId: string;
+        }>(),
+        writes: "direct",
+        realtime: false,
+      }),
+    );
+
+    await customers
+      .insert({ id: "c1", name: "Acme", organizationId: "o1" })
+      .when("settled");
+
+    expect(requests.at(-1)).toMatchObject({
+      method: "POST",
+      path: "/rest/v1/customers",
+      body: { id: "c1", name: "Acme", organization_id: "o1" },
+    });
+    expect(requests.at(-1)?.headers.get("content-profile")).toBe("crm");
+    expect(customers.get("c1")).toMatchObject({ organizationId: "o1" });
+  });
+
+  it("rejects unknown tables and tables without a primary key", () => {
+    const { client } = capturingClient();
     expect(() =>
       supabaseCollection(betterSupabase, client, "missing" as "customers", {
         schema: customerRow,
         writes: "direct",
       }),
     ).toThrow(/unknown table "missing"/);
-
-    const privateSchema = withTable("customers", (meta) => ({
-      ...meta,
-      schema: "crm",
-    }));
-
-    expect(() =>
-      supabaseCollection(privateSchema, client, "customers", {
-        schema: customerRow,
-        writes: "direct",
-      }),
-    ).toThrow(/"crm.customers" is not/);
 
     const keyless = withTable("customers", (meta) => ({
       ...meta,
