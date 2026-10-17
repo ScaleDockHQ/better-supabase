@@ -34,8 +34,9 @@ jobs:
         with:
           save-cache: "false"
 
+      # Installing outside the lockfile is the point of this workflow.
       - name: Install latest Supabase packages
-        run: |
+        run: | # zizmor: ignore[adhoc-packages]
           pnpm --filter better-supabase add -D \
             @supabase/server@latest @supabase/middleware@latest \
             @supabase/ssr@latest @supabase/supabase-js@latest \

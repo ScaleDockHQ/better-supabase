@@ -55,7 +55,8 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@v7
+      # changesets/action pushes the release branch with the checkout's token.
+      - uses: actions/checkout@v7 # zizmor: ignore[artipacked]
         with:
           fetch-depth: 0
 
@@ -111,8 +112,9 @@ jobs:
           require-lockfile: true
 
       # The pnpm runtime ships no npm; trusted publishing needs npm >= 11.5.1.
+      # The version is exact, and the job runs no other code from the registry.
       - name: Install npm 11
-        run: |
+        run: | # zizmor: ignore[adhoc-packages]
           pnpm add --global npm@11.20.0
           npm --version
 
