@@ -30,7 +30,7 @@ export async function CustomerList() {
         canWrite={writer}
       />
       {writer ? null : (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           {t("Only admins can add customers.")}
         </p>
       )}

@@ -83,7 +83,7 @@ export function LoginForm() {
                 </FieldLabel>
                 <Link
                   href="/forgot-password"
-                  className="text-muted-foreground ml-auto text-sm underline-offset-4 hover:underline"
+                  className="ml-auto text-sm text-muted-foreground underline-offset-4 hover:underline"
                 >
                   {t("Forgot your password?")}
                 </Link>
@@ -101,7 +101,7 @@ export function LoginForm() {
             <Button type="submit" className="w-full" disabled={pending}>
               {t("Sign in")}
             </Button>
-            <p className="text-muted-foreground text-center text-sm">
+            <p className="text-center text-sm text-muted-foreground">
               {t("No account yet?")}{" "}
               <Link
                 href="/signup"

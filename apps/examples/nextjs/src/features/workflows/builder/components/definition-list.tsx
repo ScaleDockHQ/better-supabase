@@ -15,7 +15,7 @@ export async function DefinitionList() {
   ]);
   if (definitions.length === 0) {
     return (
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         {t("No workflows yet. Members who can edit create one above.")}
       </p>
     );
@@ -42,7 +42,7 @@ export async function DefinitionList() {
             {definition.draft ? (
               <Badge variant="outline">{t("Draft")}</Badge>
             ) : null}
-            <span className="text-muted-foreground text-xs tabular-nums">
+            <span className="text-xs text-muted-foreground tabular-nums">
               {format.dateTime(new Date(definition.updatedAt), {
                 dateStyle: "medium",
               })}

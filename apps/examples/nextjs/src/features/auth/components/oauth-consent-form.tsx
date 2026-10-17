@@ -102,7 +102,7 @@ export function OAuthConsentForm() {
         <div>
           <p className="font-medium">{t("It asks for")}</p>
           {scopes.length > 0 ? (
-            <ul className="text-muted-foreground mt-1 list-disc ps-5">
+            <ul className="mt-1 list-disc ps-5 text-muted-foreground">
               {scopes.map((scope) => (
                 <li key={scope}>
                   <code>{scope}</code>
@@ -110,7 +110,7 @@ export function OAuthConsentForm() {
               ))}
             </ul>
           ) : (
-            <p className="text-muted-foreground mt-1">
+            <p className="mt-1 text-muted-foreground">
               {t("Access to your account, with your permissions.")}
             </p>
           )}

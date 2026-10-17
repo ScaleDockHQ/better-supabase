@@ -35,7 +35,7 @@ export function InstallButton({ command }: { command: string }) {
       type="button"
       onClick={() => void handleCopy()}
       aria-label={`Copy ${command}`}
-      className="border-border bg-muted/50 hover:bg-muted inline-flex items-center gap-2 rounded-md border px-3 py-1.5 font-mono text-sm"
+      className="inline-flex items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-1.5 font-mono text-sm hover:bg-muted"
     >
       {command}
       {copied ? (

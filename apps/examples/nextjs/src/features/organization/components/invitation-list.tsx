@@ -38,7 +38,7 @@ export function InvitationList({
     revoke.pendingInputs.some((input) => input.invitationId === id);
   if (invitations.length === 0) {
     return (
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         {t("No open invitations.")}
       </p>
     );
@@ -58,7 +58,7 @@ export function InvitationList({
             {invitation.email}
           </span>
           <RoleBadge role={invitation.role} />
-          <span className="text-muted-foreground hidden text-xs sm:inline">
+          <span className="hidden text-xs text-muted-foreground sm:inline">
             {t("Expires {date}", {
               date: invitation.expiresAt
                 ? format.dateTime(new Date(invitation.expiresAt), {

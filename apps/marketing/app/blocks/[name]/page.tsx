@@ -44,18 +44,18 @@ function BlockLinks({
   empty: string;
 }) {
   if (names.length === 0) {
-    return <p className="text-muted-foreground text-sm">{empty}</p>;
+    return <p className="text-sm text-muted-foreground">{empty}</p>;
   }
   return (
     <ul className="flex flex-wrap gap-1.5">
       {names.map((name) => (
         <li key={name}>
           {name === "*" ? (
-            <span className="text-muted-foreground text-sm">every module</span>
+            <span className="text-sm text-muted-foreground">every module</span>
           ) : (
             <SiteLink
               href={blockPath(name)}
-              className="border-border hover:bg-muted rounded-md border px-2 py-0.5 font-mono text-xs transition-colors"
+              className="rounded-md border border-border px-2 py-0.5 font-mono text-xs transition-colors hover:bg-muted"
             >
               {name}
             </SiteLink>
@@ -70,9 +70,9 @@ function ClientPanel({ block }: { block: CatalogBlock }) {
   if (block.react) {
     return (
       <div className="flex flex-col gap-3">
-        <p className="text-muted-foreground leading-6">
+        <p className="leading-6 text-muted-foreground">
           The React hooks for this block are in{" "}
-          <code className="text-code font-mono">{block.react.subpath}</code>.
+          <code className="font-mono text-code">{block.react.subpath}</code>.
           They return data and actions and render no UI, so you build the
           interface from your own components.
         </p>
@@ -92,11 +92,11 @@ function ClientPanel({ block }: { block: CatalogBlock }) {
     );
   }
   return (
-    <p className="text-muted-foreground leading-6">
+    <p className="leading-6 text-muted-foreground">
       {block.subpath ? (
         <>
           This block has no React entry yet. Its TypeScript side is in{" "}
-          <code className="text-code font-mono">{block.subpath}</code>, which
+          <code className="font-mono text-code">{block.subpath}</code>, which
           runs on the server.
         </>
       ) : (
@@ -109,14 +109,14 @@ function ClientPanel({ block }: { block: CatalogBlock }) {
 function EventsPanel({ block }: { block: CatalogBlock }) {
   if (block.events.length === 0) {
     return (
-      <p className="text-muted-foreground leading-6">
+      <p className="leading-6 text-muted-foreground">
         This module writes no outbox events.
       </p>
     );
   }
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-muted-foreground leading-6">
+      <p className="leading-6 text-muted-foreground">
         With the{" "}
         <SiteLink href="/docs/blocks/outbox" className="underline">
           outbox
@@ -141,7 +141,7 @@ function RecipeLinks({ block }: { block: string }) {
   const recipes = recipesFor(block);
   if (recipes.length === 0) {
     return (
-      <p className="text-muted-foreground text-sm">No UI recipe uses it yet.</p>
+      <p className="text-sm text-muted-foreground">No UI recipe uses it yet.</p>
     );
   }
   return (
@@ -180,16 +180,16 @@ export default async function BlockPage({ params }: BlockPageProps) {
       <div className="flex flex-col gap-4">
         <SiteLink
           href="/blocks"
-          className="text-muted-foreground hover:text-foreground inline-flex w-fit items-center gap-1.5 text-sm"
+          className="inline-flex w-fit items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeftIcon aria-hidden="true" className="size-4" />
           All blocks
         </SiteLink>
-        <p className="text-brand text-xs font-semibold tracking-wide uppercase">
+        <p className="text-xs font-semibold tracking-wide text-brand uppercase">
           {block.category}
         </p>
         <h1 className="text-3xl font-semibold tracking-tight">{block.title}</h1>
-        <p className="text-muted-foreground max-w-2xl text-base leading-7 text-pretty">
+        <p className="max-w-2xl text-base leading-7 text-pretty text-muted-foreground">
           {block.description}
         </p>
         <div className="flex flex-wrap items-center gap-2">
@@ -197,7 +197,7 @@ export default async function BlockPage({ params }: BlockPageProps) {
             <BookOpenIcon aria-hidden="true" />
             Docs
           </LinkButton>
-          <span className="text-muted-foreground text-sm">Modes:</span>
+          <span className="text-sm text-muted-foreground">Modes:</span>
           {block.modes.map((mode) => (
             <Badge key={mode} variant="secondary">
               {mode}
@@ -243,8 +243,8 @@ export default async function BlockPage({ params }: BlockPageProps) {
               keepMounted
               className="flex flex-col gap-3 pt-2"
             >
-              <p className="text-muted-foreground leading-6">
-                <code className="text-code font-mono">{install}</code> writes
+              <p className="leading-6 text-muted-foreground">
+                <code className="font-mono text-code">{install}</code> writes
                 these files into your declarative schema with the default
                 layout. See{" "}
                 <SiteLink href="/docs/blocks/sql" className="underline">
@@ -252,20 +252,20 @@ export default async function BlockPage({ params }: BlockPageProps) {
                 </SiteLink>{" "}
                 for the migration step and the layout options.
               </p>
-              <ul className="border-border divide-border divide-y rounded-xl border">
+              <ul className="divide-y divide-border rounded-xl border border-border">
                 {migrations.files.map((file) => (
                   <li
                     key={`${file.kind}:${file.path}`}
                     className="flex flex-wrap items-center gap-2 px-4 py-2.5"
                   >
-                    <code className="text-code min-w-0 font-mono break-all">
+                    <code className="min-w-0 font-mono text-code break-all">
                       {file.path}
                     </code>
                     <Badge variant="outline">{file.kind}</Badge>
                     {file.module === block.name ? null : (
                       <Badge variant="secondary">{file.module}</Badge>
                     )}
-                    <span className="text-muted-foreground ml-auto text-xs">
+                    <span className="ml-auto text-xs text-muted-foreground">
                       {lineCount(file.contents)} lines
                     </span>
                   </li>
@@ -274,12 +274,12 @@ export default async function BlockPage({ params }: BlockPageProps) {
               {own.map((file) => (
                 <details
                   key={`${file.kind}:${file.path}`}
-                  className="border-border bg-card rounded-xl border"
+                  className="rounded-xl border border-border bg-card"
                 >
                   <summary className="cursor-pointer px-4 py-2.5 font-mono text-xs">
                     {file.path}
                   </summary>
-                  <pre className="text-code border-border max-h-128 overflow-auto border-t p-4 font-mono leading-6">
+                  <pre className="max-h-128 overflow-auto border-t border-border p-4 font-mono text-code leading-6">
                     {file.contents}
                   </pre>
                 </details>

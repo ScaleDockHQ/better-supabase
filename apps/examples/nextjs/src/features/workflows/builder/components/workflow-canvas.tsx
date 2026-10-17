@@ -247,7 +247,7 @@ export function WorkflowCanvas({ detail }: { detail: BuilderDetail }) {
       </div>
       <div className="flex gap-3">
         <nav
-          className="bg-card w-48 shrink-0 space-y-1 rounded-lg border p-2"
+          className="w-48 shrink-0 space-y-1 rounded-lg border bg-card p-2"
           aria-label={t("Palette")}
         >
           {detail.steps.map((step) => (
@@ -287,7 +287,7 @@ export function WorkflowCanvas({ detail }: { detail: BuilderDetail }) {
           ))}
         </nav>
         <div
-          className="bg-muted/30 h-150 min-w-0 flex-1 rounded-lg border"
+          className="h-150 min-w-0 flex-1 rounded-lg border bg-muted/30"
           data-testid="workflow-canvas"
         >
           <ReactFlow

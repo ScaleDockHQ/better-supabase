@@ -73,7 +73,7 @@ export function UnreadSummary() {
   const t = useExtracted("notifications");
   const { count } = useUnreadCount();
   return (
-    <p className="text-muted-foreground text-sm" data-testid="unread-summary">
+    <p className="text-sm text-muted-foreground" data-testid="unread-summary">
       {count === undefined
         ? t("Counting…")
         : t("{count, number} unread", { count })}

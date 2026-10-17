@@ -39,7 +39,7 @@ export async function CustomersCard() {
           <span className="text-3xl font-semibold tabular-nums">
             {format.number(counts.total)}
           </span>
-          <span className="text-muted-foreground text-sm">
+          <span className="text-sm text-muted-foreground">
             {t("{previous} in the 30 days before", {
               previous: format.number(counts.previous),
             })}

@@ -110,7 +110,7 @@ export function TriggerSheet({
                     ? labels[trigger.kind]
                     : trigger.kind}
                 </Badge>
-                <span className="text-muted-foreground truncate font-mono text-xs">
+                <span className="truncate font-mono text-xs text-muted-foreground">
                   {summary(trigger)}
                 </span>
               </span>

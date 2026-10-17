@@ -86,7 +86,7 @@ export async function PlanGrid() {
         initial={{ plans, current: subscription?.planKey }}
         canManage={can(session, "billing.manage")}
       />
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         {t(
           "Plan changes go through Stripe Checkout with the billing SQL module, which this example doesn't install.",
         )}

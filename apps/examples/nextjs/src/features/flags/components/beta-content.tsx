@@ -36,7 +36,7 @@ export async function BetaContent() {
           )}
         </CardDescription>
       </CardHeader>
-      <CardContent className="text-muted-foreground text-sm">
+      <CardContent className="text-sm text-muted-foreground">
         {t(
           "Turn it off with better_supabase.set_flag_override, and this page and its menu entry disappear on the next session refresh.",
         )}

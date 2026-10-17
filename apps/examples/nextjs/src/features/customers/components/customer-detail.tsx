@@ -58,7 +58,7 @@ export async function CustomerDetail({
               className="rounded-xl"
             />
           ) : (
-            <span className="bg-muted text-muted-foreground flex size-14 items-center justify-center rounded-xl text-lg font-semibold">
+            <span className="flex size-14 items-center justify-center rounded-xl bg-muted text-lg font-semibold text-muted-foreground">
               {initials(customer.name, null)}
             </span>
           )}
@@ -66,7 +66,7 @@ export async function CustomerDetail({
             <h1 className="text-2xl font-semibold tracking-tight">
               {customer.name}
             </h1>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-sm text-muted-foreground">
               {t("Customer since {date}", {
                 date: format.dateTime(new Date(customer.createdAt), {
                   dateStyle: "long",
@@ -113,7 +113,7 @@ export async function CustomerDetail({
           </CardHeader>
           <CardContent>
             {customer.notes.length === 0 ? (
-              <p className="text-muted-foreground text-sm">
+              <p className="text-sm text-muted-foreground">
                 {t("No notes yet.")}
               </p>
             ) : (

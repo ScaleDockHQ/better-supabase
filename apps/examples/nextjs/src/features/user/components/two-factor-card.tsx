@@ -145,7 +145,7 @@ export function TwoFactorCard({
       </CardHeader>
       <CardContent className="space-y-4">
         {readError ? (
-          <p className="text-destructive text-sm">{readError}</p>
+          <p className="text-sm text-destructive">{readError}</p>
         ) : enrollment ? (
           <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
             {/* An SVG data URL from Supabase Auth: nothing to optimize. */}
@@ -208,7 +208,7 @@ export function TwoFactorCard({
             <Button onClick={enroll} disabled={pending}>
               {t("Set up")}
             </Button>
-            {error ? <p className="text-destructive text-sm">{error}</p> : null}
+            {error ? <p className="text-sm text-destructive">{error}</p> : null}
           </>
         )}
       </CardContent>

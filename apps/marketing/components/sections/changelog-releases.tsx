@@ -7,9 +7,9 @@ import { site } from "@/lib/site";
 export async function ChangelogReleases() {
   const releases = await loadChangelog();
   return releases.length === 0 ? (
-    <div className="border-border bg-card flex flex-col items-start gap-4 rounded-xl border p-6">
+    <div className="flex flex-col items-start gap-4 rounded-xl border border-border bg-card p-6">
       <p className="text-sm font-semibold">No releases yet</p>
-      <p className="text-muted-foreground text-sm leading-6">
+      <p className="text-sm leading-6 text-muted-foreground">
         The first release is on its way. Follow the repository to hear when it
         ships.
       </p>
@@ -18,7 +18,7 @@ export async function ChangelogReleases() {
       </LinkButton>
     </div>
   ) : (
-    <ol className="border-border flex flex-col border-l">
+    <ol className="flex flex-col border-l border-border">
       {releases.map((release) => (
         <li
           key={`${release.version}-${release.kind}`}
@@ -26,7 +26,7 @@ export async function ChangelogReleases() {
         >
           <span
             aria-hidden="true"
-            className="bg-brand ring-background absolute top-1.5 -left-1.25 size-2.5 rounded-full ring-4"
+            className="absolute top-1.5 -left-1.25 size-2.5 rounded-full bg-brand ring-4 ring-background"
           />
           <div className="flex items-center gap-2">
             <h2 className="font-mono text-base font-semibold">
@@ -40,7 +40,7 @@ export async function ChangelogReleases() {
                 {change.hash ? (
                   <a
                     href={`${site.github}/commit/${change.hash}`}
-                    className="text-muted-foreground hover:text-foreground font-mono text-xs"
+                    className="font-mono text-xs text-muted-foreground hover:text-foreground"
                   >
                     {change.hash}
                   </a>

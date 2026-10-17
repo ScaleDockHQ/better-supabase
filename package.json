@@ -75,6 +75,7 @@
     "@types/node": "catalog:",
     "better-supabase": "workspace:*",
     "dotenv-cli": "catalog:",
+    "eslint-plugin-playwright": "catalog:",
     "eslint-plugin-turbo": "catalog:",
     "knip": "catalog:",
     "lefthook": "catalog:",

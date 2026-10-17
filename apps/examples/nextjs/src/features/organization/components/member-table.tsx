@@ -129,13 +129,13 @@ export function MemberTable({
                   <span className="font-medium">
                     {member.name ?? member.email}
                     {member.userId === currentUserId ? (
-                      <span className="text-muted-foreground font-normal">
+                      <span className="font-normal text-muted-foreground">
                         {" "}
                         ({t("you")})
                       </span>
                     ) : null}
                   </span>
-                  <span className="text-muted-foreground text-xs">
+                  <span className="text-xs text-muted-foreground">
                     {member.email}
                   </span>
                 </div>
@@ -170,7 +170,7 @@ export function MemberTable({
                 <RoleBadge role={member.role} />
               )}
             </TableCell>
-            <TableCell className="text-muted-foreground hidden sm:table-cell">
+            <TableCell className="hidden text-muted-foreground sm:table-cell">
               {member.joinedAt
                 ? format.dateTime(new Date(member.joinedAt), {
                     dateStyle: "medium",

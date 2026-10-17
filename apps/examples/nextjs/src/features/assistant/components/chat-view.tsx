@@ -77,7 +77,7 @@ function ToolCall({
       void chat.addToolApprovalResponse({ id: part.approval.id, approved });
     };
     return (
-      <div className="bg-background my-1 flex flex-col gap-2 rounded-lg border p-2 text-xs">
+      <div className="my-1 flex flex-col gap-2 rounded-lg border bg-background p-2 text-xs">
         <p className="flex items-center gap-1 font-medium">
           <WrenchIcon className="size-3" aria-hidden />
           {t("{tool} needs your approval", { tool: name })}
@@ -110,7 +110,7 @@ function ToolCall({
     );
   }
   return (
-    <p className="text-muted-foreground flex items-center gap-1 text-xs">
+    <p className="flex items-center gap-1 text-xs text-muted-foreground">
       <WrenchIcon className="size-3" aria-hidden />
       {part.state === "output-denied"
         ? t("{tool} was denied", { tool: name })
@@ -168,8 +168,8 @@ export function ChatView({ id, chat }: { id: string; chat: AssistantState }) {
             key={message.id}
             className={
               message.role === "user"
-                ? "bg-primary text-primary-foreground max-w-4/5 self-end rounded-xl px-3 py-2 text-sm"
-                : "bg-muted max-w-4/5 self-start rounded-xl px-3 py-2 text-sm"
+                ? "max-w-4/5 self-end rounded-xl bg-primary px-3 py-2 text-sm text-primary-foreground"
+                : "max-w-4/5 self-start rounded-xl bg-muted px-3 py-2 text-sm"
             }
           >
             {filesOf(message).map((file) => (
@@ -186,12 +186,12 @@ export function ChatView({ id, chat }: { id: string; chat: AssistantState }) {
         ))}
       </ol>
       {chat.error ? (
-        <p role="alert" className="text-destructive text-sm">
+        <p role="alert" className="text-sm text-destructive">
           {t("The answer failed. Try again.")}
         </p>
       ) : null}
       {uploadFailed ? (
-        <p role="alert" className="text-destructive text-sm">
+        <p role="alert" className="text-sm text-destructive">
           {t("The file could not be attached.")}
         </p>
       ) : null}
@@ -200,7 +200,7 @@ export function ChatView({ id, chat }: { id: string; chat: AssistantState }) {
           {attachments.map((file) => (
             <li
               key={file.url}
-              className="bg-muted flex items-center gap-1 rounded-md px-2 py-1 text-xs"
+              className="flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs"
             >
               <FileIcon className="size-3" aria-hidden />
               {file.filename ?? file.mediaType}

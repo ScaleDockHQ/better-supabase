@@ -101,7 +101,7 @@ export function AssistantChat({
           </Button>
         ))}
         {durableAvailable ? null : (
-          <p className="text-muted-foreground text-xs">
+          <p className="text-xs text-muted-foreground">
             {t("Durable answers need AI_GATEWAY_API_KEY.")}
           </p>
         )}

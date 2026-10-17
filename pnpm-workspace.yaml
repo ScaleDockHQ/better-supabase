@@ -119,6 +119,7 @@ catalog:
   next-themes: 0.4.6
   oxfmt: 0.71.0
   "@shadcn/lint": 0.2.1
+  eslint-plugin-playwright: 2.12.1
   eslint-plugin-turbo: 2.11.8
   oxlint-plugin-react-doctor: 0.9.18
   oxlint: 1.88.0
@@ -311,6 +312,10 @@ overrides:
   "@hono/node-server@<1.19.15": ^1.19.15
 
 peerDependencyRules:
+  # eslint-plugin-playwright peers on eslint but imports nothing from it;
+  # Oxlint loads its rules as a JS plugin.
+  ignoreMissing:
+    - eslint
   allowedVersions:
     # postgrest-typegen pins its optional oxfmt peer exactly; it formats the
     # generated types with whichever oxfmt the CLI installs.

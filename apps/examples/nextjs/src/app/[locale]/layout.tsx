@@ -39,7 +39,7 @@ export default async function LocaleLayout({
       suppressHydrationWarning
       className={cn(geistSans.variable, geistMono.variable)}
     >
-      <body className="bg-background text-foreground min-h-svh font-sans antialiased">
+      <body className="min-h-svh bg-background font-sans text-foreground antialiased">
         <ThemeProvider storage="cookie" themes={["light", "dark"]}>
           <NextIntlClientProvider>
             <Providers>{children}</Providers>

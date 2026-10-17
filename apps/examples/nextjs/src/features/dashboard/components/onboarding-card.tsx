@@ -58,14 +58,14 @@ export function OnboardingCard() {
           {progress.steps.map((step) => (
             <li key={step.id} className="flex items-center gap-3 py-2">
               {step.completed ? (
-                <CheckCircle2Icon className="text-primary size-4" />
+                <CheckCircle2Icon className="size-4 text-primary" />
               ) : (
-                <CircleIcon className="text-muted-foreground size-4" />
+                <CircleIcon className="size-4 text-muted-foreground" />
               )}
               <span
                 className={
                   step.completed
-                    ? "text-muted-foreground flex-1 line-through"
+                    ? "flex-1 text-muted-foreground line-through"
                     : "flex-1"
                 }
               >

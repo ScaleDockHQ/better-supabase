@@ -175,7 +175,7 @@ function ConversationList({
             type="button"
             aria-current={selected === conversation.id ? "true" : undefined}
             className={cn(
-              "hover:bg-muted/50 flex w-full flex-col gap-1 px-4 py-3 text-left text-sm",
+              "flex w-full flex-col gap-1 px-4 py-3 text-left text-sm hover:bg-muted/50",
               selected === conversation.id && "bg-muted",
             )}
             onClick={() => {
@@ -194,7 +194,7 @@ function ConversationList({
             <span className="truncate">
               {conversation.subject ?? t("No subject")}
             </span>
-            <span className="text-muted-foreground flex gap-2 text-xs">
+            <span className="flex gap-2 text-xs text-muted-foreground">
               <span className="flex-1 truncate">{conversation.preview}</span>
               {conversation.lastMessageAt ? (
                 <span className="tabular-nums">

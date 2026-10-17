@@ -70,9 +70,9 @@ export function ConnectedAgentsCard({
       </CardHeader>
       <CardContent>
         {error ? (
-          <p className="text-destructive text-sm">{error}</p>
+          <p className="text-sm text-destructive">{error}</p>
         ) : grants.length === 0 ? (
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             {t("No agents are connected.")}
           </p>
         ) : (
@@ -84,7 +84,7 @@ export function ConnectedAgentsCard({
               >
                 <div className="min-w-0 text-sm">
                   <p className="truncate font-medium">{grant.client.name}</p>
-                  <p className="text-muted-foreground truncate">
+                  <p className="truncate text-muted-foreground">
                     {t("Connected {date}", {
                       date: format.dateTime(new Date(grant.granted_at), {
                         dateStyle: "medium",

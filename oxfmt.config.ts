@@ -3,6 +3,19 @@ import ultracite from "ultracite/oxfmt";
 
 import { ignorePatterns } from "./oxlint.config.ts";
 
+/** Each Tailwind app sorts classes against its own theme and utilities. */
+function tailwindApp(
+  files: string,
+  stylesheet: string,
+): NonNullable<OxfmtConfig["overrides"]>[number] {
+  return {
+    files: [files],
+    options: {
+      sortTailwindcss: { stylesheet },
+    },
+  };
+}
+
 const config: OxfmtConfig = defineConfig({
   ...ultracite,
   trailingComma: "all",
@@ -35,6 +48,14 @@ const config: OxfmtConfig = defineConfig({
     ],
   },
   sortPackageJson: { sortScripts: true },
+  overrides: [
+    tailwindApp("apps/docs/**", "./apps/docs/app/global.css"),
+    tailwindApp("apps/marketing/**", "./apps/marketing/app/globals.css"),
+    tailwindApp(
+      "apps/examples/nextjs/**",
+      "./apps/examples/nextjs/src/app/globals.css",
+    ),
+  ],
 });
 
 export default config;

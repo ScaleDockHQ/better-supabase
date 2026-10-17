@@ -25,7 +25,7 @@ export default function EnterprisePage() {
         <h1 className="max-w-3xl text-4xl font-semibold text-balance sm:text-5xl">
           Run better-supabase in production with confidence
         </h1>
-        <p className="text-muted-foreground max-w-xl text-base leading-7">
+        <p className="max-w-xl text-base leading-7 text-muted-foreground">
           The library is MIT licensed. For teams that want a direct line to the
           maintainers, we offer support, reviews and migration help.
         </p>
@@ -59,10 +59,10 @@ export default function EnterprisePage() {
           {engagements.map((item) => (
             <div
               key={item.title}
-              className="border-border bg-card flex flex-col gap-2 rounded-xl border p-5"
+              className="flex flex-col gap-2 rounded-xl border border-border bg-card p-5"
             >
               <h3 className="text-sm font-semibold">{item.title}</h3>
-              <p className="text-muted-foreground text-sm leading-6">
+              <p className="text-sm leading-6 text-muted-foreground">
                 {item.body}
               </p>
             </div>
@@ -70,11 +70,11 @@ export default function EnterprisePage() {
         </div>
       </Section>
       <section className="mx-auto w-full max-w-6xl px-6 pb-20 md:px-8">
-        <div className="border-border bg-card flex flex-col items-center gap-4 rounded-2xl border px-6 py-12 text-center">
+        <div className="flex flex-col items-center gap-4 rounded-2xl border border-border bg-card px-6 py-12 text-center">
           <h2 className="text-2xl font-semibold tracking-tight">
             Talk to the maintainers
           </h2>
-          <p className="text-muted-foreground max-w-md text-sm leading-6">
+          <p className="max-w-md text-sm leading-6 text-muted-foreground">
             Tell us about your stack, your Supabase setup and what you need.
           </p>
           <LinkButton

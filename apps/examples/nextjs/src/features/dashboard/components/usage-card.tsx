@@ -69,7 +69,7 @@ export function UsageCard() {
               </span>
             </div>
             <Progress value={(meter.fraction ?? 0) * 100} />
-            <p className="text-muted-foreground text-xs">
+            <p className="text-xs text-muted-foreground">
               {t("Resets {date}", {
                 date: format.dateTime(
                   new Date(meter.resetsAt.epochMilliseconds),

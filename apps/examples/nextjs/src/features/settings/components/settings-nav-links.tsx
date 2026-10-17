@@ -47,7 +47,7 @@ export function SettingsNavLinks({
   return (
     <nav
       aria-label={t("Settings")}
-      className="bg-muted text-muted-foreground inline-flex h-9 w-fit max-w-full items-center overflow-x-auto rounded-lg p-1"
+      className="inline-flex h-9 w-fit max-w-full items-center overflow-x-auto rounded-lg bg-muted p-1 text-muted-foreground"
     >
       {settingsTabs
         .filter((tab) => visible.includes(tab.id))

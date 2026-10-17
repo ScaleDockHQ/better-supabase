@@ -63,7 +63,7 @@ function GraphNode({ data, selected }: NodeProps<GraphFlowNode>) {
   return (
     <div
       className={cn(
-        "bg-card text-card-foreground w-52 rounded-lg border px-3 py-2 text-sm shadow-sm",
+        "w-52 rounded-lg border bg-card px-3 py-2 text-sm text-card-foreground shadow-sm",
         selected && "border-primary",
         data.status === undefined ? undefined : STATUS_RING[data.status],
       )}
@@ -73,10 +73,10 @@ function GraphNode({ data, selected }: NodeProps<GraphFlowNode>) {
         <Handle type="target" position={Position.Top} />
       )}
       <div className="flex items-center gap-2">
-        <Icon className="text-muted-foreground size-4 shrink-0" />
+        <Icon className="size-4 shrink-0 text-muted-foreground" />
         <span className="truncate font-medium">{data.label}</span>
       </div>
-      <div className="text-muted-foreground mt-1 flex items-center justify-between gap-2 text-xs">
+      <div className="mt-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
         <span className="truncate font-mono">{data.step ?? data.kind}</span>
         {data.status === undefined ? null : (
           <Badge variant="outline">{data.status}</Badge>
@@ -96,7 +96,7 @@ function GraphNode({ data, selected }: NodeProps<GraphFlowNode>) {
             position={Position.Bottom}
             className="left-2/3!"
           />
-          <div className="text-muted-foreground mt-1 flex justify-around text-xs uppercase">
+          <div className="mt-1 flex justify-around text-xs text-muted-foreground uppercase">
             <span>true</span>
             <span>false</span>
           </div>

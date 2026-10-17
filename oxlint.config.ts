@@ -1,9 +1,11 @@
+import playwright from "eslint-plugin-playwright";
 import { fileURLToPath } from "node:url";
 import { type OxlintConfig, defineConfig } from "oxlint";
 import antiSlop from "ultracite/oxlint/anti-slop";
 import core from "ultracite/oxlint/core";
 import { jsPluginSettings, selectJsPlugins } from "ultracite/oxlint/js-plugins";
 import ultraciteNext from "ultracite/oxlint/next";
+import ultraciteNextJsPlugins from "ultracite/oxlint/next/js-plugins";
 import ultraciteReact from "ultracite/oxlint/react";
 import ultraciteShadcn from "ultracite/oxlint/shadcn";
 import vitest from "ultracite/oxlint/vitest";
@@ -77,6 +79,13 @@ const testFiles = [
 ];
 
 const reactDoctor = selectJsPlugins(["react-doctor"]);
+
+/** The recommended Playwright rules, all at error like every other rule. */
+const playwrightRules: NonNullable<OxlintConfig["rules"]> = Object.fromEntries(
+  Object.keys(playwright.configs["flat/recommended"].rules ?? {})
+    .filter((name) => name.startsWith("playwright/"))
+    .map((name) => [name, "error"]),
+);
 
 /** Published packages: named exports only, so tree shaking and docs work. */
 export const library: OxlintConfig = defineConfig({
@@ -164,8 +173,14 @@ export const react: OxlintConfig = defineConfig({
   },
 });
 
-/** Next.js apps, on top of `react`. */
-export const next: OxlintConfig = ultraciteNext;
+/**
+ * Next.js apps, on top of `react`, which loads the react-doctor plugin these
+ * Next.js rules belong to.
+ */
+export const next: OxlintConfig = defineConfig({
+  extends: [ultraciteNext],
+  rules: { ...ultraciteNextJsPlugins.rules },
+});
 
 /** Tailwind design system rules for apps that own shadcn components. */
 export const shadcn: OxlintConfig = defineConfig({
@@ -513,6 +528,23 @@ const config: OxlintConfig = defineConfig({
         "vitest/prefer-each": "off",
         "vitest/prefer-comparison-matcher": "off",
         "vitest/prefer-to-contain": "off",
+      },
+    },
+    {
+      files: ["**/e2e/**/*.spec.ts"],
+      jsPlugins: [
+        { name: "playwright", specifier: plugin("eslint-plugin-playwright") },
+      ],
+      rules: {
+        ...playwrightRules,
+        "playwright/expect-expect": [
+          "error",
+          { assertFunctionNames: ["expectInstant"] },
+        ],
+        // Role-driven cases skip a page the role can't see inside one test,
+        // like the Vitest suites; 2 findings each when measured.
+        "playwright/no-conditional-in-test": "off",
+        "playwright/no-conditional-expect": "off",
       },
     },
     {

@@ -58,7 +58,7 @@ export async function InvitationCard({
   return (
     <Card data-testid="invitation">
       <CardHeader className="text-center">
-        <MailIcon className="text-primary mx-auto size-8" />
+        <MailIcon className="mx-auto size-8 text-primary" />
         <CardTitle className="text-xl">
           {t("Join {organization}", {
             organization: preview.organizationName ?? "",
@@ -80,7 +80,7 @@ export async function InvitationCard({
         {signedIn ? (
           <>
             {session.user.email === preview.email ? null : (
-              <p className="text-muted-foreground text-center text-sm">
+              <p className="text-center text-sm text-muted-foreground">
                 {t(
                   "You're signed in as {email}. The invitation only works for its own address.",
                   {

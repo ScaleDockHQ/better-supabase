@@ -112,7 +112,7 @@ function CodePanel({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-muted-foreground font-mono text-xs">{filename}</p>
+        <p className="font-mono text-xs text-muted-foreground">{filename}</p>
         <div className="flex gap-2">
           {actions}
           <CopyButton text={code} label="Copy" />
@@ -177,19 +177,19 @@ function Migrations({ code }: { code: string }) {
   const state = use(migrationsFor(code));
   if (state.status === "error") {
     return (
-      <p className="text-destructive text-sm" role="alert">
+      <p className="text-sm text-destructive" role="alert">
         {state.message}
       </p>
     );
   }
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         {state.files.length} files that{" "}
-        <code className="text-code font-mono">sql sync</code> writes into{" "}
-        <code className="text-code font-mono">supabase/</code>. Turn them into a
+        <code className="font-mono text-code">sql sync</code> writes into{" "}
+        <code className="font-mono text-code">supabase/</code>. Turn them into a
         migration with{" "}
-        <code className="text-code font-mono">
+        <code className="font-mono text-code">
           supabase db schema declarative sync
         </code>
         .
@@ -197,12 +197,12 @@ function Migrations({ code }: { code: string }) {
       {state.files.map((file) => (
         <details
           key={file.path}
-          className="border-border bg-card rounded-xl border"
+          className="rounded-xl border border-border bg-card"
         >
           <summary className="cursor-pointer px-4 py-2 font-mono text-xs">
             {file.path}
           </summary>
-          <pre className="border-border text-code max-h-96 overflow-auto border-t p-4 font-mono leading-6">
+          <pre className="max-h-96 overflow-auto border-t border-border p-4 font-mono text-code leading-6">
             <code>{file.contents}</code>
           </pre>
         </details>
@@ -274,7 +274,7 @@ export function CreateBuilder() {
             ))}
           </select>
           {named !== undefined && (
-            <p className="text-muted-foreground text-xs leading-5">
+            <p className="text-xs leading-5 text-muted-foreground">
               {PRESETS[named].description}
             </p>
           )}
@@ -320,7 +320,7 @@ export function CreateBuilder() {
                       platforms: platform,
                     }));
                   }}
-                  className="accent-primary size-4"
+                  className="size-4 accent-primary"
                 />
                 {platform}
               </label>
@@ -336,7 +336,7 @@ export function CreateBuilder() {
               <div key={key} className="flex flex-col gap-1">
                 <label
                   htmlFor={`${ids}-${key}`}
-                  className="text-muted-foreground text-sm"
+                  className="text-sm text-muted-foreground"
                 >
                   {FIELD_LABELS[key]}
                 </label>
@@ -361,7 +361,7 @@ export function CreateBuilder() {
               </div>
             );
           })}
-          <p className="text-muted-foreground text-xs leading-5">
+          <p className="text-xs leading-5 text-muted-foreground">
             Other tenant names arrive with naming conventions.
           </p>
         </fieldset>
@@ -381,7 +381,7 @@ export function CreateBuilder() {
                       withPresetField(current, "integrations", value),
                     );
                   }}
-                  className="accent-primary size-4"
+                  className="size-4 accent-primary"
                 />
                 {value}
               </label>
@@ -392,13 +392,13 @@ export function CreateBuilder() {
         <div className="flex flex-col gap-5">
           <p className="text-sm font-medium">
             Blocks{" "}
-            <span className="text-muted-foreground font-normal">
+            <span className="font-normal text-muted-foreground">
               ({resolved.blocks.length} installed)
             </span>
           </p>
           {groups.map((group) => (
             <fieldset key={group.category} className="flex flex-col gap-2">
-              <legend className="text-muted-foreground mb-1 text-xs font-semibold tracking-wide uppercase">
+              <legend className="mb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
                 {group.category}
               </legend>
               {group.rows.map((row) => {
@@ -426,14 +426,14 @@ export function CreateBuilder() {
                       onChange={() => {
                         setPreset((current) => toggleBlock(current, row.name));
                       }}
-                      className="accent-primary mt-0.5 size-4 shrink-0"
+                      className="mt-0.5 size-4 shrink-0 accent-primary"
                     />
                     <span className="flex min-w-0 flex-col">
                       <span className="leading-5">{row.title}</span>
                       {note !== undefined && (
                         <span
                           id={noteId}
-                          className="text-muted-foreground text-xs leading-5"
+                          className="text-xs leading-5 text-muted-foreground"
                         >
                           {note}
                         </span>
@@ -448,21 +448,21 @@ export function CreateBuilder() {
       </form>
 
       <div className="flex min-w-0 flex-col gap-6 lg:col-span-2">
-        <div className="border-border bg-card flex flex-col gap-3 rounded-xl border p-4">
+        <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
           <p className="text-sm font-medium">Install</p>
-          <p className="text-muted-foreground text-sm leading-6">
+          <p className="text-sm leading-6 text-muted-foreground">
             A new project starts from the preset: init writes the config, the
             modules of the blocks and{" "}
-            <code className="text-code font-mono">lib/blocks.ts</code>.
+            <code className="font-mono text-code">lib/blocks.ts</code>.
           </p>
-          <pre className="bg-muted text-code overflow-x-auto rounded-md px-3 py-2 font-mono">
+          <pre className="overflow-x-auto rounded-md bg-muted px-3 py-2 font-mono text-code">
             <code data-testid="install-command">{command}</code>
           </pre>
-          <p className="text-muted-foreground text-sm leading-6">
+          <p className="text-sm leading-6 text-muted-foreground">
             In an existing project, apply shows the config diff and writes the
             new modules.
           </p>
-          <pre className="bg-muted text-code overflow-x-auto rounded-md px-3 py-2 font-mono">
+          <pre className="overflow-x-auto rounded-md bg-muted px-3 py-2 font-mono text-code">
             <code data-testid="apply-command">{applyCommand}</code>
           </pre>
           <div className="flex flex-wrap gap-2">
@@ -486,7 +486,7 @@ export function CreateBuilder() {
               Download config
             </Button>
           </div>
-          <p className="text-muted-foreground font-mono text-xs break-all">
+          <p className="font-mono text-xs break-all text-muted-foreground">
             preset: {code}
           </p>
         </div>
@@ -494,7 +494,7 @@ export function CreateBuilder() {
         {fieldConflicts.length > 0 && (
           <ul
             role="alert"
-            className="border-destructive/40 text-destructive flex flex-col gap-1 rounded-xl border p-4 text-sm"
+            className="flex flex-col gap-1 rounded-xl border border-destructive/40 p-4 text-sm text-destructive"
           >
             {fieldConflicts.map((conflict) => (
               <li key={conflict.field}>
@@ -531,7 +531,7 @@ export function CreateBuilder() {
           <TabsContent value="migrations" className="pt-2">
             <Suspense
               fallback={
-                <p className="text-muted-foreground text-sm" aria-live="polite">
+                <p className="text-sm text-muted-foreground" aria-live="polite">
                   Rendering the migrations.
                 </p>
               }

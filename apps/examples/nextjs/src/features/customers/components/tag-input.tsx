@@ -49,7 +49,7 @@ export function TagInput({
     <div className="space-y-3">
       <ul className="flex flex-wrap gap-1.5" data-testid="tags">
         {tags.length === 0 ? (
-          <li className="text-muted-foreground text-sm">{t("No tags yet.")}</li>
+          <li className="text-sm text-muted-foreground">{t("No tags yet.")}</li>
         ) : null}
         {tags.map((tag) => (
           <li key={tag.id}>
@@ -95,7 +95,7 @@ export function TagInput({
         </Button>
       </form>
       {error ? (
-        <p className="text-destructive text-sm">{errorMessage(error)}</p>
+        <p className="text-sm text-destructive">{errorMessage(error)}</p>
       ) : null}
     </div>
   );

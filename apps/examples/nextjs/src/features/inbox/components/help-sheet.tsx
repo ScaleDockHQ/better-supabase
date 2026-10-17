@@ -77,7 +77,7 @@ function HelpChat() {
     <>
       <ol className="flex-1 space-y-3 overflow-y-auto p-4">
         {messages.length === 0 ? (
-          <li className="text-muted-foreground text-sm">
+          <li className="text-sm text-muted-foreground">
             {t("No messages yet. Write below to start.")}
           </li>
         ) : null}
@@ -99,7 +99,7 @@ function HelpChat() {
               >
                 {message.body}
               </div>
-              <span className="text-muted-foreground text-xs">
+              <span className="text-xs text-muted-foreground">
                 {format.dateTime(new Date(message.createdAt), {
                   timeStyle: "short",
                 })}
@@ -109,7 +109,7 @@ function HelpChat() {
         })}
       </ol>
       {widget.typing.length > 0 ? (
-        <output className="text-muted-foreground block px-4 pb-2 text-xs">
+        <output className="block px-4 pb-2 text-xs text-muted-foreground">
           {t("Support is typing…")}
         </output>
       ) : null}

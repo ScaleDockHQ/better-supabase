@@ -230,7 +230,7 @@ export function NotificationList() {
         >
           <span className="flex-1">{notification.title}</span>
           {notification.readAt ? null : <Badge>{t("New")}</Badge>}
-          <span className="text-muted-foreground text-xs tabular-nums">
+          <span className="text-xs text-muted-foreground tabular-nums">
             {format.dateTime(new Date(notification.createdAt), {
               dateStyle: "medium",
               timeStyle: "short",
@@ -364,7 +364,7 @@ export function CommandSearch() {
       >
         <SearchIcon />
         <span className="hidden sm:inline">{t("Search")}</span>
-        <kbd className="text-muted-foreground hidden text-xs sm:inline">⌘K</kbd>
+        <kbd className="hidden text-xs text-muted-foreground sm:inline">⌘K</kbd>
       </Button>
       <Dialog open={search.open} onOpenChange={search.setOpen}>
         <DialogContent className="gap-4 sm:max-w-lg">
@@ -385,12 +385,12 @@ export function CommandSearch() {
           />
           <div className="max-h-80 overflow-y-auto" aria-live="polite">
             {search.error === undefined ? null : (
-              <p className="text-destructive text-sm">
+              <p className="text-sm text-destructive">
                 {t("Search failed. Try again.")}
               </p>
             )}
             {search.groups.length === 0 && !search.loading ? (
-              <p className="text-muted-foreground text-sm">
+              <p className="text-sm text-muted-foreground">
                 {search.query.trim() === ""
                   ? t("Type to search.")
                   : t("No matches.")}
@@ -398,7 +398,7 @@ export function CommandSearch() {
             ) : null}
             {search.groups.map((group) => (
               <section key={group.key} className="mb-3">
-                <h3 className="text-muted-foreground mb-1 text-xs font-medium">
+                <h3 className="mb-1 text-xs font-medium text-muted-foreground">
                   {heading(group.key)}
                 </h3>
                 <ul>
@@ -407,7 +407,7 @@ export function CommandSearch() {
                       <Link
                         href={item.url ?? "/"}
                         onClick={() => void search.select(item)}
-                        className="hover:bg-muted focus-visible:bg-muted block rounded-md px-2 py-1.5 outline-none"
+                        className="block rounded-md px-2 py-1.5 outline-none hover:bg-muted focus-visible:bg-muted"
                       >
                         {item.title ?? item.subjectId}
                       </Link>
@@ -599,14 +599,14 @@ export function OnboardingCard() {
           {progress.steps.map((step) => (
             <li key={step.id} className="flex items-center gap-3 py-2">
               {step.completed ? (
-                <CheckCircle2Icon className="text-primary size-4" />
+                <CheckCircle2Icon className="size-4 text-primary" />
               ) : (
-                <CircleIcon className="text-muted-foreground size-4" />
+                <CircleIcon className="size-4 text-muted-foreground" />
               )}
               <span
                 className={
                   step.completed
-                    ? "text-muted-foreground flex-1 line-through"
+                    ? "flex-1 text-muted-foreground line-through"
                     : "flex-1"
                 }
               >
@@ -755,7 +755,7 @@ export function CommentThread({
       {visible === undefined ? (
         <Skeleton className="h-16" />
       ) : visible.length === 0 ? (
-        <p className="text-muted-foreground text-sm">{t("No comments yet.")}</p>
+        <p className="text-sm text-muted-foreground">{t("No comments yet.")}</p>
       ) : (
         <ol className="space-y-4" data-testid="comments">
           {visible.map((comment) => (
@@ -765,7 +765,7 @@ export function CommentThread({
                   {(comment.authorId && authors[comment.authorId]) ??
                     t("Someone")}
                 </span>{" "}
-                <span className="text-muted-foreground text-xs">
+                <span className="text-xs text-muted-foreground">
                   {format.dateTime(comment.createdAt.epochMilliseconds, {
                     dateStyle: "medium",
                     timeStyle: "short",
@@ -920,7 +920,7 @@ import { CreateOrganizationDialog } from "./create-organization-dialog";
 
 function Mark({ name }: { name: string }) {
   return (
-    <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg text-sm font-semibold">
+    <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sm font-semibold text-sidebar-primary-foreground">
       {name.slice(0, 1).toUpperCase()}
     </div>
   );
@@ -990,7 +990,7 @@ export function OrganizationSwitcherMenu({
             >
               {active?.name ?? t("No organization")}
             </span>
-            <span className="text-muted-foreground truncate text-xs capitalize">
+            <span className="truncate text-xs text-muted-foreground capitalize">
               {active ? active.plan : t("Create one to start")}
             </span>
           </div>
@@ -1010,7 +1010,7 @@ export function OrganizationSwitcherMenu({
                 <Mark name={organization.name} />
                 <div className="grid flex-1 leading-tight">
                   <span className="truncate">{organization.name}</span>
-                  <span className="text-muted-foreground text-xs">
+                  <span className="text-xs text-muted-foreground">
                     {roleLabel(organization.role)}
                   </span>
                 </div>
@@ -1177,7 +1177,7 @@ export function PlanPicker({
               <CardDescription>{price(plan.priceCents)}</CardDescription>
             </CardHeader>
             <CardContent>
-              <ul className="text-muted-foreground space-y-1 text-sm">
+              <ul className="space-y-1 text-sm text-muted-foreground">
                 {plan.features.map((feature) => (
                   <li key={feature.key}>{featureLabel(feature)}</li>
                 ))}
@@ -1360,7 +1360,7 @@ export function UsageCard() {
               </span>
             </div>
             <Progress value={(meter.fraction ?? 0) * 100} />
-            <p className="text-muted-foreground text-xs">
+            <p className="text-xs text-muted-foreground">
               {t("Resets {date}", {
                 date: format.dateTime(
                   new Date(meter.resetsAt.epochMilliseconds),
@@ -2063,13 +2063,13 @@ export function MemberTable({
                   <span className="font-medium">
                     {member.name ?? member.email}
                     {member.userId === currentUserId ? (
-                      <span className="text-muted-foreground font-normal">
+                      <span className="font-normal text-muted-foreground">
                         {" "}
                         ({t("you")})
                       </span>
                     ) : null}
                   </span>
-                  <span className="text-muted-foreground text-xs">
+                  <span className="text-xs text-muted-foreground">
                     {member.email}
                   </span>
                 </div>
@@ -2104,7 +2104,7 @@ export function MemberTable({
                 <RoleBadge role={member.role} />
               )}
             </TableCell>
-            <TableCell className="text-muted-foreground hidden sm:table-cell">
+            <TableCell className="hidden text-muted-foreground sm:table-cell">
               {member.joinedAt
                 ? format.dateTime(new Date(member.joinedAt), {
                     dateStyle: "medium",
@@ -2677,10 +2677,10 @@ export function ApiKeyTable({
                 <TableCell className="font-mono text-xs">
                   {key.prefix}_{key.publicId}…
                 </TableCell>
-                <TableCell className="text-muted-foreground hidden md:table-cell">
+                <TableCell className="hidden text-muted-foreground md:table-cell">
                   {date(key.createdAt)}
                 </TableCell>
-                <TableCell className="text-muted-foreground hidden md:table-cell">
+                <TableCell className="hidden text-muted-foreground md:table-cell">
                   {date(key.lastUsedAt)}
                 </TableCell>
                 <TableCell className="text-right">
@@ -2921,12 +2921,12 @@ export function AuditLogTable({ organizationId }: { organizationId: string }) {
         </Select>
       </div>
       {error ? (
-        <p className="text-destructive text-sm">{errorMessage(error)}</p>
+        <p className="text-sm text-destructive">{errorMessage(error)}</p>
       ) : null}
       {entries === undefined ? (
         <Skeleton className="h-64" />
       ) : entries.length === 0 ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           {t("Nothing recorded yet.")}
         </p>
       ) : (
@@ -2946,7 +2946,7 @@ export function AuditLogTable({ organizationId }: { organizationId: string }) {
           <TableBody>
             {entries.map((entry) => (
               <TableRow key={entry.id}>
-                <TableCell className="text-muted-foreground whitespace-nowrap tabular-nums">
+                <TableCell className="whitespace-nowrap text-muted-foreground tabular-nums">
                   {format.dateTime(
                     new Date(entry.occurredAt.epochMilliseconds),
                     { dateStyle: "short", timeStyle: "short" },
@@ -3150,7 +3150,7 @@ export function TagInput({
     <div className="space-y-3">
       <ul className="flex flex-wrap gap-1.5" data-testid="tags">
         {tags.length === 0 ? (
-          <li className="text-muted-foreground text-sm">{t("No tags yet.")}</li>
+          <li className="text-sm text-muted-foreground">{t("No tags yet.")}</li>
         ) : null}
         {tags.map((tag) => (
           <li key={tag.id}>
@@ -3196,7 +3196,7 @@ export function TagInput({
         </Button>
       </form>
       {error ? (
-        <p className="text-destructive text-sm">{errorMessage(error)}</p>
+        <p className="text-sm text-destructive">{errorMessage(error)}</p>
       ) : null}
     </div>
   );

@@ -52,7 +52,7 @@ export function DocumentTable({
   });
   if (documents.length === 0) {
     return (
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         {t("No documents yet. Add one above.")}
       </p>
     );

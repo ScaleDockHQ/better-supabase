@@ -43,7 +43,7 @@ export function CommandSearch() {
       >
         <SearchIcon />
         <span className="hidden sm:inline">{t("Search")}</span>
-        <kbd className="text-muted-foreground hidden text-xs sm:inline">⌘K</kbd>
+        <kbd className="hidden text-xs text-muted-foreground sm:inline">⌘K</kbd>
       </Button>
       <Dialog open={search.open} onOpenChange={search.setOpen}>
         <DialogContent className="gap-4 sm:max-w-lg">
@@ -64,12 +64,12 @@ export function CommandSearch() {
           />
           <div className="max-h-80 overflow-y-auto" aria-live="polite">
             {search.error === undefined ? null : (
-              <p className="text-destructive text-sm">
+              <p className="text-sm text-destructive">
                 {t("Search failed. Try again.")}
               </p>
             )}
             {search.groups.length === 0 && !search.loading ? (
-              <p className="text-muted-foreground text-sm">
+              <p className="text-sm text-muted-foreground">
                 {search.query.trim() === ""
                   ? t("Type to search.")
                   : t("No matches.")}
@@ -77,7 +77,7 @@ export function CommandSearch() {
             ) : null}
             {search.groups.map((group) => (
               <section key={group.key} className="mb-3">
-                <h3 className="text-muted-foreground mb-1 text-xs font-medium">
+                <h3 className="mb-1 text-xs font-medium text-muted-foreground">
                   {heading(group.key)}
                 </h3>
                 <ul>
@@ -86,7 +86,7 @@ export function CommandSearch() {
                       <Link
                         href={item.url ?? "/"}
                         onClick={() => void search.select(item)}
-                        className="hover:bg-muted focus-visible:bg-muted block rounded-md px-2 py-1.5 outline-none"
+                        className="block rounded-md px-2 py-1.5 outline-none hover:bg-muted focus-visible:bg-muted"
                       >
                         {item.title ?? item.subjectId}
                       </Link>

@@ -86,7 +86,7 @@ export function PlanPicker({
               <CardDescription>{price(plan.priceCents)}</CardDescription>
             </CardHeader>
             <CardContent>
-              <ul className="text-muted-foreground space-y-1 text-sm">
+              <ul className="space-y-1 text-sm text-muted-foreground">
                 {plan.features.map((feature) => (
                   <li key={feature.key}>{featureLabel(feature)}</li>
                 ))}

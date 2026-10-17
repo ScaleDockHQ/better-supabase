@@ -15,7 +15,7 @@ export async function ScheduleList() {
   ]);
   if (schedules.length === 0) {
     return (
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         {t("No schedules. Admins can add one below.")}
       </p>
     );
@@ -33,7 +33,7 @@ export async function ScheduleList() {
           {schedule.paused ? (
             <Badge variant="outline">{t("Paused")}</Badge>
           ) : null}
-          <span className="text-muted-foreground ml-auto text-xs tabular-nums">
+          <span className="ml-auto text-xs text-muted-foreground tabular-nums">
             {t("Next: {time}", {
               time: format.dateTime(new Date(schedule.nextRunAt), {
                 dateStyle: "medium",

@@ -30,9 +30,9 @@ export async function PlanFeatures() {
         return (
           <li key={key} className="flex items-center gap-2">
             {included ? (
-              <CheckIcon className="text-primary size-4" />
+              <CheckIcon className="size-4 text-primary" />
             ) : (
-              <MinusIcon className="text-muted-foreground size-4" />
+              <MinusIcon className="size-4 text-muted-foreground" />
             )}
             <span className={included ? undefined : "text-muted-foreground"}>
               {label}

@@ -30,7 +30,7 @@ import { CreateOrganizationDialog } from "./create-organization-dialog";
 
 function Mark({ name }: { name: string }) {
   return (
-    <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg text-sm font-semibold">
+    <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sm font-semibold text-sidebar-primary-foreground">
       {name.slice(0, 1).toUpperCase()}
     </div>
   );
@@ -100,7 +100,7 @@ export function OrganizationSwitcherMenu({
             >
               {active?.name ?? t("No organization")}
             </span>
-            <span className="text-muted-foreground truncate text-xs capitalize">
+            <span className="truncate text-xs text-muted-foreground capitalize">
               {active ? active.plan : t("Create one to start")}
             </span>
           </div>
@@ -120,7 +120,7 @@ export function OrganizationSwitcherMenu({
                 <Mark name={organization.name} />
                 <div className="grid flex-1 leading-tight">
                   <span className="truncate">{organization.name}</span>
-                  <span className="text-muted-foreground text-xs">
+                  <span className="text-xs text-muted-foreground">
                     {roleLabel(organization.role)}
                   </span>
                 </div>

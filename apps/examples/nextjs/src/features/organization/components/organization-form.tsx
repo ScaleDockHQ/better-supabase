@@ -84,7 +84,7 @@ export function OrganizationForm({
           {t("Save")}
         </Button>
       ) : (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           {t("Only owners and admins can change the organization.")}
         </p>
       )}

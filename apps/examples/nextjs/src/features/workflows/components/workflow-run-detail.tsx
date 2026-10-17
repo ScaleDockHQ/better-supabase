@@ -99,7 +99,7 @@ function RunCard({
           ))}
         </ol>
         {run.error ? (
-          <p className="text-destructive text-sm">{run.error}</p>
+          <p className="text-sm text-destructive">{run.error}</p>
         ) : null}
         {finished ? null : (
           <div className="flex flex-wrap gap-2">

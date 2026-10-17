@@ -65,7 +65,7 @@ export function SignupForm() {
     return (
       <Card>
         <CardHeader className="text-center">
-          <MailCheckIcon className="text-primary mx-auto size-8" />
+          <MailCheckIcon className="mx-auto size-8 text-primary" />
           <CardTitle className="text-xl">{t("Check your email")}</CardTitle>
           <CardDescription>
             {t("We sent a confirmation link to {email}.", {
@@ -128,7 +128,7 @@ export function SignupForm() {
             <Button type="submit" className="w-full" disabled={pending}>
               {t("Create account")}
             </Button>
-            <p className="text-muted-foreground text-center text-sm">
+            <p className="text-center text-sm text-muted-foreground">
               {t("Already have an account?")}{" "}
               <Link
                 href="/login"

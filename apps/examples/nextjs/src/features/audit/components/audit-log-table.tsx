@@ -111,12 +111,12 @@ export function AuditLogTable({ organizationId }: { organizationId: string }) {
         </Select>
       </div>
       {error ? (
-        <p className="text-destructive text-sm">{errorMessage(error)}</p>
+        <p className="text-sm text-destructive">{errorMessage(error)}</p>
       ) : null}
       {entries === undefined ? (
         <Skeleton className="h-64" />
       ) : entries.length === 0 ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           {t("Nothing recorded yet.")}
         </p>
       ) : (
@@ -136,7 +136,7 @@ export function AuditLogTable({ organizationId }: { organizationId: string }) {
           <TableBody>
             {entries.map((entry) => (
               <TableRow key={entry.id}>
-                <TableCell className="text-muted-foreground whitespace-nowrap tabular-nums">
+                <TableCell className="whitespace-nowrap text-muted-foreground tabular-nums">
                   {format.dateTime(
                     new Date(entry.occurredAt.epochMilliseconds),
                     { dateStyle: "short", timeStyle: "short" },

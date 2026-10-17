@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { RootProvider } from "fumadocs-ui/provider/next";
+import Link from "next/link";
 
 import { env } from "@/env";
 
@@ -21,17 +22,19 @@ export default function GlobalNotFound() {
         <RootProvider search={{ enabled: false }}>
           <main className="mx-auto flex w-full max-w-lg flex-1 flex-col items-center justify-center gap-4 px-6 py-24 text-center">
             <h1 className="text-3xl font-semibold">Page not found</h1>
-            <p className="text-fd-muted-foreground text-sm leading-6">
+            <p className="text-sm leading-6 text-fd-muted-foreground">
               That docs page does not exist. It may have moved; the
               documentation index lists every page.
             </p>
             <div className="flex gap-3 text-sm">
-              <a
-                href="/docs"
-                className="bg-fd-primary text-fd-primary-foreground rounded-md px-3 py-2 font-medium"
+              {/* Typed routes list the optional catch-all as `/docs/${string}` only, not `/docs` itself. */}
+              <Link
+                href={{ pathname: "/docs" }}
+                className="rounded-md bg-fd-primary px-3 py-2 font-medium text-fd-primary-foreground"
               >
                 Documentation
-              </a>
+              </Link>
+              {/* oxlint-disable-next-line react-doctor/nextjs-no-a-element -- llms.txt is a route handler that returns text, not a page */}
               <a
                 href="/llms.txt"
                 className="rounded-md border px-3 py-2 font-medium"

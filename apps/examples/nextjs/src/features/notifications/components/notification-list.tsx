@@ -63,7 +63,7 @@ export function NotificationList() {
         >
           <span className="flex-1">{notification.title}</span>
           {notification.readAt ? null : <Badge>{t("New")}</Badge>}
-          <span className="text-muted-foreground text-xs tabular-nums">
+          <span className="text-xs text-muted-foreground tabular-nums">
             {format.dateTime(new Date(notification.createdAt), {
               dateStyle: "medium",
               timeStyle: "short",

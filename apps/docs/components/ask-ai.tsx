@@ -28,7 +28,7 @@ export function AskAI() {
         onClick={() => {
           setOpen(true);
         }}
-        className="bg-fd-background hover:bg-fd-accent fixed right-4 bottom-4 z-50 inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm shadow-lg"
+        className="fixed right-4 bottom-4 z-50 inline-flex items-center gap-2 rounded-full border bg-fd-background px-4 py-2 text-sm shadow-lg hover:bg-fd-accent"
       >
         <MessageCircleQuestion className="size-4" aria-hidden />
         Ask AI

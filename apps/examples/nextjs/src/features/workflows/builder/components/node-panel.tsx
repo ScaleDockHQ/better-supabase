@@ -83,7 +83,7 @@ export function NodePanel({
   };
   const step = steps.find((item) => item.name === data.step);
   return (
-    <aside className="bg-card w-72 shrink-0 space-y-4 rounded-lg border p-4">
+    <aside className="w-72 shrink-0 space-y-4 rounded-lg border bg-card p-4">
       <FieldGroup>
         <Field>
           <FieldLabel htmlFor={`${id}-label`}>{t("Label")}</FieldLabel>

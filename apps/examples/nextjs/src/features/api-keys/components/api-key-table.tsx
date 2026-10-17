@@ -131,10 +131,10 @@ export function ApiKeyTable({
                 <TableCell className="font-mono text-xs">
                   {key.prefix}_{key.publicId}…
                 </TableCell>
-                <TableCell className="text-muted-foreground hidden md:table-cell">
+                <TableCell className="hidden text-muted-foreground md:table-cell">
                   {date(key.createdAt)}
                 </TableCell>
-                <TableCell className="text-muted-foreground hidden md:table-cell">
+                <TableCell className="hidden text-muted-foreground md:table-cell">
                   {date(key.lastUsedAt)}
                 </TableCell>
                 <TableCell className="text-right">

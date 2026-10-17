@@ -60,11 +60,11 @@ export async function AgentActivity() {
                       ? t("Untitled chat")
                       : approval.chatTitle}
                   </Link>
-                  <span className="text-muted-foreground text-xs tabular-nums">
+                  <span className="text-xs text-muted-foreground tabular-nums">
                     {when(approval.createdAt)}
                   </span>
                 </p>
-                <pre className="bg-muted overflow-x-auto rounded-md p-2 text-xs whitespace-pre-wrap">
+                <pre className="overflow-x-auto rounded-md bg-muted p-2 text-xs whitespace-pre-wrap">
                   {approval.input}
                 </pre>
                 <ApprovalButtons
@@ -110,12 +110,12 @@ export async function AgentActivity() {
                   >
                     {run.model ?? t("Default model")}
                   </Link>
-                  <span className="text-muted-foreground text-xs tabular-nums">
+                  <span className="text-xs text-muted-foreground tabular-nums">
                     {when(run.startedAt)}
                   </span>
                 </p>
                 {run.steps.length > 0 ? (
-                  <ol className="text-muted-foreground flex flex-col gap-1 ps-4 text-xs">
+                  <ol className="flex flex-col gap-1 ps-4 text-xs text-muted-foreground">
                     {run.steps.map((step) => (
                       <li key={step.key} className="flex gap-2">
                         <span className="w-14 shrink-0">{step.status}</span>

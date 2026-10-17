@@ -29,14 +29,14 @@ export function PresetGraph({ resolved }: { resolved: ResolvedPreset }) {
   const byName = new Map(layout.nodes.map((node) => [node.name, node]));
   if (layout.nodes.length === 0) {
     return (
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         Select a block to see its graph.
       </p>
     );
   }
   return (
     <figure className="flex flex-col gap-3">
-      <div className="border-border bg-card max-h-144 overflow-auto rounded-xl border p-2">
+      <div className="max-h-144 overflow-auto rounded-xl border border-border bg-card p-2">
         <svg
           aria-labelledby={titleId}
           viewBox={`0 0 ${String(layout.width)} ${String(layout.height)}`}
@@ -95,7 +95,7 @@ export function PresetGraph({ resolved }: { resolved: ResolvedPreset }) {
           ))}
         </svg>
       </div>
-      <figcaption className="text-muted-foreground text-xs leading-5">
+      <figcaption className="text-xs leading-5 text-muted-foreground">
         Columns follow dependency depth. Outlined blocks are selected, filled
         ones are required by another block. Solid lines are requirements, dashed
         lines the integrations between installed blocks.
