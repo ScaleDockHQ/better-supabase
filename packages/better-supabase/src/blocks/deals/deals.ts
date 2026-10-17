@@ -25,7 +25,8 @@ import {
   optionalMoneyOf,
   unknownCurrency,
 } from "../money-codec.ts";
-import { lineArg, plainDate, totalsOf } from "../sales-shared.ts";
+import { lineArg, totalsOf } from "../sales-lines.ts";
+import { plainDate } from "../sales-shared.ts";
 import {
   applyTemporal,
   blockCall,

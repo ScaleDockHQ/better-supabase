@@ -33,7 +33,6 @@ export {
   workerId,
   instantOf,
   bigintOf,
-  optionalBigintOf,
 } from "../core/block-helpers.ts";
 
 export type {

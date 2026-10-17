@@ -19,17 +19,19 @@ import {
   unknownCurrency,
 } from "../money-codec.ts";
 import {
-  attrsArg,
-  compact,
   type Line,
   type LineInput,
   lineArg,
   lineOf,
+  type Totals,
+  totalsOf,
+} from "../sales-lines.ts";
+import {
+  attrsArg,
+  compact,
   plainDate,
   type RecordRef,
   refOf,
-  type Totals,
-  totalsOf,
 } from "../sales-shared.ts";
 import {
   bigintOf,
@@ -46,7 +48,9 @@ import {
   textOf,
 } from "../shared.ts";
 
-export type { Line, LineInput, RecordRef, Totals } from "../sales-shared.ts";
+export type { Line, LineInput, Totals } from "../sales-lines.ts";
+
+export type { RecordRef } from "../sales-shared.ts";
 
 export type InvoiceStatus =
   | "draft"
