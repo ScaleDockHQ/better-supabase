@@ -2,6 +2,9 @@ import * as v from "valibot";
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 import { createQuotes } from "../../../src/blocks/quotes/index.ts";
+import { money } from "../../../src/commerce/money.ts";
+
+const eur = (amount: bigint) => money(amount, "EUR");
 
 function transport(
   results: Record<string, (args: Record<string, unknown>) => unknown>,
@@ -36,7 +39,7 @@ const LINE = {
 const ROW = {
   id: "q1",
   tenant_id: "o",
-  number: 1,
+  number: "1",
   identifier: "Q-1",
   revision: 2,
   supersedes_id: "q0",
@@ -61,11 +64,11 @@ const ROW = {
   created_by: "u1",
   created_at: "2026-10-15T09:00:00Z",
   updated_at: "2026-10-15T09:00:00Z",
-  list_total: 1_000_000,
-  discount_total: 0,
-  subtotal: 1_000_000,
-  tax_total: 210_000,
-  total: 1_210_000,
+  list_total: "1000000",
+  discount_total: "0",
+  subtotal: "1000000",
+  tax_total: "210000",
+  total: "1210000",
   lines: [LINE],
   region: "eu",
 };
@@ -78,24 +81,31 @@ describe("quotes block", () => {
       .create(
         "o",
         { title: "Rollout", validUntil: Temporal.PlainDate.from("2026-11-14") },
-        [{ description: "Licences", quantity: 10, unitAmount: 100_000n }],
+        [{ description: "Licences", quantity: 10, unitAmount: eur(100_000n) }],
       )
       .orThrow();
 
     expect(t.calls[0]?.[1]).toEqual({
       tenant: "o",
-      attrs: { title: "Rollout", validUntil: "2026-11-14" },
-      lines: [{ description: "Licences", quantity: 10, unitAmount: "100000" }],
+      attrs: { title: "Rollout", validUntil: "2026-11-14", currency: "EUR" },
+      lines: [
+        {
+          description: "Licences",
+          quantity: 10,
+          unitAmount: "100000",
+          currency: "EUR",
+        },
+      ],
     });
     expect(quote).toMatchObject({
       revision: 2,
       supersedesId: "q0",
       company: { type: "company", id: "c1" },
       origin: { type: "deal", id: "d1" },
-      totals: { total: 1_210_000n },
+      totals: { total: eur(1_210_000n) },
       lines: [
         {
-          unitAmount: 100_000n,
+          unitAmount: eur(100_000n),
           taxRateBps: 2100,
           product: { type: "product", id: "p1" },
         },
@@ -119,6 +129,7 @@ describe("quotes block", () => {
         subtotal: "1",
         taxTotal: "0",
         total: "1",
+        currency: "EUR",
       }),
     });
 
@@ -130,7 +141,7 @@ describe("quotes block", () => {
     await quotes.revise("q1").orThrow();
     await quotes.fromDeal("d1").orThrow();
     await quotes.update("q1", { note: null }).orThrow();
-    expect((await quotes.setLines("q1", []).orThrow()).total).toBe(1n);
+    expect((await quotes.setLines("q1", []).orThrow()).total).toEqual(eur(1n));
     expect(t.calls[1]?.[1]).toEqual({
       quote: "q1",
       decision: "accepted",
@@ -162,7 +173,7 @@ describe("quotes block", () => {
     const quotes = createQuotes({ transport: t });
     expect(await quotes.view("tok").orThrow()).toMatchObject({
       status: "viewed",
-      total: 12n,
+      total: eur(12n),
     });
     expect(
       await quotes.respond("tok", "accepted", { name: "Els" }).orThrow(),

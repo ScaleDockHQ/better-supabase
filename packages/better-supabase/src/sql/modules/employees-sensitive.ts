@@ -2,6 +2,7 @@ import type { ModuleContext } from "../context.ts";
 import type { EmployeeNames } from "./employees-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { int8Text } from "../money-sql.ts";
 import { fail, userGrant } from "../shared.ts";
 
 interface Detail {
@@ -168,10 +169,9 @@ function contractsSql(
   const has = (column: string): boolean => ctx.has("contracts", column);
   const e = (column: string): string => n.c("employees", column);
   const table = n.t("contracts");
-  const salaryKey = sqlString(k("salary").replaceAll('"', ""));
 
   const row = (alias: string): string =>
-    `to_jsonb(${alias}) || jsonb_build_object(${salaryKey}, ${alias}.${k("salary")}::text)`;
+    `to_jsonb(${alias}) || ${int8Text(alias, [k("salary")])}`;
 
   const arg = (key: string): string =>
     `add_employee_contract.attrs ->> ${sqlString(key)}`;

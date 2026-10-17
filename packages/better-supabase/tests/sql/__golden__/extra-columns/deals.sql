@@ -297,7 +297,7 @@ begin
         using v_deal;
     end if;
   end;
-  return (select to_jsonb(x) || jsonb_build_object(
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'amount', x."amount"::text, 'existing_amount', x."existing_amount"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
       'contacts', coalesce((select jsonb_agg(jsonb_build_object('type', ck."contact_type", 'id', ck."contact_id", 'role', ck."role", 'primary', ck."is_primary") order by ck."is_primary" desc, ck."contact_id") from "better_supabase"."deal_contacts" ck where ck."deal_id" = x."id"), '[]'::jsonb),
       'members', coalesce((select jsonb_agg(jsonb_build_object('userId', cm."user_id", 'role', cm."role") order by cm."user_id") from "better_supabase"."deal_members" cm where cm."deal_id" = x."id"), '[]'::jsonb)) from "better_supabase"."deals" x where x."id" = v_deal);
 end;
@@ -471,7 +471,7 @@ begin
     "lost_reason" = case when close_deal.outcome = 'lost' then nullif(trim(close_deal.reason), '') end,
     "note" = case when close_deal.outcome = 'won' then coalesce(nullif(trim(close_deal.reason), ''), x."note") else x."note" end
   where x."id" = close_deal.deal;
-  return (select to_jsonb(x) || jsonb_build_object(
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'amount', x."amount"::text, 'existing_amount', x."existing_amount"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
       'contacts', coalesce((select jsonb_agg(jsonb_build_object('type', ck."contact_type", 'id', ck."contact_id", 'role', ck."role", 'primary', ck."is_primary") order by ck."is_primary" desc, ck."contact_id") from "better_supabase"."deal_contacts" ck where ck."deal_id" = x."id"), '[]'::jsonb),
       'members', coalesce((select jsonb_agg(jsonb_build_object('userId', cm."user_id", 'role', cm."role") order by cm."user_id") from "better_supabase"."deal_members" cm where cm."deal_id" = x."id"), '[]'::jsonb)) from "better_supabase"."deals" x where x."id" = close_deal.deal);
 end;
@@ -505,7 +505,7 @@ begin
     order by st."rank" collate "C" limit 1;
   end if;
   update "better_supabase"."deals" x set "stage_id" = v_stage where x."id" = reopen_deal.deal;
-  return (select to_jsonb(x) || jsonb_build_object(
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'amount', x."amount"::text, 'existing_amount', x."existing_amount"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
       'contacts', coalesce((select jsonb_agg(jsonb_build_object('type', ck."contact_type", 'id', ck."contact_id", 'role', ck."role", 'primary', ck."is_primary") order by ck."is_primary" desc, ck."contact_id") from "better_supabase"."deal_contacts" ck where ck."deal_id" = x."id"), '[]'::jsonb),
       'members', coalesce((select jsonb_agg(jsonb_build_object('userId', cm."user_id", 'role', cm."role") order by cm."user_id") from "better_supabase"."deal_members" cm where cm."deal_id" = x."id"), '[]'::jsonb)) from "better_supabase"."deals" x where x."id" = reopen_deal.deal);
 end;
@@ -664,8 +664,9 @@ create trigger bs_deal_lines_totals after insert or update or delete on "better_
 for each row execute function better_supabase.bs_deal_lines_totals();
 
 -- Replaces a record's lines with lines: a list of { description, quantity,
--- unitAmount (minor units, as text or a number), discountBps, taxRateBps,
--- taxCode, product: { type, id } }. Returns the record's totals.
+-- unitAmount (minor units as text), currency, discountBps, taxRateBps,
+-- taxCode, product: { type, id } }. A line's currency must be the record's.
+-- Returns the record's totals as text, with its currency.
 create or replace function "better_supabase"."set_deal_lines"(parent uuid, lines jsonb)
 returns jsonb
 language plpgsql
@@ -675,11 +676,12 @@ as $$
 declare
   v_parent uuid := set_deal_lines.parent;
   v_tenant uuid;
+  v_currency text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."deals" x where x."id" = v_parent and not (x."locked");
+  select x."tenant_id", x."currency" into v_tenant, v_currency from "better_supabase"."deals" x where x."id" = v_parent and not (x."locked");
   if v_tenant is null then
     raise exception 'no such record, or its lines are locked' using errcode = 'P0002', hint = 'LINES_RECORD_INVALID';
   end if;
@@ -690,6 +692,9 @@ begin
   end if;
   if jsonb_typeof(coalesce(set_deal_lines.lines, '[]')) <> 'array' then
     raise exception 'lines must be a list' using errcode = '22023', hint = 'LINES_INVALID';
+  end if;
+  if exists (select 1 from jsonb_array_elements(set_deal_lines.lines) x where x.value ? 'currency' and x.value ->> 'currency' is distinct from v_currency) then
+    raise exception 'every line must be in the record''s currency' using errcode = '22023', hint = 'LINES_CURRENCY';
   end if;
   delete from "better_supabase"."deal_lines" l where l."parent_id" = v_parent;
   begin
@@ -705,7 +710,8 @@ begin
   perform "better_supabase"."set_deal_lines_recount"(v_parent);
   return (select jsonb_build_object(
     'listTotal', x."list_total"::text, 'discountTotal', x."discount_total"::text,
-    'subtotal', x."subtotal"::text, 'taxTotal', x."tax_total"::text, 'total', x."total"::text)
+    'subtotal', x."subtotal"::text, 'taxTotal', x."tax_total"::text, 'total', x."total"::text,
+    'currency', x."currency")
     from "better_supabase"."deals" x where x."id" = v_parent);
 end;
 $$;

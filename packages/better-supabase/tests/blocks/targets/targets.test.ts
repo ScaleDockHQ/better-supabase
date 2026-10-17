@@ -31,7 +31,7 @@ const ROW = {
   period_start: "2026-10-01",
   period_end: "2026-12-31",
   currency: "EUR",
-  goal: 1000,
+  goal: "1000",
 };
 
 describe("targets block", () => {

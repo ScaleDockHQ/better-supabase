@@ -19,6 +19,7 @@ import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { rankBetweenResult } from "../../core/rank-result.ts";
 import { AsyncResult } from "../../core/result.ts";
+import { optionalAmountText, optionalMoneyOf } from "../money-codec.ts";
 import {
   applyTemporal,
   blockCall,
@@ -274,15 +275,6 @@ export interface Catalog<F extends object = Record<never, never>> {
   ): AsyncResult<boolean>;
 }
 
-const minor = (value: Money | undefined): string | null =>
-  value === undefined ? null : value.amount.toString();
-
-function moneyOf(value: unknown, currency: string): Money | undefined {
-  const amount = optionalText(value);
-
-  return amount === undefined ? undefined : money(BigInt(amount), currency);
-}
-
 function productOf(value: unknown): SavedProduct {
   const row = recordOf(value, "save_product");
 
@@ -309,7 +301,7 @@ function priceOf(value: unknown): Price | null {
   }
 
   const currency = textOf(value["currency"]);
-  const compareAt = moneyOf(value["compareAt"], currency);
+  const compareAt = optionalMoneyOf(value["compareAt"], currency);
   const priceListId = optionalText(value["priceListId"]);
 
   return {
@@ -474,15 +466,19 @@ export function createCatalog<
         {
           variant: variantId,
           currency,
-          amount: minor(input.amount),
-          compare_at: minor(input.compareAt),
+          amount: optionalAmountText(input.amount),
+          compare_at: optionalAmountText(input.compareAt),
           price_list: input.priceListId ?? null,
           valid_from: instantArg(input.validFrom) ?? null,
           valid_until: instantArg(input.validUntil) ?? null,
         },
         (value) => {
           const row = recordOf(value, "set_price");
-          const previousAmount = moneyOf(row["previousAmount"], currency);
+
+          const previousAmount = optionalMoneyOf(
+            row["previousAmount"],
+            currency,
+          );
 
           return {
             id: textOf(row["id"]),

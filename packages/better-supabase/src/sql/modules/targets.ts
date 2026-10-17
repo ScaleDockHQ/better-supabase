@@ -6,6 +6,7 @@ import type {
 import type { ModuleDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { int8Text } from "../money-sql.ts";
 import {
   addExtraColumns,
   fail,
@@ -125,10 +126,13 @@ ${Object.entries(known)
     "attainment",
   ]);
 
-  const progressRow =
-    extras.length === 0
-      ? "to_jsonb(p)"
-      : withExtraFields("to_jsonb(p)", "p", extras);
+  const int8 = [c("goal"), c("actual")];
+
+  const progressRow = withExtraFields(
+    `(to_jsonb(p) || ${int8Text("p", int8)})`,
+    "p",
+    extras,
+  );
 
   return `${schemaPreamble(ctx)}
 -- Targets: a goal per period for a metric, for a member, a team or the
@@ -199,7 +203,7 @@ begin
   exception when check_violation or not_null_violation or invalid_text_representation or datetime_field_overflow then
     ${fail("TARGET_INVALID", "a target needs a name, a metric, a period and a positive goal", "22023")}
   end;${writeExtraColumns(t, extras, "(save_target.attrs -> 'fields')", `x.${c("id")} = v_id`)}
-  return (select ${withExtraFields("to_jsonb(x)", "x", extras)} from ${t} x where x.${c("id")} = v_id);
+  return (select ${withExtraFields(`(to_jsonb(x) || ${int8Text("x", int8)})`, "x", extras)} from ${t} x where x.${c("id")} = v_id);
 end;
 $$;
 ${userGrant(`${fn("save_target")}(${ctx.idType}, uuid, jsonb)`)}

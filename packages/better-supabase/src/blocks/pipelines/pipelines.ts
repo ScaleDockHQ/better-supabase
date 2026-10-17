@@ -1,3 +1,4 @@
+import type { Money } from "../../commerce/money.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
@@ -18,6 +19,7 @@ import {
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { rankBetweenResult } from "../../core/rank-result.ts";
 import { AsyncResult } from "../../core/result.ts";
+import { moneyOf } from "../money-codec.ts";
 import {
   applyTemporal,
   blockCall,
@@ -100,12 +102,12 @@ export interface PipelineTransition {
   readonly to: string;
 }
 
-/** One currency's totals in a board column. Amounts are minor units. */
+/** One currency's totals in a board column. */
 export interface PipelineTotal {
   readonly currency: string;
-  readonly amount: bigint;
+  readonly amount: Money;
   /** The amount times each record's probability (or its stage's), rounded. */
-  readonly weighted: bigint;
+  readonly weighted: Money;
 }
 
 /** One board column: a stage with the records the caller can see in it. */
@@ -213,9 +215,6 @@ export interface PipelinesOptions<
 const numberOf = (value: unknown): number | undefined =>
   typeof value === "number" ? value : undefined;
 
-const bigintOf = (value: unknown): bigint =>
-  typeof value === "string" || typeof value === "number" ? BigInt(value) : 0n;
-
 function stageOf(value: unknown): PipelineStage {
   const row = recordOf(value, "pipeline stage");
   const systemKey = optionalText(row["system_key"]);
@@ -272,11 +271,19 @@ function columnOf(value: unknown): PipelineColumn {
     outcome: enumOrThrow(row["outcome"], OUTCOMES, "pipeline stage outcome"),
     count: numberOf(row["count"]) ?? 0,
     overLimit: row["overLimit"] === true,
-    totals: recordsOf(row["totals"], "pipeline_board totals").map((total) => ({
-      currency: textOf(total["currency"]),
-      amount: bigintOf(total["amount"]),
-      weighted: bigintOf(total["weighted"]),
-    })),
+    totals: recordsOf(row["totals"], "pipeline_board totals").map((total) => {
+      const currency = textOf(total["currency"]);
+
+      return {
+        currency,
+        amount: moneyOf(total["amount"], currency, "pipeline total amount"),
+        weighted: moneyOf(
+          total["weighted"],
+          currency,
+          "pipeline total weighted",
+        ),
+      };
+    }),
     ...(color === undefined ? {} : { color }),
     ...(probability === undefined ? {} : { probability }),
     ...(wipLimit === undefined ? {} : { wipLimit }),

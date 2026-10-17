@@ -1,4 +1,7 @@
+import type { Money } from "../commerce/money.ts";
+
 import { temporal } from "../core/temporal-required.ts";
+import { amountText, moneyOf } from "./money-codec.ts";
 import { optionalText, recordOf, textOf } from "./shared.ts";
 
 /** A record a sales document points at: a company, a contact, its origin. */
@@ -7,11 +10,11 @@ export interface RecordRef {
   readonly id: string;
 }
 
-/** A line of a quote or invoice. Amounts are minor units. */
+/** A line of a quote or invoice, in the document's currency. */
 export interface LineInput {
   readonly description: string;
   readonly quantity?: number;
-  readonly unitAmount: bigint;
+  readonly unitAmount: Money;
   readonly discountBps?: number;
   readonly taxRateBps?: number;
   readonly taxCode?: string;
@@ -24,13 +27,13 @@ export interface Line extends LineInput {
   readonly taxRateBps: number;
 }
 
-/** A document's totals in minor units. */
+/** A document's totals, in its currency. */
 export interface Totals {
-  readonly listTotal: bigint;
-  readonly discountTotal: bigint;
-  readonly subtotal: bigint;
-  readonly taxTotal: bigint;
-  readonly total: bigint;
+  readonly listTotal: Money;
+  readonly discountTotal: Money;
+  readonly subtotal: Money;
+  readonly taxTotal: Money;
+  readonly total: Money;
 }
 
 type Loose<T> = { [K in keyof T]: T[K] | undefined };
@@ -42,9 +45,6 @@ export function compact<T extends object>(value: Loose<T>): T {
     Object.entries(value).filter(([, item]) => item !== undefined),
   ) as T;
 }
-
-export const big = (value: unknown): bigint =>
-  typeof value === "string" || typeof value === "number" ? BigInt(value) : 0n;
 
 export const plainDate = (value: unknown): Temporal.PlainDate | undefined =>
   typeof value === "string"
@@ -58,14 +58,15 @@ export function refOf(type: unknown, id: unknown): RecordRef | undefined {
   return t === undefined || i === undefined ? undefined : { type: t, id: i };
 }
 
-export function lineOf(value: unknown): Line {
+/** A line a document function returned, in the document's `currency`. */
+export function lineOf(value: unknown, currency: string): Line {
   const row = recordOf(value, "line");
   const product = recordOf(row["product"] ?? {}, "line product");
 
   return compact<Line>({
     description: textOf(row["description"]),
     quantity: Number(row["quantity"] ?? 1),
-    unitAmount: big(row["unitAmount"]),
+    unitAmount: moneyOf(row["unitAmount"], currency, "line unitAmount"),
     discountBps: Number(row["discountBps"] ?? 0),
     taxRateBps: Number(row["taxRateBps"] ?? 0),
     taxCode: optionalText(row["taxCode"]),
@@ -73,23 +74,33 @@ export function lineOf(value: unknown): Line {
   });
 }
 
-export function totalsOf(row: Record<string, unknown>, camel: boolean): Totals {
-  const key = (snake: string, camelKey: string): unknown =>
-    camel ? row[camelKey] : row[snake];
+/**
+ * A document's totals: a row (snake keys) or a `set_*_lines` result (camel
+ * keys, with its currency).
+ */
+export function totalsOf(
+  row: Readonly<Record<string, unknown>>,
+  camel: boolean,
+): Totals {
+  const currency = row["currency"];
+
+  const at = (snake: string, camelKey: string): Money =>
+    moneyOf(camel ? row[camelKey] : row[snake], currency, camelKey);
 
   return {
-    listTotal: big(key("list_total", "listTotal")),
-    discountTotal: big(key("discount_total", "discountTotal")),
-    subtotal: big(key("subtotal", "subtotal")),
-    taxTotal: big(key("tax_total", "taxTotal")),
-    total: big(key("total", "total")),
+    listTotal: at("list_total", "listTotal"),
+    discountTotal: at("discount_total", "discountTotal"),
+    subtotal: at("subtotal", "subtotal"),
+    taxTotal: at("tax_total", "taxTotal"),
+    total: at("total", "total"),
   };
 }
 
-/** A line as the database reads it: the unit amount as text. */
+/** A line as the database reads it: the unit amount as text, with its currency. */
 export const lineArg = (line: LineInput): Record<string, unknown> => ({
   ...line,
-  unitAmount: line.unitAmount.toString(),
+  unitAmount: amountText(line.unitAmount),
+  currency: line.unitAmount.currency,
 });
 
 /** Write attributes as the database reads them: dates as ISO text. */

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createPipelines } from "../../../src/blocks/pipelines/index.ts";
+import { money } from "../../../src/commerce/money.ts";
 
 function transport(
   results: Record<string, (args: Record<string, unknown>) => unknown>,
@@ -133,7 +134,7 @@ describe("pipelines block", () => {
     ]);
   });
 
-  it("reads board totals as bigint minor units", async () => {
+  it("reads board totals as Money", async () => {
     const t = transport({
       pipeline_board: () => [
         {
@@ -163,7 +164,11 @@ describe("pipelines block", () => {
       overLimit: true,
       wipLimit: 2,
       totals: [
-        { currency: "EUR", amount: 9_007_199_254_740_993n, weighted: 100n },
+        {
+          currency: "EUR",
+          amount: money(9_007_199_254_740_993n, "EUR"),
+          weighted: money(100n, "EUR"),
+        },
       ],
     });
     expect(t.calls[0]).toEqual([
@@ -286,7 +291,7 @@ describe("pipelines block, optional fields", () => {
           wipLimit: null,
           count: null,
           overLimit: false,
-          totals: [{ currency: "EUR", amount: 5, weighted: null }],
+          totals: [{ currency: "EUR", amount: "5", weighted: "0" }],
         },
       ],
       pipeline_stats: () => ({
@@ -342,7 +347,13 @@ describe("pipelines block, optional fields", () => {
     expect(column).toMatchObject({
       color: "#f00",
       count: 0,
-      totals: [{ currency: "EUR", amount: 5n, weighted: 0n }],
+      totals: [
+        {
+          currency: "EUR",
+          amount: money(5n, "EUR"),
+          weighted: money(0n, "EUR"),
+        },
+      ],
     });
     expect(column?.probability).toBeUndefined();
     const since = Temporal.Instant.from("2026-10-01T00:00:00Z");

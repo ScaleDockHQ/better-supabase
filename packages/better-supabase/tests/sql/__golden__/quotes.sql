@@ -149,7 +149,7 @@ begin
     
   end if;
   null;
-  return (select (to_jsonb(x) - 'token_hash') || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = x."id"), '[]'::jsonb)) from "better_supabase"."quotes" x where x."id" = v_row."id");
+  return (select (to_jsonb(x) - 'token_hash') || jsonb_build_object('number', x."number"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = x."id"), '[]'::jsonb)) from "better_supabase"."quotes" x where x."id" = v_row."id");
 end;
 $$;
 revoke execute on function "better_supabase"."create_quote"(uuid, jsonb, jsonb) from public, anon;
@@ -201,7 +201,7 @@ begin
     raise exception 'a quote field has an invalid value' using errcode = '22023', hint = 'QUOTE_ATTRS_INVALID';
   end;
   null;
-  return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb));
+  return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('number', v_row."number"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
 revoke execute on function "better_supabase"."update_quote"(uuid, jsonb) from public, anon;
@@ -274,8 +274,9 @@ create trigger bs_quote_lines_totals after insert or update or delete on "better
 for each row execute function better_supabase.bs_quote_lines_totals();
 
 -- Replaces a record's lines with lines: a list of { description, quantity,
--- unitAmount (minor units, as text or a number), discountBps, taxRateBps,
--- taxCode, product: { type, id } }. Returns the record's totals.
+-- unitAmount (minor units as text), currency, discountBps, taxRateBps,
+-- taxCode, product: { type, id } }. A line's currency must be the record's.
+-- Returns the record's totals as text, with its currency.
 create or replace function "better_supabase"."set_quote_lines"(parent uuid, lines jsonb)
 returns jsonb
 language plpgsql
@@ -285,11 +286,12 @@ as $$
 declare
   v_parent uuid := set_quote_lines.parent;
   v_tenant uuid;
+  v_currency text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."quotes" x where x."id" = v_parent and not (not (x."status" in ('draft', 'changes_requested')));
+  select x."tenant_id", x."currency" into v_tenant, v_currency from "better_supabase"."quotes" x where x."id" = v_parent and not (not (x."status" in ('draft', 'changes_requested')));
   if v_tenant is null then
     raise exception 'no such record, or its lines are locked' using errcode = 'P0002', hint = 'LINES_RECORD_INVALID';
   end if;
@@ -298,6 +300,9 @@ begin
   end if;
   if jsonb_typeof(coalesce(set_quote_lines.lines, '[]')) <> 'array' then
     raise exception 'lines must be a list' using errcode = '22023', hint = 'LINES_INVALID';
+  end if;
+  if exists (select 1 from jsonb_array_elements(set_quote_lines.lines) x where x.value ? 'currency' and x.value ->> 'currency' is distinct from v_currency) then
+    raise exception 'every line must be in the record''s currency' using errcode = '22023', hint = 'LINES_CURRENCY';
   end if;
   delete from "better_supabase"."quote_lines" l where l."parent_id" = v_parent;
   begin
@@ -313,7 +318,8 @@ begin
   perform "better_supabase"."set_quote_lines_recount"(v_parent);
   return (select jsonb_build_object(
     'listTotal', x."list_total"::text, 'discountTotal', x."discount_total"::text,
-    'subtotal', x."subtotal"::text, 'taxTotal', x."tax_total"::text, 'total', x."total"::text)
+    'subtotal', x."subtotal"::text, 'taxTotal', x."tax_total"::text, 'total', x."total"::text,
+    'currency', x."currency")
     from "better_supabase"."quotes" x where x."id" = v_parent);
 end;
 $$;
@@ -367,7 +373,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb)) || jsonb_build_object('token', v_token);
+  return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('number', v_row."number"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb)) || jsonb_build_object('token', v_token);
 end;
 $$;
 revoke execute on function "better_supabase"."send_quote"(uuid) from public, anon;
@@ -430,7 +436,7 @@ begin
     end if;
   end;
   end if;
-  return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb));
+  return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('number', v_row."number"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
 revoke execute on function "better_supabase"."decide_quote"(uuid, text, text, text) from public, anon;
@@ -475,7 +481,7 @@ begin
     update "better_supabase"."quotes" x set "status" = 'withdrawn', "token_hash" = null, "updated_at" = now() where x."id" = v_old."id";
   end if;
   null;
-  return (select (to_jsonb(x) - 'token_hash') || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = x."id"), '[]'::jsonb)) from "better_supabase"."quotes" x where x."id" = v_row."id");
+  return (select (to_jsonb(x) - 'token_hash') || jsonb_build_object('number', x."number"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = x."id"), '[]'::jsonb)) from "better_supabase"."quotes" x where x."id" = v_row."id");
 end;
 $$;
 revoke execute on function "better_supabase"."revise_quote"(uuid) from public, anon;
@@ -793,7 +799,7 @@ begin
     );
   end if;
   perform "better_supabase".emit_event('quote.created', jsonb_build_object('organizationId', v_row."tenant_id", 'quoteId', v_row."id", 'subjectType', 'quote', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier"), 'quotes/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/quotes');
-  return (select (to_jsonb(x) - 'token_hash') || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = x."id"), '[]'::jsonb)) from "better_supabase"."quotes" x where x."id" = v_row."id");
+  return (select (to_jsonb(x) - 'token_hash') || jsonb_build_object('number', x."number"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = x."id"), '[]'::jsonb)) from "better_supabase"."quotes" x where x."id" = v_row."id");
 end;
 $$;
 revoke execute on function "better_supabase"."create_quote"(uuid, jsonb, jsonb) from public, anon;
@@ -845,7 +851,7 @@ begin
     raise exception 'a quote field has an invalid value' using errcode = '22023', hint = 'QUOTE_ATTRS_INVALID';
   end;
   perform "better_supabase".emit_event('quote.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'quoteId', v_row."id", 'subjectType', 'quote', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier"), 'quotes/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/quotes');
-  return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb));
+  return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('number', v_row."number"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
 revoke execute on function "better_supabase"."update_quote"(uuid, jsonb) from public, anon;
@@ -918,8 +924,9 @@ create trigger bs_quote_lines_totals after insert or update or delete on "better
 for each row execute function better_supabase.bs_quote_lines_totals();
 
 -- Replaces a record's lines with lines: a list of { description, quantity,
--- unitAmount (minor units, as text or a number), discountBps, taxRateBps,
--- taxCode, product: { type, id } }. Returns the record's totals.
+-- unitAmount (minor units as text), currency, discountBps, taxRateBps,
+-- taxCode, product: { type, id } }. A line's currency must be the record's.
+-- Returns the record's totals as text, with its currency.
 create or replace function "better_supabase"."set_quote_lines"(parent uuid, lines jsonb)
 returns jsonb
 language plpgsql
@@ -929,11 +936,12 @@ as $$
 declare
   v_parent uuid := set_quote_lines.parent;
   v_tenant uuid;
+  v_currency text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."quotes" x where x."id" = v_parent and not (not (x."status" in ('draft', 'changes_requested')));
+  select x."tenant_id", x."currency" into v_tenant, v_currency from "better_supabase"."quotes" x where x."id" = v_parent and not (not (x."status" in ('draft', 'changes_requested')));
   if v_tenant is null then
     raise exception 'no such record, or its lines are locked' using errcode = 'P0002', hint = 'LINES_RECORD_INVALID';
   end if;
@@ -942,6 +950,9 @@ begin
   end if;
   if jsonb_typeof(coalesce(set_quote_lines.lines, '[]')) <> 'array' then
     raise exception 'lines must be a list' using errcode = '22023', hint = 'LINES_INVALID';
+  end if;
+  if exists (select 1 from jsonb_array_elements(set_quote_lines.lines) x where x.value ? 'currency' and x.value ->> 'currency' is distinct from v_currency) then
+    raise exception 'every line must be in the record''s currency' using errcode = '22023', hint = 'LINES_CURRENCY';
   end if;
   delete from "better_supabase"."quote_lines" l where l."parent_id" = v_parent;
   begin
@@ -957,7 +968,8 @@ begin
   perform "better_supabase"."set_quote_lines_recount"(v_parent);
   return (select jsonb_build_object(
     'listTotal', x."list_total"::text, 'discountTotal', x."discount_total"::text,
-    'subtotal', x."subtotal"::text, 'taxTotal', x."tax_total"::text, 'total', x."total"::text)
+    'subtotal', x."subtotal"::text, 'taxTotal', x."tax_total"::text, 'total', x."total"::text,
+    'currency', x."currency")
     from "better_supabase"."quotes" x where x."id" = v_parent);
 end;
 $$;
@@ -1011,7 +1023,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb)) || jsonb_build_object('token', v_token);
+  return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('number', v_row."number"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb)) || jsonb_build_object('token', v_token);
 end;
 $$;
 revoke execute on function "better_supabase"."send_quote"(uuid) from public, anon;
@@ -1089,7 +1101,7 @@ begin
     end if;
   end;
   end if;
-  return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb));
+  return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('number', v_row."number"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
 revoke execute on function "better_supabase"."decide_quote"(uuid, text, text, text) from public, anon;
@@ -1134,7 +1146,7 @@ begin
     update "better_supabase"."quotes" x set "status" = 'withdrawn', "token_hash" = null, "updated_at" = now() where x."id" = v_old."id";
   end if;
   perform "better_supabase".emit_event('quote.revised', jsonb_build_object('organizationId', v_old."tenant_id", 'quoteId', v_old."id", 'subjectType', 'quote', 'subjectId', v_old."id"::text, 'identifier', v_old."identifier", 'revisionId', v_row."id"), 'quotes/' || v_old."id"::text, (v_old."tenant_id"::text)::text, null, 'better-supabase/quotes');
-  return (select (to_jsonb(x) - 'token_hash') || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = x."id"), '[]'::jsonb)) from "better_supabase"."quotes" x where x."id" = v_row."id");
+  return (select (to_jsonb(x) - 'token_hash') || jsonb_build_object('number', x."number"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = x."id"), '[]'::jsonb)) from "better_supabase"."quotes" x where x."id" = v_row."id");
 end;
 $$;
 revoke execute on function "better_supabase"."revise_quote"(uuid) from public, anon;
@@ -1309,7 +1321,7 @@ begin
   where x."origin_type" = 'deal' and x."origin_id" = v_deal."id"::text and x."supersedes_id" is null
   order by x."created_at" limit 1;
   if v_row."id" is not null then
-    return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb));
+    return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('number', v_row."number"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb));
   end if;
   select x."contact_type" as type, x."contact_id" as id into v_contact
   from "better_supabase"."deal_contacts" x where x."deal_id" = v_deal."id" order by x."is_primary" desc limit 1;
@@ -1509,7 +1521,7 @@ begin
     
   end if;
   null;
-  return (select (to_jsonb(x) - 'token_hash') || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "app_private"."quote_lines" ql where ql."parent_id" = x."id"), '[]'::jsonb)) from "app_private"."quotes" x where x."id" = v_row."id");
+  return (select (to_jsonb(x) - 'token_hash') || jsonb_build_object('number', x."number"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "app_private"."quote_lines" ql where ql."parent_id" = x."id"), '[]'::jsonb)) from "app_private"."quotes" x where x."id" = v_row."id");
 end;
 $$;
 revoke execute on function "app_private"."create_quote"(uuid, jsonb, jsonb) from public, anon;
@@ -1561,7 +1573,7 @@ begin
     raise exception 'a quote field has an invalid value' using errcode = '22023', hint = 'QUOTE_ATTRS_INVALID';
   end;
   null;
-  return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "app_private"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb));
+  return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('number', v_row."number"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "app_private"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
 revoke execute on function "app_private"."update_quote"(uuid, jsonb) from public, anon;
@@ -1634,8 +1646,9 @@ create trigger bs_quote_lines_totals after insert or update or delete on "app_pr
 for each row execute function better_supabase.bs_quote_lines_totals();
 
 -- Replaces a record's lines with lines: a list of { description, quantity,
--- unitAmount (minor units, as text or a number), discountBps, taxRateBps,
--- taxCode, product: { type, id } }. Returns the record's totals.
+-- unitAmount (minor units as text), currency, discountBps, taxRateBps,
+-- taxCode, product: { type, id } }. A line's currency must be the record's.
+-- Returns the record's totals as text, with its currency.
 create or replace function "app_private"."set_quote_lines"(parent uuid, lines jsonb)
 returns jsonb
 language plpgsql
@@ -1645,11 +1658,12 @@ as $$
 declare
   v_parent uuid := set_quote_lines.parent;
   v_tenant uuid;
+  v_currency text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "app_private"."quotes" x where x."id" = v_parent and not (not (x."status" in ('draft', 'changes_requested')));
+  select x."tenant_id", x."currency" into v_tenant, v_currency from "app_private"."quotes" x where x."id" = v_parent and not (not (x."status" in ('draft', 'changes_requested')));
   if v_tenant is null then
     raise exception 'no such record, or its lines are locked' using errcode = 'P0002', hint = 'LINES_RECORD_INVALID';
   end if;
@@ -1658,6 +1672,9 @@ begin
   end if;
   if jsonb_typeof(coalesce(set_quote_lines.lines, '[]')) <> 'array' then
     raise exception 'lines must be a list' using errcode = '22023', hint = 'LINES_INVALID';
+  end if;
+  if exists (select 1 from jsonb_array_elements(set_quote_lines.lines) x where x.value ? 'currency' and x.value ->> 'currency' is distinct from v_currency) then
+    raise exception 'every line must be in the record''s currency' using errcode = '22023', hint = 'LINES_CURRENCY';
   end if;
   delete from "app_private"."quote_lines" l where l."parent_id" = v_parent;
   begin
@@ -1673,7 +1690,8 @@ begin
   perform "app_private"."set_quote_lines_recount"(v_parent);
   return (select jsonb_build_object(
     'listTotal', x."list_total"::text, 'discountTotal', x."discount_total"::text,
-    'subtotal', x."subtotal"::text, 'taxTotal', x."tax_total"::text, 'total', x."total"::text)
+    'subtotal', x."subtotal"::text, 'taxTotal', x."tax_total"::text, 'total', x."total"::text,
+    'currency', x."currency")
     from "app_private"."quotes" x where x."id" = v_parent);
 end;
 $$;
@@ -1727,7 +1745,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "app_private"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb)) || jsonb_build_object('token', v_token);
+  return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('number', v_row."number"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "app_private"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb)) || jsonb_build_object('token', v_token);
 end;
 $$;
 revoke execute on function "app_private"."send_quote"(uuid) from public, anon;
@@ -1790,7 +1808,7 @@ begin
     end if;
   end;
   end if;
-  return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "app_private"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb));
+  return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('number', v_row."number"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "app_private"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
 revoke execute on function "app_private"."decide_quote"(uuid, text, text, text) from public, anon;
@@ -1835,7 +1853,7 @@ begin
     update "app_private"."quotes" x set "status" = 'withdrawn', "token_hash" = null, "updated_at" = now() where x."id" = v_old."id";
   end if;
   null;
-  return (select (to_jsonb(x) - 'token_hash') || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "app_private"."quote_lines" ql where ql."parent_id" = x."id"), '[]'::jsonb)) from "app_private"."quotes" x where x."id" = v_row."id");
+  return (select (to_jsonb(x) - 'token_hash') || jsonb_build_object('number', x."number"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "app_private"."quote_lines" ql where ql."parent_id" = x."id"), '[]'::jsonb)) from "app_private"."quotes" x where x."id" = v_row."id");
 end;
 $$;
 revoke execute on function "app_private"."revise_quote"(uuid) from public, anon;
@@ -2148,7 +2166,7 @@ begin
     
   end if;
   null;
-  return (select (to_jsonb(x) - 'token_hash') || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = x."id"), '[]'::jsonb)) from "better_supabase"."quotes" x where x."id" = v_row."id");
+  return (select (to_jsonb(x) - 'token_hash') || jsonb_build_object('number', x."number"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = x."id"), '[]'::jsonb)) from "better_supabase"."quotes" x where x."id" = v_row."id");
 end;
 $$;
 revoke execute on function "better_supabase"."create_quote"(uuid, jsonb, jsonb) from public, anon;
@@ -2200,7 +2218,7 @@ begin
     raise exception 'a quote field has an invalid value' using errcode = '22023', hint = 'QUOTE_ATTRS_INVALID';
   end;
   null;
-  return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb));
+  return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('number', v_row."number"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
 revoke execute on function "better_supabase"."update_quote"(uuid, jsonb) from public, anon;
@@ -2273,8 +2291,9 @@ create trigger bs_quote_lines_totals after insert or update or delete on "better
 for each row execute function better_supabase.bs_quote_lines_totals();
 
 -- Replaces a record's lines with lines: a list of { description, quantity,
--- unitAmount (minor units, as text or a number), discountBps, taxRateBps,
--- taxCode, product: { type, id } }. Returns the record's totals.
+-- unitAmount (minor units as text), currency, discountBps, taxRateBps,
+-- taxCode, product: { type, id } }. A line's currency must be the record's.
+-- Returns the record's totals as text, with its currency.
 create or replace function "better_supabase"."set_quote_lines"(parent uuid, lines jsonb)
 returns jsonb
 language plpgsql
@@ -2284,11 +2303,12 @@ as $$
 declare
   v_parent uuid := set_quote_lines.parent;
   v_tenant uuid;
+  v_currency text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."quotes" x where x."id" = v_parent and not (not (x."status" in ('draft', 'changes_requested')));
+  select x."tenant_id", x."currency" into v_tenant, v_currency from "better_supabase"."quotes" x where x."id" = v_parent and not (not (x."status" in ('draft', 'changes_requested')));
   if v_tenant is null then
     raise exception 'no such record, or its lines are locked' using errcode = 'P0002', hint = 'LINES_RECORD_INVALID';
   end if;
@@ -2297,6 +2317,9 @@ begin
   end if;
   if jsonb_typeof(coalesce(set_quote_lines.lines, '[]')) <> 'array' then
     raise exception 'lines must be a list' using errcode = '22023', hint = 'LINES_INVALID';
+  end if;
+  if exists (select 1 from jsonb_array_elements(set_quote_lines.lines) x where x.value ? 'currency' and x.value ->> 'currency' is distinct from v_currency) then
+    raise exception 'every line must be in the record''s currency' using errcode = '22023', hint = 'LINES_CURRENCY';
   end if;
   delete from "better_supabase"."quote_lines" l where l."parent_id" = v_parent;
   begin
@@ -2312,7 +2335,8 @@ begin
   perform "better_supabase"."set_quote_lines_recount"(v_parent);
   return (select jsonb_build_object(
     'listTotal', x."list_total"::text, 'discountTotal', x."discount_total"::text,
-    'subtotal', x."subtotal"::text, 'taxTotal', x."tax_total"::text, 'total', x."total"::text)
+    'subtotal', x."subtotal"::text, 'taxTotal', x."tax_total"::text, 'total', x."total"::text,
+    'currency', x."currency")
     from "better_supabase"."quotes" x where x."id" = v_parent);
 end;
 $$;
@@ -2366,7 +2390,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb)) || jsonb_build_object('token', v_token);
+  return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('number', v_row."number"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb)) || jsonb_build_object('token', v_token);
 end;
 $$;
 revoke execute on function "better_supabase"."send_quote"(uuid) from public, anon;
@@ -2429,7 +2453,7 @@ begin
     end if;
   end;
   end if;
-  return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb));
+  return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('number', v_row."number"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
 revoke execute on function "better_supabase"."decide_quote"(uuid, text, text, text) from public, anon;
@@ -2474,7 +2498,7 @@ begin
     update "better_supabase"."quotes" x set "status" = 'withdrawn', "token_hash" = null, "updated_at" = now() where x."id" = v_old."id";
   end if;
   null;
-  return (select (to_jsonb(x) - 'token_hash') || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = x."id"), '[]'::jsonb)) from "better_supabase"."quotes" x where x."id" = v_row."id");
+  return (select (to_jsonb(x) - 'token_hash') || jsonb_build_object('number', x."number"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = x."id"), '[]'::jsonb)) from "better_supabase"."quotes" x where x."id" = v_row."id");
 end;
 $$;
 revoke execute on function "better_supabase"."revise_quote"(uuid) from public, anon;

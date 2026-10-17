@@ -167,7 +167,7 @@ begin
     
   end if;
   null;
-  return (select to_jsonb(x) || jsonb_build_object(
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
       'balance', (x."total" - x."credited_total" - x."paid_total")::text,
       'overdue', x."status" in ('issued', 'partially_paid') and x."due_on" < current_date,
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = x."id"), '[]'::jsonb),
@@ -244,8 +244,9 @@ create trigger bs_invoice_lines_totals after insert or update or delete on "bett
 for each row execute function better_supabase.bs_invoice_lines_totals();
 
 -- Replaces a record's lines with lines: a list of { description, quantity,
--- unitAmount (minor units, as text or a number), discountBps, taxRateBps,
--- taxCode, product: { type, id } }. Returns the record's totals.
+-- unitAmount (minor units as text), currency, discountBps, taxRateBps,
+-- taxCode, product: { type, id } }. A line's currency must be the record's.
+-- Returns the record's totals as text, with its currency.
 create or replace function "better_supabase"."set_invoice_lines"(parent uuid, lines jsonb)
 returns jsonb
 language plpgsql
@@ -255,11 +256,12 @@ as $$
 declare
   v_parent uuid := set_invoice_lines.parent;
   v_tenant uuid;
+  v_currency text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."invoices" x where x."id" = v_parent and not (x."status" <> 'draft');
+  select x."tenant_id", x."currency" into v_tenant, v_currency from "better_supabase"."invoices" x where x."id" = v_parent and not (x."status" <> 'draft');
   if v_tenant is null then
     raise exception 'no such record, or its lines are locked' using errcode = 'P0002', hint = 'LINES_RECORD_INVALID';
   end if;
@@ -268,6 +270,9 @@ begin
   end if;
   if jsonb_typeof(coalesce(set_invoice_lines.lines, '[]')) <> 'array' then
     raise exception 'lines must be a list' using errcode = '22023', hint = 'LINES_INVALID';
+  end if;
+  if exists (select 1 from jsonb_array_elements(set_invoice_lines.lines) x where x.value ? 'currency' and x.value ->> 'currency' is distinct from v_currency) then
+    raise exception 'every line must be in the record''s currency' using errcode = '22023', hint = 'LINES_CURRENCY';
   end if;
   delete from "better_supabase"."invoice_lines" l where l."parent_id" = v_parent;
   begin
@@ -283,7 +288,8 @@ begin
   perform "better_supabase"."set_invoice_lines_recount"(v_parent);
   return (select jsonb_build_object(
     'listTotal', x."list_total"::text, 'discountTotal', x."discount_total"::text,
-    'subtotal', x."subtotal"::text, 'taxTotal', x."tax_total"::text, 'total', x."total"::text)
+    'subtotal', x."subtotal"::text, 'taxTotal', x."tax_total"::text, 'total', x."total"::text,
+    'currency', x."currency")
     from "better_supabase"."invoices" x where x."id" = v_parent);
 end;
 $$;
@@ -376,7 +382,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return to_jsonb(v_row) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
       'balance', (v_row."total" - v_row."credited_total" - v_row."paid_total")::text,
       'overdue', v_row."status" in ('issued', 'partially_paid') and v_row."due_on" < current_date,
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
@@ -386,10 +392,11 @@ $$;
 revoke execute on function "better_supabase"."issue_invoice"(uuid, date) from public, anon;
 grant execute on function "better_supabase"."issue_invoice"(uuid, date) to authenticated, service_role;
 
--- Records a payment (a negative amount is a refund). A reference, such as
--- a bank or payment provider id, is unique per organization, so recording
--- the same payment twice adds it once.
-create or replace function "better_supabase"."record_invoice_payment"(invoice uuid, amount bigint, paid_at timestamptz, method text, reference text)
+-- Records a payment (a negative amount is a refund) in the invoice's
+-- currency. A reference, such as a bank or payment provider id, is unique
+-- per organization, so recording the same payment twice adds it once.
+drop function if exists "better_supabase"."record_invoice_payment"(uuid, bigint, timestamptz, text, text);
+create or replace function "better_supabase"."record_invoice_payment"(invoice uuid, amount bigint, currency text, paid_at timestamptz, method text, reference text)
 returns jsonb
 language plpgsql
 security definer
@@ -413,6 +420,9 @@ begin
   if coalesce(record_invoice_payment.amount, 0) = 0 then
     raise exception 'a payment has an amount' using errcode = '22023', hint = 'INVOICE_PAYMENT_INVALID';
   end if;
+  if upper(record_invoice_payment.currency) is distinct from v_row."currency" then
+    raise exception 'a payment must be in the invoice''s currency' using errcode = '22023', hint = 'INVOICE_CURRENCY_MISMATCH';
+  end if;
   -- A recorded reference is a replay that adds nothing, so it skips the check.
   if record_invoice_payment.amount < 0 and v_row."paid_total" + record_invoice_payment.amount < 0 and not exists (
     select 1 from "better_supabase"."invoice_payments" y
@@ -435,7 +445,7 @@ begin
   on conflict do nothing
   returning "id" into v_payment;
   if v_payment is null then
-    return to_jsonb(v_row) || jsonb_build_object(
+    return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
       'balance', (v_row."total" - v_row."credited_total" - v_row."paid_total")::text,
       'overdue', v_row."status" in ('issued', 'partially_paid') and v_row."due_on" < current_date,
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
@@ -466,15 +476,15 @@ begin
         using v_row."id", v_payment;
     end if;
   end;
-  return to_jsonb(v_row) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
       'balance', (v_row."total" - v_row."credited_total" - v_row."paid_total")::text,
       'overdue', v_row."status" in ('issued', 'partially_paid') and v_row."due_on" < current_date,
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
       'payments', coalesce((select jsonb_agg(jsonb_build_object('id', ip."id", 'amount', ip."amount"::text, 'paidAt', ip."paid_at", 'method', ip."method", 'reference', ip."reference") order by ip."paid_at") from "better_supabase"."invoice_payments" ip where ip."invoice_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."record_invoice_payment"(uuid, bigint, timestamptz, text, text) from public, anon;
-grant execute on function "better_supabase"."record_invoice_payment"(uuid, bigint, timestamptz, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text) from public, anon;
+grant execute on function "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text) to authenticated, service_role;
 
 -- A draft credit note against an issued invoice: its lines, or the given
 -- lines for a partial credit. Issue it to apply it.
@@ -512,7 +522,7 @@ begin
     perform "better_supabase"."set_invoice_lines"(v_row."id", credit_invoice.lines);
   end if;
   null;
-  return (select to_jsonb(x) || jsonb_build_object(
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
       'balance', (x."total" - x."credited_total" - x."paid_total")::text,
       'overdue', x."status" in ('issued', 'partially_paid') and x."due_on" < current_date,
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = x."id"), '[]'::jsonb),
@@ -547,7 +557,7 @@ begin
     "void_reason" = nullif(trim(void_invoice.reason), ''), "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
   null;
-  return to_jsonb(v_row) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
       'balance', (v_row."total" - v_row."credited_total" - v_row."paid_total")::text,
       'overdue', v_row."status" in ('issued', 'partially_paid') and v_row."due_on" < current_date,
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
@@ -577,7 +587,7 @@ begin
     raise exception 'only an open invoice you can manage is written off' using errcode = '55000', hint = 'INVOICE_NOT_OPEN';
   end if;
   null;
-  return to_jsonb(v_row) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
       'balance', (v_row."total" - v_row."credited_total" - v_row."paid_total")::text,
       'overdue', v_row."status" in ('issued', 'partially_paid') and v_row."due_on" < current_date,
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
@@ -816,7 +826,7 @@ begin
     );
   end if;
   perform "better_supabase".emit_event('invoice.created', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier"), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
-  return (select to_jsonb(x) || jsonb_build_object(
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
       'balance', (x."total" - x."credited_total" - x."paid_total")::text,
       'overdue', x."status" in ('issued', 'partially_paid') and x."due_on" < current_date,
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = x."id"), '[]'::jsonb),
@@ -893,8 +903,9 @@ create trigger bs_invoice_lines_totals after insert or update or delete on "bett
 for each row execute function better_supabase.bs_invoice_lines_totals();
 
 -- Replaces a record's lines with lines: a list of { description, quantity,
--- unitAmount (minor units, as text or a number), discountBps, taxRateBps,
--- taxCode, product: { type, id } }. Returns the record's totals.
+-- unitAmount (minor units as text), currency, discountBps, taxRateBps,
+-- taxCode, product: { type, id } }. A line's currency must be the record's.
+-- Returns the record's totals as text, with its currency.
 create or replace function "better_supabase"."set_invoice_lines"(parent uuid, lines jsonb)
 returns jsonb
 language plpgsql
@@ -904,11 +915,12 @@ as $$
 declare
   v_parent uuid := set_invoice_lines.parent;
   v_tenant uuid;
+  v_currency text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."invoices" x where x."id" = v_parent and not (x."status" <> 'draft');
+  select x."tenant_id", x."currency" into v_tenant, v_currency from "better_supabase"."invoices" x where x."id" = v_parent and not (x."status" <> 'draft');
   if v_tenant is null then
     raise exception 'no such record, or its lines are locked' using errcode = 'P0002', hint = 'LINES_RECORD_INVALID';
   end if;
@@ -917,6 +929,9 @@ begin
   end if;
   if jsonb_typeof(coalesce(set_invoice_lines.lines, '[]')) <> 'array' then
     raise exception 'lines must be a list' using errcode = '22023', hint = 'LINES_INVALID';
+  end if;
+  if exists (select 1 from jsonb_array_elements(set_invoice_lines.lines) x where x.value ? 'currency' and x.value ->> 'currency' is distinct from v_currency) then
+    raise exception 'every line must be in the record''s currency' using errcode = '22023', hint = 'LINES_CURRENCY';
   end if;
   delete from "better_supabase"."invoice_lines" l where l."parent_id" = v_parent;
   begin
@@ -932,7 +947,8 @@ begin
   perform "better_supabase"."set_invoice_lines_recount"(v_parent);
   return (select jsonb_build_object(
     'listTotal', x."list_total"::text, 'discountTotal', x."discount_total"::text,
-    'subtotal', x."subtotal"::text, 'taxTotal', x."tax_total"::text, 'total', x."total"::text)
+    'subtotal', x."subtotal"::text, 'taxTotal', x."tax_total"::text, 'total', x."total"::text,
+    'currency', x."currency")
     from "better_supabase"."invoices" x where x."id" = v_parent);
 end;
 $$;
@@ -1025,7 +1041,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return to_jsonb(v_row) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
       'balance', (v_row."total" - v_row."credited_total" - v_row."paid_total")::text,
       'overdue', v_row."status" in ('issued', 'partially_paid') and v_row."due_on" < current_date,
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
@@ -1035,10 +1051,11 @@ $$;
 revoke execute on function "better_supabase"."issue_invoice"(uuid, date) from public, anon;
 grant execute on function "better_supabase"."issue_invoice"(uuid, date) to authenticated, service_role;
 
--- Records a payment (a negative amount is a refund). A reference, such as
--- a bank or payment provider id, is unique per organization, so recording
--- the same payment twice adds it once.
-create or replace function "better_supabase"."record_invoice_payment"(invoice uuid, amount bigint, paid_at timestamptz, method text, reference text)
+-- Records a payment (a negative amount is a refund) in the invoice's
+-- currency. A reference, such as a bank or payment provider id, is unique
+-- per organization, so recording the same payment twice adds it once.
+drop function if exists "better_supabase"."record_invoice_payment"(uuid, bigint, timestamptz, text, text);
+create or replace function "better_supabase"."record_invoice_payment"(invoice uuid, amount bigint, currency text, paid_at timestamptz, method text, reference text)
 returns jsonb
 language plpgsql
 security definer
@@ -1062,6 +1079,9 @@ begin
   if coalesce(record_invoice_payment.amount, 0) = 0 then
     raise exception 'a payment has an amount' using errcode = '22023', hint = 'INVOICE_PAYMENT_INVALID';
   end if;
+  if upper(record_invoice_payment.currency) is distinct from v_row."currency" then
+    raise exception 'a payment must be in the invoice''s currency' using errcode = '22023', hint = 'INVOICE_CURRENCY_MISMATCH';
+  end if;
   -- A recorded reference is a replay that adds nothing, so it skips the check.
   if record_invoice_payment.amount < 0 and v_row."paid_total" + record_invoice_payment.amount < 0 and not exists (
     select 1 from "better_supabase"."invoice_payments" y
@@ -1084,7 +1104,7 @@ begin
   on conflict do nothing
   returning "id" into v_payment;
   if v_payment is null then
-    return to_jsonb(v_row) || jsonb_build_object(
+    return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
       'balance', (v_row."total" - v_row."credited_total" - v_row."paid_total")::text,
       'overdue', v_row."status" in ('issued', 'partially_paid') and v_row."due_on" < current_date,
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
@@ -1115,15 +1135,15 @@ begin
         using v_row."id", v_payment;
     end if;
   end;
-  return to_jsonb(v_row) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
       'balance', (v_row."total" - v_row."credited_total" - v_row."paid_total")::text,
       'overdue', v_row."status" in ('issued', 'partially_paid') and v_row."due_on" < current_date,
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
       'payments', coalesce((select jsonb_agg(jsonb_build_object('id', ip."id", 'amount', ip."amount"::text, 'paidAt', ip."paid_at", 'method', ip."method", 'reference', ip."reference") order by ip."paid_at") from "better_supabase"."invoice_payments" ip where ip."invoice_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."record_invoice_payment"(uuid, bigint, timestamptz, text, text) from public, anon;
-grant execute on function "better_supabase"."record_invoice_payment"(uuid, bigint, timestamptz, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text) from public, anon;
+grant execute on function "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text) to authenticated, service_role;
 
 -- A draft credit note against an issued invoice: its lines, or the given
 -- lines for a partial credit. Issue it to apply it.
@@ -1161,7 +1181,7 @@ begin
     perform "better_supabase"."set_invoice_lines"(v_row."id", credit_invoice.lines);
   end if;
   perform "better_supabase".emit_event('invoice.created', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier"), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
-  return (select to_jsonb(x) || jsonb_build_object(
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
       'balance', (x."total" - x."credited_total" - x."paid_total")::text,
       'overdue', x."status" in ('issued', 'partially_paid') and x."due_on" < current_date,
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = x."id"), '[]'::jsonb),
@@ -1206,7 +1226,7 @@ begin
     tenant => (v_row."tenant_id"::text)::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'reason', v_row."void_reason")
   );
-  return to_jsonb(v_row) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
       'balance', (v_row."total" - v_row."credited_total" - v_row."paid_total")::text,
       'overdue', v_row."status" in ('issued', 'partially_paid') and v_row."due_on" < current_date,
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
@@ -1246,7 +1266,7 @@ begin
     tenant => (v_row."tenant_id"::text)::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'balance', (v_row."total" - v_row."credited_total" - v_row."paid_total")::text)
   );
-  return to_jsonb(v_row) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
       'balance', (v_row."total" - v_row."credited_total" - v_row."paid_total")::text,
       'overdue', v_row."status" in ('issued', 'partially_paid') and v_row."due_on" < current_date,
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
@@ -1316,7 +1336,7 @@ begin
       and x."deposit_bps" is null and x."status" <> 'void' and x."kind" = 'invoice'
     limit 1;
     if v_row."id" is not null then
-      return to_jsonb(v_row) || jsonb_build_object(
+      return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
       'balance', (v_row."total" - v_row."credited_total" - v_row."paid_total")::text,
       'overdue', v_row."status" in ('issued', 'partially_paid') and v_row."due_on" < current_date,
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
@@ -1546,7 +1566,7 @@ begin
     
   end if;
   null;
-  return (select to_jsonb(x) || jsonb_build_object(
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
       'balance', (x."total" - x."credited_total" - x."paid_total")::text,
       'overdue', x."status" in ('issued', 'partially_paid') and x."due_on" < current_date,
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "app_private"."invoice_lines" il where il."parent_id" = x."id"), '[]'::jsonb),
@@ -1623,8 +1643,9 @@ create trigger bs_invoice_lines_totals after insert or update or delete on "app_
 for each row execute function better_supabase.bs_invoice_lines_totals();
 
 -- Replaces a record's lines with lines: a list of { description, quantity,
--- unitAmount (minor units, as text or a number), discountBps, taxRateBps,
--- taxCode, product: { type, id } }. Returns the record's totals.
+-- unitAmount (minor units as text), currency, discountBps, taxRateBps,
+-- taxCode, product: { type, id } }. A line's currency must be the record's.
+-- Returns the record's totals as text, with its currency.
 create or replace function "app_private"."set_invoice_lines"(parent uuid, lines jsonb)
 returns jsonb
 language plpgsql
@@ -1634,11 +1655,12 @@ as $$
 declare
   v_parent uuid := set_invoice_lines.parent;
   v_tenant uuid;
+  v_currency text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "app_private"."invoices" x where x."id" = v_parent and not (x."status" <> 'draft');
+  select x."tenant_id", x."currency" into v_tenant, v_currency from "app_private"."invoices" x where x."id" = v_parent and not (x."status" <> 'draft');
   if v_tenant is null then
     raise exception 'no such record, or its lines are locked' using errcode = 'P0002', hint = 'LINES_RECORD_INVALID';
   end if;
@@ -1647,6 +1669,9 @@ begin
   end if;
   if jsonb_typeof(coalesce(set_invoice_lines.lines, '[]')) <> 'array' then
     raise exception 'lines must be a list' using errcode = '22023', hint = 'LINES_INVALID';
+  end if;
+  if exists (select 1 from jsonb_array_elements(set_invoice_lines.lines) x where x.value ? 'currency' and x.value ->> 'currency' is distinct from v_currency) then
+    raise exception 'every line must be in the record''s currency' using errcode = '22023', hint = 'LINES_CURRENCY';
   end if;
   delete from "app_private"."invoice_lines" l where l."parent_id" = v_parent;
   begin
@@ -1662,7 +1687,8 @@ begin
   perform "app_private"."set_invoice_lines_recount"(v_parent);
   return (select jsonb_build_object(
     'listTotal', x."list_total"::text, 'discountTotal', x."discount_total"::text,
-    'subtotal', x."subtotal"::text, 'taxTotal', x."tax_total"::text, 'total', x."total"::text)
+    'subtotal', x."subtotal"::text, 'taxTotal', x."tax_total"::text, 'total', x."total"::text,
+    'currency', x."currency")
     from "app_private"."invoices" x where x."id" = v_parent);
 end;
 $$;
@@ -1755,7 +1781,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return to_jsonb(v_row) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
       'balance', (v_row."total" - v_row."credited_total" - v_row."paid_total")::text,
       'overdue', v_row."status" in ('issued', 'partially_paid') and v_row."due_on" < current_date,
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "app_private"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
@@ -1765,10 +1791,11 @@ $$;
 revoke execute on function "app_private"."issue_invoice"(uuid, date) from public, anon;
 grant execute on function "app_private"."issue_invoice"(uuid, date) to authenticated, service_role;
 
--- Records a payment (a negative amount is a refund). A reference, such as
--- a bank or payment provider id, is unique per organization, so recording
--- the same payment twice adds it once.
-create or replace function "app_private"."record_invoice_payment"(invoice uuid, amount bigint, paid_at timestamptz, method text, reference text)
+-- Records a payment (a negative amount is a refund) in the invoice's
+-- currency. A reference, such as a bank or payment provider id, is unique
+-- per organization, so recording the same payment twice adds it once.
+drop function if exists "app_private"."record_invoice_payment"(uuid, bigint, timestamptz, text, text);
+create or replace function "app_private"."record_invoice_payment"(invoice uuid, amount bigint, currency text, paid_at timestamptz, method text, reference text)
 returns jsonb
 language plpgsql
 security definer
@@ -1792,6 +1819,9 @@ begin
   if coalesce(record_invoice_payment.amount, 0) = 0 then
     raise exception 'a payment has an amount' using errcode = '22023', hint = 'INVOICE_PAYMENT_INVALID';
   end if;
+  if upper(record_invoice_payment.currency) is distinct from v_row."currency" then
+    raise exception 'a payment must be in the invoice''s currency' using errcode = '22023', hint = 'INVOICE_CURRENCY_MISMATCH';
+  end if;
   -- A recorded reference is a replay that adds nothing, so it skips the check.
   if record_invoice_payment.amount < 0 and v_row."paid_total" + record_invoice_payment.amount < 0 and not exists (
     select 1 from "app_private"."invoice_payments" y
@@ -1814,7 +1844,7 @@ begin
   on conflict do nothing
   returning "id" into v_payment;
   if v_payment is null then
-    return to_jsonb(v_row) || jsonb_build_object(
+    return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
       'balance', (v_row."total" - v_row."credited_total" - v_row."paid_total")::text,
       'overdue', v_row."status" in ('issued', 'partially_paid') and v_row."due_on" < current_date,
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "app_private"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
@@ -1845,15 +1875,15 @@ begin
         using v_row."id", v_payment;
     end if;
   end;
-  return to_jsonb(v_row) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
       'balance', (v_row."total" - v_row."credited_total" - v_row."paid_total")::text,
       'overdue', v_row."status" in ('issued', 'partially_paid') and v_row."due_on" < current_date,
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "app_private"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
       'payments', coalesce((select jsonb_agg(jsonb_build_object('id', ip."id", 'amount', ip."amount"::text, 'paidAt', ip."paid_at", 'method', ip."method", 'reference', ip."reference") order by ip."paid_at") from "app_private"."invoice_payments" ip where ip."invoice_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "app_private"."record_invoice_payment"(uuid, bigint, timestamptz, text, text) from public, anon;
-grant execute on function "app_private"."record_invoice_payment"(uuid, bigint, timestamptz, text, text) to authenticated, service_role;
+revoke execute on function "app_private"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text) from public, anon;
+grant execute on function "app_private"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text) to authenticated, service_role;
 
 -- A draft credit note against an issued invoice: its lines, or the given
 -- lines for a partial credit. Issue it to apply it.
@@ -1891,7 +1921,7 @@ begin
     perform "app_private"."set_invoice_lines"(v_row."id", credit_invoice.lines);
   end if;
   null;
-  return (select to_jsonb(x) || jsonb_build_object(
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
       'balance', (x."total" - x."credited_total" - x."paid_total")::text,
       'overdue', x."status" in ('issued', 'partially_paid') and x."due_on" < current_date,
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "app_private"."invoice_lines" il where il."parent_id" = x."id"), '[]'::jsonb),
@@ -1926,7 +1956,7 @@ begin
     "void_reason" = nullif(trim(void_invoice.reason), ''), "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
   null;
-  return to_jsonb(v_row) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
       'balance', (v_row."total" - v_row."credited_total" - v_row."paid_total")::text,
       'overdue', v_row."status" in ('issued', 'partially_paid') and v_row."due_on" < current_date,
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "app_private"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
@@ -1956,7 +1986,7 @@ begin
     raise exception 'only an open invoice you can manage is written off' using errcode = '55000', hint = 'INVOICE_NOT_OPEN';
   end if;
   null;
-  return to_jsonb(v_row) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
       'balance', (v_row."total" - v_row."credited_total" - v_row."paid_total")::text,
       'overdue', v_row."status" in ('issued', 'partially_paid') and v_row."due_on" < current_date,
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "app_private"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
@@ -2190,7 +2220,7 @@ begin
     
   end if;
   null;
-  return (select to_jsonb(x) || jsonb_build_object(
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
       'balance', (x."total" - x."credited_total" - x."paid_total")::text,
       'overdue', x."status" in ('issued', 'partially_paid') and x."due_on" < current_date,
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = x."id"), '[]'::jsonb),
@@ -2267,8 +2297,9 @@ create trigger bs_invoice_lines_totals after insert or update or delete on "bett
 for each row execute function better_supabase.bs_invoice_lines_totals();
 
 -- Replaces a record's lines with lines: a list of { description, quantity,
--- unitAmount (minor units, as text or a number), discountBps, taxRateBps,
--- taxCode, product: { type, id } }. Returns the record's totals.
+-- unitAmount (minor units as text), currency, discountBps, taxRateBps,
+-- taxCode, product: { type, id } }. A line's currency must be the record's.
+-- Returns the record's totals as text, with its currency.
 create or replace function "better_supabase"."set_invoice_lines"(parent uuid, lines jsonb)
 returns jsonb
 language plpgsql
@@ -2278,11 +2309,12 @@ as $$
 declare
   v_parent uuid := set_invoice_lines.parent;
   v_tenant uuid;
+  v_currency text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."invoices" x where x."id" = v_parent and not (x."status" <> 'draft');
+  select x."tenant_id", x."currency" into v_tenant, v_currency from "better_supabase"."invoices" x where x."id" = v_parent and not (x."status" <> 'draft');
   if v_tenant is null then
     raise exception 'no such record, or its lines are locked' using errcode = 'P0002', hint = 'LINES_RECORD_INVALID';
   end if;
@@ -2291,6 +2323,9 @@ begin
   end if;
   if jsonb_typeof(coalesce(set_invoice_lines.lines, '[]')) <> 'array' then
     raise exception 'lines must be a list' using errcode = '22023', hint = 'LINES_INVALID';
+  end if;
+  if exists (select 1 from jsonb_array_elements(set_invoice_lines.lines) x where x.value ? 'currency' and x.value ->> 'currency' is distinct from v_currency) then
+    raise exception 'every line must be in the record''s currency' using errcode = '22023', hint = 'LINES_CURRENCY';
   end if;
   delete from "better_supabase"."invoice_lines" l where l."parent_id" = v_parent;
   begin
@@ -2306,7 +2341,8 @@ begin
   perform "better_supabase"."set_invoice_lines_recount"(v_parent);
   return (select jsonb_build_object(
     'listTotal', x."list_total"::text, 'discountTotal', x."discount_total"::text,
-    'subtotal', x."subtotal"::text, 'taxTotal', x."tax_total"::text, 'total', x."total"::text)
+    'subtotal', x."subtotal"::text, 'taxTotal', x."tax_total"::text, 'total', x."total"::text,
+    'currency', x."currency")
     from "better_supabase"."invoices" x where x."id" = v_parent);
 end;
 $$;
@@ -2399,7 +2435,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return to_jsonb(v_row) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
       'balance', (v_row."total" - v_row."credited_total" - v_row."paid_total")::text,
       'overdue', v_row."status" in ('issued', 'partially_paid') and v_row."due_on" < current_date,
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
@@ -2409,10 +2445,11 @@ $$;
 revoke execute on function "better_supabase"."issue_invoice"(uuid, date) from public, anon;
 grant execute on function "better_supabase"."issue_invoice"(uuid, date) to authenticated, service_role;
 
--- Records a payment (a negative amount is a refund). A reference, such as
--- a bank or payment provider id, is unique per organization, so recording
--- the same payment twice adds it once.
-create or replace function "better_supabase"."record_invoice_payment"(invoice uuid, amount bigint, paid_at timestamptz, method text, reference text)
+-- Records a payment (a negative amount is a refund) in the invoice's
+-- currency. A reference, such as a bank or payment provider id, is unique
+-- per organization, so recording the same payment twice adds it once.
+drop function if exists "better_supabase"."record_invoice_payment"(uuid, bigint, timestamptz, text, text);
+create or replace function "better_supabase"."record_invoice_payment"(invoice uuid, amount bigint, currency text, paid_at timestamptz, method text, reference text)
 returns jsonb
 language plpgsql
 security definer
@@ -2436,6 +2473,9 @@ begin
   if coalesce(record_invoice_payment.amount, 0) = 0 then
     raise exception 'a payment has an amount' using errcode = '22023', hint = 'INVOICE_PAYMENT_INVALID';
   end if;
+  if upper(record_invoice_payment.currency) is distinct from v_row."currency" then
+    raise exception 'a payment must be in the invoice''s currency' using errcode = '22023', hint = 'INVOICE_CURRENCY_MISMATCH';
+  end if;
   -- A recorded reference is a replay that adds nothing, so it skips the check.
   if record_invoice_payment.amount < 0 and v_row."paid_total" + record_invoice_payment.amount < 0 and not exists (
     select 1 from "better_supabase"."invoice_payments" y
@@ -2458,7 +2498,7 @@ begin
   on conflict do nothing
   returning "id" into v_payment;
   if v_payment is null then
-    return to_jsonb(v_row) || jsonb_build_object(
+    return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
       'balance', (v_row."total" - v_row."credited_total" - v_row."paid_total")::text,
       'overdue', v_row."status" in ('issued', 'partially_paid') and v_row."due_on" < current_date,
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
@@ -2489,15 +2529,15 @@ begin
         using v_row."id", v_payment;
     end if;
   end;
-  return to_jsonb(v_row) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
       'balance', (v_row."total" - v_row."credited_total" - v_row."paid_total")::text,
       'overdue', v_row."status" in ('issued', 'partially_paid') and v_row."due_on" < current_date,
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
       'payments', coalesce((select jsonb_agg(jsonb_build_object('id', ip."id", 'amount', ip."amount"::text, 'paidAt', ip."paid_at", 'method', ip."method", 'reference', ip."reference") order by ip."paid_at") from "better_supabase"."invoice_payments" ip where ip."invoice_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."record_invoice_payment"(uuid, bigint, timestamptz, text, text) from public, anon;
-grant execute on function "better_supabase"."record_invoice_payment"(uuid, bigint, timestamptz, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text) from public, anon;
+grant execute on function "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text) to authenticated, service_role;
 
 -- A draft credit note against an issued invoice: its lines, or the given
 -- lines for a partial credit. Issue it to apply it.
@@ -2535,7 +2575,7 @@ begin
     perform "better_supabase"."set_invoice_lines"(v_row."id", credit_invoice.lines);
   end if;
   null;
-  return (select to_jsonb(x) || jsonb_build_object(
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'paid_total', x."paid_total"::text, 'credited_total', x."credited_total"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
       'balance', (x."total" - x."credited_total" - x."paid_total")::text,
       'overdue', x."status" in ('issued', 'partially_paid') and x."due_on" < current_date,
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = x."id"), '[]'::jsonb),
@@ -2570,7 +2610,7 @@ begin
     "void_reason" = nullif(trim(void_invoice.reason), ''), "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
   null;
-  return to_jsonb(v_row) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
       'balance', (v_row."total" - v_row."credited_total" - v_row."paid_total")::text,
       'overdue', v_row."status" in ('issued', 'partially_paid') and v_row."due_on" < current_date,
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
@@ -2600,7 +2640,7 @@ begin
     raise exception 'only an open invoice you can manage is written off' using errcode = '55000', hint = 'INVOICE_NOT_OPEN';
   end if;
   null;
-  return to_jsonb(v_row) || jsonb_build_object(
+  return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
       'balance', (v_row."total" - v_row."credited_total" - v_row."paid_total")::text,
       'overdue', v_row."status" in ('issued', 'partially_paid') and v_row."due_on" < current_date,
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il."description", 'quantity', il."quantity", 'unitAmount', il."unit_amount"::text, 'discountBps', il."discount_bps", 'taxRateBps', il."tax_rate_bps", 'taxCode', il."tax_code") order by il."position") from "better_supabase"."invoice_lines" il where il."parent_id" = v_row."id"), '[]'::jsonb),
@@ -2643,6 +2683,8 @@ grant execute on function "better_supabase"."invoice_aging"(uuid, text, date) to
 -- blocks.invoices.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
+
+drop function if exists "api"."record_invoice_payment"(uuid, bigint, timestamptz, text, text);
 
 create or replace function "api"."actor_may_write"()
 returns boolean
@@ -2689,14 +2731,14 @@ as $$ select "better_supabase"."issue_invoice"($1, $2) $$;
 revoke execute on function "api"."issue_invoice"(uuid, date) from public, anon;
 grant execute on function "api"."issue_invoice"(uuid, date) to authenticated, service_role;
 
-create or replace function "api"."record_invoice_payment"(invoice uuid, amount bigint, paid_at timestamptz, method text, reference text)
+create or replace function "api"."record_invoice_payment"(invoice uuid, amount bigint, currency text, paid_at timestamptz, method text, reference text)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."record_invoice_payment"($1, $2, $3, $4, $5) $$;
-revoke execute on function "api"."record_invoice_payment"(uuid, bigint, timestamptz, text, text) from public, anon;
-grant execute on function "api"."record_invoice_payment"(uuid, bigint, timestamptz, text, text) to authenticated, service_role;
+as $$ select "better_supabase"."record_invoice_payment"($1, $2, $3, $4, $5, $6) $$;
+revoke execute on function "api"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text) from public, anon;
+grant execute on function "api"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text) to authenticated, service_role;
 
 create or replace function "api"."credit_invoice"(invoice uuid, lines jsonb, note text)
 returns jsonb

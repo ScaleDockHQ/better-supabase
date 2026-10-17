@@ -13,6 +13,7 @@ import {
   createParties,
   partiesSubjects,
 } from "../../src/blocks/parties/index.ts";
+import { money } from "../../src/commerce/money.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
@@ -182,19 +183,17 @@ describe.skipIf(!live)("employees", () => {
         .addContract(mia.id, {
           startsOn: date("2024-01-01"),
           hoursPerWeek: 32,
-          salary: 5_400_000n,
-          currency: "eur",
+          salary: money(5_400_000n, "EUR"),
           salaryPeriod: "year",
         })
         .orThrow();
 
-      expect(first).toMatchObject({ salary: 5_400_000n, currency: "EUR" });
+      expect(first).toMatchObject({ salary: money(5_400_000n, "EUR") });
       await employees
         .addContract(mia.id, {
           startsOn: date("2025-07-01"),
           hoursPerWeek: 40,
-          salary: 9_007_199_254_740_993n,
-          currency: "EUR",
+          salary: money(9_007_199_254_740_993n, "EUR"),
         })
         .orThrow();
       expect(
@@ -207,7 +206,9 @@ describe.skipIf(!live)("employees", () => {
         null,
         "2025-06-30",
       ]);
-      expect(contracts[0]?.salary).toBe(9_007_199_254_740_993n);
+      expect(contracts[0]?.salary).toEqual(
+        money(9_007_199_254_740_993n, "EUR"),
+      );
 
       // The employee reads their own details; a colleague sees neither.
       await s.as(lead);

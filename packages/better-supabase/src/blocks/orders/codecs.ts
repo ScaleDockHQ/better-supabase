@@ -3,6 +3,7 @@ import type { TaxLine, TaxQuote, TaxTransaction } from "../../commerce/tax.ts";
 
 import { money, type Money } from "../../commerce/money.ts";
 import { type RowFields, rowFields } from "../../core/block-fields.ts";
+import { amountText, moneyOf } from "../money-codec.ts";
 import {
   enumOrThrow,
   isRecord,
@@ -270,11 +271,7 @@ export interface Order<F extends object = Record<never, never>> {
   readonly fields: RowFields<F>;
 }
 
-export const amountText = (value: Money): string => value.amount.toString();
-
-export function moneyOf(value: unknown, currency: string): Money {
-  return money(BigInt(textOf(value)), currency);
-}
+export { amountText, moneyOf };
 
 const ADDRESS_FIELDS = [
   "name",

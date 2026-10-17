@@ -263,7 +263,7 @@ begin
         using v_id;
     end if;
   end;
-  return (select to_jsonb(x) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) from "better_supabase"."work_items" x where x."id" = v_id);
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) from "better_supabase"."work_items" x where x."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."create_work_item"(uuid, jsonb, uuid[]) from public, anon;
@@ -499,7 +499,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(p.value order by p.number desc), '[]'::jsonb)
   from (
-    select to_jsonb(x) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) as value, x."number" as number
+    select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) as value, x."number" as number
     from "better_supabase"."work_items" x
     where x."tenant_id" = list_work_items.tenant and x."archived_at" is null
       and (list_work_items.filter ->> 'teamId' is null or x."team_id" = (list_work_items.filter ->> 'teamId')::uuid)
@@ -902,7 +902,7 @@ begin
         using v_id;
     end if;
   end;
-  return (select to_jsonb(x) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) from "better_supabase"."work_items" x where x."id" = v_id);
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) from "better_supabase"."work_items" x where x."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."create_work_item"(uuid, jsonb, uuid[]) from public, anon;
@@ -1160,7 +1160,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(p.value order by p.number desc), '[]'::jsonb)
   from (
-    select to_jsonb(x) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) as value, x."number" as number
+    select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) as value, x."number" as number
     from "better_supabase"."work_items" x
     where x."tenant_id" = list_work_items.tenant and x."archived_at" is null
       and (list_work_items.filter ->> 'teamId' is null or x."team_id" = (list_work_items.filter ->> 'teamId')::uuid)
@@ -1565,7 +1565,7 @@ begin
         using v_id;
     end if;
   end;
-  return (select to_jsonb(x) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "app_private"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) from "app_private"."work_items" x where x."id" = v_id);
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "app_private"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) from "app_private"."work_items" x where x."id" = v_id);
 end;
 $$;
 revoke execute on function "app_private"."create_work_item"(uuid, jsonb, uuid[]) from public, anon;
@@ -1801,7 +1801,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(p.value order by p.number desc), '[]'::jsonb)
   from (
-    select to_jsonb(x) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "app_private"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) as value, x."number" as number
+    select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "app_private"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) as value, x."number" as number
     from "app_private"."work_items" x
     where x."tenant_id" = list_work_items.tenant and x."archived_at" is null
       and (list_work_items.filter ->> 'teamId' is null or x."team_id" = (list_work_items.filter ->> 'teamId')::uuid)
@@ -2204,7 +2204,7 @@ begin
         using v_id;
     end if;
   end;
-  return (select to_jsonb(x) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) from "better_supabase"."work_items" x where x."id" = v_id);
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) from "better_supabase"."work_items" x where x."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."create_work_item"(uuid, jsonb, uuid[]) from public, anon;
@@ -2440,7 +2440,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(p.value order by p.number desc), '[]'::jsonb)
   from (
-    select to_jsonb(x) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) as value, x."number" as number
+    select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) as value, x."number" as number
     from "better_supabase"."work_items" x
     where x."tenant_id" = list_work_items.tenant and x."archived_at" is null
       and (list_work_items.filter ->> 'teamId' is null or x."team_id" = (list_work_items.filter ->> 'teamId')::uuid)

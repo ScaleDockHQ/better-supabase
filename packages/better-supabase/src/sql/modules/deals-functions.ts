@@ -1,7 +1,8 @@
 import type { ExtraColumn, ModuleContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { lineItemsSql } from "../line-items-sql.ts";
+import { lineItemsSql, TOTAL_COLUMNS } from "../line-items-sql.ts";
+import { int8Text } from "../money-sql.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
 import { fail, userGrant, writeExtraColumns } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
@@ -99,8 +100,15 @@ export function dealFunctions(ctx: ModuleContext, n: DealNames): string {
       or ${ctx.scope.can(`${alias}.${d("tenant")}`, n.manage)}
       or exists (select 1 from ${t("members")} mm where mm.${m("deal")} = ${alias}.${d("id")} and mm.${m("user")} = auth.uid()))))`;
 
+  const int8 = [
+    "number",
+    "amount",
+    "existingAmount",
+    ...Object.keys(TOTAL_COLUMNS),
+  ].map(d);
+
   const row = (alias: string): string =>
-    `to_jsonb(${alias}) || jsonb_build_object(
+    `to_jsonb(${alias}) || ${int8Text(alias, int8)} || jsonb_build_object(
       'contacts', coalesce((select jsonb_agg(jsonb_build_object('type', ck.${k("contactType")}, 'id', ck.${k("contactId")}, 'role', ck.${k("role")}, 'primary', ck.${k("isPrimary")}) order by ck.${k("isPrimary")} desc, ck.${k("contactId")}) from ${t("contacts")} ck where ck.${k("deal")} = ${alias}.${d("id")}), '[]'::jsonb),
       'members', coalesce((select jsonb_agg(jsonb_build_object('userId', cm.${m("user")}, 'role', cm.${m("role")}) order by cm.${m("user")}) from ${t("members")} cm where cm.${m("deal")} = ${alias}.${d("id")}), '[]'::jsonb))`;
 

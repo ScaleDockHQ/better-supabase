@@ -114,7 +114,7 @@ begin
   update "better_supabase"."targets" x set "app_note" = case when (save_target.attrs -> 'fields') ? 'app_note' then r."app_note" else x."app_note" end
   from jsonb_populate_record(null::"better_supabase"."targets", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each((save_target.attrs -> 'fields')) e where e.key in ('app_note'))) r
   where x."id" = v_id;
-  return (select (to_jsonb(x) || jsonb_build_object('fields', jsonb_build_object('app_note', x."app_note"))) from "better_supabase"."targets" x where x."id" = v_id);
+  return (select ((to_jsonb(x) || jsonb_build_object('goal', x."goal"::text, 'actual', x."actual"::text)) || jsonb_build_object('fields', jsonb_build_object('app_note', x."app_note"))) from "better_supabase"."targets" x where x."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."save_target"(uuid, uuid, jsonb) from public, anon;
@@ -129,7 +129,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg((to_jsonb(p) || jsonb_build_object('fields', jsonb_build_object('app_note', p."app_note"))) - 'period_start_order' - 'name_order' order by p.period_start_order, p.name_order), '[]'::jsonb)
+  select coalesce(jsonb_agg(((to_jsonb(p) || jsonb_build_object('goal', p."goal"::text, 'actual', p."actual"::text)) || jsonb_build_object('fields', jsonb_build_object('app_note', p."app_note"))) - 'period_start_order' - 'name_order' order by p.period_start_order, p.name_order), '[]'::jsonb)
   from (
     select x.*, v.value::text as progress, round(v.value::numeric / x."goal", 4) as attainment, x."period_start" as period_start_order, x."name" as name_order
     from "better_supabase"."targets" x

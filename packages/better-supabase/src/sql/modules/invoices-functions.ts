@@ -1,7 +1,8 @@
 import type { ExtraColumn, ModuleContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { lineItemsSql } from "../line-items-sql.ts";
+import { lineItemsSql, TOTAL_COLUMNS } from "../line-items-sql.ts";
+import { int8Text } from "../money-sql.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
 import { fail, userGrant, writeExtraColumns } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
@@ -37,8 +38,15 @@ export function invoiceFunctions(ctx: ModuleContext, n: InvoiceNames): string {
   const balance = (alias: string): string =>
     `(${alias}.${i("total")} - ${alias}.${i("creditedTotal")} - ${alias}.${i("paidTotal")})`;
 
+  const int8 = [
+    "number",
+    "paidTotal",
+    "creditedTotal",
+    ...Object.keys(TOTAL_COLUMNS),
+  ].map(i);
+
   const row = (alias: string): string =>
-    `to_jsonb(${alias}) || jsonb_build_object(
+    `to_jsonb(${alias}) || ${int8Text(alias, int8)} || jsonb_build_object(
       'balance', ${balance(alias)}::text,
       'overdue', ${alias}.${i("status")} in ('issued', 'partially_paid') and ${alias}.${i("dueOn")} < current_date,
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il.${l("description")}, 'quantity', il.${l("quantity")}, 'unitAmount', il.${l("unitAmount")}::text, 'discountBps', il.${l("discountBps")}, 'taxRateBps', il.${l("taxRateBps")}, 'taxCode', il.${l("taxCode")}) order by il.${l("position")}) from ${t("lines")} il where il.${l("parent")} = ${alias}.${i("id")}), '[]'::jsonb),
@@ -279,10 +287,11 @@ end;
 $$;
 ${userGrant(`${fn("issue_invoice")}(uuid, date)`)}
 
--- Records a payment (a negative amount is a refund). A reference, such as
--- a bank or payment provider id, is unique per organization, so recording
--- the same payment twice adds it once.
-create or replace function ${fn("record_invoice_payment")}(invoice uuid, amount bigint, paid_at timestamptz, method text, reference text)
+-- Records a payment (a negative amount is a refund) in the invoice's
+-- currency. A reference, such as a bank or payment provider id, is unique
+-- per organization, so recording the same payment twice adds it once.
+drop function if exists ${fn("record_invoice_payment")}(uuid, bigint, timestamptz, text, text);
+create or replace function ${fn("record_invoice_payment")}(invoice uuid, amount bigint, currency text, paid_at timestamptz, method text, reference text)
 returns jsonb
 language plpgsql
 security definer
@@ -302,6 +311,9 @@ begin
   end if;
   if coalesce(record_invoice_payment.amount, 0) = 0 then
     ${fail("INVOICE_PAYMENT_INVALID", "a payment has an amount", "22023")}
+  end if;
+  if upper(record_invoice_payment.currency) is distinct from v_row.${i("currency")} then
+    ${fail("INVOICE_CURRENCY_MISMATCH", "a payment must be in the invoice's currency", "22023")}
   end if;
   -- A recorded reference is a replay that adds nothing, so it skips the check.
   if record_invoice_payment.amount < 0 and v_row.${i("paidTotal")} + record_invoice_payment.amount < 0 and not exists (
@@ -334,7 +346,7 @@ begin
   return ${row("v_row")};
 end;
 $$;
-${userGrant(`${fn("record_invoice_payment")}(uuid, bigint, timestamptz, text, text)`)}
+${userGrant(`${fn("record_invoice_payment")}(uuid, bigint, text, timestamptz, text, text)`)}
 
 -- A draft credit note against an issued invoice: its lines, or the given
 -- lines for a partial credit. Issue it to apply it.

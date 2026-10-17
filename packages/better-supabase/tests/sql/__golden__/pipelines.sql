@@ -1690,7 +1690,7 @@ begin
         counts as (select stage_id, count(*) as n from rows group by stage_id),
         sums as (
           select stage_id, jsonb_agg(jsonb_build_object('currency', currency, 'amount', amount::text, 'weighted', round(weighted)::bigint::text) order by currency) as totals
-          from (select stage_id, currency, sum(amount) as amount, sum(weighted) as weighted from rows where currency is not null group by stage_id, currency) x
+          from (select stage_id, currency, coalesce(sum(amount), 0) as amount, coalesce(sum(weighted), 0) as weighted from rows where currency is not null group by stage_id, currency) x
           group by stage_id
         )
         select coalesce(jsonb_agg(jsonb_build_object(
@@ -1716,7 +1716,7 @@ begin
         counts as (select stage_id, count(*) as n from rows group by stage_id),
         sums as (
           select stage_id, jsonb_agg(jsonb_build_object('currency', currency, 'amount', amount::text, 'weighted', round(weighted)::bigint::text) order by currency) as totals
-          from (select stage_id, currency, sum(amount) as amount, sum(weighted) as weighted from rows where currency is not null group by stage_id, currency) x
+          from (select stage_id, currency, coalesce(sum(amount), 0) as amount, coalesce(sum(weighted), 0) as weighted from rows where currency is not null group by stage_id, currency) x
           group by stage_id
         )
         select coalesce(jsonb_agg(jsonb_build_object(
@@ -1742,7 +1742,7 @@ begin
         counts as (select stage_id, count(*) as n from rows group by stage_id),
         sums as (
           select stage_id, jsonb_agg(jsonb_build_object('currency', currency, 'amount', amount::text, 'weighted', round(weighted)::bigint::text) order by currency) as totals
-          from (select stage_id, currency, sum(amount) as amount, sum(weighted) as weighted from rows where currency is not null group by stage_id, currency) x
+          from (select stage_id, currency, coalesce(sum(amount), 0) as amount, coalesce(sum(weighted), 0) as weighted from rows where currency is not null group by stage_id, currency) x
           group by stage_id
         )
         select coalesce(jsonb_agg(jsonb_build_object(
