@@ -1,5 +1,0 @@
----
-"better-supabase": minor
----
-
-Add client controllers and hooks for members, invitations, the audit log, API keys and tags. `useMembers()` and `useInvitations()` (`better-supabase/blocks/organizations/react`) list an organization's members and open invitations; `setRole()` shows a role change at once, `remove()` removes a member, and `invite()` keeps the token for the accept link in `sent`. `useAuditLog()` (`better-supabase/blocks/audit/react`) pages through the audit trail with `setFilters()` by actor, action or text and `loadMore()`. `useApiKeys()` (`better-supabase/blocks/api-keys/react`) lists, creates and revokes keys and shows a new token once. `useTagInput()` (`better-supabase/blocks/tags/react`) adds, removes and creates a record's tags. Each has a `create<Name>Controller` in the block's main entry and `/vue`, `/svelte` and `/solid` bindings, and runs in React DOM and React Native. The tags module gains `list_tags` and `subject_tags`, which `tags.list()` and `tags.forSubject()` call. The members table, invite dialog, API keys table, audit log table and tag input recipes are now available in the Next.js and Expo examples.
