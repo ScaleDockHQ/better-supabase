@@ -215,6 +215,26 @@ msgctxt "workflows.F42bEw"
 msgid "Schedules"
 msgstr "Schedules"
 
+#: src/app/[locale]/(auth)/pricing/[code]/page.tsx
+msgctxt "pricing.5Wwopw"
+msgid "Pricing"
+msgstr "Pricing"
+
+#: src/app/[locale]/(auth)/pricing/[code]/page.tsx
+msgctxt "pricing.BzkPrB"
+msgid "One plan per organization, billed monthly."
+msgstr "One plan per organization, billed monthly."
+
+#: src/app/[locale]/(auth)/pricing/[code]/page.tsx
+msgctxt "pricing.I32k58"
+msgid "Upgrade and save"
+msgstr "Upgrade and save"
+
+#: src/app/[locale]/(auth)/pricing/[code]/page.tsx
+msgctxt "pricing.RbnSLQ"
+msgid "The pricing-banner flag is on for your plan."
+msgstr "The pricing-banner flag is on for your plan."
+
 #: src/app/[locale]/layout.tsx
 msgctxt "app.pZg_tf"
 msgid "A multi-tenant SaaS example built on better-supabase."

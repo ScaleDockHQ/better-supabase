@@ -45,6 +45,7 @@ describe("createFlags", () => {
       await admin
         .save("beta", {
           enabled: false,
+          archived: true,
           description: null,
           rolloutPercentage: 10,
           defaultVariant: "off",
@@ -55,6 +56,9 @@ describe("createFlags", () => {
     expect(await admin.override("beta", { userId: "u1" }, null).orThrow()).toBe(
       true,
     );
+    await admin
+      .override("beta", { context: "brand", contextKey: "acme" }, "on")
+      .orThrow();
     expect(calls.slice(1)).toEqual([
       [
         "app",
@@ -65,6 +69,7 @@ describe("createFlags", () => {
             description: null,
             default_variant: "off",
             enabled: false,
+            archived: true,
             rollout_percentage: 10,
           },
         },
@@ -74,6 +79,18 @@ describe("createFlags", () => {
         "app",
         "set_flag_override",
         { key: "beta", variant: null, tenant: undefined, member: "u1" },
+      ],
+      [
+        "app",
+        "set_flag_override",
+        {
+          key: "beta",
+          variant: "on",
+          tenant: undefined,
+          member: undefined,
+          context: "brand",
+          context_key: "acme",
+        },
       ],
     ]);
   });

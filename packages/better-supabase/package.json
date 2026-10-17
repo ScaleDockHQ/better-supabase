@@ -555,6 +555,11 @@
       "types": "./dist/eve/index.d.ts",
       "default": "./dist/eve/index.js"
     },
+    "./flags-sdk": {
+      "@better-supabase/source": "./src/flags-sdk/index.ts",
+      "types": "./dist/flags-sdk/index.d.ts",
+      "default": "./dist/flags-sdk/index.js"
+    },
     "./workflow-sdk/builder": {
       "@better-supabase/source": "./src/workflow-sdk/builder/index.ts",
       "types": "./dist/workflow-sdk/builder/index.d.ts",
@@ -1828,6 +1833,10 @@
         "types": "./dist/eve/index.d.ts",
         "default": "./dist/eve/index.js"
       },
+      "./flags-sdk": {
+        "types": "./dist/flags-sdk/index.d.ts",
+        "default": "./dist/flags-sdk/index.js"
+      },
       "./workflow-sdk/builder": {
         "types": "./dist/workflow-sdk/builder/index.d.ts",
         "default": "./dist/workflow-sdk/builder/index.js"
@@ -2542,6 +2551,7 @@
     "@supabase/ssr": "catalog:deps"
   },
   "devDependencies": {
+    "@ai-sdk/anthropic": "catalog:",
     "@ai-sdk/mcp": "catalog:",
     "@ai-sdk/react": "catalog:",
     "@ai-sdk/workflow": "catalog:",
@@ -2560,6 +2570,8 @@
     "@orpc/openapi": "catalog:",
     "@orpc/server": "catalog:",
     "@playwright/test": "catalog:",
+    "@powersync/common": "catalog:",
+    "@solidjs/start": "catalog:",
     "@supabase-labs/middleware-openfeature": "catalog:",
     "@supabase-labs/tanstack-db": "catalog:",
     "@supabase/config": "catalog:",
@@ -2567,15 +2579,20 @@
     "@supabase/mcp-server-supabase": "catalog:",
     "@supabase/postgrest-typegen": "catalog:",
     "@supabase/supabase-js": "catalog:",
+    "@sveltejs/kit": "catalog:",
     "@t3-oss/env-core": "catalog:",
     "@tanstack/db": "catalog:",
     "@tanstack/query-core": "catalog:",
     "@tanstack/react-query": "catalog:",
+    "@tanstack/react-start": "catalog:",
+    "@types/express": "catalog:",
+    "@types/koa": "catalog:",
     "@types/node": "catalog:",
     "@types/pg": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@valibot/to-json-schema": "catalog:",
+    "@vercel/connect": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "@workflow/world": "catalog:",
     "@workflow/world-postgres": "catalog:",
@@ -2583,24 +2600,33 @@
     "ai": "catalog:",
     "ajv": "catalog:",
     "ajv-formats": "catalog:",
+    "astro": "catalog:",
     "better-result": "catalog:",
     "c12": "catalog:",
     "chat": "catalog:",
     "citty": "catalog:",
     "diff": "catalog:",
     "effect": "catalog:",
+    "elysia": "catalog:",
     "eve": "catalog:",
     "expo-server": "catalog:",
+    "express": "catalog:",
     "fastest-levenshtein": "catalog:",
+    "fastify": "catalog:",
+    "flags": "catalog:",
+    "h3": "catalog:",
     "hono": "catalog:",
     "jsonpath-rfc9535": "catalog:",
+    "koa": "catalog:",
     "next": "catalog:",
+    "nuxt": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
     "pg": "catalog:",
     "publint": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "react-router": "catalog:",
     "redis": "catalog:",
     "reflect-metadata": "catalog:",
     "rxjs": "catalog:",
@@ -2622,34 +2648,51 @@
     "zod": "catalog:"
   },
   "peerDependencies": {
+    "@ai-sdk/anthropic": "catalog:peers",
     "@ai-sdk/mcp": "catalog:peers",
     "@ai-sdk/react": "catalog:peers",
     "@ai-sdk/workflow": "catalog:peers",
     "@modelcontextprotocol/server": "catalog:peers",
     "@nestjs/common": "catalog:peers",
     "@next/playwright": "catalog:peers",
+    "@openfeature/server-sdk": "catalog:peers",
     "@opentelemetry/api": "catalog:peers",
     "@orpc/server": "catalog:peers",
+    "@powersync/common": "catalog:peers",
+    "@solidjs/start": "catalog:peers",
+    "@supabase-labs/middleware-openfeature": "catalog:peers",
     "@supabase-labs/tanstack-db": "catalog:peers",
     "@supabase/config": "catalog:peers",
     "@supabase/lite": "catalog:peers",
     "@supabase/mcp-server-supabase": "catalog:peers",
     "@supabase/postgrest-typegen": "catalog:peers",
     "@supabase/supabase-js": "catalog:peers",
+    "@sveltejs/kit": "catalog:peers",
     "@tanstack/query-core": "catalog:peers",
+    "@tanstack/react-start": "catalog:peers",
+    "@vercel/connect": "catalog:peers",
     "@workflow/world": "catalog:peers",
     "@workflow/world-postgres": "catalog:peers",
     "ai": "catalog:peers",
+    "astro": "catalog:peers",
     "better-result": "catalog:peers",
     "chat": "catalog:peers",
+    "elysia": "catalog:peers",
     "eve": "catalog:peers",
     "expo-server": "catalog:peers",
+    "express": "catalog:peers",
+    "fastify": "catalog:peers",
+    "flags": "catalog:peers",
+    "h3": "catalog:peers",
     "hono": "catalog:peers",
     "jsonpath-rfc9535": "catalog:peers",
+    "koa": "catalog:peers",
     "next": "catalog:peers",
+    "nuxt": "catalog:peers",
     "oxfmt": "catalog:peers",
     "pg": "catalog:peers",
     "react": "catalog:peers",
+    "react-router": "catalog:peers",
     "redis": "catalog:peers",
     "solid-js": "catalog:peers",
     "stripe": "catalog:peers",
@@ -2660,6 +2703,9 @@
     "yjs": "catalog:peers"
   },
   "peerDependenciesMeta": {
+    "@ai-sdk/anthropic": {
+      "optional": true
+    },
     "@ai-sdk/mcp": {
       "optional": true
     },
@@ -2678,10 +2724,22 @@
     "@next/playwright": {
       "optional": true
     },
+    "@openfeature/server-sdk": {
+      "optional": true
+    },
     "@opentelemetry/api": {
       "optional": true
     },
     "@orpc/server": {
+      "optional": true
+    },
+    "@powersync/common": {
+      "optional": true
+    },
+    "@solidjs/start": {
+      "optional": true
+    },
+    "@supabase-labs/middleware-openfeature": {
       "optional": true
     },
     "@supabase-labs/tanstack-db": {
@@ -2699,7 +2757,16 @@
     "@supabase/postgrest-typegen": {
       "optional": true
     },
+    "@sveltejs/kit": {
+      "optional": true
+    },
     "@tanstack/query-core": {
+      "optional": true
+    },
+    "@tanstack/react-start": {
+      "optional": true
+    },
+    "@vercel/connect": {
       "optional": true
     },
     "@workflow/world": {
@@ -2711,10 +2778,16 @@
     "ai": {
       "optional": true
     },
+    "astro": {
+      "optional": true
+    },
     "better-result": {
       "optional": true
     },
     "chat": {
+      "optional": true
+    },
+    "elysia": {
       "optional": true
     },
     "eve": {
@@ -2723,13 +2796,31 @@
     "expo-server": {
       "optional": true
     },
+    "express": {
+      "optional": true
+    },
+    "fastify": {
+      "optional": true
+    },
+    "flags": {
+      "optional": true
+    },
+    "h3": {
+      "optional": true
+    },
     "hono": {
       "optional": true
     },
     "jsonpath-rfc9535": {
       "optional": true
     },
+    "koa": {
+      "optional": true
+    },
     "next": {
+      "optional": true
+    },
+    "nuxt": {
       "optional": true
     },
     "oxfmt": {
@@ -2739,6 +2830,9 @@
       "optional": true
     },
     "react": {
+      "optional": true
+    },
+    "react-router": {
       "optional": true
     },
     "redis": {

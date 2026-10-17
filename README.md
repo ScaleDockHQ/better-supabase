@@ -350,17 +350,18 @@ The package has one entry per feature, so an app only loads what it imports. Eve
 
 ### AI and agents
 
-| Import                                                      | What it gives you                                                                                                 |
-| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `better-supabase/ai-sdk`                                    | AI SDK message converters, gateway usage attribution and the model catalog                                        |
-| `better-supabase/ai-sdk/chat`, `/ai-sdk/react`              | `createAssistant` for a chat route and `useAssistant` on the client                                               |
-| `better-supabase/ai-sdk/files`, `/ai-sdk/cache`             | File parts from Storage and generated files, and a middleware that answers from the AI cache                      |
-| `better-supabase/ai-sdk/batches`                            | AI SDK batches per tenant, polled from a job, with results in Postgres                                            |
-| `better-supabase/ai-sdk/embeddings`, `/ai-sdk/memory`       | Embedders, reranking and a knowledge search tool; memory and recall tools and fact extraction                     |
-| `better-supabase/ai-sdk/agents`, `/ai-sdk/mcp`              | A `ToolLoopAgent` from a stored agent with moderation, and MCP connections authorized through OAuth               |
-| `better-supabase/ai-sdk/workflow`, `/ai-sdk/workflow/react` | Durable chat on the Workflow SDK with `durableChat`, `durableTurn` and `useDurableAssistant`                      |
-| `better-supabase/chat-sdk`, `/chat-sdk/react`               | Chat SDK state in Postgres, the inbox adapter and channel webhooks                                                |
-| `better-supabase/eve`                                       | eve on Supabase: route auth, connections over credential providers, memory, sessions and the inbox channel (Node) |
+| Import                                                      | What it gives you                                                                                                     |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `better-supabase/ai-sdk`                                    | AI SDK message converters, gateway usage attribution and the model catalog                                            |
+| `better-supabase/ai-sdk/chat`, `/ai-sdk/react`              | `createAssistant` for a chat route and `useAssistant` on the client                                                   |
+| `better-supabase/ai-sdk/files`, `/ai-sdk/cache`             | File parts from Storage and generated files, and a middleware that answers from the AI cache                          |
+| `better-supabase/ai-sdk/batches`                            | AI SDK batches per tenant, polled from a job, with results in Postgres                                                |
+| `better-supabase/ai-sdk/embeddings`, `/ai-sdk/memory`       | Embedders, reranking and a knowledge search tool; memory and recall tools and fact extraction                         |
+| `better-supabase/ai-sdk/agents`, `/ai-sdk/mcp`              | A `ToolLoopAgent` from a stored agent with moderation, and MCP connections authorized through OAuth                   |
+| `better-supabase/ai-sdk/workflow`, `/ai-sdk/workflow/react` | Durable chat on the Workflow SDK with `durableChat`, `durableTurn` and `useDurableAssistant`                          |
+| `better-supabase/chat-sdk`, `/chat-sdk/react`               | Chat SDK state in Postgres, the inbox adapter and channel webhooks                                                    |
+| `better-supabase/eve`                                       | eve on Supabase: route auth, connections over credential providers, memory, sessions and the inbox channel (Node)     |
+| `better-supabase/flags-sdk`                                 | A Flags SDK adapter over the flags block, an `identify` for user, tenant and custom contexts, and Flags Explorer data |
 
 ### Workflows, streams and credentials
 

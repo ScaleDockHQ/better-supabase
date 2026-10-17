@@ -1,0 +1,22 @@
+{
+  "name": "@better-supabase/types-frameworks-previous",
+  "private": true,
+  "description": "Type-checks the framework adapters against the previous major of each framework their peer ranges still cover.",
+  "type": "module",
+  "scripts": {
+    "lint": "oxlint",
+    "transit": "true",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@better-supabase/typescript-config": "workspace:*",
+    "@nuxt/nitro-server": "catalog:previous-majors",
+    "@sveltejs/kit": "catalog:previous-majors",
+    "better-supabase": "workspace:*",
+    "h3": "catalog:previous-majors",
+    "nuxt": "catalog:previous-majors",
+    "oxlint": "catalog:",
+    "react-router": "catalog:previous-majors",
+    "typescript": "catalog:"
+  }
+}

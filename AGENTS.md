@@ -151,6 +151,8 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0032: the fixture runs on the CLI's stack engine with ports per branch.
 - 0033: signing keys live in Vault; signing runs in TypeScript with WebCrypto.
 - 0034: retention policies and legal holds; a hash-chained, partitionable audit log.
+- 0035: the Flags SDK adapter is structural; brands are custom flag contexts.
+- 0036: every SDK integration is an optional peer with a tested range.
 
 ## Pre-release pins
 

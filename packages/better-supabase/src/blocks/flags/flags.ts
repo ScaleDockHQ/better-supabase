@@ -33,11 +33,22 @@ export interface FlagRule {
   /** Entitlement lookup keys; one match is enough. */
   readonly plans?: readonly string[];
   readonly roles?: readonly string[];
+  /** Custom contexts by name, such as `{ brand: ["acme"] }`; every one must match. */
+  readonly contexts?: Readonly<Record<string, readonly string[]>>;
 }
 
+/**
+ * A variant for one tenant, one user or one custom context value. A user
+ * override beats a tenant one, and a tenant one beats a context one; among
+ * context overrides, the first in the list wins (`flag_definitions()` lists
+ * them in the declared order of `options.contexts`).
+ */
 export interface FlagOverride {
   readonly organizationId: string | undefined;
   readonly userId: string | undefined;
+  /** The custom context, such as `brand`, with `contextKey` its value. */
+  readonly context?: string | undefined;
+  readonly contextKey?: string | undefined;
   readonly variant: string;
 }
 
@@ -45,14 +56,19 @@ export interface FlagOverride {
 export interface FlagDefinition {
   readonly key: string;
   readonly type: FlagType;
+  readonly description?: string;
   readonly variants: Readonly<Record<string, FlagValue>>;
   readonly defaultVariant: string;
   readonly enabled: boolean;
+  /** An archived flag serves its default variant and is hidden from Flags Explorer. */
+  readonly archived?: boolean;
   readonly rules: readonly FlagRule[];
   /** 0 to 100, in steps of 0.01. */
   readonly rolloutPercentage: number;
   readonly rolloutVariant: string | undefined;
   readonly overrides: readonly FlagOverride[];
+  /** When the flag last changed, as an ISO 8601 string. */
+  readonly updatedAt?: string;
   /** The extra columns (`blocks.flags.options.extraColumns`), when the flag has any. */
   readonly fields?: Readonly<Record<string, unknown>>;
 }
@@ -68,6 +84,11 @@ export interface FlagContext {
   readonly role?: string;
   /** Every role the caller holds in the tenant; a `roles` rule matches any of them. */
   readonly roles?: readonly string[];
+  /**
+   * Custom context values by name, such as `{ brand: "acme" }`. Unlike
+   * `flag_evaluation()`, the provider never reads them from the tenant.
+   */
+  readonly contexts?: Readonly<Record<string, string>>;
   readonly [attribute: string]: unknown;
 }
 
@@ -81,6 +102,7 @@ export type RequestFlagContext = {
   plans?: string[];
   role?: string;
   roles?: string[];
+  contexts?: Record<string, string>;
 };
 
 export type FlagReason =
@@ -158,7 +180,11 @@ function ruleMatches(rule: FlagRule, context: FlagContext): boolean {
       ...(context.roles ?? []),
     ]) &&
     (rule.plans === undefined ||
-      rule.plans.some((plan) => context.plans?.includes(plan) === true))
+      rule.plans.some((plan) => context.plans?.includes(plan) === true)) &&
+    (rule.contexts === undefined ||
+      Object.entries(rule.contexts).every(([name, keys]) =>
+        contains(keys, context.contexts?.[name]),
+      ))
   );
 }
 
@@ -166,7 +192,7 @@ async function chooseVariant(
   flag: FlagDefinition,
   context: FlagContext,
 ): Promise<{ variant: string; reason: FlagReason }> {
-  if (!flag.enabled) {
+  if (!flag.enabled || flag.archived === true) {
     return { variant: flag.defaultVariant, reason: "DISABLED" };
   }
 
@@ -179,6 +205,12 @@ async function chooseVariant(
       (entry) =>
         entry.organizationId !== undefined &&
         entry.organizationId === context.tenant,
+    ) ??
+    flag.overrides.find(
+      (entry) =>
+        entry.context !== undefined &&
+        entry.contextKey !== undefined &&
+        entry.contextKey === context.contexts?.[entry.context],
     );
 
   let chosen = override?.variant;
@@ -255,6 +287,16 @@ function ruleOf(value: unknown): FlagRule | undefined {
   const users = list("users");
   const plans = list("plans");
   const roles = list("roles");
+  const raw = value["contexts"];
+
+  const contexts = isRecord(raw)
+    ? Object.fromEntries(
+        Object.entries(raw).map(([name, keys]) => [
+          name,
+          Array.isArray(keys) ? stringsOf(keys) : [],
+        ]),
+      )
+    : undefined;
 
   return {
     variant: value["variant"],
@@ -262,6 +304,7 @@ function ruleOf(value: unknown): FlagRule | undefined {
     ...(users && { users }),
     ...(plans && { plans }),
     ...(roles && { roles }),
+    ...(contexts && { contexts }),
   };
 }
 
@@ -276,7 +319,11 @@ export function flagDefinitionsOf(value: unknown): readonly FlagDefinition[] {
       FlagValue
     >,
     defaultVariant: optionalText(row["default_variant"]) ?? "",
+    ...(optionalText(row["description"]) !== undefined && {
+      description: textOf(row["description"]),
+    }),
     enabled: row["enabled"] !== false,
+    ...(row["archived"] === true && { archived: true }),
     rules: (Array.isArray(row["rules"]) ? row["rules"] : []).flatMap((rule) => {
       const parsed = ruleOf(rule);
 
@@ -285,14 +332,26 @@ export function flagDefinitionsOf(value: unknown): readonly FlagDefinition[] {
     rolloutPercentage: Number(row["rollout_percentage"] ?? 0),
     rolloutVariant: optionalText(row["rollout_variant"]),
     overrides: recordsOf(row["overrides"] ?? [], "flag_definitions").map(
-      (entry) => ({
-        organizationId: optionalText(entry["organization_id"]),
-        userId: optionalText(entry["user_id"]),
-        variant: textOf(entry["variant"]),
-      }),
+      overrideOf,
     ),
+    ...(optionalText(row["updated_at"]) !== undefined && {
+      updatedAt: textOf(row["updated_at"]),
+    }),
     ...(isRecord(row["fields"]) ? { fields: row["fields"] } : {}),
   }));
+}
+
+function overrideOf(entry: Readonly<Record<string, unknown>>): FlagOverride {
+  const context = optionalText(entry["context"]);
+  const contextKey = optionalText(entry["context_key"]);
+
+  return {
+    organizationId: optionalText(entry["organization_id"]),
+    userId: optionalText(entry["user_id"]),
+    ...(context !== undefined && { context }),
+    ...(contextKey !== undefined && { contextKey }),
+    variant: textOf(entry["variant"]),
+  };
 }
 
 export interface FlagsProviderOptions<
@@ -347,6 +406,11 @@ export interface FlagsProvider<Code extends string = FlagErrorCode> {
     defaultValue: T,
     context: FlagContext,
   ): Promise<FlagResolution<T, Code>>;
+  /**
+   * Every definition, from the same cache as the evaluations. It rejects when
+   * the definitions fail to load.
+   */
+  definitions(): Promise<readonly FlagDefinition[]>;
   /** Drops the cache, so the next evaluation reloads the definitions. */
   refresh(): void;
 }
@@ -495,6 +559,7 @@ export function createFlagsProvider<Code extends string = FlagErrorCode>(
         context,
         (value): value is T => typeof value === "object" && value !== null,
       ),
+    definitions: async () => [...(await load()).values()],
     refresh() {
       cache = undefined;
     },
@@ -580,6 +645,11 @@ export interface FlagContextSource {
   readonly jwtClaims?: Readonly<Record<string, unknown>> | null | undefined;
   /** The active tenant; default the `tenant_id` claim. */
   readonly tenant?: string | null | undefined;
+  /**
+   * Custom context values the request carries, such as the brand from the
+   * host. They win over `options.contextClaims`; `null` leaves one out.
+   */
+  readonly contexts?: Readonly<Record<string, string | null | undefined>>;
 }
 
 export interface FlagContextOptions {
@@ -600,6 +670,12 @@ export interface FlagContextOptions {
     claims: Readonly<Record<string, unknown>>,
     tenant: string,
   ) => string | readonly string[] | undefined;
+  /**
+   * Custom contexts read from claims: a context name to the claim that holds
+   * it, such as `{ brand: "brand_id" }`. A claim is read from the top level,
+   * then from `app_metadata`.
+   */
+  readonly contextClaims?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -690,11 +766,31 @@ export function flagContext(
         ? [resolved]
         : [...resolved];
 
+  const contexts = new Map<string, string>();
+
+  for (const [name, claim] of Object.entries(options.contextClaims ?? {})) {
+    const value =
+      optionalText(claims[claim]) ?? optionalText(appMetadata[claim]);
+
+    if (value !== undefined) {
+      contexts.set(name, value);
+    }
+  }
+
+  for (const [name, value] of Object.entries(source.contexts ?? {})) {
+    if (typeof value === "string") {
+      contexts.set(name, value);
+    } else {
+      contexts.delete(name);
+    }
+  }
+
   return {
     ...(sub !== undefined && { targetingKey: sub }),
     ...(tenant !== undefined && { tenant }),
     ...(plans !== undefined && { plans }),
     ...(roles.length > 0 && { role: roles[0]! }),
     ...(roles.length > 1 && { roles }),
+    ...(contexts.size > 0 && { contexts: Object.fromEntries(contexts) }),
   };
 }

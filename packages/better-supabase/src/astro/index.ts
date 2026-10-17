@@ -230,7 +230,8 @@ export interface AstroImageTransform {
   readonly src: string | { readonly src: string };
   readonly width?: number | undefined;
   readonly height?: number | undefined;
-  readonly quality?: number | "low" | "mid" | "high" | "max" | undefined;
+  /** A number, or a preset: `low`, `mid`, `high` or `max`. Other strings use the default quality. */
+  readonly quality?: number | string | undefined;
 }
 
 /** An Astro external image service, typed structurally. */
@@ -239,6 +240,12 @@ export interface AstroImageService {
 }
 
 const QUALITY_PRESETS = { low: 40, mid: 60, high: 80, max: 100 } as const;
+
+function isQualityPreset(
+  quality: string,
+): quality is keyof typeof QUALITY_PRESETS {
+  return Object.hasOwn(QUALITY_PRESETS, quality);
+}
 
 /**
  * An external image service that renders public Storage objects through
@@ -264,7 +271,9 @@ export function createImageService(
 
       const quality =
         typeof transform.quality === "string"
-          ? QUALITY_PRESETS[transform.quality]
+          ? isQualityPreset(transform.quality)
+            ? QUALITY_PRESETS[transform.quality]
+            : undefined
           : transform.quality;
 
       return (

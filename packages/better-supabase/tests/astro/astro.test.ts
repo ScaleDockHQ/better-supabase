@@ -121,6 +121,9 @@ describe("createImageService", () => {
     expect(
       service.getURL({ src: { src: avatar }, width: 64, quality: 50 }),
     ).toContain("quality=50");
+    expect(
+      service.getURL({ src: avatar, width: 64, quality: "ultra" }),
+    ).not.toContain("quality=");
   });
 
   it("passes other sources and unsized images through", () => {

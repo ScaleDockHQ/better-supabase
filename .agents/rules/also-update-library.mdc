@@ -17,6 +17,7 @@ paths:
 | A `DbError` kind | `problem.ts` status map, the errors docs page |
 | A subpath | exports map, `tsdown.config.ts`, `tests/bundle/baseline.json`, export snapshot, the subpath table in `packages/better-supabase/README.md` |
 | A public export | `packages/better-supabase/api/exports.json` (`vitest run tests/exports.test.ts -u`), review the diff |
+| An SDK typed structurally or loaded lazily | an optional peer (`catalog:peers` range, default catalog pin, devDependency), `INTEGRATIONS` in `tests/optional-peers.test.ts`, a type check against the real SDK in `optional-peers.test-d.ts`, `getting-started/peers.mdx` |
 | An extension interface | its kit in `src/testing/kits/<name>.ts` (the shared report types are in `src/testing/conformance.ts`; `AuthorizationProvider`: `src/testing/authorization-provider.ts`), `tests/core/extensibility.test-d.ts`, the interfaces docs page |
 | A spec version | `SPEC_PINS`, standards docs page, the test in `tests/standards` that asserts the pin |
 | An adopted standard | a conformance test in `tests/standards` or `tests/cli/standards` and its file in the Tests column of `standards/index.mdx` (`spec-pins.test.ts` checks both) |

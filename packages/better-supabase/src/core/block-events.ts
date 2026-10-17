@@ -211,6 +211,9 @@ export interface FlagEventData {
   readonly variant?: string | null;
   readonly organizationId?: string | null;
   readonly userId?: string | null;
+  /** `flag.override_set` on a custom context, such as `brand`. */
+  readonly context?: string | null;
+  readonly contextKey?: string | null;
 }
 
 /** `announcement.*`, from the announcements module. */

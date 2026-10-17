@@ -249,6 +249,7 @@ const entries = [
   "workflow-sdk/index",
   "workflow-sdk/world/index",
   "eve/index",
+  "flags-sdk/index",
   "workflow-sdk/builder/index",
   "blocks/sso/index",
   "blocks/data-lifecycle/index",

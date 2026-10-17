@@ -160,11 +160,14 @@ describe("bridges pass testAdapter", () => {
       serve: (server, run, { allow, waitUntil }) => {
         const handle = toSvelteKit(entriesFor(server, allow, waitUntil));
 
-        return (request) =>
-          handle({
-            event: { request, locals: {} },
+        return (request) => {
+          const locals: Parameters<typeof handle>[0]["event"]["locals"] = {};
+
+          return handle({
+            event: { request, locals },
             resolve: (event) => answer(run, event.locals.bs!, event.request),
           });
+        };
       },
     });
   });
@@ -359,6 +362,15 @@ describe("bridge behavior", () => {
       },
       () => undefined,
     );
+    await toH3([probe()])(
+      {
+        req: Object.assign(new Request("https://api.test/"), {
+          runtime: { cloudflare: { env: { BRIDGE_PROBE: "nitro-3" } } },
+        }),
+        context: {},
+      },
+      () => undefined,
+    );
     await toReactRouter([probe()], Symbol("k"), {
       env: () => ({ BRIDGE_PROBE: "react-router" }),
     })(
@@ -383,6 +395,7 @@ describe("bridge behavior", () => {
     })(new Request("https://app.test/"), { BRIDGE_PROBE: "orpc" });
     expect(seen).toEqual([
       "h3",
+      "nitro-3",
       "react-router",
       "tanstack",
       "expo",

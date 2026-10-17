@@ -8,6 +8,7 @@ import {
   type FlagContext,
   sqlTransport,
 } from "../../src/blocks/flags/index.ts";
+import { expiredFlagsQuery } from "../../src/sql/index.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
@@ -290,6 +291,133 @@ describe.skipIf(!live)("flags", () => {
       expect(await s.hint("select * from better_supabase.flags")).toMatch(
         /GRANT SELECT/,
       );
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("evaluates custom contexts as evaluateFlag() does", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.rows(
+        "create table public.tenant_brands (tenant uuid primary key, brand text not null)",
+      );
+      await s.install(["organizations", "flags"], {
+        modules: {
+          flags: {
+            options: {
+              contexts: {
+                brand: {
+                  table: "public.tenant_brands",
+                  column: "brand",
+                  tenant: "tenant",
+                },
+                region: {
+                  table: "public.tenant_brands",
+                  column: "brand",
+                  tenant: "tenant",
+                },
+              },
+            },
+          },
+        },
+      });
+      await s.clear(["better_supabase.flags"]);
+      const owner = await s.user("owner");
+      const outsider = await s.user("outsider");
+      const acme = await s.organization(owner);
+      const globex = await s.organization(outsider);
+
+      await s.service();
+      await s.rows(
+        "insert into public.tenant_brands values ($1, 'acme'), ($2, 'globex')",
+        [acme, globex],
+      );
+      await s.rows(
+        `insert into better_supabase.flags (key, rules) values
+           ('brand_banner', $1), ('brand_override', '[]')`,
+        [JSON.stringify([{ variant: "on", contexts: { brand: ["acme"] } }])],
+      );
+      await s.rows(
+        `insert into better_supabase.flag_overrides (flag_key, context, context_key, variant)
+         values ('brand_override', 'region', 'globex', 'off'),
+                ('brand_override', 'brand', 'globex', 'on')`,
+      );
+
+      const overrides = await s.value<readonly { context: string }[]>(
+        "(select x -> 'overrides' from jsonb_array_elements(better_supabase.flag_definitions()) x where x ->> 'key' = 'brand_override')",
+      );
+
+      expect(overrides.map((entry) => entry.context)).toEqual([
+        "brand",
+        "region",
+      ]);
+
+      const provider = createFlagsProvider({ transport: sqlTransport(s.sql) });
+
+      const cases: readonly [string, string, string | null, string][] = [
+        ["brand_banner", acme, null, "acme"],
+        ["brand_banner", globex, null, "globex"],
+        ["brand_banner", globex, '{"brand": "acme"}', "acme"],
+        ["brand_override", globex, null, "globex"],
+        ["brand_override", acme, null, "acme"],
+      ];
+
+      for (const [key, tenant, contexts, brand] of cases) {
+        const sql = await s.value<Record<string, unknown>>(
+          "better_supabase.flag_evaluation($1, $2, null, $3::jsonb)",
+          [key, tenant, contexts],
+        );
+
+        const typed = await provider.resolveBooleanEvaluation(key, false, {
+          tenant,
+          contexts: { brand, region: brand },
+        });
+
+        expect({ key, brand, ...typed }).toEqual({ key, brand, ...sql });
+      }
+
+      expect(
+        await s.value(
+          "(better_supabase.flag_evaluation('brand_override', $1, null) ->> 'variant')",
+          [globex],
+        ),
+      ).toBe("on");
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("finds the flags past expires_at that doctor reports", async () => {
+    const s = await BlockSession.open(pool);
+
+    const layout = {
+      modules: {
+        flags: {
+          options: {
+            extraColumns: { expires_at: "timestamptz", owner: "text" },
+          },
+        },
+      },
+    };
+
+    try {
+      await s.install(["flags"], layout);
+      await s.rows(`insert into better_supabase.flags (key, expires_at, owner, archived) values
+        ('expired', now() - interval '1 day', 'growth', false),
+        ('archived', now() - interval '1 day', 'growth', true),
+        ('current', now() + interval '1 day', null, false),
+        ('open', null, null, false)`);
+
+      const query = expiredFlagsQuery(layout, ["flags"]);
+
+      expect(query).toBeDefined();
+      expect(
+        (await s.rows<{ key: string; owner: string }>(query ?? "")).map(
+          ({ key, owner }) => ({ key, owner }),
+        ),
+      ).toEqual([{ key: "expired", owner: "growth" }]);
     } finally {
       await s.close();
     }

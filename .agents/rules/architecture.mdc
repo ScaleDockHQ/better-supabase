@@ -10,7 +10,9 @@ alwaysApply: true
 1. The core (`better-supabase`) has no runtime dependency beyond
    `@standard-schema/spec` and the Supabase packages. Everything else is an
    optional peer, loaded lazily, or typed structurally without importing it.
-   CLI-only dependencies are devDependencies that the CLI build inlines
+   An SDK typed structurally or loaded lazily is still an optional peer with
+   a tested range, listed in `tests/optional-peers.test.ts`
+   (ADR 0036). CLI-only dependencies are devDependencies that the CLI build inlines
    (`deps.onlyBundle` in `tsdown.config.ts`), so apps never install them.
 2. Generated code never uses `declare module` augmentation. It calls inferring
    functions (`defineSchema`) that carry the types.

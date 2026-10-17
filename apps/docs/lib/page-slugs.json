@@ -155,6 +155,7 @@
   "extending/plugins",
   "extending/repositories",
   "extending/stability",
+  "flags-sdk",
   "for-ai-agents",
   "frameworks",
   "frameworks/astro",
