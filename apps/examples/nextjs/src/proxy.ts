@@ -1,10 +1,12 @@
 import { type ProxyOptions, toSession } from "better-supabase/next";
+import { precompute } from "flags/next";
 import { hasLocale } from "next-intl";
 import createMiddleware from "next-intl/middleware";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { requiredPermission } from "./features/navigation/nav-items";
 import { can } from "./features/user/user-permissions";
+import { pricingFlags } from "./flags";
 import { routing } from "./i18n/routing";
 import { bs } from "./lib/supabase/server";
 
@@ -36,7 +38,7 @@ function splitLocale(pathname: string) {
  * RLS still check; this only saves rendering a page the user can't use.
  * A path without a locale is left to next-intl's redirect.
  */
-const protect: NonNullable<ProxyOptions["protect"]> = (auth, request) => {
+const protect: NonNullable<ProxyOptions["protect"]> = async (auth, request) => {
   // A Server Action posts to the page it runs on; redirecting it drops the action.
   if (request.method !== "GET" && request.method !== "HEAD") {
     return;
@@ -50,8 +52,25 @@ const protect: NonNullable<ProxyOptions["protect"]> = (auth, request) => {
   }
 
   const { locale, path } = route;
+
+  // The pricing flags are evaluated here once, and the static page for
+  // their values is served; `precompute` signs them with FLAGS_SECRET.
+  if (path === "/pricing") {
+    const code = process.env["FLAGS_SECRET"]
+      ? await precompute(pricingFlags)
+      : "default";
+
+    return NextResponse.rewrite(
+      new URL(`/${locale}/pricing/${code}${search}`, request.url),
+    );
+  }
+
   const session = toSession(auth);
-  const isPublic = PUBLIC.has(path) || path.startsWith("/invite/");
+
+  const isPublic =
+    PUBLIC.has(path) ||
+    path.startsWith("/invite/") ||
+    path.startsWith("/pricing/");
 
   if (session.kind !== "user") {
     if (isPublic) {
@@ -96,8 +115,8 @@ export const proxy = (request: NextRequest) =>
 
 export const config = {
   matcher: [
-    // The workflow routes authenticate deliveries themselves; the proxy would
-    // redirect them to a locale or the sign-in page.
-    "/((?!_next/static|_next/image|favicon.ico|\\.well-known/workflow/|.*\\.(?:svg|png|jpg|webp|ico|txt)$).*)",
+    // The workflow and Flags Explorer routes authenticate requests themselves;
+    // the proxy would redirect them to a locale or the sign-in page.
+    "/((?!_next/static|_next/image|favicon.ico|\\.well-known/workflow/|\\.well-known/vercel/|.*\\.(?:svg|png|jpg|webp|ico|txt)$).*)",
   ],
 };

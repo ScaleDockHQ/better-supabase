@@ -40,6 +40,7 @@
     "better-supabase": "workspace:*",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
+    "flags": "catalog:",
     "input-otp": "catalog:",
     "lucide-react": "catalog:",
     "next": "catalog:",
