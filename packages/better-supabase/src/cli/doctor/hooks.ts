@@ -519,7 +519,7 @@ function secretsFromEnv(text: string, hook: string): boolean {
   if (start < 0) return false;
   const rest = text.slice(start).split("\n").slice(1);
   const end = rest.findIndex((line) => /^\s*\[/.test(line));
-  const section = (end < 0 ? rest : rest.slice(0, end)).join("\n");
+  const section = (end === -1 ? rest : rest.slice(0, end)).join("\n");
   return /^\s*secrets\s*=\s*["']env\(/m.test(section);
 }
 

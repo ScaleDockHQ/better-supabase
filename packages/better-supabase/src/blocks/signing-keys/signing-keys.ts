@@ -275,7 +275,7 @@ export function createSigningKeys(options: SigningKeysOptions): SigningKeys {
           },
         );
       }
-      return new Response(JSON.stringify(result.data), {
+      return Response.json(result.data, {
         headers: {
           "content-type": "application/jwk-set+json",
           "cache-control": `public, max-age=${String(responseOptions.maxAge ?? 300)}`,

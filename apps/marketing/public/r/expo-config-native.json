@@ -11,7 +11,7 @@
   "files": [
     {
       "path": "items/expo/app.config.ts",
-      "content": "import type { ConfigContext, ExpoConfig } from \"expo/config\";\n\n/**\n * Adds what better-supabase needs on iOS and Android to the config in\n * `app.json`: a URL scheme for the magic-link and OAuth deep links\n * (`handleAuthDeepLink`), secure storage for the session, and push.\n */\nexport default ({ config }: ConfigContext): ExpoConfig => ({\n  ...config,\n  name: config.name ?? \"app\",\n  slug: config.slug ?? \"app\",\n  scheme: config.scheme ?? \"app\",\n  plugins: [\n    ...(config.plugins ?? []),\n    \"expo-secure-store\",\n    \"expo-notifications\",\n  ],\n});\n",
+      "content": "import type { ConfigContext, ExpoConfig } from \"expo/config\";\n\n/**\n * Adds what better-supabase needs on iOS and Android to the config in\n * `app.json`: a URL scheme for the magic-link and OAuth deep links\n * (`handleAuthDeepLink`), secure storage for the session, and push.\n */\nexport default function appConfig({ config }: ConfigContext): ExpoConfig {\n  return {\n    ...config,\n    name: config.name ?? \"app\",\n    slug: config.slug ?? \"app\",\n    scheme: config.scheme ?? \"app\",\n    plugins: [\n      ...(config.plugins ?? []),\n      \"expo-secure-store\",\n      \"expo-notifications\",\n    ],\n  };\n}\n",
       "type": "registry:file",
       "target": "~/app.config.ts"
     }

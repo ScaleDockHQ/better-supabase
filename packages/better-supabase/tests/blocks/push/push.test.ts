@@ -36,9 +36,12 @@ function expoFetch(
     const path = String(input).split("/").at(-1) ?? "";
     const body: unknown = JSON.parse(String(init?.body));
     calls.push({ path, body, headers: new Headers(init?.headers) });
-    return new Response(JSON.stringify({ data: answer(path, body) }), {
-      status,
-    });
+    return Response.json(
+      { data: answer(path, body) },
+      {
+        status,
+      },
+    );
   });
   return { calls, fetch };
 }

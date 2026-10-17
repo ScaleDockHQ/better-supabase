@@ -328,7 +328,7 @@ function presetBlock(module: SqlModule): PresetCatalogBlock {
       const needs = module.dependencies?.({
         modules: { access: { model } },
       });
-      return needs === undefined || needs.join() === requires.join()
+      return needs === undefined || needs.join(",") === requires.join(",")
         ? []
         : [[model, needs]];
     }),

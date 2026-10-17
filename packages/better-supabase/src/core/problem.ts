@@ -209,7 +209,7 @@ export function problemResponse(
     headers.set("retry-after", String(error.retryAfter));
   const problem = toProblem(error, options);
   const body = options.format ? options.format(problem, error) : problem;
-  return new Response(JSON.stringify(body), {
+  return Response.json(body, {
     status: error.status,
     headers,
   });

@@ -5,14 +5,16 @@ import type { ConfigContext, ExpoConfig } from "expo/config";
  * `app.json`: a URL scheme for the magic-link and OAuth deep links
  * (`handleAuthDeepLink`), secure storage for the session, and push.
  */
-export default ({ config }: ConfigContext): ExpoConfig => ({
-  ...config,
-  name: config.name ?? "app",
-  slug: config.slug ?? "app",
-  scheme: config.scheme ?? "app",
-  plugins: [
-    ...(config.plugins ?? []),
-    "expo-secure-store",
-    "expo-notifications",
-  ],
-});
+export default function appConfig({ config }: ConfigContext): ExpoConfig {
+  return {
+    ...config,
+    name: config.name ?? "app",
+    slug: config.slug ?? "app",
+    scheme: config.scheme ?? "app",
+    plugins: [
+      ...(config.plugins ?? []),
+      "expo-secure-store",
+      "expo-notifications",
+    ],
+  };
+}

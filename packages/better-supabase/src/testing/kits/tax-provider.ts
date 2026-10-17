@@ -111,8 +111,8 @@ export function testTaxProvider(
           `provider is ${quote.provider}`,
         );
         expect(
-          quote.lines.map((each) => each.lineId).join() === "a,b",
-          `lines are ${quote.lines.map((each) => each.lineId).join()}`,
+          quote.lines.map((each) => each.lineId).join(",") === "a,b",
+          `lines are ${quote.lines.map((each) => each.lineId).join(",")}`,
         );
         expect(
           quote.lines[0]?.taxable.amount === 10_000n,

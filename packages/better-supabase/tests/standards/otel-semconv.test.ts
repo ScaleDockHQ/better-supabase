@@ -38,18 +38,18 @@ function recorder() {
     };
     spans.push(record);
     const span = {
-      setAttribute: (key: string, value: never) => (
-        (record.attributes[key] = value),
-        span
-      ),
-      setAttributes: (values: Attributes) => (
-        Object.assign(record.attributes, values),
-        span
-      ),
-      setStatus: (status: { code: SpanStatusCode }) => (
-        (record.status = status),
-        span
-      ),
+      setAttribute: (key: string, value: never) => {
+        record.attributes[key] = value;
+        return span;
+      },
+      setAttributes: (values: Attributes) => {
+        Object.assign(record.attributes, values);
+        return span;
+      },
+      setStatus: (status: { code: SpanStatusCode }) => {
+        record.status = status;
+        return span;
+      },
       recordException: () => undefined,
       isRecording: () => true,
       end: () => undefined,

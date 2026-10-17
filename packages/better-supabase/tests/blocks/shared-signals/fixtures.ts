@@ -134,7 +134,7 @@ export function store(): Store {
     },
     delete_ssf_stream(args) {
       const index = streams.findIndex((s) => s.id === args["id"]);
-      if (index < 0) return false;
+      if (index === -1) return false;
       streams.splice(index, 1);
       return true;
     },

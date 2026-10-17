@@ -198,6 +198,7 @@ export interface BetterOrpc<
   /** A `Result` (or `AsyncResult`) as data, throwing an `ORPCError` on failure. */
   unwrap<T>(value: Result<T> | PromiseLike<Result<T>>): Promise<T>;
   /** Plain values pass through; thrown `DbException`s become `ORPCError`s. */
+  // oxlint-disable-next-line typescript/unified-signatures -- the first overload infers the value inside a Result
   unwrap<T>(value: T | PromiseLike<T>): Promise<T>;
   toOrpcError(error: DbError): ORPCError<string, ProblemDetails>;
 }

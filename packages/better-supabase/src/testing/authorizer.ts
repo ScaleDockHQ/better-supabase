@@ -235,7 +235,7 @@ export interface StaticAuthorizerOptions<Ref extends string> {
 export function staticAuthorizer<Ref extends string>(
   options: StaticAuthorizerOptions<Ref>,
 ): Authorizer<Ref> {
-  const approvals = new Set<string>(options.approvals ?? []);
+  const approvals = new Set<string>(options.approvals);
   const evaluate = (
     request: AuthorizationRequest<Ref>,
   ): AuthorizationOutcome => {

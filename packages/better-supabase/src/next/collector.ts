@@ -124,7 +124,8 @@ export interface CollectorView {
 export function sharedCollector(options: CollectorOptions): CollectorView {
   // SAFETY: SHARED is a module symbol, so nothing else writes to that global slot.
   const scope = globalThis as { [SHARED]?: StatsCollector };
-  const shared = (scope[SHARED] ??= new StatsCollector(options));
+  const shared = scope[SHARED] ?? new StatsCollector(options);
+  scope[SHARED] = shared;
   return {
     recorderFor: (id) => shared.recorderFor(id, options),
     get: (id) => shared.get(id),

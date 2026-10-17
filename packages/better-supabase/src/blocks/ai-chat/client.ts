@@ -295,7 +295,7 @@ export function createAiChatTreeController(
             const siblings = result.data;
             const index = siblings.findIndex((item) => item.id === messageId);
             const target = siblings[index + offset];
-            if (index >= 0 && target) await switchBranch(target.id);
+            if (index !== -1 && target) await switchBranch(target.id);
           },
         },
         start: () => {

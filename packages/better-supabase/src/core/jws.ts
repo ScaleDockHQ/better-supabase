@@ -158,6 +158,7 @@ export async function signBytes(
   data: Uint8Array,
 ): Promise<Uint8Array> {
   return new Uint8Array(
+    // oxlint-disable-next-line unicorn/prefer-spread -- the copy must stay a Uint8Array on its own ArrayBuffer
     await crypto.subtle.sign(signParams(alg), key, data.slice()),
   );
 }

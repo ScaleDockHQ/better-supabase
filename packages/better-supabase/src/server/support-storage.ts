@@ -313,7 +313,7 @@ function delimited(entries: readonly Row[], prefix: string): Row[] {
   for (const entry of entries) {
     const name = String(entry["name"]);
     const index = name.replace(prefix, "").indexOf("/");
-    if (index < 0) {
+    if (index === -1) {
       grouped.push(entry);
       continue;
     }

@@ -494,12 +494,12 @@ export interface ProtectWebHandlerOptions {
 }
 
 function problem(status: 401 | 403): Response {
-  return new Response(
-    JSON.stringify({
+  return Response.json(
+    {
       type: "about:blank",
       title: status === 401 ? "Unauthorized" : "Forbidden",
       status,
-    }),
+    },
     { status, headers: { "content-type": "application/problem+json" } },
   );
 }

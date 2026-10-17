@@ -94,7 +94,7 @@ function json(
   body: unknown,
   headers: Readonly<Record<string, string>> = {},
 ): Response {
-  return new Response(JSON.stringify(body), {
+  return Response.json(body, {
     status,
     headers: { "content-type": MEDIA_TYPE, ...headers },
   });

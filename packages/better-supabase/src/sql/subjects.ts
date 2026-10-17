@@ -269,7 +269,7 @@ function subjectTableBinding(
     throw new TypeError(`${where}.table must be "table" or "schema.table"`);
   }
   const columns: Record<string, string> = {};
-  const optional = new Set(spec.optional ?? []);
+  const optional = new Set(spec.optional);
   const known = new Set([...spec.columns, ...optional, "table"]);
   for (const name of Object.keys(raw)) {
     if (!known.has(name)) {

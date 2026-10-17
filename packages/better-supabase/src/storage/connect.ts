@@ -332,7 +332,11 @@ export function connectBucket<P extends string, Id extends string>(
     return out;
   };
 
-  /** Yields objects one listing page at a time, depth first, in `list` order. */
+  /**
+   * Walks `folder` one listing page at a time, depth first, in `list` order.
+   *
+   * @yields {StoredObject} Each stored object under `folder`.
+   */
   async function* stream(
     folder: string,
     signal: AbortSignal | undefined,

@@ -262,7 +262,7 @@ export function parseEnv(
   options: EnvOptions = {},
 ): EnvResult {
   const issues: EnvIssue[] = [];
-  const required = new Set(options.require ?? []);
+  const required = new Set(options.require);
 
   const rawUrl = first(source, ENV_VARIABLES.url);
   const url = rawUrl ? checkUrl(rawUrl, ENV_VARIABLES.url, issues) : undefined;

@@ -135,7 +135,7 @@ export function orderArgsByPosition(
         const at = pending.findIndex(
           (arg) => arg.type_id === Number(type) && arg.name === name,
         );
-        if (at >= 0) ordered.push(...pending.splice(at, 1));
+        if (at !== -1) ordered.push(...pending.splice(at, 1));
       });
       return { ...fn, args: [...ordered, ...pending] };
     }),

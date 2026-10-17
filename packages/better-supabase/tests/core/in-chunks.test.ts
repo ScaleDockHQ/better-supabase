@@ -64,7 +64,7 @@ describe("oversized in lists", () => {
       expect(request.params.toString().length).toBeLessThanOrEqual(4000);
     }
     expect(rows).toHaveLength(ids.length);
-    expect(rows.every((row) => Object.keys(row).join() === "id")).toBe(true);
+    expect(rows.every((row) => Object.keys(row).join(",") === "id")).toBe(true);
   });
 
   it("orders by the primary key without selecting it", async () => {

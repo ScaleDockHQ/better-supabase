@@ -496,7 +496,7 @@ export function createModuleContext(
     checkIdent(`${where}.hooks.functions.${hook}`, parts.name);
   }
 
-  const declared = new Set(names.options ?? []);
+  const declared = new Set(names.options);
   for (const key of Object.keys(config.options)) {
     if (!declared.has(key)) {
       throw new TypeError(

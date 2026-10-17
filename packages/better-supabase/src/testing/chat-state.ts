@@ -135,7 +135,7 @@ export function testChatState(
         for (const value of ["a", "b", "c", "d"])
           await state.appendToList(key, value, { maxLength: 3 });
         const list = await state.getList<string>(key);
-        expect(list.join() === "b,c,d", `list is ${list.join()}`);
+        expect(list.join(",") === "b,c,d", `list is ${list.join(",")}`);
         expect(
           (await state.getList(fresh())).length === 0,
           "missing list is not empty",

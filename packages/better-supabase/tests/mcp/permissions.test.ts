@@ -221,7 +221,10 @@ describe("createMcp authorizer", () => {
       version: "1.0.0",
       authorizer: defineAuthorizer<Ref>({
         name: "test",
-        key: (ref) => (keyed.push(ref), ref),
+        key: (ref) => {
+          keyed.push(ref);
+          return ref;
+        },
         evaluate: decide,
       }),
       operations: {

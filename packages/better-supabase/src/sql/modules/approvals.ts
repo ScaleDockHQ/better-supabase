@@ -200,9 +200,10 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     ctx.installed("time-tracking") && ctx.of("time-tracking").mode !== "custom"
       ? ctx.of("time-tracking")
       : undefined;
-  const ownSubjects = sqlString(ACCESS_REQUEST_SUBJECT).concat(
-    timesheets === undefined ? "" : `, ${sqlString(TIMESHEET_SUBJECT)}`,
-  );
+  const ownSubjects =
+    timesheets === undefined
+      ? sqlString(ACCESS_REQUEST_SUBJECT)
+      : `${sqlString(ACCESS_REQUEST_SUBJECT)}, ${sqlString(TIMESHEET_SUBJECT)}`;
   const aiChat =
     ctx.installed("ai-chat") && ctx.of("ai-chat").mode !== "custom"
       ? ctx.of("ai-chat")

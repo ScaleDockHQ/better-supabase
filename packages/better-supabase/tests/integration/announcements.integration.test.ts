@@ -82,6 +82,7 @@ describe.skipIf(!live)("announcements", () => {
       ).toBe(false);
       expect(
         await announcements
+          // oxlint-disable-next-line eslint/no-script-url -- the publish check must refuse it
           .publish({ title: "Bad", href: "javascript:alert(1)" })
           .then((r) => r.ok),
       ).toBe(false);

@@ -292,7 +292,7 @@ describe("DocumentFormat", () => {
         "2-draft": { pin: "abc1234", status: "preview" },
       },
       defaultVersion: "1",
-      lower: (model: ApiModel) => model.operations.map((op) => op.id).join(),
+      lower: (model: ApiModel) => model.operations.map((op) => op.id).join(","),
       fileName: () => "operations.txt",
     });
     expectTypeOf<VersionOf<typeof text>>().toEqualTypeOf<"1" | "2-draft">();

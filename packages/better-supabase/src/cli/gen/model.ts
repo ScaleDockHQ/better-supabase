@@ -233,7 +233,7 @@ function draftTables(ctx: ModelContext): DraftTable[] {
         trigger.level === "row" &&
         trigger.events.includes("insert"),
     );
-    const insertOptional = new Set(optionsOf(table)?.insertOptional ?? []);
+    const insertOptional = new Set(optionsOf(table)?.insertOptional);
     for (const name of insertOptional) {
       if (!table.columns.some((column) => column.name === name))
         throw new TypeError(

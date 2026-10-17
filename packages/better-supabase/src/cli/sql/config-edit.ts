@@ -73,7 +73,8 @@ function closingIndex(code: string, open: number): number {
   return -1;
 }
 
-const skipSpace = (code: string, index: number): number => {
+const skipSpace = (code: string, from: number): number => {
+  let index = from;
   while (index < code.length && /\s/.test(code[index]!)) index += 1;
   return index;
 };

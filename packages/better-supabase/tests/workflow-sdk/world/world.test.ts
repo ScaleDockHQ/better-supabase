@@ -230,9 +230,8 @@ describe("createSupabaseWorld", () => {
       complete_job: () => [{ complete_job: true }],
       vault: () => [],
     });
-    const fetch = vi.fn(
-      async (_url: string, _init: RequestInit) =>
-        new Response(JSON.stringify({ timeoutSeconds: 5 }), { status: 200 }),
+    const fetch = vi.fn(async (_url: string, _init: RequestInit) =>
+      Response.json({ timeoutSeconds: 5 }, { status: 200 }),
     );
     vi.stubGlobal("fetch", fetch);
     const world = createSupabaseWorld({

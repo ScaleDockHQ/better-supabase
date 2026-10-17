@@ -13,10 +13,13 @@ export class EveAuthRejection extends Error {
 
   constructor(message: string, status = 401) {
     super(message);
-    this.response = new Response(JSON.stringify({ error: message }), {
-      status,
-      headers: { "content-type": "application/json" },
-    });
+    this.response = Response.json(
+      { error: message },
+      {
+        status,
+        headers: { "content-type": "application/json" },
+      },
+    );
   }
 }
 

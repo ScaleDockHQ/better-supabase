@@ -58,7 +58,7 @@ describe("SQL module event catalog", () => {
 
   it("declares only types in its block's event map", () => {
     const unknown = Object.keys(SQL_MODULES).flatMap((module) => {
-      const known = new Set(OWNER.get(module)?.events.types ?? []);
+      const known = new Set(OWNER.get(module)?.events.types);
       return declared(module)
         .filter((type) => !known.has(type))
         .map((type) => `${module}: ${type}`);

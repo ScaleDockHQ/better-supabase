@@ -60,5 +60,5 @@ export function moduleDataPath(
   const inside = bare(dir) === schemas || bare(dir).startsWith(`${schemas}/`);
   const base = inside ? `${dir.startsWith("./") ? "./" : ""}${schemas}` : dir;
   const parent = base.lastIndexOf("/");
-  return `${parent < 0 ? "" : base.slice(0, parent + 1)}better-supabase-data${file}`;
+  return `${parent === -1 ? "" : base.slice(0, parent + 1)}better-supabase-data${file}`;
 }

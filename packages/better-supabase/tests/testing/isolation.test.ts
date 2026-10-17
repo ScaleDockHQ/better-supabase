@@ -352,8 +352,8 @@ describe("expectTenantIsolation", () => {
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         if (init?.method === "POST" && (posts += 1) === 2)
-          return new Response(
-            JSON.stringify({ code: "23505", message: "duplicate key" }),
+          return Response.json(
+            { code: "23505", message: "duplicate key" },
             { status: 409, headers: { "content-type": "application/json" } },
           );
         return inner(input, init);

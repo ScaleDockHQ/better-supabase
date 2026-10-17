@@ -161,7 +161,7 @@ export function withSession<
   >({
     key: "session",
     run: () =>
-      async function* (request, ctx) {
+      async function* run(request, ctx) {
         const call = callOf(ctx)?.options;
         const refresh = call
           ? (call.refresh ?? false)

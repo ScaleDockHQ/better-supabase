@@ -17,7 +17,7 @@ describe("managementSource", () => {
       accessToken: "sbp_token",
       fetch: (async (url: string, init: RequestInit) => {
         calls.push({ url, init });
-        return new Response(JSON.stringify([{ one: 1 }]));
+        return Response.json([{ one: 1 }]);
       }) as typeof fetch,
     });
     expect(await source.queryable.query("select 1 as one")).toEqual({

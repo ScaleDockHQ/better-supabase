@@ -178,7 +178,7 @@ describe("renderModules", () => {
       "jsonb_object_agg(r.tenant, to_jsonb(r.keys))",
     );
     expect(entitlements(false)).toMatch(
-      /feature_claims\(user_id uuid\)[\s\S]*?as \$\$\n  select '\{\}'::jsonb\n\$\$/,
+      /feature_claims\(user_id uuid\)[\s\S]*?as \$\$\n {2}select '\{\}'::jsonb\n\$\$/,
     );
     const compact = entitlements({ maxTenants: 20, keys: { exports: "x" } });
     expect(compact).toContain(

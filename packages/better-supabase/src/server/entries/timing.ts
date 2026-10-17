@@ -75,7 +75,7 @@ export function withServerTiming(
     key: "timing",
     run: () =>
       // oxlint-disable-next-line typescript/require-await -- an async generator is the response-seam shape `defineMiddleware` takes.
-      async function* () {
+      async function* run() {
         const started = now();
         const metrics: string[] = [];
         const timing: ServerTiming = {
@@ -123,7 +123,7 @@ export function withDbStats(
     key: "dbStats",
     run: () =>
       // oxlint-disable-next-line typescript/require-await -- an async generator is the response-seam shape `defineMiddleware` takes.
-      async function* (_request, ctx) {
+      async function* run(_request, ctx) {
         const dbStats = (): DbStats => ctx.bs.stats();
         const response = yield { dbStats };
         const stats = dbStats();

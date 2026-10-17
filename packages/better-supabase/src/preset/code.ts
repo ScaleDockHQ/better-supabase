@@ -68,7 +68,7 @@ function valueOf(
 
 function indexIn(field: PresetField, value: string): number {
   const index = field.values.indexOf(value);
-  if (index < 0) {
+  if (index === -1) {
     throw new TypeError(
       `Preset ${field.key} "${value}" is not one of ${field.values.join(", ")}.`,
     );
@@ -109,7 +109,7 @@ function encodeWith(
   }
   for (const name of new Set(blocks)) {
     const index = layout.blocks.indexOf(name);
-    if (index < 0) {
+    if (index === -1) {
       throw new TypeError(
         `Preset block "${name}" is not a block. Blocks: ${layout.blocks.filter((each) => each !== null).join(", ")}`,
       );

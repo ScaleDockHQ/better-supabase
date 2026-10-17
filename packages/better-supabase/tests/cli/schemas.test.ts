@@ -62,7 +62,9 @@ function validate(
     );
   }
   if (schema["type"] !== undefined) {
-    const types = ([] as unknown[]).concat(schema["type"]);
+    const types: unknown[] = Array.isArray(schema["type"])
+      ? schema["type"]
+      : [schema["type"]];
     const actual = typeOf(value);
     if (
       !types.includes(actual) &&

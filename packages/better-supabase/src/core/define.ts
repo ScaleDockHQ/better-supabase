@@ -822,7 +822,7 @@ interface DbState {
 const dbStates = new WeakMap<object, DbState>();
 
 function mapThrows(method: AnyMethod, throwAs: ThrowMapper): AnyMethod {
-  return function (this: unknown, ...args) {
+  return function mapped(this: unknown, ...args) {
     const value = method.apply(this, args);
     return value instanceof AsyncResult
       ? withErrorMapper(value, throwAs)

@@ -201,7 +201,7 @@ export function questionnaireReducer(
     case "goTo": {
       const target = steps.findIndex((step) => step.key === action.step);
       const reachable =
-        target >= 0 &&
+        target !== -1 &&
         steps
           .slice(0, target)
           .every((step) => state.completed.includes(step.key));

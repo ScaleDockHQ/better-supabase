@@ -15,9 +15,9 @@ import { dbUrl, installAndRollBack, presetFiles, reachable } from "./stack.ts";
 const live = await reachable();
 
 const wiringFile = (name: string): URL =>
-  new URL(`./wiring/${name}.generated.ts`, import.meta.url);
+  new URL(`wiring/${name}.generated.ts`, import.meta.url);
 const blockConfigFile = (name: string): URL =>
-  new URL(`./wiring/${name}.blocks.generated.ts`, import.meta.url);
+  new URL(`wiring/${name}.blocks.generated.ts`, import.meta.url);
 
 describe("named presets", () => {
   it.each(PRESET_NAMES)(

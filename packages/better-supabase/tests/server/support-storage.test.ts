@@ -45,7 +45,7 @@ function search(visible: readonly string[], call: SqlCall) {
     if (!name.toLowerCase().startsWith(start)) continue;
     const rest = name.slice(prefix.length);
     const slash = rest.indexOf("/");
-    if (slash < 0) {
+    if (slash === -1) {
       entries.push({
         name: rest,
         id: `id-${name}`,

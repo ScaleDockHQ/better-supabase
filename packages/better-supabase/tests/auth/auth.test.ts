@@ -839,7 +839,7 @@ describe("env", () => {
       expect.stringMatching(/^SUPABASE_SECRET_KEY is a legacy JWT key/),
       "SUPABASE_DB_URL is not set",
     ]);
-    expect(messages.join()).not.toContain("sb_secret_leaked");
+    expect(messages.join(",")).not.toContain("sb_secret_leaked");
   });
 
   it("is a Standard Schema", async () => {

@@ -346,9 +346,10 @@ const config: OxlintConfig = defineConfig({
     // prefer-named-capture-group 488, no-use-before-define 476,
     // prefer-destructuring 436, catch-error-name 249,
     // consistent-type-definitions 202, no-nested-ternary 200, no-plusplus 123,
-    // import-style 120, no-bitwise 54, no-array-for-each 28, no-eq-null 7,
-    // no-array-reduce 7, func-names 6, prefer-ternary 4, unified-signatures 1,
-    // filename-case 1, no-anonymous-default-export 1.
+    // import-style 120, no-bitwise 54, no-array-for-each 28, no-eq-null 7.
+    // no-array-reduce (8) flags folds that compose middleware or chain
+    // results, which read clearer as a fold than as a loop.
+    // prefer-ternary (4) flags branches that each await a call with effects.
     // no-duplicate-imports (35) also flags the `import type` line the repo
     // keeps apart from the value import; import/no-duplicates covers the rest.
     // prefer-export-from (27) has no autofix, and Next.js route exports such
@@ -377,11 +378,7 @@ const config: OxlintConfig = defineConfig({
     "typescript/no-inferrable-types": "off",
     "eslint/no-eq-null": "off",
     "unicorn/no-array-reduce": "off",
-    "eslint/func-names": "off",
     "unicorn/prefer-ternary": "off",
-    "typescript/unified-signatures": "off",
-    "unicorn/filename-case": "off",
-    "unicorn/no-anonymous-default-export": "off",
 
     // Each finding needs reading first: some are deliberate (Promise
     // constructors around callback APIs, bitwise hashing, empty fakes), others
@@ -392,13 +389,13 @@ const config: OxlintConfig = defineConfig({
     // 22, no-invalid-void-type 21, param-names 18, no-dynamic-delete 17,
     // class-methods-use-this 17, no-empty-object-type 16,
     // custom-error-definition 16, no-empty-function 15,
-    // no-unreadable-array-destructuring 14, consistent-existence-index-check 9,
-    // prefer-response-static-json 8, require-array-join-separator 8,
-    // throw-new-error 7, no-useless-collection-argument 6, default-param-last
-    // 6, prefer-catch 5, no-sequences 4, no-return-wrap 3, prefer-spread 2,
-    // no-regex-spaces 2, relative-url-style 2, require-yields 2, no-barrel-file
-    // 1, no-multi-assign 1, no-script-url 1, no-param-reassign 1,
-    // no-empty-interface 1.
+    // no-unreadable-array-destructuring 14.
+    // These stay off because every finding is deliberate: throw-new-error (7)
+    // flags `extends TaggedError("X")` class factories, default-param-last
+    // (6) flags callbacks whose positions an interface fixes, prefer-catch (5)
+    // flags `.then(onOk, onError)`, where onError must not see onOk throw,
+    // no-return-wrap (3) flags `Promise.resolve` around a result that may be
+    // synchronous, and no-barrel-file (1) flags the CLI entry.
     "promise/prefer-await-to-then": "off",
     "promise/avoid-new": "off",
     "eslint/complexity": "off",
@@ -416,24 +413,11 @@ const config: OxlintConfig = defineConfig({
     "unicorn/custom-error-definition": "off",
     "eslint/no-empty-function": "off",
     "unicorn/no-unreadable-array-destructuring": "off",
-    "unicorn/consistent-existence-index-check": "off",
-    "unicorn/prefer-response-static-json": "off",
-    "unicorn/require-array-join-separator": "off",
     "unicorn/throw-new-error": "off",
-    "unicorn/no-useless-collection-argument": "off",
     "eslint/default-param-last": "off",
     "promise/prefer-catch": "off",
-    "eslint/no-sequences": "off",
     "promise/no-return-wrap": "off",
-    "unicorn/prefer-spread": "off",
-    "eslint/no-regex-spaces": "off",
-    "unicorn/relative-url-style": "off",
-    "jsdoc/require-yields": "off",
     "oxc/no-barrel-file": "off",
-    "eslint/no-multi-assign": "off",
-    "eslint/no-script-url": "off",
-    "eslint/no-param-reassign": "off",
-    "typescript/no-empty-interface": "off",
   },
   overrides: [
     {
