@@ -2542,6 +2542,7 @@
     "@supabase/ssr": "catalog:deps"
   },
   "devDependencies": {
+    "@ai-sdk/anthropic": "catalog:",
     "@ai-sdk/mcp": "catalog:",
     "@ai-sdk/react": "catalog:",
     "@ai-sdk/workflow": "catalog:",
@@ -2560,6 +2561,7 @@
     "@orpc/openapi": "catalog:",
     "@orpc/server": "catalog:",
     "@playwright/test": "catalog:",
+    "@powersync/common": "catalog:",
     "@supabase-labs/middleware-openfeature": "catalog:",
     "@supabase-labs/tanstack-db": "catalog:",
     "@supabase/config": "catalog:",
@@ -2576,6 +2578,7 @@
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@valibot/to-json-schema": "catalog:",
+    "@vercel/connect": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "@workflow/world": "catalog:",
     "@workflow/world-postgres": "catalog:",
@@ -2592,6 +2595,7 @@
     "eve": "catalog:",
     "expo-server": "catalog:",
     "fastest-levenshtein": "catalog:",
+    "flags": "catalog:",
     "hono": "catalog:",
     "jsonpath-rfc9535": "catalog:",
     "next": "catalog:",
@@ -2622,14 +2626,18 @@
     "zod": "catalog:"
   },
   "peerDependencies": {
+    "@ai-sdk/anthropic": "catalog:peers",
     "@ai-sdk/mcp": "catalog:peers",
     "@ai-sdk/react": "catalog:peers",
     "@ai-sdk/workflow": "catalog:peers",
     "@modelcontextprotocol/server": "catalog:peers",
     "@nestjs/common": "catalog:peers",
     "@next/playwright": "catalog:peers",
+    "@openfeature/server-sdk": "catalog:peers",
     "@opentelemetry/api": "catalog:peers",
     "@orpc/server": "catalog:peers",
+    "@powersync/common": "catalog:peers",
+    "@supabase-labs/middleware-openfeature": "catalog:peers",
     "@supabase-labs/tanstack-db": "catalog:peers",
     "@supabase/config": "catalog:peers",
     "@supabase/lite": "catalog:peers",
@@ -2637,6 +2645,7 @@
     "@supabase/postgrest-typegen": "catalog:peers",
     "@supabase/supabase-js": "catalog:peers",
     "@tanstack/query-core": "catalog:peers",
+    "@vercel/connect": "catalog:peers",
     "@workflow/world": "catalog:peers",
     "@workflow/world-postgres": "catalog:peers",
     "ai": "catalog:peers",
@@ -2644,6 +2653,7 @@
     "chat": "catalog:peers",
     "eve": "catalog:peers",
     "expo-server": "catalog:peers",
+    "flags": "catalog:peers",
     "hono": "catalog:peers",
     "jsonpath-rfc9535": "catalog:peers",
     "next": "catalog:peers",
@@ -2660,6 +2670,9 @@
     "yjs": "catalog:peers"
   },
   "peerDependenciesMeta": {
+    "@ai-sdk/anthropic": {
+      "optional": true
+    },
     "@ai-sdk/mcp": {
       "optional": true
     },
@@ -2678,10 +2691,19 @@
     "@next/playwright": {
       "optional": true
     },
+    "@openfeature/server-sdk": {
+      "optional": true
+    },
     "@opentelemetry/api": {
       "optional": true
     },
     "@orpc/server": {
+      "optional": true
+    },
+    "@powersync/common": {
+      "optional": true
+    },
+    "@supabase-labs/middleware-openfeature": {
       "optional": true
     },
     "@supabase-labs/tanstack-db": {
@@ -2700,6 +2722,9 @@
       "optional": true
     },
     "@tanstack/query-core": {
+      "optional": true
+    },
+    "@vercel/connect": {
       "optional": true
     },
     "@workflow/world": {
@@ -2721,6 +2746,9 @@
       "optional": true
     },
     "expo-server": {
+      "optional": true
+    },
+    "flags": {
       "optional": true
     },
     "hono": {

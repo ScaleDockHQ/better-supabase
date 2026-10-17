@@ -9,6 +9,7 @@ packages:
 catalog:
   # The AI SDK set shares one @ai-sdk/provider-utils, so ai, mcp, react and
   # workflow move together.
+  "@ai-sdk/anthropic": 4.0.81
   "@ai-sdk/mcp": 2.0.77
   "@ai-sdk/react": 4.0.146
   "@ai-sdk/workflow": 2.0.74
@@ -27,6 +28,7 @@ catalog:
   "@effect/platform-node": 4.0.5
   "@expo/log-box": 57.0.4
   "@expo/metro-runtime": 57.0.16
+  "@flags-sdk/vercel": 1.5.1
   "@manypkg/get-packages": 3.1.0
   "@modelcontextprotocol/client": 2.3.1
   "@modelcontextprotocol/server": 2.3.1
@@ -66,6 +68,7 @@ catalog:
   "@types/react-dom": 19.3.0
   "@valibot/to-json-schema": 1.8.0
   "@vercel/analytics": 2.0.1
+  "@vercel/connect": 2.2.0
   "@vercel/speed-insights": 2.0.0
   "@vitejs/plugin-react": 6.1.2
   "@workflow/world": 5.0.4
@@ -103,6 +106,7 @@ catalog:
   expo-web-browser: 57.0.3
   express: 5.3.0
   fastest-levenshtein: 1.0.16
+  flags: 4.3.1
   fumadocs-core: 16.17.5
   fumadocs-mdx: 15.4.7
   fumadocs-typescript: 5.5.2
@@ -255,6 +259,21 @@ catalogs:
     # The Supabase World speaks the 5.0 world protocol; world-postgres moves with it.
     "@workflow/world": ">=5.0.2 <5.1"
     "@workflow/world-postgres": ">=5.0.2 <5.1"
+    # The integrations below are typed structurally or loaded on first use, so
+    # better-supabase imports none of them. The peer range still tells
+    # package managers which majors the conformance tests cover (ADR 0036).
+    # 4.0 is the provider for ai 7; anthropicMemory calls its memory tool.
+    "@ai-sdk/anthropic": ">=4 <5"
+    # 1.x is the server Provider contract createFlagsProvider implements.
+    "@openfeature/server-sdk": ">=1 <2"
+    # A 0.x Supabase Labs package: 0.2.0 is the FlagClient createFlagClient matches.
+    "@supabase-labs/middleware-openfeature": ">=0.2.0 <0.3"
+    # connect, disconnect and disconnectAndClear, which syncWithAuth drives, exist in both majors.
+    "@powersync/common": ">=1 <3"
+    # 2.x has getTokenResponse, revokeToken and startAuthorization.
+    "@vercel/connect": ">=2 <3"
+    # 4.1.0 added bulkDecide and adapterId; 4.2.0 resolves an adapter factory passed by reference.
+    flags: ">=4.2 <5"
 
 catalogMode: strict
 nodeLinker: isolated
