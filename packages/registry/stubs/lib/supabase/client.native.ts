@@ -1,4 +1,4 @@
-// Stands in for the Expo `src/lib/supabase/native.ts` from `better-supabase init`.
+// Stands in for the Expo `src/lib/supabase/client.native.ts` from `better-supabase init`.
 import { createClient } from "@supabase/supabase-js";
 
 export const supabase = createClient(

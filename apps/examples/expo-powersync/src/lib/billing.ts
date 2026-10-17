@@ -8,7 +8,7 @@ import {
 } from "better-supabase";
 import * as v from "valibot";
 
-import { bs, supabase } from "./supabase/native";
+import { bs, supabase } from "./supabase/client.native";
 
 const CheckoutStarted = v.object({ url: v.optional(v.string()) });
 

@@ -336,7 +336,7 @@ On the server, `supportOf(session)` returns the same value.
 
 ### Events and the audit log
 
-`sb.on` receives `support.started`, `support.ended` (with `endedBy`: `admin`,
+`betterSupabase.on` receives `support.started`, `support.ended` (with `endedBy`: `admin`,
 `expired` or `revoked`) and `support.denied` (with the denial code).
 The SQL module writes `support.started` and `support.ended` to the
 [audit log](/docs/blocks/sql#audit-log) with `support_session_id`,
@@ -357,7 +357,7 @@ A session stops working the moment it expires, since every request checks
 `bs.support.expire()` on a schedule to close expired sessions and record
 them: the SQL store calls `expire_support_sessions()` over `postgres.admin`,
 which ends each one through `end_support_session(id, 'expired')`, so the
-audit log gets a `support.ended` entry, and `sb.on` receives `support.ended`
+audit log gets a `support.ended` entry, and `betterSupabase.on` receives `support.ended`
 with `endedBy: "expired"` for each. `expireRoute` serves it to a cron caller
 behind a bearer secret and answers `{ "expired": 2 }`:
 

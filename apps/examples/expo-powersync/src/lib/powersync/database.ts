@@ -8,7 +8,7 @@ import { postgrestExecutor } from "better-supabase";
 import { powersyncExecutor, sqliteTables } from "better-supabase/powersync";
 
 import { betterSupabase } from "../supabase";
-import { supabase } from "../supabase/native";
+import { supabase } from "../supabase/client.native";
 
 /** The synced columns of `public.customers`; PowerSync adds the text `id`. */
 const schema = new Schema({

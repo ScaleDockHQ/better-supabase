@@ -11,16 +11,17 @@ app calls it through `functions()` from `better-supabase/client` and gets a
 
 ## Define the function
 
-```ts title="supabase/functions/create-customer/handler.ts"
-import {
-  type ContractOf,
-  createEdge,
-  defineFunction,
-} from "better-supabase/edge";
-import * as v from "valibot";
+```ts title="supabase/functions/create-customer/server.ts"
+import { createEdge } from "better-supabase/edge";
 import { betterSupabase } from "../_shared/supabase.ts";
 
-const bs = createEdge(betterSupabase, { cors: true });
+export const bs = createEdge(betterSupabase, { cors: true });
+```
+
+```ts title="supabase/functions/create-customer/handler.ts"
+import { type ContractOf, defineFunction } from "better-supabase/edge";
+import * as v from "valibot";
+import { bs } from "./server.ts";
 
 export const createCustomer = defineFunction(bs, {
   input: v.object({

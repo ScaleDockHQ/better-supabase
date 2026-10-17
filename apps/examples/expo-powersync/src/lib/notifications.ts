@@ -6,7 +6,7 @@ import {
 import { useNotifications } from "better-supabase/blocks/notifications/react";
 import { useAuth } from "better-supabase/react";
 
-import { supabase } from "./supabase/native";
+import { supabase } from "./supabase/client.native";
 
 /** Reads counts only, so it needs no notification types. */
 const notifications = createNotifications({

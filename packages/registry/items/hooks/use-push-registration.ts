@@ -7,7 +7,7 @@ import * as Notifications from "expo-notifications";
 import { useEffect } from "react";
 import { Platform } from "react-native";
 
-import { supabase } from "@/lib/supabase/native";
+import { supabase } from "@/lib/supabase/client.native";
 
 const devices = createPush({
   transport: rpcTransport(supabase, { schema: "api" }),

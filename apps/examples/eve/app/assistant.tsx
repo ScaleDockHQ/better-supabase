@@ -6,7 +6,7 @@ import type { ReactNode, SubmitEvent } from "react";
 import { useEveAgent } from "eve/react";
 import { useEffect, useState } from "react";
 
-import { browserClient } from "@/lib/supabase";
+import { browserClient } from "@/lib/supabase/client";
 
 async function authorization(): Promise<Record<string, string>> {
   const { data } = await browserClient().auth.getSession();

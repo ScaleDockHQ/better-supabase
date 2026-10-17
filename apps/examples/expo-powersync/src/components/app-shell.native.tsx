@@ -6,7 +6,7 @@ import * as Linking from "expo-linking";
 import { useEffect } from "react";
 
 import { useSync } from "../lib/powersync/sync";
-import { bs, supabase } from "../lib/supabase/native";
+import { bs, supabase } from "../lib/supabase/client.native";
 import { AuthGate } from "./auth-gate";
 
 /** iOS and Android: the client, the auth deep links, sync and the sign-in gate. */
