@@ -52,6 +52,10 @@ const api = defineApi(defineSupabase(schema), {
       security: [{ supabaseJwt: [] }],
     },
   ],
+  dataApi: {
+    tables: ["customers", "notes"],
+    functions: ["customers_by_status", "my_profile", "set_my_avatar_path"],
+  },
   webhooks: [
     {
       id: "invoice.paid",

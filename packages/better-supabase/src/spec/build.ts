@@ -20,6 +20,7 @@ import {
   jsonContent,
   jsonResponse,
 } from "./build-resource.ts";
+import { buildDataApi, withDataApiSchemes } from "./data-api.ts";
 import { eventParts } from "./events.ts";
 import { mergeJson, pointerToken } from "./merge.ts";
 import { OAUTH_SCHEME, resolveSecurity } from "./presets.ts";
@@ -89,7 +90,16 @@ function build<Ref>(
     buildRoute(ctx, route, index);
   }
 
-  const security = buildSecurity(ctx);
+  if (options.dataApi) {
+    buildDataApi(ctx, options.dataApi);
+  }
+
+  const security = withDataApiSchemes(
+    buildSecurity(ctx),
+    ctx.operations,
+    options.supabaseUrl,
+  );
+
   applyPlugins(ctx, plugins);
   validateOperations(ctx);
 
@@ -302,6 +312,10 @@ function validateOperations<Ref>(ctx: BuildContext<Ref>): void {
 
   if (options.requirePermissions) {
     for (const operation of operations) {
+      if (operation.source.kind === "data-api") {
+        continue;
+      }
+
       const writes =
         operation.source.kind === "resource"
           ? operation.source.operation !== "list" &&
