@@ -499,8 +499,8 @@ function dealOf(value: unknown): Deal {
 }
 
 /**
- * A change value as the database reads it: dates as ISO, bigints and the
- * minor units of a `Money` as text.
+ * A value as the database reads it: dates as ISO, bigints and the minor units
+ * of a `Money` as text.
  */
 function valueArg(value: unknown): unknown {
   if (typeof value === "bigint") {
@@ -646,7 +646,12 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
             changes: checked.map((change) => ({
               dealId: change.dealId,
               field: change.field,
-              value: valueArg(change.value),
+              value: isMoney(change.value)
+                ? {
+                    amount: amountText(change.value),
+                    currency: change.value.currency,
+                  }
+                : valueArg(change.value),
             })),
           },
           (value) => {

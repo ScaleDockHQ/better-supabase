@@ -121,6 +121,14 @@ describe.skipIf(!live)("deals", () => {
         "DEAL_FIELD_UNKNOWN",
       ]);
 
+      const wrongCurrency = await deals
+        .update([{ dealId: deal.id, field: "amount", value: money(5n, "USD") }])
+        .orThrow();
+
+      expect(wrongCurrency.rejected.map((item) => item.hint)).toEqual([
+        "DEAL_CURRENCY_MISMATCH",
+      ]);
+
       const totals = await deals
         .setLines(deal.id, [
           {
@@ -297,7 +305,7 @@ describe.skipIf(!live)("deals", () => {
 
       const locked = await deals
         .update([
-          { dealId: deal.id, field: "amount", value: eur(5n) },
+          { dealId: deal.id, field: "amount", value: money(5n, "USD") },
           { dealId: deal.id, field: "note", value: "Waiting for PO" },
         ])
         .orThrow();

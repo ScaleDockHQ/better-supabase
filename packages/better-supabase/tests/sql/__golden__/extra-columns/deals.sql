@@ -346,6 +346,12 @@ begin
     raise exception 'the company is unknown or not readable in this organization' using errcode = '42501', hint = 'DEAL_COMPANY_FORBIDDEN';
   end if;
       end if;
+      if v_field in ('amount', 'existingAmount') and jsonb_typeof(v_change -> 'value') = 'object' then
+        if upper(v_change -> 'value' ->> 'currency') is distinct from v_row."currency" then
+          raise exception 'an amount must be in the deal''s currency' using errcode = '22023', hint = 'DEAL_CURRENCY_MISMATCH';
+        end if;
+        v_change := jsonb_set(v_change, '{value}', v_change -> 'value' -> 'amount');
+      end if;
       declare
     v_hook regprocedure := to_regprocedure('"public"."before_deal_update"(uuid, text, jsonb)');
   begin

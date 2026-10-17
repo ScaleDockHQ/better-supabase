@@ -307,6 +307,12 @@ begin
       if v_field = 'company' and jsonb_typeof(v_change -> 'value') = 'object' then
         ${checkCompany("(v_change -> 'value' ->> 'type')", "(v_change -> 'value' ->> 'id')", `v_row.${d("tenant")}`).trim()}
       end if;
+      if v_field in ('amount', 'existingAmount') and jsonb_typeof(v_change -> 'value') = 'object' then
+        if upper(v_change -> 'value' ->> 'currency') is distinct from v_row.${d("currency")} then
+          ${fail("DEAL_CURRENCY_MISMATCH", "an amount must be in the deal's currency", "22023")}
+        end if;
+        v_change := jsonb_set(v_change, '{value}', v_change -> 'value' -> 'amount');
+      end if;
       ${ctx.hook("before_deal_update", [
         ["uuid", "v_deal"],
         ["text", "v_field"],

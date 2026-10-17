@@ -185,7 +185,11 @@ describe("deals block", () => {
     expect(t.calls[0]?.[1]).toEqual({
       changes: [
         { dealId: "d1", field: "closeOn", value: "2026-12-01" },
-        { dealId: "d1", field: "amount", value: "5" },
+        {
+          dealId: "d1",
+          field: "amount",
+          value: { amount: "5", currency: "EUR" },
+        },
       ],
     });
     expect(result.rejected).toEqual([
