@@ -585,6 +585,34 @@ describe("mapDbError", () => {
       },
     ],
     [
+      "a busy connection pool",
+      {
+        code: "POSTGRES_POOL_BUSY",
+        message: "all 4 connections stayed busy for 10000ms",
+      },
+      {
+        kind: "network",
+        status: 503,
+        code: "POSTGRES_POOL_BUSY",
+        message: "all 4 connections stayed busy for 10000ms",
+      },
+    ],
+    [
+      "a paused connection pool, rounding the wait up to seconds",
+      {
+        code: "POSTGRES_CONNECT_PAUSED",
+        message: "new connections paused for 1500ms after a connection failure",
+        retryAfterMs: 1500,
+      },
+      {
+        kind: "network",
+        status: 503,
+        code: "POSTGRES_CONNECT_PAUSED",
+        message: "new connections paused for 1500ms after a connection failure",
+        retryAfter: 2,
+      },
+    ],
+    [
       "a fetch failure",
       { message: "TypeError: fetch failed" },
       { kind: "network", status: 503, message: "TypeError: fetch failed" },

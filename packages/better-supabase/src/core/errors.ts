@@ -36,7 +36,11 @@ export interface DbErrorKinds {
   raised: Record<never, never>;
   timeout: Record<never, never>;
   serialization: Record<never, never>;
-  network: Record<never, never>;
+  /**
+   * The database or a service could not be reached. `retryAfter`: seconds
+   * until a retry can succeed, when known (a paused connection pool).
+   */
+  network: { retryAfter?: number };
   aborted: Record<never, never>;
   invalid_request: Record<never, never>;
   validation: { issues: readonly ValidationIssue[] };
@@ -236,6 +240,8 @@ export interface RawDbError {
   readonly column?: string;
   readonly table?: string;
   readonly name?: string;
+  /** Milliseconds until a retry can succeed, from `@supabase/server`'s pool errors. */
+  readonly retryAfterMs?: number;
 }
 
 export type ErrorMapper = (
@@ -568,6 +574,16 @@ function mapBuiltin(raw: RawDbError): DbError {
       return dbError("rate_limited", message, {
         ...base,
         ...(seconds ? { retryAfter: Number(seconds) } : {}),
+      });
+    }
+
+    case "POSTGRES_POOL_BUSY":
+    case "POSTGRES_CONNECT_PAUSED": {
+      return dbError("network", message, {
+        ...base,
+        ...(raw.retryAfterMs === undefined
+          ? {}
+          : { retryAfter: Math.max(1, Math.ceil(raw.retryAfterMs / 1000)) }),
       });
     }
 

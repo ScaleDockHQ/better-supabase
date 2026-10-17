@@ -407,6 +407,31 @@ describe("postgresExecutor", () => {
       expect(fake.calls).toHaveLength(5);
     });
 
+    it("returns a pool failure at checkout as each operation's error", async () => {
+      const fake = fakeSql();
+
+      const busy: SqlClient = {
+        queryRaw: (text, params) => fake.sql.queryRaw(text, params),
+        transaction: () =>
+          Promise.reject(
+            Object.assign(new Error("all 4 connections stayed busy"), {
+              code: "POSTGRES_POOL_BUSY",
+            }),
+          ),
+      };
+
+      const results = await postgresExecutor(busy).batch!(
+        [select(), select()],
+        context,
+      );
+
+      expect(results.map((result) => result.error?.kind)).toEqual([
+        "network",
+        "network",
+      ]);
+      expect(results[0]!.error?.status).toBe(503);
+    });
+
     it("rethrows a transaction failure that is not an operation error", async () => {
       const fake = fakeSql();
 
@@ -504,6 +529,26 @@ describe("fromPgError", () => {
       column: "customer_id",
       table: "notes",
     });
+  });
+
+  it("reads retryAfterMs from @supabase/server's pool error details", () => {
+    expect(
+      fromPgError({
+        code: "POSTGRES_CONNECT_PAUSED",
+        message: "new connections paused",
+        details: { retryAfterMs: 800 },
+      }),
+    ).toEqual({
+      code: "POSTGRES_CONNECT_PAUSED",
+      message: "new connections paused",
+      retryAfterMs: 800,
+    });
+    expect(
+      fromPgError({
+        code: "POSTGRES_POOL_BUSY",
+        details: { retryAfterMs: "x" },
+      }),
+    ).toEqual({ code: "POSTGRES_POOL_BUSY" });
   });
 
   it("keeps only the fields that are present", () => {

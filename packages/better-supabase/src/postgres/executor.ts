@@ -41,6 +41,8 @@ interface PgErrorLike {
   readonly constraint?: string;
   readonly column?: string;
   readonly table?: string;
+  /** `@supabase/server`'s `PostgresPoolError` puts `retryAfterMs` here. */
+  readonly details?: unknown;
 }
 
 function isPgError(value: unknown): value is PgErrorLike {
@@ -50,6 +52,22 @@ function isPgError(value: unknown): value is PgErrorLike {
     value !== null &&
     typeof (value as PgErrorLike).code === "string"
   );
+}
+
+function retryAfterMsOf(details: unknown): number | undefined {
+  if (
+    typeof details !== "object" ||
+    details === null ||
+    !("retryAfterMs" in details)
+  ) {
+    return undefined;
+  }
+
+  const value = details.retryAfterMs;
+
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
 }
 
 /** node-postgres error fields to the shape `mapDbError` reads. */
@@ -86,6 +104,12 @@ export function fromPgError(error: unknown): RawDbError | undefined {
 
   if (error.table !== undefined) {
     raw.table = error.table;
+  }
+
+  const retryAfterMs = retryAfterMsOf(error.details);
+
+  if (retryAfterMs !== undefined) {
+    raw.retryAfterMs = retryAfterMs;
   }
 
   return raw;
@@ -168,7 +192,15 @@ export function postgresExecutor(client: SqlClient): Executor {
         });
       } catch (cause) {
         if (!(cause instanceof BatchFailed)) {
-          throw cause;
+          const raw = fromPgError(cause);
+
+          if (!raw) {
+            throw cause;
+          }
+
+          const error = mapDbError(raw, context.errorMappers);
+
+          return ops.map(() => err(error));
         }
 
         // A failed statement aborts the transaction; run each on its own so
