@@ -152,6 +152,7 @@ export function callerOf(auth: AuthSnapshot): Caller {
  */
 export function plainCaller(supabase: SupabaseClient): Store<Caller> {
   let caller: Caller = { status: "loading", userId: null };
+
   return {
     current: () => caller,
     subscribe: (listener) => {
@@ -162,6 +163,7 @@ export function plainCaller(supabase: SupabaseClient): Store<Caller> {
         };
         listener();
       });
+
       return () => {
         data.subscription.unsubscribe();
       };
@@ -203,10 +205,16 @@ export function startBroadcast<P extends string, E extends EventSchemas>(
   run: BroadcastRun<P, E>,
 ): (() => void) | undefined {
   const matched = run.topic.match(run.name);
-  if (!matched) return undefined;
+
+  if (!matched) {
+    return undefined;
+  }
+
   const { queryClient } = run;
+
   const forward = (payload: unknown, message: TopicMessage) => {
     const current = run.latest();
+
     // SAFETY: handlers are keyed by table and event, and the payload comes
     // from that table's topic.
     const table = current.handlers as
@@ -217,17 +225,27 @@ export function startBroadcast<P extends string, E extends EventSchemas>(
           >
         >
       | undefined;
+
     (table?.[message.event] ?? table?.["*"])?.(payload, message);
     const invalidate = current.options?.invalidate;
-    if (!invalidate || !queryClient) return;
-    if (typeof invalidate !== "function") {
-      void invalidateTables(queryClient, invalidate);
+
+    if (!invalidate || !queryClient) {
       return;
     }
-    for (const queryKey of invalidate(message))
+
+    if (typeof invalidate !== "function") {
+      void invalidateTables(queryClient, invalidate);
+
+      return;
+    }
+
+    for (const queryKey of invalidate(message)) {
       void queryClient.invalidateQueries({ queryKey });
+    }
   };
+
   const self = run.latest().options?.self;
+
   const subscription = run.topic.subscribe(
     run.supabase,
     matched,
@@ -239,6 +257,7 @@ export function startBroadcast<P extends string, E extends EventSchemas>(
         run.latest().options?.onInvalid?.(message, issues),
     },
   );
+
   return () => {
     void subscription.unsubscribe();
     run.onStatus("closed");
@@ -263,9 +282,13 @@ export function liveKey(
   auth: AuthSnapshot,
   options: LiveQueryHookOptions,
 ): string | null {
-  if (!spec || auth.status === "loading") return null;
+  if (!spec || auth.status === "loading") {
+    return null;
+  }
+
   const tenant =
     options.tenant ?? claimedTenant(auth, client.betterSupabase.meta);
+
   return JSON.stringify([
     specKey(spec),
     tenant ?? null,
@@ -277,9 +300,12 @@ export function liveKey(
 /** Invalidates the cached queries that read a table whenever one changes. */
 export function startLiveQuery(run: LiveQueryRun): () => void {
   const { client, queryClient, options } = run;
+
   const tenant =
     options.tenant ?? claimedTenant(run.auth, client.betterSupabase.meta);
+
   const userId = run.auth.user?.id ?? null;
+
   const live = liveQuery(client.betterSupabase, client.supabase, run.spec, {
     onChange: (tables) => void invalidateTables(queryClient, tables),
     onStatus: run.onStatus,
@@ -289,12 +315,14 @@ export function startLiveQuery(run: LiveQueryRun): () => void {
       ? {}
       : { debounceMs: options.debounceMs }),
   });
+
   if (run.resumed) {
     live.ready.then(
       () => void invalidateTables(queryClient, live.tables),
       () => undefined,
     );
   }
+
   return () => {
     void live.unsubscribe();
   };
@@ -318,12 +346,14 @@ export function countSource(
   readonly seeded: boolean;
 } {
   const seed = source && "spec" in source ? source : undefined;
+
   // SAFETY: source is a seed with a count spec or a plain count spec, and
   // the in check ruled out the seed.
   const spec = (seed ? seed.spec : source) as
     | QuerySpec<string, "count", number>
     | null
     | undefined;
+
   return {
     spec: spec ?? null,
     initial: seed?.count ?? options.initial,
@@ -362,9 +392,12 @@ export interface LiveCountRun {
 /** Refetches the count after each debounced change to a table it reads. */
 export function startLiveCount(run: LiveCountRun): () => void {
   const { client, key, options } = run;
+
   const tenant =
     options.tenant ?? claimedTenant(run.auth, client.betterSupabase.meta);
+
   const userId = run.auth.user?.id ?? null;
+
   // SAFETY: the client db runs count specs.
   const live = liveCount(
     client.betterSupabase,
@@ -394,6 +427,7 @@ export function startLiveCount(run: LiveCountRun): () => void {
         : { debounceMs: options.debounceMs }),
     },
   );
+
   return () => {
     void live.unsubscribe();
   };
@@ -406,8 +440,10 @@ export function shownCount(
   source: ReturnType<typeof countSource>,
 ): { readonly count: number | undefined; readonly error: DbError | undefined } {
   const fresh = state.key === key;
+
   const seedNewer =
     source.seedAt !== undefined && source.seeded && source.seedAt > state.at;
+
   return {
     count:
       fresh && state.count !== undefined && !seedNewer
@@ -439,24 +475,39 @@ export function joinPresence<P extends string, I, O>(
   },
 ): PresenceJoin<I> | undefined {
   const matched = topic.match(name);
-  if (!matched) return undefined;
+
+  if (!matched) {
+    return undefined;
+  }
+
   const joined = topic.subscribe(supabase, matched, NO_HANDLERS, handlers);
   let tracked: string | undefined;
+
   return {
     track: async (state) => {
       const result = await joined.track(state);
+
       return result.ok ? undefined : result.error;
     },
     untrack: async () => {
       const result = await joined.untrack();
+
       return result.ok ? undefined : result.error;
     },
     sync(state) {
       const key = state === undefined ? undefined : JSON.stringify(state);
-      if (key === undefined || key === tracked) return;
+
+      if (key === undefined || key === tracked) {
+        return;
+      }
+
       tracked = key;
-      if (state === null || state === undefined) void joined.untrack();
-      else void joined.track(state);
+
+      if (state === null || state === undefined) {
+        void joined.untrack();
+      } else {
+        void joined.track(state);
+      }
     },
     leave() {
       void joined.unsubscribe();
@@ -510,6 +561,7 @@ export function createActionRunner<I, T>(
 
   function snapshot(): ActionState<I, T> {
     const pendingInputs = inFlight.map((item) => item.input);
+
     return {
       pending: inFlight.length > 0,
       pendingInputs,
@@ -518,15 +570,20 @@ export function createActionRunner<I, T>(
       error,
     };
   }
+
   const emit = (): void => {
     state = snapshot();
-    for (const listener of listeners) listener();
+
+    for (const listener of listeners) {
+      listener();
+    }
   };
 
   return {
     current: () => state,
     subscribe: (listener) => {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };
@@ -537,11 +594,14 @@ export function createActionRunner<I, T>(
       inFlight = [...inFlight, entry];
       error = undefined;
       emit();
+
       const done = (): void => {
         inFlight = inFlight.filter((item) => item !== entry);
       };
+
       const { action, options } = latest();
       let result: ActionResultOf<T>;
+
       try {
         result = await action(input);
       } catch (cause) {
@@ -549,12 +609,23 @@ export function createActionRunner<I, T>(
         emit();
         throw cause;
       }
+
       done();
-      if (result.ok) data = result.data;
-      else error = result.error;
+
+      if (result.ok) {
+        data = result.data;
+      } else {
+        error = result.error;
+      }
+
       emit();
-      if (result.ok) options.onSuccess?.(result.data, input);
-      else options.onError?.(result.error, input);
+
+      if (result.ok) {
+        options.onSuccess?.(result.data, input);
+      } else {
+        options.onError?.(result.error, input);
+      }
+
       return result;
     },
     reset: () => {
@@ -577,9 +648,13 @@ export function keyed(): {
   readonly stop: () => void;
 } {
   let current: { key: string; stop: (() => void) | undefined } | undefined;
+
   return {
     update: (key, start) => {
-      if (current?.key === key) return;
+      if (current?.key === key) {
+        return;
+      }
+
       current?.stop?.();
       current = key === null ? undefined : { key, stop: start() };
     },

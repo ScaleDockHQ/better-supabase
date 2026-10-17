@@ -73,6 +73,7 @@ export interface FakeChats {
 export function fakeChats(options: FakeOptions = {}): FakeChats {
   const chats = new Map<string, AiChatRecord>();
   const tree: AiStoredMessage[] = [];
+
   const store = (
     message: AiMessage,
     parentId: string | undefined,
@@ -91,15 +92,21 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
       ...extra,
     });
   };
+
   const released: unknown[] = [];
   const saved: unknown[] = [];
   const moderated: unknown[] = [];
   const stops: string[] = [];
+
   const api = {
     chats: {
       get: (id: string) => {
-        if (options.getError) return failure(options.getError);
+        if (options.getError) {
+          return failure(options.getError);
+        }
+
         const chat = chats.get(id);
+
         return chat ? result(chat) : failure(dbError("not_found", "no chat"));
       },
       create: (
@@ -110,7 +117,9 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
           organizationId,
           model: input.model,
         });
+
         chats.set(chat.id, chat);
+
         return result(chat);
       },
     },
@@ -120,6 +129,7 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
     moderation: {
       record: (event: unknown) => {
         moderated.push(event);
+
         return result(event);
       },
     },
@@ -129,15 +139,21 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
         message: AiMessage,
         opts: { trigger?: string; messageId?: string } = {},
       ) => {
-        if (opts.trigger === "regenerate-message")
+        if (opts.trigger === "regenerate-message") {
           return result({
             messageId: tree.find((m) => m.role === "user")?.id ?? "",
             parentId: undefined,
             created: false,
           });
+        }
+
         const chat = chats.get(chatId);
         store(message, chat?.leafId);
-        if (chat) chats.set(chatId, { ...chat, leafId: message.id });
+
+        if (chat) {
+          chats.set(chatId, { ...chat, leafId: message.id });
+        }
+
         return result({
           messageId: message.id,
           parentId: chat?.leafId,
@@ -155,6 +171,7 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
           format: opts.format ?? "canonical",
           native: opts.native,
         });
+
         return result({
           messageId: message.id,
           parentId: opts.parentId,
@@ -164,33 +181,41 @@ export function fakeChats(options: FakeOptions = {}): FakeChats {
     },
     runs: {
       claim: (chatId: string, streamId: string) => {
-        if (options.claimed === false)
+        if (options.claimed === false) {
           return result({
             claimed: false,
             streamId: "other",
             runId: undefined,
           });
+        }
+
         const chat = chats.get(chatId);
-        if (chat)
+
+        if (chat) {
           chats.set(chatId, {
             ...chat,
             activeStreamId: streamId,
             activeRunId: "run1",
           });
+        }
+
         return result({ claimed: true, streamId, runId: "run1" });
       },
       release: (chatId: string, streamId: string, opts: unknown) => {
         released.push({ chatId, streamId, opts });
+
         return result(true);
       },
       stop: (chatId: string) => {
         stops.push(chatId);
+
         return chatId === "missing"
           ? failure(dbError("forbidden", "not yours"))
           : result(undefined);
       },
     },
   };
+
   return {
     // The fake implements the calls the assistant makes.
     chats: api as unknown as AiChat,
@@ -253,13 +278,16 @@ export function setup(
   const { client } = fakeRedis();
   const streams = redisStreamStore({ client });
   const pending: Promise<unknown>[] = [];
+
   const context: AssistantContext = {
     chats: fake.chats,
     userId: "user",
     organizationId: "org",
     waitUntil: (promise) => pending.push(promise),
   };
+
   let ids = 0;
+
   const run = vi.fn<AssistantOptions["run"]>((args) =>
     streamText({
       model: mockModel(),
@@ -268,6 +296,7 @@ export function setup(
       providerOptions: args.providerOptions,
     }),
   );
+
   const assistant = createAssistant({
     streams,
     run,
@@ -275,5 +304,6 @@ export function setup(
     generateId: () => `id${++ids}`,
     ...over,
   });
+
   return { assistant, context, fake, pending, streams, run };
 }

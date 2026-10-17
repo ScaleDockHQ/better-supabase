@@ -13,6 +13,7 @@ import { harnessSandbox, harnessSandboxSave } from "./ai-chat-sandboxes.ts";
 
 function runJson(names: AiChatNames, row: string): string {
   const r = names.c.runs;
+
   const keys: readonly (readonly [string, string])[] = [
     ["id", r.id],
     ["chat_id", r.chat],
@@ -29,16 +30,19 @@ function runJson(names: AiChatNames, row: string): string {
     ["started_at", r.startedAt],
     ["ended_at", r.endedAt],
   ];
+
   return `jsonb_build_object(${keys.map(([key, column]) => `'${key}', ${row}.${column}`).join(", ")})`;
 }
 
 function stepJson(names: AiChatNames, row: string): string {
   const s = names.c.steps;
+
   return `jsonb_build_object('id', ${row}.${s.id}, 'run_id', ${row}.${s.run}, 'chat_id', ${row}.${s.chat}, 'step_key', ${row}.${s.key}, 'label', ${row}.${s.label}, 'status', ${row}.${s.status}, 'detail', ${row}.${s.detail}, 'started_at', ${row}.${s.startedAt}, 'ended_at', ${row}.${s.endedAt})`;
 }
 
 function harnessJson(names: AiChatNames, row: string): string {
   const h = names.c.harness;
+
   return `jsonb_build_object('chat_id', ${row}.${h.chat}, 'harness_id', ${row}.${h.harness}, 'owner_id', ${row}.${h.owner}, 'resume_state', ${row}.${h.resume}, 'continue_state', ${row}.${h.continue}, 'sandbox_id', ${harnessSandbox(names, row)}, 'status', ${row}.${h.status}, 'lock_holder', ${row}.${h.holder}, 'locked_until', ${row}.${h.lockedUntil}, 'last_active_at', ${row}.${h.lastActiveAt}, 'created_at', ${row}.${h.createdAt}, 'updated_at', ${row}.${h.updatedAt})`;
 }
 
@@ -55,6 +59,7 @@ function runs(ctx: ModuleContext, names: AiChatNames): string {
   const r = names.c.runs;
   const a = names.c.approvals;
   const s = names.c.steps;
+
   const noRun = (arg: string): string =>
     raise("No run %", "P0002", "AI_RUN_NOT_FOUND", arg);
 
@@ -229,6 +234,7 @@ function harness(ctx: ModuleContext, names: AiChatNames): string {
   const { t } = names;
   const ch = names.c.chats;
   const h = names.c.harness;
+
   const ensure = (name: string): string => `
   select * into v_chat from ${t.chats} x where x.${ch.id} = ${name}.chat;
   if not found then
@@ -240,6 +246,7 @@ function harness(ctx: ModuleContext, names: AiChatNames): string {
   select * into v_row from ${t.harness} x
   where x.${h.chat} = v_chat.${ch.id} and x.${h.harness} = ${name}.harness
   for update;`;
+
   const validHarness = (name: string): string => `
   if nullif(${name}.harness, '') is null then
     ${raise("A harness session needs a harness id", "22023", "AI_HARNESS_INVALID")}

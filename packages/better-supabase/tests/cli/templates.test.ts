@@ -45,6 +45,7 @@ describe("import paths", () => {
       context({ generated: "src/lib/supabase/generated.ts" }),
       "camel",
     );
+
     expect(config!.contents).toContain("casing: 'camel'");
     expect(lib).toMatchObject({
       path: "src/lib/supabase/index.ts",
@@ -53,6 +54,7 @@ describe("import paths", () => {
     expect(lib!.contents).toContain(
       "export const betterSupabase = defineSupabase(schema);",
     );
+
     const [, kept] = baseFiles(
       context({
         generated: "src/lib/supabase/generated.ts",
@@ -60,6 +62,7 @@ describe("import paths", () => {
       }),
       "snake",
     );
+
     expect(kept!.contents).toContain("from './generated.ts';");
   });
 
@@ -132,7 +135,8 @@ describe("import paths", () => {
     const files = INTEGRATIONS.flatMap((name) =>
       TEMPLATES[name].files(context()),
     );
-    for (const file of files.filter((f) => !f.path.endsWith(".json")))
+
+    for (const file of files.filter((f) => !f.path.endsWith(".json"))) {
       expect({
         path: file.path,
         legacy:
@@ -140,6 +144,7 @@ describe("import paths", () => {
             file.contents,
           ),
       }).toEqual({ path: file.path, legacy: false });
+    }
   });
 });
 
@@ -171,6 +176,7 @@ describe("integration lists", () => {
     const unknown = ["svelte"] as unknown as Parameters<
       typeof suggestedIntegrations
     >[0];
+
     expect(() => suggestedIntegrations(unknown)).toThrow(
       "Unknown framework svelte",
     );

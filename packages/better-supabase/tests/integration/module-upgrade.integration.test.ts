@@ -14,8 +14,10 @@ async function reachable(): Promise<boolean> {
     max: 1,
     connectionTimeoutMillis: 1000,
   });
+
   try {
     await pool.query("select 1");
+
     return true;
   } catch {
     return false;
@@ -37,15 +39,19 @@ describe.skipIf(!live)("upgrading SQL modules installed by 0.4.0", () => {
     const client = await pool.connect();
     const table = `public.bs_upgrade_${crypto.randomUUID().slice(0, 8)}`;
     const organization = crypto.randomUUID();
+
     try {
       await client.query("begin");
       await client.query("drop schema if exists better_supabase cascade");
-      for (const name of (await readdir(FIXTURES)).toSorted())
-        await client.query(await readFile(new URL(name, FIXTURES), "utf8"));
+
+      for (const name of (await readdir(FIXTURES)).toSorted()) {
+        await client.query(await readFile(new URL(name, FIXTURES), "utf-8"));
+      }
 
       const { rows: users } = await client.query<{ id: string }>(
         "select id from auth.users order by created_at limit 1",
       );
+
       const user = users[0]!.id;
       await client.query(
         `create table ${table} (id uuid primary key default gen_random_uuid(), organization_id uuid, name text);
@@ -67,18 +73,28 @@ describe.skipIf(!live)("upgrading SQL modules installed by 0.4.0", () => {
       const plans = upgradePlan(
         MODULES.map((module) => ({ module, version: 1 })),
       );
+
       expect(plans.map((plan) => plan.module).toSorted()).toEqual(
         MODULES.toSorted(),
       );
-      for (const plan of plans)
-        for (const step of plan.steps) await client.query(step.sql);
-      for (const file of renderModules(MODULES))
-        if (file.kind !== "test") await client.query(file.contents);
+
+      for (const plan of plans) {
+        for (const step of plan.steps) {
+          await client.query(step.sql);
+        }
+      }
+
+      for (const file of renderModules(MODULES)) {
+        if (file.kind !== "test") {
+          await client.query(file.contents);
+        }
+      }
 
       await client.query(
         `insert into ${table} (organization_id, name) values ($1, 'after')`,
         [organization],
       );
+
       const { rows: events } = await client.query<{
         organization_id: string;
         occurred_at: Date;
@@ -87,6 +103,7 @@ describe.skipIf(!live)("upgrading SQL modules installed by 0.4.0", () => {
         "select organization_id, occurred_at, op from better_supabase.audit_events where table_name = $1 order by id",
         [table],
       );
+
       expect(events.map((event) => event.op)).toEqual(["insert", "insert"]);
       expect(
         events.every((event) => event.organization_id === organization),
@@ -103,6 +120,7 @@ describe.skipIf(!live)("upgrading SQL modules installed by 0.4.0", () => {
            (select count(*)::int from better_supabase.invitations where organization_id = $1) as invitations`,
         [organization],
       );
+
       expect(names[0]).toEqual({
         row_change: true,
         legacy_view_removed: true,

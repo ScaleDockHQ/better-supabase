@@ -36,7 +36,7 @@ function SettingControl({
   readonly onChange: (value: ControlValue) => void;
 }) {
   switch (field.kind) {
-    case "boolean":
+    case "boolean": {
       return (
         <Switch
           value={value === true}
@@ -44,7 +44,9 @@ function SettingControl({
           onValueChange={onChange}
         />
       );
-    case "choice":
+    }
+
+    case "choice": {
       return (
         <View style={{ flexDirection: "row", gap: 6 }}>
           {field.choices.map((choice) => (
@@ -69,9 +71,11 @@ function SettingControl({
           ))}
         </View>
       );
+    }
+
     case "number":
     case "text":
-    case "json":
+    case "json": {
       return (
         <TextInput
           defaultValue={field.kind === "json" ? "" : String(value ?? "")}
@@ -84,8 +88,11 @@ function SettingControl({
           style={{ minWidth: 120, borderWidth: 1, borderRadius: 8, padding: 6 }}
         />
       );
+    }
+
     default: {
       const unknown: never = field.kind;
+
       return unknown;
     }
   }
@@ -99,7 +106,10 @@ function SettingsSection<E extends SettingEntries>({
   readonly title: string;
   readonly state: SettingsState<E>;
 }) {
-  if (state.values === undefined) return <ActivityIndicator />;
+  if (state.values === undefined) {
+    return <ActivityIndicator />;
+  }
+
   return (
     <View style={{ gap: 12 }}>
       <Text style={{ fontSize: 17, fontWeight: "600" }}>{title}</Text>
@@ -130,11 +140,13 @@ function SettingsSection<E extends SettingEntries>({
 export function SettingsLayout() {
   const organizationId = tenantOf(useAuth()) ?? null;
   const user = useSettings(settings, { scope: "user", schema: API_SCHEMA });
+
   const organization = useSettings(settings, {
     scope: "organization",
     organizationId,
     schema: API_SCHEMA,
   });
+
   return (
     <ScrollView contentContainerStyle={{ gap: 24, padding: 16 }}>
       <SettingsSection title="Your preferences" state={user} />

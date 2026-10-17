@@ -15,9 +15,11 @@ import { schema } from "../fixtures/generated-camel.ts";
 import { stackUrl } from "./stack-env.ts";
 
 const url = stackUrl();
+
 const secretKey =
   process.env["SUPABASE_SECRET_KEY"] ??
   "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
+
 const publishableKey =
   process.env["SUPABASE_PUBLISHABLE_KEY"] ??
   "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";
@@ -34,6 +36,7 @@ async function reachable(): Promise<boolean> {
       headers: { apikey: publishableKey },
       signal: AbortSignal.timeout(1000),
     });
+
     return response.status < 500;
   } catch {
     return false;
@@ -42,6 +45,7 @@ async function reachable(): Promise<boolean> {
 
 const live = await reachable();
 const betterSupabase = defineSupabase(schema);
+
 const admin = betterSupabase.connect(
   createClient(url, secretKey, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -53,6 +57,7 @@ async function asOrganizationMember(organizationId: string) {
     sub: "00000000-0000-4000-8000-0000000000ff",
     tenant_id: organizationId,
   });
+
   return betterSupabase.connect(
     createClient(url, publishableKey, {
       accessToken: async () => token,
@@ -64,12 +69,14 @@ describe.skipIf(!live)("PostgREST integration", () => {
   const created: string[] = [];
 
   afterAll(async () => {
-    if (created.length > 0)
+    if (created.length > 0) {
       await admin.customers.deleteMany({ where: { id: { in: created } } });
+    }
   });
 
   it("decodes timestamptz to Temporal.Instant and filters with it exactly", async () => {
     const customers = schema.meta.tables["customers"]!;
+
     const instants = defineSupabase(
       defineSchema({
         ...schema.meta,
@@ -98,16 +105,20 @@ describe.skipIf(!live)("PostgREST integration", () => {
         ): AsyncResult<{ id: string; createdAt: unknown }[]>;
       };
     };
+
     const [first] = await instants.customers
       .findMany({ select: ["id", "createdAt"], limit: 1 })
       .orThrow();
+
     expect(first?.createdAt).toBeInstanceOf(Temporal.Instant);
+
     const same = await instants.customers
       .findMany({
         select: ["id"],
         where: { id: first?.id, createdAt: first?.createdAt },
       })
       .orThrow();
+
     expect(same.map((row) => row.id)).toEqual([first?.id]);
 
     const endless = await admin.customers
@@ -121,10 +132,12 @@ describe.skipIf(!live)("PostgREST integration", () => {
         { select: ["id"] },
       )
       .orThrow();
+
     const infinite = await instants.customers.findMany({
       select: ["id", "createdAt"],
       where: { id: endless.id },
     });
+
     await admin.customers.delete(endless.id).orThrow();
     expect(infinite.error).toMatchObject({
       kind: "invalid_value",
@@ -136,6 +149,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
     const withNotes = await admin.customers
       .findMany({ select: ["id"], where: { notes: { some: {} } } })
       .orThrow();
+
     expect(withNotes.map((row) => row.id)).toEqual([ROAD_RUNNER]);
 
     const withoutMeetings = await admin.customers
@@ -145,6 +159,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
         orderBy: { name: "asc" },
       })
       .orThrow();
+
     expect(withoutMeetings.map((row) => row.id)).toEqual([ANVIL, INITECH]);
 
     const allPrimary = await admin.customers
@@ -154,6 +169,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
         orderBy: { name: "asc" },
       })
       .orThrow();
+
     expect(allPrimary.map((row) => row.id)).toEqual([
       ANVIL,
       INITECH,
@@ -174,6 +190,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
         orderBy: { name: "asc" },
       })
       .orThrow();
+
     expect(rows.map((row) => row.id)).toEqual([ANVIL, ROAD_RUNNER]);
   });
 
@@ -181,6 +198,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
     const acme = await admin.customers
       .findMany({ select: ["id"], where: { organization: { slug: "globex" } } })
       .orThrow();
+
     expect(acme.map((row) => row.id)).toEqual([INITECH]);
 
     const noContact = await admin.customers
@@ -190,6 +208,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
         orderBy: { name: "asc" },
       })
       .orThrow();
+
     expect(noContact.map((row) => row.id)).toEqual([ANVIL, INITECH]);
   });
 
@@ -207,6 +226,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
         },
       })
       .orThrow();
+
     expect(customer).toEqual({
       name: "Road Runner Inc",
       organization: { slug: "acme" },
@@ -235,8 +255,10 @@ describe.skipIf(!live)("PostgREST integration", () => {
         where: { id: { in: [ROAD_RUNNER, ANVIL, INITECH] } },
       })
       .orThrow();
+
     expect(first.items.map((row) => row.id)).toEqual([ANVIL, INITECH]);
     expect(first.hasMore).toBe(true);
+
     const second = await admin.customers
       .paginate({
         select: ["id", "name"],
@@ -246,12 +268,14 @@ describe.skipIf(!live)("PostgREST integration", () => {
         where: { id: { in: [ROAD_RUNNER, ANVIL, INITECH] } },
       })
       .orThrow();
+
     expect(second.items.map((row) => row.id)).toEqual([ROAD_RUNNER]);
     expect(second.hasMore).toBe(false);
   });
 
   it("pages by offset and limit with an exact total", async () => {
     const where = { id: { in: [ROAD_RUNNER, ANVIL, INITECH] } };
+
     const page = await admin.customers
       .paginate({
         select: ["id"],
@@ -262,6 +286,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
         where,
       })
       .orThrow();
+
     expect(page.items.map((row) => row.id)).toEqual([INITECH]);
     expect(page.page).toEqual({
       number: 2,
@@ -279,6 +304,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
         { select: ["id", "status", "updatedAt"] },
       )
       .orThrow();
+
     created.push(customer.id);
     expect(customer.status).toBe("lead");
 
@@ -287,6 +313,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
       name: "Dup",
       kvk: "it-1",
     });
+
     expect(duplicate.error).toMatchObject({
       kind: "conflict",
       constraint: "customers_organization_id_kvk_key",
@@ -296,6 +323,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
     const invalid = await admin.customers.update(customer.id, {
       status: "bogus" as "lead",
     });
+
     expect(invalid.error?.kind).toBe("check");
 
     const stale = await admin.customers.update(
@@ -303,6 +331,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
       { name: "X" },
       { expect: { updatedAt: "2000-01-01T00:00:00Z" } },
     );
+
     expect(stale.error?.kind).toBe("stale");
 
     const updated = await admin.customers
@@ -312,6 +341,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
         { expect: { updatedAt: customer.updatedAt }, select: ["status"] },
       )
       .orThrow();
+
     expect(updated.status).toBe("active");
 
     const upserted = await admin.customers
@@ -323,6 +353,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
         },
       )
       .orThrow();
+
     expect(upserted).toEqual({ id: customer.id, name: "Integration Co 2" });
 
     await admin.customers.delete(customer.id).orThrow();
@@ -340,6 +371,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
         { select: ["id"] },
       )
       .orThrow();
+
     const ids = rows.map((row) => row.id);
 
     const wrongTenant = await admin.customers.update(
@@ -347,6 +379,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
       { name: "Moved" },
       { where: { organizationId: GLOBEX } },
     );
+
     expect(wrongTenant.error?.kind).toBe("not_found");
 
     const moved = await admin.customers
@@ -356,6 +389,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
         { where: { organizationId: ACME }, select: ["name"] },
       )
       .orThrow();
+
     expect(moved).toEqual({ name: "Moved" });
 
     const activated = await admin.customers
@@ -366,6 +400,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
         select: ["id", "status"],
       })
       .orThrow();
+
     expect(activated.map((row) => row.status)).toEqual(["active", "active"]);
 
     const deleted = await admin.customers
@@ -375,6 +410,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
         select: ["id"],
       })
       .orThrow();
+
     expect(deleted.map((row) => row.id).sort()).toEqual([...ids].sort());
   });
 
@@ -384,6 +420,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
       ANVIL,
       ...Array.from({ length: 598 }, () => crypto.randomUUID()),
     ];
+
     const rows = await admin.customers
       .findMany({
         select: ["id", "createdAt"],
@@ -391,6 +428,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
         orderBy: [{ createdAt: "desc" }, { id: "asc" }],
       })
       .orThrow();
+
     expect(rows.map((row) => row.id).sort()).toEqual(
       [ROAD_RUNNER, ANVIL].sort(),
     );
@@ -400,14 +438,18 @@ describe.skipIf(!live)("PostgREST integration", () => {
     const leads = await admin
       .$rpc("customers_by_status", { p_status: "lead" })
       .orThrow();
+
     expect(leads.map((row) => row.organizationId)).toContain(ACME);
     expect(leads[0]).not.toHaveProperty("organization_id");
+
     const counts = await admin
       .$rpc("customer_note_counts", { p_customer_ids: [ROAD_RUNNER] })
       .orThrow();
+
     expect(counts).toEqual([
       { customerId: ROAD_RUNNER, noteCount: 3, lastNoteAt: expect.any(String) },
     ]);
+
     const raw = await admin
       .$rpc(
         "customer_note_counts",
@@ -415,6 +457,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
         { raw: true },
       )
       .orThrow();
+
     expect(raw).toEqual([
       {
         customer_id: ROAD_RUNNER,
@@ -426,6 +469,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
 
   it("sorts by a column of a to-one relation", async () => {
     const seeded = { id: { in: [ROAD_RUNNER, ANVIL, INITECH] } };
+
     const byOrganization = await admin.customers
       .findMany({
         where: seeded,
@@ -433,11 +477,13 @@ describe.skipIf(!live)("PostgREST integration", () => {
         orderBy: [{ organization: { name: "desc" } }, { name: "asc" }],
       })
       .orThrow();
+
     expect(byOrganization.map((row) => row.id)).toEqual([
       INITECH,
       ANVIL,
       ROAD_RUNNER,
     ]);
+
     const included = await admin.customers
       .findMany({
         where: seeded,
@@ -446,6 +492,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
         orderBy: [{ organization: { name: "asc" } }, { name: "desc" }],
       })
       .orThrow();
+
     expect(included.map((row) => [row.id, row.organization.name])).toEqual([
       [ROAD_RUNNER, "Acme"],
       [ANVIL, "Acme"],
@@ -472,6 +519,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
         select: ["id"],
       })
       .orThrow();
+
     expect(found).toEqual([{ id: note.id }]);
 
     const inOr = await admin.notes
@@ -486,6 +534,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
         select: ["id"],
       })
       .orThrow();
+
     expect(inOr).toEqual([{ id: note.id }]);
 
     const none = await admin.notes
@@ -494,6 +543,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
         select: ["id"],
       })
       .orThrow();
+
     expect(none).toEqual([]);
     await admin.notes.delete(note.id).orThrow();
   });
@@ -510,6 +560,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
         { select: ["id"] },
       )
       .orThrow();
+
     const find = (where: object) =>
       admin.notes
         .findMany({ where: { id: note.id, ...where }, select: ["id"] })
@@ -543,6 +594,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
       sub: "00000000-0000-4000-8000-0000000000ff",
       tenant_id: ACME,
     });
+
     const user = betterSupabase
       .use(timestamps())
       .use(softDelete())
@@ -561,6 +613,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
         select: ["id", "organizationId", "createdBy"],
       })
       .orThrow();
+
     created.push(row.id);
     expect(row.organizationId).toBe(ACME);
     expect(row.createdBy).toBe("00000000-0000-4000-8000-0000000000ff");
@@ -569,12 +622,14 @@ describe.skipIf(!live)("PostgREST integration", () => {
     expect((await user.customers.findById(row.id)).error?.kind).toBe(
       "not_found",
     );
+
     const archived = await user.customers
       .findById(row.id, {
         withDeleted: true,
         select: ["archivedAt", "updatedBy"],
       })
       .orThrow();
+
     expect(archived.archivedAt).not.toBeNull();
     expect(archived.updatedBy).toBe("00000000-0000-4000-8000-0000000000ff");
     expect((await user.customers.delete(row.id)).error?.kind).toBe("not_found");
@@ -600,6 +655,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
       { organizationId: ACME, name: "Cross tenant" },
       { returning: false },
     );
+
     expect(blocked.error?.kind).toBe("forbidden");
   });
 
@@ -610,6 +666,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
       defaultSort: "name",
       facetCounts: true,
     });
+
     const acme = await asOrganizationMember(ACME);
     const query = list.parse({ facets: { status: ["active"] } }).value!;
     const page = await list.run(acme, query, { select: ["id"] }).orThrow();
@@ -617,8 +674,11 @@ describe.skipIf(!live)("PostgREST integration", () => {
 
     const all = await acme.customers.findMany({ select: ["status"] }).orThrow();
     const expected: Record<string, number> = {};
-    for (const row of all)
+
+    for (const row of all) {
       expected[row.status] = (expected[row.status] ?? 0) + 1;
+    }
+
     expect(
       Object.fromEntries(
         Object.entries(page.facetCounts.status).filter(([, n]) => n > 0),
@@ -630,6 +690,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
   it("db.$many runs ad-hoc specs in one wave as an authenticated member", async () => {
     const acme = await asOrganizationMember(ACME);
     const globex = await asOrganizationMember(GLOBEX);
+
     const specs = [
       betterSupabase.spec.customers.findMany({
         select: ["id"],
@@ -638,6 +699,7 @@ describe.skipIf(!live)("PostgREST integration", () => {
       betterSupabase.spec.notes.count(),
       betterSupabase.spec.customers.exists({ where: { id: INITECH } }),
     ] as const;
+
     const [customers, notes, initech] = await acme.$many(specs).orThrow();
     expect(customers.map((row) => row.id).sort()).toEqual(
       [ROAD_RUNNER, ANVIL].sort(),

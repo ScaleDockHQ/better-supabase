@@ -67,8 +67,8 @@ import type {
   OpenApiDocuments,
   OpenApiVersion,
 } from "../../src/openapi/types.ts";
-import type { AuthorizationHooks } from "../../src/server/index.ts";
 import type {
+  AuthorizationHooks,
   ServerContext,
   SupportSessionStore,
 } from "../../src/server/index.ts";
@@ -188,6 +188,7 @@ describe("extension interfaces", () => {
       name: "minimal",
       execute: () => Promise.reject(new Error("unused")),
     };
+
     expectTypeOf(minimal).toExtend<Executor>();
     expectTypeOf<NonNullable<Executor["batch"]>>()
       .parameter(0)
@@ -214,6 +215,7 @@ describe("AuthorizationProvider", () => {
     expectTypeOf<BetterSupabaseConfig["authorization"]>().toEqualTypeOf<
       AuthorizationProvider | undefined
     >();
+
     const minimal = {
       apiVersion: 1,
       name: "minimal",
@@ -224,6 +226,7 @@ describe("AuthorizationProvider", () => {
         isPlatform: "authz.is_platform({permission})",
       },
     } as const satisfies AuthorizationProvider;
+
     expectTypeOf(minimal).toExtend<AuthorizationProvider>();
     const accepts = (provider: AuthorizationProvider) => provider;
     // @ts-expect-error a provider needs the two caller templates
@@ -234,12 +237,14 @@ describe("AuthorizationProvider", () => {
 describe("Authorizer", () => {
   it("is versioned, with an optional batch form", () => {
     expectTypeOf<Authorizer["apiVersion"]>().toEqualTypeOf<1>();
+
     const minimal: Authorizer<"read"> = {
       apiVersion: 1,
       name: "minimal",
       key: (ref) => ref,
       evaluate: () => ({ outcome: "denied" }),
     };
+
     expectTypeOf(minimal).toExtend<Authorizer<"read">>();
     expectTypeOf<Authorizer<"read">["evaluations"]>().toEqualTypeOf<
       | ((
@@ -253,6 +258,7 @@ describe("Authorizer", () => {
     const authorizer = staticAuthorizer<"export" | "invite">({
       roles: { authenticated: ["export"] },
     });
+
     expectTypeOf(authorizer).toExtend<Authorizer<"export" | "invite">>();
     expectTypeOf<PermissionRef<typeof authorizer>>().toEqualTypeOf<
       "export" | "invite"
@@ -292,9 +298,10 @@ describe("DocumentFormat", () => {
         "2-draft": { pin: "abc1234", status: "preview" },
       },
       defaultVersion: "1",
-      lower: (model: ApiModel) => model.operations.map((op) => op.id).join(),
+      lower: (model: ApiModel) => model.operations.map((op) => op.id).join(","),
       fileName: () => "operations.txt",
     });
+
     expectTypeOf<VersionOf<typeof text>>().toEqualTypeOf<"1" | "2-draft">();
     expectTypeOf<DocumentOf<typeof text>>().toEqualTypeOf<string>();
     expectTypeOf(testDocumentFormat<typeof text>)
@@ -348,7 +355,9 @@ describe("block injectables", () => {
 describe("StreamStore", () => {
   it("is versioned, and node-redis clients fit the Redis store", () => {
     expectTypeOf<StreamStore["apiVersion"]>().toEqualTypeOf<1>();
+
     type NodeRedis = ReturnType<typeof createClient>;
+
     expectTypeOf<NodeRedis>().toExtend<RedisStreamClient>();
     expectTypeOf<NodeRedis>().toExtend<RedisStreamSubscriber>();
   });
@@ -356,10 +365,12 @@ describe("StreamStore", () => {
 
 describe("defineRepository", () => {
   const betterSupabase = defineSupabase(schema).use(softDelete()).use(tenant());
+
   const tags = defineRepository(betterSupabase, "tags", (base) => ({
     named: (name: string) =>
       base.findFirst({ where: { name }, select: ["id", "name"] }),
   }));
+
   const db = betterSupabase.use(tags).connect(client);
 
   it("types methods on the target table only", () => {
@@ -373,6 +384,7 @@ describe("defineRepository", () => {
   it("keeps plugin extensions on the base repository", () => {
     defineRepository(betterSupabase, "customers", (base) => {
       expectTypeOf(base).toHaveProperty("restore");
+
       return {};
     });
   });
@@ -409,6 +421,7 @@ describe("block extension", () => {
       transport: blockTransport,
       fields: Fields,
     });
+
     expectTypeOf(organizations.mine()).resolves.toExtend<
       | { ok: true; data: readonly { plan: "free" | "pro"; seats: number }[] }
       | { ok: false }
@@ -421,6 +434,7 @@ describe("block extension", () => {
       transport: blockTransport,
       fields: Fields,
     });
+
     expectTypeOf(profiles).toEqualTypeOf<
       Profiles<{ plan: "free" | "pro"; seats: number }>
     >();
@@ -455,6 +469,7 @@ describe("block extension", () => {
         reread: () => base.mine(),
       }),
     );
+
     expectTypeOf(extended.touch()).toEqualTypeOf<AsyncResult<true>>();
     expectTypeOf(extended).toHaveProperty("updateMine");
   });

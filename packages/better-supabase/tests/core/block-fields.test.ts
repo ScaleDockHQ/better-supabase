@@ -75,6 +75,7 @@ describe("blockFields", () => {
       }),
       "profile fields",
     );
+
     expect((await fields.read({ locale: "nl", id: "u" })).ok).toBe(true);
     expect((await fields.write({ locale: "fr" })).ok).toBe(false);
   });

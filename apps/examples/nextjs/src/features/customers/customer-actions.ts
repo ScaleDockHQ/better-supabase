@@ -33,12 +33,20 @@ export const createCustomer = bs.action(
   async ({ name }, { tenant: organizationId, db, supabase }) => {
     const { usage, onboarding } = blocks(supabase);
     const quota = await usage.consume(organizationId, "customers.created");
-    if (!quota.ok) return quota;
+
+    if (!quota.ok) {
+      return quota;
+    }
+
     const created = await db.customers.create(
       { name, organizationId },
       { select: ["id", "name", "status"] },
     );
-    if (!created.ok) return created;
+
+    if (!created.ok) {
+      return created;
+    }
+
     after(() =>
       recordAudit(supabase, {
         eventType: "customer.created",
@@ -50,6 +58,7 @@ export const createCustomer = bs.action(
       }),
     );
     await onboarding.complete(gettingStarted, "customer", organizationId);
+
     return created;
   },
 );
@@ -76,7 +85,11 @@ export const uploadCustomerLogo = bs.action(
       customerId,
       { select: ["id", "logoPath"] },
     );
-    if (customer.isErr()) return fromBetterResult(customer);
+
+    if (customer.isErr()) {
+      return fromBetterResult(customer);
+    }
+
     return logos
       .connect(supabase)
       .replace(

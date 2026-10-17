@@ -12,6 +12,7 @@ import {
 import { schema } from "../fixtures/generated-camel.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
+
 const env = {
   url: PROJECT_URL,
   publishableKey: "sb_publishable_test",
@@ -20,11 +21,13 @@ const env = {
 
 describe("createOrpc().rateLimit", () => {
   const counts = new Map<string, number>();
+
   const limiter: RateLimiter = {
     check: async (_scope, key, rule) => {
       const used = (counts.get(key) ?? 0) + 1;
       counts.set(key, used);
       const max = rule?.max ?? 1;
+
       return ok(
         used <= max
           ? { allowed: true, remaining: max - used, retryAfter: 0 }
@@ -32,7 +35,9 @@ describe("createOrpc().rateLimit", () => {
       );
     },
   };
+
   const bs = createOrpc(defineSupabase(schema), { env });
+
   const base = os.$context<OrpcRequestContext>().use(
     bs.rateLimit({
       limiter,
@@ -44,10 +49,12 @@ describe("createOrpc().rateLimit", () => {
           : `${context.request.headers.get("x-client")}:${path.join(".")}`,
     }),
   );
+
   const fetch = bs.fetchHandler(
     new RPCHandler({ ping: base.handler(() => ({ pong: true })) }),
     { prefix: "/rpc" },
   );
+
   const post = (client?: string) =>
     fetch(
       new Request("https://api.test/rpc/ping", {

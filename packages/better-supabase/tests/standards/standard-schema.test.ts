@@ -48,7 +48,11 @@ describe("Standard Schema v1", () => {
   it("maps issues, flattening PathSegment objects to their keys", async () => {
     const result = await validate(handRolled(nameCheck), {}, "input");
     expect(result.ok).toBe(false);
-    if (result.ok) return;
+
+    if (result.ok) {
+      return;
+    }
+
     expect(result.error).toMatchObject({
       kind: "validation",
       message: "Invalid input",
@@ -65,6 +69,7 @@ describe("Standard Schema v1", () => {
         },
       ],
     }));
+
     const result = await validate(schema, 1);
     expect(!result.ok && result.error).toMatchObject({
       issues: [{ message: "Nope", path: ["Symbol(meta)", "Symbol(tag)", 0] }],
@@ -75,6 +80,7 @@ describe("Standard Schema v1", () => {
     const schema = handRolled(() => ({
       issues: [{ message: "Nope", path: [] }],
     }));
+
     const result = await validate(schema, 1);
     expect(!result.ok && (result.error as { issues?: unknown }).issues).toEqual(
       [{ message: "Nope" }],
@@ -92,8 +98,11 @@ describe("Standard Schema v1", () => {
     });
     const missing = props.validate({});
     expect(missing).toHaveProperty("issues");
-    if (missing instanceof Promise || !missing.issues)
+
+    if (missing instanceof Promise || !missing.issues) {
       throw new Error("expected issues");
+    }
+
     for (const issue of missing.issues) {
       expect(typeof issue.message).toBe("string");
       expect(issue.path?.every((segment) => typeof segment === "string")).toBe(
@@ -108,6 +117,7 @@ describe("Standard JSON Schema v1", () => {
     input: (options: StandardJSONSchemaV1.Options) => Record<string, unknown>,
   ): StandardSchemaV1<unknown, { name: string }> => {
     const base = handRolled(nameCheck)["~standard"];
+
     return {
       "~standard": {
         ...base,
@@ -118,11 +128,13 @@ describe("Standard JSON Schema v1", () => {
 
   it("asks the schema for draft 2020-12 and drops $schema from the tool inputSchema", () => {
     const targets: string[] = [];
+
     const tool = defineTool({
       name: "greet",
       description: "Greets",
       input: withJsonSchema((options) => {
         targets.push(options.target);
+
         return {
           $schema: "https://json-schema.org/draft/2020-12/schema",
           type: "object",
@@ -132,6 +144,7 @@ describe("Standard JSON Schema v1", () => {
       }),
       run: (args) => args.name,
     });
+
     expect(targets).toEqual(["draft-2020-12"]);
     expect(tool.info.inputSchema).toEqual({
       type: "object",
@@ -149,6 +162,7 @@ describe("Standard JSON Schema v1", () => {
         run: () => "",
       }),
     ).toThrow(/has no JSON Schema/);
+
     const tool = defineTool({
       name: "greet",
       description: "Greets",
@@ -156,6 +170,7 @@ describe("Standard JSON Schema v1", () => {
       inputSchema: { type: "object" },
       run: () => "",
     });
+
     expect(tool.info.inputSchema).toEqual({ type: "object" });
   });
 });
@@ -171,6 +186,7 @@ describe("tableSchema() (the standardSchema() generator output)", () => {
   it("implements Standard Schema v1 and works with validate()", async () => {
     const props: StandardSchemaV1.Props<{ name: string; tags?: string[] }> =
       schema["~standard"];
+
     expect(props.version).toBe(1);
     expect(props.vendor).toBe("better-supabase");
     await expect(validate(schema, { name: "Ada" })).resolves.toMatchObject({
@@ -190,6 +206,7 @@ describe("tableSchema() (the standardSchema() generator output)", () => {
 
   it("implements Standard JSON Schema v1 for both recommended targets", () => {
     const props: StandardJSONSchemaV1.Props = schema["~standard"];
+
     for (const target of ["draft-2020-12", "draft-07"] as const) {
       for (const direction of ["input", "output"] as const) {
         expect(props.jsonSchema[direction]({ target })).toMatchObject({
@@ -199,6 +216,7 @@ describe("tableSchema() (the standardSchema() generator output)", () => {
         });
       }
     }
+
     expect(() => props.jsonSchema.input({ target: "draft-04" })).toThrow(
       "Unsupported JSON Schema target",
     );

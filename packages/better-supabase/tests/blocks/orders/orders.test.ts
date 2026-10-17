@@ -21,6 +21,7 @@ type Handler = (args: Record<string, unknown>) => unknown;
 /** A transport that answers each function with a handler and records the calls. */
 function router(handlers: Record<string, Handler>) {
   const calls: { fn: string; args: Record<string, unknown> }[] = [];
+
   return {
     calls,
     fns: () => calls.map((call) => call.fn),
@@ -28,7 +29,11 @@ function router(handlers: Record<string, Handler>) {
       call(_schema: string, fn: string, args: Record<string, unknown>) {
         calls.push({ fn, args });
         const handler = handlers[fn];
-        if (!handler) return Promise.reject(new Error(`unexpected ${fn}`));
+
+        if (!handler) {
+          return Promise.reject(new Error(`unexpected ${fn}`));
+        }
+
         try {
           return Promise.resolve(handler(args));
         } catch (cause) {
@@ -281,6 +286,7 @@ function paymentSpies(overrides: Partial<PaymentProvider> = {}) {
       }),
     ),
   };
+
   const provider: PaymentProvider = {
     apiVersion: 1,
     name: "fake",
@@ -288,6 +294,7 @@ function paymentSpies(overrides: Partial<PaymentProvider> = {}) {
     parseWebhook: vi.fn(() => AsyncResult.ok([])),
     ...overrides,
   };
+
   return { provider, spies };
 }
 
@@ -310,12 +317,14 @@ function orders(
   options: Partial<OrdersOptions> = {},
 ) {
   const route = router(handlers);
+
   const logger = {
     debug: vi.fn(),
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
   };
+
   return {
     ...route,
     logger,
@@ -345,6 +354,7 @@ describe("orders block", () => {
       price_cart: () => cartRow(),
       merge_carts: () => 1,
     });
+
     expect(
       await o
         .saveShippingRate("org", {
@@ -453,6 +463,7 @@ describe("orders block", () => {
           ],
         }),
     });
+
     const priced = await o.priceCart("c1").orThrow();
     expect(priced.email).toBeUndefined();
     expect(priced.shipping).toBeUndefined();
@@ -467,6 +478,7 @@ describe("orders block", () => {
   it("checks out: quotes tax, places, pays and commits the tax", async () => {
     const { provider: payments, spies } = paymentSpies();
     let order = orderRow();
+
     const {
       orders: o,
       calls,
@@ -477,11 +489,13 @@ describe("orders block", () => {
         place_order: () => order,
         record_payment: () => {
           order = paid({ taxTransaction: null });
+
           return recordRow(true);
         },
         get_order: () => order,
         set_order_tax_transaction: () => {
           order = paid();
+
           return true;
         },
       },
@@ -492,6 +506,7 @@ describe("orders block", () => {
         shippingTaxCategory: "standard",
       },
     );
+
     const result = await o
       .checkout("c1", {
         customer: "cus_1",
@@ -500,6 +515,7 @@ describe("orders block", () => {
         metadata: { channel: "web" },
       })
       .orThrow();
+
     expect(result.payment?.clientSecret).toBe("secret");
     expect(result.order.status).toBe("paid");
     expect(result.order.taxTransaction?.id).toBe("tx1");
@@ -556,7 +572,9 @@ describe("orders block", () => {
     const quote = vi.fn((...args: Parameters<TaxProvider["quote"]>) =>
       TAX.quote(...args),
     );
+
     const tax: TaxProvider = { ...TAX, quote };
+
     const { orders: o } = orders(
       {
         price_cart: () =>
@@ -575,6 +593,7 @@ describe("orders block", () => {
       },
       { tax, pricesIncludeTax: true, taxCategory: "standard" },
     );
+
     const result = await o.checkout("c1").orThrow();
     expect(result.payment).toBeNull();
     expect(quote.mock.calls[0]?.[0]).toMatchObject({
@@ -593,6 +612,7 @@ describe("orders block", () => {
   it("refuses carts that can't check out", async () => {
     const hint = (o: ReturnType<typeof orders>["orders"]) =>
       o.checkout("c1").then((r) => !r.ok && r.error.hint);
+
     expect(
       await hint(orders({ price_cart: () => cartRow({ lines: [] }) }).orders),
     ).toBe("ORDERS_CART_EMPTY");
@@ -646,6 +666,7 @@ describe("orders block", () => {
       },
       { tax: TAX },
     );
+
     const result = await o.checkout("c1").orThrow();
     expect(result).toMatchObject({ payment: null, order: { id: "o1" } });
     expect(fns()).toEqual(["price_cart", "place_order"]);
@@ -661,6 +682,7 @@ describe("orders block", () => {
       },
       { payments: fakePayments(), tax: TAX },
     );
+
     const result = await o.checkout("c1").orThrow();
     expect(result.payment).toBeNull();
     expect(calls[2]?.args).toMatchObject({
@@ -677,6 +699,7 @@ describe("orders block", () => {
           dbError("raised", "declined", { hint: "PAYMENT_DECLINED" }),
         ),
     });
+
     const base = { price_cart: () => cartRow(), place_order: () => orderRow() };
     expect(
       await orders(base, { payments: declined })
@@ -729,6 +752,7 @@ describe("orders block", () => {
       ...TAX,
       commit: () => AsyncResult.err(dbError("unexpected", "down")),
     };
+
     const { orders: o, logger } = orders(
       {
         price_cart: () => cartRow(),
@@ -738,6 +762,7 @@ describe("orders block", () => {
       },
       { payments: fakePayments(), tax },
     );
+
     const result = await o.checkout("c1").orThrow();
     expect(result.order.taxTransaction).toBeUndefined();
     expect(logger.warn).toHaveBeenCalledWith(
@@ -749,6 +774,7 @@ describe("orders block", () => {
 
   it("commits tax only once there is a quote, an invoice and no transaction", async () => {
     let row = orderRow();
+
     const { orders: o, fns } = orders(
       {
         get_order: () => row,
@@ -756,6 +782,7 @@ describe("orders block", () => {
       },
       { tax: TAX },
     );
+
     expect(await o.commitTax("o1").orThrow()).toBeNull();
     row = paid();
     expect((await o.commitTax("o1").orThrow())?.id).toBe("tx1");
@@ -776,6 +803,7 @@ describe("orders block", () => {
 
   it("captures authorized payments", async () => {
     const { provider: payments, spies } = paymentSpies();
+
     let row = orderRow({
       payments: [
         { ...PAY1, status: "authorized", captured: "0" },
@@ -787,16 +815,19 @@ describe("orders block", () => {
         },
       ],
     });
+
     const { orders: o } = orders(
       {
         get_order: () => row,
         record_payment: () => {
           row = paid();
+
           return recordRow(true);
         },
       },
       { payments, capture: "manual" },
     );
+
     expect((await o.capture("o1").orThrow()).status).toBe("paid");
     expect(spies.capture).toHaveBeenCalledTimes(1);
     expect(spies.capture).toHaveBeenCalledWith(
@@ -815,13 +846,16 @@ describe("orders block", () => {
         .orders.capture("o1")
         .then((r) => !r.ok && r.error.hint),
     ).toBe("ORDERS_ORDER_NOT_FOUND");
+
     const failing = fakePayments({
       capture: () =>
         AsyncResult.err(dbError("not_found", "gone", { hint: "GONE" })),
     });
+
     const authorized = orderRow({
       payments: [{ ...PAY1, status: "authorized" }],
     });
+
     expect(
       await orders({ get_order: () => authorized }, { payments: failing })
         .orders.capture("o1")
@@ -841,8 +875,10 @@ describe("orders block", () => {
     const reverse = vi.fn((...args: Parameters<TaxProvider["reverse"]>) =>
       TAX.reverse(...args),
     );
+
     const tax: TaxProvider = { ...TAX, reverse };
     const { provider: payments, spies } = paymentSpies();
+
     const { orders: o, calls } = orders(
       {
         create_refund: () => ({
@@ -867,6 +903,7 @@ describe("orders block", () => {
       },
       { payments, tax },
     );
+
     const outcome = await o
       .refund("o1", {
         amount: money(2000, "EUR"),
@@ -874,6 +911,7 @@ describe("orders block", () => {
         reason: "too small",
       })
       .orThrow();
+
     expect(outcome).toMatchObject({
       id: "rf1",
       status: "succeeded",
@@ -914,6 +952,7 @@ describe("orders block", () => {
     const reverse = vi.fn((...args: Parameters<TaxProvider["reverse"]>) =>
       TAX.reverse(...args),
     );
+
     const full = {
       create_refund: () => ({
         id: "rf1",
@@ -931,6 +970,7 @@ describe("orders block", () => {
       }),
       get_order: () => paid(),
     };
+
     await orders(full, { payments: fakePayments(), tax: { ...TAX, reverse } })
       .orders.refund("o1")
       .orThrow();
@@ -943,6 +983,7 @@ describe("orders block", () => {
         reverse: () => AsyncResult.err(dbError("unexpected", "down")),
       },
     });
+
     expect((await broken.orders.refund("o1").orThrow()).taxReversal).toBeNull();
     expect(broken.logger.warn).toHaveBeenCalledWith(
       "orders: tax reversal failed",
@@ -956,6 +997,7 @@ describe("orders block", () => {
         tax: TAX,
       },
     );
+
     expect(
       (await untaxed.orders.refund("o1").orThrow()).taxReversal,
     ).toBeNull();
@@ -975,6 +1017,7 @@ describe("orders block", () => {
           dbError("invalid_input", "too much", { hint: "TOO_MUCH" }),
         ),
     });
+
     const { orders: o, calls } = orders(
       {
         create_refund: () => ({
@@ -995,6 +1038,7 @@ describe("orders block", () => {
       },
       { payments },
     );
+
     expect(await o.refund("o1").then((r) => !r.ok && r.error.hint)).toBe(
       "TOO_MUCH",
     );
@@ -1016,6 +1060,7 @@ describe("orders block", () => {
         .orders.refund("o1")
         .then((r) => !r.ok && r.error.hint),
     ).toBe("ORDERS_REFUND_INVALID");
+
     const canceled = fakePayments({
       refund: (paymentId) =>
         AsyncResult.ok({
@@ -1025,6 +1070,7 @@ describe("orders block", () => {
           status: "canceled",
         }),
     });
+
     const pending = orders(
       {
         create_refund: () => ({
@@ -1037,6 +1083,7 @@ describe("orders block", () => {
       },
       { payments: canceled },
     );
+
     expect(
       await pending.orders.refund("o1").then((r) => !r.ok && r.error.hint),
     ).toBe("ORDERS_REFUND_NOT_FOUND");
@@ -1080,6 +1127,7 @@ describe("orders block", () => {
       }) as Parameters<
         ReturnType<typeof createOrders>["handlePaymentEvent"]
       >[0];
+
     const { orders: o, calls } = orders(
       {
         record_payment: () => recordRow(false),
@@ -1095,6 +1143,7 @@ describe("orders block", () => {
       },
       { payments: fakePayments() },
     );
+
     expect(
       await o.handlePaymentEvent(event("payment.succeeded")).orThrow(),
     ).toMatchObject({
@@ -1147,6 +1196,7 @@ describe("orders block", () => {
       record_payment: raise("ORDERS_ORDER_NOT_FOUND"),
       complete_refund: raise("ORDERS_REFUND_NOT_FOUND"),
     }).orders;
+
     expect(
       await unknown.handlePaymentEvent(event("payment.succeeded")).orThrow(),
     ).toMatchObject({
@@ -1158,10 +1208,12 @@ describe("orders block", () => {
         .handlePaymentEvent(event("refund.succeeded", { refundId: "re_x" }))
         .orThrow(),
     ).toMatchObject({ kind: "ignored", reason: "unknown refund" });
+
     const broken = orders({
       record_payment: raise("BROKEN"),
       complete_refund: raise("BROKEN"),
     }).orders;
+
     expect(
       await broken
         .handlePaymentEvent(event("payment.succeeded"))
@@ -1176,10 +1228,12 @@ describe("orders block", () => {
 
   it("reads the payment from the provider when it can", async () => {
     const get = vi.fn(() => AsyncResult.ok(payment({ reference: "" })));
+
     const { orders: o, calls } = orders(
       { record_payment: () => recordRow(false) },
       { payments: fakePayments({ get }) },
     );
+
     await o
       .handlePaymentEvent({
         id: "evt",
@@ -1191,6 +1245,7 @@ describe("orders block", () => {
       .orThrow();
     expect(get).toHaveBeenCalledWith("pi_1");
     expect(calls[0]?.args["order_id"]).toBe("o9");
+
     const failing = orders(
       {},
       {
@@ -1200,6 +1255,7 @@ describe("orders block", () => {
         }),
       },
     );
+
     expect(
       await failing.orders
         .handlePaymentEvent({
@@ -1223,13 +1279,16 @@ describe("orders block", () => {
         occurredAt: Temporal.Now.instant(),
       },
     ];
+
     const payments = fakePayments({
       parseWebhook: () => AsyncResult.ok(events),
     });
+
     const { orders: o } = orders(
       { record_payment: () => recordRow(false) },
       { payments },
     );
+
     const input = { body: "{}", headers: new Headers() } as never;
     expect(await o.webhook(input).orThrow()).toHaveLength(1);
     expect(
@@ -1237,10 +1296,12 @@ describe("orders block", () => {
         .orders.webhook(input)
         .then((r) => !r.ok && r.error.hint),
     ).toBe("ORDERS_NO_PAYMENTS");
+
     const unsigned = fakePayments({
       parseWebhook: () =>
         AsyncResult.err(dbError("unauthorized", "bad", { hint: "SIG" })),
     });
+
     expect(
       await orders({}, { payments: unsigned })
         .orders.webhook(input)
@@ -1259,6 +1320,7 @@ describe("orders block", () => {
         payment({ status: "canceled", captured: money(0, "EUR") }),
       ),
     );
+
     const pending = orderRow({
       payments: [
         { ...PAY1, status: "authorized", captured: "0" },
@@ -1277,6 +1339,7 @@ describe("orders block", () => {
         },
       ],
     });
+
     const { orders: o, fns } = orders(
       {
         cancel_order: () => true,
@@ -1285,6 +1348,7 @@ describe("orders block", () => {
       },
       { payments: fakePayments({ cancel }) },
     );
+
     expect(await o.cancelOrder("o1", "changed mind").orThrow()).toBe(true);
     expect(cancel).toHaveBeenCalledTimes(1);
     expect(cancel).toHaveBeenCalledWith("pi_1", {
@@ -1300,6 +1364,7 @@ describe("orders block", () => {
         }),
       },
     );
+
     expect(await failing.orders.cancelOrder("o1").orThrow()).toBe(true);
     expect(failing.logger.warn).toHaveBeenCalledWith(
       "orders: cancelling the payment failed",
@@ -1349,6 +1414,7 @@ describe("orders block", () => {
       get_order: () => paid(),
       expire_orders: () => 2,
     });
+
     expect(await o.createFulfillment("o1").orThrow()).toEqual({ id: "f1" });
     expect(calls[0]?.args).toEqual({
       order_id: "o1",
@@ -1437,10 +1503,12 @@ describe("orders block", () => {
 
   it("runs block hooks around methods", async () => {
     const before = vi.fn();
+
     const { orders: o } = orders(
       { get_order: () => paid() },
       { hooks: { getOrder: { before } } },
     );
+
     await o.getOrder("o1").orThrow();
     expect(before).toHaveBeenCalled();
   });
@@ -1457,16 +1525,21 @@ describe("order fields", () => {
         orderRow({ status: "paid", fields: { channel: "pos" } }),
       get_order: () => orderRow({ fields: { channel: "web" } }),
     });
+
     const o = createOrders({ transport: route.transport, fields: schema });
+
     const bad = await o.checkout("c1", {
       // @ts-expect-error not one of the channels
       fields: { channel: "fax" },
     });
+
     expect(bad).toMatchObject({ ok: false, error: { kind: "validation" } });
     expect(route.calls).toHaveLength(0);
+
     const placed = await o
       .checkout("c1", { fields: { channel: "pos" } })
       .orThrow();
+
     expect(route.calls[1]?.args).toMatchObject({ fields: { channel: "pos" } });
     expect(placed.order.fields).toEqual({ channel: "pos" });
     const order = await o.getOrder("o1").orThrow();
@@ -1478,6 +1551,7 @@ describe("order fields", () => {
     const route = router({
       get_order: () => orderRow({ fields: { channel: 1 } }),
     });
+
     const o = createOrders({ transport: route.transport, fields: schema });
     expect(await o.getOrder("o1")).toMatchObject({
       ok: false,

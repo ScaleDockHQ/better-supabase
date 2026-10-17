@@ -35,8 +35,10 @@ import {
 } from "../shared.ts";
 
 export type ConnectorTransport = "http" | "sse";
+
 /** `none`, OAuth per user (a grant each), or a header from the server's credential_ref. */
 export type ConnectorAuth = "none" | "oauth" | "header";
+
 export type FingerprintStatus = "approved" | "pending" | "rejected";
 
 export interface ConnectorGrant {
@@ -198,6 +200,7 @@ export interface Connectors<F extends object = Record<never, never>> {
 
 const TRANSPORTS: ReadonlySet<string> = new Set(["http", "sse"]);
 const AUTHS: ReadonlySet<string> = new Set(["none", "oauth", "header"]);
+
 const STATUSES: ReadonlySet<string> = new Set([
   "approved",
   "pending",
@@ -210,9 +213,11 @@ const instant = (value: unknown): Temporal.Instant =>
 function grantOf(value: unknown): ConnectorGrant {
   const row = recordOf(value, "connector_grants");
   const credentialRef = credentialRefOf(row["credential_ref"]);
+
   if (credentialRef === undefined) {
     throw new TypeError("connector_grants returned a grant without a ref");
   }
+
   return {
     id: textOf(row["id"]),
     userId: textOf(row["user_id"]),
@@ -230,6 +235,7 @@ function serverOf(value: unknown): ConnectorServer {
   const row = recordOf(value, "connector_servers");
   const transport = textOf(row["transport"]);
   const authType = textOf(row["auth_type"]);
+
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["organization_id"]),
@@ -257,18 +263,39 @@ function serverOf(value: unknown): ConnectorServer {
 /** The server's own columns a save sets, keyed by database name. */
 function fieldsArg(fields: ConnectorServerFields): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  if (fields.name !== undefined) out["name"] = fields.name;
-  if (fields.url !== undefined) out["url"] = fields.url;
-  if (fields.transport !== undefined) out["transport"] = fields.transport;
-  if (fields.authType !== undefined) out["auth_type"] = fields.authType;
+
+  if (fields.name !== undefined) {
+    out["name"] = fields.name;
+  }
+
+  if (fields.url !== undefined) {
+    out["url"] = fields.url;
+  }
+
+  if (fields.transport !== undefined) {
+    out["transport"] = fields.transport;
+  }
+
+  if (fields.authType !== undefined) {
+    out["auth_type"] = fields.authType;
+  }
+
   if (fields.credentialRef !== undefined) {
     out["credential_ref"] = fields.credentialRef;
   }
-  if (fields.scopes !== undefined) out["scopes"] = fields.scopes;
+
+  if (fields.scopes !== undefined) {
+    out["scopes"] = fields.scopes;
+  }
+
   if (fields.clientMetadata !== undefined) {
     out["client_metadata"] = fields.clientMetadata;
   }
-  if (fields.enabled !== undefined) out["enabled"] = fields.enabled;
+
+  if (fields.enabled !== undefined) {
+    out["enabled"] = fields.enabled;
+  }
+
   return out;
 }
 
@@ -282,17 +309,22 @@ export function createConnectors<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: ConnectorsOptions<S>): Connectors<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
+
   const extraFields: BlockFields<F> = blockFields(
     options.fields,
     "connector fields",
   );
+
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const service = blockCall(
     options.service ?? options.transport,
     options.schema,
     options.mappers,
   );
+
   const credentials = options.credentials;
 
   const revokeCredential = (grant: ConnectorGrant): AsyncResult<boolean> =>
@@ -304,8 +336,12 @@ export function createConnectors<
     AsyncResult.from(async () => {
       for (const grant of grants) {
         const revoked = await revokeCredential(grant);
-        if (!revoked.ok) return revoked;
+
+        if (!revoked.ok) {
+          return revoked;
+        }
       }
+
       return ok(grants.length);
     });
 
@@ -378,14 +414,17 @@ export function createConnectors<
           (value) => recordOf(value, "record_connector_grant"),
         ).andThen((row) => {
           const grant = grantOf(row["grant"]);
+
           const replaced = isRecord(row["replaced"])
             ? grantOf(row["replaced"])
             : undefined;
+
           // A reconnect writes the same ref again; revoking it would drop the new token.
           const stale =
             replaced !== undefined &&
             JSON.stringify(replaced.credentialRef) !==
               JSON.stringify(grant.credentialRef);
+
           return stale
             ? revokeCredential(replaced).map(() => grant)
             : AsyncResult.ok(grant);
@@ -455,6 +494,7 @@ export function createConnectors<
           { server_id: serverId, fingerprint, tools },
           (value): FingerprintStatus => {
             const status = textOf(value);
+
             // SAFETY: STATUSES holds exactly the FingerprintStatus members.
             return STATUSES.has(status)
               ? (status as FingerprintStatus)
@@ -465,6 +505,7 @@ export function createConnectors<
       reject: (serverId, fingerprint) => decide(serverId, fingerprint, false),
     },
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "connectors",
     ...(options.logger ? { logger: options.logger } : {}),

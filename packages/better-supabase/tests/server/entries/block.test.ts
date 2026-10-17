@@ -13,6 +13,7 @@ import { schema } from "../../fixtures/generated-camel.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 const signer = await createTestSigner();
+
 const server = createServer(defineSupabase(schema), {
   env: {
     url: PROJECT_URL,
@@ -26,6 +27,7 @@ const server = createServer(defineSupabase(schema), {
 describe("withBlock", () => {
   it("builds a block from the entries before it, after withBetterSupabase", async () => {
     const fake = fakeSql([[/select 1/, [{ one: 1 }]]]);
+
     const withPostgresAdmin = defineMiddleware<
       "postgresAdmin",
       undefined,
@@ -37,7 +39,9 @@ describe("withBlock", () => {
         // SAFETY: the block only calls queryRaw, which the fake implements.
         Promise.resolve({ postgresAdmin: fake.sql as unknown as PostgresApi }),
     });
+
     const built: unknown[] = [];
+
     const fetch = pipeline(
       [
         withBetterSupabase(server, { allow: ["anon"] }),
@@ -49,12 +53,14 @@ describe("withBlock", () => {
             readonly authMode: string;
           }) => {
             built.push(ctx.authMode);
+
             return { ping: () => ctx.postgresAdmin.queryRaw("select 1") };
           },
         ),
       ],
       async (_req, ctx) => Response.json(await ctx.probe.ping()),
     );
+
     const response = await fetch(new Request("https://api.test/jobs"));
     expect(await response.json()).toEqual([{ one: 1 }]);
     expect(built).toEqual(["none"]);

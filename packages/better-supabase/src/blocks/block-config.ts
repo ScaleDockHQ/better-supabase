@@ -50,9 +50,11 @@ export function fillTopic(
 ): string {
   return template.replaceAll(/\{([A-Za-z]+)\}/g, (match, name: string) => {
     const value = values[name];
+
     if (value === undefined) {
       throw new TypeError(`fillTopic: no value for ${match} in "${template}"`);
     }
+
     return value;
   });
 }

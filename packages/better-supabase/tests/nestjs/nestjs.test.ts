@@ -23,6 +23,7 @@ import { withBetterSupabase } from "../../src/server/composite.ts";
 import { server, signer, USER } from "../fixtures/test-server.ts";
 
 const closers: (() => Promise<void>)[] = [];
+
 afterEach(async () => {
   await Promise.all(closers.splice(0).map((close) => close()));
 });
@@ -33,16 +34,20 @@ async function listen(
   const middleware = toNestMiddleware([
     withBetterSupabase(server, { allow: ["user", "anon"] }),
   ]);
+
   const http = createServer((req, res) => {
     middleware(req, res, (error) => {
       if (error) {
         res.statusCode = 500;
         res.end();
+
         return;
       }
+
       void route(req, res);
     });
   });
+
   await new Promise<void>((resolve) => {
     http.listen(0, resolve);
   });
@@ -54,6 +59,7 @@ async function listen(
         });
       }),
   );
+
   return `http://127.0.0.1:${(http.address() as AddressInfo).port}`;
 }
 
@@ -70,7 +76,9 @@ describe("better-supabase/nestjs", () => {
     class Notes {
       list(): void {}
     }
+
     Ctx("bs")(Notes.prototype, "list", 0);
+
     const args = Reflect.getMetadata(
       "__routeArguments__",
       Notes,
@@ -82,13 +90,16 @@ describe("better-supabase/nestjs", () => {
         data: unknown;
       }
     >;
+
     const [param] = Object.values(args);
 
     const admins = guard({ roles: ["admin"] });
+
     const url = await listen(async (req, res) => {
       const fastifyRequest = { raw: req };
       const host = hostOf(fastifyRequest, { raw: res });
       const bs = param?.factory(param.data, host) as { auth: { kind: string } };
+
       try {
         await admins.canActivate(host);
         res.end(`${bs.auth.kind}:${contextOf(fastifyRequest) ? "ctx" : ""}`);
@@ -113,6 +124,7 @@ describe("better-supabase/nestjs", () => {
 
   it("redirects refused callers to signIn through HttpException", async () => {
     const signedIn = guard({ signIn: "/sign-in" });
+
     const url = await listen(async (req, res) => {
       try {
         await signedIn.canActivate(hostOf(req, res));
@@ -123,6 +135,7 @@ describe("better-supabase/nestjs", () => {
         res.end();
       }
     });
+
     const response = await fetch(`${url}/notes`, { redirect: "manual" });
     expect(response.status).toBe(303);
     expect(response.headers.get("location")).toMatch(
@@ -133,6 +146,7 @@ describe("better-supabase/nestjs", () => {
   it("answers DbExceptions with Problem Details and other errors like Nest", async () => {
     const filter = problemFilter({ expose: true });
     const answer = filter.catch.bind(filter);
+
     const url = await listen((req, res) => {
       const thrown =
         req.url === "/conflict"
@@ -140,9 +154,12 @@ describe("better-supabase/nestjs", () => {
           : req.url === "/http"
             ? new HttpException("Nope", 418)
             : new Error("boom");
+
       answer(thrown, hostOf(req, res));
+
       return Promise.resolve();
     });
+
     const conflict = await fetch(`${url}/conflict`);
     expect(conflict.status).toBe(409);
     expect(conflict.headers.get("content-type")).toBe(

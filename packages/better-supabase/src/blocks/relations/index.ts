@@ -5,6 +5,7 @@ export {
   toGanttTasks,
   toTreeItems,
 } from "./adapters.ts";
+
 export {
   createRelations,
   type LinkInput,
@@ -20,6 +21,9 @@ export {
   type UnlinkInput,
   type UnlinkResult,
 } from "./relations.ts";
+
 export { relationsBlock } from "./manifest.ts";
+
 export { relationsEvents } from "./events.ts";
+
 export type { RelationsEvents } from "./events.ts";

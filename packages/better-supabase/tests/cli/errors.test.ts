@@ -14,6 +14,7 @@ describe("CliError", () => {
     const error = new CliError("unknown_command", 'Unknown command "genn".', {
       suggestion: "gen",
     });
+
     expect(error.exitCode).toBe(2);
     expect(error.problem).toEqual({
       type: `${CLI_ERRORS_URL}#unknown_command`,
@@ -43,6 +44,7 @@ describe("toCliError", () => {
     const citty = Object.assign(new Error("Missing required argument"), {
       name: "CLIError",
     });
+
     expect(toCliError(citty).code).toBe("usage");
 
     expect(toCliError(new TypeError("nope"))).toMatchObject({
@@ -64,6 +66,7 @@ describe("error helpers", () => {
   it("parseNames returns the names, or a message naming the unknown ones", () => {
     const isColor = (value: string): value is "red" | "blue" =>
       value === "red" || value === "blue";
+
     expect(parseNames(["red"], isColor, "color", ["red", "blue"])).toEqual([
       "red",
     ]);

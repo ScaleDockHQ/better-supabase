@@ -11,24 +11,29 @@ import { topics } from "../fixtures/generated-camel.ts";
 
 function fakeRealtime() {
   const removed: unknown[] = [];
+
   const channel = {
     on: () => channel,
     subscribe: (callback: (status: string) => void) => {
       queueMicrotask(() => {
         callback("SUBSCRIBED");
       });
+
       return channel;
     },
     httpSend: async () => ({ success: true as const }),
   };
+
   const client = {
     channel: vi.fn(() => channel),
     removeChannel: vi.fn(async (value: unknown) => {
       removed.push(value);
+
       return "ok" as const;
     }),
     realtime: { setAuth: async () => undefined },
   };
+
   return { client: client as unknown as RealtimeClient, removed };
 }
 
@@ -42,6 +47,7 @@ describe("explicit resource management", () => {
       expect(typeof pg[Symbol.asyncDispose]).toBe("function");
       await pg.admin.queryRaw("select 1");
     }
+
     expect(fake.ended).toBe(1);
     expect(fake.released).toBe(fake.connections);
   });
@@ -66,16 +72,20 @@ describe("explicit resource management", () => {
         { organizationId: "o1", userId: "u1" },
         {},
       );
+
       await sync.ready;
     }
+
     {
       await using async = notifications.subscribe(
         client,
         { organizationId: "o1", userId: "u2" },
         {},
       );
+
       await async.ready;
     }
+
     await new Promise((resolve) => {
       setTimeout(resolve, 0);
     });
@@ -93,6 +103,7 @@ describe("explicit resource management", () => {
       stack.use(createPostgres({ pool: first.pool }));
       stack.use(createPostgres({ pool: second.pool }));
     }
+
     expect(order).toEqual(["second", "first"]);
   });
 });

@@ -19,17 +19,24 @@ export function policyChecks(
   policy: BucketPolicyName | AccessBucketPolicy,
   segmentOf: (kind: string) => number,
 ): PolicyChecks | undefined {
-  if (typeof policy === "string") return undefined;
+  if (typeof policy === "string") {
+    return undefined;
+  }
+
   const where = `defineBucket(${config.id})`;
+
   const segment =
     policy.segment ??
     (policy.scope === "platform" ? undefined : segmentOf("permission"));
+
   const id =
     segment === undefined || policy.scope === "platform"
       ? undefined
       : `split_part(name, '/', ${String(segment)})`;
+
   const check = (key: string): string => accessCheck(where, policy, key, id);
   const keys = policy.access;
+
   return {
     read: check(keys.read),
     ...(keys.list === undefined ? {} : { list: check(keys.list) }),

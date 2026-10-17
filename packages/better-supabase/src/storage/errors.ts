@@ -16,23 +16,40 @@ interface StorageFailure {
 
 /** Maps a Storage error (`StorageApiError`, fetch failures) to a `DbError`. */
 export function fromStorageError(raw: unknown, table?: string): DbError {
-  if (isDbError(raw)) return raw;
-  if (raw instanceof DbException) return raw.error;
-  if (typeof raw !== "object" || raw === null) return toDbError(raw);
+  if (isDbError(raw)) {
+    return raw;
+  }
+
+  if (raw instanceof DbException) {
+    return raw.error;
+  }
+
+  if (typeof raw !== "object" || raw === null) {
+    return toDbError(raw);
+  }
+
   // SAFETY: the check above narrows raw to an object; every StorageFailure
   // field is optional.
   const failure = raw as StorageFailure;
-  if (failure.name === "AbortError") return toDbError(raw);
+
+  if (failure.name === "AbortError") {
+    return toDbError(raw);
+  }
+
   const message = failure.message ?? "Storage request failed";
   const code = failure.code ?? failure.statusCode;
   const base = { ...(code ? { code } : {}), ...(table ? { table } : {}) };
   const statusCode = Number(failure.statusCode);
+
   const status =
     Number.isFinite(statusCode) && statusCode >= 400
       ? statusCode
       : (failure.status ?? 0);
-  if (code === "FeatureNotEnabled" || /^Route \S+ not found$/.test(message))
+
+  if (code === "FeatureNotEnabled" || /^Route \S+ not found$/.test(message)) {
     return dbError("unsupported", message, base);
+  }
+
   if (
     /row-level security|unauthorized to|AccessDenied/i.test(
       `${message} ${code ?? ""}`,
@@ -40,30 +57,50 @@ export function fromStorageError(raw: unknown, table?: string): DbError {
   ) {
     return dbError("forbidden", message, base);
   }
-  if (/already exists|duplicate/i.test(`${message} ${code ?? ""}`))
+
+  if (/already exists|duplicate/i.test(`${message} ${code ?? ""}`)) {
     return dbError("conflict", message, base);
-  if (failure.name === "StorageUnknownError" && status === 0)
+  }
+
+  if (failure.name === "StorageUnknownError" && status === 0) {
     return dbError("network", message, base);
+  }
+
   switch (status) {
-    case 400:
+    case 400: {
       return dbError("invalid_request", message, base);
-    case 401:
+    }
+
+    case 401: {
       return dbError("unauthorized", message, base);
-    case 403:
+    }
+
+    case 403: {
       return dbError("forbidden", message, base);
-    case 404:
+    }
+
+    case 404: {
       return dbError("not_found", message, base);
-    case 409:
+    }
+
+    case 409: {
       return dbError("conflict", message, base);
+    }
+
     case 413:
-    case 415:
+    case 415: {
       return dbError("invalid_input", message, { ...base, status });
+    }
+
     case 408:
-    case 429:
+    case 429: {
       return dbError("network", message, { ...base, status });
-    default:
+    }
+
+    default: {
       return status >= 500
         ? dbError("network", message, base)
         : dbError("unexpected", message, base);
+    }
   }
 }

@@ -1,13 +1,7 @@
-import {
-  type ContractOf,
-  createEdge,
-  defineFunction,
-} from "better-supabase/edge";
+import { type ContractOf, defineFunction } from "better-supabase/edge";
 import * as v from "valibot";
 
-import { betterSupabase } from "../_shared/supabase.ts";
-
-const bs = createEdge(betterSupabase, { cors: true });
+import { bs } from "./server.ts";
 
 /**
  * Runs as the caller, so RLS decides whether the organization accepts the

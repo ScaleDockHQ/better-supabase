@@ -21,11 +21,13 @@ function entitlementsOf(
 ): ResolvedConfig["entitlements"] {
   const customer = config.customer;
   const dot = customer?.lastIndexOf(".") ?? -1;
+
   if (customer !== undefined && dot <= 0) {
     throw new TypeError(
       `entitlements.customer must be "table.column", got "${customer}"`,
     );
   }
+
   return {
     ...(customer === undefined
       ? {}
@@ -77,11 +79,13 @@ function blocksOf(
 ): Pick<ResolvedConfig, "blocks" | "blockNames"> {
   const config = blocks ?? [];
   const blockNames = isBlockList(config) ? config : Object.keys(config);
+
   const resolved = withSqlDefaults(
     isBlockList(config) ? {} : config,
     blockNames,
     sql,
   );
+
   if (
     !provider ||
     !blockNames.includes("access") ||
@@ -89,6 +93,7 @@ function blocksOf(
   ) {
     return { blocks: resolved, blockNames };
   }
+
   return {
     blocks: { ...resolved, access: { ...resolved.access, model: "provider" } },
     blockNames,
@@ -104,11 +109,16 @@ function withSqlDefaults(
   names: readonly string[],
   sql: SqlConfig,
 ): AnyBlocksConfig {
-  if (sql.schema === undefined && sql.api === undefined) return modules;
+  if (sql.schema === undefined && sql.api === undefined) {
+    return modules;
+  }
+
   const { schema, api } = sql;
+
   return Object.fromEntries(
     names.map((name) => {
       const module = modules[name] ?? {};
+
       return [
         name,
         {
@@ -146,8 +156,14 @@ function pick<T extends object>(
   value: boolean | T | undefined,
   defaults: Required<T>,
 ): Required<T> | undefined {
-  if (value === undefined || value === false) return undefined;
-  if (value === true) return defaults;
+  if (value === undefined || value === false) {
+    return undefined;
+  }
+
+  if (value === true) {
+    return defaults;
+  }
+
   return { ...defaults, ...value };
 }
 
@@ -156,12 +172,14 @@ function generatorsOf(
 ): readonly Generator[] {
   for (const generator of generators ?? []) {
     const version: unknown = generator.apiVersion;
+
     if (version !== undefined && version !== 1) {
       throw new TypeError(
         `generator "${generator.name}" targets generator API ${String(version)}; this better-supabase supports 1. Upgrade better-supabase or use a release of the generator for API 1.`,
       );
     }
   }
+
   return generators ?? [];
 }
 
@@ -169,7 +187,11 @@ function authorizationOf(
   provider: AuthorizationProvider,
 ): AuthorizationProvider {
   const problem = providerApiProblem(provider);
-  if (problem !== undefined) throw new TypeError(problem);
+
+  if (problem !== undefined) {
+    throw new TypeError(problem);
+  }
+
   return provider;
 }
 
@@ -182,6 +204,7 @@ export function resolveConfig(
   const output = config.output ?? CONFIG_DEFAULTS.output;
   // oxlint-disable-next-line typescript/no-deprecated -- the deprecated key still resolves, and maps onto specs
   const legacyOpenApi = config.openapi;
+
   return {
     root,
     source: config.source ?? {},

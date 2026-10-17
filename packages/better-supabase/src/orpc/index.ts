@@ -36,13 +36,16 @@ import {
 import { createServer, extendServer } from "../server/server.ts";
 
 export type { GuardOptions, MiddlewareOptions } from "../server/respond.ts";
+
 export { toOrpc } from "../bridges/orpc.ts";
+
 export type {
   RateLimiter,
   RateLimitRouteOptions,
   RateLimitVerdict,
   RouteRateLimitRule,
 } from "../server/rate-limit.ts";
+
 export type { OrpcHandlerLike, ToOrpcOptions } from "../bridges/orpc.ts";
 
 /** Initial context: pass `{ context: { request } }` to the oRPC handler. */
@@ -198,6 +201,7 @@ export interface BetterOrpc<
   /** A `Result` (or `AsyncResult`) as data, throwing an `ORPCError` on failure. */
   unwrap<T>(value: Result<T> | PromiseLike<Result<T>>): Promise<T>;
   /** Plain values pass through; thrown `DbException`s become `ORPCError`s. */
+  // oxlint-disable-next-line typescript/unified-signatures -- the first overload infers the value inside a Result
   unwrap<T>(value: T | PromiseLike<T>): Promise<T>;
   toOrpcError(error: DbError): ORPCError<string, ProblemDetails>;
 }
@@ -221,9 +225,16 @@ function withHeaders(
   response: Response,
   headers: Headers | undefined,
 ): Response {
-  if (headers === undefined) return response;
+  if (headers === undefined) {
+    return response;
+  }
+
   const copy = new Response(response.body, response);
-  for (const [name, value] of headers) copy.headers.set(name, value);
+
+  for (const [name, value] of headers) {
+    copy.headers.set(name, value);
+  }
+
   return copy;
 }
 
@@ -242,14 +253,17 @@ export function createOrpc<
   const server = createServer(betterSupabase, options);
   const expose = options.exposeErrors ?? defaultExpose();
   const tenantClaim = claimsOf(betterSupabase.meta).tenant;
+
   const contexts = new WeakMap<
     Request,
     { ctx: ServerContext<M, F, E, C, P>; refresh: boolean }
   >();
+
   const limits = new WeakMap<Request, Headers>();
 
   const toOrpcError = (error: DbError): ORPCError<string, ProblemDetails> => {
     const problem = toProblem(error, { expose });
+
     return new ORPCError(orpcCode(error), {
       message: problem.detail ?? problem.title,
       data: problem,
@@ -258,49 +272,62 @@ export function createOrpc<
 
   const middleware = (
     middlewareOptions: OrpcGuardOptions<C, P> = {},
-  ): OrpcMiddleware<M, F, E, C, P> => {
-    return os
-      .$context<OrpcRequestContext>()
-      .middleware(async ({ context, next }) => {
-        // Nested middleware resolves the request once; the context is kept
-        // before the guard so a denied call still returns rotated cookies.
-        const refresh =
-          refreshFor(middlewareOptions.refresh, context.request) ?? false;
-        const known = contexts.get(context.request);
-        const ctx =
-          known && (known.refresh || !refresh)
-            ? known.ctx
-            : await server.context(context.request, { refresh });
-        contexts.set(context.request, {
-          ctx,
-          refresh: refresh || (known?.refresh ?? false),
-        });
-        const denied = guard(
-          ctx.auth,
-          middlewareOptions.allow,
-          middlewareOptions.aal,
-          middlewareOptions.scopes,
-        );
-        if (denied) throw toOrpcError(denied);
-        const caller = await authorizeCaller(
-          ctx.auth,
-          middlewareOptions,
-          undefined,
-          tenantOf(toSession(ctx.auth), tenantClaim),
-          options.authorizer,
-        );
-        if ("kind" in caller) throw toOrpcError(caller);
-        try {
-          return await next({
-            context: { bs: ctx, db: ctx.db, auth: ctx.auth },
-          });
-        } catch (cause) {
-          const thrown = dbErrorOf(cause);
-          if (thrown) throw toOrpcError(thrown);
-          throw cause;
-        }
+  ): OrpcMiddleware<M, F, E, C, P> =>
+    os.$context<OrpcRequestContext>().middleware(async ({ context, next }) => {
+      // Nested middleware resolves the request once; the context is kept
+      // before the guard so a denied call still returns rotated cookies.
+      const refresh =
+        refreshFor(middlewareOptions.refresh, context.request) ?? false;
+
+      const known = contexts.get(context.request);
+
+      const ctx =
+        known && (known.refresh || !refresh)
+          ? known.ctx
+          : await server.context(context.request, { refresh });
+
+      contexts.set(context.request, {
+        ctx,
+        refresh: refresh || (known?.refresh ?? false),
       });
-  };
+
+      const denied = guard(
+        ctx.auth,
+        middlewareOptions.allow,
+        middlewareOptions.aal,
+        middlewareOptions.scopes,
+      );
+
+      if (denied) {
+        throw toOrpcError(denied);
+      }
+
+      const caller = await authorizeCaller(
+        ctx.auth,
+        middlewareOptions,
+        undefined,
+        tenantOf(toSession(ctx.auth), tenantClaim),
+        options.authorizer,
+      );
+
+      if ("kind" in caller) {
+        throw toOrpcError(caller);
+      }
+
+      try {
+        return await next({
+          context: { bs: ctx, db: ctx.db, auth: ctx.auth },
+        });
+      } catch (cause) {
+        const thrown = dbErrorOf(cause);
+
+        if (thrown) {
+          throw toOrpcError(thrown);
+        }
+
+        throw cause;
+      }
+    });
 
   return extendServer<BetterOrpc<M, F, E, C, P>>(server, {
     toOrpcError,
@@ -311,15 +338,28 @@ export function createOrpc<
       rateLimitOptions: RateLimitRouteOptions<OrpcRateLimitInput<TContext>>,
     ): OrpcRateLimitMiddleware<TContext> {
       const gate = rateLimitGate(rateLimitOptions);
+
       return os
         .$context<TContext>()
         .middleware(async ({ context, path, next }) => {
           const outcome = await gate({ context, path });
-          if (outcome.kind === "skip") return next();
+
+          if (outcome.kind === "skip") {
+            return next();
+          }
+
           const kept = limits.get(context.request) ?? new Headers();
-          for (const [name, value] of outcome.headers) kept.set(name, value);
+
+          for (const [name, value] of outcome.headers) {
+            kept.set(name, value);
+          }
+
           limits.set(context.request, kept);
-          if (outcome.kind === "deny") throw toOrpcError(outcome.error);
+
+          if (outcome.kind === "deny") {
+            throw toOrpcError(outcome.error);
+          }
+
           return next();
         });
     },
@@ -335,11 +375,14 @@ export function createOrpc<
             ...(fetchOptions.prefix ? { prefix: fetchOptions.prefix } : {}),
             context: { request },
           });
+
           const ctx = contexts.get(request)?.ctx;
+
           const answer = withHeaders(
             response ?? new Response("Not found", { status: 404 }),
             limits.get(request),
           );
+
           return ctx ? ctx.apply(answer) : answer;
         } finally {
           flushEvents(
@@ -357,7 +400,11 @@ export function createOrpc<
 
     async unwrap(value: unknown): Promise<never> {
       const settled = await settle(() => value);
-      if (!settled.ok) throw toOrpcError(settled.error);
+
+      if (!settled.ok) {
+        throw toOrpcError(settled.error);
+      }
+
       // SAFETY: unwrap returns the settled data, and callers type it through
       // the procedure output.
       return settled.data as never;

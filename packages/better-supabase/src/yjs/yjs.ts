@@ -11,13 +11,13 @@ import type {
   SubscriptionStatus,
 } from "../realtime/topic.ts";
 
-type PresenceState = Readonly<Record<string, unknown>>;
-
 import { fromBase64, toBase64 } from "../core/base64.ts";
 import { isRecord } from "../core/block-helpers.ts";
 import { importOptionalPeer } from "../core/optional-peer.ts";
 import { AsyncResult, err, ok } from "../core/result.ts";
 import { defineTopic } from "../realtime/topic.ts";
+
+type PresenceState = Readonly<Record<string, unknown>>;
 
 /** The part of a `Y.Doc` the provider uses. */
 export interface YDocLike {
@@ -50,10 +50,20 @@ function isYjs(value: unknown): value is YjsLike {
  * the optional peer out of apps that pass the module in.
  */
 async function loadYjs(given: YjsLike | undefined): Promise<YjsLike> {
-  if (given !== undefined) return given;
+  if (given !== undefined) {
+    return given;
+  }
+
   const module = await importOptionalPeer("yjs");
-  if (isYjs(module)) return module;
-  if (isRecord(module) && isYjs(module["default"])) return module["default"];
+
+  if (isYjs(module)) {
+    return module;
+  }
+
+  if (isRecord(module) && isYjs(module["default"])) {
+    return module["default"];
+  }
+
   throw new TypeError(
     "better-supabase/yjs needs the yjs package: pnpm add yjs, or pass it as options.yjs",
   );
@@ -114,9 +124,16 @@ interface Broadcast {
 }
 
 function broadcastOf(value: unknown): Broadcast | undefined {
-  if (!isRecord(value)) return undefined;
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
   const { seq, update } = value;
-  if (typeof seq !== "number" || typeof update !== "string") return undefined;
+
+  if (typeof seq !== "number" || typeof update !== "string") {
+    return undefined;
+  }
+
   return { seq, update };
 }
 
@@ -132,9 +149,11 @@ export function createDocumentProvider<P extends PresenceState = PresenceState>(
   const origin = Symbol("better-supabase/yjs");
   let yjs: YjsLike | undefined;
   let opened: OpenedDocument | undefined;
+
   let subscription:
     | PresenceSubscription<PresenceState, PresenceState>
     | undefined;
+
   let status: DocumentProviderStatus = "closed";
   let synced = 0;
   let joined = false;
@@ -144,22 +163,29 @@ export function createDocumentProvider<P extends PresenceState = PresenceState>(
   let sending: Promise<void> = Promise.resolve();
 
   const setStatus = (next: DocumentProviderStatus): void => {
-    if (status === next) return;
+    if (status === next) {
+      return;
+    }
+
     status = next;
     options.onStatus?.(next);
   };
+
   const fail = (error: unknown): void => {
     options.onError?.(error);
   };
+
   const apply = (update: Uint8Array): void => {
     // SAFETY: `doc` is the Y.Doc the caller passed; YjsLike types it as `never` so any Doc fits.
     yjs?.applyUpdate(doc as never, update, origin);
   };
+
   const applyState = (state: DocumentState): void => {
     if (state.snapshot !== undefined) {
       apply(state.snapshot);
       synced = Math.max(synced, state.snapshotSeq);
     }
+
     for (const item of state.updates) {
       apply(item.update);
       synced = Math.max(synced, item.seq);
@@ -168,46 +194,67 @@ export function createDocumentProvider<P extends PresenceState = PresenceState>(
 
   const send = (): Promise<void> => {
     sending = sending.then(async () => {
-      if (opened === undefined || pending.length === 0 || yjs === undefined)
+      if (opened === undefined || pending.length === 0 || yjs === undefined) {
         return;
+      }
+
       const update =
         pending.length === 1 ? pending[0]! : yjs.mergeUpdates(pending);
+
       const count = pending.length;
       const pushed = await documents.push(opened.id, update);
+
       if (!pushed.ok) {
         stalled = true;
         fail(pushed.error);
         setStatus("offline");
+
         return;
       }
+
       stalled = false;
       pending.splice(0, count);
       const payload: Broadcast = { seq: pushed.data, update: toBase64(update) };
+
       const response = await subscription?.channel.send({
         type: "broadcast",
         event: UPDATE_EVENT,
         payload,
       });
+
       if (response !== undefined && response !== "ok") {
         fail(new Error(`broadcast failed: ${String(response)}`));
       }
     });
+
     return sending;
   };
 
   const onUpdate = (update: Uint8Array, from: unknown): void => {
-    if (from === origin || opened === undefined || !opened.canWrite) return;
+    if (from === origin || opened === undefined || !opened.canWrite) {
+      return;
+    }
+
     pending.push(update);
-    if (!stalled) void send();
+
+    if (!stalled) {
+      void send();
+    }
   };
 
   const catchUp = async (): Promise<void> => {
-    if (opened === undefined) return;
-    const state = await documents.pull(opened.id, synced);
-    if (!state.ok) {
-      fail(state.error);
+    if (opened === undefined) {
       return;
     }
+
+    const state = await documents.pull(opened.id, synced);
+
+    if (!state.ok) {
+      fail(state.error);
+
+      return;
+    }
+
     applyState(state.data);
     await send();
     setStatus("synced");
@@ -215,18 +262,31 @@ export function createDocumentProvider<P extends PresenceState = PresenceState>(
 
   const onChannel = (next: SubscriptionStatus): void => {
     switch (next) {
-      case "subscribed":
+      case "subscribed": {
         // The first join follows the open; later ones are reconnects.
-        if (joined) void catchUp();
+        if (joined) {
+          void catchUp();
+        }
+
         joined = true;
         setStatus("synced");
+
         return;
+      }
+
       case "closed":
-      case "error":
-        if (status !== "closed") setStatus("offline");
+      case "error": {
+        if (status !== "closed") {
+          setStatus("offline");
+        }
+
         return;
-      case "joining":
+      }
+
+      case "joining": {
         return;
+      }
+
       default: {
         const never: never = next;
         throw new TypeError(`unknown subscription status ${String(never)}`);
@@ -243,24 +303,33 @@ export function createDocumentProvider<P extends PresenceState = PresenceState>(
     },
     connect: () =>
       AsyncResult.from(async () => {
-        if (opened !== undefined) return ok(opened);
+        if (opened !== undefined) {
+          return ok(opened);
+        }
+
         setStatus("connecting");
+
         try {
           yjs = await loadYjs(options.yjs);
         } catch (cause) {
           setStatus("closed");
           throw cause;
         }
+
         const result = await documents.open(options.ref);
+
         if (!result.ok) {
           setStatus("closed");
+
           return err(result.error);
         }
+
         const current = result.data;
         opened = current;
         applyState(current);
         doc.on("update", onUpdate);
         const split = current.topic.lastIndexOf(":");
+
         const topic = defineTopic(
           `${current.topic.slice(0, split)}:{document}`,
           {
@@ -270,15 +339,23 @@ export function createDocumentProvider<P extends PresenceState = PresenceState>(
             tenant: false,
           },
         );
+
         subscription = topic.subscribe(
           client,
           { document: current.topic.slice(split + 1) },
           {
             [UPDATE_EVENT]: (payload: unknown) => {
               const message = broadcastOf(payload);
-              if (message === undefined) return;
+
+              if (message === undefined) {
+                return;
+              }
+
               apply(fromBase64(message.update));
-              if (message.seq === synced + 1) synced = message.seq;
+
+              if (message.seq === synced + 1) {
+                synced = message.seq;
+              }
             },
           },
           {
@@ -288,6 +365,7 @@ export function createDocumentProvider<P extends PresenceState = PresenceState>(
           },
         );
         await subscription.ready.catch(fail);
+
         return ok(current);
       }),
     track: (state) =>
@@ -301,6 +379,7 @@ export function createDocumentProvider<P extends PresenceState = PresenceState>(
     members: () => membersOf<P>(subscription?.members() ?? []),
     flush: () => {
       stalled = false;
+
       return send();
     },
     destroy: async () => {
@@ -315,6 +394,7 @@ export function createDocumentProvider<P extends PresenceState = PresenceState>(
     },
     [Symbol.asyncDispose]: () => provider.destroy(),
   };
+
   return provider;
 }
 
@@ -337,14 +417,23 @@ export function compactDocument(
   return AsyncResult.from(async () => {
     const yjs = await loadYjs(options.yjs);
     const state = await options.documents.pull(options.documentId, 0);
-    if (!state.ok) return err(state.error);
+
+    if (!state.ok) {
+      return err(state.error);
+    }
+
     const { snapshot, updates } = state.data;
     const last = updates.at(-1);
-    if (last === undefined) return ok(false);
+
+    if (last === undefined) {
+      return ok(false);
+    }
+
     const merged = yjs.mergeUpdates([
       ...(snapshot === undefined ? [] : [snapshot]),
       ...updates.map((item) => item.update),
     ]);
+
     return options.documents.compact(options.documentId, merged, last.seq);
   });
 }

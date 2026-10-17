@@ -54,8 +54,10 @@ export function skippedForMetadata(
   rule: Pick<Rule, "code" | "title">,
   help: string,
 ): Finding | undefined {
-  if (!snapshot.extras.fromMetadata || !EXTRAS_RULES.has(rule.code))
+  if (!snapshot.extras.fromMetadata || !EXTRAS_RULES.has(rule.code)) {
     return undefined;
+  }
+
   return {
     code: rule.code,
     severity: "info",

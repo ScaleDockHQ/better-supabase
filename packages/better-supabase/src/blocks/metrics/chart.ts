@@ -23,8 +23,10 @@ export function toChartData(
   options: MetricChartOptions = {},
 ): readonly MetricChartRow[] {
   const format = options.format ?? ((bucket) => bucket.toString());
+
   return series.points.map((point, index) => {
     const previous = series.previous?.[index];
+
     return {
       ...point.groups,
       date: format(point.bucket),

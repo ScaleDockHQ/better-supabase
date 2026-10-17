@@ -56,12 +56,21 @@ export function agentTools(
 ): ToolSet {
   const allowed = agent.tools.length === 0 ? undefined : new Set(agent.tools);
   const tools: ToolSet = {};
+
   for (const [name, tool] of Object.entries(available)) {
-    if (allowed !== undefined && !allowed.has(name)) continue;
+    if (allowed !== undefined && !allowed.has(name)) {
+      continue;
+    }
+
     const policy = policies[name];
-    if (policy === "deny") continue;
+
+    if (policy === "deny") {
+      continue;
+    }
+
     tools[name] = tool;
   }
+
   return tools;
 }
 
@@ -71,9 +80,13 @@ export function agentToolApproval(
   policies: Readonly<Record<string, AiToolPolicy>> = {},
 ): Record<string, "user-approval"> {
   const approval: Record<string, "user-approval"> = {};
+
   for (const name of Object.keys(tools)) {
-    if (policies[name] === "ask") approval[name] = "user-approval";
+    if (policies[name] === "ask") {
+      approval[name] = "user-approval";
+    }
   }
+
   return approval;
 }
 
@@ -118,18 +131,24 @@ function composedApproval(checks: ApprovalChecks): AgentToolApprovalFunction {
   return async (options) => {
     const { toolName } = options.toolCall;
     const input: unknown = options.toolCall.input;
+
     if (checks.authorizeTool !== undefined) {
       const operation = checks.operation(toolName);
+
       const permitted = await toolPermitted(checks.authorizeTool, operation, {
         ...checks.run,
         toolName,
         operation: operation.operation,
         input,
       });
-      if (!permitted)
+
+      if (!permitted) {
         return { type: "denied", reason: "The caller may not use this tool" };
+      }
     }
+
     let status: ToolApprovalStatus = "not-applicable";
+
     if (checks.approve !== undefined) {
       try {
         status = await checks.approve(options);
@@ -137,7 +156,9 @@ function composedApproval(checks: ApprovalChecks): AgentToolApprovalFunction {
         return { type: "denied", reason: "The tool approval check failed" };
       }
     }
+
     const asked = checks.ask[toolName] !== undefined;
+
     return asked &&
       APPROVAL_RANK[approvalType(status)] < APPROVAL_RANK["user-approval"]
       ? "user-approval"
@@ -234,18 +255,22 @@ export function createAgentRuntime(
 ): ToolLoopAgent<never, ToolSet> {
   const { agent } = options;
   const tools = agentTools(agent, options.tools ?? {}, options.policies);
+
   const searchesKnowledge =
     options.knowledge !== undefined && agent.knowledgeScopes.length > 0;
+
   const run = agentRunContext(agent, options.caller, [
     ...Object.keys(tools),
     ...(searchesKnowledge ? ["search_knowledge"] : []),
   ]);
+
   if (searchesKnowledge) {
     const {
       knowledge,
       organizationId,
       options: search = {},
     } = options.knowledge;
+
     const filter = options.results;
     tools["search_knowledge"] = searchTool(knowledge, organizationId, {
       ...search,
@@ -258,6 +283,7 @@ export function createAgentRuntime(
           }),
     });
   }
+
   const operation = (name: string): AgentToolOperation =>
     agentToolOperation(
       name,
@@ -265,14 +291,21 @@ export function createAgentRuntime(
       options.permissions,
       options.toolOperations,
     );
+
   const ask: Record<string, "user-approval"> = {
     ...agentToolApproval(tools, options.policies),
   };
-  for (const name of Object.keys(tools))
-    if (operation(name).risk === "high") ask[name] = "user-approval";
+
+  for (const name of Object.keys(tools)) {
+    if (operation(name).risk === "high") {
+      ask[name] = "user-approval";
+    }
+  }
+
   const instructions = [options.instructions, agent.instructions]
     .filter((text) => text !== undefined && text !== "")
     .join("\n\n");
+
   const gateway =
     options.gateway === undefined && options.caller === undefined
       ? undefined
@@ -290,7 +323,9 @@ export function createAgentRuntime(
           },
           options.gateway?.options,
         );
+
   const { authorizeModel } = options;
+
   return new ToolLoopAgent({
     id: agent.id,
     model: options.model(agent.model),
@@ -313,8 +348,10 @@ export function createAgentRuntime(
       runtimeContext: { ...call.runtimeContext, ...run },
     }),
     prepareStep: async ({ model }) => {
-      if (authorizeModel !== undefined)
+      if (authorizeModel !== undefined) {
         await assertModelAllowed(authorizeModel, model, run);
+      }
+
       return gateway === undefined ? undefined : { providerOptions: gateway };
     },
   });
@@ -358,11 +395,16 @@ type Prompt = Parameters<
 function lastUserText(prompt: Prompt): string {
   for (let index = prompt.length - 1; index >= 0; index -= 1) {
     const message = prompt[index];
-    if (message?.role !== "user") continue;
+
+    if (message?.role !== "user") {
+      continue;
+    }
+
     return message.content
       .flatMap((part) => (part.type === "text" ? [part.text] : []))
       .join("\n");
   }
+
   return "";
 }
 
@@ -380,9 +422,16 @@ export function moderationMiddleware(
     text: string,
     stage: "input" | "output",
   ): Promise<ModerationVerdict | undefined> => {
-    if (text.trim() === "") return undefined;
+    if (text.trim() === "") {
+      return undefined;
+    }
+
     const verdict = await options.check(text, stage);
-    if (verdict === undefined || verdict.action === "allow") return verdict;
+
+    if (verdict === undefined || verdict.action === "allow") {
+      return verdict;
+    }
+
     const recorded = await options.chats.moderation.record({
       organizationId: options.organizationId,
       stage,
@@ -392,42 +441,58 @@ export function moderationMiddleware(
       ...(options.userId === undefined ? {} : { userId: options.userId }),
       ...(verdict.score === undefined ? {} : { score: verdict.score }),
     });
-    if (!recorded.ok) throw new DbException(recorded.error);
+
+    if (!recorded.ok) {
+      throw new DbException(recorded.error);
+    }
+
     return verdict;
   };
 
   return {
     transformParams: async ({ params }) => {
       const verdict = await judge(lastUserText(params.prompt), "input");
+
       if (verdict?.action === "block") {
         throw new ModerationBlockedError("input", verdict.category);
       }
+
       return params;
     },
     wrapGenerate: async ({ doGenerate }) => {
       const result = await doGenerate();
+
       const text = result.content
         .flatMap((part) => (part.type === "text" ? [part.text] : []))
         .join("");
+
       const verdict = await judge(text, "output");
+
       if (verdict?.action === "block") {
         throw new ModerationBlockedError("output", verdict.category);
       }
+
       return result;
     },
     wrapStream: async ({ doStream }) => {
       const result = await doStream();
       let text = "";
+
       type Part =
         typeof result.stream extends ReadableStream<infer P> ? P : never;
+
       const checked = result.stream.pipeThrough(
         new TransformStream<Part, Part>({
           transform(part, controller) {
-            if (part.type === "text-delta") text += part.delta;
+            if (part.type === "text-delta") {
+              text += part.delta;
+            }
+
             controller.enqueue(part);
           },
           async flush(controller) {
             const verdict = await judge(text, "output");
+
             if (verdict?.action === "block") {
               controller.enqueue({
                 type: "error",
@@ -437,6 +502,7 @@ export function moderationMiddleware(
           },
         }),
       );
+
       return { ...result, stream: checked };
     },
   };

@@ -83,6 +83,7 @@ create function "better_supabase"."tenant_ids_with"(p text) returns setof uuid l
         ],
       }),
     );
+
     const targets = findings.map((finding) => finding.target);
     expect(targets).not.toContain("better_supabase.can");
     expect(targets).not.toContain("better_supabase.tenant_ids_with");
@@ -106,6 +107,7 @@ create function "better_supabase"."tenant_ids_with"(p text) returns setof uuid l
         ]),
       }),
     );
+
     expect(
       findings.map((finding) => [finding.target, finding.message]),
     ).toEqual([
@@ -134,6 +136,7 @@ create function "better_supabase"."tenant_ids_with"(p text) returns setof uuid l
     const findings = await run(
       context(CUSTOM, { database: database(new Error("offline")) }),
     );
+
     expect(findings).toMatchObject([
       { severity: "info", message: expect.stringContaining("offline") },
     ]);
@@ -157,6 +160,7 @@ describe("BS325 audit user-session reads", () => {
       ),
       "BS325",
     );
+
     expect(findings).toMatchObject([{ code: "BS325" }]);
   });
 
@@ -177,6 +181,7 @@ describe("BS325 audit user-session reads", () => {
       ),
       "BS325",
     );
+
     expect(findings).toEqual([]);
   });
 });
@@ -194,6 +199,7 @@ describe("BS326 secret key", () => {
       ),
       "BS326",
     );
+
     expect(findings).toMatchObject([{ code: "BS326" }]);
   });
 
@@ -210,6 +216,7 @@ describe("BS326 secret key", () => {
       ),
       "BS326",
     );
+
     expect(findings).toEqual([]);
   });
 });
@@ -228,6 +235,7 @@ describe("BS327 aal2 without MFA", () => {
       ),
       "BS327",
     );
+
     expect(findings).toMatchObject([{ code: "BS327" }]);
   });
 });

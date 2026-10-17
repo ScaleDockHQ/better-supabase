@@ -32,6 +32,7 @@ const IV_BYTES = 12;
 function globalCrypto(): AesCryptoLike | undefined {
   // SAFETY: lib.dom types `crypto` as always present; Hermes may lack it.
   const { crypto } = globalThis as { readonly crypto?: Partial<AesCryptoLike> };
+
   // SAFETY: both members the storage calls are present.
   return crypto?.subtle && crypto.getRandomValues
     ? (crypto as AesCryptoLike)
@@ -58,14 +59,17 @@ export function largeSecureStorage(
   const secure = options.secureStore;
   const extra = options.storeOptions;
   const keyName = (key: string) => `${safeKey(key)}.aes`;
+
   const getSecret = (key: string) =>
     extra
       ? secure.getItemAsync(keyName(key), extra)
       : secure.getItemAsync(keyName(key));
+
   const setSecret = (key: string, value: string) =>
     extra
       ? secure.setItemAsync(keyName(key), value, extra)
       : secure.setItemAsync(keyName(key), value);
+
   const removeSecret = (key: string) =>
     extra
       ? secure.deleteItemAsync(keyName(key), extra)
@@ -73,12 +77,16 @@ export function largeSecureStorage(
 
   const cryptoOf = (): AesCryptoLike => {
     const found = options.crypto ?? globalCrypto();
-    if (!found)
+
+    if (!found) {
       throw new Error(
         "better-supabase: largeSecureStorage needs WebCrypto; pass { crypto } from react-native-quick-crypto",
       );
+    }
+
     return found;
   };
+
   const importKey = (raw: Uint8Array<ArrayBuffer>) =>
     cryptoOf().subtle.importKey("raw", raw, "AES-GCM", false, [
       "encrypt",
@@ -91,16 +99,24 @@ export function largeSecureStorage(
         getSecret(key),
         store.get(key),
       ]);
-      if (secret === null || sealed === null) return null;
-      const [version, iv, data] = sealed.split(".");
-      if (version !== VERSION || iv === undefined || data === undefined)
+
+      if (secret === null || sealed === null) {
         return null;
+      }
+
+      const [version, iv, data] = sealed.split(".");
+
+      if (version !== VERSION || iv === undefined || data === undefined) {
+        return null;
+      }
+
       try {
         const plain = await cryptoOf().subtle.decrypt(
           { name: "AES-GCM", iv: fromBase64(iv) },
           await importKey(fromBase64(secret)),
           fromBase64(data),
         );
+
         return new TextDecoder().decode(plain);
       } catch {
         // The key and the data come from different installs.
@@ -111,11 +127,13 @@ export function largeSecureStorage(
       const crypto = cryptoOf();
       const raw = crypto.getRandomValues(new Uint8Array(32));
       const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
+
       const sealed = await crypto.subtle.encrypt(
         { name: "AES-GCM", iv },
         await importKey(raw),
         new TextEncoder().encode(value),
       );
+
       await setSecret(key, toBase64(raw));
       await store.set(
         key,

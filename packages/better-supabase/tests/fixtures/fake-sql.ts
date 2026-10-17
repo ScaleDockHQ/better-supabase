@@ -33,8 +33,14 @@ export function pgError(
 }
 
 function matches(rule: SqlRule[0], call: SqlCall): boolean {
-  if (typeof rule === "string") return call.text.includes(rule);
-  if (rule instanceof RegExp) return rule.test(call.text);
+  if (typeof rule === "string") {
+    return call.text.includes(rule);
+  }
+
+  if (rule instanceof RegExp) {
+    return rule.test(call.text);
+  }
+
   return rule(call);
 }
 
@@ -52,15 +58,25 @@ export function fakeSql(rules: readonly SqlRule[] = []): {
   texts: () => string[];
 } {
   const state = { calls: [] as SqlCall[], transactions: 0 };
+
   async function answer(text: string, values: readonly unknown[] = []) {
     const call: SqlCall = { text, values };
     state.calls.push(call);
     const rule = rules.find(([match]) => matches(match, call));
-    if (!rule) return [];
+
+    if (!rule) {
+      return [];
+    }
+
     const result = typeof rule[1] === "function" ? rule[1](call) : rule[1];
-    if ("throws" in result) throw result.throws;
+
+    if ("throws" in result) {
+      throw result.throws;
+    }
+
     return [...result];
   }
+
   const sql: SqlClient & {
     transaction<T>(fn: (c: SqlClient) => Promise<T>): Promise<T>;
   } = {
@@ -69,15 +85,18 @@ export function fakeSql(rules: readonly SqlRule[] = []): {
       (await answer(text, params)) as T[],
     async transaction(fn) {
       state.transactions += 1;
+
       return fn(sql);
     },
   };
+
   const pg: PgQueryable = {
     // SAFETY: tests script rows that match the statement they answer.
     query: async <R>(text: string, values?: readonly unknown[]) => ({
       rows: (await answer(text, values)) as R[],
     }),
   };
+
   return {
     sql,
     pg,

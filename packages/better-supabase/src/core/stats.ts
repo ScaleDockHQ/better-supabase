@@ -43,14 +43,22 @@ export class StatsRecorder {
   begin(table: string): () => void {
     const end = this.#parent?.begin(table);
     const started = this.#now();
-    if (this.#inFlight === 0) this.#waves += 1;
+
+    if (this.#inFlight === 0) {
+      this.#waves += 1;
+    }
+
     this.#inFlight += 1;
     this.#calls += 1;
     this.#tables.add(table);
     this.#first ??= started;
     let ended = false;
+
     return () => {
-      if (ended) return;
+      if (ended) {
+        return;
+      }
+
       ended = true;
       this.#inFlight -= 1;
       this.#last = Math.max(this.#last ?? 0, this.#now());
@@ -81,6 +89,7 @@ export function recordStats(
     name: executor.name,
     async execute(op, context) {
       const end = recorder.begin(op.table.key);
+
       try {
         return await executor.execute(op, context);
       } finally {
@@ -88,12 +97,15 @@ export function recordStats(
       }
     },
   };
+
   if (executor.rpc) {
     const rpc = executor.rpc.bind(executor);
+
     return {
       ...wrapped,
       async rpc(name, args, context) {
         const end = recorder.begin(`${name}()`);
+
         try {
           return await rpc(name, args, context);
         } finally {
@@ -102,5 +114,6 @@ export function recordStats(
       },
     };
   }
+
   return wrapped;
 }

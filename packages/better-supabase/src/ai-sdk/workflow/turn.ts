@@ -132,8 +132,10 @@ interface DurableStepTypes {
 }
 
 export type DurableStepName = keyof DurableStepTypes;
+
 export type DurableStepInput<K extends DurableStepName> =
   DurableStepTypes[K]["input"];
+
 export type DurableStepOutput<K extends DurableStepName> =
   DurableStepTypes[K]["output"];
 
@@ -203,16 +205,19 @@ function newRequests(
 ): DurableApprovalRequest[] {
   const calls = new Map<string, { toolName: string; input: unknown }>();
   const requests: DurableApprovalRequest[] = [];
+
   for (const message of messages) {
-    if (message.role !== "assistant" || typeof message.content === "string")
+    if (message.role !== "assistant" || typeof message.content === "string") {
       continue;
+    }
+
     for (const part of message.content) {
-      if (part.type === "tool-call")
+      if (part.type === "tool-call") {
         calls.set(part.toolCallId, {
           toolName: part.toolName,
           input: part.input,
         });
-      else if (
+      } else if (
         part.type === "tool-approval-request" &&
         !known.has(part.approvalId)
       ) {
@@ -228,6 +233,7 @@ function newRequests(
       }
     }
   }
+
   return requests;
 }
 
@@ -249,15 +255,19 @@ export async function durableTurn(
   deps: DurableTurnDeps,
 ): Promise<DurableTurnResult> {
   const abort = new AbortController();
+
   const stopped = Promise.resolve(
     deps.createHook<DurableStop>({ token: durableStopToken(deps.runId) }),
   ).then((): typeof STOPPED => {
     abort.abort();
+
     return STOPPED;
   });
+
   const turnHook = deps.createHook<DurableResume>({
     token: durableTurnToken(deps.runId),
   });
+
   const resumes = turnHook[Symbol.asyncIterator]();
 
   const historyLength = input.messages.length;
@@ -273,6 +283,7 @@ export async function durableTurn(
     let error: string | undefined;
     let usage: AiUsage | undefined;
     let requests: DurableApprovalRequest[] = [];
+
     try {
       const result = await deps.agent({
         chatId: input.chatId,
@@ -283,6 +294,7 @@ export async function durableTurn(
         model: input.model,
         providerOptions: input.providerOptions,
       });
+
       conversation = result.messages;
       sources.push(...sourcesOf(result));
       requests = newRequests(conversation.slice(historyLength), approvals);
@@ -294,14 +306,22 @@ export async function durableTurn(
       status = "failed";
       error = messageOf(cause);
     }
-    if (abort.signal.aborted) status = "cancelled";
-    if (status !== "completed") requests = [];
-    for (const request of requests)
+
+    if (abort.signal.aborted) {
+      status = "cancelled";
+    }
+
+    if (status !== "completed") {
+      requests = [];
+    }
+
+    for (const request of requests) {
       approvals.set(request.approvalId, {
         approvalId: request.approvalId,
         toolCallId: request.toolCallId,
         state: "requested",
       });
+    }
 
     await deps.step("save", {
       chatId: input.chatId,
@@ -320,13 +340,16 @@ export async function durableTurn(
             ? "aborted"
             : "error",
     });
-    if (requests.length > 0)
+
+    if (requests.length > 0) {
       await deps.step("approvals", {
         chatId: input.chatId,
         runId: segment.runId,
         messageId: input.messageId,
         requests,
       });
+    }
+
     await deps.step("release", {
       chatId: input.chatId,
       streamId: segment.streamId,
@@ -335,15 +358,21 @@ export async function durableTurn(
       ...(usage === undefined ? {} : { usage }),
       ...(error === undefined ? {} : { error }),
     });
-    if (requests.length === 0)
+
+    if (requests.length === 0) {
       return { status, messageId: input.messageId, segments };
+    }
 
     const waiting = requests.map((request) => request.approvalId);
     let decided: DurableDecision[] = [];
     let next: DurableResume | undefined;
+
     // A claimed segment that never runs still holds the chat's stream.
     const drop = async (claimed: DurableResume | undefined): Promise<void> => {
-      if (claimed === undefined) return;
+      if (claimed === undefined) {
+        return;
+      }
+
       await deps.step("release", {
         chatId: input.chatId,
         streamId: claimed.streamId,
@@ -351,12 +380,16 @@ export async function durableTurn(
         status: "cancelled",
       });
     };
+
     while (decided.length < waiting.length) {
       const signal = await Promise.race([resumes.next(), stopped]);
+
       if (signal === STOPPED || signal.done === true) {
         await drop(next);
+
         return { status: "cancelled", messageId: input.messageId, segments };
       }
+
       await drop(next);
       next = signal.value;
       decided = await deps.step("decisions", {
@@ -364,17 +397,23 @@ export async function durableTurn(
         approvalIds: waiting,
       });
     }
-    if (next === undefined)
+
+    if (next === undefined) {
       return { status: "failed", messageId: input.messageId, segments };
+    }
+
     for (const decision of decided) {
       const known = approvals.get(decision.approvalId);
-      if (known !== undefined)
+
+      if (known !== undefined) {
         approvals.set(decision.approvalId, {
           ...known,
           state: decision.approved ? "approved" : "denied",
           ...(decision.reason === undefined ? {} : { reason: decision.reason }),
         });
+      }
     }
+
     conversation = [
       ...conversation,
       {

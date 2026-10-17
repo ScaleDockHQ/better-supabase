@@ -23,10 +23,12 @@ const session = (
 describe("createFeatureGateController", () => {
   it("follows the session's features claim for the active organization", () => {
     const auth = fakeAuth(LOADING);
+
     const controller = createFeatureGateController({
       auth,
       feature: "exports",
     });
+
     expect(controller.getSnapshot().allowed).toBeUndefined();
     const { view, unmount, renders } = mount(controller);
     auth.set(session("org-1", { "org-1": ["audit"] }));
@@ -51,30 +53,36 @@ describe("createFeatureGateController", () => {
       user: { id: USER },
       claims: { sub: USER, plan: { "org-2": ["x"] }, org: "org-1" },
     });
+
     const given = createFeatureGateController({
       auth,
       feature: "exports",
       organizationId: "org-2",
       claim: { claim: "plan", keys: { exports: "x" } },
     });
+
     expect(given.getSnapshot()).toEqual({
       allowed: true,
       organizationId: "org-2",
     });
+
     const active = createFeatureGateController({
       auth,
       feature: "exports",
       claim: "plan",
       tenantClaim: "org",
     });
+
     expect(active.getSnapshot()).toEqual({
       allowed: false,
       organizationId: "org-1",
     });
+
     const outside = createFeatureGateController({
       auth: fakeAuth(session(undefined, {})),
       feature: "exports",
     });
+
     expect(outside.getSnapshot().allowed).toBe(false);
   });
 });

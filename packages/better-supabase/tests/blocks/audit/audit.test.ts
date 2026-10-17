@@ -31,11 +31,13 @@ describe("purgeAuditLog", () => {
       ["audit_events_tenants", [{ tenant: "a" }, { tenant: null }]],
       ["purge_audit_log", [{ n: 2 }]],
     ]);
+
     const purged = await purgeAuditLog(fake.sql, {
       olderThan: 86_400,
       batch: 50,
       retention: (tenant) => (tenant === "a" ? 30 : undefined),
     }).orThrow();
+
     expect(purged).toBe(4);
     expect(fake.calls.slice(1).map((call) => call.values)).toEqual([
       ["30 days", 50, "a"],
@@ -50,6 +52,7 @@ describe("purgeAuditLog", () => {
         { throws: pgError("42883", "function does not exist") },
       ],
     ]);
+
     const result = await purgeAuditLog(fake.sql);
     expect(result.ok).toBe(false);
   });
@@ -61,10 +64,12 @@ describe("setAuditRetention", () => {
       [(call) => call.values[0] === "a", [{ days: 30 }]],
       [(call) => call.values[0] === "b", [{ days: null }]],
     ]);
+
     const retention = setAuditRetention(fake.sql, {
       table: "public.organizations",
       column: "audit_retention_days",
     });
+
     expect(await retention("a")).toBe(30);
     expect(await retention("b")).toBeUndefined();
     expect(await retention("c")).toBeUndefined();
@@ -72,11 +77,13 @@ describe("setAuditRetention", () => {
     expect(fake.calls[0]?.text).toBe(
       'select "audit_retention_days"::integer as days from "public"."organizations" where "id"::text = $1',
     );
+
     const plain = setAuditRetention(fake.sql, {
       table: "plans",
       column: "days",
       key: "organization_id",
     });
+
     await plain("a");
     expect(fake.calls.at(-1)?.text).toContain(
       'from "public"."plans" where "organization_id"',
@@ -98,16 +105,20 @@ describe("setAuditRetention", () => {
       ],
       ["purge_audit_log", [{ n: 1 }]],
     ]);
+
     const retention = setAuditRetention(fake.sql, {
       table: "public.organizations",
       column: "audit_retention_days",
     });
+
     expect(
       await purgeAuditLog(fake.sql, { olderThan: 86_400, retention }).orThrow(),
     ).toBe(4);
+
     const lookups = fake.calls.filter((call) =>
       call.text.includes('"organizations"'),
     );
+
     expect(lookups).toEqual([
       {
         text: 'select "id"::text as tenant, "audit_retention_days"::integer as days from "public"."organizations" where "id"::text = any($1::text[])',
@@ -178,6 +189,7 @@ const ROWS = [
 
 async function lines(stream: ReadableStream<Uint8Array>): Promise<unknown[]> {
   const text = await new Response(stream).text();
+
   return text
     .trim()
     .split("\n")
@@ -191,6 +203,7 @@ describe("exportAuditLog", () => {
       [(call) => call.values[3] === "0", ROWS.slice(0, 2)],
       [(call) => call.values[3] === "2", ROWS.slice(2)],
     ]);
+
     const out = await lines(
       exportAuditLog(fake.sql, {
         organizationId: "o1",
@@ -198,6 +211,7 @@ describe("exportAuditLog", () => {
         batch: 2,
       }),
     );
+
     expect(out).toHaveLength(3);
     expect(out[0]).toMatchObject({
       id: "1",
@@ -218,6 +232,7 @@ describe("exportAuditLog", () => {
 
   it("maps entries to OCSF", async () => {
     const fake = fakeSql([["audit_events", ROWS]]);
+
     const [change, revoked, denied] = (await lines(
       exportAuditLog(fake.sql, {
         organizationId: "o1",
@@ -225,10 +240,11 @@ describe("exportAuditLog", () => {
         product: { name: "Acme" },
       }),
     )) as Record<string, unknown>[];
+
     expect(change).toMatchObject({
       class_uid: 3004,
       activity_id: 3,
-      type_uid: 300403,
+      type_uid: 300_403,
       entity: { uid: "d1", type: "public.deals" },
       metadata: {
         version: SPEC_PINS.ocsf,
@@ -239,7 +255,7 @@ describe("exportAuditLog", () => {
     expect(revoked).toMatchObject({
       class_uid: 6003,
       activity_id: 4,
-      type_uid: 600304,
+      type_uid: 600_304,
       status_id: 1,
       api: { operation: "api_key.revoked" },
       resources: [{ uid: "k1", type: "api_key" }],
@@ -262,6 +278,7 @@ describe("exportAuditLog", () => {
       op: "event",
       outcome: "partial",
     };
+
     expect(toOcsf(entry, { name: "Acme" })).toMatchObject({
       status_id: 99,
       status: "partial",
@@ -283,6 +300,7 @@ describe("auditListQuery", () => {
     nullable,
     hasDefault: false,
   });
+
   const betterSupabase = defineSupabase(
     defineSchema<AnyModels>({
       version: 1,
@@ -316,6 +334,7 @@ describe("auditListQuery", () => {
     const list = auditListQuery(betterSupabase, "auditEvents", {
       pageSize: 20,
     });
+
     expect(list.facets.map((facet) => facet.key)).toEqual([
       "table",
       "op",
@@ -347,12 +366,15 @@ describe("auditListQuery", () => {
 describe("purgeAuditLog over a transport", () => {
   it("calls purge_audit_log by name, per tenant with retention", async () => {
     const calls: [string, string, Record<string, unknown>][] = [];
+
     const transport = {
       async call(schema: string, fn: string, args: Record<string, unknown>) {
         calls.push([schema, fn, { ...args }]);
+
         return fn === "audit_events_tenants" ? ["a", null] : 2;
       },
     };
+
     expect(await purgeAuditLog(transport, { schema: "api" }).orThrow()).toBe(2);
     expect(
       await purgeAuditLog(transport, {

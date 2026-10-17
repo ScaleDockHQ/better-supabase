@@ -31,14 +31,17 @@ describe(`Anthropic memory tool ${SPEC_PINS.anthropicMemoryTool}`, () => {
   it("memoryTool accepts every command with the documented fields", async () => {
     const schema = await asSchema(memoryTool(memory, "org").inputSchema)
       .jsonSchema;
+
     // SAFETY: the tool's schema is a `oneOf` of object variants.
     const variants = (schema as { oneOf: Variant[] }).oneOf;
+
     const commands = Object.fromEntries(
       variants.map((variant) => [
         variant.properties["command"]?.const,
         variant.required.filter((field) => field !== "command"),
       ]),
     );
+
     expect(commands).toEqual(COMMANDS);
   });
 

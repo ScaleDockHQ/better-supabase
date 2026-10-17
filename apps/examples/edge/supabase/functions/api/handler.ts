@@ -1,8 +1,4 @@
-import { createEdge } from "better-supabase/edge";
-
-import { betterSupabase } from "../_shared/supabase.ts";
-
-const bs = createEdge(betterSupabase, { cors: true });
+import { bs } from "./server.ts";
 
 const customer = ["id", "name", "status", "organizationId"] as const;
 

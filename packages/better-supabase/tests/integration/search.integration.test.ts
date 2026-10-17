@@ -61,6 +61,7 @@ describe.skipIf(!live)("search", () => {
 
   it("indexes rows through triggers and finds what the caller can read", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.client.query(TABLES);
       await s.install(["organizations", "share-links", "search"], layout());
@@ -142,14 +143,18 @@ describe.skipIf(!live)("search", () => {
         await s.value("better_supabase.search_star('note', 'n1', true)"),
       ).toBe(true);
       await s.value("better_supabase.search_touch('note', 'n3')");
+
       const recents = await s.value<{ subjectId: string; title: string }[]>(
         "better_supabase.search_recents()",
       );
+
       expect(recents.map((item) => item.subjectId)).toEqual(["n1"]);
       expect(recents[0]?.title).toBe("Quarterly revenue report");
+
       const favorites = await s.value<{ subjectId: string }[]>(
         "better_supabase.search_favorites()",
       );
+
       expect(favorites.map((item) => item.subjectId)).toEqual(["n1"]);
       await s.value("better_supabase.search_star('note', 'n1', false)");
       expect(await s.value("better_supabase.search_favorites()")).toEqual([]);
@@ -213,6 +218,7 @@ describe.skipIf(!live)("search", () => {
 
   it("fuses full-text and embedding ranks when the index keeps embeddings", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.client.query(TABLES);
       await s.install(["organizations", "vector-search", "search"], layout(3));
@@ -226,9 +232,11 @@ describe.skipIf(!live)("search", () => {
           ('a', $1, 'Invoice template'), ('b', $1, 'Billing questions')`,
         [tenant],
       );
+
       const pending = await s.value<
         { subjectId: string; contentHash: string }[]
       >("better_supabase.search_pending_embeddings()");
+
       expect(pending.map((row) => row.subjectId).toSorted()).toEqual([
         "a",
         "b",
@@ -248,9 +256,11 @@ describe.skipIf(!live)("search", () => {
       ).toEqual([]);
 
       await s.asRole(owner);
+
       const hits = await client
         .search("questions", { embedding: [0.1, 0.9, 0] })
         .orThrow();
+
       expect(hits.map((hit) => hit.subjectId)).toEqual(["b", "a"]);
 
       await s.service();

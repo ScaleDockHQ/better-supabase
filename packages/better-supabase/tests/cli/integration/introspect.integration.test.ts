@@ -15,6 +15,7 @@ async function open(): Promise<IntrospectionSource | undefined> {
   try {
     const source = await pgSource(dbUrl);
     await source.queryable.query("select 1");
+
     return source;
   } catch {
     return undefined;
@@ -48,6 +49,7 @@ describe.skipIf(!source)("introspect against the local stack", () => {
 
   const tableNamed = async (name: string) => {
     const snapshot = await introspect(db.queryable, [SCHEMA]);
+
     return snapshot.extras.tables.find((table) => table.name === name);
   };
 
@@ -117,9 +119,11 @@ describe.skipIf(!source)("introspect against the local stack", () => {
 
   it("marks tables Postgres estimates at 10,000 rows or more as large", async () => {
     const snapshot = await introspect(db.queryable, [SCHEMA]);
+
     const flags = Object.fromEntries(
       snapshot.extras.tables.map((table) => [table.name, table.large]),
     );
+
     expect(flags).toEqual({ events: true, settings: undefined });
   });
 

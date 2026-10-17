@@ -24,6 +24,7 @@ describe("renderModuleMigration", () => {
       upgrade: ["-- step one\nselect 1;"],
       topics: "-- topics\n",
     });
+
     const order = [
       "-- better-supabase sql: the SQL modules",
       'create extension if not exists "pg_jsonschema"',
@@ -34,6 +35,7 @@ describe("renderModuleMigration", () => {
       "-- topics",
       "-- @bs-module-data tenant",
     ].map((line) => text.indexOf(line));
+
     expect(order.every((index) => index >= 0)).toBe(true);
     expect(order).toEqual(order.toSorted((a, b) => a - b));
     expect(text.endsWith("\n")).toBe(true);
@@ -55,19 +57,24 @@ describe("sameModuleMigration and migrationHolds", () => {
       files,
       upgrade: ["select 1;"],
     });
+
     expect(sameModuleMigration(upgraded, plain)).toBe(true);
+
     const older = plain.replace(
       /^(-- better-supabase module: [^\n(]*?) \([^)]*\)$/m,
       "$1 (0.0.1)",
     );
+
     expect(sameModuleMigration(older, plain)).toBe(true);
     expect(sameModuleMigration(undefined, plain)).toBe(false);
     expect(sameModuleMigration(`${plain}select 2;\n`, plain)).toBe(false);
   });
 
   it("finds one module's file in the migration", () => {
-    for (const file of files)
+    for (const file of files) {
       expect(migrationHolds(plain, file.contents)).toBe(true);
+    }
+
     expect(migrationHolds(plain, "create table nope ();")).toBe(false);
   });
 
@@ -95,12 +102,14 @@ describe("writeLatestMigration", () => {
   it("writes a new migration only when the statements change, or when forced", async () => {
     const project = resolveConfig({ sql: { workflow: "migrations" } }, root);
     const now = new Date("2026-01-02T03:04:05Z");
+
     const write = (contents: string, force = false) =>
       writeLatestMigration(project, MODULES_SUFFIX, contents, {
         now,
         dryRun: false,
         force,
       });
+
     expect(
       await writeLatestMigration(project, MODULES_SUFFIX, "select 1;\n", {
         now,

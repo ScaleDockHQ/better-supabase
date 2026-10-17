@@ -34,8 +34,12 @@ export function toGanttTasks<T extends { readonly id: string }>(
 ): (T & { readonly dependencies: readonly GanttDependency[] })[] {
   const ids = new Set(tasks.map((task) => task.id));
   const byTask = new Map<string, GanttDependency[]>();
+
   for (const edge of edges) {
-    if (!ids.has(edge.source.id) || !ids.has(edge.target.id)) continue;
+    if (!ids.has(edge.source.id) || !ids.has(edge.target.id)) {
+      continue;
+    }
+
     const type = edge.data["type"];
     const lag = edge.data["lag"];
     const list = byTask.get(edge.target.id) ?? [];
@@ -46,6 +50,7 @@ export function toGanttTasks<T extends { readonly id: string }>(
     });
     byTask.set(edge.target.id, list);
   }
+
   return tasks.map((task) => ({
     ...task,
     dependencies: byTask.get(task.id) ?? [],
@@ -71,26 +76,32 @@ export function toTreeItems(
   const rootId = options.rootId ?? "root";
   const ids = new Set(items.map((item) => item.id));
   const parentOf = new Map<string, string>();
+
   for (const edge of edges) {
     if (ids.has(edge.source.id) && ids.has(edge.target.id)) {
       parentOf.set(edge.source.id, edge.target.id);
     }
   }
+
   const children = new Map<string, string[]>([[rootId, []]]);
+
   for (const item of items) {
     const parent = parentOf.get(item.id) ?? rootId;
     const list = children.get(parent) ?? [];
     list.push(item.id);
     children.set(parent, list);
   }
+
   const tree: Record<string, TreeItem> = {
     [rootId]: {
       name: options.rootName ?? "",
       children: children.get(rootId) ?? [],
     },
   };
+
   for (const item of items) {
     tree[item.id] = { name: item.name, children: children.get(item.id) ?? [] };
   }
+
   return tree;
 }

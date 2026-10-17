@@ -62,17 +62,27 @@ export function hasEntitlement<C>(
   claim: string | EntitlementClaimOptions = "features",
 ): boolean {
   const options = typeof claim === "string" ? { claim } : claim;
+
   const claims: unknown =
     "kind" in session
       ? session.kind === "user"
         ? session.claims
         : undefined
       : session.claims;
-  if (!isRecord(claims)) return false;
+
+  if (!isRecord(claims)) {
+    return false;
+  }
+
   const features = claims[options.claim ?? "features"];
-  if (!isRecord(features) || !Object.hasOwn(features, tenantId)) return false;
+
+  if (!isRecord(features) || !Object.hasOwn(features, tenantId)) {
+    return false;
+  }
+
   const keys = features[tenantId];
   const code = options.keys?.[key] ?? key;
+
   return Array.isArray(keys) && keys.includes(code);
 }
 

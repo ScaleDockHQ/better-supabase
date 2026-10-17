@@ -23,6 +23,7 @@ import { SPEC_PINS } from "../core/spec-pins.ts";
 import { VERSION } from "../core/version.ts";
 
 export const INSTRUMENTATION_NAME = "better-supabase";
+
 /** OpenTelemetry semantic conventions version the attributes follow. */
 export const SEMCONV_VERSION: typeof SPEC_PINS.otelSemconv =
   SPEC_PINS.otelSemconv;
@@ -47,7 +48,10 @@ export interface OtelOptions {
 const SQLSTATE = /^[0-9A-Z]{5}$/;
 
 function serverAttributes(server: OtelOptions["server"]): Attributes {
-  if (!server) return {};
+  if (!server) {
+    return {};
+  }
+
   return server.port === undefined
     ? { "server.address": server.address }
     : { "server.address": server.address, "server.port": server.port };
@@ -61,9 +65,14 @@ const OPERATION_NAME: { readonly [K in Operation["kind"]]: string } = {
 };
 
 function operationName(op: Operation): string {
-  if (op.kind === "insert" && op.onConflict?.action === "update")
+  if (op.kind === "insert" && op.onConflict?.action === "update") {
     return "UPSERT";
-  if (op.kind === "select" && op.head) return "COUNT";
+  }
+
+  if (op.kind === "select" && op.head) {
+    return "COUNT";
+  }
+
   return OPERATION_NAME[op.kind];
 }
 
@@ -85,10 +94,13 @@ function systemOf(executor: Executor): string {
 export function otel(options: OtelOptions = {}): Plugin<"otel"> {
   const tracer =
     options.tracer ?? trace.getTracer(INSTRUMENTATION_NAME, VERSION);
+
   let histogram: Histogram | undefined;
+
   if (options.metrics !== false) {
     const meter =
       options.meter ?? metrics.getMeter(INSTRUMENTATION_NAME, VERSION);
+
     histogram = meter.createHistogram("db.client.operation.duration", {
       unit: "s",
       description: "Duration of database client operations.",
@@ -105,9 +117,12 @@ export function otel(options: OtelOptions = {}): Plugin<"otel"> {
     enforce: "post",
     wrapExecutor: (executor): Executor => {
       const system = systemOf(executor);
+
       const database =
         options.database ?? (system === "postgresql" ? "postgres" : undefined);
+
       const server = serverAttributes(options.server);
+
       /** Span and metric attributes per table and operation, built once. */
       const described = new Map<
         string,
@@ -117,10 +132,12 @@ export function otel(options: OtelOptions = {}): Plugin<"otel"> {
           readonly metric: Attributes;
         }
       >();
+
       const describe = (op: Operation) => {
         const operation = operationName(op);
         const key = `${op.table.key}:${operation}`;
         let entry = described.get(key);
+
         if (!entry) {
           const summary = `${operation} ${op.table.name}`;
           entry = {
@@ -146,8 +163,10 @@ export function otel(options: OtelOptions = {}): Plugin<"otel"> {
           };
           described.set(key, entry);
         }
+
         return entry;
       };
+
       const failed = (span: Span, error: DbError): string => {
         span.setAttributes({
           "error.type": error.kind,
@@ -156,8 +175,10 @@ export function otel(options: OtelOptions = {}): Plugin<"otel"> {
             : {}),
         });
         span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
+
         return error.kind;
       };
+
       /** Runs `run` in a client span; `settle` returns the error type, if any. */
       const traced = <T>(
         summary: string,
@@ -167,6 +188,7 @@ export function otel(options: OtelOptions = {}): Plugin<"otel"> {
         settle: (span: Span, result: T) => string | undefined,
       ): Promise<T> => {
         const started = performance.now();
+
         return tracer.startActiveSpan(
           summary,
           { kind: SpanKind.CLIENT, attributes },
@@ -178,13 +200,16 @@ export function otel(options: OtelOptions = {}): Plugin<"otel"> {
               );
               span.end();
             };
+
             try {
               const result = await run();
               finish(settle(span, result));
+
               return result;
             } catch (cause) {
               const error =
                 cause instanceof Error ? cause : new Error(String(cause));
+
               span.recordException(error);
               span.setAttribute("error.type", error.name);
               span.setStatus({
@@ -197,27 +222,34 @@ export function otel(options: OtelOptions = {}): Plugin<"otel"> {
           },
         );
       };
+
       const base: Attributes = {
         ...options.attributes,
         "db.system.name": system,
         "better_supabase.executor": executor.name,
         ...server,
       };
+
       const baseMetric: Attributes = { ...server, "db.system.name": system };
       const rpc = executor.rpc?.bind(executor);
       const batch = executor.batch?.bind(executor);
+
       /** Semantic conventions name a batch `BATCH <operation>` when every operation shares it. */
       const describeBatch = (ops: readonly Operation[]) => {
         const [only, ...others] = new Set(ops.map(operationName));
+
         const operation =
           only && others.length === 0 ? `BATCH ${only}` : "BATCH";
+
         const [first, ...otherTables] = new Set(ops.map((op) => op.table));
         const table = otherTables.length === 0 ? first : undefined;
         const summary = table ? `${operation} ${table.name}` : operation;
+
         const shared: Attributes = {
           "db.operation.name": operation,
           ...(table ? { "db.collection.name": table.name } : {}),
         };
+
         return {
           summary,
           attributes: {
@@ -236,23 +268,30 @@ export function otel(options: OtelOptions = {}): Plugin<"otel"> {
           metric: { ...baseMetric, ...shared },
         };
       };
+
       return {
         ...executor,
         name: executor.name,
         execute(op, executeContext) {
           const { summary, attributes, metric } = describe(op);
+
           return traced(
             summary,
             attributes,
             metric,
             () => executor.execute(op, executeContext),
             (span, result) => {
-              if (!result.ok) return failed(span, result.error);
-              if (span.isRecording())
+              if (!result.ok) {
+                return failed(span, result.error);
+              }
+
+              if (span.isRecording()) {
                 span.setAttribute(
                   "db.response.returned_rows",
                   result.data.rows.length,
                 );
+              }
+
               return;
             },
           );
@@ -261,6 +300,7 @@ export function otel(options: OtelOptions = {}): Plugin<"otel"> {
           ? {
               rpc(name, args, rpcContext) {
                 const summary = `EXECUTE ${name}`;
+
                 return traced(
                   summary,
                   {
@@ -288,6 +328,7 @@ export function otel(options: OtelOptions = {}): Plugin<"otel"> {
           ? {
               batch(ops, executeContext) {
                 const { summary, attributes, metric } = describeBatch(ops);
+
                 return traced(
                   summary,
                   attributes,
@@ -295,8 +336,12 @@ export function otel(options: OtelOptions = {}): Plugin<"otel"> {
                   () => batch(ops, executeContext),
                   (span, results) => {
                     const failure = results.find((result) => !result.ok);
-                    if (failure) return failed(span, failure.error);
-                    if (span.isRecording())
+
+                    if (failure) {
+                      return failed(span, failure.error);
+                    }
+
+                    if (span.isRecording()) {
                       span.setAttribute(
                         "db.response.returned_rows",
                         results.reduce(
@@ -305,6 +350,8 @@ export function otel(options: OtelOptions = {}): Plugin<"otel"> {
                           0,
                         ),
                       );
+                    }
+
                     return;
                   },
                 );
@@ -326,6 +373,7 @@ export function traceAuth(
 ): () => void {
   const tracer =
     options.tracer ?? trace.getTracer(INSTRUMENTATION_NAME, VERSION);
+
   const offAuth = betterSupabase.events.on("auth", (event) => {
     const span = tracer.startSpan("auth.resolve", {
       kind: SpanKind.INTERNAL,
@@ -335,11 +383,17 @@ export function traceAuth(
         ...(event.userId ? { "enduser.id": event.userId } : {}),
       },
     });
-    if (!event.ok) span.setStatus({ code: SpanStatusCode.ERROR });
+
+    if (!event.ok) {
+      span.setStatus({ code: SpanStatusCode.ERROR });
+    }
+
     span.end();
   });
+
   const offRefresh = betterSupabase.events.on("refresh", (event) => {
     const end = Date.now();
+
     const span = tracer.startSpan("auth.refresh", {
       kind: SpanKind.CLIENT,
       startTime: end - event.durationMs,
@@ -348,9 +402,14 @@ export function traceAuth(
         "better_supabase.refresh.shared": event.shared,
       },
     });
-    if (!event.ok) span.setStatus({ code: SpanStatusCode.ERROR });
+
+    if (!event.ok) {
+      span.setStatus({ code: SpanStatusCode.ERROR });
+    }
+
     span.end(end);
   });
+
   return () => {
     offAuth();
     offRefresh();
@@ -369,23 +428,33 @@ export function traceBlockEvents(
 ): () => void {
   const tracer =
     options.tracer ?? trace.getTracer(INSTRUMENTATION_NAME, VERSION);
+
   return betterSupabase.events.on("block", (event) => {
     const attributes = {
       ...options.attributes,
       ...blockEventAttributes(event),
     };
+
     const failed =
       event.type.endsWith(".failed") || event.type.endsWith(".denied");
+
     const active = trace.getActiveSpan();
+
     if (active) {
       active.addEvent(event.type, attributes);
+
       return;
     }
+
     const span = tracer.startSpan(`block ${event.type}`, {
       kind: SpanKind.INTERNAL,
       attributes,
     });
-    if (failed) span.setStatus({ code: SpanStatusCode.ERROR });
+
+    if (failed) {
+      span.setStatus({ code: SpanStatusCode.ERROR });
+    }
+
     span.end();
   });
 }
@@ -400,11 +469,13 @@ export function tracedFetch(base: typeof fetch = fetch): typeof fetch {
     const headers = new Headers(
       init?.headers ?? (input instanceof Request ? input.headers : undefined),
     );
+
     propagation.inject(context.active(), headers, {
       set: (carrier, key, value) => {
         carrier.set(key, value);
       },
     });
+
     return base(input, { ...init, headers });
   };
 }

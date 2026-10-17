@@ -47,6 +47,7 @@ describe("readSupabaseToml", () => {
       ].join("\n"),
     );
     process.env["BS_TOML_SITE_URL"] = "https://example.test";
+
     try {
       const toml = await readSupabaseToml(dir);
       expect(toml?.parser).toBe("@supabase/config");
@@ -54,7 +55,7 @@ describe("readSupabaseToml", () => {
         "https://example.test",
       );
       expect(tomlGet(toml!.document, ["auth", "jwt_expiry"])).toBe(7200);
-      expect(await readSupabasePort(dir, "db")).toBe(55422);
+      expect(await readSupabasePort(dir, "db")).toBe(55_422);
       expect(await readSupabasePort(dir, "api")).toBeUndefined();
     } finally {
       delete process.env["BS_TOML_SITE_URL"];
@@ -70,7 +71,7 @@ describe("readSupabaseToml", () => {
     await writeFile(path, "[db]\nport = 55432\n");
     const changed = await readSupabaseToml(dir);
     expect(changed).not.toBe(first);
-    expect(tomlGet(changed!.document, ["db", "port"])).toBe(55432);
+    expect(tomlGet(changed!.document, ["db", "port"])).toBe(55_432);
   });
 
   it("returns undefined without a config.toml", async () => {
@@ -89,7 +90,7 @@ describe("readSupabaseToml", () => {
       path: "../../supabase/config.toml",
       dir: "../../supabase",
     });
-    expect(await readSupabasePort(app, "db")).toBe(55422);
+    expect(await readSupabasePort(app, "db")).toBe(55_422);
     expect((await readSupabaseToml(dir))?.path).toBe("supabase/config.toml");
   });
 
@@ -119,6 +120,7 @@ describe("parseToml", () => {
         "enabled = true",
       ].join("\n"),
     );
+
     expect(tomlGet(document, ["db", "migrations", "schema_paths"])).toEqual([
       "./schemas/010_extensions.sql",
       "./schemas/030_crm/*.sql",
@@ -142,14 +144,16 @@ describe("schemaPaths", () => {
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), "better-supabase-schema-paths-"));
     await mkdir(join(dir, "supabase/schemas/030_crm"), { recursive: true });
+
     for (const file of [
       "010_extensions.sql",
       "020_types.sql",
       "030_crm/b.sql",
       "030_crm/a.sql",
       "999_unlisted.sql",
-    ])
+    ]) {
       await writeFile(join(dir, "supabase/schemas", file), "");
+    }
   });
 
   afterEach(async () => {
@@ -178,6 +182,7 @@ describe("schemaPaths", () => {
         ].join("\n"),
       ),
     );
+
     expect(order).toEqual({
       configured: true,
       files: [
@@ -228,6 +233,7 @@ describe("schemaPaths", () => {
         "enabled = true",
       ].join("\n"),
     );
+
     expect(diffEngine(pgdelta)).toBe("pg-delta");
     expect(await schemaPaths(dir, pgdelta)).toEqual({
       configured: false,
@@ -240,6 +246,7 @@ describe("schemaPaths", () => {
       ],
       unlisted: [],
     });
+
     const custom = tomlWith(
       [
         "[experimental.pgdelta]",
@@ -247,13 +254,16 @@ describe("schemaPaths", () => {
         'declarative_schema_path = "./schemas/030_crm/"',
       ].join("\n"),
     );
+
     expect((await schemaPaths(dir, custom)).files).toEqual([
       "supabase/schemas/030_crm/a.sql",
       "supabase/schemas/030_crm/b.sql",
     ]);
+
     const missing = tomlWith(
       '[experimental.pgdelta]\nenabled = true\ndeclarative_schema_path = "./db"',
     );
+
     expect(await schemaPaths(dir, missing)).toEqual({
       configured: false,
       files: [],
@@ -311,6 +321,7 @@ describe("sqlWorkflow", () => {
     document: parseToml(text),
     parser: "smol-toml",
   });
+
   const config = (workflow?: SqlWorkflow) => ({
     root: dir,
     sql: workflow === undefined ? {} : { workflow },

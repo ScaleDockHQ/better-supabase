@@ -46,13 +46,16 @@ describe("nativeDeepLinks", () => {
   it("reads the initial URL and the ones that open the app later", async () => {
     let listener: ((event: { url: string }) => void) | undefined;
     const remove = vi.fn();
+
     const links = nativeDeepLinks({
       getInitialURL: async () => "app://start",
       addEventListener: (_type, next) => {
         listener = next;
+
         return { remove };
       },
     });
+
     expect(await links.initial()).toBe("app://start");
     const seen = vi.fn();
     const stop = links.subscribe(seen);
@@ -76,7 +79,9 @@ describe("nativeFilePicker", () => {
         },
       ],
     }));
+
     const read = vi.fn(async () => new Response(new Uint8Array([1, 2, 3])));
+
     const [file] = await nativeFilePicker(
       { getDocumentAsync },
       read,
@@ -84,6 +89,7 @@ describe("nativeFilePicker", () => {
       accept: ["application/pdf"],
       multiple: true,
     });
+
     expect(getDocumentAsync).toHaveBeenCalledWith({
       type: ["application/pdf"],
       multiple: true,
@@ -103,9 +109,11 @@ describe("nativeFilePicker", () => {
     const cancel = nativeFilePicker({
       getDocumentAsync: async () => ({ canceled: true as const, assets: null }),
     });
+
     expect(await cancel()).toEqual([]);
     const fetcher = vi.fn(async () => new Response("x"));
     vi.stubGlobal("fetch", fetcher);
+
     try {
       const [file] = await nativeFilePicker({
         getDocumentAsync: async () => ({
@@ -113,6 +121,7 @@ describe("nativeFilePicker", () => {
           assets: [{ uri: "file:///b", name: "b" }],
         }),
       })();
+
       await file!.read();
       expect(fetcher).toHaveBeenCalledWith("file:///b");
     } finally {
@@ -124,6 +133,7 @@ describe("nativeFilePicker", () => {
 describe("nativePorts", () => {
   it("builds a port for each module passed", async () => {
     const values = new Map<string, string>();
+
     const ports = nativePorts({
       supabase: { storage: { from: vi.fn() } } as never,
       storage: {
@@ -144,6 +154,7 @@ describe("nativePorts", () => {
         }),
       },
     });
+
     expect(Object.keys(ports).sort()).toEqual([
       "files",
       "links",

@@ -78,12 +78,15 @@ export function embeddingColumn(
 ): EmbeddingColumn {
   const vector = vectorSchemaOf(layout);
   const type = ctx.text("type", "vector");
+
   if (type !== "vector" && type !== "halfvec") {
     throw new TypeError(
       `blocks.${ctx.module}.options.type must be "vector" or "halfvec"`,
     );
   }
+
   const dimensions = ctx.number("dimensions", 1536);
+
   if (
     !Number.isInteger(dimensions) ||
     dimensions < 1 ||
@@ -93,6 +96,7 @@ export function embeddingColumn(
       `blocks.${ctx.module}.options.dimensions must be a whole number from 1 to ${String(MAX_DIMENSIONS[type])} for ${type}`,
     );
   }
+
   return {
     column: `${vector}.${type}(${String(dimensions)})`,
     type: `${vector}.${type}`,
@@ -105,11 +109,13 @@ export function embeddingColumn(
 /** `blocks.<name>.options.textSearch`: the text search configuration. */
 export function textSearchConfig(ctx: ModuleContext): string {
   const config = ctx.text("textSearch", "simple");
+
   if (!REGCONFIG.test(config)) {
     throw new TypeError(
       `blocks.${ctx.module}.options.textSearch must be a text search configuration name, such as "english"`,
     );
   }
+
   return config;
 }
 
@@ -140,20 +146,26 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const embedding = embeddingColumn(ctx, layout);
   const config = sqlString(textSearchConfig(ctx));
   const queue = ctx.text("embedQueue", "knowledge_embed");
+
   if (!QUEUE.test(queue)) {
     throw new TypeError(
       "blocks.knowledge.options.embedQueue must be a lowercase queue name of at most 47 characters",
     );
   }
+
   const chat = ctx.installed("ai-chat") ? ctx.of("ai-chat") : undefined;
+
   const chatReadable = chat
     ? (column: string): string =>
         `(${column} is not null and ${chat.fn("ai_chat_can_read")}(${column}))`
     : (): string => "false";
+
   const files = ctx.installed("ai-files") ? ctx.of("ai-files") : undefined;
+
   const fileReference = files
     ? ` references ${files.table("files")} (${files.col("files", "id")}) on delete cascade`
     : "";
+
   const fileCheck = files
     ? `
   if file_id is not null and not exists (
@@ -166,19 +178,24 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     ${raise("file % not found", "P0002", "AI_FILE_NOT_FOUND", "file_id")}
   end if;`
     : "";
+
   const enqueue = (document: string): string =>
     ctx.installed("jobs")
       ? `
   ${ctx.enqueue(queue, `jsonb_build_object('document_id', ${document})`, `'knowledge:' || ${document}::text`)}`
       : "";
+
   const documentJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${d.id}, 'organization_id', ${row}.${d.tenant}, 'owner_id', ${row}.${d.owner}, 'scope', ${row}.${d.scope}, 'scope_id', ${row}.${d.scopeId}, 'file_id', ${row}.${d.file}, 'title', ${row}.${d.title}, 'source', ${row}.${d.source}, 'metadata', ${row}.${d.metadata}, 'status', ${row}.${d.status}, 'error', ${row}.${d.error}, 'chunk_count', ${row}.${d.chunkCount}, 'embedding_model', ${row}.${d.model}, 'created_at', ${row}.${d.createdAt}, 'updated_at', ${row}.${d.updatedAt})`;
+
   // Organization and agent knowledge is shared with readers of the
   // organization, chat knowledge with readers of the chat, user and project
   // knowledge stays with its owner. Admins see everything in their tenant.
   const readable = `(${d.owner} = (select auth.uid()) or (${d.scope} in ('organization', 'agent') and ${ctx.scope.check(d.tenant, read)}) or ${ctx.scope.check(d.tenant, manage)} or (${d.scope} = 'chat' and ${chatReadable(d.scopeId)}))`;
+
   const ownDocument = (row: string): string =>
     `(${SERVICE_CALLER} or ${row}.${d.owner} = auth.uid() or ${ctx.scope.can(`${row}.${d.tenant}`, manage)})`;
+
   const notFound = raise(
     "document % not found",
     "P0002",

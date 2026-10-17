@@ -68,7 +68,11 @@ export async function getMyOrganizations(): Promise<
 > {
   "use cache: private";
   const { db, session } = await bs.cached();
-  if (session.kind !== "user") return [];
+
+  if (session.kind !== "user") {
+    return [];
+  }
+
   return toOrganizationSummaries(await db.$rpc("my_organizations").orThrow());
 }
 
@@ -91,6 +95,7 @@ export function toMembers(
   supabase: Parameters<typeof avatars.connect>[0],
 ): readonly Member[] {
   const storage = avatars.connect(supabase);
+
   return rows.flatMap((row) =>
     row.userId
       ? [
@@ -112,9 +117,11 @@ export async function getMembers(
 ): Promise<readonly Member[]> {
   "use cache: private";
   const { db, supabase } = await bs.cached();
+
   const rows = await db
     .$rpc("organization_members", { organization: organizationId })
     .orThrow();
+
   return toMembers(rows, supabase);
 }
 
@@ -124,9 +131,11 @@ export async function getInvitations(
 ): Promise<readonly PendingInvitation[]> {
   "use cache: private";
   const { db } = await bs.cached();
+
   const rows = await db
     .$rpc("organization_invitations", { organization: organizationId })
     .orThrow();
+
   return rows.flatMap((row) =>
     row.id && row.email
       ? [

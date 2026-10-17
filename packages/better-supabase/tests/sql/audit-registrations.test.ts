@@ -82,6 +82,7 @@ describe("audit pgTAP files", () => {
     const tests = renderModules(["audit"], { auditedTables: audited }).filter(
       (entry) => entry.kind === "test",
     );
+
     expect(tests.map((entry) => entry.path)).toEqual([
       "supabase/tests/900_better_supabase_audit_public_customers.test.sql",
       "supabase/tests/900_better_supabase_audit_crm_deals.test.sql",
@@ -104,9 +105,11 @@ describe("audit pgTAP files", () => {
       auditedTables: audited.slice(0, 1),
       modules: { audit: { options: { restricted: true } } },
     }).find((entry) => entry.kind === "test");
+
     expect(restricted!.contents).toContain(
       'left join "better_supabase"."audit_events_restricted" r on r."entry_id" = l."id"',
     );
+
     const bare = renderModules(["audit"], {
       auditedTables: audited.slice(0, 1),
       modules: {
@@ -117,6 +120,7 @@ describe("audit pgTAP files", () => {
         },
       },
     }).find((entry) => entry.kind === "test");
+
     expect(bare!.contents).toContain("select extensions.plan(4);");
     expect(bare!.contents).not.toContain("bs_audit_probe");
   });

@@ -77,11 +77,25 @@ export interface BlockOptionsSchema<
 }
 
 function kindOf(value: unknown): OptionKind | undefined {
-  if (typeof value === "string") return "string";
-  if (typeof value === "boolean") return "boolean";
-  if (typeof value === "number") return "number";
-  if (Array.isArray(value) && value.every((entry) => typeof entry === "string"))
+  if (typeof value === "string") {
+    return "string";
+  }
+
+  if (typeof value === "boolean") {
+    return "boolean";
+  }
+
+  if (typeof value === "number") {
+    return "number";
+  }
+
+  if (
+    Array.isArray(value) &&
+    value.every((entry) => typeof entry === "string")
+  ) {
     return "strings";
+  }
+
   return undefined;
 }
 
@@ -98,6 +112,7 @@ export function blockOptions<T extends object>(
   options: OptionSpecs<T>,
 ): BlockOptionsSchema<T> {
   const specs: Readonly<Record<string, OptionSpec>> = options;
+
   return {
     specs,
     "~standard": {
@@ -107,9 +122,12 @@ export function blockOptions<T extends object>(
         if (!isRecord(value)) {
           return { issues: [{ message: "Expected an object" }] };
         }
+
         const issues: StandardSchemaV1.Issue[] = [];
+
         for (const [key, entry] of Object.entries(value)) {
           const known = specs[key];
+
           if (known === undefined) {
             issues.push({ message: `Unknown option "${key}"`, path: [key] });
           } else if (
@@ -123,7 +141,11 @@ export function blockOptions<T extends object>(
             });
           }
         }
-        if (issues.length > 0) return { issues };
+
+        if (issues.length > 0) {
+          return { issues };
+        }
+
         // SAFETY: every key is one `specs` declares, and every value has the
         // kind its `OptionSpec` names, which is what `T` describes.
         return { value: value as T };

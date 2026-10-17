@@ -5,7 +5,7 @@ import packageJson from "../../package.json" with { type: "json" };
 import { problems, validatorFor } from "./validator.ts";
 
 const serverJson = JSON.parse(
-  await readFile(new URL("../../../../server.json", import.meta.url), "utf8"),
+  await readFile(new URL("../../../../server.json", import.meta.url), "utf-8"),
 ) as Record<string, unknown>;
 
 describe("MCP Registry server.json", () => {

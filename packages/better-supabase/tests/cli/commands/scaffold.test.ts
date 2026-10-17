@@ -33,18 +33,20 @@ const project = async (dependencies: Record<string, string>, meta = true) => {
     join(dir, "package.json"),
     JSON.stringify({ name: "app", dependencies }),
   );
-  if (meta)
+
+  if (meta) {
     await copyFile(
       FIXTURE_META,
       join(dir, "src/lib/supabase/generated.meta.js"),
     );
+  }
 };
 
 const scaffold = (...args: string[]) =>
   run(["scaffold", ...args, "--cwd", dir]);
 
 const read = (path: string): Promise<string> =>
-  readFile(join(dir, path), "utf8");
+  readFile(join(dir, path), "utf-8");
 
 describe("scaffold api", () => {
   it("writes the Next.js catch-all and OpenAPI routes for every public table", async () => {
@@ -71,6 +73,7 @@ describe("scaffold api", () => {
     await project({ hono: "4.0.0" });
     expect((await scaffold("api", "--tables", "customers")).code).toBe(0);
     await writeFile(join(dir, "src/lib/api.ts"), "// mine\n");
+
     const again = await scaffold(
       "api",
       "--tables",
@@ -78,6 +81,7 @@ describe("scaffold api", () => {
       "--base-path",
       "v1/",
     );
+
     expect(again.stdout).toContain("Kept src/lib/api.ts (yours)");
     expect(again.stdout).toContain("Wrote src/lib/api.generated.ts");
     expect(again.stdout).toContain(".route('/', apiRoutes(bs))");
@@ -86,6 +90,7 @@ describe("scaffold api", () => {
       'export const basePath = "/v1";',
     );
     expect(await read("src/api-routes.ts")).toContain("bs.resource(table)");
+
     const same = await scaffold(
       "api",
       "--tables",
@@ -93,6 +98,7 @@ describe("scaffold api", () => {
       "--base-path",
       "/v1",
     );
+
     expect(same.stdout).toContain("Unchanged src/lib/api.generated.ts");
   });
 
@@ -115,6 +121,7 @@ describe("scaffold api", () => {
     expect(
       (await scaffold("api", "--framework", "next", "--name", "a/b")).code,
     ).toBe(2);
+
     const unknown = await scaffold(
       "api",
       "--framework",
@@ -122,6 +129,7 @@ describe("scaffold api", () => {
       "--tables",
       "ghosts",
     );
+
     expect(unknown.stderr).toContain("Unknown tables: ghosts");
   });
 
@@ -135,6 +143,7 @@ describe("scaffold api", () => {
 
   it("prints the scaffold.api entry for the flags it was given", async () => {
     await project({ next: "16.0.0", hono: "4.0.0" });
+
     const result = await scaffold(
       "api",
       "--framework",
@@ -144,6 +153,7 @@ describe("scaffold api", () => {
       "--base-path",
       "v1",
     );
+
     expect(result.stdout).toContain(
       "scaffold: { api: { framework: 'hono', basePath: '/v1', tables: ['customers'] } }",
     );
@@ -184,6 +194,7 @@ describe("scaffold from the config", () => {
   it("runs as a gen task: the generated file only, and --check", async () => {
     await project({ hono: "4.0.0" });
     await configure({ framework: "hono", tables: ["customers"] });
+
     const gen = (...args: string[]) =>
       run(["gen", "--tasks", "scaffold", ...args, "--cwd", dir]);
 

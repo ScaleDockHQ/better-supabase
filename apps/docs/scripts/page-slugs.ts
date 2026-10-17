@@ -13,9 +13,10 @@ export const PAGE_SLUGS_FILE = join(
 
 /** Every page slug under `content/docs`, sorted. */
 export function readPageSlugs(dir: string = CONTENT_DIR): string[] {
-  return readdirSync(dir, { recursive: true, encoding: "utf8" })
+  return readdirSync(dir, { recursive: true, encoding: "utf-8" })
     .flatMap((file) => {
       const slug = pageSlug(file);
+
       return slug === undefined ? [] : [slug];
     })
     .toSorted();

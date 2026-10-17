@@ -55,6 +55,7 @@ export function contextAttributes(
 ): Record<string, string> {
   const recorded = workflowContext(context, options);
   const ticket = recorded["ticket"];
+
   return {
     ...(recorded.tenant === undefined
       ? {}
@@ -98,11 +99,16 @@ export async function runForKey(
   world: World | undefined,
 ): Promise<string | undefined> {
   const target = world ?? (await getWorld());
-  if (target.analytics === undefined) return undefined;
+
+  if (target.analytics === undefined) {
+    return undefined;
+  }
+
   const page = await target.analytics.runs.list({
     attributes: { [WORKFLOW_ATTRIBUTES.key]: key },
     pagination: { limit: 1 },
   });
+
   return page.data[0]?.runId;
 }
 
@@ -140,14 +146,23 @@ async function startRun<TArgs extends unknown[], TResult>(
   trusted: Readonly<Record<string, string | undefined>>,
 ): Promise<Run<TResult>> {
   const key = options.idempotencyKey;
+
   if (key !== undefined) {
     const existing = await runForKey(key, options.world);
-    if (existing !== undefined) return getRun<TResult>(existing);
+
+    if (existing !== undefined) {
+      return getRun<TResult>(existing);
+    }
   }
+
   const attributes: Record<string, string> = {};
+
   for (const [name, value] of Object.entries(options.attributes ?? {})) {
-    if (!RUN_AS_ATTRIBUTES.has(name)) attributes[name] = value;
+    if (!RUN_AS_ATTRIBUTES.has(name)) {
+      attributes[name] = value;
+    }
   }
+
   Object.assign(
     attributes,
     contextAttributes(
@@ -159,10 +174,15 @@ async function startRun<TArgs extends unknown[], TResult>(
       : { [WORKFLOW_ATTRIBUTES.subject]: subjectAttribute(options.subject) },
     key === undefined ? {} : { [WORKFLOW_ATTRIBUTES.key]: key },
   );
+
   for (const [name, value] of Object.entries(trusted)) {
-    if (value === undefined) delete attributes[name];
-    else attributes[name] = value;
+    if (value === undefined) {
+      delete attributes[name];
+    } else {
+      attributes[name] = value;
+    }
   }
+
   return start(workflow, args, {
     attributes,
     ...(options.world === undefined ? {} : { world: options.world }),
@@ -213,7 +233,11 @@ async function resolveRunAs<T>(
   source: T,
 ): Promise<WorkflowRunAs | undefined> {
   const resolved = typeof runAs === "function" ? await runAs(source) : runAs;
-  if (resolved === null || resolved === undefined) return undefined;
+
+  if (resolved === null || resolved === undefined) {
+    return undefined;
+  }
+
   if (
     typeof resolved.publisher !== "string" ||
     resolved.publisher === "" ||
@@ -226,6 +250,7 @@ async function resolveRunAs<T>(
       "better-supabase: runAs needs a publisher and a list of permission keys",
     );
   }
+
   return resolved;
 }
 
@@ -247,6 +272,7 @@ function runAsStart(
   readonly trusted: Readonly<Record<string, string | undefined>>;
 } {
   const tenant = runAs.tenant ?? start.tenant;
+
   return {
     context: workflowContext({
       actor: { id: runAs.publisher, kind: "user" },
@@ -271,6 +297,7 @@ function runAsStart(
 function userContext(call: WorkflowStartCall): RequestContext {
   const actor: Actor | undefined =
     call.actor === undefined ? undefined : { id: call.actor, kind: "user" };
+
   return {
     ...(actor === undefined ? {} : { actor }),
     ...(call.tenant === undefined ? {} : { tenant: call.tenant }),
@@ -306,15 +333,18 @@ export function workflowStarter(
 ): WorkflowStarter {
   return async (call) => {
     const workflow = workflows[call.workflow];
+
     if (workflow === undefined) {
       throw new Error(
         `better-supabase: no workflow named "${call.workflow}" was passed to workflowStarter`,
       );
     }
+
     const runAs =
       options.runAs === undefined
         ? undefined
         : await resolveRunAs(options.runAs, call);
+
     if (runAs === undefined && (call.source === "schedule" || options.runAs)) {
       throw new Error(
         options.runAs === undefined
@@ -322,12 +352,15 @@ export function workflowStarter(
           : `better-supabase: runAs refused the start of "${call.workflow}"`,
       );
     }
+
     const started =
       runAs === undefined
         ? { context: userContext(call), attributes: {}, trusted: {} }
         : runAsStart(runAs, { tenant: call.tenant, trigger: call.actor });
+
     const input = Array.isArray(call.input) ? call.input : [call.input];
     const args = options.args?.(call, started.context) ?? input;
+
     const run = await startRun(
       started.context,
       workflow,
@@ -341,6 +374,7 @@ export function workflowStarter(
       },
       started.trusted,
     );
+
     return run.runId;
   };
 }
@@ -381,9 +415,13 @@ export interface AuthorizeHookOptions {
 }
 
 function stringField(value: unknown, key: string): string | undefined {
-  if (typeof value !== "object" || value === null) return undefined;
+  if (typeof value !== "object" || value === null) {
+    return undefined;
+  }
+
   const record: Record<string, unknown> = { ...value };
   const field = record[key];
+
   return typeof field === "string" ? field : undefined;
 }
 
@@ -402,9 +440,14 @@ export async function authorizeHook(
   const metadata: unknown = await hook.metadata;
   const actor = context.actor?.kind === "user" ? context.actor.id : undefined;
   const owner = stringField(metadata, WORKFLOW_ATTRIBUTES.actor);
-  if (actor !== undefined && owner === actor) return hook;
+
+  if (actor !== undefined && owner === actor) {
+    return hook;
+  }
+
   const tenant = stringField(metadata, WORKFLOW_ATTRIBUTES.tenant);
   const permission = stringField(metadata, "bs.permission");
+
   if (
     actor !== undefined &&
     tenant !== undefined &&
@@ -414,6 +457,7 @@ export async function authorizeHook(
   ) {
     return hook;
   }
+
   throw new HookForbiddenError(
     "better-supabase: the caller may not resume this workflow hook",
   );
@@ -421,7 +465,10 @@ export async function authorizeHook(
 
 /** Whether `type` matches `pattern` (`invoice.paid`, `organization.*` or `*`). */
 function matches(pattern: string, type: string): boolean {
-  if (pattern === "*" || pattern === type) return true;
+  if (pattern === "*" || pattern === type) {
+    return true;
+  }
+
   return pattern.endsWith(".*") && type.startsWith(pattern.slice(0, -1));
 }
 
@@ -455,15 +502,22 @@ export function startOnEvent<TArgs extends unknown[]>(
 ): OutboxHandler {
   return async (events) => {
     for (const event of events) {
-      if (!options.types.some((pattern) => matches(pattern, event.type)))
+      if (!options.types.some((pattern) => matches(pattern, event.type))) {
         continue;
+      }
+
       const runAs = await resolveRunAs(options.runAs, event);
-      if (runAs === undefined) continue;
+
+      if (runAs === undefined) {
+        continue;
+      }
+
       const { context, attributes, trusted } = runAsStart(runAs, {
         tenant: event.tenant ?? undefined,
         trigger: event.actorId ?? undefined,
         ticket: options.ticket?.(event),
       });
+
       // SAFETY: without `args`, the workflow takes the event payload as its one argument.
       const args = options.args?.(event, context) ?? ([event.payload] as TArgs);
       await startRun(
@@ -494,12 +548,12 @@ export interface ProtectWebHandlerOptions {
 }
 
 function problem(status: 401 | 403): Response {
-  return new Response(
-    JSON.stringify({
+  return Response.json(
+    {
       type: "about:blank",
       title: status === 401 ? "Unauthorized" : "Forbidden",
       status,
-    }),
+    },
     { status, headers: { "content-type": "application/problem+json" } },
   );
 }
@@ -516,8 +570,15 @@ export function protectWebHandler(
 ): (request: Request) => Promise<Response> {
   return async (request) => {
     const allowed = await options.can(request, permission);
-    if (allowed === undefined) return problem(401);
-    if (!allowed) return problem(403);
+
+    if (allowed === undefined) {
+      return problem(401);
+    }
+
+    if (!allowed) {
+      return problem(403);
+    }
+
     return handler(request);
   };
 }

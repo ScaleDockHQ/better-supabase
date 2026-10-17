@@ -21,7 +21,7 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { OPERATIONS } from "./access-model.ts";
-import { checkRole, roleValue } from "./organizations.ts";
+import { checkRole, roleValue } from "./organizations-roles.ts";
 
 /** The `app_metadata` key that marks an `auth.users` row as a service principal. */
 const SERVICE_PRINCIPAL_CLAIM = "bs_service_principal";
@@ -66,23 +66,29 @@ const NAMES: ModuleNames = {
 const extrasOf = (ctx: ModuleContext) => ctx.extraColumns("principals");
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
   const extras = extrasOf(ctx);
   const t = ctx.table("principals");
   const c = (column: string): string => ctx.col("principals", column);
   const fn = (name: string): string => ctx.fn(name);
   const id = ctx.idType;
   const read = ctx.permission("read", OPERATIONS["service-principals.read"]);
+
   const manage = ctx.permission(
     "manage",
     OPERATIONS["service-principals.manage"],
   );
+
   const tenant = ctx.of("tenant");
   const memberships = tenant.mode !== "custom";
   const m = tenant.table("memberships");
   const mt = tenant.col("memberships", "tenant");
   const mu = tenant.col("memberships", "user");
   const mr = tenant.col("memberships", "role");
+
   const tables = ctx.manages
     ? `create table if not exists ${t} (
   ${c("id")} uuid primary key references auth.users (id) on delete cascade,
@@ -102,6 +108,7 @@ create unique index if not exists service_principals_default_idx on ${t} (${c("t
 ${lockTable(t, { read: true })}
 `
     : "";
+
   // Only the caller check differs between the service and a member who
   // holds the manage permission and may assign the role.
   const mayManage = (
@@ -117,20 +124,24 @@ ${lockTable(t, { read: true })}
   ) then
     ${fail("SERVICE_PRINCIPAL_FORBIDDEN", "You may not manage service principals with this role", "42501")}
   end if;`;
+
   const addMembership = memberships
     ? `
   insert into ${m} (${mt}, ${mu}, ${mr})
   values (register_service_principal.tenant, register_service_principal.principal, ${roleValue(ctx, "register_service_principal.role", "register_service_principal.tenant")});`
     : "";
+
   const setMembership = memberships
     ? `
-  update ${m} set ${mr} = ${roleValue(ctx, "set_service_principal_role.role", "v_row." + c("tenant"))}
+  update ${m} set ${mr} = ${roleValue(ctx, "set_service_principal_role.role", `v_row.${c("tenant")}`)}
   where ${mt} = v_row.${c("tenant")} and ${mu} = v_row.${c("id")};`
     : "";
+
   const dropMembership = memberships
     ? `
   delete from ${m} where ${mt} = v_row.${c("tenant")} and ${mu} = v_row.${c("id")};`
     : "";
+
   return `${schemaPreamble(ctx)}
 -- Non-human members of a tenant. Each row is an auth.users row that can't
 -- sign in (no password, banned, app_metadata.${SERVICE_PRINCIPAL_CLAIM}),

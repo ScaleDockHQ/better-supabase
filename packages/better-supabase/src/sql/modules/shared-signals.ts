@@ -93,12 +93,14 @@ function streamEvent(
 ): string {
   const s = (logical: string): string =>
     `${row}.${ctx.col("streams", logical)}`;
+
   const extra =
     type === "ssf_stream.created"
       ? `, 'method', ${s("method")}`
       : type === "ssf_stream.status_changed"
         ? `, 'status', ${s("status")}, 'reason', ${s("reason")}`
         : "";
+
   return ctx.record({
     type,
     payload: `jsonb_build_object('streamId', ${s("id")}, 'receiver', ${s("receiver")}, 'tenant', ${s("tenant")}${extra})`,
@@ -121,13 +123,18 @@ interface PushNames {
 }
 
 function pushNames(ctx: ModuleContext): PushNames | undefined {
-  if (!ctx.installed("webhooks-out")) return undefined;
+  if (!ctx.installed("webhooks-out")) {
+    return undefined;
+  }
+
   const w = ctx.of("webhooks-out");
+
   if (!w.has("endpoints", "format")) {
     throw new TypeError(
       "blocks.shared-signals: push streams need the webhooks-out endpoints format column",
     );
   }
+
   return {
     table: w.table("endpoints"),
     col: (logical) => w.col("endpoints", logical),
@@ -138,7 +145,10 @@ function pushNames(ctx: ModuleContext): PushNames | undefined {
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
   const t = ctx.table("streams");
   const e = ctx.table("events");
   const r = ctx.table("received");
@@ -154,6 +164,7 @@ function build(ctx: ModuleContext): string {
     push
       ? `(select we.${w("url")} from ${push.table} we where we.${w("id")} = ${alias}.${c("endpoint")})`
       : "null::text";
+
   const streamJson = (alias: string): string => `jsonb_build_object(
     'id', ${alias}.${c("id")},
     'tenant', ${alias}.${c("tenant")},
@@ -185,6 +196,7 @@ function build(ctx: ModuleContext): string {
           : []),
       ]
     : [];
+
   const createPush = push
     ? `
     if coalesce(create_ssf_stream.endpoint_url, '') = '' then
@@ -225,6 +237,7 @@ function build(ctx: ModuleContext): string {
     push
       ? `perform ${push.dispatch}(${stream}.${c("endpoint")}, 'ssf.set', jsonb_build_object('set', ${token}), null, ${jti});`
       : "null;";
+
   const pushReady = (stream: string): string =>
     push
       ? `exists (select 1 from ${push.table} we where we.${w("id")} = ${stream}.${c("endpoint")} and we.${w("enabled")})`

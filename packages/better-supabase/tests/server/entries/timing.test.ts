@@ -19,6 +19,7 @@ describe("db stats header", () => {
       ms: 12,
       tables: [],
     });
+
     expect(value).toBe("3;2;12");
     expect(parseDbStats(value)).toEqual({ calls: 3, waves: 2, ms: 12 });
     expect(parseDbStats("x;1;2")).toBeUndefined();
@@ -30,14 +31,17 @@ describe("db stats header", () => {
 describe("withServerTiming", () => {
   it("adds the total and the handler's metrics", async () => {
     let clock = 0;
+
     const fetch = pipeline(
       [withServerTiming(() => (clock += 5))],
       async (_request, ctx) => {
         ctx.timing.add('db "main"', 2.25, 'reads "x"');
         await ctx.timing.measure("render", () => "html");
+
         return new Response("ok", { status: 201 });
       },
     );
+
     const response = await fetch(new Request("https://app.test/"));
     expect(response.status).toBe(201);
     expect(response.headers.get("server-timing")).toBe(
@@ -52,6 +56,7 @@ describe("withDbStats", () => {
       [withBetterSupabase(server, { allow: ["anon"] }), withDbStats()],
       async (_request, ctx) => Response.json(ctx.dbStats().calls),
     );
+
     const response = await fetch(await requestAs());
     expect(await response.json()).toBe(0);
     expect(response.headers.get(DB_CALLS_HEADER)).toBe("0;0;0");
@@ -66,6 +71,7 @@ describe("withDbStats", () => {
       ],
       async () => new Response(null, { status: 204 }),
     );
+
     const response = await fetch(await requestAs());
     expect(response.headers.get("x-db")).toBe("0;0;0");
   });

@@ -41,6 +41,7 @@ export async function chatStep<K extends DurableStepName>(
   input: DurableStepInput<K>,
 ): Promise<DurableStepOutput<K>> {
   "use step";
+
   return runDurableStep(createAiChat(serviceOptions()), name, input);
 }
 
@@ -59,12 +60,14 @@ export async function answerQuestion(
   question: string,
 ): Promise<string> {
   "use step";
+
   const { text } = await generateText({
     model,
     instructions:
       "Answer the question in at most five sentences. Say when you are unsure.",
     prompt: question,
   });
+
   return text;
 }
 

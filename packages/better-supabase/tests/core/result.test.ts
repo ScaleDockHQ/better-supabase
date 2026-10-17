@@ -27,6 +27,7 @@ class StandInOk<T> {
     this.value = value;
   }
 }
+
 class StandInErr<E> {
   readonly status = "error";
   readonly error: E;
@@ -34,6 +35,7 @@ class StandInErr<E> {
     this.error = error;
   }
 }
+
 const Result = {
   ok: <T>(value: T) => new StandInOk(value),
   err: <E>(error: E) => new StandInErr(error),
@@ -46,6 +48,7 @@ class AppError extends Error {
     this.error = error;
   }
 }
+
 const toAppError = (error: DbError) => new AppError(error);
 
 const conflict = () =>
@@ -59,10 +62,12 @@ describe("betterSupabase.mapError", () => {
     const db = defineSupabase(schema)
       .mapError(toAppError)
       .connect(conflict().client);
+
     const result = await db.customers.create({
       name: "Acme",
       organizationId: "o1",
     });
+
     expect(result.ok).toBe(false);
     expect(result.error?.kind).toBe("conflict");
 
@@ -70,6 +75,7 @@ describe("betterSupabase.mapError", () => {
       .create({ name: "Acme", organizationId: "o1" })
       .orThrow()
       .catch((error: unknown) => error);
+
     expect(thrown).toBeInstanceOf(AppError);
     expect((thrown as AppError).error.kind).toBe("conflict");
   });
@@ -78,11 +84,13 @@ describe("betterSupabase.mapError", () => {
     const db = defineSupabase(schema)
       .mapError(toAppError)
       .connect(conflict().client);
+
     const chained = db.customers
       .create({ name: "Acme", organizationId: "o1" })
       .map((row) => row.id)
       .mapError((error) => ({ ...error, message: "renamed" }))
       .andThen((id) => AsyncResult.ok(id));
+
     await expect(chained.orThrow()).rejects.toThrow("app: renamed");
     await expect(
       db.customers
@@ -95,15 +103,19 @@ describe("betterSupabase.mapError", () => {
     const db = defineSupabase(schema)
       .mapError(toAppError)
       .connect(conflict().client);
+
     const thrown: unknown = await db.customers
       .create({ name: "Acme", organizationId: "o1" })
       .orThrow()
       .catch((error: unknown) => error);
+
     expect(dbErrorOf(thrown)?.kind).toBe("conflict");
     expect(isConflict(thrown)).toBe(true);
+
     const settled = await settle(() =>
       db.customers.create({ name: "Acme", organizationId: "o1" }).orThrow(),
     );
+
     expect(!settled.ok && settled.error.kind).toBe("conflict");
   });
 
@@ -134,10 +146,12 @@ describe("toBetterResult", () => {
     const db = defineSupabase(schema)
       .mapError(toAppError)
       .connect(conflict().client);
+
     const mapped = await toBetterResult(
       db.customers.create({ name: "Acme", organizationId: "o1" }),
       Result,
     );
+
     expect(mapped.status === "error" && mapped.error).toBeInstanceOf(AppError);
 
     const plain = await toBetterResult(AsyncResult.ok("x"), Result);
@@ -158,9 +172,11 @@ describe("fromBetterResult", () => {
       kind: "unexpected",
       message: "boom",
     });
+
     const custom = fromBetterResult(Result.err("nope"), () =>
       dbError("forbidden", "mapped"),
     );
+
     expect(custom.error?.kind).toBe("forbidden");
   });
 
@@ -181,6 +197,7 @@ class NotFound {
     this.error = props.error;
   }
 }
+
 class DbFailure {
   readonly _tag = "DbFailure";
   readonly message: string;

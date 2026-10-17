@@ -176,14 +176,16 @@ export function resolveSecurity(
 ): ResolvedSecurity {
   const schemes: Record<string, ModelSecurityScheme> = {};
   const requirements: SecurityRequirement[] = [];
+
   for (const preset of presets) {
     if (typeof preset === "object") {
       schemes[preset.name] = preset.scheme;
       requirements.push({ [preset.name]: preset.scopes ?? [] });
       continue;
     }
+
     switch (preset) {
-      case "bearer":
+      case "bearer": {
         schemes["supabaseJwt"] = {
           type: "http",
           scheme: "bearer",
@@ -193,11 +195,15 @@ export function resolveSecurity(
         };
         requirements.push({ supabaseJwt: [] });
         break;
+      }
+
       case "oauth2": {
-        if (!supabaseUrl)
+        if (!supabaseUrl) {
           throw new TypeError(
             "better-supabase/spec: oauth2 security needs supabaseUrl",
           );
+        }
+
         const origin = supabaseUrl.replace(/\/$/, "");
         const auth = `${origin}/auth/v1`;
         schemes[OAUTH_SCHEME] = {
@@ -215,7 +221,8 @@ export function resolveSecurity(
         requirements.push({ [OAUTH_SCHEME]: [] });
         break;
       }
-      case "apiKey":
+
+      case "apiKey": {
         schemes["supabaseApiKey"] = {
           type: "apiKey",
           name: "apikey",
@@ -224,11 +231,14 @@ export function resolveSecurity(
         };
         requirements.push({ supabaseApiKey: [] });
         break;
+      }
+
       default: {
         const exhaustive: never = preset;
         throw new TypeError(`Unknown security preset "${String(exhaustive)}"`);
       }
     }
   }
+
   return { schemes, requirements };
 }

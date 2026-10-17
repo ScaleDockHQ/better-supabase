@@ -5,6 +5,7 @@ import type { AssistantState } from "../../react/index.ts";
 import type { UseDurableAssistantOptions } from "./index.ts";
 
 export type { AssistantState } from "../../react/index.ts";
+
 export type { UseDurableAssistantOptions } from "./index.ts";
 
 const CLIENT_ONLY =

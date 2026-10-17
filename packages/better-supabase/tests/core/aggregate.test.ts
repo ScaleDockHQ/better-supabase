@@ -86,6 +86,7 @@ describe("relation aggregates", () => {
         { id: "c2", _max_notes: [{ id: null, createdAt: null }] },
       ],
     }));
+
     const rows = await betterSupabase
       .connect(client)
       .customers.findMany({
@@ -112,9 +113,11 @@ describe("relation aggregates", () => {
 
   it("compiles to a single-row subquery in SQL", () => {
     const builder = new IrBuilder(schema.meta);
+
     const selection = builder.selection(builder.table("customers"), ["id"], {
       _avg: { notes: { id: true } },
     });
+
     const plan = compileSql(selectOf(selection));
     expect(plan.rows?.text).toContain(
       `'_avg_notes', (select json_build_object('id', avg(t1."id")) from "public"."notes" as t1 where t1."customer_id" = t0."id" and t1."organization_id" = t0."organization_id")`,
@@ -127,13 +130,17 @@ describe("relation aggregates", () => {
   it("rejects sums of text columns and to-one relations", async () => {
     const { client, requests } = capturingClient();
     const db = betterSupabase.connect(client);
+
     const text = await db.customers.findMany({
       include: { _sum: { notes: { body: true } } },
     });
+
     expect(text.error?.message).toContain("_sum needs a numeric column");
+
     const one = await db.customers.findMany({
       include: { _max: { organization: { name: true } } as never },
     });
+
     expect(one.error?.message).toContain("needs a to-many relation");
     expect(requests).toHaveLength(0);
   });
@@ -147,6 +154,7 @@ describe("db.x.aggregate()", () => {
         { status: "lead", _count: 1, _min_createdAt: "2026-02-01T00:00:00Z" },
       ],
     }));
+
     const groups = await betterSupabase
       .connect(client)
       .customers.aggregate({
@@ -182,10 +190,12 @@ describe("db.x.aggregate()", () => {
     const { client, requests } = capturingClient(() => ({
       body: [{ _count: 4 }],
     }));
+
     const db = betterSupabase.connect(client);
     expect(await db.notes.aggregate({ _count: true }).orThrow()).toEqual({
       _count: 4,
     });
+
     const none = await db.notes
       .aggregate({
         where: { id: { in: [] } },
@@ -193,6 +203,7 @@ describe("db.x.aggregate()", () => {
         _max: { id: true },
       })
       .orThrow();
+
     expect(none).toEqual({ _count: 0, _max: { id: null } });
     expect(requests).toHaveLength(1);
   });
@@ -209,6 +220,7 @@ describe("db.x.aggregate()", () => {
         },
       ],
     }));
+
     const db = defineSupabase(defineSchema(ledgerMeta)).connect(
       client,
     ) as never as {
@@ -216,19 +228,21 @@ describe("db.x.aggregate()", () => {
         aggregate(args: object): PromiseLike<{ data: unknown }>;
       };
     };
+
     const { data } = await db.ledger.aggregate({
       groupBy: ["accountCode"],
       _sum: { amount: true, id: true },
       _avg: { amount: true },
       _max: { bookedAt: true },
     });
+
     expect(query(last())[0]).toBe(
       "select=accountCode:account_code,_sum_amount:amount.sum()::text,_sum_id:id.sum()::text,_avg_amount:amount.avg(),_max_bookedAt:booked_at.max()::text",
     );
     expect(data).toEqual([
       {
         accountCode: "4000",
-        _sum: { amount: "12.50", id: 9007199254740993n },
+        _sum: { amount: "12.50", id: 9_007_199_254_740_993n },
         _avg: { amount: 6.25 },
         _max: { bookedAt: Temporal.Instant.from("2026-03-01T00:00:00Z") },
       },
@@ -238,11 +252,13 @@ describe("db.x.aggregate()", () => {
   it("compiles to group by in SQL", () => {
     const builder = new IrBuilder(schema.meta);
     const table = builder.table("customers");
+
     const selection = builder.aggregation(table, {
       groupBy: ["status"],
       _count: true,
       _max: { updatedAt: true },
     });
+
     const plan = compileSql({ ...selectOf(selection), table });
     expect(plan.rows?.text).toBe(
       `select json_build_object('status', t0."status", '_count', count(*), '_max_updatedAt', max(t0."updated_at")) as row from "public"."customers" as t0 group by t0."status"`,
@@ -252,11 +268,13 @@ describe("db.x.aggregate()", () => {
   it("rejects sorting by a column outside groupBy and empty aggregates", async () => {
     const { client, requests } = capturingClient();
     const db = betterSupabase.connect(client);
+
     const sorted = await db.customers.aggregate({
       groupBy: ["status"],
       _count: true,
       orderBy: { name: "asc" },
     });
+
     expect(sorted.error?.message).toContain("only sort by groupBy columns");
     const empty = await db.customers.aggregate({ groupBy: ["status"] });
     expect(empty.error?.message).toContain("needs _count, _sum");
@@ -284,6 +302,7 @@ describe("aggregates disabled", () => {
       code: "PGRST123",
       message: "Use of aggregate functions is not allowed",
     });
+
     expect(error.kind).toBe("invalid_request");
     expect(error.hint).toContain("pgrst.db_aggregates_enabled");
   });

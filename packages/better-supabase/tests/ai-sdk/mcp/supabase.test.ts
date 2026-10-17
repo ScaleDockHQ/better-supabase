@@ -11,6 +11,7 @@ describe("supabaseMcp", () => {
       projectRef: "abcdefghijklmnopqrst",
       features: ["database", "docs"],
     });
+
     const url = new URL(supabase.url);
     expect(url.origin + url.pathname).toBe(SUPABASE_MCP_URL);
     expect(Object.fromEntries(url.searchParams)).toEqual({
@@ -35,6 +36,7 @@ describe("supabaseMcp", () => {
       features: ["database"],
       url: "http://localhost:54321/mcp",
     });
+
     expect(supabase.url).toBe("http://localhost:54321/mcp?features=database");
     expect(Object.keys(supabase.schemas)).toContain("apply_migration");
   });

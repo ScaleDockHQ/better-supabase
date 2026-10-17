@@ -259,14 +259,19 @@ const NAMES: ModuleNames = {
 };
 
 function tables(ctx: ModuleContext, names: Names): string {
-  if (!ctx.manages) return "";
+  if (!ctx.manages) {
+    return "";
+  }
+
   const t = (name: string): string => ctx.table(name);
   const c = (table: string, column: string): string => ctx.col(table, column);
+
   const read = (
     table: string,
   ): string => `drop policy if exists ${ctx.tableName(table).name}_read on ${t(table)};
 create policy ${ctx.tableName(table).name}_read on ${t(table)} for select to authenticated
 using (${c(table, "tenant")} in (select ${ctx.scope.ids(names.read)}));`;
+
   return `
 create table if not exists ${t("products")} (
   ${c("products", "id")} uuid primary key default gen_random_uuid(),
@@ -427,9 +432,13 @@ ${read("storefronts")}
 
 /** Anon read policies for active products of tenants with a published storefront. */
 function storefrontPolicies(ctx: ModuleContext, names: Names): string {
-  if (!ctx.manages) return "";
+  if (!ctx.manages) {
+    return "";
+  }
+
   const t = (name: string): string => ctx.table(name);
   const c = (table: string, column: string): string => ctx.col(table, column);
+
   const publicTables: readonly (readonly [string, string])[] = [
     [
       "products",
@@ -472,12 +481,18 @@ function storefrontPolicies(ctx: ModuleContext, names: Names): string {
       `${c("collectionProducts", "product")} in (select ${names.fn("storefront_products")}())`,
     ],
   ];
+
   const on = storefrontOption(ctx);
+
   return publicTables
     .map(([table, condition]) => {
       const policy = `${ctx.tableName(table).name}_storefront`;
       const drop = `drop policy if exists ${policy} on ${t(table)};`;
-      if (!on) return drop;
+
+      if (!on) {
+        return drop;
+      }
+
       return `${drop}
 grant select on ${t(table)} to anon;
 create policy ${policy} on ${t(table)} for select to anon, authenticated
@@ -487,15 +502,21 @@ using (${condition});`;
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
   const keys = moduleOperations("catalog");
+
   const names: Names = {
     scope: ctx.scope,
     fn: (name) => ctx.fn(name),
     manage: ctx.permission("manage", keys.manage),
     read: ctx.permission("read", keys.read),
   };
+
   storefrontOption(ctx);
+
   return `${schemaPreamble(ctx)}
 -- Products with options, variants and prices in minor units, plus
 -- categories, collections, price lists and an optional public storefront.
@@ -508,6 +529,7 @@ ${ctx.hasTable("storefronts") ? storefrontPolicies(ctx, names) : ""}
 function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   const options = ctx.hasTable("options") && ctx.hasTable("optionValues");
   const lists = ctx.hasTable("priceLists") && ctx.has("prices", "priceList");
+
   return [
     { name: "currency_minor_units", args: ["text"], returns: "integer" },
     {

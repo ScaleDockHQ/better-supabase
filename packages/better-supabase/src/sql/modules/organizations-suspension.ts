@@ -20,17 +20,21 @@ export function memberSuspension(
 ): string {
   const id = ctx.idType;
   const disabledAt = membershipDisabledAt(ctx);
+
   if (disabledAt === undefined) {
     return `
 drop function if exists ${ctx.fn("suspend_member")}(${id}, uuid);
 drop function if exists ${ctx.fn("resume_member")}(${id}, uuid);
 `;
   }
+
   const allowed = `(${SERVICE_CALLER} or coalesce(better_supabase.member_can(auth.uid(), organization, ${modulePermission(ctx, "suspendMember", OPERATIONS["organizations.suspendMember"])}), false))`;
   const subject = "'organizations/' || organization::text";
+
   const body = (suspend: boolean): string => {
     const kind = suspend ? "suspended" : "resumed";
     const type = `organization.member_${kind}`;
+
     const lastOwner = suspend
       ? `
   if is_owner and not exists (
@@ -40,6 +44,7 @@ drop function if exists ${ctx.fn("resume_member")}(${id}, uuid);
     ${fail("ORGANIZATION_OWNER_REQUIRED", "An organization needs an owner", "23514")}
   end if;`
       : "";
+
     return `
 create or replace function ${ctx.fn(suspend ? "suspend_member" : "resume_member")}(organization ${id}, member uuid)
 returns boolean
@@ -97,5 +102,6 @@ end;
 $$;
 `;
   };
+
   return `${body(true)}${body(false)}`;
 }

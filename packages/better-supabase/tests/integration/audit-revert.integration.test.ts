@@ -25,16 +25,20 @@ describe.skipIf(!live)("audit revert in Postgres", () => {
 
   const lastEntry = async (): Promise<string> => {
     await db.service();
+
     return db.value<string>(
       `(select max(id)::text from better_supabase.audit_events where table_name like 'revert_it.%')`,
     );
   };
+
   const title = async (n: number): Promise<string | null> => {
     await db.service();
+
     return db.value<string | null>(
       `(select title from revert_it.notes where id = '${note(n)}')`,
     );
   };
+
   const revert = (...entries: string[]): string =>
     `better_supabase.revert_audit_entries(array[${entries.map((e) => `'${e}'`).join(", ")}]::text[])`;
 
@@ -79,6 +83,7 @@ grant select, insert, update, delete on revert_it.labels to authenticated;`);
   const write = async (statement: string): Promise<string> => {
     await db.asRole(owner);
     await db.client.query(statement);
+
     return lastEntry();
   };
 
@@ -86,6 +91,7 @@ grant select, insert, update, delete on revert_it.labels to authenticated;`);
     const entry = await write(
       `insert into revert_it.notes (id, organization_id, title) values ('${note(1)}', '${org}', 'one')`,
     );
+
     await db.asRole(member);
     expect(await db.hint(revert(entry))).toBe("AUDIT_ENTRY_NOT_FOUND");
   });
@@ -94,13 +100,17 @@ grant select, insert, update, delete on revert_it.labels to authenticated;`);
     await write(
       `insert into revert_it.notes (id, organization_id, title) values ('${note(2)}', '${org}', 'draft')`,
     );
+
     const entry = await write(
       `update revert_it.notes set title = 'final' where id = '${note(2)}'`,
     );
+
     await db.asRole(owner);
+
     const result = await db.value<{ reverted: number; entries: string[] }>(
       revert(entry),
     );
+
     expect(result.reverted).toBe(1);
     expect(result.entries).toHaveLength(1);
     expect(await title(2)).toBe("draft");
@@ -114,9 +124,11 @@ grant select, insert, update, delete on revert_it.labels to authenticated;`);
     await write(
       `insert into revert_it.notes (id, organization_id, title) values ('${note(3)}', '${org}', 'a')`,
     );
+
     const entry = await write(
       `update revert_it.notes set title = 'b' where id = '${note(3)}'`,
     );
+
     await write(
       `update revert_it.notes set title = 'c' where id = '${note(3)}'`,
     );
@@ -128,6 +140,7 @@ grant select, insert, update, delete on revert_it.labels to authenticated;`);
     const inserted = await write(
       `insert into revert_it.notes (id, organization_id, title) values ('${note(4)}', '${org}', 'new')`,
     );
+
     await db.asRole(owner);
     await db.value(revert(inserted));
     expect(await title(4)).toBeNull();
@@ -135,9 +148,11 @@ grant select, insert, update, delete on revert_it.labels to authenticated;`);
     await write(
       `insert into revert_it.labels (id, organization_id, name) values ('${note(5)}', '${org}', 'kept')`,
     );
+
     const deleted = await write(
       `delete from revert_it.labels where id = '${note(5)}'`,
     );
+
     await db.asRole(owner);
     await db.value(revert(deleted));
     await db.service();
@@ -152,21 +167,27 @@ grant select, insert, update, delete on revert_it.labels to authenticated;`);
     await write(
       `insert into revert_it.notes (id, organization_id, title) values ('${note(6)}', '${org}', 's')`,
     );
+
     const secret = await write(
       `update revert_it.notes set secret = 'x' where id = '${note(6)}'`,
     );
+
     await db.asRole(owner);
     expect(await db.hint(revert(secret))).toBe("AUDIT_ENTRY_REDACTED");
+
     const deleted = await write(
       `delete from revert_it.notes where id = '${note(6)}'`,
     );
+
     await db.asRole(owner);
     expect(await db.hint(revert(deleted))).toBe("AUDIT_ENTRY_REDACTED");
 
     await db.service();
+
     const event = await db.value<string>(
       `better_supabase.audit_event('note.shared', tenant => '${org}')::text`,
     );
+
     await db.asRole(owner);
     expect(await db.hint(revert(event))).toBe("AUDIT_ENTRY_NOT_REVERTIBLE");
   });
@@ -175,9 +196,11 @@ grant select, insert, update, delete on revert_it.labels to authenticated;`);
     await write(
       `insert into revert_it.notes (id, organization_id, title) values ('${note(7)}', '${org}', 'before')`,
     );
+
     const entry = await write(
       `update revert_it.notes set title = 'after' where id = '${note(7)}'`,
     );
+
     await db.asRole(owner);
     const transport = sqlTransport(db.sql);
     const reverted = await createAudit({ transport }).revert([entry]).orThrow();

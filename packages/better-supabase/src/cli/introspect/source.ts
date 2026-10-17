@@ -34,15 +34,22 @@ export async function pgSource(
     statementTimeout: STATEMENT_TIMEOUT_MS,
     ...(signal ? { signal } : {}),
   });
-  if (pooled) return { queryable: client, close, describe };
+
+  if (pooled) {
+    return { queryable: client, close, describe };
+  }
+
   let queue: Promise<unknown> = Promise.resolve();
+
   const queryable: Queryable = {
     query(sql: string) {
       const next = queue.then(() => client.query(sql));
       queue = next.catch(() => undefined);
+
       return next;
     },
   };
+
   return { queryable, close, describe };
 }
 
@@ -67,8 +74,10 @@ export function managementSource(
     /\/$/,
     "",
   );
+
   const doFetch = options.fetch ?? fetch;
   const endpoint = `${base}/v1/projects/${encodeURIComponent(options.projectRef)}/database/query/read-only`;
+
   const queryable: Queryable = {
     async query(sql: string) {
       const response = await doFetch(endpoint, {
@@ -80,22 +89,28 @@ export function managementSource(
         body: JSON.stringify({ query: sql }),
         ...(options.signal ? { signal: options.signal } : {}),
       });
+
       const text = await response.text();
+
       if (!response.ok) {
         throw new Error(
           `Management API query failed (${response.status}) for project ${options.projectRef}: ${text.slice(0, 500)}`,
         );
       }
+
       // SAFETY: widens the any from JSON.parse to unknown; the shape is checked below.
       const rows = JSON.parse(text) as unknown;
+
       if (!Array.isArray(rows)) {
         throw new TypeError(
           `Management API returned an unexpected body for project ${options.projectRef}.`,
         );
       }
+
       return { rows };
     },
   };
+
   return {
     queryable,
     describe: `project ${options.projectRef} (Management API)`,

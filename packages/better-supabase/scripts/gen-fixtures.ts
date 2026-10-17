@@ -9,9 +9,11 @@ import { renderFixtures } from "../tests/cli/fixtures/render.ts";
 
 const check = process.argv.includes("--check");
 let stale = false;
+
 for (const file of await renderFixtures()) {
   if (check) {
-    const current = await readFile(file.path, "utf8").catch(() => "");
+    const current = await readFile(file.path, "utf-8").catch(() => "");
+
     if (current !== file.contents) {
       console.error(`stale: ${file.path}`);
       stale = true;
@@ -21,4 +23,5 @@ for (const file of await renderFixtures()) {
     console.log(`wrote ${file.path}`);
   }
 }
+
 process.exitCode = stale ? 1 : 0;

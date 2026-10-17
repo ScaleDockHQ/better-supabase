@@ -31,20 +31,30 @@ export function CommentThread({
   const fieldId = useId();
   const [body, setBody] = useState("");
   const [pending, setPending] = useState(false);
+
   const { comments, error, add } = useComments({
     organizationId,
     subjectType: "customer",
     subjectId: customerId,
     schema: blockConfig.comments.api,
   });
+
   const visible = comments?.filter((comment) => !comment.deletedAt);
 
   const submit = async (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     const text = body.trim();
-    if (!text) return;
+
+    if (!text) {
+      return;
+    }
+
     setPending(true);
-    if ((await add(text)).ok) setBody("");
+
+    if ((await add(text)).ok) {
+      setBody("");
+    }
+
     setPending(false);
   };
 
@@ -53,7 +63,7 @@ export function CommentThread({
       {visible === undefined ? (
         <Skeleton className="h-16" />
       ) : visible.length === 0 ? (
-        <p className="text-muted-foreground text-sm">{t("No comments yet.")}</p>
+        <p className="text-sm text-muted-foreground">{t("No comments yet.")}</p>
       ) : (
         <ol className="space-y-4" data-testid="comments">
           {visible.map((comment) => (
@@ -63,7 +73,7 @@ export function CommentThread({
                   {(comment.authorId && authors[comment.authorId]) ??
                     t("Someone")}
                 </span>{" "}
-                <span className="text-muted-foreground text-xs">
+                <span className="text-xs text-muted-foreground">
                   {format.dateTime(comment.createdAt.epochMilliseconds, {
                     dateStyle: "medium",
                     timeStyle: "short",

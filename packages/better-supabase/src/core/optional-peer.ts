@@ -15,6 +15,7 @@ export async function importOptionalPeer(specifier: string): Promise<unknown> {
 /** Runs `load` once and shares the promise. A rejection is not kept, so the next call tries again. */
 export function memoized<T>(load: () => Promise<T>): () => Promise<T> {
   let promise: Promise<T> | undefined;
+
   return () =>
     (promise ??= load().catch((cause: unknown) => {
       promise = undefined;

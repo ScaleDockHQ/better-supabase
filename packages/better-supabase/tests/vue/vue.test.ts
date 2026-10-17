@@ -54,10 +54,13 @@ function withApp(
   >["queryClient"],
 ): App {
   const app = createApp({ render: () => null });
-  if (client)
+
+  if (client) {
     app.use(
       betterSupabase(client, queryClient === undefined ? {} : { queryClient }),
     );
+  }
+
   return app;
 }
 
@@ -65,6 +68,7 @@ function withApp(
 function run<T>(app: App, setup: () => T): { result: T; stop: () => void } {
   const scope = effectScope();
   const result = app.runWithContext(() => scope.run(setup)!);
+
   return {
     result,
     stop: () => {
@@ -79,10 +83,12 @@ describe("betterSupabase plugin", () => {
     const { queryClient } = cachedClient(["bs", "customers"]);
     const reset = vi.spyOn(queryClient, "resetQueries");
     const app = withApp(browser, queryClient);
+
     const { result } = run(app, () => ({
       auth: useAuth(),
       supabase: useSupabase(),
     }));
+
     expect(result.auth.value.user?.id).toBe(USER);
     expect(result.supabase).toBe(browser.supabase);
     setAuth(signedIn(OTHER));
@@ -101,10 +107,12 @@ describe("betterSupabase plugin", () => {
     const { browser } = fakeBrowser(SIGNED_OUT);
     const app = withApp(browser);
     const bindings = createBindings<typeof browser>();
+
     const { result } = run(app, () => ({
       db: bindings.useDb(),
       queries: bindings.useQueries(),
     }));
+
     expect(result.db).toBe(browser.db);
     expect(result.queries).toBe(browser.queries);
   });
@@ -113,14 +121,17 @@ describe("betterSupabase plugin", () => {
     const { browser, client } = fakeBrowser(signedIn(USER));
     const { queryClient } = cachedClient();
     const spec = typed.spec.notes.findMany();
+
     const app = createSSRApp(
       defineComponent({
         setup() {
           const status = useLiveQuery(spec);
+
           return () => h("span", status.value);
         },
       }),
     );
+
     app.use(betterSupabase(browser, { queryClient }));
     expect(await renderToString(app)).toBe("<span>closed</span>");
     expect(client.channel).not.toHaveBeenCalled();
@@ -130,25 +141,31 @@ describe("betterSupabase plugin", () => {
 describe("provideSession and useSession", () => {
   it("reads the provided session and its support view", async () => {
     const session = ref({ user: { id: USER } } as unknown as AuthSession);
+
     const Child = defineComponent({
       setup() {
         const current = useSession();
         const support = useSupportSession();
+
         return () => {
           const value = current.value;
           const id = "user" in value ? value.user.id : undefined;
+
           return h("span", `${String(id)}:${String(support.value)}`);
         };
       },
     });
+
     const app = createSSRApp(
       defineComponent({
         setup() {
           provideSession(session);
+
           return () => h(Child);
         },
       }),
     );
+
     expect(await renderToString(app)).toBe(`<span>${USER}:undefined</span>`);
   });
 
@@ -166,6 +183,7 @@ describe("useBroadcast", () => {
       validate: (value) => ({ value }),
     },
   };
+
   const room = defineTopic("room:{roomId}", { events: { created: anything } });
 
   it("subscribes, forwards messages, pauses on null and resubscribes on a new user", async () => {
@@ -174,6 +192,7 @@ describe("useBroadcast", () => {
     const app = withApp(browser, cache.queryClient);
     const roomId = ref<string | null>("r1");
     const created = vi.fn();
+
     const { result, stop } = run(app, () =>
       useBroadcast(
         room,
@@ -182,6 +201,7 @@ describe("useBroadcast", () => {
         { invalidate: ["customers"] },
       ),
     );
+
     expect(client.channel).not.toHaveBeenCalled();
     setAuth(signedIn(USER));
     await nextTick();
@@ -205,6 +225,7 @@ describe("useBroadcast", () => {
 
   it("reports invalid messages and passes self", async () => {
     const { browser, client, emit } = fakeBrowser(signedIn(USER));
+
     const strict: StandardSchemaV1<unknown, unknown> = {
       "~standard": {
         version: 1,
@@ -212,14 +233,18 @@ describe("useBroadcast", () => {
         validate: () => ({ issues: [{ message: "no" }] }),
       },
     };
+
     const checked = defineTopic("checked:{id}", {
       events: { created: strict },
     });
+
     const onInvalid = vi.fn();
     const app = withApp(browser);
+
     const { stop } = run(app, () =>
       useBroadcast(checked, { id: "c" }, {}, { self: true, onInvalid }),
     );
+
     expect(client.channel.mock.calls[0]![1]).toMatchObject({
       config: { broadcast: { self: true } },
     });
@@ -234,11 +259,13 @@ describe("useBroadcast", () => {
     const cache = cachedClient(["bs", "x", 1]);
     const app = withApp(browser, cache.queryClient);
     const plain = defineTopic("plain:{id}");
+
     const { stop } = run(app, () =>
       useBroadcast(plain, { id: "p" }, undefined, {
         invalidate: () => [["bs", "x"]],
       }),
     );
+
     emit("plain:p", "anything");
     await flush();
     expect(cache.invalidated(["bs", "x", 1])).toBe(true);
@@ -263,11 +290,13 @@ describe("useBroadcast", () => {
   it("follows a plain client's auth state without the plugin", async () => {
     const { client, emitAuth } = fakeBrowser(LOADING);
     const app = withApp(null);
+
     const { stop } = run(app, () =>
       useBroadcast(room, { roomId: "r" }, undefined, {
         client: client as never,
       }),
     );
+
     expect(client.channel).not.toHaveBeenCalled();
     emitAuth({ user: { id: USER }, access_token: "x" });
     await nextTick();
@@ -293,9 +322,11 @@ describe("useLiveQuery", () => {
     const cache = cachedClient(["bs", "customers"], ["bs", "organizations"]);
     const app = withApp(browser, cache.queryClient);
     const current = ref<typeof spec | null>(spec);
+
     const { result, stop } = run(app, () =>
       useLiveQuery(current, { debounceMs: 1 }),
     );
+
     setAuth(signedIn(USER, { app_metadata: { tenant_id: "org-1" } }));
     await nextTick();
     expect(client.channel.mock.calls.map(([topic]) => topic)).toEqual([
@@ -327,6 +358,7 @@ describe("useLiveCount", () => {
       AsyncResult.ok(4),
       AsyncResult.err(dbError("network", "offline")),
     ];
+
     const run$ = vi.fn(() => answers.shift() ?? AsyncResult.ok(0));
     const { browser, emit } = fakeBrowser(signedIn(USER), { $run: run$ });
     const app = withApp(browser);
@@ -344,6 +376,7 @@ describe("useLiveCount", () => {
     const seeded = run(app, () =>
       useLiveCount({ spec, count: 3 }, { debounceMs: 1 }),
     );
+
     await flush();
     expect(seeded.result.count).toBe(3);
     seeded.stop();
@@ -357,6 +390,7 @@ describe("usePresence", () => {
     const app = withApp(browser);
     const roomId = ref<string | null>("r1");
     const name = ref<string | null>("Ada");
+
     const { result, stop } = run(app, () =>
       usePresence(
         topic,
@@ -364,6 +398,7 @@ describe("usePresence", () => {
         { state: () => (name.value === null ? null : { name: name.value }) },
       ),
     );
+
     expect(joins).toHaveLength(0);
     expect(await result.track({ name: "x" })).toMatchObject({
       kind: "invalid_request",
@@ -398,18 +433,22 @@ describe("usePresence", () => {
 describe("useAction", () => {
   it("tracks pending inputs, data and errors", async () => {
     let fail = false;
+
     const action = vi.fn(
       async (input: { id: number }): Promise<ActionResultOf<number>> =>
         fail
           ? { ok: false, data: null, error: dbError("conflict", "taken") }
           : { ok: true, data: input.id * 2, error: null },
     );
+
     const onSuccess = vi.fn();
     const onError = vi.fn();
     const app = withApp(null);
+
     const { result, stop } = run(app, () =>
       useAction(action, { onSuccess, onError }),
     );
+
     const pending = result.run({ id: 2 });
     expect(result.pending).toBe(true);
     expect(result.pendingInput).toEqual({ id: 2 });

@@ -3,8 +3,11 @@ export {
   rpcTransport,
   sqlTransport,
 } from "../../core/block-transport.ts";
+
 export type { BlockTransport, RpcClient } from "../../core/block-transport.ts";
+
 export { createInbox } from "./inbox.ts";
+
 export type {
   ContactInput,
   ConversationFilter,
@@ -18,7 +21,9 @@ export type {
   StartConversationInput,
   TemplateInput,
 } from "./inbox.ts";
+
 export { INBOX_CHANNELS } from "./rows.ts";
+
 export type {
   AuthorType,
   BotMode,
@@ -47,6 +52,7 @@ export {
   createInboxController,
   createInboxWidgetController,
 } from "./client.ts";
+
 export type {
   ConversationActions,
   ConversationController,
@@ -62,6 +68,9 @@ export type {
   InboxWidgetControllerOptions,
   InboxWidgetSnapshot,
 } from "./client.ts";
+
 export { inboxBlock } from "./manifest.ts";
+
 export { inboxEvents } from "./events.ts";
+
 export type { InboxEvents } from "./events.ts";

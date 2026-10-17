@@ -100,7 +100,7 @@ The topic port defaults to `topicPort(bs.supabase)` from
 `better-supabase/realtime` when `bs.ports` has none. A port the platform lacks stays unset, and the controller works
 without it: `useCommandSearch` on a phone has no Cmd+K.
 
-```ts title="src/lib/supabase/native.ts"
+```ts title="src/lib/supabase/client.native.ts"
 import { createNativeClient, nativePorts } from "better-supabase/client/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Linking from "expo-linking";

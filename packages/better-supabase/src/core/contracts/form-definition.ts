@@ -107,7 +107,7 @@ export const FORM_MAX_LENGTH: {
   readonly url: number;
 } = {
   text: 500,
-  textarea: 10000,
+  textarea: 10_000,
   email: 320,
   url: 2000,
 };
@@ -207,12 +207,14 @@ const EMPTY_VALUES: readonly FormJson[] = [null, "", []];
 /** The schema a condition holds under, as an `if`. */
 export function conditionSchema(condition: FormCondition): FormJsonSchema {
   const { field } = condition;
+
   const value: FormJson =
     "equals" in condition
       ? { const: condition.equals }
       : "in" in condition
         ? { enum: [...condition.in] }
         : { not: { enum: [...EMPTY_VALUES] } };
+
   return { properties: { [field]: value }, required: [field] };
 }
 
@@ -228,19 +230,22 @@ const defined = (
 /** The schema of one field's answer. */
 export function fieldSchema(field: FormField): FormJsonSchema {
   const type = field.type;
+
   if (type === undefined) {
     throw new TypeError(
       `form field ${field.key} has no type: publish the version to resolve its customField`,
     );
   }
+
   const values = (field.options ?? []).map((option) => option.value);
   const annotations = defined({ title: field.label, description: field.help });
   const maxLength = (fallback: number): number => field.maxLength ?? fallback;
   // `required` only asks for the key, so an empty answer needs its own floor.
   const floor = field.required === true ? 1 : undefined;
+
   switch (type) {
     case "text":
-    case "textarea":
+    case "textarea": {
       return {
         type: "string",
         maxLength: maxLength(FORM_MAX_LENGTH[type]),
@@ -250,36 +255,52 @@ export function fieldSchema(field: FormField): FormJsonSchema {
         }),
         ...annotations,
       };
-    case "email":
+    }
+
+    case "email": {
       return {
         type: "string",
         format: "email",
         maxLength: FORM_MAX_LENGTH.email,
         ...annotations,
       };
-    case "url":
+    }
+
+    case "url": {
       return {
         type: "string",
         format: "uri",
         maxLength: FORM_MAX_LENGTH.url,
         ...annotations,
       };
+    }
+
     case "number":
-    case "integer":
+    case "integer": {
       return {
         type,
         ...defined({ minimum: field.min, maximum: field.max }),
         ...annotations,
       };
-    case "date":
+    }
+
+    case "date": {
       return { type: "string", format: "date", ...annotations };
-    case "bool":
+    }
+
+    case "bool": {
       return { type: "boolean", ...annotations };
-    case "consent":
+    }
+
+    case "consent": {
       return { type: "boolean", const: true, ...annotations };
-    case "option":
+    }
+
+    case "option": {
       return { type: "string", enum: values, ...annotations };
-    case "multi":
+    }
+
+    case "multi": {
       return {
         type: "array",
         items: { type: "string", enum: values },
@@ -287,8 +308,12 @@ export function fieldSchema(field: FormField): FormJsonSchema {
         ...defined({ minItems: field.min ?? floor, maxItems: field.max }),
         ...annotations,
       };
-    case "json":
+    }
+
+    case "json": {
       return { ...annotations };
+    }
+
     default: {
       const unknown: never = type;
       throw new TypeError(`unknown form field type ${String(unknown)}`);
@@ -306,17 +331,24 @@ export function formSchema(definition: FormDefinition): FormJsonSchema {
   const properties: Record<string, FormJson> = {};
   const required: string[] = [];
   const conditional: FormJson[] = [];
+
   for (const step of definition.steps) {
     for (const field of step.fields) {
       properties[field.key] = fieldSchema(field);
-      if (field.required !== true) continue;
+
+      if (field.required !== true) {
+        continue;
+      }
+
       const conditions = [step.showIf, field.showIf]
         .filter((condition) => condition !== undefined)
         .map(conditionSchema);
+
       if (conditions.length === 0) {
         required.push(field.key);
         continue;
       }
+
       conditional.push({
         if: conditions.length === 1 ? conditions[0]! : { allOf: conditions },
         // oxlint-disable-next-line unicorn/no-thenable -- the JSON Schema keyword; the schema is serialized, never awaited
@@ -324,6 +356,7 @@ export function formSchema(definition: FormDefinition): FormJsonSchema {
       });
     }
   }
+
   return {
     $schema: FORM_SCHEMA_DIALECT,
     type: "object",
@@ -369,6 +402,7 @@ export function formDefinitionProblems(
   const problems: string[] = [];
   const steps = new Set<string>();
   const fields = new Set<string>();
+
   const refers = (condition: FormCondition | undefined, where: string) => {
     if (condition !== undefined && !fields.has(condition.field)) {
       problems.push(
@@ -376,16 +410,23 @@ export function formDefinitionProblems(
       );
     }
   };
+
   for (const step of definition.steps) {
-    if (steps.has(step.key)) problems.push(`step ${step.key} is listed twice`);
+    if (steps.has(step.key)) {
+      problems.push(`step ${step.key} is listed twice`);
+    }
+
     steps.add(step.key);
     refers(step.showIf, `step ${step.key}`);
+
     for (const field of step.fields) {
       if (fields.has(field.key)) {
         problems.push(`field ${field.key} is listed twice`);
       }
+
       refers(field.showIf, `field ${field.key}`);
       fields.add(field.key);
+
       if (
         field.customField === undefined &&
         (field.label === undefined || field.type === undefined)
@@ -394,6 +435,7 @@ export function formDefinitionProblems(
           `field ${field.key} needs a label and a type, or a customField`,
         );
       }
+
       if (
         field.customField === undefined &&
         (field.type === "option" || field.type === "multi") &&
@@ -403,5 +445,6 @@ export function formDefinitionProblems(
       }
     }
   }
+
   return problems;
 }

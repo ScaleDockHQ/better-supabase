@@ -42,10 +42,12 @@ describe("cloudEvents", () => {
     const one = await encoder.encode([event()], target);
     expect(one.headers["content-type"]).toBe("application/cloudevents+json");
     expect(JSON.parse(one.body)).toMatchObject({ id: "del-1" });
+
     const many = await encoder.encode([event(), event({ id: "del-2" })], {
       ...target,
       batch: true,
     });
+
     expect(many.headers["content-type"]).toBe(
       "application/cloudevents-batch+json",
     );
@@ -60,7 +62,9 @@ describe("otlpLogs", () => {
       resource: { "deployment.environment.name": "production" },
       severity: (e) => (e.type === "invoice.failed" ? 17 : 9),
     });
+
     expect(encoder.signed).toBe(false);
+
     const encoded = await encoder.encode(
       [
         event(),
@@ -74,6 +78,7 @@ describe("otlpLogs", () => {
       ],
       target,
     );
+
     expect(encoded.headers["content-type"]).toBe("application/json");
     const request = JSON.parse(encoded.body);
     const [resourceLogs] = request.resourceLogs;
@@ -124,8 +129,10 @@ describe("otlpLogs", () => {
       [event({ data: "plain" }), event({ data: Symbol.for("x") })],
       target,
     );
+
     const records = JSON.parse(encoded.body).resourceLogs[0].scopeLogs[0]
       .logRecords;
+
     expect(records[0].body).toEqual({ stringValue: "plain" });
     expect(records[0].severityText).toBe("TRACE");
     expect(records[1].body).toEqual({ stringValue: "Symbol(x)" });
@@ -139,8 +146,10 @@ describe("otlpLogs", () => {
 
   it("retries only 429, 502, 503 and 504 and reports a partial success", () => {
     const encoder = otlpLogs();
+
     const classify = (response: WebhookResponse) =>
       encoder.classify?.(response);
+
     expect(classify({ status: 503, body: "" })).toEqual({
       outcome: "retry",
       error: "HTTP 503",
@@ -184,10 +193,12 @@ describe("splunkHec", () => {
       source: "app",
       host: "web-1",
     });
+
     expect(encoder.signed).toBe(false);
     expect(encoder.authorize?.(token)).toEqual({
       authorization: "Splunk tok-1",
     });
+
     const encoded = await encoder.encode(
       [
         event(),
@@ -195,9 +206,11 @@ describe("splunkHec", () => {
       ],
       target,
     );
+
     const [first, second] = encoded.body
       .split("\n")
       .map((line) => JSON.parse(line));
+
     expect(first).toEqual({
       time: 1_791_021_600,
       host: "web-1",
@@ -217,8 +230,10 @@ describe("splunkHec", () => {
 
   it("reads HEC codes, inside a 200 too", () => {
     const encoder = splunkHec();
+
     const classify = (response: WebhookResponse) =>
       encoder.classify?.(response);
+
     expect(
       classify({ status: 200, body: '{"text":"Success","code":0}' }),
     ).toEqual({
@@ -240,10 +255,12 @@ describe("securityEvents", () => {
   it("sends data.set as an RFC 8935 body, unsigned", async () => {
     const encoder = securityEvents();
     expect(encoder).toMatchObject({ name: "set", signed: false });
+
     const encoded = await encoder.encode(
       [event({ type: "ssf.set", data: { set: "a.b.c" } })],
       target,
     );
+
     expect(encoded).toEqual({
       body: "a.b.c",
       headers: {
@@ -256,8 +273,10 @@ describe("securityEvents", () => {
 
   it("retries invalid_key and gives up on other RFC 8935 errors", () => {
     const encoder = securityEvents();
+
     const classify = (response: WebhookResponse) =>
       encoder.classify?.(response);
+
     expect(classify({ status: 202, body: "" })).toEqual({
       outcome: "succeeded",
     });
@@ -286,6 +305,7 @@ describe("encoderRegistry", () => {
       signed: true,
       encode: () => ({ body: "", headers: {} }),
     };
+
     const registry = encoderRegistry([custom]);
     expect([...registry.keys()]).toEqual([
       "cloudevents",

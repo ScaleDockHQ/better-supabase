@@ -13,18 +13,22 @@ function service(body: Json = []) {
       Response.json(body, { headers: { "content-range": "0-0/1" } }),
     ),
   );
+
   const client = createClient("https://crm.test", "sb_publishable_test", {
     global: { fetch },
   });
+
   const requests = () =>
     fetch.mock.calls.map(([input, init]) => {
       const url = new URL(String(input));
+
       return {
         method: init?.method ?? "GET",
         path: url.pathname,
         params: Object.fromEntries(url.searchParams),
       };
     });
+
   return {
     customers: createCustomersService(defineSupabase(schema).connect(client)),
     requests,
@@ -68,7 +72,9 @@ describe("CRM customers on better-supabase", () => {
     type Page = Awaited<
       ReturnType<ReturnType<CustomersService["listCustomers"]>["orThrow"]>
     >;
+
     type Row = Page["items"][number];
+
     expectTypeOf<Row["id"]>().toEqualTypeOf<number>();
     expectTypeOf<Row["status"]>().toEqualTypeOf<
       "prospect" | "active" | "archived"
@@ -100,12 +106,15 @@ describe("CRM customers on better-supabase", () => {
         ),
       ),
     );
+
     const client = createClient("https://crm.test", "sb_publishable_test", {
       global: { fetch },
     });
+
     const customers = createCustomersService(
       defineSupabase(schema).connect(client),
     );
+
     const result = await customers.deleteCustomer(1);
     expect(result).toMatchObject({
       ok: false,

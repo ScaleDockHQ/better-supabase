@@ -37,13 +37,16 @@ export const introspectCommand: AnyCommand = defineCliCommand({
   args: ARGS,
   run: async (args, { config, env, io, signal }) => {
     const format = args.format ?? "snapshot";
+
     if (format !== "snapshot" && format !== "generator-metadata") {
       return {
         code: 2,
         error: '--format must be "snapshot" or "generator-metadata"',
       };
     }
+
     const { snapshotPath: _ignored, ...source } = await sourceArgs(args, io);
+
     const snapshot = await withSpinner(io.prompts, "Reading the schema", () =>
       loadSnapshot(config, env, {
         ...source,
@@ -51,18 +54,23 @@ export const introspectCommand: AnyCommand = defineCliCommand({
         ...(signal ? { signal } : {}),
       }),
     );
+
     const out =
       args.out ??
       (format === "snapshot"
         ? (config.source.snapshot ?? "supabase/snapshot.json")
         : "supabase/generator-metadata.json");
+
     const contents =
       format === "snapshot"
         ? serializeSnapshot(snapshot)
         : `${await serializeGenerator(restrictSchemas(snapshot.generator, config.schemas))}\n`;
+
     const state = await fileState(config.root, out, contents);
+
     if (args.check === true) {
       const { file, current, upToDate } = state;
+
       return upToDate
         ? {
             code: 0,
@@ -76,13 +84,16 @@ export const introspectCommand: AnyCommand = defineCliCommand({
             data: { file, upToDate: false },
           };
     }
+
     const tables = snapshot.extras.tables.length;
+
     const { wrote, line } = await writeLine(
       state.path,
       contents,
       state.file,
       ` (${tables} tables).`,
     );
+
     return {
       code: 0,
       output: line,

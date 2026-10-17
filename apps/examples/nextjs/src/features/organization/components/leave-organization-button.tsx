@@ -26,6 +26,7 @@ export function LeaveOrganizationButton({ name }: { name: string }) {
   const errorMessage = useErrorMessage();
   const refreshSession = useRefreshSession();
   const [pending, startTransition] = useTransition();
+
   return (
     <AlertDialog>
       <AlertDialogTrigger render={<Button variant="outline" />}>
@@ -48,10 +49,13 @@ export function LeaveOrganizationButton({ name }: { name: string }) {
             onClick={() => {
               startTransition(async () => {
                 const result = await leaveOrganization({});
+
                 if (!result.ok) {
                   toast.error(errorMessage(result.error));
+
                   return;
                 }
+
                 await refreshSession("/");
               });
             }}

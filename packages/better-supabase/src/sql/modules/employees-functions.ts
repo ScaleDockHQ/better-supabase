@@ -32,10 +32,12 @@ interface Field {
 /** Every field `create_employee` and `update_employees` write, by its camelCase name. */
 function fields(ctx: ModuleContext): readonly Field[] {
   const text = (v: string): string => `nullif(trim(${v} #>> '{}'), '')`;
+
   const cast =
     (type: string) =>
     (v: string): string =>
       `(${v} #>> '{}')::${type}`;
+
   const all: readonly Field[] = [
     { field: "name", column: "name", value: (v) => `trim(${v} #>> '{}')` },
     { field: "email", column: "email", value: text },
@@ -47,6 +49,7 @@ function fields(ctx: ModuleContext): readonly Field[] {
     { field: "startDate", column: "startDate", value: cast("date") },
     { field: "endDate", column: "endDate", value: cast("date") },
   ];
+
   return all.filter((field) => ctx.has("employees", field.column));
 }
 
@@ -59,8 +62,10 @@ export function employeeFunctions(
   const has = (column: string): boolean => ctx.has("employees", column);
   const table = t("employees");
   const touched = has("updatedAt") ? `, ${e("updatedAt")} = now()` : "";
+
   const editable = (alias: string): string =>
     `(${n.service} or ${ctx.scope.can(`${alias}.${e("tenant")}`, n.write)})`;
+
   // True when the caller is the employee `target` or one of its managers.
   const inMyTree = (target: string): string => `exists (
     with recursive up (id, manager) as (
@@ -69,8 +74,10 @@ export function employeeFunctions(
       select u.${e("id")}, u.${e("manager")} from ${table} u join up on u.${e("id")} = up.manager
     )
     select 1 from up join ${table} me on me.${e("id")} = up.id where me.${e("user")} = auth.uid())`;
+
   const payload = (alias: string, extra: string): string =>
     `jsonb_build_object('organizationId', ${alias}.${e("tenant")}, 'employeeId', ${alias}.${e("id")}, 'subjectType', 'employee', 'subjectId', ${alias}.${e("id")}::text, 'name', ${alias}.${e("name")}${extra})`;
+
   const record = (type: string, alias: string, extra = ""): string =>
     ctx.record({
       type,
@@ -79,13 +86,16 @@ export function employeeFunctions(
       tenant: `${alias}.${e("tenant")}::text`,
       audit: false,
     });
+
   const managerChanged = (alias: string, from: string): string =>
     record(
       "employee.manager_changed",
       alias,
       `, 'fromManagerId', ${from}, 'toManagerId', ${alias}.${e("manager")}`,
     );
+
   const memberships = ctx.of("tenant");
+
   const member = (tenant: string, user: string): string => `
   if ${user} is not null and not exists (
     select 1 from ${memberships.table("memberships")} m
@@ -93,6 +103,7 @@ export function employeeFunctions(
   ) then
     ${fail("EMPLOYEE_USER_NOT_MEMBER", "the user is not a member of this organization", "22023")}
   end if;`;
+
   const typeCheck = (alias: string): string =>
     has("employmentType")
       ? `
@@ -100,22 +111,29 @@ export function employeeFunctions(
     ${fail("EMPLOYEE_TYPE_INVALID", "unknown employment type", "22023")}
   end if;`
       : "";
+
   const origin = has("originType") && has("originId");
+
   const privateTable =
     ctx.hasTable("privateDetails") && ctx.has("privateDetails", "offboardedAt")
       ? t("privateDetails")
       : undefined;
+
   const offboardedAt = (value: string, id: string): string =>
     privateTable === undefined
       ? ""
       : `
   update ${privateTable} x set ${n.c("privateDetails", "offboardedAt")} = ${value}
   where x.${n.c("privateDetails", "employee")} = ${id};`;
+
   const list = fields(ctx);
+
   const attr = (field: Field): string =>
     field.value(`create_employee.attrs -> ${sqlString(field.field)}`);
+
   const extraValue = (attrs: string, ident: string): string =>
     `(jsonb_populate_record(null::${table}, ${attrs})).${ident}`;
+
   const insertColumns = [
     e("tenant"),
     ...list.map((field) => e(field.column)),
@@ -124,6 +142,7 @@ export function employeeFunctions(
     ...(has("createdBy") ? [e("createdBy")] : []),
     ...n.extras.map((extra) => extra.ident),
   ];
+
   const insertValues = [
     "create_employee.tenant",
     ...list.map((field) =>
@@ -143,6 +162,7 @@ export function employeeFunctions(
       extraValue("create_employee.attrs", extra.ident),
     ),
   ];
+
   const existing = origin
     ? `
   if create_employee.attrs -> 'origin' ->> 'id' is not null then
@@ -155,15 +175,18 @@ export function employeeFunctions(
     end if;
   end if;`
     : "";
+
   const link = origin
     ? `
   if v_row.${e("originId")} is not null then
     ${createdFromLink(ctx, { tenant: `v_row.${e("tenant")}`, sourceType: "'employee'", sourceId: `v_row.${e("id")}::text`, originType: `v_row.${e("originType")}`, originId: `v_row.${e("originId")}` })}
   end if;`
     : "";
+
   const status = has("startDate")
     ? `coalesce(create_employee.attrs ->> 'status', case when (create_employee.attrs ->> 'startDate')::date > current_date then 'preboarding' else 'active' end)`
     : `coalesce(create_employee.attrs ->> 'status', 'active')`;
+
   const writes = [
     ...list.map(
       (field) => `      when ${sqlString(field.field)} then
@@ -174,10 +197,12 @@ export function employeeFunctions(
         update ${table} x set ${extra.ident} = ${extraValue(`jsonb_build_object(${sqlString(extra.name)}, v_change -> 'value')`, extra.ident)}${touched} where x.${e("id")} = v_id returning * into v_row;`,
     ),
   ].join("\n");
+
   const rehire = [
     ...(has("endDate") ? [`${e("endDate")} = null`] : []),
     ...(has("offboardReason") ? [`${e("offboardReason")} = null`] : []),
   ];
+
   const offboardSet = [
     `${e("status")} = 'offboarded'`,
     ...(has("endDate")
@@ -187,8 +212,10 @@ export function employeeFunctions(
       ? [`${e("offboardReason")} = nullif(trim(offboard_employee.reason), '')`]
       : []),
   ].join(", ");
+
   const rowWith = (alias: string, depth: string): string =>
     `to_jsonb(${alias}) || jsonb_build_object('depth', ${depth}, 'direct_reports', (select count(*) from ${table} r where r.${e("manager")} = ${alias}.${e("id")} and r.${e("status")} <> 'offboarded'))`;
+
   return `
 -- Creates an employee. attrs: name (required), email, userId, jobTitle,
 -- teamId, managerId, employmentType, status, startDate, endDate, origin
@@ -449,10 +476,12 @@ function fromApplication(ctx: ModuleContext, n: EmployeeNames): string {
   ) {
     return "";
   }
+
   const hiring = ctx.of("hiring");
   const a = (column: string): string => hiring.col("applications", column);
   const j = (column: string): string => hiring.col("jobs", column);
   const e = (column: string): string => n.c("employees", column);
+
   return `
 -- The employee for a hired application, in preboarding: the name comes from
 -- the candidate's record in config.subjects, and the job title, team and

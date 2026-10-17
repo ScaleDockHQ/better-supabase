@@ -16,10 +16,14 @@ export const suppressing = (ctx: ModuleContext): boolean =>
 
 /** The table, its RLS (users read their own rows) and the service-only grants. */
 export function suppressionsTable(ctx: ModuleContext, n: NotifyNames): string {
-  if (!ctx.manages || !suppressing(ctx)) return "";
+  if (!ctx.manages || !suppressing(ctx)) {
+    return "";
+  }
+
   const t = n.table("suppressions");
   const c = (logical: string) => n.col("suppressions", logical);
   const policy = sqlIdent("bs_notification_suppressions_read");
+
   return `
 create table if not exists ${t} (
   ${c("id")} uuid primary key default gen_random_uuid(),
@@ -47,8 +51,12 @@ export function claimSuppression(
   ctx: ModuleContext,
   n: NotifyNames,
 ): { readonly join: string; readonly field: string } {
-  if (!suppressing(ctx)) return { join: "", field: "" };
+  if (!suppressing(ctx)) {
+    return { join: "", field: "" };
+  }
+
   const c = (logical: string) => n.col("suppressions", logical);
+
   return {
     join: `
   left join ${n.table("suppressions")} s on s.${c("channel")} = l.${n.col("deliveries", "channel")} and s.${c("address")} = lower(u.email)`,
@@ -66,12 +74,16 @@ export function suppressionFunctions(
   ctx: ModuleContext,
   n: NotifyNames,
 ): string {
-  if (!suppressing(ctx)) return "";
+  if (!suppressing(ctx)) {
+    return "";
+  }
+
   const t = n.table("suppressions");
   const c = (logical: string) => n.col("suppressions", logical);
   const suppress = ctx.fn("suppress_notification_address");
   const unsuppress = ctx.fn("unsuppress_notification_address");
   const list = ctx.fn("list_notification_suppressions");
+
   return `
 -- Stops a channel from sending to an address after a bounce, a complaint
 -- or by hand. The first suppression wins; returns whether it is new.
@@ -151,7 +163,10 @@ grant execute on function ${list}(integer) to authenticated, service_role;`;
 export function suppressionContract(
   ctx: ModuleContext,
 ): readonly ModuleContractFunction[] {
-  if (!suppressing(ctx)) return [];
+  if (!suppressing(ctx)) {
+    return [];
+  }
+
   return [
     {
       name: "suppress_notification_address",

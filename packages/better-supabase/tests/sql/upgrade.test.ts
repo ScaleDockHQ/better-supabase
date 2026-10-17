@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import type { SqlModule } from "../../src/sql/module-types.ts";
+
 import { createModuleContext } from "../../src/sql/context.ts";
-import { type SqlModule } from "../../src/sql/module-types.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 import {
   deprecationWrappers,
@@ -56,6 +57,7 @@ const widget: SqlModule = {
     },
   ],
 };
+
 const modules = { widget };
 
 describe("upgradePlan", () => {
@@ -85,6 +87,7 @@ describe("upgradePlan", () => {
       { modules: { widget: { schema: "app" } } },
       modules,
     );
+
     expect(plan!.steps.map((step) => step.sql)).toEqual([
       'alter table "app".widgets rename column count to total;',
     ]);
@@ -101,17 +104,20 @@ describe("upgradePlan", () => {
         },
       ],
     };
+
     const accessProvider = {
       name: "stub",
       scope: "organization",
       idType: "bigint",
       functions: { idsWith: "authz.ids({permission})", isPlatform: "false" },
     } as const;
+
     const [plan] = upgradePlan(
       [{ module: "widget", version: 3 }],
       { accessProvider },
       { widget: typed },
     );
+
     expect(plan!.steps[0]!.sql).toBe(
       "alter table w alter column t type bigint;",
     );
@@ -189,10 +195,13 @@ describe("module upgrade steps", () => {
     Object.values(SQL_MODULES).filter((module) => (module.version ?? 1) > 1),
   )("lists a described step for each version $name moved past", (module) => {
     const to = module.version ?? 1;
+
     const [plan] = upgradePlan([{ module: module.name, version: 1 }], {
       modules: {},
     });
+
     expect(plan).toMatchObject({ from: 1, to });
+
     for (const step of plan!.steps) {
       expect(step.from).toBeLessThan(to);
       expect(step.description).not.toBe("");

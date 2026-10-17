@@ -17,8 +17,15 @@ export function FeatureGate({
   readonly children: ReactNode;
 }) {
   const { allowed } = useFeatureGate(feature);
-  if (allowed === undefined) return <ActivityIndicator />;
-  if (allowed) return children;
+
+  if (allowed === undefined) {
+    return <ActivityIndicator />;
+  }
+
+  if (allowed) {
+    return children;
+  }
+
   return (
     <View style={{ padding: 12, borderWidth: 1, borderRadius: 12 }}>
       <Text style={{ fontWeight: "600" }}>Not in your plan</Text>

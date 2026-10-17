@@ -71,10 +71,12 @@ async function actions(s: BlockSession): Promise<string> {
   await s.value("better_supabase.reset_organization_setting($1, 'theme')", [
     organization,
   ]);
+
   const agent = await s.value<{ id: string }>(
     "better_supabase.save_agent($1, null, $2)",
     [organization, { slug: `agent-${suffix}`, name: "Agent" }],
   );
+
   await s.value("better_supabase.publish_agent($1, 'organization')", [
     agent.id,
   ]);
@@ -105,48 +107,63 @@ async function actions(s: BlockSession): Promise<string> {
   await s.value("better_supabase.credential_delete('vault', $1)", [
     `acme-${suffix}`,
   ]);
+
   const server = await s.value<{ id: string }>(
     "better_supabase.save_connector_server($1, null, $2)",
     [organization, { name: "Docs", url: "https://mcp.example.com/mcp" }],
   );
+
   await s.value("better_supabase.delete_connector_server($1)", [server.id]);
+
   const key = await s.value<{ key: { id: string } }>(
     "better_supabase.save_ai_provider_key($1, 'openai', $2)",
     [organization, { provider: "vault", name: `openai-${suffix}` }],
   );
+
   await s.value("better_supabase.delete_ai_provider_key($1)", [key.key.id]);
   await s.value("better_supabase.set_ai_tool_policy($1, 'send_email', 'ask')", [
     organization,
   ]);
+
   const hook = await s.value<{ id: string }>(
     "better_supabase.create_incoming_webhook($1, 'Form')",
     [organization],
   );
+
   await s.value("better_supabase.delete_incoming_webhook($1)", [hook.id]);
+
   const [endpoint] = await s.rows<{ id: string }>(
     `insert into better_supabase.webhook_endpoints (organization_id, name, url, event_types)
      values ($1, 'Hook', 'https://hooks.example.com', '{*}') returning id`,
     [organization],
   );
+
   await s.value("better_supabase.rotate_webhook_secret($1)", [endpoint!.id]);
+
   const announcement = await s.value<{ id: string }>(
     'better_supabase.save_announcement(null, \'{"title": "Hi", "body": "Hello"}\')',
   );
+
   await s.value("better_supabase.delete_announcement($1)", [announcement.id]);
+
   const apiKey = await s.value<{ id: string }>(
     "better_supabase.create_api_key('CI', $1, encode(sha256('secret'::bytea), 'hex'), $2)",
     [crypto.randomUUID().replaceAll("-", "").slice(0, 16), organization],
   );
+
   await s.value("better_supabase.revoke_api_key($1)", [apiKey.id]);
   await s.value("better_supabase.join_waitlist($1)", [
     `waiting-${suffix}@example.test`,
   ]);
+
   const entry = await s.value<string>(
     "(select id from better_supabase.waitlist_entries where email = $1)",
     [`waiting-${suffix}@example.test`],
   );
+
   await s.value("better_supabase.decide_waitlist_entry($1, true)", [entry]);
   await s.value("better_supabase.create_invite_code($1)", [`CODE-${suffix}`]);
+
   return organization;
 }
 
@@ -156,11 +173,13 @@ describe.skipIf(!live)("audited module actions", () => {
 
   it("records each action once in the audit log and once in the outbox", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install([...ACTION_MODULES, "audit", "outbox"]);
       const started = await s.value<string>("now()::text");
       await actions(s);
       await s.service();
+
       const audited = await s.rows<{
         type: string;
         category: string;
@@ -172,17 +191,21 @@ describe.skipIf(!live)("audited module actions", () => {
          group by event_type, category`,
         [started, RECORDED],
       );
+
       const emitted = await s.rows<{ type: string; count: string }>(
         `select type, count(*)::text as count from better_supabase.outbox_events
          where created_at >= $1::timestamptz and type = any ($2)
          group by type`,
         [started, RECORDED],
       );
+
       const once = (rows: readonly { type: string; count: string }[]) =>
         Object.fromEntries(rows.map((row) => [row.type, row.count]));
+
       const expected = Object.fromEntries(RECORDED.map((type) => [type, "1"]));
       expect(once(audited)).toEqual(expected);
       expect(once(emitted)).toEqual(expected);
+
       for (const row of audited) {
         expect(AUDIT_CATEGORIES).toContain(row.category);
       }
@@ -193,6 +216,7 @@ describe.skipIf(!live)("audited module actions", () => {
 
   it("runs the same actions without the audit and outbox modules", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(ACTION_MODULES);
       const started = await s.value<string>("now()::text");

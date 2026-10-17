@@ -98,10 +98,13 @@ export interface Tags<F extends object = Record<never, never>> {
 
 function tagOf(value: unknown): Tag {
   const row = recordOf(value, "tag");
+
   const optional = (key: "rank" | "kind" | "color" | "description") => {
     const found = optionalText(row[key]);
+
     return found === undefined ? {} : { [key]: found };
   };
+
   return {
     id: textOf(row["id"]),
     name: optionalText(row["name"]) ?? "",
@@ -122,9 +125,11 @@ export function createTags<S extends StandardSchemaV1 | undefined = undefined>(
   options: TagsOptions<S>,
 ): Tags<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const fields: BlockFields<F> = blockFields(options.fields, "tag fields");
+
   const client: Tags<F> = {
     create: (organizationId, kind, name, color, description, extra) =>
       fields.args(extra).andThen((checked) =>
@@ -153,7 +158,11 @@ export function createTags<S extends StandardSchemaV1 | undefined = undefined>(
         ),
     reorder: (id, neighbors) => {
       const key = rankBetweenResult(neighbors);
-      if (!key.ok) return AsyncResult.err(key.error);
+
+      if (!key.ok) {
+        return AsyncResult.err(key.error);
+      }
+
       return call("rank_tag", { tag_id: id, rank: key.data }, () => key.data);
     },
     delete: (id) =>
@@ -197,6 +206,7 @@ export function createTags<S extends StandardSchemaV1 | undefined = undefined>(
         tagsOf,
       ).andThen(fields.rows),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "tags",
     ...(options.logger ? { logger: options.logger } : {}),

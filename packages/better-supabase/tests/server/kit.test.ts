@@ -105,6 +105,7 @@ describe("runAction", () => {
     const user = await authAs({ role: "member" });
     const form = new FormData();
     form.append("title", "Hello");
+
     const result = await runAction(
       user,
       { input: Title },
@@ -116,6 +117,7 @@ describe("runAction", () => {
           sub: caller.session.kind === "user" ? caller.session.user.id : null,
         }),
     );
+
     expect(result).toEqual({
       ok: true,
       data: { parsed: { title: "Hello" }, sub: USER },
@@ -125,6 +127,7 @@ describe("runAction", () => {
 
   it("returns validation, guard and body errors as data", async () => {
     const user = await authAs({ role: "member" });
+
     const invalid = await runAction(
       user,
       { input: Title },
@@ -132,6 +135,7 @@ describe("runAction", () => {
       undefined,
       () => 1,
     );
+
     expect(invalid).toMatchObject({ ok: false, error: { kind: "validation" } });
 
     const anonymous = await runAction(
@@ -141,6 +145,7 @@ describe("runAction", () => {
       undefined,
       () => 1,
     );
+
     expect(anonymous).toMatchObject({
       ok: false,
       error: { kind: "unauthorized" },
@@ -149,11 +154,13 @@ describe("runAction", () => {
     const failed = await runAction(user, {}, {}, undefined, () =>
       err(dbError("conflict", "Taken")),
     );
+
     expect(failed).toMatchObject({ ok: false, error: { kind: "conflict" } });
 
     const thrown = await runAction(user, {}, {}, undefined, () => {
       throw new DbException(dbError("not_found", "Gone"));
     });
+
     expect(thrown).toMatchObject({ ok: false, error: { kind: "not_found" } });
   });
 
@@ -170,18 +177,22 @@ describe("runAction", () => {
 describe("permission", () => {
   it("asks the authorizer after roles and before authorize", async () => {
     const requests: AuthorizationRequest[] = [];
+
     const authorizer = defineAuthorizer({
       name: "test",
       key: (ref: string) => ref,
       evaluate: (request) => {
         requests.push(request);
+
         return request.action === "posts.create"
           ? { outcome: "granted" }
           : { outcome: "denied" };
       },
     });
+
     const user = await authAs({ role: "member" });
     let authorized = 0;
+
     const granted = await runAction(
       user,
       {
@@ -189,6 +200,7 @@ describe("permission", () => {
         permission: "posts.create",
         authorize: () => {
           authorized += 1;
+
           return true;
         },
       },
@@ -197,6 +209,7 @@ describe("permission", () => {
       () => ok("done"),
       authorizer,
     );
+
     expect(granted).toMatchObject({ ok: true, data: "done" });
     expect(authorized).toBe(1);
     expect(requests[0]).toMatchObject({
@@ -212,17 +225,20 @@ describe("permission", () => {
       undefined,
       authorizer,
     );
+
     expect(denied).toMatchObject({
       kind: "forbidden",
       code: "PERMISSION_DENIED",
     });
     expect(requests[1]?.resource).toEqual({ type: "route" });
+
     const roles = await requireCaller(
       user,
       { roles: ["admin"], permission: "posts.create" },
       undefined,
       authorizer,
     );
+
     expect(roles).toMatchObject({ code: "MISSING_ROLE" });
     expect(requests).toHaveLength(2);
   });
@@ -233,6 +249,7 @@ describe("permission", () => {
       { permission: "posts.create" },
       undefined,
     );
+
     expect(caller).toMatchObject({
       kind: "forbidden",
       code: "PERMISSION_DENIED",

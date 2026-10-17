@@ -8,20 +8,26 @@ import { join } from "node:path";
 import { cwd } from "node:process";
 
 const root = cwd();
-const read = (path: string): string => readFileSync(join(root, path), "utf8");
+const read = (path: string): string => readFileSync(join(root, path), "utf-8");
 
 const library = (await getPackages(root)).packages.find(
   (candidate) => candidate.packageJson.name === "better-supabase",
 );
-if (library === undefined)
+
+if (library === undefined) {
   throw new Error("sync-versions: no better-supabase package in the workspace");
+}
+
 const { version } = library.packageJson;
 
 const MANIFEST_VERSION = /("version":\s*")[^"]+(")/g;
 const constant = (): string => `export const VERSION = "${version}";\n`;
+
 const manifestVersion = (source: string): string =>
   source.replace(MANIFEST_VERSION, `$1${version}$2`);
+
 const REGISTRY_RANGE = /("better-supabase@\^)[^"]+(")/g;
+
 const registryRange = (source: string): string =>
   source.replace(REGISTRY_RANGE, `$1${version}$2`);
 
@@ -36,10 +42,15 @@ const files = {
 } satisfies Record<string, (source: string) => string>;
 
 const written: string[] = [];
+
 for (const [path, update] of Object.entries(files)) {
   const current = read(path);
   const next = update(current);
-  if (next === current) continue;
+
+  if (next === current) {
+    continue;
+  }
+
   writeFileSync(join(root, path), next);
   written.push(path);
 }

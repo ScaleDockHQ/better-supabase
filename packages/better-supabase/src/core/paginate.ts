@@ -8,24 +8,34 @@ export function pageWindow(
     if (args["page"] !== undefined || args["size"] !== undefined) {
       return { invalid: 'Pass "offset" and "limit" or "page" and "size"' };
     }
+
     const limit = Number(args["limit"]);
+
     if (!Number.isInteger(limit) || limit < 1) {
       return { invalid: '"limit" must be a positive integer' };
     }
+
     const offset = Number(args["offset"]);
+
     if (!Number.isInteger(offset) || offset < 0) {
       return { invalid: '"offset" must be a non-negative integer' };
     }
+
     return { size: limit, offset };
   }
+
   const size = Number(args["size"]);
+
   if (!Number.isInteger(size) || size < 1) {
     return { invalid: '"size" must be a positive integer' };
   }
+
   const number = args["page"] === undefined ? 1 : Number(args["page"]);
+
   if (!Number.isInteger(number) || number < 1) {
     return { invalid: '"page" must be a positive integer' };
   }
+
   return { size, offset: (number - 1) * size };
 }
 
@@ -60,8 +70,12 @@ export function offsetEnvelope(
 /** A copy of the row without the given keys. */
 export function strip(row: Row, keys: readonly string[]): Row {
   const copy: Row = {};
+
   for (const key in row) {
-    if (!keys.includes(key) && Object.hasOwn(row, key)) copy[key] = row[key];
+    if (!keys.includes(key) && Object.hasOwn(row, key)) {
+      copy[key] = row[key];
+    }
   }
+
   return copy;
 }

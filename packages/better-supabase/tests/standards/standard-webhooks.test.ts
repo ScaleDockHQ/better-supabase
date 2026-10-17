@@ -18,11 +18,13 @@ const TIMESTAMP = 1_614_265_330;
 const BODY = '{"test": 2432232314}';
 const SIGNATURE = "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE=";
 const now = () => Temporal.Instant.fromEpochMilliseconds(TIMESTAMP * 1000);
+
 const headers = (signature = SIGNATURE, timestamp = String(TIMESTAMP)) => ({
   "webhook-id": ID,
   "webhook-timestamp": timestamp,
   "webhook-signature": signature,
 });
+
 const verify = (
   input: Parameters<typeof verifyWebhook>[0],
   secret: string | string[] = SECRET,
@@ -35,13 +37,16 @@ describe(`Standard Webhooks ${SPEC_PINS.standardWebhooks}`, () => {
       body: BODY,
       timestamp: Temporal.Instant.fromEpochMilliseconds(TIMESTAMP * 1000),
     });
+
     expect(signed).toMatchObject(headers());
+
     const independent = createHmac(
       "sha256",
       Buffer.from(SECRET.slice("whsec_".length), "base64"),
     )
       .update(`${ID}.${TIMESTAMP}.${BODY}`)
       .digest("base64");
+
     expect(signed["webhook-signature"]).toBe(`v1,${independent}`);
   });
 
@@ -73,7 +78,7 @@ describe(`Standard Webhooks ${SPEC_PINS.standardWebhooks}`, () => {
   });
 
   it("supports key rotation with several secrets", async () => {
-    const other = "whsec_" + btoa("a-different-secret-value");
+    const other = `whsec_${btoa("a-different-secret-value")}`;
     expect(
       (await verify({ headers: headers(), body: BODY }, [other, SECRET])).ok,
     ).toBe(true);
@@ -90,6 +95,7 @@ describe(`Standard Webhooks ${SPEC_PINS.standardWebhooks}`, () => {
           body: BODY,
         })
       ).error?.code;
+
     expect(await at(-301)).toBe("WEBHOOK_TIMESTAMP_TOO_OLD");
     expect(await at(301)).toBe("WEBHOOK_TIMESTAMP_TOO_NEW");
     expect(await at(Number.NaN)).toBeDefined();
@@ -124,6 +130,7 @@ describe(`Standard Webhooks ${SPEC_PINS.standardWebhooks}`, () => {
       }),
       body: BODY,
     });
+
     expect(result.ok).toBe(true);
   });
 
@@ -140,11 +147,13 @@ describe(`Standard Webhooks ${SPEC_PINS.standardWebhooks}`, () => {
       const at = Temporal.Instant.fromEpochMilliseconds(
         (TIMESTAMP + offset) * 1000,
       );
+
       const signed = await signWebhook(SECRET, {
         id: ID,
         body: BODY,
         timestamp: at,
       });
+
       expect((await verify({ headers: signed, body: BODY })).ok).toBe(true);
     }
   });
@@ -169,28 +178,38 @@ describe(`Standard Webhooks ${SPEC_PINS.standardWebhooks}`, () => {
   });
 
   it("signs with every live secret in one header while rotating", async () => {
-    const next = "whsec_" + btoa("the-next-secret-of-32-bytes-long");
+    const next = `whsec_${btoa("the-next-secret-of-32-bytes-long")}`;
+
     const signed = await standardWebhooks().sign({
       id: ID,
       body: BODY,
       timestamp: now(),
       secrets: [next, SECRET],
     });
+
     expect(signed["webhook-signature"]!.split(" ")).toHaveLength(2);
     expect(signed["webhook-signature"]).toContain(SIGNATURE);
-    for (const secret of [next, SECRET])
+
+    for (const secret of [next, SECRET]) {
       expect((await verify({ headers: signed, body: BODY }, secret)).ok).toBe(
         true,
       );
+    }
   });
 
   it("refuses a replayed webhook-id once seen recorded it", async () => {
     const ids = new Map<string, Temporal.Instant>();
+
     const seen = (id: string, until: Temporal.Instant) => {
-      if (ids.has(id)) return true;
+      if (ids.has(id)) {
+        return true;
+      }
+
       ids.set(id, until);
+
       return false;
     };
+
     const input = { headers: headers(), body: BODY };
     expect((await verifyWebhook(input, SECRET, { now, seen })).ok).toBe(true);
     expect(ids.get(ID)?.epochMilliseconds).toBe((TIMESTAMP + 300) * 1000);
@@ -204,10 +223,13 @@ describe(`Standard Webhooks ${SPEC_PINS.standardWebhooks}`, () => {
 
   it("asks seen only after the signature checks out, and refuses when it throws", async () => {
     let asked = 0;
+
     const counting = () => {
       asked += 1;
+
       return false;
     };
+
     await verifyWebhook({ headers: headers(), body: '{"x":1}' }, SECRET, {
       now,
       seen: counting,
@@ -217,6 +239,7 @@ describe(`Standard Webhooks ${SPEC_PINS.standardWebhooks}`, () => {
       seen: counting,
     });
     expect(asked).toBe(0);
+
     const broken = await verifyWebhook(
       { headers: headers(), body: BODY },
       SECRET,
@@ -227,18 +250,21 @@ describe(`Standard Webhooks ${SPEC_PINS.standardWebhooks}`, () => {
         },
       },
     );
+
     expect(broken.error).toMatchObject({ code: "WEBHOOK_DEDUPE_FAILED" });
   });
 
   it("applies seen to Stripe events by event id", async () => {
     const body = '{"id":"evt_1"}';
     const at = now();
+
     const input = {
       headers: {
         "stripe-signature": await signStripeWebhook("whsec_stripe", body, at),
       },
       body,
     };
+
     const ids = new Set<string>();
     const seen = (id: string) => ids.has(id) || (ids.add(id), false);
     expect(

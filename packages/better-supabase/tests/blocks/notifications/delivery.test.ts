@@ -27,36 +27,44 @@ const titled: StandardSchemaV1<{ title: string }> = {
     validate: (value) => ({ value: value as { title: string } }),
   },
 };
+
 const types = { "task.assigned": titled, "security.signin": titled };
 
 type Handler = (args: Readonly<Record<string, unknown>>) => unknown;
 
 function fakeTransport(handlers: Record<string, Handler> = {}) {
   const calls: { fn: string; args: Record<string, unknown> }[] = [];
+
   const transport: BlockTransport = {
     async call(_schema, fn, args) {
       calls.push({ fn, args: { ...args } });
+
       return handlers[fn]?.(args) ?? null;
     },
   };
+
   const completions = () =>
     calls
       .filter((call) => call.fn === "complete_notification_delivery")
       .map((call) => call.args);
+
   return { transport, calls, completions };
 }
 
 function recordingTransport() {
   const sent: { message: EmailMessage; idempotencyKey: string }[] = [];
+
   const transport: DeliveryTransport = {
     apiVersion: 1,
     channel: "email",
     provider: "fake",
     send(message, { idempotencyKey }) {
       sent.push({ message, idempotencyKey });
+
       return { providerMessageId: `m-${idempotencyKey}` };
     },
   };
+
   return { transport, sent };
 }
 
@@ -94,9 +102,14 @@ const delivery = (
 
 const claimOnce = (rows: Record<string, unknown>[]) => {
   let served = false;
+
   return () => {
-    if (served) return [];
+    if (served) {
+      return [];
+    }
+
     served = true;
+
     return rows;
   };
 };
@@ -136,8 +149,9 @@ describe("mailHeaders", () => {
   };
 
   it("marks every category auto-generated (RFC 3834)", () => {
-    for (const category of ["notification", "security", "approval"] as const)
+    for (const category of ["notification", "security", "approval"] as const) {
       expect(mailHeaders(category)["Auto-Submitted"]).toBe("auto-generated");
+    }
   });
 
   it("gives notification mail List-Unsubscribe and one-click (RFC 2369, RFC 8058)", () => {
@@ -186,12 +200,14 @@ describe("mailHeaders", () => {
 describe("emailChannel", () => {
   it("sends with the delivery id as the idempotency key and returns the provider id", async () => {
     const { transport, sent } = recordingTransport();
+
     const channel = emailChannel({
       transport,
       from: "Acme <hi@acme.test>",
       replyTo: "support@acme.test",
       unsubscribe: () => ({ url: "https://acme.test/u" }),
     });
+
     expect(channel).toMatchObject({ apiVersion: 1, name: "email" });
     const result = await channel.send(message({ deliveryId: "d-42" }));
     expect(result).toEqual({ provider: "fake", providerMessageId: "m-d-42" });
@@ -220,12 +236,14 @@ describe("emailChannel", () => {
     async (category) => {
       const { transport, sent } = recordingTransport();
       const unsubscribe = vi.fn(() => ({ url: "https://acme.test/u" }));
+
       const channel = emailChannel({
         transport,
         from: "hi@acme.test",
         compose: () => ({ subject: "Code", html: "<p>123</p>", category }),
         unsubscribe,
       });
+
       await channel.send(message());
       expect(unsubscribe).not.toHaveBeenCalled();
       expect(sent[0]?.message).toEqual({
@@ -270,18 +288,21 @@ describe("emailChannel", () => {
 describe("createNotifications({ email }).deliver", () => {
   it("honours suppressions: skips the address, records why and never sends", async () => {
     const { transport: mail, sent } = recordingTransport();
+
     const { transport, completions } = fakeTransport({
       claim_notification_deliveries: claimOnce([
         delivery("d1", "u1", { suppressed: "bounce" }),
         delivery("d2", "u2", { suppressed: null }),
       ]),
     });
+
     const notifications = createNotifications({
       transport,
       types,
       render: (item) => ({ title: item.summary ?? "" }),
       email: { transport: mail, from: "hi@acme.test" },
     });
+
     expect(await notifications.deliver()).toEqual({
       sent: 1,
       skipped: 1,
@@ -302,6 +323,7 @@ describe("createNotifications({ email }).deliver", () => {
 
   it("checks recipients through audience before sending, once per notification", async () => {
     const { transport: mail, sent } = recordingTransport();
+
     const { transport, completions } = fakeTransport({
       claim_notification_deliveries: claimOnce([
         delivery("d1", "u1"),
@@ -312,9 +334,11 @@ describe("createNotifications({ email }).deliver", () => {
         }),
       ]),
     });
+
     const audience = vi.fn<SubscriberPolicy>((_event, subscribers) =>
       subscribers.filter((subscriber) => subscriber.principal !== "u2"),
     );
+
     const notifications = createNotifications({
       transport,
       types,
@@ -322,6 +346,7 @@ describe("createNotifications({ email }).deliver", () => {
       email: { transport: mail, from: "hi@acme.test" },
       audience: audience as unknown as SubscriberPolicy,
     });
+
     expect(await notifications.deliver()).toEqual({
       sent: 2,
       skipped: 2,
@@ -351,9 +376,11 @@ describe("createNotifications({ email }).deliver", () => {
 
   it("falls back to the server's delivery audience and never widens a fan-out", async () => {
     const { transport: mail, sent } = recordingTransport();
+
     const { transport } = fakeTransport({
       claim_notification_deliveries: claimOnce([delivery("d1", "u1")]),
     });
+
     const notifications = createNotifications({
       transport,
       types,
@@ -373,6 +400,7 @@ describe("createNotifications({ email }).deliver", () => {
         }),
       },
     });
+
     expect(await notifications.deliver()).toEqual({
       sent: 1,
       skipped: 0,
@@ -385,6 +413,7 @@ describe("createNotifications({ email }).deliver", () => {
     const reader = "00000000-0000-4000-8000-00000000000a";
     const outsider = "00000000-0000-4000-8000-00000000000b";
     const { transport: mail, sent } = recordingTransport();
+
     const { transport, calls } = fakeTransport({
       claim_notification_deliveries: claimOnce([
         delivery("d1", reader),
@@ -393,6 +422,7 @@ describe("createNotifications({ email }).deliver", () => {
       subject_types: () => ["task"],
       can_subject_for: (args) => args["member"] === reader,
     });
+
     const notifications = createNotifications({
       transport,
       types,
@@ -405,6 +435,7 @@ describe("createNotifications({ email }).deliver", () => {
         }),
       },
     });
+
     expect(await notifications.deliver()).toEqual({
       sent: 1,
       skipped: 1,
@@ -426,12 +457,14 @@ describe("createNotifications({ email }).deliver", () => {
 
   it("sends to no one when audience throws, and retries the deliveries", async () => {
     const { transport: mail, sent } = recordingTransport();
+
     const { transport, completions } = fakeTransport({
       claim_notification_deliveries: claimOnce([
         delivery("d1", "u1"),
         delivery("d2", "u2"),
       ]),
     });
+
     const notifications = createNotifications({
       transport,
       types,
@@ -441,6 +474,7 @@ describe("createNotifications({ email }).deliver", () => {
         throw new Error("policy store down");
       },
     });
+
     expect(await notifications.deliver()).toEqual({
       sent: 0,
       skipped: 0,
@@ -465,9 +499,11 @@ describe("createNotifications({ email }).deliver", () => {
 
   it("delivers to no one when audience returns something that is not a list", async () => {
     const { transport: mail, sent } = recordingTransport();
+
     const { transport } = fakeTransport({
       claim_notification_deliveries: claimOnce([delivery("d1", "u1")]),
     });
+
     const notifications = createNotifications({
       transport,
       types,
@@ -476,6 +512,7 @@ describe("createNotifications({ email }).deliver", () => {
       // @ts-expect-error -- a broken policy
       audience: () => "everyone",
     });
+
     expect((await notifications.deliver()).failed).toBe(1);
     expect(sent).toEqual([]);
   });
@@ -496,6 +533,7 @@ describe("createNotifications({ email }).deliver", () => {
 describe("createNotifications delivery tracking", () => {
   it("stores the composed template key and puts the subject on delivered and failed", async () => {
     const { transport: mail } = recordingTransport();
+
     const { transport, completions } = fakeTransport({
       claim_notification_deliveries: claimOnce([
         delivery("d1", "u1"),
@@ -509,9 +547,11 @@ describe("createNotifications delivery tracking", () => {
         }),
       ]),
     });
+
     const events = new EventHub();
     const seen: [string, unknown][] = [];
     events.on("block", (event) => seen.push([event.type, event.data]));
+
     const notifications = createNotifications({
       transport,
       types,
@@ -520,7 +560,10 @@ describe("createNotifications delivery tracking", () => {
         transport: {
           ...mail,
           send: (message, options) => {
-            if (options.idempotencyKey === "d2") throw new Error("smtp down");
+            if (options.idempotencyKey === "d2") {
+              throw new Error("smtp down");
+            }
+
             return mail.send(message, options);
           },
         },
@@ -528,6 +571,7 @@ describe("createNotifications delivery tracking", () => {
         compose: () => ({ subject: "Assigned", templateKey: "assigned-v2" }),
       },
     });
+
     expect(await notifications.deliver()).toEqual({
       sent: 1,
       skipped: 0,
@@ -580,18 +624,23 @@ describe("createNotifications delivery tracking", () => {
       provider_status: "clicked",
       recorded,
     });
+
     let first = true;
+
     const { transport, calls } = fakeTransport({
       record_delivery_event: () => {
         const recorded = first;
         first = false;
+
         return answer(recorded);
       },
     });
+
     const events = new EventHub();
     const seen: [string, unknown][] = [];
     events.on("block", (event) => seen.push([event.type, event.data]));
     const notifications = createNotifications({ transport, types, events });
+
     const input = {
       provider: "resend",
       providerMessageId: "re_1",
@@ -599,6 +648,7 @@ describe("createNotifications delivery tracking", () => {
       providerEventId: "msg_1",
       occurredAt: Temporal.Instant.from("2026-01-01T00:00:00Z"),
     } as const;
+
     expect(await notifications.recordDeliveryEvent(input).orThrow()).toEqual({
       deliveryId: "d1",
       notificationId: "e1",
@@ -676,6 +726,7 @@ describe("createNotifications delivery tracking", () => {
         "not a row",
       ],
     });
+
     const notifications = createNotifications({ transport, types });
     expect(
       await notifications
@@ -686,6 +737,7 @@ describe("createNotifications delivery tracking", () => {
         })
         .orThrow(),
     ).toBeNull();
+
     const [first, second, ...rest] = await notifications
       .subjectDeliveries({
         subject: { type: "task", id: "42" },
@@ -693,6 +745,7 @@ describe("createNotifications delivery tracking", () => {
         limit: 5,
       })
       .orThrow();
+
     expect(rest).toEqual([]);
     expect(first).toMatchObject({
       id: "d1",
@@ -740,6 +793,7 @@ describe("createNotifications suppressions", () => {
         "not a row",
       ],
     });
+
     const notifications = createNotifications({ transport, types });
     expect(
       await notifications
@@ -749,9 +803,11 @@ describe("createNotifications suppressions", () => {
     expect(await notifications.unsuppress("u1@acme.test").orThrow()).toBe(
       false,
     );
+
     const [only, ...rest] = await notifications
       .suppressions({ limit: 10 })
       .orThrow();
+
     expect(rest).toEqual([]);
     expect(only).toMatchObject({
       channel: "email",
@@ -787,10 +843,12 @@ describe("createNotifications suppressions", () => {
         throw new DbException(dbError("forbidden", "service only"));
       },
     };
+
     const result = await createNotifications({ transport, types }).suppress({
       address: "a@b.test",
       reason: "manual",
     });
+
     expect(result.ok).toBe(false);
     expect(result.error?.kind).toBe("forbidden");
   });

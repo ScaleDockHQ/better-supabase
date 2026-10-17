@@ -18,6 +18,7 @@ export function generateStaticParams() {
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getExtracted("app");
+
   return {
     title: { default: "Acme Cloud", template: "%s · Acme Cloud" },
     description: t("A multi-tenant SaaS example built on better-supabase."),
@@ -33,13 +34,14 @@ export default async function LocaleLayout({
   children,
 }: LayoutProps<"/[locale]">) {
   const locale = await getLocale();
+
   return (
     <html
       lang={locale}
       suppressHydrationWarning
       className={cn(geistSans.variable, geistMono.variable)}
     >
-      <body className="bg-background text-foreground min-h-svh font-sans antialiased">
+      <body className="min-h-svh bg-background font-sans text-foreground antialiased">
         <ThemeProvider storage="cookie" themes={["light", "dark"]}>
           <NextIntlClientProvider>
             <Providers>{children}</Providers>

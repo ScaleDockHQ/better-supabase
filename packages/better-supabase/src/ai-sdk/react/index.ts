@@ -49,6 +49,7 @@ function defaultTransport(
   config: AssistantTransportConfig,
 ): ChatTransport<UIMessage> {
   const { api, headers } = config;
+
   return new DefaultChatTransport<UIMessage>({
     api,
     ...(headers === undefined ? {} : { headers: { ...headers } }),
@@ -75,10 +76,12 @@ export function useAssistant(options: UseAssistantOptions): AssistantState {
   const api = options.api ?? "/api/chat";
   const { id, model, body, headers } = options;
   const makeTransport = options.transport ?? defaultTransport;
+
   const transport = useMemo(
     () => makeTransport({ api, model, body, headers }),
     [makeTransport, api, model, body, headers],
   );
+
   const chat = useChat({
     id,
     transport,
@@ -91,7 +94,9 @@ export function useAssistant(options: UseAssistantOptions): AssistantState {
       ? {}
       : { sendAutomaticallyWhen: options.sendAutomaticallyWhen }),
   });
+
   const { stop: stopLocal } = chat;
+
   const stop = useCallback(async () => {
     await stopLocal();
     await fetch(`${api}/${encodeURIComponent(id)}/stop`, {
@@ -99,5 +104,6 @@ export function useAssistant(options: UseAssistantOptions): AssistantState {
       ...(headers === undefined ? {} : { headers: { ...headers } }),
     });
   }, [api, id, headers, stopLocal]);
+
   return { ...chat, stop };
 }

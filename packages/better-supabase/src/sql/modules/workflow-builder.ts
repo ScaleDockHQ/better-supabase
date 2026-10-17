@@ -221,8 +221,12 @@ const NODE_RUN_STATUSES = [
 ] as const;
 
 function build(ctx: ModuleContext, layout: ModuleLayout): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
   const s = builderSql(ctx, layout.accessProvider?.operations);
+
   const {
     id,
     fn,
@@ -261,6 +265,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     definitionJson,
     versionJson,
   } = s;
+
   const extras = ctx.extraColumns("definitions", ["fields"]);
   const extra = extraFieldsArg(extras);
 
@@ -861,6 +866,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   const extra = extraFieldsArg(
     ctx.extraColumns("definitions", ["fields"]),
   ).contract;
+
   return [
     { name: "validate_workflow_graph", args: ["jsonb"], returns: "jsonb" },
     {

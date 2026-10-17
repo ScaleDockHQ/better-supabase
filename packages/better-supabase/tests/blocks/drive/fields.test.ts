@@ -31,6 +31,7 @@ describe("drive fields", () => {
         children: [{ ...FOLDER, id: "f3", parentId: "f1" }],
       }),
     });
+
     const drive = createDrive({ transport: t, fields: Fields });
     expect((await drive.get("f1").orThrow()).fields.client_code).toBe("acme");
     const list = await drive.list("o").orThrow();
@@ -45,14 +46,17 @@ describe("drive fields", () => {
 
   it("validates a new folder's fields before the call", async () => {
     const t = fieldsTransport({ drive_create_folder: () => FOLDER });
+
     const drive = createDrive({
       transport: t,
       fields: v.object({ client_code: v.pipe(v.string(), v.length(4)) }),
     });
+
     const refused = await drive.createFolder("o", {
       name: "Projects",
       fields: { client_code: "ACMEX" },
     });
+
     expect(refused.ok ? undefined : refused.error.kind).toBe("validation");
     expect(t.calls).toEqual([]);
     await drive

@@ -65,11 +65,13 @@ export function createCalendarController(
   const { client, calendarIds, resourceOf, readOnly } = options;
   let range = options.range;
   let ticket = 0;
+
   const eventsOf = (occurrences: readonly CalendarOccurrence[]) =>
     toEventCalendarEvents(occurrences, {
       ...(resourceOf === undefined ? {} : { resourceOf }),
       ...(readOnly === undefined ? {} : { readOnly }),
     });
+
   return defineController<CalendarSnapshot, CalendarActions>(
     { occurrences: undefined, events: [], error: undefined, loading: true },
     (state) => {
@@ -77,11 +79,16 @@ export function createCalendarController(
         const request = ++ticket;
         state.set({ loading: true });
         const time = temporal();
+
         const result = await client.occurrences(calendarIds, {
           from: time.Instant.fromEpochMilliseconds(range.start.getTime()),
           until: time.Instant.fromEpochMilliseconds(range.end.getTime()),
         });
-        if (request !== ticket) return;
+
+        if (request !== ticket) {
+          return;
+        }
+
         state.set(
           result.ok
             ? {
@@ -93,19 +100,27 @@ export function createCalendarController(
             : { error: result.error, loading: false },
         );
       };
+
       const after = async (result: Result<unknown>): Promise<boolean> => {
         if (!result.ok) {
           state.set({ error: result.error });
+
           return false;
         }
+
         await refresh();
+
         return true;
       };
+
       return {
         actions: {
           refresh,
           setRange: (next) => {
-            if (sameRange(range, next)) return;
+            if (sameRange(range, next)) {
+              return;
+            }
+
             range = next;
             void refresh();
           },
@@ -118,6 +133,7 @@ export function createCalendarController(
         },
         start: () => {
           void refresh();
+
           return;
         },
       };

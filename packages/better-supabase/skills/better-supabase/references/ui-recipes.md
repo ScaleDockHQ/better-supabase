@@ -38,6 +38,7 @@ import { loadNotificationCounts } from "../notifications-actions";
 
 async function loadCounts(): Promise<readonly NotificationCounts[]> {
   const result = await loadNotificationCounts({});
+
   return result.ok ? [result.data] : [];
 }
 
@@ -51,11 +52,13 @@ const unreadOf = (counts: readonly NotificationCounts[]): number =>
 function useUnreadCount() {
   const auth = useAuth();
   const userId = auth.user?.id;
+
   const { items, count, status } = useNotifications({
     topic: userId ? `notifications:${userId}` : null,
     load: loadCounts,
     count: unreadOf,
   });
+
   return { count: items === undefined ? undefined : count, status };
 }
 
@@ -66,6 +69,7 @@ function useUnreadCount() {
 export function UnreadBadge() {
   const t = useExtracted("notifications");
   const { count, status } = useUnreadCount();
+
   return (
     <Link
       href="/notifications"
@@ -117,15 +121,21 @@ export function NotificationBell({
   const supabase = useSupabase();
   const tenant = tenantOf(auth);
   const userId = auth.user?.id;
+
   const { items, count } = useNotifications({
     topic: userId ? `notifications:${userId}` : null,
     load: async () => {
-      if (!tenant) return [];
+      if (!tenant) {
+        return [];
+      }
+
       const result = await blocks(supabase).notifications.counts({ tenant });
+
       return result.ok ? [result.data] : [];
     },
     count: unreadOf,
   });
+
   return (
     <Pressable
       onPress={onPress}
@@ -189,6 +199,7 @@ import { loadNotifications } from "../notifications-actions";
 
 async function loadRows(): Promise<readonly NotificationRow[]> {
   const result = await loadNotifications({});
+
   return result.ok ? result.data : [];
 }
 
@@ -201,11 +212,16 @@ export function NotificationList() {
   const format = useFormatter();
   const auth = useAuth();
   const userId = auth.user?.id;
+
   const { items } = useNotifications({
     topic: userId ? `notifications:${userId}` : null,
     load: loadRows,
   });
-  if (items === undefined) return <NotificationListSkeleton />;
+
+  if (items === undefined) {
+    return <NotificationListSkeleton />;
+  }
+
   if (items.length === 0) {
     return (
       <Empty className="border">
@@ -221,6 +237,7 @@ export function NotificationList() {
       </Empty>
     );
   }
+
   return (
     <ul className="divide-y rounded-xl border">
       {items.map((notification) => (
@@ -230,7 +247,7 @@ export function NotificationList() {
         >
           <span className="flex-1">{notification.title}</span>
           {notification.readAt ? null : <Badge>{t("New")}</Badge>}
-          <span className="text-muted-foreground text-xs tabular-nums">
+          <span className="text-xs text-muted-foreground tabular-nums">
             {format.dateTime(new Date(notification.createdAt), {
               dateStyle: "medium",
               timeStyle: "short",
@@ -275,18 +292,27 @@ export function NotificationList() {
   const supabase = useSupabase();
   const tenant = tenantOf(auth);
   const userId = auth.user?.id;
+
   const { items } = useNotifications({
     topic: userId ? `notifications:${userId}` : null,
     load: async () => {
-      if (!tenant) return [];
+      if (!tenant) {
+        return [];
+      }
+
       const result = await blocks(supabase).notifications.list({
         tenant,
         limit: 20,
       });
+
       return result.ok ? result.data : [];
     },
   });
-  if (items === undefined) return <ActivityIndicator />;
+
+  if (items === undefined) {
+    return <ActivityIndicator />;
+  }
+
   return (
     <FlatList
       data={items}
@@ -345,12 +371,23 @@ const API_SCHEMA = blockConfig.search.api;
 export function CommandSearch() {
   const t = useExtracted("search");
   const search = useCommandSearch({ schema: API_SCHEMA });
+
   const heading = (key: string) => {
-    if (key === "favorites") return t("Favorites");
-    if (key === "recents") return t("Recent");
-    if (key === "customer") return t("Customers");
+    if (key === "favorites") {
+      return t("Favorites");
+    }
+
+    if (key === "recents") {
+      return t("Recent");
+    }
+
+    if (key === "customer") {
+      return t("Customers");
+    }
+
     return key;
   };
+
   return (
     <>
       <Button
@@ -364,7 +401,7 @@ export function CommandSearch() {
       >
         <SearchIcon />
         <span className="hidden sm:inline">{t("Search")}</span>
-        <kbd className="text-muted-foreground hidden text-xs sm:inline">⌘K</kbd>
+        <kbd className="hidden text-xs text-muted-foreground sm:inline">⌘K</kbd>
       </Button>
       <Dialog open={search.open} onOpenChange={search.setOpen}>
         <DialogContent className="gap-4 sm:max-w-lg">
@@ -385,12 +422,12 @@ export function CommandSearch() {
           />
           <div className="max-h-80 overflow-y-auto" aria-live="polite">
             {search.error === undefined ? null : (
-              <p className="text-destructive text-sm">
+              <p className="text-sm text-destructive">
                 {t("Search failed. Try again.")}
               </p>
             )}
             {search.groups.length === 0 && !search.loading ? (
-              <p className="text-muted-foreground text-sm">
+              <p className="text-sm text-muted-foreground">
                 {search.query.trim() === ""
                   ? t("Type to search.")
                   : t("No matches.")}
@@ -398,7 +435,7 @@ export function CommandSearch() {
             ) : null}
             {search.groups.map((group) => (
               <section key={group.key} className="mb-3">
-                <h3 className="text-muted-foreground mb-1 text-xs font-medium">
+                <h3 className="mb-1 text-xs font-medium text-muted-foreground">
                   {heading(group.key)}
                 </h3>
                 <ul>
@@ -407,7 +444,7 @@ export function CommandSearch() {
                       <Link
                         href={item.url ?? "/"}
                         onClick={() => void search.select(item)}
-                        className="hover:bg-muted focus-visible:bg-muted block rounded-md px-2 py-1.5 outline-none"
+                        className="block rounded-md px-2 py-1.5 outline-none hover:bg-muted focus-visible:bg-muted"
                       >
                         {item.title ?? item.subjectId}
                       </Link>
@@ -440,9 +477,18 @@ import {
 import { API_SCHEMA } from "../lib/blocks";
 
 function heading(key: string): string {
-  if (key === "favorites") return "Favorites";
-  if (key === "recents") return "Recent";
-  if (key === "customer") return "Customers";
+  if (key === "favorites") {
+    return "Favorites";
+  }
+
+  if (key === "recents") {
+    return "Recent";
+  }
+
+  if (key === "customer") {
+    return "Customers";
+  }
+
   return key;
 }
 
@@ -450,6 +496,7 @@ function heading(key: string): string {
 export function CommandSearch() {
   // Native has no Cmd+K, so the button opens it.
   const search = useCommandSearch({ schema: API_SCHEMA, shortcut: false });
+
   return (
     <>
       <Pressable
@@ -569,19 +616,31 @@ const API_SCHEMA = blockConfig.onboarding.api;
 export function OnboardingCard() {
   const t = useExtracted("dashboard");
   const organizationId = tenantOf(useAuth()) ?? null;
+
   const { progress } = useOnboarding(gettingStarted, {
     organizationId,
     schema: API_SCHEMA,
   });
-  if (!organizationId) return null;
-  if (progress === undefined) return <OnboardingCardSkeleton />;
-  if (progress.done) return null;
+
+  if (!organizationId) {
+    return null;
+  }
+
+  if (progress === undefined) {
+    return <OnboardingCardSkeleton />;
+  }
+
+  if (progress.done) {
+    return null;
+  }
+
   const titles = {
     customer: t("Add your first customer"),
     invite: t("Invite a teammate"),
     "api-key": t("Create an API key"),
     plan: t("Review your plan"),
   };
+
   return (
     <Card data-testid="onboarding">
       <CardHeader>
@@ -599,14 +658,14 @@ export function OnboardingCard() {
           {progress.steps.map((step) => (
             <li key={step.id} className="flex items-center gap-3 py-2">
               {step.completed ? (
-                <CheckCircle2Icon className="text-primary size-4" />
+                <CheckCircle2Icon className="size-4 text-primary" />
               ) : (
-                <CircleIcon className="text-muted-foreground size-4" />
+                <CircleIcon className="size-4 text-muted-foreground" />
               )}
               <span
                 className={
                   step.completed
-                    ? "text-muted-foreground flex-1 line-through"
+                    ? "flex-1 text-muted-foreground line-through"
                     : "flex-1"
                 }
               >
@@ -650,13 +709,24 @@ import { gettingStarted } from "../lib/onboarding";
 /** The organization's getting-started checklist; hidden once every step is done. */
 export function OnboardingChecklist() {
   const organizationId = tenantOf(useAuth()) ?? null;
+
   const { progress } = useOnboarding(gettingStarted, {
     organizationId,
     schema: API_SCHEMA,
   });
-  if (!organizationId) return null;
-  if (progress === undefined) return <ActivityIndicator />;
-  if (progress.done) return null;
+
+  if (!organizationId) {
+    return null;
+  }
+
+  if (progress === undefined) {
+    return <ActivityIndicator />;
+  }
+
+  if (progress.done) {
+    return null;
+  }
+
   return (
     <View style={{ gap: 8, padding: 16, borderWidth: 1, borderRadius: 12 }}>
       <Text style={{ fontSize: 17, fontWeight: "600" }}>Get started</Text>
@@ -733,20 +803,30 @@ export function CommentThread({
   const fieldId = useId();
   const [body, setBody] = useState("");
   const [pending, setPending] = useState(false);
+
   const { comments, error, add } = useComments({
     organizationId,
     subjectType: "customer",
     subjectId: customerId,
     schema: blockConfig.comments.api,
   });
+
   const visible = comments?.filter((comment) => !comment.deletedAt);
 
   const submit = async (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     const text = body.trim();
-    if (!text) return;
+
+    if (!text) {
+      return;
+    }
+
     setPending(true);
-    if ((await add(text)).ok) setBody("");
+
+    if ((await add(text)).ok) {
+      setBody("");
+    }
+
     setPending(false);
   };
 
@@ -755,7 +835,7 @@ export function CommentThread({
       {visible === undefined ? (
         <Skeleton className="h-16" />
       ) : visible.length === 0 ? (
-        <p className="text-muted-foreground text-sm">{t("No comments yet.")}</p>
+        <p className="text-sm text-muted-foreground">{t("No comments yet.")}</p>
       ) : (
         <ol className="space-y-4" data-testid="comments">
           {visible.map((comment) => (
@@ -765,7 +845,7 @@ export function CommentThread({
                   {(comment.authorId && authors[comment.authorId]) ??
                     t("Someone")}
                 </span>{" "}
-                <span className="text-muted-foreground text-xs">
+                <span className="text-xs text-muted-foreground">
                   {format.dateTime(comment.createdAt.epochMilliseconds, {
                     dateStyle: "medium",
                     timeStyle: "short",
@@ -828,6 +908,7 @@ export function CommentThread({ customerId }: { readonly customerId: string }) {
   const organizationId = tenantOf(useAuth());
   const [body, setBody] = useState("");
   const [pending, setPending] = useState(false);
+
   const { comments, error, add } = useComments({
     organizationId,
     subjectType: "customer",
@@ -837,13 +918,24 @@ export function CommentThread({ customerId }: { readonly customerId: string }) {
 
   const submit = async () => {
     const text = body.trim();
-    if (!text) return;
+
+    if (!text) {
+      return;
+    }
+
     setPending(true);
-    if ((await add(text)).ok) setBody("");
+
+    if ((await add(text)).ok) {
+      setBody("");
+    }
+
     setPending(false);
   };
 
-  if (comments === undefined) return <ActivityIndicator />;
+  if (comments === undefined) {
+    return <ActivityIndicator />;
+  }
+
   return (
     <View style={{ flex: 1, gap: 12 }}>
       <FlatList
@@ -920,7 +1012,7 @@ import { CreateOrganizationDialog } from "./create-organization-dialog";
 
 function Mark({ name }: { name: string }) {
   return (
-    <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg text-sm font-semibold">
+    <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sm font-semibold text-sidebar-primary-foreground">
       {name.slice(0, 1).toUpperCase()}
     </div>
   );
@@ -928,7 +1020,11 @@ function Mark({ name }: { name: string }) {
 
 async function loadOrganizations(): Promise<readonly OrganizationSummary[]> {
   const result = await loadMyOrganizations({});
-  if (!result.ok) throw new DbException(result.error);
+
+  if (!result.ok) {
+    throw new DbException(result.error);
+  }
+
   return result.data;
 }
 
@@ -950,6 +1046,7 @@ export function OrganizationSwitcherMenu({
   const refreshSession = useRefreshSession();
   const [pending, startTransition] = useTransition();
   const [creating, setCreating] = useState(false);
+
   const { organizations, active, activeId, switchTo } = useOrganizations({
     load: loadOrganizations,
     initial,
@@ -961,10 +1058,13 @@ export function OrganizationSwitcherMenu({
   const choose = (organization: OrganizationSummary) => {
     startTransition(async () => {
       const result = await switchTo(organization.id);
+
       if (!result.ok) {
         toast.error(errorMessage(result.error));
+
         return;
       }
+
       toast.success(t("Switched to {name}", { name: organization.name }));
     });
   };
@@ -990,7 +1090,7 @@ export function OrganizationSwitcherMenu({
             >
               {active?.name ?? t("No organization")}
             </span>
-            <span className="text-muted-foreground truncate text-xs capitalize">
+            <span className="truncate text-xs text-muted-foreground capitalize">
               {active ? active.plan : t("Create one to start")}
             </span>
           </div>
@@ -1004,13 +1104,15 @@ export function OrganizationSwitcherMenu({
                 key={organization.id}
                 className="gap-2"
                 onClick={() => {
-                  if (organization.id !== activeId) choose(organization);
+                  if (organization.id !== activeId) {
+                    choose(organization);
+                  }
                 }}
               >
                 <Mark name={organization.name} />
                 <div className="grid flex-1 leading-tight">
                   <span className="truncate">{organization.name}</span>
-                  <span className="text-muted-foreground text-xs">
+                  <span className="text-xs text-muted-foreground">
                     {roleLabel(organization.role)}
                   </span>
                 </div>
@@ -1050,7 +1152,11 @@ import { API_SCHEMA } from "../lib/blocks";
 export function OrganizationSwitcher() {
   const { organizations, activeId, switching, error, switchTo } =
     useOrganizations({ schema: API_SCHEMA });
-  if (organizations === undefined) return <ActivityIndicator />;
+
+  if (organizations === undefined) {
+    return <ActivityIndicator />;
+  }
+
   return (
     <View style={{ gap: 4 }}>
       <Text style={{ fontSize: 17, fontWeight: "600" }}>Organizations</Text>
@@ -1116,7 +1222,11 @@ import { loadPlanCatalog, startCheckout } from "../billing-actions";
 
 async function loadCatalog(): Promise<PlanCatalog<PlanOption>> {
   const result = await loadPlanCatalog({});
-  if (!result.ok) throw new DbException(result.error);
+
+  if (!result.ok) {
+    throw new DbException(result.error);
+  }
+
   return result.data;
 }
 
@@ -1135,6 +1245,7 @@ export function PlanPicker({
   const t = useExtracted("billing");
   const format = useFormatter();
   const errorMessage = useErrorMessage();
+
   const { plans, current, pending, choose } = usePlanPicker({
     load: loadCatalog,
     initial,
@@ -1143,6 +1254,7 @@ export function PlanPicker({
       window.location.assign(url);
     },
   });
+
   const price = (cents: number) =>
     cents === 0
       ? t("Free")
@@ -1152,24 +1264,36 @@ export function PlanPicker({
             currency: "USD",
           }),
         });
+
   const featureLabel = ({ key, value }: PlanOption["features"][number]) => {
     switch (key) {
-      case "seats":
+      case "seats": {
         return t("{seats} seats", { seats: String(value) });
-      case "exports":
+      }
+
+      case "exports": {
         return t("CSV exports");
-      case "audit":
+      }
+
+      case "audit": {
         return t("Audit log");
-      case "sso":
+      }
+
+      case "sso": {
         return t("Single sign-on");
-      default:
+      }
+
+      default: {
         return key;
+      }
     }
   };
+
   return (
     <div className="grid gap-4 md:grid-cols-3">
       {(plans ?? initial.plans).map((plan) => {
         const active = plan.key === current;
+
         return (
           <Card key={plan.key} size="sm" data-testid="plan">
             <CardHeader>
@@ -1177,7 +1301,7 @@ export function PlanPicker({
               <CardDescription>{price(plan.priceCents)}</CardDescription>
             </CardHeader>
             <CardContent>
-              <ul className="text-muted-foreground space-y-1 text-sm">
+              <ul className="space-y-1 text-sm text-muted-foreground">
                 {plan.features.map((feature) => (
                   <li key={feature.key}>{featureLabel(feature)}</li>
                 ))}
@@ -1191,7 +1315,9 @@ export function PlanPicker({
                 disabled={active || !canManage || pending !== undefined}
                 onClick={() => {
                   void choose(plan.key).then((started) => {
-                    if (!started.ok) toast.error(errorMessage(started.error));
+                    if (!started.ok) {
+                      toast.error(errorMessage(started.error));
+                    }
                   });
                 }}
               >
@@ -1230,6 +1356,7 @@ const price = (cents: number) =>
  */
 export function PlanPicker() {
   const organizationId = tenantOf(useAuth());
+
   const { plans, current, pending, error, choose } = usePlanPicker({
     load: () =>
       organizationId
@@ -1240,12 +1367,17 @@ export function PlanPicker() {
       await WebBrowser.openBrowserAsync(url);
     },
   });
-  if (plans === undefined) return <ActivityIndicator />;
+
+  if (plans === undefined) {
+    return <ActivityIndicator />;
+  }
+
   return (
     <View style={{ gap: 8 }}>
       <Text style={{ fontSize: 17, fontWeight: "600" }}>Plans</Text>
       {plans.map((plan) => {
         const active = plan.key === current;
+
         return (
           <Pressable
             key={plan.key}
@@ -1316,17 +1448,26 @@ export function UsageCard() {
   const t = useExtracted("dashboard");
   const format = useFormatter();
   const organizationId = tenantOf(useAuth()) ?? null;
+
   const { meters } = useUsageMeter({
     organizationId,
     meters: ["api.calls", "customers.created"],
     schema: API_SCHEMA,
   });
-  if (!organizationId) return null;
-  if (meters === undefined) return <UsageCardSkeleton />;
+
+  if (!organizationId) {
+    return null;
+  }
+
+  if (meters === undefined) {
+    return <UsageCardSkeleton />;
+  }
+
   const labels = new Map([
     ["api.calls", t("API calls")],
     ["customers.created", t("Customers added")],
   ]);
+
   return (
     <Card data-testid="usage">
       <CardHeader>
@@ -1360,7 +1501,7 @@ export function UsageCard() {
               </span>
             </div>
             <Progress value={(meter.fraction ?? 0) * 100} />
-            <p className="text-muted-foreground text-xs">
+            <p className="text-xs text-muted-foreground">
               {t("Resets {date}", {
                 date: format.dateTime(
                   new Date(meter.resetsAt.epochMilliseconds),
@@ -1397,13 +1538,21 @@ const labels = new Map([
 /** This period's usage per meter against the plan's quota. */
 export function UsageMeter() {
   const organizationId = tenantOf(useAuth()) ?? null;
+
   const { meters } = useUsageMeter({
     organizationId,
     meters: ["api.calls", "customers.created"],
     schema: API_SCHEMA,
   });
-  if (!organizationId) return null;
-  if (meters === undefined) return <ActivityIndicator />;
+
+  if (!organizationId) {
+    return null;
+  }
+
+  if (meters === undefined) {
+    return <ActivityIndicator />;
+  }
+
   return (
     <View style={{ gap: 12, padding: 16, borderWidth: 1, borderRadius: 12 }}>
       <Text style={{ fontSize: 17, fontWeight: "600" }}>Usage this period</Text>
@@ -1481,9 +1630,15 @@ export function FeatureGate({
 }) {
   const t = useExtracted("billing");
   const { allowed } = useFeatureGate(feature);
-  if (allowed === undefined)
+
+  if (allowed === undefined) {
     return <Skeleton className="h-8 w-28" aria-busy="true" />;
-  if (allowed) return children;
+  }
+
+  if (allowed) {
+    return children;
+  }
+
   return (
     <Link
       href="/settings/billing"
@@ -1518,8 +1673,15 @@ export function FeatureGate({
   readonly children: ReactNode;
 }) {
   const { allowed } = useFeatureGate(feature);
-  if (allowed === undefined) return <ActivityIndicator />;
-  if (allowed) return children;
+
+  if (allowed === undefined) {
+    return <ActivityIndicator />;
+  }
+
+  if (allowed) {
+    return children;
+  }
+
   return (
     <View style={{ padding: 12, borderWidth: 1, borderRadius: 12 }}>
       <Text style={{ fontWeight: "600" }}>Not in your plan</Text>
@@ -1607,7 +1769,7 @@ function SettingControl({
   onChange: (value: ControlValue) => void;
 }) {
   switch (field.kind) {
-    case "boolean":
+    case "boolean": {
       return (
         <Switch
           id={id}
@@ -1618,11 +1780,14 @@ function SettingControl({
           }}
         />
       );
+    }
+
     case "choice": {
       const items = field.choices.map((choice) => ({
         value: String(choice),
         label: String(choice),
       }));
+
       return (
         <Select
           value={String(value)}
@@ -1630,7 +1795,10 @@ function SettingControl({
           disabled={disabled}
           onValueChange={(next) => {
             const choice = field.choices.find((each) => String(each) === next);
-            if (choice !== undefined) onChange(choice);
+
+            if (choice !== undefined) {
+              onChange(choice);
+            }
           }}
         >
           <SelectTrigger id={id} className="w-48 capitalize">
@@ -1650,9 +1818,10 @@ function SettingControl({
         </Select>
       );
     }
+
     case "number":
     case "text":
-    case "json":
+    case "json": {
       return (
         <Input
           id={id}
@@ -1666,8 +1835,11 @@ function SettingControl({
           }}
         />
       );
+    }
+
     default: {
       const unknown: never = field.kind;
+
       return unknown;
     }
   }
@@ -1688,6 +1860,7 @@ function SettingsSection<E extends SettingEntries>({
   const t = useExtracted("settings");
   const errorMessage = useErrorMessage();
   const baseId = useId();
+
   return (
     <Card>
       <CardHeader>
@@ -1721,7 +1894,9 @@ function SettingsSection<E extends SettingEntries>({
                   disabled={!editable || state.saving === field.key}
                   onChange={(value) => {
                     void state.setField(field.key, value).then((saved) => {
-                      if (!saved.ok) toast.error(errorMessage(saved.error));
+                      if (!saved.ok) {
+                        toast.error(errorMessage(saved.error));
+                      }
                     });
                   }}
                 />
@@ -1746,11 +1921,13 @@ export function SettingsLayout({
   const t = useExtracted("settings");
   const organizationId = tenantOf(useAuth()) ?? null;
   const user = useSettings(settings, { scope: "user", schema: API_SCHEMA });
+
   const organization = useSettings(settings, {
     scope: "organization",
     organizationId,
     schema: API_SCHEMA,
   });
+
   return (
     <div className="space-y-6" data-testid="settings-layout">
       <SettingsSection
@@ -1812,7 +1989,7 @@ function SettingControl({
   readonly onChange: (value: ControlValue) => void;
 }) {
   switch (field.kind) {
-    case "boolean":
+    case "boolean": {
       return (
         <Switch
           value={value === true}
@@ -1820,7 +1997,9 @@ function SettingControl({
           onValueChange={onChange}
         />
       );
-    case "choice":
+    }
+
+    case "choice": {
       return (
         <View style={{ flexDirection: "row", gap: 6 }}>
           {field.choices.map((choice) => (
@@ -1845,9 +2024,11 @@ function SettingControl({
           ))}
         </View>
       );
+    }
+
     case "number":
     case "text":
-    case "json":
+    case "json": {
       return (
         <TextInput
           defaultValue={field.kind === "json" ? "" : String(value ?? "")}
@@ -1860,8 +2041,11 @@ function SettingControl({
           style={{ minWidth: 120, borderWidth: 1, borderRadius: 8, padding: 6 }}
         />
       );
+    }
+
     default: {
       const unknown: never = field.kind;
+
       return unknown;
     }
   }
@@ -1875,7 +2059,10 @@ function SettingsSection<E extends SettingEntries>({
   readonly title: string;
   readonly state: SettingsState<E>;
 }) {
-  if (state.values === undefined) return <ActivityIndicator />;
+  if (state.values === undefined) {
+    return <ActivityIndicator />;
+  }
+
   return (
     <View style={{ gap: 12 }}>
       <Text style={{ fontSize: 17, fontWeight: "600" }}>{title}</Text>
@@ -1906,11 +2093,13 @@ function SettingsSection<E extends SettingEntries>({
 export function SettingsLayout() {
   const organizationId = tenantOf(useAuth()) ?? null;
   const user = useSettings(settings, { scope: "user", schema: API_SCHEMA });
+
   const organization = useSettings(settings, {
     scope: "organization",
     organizationId,
     schema: API_SCHEMA,
   });
+
   return (
     <ScrollView contentContainerStyle={{ gap: 24, padding: 16 }}>
       <SettingsSection title="Your preferences" state={user} />
@@ -1973,7 +2162,11 @@ import { useRoleLabel } from "../use-role-label";
 
 async function loadOrganizationMembers(): Promise<readonly Member[]> {
   const result = await loadMembers({});
-  if (!result.ok) throw new DbException(result.error);
+
+  if (!result.ok) {
+    throw new DbException(result.error);
+  }
+
   return result.data;
 }
 
@@ -2000,6 +2193,7 @@ export function MemberTable({
   const roleLabel = useRoleLabel();
   const errorMessage = useErrorMessage();
   const format = useFormatter();
+
   const { members, pending, setRole, remove } = useMembers({
     organizationId,
     load: loadOrganizationMembers,
@@ -2009,27 +2203,40 @@ export function MemberTable({
       await memberChanged({ userId });
     },
   });
+
   const assignable = assignableRoles(myRole);
+
   const roleItems = assignable.map((role) => ({
     value: role,
     label: roleLabel(role),
   }));
+
   // Nobody changes their own role or an owner's here; ownership moves by transfer.
   const editable = (member: Member) =>
     member.userId !== currentUserId &&
     member.role !== "owner" &&
     assignable.includes(member.role);
+
   const busy = (member: Member) => pending.includes(member.userId);
 
   const changeRole = async (member: Member, role: Role) => {
     const result = await setRole(member.userId, role);
-    if (result.ok) toast.success(t("Role updated"));
-    else toast.error(errorMessage(result.error));
+
+    if (result.ok) {
+      toast.success(t("Role updated"));
+    } else {
+      toast.error(errorMessage(result.error));
+    }
   };
+
   const removeMember = async (member: Member) => {
     const result = await remove(member.userId);
-    if (result.ok) toast.success(t("Member removed"));
-    else toast.error(errorMessage(result.error));
+
+    if (result.ok) {
+      toast.success(t("Member removed"));
+    } else {
+      toast.error(errorMessage(result.error));
+    }
   };
 
   return (
@@ -2063,13 +2270,13 @@ export function MemberTable({
                   <span className="font-medium">
                     {member.name ?? member.email}
                     {member.userId === currentUserId ? (
-                      <span className="text-muted-foreground font-normal">
+                      <span className="font-normal text-muted-foreground">
                         {" "}
                         ({t("you")})
                       </span>
                     ) : null}
                   </span>
-                  <span className="text-muted-foreground text-xs">
+                  <span className="text-xs text-muted-foreground">
                     {member.email}
                   </span>
                 </div>
@@ -2082,7 +2289,9 @@ export function MemberTable({
                   items={roleItems}
                   disabled={busy(member)}
                   onValueChange={(value) => {
-                    if (v.is(Role, value)) void changeRole(member, value);
+                    if (v.is(Role, value)) {
+                      void changeRole(member, value);
+                    }
                   }}
                 >
                   <SelectTrigger
@@ -2104,7 +2313,7 @@ export function MemberTable({
                 <RoleBadge role={member.role} />
               )}
             </TableCell>
-            <TableCell className="text-muted-foreground hidden sm:table-cell">
+            <TableCell className="hidden text-muted-foreground sm:table-cell">
               {member.joinedAt
                 ? format.dateTime(new Date(member.joinedAt), {
                     dateStyle: "medium",
@@ -2152,19 +2361,27 @@ import { API_SCHEMA } from "../lib/blocks";
  */
 export function MembersTable() {
   const auth = useAuth();
+
   const { members, pending, error, setRole, remove } = useMembers({
     organizationId: tenantOf(auth),
     schema: API_SCHEMA,
   });
-  if (members === undefined) return <ActivityIndicator />;
+
+  if (members === undefined) {
+    return <ActivityIndicator />;
+  }
+
   return (
     <View style={{ gap: 4 }}>
       <Text style={{ fontSize: 17, fontWeight: "600" }}>Members</Text>
       {members.map((member) => {
         const busy = pending.includes(member.userId);
+
         const editable =
           member.userId !== auth.user?.id && member.role !== "owner";
+
         const next = member.role === "admin" ? "member" : "admin";
+
         return (
           <View
             key={member.userId}
@@ -2281,19 +2498,25 @@ export function InviteMemberDialog({
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Role>("member");
+
   const roles = assignableRoles(myRole).map((each) => ({
     value: each,
     label: roleLabel(each),
   }));
+
   // The server renders the pending list; `invitationSent` renders it again.
   const { invite, inviting, sent, error, clear } = useInvitations({
     organizationId,
     schema: blockConfig.organizations.api,
     onChanged: async ({ kind }) => {
-      if (kind === "invited") await invitationSent({});
+      if (kind === "invited") {
+        await invitationSent({});
+      }
     },
   });
+
   const link = sent ? inviteLink(sent.token) : null;
+
   const message =
     error === undefined
       ? null
@@ -2312,7 +2535,10 @@ export function InviteMemberDialog({
       onOpenChange={(next) => {
         setOpen(next);
         setEmail("");
-        if (!next) clear();
+
+        if (!next) {
+          clear();
+        }
       }}
     >
       <DialogTrigger render={<Button size="sm" />}>
@@ -2388,7 +2614,9 @@ export function InviteMemberDialog({
                   value={role}
                   items={roles}
                   onValueChange={(value) => {
-                    if (v.is(Role, value)) setRole(value);
+                    if (v.is(Role, value)) {
+                      setRole(value);
+                    }
                   }}
                 >
                   <SelectTrigger id={`${fieldId}-invite-role`} className="w-40">
@@ -2440,6 +2668,7 @@ export function InviteDialog() {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<(typeof ROLES)[number]>("member");
+
   const { invitations, invite, inviting, sent, error, clear } = useInvitations({
     organizationId: tenantOf(useAuth()),
     schema: API_SCHEMA,
@@ -2591,20 +2820,28 @@ export function ApiKeyTable({
   const t = useExtracted("apiKeys");
   const errorMessage = useErrorMessage();
   const format = useFormatter();
+
   const { keys, created, creating, revoking, error, create, revoke, dismiss } =
     useApiKeys({
       organizationId,
       schema: blockConfig["api-keys"].api,
       onChanged: async ({ kind }) => {
-        if (kind === "created") await apiKeyCreated({});
+        if (kind === "created") {
+          await apiKeyCreated({});
+        }
       },
     });
 
   const revokeKey = async (id: string) => {
     const result = await revoke(id);
-    if (result.ok) toast.success(t("Key revoked"));
-    else toast.error(errorMessage(result.error));
+
+    if (result.ok) {
+      toast.success(t("Key revoked"));
+    } else {
+      toast.error(errorMessage(result.error));
+    }
   };
+
   const date = (value: Temporal.Instant | undefined) =>
     value
       ? format.dateTime(new Date(value.epochMilliseconds), {
@@ -2623,6 +2860,7 @@ export function ApiKeyTable({
       onClose={dismiss}
     />
   );
+
   if (keys === undefined) {
     return (
       <div className="grid gap-4">
@@ -2631,6 +2869,7 @@ export function ApiKeyTable({
       </div>
     );
   }
+
   return (
     <div className="grid gap-4">
       <div className="flex justify-end">{dialog}</div>
@@ -2677,10 +2916,10 @@ export function ApiKeyTable({
                 <TableCell className="font-mono text-xs">
                   {key.prefix}_{key.publicId}…
                 </TableCell>
-                <TableCell className="text-muted-foreground hidden md:table-cell">
+                <TableCell className="hidden text-muted-foreground md:table-cell">
                   {date(key.createdAt)}
                 </TableCell>
-                <TableCell className="text-muted-foreground hidden md:table-cell">
+                <TableCell className="hidden text-muted-foreground md:table-cell">
                   {date(key.lastUsedAt)}
                 </TableCell>
                 <TableCell className="text-right">
@@ -2733,19 +2972,26 @@ import { API_SCHEMA } from "../lib/blocks";
  */
 export function ApiKeysTable({ personal = false }: { personal?: boolean }) {
   const [name, setName] = useState("");
+
   const { keys, created, creating, revoking, error, create, revoke, dismiss } =
     useApiKeys({ organizationId: tenantOf(useAuth()), schema: API_SCHEMA });
 
   const submit = async () => {
-    if ((await create({ name: name.trim(), personal })).ok) setName("");
+    if ((await create({ name: name.trim(), personal })).ok) {
+      setName("");
+    }
   };
 
-  if (keys === undefined) return <ActivityIndicator />;
+  if (keys === undefined) {
+    return <ActivityIndicator />;
+  }
+
   return (
     <View style={{ gap: 8 }}>
       <Text style={{ fontSize: 17, fontWeight: "600" }}>API keys</Text>
       {keys.map((key) => {
         const revoked = key.state === "revoked" || key.state === "expired";
+
         return (
           <View
             key={key.id}
@@ -2855,17 +3101,21 @@ export function AuditLogTable({ organizationId }: { organizationId: string }) {
   const t = useExtracted("audit");
   const format = useFormatter();
   const errorMessage = useErrorMessage();
+
   const { entries, filters, hasMore, loading, error, setFilters, loadMore } =
     useAuditLog({ organizationId, schema: blockConfig.audit.api });
+
   const actors = new Map(
     (entries ?? []).flatMap((entry) =>
       entry.actorId ? [[entry.actorId, entry.actorLabel ?? entry.actorId]] : [],
     ),
   );
+
   const actions = choices(
     (entries ?? []).map((entry) => entry.eventType),
     filters.eventType,
   );
+
   const actorItems = [
     { value: ALL, label: t("Every actor") },
     ...choices([...actors.keys()], filters.actorId).map((id) => ({
@@ -2873,10 +3123,12 @@ export function AuditLogTable({ organizationId }: { organizationId: string }) {
       label: actors.get(id) ?? id,
     })),
   ];
+
   const actionItems = [
     { value: ALL, label: t("Every action") },
     ...actions.map((action) => ({ value: action, label: action })),
   ];
+
   const pick = (value: string | null): string | undefined =>
     value === null || value === ALL ? undefined : value;
 
@@ -2921,12 +3173,12 @@ export function AuditLogTable({ organizationId }: { organizationId: string }) {
         </Select>
       </div>
       {error ? (
-        <p className="text-destructive text-sm">{errorMessage(error)}</p>
+        <p className="text-sm text-destructive">{errorMessage(error)}</p>
       ) : null}
       {entries === undefined ? (
         <Skeleton className="h-64" />
       ) : entries.length === 0 ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           {t("Nothing recorded yet.")}
         </p>
       ) : (
@@ -2946,7 +3198,7 @@ export function AuditLogTable({ organizationId }: { organizationId: string }) {
           <TableBody>
             {entries.map((entry) => (
               <TableRow key={entry.id}>
-                <TableCell className="text-muted-foreground whitespace-nowrap tabular-nums">
+                <TableCell className="whitespace-nowrap text-muted-foreground tabular-nums">
                   {format.dateTime(
                     new Date(entry.occurredAt.epochMilliseconds),
                     { dateStyle: "short", timeStyle: "short" },
@@ -3037,12 +3289,15 @@ function Chips({
 export function AuditLogTable() {
   const { entries, filters, hasMore, loading, error, setFilters, loadMore } =
     useAuditLog({ organizationId: tenantOf(useAuth()), schema: API_SCHEMA });
+
   const distinct = (values: readonly (string | undefined)[]) =>
     [...new Set(values.filter((value) => value !== undefined))].toSorted();
+
   const actors = distinct([
     ...(entries ?? []).map((entry) => entry.actorId),
     filters.actorId,
   ]);
+
   const actions = distinct([
     ...(entries ?? []).map((entry) => entry.eventType),
     filters.eventType,
@@ -3129,6 +3384,7 @@ export function TagInput({
   const listId = useId();
   const errorMessage = useErrorMessage();
   const [name, setName] = useState("");
+
   const { tags, available, pending, error, create, remove } = useTagInput({
     organizationId,
     subjectType: "customer",
@@ -3136,21 +3392,31 @@ export function TagInput({
     kind: "customer",
     schema: blockConfig.tags.api,
   });
+
   const applied = new Set(tags?.map((tag) => tag.id));
   const suggestions = available?.filter((tag) => !applied.has(tag.id)) ?? [];
 
   const submit = async (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!name.trim()) return;
-    if ((await create(name)).ok) setName("");
+
+    if (!name.trim()) {
+      return;
+    }
+
+    if ((await create(name)).ok) {
+      setName("");
+    }
   };
 
-  if (tags === undefined) return <Skeleton className="h-16" />;
+  if (tags === undefined) {
+    return <Skeleton className="h-16" />;
+  }
+
   return (
     <div className="space-y-3">
       <ul className="flex flex-wrap gap-1.5" data-testid="tags">
         {tags.length === 0 ? (
-          <li className="text-muted-foreground text-sm">{t("No tags yet.")}</li>
+          <li className="text-sm text-muted-foreground">{t("No tags yet.")}</li>
         ) : null}
         {tags.map((tag) => (
           <li key={tag.id}>
@@ -3196,7 +3462,7 @@ export function TagInput({
         </Button>
       </form>
       {error ? (
-        <p className="text-destructive text-sm">{errorMessage(error)}</p>
+        <p className="text-sm text-destructive">{errorMessage(error)}</p>
       ) : null}
     </div>
   );
@@ -3227,6 +3493,7 @@ import { API_SCHEMA } from "../lib/blocks";
  */
 export function TagInput({ customerId }: { readonly customerId: string }) {
   const [name, setName] = useState("");
+
   const { tags, available, pending, error, add, remove, create } = useTagInput({
     organizationId: tenantOf(useAuth()),
     subjectType: "customer",
@@ -3234,7 +3501,11 @@ export function TagInput({ customerId }: { readonly customerId: string }) {
     kind: "customer",
     schema: API_SCHEMA,
   });
-  if (tags === undefined) return <ActivityIndicator />;
+
+  if (tags === undefined) {
+    return <ActivityIndicator />;
+  }
+
   const applied = new Set(tags.map((tag) => tag.id));
   const suggestions = (available ?? []).filter((tag) => !applied.has(tag.id));
 
@@ -3286,7 +3557,9 @@ export function TagInput({ customerId }: { readonly customerId: string }) {
         disabled={!name.trim()}
         onPress={() =>
           void create(name).then((result) => {
-            if (result.ok) setName("");
+            if (result.ok) {
+              setName("");
+            }
           })
         }
       />

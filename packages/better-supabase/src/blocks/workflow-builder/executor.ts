@@ -90,7 +90,11 @@ const active = (
   ran: ReadonlyMap<string, boolean>,
 ): boolean => {
   const outcome = ran.get(edge.source);
-  if (outcome === undefined) return false;
+
+  if (outcome === undefined) {
+    return false;
+  }
+
   return edge.branch === undefined || String(outcome) === edge.branch;
 };
 
@@ -108,13 +112,16 @@ export type GraphRunFields = Pick<
  */
 export function graphRunFields(meta: unknown): GraphRunFields {
   const record = isGraphRecord(meta) ? meta : {};
+
   const text = (key: string): string | undefined =>
     typeof record[key] === "string" ? record[key] : undefined;
+
   const subject = record["subject"];
   const stubs = record["stubs"];
   const version = text("versionId");
   const tenant = text("tenant");
   const triggerNode = text("triggerNode");
+
   return {
     runKey: text("runKey") ?? "",
     ...(version === undefined ? {} : { version }),
@@ -149,17 +156,20 @@ export function startNodeOf(
   requested: string | undefined,
 ): string {
   const triggers = graph.nodes.filter((node) => node.kind === "trigger");
+
   const start =
     requested === undefined
       ? triggers.length === 1
         ? triggers[0]?.id
         : undefined
       : triggers.find((node) => node.id === requested)?.id;
+
   if (start === undefined) {
     throw new TypeError(
       "workflow-builder: pass the trigger node the run starts at, the id of one of the graph's trigger nodes",
     );
   }
+
   return start;
 }
 
@@ -177,28 +187,40 @@ export async function executeGraph(
   runtime: GraphRuntime,
 ): Promise<Record<string, unknown>> {
   const errors = validateGraph(graph);
+
   if (errors.length > 0) {
     throw new TypeError(`workflow-builder: ${errors.join("; ")}`);
   }
+
   const start = startNodeOf(graph, runtime.triggerNode);
   const order = topologicalOrder(graph) ?? [];
   const incoming = new Map<string, WorkflowGraphEdge[]>();
+
   for (const edge of graph.edges) {
     incoming.set(edge.target, [...(incoming.get(edge.target) ?? []), edge]);
   }
+
   const results: Record<string, unknown> = {};
   const ran = new Map<string, boolean>();
+
   for (const node of order) {
     if (node.kind === "trigger") {
-      if (node.id !== start) continue;
+      if (node.id !== start) {
+        continue;
+      }
     } else {
       const edges = incoming.get(node.id) ?? [];
-      if (!edges.some((edge) => active(edge, ran))) continue;
+
+      if (!edges.some((edge) => active(edge, ran))) {
+        continue;
+      }
     }
+
     const { output, outcome } = await runNode(node, input, results, runtime);
     results[node.id] = output;
     ran.set(node.id, outcome);
   }
+
   return results;
 }
 
@@ -220,6 +242,7 @@ async function runNode(
     case "trigger": {
       return { output: input, outcome: true };
     }
+
     case "step": {
       const output =
         runtime.stubs === undefined
@@ -233,19 +256,25 @@ async function runNode(
               ...extrasOf(runtime),
             })
           : stubOf(runtime.stubs, node.id, { stubbed: true });
+
       return { output: output ?? null, outcome: true };
     }
+
     case "sleep": {
       if (runtime.stubs === undefined) {
         await runtime.sleep(durationMs(node.config?.["duration"]) ?? 0);
       }
+
       return { output: null, outcome: true };
     }
+
     case "approval": {
       if (runtime.stubs !== undefined) {
         const payload = stubOf(runtime.stubs, node.id, { approved: true });
+
         return { output: payload ?? null, outcome: approved(payload) };
       }
+
       const token =
         runtime.requestApproval === undefined
           ? approvalToken(runtime.runKey, node.id)
@@ -257,11 +286,15 @@ async function runNode(
               runKey: runtime.runKey,
               ...extrasOf(runtime),
             });
+
       const payload = await runtime.approval(token, node.id);
+
       return { output: payload ?? null, outcome: approved(payload) };
     }
+
     case "condition": {
       const condition = conditionOf(node);
+
       const outcome =
         condition !== undefined &&
         evaluateCondition(condition, {
@@ -269,8 +302,10 @@ async function runNode(
           results,
           subject: runtime.subject,
         });
+
       return { output: outcome, outcome };
     }
+
     default: {
       const unknown: never = node.kind;
       throw new TypeError(

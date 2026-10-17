@@ -20,11 +20,13 @@ describe.skipIf(!live)("shared-signals module", () => {
 
   it("pushes through a set endpoint, holds SETs while paused and sends them on resume", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["outbox", "webhooks-out", "shared-signals"]);
       await s.service();
       await s.client.query("set local role service_role");
       const { signer } = await signingKey();
+
       const tx = createSsfTransmitter({
         transport: sqlTransport(s.sql),
         issuer: ISSUER,
@@ -32,6 +34,7 @@ describe.skipIf(!live)("shared-signals module", () => {
         signer,
         authorize: () => null,
       });
+
       const stream = await tx
         .createStream({
           receiver: { receiver: "rx", tenant: TENANT },
@@ -40,12 +43,14 @@ describe.skipIf(!live)("shared-signals module", () => {
           eventsRequested: [CAEP_EVENTS.sessionRevoked, "urn:unknown"],
         })
         .orThrow();
+
       expect(stream).toMatchObject({
         method: "push",
         endpointUrl: "https://rx.example/ssf",
         eventsDelivered: [CAEP_EVENTS.sessionRevoked],
         status: "enabled",
       });
+
       const emit = () =>
         tx
           .emit({
@@ -54,6 +59,7 @@ describe.skipIf(!live)("shared-signals module", () => {
             event: { type: CAEP_EVENTS.sessionRevoked, claims: {} },
           })
           .orThrow();
+
       expect(await emit()).toMatchObject({ streams: 1, dispatched: 1 });
 
       await tx.setStatus(stream.id, "paused").orThrow();
@@ -70,6 +76,7 @@ describe.skipIf(!live)("shared-signals module", () => {
          join better_supabase.webhook_endpoints e on e.id = d.endpoint_id
          order by d.created_at, d.id`,
       );
+
       // session-revoked, stream-updated (paused), session-revoked (held), stream-updated (enabled)
       expect(deliveries.rows).toHaveLength(4);
       expect(
@@ -96,12 +103,14 @@ describe.skipIf(!live)("shared-signals module", () => {
 
   it("queues poll SETs, acknowledges them and drops replays at the receiver", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["shared-signals"]);
       await s.service();
       await s.client.query("set local role service_role");
       const { signer, jwks } = await signingKey();
       const transport = sqlTransport(s.sql);
+
       const tx = createSsfTransmitter({
         transport,
         issuer: ISSUER,
@@ -109,6 +118,7 @@ describe.skipIf(!live)("shared-signals module", () => {
         signer,
         authorize: () => null,
       });
+
       const stream = await tx
         .createStream({
           receiver: { receiver: "rx", tenant: "t1" },
@@ -116,7 +126,8 @@ describe.skipIf(!live)("shared-signals module", () => {
           eventsRequested: [CAEP_EVENTS.credentialChange],
         })
         .orThrow();
-      for (const tenant of ["t1", "t2", "t1"])
+
+      for (const tenant of ["t1", "t2", "t1"]) {
         await tx
           .emit({
             tenant,
@@ -124,6 +135,8 @@ describe.skipIf(!live)("shared-signals module", () => {
             event: { type: CAEP_EVENTS.credentialChange, claims: {} },
           })
           .orThrow();
+      }
+
       const first = await tx.poll(stream.id, { maxEvents: 1 }).orThrow();
       expect(Object.keys(first.sets)).toHaveLength(1);
       expect(first.moreAvailable).toBe(true);
@@ -135,6 +148,7 @@ describe.skipIf(!live)("shared-signals module", () => {
         audience: "rx",
         jwks,
       });
+
       expect(await rx.receive(token)).toMatchObject({
         ok: true,
         duplicate: false,
@@ -147,6 +161,7 @@ describe.skipIf(!live)("shared-signals module", () => {
       const rest = await tx
         .poll(stream.id, { maxEvents: 10, ack: [jti] })
         .orThrow();
+
       expect(Object.keys(rest.sets)).toHaveLength(1);
       expect(rest.moreAvailable).toBe(false);
       expect(
@@ -164,6 +179,7 @@ describe.skipIf(!live)("shared-signals module", () => {
 
   it("refuses push streams without webhooks-out and callers other than the service role", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["shared-signals"]);
       await s.service();

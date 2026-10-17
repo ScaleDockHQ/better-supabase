@@ -285,6 +285,7 @@ function isStatus(text: string): text is WorkflowRunStatus {
 /** An engine may add statuses: an unknown one reads as `running`, never as finished. */
 function statusOf(value: unknown): WorkflowRunStatus {
   const text = textOf(value);
+
   return isStatus(text) ? text : "running";
 }
 
@@ -305,6 +306,7 @@ function workflowSubjectOf(
 ): WorkflowSubject | undefined {
   const type = optionalText(row["subjectType"]);
   const id = optionalText(row["subjectId"]);
+
   return type === undefined || id === undefined ? undefined : { type, id };
 }
 
@@ -312,6 +314,7 @@ function principalOf(
   row: Record<string, unknown>,
 ): WorkflowPrincipal | undefined {
   const kind = textOf(row["principalKind"]);
+
   return isPrincipalKind(kind)
     ? { kind, id: optionalText(row["principalId"]) }
     : undefined;
@@ -320,6 +323,7 @@ function principalOf(
 /** A run from the jsonb the module returns. */
 export function workflowRunOf(row: Record<string, unknown>): WorkflowRun {
   const attributes = row["attributes"];
+
   return {
     id: textOf(row["id"]),
     engine: textOf(row["engine"]),
@@ -397,18 +401,25 @@ export function createWorkflows(options: WorkflowsOptions): Workflows {
     ).andThen(async (rows) => {
       let started = 0;
       const failed: { id: string; error: string }[] = [];
+
       for (const row of rows) {
         const id = textOf(row["id"]);
         const step = each(row);
+
         try {
           const run = await options.start(step.call);
           const done = await step.done(run);
-          if (!done.ok) return err(done.error);
+
+          if (!done.ok) {
+            return err(done.error);
+          }
+
           started += 1;
         } catch (cause) {
           failed.push({ id, error: errorText(cause) });
         }
       }
+
       return ok({ started, failed });
     });
 
@@ -472,6 +483,7 @@ export function createWorkflows(options: WorkflowsOptions): Workflows {
       create: (input) => {
         const timezone = input.timezone ?? "UTC";
         assertCron(input.cron);
+
         return call(
           "create_workflow_schedule",
           {
@@ -506,8 +518,10 @@ export function createWorkflows(options: WorkflowsOptions): Workflows {
         tick("claim_due_workflow_schedules", tickOptions, (row) => {
           const schedule = scheduleOf(row);
           const fireAt = requiredInstant(row["fireAt"], "fireAt");
+
           const after =
             temporal().Instant.compare(fireAt, now()) > 0 ? fireAt : now();
+
           return {
             call: {
               source: "schedule",
@@ -574,6 +588,7 @@ export function createWorkflows(options: WorkflowsOptions): Workflows {
           },
           (value) => {
             const row = recordOf(value, "request_workflow_start");
+
             return {
               id: optionalText(row["id"]),
               status: row["status"] === "dropped" ? "dropped" : "pending",
@@ -583,6 +598,7 @@ export function createWorkflows(options: WorkflowsOptions): Workflows {
       tick: (tickOptions) =>
         tick("claim_workflow_start_requests", tickOptions, (row) => {
           const id = textOf(row["id"]);
+
           return {
             call: {
               source: "admission",
@@ -603,8 +619,10 @@ export function createWorkflows(options: WorkflowsOptions): Workflows {
         }),
     },
   };
+
   const hooks = options.hooks ?? {};
   const logger = options.logger ? { logger: options.logger } : {};
+
   return {
     runs: withBlockHooks(client.runs, hooks.runs, {
       block: "workflows.runs",

@@ -3,7 +3,9 @@ import type {
   AuthorizationHooks,
   SubscriberPolicy,
 } from "../../core/contracts/authorization-hooks.ts";
+import type { DbError } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
+import type { BlockProblemOptions } from "../../core/problem.ts";
 import type { CloudEvent, EventSink } from "../../events/index.ts";
 
 import {
@@ -14,8 +16,6 @@ import {
 } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { cronRoute } from "../../core/cron-route.ts";
-import { type DbError } from "../../core/errors.ts";
-import { type BlockProblemOptions } from "../../core/problem.ts";
 import { type AsyncResult, toDbError } from "../../core/result.ts";
 import { DEFAULT_TYPE_PREFIX } from "../../events/cloud-event.ts";
 import {
@@ -264,7 +264,10 @@ function toEvent(row: OutboxRow): OutboxEvent {
 }
 
 function toEvents(value: unknown): readonly OutboxEvent[] {
-  if (!Array.isArray(value)) return [];
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
   return value.filter(isOutboxRow).map(toEvent);
 }
 
@@ -313,12 +316,22 @@ const PARAMS: Readonly<Record<string, readonly string[]>> = {
 };
 
 function toDeadLetters(value: unknown): readonly OutboxDeadLetter[] {
-  if (!Array.isArray(value)) return [];
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
   return value.flatMap((entry: unknown): OutboxDeadLetter[] => {
-    if (typeof entry !== "object" || entry === null) return [];
+    if (typeof entry !== "object" || entry === null) {
+      return [];
+    }
+
     const row: Record<string, unknown> = { ...entry };
     const event = row["event"];
-    if (!isOutboxRow(event)) return [];
+
+    if (!isOutboxRow(event)) {
+      return [];
+    }
+
     return [
       {
         consumer: String(row["consumer"]),
@@ -339,6 +352,7 @@ function toDeadLetters(value: unknown): readonly OutboxDeadLetter[] {
  */
 export function createOutbox(options: OutboxOptions): Outbox {
   applyTemporal(options);
+
   const callers = {
     user: blockCall(options.transport, options.schema, options.mappers),
     service: blockCall(
@@ -347,6 +361,7 @@ export function createOutbox(options: OutboxOptions): Outbox {
       options.mappers,
     ),
   };
+
   /** Calls `fn` with positional `args`, named by `PARAMS`; a failure throws its `DbError`. */
   const callAs =
     (as: keyof typeof callers) =>
@@ -358,6 +373,7 @@ export function createOutbox(options: OutboxOptions): Outbox {
         ),
         (value) => value ?? null,
       ).orThrow();
+
   const userCall = callAs("user");
   const call = callAs("service");
 
@@ -374,10 +390,14 @@ export function createOutbox(options: OutboxOptions): Outbox {
     consumer: string,
     events: readonly OutboxEvent[],
   ): Promise<readonly OutboxEvent[]> {
-    if (!subscribers) return events;
+    if (!subscribers) {
+      return events;
+    }
+
     const allowed = await Promise.all(
       events.map(async (event) => {
         const subscriber = { principal: consumer, kind: "service" as const };
+
         const kept = await subscribers(
           {
             type: event.type,
@@ -388,9 +408,11 @@ export function createOutbox(options: OutboxOptions): Outbox {
           },
           [subscriber],
         );
+
         return kept.includes(subscriber);
       }),
     );
+
     return events.filter((_, index) => allowed[index]);
   }
 
@@ -405,6 +427,7 @@ export function createOutbox(options: OutboxOptions): Outbox {
     const lease = relayOptions.lease ?? "1 minute";
     let delivered = 0;
     let refused = 0;
+
     const done = (
       result: Omit<RelayResult, "delivered" | "refused">,
     ): RelayResult => ({
@@ -412,8 +435,10 @@ export function createOutbox(options: OutboxOptions): Outbox {
       ...(refused > 0 ? { refused } : {}),
       ...result,
     });
+
     while (!spent.expired()) {
       let events: readonly OutboxEvent[];
+
       try {
         events = toEvents(
           await call("outbox_claim", [consumer, owner, batch, lease]),
@@ -421,17 +446,25 @@ export function createOutbox(options: OutboxOptions): Outbox {
       } catch (cause) {
         return done({ error: asDbError(cause) });
       }
+
       const last = events.at(-1);
+
       if (last === undefined) {
         await call("outbox_ack", [consumer, owner, null]).catch(() => null);
         break;
       }
+
       let handed: readonly OutboxEvent[];
+
       try {
         handed = await permitted(consumer, events);
-        if (handed.length > 0) await handler(handed);
+
+        if (handed.length > 0) {
+          await handler(handed);
+        }
       } catch (cause) {
         const error = toDbError(cause);
+
         const state = await call("outbox_fail", [
           consumer,
           owner,
@@ -440,19 +473,26 @@ export function createOutbox(options: OutboxOptions): Outbox {
           relayOptions.maxAttempts ?? 10,
           relayOptions.maxBackoff ?? "10 minutes",
         ]).catch(() => null);
+
         return state === "dead"
           ? done({ error, deadLettered: 1 })
           : done({ error });
       }
+
       try {
         await call("outbox_ack", [consumer, owner, last.position]);
       } catch (cause) {
         return done({ error: asDbError(cause) });
       }
+
       delivered += handed.length;
       refused += events.length - handed.length;
-      if (events.length < batch) break;
+
+      if (events.length < batch) {
+        break;
+      }
     }
+
     return done({});
   }
 
@@ -498,6 +538,7 @@ export function createOutbox(options: OutboxOptions): Outbox {
           // Each consumer has its own cursor and lease, so they relay side by
           // side within the one budget.
           const entries = Object.entries(routeOptions.consumers);
+
           const relayed = await Promise.all(
             entries.map(async ([consumer, sink]) => {
               const result = await relay(
@@ -506,18 +547,25 @@ export function createOutbox(options: OutboxOptions): Outbox {
                 routeOptions,
                 spent,
               );
-              if (result.error) routeOptions.onError?.(result.error, consumer);
+
+              if (result.error) {
+                routeOptions.onError?.(result.error, consumer);
+              }
+
               return result;
             }),
           );
+
           const results: Record<string, RelayResult> = {};
           entries.forEach(([consumer], index) => {
             results[consumer] = relayed[index]!;
           });
+
           const result: OutboxRouteResult = {
             consumers: results,
             budgetExhausted: spent.expired(),
           };
+
           return Response.json(result);
         },
       );
@@ -550,6 +598,7 @@ export function createOutbox(options: OutboxOptions): Outbox {
         ),
       ),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "outbox",
     ...(options.logger ? { logger: options.logger } : {}),

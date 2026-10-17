@@ -20,6 +20,7 @@ describe("defineOverlay", () => {
       info,
       actions: [{ target: "$.info", copy: "$.paths['/a']" }],
     });
+
     expectTypeOf(overlay).toEqualTypeOf<Overlay11>();
     expect(overlay.overlay).toBe("1.1.0");
     expect(Object.keys(overlay)[0]).toBe("overlay");
@@ -31,13 +32,16 @@ describe("defineOverlay", () => {
       components: { actions: { a: { fields: { remove: true } } } },
       actions: [{ $ref: "#/components/actions/a", target: "$.x" }],
     });
+
     expectTypeOf(withRef).toEqualTypeOf<Overlay12>();
     expect(withRef.overlay).toBe("1.2.0");
+
     const withSelf = defineOverlay({
       info,
       $self: "https://example.com/o.yaml",
       actions: [{ target: "$.x", remove: true }],
     });
+
     expectTypeOf(withSelf).toEqualTypeOf<Overlay12>();
     expect(withSelf.overlay).toBe("1.2.0");
   });
@@ -50,6 +54,7 @@ describe("defineOverlay", () => {
       actions: [{ target: "$.x", update: { a: 1 } }],
       "x-owner": "platform",
     });
+
     expectTypeOf(v10).toEqualTypeOf<Overlay10>();
     expect(v10).toEqual({
       overlay: "1.0.0",
@@ -58,17 +63,21 @@ describe("defineOverlay", () => {
       actions: [{ target: "$.x", update: { a: 1 } }],
       "x-owner": "platform",
     });
+
     const v12 = defineOverlay({
       overlay: "1.2.0",
       info,
       actions: [{ target: "$.x", remove: true }],
     });
+
     expectTypeOf(v12).toEqualTypeOf<Overlay12>();
+
     const v11 = defineOverlay({
       overlay: "1.1.0",
       info,
       actions: [{ target: "$.x", remove: true }],
     });
+
     expectTypeOf(v11).toEqualTypeOf<Overlay11>();
   });
 
@@ -113,6 +122,7 @@ describe("defineOverlay", () => {
       info,
       actions: [{ target: "$", remove: true }],
     } as unknown as Parameters<typeof defineOverlay>[0];
+
     expect(() => defineOverlay(input)).toThrow("unsupported overlay 9.9.9");
   });
 });
@@ -138,6 +148,7 @@ describe("expandReusableActions", () => {
         },
       ],
     });
+
     const { overlay: expanded, diagnostics } = expandReusableActions(overlay);
     expect(diagnostics).toEqual([]);
     expect(expanded).toEqual({
@@ -162,6 +173,7 @@ describe("expandReusableActions", () => {
         { target: "$", remove: true },
       ],
     };
+
     // SAFETY: a malformed overlay on purpose.
     const malformed = overlay as unknown as Overlay;
     const result = expandReusableActions(malformed);

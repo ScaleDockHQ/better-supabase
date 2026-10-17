@@ -46,6 +46,7 @@ export type KnowledgeScope =
   | "project"
   | "chat"
   | "user";
+
 export type KnowledgeStatus = "pending" | "ready" | "failed";
 
 export interface KnowledgeDocument {
@@ -236,8 +237,10 @@ const SCOPES: ReadonlySet<string> = new Set([
   "chat",
   "user",
 ]);
+
 const STATUSES: ReadonlySet<string> = new Set(["pending", "ready", "failed"]);
 const BREAKS = ["\n\n", "\n", ". ", " "] as const;
+
 const TEXT_TYPES =
   /^(text\/|application\/(json|xml|yaml|x-yaml|ld\+json|x-ndjson)\b)/;
 
@@ -252,38 +255,54 @@ export function chunk(
 ): readonly KnowledgeChunk[] {
   const size = options.size ?? 2000;
   const overlap = options.overlap ?? Math.min(200, Math.floor(size / 10));
+
   if (!Number.isInteger(size) || size < 1) {
     throw new RangeError("chunk size must be a positive whole number");
   }
+
   if (!Number.isInteger(overlap) || overlap < 0 || overlap >= size) {
     throw new RangeError("chunk overlap must be at least 0 and below size");
   }
+
   const clean = text.replaceAll(/\r\n?/g, "\n").trim();
   const chunks: KnowledgeChunk[] = [];
   let start = 0;
+
   while (start < clean.length) {
     let end = Math.min(start + size, clean.length);
+
     if (end < clean.length) {
       const window = clean.slice(start, end);
+
       for (const mark of BREAKS) {
         const at = window.lastIndexOf(mark);
+
         if (at >= window.length / 2) {
           end = start + at + mark.length;
           break;
         }
       }
     }
+
     const content = clean.slice(start, end).trim();
+
     if (content !== "") {
       chunks.push({ content, tokens: Math.ceil(content.length / 4) });
     }
-    if (end >= clean.length) break;
+
+    if (end >= clean.length) {
+      break;
+    }
+
     const back = Math.max(end - overlap, start + 1);
+
     const word = /\s/.test(clean.charAt(back - 1))
       ? back - 1
       : clean.indexOf(" ", back);
+
     start = overlap > 0 && word >= back - 1 && word < end ? word + 1 : back;
   }
+
   return chunks;
 }
 
@@ -297,33 +316,40 @@ export function checkVectors(
 ): DbError | undefined {
   const invalid = (message: string): DbError =>
     dbError("invalid_input", message, { hint: "EMBEDDING_INVALID" });
+
   if (vectors.length !== count) {
     return invalid(
       `The embedder returned ${vectors.length} vectors for ${count} values`,
     );
   }
+
   const size = vectors[0]?.length ?? 0;
+
   for (const vector of vectors) {
     if (vector.length === 0 || vector.length !== size) {
       return invalid(
         "The embedder returned vectors of different or zero length",
       );
     }
+
     if (!vector.every(Number.isFinite)) {
       return invalid("The embedder returned a vector with a non-finite number");
     }
   }
+
   return undefined;
 }
 
 const scopeOf = (value: unknown): KnowledgeScope => {
   const text = textOf(value);
+
   // SAFETY: SCOPES holds exactly the KnowledgeScope members.
   return SCOPES.has(text) ? (text as KnowledgeScope) : "user";
 };
 
 const statusOf = (value: unknown): KnowledgeStatus => {
   const text = textOf(value);
+
   // SAFETY: STATUSES holds exactly the KnowledgeStatus members.
   return STATUSES.has(text) ? (text as KnowledgeStatus) : "failed";
 };
@@ -333,6 +359,7 @@ const instant = (value: unknown): Temporal.Instant =>
 
 function documentOf(value: unknown): KnowledgeDocument {
   const row = recordOf(value, "knowledge_documents");
+
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["organization_id"]),
@@ -354,6 +381,7 @@ function documentOf(value: unknown): KnowledgeDocument {
 
 function hitOf(value: unknown): KnowledgeHit {
   const row = recordOf(value, "knowledge_search");
+
   return {
     documentId: textOf(row["document_id"]),
     index: Number(row["idx"]),
@@ -379,6 +407,7 @@ function defaultExtract(file: AiFile, data: Uint8Array): Promise<string> {
       ),
     );
   }
+
   return Promise.resolve(decoder.decode(data));
 }
 
@@ -391,11 +420,13 @@ const unsupported = (cause: unknown): DbError =>
 export function createKnowledge(options: KnowledgeOptions): Knowledge {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const service = blockCall(
     options.service ?? options.transport,
     options.schema,
     options.mappers,
   );
+
   const batchSize = options.batchSize ?? 64;
   const extract = options.extract ?? defaultExtract;
   const embedder = injectableOf("embedder", options.embedder);
@@ -470,21 +501,37 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
   ): AsyncResult<number> =>
     AsyncResult.from(async (): Promise<Result<number>> => {
       let before = Number.POSITIVE_INFINITY;
+
       for (;;) {
         const pending = await service(
           "pending_knowledge_chunks",
           { document_id: documentId, batch: batchSize },
           (value) => recordsOf(value, "pending_knowledge_chunks"),
         );
-        if (!pending.ok) return pending;
-        if (pending.data.length === 0) return ok(0);
+
+        if (!pending.ok) {
+          return pending;
+        }
+
+        if (pending.data.length === 0) {
+          return ok(0);
+        }
+
         const vectors = await embed(
           pending.data.map((row) => textOf(row["content"])),
           processOptions.signal,
         );
-        if (!vectors.ok) return vectors;
+
+        if (!vectors.ok) {
+          return vectors;
+        }
+
         const invalid = checkVectors(vectors.data, pending.data.length);
-        if (invalid) return err(invalid);
+
+        if (invalid) {
+          return err(invalid);
+        }
+
         const remaining = await service(
           "set_knowledge_embeddings",
           {
@@ -500,11 +547,21 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
           },
           Number,
         );
-        if (!remaining.ok || remaining.data === 0) return remaining;
-        if (processOptions.signal?.aborted) return ok(remaining.data);
+
+        if (!remaining.ok || remaining.data === 0) {
+          return remaining;
+        }
+
+        if (processOptions.signal?.aborted) {
+          return ok(remaining.data);
+        }
+
         // Chunks rewritten while they were embedded stay pending; stop when a
         // round makes no progress instead of embedding them in a loop.
-        if (remaining.data >= before) return ok(remaining.data);
+        if (remaining.data >= before) {
+          return ok(remaining.data);
+        }
+
         before = remaining.data;
       }
     });
@@ -543,6 +600,7 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
         fromText(organizationId, document, text),
       file: (organizationId, fileId, document = {}) => {
         const files = options.files;
+
         if (!files) {
           return AsyncResult.err(
             dbError("invalid_request", "createKnowledge has no files block", {
@@ -550,6 +608,7 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
             }),
           );
         }
+
         return files.files.read(fileId).andThen(({ file, data }) =>
           AsyncResult.from(async () => {
             try {
@@ -575,7 +634,11 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
     process,
     embedJob: () => async (payload, job, signal) => {
       const result = await process(payload.document_id, { signal });
-      if (result.ok) return;
+
+      if (result.ok) {
+        return;
+      }
+
       if (job.attempts >= job.maxAttempts) {
         await service(
           "fail_knowledge_document",
@@ -583,6 +646,7 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
           (value) => value,
         );
       }
+
       throw new DbException(result.error);
     },
     drain: (drainOptions = {}) =>
@@ -594,9 +658,14 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
         AsyncResult.from(async () => {
           const attempts = Math.max(1, drainOptions.attempts ?? 3);
           let done = 0;
+
           for (const id of ids) {
-            if (drainOptions.signal?.aborted) break;
+            if (drainOptions.signal?.aborted) {
+              break;
+            }
+
             let result = await process(id, drainOptions);
+
             for (
               let attempt = 1;
               !result.ok && attempt < attempts && !drainOptions.signal?.aborted;
@@ -604,6 +673,7 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
             ) {
               result = await process(id, drainOptions);
             }
+
             if (result.ok) {
               done += 1;
             } else if (!drainOptions.signal?.aborted) {
@@ -614,6 +684,7 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
               );
             }
           }
+
           return ok(done);
         }),
       ),
@@ -622,14 +693,17 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
         typeof query === "string"
           ? { text: query, embedding: undefined }
           : query;
+
       const embeds =
         embedding === undefined &&
         embedder !== undefined &&
         text !== undefined &&
         text !== "";
+
       const vector: AsyncResult<readonly number[] | undefined> = embeds
         ? embed([text], searchOptions.signal).map((vectors) => vectors[0])
         : AsyncResult.ok(embedding);
+
       return vector.andThen((value) =>
         call(
           "knowledge_search",
@@ -655,8 +729,10 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
         Number,
       ),
   };
+
   const { documents, ingest, ...hooks } = options.hooks ?? {};
   const logger = options.logger ? { logger: options.logger } : {};
+
   return withBlockHooks(
     {
       ...client,

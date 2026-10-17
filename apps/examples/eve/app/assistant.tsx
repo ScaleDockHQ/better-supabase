@@ -6,10 +6,11 @@ import type { ReactNode, SubmitEvent } from "react";
 import { useEveAgent } from "eve/react";
 import { useEffect, useState } from "react";
 
-import { browserClient } from "@/lib/supabase";
+import { browserClient } from "@/lib/supabase/client";
 
 async function authorization(): Promise<Record<string, string>> {
   const { data } = await browserClient().auth.getSession();
+
   return data.session
     ? { authorization: `Bearer ${data.session.access_token}` }
     : {};
@@ -24,7 +25,11 @@ function Chat(): ReactNode {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const message = String(form.get("message") ?? "").trim();
-    if (message.length === 0 || resuming) return;
+
+    if (message.length === 0 || resuming) {
+      return;
+    }
+
     void agent.send(message, busy ? { turnPolicy: "steer" } : undefined);
     event.currentTarget.reset();
   };
@@ -57,10 +62,12 @@ function SignIn(): ReactNode {
   ): Promise<void> => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+
     const result = await browserClient().auth.signInWithPassword({
       email: String(form.get("email") ?? ""),
       password: String(form.get("password") ?? ""),
     });
+
     setError(result.error?.message);
   };
 
@@ -96,9 +103,11 @@ export function Assistant(): ReactNode {
     void auth.getSession().then(({ data }) => {
       setSession(data.session);
     });
+
     const { data } = auth.onAuthStateChange((_event, next) => {
       setSession(next);
     });
+
     return () => {
       data.subscription.unsubscribe();
     };

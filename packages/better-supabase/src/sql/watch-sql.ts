@@ -15,11 +15,19 @@ export function watchSql(
     readonly subjectId: string;
   },
 ): string {
-  if (!ctx.installed("notifications")) return "";
+  if (!ctx.installed("notifications")) {
+    return "";
+  }
+
   const n = ctx.of("notifications");
-  if (!n.hasTable("subscriptions")) return "";
+
+  if (!n.hasTable("subscriptions")) {
+    return "";
+  }
+
   const s = (logical: string): string => n.col("subscriptions", logical);
   const tenanted = n.has("subscriptions", "tenant");
+
   const columns = [
     ...(tenanted ? [s("tenant")] : []),
     s("user"),
@@ -27,6 +35,7 @@ export function watchSql(
     s("subjectId"),
     s("level"),
   ];
+
   const values = [
     ...(tenanted ? [watch.tenant] : []),
     watch.user,
@@ -34,6 +43,7 @@ export function watchSql(
     watch.subjectId,
     "'participating'",
   ];
+
   return `insert into ${n.table("subscriptions")} (${columns.join(", ")})
     values (${values.join(", ")})
     on conflict do nothing;`;

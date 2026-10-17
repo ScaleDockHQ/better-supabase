@@ -98,10 +98,14 @@ const extrasOf = (ctx: ModuleContext) =>
   ctx.extraColumns("views", ["ownerId", "teamId", "updatedAt", "preferences"]);
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
   const extras = extrasOf(ctx);
   const views = ctx.table("views");
   const c = (column: string): string => ctx.col("views", column);
+
   const [id, tenant, list, scope, owner, team, name, kind, state, rank] = [
     c("id"),
     c("tenant"),
@@ -114,17 +118,22 @@ function build(ctx: ModuleContext): string {
     c("state"),
     c("rank"),
   ];
+
   const isDefault = c("isDefault");
   const createdAt = c("createdAt");
   const updatedAt = c("updatedAt");
   const read = ctx.permission("read", OPERATIONS["saved-views.read"]);
   const share = ctx.permission("share", OPERATIONS["saved-views.share"]);
+
   const teams = ctx.installed("teams")
     ? `select t::text from ${ctx.of("teams").fn("team_ids_of")}((select auth.uid())) t`
     : "";
+
   const inTeam = (value: string): string =>
     teams === "" ? "false" : `${value} in (${teams})`;
+
   const slot = `coalesce(case ${scope} when 'user' then ${owner}::text when 'team' then ${team} end, '')`;
+
   const tables = ctx.manages
     ? `create table if not exists ${views} (
   ${id} uuid primary key default gen_random_uuid(),
@@ -149,7 +158,9 @@ create unique index if not exists saved_views_default_idx on ${views} (${tenant}
 ${lockTable(views, { read: true })}
 `
     : "";
+
   const fn = (value: string): string => ctx.fn(value);
+
   // A user sees their own views, their teams' views and the tenant's views.
   const visible = `${tenant} in (select ${ctx.scope.ids(read)})
   and (
@@ -157,10 +168,12 @@ ${lockTable(views, { read: true })}
     or (${scope} = 'team' and ${inTeam(team)})
     or ${scope} = 'tenant'
   )`;
+
   const mayEdit = (alias: string): string =>
     `(auth.role() = 'service_role'
     or (${alias}.${scope} = 'user' and ${alias}.${owner} = auth.uid())
     or (${alias}.${scope} <> 'user' and ${ctx.scope.can(`${alias}.${tenant}`, share)}))`;
+
   // `visible` for a row a security definer function has read.
   const maySee = (alias: string): string =>
     `(auth.role() = 'service_role'
@@ -168,12 +181,15 @@ ${lockTable(views, { read: true })}
       (${alias}.${scope} = 'user' and ${alias}.${owner} = auth.uid())
       or (${alias}.${scope} = 'team' and ${inTeam(`${alias}.${team}`)})
       or ${alias}.${scope} = 'tenant')))`;
+
   const collection = ctx.installed("collections")
     ? collectionCheck(ctx.of("collections"))
     : "";
+
   const preferences = ctx.hasTable("preferences")
     ? preferenceParts(ctx, { views, maySee })
     : undefined;
+
   return `${schemaPreamble(ctx)}
 ${tables}
 drop policy if exists saved_views_read on ${views};
@@ -426,6 +442,7 @@ ${preferences?.functions ?? ""}`;
  */
 function collectionCheck(collections: ModuleContext): string {
   const c = (column: string): string => collections.col("collections", column);
+
   return `
   if save_view.state ? 'collectionId' and (
     jsonb_typeof(save_view.state -> 'collectionId') <> 'string'
@@ -461,6 +478,7 @@ function preferenceParts(
   const prefs = ctx.table("preferences");
   const p = (column: string): string => ctx.col("preferences", column);
   const v = (column: string): string => ctx.col("views", column);
+
   const [view, user, tenant, isDefault, hidden, pinned, updatedAt] = [
     p("view"),
     p("user"),
@@ -470,6 +488,7 @@ function preferenceParts(
     p("pinned"),
     p("updatedAt"),
   ];
+
   const table = ctx.manages
     ? `create table if not exists ${prefs} (
   ${view} uuid not null references ${shared.views} (${v("id")}) on delete cascade,
@@ -485,9 +504,12 @@ create index if not exists saved_view_preferences_user_idx on ${prefs} (${user},
 ${lockTable(prefs, { read: true })}
 `
     : "";
+
   const fn = ctx.fn("set_view_preference");
+
   const json = (alias: string): string =>
     `jsonb_build_object('isDefault', coalesce(${alias}.${isDefault}, false), 'hidden', coalesce(${alias}.${hidden}, false), 'pinned', coalesce(${alias}.${pinned}, false))`;
+
   return {
     ddl: `${table}drop policy if exists saved_view_preferences_read on ${prefs};
 create policy saved_view_preferences_read on ${prefs} for select to authenticated

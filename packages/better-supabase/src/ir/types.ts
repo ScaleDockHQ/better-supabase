@@ -239,19 +239,30 @@ export interface DeleteOp extends BoundedMutation {
 }
 
 export type Operation = SelectOp | InsertOp | UpdateOp | DeleteOp;
+
 export type MutationOp = InsertOp | UpdateOp | DeleteOp;
 
 export const and = (
   ...items: (Condition | undefined)[]
 ): Condition | undefined => {
   const present = items.filter((item): item is Condition => item !== undefined);
-  if (present.length === 0) return undefined;
-  if (present.length === 1) return present[0];
+
+  if (present.length === 0) {
+    return undefined;
+  }
+
+  if (present.length === 1) {
+    return present[0];
+  }
+
   return { kind: "and", items: present };
 };
 
 export const or = (...items: Condition[]): Condition => {
-  if (items.length === 1 && items[0]) return items[0];
+  if (items.length === 1 && items[0]) {
+    return items[0];
+  }
+
   return { kind: "or", items };
 };
 

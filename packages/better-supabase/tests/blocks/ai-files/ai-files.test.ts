@@ -50,10 +50,12 @@ function fakeBucket(): AiFileBucket & {
   readonly calls: string[];
 } {
   const calls: string[] = [];
+
   return {
     calls,
     createSignedUploadUrl: (path) => {
       calls.push(`upload-url:${path}`);
+
       return Promise.resolve({
         data: { signedUrl: `https://up/${path}`, token: "t" },
         error: null,
@@ -61,6 +63,7 @@ function fakeBucket(): AiFileBucket & {
     },
     createSignedUrl: (path, ttl) => {
       calls.push(`sign:${path}:${String(ttl)}`);
+
       return Promise.resolve({
         data: { signedUrl: `https://get/${path}` },
         error: null,
@@ -68,6 +71,7 @@ function fakeBucket(): AiFileBucket & {
     },
     download: (path) => {
       calls.push(`download:${path}`);
+
       return Promise.resolve({
         data: new Blob([new Uint8Array([1, 2, 3, 4])]),
         error: null,
@@ -75,10 +79,12 @@ function fakeBucket(): AiFileBucket & {
     },
     remove: (paths) => {
       calls.push(`remove:${paths.join(",")}`);
+
       return Promise.resolve({ data: [], error: null });
     },
     upload: (path) => {
       calls.push(`put:${path}`);
+
       return Promise.resolve({ data: { path }, error: null });
     },
   };
@@ -90,14 +96,18 @@ function setup(
 ) {
   const bucket = fakeBucket();
   const storage: AiFileStorage = { from: () => bucket };
+
   const user = vi.fn((_schema: string, fn: string, args: object) =>
     Promise.resolve(respond(fn, args as Record<string, unknown>)),
   );
+
   const server = vi.fn((_schema: string, fn: string, args: object) =>
     Promise.resolve(respond(fn, args as Record<string, unknown>)),
   );
+
   const transport: BlockTransport = { call: user };
   const service: BlockTransport = { call: server };
+
   const files = createAiFiles({
     transport,
     service,
@@ -105,6 +115,7 @@ function setup(
     downloadTtl: 60,
     ...(maxBytes === undefined ? {} : { maxBytes }),
   });
+
   return { files, bucket, user, server };
 }
 
@@ -114,6 +125,7 @@ describe("supabase-storage URLs", () => {
       bucket: "ai-files",
       path: "o1/u1/f1/report one.pdf",
     });
+
     expect(url).toBe("supabase-storage://ai-files/o1/u1/f1/report%20one.pdf");
     expect(parseAiFileUrl(url)).toEqual({
       bucket: "ai-files",
@@ -131,12 +143,14 @@ describe("supabase-storage URLs", () => {
 describe("createAiFiles", () => {
   it("reserves a file, then returns a signed upload URL for its path", async () => {
     const { files, bucket, user } = setup(() => fileRow({ status: "pending" }));
+
     const upload = await files.files.upload("o1", {
       filename: "report one.pdf",
       mediaType: "application/pdf",
       size: 4,
       chatId: "c1",
     });
+
     expect(upload.ok && upload.data.signedUrl).toBe(
       "https://up/o1/u1/f1/report one.pdf",
     );
@@ -155,6 +169,7 @@ describe("createAiFiles", () => {
     const { files, user } = setup((fn) =>
       fn === "get_ai_file_by_path" ? fileRow() : null,
     );
+
     const resolved = await files.files.resolve(aiFileUrl(fileRow()));
     expect(resolved.ok && resolved.data.id).toBe("f1");
     expect(user).toHaveBeenCalledWith(
@@ -191,6 +206,7 @@ describe("createAiFiles", () => {
       bucket: "ai-files",
       path: "o1/u1/f1/a.pdf",
     }));
+
     const removed = await files.files.remove("f1");
     expect(removed.ok && removed.data).toBe(true);
     expect(bucket.calls).toEqual(["remove:o1/u1/f1/a.pdf"]);
@@ -207,12 +223,14 @@ describe("createAiFiles", () => {
         path: "o1/u1/f1/a.png",
       }),
     );
+
     const stored = await files.files.store("o1", {
       ownerId: "u1",
       filename: "a.png",
       mediaType: "image/png",
       data: new Uint8Array([1, 2]),
     });
+
     expect(stored.ok && stored.data.source).toBe("generated");
     expect(server.mock.calls[0]?.[2]).toMatchObject({
       owner: "u1",
@@ -224,6 +242,7 @@ describe("createAiFiles", () => {
 
   it("deletes the record when the generated file fails to upload", async () => {
     const bucket = fakeBucket();
+
     const storage: AiFileStorage = {
       from: () => ({
         ...bucket,
@@ -231,20 +250,24 @@ describe("createAiFiles", () => {
           Promise.resolve({ data: null, error: { message: "full" } }),
       }),
     };
+
     const server = vi.fn((_schema: string, fn: string) =>
       Promise.resolve(fn === "store_ai_file" ? fileRow() : true),
     );
+
     const files = createAiFiles({
       transport: { call: server },
       service: { call: server },
       storage,
     });
+
     const stored = await files.files.store("o1", {
       ownerId: "u1",
       filename: "a.png",
       mediaType: "image/png",
       data: new Blob([new Uint8Array([1])]),
     });
+
     expect(stored.ok).toBe(false);
     expect(server.mock.calls.map((call) => call[1])).toEqual([
       "store_ai_file",
@@ -256,6 +279,7 @@ describe("createAiFiles", () => {
     const { files, user } = setup((fn) =>
       fn === "list_ai_files" ? [fileRow()] : fileRow(),
     );
+
     const confirmed = await files.files.confirm("f1", "abc");
     expect(confirmed.ok && confirmed.data.status).toBe("ready");
     expect(user).toHaveBeenLastCalledWith(
@@ -274,6 +298,7 @@ describe("createAiFiles", () => {
     const { files } = setup(() => [
       { file_id: "f1", provider: "openai", reference: "r", expires_at: AT },
     ]);
+
     const expiring = await files.providerFiles.expiring("1 day", 10);
     expect(expiring.ok && expiring.data[0]?.reference).toBe("r");
   });
@@ -291,17 +316,24 @@ describe("createAiFiles", () => {
       resolved_at: AT,
       accepted: true,
     };
+
     const { files, user } = setup((fn) => {
       switch (fn) {
-        case "delete_ai_document":
+        case "delete_ai_document": {
           return true;
+        }
+
         case "suggest_ai_document_edit":
-        case "resolve_ai_suggestion":
+        case "resolve_ai_suggestion": {
           return suggestion;
-        default:
+        }
+
+        default: {
           return documentRow;
+        }
       }
     });
+
     const rolled = await files.documents.rollback("d1", 1);
     expect(rolled.ok && rolled.data.version).toBe(2);
     expect(user).toHaveBeenLastCalledWith(
@@ -311,10 +343,12 @@ describe("createAiFiles", () => {
     );
     const removed = await files.documents.remove("d1");
     expect(removed.ok && removed.data).toBe(true);
+
     const suggested = await files.documents.suggest("d1", {
       originalText: "a",
       suggestedText: "b",
     });
+
     expect(suggested.ok && suggested.data.suggestedText).toBe("b");
     const resolved = await files.documents.resolve("s1", true);
     expect(resolved.ok && resolved.data.accepted).toBe(true);
@@ -325,6 +359,7 @@ describe("createAiFiles", () => {
       { bucket: "ai-files", path: "a" },
       { bucket: "ai-files", path: "b" },
     ]);
+
     const purged = await files.files.purge({ batch: 10 });
     expect(purged.ok && purged.data).toBe(2);
     expect(bucket.calls).toEqual(["remove:a,b"]);
@@ -341,6 +376,7 @@ describe("createAiFiles", () => {
           }
         : true,
     );
+
     const cached = await files.providerFiles.get("f1", "openai");
     expect(cached.ok && cached.data?.reference).toBe("file-abc");
     await files.providerFiles.set(
@@ -364,9 +400,11 @@ describe("createAiFiles", () => {
   it("versions documents and maps their rows", async () => {
     const { files, user } = setup((fn) => {
       switch (fn) {
-        case "get_ai_document":
+        case "get_ai_document": {
           return { ...documentRow, content: "let a = 1", storage_path: null };
-        case "list_ai_document_versions":
+        }
+
+        case "list_ai_document_versions": {
           return [
             {
               document_id: "d1",
@@ -378,7 +416,9 @@ describe("createAiFiles", () => {
               created_at: AT,
             },
           ];
-        case "list_ai_suggestions":
+        }
+
+        case "list_ai_suggestions": {
           return [
             {
               id: "s1",
@@ -393,10 +433,14 @@ describe("createAiFiles", () => {
               accepted: null,
             },
           ];
-        default:
+        }
+
+        default: {
           return documentRow;
+        }
       }
     });
+
     const doc = await files.documents.get("d1");
     expect(doc.ok && doc.data.content).toBe("let a = 1");
     expect(doc.ok && doc.data.kind).toBe("code");
@@ -429,8 +473,10 @@ describe("createAiFiles", () => {
         ? fileRow()
         : null,
     );
+
     const own = aiFileUrl(fileRow());
     const other = "supabase-storage://ai-files/o2/u2/f2/x.pdf";
+
     const [message] = await files.sign([
       {
         id: "m1",
@@ -443,9 +489,11 @@ describe("createAiFiles", () => {
         ],
       },
     ]);
+
     const urls = message?.parts.map((part) =>
       part.type === "file" ? part.url : part.type,
     );
+
     expect(urls).toEqual([
       "text",
       "https://get/o1/u1/f1/report one.pdf",
@@ -456,6 +504,7 @@ describe("createAiFiles", () => {
 
   it("returns messages untouched without storage URLs", async () => {
     const { files } = setup(() => null);
+
     const messages = [
       {
         id: "m1",
@@ -463,6 +512,7 @@ describe("createAiFiles", () => {
         parts: [{ type: "text" as const, text: "hi" }],
       },
     ];
+
     expect(await files.sign(messages)).toBe(messages);
   });
 });

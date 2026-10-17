@@ -19,6 +19,7 @@ export function rankBetweenResult(neighbors: RankNeighbors): Result<string> {
     return ok(rankBetween(neighbors.previous ?? null, neighbors.next ?? null));
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);
+
     return err(
       dbError("invalid_request", message, { hint: "RANK_KEY_INVALID" }),
     );

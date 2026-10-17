@@ -58,6 +58,7 @@ function client() {
 describe("createOnboardingController", () => {
   it("loads an organization checklist and completes and resets steps", async () => {
     const calls = client();
+
     const { view, unmount } = mount(
       createOnboardingController({
         client: calls,
@@ -66,6 +67,7 @@ describe("createOnboardingController", () => {
         organizationId: "org-1",
       }),
     );
+
     await flush();
     expect(calls.progress).toHaveBeenCalledWith(team, "org-1");
     expect(view().progress?.completed).toBe(0);
@@ -107,11 +109,13 @@ describe("createOnboardingController", () => {
     const slow = client();
     const answer = held(progress(2));
     slow.progress.mockReturnValue(answer.result);
+
     const controller = createOnboardingController({
       client: slow,
       checklist: profile,
       auth: fakeAuth(),
     });
+
     const mounted = mount(controller);
     await flush();
     mounted.unmount();

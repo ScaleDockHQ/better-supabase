@@ -11,23 +11,23 @@ export function HomeHero() {
   return (
     <section
       id="hero"
-      className="bg-background flex w-full items-center justify-center px-4 py-16 sm:px-6 lg:px-20"
+      className="flex w-full items-center justify-center bg-background px-4 py-16 sm:px-6 lg:px-20"
     >
       <div className="mx-auto flex w-full max-w-4xl flex-col items-center gap-8">
         <Badge variant="outline" size="xl" radius="full" className="h-7">
           <span
             aria-hidden="true"
-            className="bg-brand size-1.5 shrink-0 rounded-full"
+            className="size-1.5 shrink-0 rounded-full bg-brand"
           />
           Open source. MIT. Built on the official Supabase packages.
         </Badge>
-        <h1 className="text-foreground max-w-3xl text-center text-4xl font-semibold text-balance sm:text-5xl lg:text-6xl">
+        <h1 className="max-w-3xl text-center text-4xl font-semibold text-balance text-foreground sm:text-5xl lg:text-6xl">
           The typed layer for Supabase{" "}
           <span className="text-muted-foreground">
             apps, APIs, MCP servers and jobs.
           </span>
         </h1>
-        <p className="text-muted-foreground max-w-xl text-center text-base leading-7">
+        <p className="max-w-xl text-center text-base leading-7 text-muted-foreground">
           Generated models, a typed repository that returns results instead of
           throwing, auth glue that skips needless network calls, and adapters
           for Next.js, Hono, oRPC and Edge Functions.
@@ -45,7 +45,7 @@ export function HomeHero() {
           <InstallButton command={site.install} />
           <a
             href={site.npm}
-            className="text-muted-foreground hover:text-foreground text-sm underline-offset-4 hover:underline"
+            className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
           >
             npm
           </a>

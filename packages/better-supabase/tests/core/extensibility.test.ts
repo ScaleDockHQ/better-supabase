@@ -18,12 +18,16 @@ function echo(): Executor {
   return {
     name: "echo",
     execute: (op) => {
-      if (op.kind === "insert")
+      if (op.kind === "insert") {
         return Promise.resolve(
           ok({ rows: op.rows.map((row) => ({ ...row })), count: null }),
         );
-      if (op.kind === "delete" || op.kind === "update")
+      }
+
+      if (op.kind === "delete" || op.kind === "update") {
         return Promise.resolve(ok({ rows: [{ id: "t1" }], count: null }));
+      }
+
       return Promise.resolve(ok({ rows: [{ id: "t1", name: "a" }], count: 1 }));
     },
   };
@@ -32,6 +36,7 @@ function echo(): Executor {
 function recordingLogger(): Logger & { readonly messages: string[] } {
   const messages: string[] = [];
   const record = (message: string): void => void messages.push(message);
+
   return { messages, debug: record, info: record, warn: record, error: record };
 }
 
@@ -81,6 +86,7 @@ describe("betterSupabase.cache", () => {
     const created = await betterSupabase
       .connect(echo())
       .tags.create({ id: "t1", name: "a", organizationId: ACME });
+
     await Promise.resolve();
     expect(created.ok).toBe(true);
     expect(logger.messages).toEqual([
@@ -93,6 +99,7 @@ describe("betterSupabase.cache", () => {
 describe("logger", () => {
   it("receives event handler and afterMutation failures", async () => {
     const logger = recordingLogger();
+
     const betterSupabase = defineSupabase(schema, { logger }).use(
       definePlugin({
         name: "noisy",
@@ -101,12 +108,15 @@ describe("logger", () => {
         },
       }),
     );
+
     betterSupabase.on("query", () => {
       throw new Error("handler");
     });
+
     const result = await betterSupabase
       .connect(echo())
       .tags.create({ id: "t1", name: "a", organizationId: ACME });
+
     expect(result.ok).toBe(true);
     expect(logger.messages).toEqual([
       '"query" handler threw',
@@ -123,9 +133,11 @@ describe("per-definition state", () => {
     const byOrganization = defineSupabase(schema).use(
       tenant({ claim: "org_id" }),
     );
+
     const byMetadata = defineSupabase(schema).use(
       tenant({ claim: "app_metadata.tenant" }),
     );
+
     expect(byOrganization.connect(echo(), { claims }).$context.tenant).toBe(
       ACME,
     );
@@ -139,6 +151,7 @@ describe("per-definition state", () => {
     const db = defineSupabase(schema)
       .use(tenant({ claim: "org_id" }))
       .connect(echo(), { claims });
+
     expect(
       db.$with({ claims: { sub: "u1", org_id: ORG } }).$context.tenant,
     ).toBe(ORG);
@@ -147,6 +160,7 @@ describe("per-definition state", () => {
 
   it("logs a context hook that throws and keeps the caller's context", () => {
     const logger = recordingLogger();
+
     const db = defineSupabase(schema, { logger })
       .use(
         definePlugin({
@@ -157,12 +171,14 @@ describe("per-definition state", () => {
         }),
       )
       .connect(echo(), { tenant: ACME });
+
     expect(db.$context.tenant).toBe(ACME);
     expect(logger.messages).toEqual(['plugin "broken" context threw']);
   });
 
   it("warns when a second definition provides a different Temporal", () => {
     const previous = providedTemporal();
+
     try {
       const logger = recordingLogger();
       // SAFETY: the copy only needs to be a distinct namespace object.
@@ -188,6 +204,7 @@ describe("defineRepository", () => {
     const tags = defineRepository(base, "tags", (repo) => ({
       named: (name: string) => repo.findFirst({ where: { name } }),
     }));
+
     expect(tags.name).toBe("repository:tags");
     const db = base.use(tags).connect(echo());
     await expect(db.tags.named("a").orThrow()).resolves.toEqual({
@@ -201,6 +218,7 @@ describe("defineRepository", () => {
     const scoped = defineRepository(base, "tags", (repo) => ({
       all: () => repo.findMany({}),
     }));
+
     const clash = defineRepository(base, "tags", () => ({ findMany: () => 1 }));
     expect(() => base.use(scoped).use(clash)).toThrow(/already installed/);
     expect(() => base.use(clash).connect(echo()).tags).toThrow(
@@ -216,21 +234,25 @@ describe("defineRepository", () => {
 describe("pipeline consistency", () => {
   it("passes the caller's signal to transformQuery and beforeMutation", async () => {
     const seen: (AbortSignal | undefined)[] = [];
+
     const db = defineSupabase(schema)
       .use(
         definePlugin({
           name: "spy",
           transformQuery: (op, { signal }) => {
             seen.push(signal);
+
             return op;
           },
           beforeMutation: (op, { signal }) => {
             seen.push(signal);
+
             return op;
           },
         }),
       )
       .connect(echo());
+
     const controller = new AbortController();
     await db.tags
       .create(
@@ -244,6 +266,7 @@ describe("pipeline consistency", () => {
 
   it("reports a hook's unexpected throw as an error result with the table and plugin", async () => {
     const errors: unknown[] = [];
+
     const betterSupabase = defineSupabase(schema).use(
       definePlugin({
         name: "buggy",
@@ -252,10 +275,13 @@ describe("pipeline consistency", () => {
         },
       }),
     );
+
     betterSupabase.on("error", (event) => errors.push(event));
+
     const result = await betterSupabase
       .connect(echo())
       .tags.create({ id: "t1", name: "a", organizationId: ACME });
+
     expect(result.ok ? undefined : result.error).toMatchObject({
       kind: "unexpected",
       message: "cannot read x",
@@ -272,18 +298,22 @@ describe("pipeline consistency", () => {
 
   it("keeps the named plugins in $withoutPlugins and refuses unknown names", async () => {
     const calls: string[] = [];
+
     const named = (name: string) =>
       definePlugin({
         name,
         transformQuery: (op) => {
           calls.push(name);
+
           return op;
         },
       });
+
     const db = defineSupabase(schema)
       .use(named("trace"))
       .use(named("scope"))
       .connect(echo());
+
     await db
       .$withoutPlugins({ keep: ["trace"] })
       .tags.findMany()

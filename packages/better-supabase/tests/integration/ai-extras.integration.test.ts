@@ -18,6 +18,7 @@ describe.skipIf(!live)("ai-cache and ai-providers modules", () => {
 
   it("caches entries with a capped TTL and purges expired ones", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "ai-cache"], {
         modules: { "ai-cache": { options: { maxTtl: 120 } } },
@@ -34,6 +35,7 @@ describe.skipIf(!live)("ai-cache and ai-providers modules", () => {
           { ttl: 3600, organizationId: tenant, model: "openai/gpt-5" },
         )
         .orThrow();
+
       expect(
         saved.expiresAt.since(saved.createdAt).total("seconds"),
       ).toBeLessThanOrEqual(120);
@@ -44,6 +46,7 @@ describe.skipIf(!live)("ai-cache and ai-providers modules", () => {
       const tooBig = await cache.set("big", "x".repeat(2 * 1024 * 1024), {
         ttl: 60,
       });
+
       expect(tooBig.ok).toBe(false);
       const noFilter = await cache.clear({});
       expect(noFilter.ok).toBe(false);
@@ -66,6 +69,7 @@ describe.skipIf(!live)("ai-cache and ai-providers modules", () => {
 
   it("stores tenant keys as Vault refs, resolves them and revokes on delete", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "credentials", "ai-providers"]);
       const owner = await s.user("owner");
@@ -74,11 +78,13 @@ describe.skipIf(!live)("ai-cache and ai-providers modules", () => {
       const transport = sqlTransport(s.sql);
       const credentials = vaultCredentials({ transport, cacheMs: 0 });
       const providers = createAiProviders({ transport, credentials });
+
       const ref = {
         provider: "vault",
         secret: `ai-${crypto.randomUUID()}`,
         tenant,
       };
+
       const backup = {
         provider: "vault",
         secret: `ai-${crypto.randomUUID()}`,
@@ -90,17 +96,21 @@ describe.skipIf(!live)("ai-cache and ai-providers modules", () => {
       await credentials.set(backup, "sk-ant-2").orThrow();
 
       await s.asRole(member);
+
       const forbidden = await providers.keys.save(tenant, {
         provider: "anthropic",
         credentialRef: ref,
       });
+
       expect(forbidden.ok).toBe(false);
 
       await s.asRole(owner);
+
       const badRef = await providers.keys.save(tenant, {
         provider: "anthropic",
         credentialRef: { name: "no-provider" } as never,
       });
+
       expect(badRef.ok).toBe(false);
       expect(
         await s.hint("better_supabase.save_ai_provider_key($1, $2, $3)", [
@@ -109,6 +119,7 @@ describe.skipIf(!live)("ai-cache and ai-providers modules", () => {
           { provider: "vault", secret: "theirs", tenant: crypto.randomUUID() },
         ]),
       ).toBe("CREDENTIAL_REF_FOREIGN");
+
       const saved = await providers.keys
         .save(tenant, {
           provider: "anthropic",
@@ -116,6 +127,7 @@ describe.skipIf(!live)("ai-cache and ai-providers modules", () => {
           settings: { region: "eu" },
         })
         .orThrow();
+
       expect(saved).toMatchObject({ provider: "anthropic", name: "default" });
       expect(await providers.keys.list(tenant).orThrow()).toHaveLength(1);
 
@@ -139,9 +151,11 @@ describe.skipIf(!live)("ai-cache and ai-providers modules", () => {
       expect(old.ok ? "kept" : old.error.kind).toBe("not_found");
 
       expect(await providers.keys.removeAll(tenant).orThrow()).toBe(1);
+
       const gone = await credentials.getToken(backup, {
         subject: { type: "app" },
       });
+
       expect(gone.ok ? "kept" : gone.error.kind).toBe("not_found");
       expect(await providers.keys.resolve(tenant).orThrow()).toEqual([]);
     } finally {
@@ -151,6 +165,7 @@ describe.skipIf(!live)("ai-cache and ai-providers modules", () => {
 
   it("tracks a batch through polling and pages its results", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "ai-providers"]);
       const owner = await s.user("owner");
@@ -160,6 +175,7 @@ describe.skipIf(!live)("ai-cache and ai-providers modules", () => {
       const providers = createAiProviders({ transport: sqlTransport(s.sql) });
 
       await s.asRole(member);
+
       const batch = await providers.batches
         .record(tenant, {
           provider: "openai",
@@ -168,6 +184,7 @@ describe.skipIf(!live)("ai-cache and ai-providers modules", () => {
           userId: other.id,
         })
         .orThrow();
+
       expect(batch).toMatchObject({ userId: member.id, status: "pending" });
 
       await s.asRole(other);
@@ -198,19 +215,25 @@ describe.skipIf(!live)("ai-cache and ai-providers modules", () => {
           ])
           .orThrow(),
       ).toBe(2);
+
       const done = await providers.batches
         .update(batch.id, { resultsSaved: true, nextPollAt: null })
         .orThrow();
+
       expect(done.completedAt).toBeDefined();
 
       await s.asRole(member);
+
       const first = await providers.batches
         .items(batch.id, { limit: 1 })
         .orThrow();
+
       expect(first.map((item) => item.requestId)).toEqual(["a"]);
+
       const rest = await providers.batches
         .items(batch.id, { cursor: "a" })
         .orThrow();
+
       expect(rest).toMatchObject([{ requestId: "b", error: "bad" }]);
 
       await s.asRole(owner);
@@ -222,6 +245,7 @@ describe.skipIf(!live)("ai-cache and ai-providers modules", () => {
 
   it("stops idle sandboxes and keeps used ones", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "outbox", "ai-chat"]);
       const owner = await s.user("owner");
@@ -231,6 +255,7 @@ describe.skipIf(!live)("ai-cache and ai-providers modules", () => {
       const chatId = crypto.randomUUID();
 
       await s.service();
+
       const idle = await sandboxes
         .register(tenant, {
           provider: "vercel",
@@ -239,13 +264,16 @@ describe.skipIf(!live)("ai-cache and ai-providers modules", () => {
           idleSeconds: 60,
         })
         .orThrow();
+
       const busy = await sandboxes
         .register(tenant, { provider: "vercel", sandboxId: "sbx_busy" })
         .orThrow();
+
       const taken = await sandboxes.register(otherTenant, {
         provider: "vercel",
         sandboxId: "sbx_idle",
       });
+
       expect(taken.ok ? undefined : taken.error.hint).toBe(
         "AI_SANDBOX_FORBIDDEN",
       );

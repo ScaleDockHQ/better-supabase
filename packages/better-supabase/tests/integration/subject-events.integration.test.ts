@@ -52,11 +52,14 @@ describe.skipIf(!live)("subject-bound events in Postgres", () => {
         status text not null default 'open'
       );
       insert into events_it.tickets (id, organization_id) values ('t1', '${ACME}');`);
+
     for (const file of renderModules(
       ["outbox", "state-machine", "reminders"],
       layout,
     )) {
-      if (file.kind !== "test") await client.query(file.contents);
+      if (file.kind !== "test") {
+        await client.query(file.contents);
+      }
     }
   });
 
@@ -92,9 +95,11 @@ describe.skipIf(!live)("subject-bound events in Postgres", () => {
     await client.query(
       "update events_it.tickets set status = 'closed' where id = 't2'",
     );
+
     const t2 = (await payloads("status.changed")).filter(
       (p) => p["subjectId"] === "t2",
     );
+
     expect(t2).toEqual([
       {
         organizationId: ACME,
@@ -113,7 +118,9 @@ describe.skipIf(!live)("subject-bound events in Postgres", () => {
        values ($1, 'ticket', 't1', $2) returning id`,
       [ACME, USER],
     );
+
     const id = rows[0]!.id;
+
     const mark = async (): Promise<boolean> =>
       (
         await client.query<{ value: boolean }>(
@@ -121,6 +128,7 @@ describe.skipIf(!live)("subject-bound events in Postgres", () => {
           [id],
         )
       ).rows[0]!.value;
+
     expect(await mark()).toBe(true);
     expect(await mark()).toBe(false);
     expect(await payloads("reminder.sent")).toEqual([

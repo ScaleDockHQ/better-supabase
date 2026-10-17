@@ -276,10 +276,15 @@ const VOLATILITY: Record<
 /** `['statement_timeout=5s']` as `{ statement_timeout: '5s' }`. */
 function settingsOf(config: readonly string[] | null): Record<string, string> {
   const settings: Record<string, string> = {};
+
   for (const entry of config ?? []) {
     const at = entry.indexOf("=");
-    if (at > 0) settings[entry.slice(0, at)] = entry.slice(at + 1);
+
+    if (at > 0) {
+      settings[entry.slice(0, at)] = entry.slice(at + 1);
+    }
   }
+
   return settings;
 }
 
@@ -316,11 +321,15 @@ async function readHooks(
   db: Queryable,
   targets: readonly HookTarget[],
 ): Promise<ExtrasHook[]> {
-  if (targets.length === 0) return [];
+  if (targets.length === 0) {
+    return [];
+  }
+
   const found = await rows<HookRow>(
     db,
     HOOKS(literalArray(targets.map((t) => `${t.schema}.${t.name}`))),
   );
+
   return targets.map((target) => ({
     hook: target.hook,
     schema: target.schema,
@@ -379,6 +388,7 @@ async function serviceRows<R>(
   sql: string,
 ): Promise<R[]> {
   const [probe] = await rows<{ present: boolean }>(db, HAS_TABLE(qualified));
+
   return probe?.present ? rows<R>(db, sql) : [];
 }
 
@@ -386,12 +396,18 @@ function groupById<T extends { table_id: number | string }>(
   list: readonly T[],
 ): Map<number, T[]> {
   const map = new Map<number, T[]>();
+
   for (const row of list) {
     const id = Number(row.table_id);
     const entry = map.get(id);
-    if (entry) entry.push(row);
-    else map.set(id, [row]);
+
+    if (entry) {
+      entry.push(row);
+    } else {
+      map.set(id, [row]);
+    }
   }
+
   return map;
 }
 
@@ -402,6 +418,7 @@ export async function readExtras(
   hooks: readonly HookTarget[] = [],
 ): Promise<SnapshotExtras> {
   const list = literalArray(schemas);
+
   const [
     relations,
     constraintRows,
@@ -434,6 +451,7 @@ export async function readExtras(
     rows<{ role: string; config: string[] | null }>(db, ROLE_SETTINGS),
     hooks.length > 0 ? readHooks(db, hooks) : undefined,
   ]);
+
   const constraints = groupById(constraintRows);
   const indexes = groupById(indexRows);
   const policies = groupById(policyRows);
@@ -441,6 +459,7 @@ export async function readExtras(
   const grants = groupById(grantRows);
   const columnGrants = groupById(columnGrantRows);
   const roleSettings: Record<string, Record<string, string>> = {};
+
   for (const row of roleRows) {
     Object.assign((roleSettings[row.role] ??= {}), settingsOf(row.config));
   }
@@ -449,10 +468,13 @@ export async function readExtras(
     const id = Number(relation.id);
     const own = constraints.get(id) ?? [];
     const ownIndexes = indexes.get(id) ?? [];
+
     const uniques = own
       .filter((con) => con.type === "u")
       .map((con) => ({ name: con.name, columns: con.columns }));
+
     const constraintNames = new Set(own.map((con) => con.name));
+
     for (const index of ownIndexes) {
       if (
         index.unique &&
@@ -463,6 +485,7 @@ export async function readExtras(
         uniques.push({ name: index.name, columns: index.columns });
       }
     }
+
     return {
       id,
       schema: relation.schema,

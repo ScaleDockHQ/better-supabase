@@ -33,10 +33,14 @@ function supportFields(
   AuditEventInput,
   "supportSessionId" | "impersonatedBy" | "impersonationReason"
 > {
-  if (!eventType.startsWith("support.") || data === undefined) return {};
+  if (!eventType.startsWith("support.") || data === undefined) {
+    return {};
+  }
+
   const sessionId = textIn(data["sessionId"]);
   const adminId = textIn(data["adminId"]);
   const reason = textIn(data["reason"]);
+
   return {
     ...(sessionId === undefined ? {} : { supportSessionId: sessionId }),
     ...(adminId === undefined ? {} : { impersonatedBy: adminId }),
@@ -58,17 +62,23 @@ export function auditEventOf(
 ): AuditEventInput {
   const prefix = `${options.typePrefix ?? "dev.better-supabase"}.`;
   const data = isRecord(event.data) ? event.data : undefined;
+
   const organizationId =
     textIn(event["tenant"]) ??
     textIn(event["partitionkey"]) ??
     textIn(data?.["organizationId"]);
+
   const actorId = textIn(data?.["actorId"]);
+
   const metadata =
     data ?? (event.data === undefined ? undefined : { data: event.data });
+
   const eventType = event.type.startsWith(prefix)
     ? event.type.slice(prefix.length)
     : event.type;
+
   const category = (options.category ?? defaultCategory)(eventType);
+
   return {
     eventType,
     idempotencyKey: `${event.source}#${event.id}`,
@@ -93,11 +103,18 @@ export function auditSink(
   return {
     async send(events) {
       let failure: DbException | undefined;
+
       for (const event of events) {
         const result = await record(auditEventOf(event, options));
-        if (!result.ok) failure ??= new DbException(result.error);
+
+        if (!result.ok) {
+          failure ??= new DbException(result.error);
+        }
       }
-      if (failure !== undefined) throw failure;
+
+      if (failure !== undefined) {
+        throw failure;
+      }
     },
   };
 }

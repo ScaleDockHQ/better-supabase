@@ -10,7 +10,11 @@ describe("EventHub", () => {
     const offs = Array.from({ length: 60 }, () => hub.on("query", () => {}));
     expect(logger.warn).toHaveBeenCalledTimes(1);
     expect(logger.warn.mock.calls[0]?.[0]).toContain('51 "query" handlers');
-    for (const off of offs) off();
+
+    for (const off of offs) {
+      off();
+    }
+
     expect(hub.has("query")).toBe(false);
   });
 

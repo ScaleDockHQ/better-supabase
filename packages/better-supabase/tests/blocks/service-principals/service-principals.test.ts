@@ -19,7 +19,9 @@ function transport(
     async (_schema: string, fn: string, args: Record<string, unknown>) =>
       answer(fn, args),
   );
+
   const value: BlockTransport = { call };
+
   return { call, transport: value };
 }
 
@@ -29,9 +31,11 @@ function admin(error: string | null = null) {
       ? { data: { user: { id: "sp-1" } }, error: null }
       : { data: { user: null }, error: { message: error } },
   );
+
   const deleteUser = vi.fn<ServicePrincipalAuthAdmin["deleteUser"]>(
     async () => ({ error: null }),
   );
+
   return { createUser, deleteUser };
 }
 
@@ -48,12 +52,14 @@ describe("createServicePrincipals", () => {
     const auth = admin();
     const { call, transport: t } = transport(() => REGISTERED);
     const principals = createServicePrincipals({ transport: t, admin: auth });
+
     const created = await principals
       .create("org-1", "Automations", "member", {
         default: true,
         createdBy: "u-1",
       })
       .orThrow();
+
     expect(created).toEqual({
       id: "sp-1",
       organizationId: "org-1",
@@ -86,16 +92,20 @@ describe("createServicePrincipals", () => {
 
   it("deletes the auth user when the registration is refused", async () => {
     const auth = admin();
+
     const { transport: t } = transport(() => {
       throw Object.assign(new Error("You may not manage service principals"), {
         code: "42501",
         hint: "SERVICE_PRINCIPAL_FORBIDDEN",
       });
     });
+
     const principals = createServicePrincipals({ transport: t, admin: auth });
+
     const result = await principals.create("org-1", "Bot", "owner", {
       createdBy: "u-2",
     });
+
     expect(!result.ok && result.error.kind).toBe("forbidden");
     expect(auth.deleteUser).toHaveBeenCalledWith("sp-1");
   });
@@ -112,9 +122,11 @@ describe("createServicePrincipals", () => {
   it("changes roles, disables, resolves the default and lists", async () => {
     const { call, transport: t } = transport((fn) => {
       switch (fn) {
-        case "default_service_principal":
+        case "default_service_principal": {
           return "sp-1";
-        case "service_principals_list":
+        }
+
+        case "service_principals_list": {
           return [
             {
               id: "sp-1",
@@ -126,14 +138,19 @@ describe("createServicePrincipals", () => {
               disabledAt: null,
             },
           ];
-        default:
+        }
+
+        default: {
           return true;
+        }
       }
     });
+
     const principals = createServicePrincipals({
       transport: t,
       admin: admin(),
     });
+
     expect(await principals.setRole("sp-1", "admin").orThrow()).toBe(true);
     expect(
       await principals.disable("sp-1", { createdBy: "u-1" }).orThrow(),

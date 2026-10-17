@@ -41,8 +41,10 @@ export function useAuditLog(options: UseAuditLogOptions): AuditLogState {
   const { supabase, auth } = useBlockEnv();
   const latest = useLatest(options);
   const { organizationId, limit, schema } = options;
+
   return useController(() => {
     const { filters } = latest.current;
+
     return createAuditLogController({
       client: createAudit({
         transport: rpcTransport(supabase),

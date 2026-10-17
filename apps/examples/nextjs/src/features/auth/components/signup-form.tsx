@@ -42,9 +42,11 @@ export function SignupForm() {
   const supabase = useSupabase();
   const router = useRouter();
   const changeSession = useSessionChange(sessionChanged, router);
+
   const [state, submit, pending] = useActionState(
     async (_previous: State, form: FormData): Promise<State> => {
       const email = String(form.get("email"));
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password: String(form.get("password")),
@@ -53,19 +55,28 @@ export function SignupForm() {
           emailRedirectTo: `${window.location.origin}/${locale}`,
         },
       });
-      if (error) return { error: error.message };
+
+      if (error) {
+        return { error: error.message };
+      }
+
       // With email confirmations on, there is no session until the link is opened.
-      if (!data.session) return { confirm: email };
+      if (!data.session) {
+        return { confirm: email };
+      }
+
       await changeSession(safeNext(`/${locale}`));
+
       return null;
     },
     null,
   );
+
   if (state && "confirm" in state) {
     return (
       <Card>
         <CardHeader className="text-center">
-          <MailCheckIcon className="text-primary mx-auto size-8" />
+          <MailCheckIcon className="mx-auto size-8 text-primary" />
           <CardTitle className="text-xl">{t("Check your email")}</CardTitle>
           <CardDescription>
             {t("We sent a confirmation link to {email}.", {
@@ -76,7 +87,9 @@ export function SignupForm() {
       </Card>
     );
   }
+
   const error = state && "error" in state ? state.error : null;
+
   return (
     <Card>
       <CardHeader className="text-center">
@@ -128,7 +141,7 @@ export function SignupForm() {
             <Button type="submit" className="w-full" disabled={pending}>
               {t("Create account")}
             </Button>
-            <p className="text-muted-foreground text-center text-sm">
+            <p className="text-center text-sm text-muted-foreground">
               {t("Already have an account?")}{" "}
               <Link
                 href="/login"

@@ -26,6 +26,7 @@ export default function AppError({
   retry: () => void;
 }) {
   const t = useExtracted("app");
+
   return (
     <Empty role="alert" className="m-6 border">
       <EmptyHeader>

@@ -50,6 +50,7 @@ export function testAuthResolver(
           resolver,
           options.unrelated ?? new Request("https://example.com/"),
         );
+
         expect(
           state === undefined,
           `expected undefined, got kind "${state?.kind}"`,
@@ -60,6 +61,7 @@ export function testAuthResolver(
       "fails closed on invalid credentials",
       async () => {
         expect(options.invalid.length > 0, "pass at least one invalid request");
+
         for (const request of options.invalid) {
           const state = await resolveSafely(resolver, request);
           expect(
@@ -82,6 +84,7 @@ export function testAuthResolver(
             state?.kind === "user" || state?.kind === "service",
             `expected a user or service, got "${state?.kind}"`,
           );
+
           if (userId !== undefined) {
             expect(
               state.kind === "user" && state.user.id === userId,

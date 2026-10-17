@@ -53,10 +53,12 @@ async function loadOverlays(
   const texts: string[] = [];
   const overlays: Overlay[] = [];
   const diagnostics: SpecDiagnostic[] = [];
+
   for (const path of paths) {
-    const text = await readFile(resolve(root, path), "utf8");
+    const text = await readFile(resolve(root, path), "utf-8");
     texts.push(text);
     let parsed: unknown;
+
     try {
       parsed = parseDocumentText(path, text);
     } catch (error) {
@@ -67,14 +69,18 @@ async function loadOverlays(
       });
       continue;
     }
-    if (isOverlay(parsed)) overlays.push(parsed);
-    else
+
+    if (isOverlay(parsed)) {
+      overlays.push(parsed);
+    } else {
       diagnostics.push({
         code: "overlay-invalid",
         severity: "error",
         message: `${path} is not an Overlay document (it needs \`overlay\` and \`actions\`).`,
       });
+    }
   }
+
   return { texts, overlays, diagnostics };
 }
 
@@ -83,6 +89,7 @@ let jsonpath: Promise<JsonPathEngine> | undefined;
 /** The JSONPath engine, inlined into the CLI build and loaded only when an output has overlays. */
 function jsonPathEngine(): Promise<JsonPathEngine> {
   jsonpath ??= loadJsonPath(() => import("jsonpath-rfc9535"));
+
   return jsonpath;
 }
 
@@ -99,6 +106,7 @@ function sourceFingerprint(
   const source: unknown = entry.api
     ? entry.api.model
     : entry.documents.get(target.format.id);
+
   try {
     return sha256(serializeDocument(source, { indent: 0, sortKeys: true }));
   } catch {
@@ -113,28 +121,36 @@ function renderDocument(
   engine: JsonPathEngine | undefined,
 ): { document: unknown; diagnostics: readonly SpecDiagnostic[] } {
   const applyEngine = engine ? overlayEngine(engine) : undefined;
+
   if (entry.api) {
     const result = entry.api.render(target.format, {
       version: target.version,
       ...(overlays.length > 0 ? { overlays } : {}),
       ...(applyEngine ? { applyOverlays: applyEngine } : {}),
     });
+
     return { document: result.document, diagnostics: result.diagnostics };
   }
+
   const document = entry.documents.get(target.format.id);
   const diagnostics: SpecDiagnostic[] = [];
   const declared = fieldOf(document, documentFormatId(document) ?? "");
-  if (typeof declared === "string" && !declared.startsWith(target.version))
+
+  if (typeof declared === "string" && !declared.startsWith(target.version)) {
     diagnostics.push({
       code: "document-version",
       severity: "error",
       message: `The entry exports ${target.format.id} ${declared}, not ${target.version}. Export \`api\` (defineApi) to render any version.`,
     });
+  }
+
   const overlaid =
     applyEngine && overlays.length > 0
       ? applyEngine(document, overlays)
       : { document };
+
   diagnostics.push(...(overlaid.diagnostics ?? []));
+
   try {
     diagnostics.push(
       ...(target.format.lint?.(overlaid.document, target.version) ?? []),
@@ -147,6 +163,7 @@ function renderDocument(
       message: `The ${target.format.id} lint stopped: ${errorText(cause)}`,
     });
   }
+
   return { document: overlaid.document, diagnostics };
 }
 
@@ -160,10 +177,13 @@ export async function renderTarget(
 ): Promise<RenderedTarget> {
   const pin: string =
     target.format.versions[target.version]?.pin ?? target.version;
+
   const loaded = await loadOverlays(context.root, target.overlays);
+
   const fingerprint = context.cache
     ? sourceFingerprint(target, context.entry)
     : undefined;
+
   const key =
     fingerprint === undefined
       ? undefined
@@ -179,9 +199,11 @@ export async function renderTarget(
             context.entry.cacheKey ?? null,
           ]),
         );
+
   const hit = key
     ? await readCachedRender(context.root, target.output, key)
     : undefined;
+
   if (hit && (!context.validate || hit.schema)) {
     return {
       target,
@@ -198,6 +220,7 @@ export async function renderTarget(
   let text: string;
   let diagnostics: readonly SpecDiagnostic[];
   let rendered: unknown;
+
   if (hit) {
     text = hit.text;
     diagnostics = hit.diagnostics;
@@ -205,29 +228,36 @@ export async function renderTarget(
   } else {
     const engine =
       loaded.overlays.length > 0 ? await jsonPathEngine() : undefined;
+
     const result = renderDocument(
       target,
       context.entry,
       loaded.overlays,
       engine,
     );
+
     rendered = result.document;
     text = documentText(result.document, target.serialization);
     diagnostics = [...loaded.diagnostics, ...result.diagnostics];
   }
+
   let schema: readonly SpecDiagnostic[] | undefined;
+
   if (context.validate) {
     // Ajv and the official schemas load only for `validate`.
     const { validateDocument } = await import("./validate.ts");
     schema = await validateDocument(target.format.id, target.version, rendered);
   }
-  if (key)
+
+  if (key) {
     await writeCachedRender(context.root, target.output, {
       key,
       text,
       diagnostics,
       ...(schema ? { schema } : {}),
     });
+  }
+
   return {
     target,
     pin,

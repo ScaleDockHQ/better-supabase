@@ -16,7 +16,9 @@ type SupabaseJwtClaims = {
   readonly sub: string;
   readonly [claim: string]: unknown;
 };
+
 type SessionLike = { readonly kind: string; readonly claims?: unknown };
+
 type Authorization = { can(permission: string, resource?: unknown): boolean };
 
 const withAuthorization = defineMiddleware({
@@ -29,6 +31,7 @@ const withAuthorization = defineMiddleware({
     ): Promise<{ authorization: Authorization }> =>
       Promise.resolve({ authorization: { can: () => false } }),
 });
+
 declare function subjectFromSession(session: SessionLike): unknown;
 /* oxlint-enable anti-slop/no-unsafe-dictionary-type, anti-slop/no-unknown-parameters, anti-slop/no-unknown-returns */
 
@@ -42,11 +45,14 @@ export const handler = pipeline(
     if (!ctx.authorization.can("customers.read")) {
       return new Response(null, { status: 403 });
     }
+
     const tenant: unknown = ctx.jwtClaims?.["tenant_id"];
     const count = await ctx.db.customers.count().orThrow();
+
     return Response.json({ count, tenant });
   },
 );
 
 declare const session: AuthSession<Claims>;
+
 subjectFromSession(session);

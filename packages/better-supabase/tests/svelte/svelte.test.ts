@@ -38,23 +38,29 @@ import {
 // Node resolves svelte to its server runtime, where effects never run.
 vi.mock("svelte", () => {
   const clientBuild = "../../node_modules/svelte/src/index-client.js";
+
   return import(clientBuild);
 });
+
 vi.mock("svelte/reactivity", () => {
   const clientBuild =
     "../../node_modules/svelte/src/reactivity/index-client.js";
+
   return import(clientBuild);
 });
 
 /** Reads `read` in a render effect, as a template would, until `stop`. */
 function observe<T>(read: () => T): { last: () => T; stop: () => void } {
   let last: T | undefined;
+
   const stop = $.effect_root(() => {
     $.render_effect(() => {
       last = read();
     });
   });
+
   $.flush();
+
   // SAFETY: the render effect ran once in flush.
   return { last: () => last as T, stop };
 }
@@ -74,6 +80,7 @@ function inComponent<T>(setup: () => T): T {
     $.pop();
   });
   $.flush();
+
   // SAFETY: setup ran inside the effect root.
   return result as T;
 }
@@ -87,10 +94,13 @@ describe("setBetterSupabase", () => {
     const { browser, setAuth } = fakeBrowser(signedIn(USER));
     const { queryClient } = cachedClient(["bs", "customers"]);
     const reset = vi.spyOn(queryClient, "resetQueries");
+
     const bound = inComponent(() => {
       setBetterSupabase(browser, { queryClient });
+
       return { bs: getBetterSupabase(), auth: useAuth() };
     });
+
     expect(bound.bs.db).toBe(browser.db);
     expect(bound.bs.queries).toBe(browser.queries);
     expect(bound.bs.supabase).toBe(browser.supabase);
@@ -112,10 +122,13 @@ describe("setBetterSupabase", () => {
 
   it("shares a session", () => {
     const session = { user: { id: USER } } as unknown as AuthSession;
+
     const current = inComponent(() => {
       setSession(() => session);
+
       return useSession();
     });
+
     expect(current.current).toBe(session);
   });
 
@@ -124,8 +137,10 @@ describe("setBetterSupabase", () => {
     const { queryClient } = cachedClient();
     const { topic } = fakePresenceTopic();
     const room = defineTopic("room:{roomId}");
+
     const helpers = inComponent(() => {
       setBetterSupabase(browser, { queryClient });
+
       return [
         useBroadcast(room, () => null),
         useLiveQuery(() => null),
@@ -134,6 +149,7 @@ describe("setBetterSupabase", () => {
         useAction(async () => ({ ok: true, data: 1, error: null }) as const),
       ] as const;
     });
+
     expect(helpers[0].current).toBe("closed");
     expect(helpers[1].current).toBe("closed");
     expect(helpers[2].count).toBeUndefined();
@@ -151,15 +167,18 @@ describe("broadcast", () => {
     const bs = createBetterSvelte(browser, { queryClient: cache.queryClient });
     const roomId = $.state<string | null>("r1");
     const created = vi.fn();
+
     const status = bs.broadcast(
       room,
       () => {
         const id = $.get(roomId);
+
         return id ? { roomId: id } : null;
       },
       { created },
       { invalidate: ["customers"] },
     );
+
     expect(status.current).toBe("closed");
     expect(client.channel).not.toHaveBeenCalled();
     const view = observe(() => status.current);
@@ -193,9 +212,11 @@ describe("broadcast", () => {
         invalidate: ["customers"],
       }),
     ).toThrow(/needs a queryClient/);
+
     const status = bs.broadcast(room, () => ({ roomId: "r" }), undefined, {
       client: client as never,
     });
+
     const view = observe(() => status.current);
     emitAuth({ user: { id: USER }, access_token: "x" });
     $.flush();
@@ -251,15 +272,18 @@ describe("liveCount", () => {
       AsyncResult.ok(4),
       AsyncResult.err(dbError("network", "offline")),
     ];
+
     const run = vi.fn(() => answers.shift() ?? AsyncResult.ok(0));
     const { browser, emit } = fakeBrowser(signedIn(USER), { $run: run });
     const bs = createBetterSvelte(browser);
     const counted = bs.liveCount(() => spec, { debounceMs: 1 });
+
     const view = observe(() => ({
       count: counted.count,
       status: counted.status,
       error: counted.error,
     }));
+
     expect(view.last().count).toBeUndefined();
     await settle();
     await settle();
@@ -290,27 +314,33 @@ describe("presence", () => {
     const bs = createBetterSvelte(browser);
     const roomId = $.state<string | null>("r1");
     const name = $.state<string | null>("Ada");
+
     const room = bs.presence(
       topic,
       () => {
         const id = $.get(roomId);
+
         return id ? { roomId: id } : null;
       },
       {
         state: () => {
           const current = $.get(name);
+
           return current === null ? null : { name: current };
         },
       },
     );
+
     expect(await room.track({ name: "x" })).toMatchObject({
       kind: "invalid_request",
     });
     expect(await room.untrack()).toMatchObject({ kind: "invalid_request" });
+
     const view = observe(() => ({
       members: room.members,
       status: room.status,
     }));
+
     expect(joins).toHaveLength(0);
     setAuth(signedIn(USER));
     $.flush();
@@ -343,14 +373,17 @@ describe("presence", () => {
 describe("action", () => {
   it("tracks pending inputs, data and errors reactively", async () => {
     let fail = false;
+
     const action = vi.fn(
       async (input: { id: number }): Promise<ActionResultOf<number>> =>
         fail
           ? { ok: false, data: null, error: dbError("conflict", "taken") }
           : { ok: true, data: input.id * 2, error: null },
     );
+
     const { browser } = fakeBrowser(signedIn(USER));
     const handle = createBetterSvelte(browser).action(action);
+
     const view = observe(() => ({
       pending: handle.pending,
       inputs: handle.pendingInputs,
@@ -358,6 +391,7 @@ describe("action", () => {
       data: handle.data,
       error: handle.error,
     }));
+
     const pending = handle.run({ id: 2 });
     $.flush();
     expect(view.last()).toMatchObject({

@@ -70,21 +70,26 @@ describe.skipIf(!live)("workflow-builder publisher rights", () => {
     })
       .steps.sync()
       .orThrow();
+
     return { publisher, owner, admin, tenant };
   }
 
   it("refuses a publisher who lacks a permission a step needs", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const { admin, tenant } = await setUp(s);
       await s.asRole(admin);
       const builder = createWorkflowBuilder({ transport: sqlTransport(s.sql) });
+
       const definition = await builder.definitions
         .save({ tenant, slug: "crm", name: "CRM" })
         .orThrow();
+
       const draft = await builder.versions
         .save(definition.id, CRM_GRAPH)
         .orThrow();
+
       const refused = await builder.versions.publish(draft.id);
       expect(!refused.ok && refused.error.hint).toBe(
         "WORKFLOW_PUBLISHER_FORBIDDEN",
@@ -114,18 +119,23 @@ describe.skipIf(!live)("workflow-builder publisher rights", () => {
 
   it("fails a step once the publisher is demoted, removed or deleted, and writes nothing", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const { publisher, tenant } = await setUp(s);
       await s.asRole(publisher);
+
       const asPublisher = createWorkflowBuilder({
         transport: sqlTransport(s.sql),
       });
+
       const definition = await asPublisher.definitions
         .save({ tenant, slug: "crm", name: "CRM" })
         .orThrow();
+
       const draft = await asPublisher.versions
         .save(definition.id, CRM_GRAPH)
         .orThrow();
+
       const version = await asPublisher.versions.publish(draft.id).orThrow();
       expect(version).toMatchObject({
         publishedBy: publisher.id,
@@ -135,12 +145,14 @@ describe.skipIf(!live)("workflow-builder publisher rights", () => {
 
       await s.service();
       const refs: AutomationRef[] = [];
+
       const service = createWorkflowBuilder({
         transport: sqlTransport(s.sql),
         authorization: {
           automation: {
             runAs: (automation) => {
               refs.push(automation);
+
               return automation.publisher === null
                 ? null
                 : {
@@ -152,7 +164,9 @@ describe.skipIf(!live)("workflow-builder publisher rights", () => {
           },
         },
       });
+
       const writes: string[] = [];
+
       const step = async () => {
         const claims = await service.versions.runAs(version.id).orThrow();
         writes.push(String(claims["sub"]));
@@ -210,15 +224,19 @@ describe.skipIf(!live)("workflow-builder publisher rights", () => {
 
   it("runs an organization-owned version only as the app's service principal", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const { tenant } = await setUp(s);
       const plain = createWorkflowBuilder({ transport: sqlTransport(s.sql) });
+
       const definition = await plain.definitions
         .save({ tenant, slug: "nightly", name: "Nightly" })
         .orThrow();
+
       const draft = await plain.versions
         .save(definition.id, CRM_GRAPH)
         .orThrow();
+
       expect(await plain.versions.publish(draft.id).orThrow()).toMatchObject({
         publishedBy: undefined,
         owner: "organization",
@@ -230,10 +248,12 @@ describe.skipIf(!live)("workflow-builder publisher rights", () => {
         "WORKFLOW_PUBLISHER_REVOKED",
       );
       let principal: Readonly<Record<string, unknown>> | null = null;
+
       const service = createWorkflowBuilder({
         transport: sqlTransport(s.sql),
         authorization: { automation: { runAs: () => principal } },
       });
+
       const refused = await service.versions.runAs(draft.id);
       expect(!refused.ok && refused.error.message).toContain(
         "no service principal",
@@ -246,6 +266,7 @@ describe.skipIf(!live)("workflow-builder publisher rights", () => {
       const next = await plain.versions
         .save(definition.id, EMAIL_GRAPH)
         .orThrow();
+
       const unpublished = await service.versions.runAs(next.id);
       expect(!unpublished.ok && unpublished.error.hint).toBe(
         "WORKFLOW_NOT_PUBLISHED",

@@ -49,9 +49,8 @@ own; with several, each gets a section headed by its name.
 the same generator behind `supabase gen types typescript`, and writes:
 
 1. `database.types.ts`, what `supabase gen types` prints for the same schema
-   (CI checks this against the Supabase CLI), plus a `ComputedFields` key on
-   each table and view that names its computed fields, so
-   `createClient<Database>()` works as usual;
+   (CI checks this against the Supabase CLI), so `createClient<Database>()`
+   works as usual;
 2. the main module (`output`), with models in your casing, enum and CHECK
    constants, typed constraint names, and the `schema` object;
 3. the runtime metadata next to it (`generated.meta.js`, with
@@ -425,7 +424,11 @@ The output is the same after `supabase db reset` and on every machine:
 object ids come from names, and the arguments of each function keep their
 declaration order. That matters for extension functions with unnamed
 arguments, such as pgvector's distance functions and citext's casts, whose
-argument order the catalog query alone does not fix.
+argument order the catalog query alone does not fix. The snapshot leaves out
+`rpcFunctions`, which postgrest-typegen derives from `functions`; the
+generator resolves it again from the stable, ordered functions. A
+`GeneratorMetadata` document passed to `gen --metadata` is treated the same
+way, so `rpcFunctions` never names a schema `gen` doesn't generate.
 
 ## From a GeneratorMetadata document
 

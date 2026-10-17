@@ -19,6 +19,7 @@ const INFO = "to_jsonb(o) as object";
 const SEARCH = "storage.search(";
 const SEARCH_V2 = "storage.search_v2(";
 const FLAT = "from storage.objects\nwhere";
+
 const INFO_SQL =
   "select to_jsonb(o) as object from storage.objects o where o.bucket_id = $1 and o.name = $2";
 
@@ -35,17 +36,24 @@ function search(visible: readonly string[], call: SqlCall) {
     number,
     string,
   ];
+
   const start = `${prefix}${term}`.toLowerCase();
   const seen = new Set<string>();
   const entries: Record<string, unknown>[] = [];
+
   const sorted = [...visible].sort((a, b) =>
     a.toLowerCase().localeCompare(b.toLowerCase()),
   );
+
   for (const name of sorted) {
-    if (!name.toLowerCase().startsWith(start)) continue;
+    if (!name.toLowerCase().startsWith(start)) {
+      continue;
+    }
+
     const rest = name.slice(prefix.length);
     const slash = rest.indexOf("/");
-    if (slash < 0) {
+
+    if (slash === -1) {
       entries.push({
         name: rest,
         id: `id-${name}`,
@@ -56,8 +64,13 @@ function search(visible: readonly string[], call: SqlCall) {
       });
       continue;
     }
+
     const folder = rest.slice(0, slash);
-    if (seen.has(folder)) continue;
+
+    if (seen.has(folder)) {
+      continue;
+    }
+
     seen.add(folder);
     entries.push({
       name: folder,
@@ -68,6 +81,7 @@ function search(visible: readonly string[], call: SqlCall) {
       metadata: null,
     });
   }
+
   return entries.slice(offset, offset + limit);
 }
 
@@ -92,12 +106,15 @@ function targetSql(visible: readonly string[], extra: readonly SqlRule[] = []) {
 
 function fakeAdmin() {
   const calls: { method: string; args: unknown[] }[] = [];
+
   const reply =
     (method: string, data: (...args: unknown[]) => unknown) =>
     (...args: unknown[]) => {
       calls.push({ method, args });
+
       return Promise.resolve({ data: data(...args), error: null });
     };
+
   const bucket: Record<string, unknown> = {
     download: reply("download", () => new Blob(["hi"])),
     createSignedUrl: reply("createSignedUrl", (path) => ({
@@ -125,9 +142,11 @@ function fakeAdmin() {
       data: { publicUrl: `https://storage.test/public/${path}` },
     })),
   };
+
   const from = vi.fn(() => bucket);
   // SAFETY: supportStorage only calls these methods on the service client.
   const admin = { from } as unknown as StorageApi;
+
   return { admin, from, bucket, calls };
 }
 
@@ -137,22 +156,26 @@ function docsOf(
 ) {
   const sql = targetSql(visible);
   const service = fakeAdmin();
+
   const storage = supportStorage({
     admin: service.admin,
     sql: sql.sql,
     ...options,
   });
+
   return { ...service, sql, storage, docs: storage.from("docs") };
 }
 
 describe("supportStorage reads", () => {
   it("downloads and signs only what the target may see, with every option", async () => {
     const { docs, calls, sql, from } = docsOf(["org/a.pdf"]);
+
     const blob = await docs.download("/org//a.pdf/", {
       transform: { width: 64 },
       versionId: "v1",
       cacheNonce: "n",
     });
+
     expect(blob.error).toBeNull();
     expect(await blob.data?.text()).toBe("hi");
     expect(sql.calls[0]).toEqual({
@@ -175,6 +198,7 @@ describe("supportStorage reads", () => {
       versionId: "v1",
       cacheNonce: "n",
     });
+
     expect(signed).toEqual({
       data: { signedUrl: "https://storage.test/sign/org/a.pdf" },
       error: null,
@@ -211,9 +235,11 @@ describe("supportStorage reads", () => {
 
   it("signs the visible paths of a batch and reports the hidden ones", async () => {
     const { docs, calls } = docsOf(["a", "b"]);
+
     const reply = await docs.createSignedUrls(["a", "/x", "b", "a"], 60, {
       download: true,
     });
+
     expect(reply.data).toEqual([
       { error: null, path: "a", signedUrl: "https://storage.test/sign/a" },
       {
@@ -268,10 +294,13 @@ describe("supportStorage reads", () => {
         ],
       ],
     );
+
     const service = fakeAdmin();
+
     const docs = supportStorage({ admin: service.admin, sql: sql.sql }).from(
       "docs",
     );
+
     expect(await docs.exists("org/a.pdf")).toEqual({ data: true, error: null });
     expect(await docs.exists("org/hidden.pdf")).toEqual({
       data: false,
@@ -305,9 +334,11 @@ describe("supportStorage reads", () => {
   it("keeps sparse info rows and builds public URLs without a check", async () => {
     const sql = targetSql([], [[INFO, [{ object: { id: "o1" } }]]]);
     const service = fakeAdmin();
+
     const docs = supportStorage({ admin: service.admin, sql: sql.sql }).from(
       "docs",
     );
+
     expect((await docs.info("a")).data).toEqual({
       id: "o1",
       name: "",
@@ -333,6 +364,7 @@ describe("supportStorage listings", () => {
       "org/sub/c.pdf",
       "x.pdf",
     ]);
+
     const listed = await docs.list("org");
     expect(listed.data).toEqual([
       {
@@ -396,6 +428,7 @@ describe("supportStorage listings", () => {
 
   it("rejects the list options storage-api rejects", async () => {
     const { docs, sql } = docsOf([]);
+
     for (const options of [
       { limit: 0 },
       { limit: 1.5 },
@@ -410,12 +443,15 @@ describe("supportStorage listings", () => {
       });
       expect(fromStorageError(reply.error).kind).toBe("invalid_request");
     }
+
     for (const options of [
       { limit: 0 },
       { sortBy: { column: "size" as "name" } },
       { sortBy: { column: "name" as const, order: "up" as "asc" } },
-    ])
+    ]) {
       expect((await docs.listV2(options)).error?.status).toBe(400);
+    }
+
     expect((await docs.listV2({ cursor: "!" })).error).toMatchObject({
       code: "InvalidParameter",
     });
@@ -435,6 +471,7 @@ describe("supportStorage listings", () => {
       last_accessed_at: null,
       metadata: null,
     });
+
     const sql = fakeSql([
       [
         SEARCH_V2,
@@ -446,15 +483,18 @@ describe("supportStorage listings", () => {
         ],
       ],
     ]);
+
     const docs = supportStorage({
       admin: fakeAdmin().admin,
       sql: sql.sql,
     }).from("docs");
+
     const page = await docs.listV2({
       prefix: "org/",
       with_delimiter: true,
       limit: 2,
     });
+
     expect(page.data).toEqual({
       hasNext: true,
       nextCursor: btoa("l:org/sub/"),
@@ -523,16 +563,20 @@ describe("supportStorage listings", () => {
         last_accessed_at: UPDATED,
       },
     ];
+
     const sql = fakeSql([[FLAT, rows]]);
+
     const docs = supportStorage({
       admin: fakeAdmin().admin,
       sql: sql.sql,
     }).from("docs");
+
     const first = await docs.listV2({
       prefix: "org/5%",
       limit: 1,
       sortBy: { column: "updated_at", order: "desc" },
     });
+
     expect(sql.calls[0]).toEqual({
       text: `select id::text as id, name, metadata, updated_at, created_at, last_accessed_at
 from storage.objects
@@ -573,10 +617,12 @@ limit $2::int`,
     expect(sql.calls[3]?.values).toEqual(["docs", 1001, "org/a"]);
 
     const reversed = fakeSql([[FLAT, [...rows].reverse()]]);
+
     const unicode = supportStorage({
       admin: fakeAdmin().admin,
       sql: reversed.sql,
     }).from("docs");
+
     const named = await unicode.listV2({ limit: 1 });
     await unicode.listV2({ cursor: named.data?.nextCursor ?? "" });
     expect(reversed.calls[1]?.values).toEqual(["docs", 1001, "org/é"]);
@@ -588,6 +634,7 @@ const SESSION = {
   adminId: "admin-1",
   targetUserId: "00000000-0000-4000-8000-0000000000aa",
 } as const;
+
 const STAMP = { supportSessionId: "session-1", supportAdminId: "admin-1" };
 const SAVEPOINT = "savepoint better_supabase_support_write";
 const ROLLBACK = "rollback to savepoint better_supabase_support_write";
@@ -608,8 +655,10 @@ function writableOf(
           : [],
     ],
   ]);
+
   const owner = fakeSql(ownerRules);
   const service = fakeAdmin();
+
   const storage = supportStorage({
     admin: service.admin,
     sql: sql.sql,
@@ -617,16 +666,19 @@ function writableOf(
     session: SESSION,
     readOnly: false,
   });
+
   return { ...service, sql, owner, storage, docs: storage.from("docs") };
 }
 
 describe("supportStorage writes", () => {
   it("authorises an upload as the target in a rolled-back savepoint", async () => {
     const { docs, sql, owner, calls } = writableOf([]);
+
     const reply = await docs.upload("/org//a.txt", "x", {
       contentType: "text/plain",
       metadata: { kind: "note", supportSessionId: "forged" },
     });
+
     expect(reply).toEqual({ data: { path: "org/a.txt" }, error: null });
     expect(sql.transactions).toBe(1);
     expect(sql.calls).toEqual([
@@ -673,10 +725,13 @@ describe("supportStorage writes", () => {
     await docs.update("b", "y");
     const upserts = sql.texts().filter((text) => text.includes("insert"));
     expect(upserts).toHaveLength(2);
-    for (const text of upserts)
+
+    for (const text of upserts) {
       expect(text).toContain(
         "on conflict (bucket_id, name) do update\nset owner = excluded.owner, owner_id = excluded.owner_id, user_metadata = excluded.user_metadata",
       );
+    }
+
     expect(calls.map((call) => call.method)).toEqual(["upload", "update"]);
     expect(calls[0]?.args[2]).toEqual({ upsert: true, metadata: STAMP });
   });
@@ -703,6 +758,7 @@ describe("supportStorage writes", () => {
       [],
       [["insert into", { throws: pgError("42501", RLS) }]],
     );
+
     const reply = await docs.upload("a", "x");
     expect(reply).toEqual({
       data: null,
@@ -726,6 +782,7 @@ describe("supportStorage writes", () => {
       [],
       [["insert into", { throws: pgError("23505", "duplicate key") }]],
     );
+
     const again = await duplicate.docs.upload("a", "x");
     expect(again.error).toMatchObject({ status: 409, code: "Duplicate" });
     expect(fromStorageError(again.error).kind).toBe("conflict");
@@ -734,6 +791,7 @@ describe("supportStorage writes", () => {
       [],
       [["insert into", { throws: pgError("57014", "canceling statement") }]],
     );
+
     expect((await broken.docs.upload("a", "x")).error).toMatchObject({
       name: "DbError",
       code: "57014",
@@ -759,6 +817,7 @@ describe("supportStorage writes", () => {
       [],
       [[() => true, { throws: pgError("40001", "could not serialize") }]],
     );
+
     const reply = await docs.upload("a", "x");
     expect(reply.error).toMatchObject({ name: "DbError", code: "40001" });
     expect(calls.map((call) => [call.method, call.args[0]])).toEqual([
@@ -772,12 +831,14 @@ describe("supportStorage writes", () => {
       [],
       [["delete from", [{ name: "org/a" }, { name: "org/c" }]]],
     );
+
     const reply = await docs.remove([
       "/org/a",
       "org/b",
       { path: "org/c", versionId: "v1" },
       "org/a",
     ]);
+
     expect(sql.calls[1]).toEqual({
       text: "select set_config('storage.allow_delete_query', 'true', true)",
       values: [],
@@ -808,6 +869,7 @@ describe("supportStorage writes", () => {
       ["org/a"],
       [["update storage.objects", [{ name: "org/b" }]]],
     );
+
     expect(
       await docs.copy("org/a", "org/b", { destinationBucket: "other" }),
     ).toEqual({ data: { path: "docs/org/b" }, error: null });
@@ -879,6 +941,7 @@ describe("supportStorage writes", () => {
         ["update storage.objects", [{ name: "org/b" }]],
       ],
     );
+
     expect((await docs.move("org/a", "org/b")).error).toBeNull();
     expect(owner.calls[0]?.values.at(-1)).toBe("someone-else");
   });
@@ -888,6 +951,7 @@ describe("supportStorage writes", () => {
       [],
       [["from pg_indexes", [{ versioned: true }]]],
     );
+
     await docs.upload("a", "x", { upsert: true });
     await docs.update("b", "y");
     await docs.upload("c", "z");
@@ -896,19 +960,24 @@ describe("supportStorage writes", () => {
     ).toHaveLength(1);
     const upserts = sql.texts().filter((text) => text.includes("on conflict"));
     expect(upserts).toHaveLength(2);
-    for (const text of upserts)
+
+    for (const text of upserts) {
       expect(text).toContain(
         'on conflict (bucket_id, name collate "C") where archived_at is null do update',
       );
+    }
   });
 
   it("answers a hidden or unmovable source like a missing one", async () => {
     const hidden = writableOf([]);
+
     for (const reply of [
       await hidden.docs.copy("org/a", "org/b"),
       await hidden.docs.move("org/a", "org/b"),
-    ])
+    ]) {
       expect(reply.error).toMatchObject({ statusCode: "404" });
+    }
+
     const pinned = writableOf(["org/a"]);
     expect((await pinned.docs.move("org/a", "org/b")).error).toMatchObject({
       code: "NoSuchKey",
@@ -918,11 +987,13 @@ describe("supportStorage writes", () => {
 
   it("undoes a copy or a move whose owner update fails", async () => {
     const failing: SqlRule[] = [[() => true, { throws: "offline" }]];
+
     const { docs, calls, from } = writableOf(
       ["org/a"],
       [["update storage.objects", [{ name: "org/b" }]]],
       failing,
     );
+
     expect(
       fromStorageError(
         (await docs.copy("org/a", "org/b", { destinationBucket: "other" }))
@@ -969,6 +1040,7 @@ describe("supportStorage refusals and failures", () => {
     (bucket) => bucket.move("a", "b"),
     (bucket) => bucket.purgeCache("a"),
   ];
+
   const refused = (reply: { readonly error: unknown }, code: string) => {
     expect(reply).toMatchObject({
       data: null,
@@ -985,13 +1057,18 @@ describe("supportStorage refusals and failures", () => {
     const sql = fakeSql();
     const owner = fakeSql();
     const service = fakeAdmin();
+
     const docs = supportStorage({
       admin: service.admin,
       sql: sql.sql,
       adminSql: owner.sql,
       session: SESSION,
     }).from("docs");
-    for (const write of writes) refused(await write(docs), "SUPPORT_READ_ONLY");
+
+    for (const write of writes) {
+      refused(await write(docs), "SUPPORT_READ_ONLY");
+    }
+
     expect(service.calls).toEqual([]);
     expect(sql.calls).toEqual([]);
     expect((await docs.upload("a", "x")).error?.message).toBe(
@@ -1001,6 +1078,7 @@ describe("supportStorage refusals and failures", () => {
 
   it("refuses signed uploads in a writable session", async () => {
     const { docs, calls, sql } = writableOf(["a"]);
+
     for (const reply of [
       await docs.createSignedUploadUrl("a"),
       await docs.uploadToSignedUrl("a", "t", "x"),
@@ -1010,6 +1088,7 @@ describe("supportStorage refusals and failures", () => {
         "Signed uploads are not available in a support session",
       );
     }
+
     expect(calls).toEqual([]);
     expect(sql.calls).toEqual([]);
   });
@@ -1017,6 +1096,7 @@ describe("supportStorage refusals and failures", () => {
   it("refuses writes when the session, the admin client or transactions are missing", async () => {
     const sql = fakeSql();
     const service = fakeAdmin();
+
     for (const options of [
       { sql: sql.sql, session: SESSION },
       { sql: sql.sql, adminSql: sql.sql },
@@ -1033,9 +1113,12 @@ describe("supportStorage refusals and failures", () => {
         readOnly: false,
         ...options,
       }).from("docs");
-      for (const write of writes)
+
+      for (const write of writes) {
         refused(await write(docs), "SUPPORT_STORAGE_WRITES");
+      }
     }
+
     expect(service.calls).toEqual([]);
     expect(sql.calls).toEqual([]);
   });
@@ -1047,11 +1130,14 @@ describe("supportStorage refusals and failures", () => {
         { throws: pgError("42501", "permission denied for table objects") },
       ],
     ]);
+
     const service = fakeAdmin();
+
     const docs = supportStorage({
       admin: service.admin,
       sql: failing.sql,
     }).from("docs");
+
     expect(fromStorageError((await docs.download("a")).error)).toMatchObject({
       kind: "forbidden",
       code: "42501",
@@ -1060,20 +1146,25 @@ describe("supportStorage refusals and failures", () => {
       data: false,
       error: { kind: "forbidden" },
     });
+
     for (const reply of [
       await docs.list(""),
       await docs.listV2(),
       await docs.info("a"),
       await docs.createSignedUrls(["a"], 60),
-    ])
+    ]) {
       expect(fromStorageError(reply.error).kind).toBe("forbidden");
+    }
+
     const thrown = fakeSql([[() => true, { throws: "boom" }]]);
+
     const download = await supportStorage({
       admin: service.admin,
       sql: thrown.sql,
     })
       .from("docs")
       .download("a");
+
     expect(fromStorageError(download.error).kind).toBe("unexpected");
 
     const broken = fakeAdmin();
@@ -1082,12 +1173,14 @@ describe("supportStorage refusals and failures", () => {
         data: null,
         error: { name: "StorageApiError", message: "down", status: 503 },
       });
+
     const urls = await supportStorage({
       admin: broken.admin,
       sql: targetSql(["a"]).sql,
     })
       .from("docs")
       .createSignedUrls(["a"], 60);
+
     expect(urls.error).toMatchObject({ message: "down" });
   });
 });
@@ -1100,6 +1193,7 @@ describe("clients over supportStorage", () => {
       { length: 1001 },
       (_, index) => `o1/f${String(index).padStart(4, "0")}`,
     );
+
     const { storage, calls } = docsOf([...names, "o1/sub/deep"]);
     const bucket = docs.connect(storage);
     const all = await bucket.list({ organizationId: "o1" }).orThrow();
@@ -1123,6 +1217,7 @@ describe("clients over supportStorage", () => {
 
   it("reads attachments the target may see", async () => {
     const { storage, calls } = docsOf(["org-1/attachments/a1"]);
+
     const stored = {
       id: "a1",
       organization_id: "org-1",
@@ -1135,10 +1230,12 @@ describe("clients over supportStorage", () => {
       created_at: "2026-10-06T12:00:00Z",
       uploaded_at: "2026-10-06T12:00:05Z",
     };
+
     const attachments = createAttachments({
       transport: { call: () => Promise.resolve(stored) },
       storage,
     });
+
     expect(await attachments.download("a1").orThrow()).toMatchObject({
       signedUrl: "https://storage.test/sign/org-1/attachments/a1",
     });
@@ -1153,6 +1250,7 @@ describe("clients over supportStorage", () => {
   it("puts an attachment in a writable session", async () => {
     const { storage, calls, owner } = writableOf([]);
     const called: string[] = [];
+
     const pending = {
       id: "a2",
       organization_id: "org-1",
@@ -1164,15 +1262,18 @@ describe("clients over supportStorage", () => {
       status: "pending",
       created_at: "2026-10-06T12:00:00Z",
     };
+
     const attachments = createAttachments({
       transport: {
         call: (_schema, fn) => {
           called.push(fn);
+
           return Promise.resolve(pending);
         },
       },
       storage,
     });
+
     const put = await attachments.put(
       {
         organizationId: "org-1",
@@ -1182,6 +1283,7 @@ describe("clients over supportStorage", () => {
       },
       new Blob(["hi"]),
     );
+
     expect(put.error).toBeNull();
     expect(called).toEqual(["create_attachment", "confirm_attachment"]);
     expect(calls.map((call) => [call.method, call.args[0]])).toEqual([
@@ -1192,6 +1294,7 @@ describe("clients over supportStorage", () => {
 
   it("signs the data exports the target may read", async () => {
     const { storage } = docsOf(["export-1/public.projects.ndjson"]);
+
     const lifecycle = createDataLifecycle({
       transport: {
         call: () =>
@@ -1209,10 +1312,12 @@ describe("clients over supportStorage", () => {
       },
       storage,
     });
+
     expect((await lifecycle.download("export-1")).error).toMatchObject({
       kind: "not_found",
     });
     const visible = docsOf(["export-1/public.projects.ndjson"]);
+
     const one = createDataLifecycle({
       transport: {
         call: () =>
@@ -1226,6 +1331,7 @@ describe("clients over supportStorage", () => {
       },
       storage: visible.storage,
     });
+
     expect((await one.download("export-1").orThrow()).files).toEqual([
       {
         table: "public.projects",

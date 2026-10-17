@@ -16,9 +16,12 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 
 const noSubscription = (): (() => void) => () => undefined;
+
 const authorizationIdOf = (): string | null =>
   new URLSearchParams(window.location.search).get("authorization_id");
+
 const onServer = (): undefined => undefined;
+
 const leave = (url: string): void => {
   window.location.replace(url);
 };
@@ -31,15 +34,18 @@ const leave = (url: string): void => {
  */
 export function OAuthConsentForm() {
   const t = useExtracted("oauth");
+
   const authorizationId = useSyncExternalStore(
     noSubscription,
     authorizationIdOf,
     onServer,
   );
+
   const { request, deciding, error, approve, deny } = useOAuthConsent({
     authorizationId: authorizationId ?? undefined,
     redirect: leave,
   });
+
   const load =
     authorizationId === null
       ? {
@@ -85,6 +91,7 @@ export function OAuthConsentForm() {
 
   const { details } = load;
   const { scopes } = details;
+
   return (
     <Card>
       <CardHeader className="text-center">
@@ -102,7 +109,7 @@ export function OAuthConsentForm() {
         <div>
           <p className="font-medium">{t("It asks for")}</p>
           {scopes.length > 0 ? (
-            <ul className="text-muted-foreground mt-1 list-disc ps-5">
+            <ul className="mt-1 list-disc ps-5 text-muted-foreground">
               {scopes.map((scope) => (
                 <li key={scope}>
                   <code>{scope}</code>
@@ -110,7 +117,7 @@ export function OAuthConsentForm() {
               ))}
             </ul>
           ) : (
-            <p className="text-muted-foreground mt-1">
+            <p className="mt-1 text-muted-foreground">
               {t("Access to your account, with your permissions.")}
             </p>
           )}

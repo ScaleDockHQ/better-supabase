@@ -17,7 +17,11 @@ function inherit<T>(
   next: AsyncResult<T>,
 ): AsyncResult<T> {
   const mapper = throwMappers.get(from);
-  if (mapper) throwMappers.set(next, mapper);
+
+  if (mapper) {
+    throwMappers.set(next, mapper);
+  }
+
   return next;
 }
 
@@ -27,6 +31,7 @@ export function withErrorMapper<T>(
   mapper: ThrowMapper,
 ): AsyncResult<T> {
   throwMappers.set(result, mapper);
+
   return result;
 }
 
@@ -35,11 +40,13 @@ export type Ok<T> = {
   readonly data: T;
   readonly error: null;
 };
+
 export type Err<E = DbError> = {
   readonly ok: false;
   readonly data: null;
   readonly error: E;
 };
+
 export type Result<T, E = DbError> = Ok<T> | Err<E>;
 
 export function ok<T>(data: T): Ok<T> {
@@ -88,7 +95,11 @@ export class AsyncResult<T> implements PromiseLike<Result<T>> {
    */
   async orThrow(factory?: (error: DbError) => unknown): Promise<T> {
     const result = await this.#promise;
-    if (result.ok) return result.data;
+
+    if (result.ok) {
+      return result.data;
+    }
+
     const mapper = factory ?? throwMappers.get(this);
     throw mapper ? mapper(result.error) : new DbException(result.error);
   }
@@ -96,6 +107,7 @@ export class AsyncResult<T> implements PromiseLike<Result<T>> {
   /** Resolves with the data, or `fallback` when the result is an error. */
   async unwrapOr<F>(fallback: F): Promise<T | F> {
     const result = await this.#promise;
+
     return result.ok ? result.data : fallback;
   }
 
@@ -232,10 +244,13 @@ export function toBetterResult(
     settled.ok
       ? api.ok(settled.data)
       : api.err(mapper ? mapper(settled.error) : settled.error);
+
   if (result instanceof AsyncResult) {
     const mapper = mapError ?? throwMappers.get(result);
+
     return result.then((settled) => build(settled, mapper));
   }
+
   return build(result, mapError);
 }
 
@@ -318,12 +333,15 @@ export function defineBetterResultErrors<
   const map = (error: DbError): unknown => {
     // SAFETY: classes[kind] is the class for that kind, so it takes this error.
     const Class = (classes[error.kind] ?? fallback) as DbErrorClass;
+
     return new Class({ message: error.message, error });
   };
+
   const convert = (result: Result<unknown> | AsyncResult<unknown>): unknown =>
     result instanceof AsyncResult
       ? toBetterResult(result, api, map)
       : toBetterResult(result, api, map);
+
   // SAFETY: convert implements every call signature; map returns the class for the error's kind.
   return Object.assign(convert, { map }) as BetterResultErrors<M, F>;
 }
@@ -339,10 +357,14 @@ export function fromBetterResult<T>(
   mapError: (error: unknown) => DbError = toDbError,
 ): Result<T> {
   switch (result.status) {
-    case "ok":
+    case "ok": {
       return ok(result.value);
-    case "error":
+    }
+
+    case "error": {
       return err(dbErrorOf(result.error) ?? mapError(result.error));
+    }
+
     default: {
       const never: never = result;
       throw new TypeError(
@@ -353,10 +375,15 @@ export function fromBetterResult<T>(
 }
 
 export function toDbError(cause: unknown): DbError {
-  if (cause instanceof DbException) return cause.error;
+  if (cause instanceof DbException) {
+    return cause.error;
+  }
+
   if (cause instanceof Error && cause.name === "AbortError") {
     return dbError("aborted", cause.message || "The operation was aborted");
   }
+
   const message = cause instanceof Error ? cause.message : String(cause);
+
   return dbError("unexpected", message);
 }

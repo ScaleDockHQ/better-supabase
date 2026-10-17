@@ -37,6 +37,7 @@ export function builderStartsSql(ctx: ModuleContext, s: BuilderSql): string {
     definitionJson,
     versionJson,
   } = s;
+
   return `-- What a run of definition starts from: the tenant it runs in and the
 -- published version. workflow.run in that tenant (and a run grant on a
 -- restricted definition), or the service role. A system definition runs in

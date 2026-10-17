@@ -52,6 +52,7 @@ export function pageInputSchema(cursor: boolean, maxPageSize: number): Json {
 /** The page a list answers with: `items` plus the cursor or the page counts. */
 export function pageSchema(row: unknown, cursor: boolean): Json {
   const items = { type: "array", items: row };
+
   return cursor
     ? {
         type: "object",

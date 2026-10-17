@@ -93,9 +93,17 @@ export function migrationOptionUses(
   return MIGRATION_OPTIONS.flatMap((entry) => {
     const config: BlockConfig | undefined = modules[entry.module];
     const options = config?.options ?? {};
-    if (!(entry.option in options)) return [];
+
+    if (!(entry.option in options)) {
+      return [];
+    }
+
     const value = options[entry.option];
-    if (!entry.departs(value)) return [];
+
+    if (!entry.departs(value)) {
+      return [];
+    }
+
     return [
       {
         module: entry.module,

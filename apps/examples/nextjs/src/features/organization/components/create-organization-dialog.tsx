@@ -38,6 +38,7 @@ export function CreateOrganizationDialog({
   const fieldId = useId();
   const errorMessage = useErrorMessage();
   const refreshSession = useRefreshSession();
+
   const form = useActionForm(createOrganization, {
     onSuccess: () => {
       onOpenChange(false);
@@ -46,7 +47,9 @@ export function CreateOrganizationDialog({
       );
     },
   });
+
   const error = form.error === undefined ? null : errorMessage(form.error);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>

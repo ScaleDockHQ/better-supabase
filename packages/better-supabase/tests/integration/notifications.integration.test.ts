@@ -22,8 +22,10 @@ async function reachable(): Promise<boolean> {
     max: 1,
     connectionTimeoutMillis: 1000,
   });
+
   try {
     await pool.query("select 1");
+
     return true;
   } catch {
     return false;
@@ -40,7 +42,9 @@ const USERS = {
   watcher: crypto.randomUUID(),
   outsider: crypto.randomUUID(),
 } as const;
+
 type Who = keyof typeof USERS;
+
 const email = (who: Who) => `${who}-${USERS[who]}@example.test`;
 
 const LAYOUT: ModuleLayout = {
@@ -67,6 +71,7 @@ class Session {
       who === "service"
         ? { role: "service_role" }
         : { sub: USERS[who], role: "authenticated", email: email(who) };
+
     await this.client.query(
       "select set_config('request.jwt.claims', $1, true)",
       [JSON.stringify(claims)],
@@ -78,26 +83,32 @@ class Session {
       `select ${sql} as value`,
       params,
     );
+
     return rows[0]!.value;
   }
 
   async hint(sql: string, params: unknown[] = []): Promise<string> {
     await this.client.query("savepoint attempt");
+
     try {
       await this.client.query(sql, params);
     } catch (error) {
       await this.client.query("rollback to savepoint attempt");
+
       const failure = error as {
         code?: string;
         hint?: string;
         message: string;
       };
+
       return failure.code === "42501" &&
         !failure.hint?.startsWith("NOTIFICATION")
         ? "42501"
         : (failure.hint ?? failure.message);
     }
+
     await this.client.query("release savepoint attempt");
+
     return "no error";
   }
 
@@ -120,8 +131,10 @@ describe.skipIf(!live)("notifications", () => {
   it("sends, filters, deduplicates and delivers notifications", async () => {
     const client = await pool.connect();
     const s = new Session(client);
+
     try {
       await client.query("begin");
+
       for (const who of Object.keys(USERS) as Who[]) {
         await client.query(
           `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
@@ -129,21 +142,26 @@ describe.skipIf(!live)("notifications", () => {
           [USERS[who], email(who)],
         );
       }
+
       for (const file of renderModules(
         ["organizations", "outbox", "notifications"],
         LAYOUT,
-      ))
+      )) {
         await client.query(file.contents);
+      }
 
       await s.as("owner");
+
       const organization = await s.value<string>(
         "better_supabase.create_organization($1)",
         [{ name: "Acme", slug: `acme-${USERS.owner.slice(0, 8)}` }],
       );
+
       await client.query(
         "insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, 'member'), ($1, $3, 'member')",
         [organization, USERS.member, USERS.watcher],
       );
+
       const task = {
         type: "task.assigned",
         tenant: organization,
@@ -161,15 +179,18 @@ describe.skipIf(!live)("notifications", () => {
 
       // A sender may add a level for another member, only where none is set.
       await client.query("savepoint follow");
+
       const follow = (target: string, level: string, ifAbsent: boolean) =>
         s.hint(
           "select better_supabase.set_notification_subscription('task', 'f1', $1, $2, $3, $4)",
           [level, organization, target, ifAbsent],
         );
+
       const levels = () =>
         s.value<Record<string, string>>(
           "(select coalesce(jsonb_object_agg(user_id, level), '{}') from better_supabase.notification_subscriptions where subject_id = 'f1')",
         );
+
       await s.as("member");
       expect(await follow(USERS.watcher, "participating", true)).toBe(
         "NOTIFICATION_FORBIDDEN",
@@ -195,11 +216,13 @@ describe.skipIf(!live)("notifications", () => {
 
       // The actor and non-members are left out; the key makes it idempotent.
       await s.as("owner");
+
       const first = await s.notify({
         ...task,
         key: "assign-1",
         recipients: [USERS.owner, USERS.member, USERS.outsider],
       });
+
       expect(first).toMatch(/^[0-9a-f-]{36}$/);
       expect(await s.recipients(first!)).toEqual([USERS.member]);
       expect(
@@ -236,12 +259,14 @@ describe.skipIf(!live)("notifications", () => {
         [organization],
       );
       await s.as("owner");
+
       const second = await s.notify({
         ...task,
         type: "task.updated",
         activity: "all",
         recipients: [USERS.member],
       });
+
       expect(await s.recipients(second!)).toEqual([USERS.watcher]);
 
       await s.as("member");
@@ -251,19 +276,23 @@ describe.skipIf(!live)("notifications", () => {
       );
       await s.as("owner");
       await client.query("savepoint composers");
+
       const named = await s.notify({
         ...task,
         type: "task.mentioned",
         recipients: [USERS.member],
         watchers: false,
       });
+
       expect(await s.recipients(named!)).toEqual([USERS.member]);
+
       const skipping = await s.notify({
         ...task,
         type: "task.noted",
         recipients: [USERS.member],
         exclude: [USERS.member],
       });
+
       expect(await s.recipients(skipping!)).toEqual([USERS.watcher]);
       expect(
         await s.notify({
@@ -275,11 +304,13 @@ describe.skipIf(!live)("notifications", () => {
         }),
       ).toBeNull();
       await client.query("rollback to savepoint composers");
+
       const third = await s.notify({
         ...task,
         type: "approval.requested",
         recipients: [USERS.member, USERS.watcher],
       });
+
       const deliveries = await s.value<
         { user: string; channel: string; status: string }[]
       >(
@@ -289,6 +320,7 @@ describe.skipIf(!live)("notifications", () => {
           where r.event_id = $1)`,
         [third],
       );
+
       expect(deliveries).toEqual(
         [
           { user: USERS.member, channel: "email", status: "pending" },
@@ -303,10 +335,12 @@ describe.skipIf(!live)("notifications", () => {
 
       // The member's inbox, counts, read and dismiss.
       await s.as("member");
+
       const inbox = await s.value<{ type: string; subject_label: string }[]>(
         "better_supabase.list_notifications($1)",
         [organization],
       );
+
       expect(inbox.map((item) => item.type)).toEqual([
         "approval.requested",
         "task.assigned",
@@ -323,14 +357,17 @@ describe.skipIf(!live)("notifications", () => {
         [USERS.member],
       );
       await s.as("member");
+
       const tied = await s.value<{ id: string }[]>(
         "better_supabase.list_notifications($1)",
         [organization],
       );
+
       const page = await s.value<{ id: string }[]>(
         "better_supabase.list_notifications($1, 'all', null, '2026-01-01T00:00:00Z', 50, $2)",
         [organization, tied[0]!.id],
       );
+
       expect(page.map((item) => item.id)).toEqual([tied[1]!.id]);
       expect(
         await s.value("better_supabase.notification_counts($1, $2)", [
@@ -380,9 +417,11 @@ describe.skipIf(!live)("notifications", () => {
 
       // A worker claims the email delivery with the address, then completes it.
       await s.as("service");
+
       const claimed = await s.value<
         { delivery_id: string; email: string; notification: { type: string } }[]
       >("better_supabase.claim_notification_deliveries('email')");
+
       expect(claimed).toHaveLength(1);
       expect(claimed[0]).toMatchObject({
         email: email("member"),
@@ -410,8 +449,10 @@ describe.skipIf(!live)("notifications", () => {
         "update better_supabase.notification_deliveries set status = 'pending', attempts = 0, attempted_at = null where id = $1",
         [id],
       );
+
       const claimRetry =
         "better_supabase.claim_notification_deliveries('email', 50, '5 minutes', 2)";
+
       expect(await s.value<unknown[]>(claimRetry)).toHaveLength(1);
       expect(
         await s.value(
@@ -494,8 +535,10 @@ describe.skipIf(!live)("notifications", () => {
   it("derives UUIDv8 event ids from the key without a key column", async () => {
     const client = await pool.connect();
     const s = new Session(client);
+
     try {
       await client.query("begin");
+
       for (const who of ["owner", "member"] as const) {
         await client.query(
           `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
@@ -503,27 +546,34 @@ describe.skipIf(!live)("notifications", () => {
           [USERS[who], email(who)],
         );
       }
+
       for (const file of renderModules(["organizations", "notifications"], {
         modules: {
           notifications: { columns: { events: { key: null } } },
         },
-      }))
+      })) {
         await client.query(file.contents);
+      }
+
       await s.as("owner");
+
       const organization = await s.value<string>(
         "better_supabase.create_organization($1)",
         [{ name: "Acme", slug: `acme-v8-${USERS.owner.slice(0, 8)}` }],
       );
+
       await client.query(
         "insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, 'member')",
         [organization, USERS.member],
       );
+
       const keyed = {
         type: "task.assigned",
         tenant: organization,
         recipients: [USERS.member],
         key: "task-1",
       };
+
       const first = await s.notify(keyed);
       expect(first).toMatch(
         /^[0-9a-f]{8}-[0-9a-f]{4}-8[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
@@ -537,6 +587,7 @@ describe.skipIf(!live)("notifications", () => {
         "md5(coalesce($1::text, '') || ':' || 'task-2')::uuid",
         [organization],
       );
+
       await s.as("service");
       await client.query(
         "insert into better_supabase.notification_events (id, organization_id, type) values ($1, $2, 'task.assigned')",
@@ -554,13 +605,16 @@ describe.skipIf(!live)("notifications", () => {
   it("works end to end through createNotifications and sqlTransport", async () => {
     const client = await pool.connect();
     const s = new Session(client);
+
     const sql: SqlClient = {
       async queryRaw<T>(text: string, params: unknown[] = []) {
         const { rows } = await client.query(text, params);
+
         // SAFETY: the test reads only the `value` column sqlTransport selects.
         return rows as T[];
       },
     };
+
     const anything: StandardSchemaV1<{ title: string }> = {
       "~standard": {
         version: 1,
@@ -568,7 +622,9 @@ describe.skipIf(!live)("notifications", () => {
         validate: (value) => ({ value: value as { title: string } }),
       },
     };
+
     const sent: NotificationMessage[] = [];
+
     const notifications = createNotifications({
       transport: sqlTransport(sql),
       types: { "task.assigned": anything },
@@ -580,13 +636,16 @@ describe.skipIf(!live)("notifications", () => {
           name: "email",
           send: (message) => {
             sent.push(message);
+
             return { provider: "test", providerMessageId: "m1" };
           },
         },
       ],
     });
+
     try {
       await client.query("begin");
+
       for (const who of ["owner", "member"] as const) {
         await client.query(
           `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
@@ -594,11 +653,14 @@ describe.skipIf(!live)("notifications", () => {
           [USERS[who], email(who)],
         );
       }
+
       for (const file of renderModules(
         ["organizations", "profiles", "notifications"],
         LAYOUT,
-      ))
+      )) {
         await client.query(file.contents);
+      }
+
       await client.query("select better_supabase.backfill_profiles()");
       await client.query(
         "update auth.users set raw_user_meta_data = jsonb_build_object('avatar_path', 'evil', 'picture', 'https://img.test/a.png') where id = $1",
@@ -609,10 +671,12 @@ describe.skipIf(!live)("notifications", () => {
         [USERS.owner, `${USERS.owner}/avatar.webp`],
       );
       await s.as("owner");
+
       const organization = await s.value<string>(
         "better_supabase.create_organization($1)",
         [{ name: "Acme", slug: `acme-e2e-${USERS.owner.slice(0, 8)}` }],
       );
+
       await client.query(
         "insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, 'member')",
         [organization, USERS.member],
@@ -631,14 +695,17 @@ describe.skipIf(!live)("notifications", () => {
           channels: ["in_app", "email"],
         })
         .orThrow();
+
       expect(stored!.recipients).toEqual([USERS.member]);
       const id = stored!.id;
       expect(id).toMatch(/^[0-9a-f-]{36}$/);
 
       await s.as("member");
+
       const [item] = await notifications
         .list({ tenant: organization })
         .orThrow();
+
       expect(item).toMatchObject({
         eventId: id,
         type: "task.assigned",
@@ -646,9 +713,11 @@ describe.skipIf(!live)("notifications", () => {
         text: { title: "Assigned: Paint" },
         readAt: null,
       });
+
       const [withActor] = await notifications
         .list({ tenant: organization, include: ["actor"] })
         .orThrow();
+
       expect(withActor!.actor).toMatchObject({
         id: USERS.owner,
         username: expect.any(String),
@@ -662,9 +731,11 @@ describe.skipIf(!live)("notifications", () => {
         actionable: 0,
         actionableSubjects: 0,
       });
+
       const read = await notifications
         .markRead({ tenant: organization })
         .orThrow();
+
       expect(read.count).toBe(1);
       expect(read.items[0]).toMatchObject({ id: item!.id, eventId: id });
       expect(read.items[0]!.readAt).not.toBeNull();
@@ -696,12 +767,15 @@ describe.skipIf(!live)("notifications", () => {
   it("pages, searches and settles the inbox and reads the caller's settings", async () => {
     const client = await pool.connect();
     const s = new Session(client);
+
     const sql: SqlClient = {
       async queryRaw<T>(text: string, params: unknown[] = []) {
         const { rows } = await client.query(text, params);
+
         return rows as T[];
       },
     };
+
     const anything: StandardSchemaV1<{ title: string }> = {
       "~standard": {
         version: 1,
@@ -709,13 +783,16 @@ describe.skipIf(!live)("notifications", () => {
         validate: (value) => ({ value: value as { title: string } }),
       },
     };
+
     const notifications = createNotifications({
       transport: sqlTransport(sql),
       types: { "task.assigned": anything, "approval.requested": anything },
       actionable: ["approval.requested"],
     });
+
     try {
       await client.query("begin");
+
       for (const who of ["owner", "member", "outsider"] as const) {
         await client.query(
           `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
@@ -723,20 +800,26 @@ describe.skipIf(!live)("notifications", () => {
           [USERS[who], email(who)],
         );
       }
+
       for (const file of renderModules(
         ["organizations", "notifications"],
         LAYOUT,
-      ))
+      )) {
         await client.query(file.contents);
+      }
+
       await s.as("owner");
+
       const organization = await s.value<string>(
         "better_supabase.create_organization($1)",
         [{ name: "Acme", slug: `acme-inbox-${USERS.owner.slice(0, 8)}` }],
       );
+
       await client.query(
         "insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, 'member')",
         [organization, USERS.member],
       );
+
       const send = (
         type: "task.assigned" | "approval.requested",
         subject: { type: string; id: string; label: string },
@@ -751,6 +834,7 @@ describe.skipIf(!live)("notifications", () => {
             data: { title: summary },
           })
           .orThrow();
+
       await send(
         "task.assigned",
         { type: "task", id: "t1", label: "Fix the roof" },
@@ -773,14 +857,18 @@ describe.skipIf(!live)("notifications", () => {
       );
 
       await s.as("member");
+
       const first = await notifications
         .page({ tenant: organization, limit: 2 })
         .orThrow();
+
       expect(first.total).toBe(4);
       expect(first.items).toHaveLength(2);
+
       const second = await notifications
         .page({ tenant: organization, limit: 2, offset: 2 })
         .orThrow();
+
       expect(second.total).toBe(4);
       expect(
         [...first.items, ...second.items].map((item) => item.summary),
@@ -861,14 +949,17 @@ describe.skipIf(!live)("notifications", () => {
           .orThrow(),
       ).toEqual({ count: 2, items: [] });
       await s.as("member");
+
       const settled = await notifications
         .page({ tenant: organization, status: "settled" })
         .orThrow();
+
       expect(settled.items.map((item) => item.summary)).toEqual([
         "Approve invoice again",
         "Approve invoice",
         "Fence",
       ]);
+
       const summaries = async (options: {
         readonly read?: boolean;
         readonly resolved?: boolean;
@@ -879,6 +970,7 @@ describe.skipIf(!live)("notifications", () => {
             .list({ tenant: organization, ...options })
             .orThrow()
         ).map((item) => item.summary);
+
       expect(await summaries({ resolved: true })).toEqual([
         "Approve invoice again",
         "Approve invoice",
@@ -930,9 +1022,11 @@ describe.skipIf(!live)("notifications", () => {
           tenant: organization,
         })
         .orThrow();
+
       const subscriptions = await notifications
         .subscriptions({ tenant: organization })
         .orThrow();
+
       expect(
         subscriptions
           .map((entry) => [entry.subject.id, entry.level])

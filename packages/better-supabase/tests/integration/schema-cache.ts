@@ -19,14 +19,19 @@ function target(name: string): { schema: string; name: string } {
   const [schema, rest] = name.includes(".")
     ? name.split(".", 2)
     : ["public", name];
+
   return { schema: schema!, name: rest! };
 }
 
 async function missing(response: Response): Promise<boolean> {
-  if (response.ok) return false;
+  if (response.ok) {
+    return false;
+  }
+
   const body = (await response.json().catch(() => ({}))) as {
     code?: string;
   };
+
   return MISSING.has(body.code ?? "");
 }
 
@@ -47,9 +52,11 @@ export async function reloadSchemaCache(
     "content-profile": schema,
     "content-type": "application/json",
   });
+
   const probes = [
     ...(wait.tables ?? []).map((name) => {
       const table = target(name);
+
       return () =>
         fetch(`${wait.url}/rest/v1/${table.name}?limit=0`, {
           headers: headers(table.schema),
@@ -57,6 +64,7 @@ export async function reloadSchemaCache(
     }),
     ...(wait.functions ?? []).map((fn) => {
       const callee = target(fn.name);
+
       return () =>
         fetch(`${wait.url}/rest/v1/rpc/${callee.name}?limit=0`, {
           method: "POST",
@@ -65,25 +73,36 @@ export async function reloadSchemaCache(
         });
     }),
   ];
+
   const deadline = Date.now() + (wait.timeout ?? 30_000);
   let pending = probes;
+
   for (let attempt = 0; ; attempt++) {
-    if (attempt % 8 === 0) await pool.query(`notify pgrst, 'reload schema'`);
+    if (attempt % 8 === 0) {
+      await pool.query(`notify pgrst, 'reload schema'`);
+    }
+
     const results = await Promise.all(
       pending.map(async (probe) => ({
         probe,
         missing: await missing(await probe()),
       })),
     );
+
     pending = results
       .filter((entry) => entry.missing)
       .map((entry) => entry.probe);
-    if (pending.length === 0) return;
+
+    if (pending.length === 0) {
+      return;
+    }
+
     if (Date.now() > deadline) {
       throw new Error(
         `PostgREST's schema cache still misses ${pending.length} of the objects after ${wait.timeout ?? 30_000} ms`,
       );
     }
+
     await new Promise((resolve) => {
       setTimeout(resolve, 250);
     });

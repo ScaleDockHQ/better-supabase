@@ -38,7 +38,11 @@ function notifyThrough(
   options: Pick<RemindersOptions, "notifier" | "notification">,
 ): ((delivery: DeliveryPayload) => unknown) | undefined {
   const { notifier, notification } = options;
-  if (notifier === undefined || notification === undefined) return undefined;
+
+  if (notifier === undefined || notification === undefined) {
+    return undefined;
+  }
+
   return (delivery) =>
     notifier.send(notification, {
       recipients: delivery.userId === undefined ? [] : [delivery.userId],
@@ -132,9 +136,11 @@ function deliveryOf(value: unknown): DeliveryPayload {
   if (!isRecord(value)) {
     throw new TypeError(`${REMINDER_DELIVERY_QUEUE} needs an object payload`);
   }
+
   const userId = optionalText(value["userId"]);
   const subjectType = optionalText(value["subjectType"]);
   const subjectId = optionalText(value["subjectId"]);
+
   return {
     reminderId: textOf(value["reminderId"]),
     occurrenceAt: textOf(value["occurrenceAt"]),
@@ -149,9 +155,11 @@ export function createReminders<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: RemindersOptions<S>): Reminders<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   const call = blockCall(options.transport, options.schema, options.mappers);
   const fields: BlockFields<F> = blockFields(options.fields, "reminder fields");
   const notifyDelivery = options.notifyDelivery ?? notifyThrough(options);
+
   const audience =
     options.audience ??
     options.authorization?.delivery?.audience ??
@@ -161,12 +169,16 @@ export function createReminders<
           options.transport,
           options.schema === undefined ? {} : { schema: options.schema },
         ));
+
   /** Whether `audience` lets the reminder's user have it, or the policy's failure. */
   const permitted = (delivery: DeliveryPayload): AsyncResult<boolean> =>
     AsyncResult.from(async () => {
-      if (audience === undefined || delivery.userId === undefined)
+      if (audience === undefined || delivery.userId === undefined) {
         return ok(true);
+      }
+
       const subscriber = { principal: delivery.userId, kind: "user" as const };
+
       const checked = await allowedSubscribers(
         audience,
         {
@@ -182,6 +194,7 @@ export function createReminders<
         },
         [subscriber],
       );
+
       return checked.ok
         ? ok(checked.allowed.length > 0)
         : err(
@@ -192,12 +205,14 @@ export function createReminders<
             ),
           );
     });
+
   const markSent: Reminders["markSent"] = (reminderId, occurrenceAt) =>
     call(
       "mark_reminder_sent",
       { reminder: reminderId, occurrence_at: occurrenceAt },
       (value) => value === true,
     );
+
   const deliver: Reminders["deliver"] = (delivery) =>
     (notifyDelivery === undefined
       ? AsyncResult.ok(false)
@@ -208,6 +223,7 @@ export function createReminders<
         .andThen(async (sent) => {
           if (sent && allowed && notifyDelivery !== undefined) {
             const outcome: unknown = await notifyDelivery(delivery);
+
             if (
               isRecord(outcome) &&
               outcome["ok"] === false &&
@@ -216,9 +232,11 @@ export function createReminders<
               return err(outcome["error"]);
             }
           }
+
           return ok(sent);
         }),
     );
+
   const client: Reminders<F> = {
     save: (organizationId, subjectType, subjectId, offsetMinutes, values) =>
       writeFields(fields, values, (checked) =>
@@ -233,6 +251,7 @@ export function createReminders<
           },
           (value) => {
             const row = recordOf(value, "save_reminder");
+
             return { id: textOf(row["id"]), fields: rowFields(row["fields"]) };
           },
         ),
@@ -243,9 +262,11 @@ export function createReminders<
       await hooked.deliver(deliveryOf(payload)).orThrow();
     },
   };
+
   const hooked = withBlockHooks(client, options.hooks, {
     block: "reminders",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
   return hooked;
 }

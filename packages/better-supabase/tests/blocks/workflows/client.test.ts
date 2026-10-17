@@ -25,6 +25,7 @@ describe("createWorkflowRunsController", () => {
   it("lists a tenant's runs and reloads on its topic", async () => {
     const topic = fakeTopic();
     const list = vi.fn(() => resolved([run("r1")]));
+
     const { view, unmount } = mount(
       createWorkflowRunsController({
         client: { runs: { list } },
@@ -36,6 +37,7 @@ describe("createWorkflowRunsController", () => {
         limit: 5,
       }),
     );
+
     await flush();
     expect(list).toHaveBeenCalledWith({
       tenant: "org-1",
@@ -58,11 +60,13 @@ describe("createWorkflowRunsController", () => {
     const topic = fakeTopic();
     const answer = held([run("late")]);
     const list = vi.fn(() => answer.result);
+
     const controller = createWorkflowRunsController({
       client: { runs: { list } },
       auth: fakeAuth(),
       ports: { topic: topic.port },
     });
+
     const mounted = mount(controller);
     await flush();
     expect(list).toHaveBeenCalledWith({});
@@ -79,9 +83,11 @@ describe("createWorkflowRunController", () => {
     const auth = fakeAuth();
     const topic = fakeTopic();
     const get = vi.fn(() => resolved<WorkflowRun | undefined>(run("r1")));
+
     const requestCancel = vi.fn(() =>
       resolved<WorkflowRun | undefined>(run("r1")),
     );
+
     const { view, unmount } = mount(
       createWorkflowRunController({
         client: { runs: { get, requestCancel } },
@@ -90,6 +96,7 @@ describe("createWorkflowRunController", () => {
         run: "wrun_1",
       }),
     );
+
     await flush();
     expect(get).toHaveBeenCalledWith("wrun_1");
     expect(view().run?.id).toBe("r1");
@@ -120,9 +127,11 @@ describe("createWorkflowRunController", () => {
   it("waits without a run and does nothing for one it may not read", async () => {
     const topic = fakeTopic();
     const get = vi.fn(() => resolved<WorkflowRun | undefined>(undefined));
+
     const requestCancel = vi.fn(() =>
       resolved<WorkflowRun | undefined>(undefined),
     );
+
     const idle = mount(
       createWorkflowRunController({
         client: { runs: { get, requestCancel } },
@@ -131,6 +140,7 @@ describe("createWorkflowRunController", () => {
         run: null,
       }),
     );
+
     await idle.view().refresh();
     await idle.view().cancel();
     idle.unmount();
@@ -145,6 +155,7 @@ describe("createWorkflowRunController", () => {
         run: "r9",
       }),
     );
+
     await flush();
     expect(hidden.view().run).toBeUndefined();
     expect(topic.joined).toEqual([]);
@@ -154,6 +165,7 @@ describe("createWorkflowRunController", () => {
   it("drops an answer that arrives after it stopped", async () => {
     const topic = fakeTopic();
     const answer = held<WorkflowRun | undefined>(run("r1"));
+
     const controller = createWorkflowRunController({
       client: {
         runs: {
@@ -165,6 +177,7 @@ describe("createWorkflowRunController", () => {
       ports: { topic: topic.port },
       run: "r1",
     });
+
     const mounted = mount(controller);
     await flush();
     mounted.unmount();

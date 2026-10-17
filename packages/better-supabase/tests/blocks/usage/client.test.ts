@@ -39,6 +39,7 @@ const overview = [
 describe("createUsageMeterController", () => {
   it("reads every meter with its fraction of the quota", async () => {
     const client = { overview: vi.fn(() => resolved(overview)) };
+
     const { view, unmount } = mount(
       createUsageMeterController({
         client,
@@ -46,6 +47,7 @@ describe("createUsageMeterController", () => {
         organizationId: "org-1",
       }),
     );
+
     await flush();
     expect(client.overview).toHaveBeenCalledWith("org-1");
     expect(
@@ -68,6 +70,7 @@ describe("createUsageMeterController", () => {
 
   it("keeps the meters it is asked for, in that order", async () => {
     const client = { overview: vi.fn(() => resolved(overview)) };
+
     const { view, unmount } = mount(
       createUsageMeterController({
         client,
@@ -76,6 +79,7 @@ describe("createUsageMeterController", () => {
         meters: ["customers.created", "missing", "api.calls"],
       }),
     );
+
     await flush();
     expect(view().meters?.map((meter) => meter.meter)).toEqual([
       "customers.created",
@@ -86,11 +90,13 @@ describe("createUsageMeterController", () => {
 
   it("waits for an organization and drops stale answers", async () => {
     const waiting = { overview: vi.fn(() => resolved(overview)) };
+
     const idle = createUsageMeterController({
       client: waiting,
       auth: fakeAuth(),
       organizationId: null,
     });
+
     const mounted = mount(idle);
     await mounted.view().refresh();
     mounted.unmount();
@@ -98,11 +104,13 @@ describe("createUsageMeterController", () => {
 
     const answer = held(overview);
     const slow = { overview: vi.fn(() => answer.result) };
+
     const controller = createUsageMeterController({
       client: slow,
       auth: fakeAuth(),
       organizationId: "org-1",
     });
+
     const view = mount(controller);
     await flush();
     view.unmount();

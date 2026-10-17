@@ -68,8 +68,11 @@ export type {
   PresenceTopic,
   UseActionOptions,
 } from "../bindings/client.ts";
+
 export type { AuthSnapshot } from "../client/index.ts";
+
 export type { AuthSession } from "../auth/view.ts";
+
 export { fieldErrorsOf } from "../bindings/field-errors.ts";
 
 /** A value read through `.current`, reactive in templates, `$derived` and `$effect`. */
@@ -156,9 +159,11 @@ export interface BetterSvelteOptions {
 /** Reads a store reactively: the caller re-runs when the store changes. */
 function reactive<T>(store: Store<T>): Current<T> {
   const subscribe = createSubscriber((update) => store.subscribe(update));
+
   return {
     get current() {
       subscribe();
+
       return store.current();
     },
   };
@@ -176,24 +181,32 @@ function followed(
 ): () => void {
   const run = keyed();
   let notify: (() => void) | undefined;
+
   const queued = (): void => {
     queueMicrotask(() => notify?.());
   };
+
   const update = (): void => {
     const next = key();
     run.update(next, () => (next === null ? undefined : start(next, queued)));
   };
+
   const subscribe = createSubscriber((changed) => {
     notify = changed;
     update();
+
     return () => {
       notify = undefined;
       run.stop();
     };
   });
+
   return () => {
     subscribe();
-    if (notify) update();
+
+    if (notify) {
+      update();
+    }
   };
 }
 
@@ -207,18 +220,23 @@ export function createBetterSvelte<B extends ClientLike>(
   const { queryClient } = options;
   const auth = reactive(client.auth);
   const plainCallers = new WeakMap<SupabaseClient, Current<Caller>>();
+
   const callerFor = (supabase: SupabaseClient | undefined): Current<Caller> => {
-    if (supabase === undefined)
+    if (supabase === undefined) {
       return {
         get current() {
           return callerOf(auth.current);
         },
       };
+    }
+
     let caller = plainCallers.get(supabase);
+
     if (!caller) {
       caller = reactive(plainCaller(supabase));
       plainCallers.set(supabase, caller);
     }
+
     return caller;
   };
 
@@ -235,20 +253,31 @@ export function createBetterSvelte<B extends ClientLike>(
       assertInvalidateClient("broadcast", options, forQuery);
       const caller = callerFor(options?.client);
       let status: SubscriptionStatus = "closed";
+
       const name = (): string | null => {
         const current = values();
+
         return current ? topic.topic(current) : null;
       };
+
       const track = followed(
         () => {
           const current = name();
           const who = caller.current;
-          if (current === null || who.status === "loading") return null;
+
+          if (current === null || who.status === "loading") {
+            return null;
+          }
+
           return JSON.stringify([current, who.userId]);
         },
         (_key, notify) => {
           const current = name();
-          if (current === null) return;
+
+          if (current === null) {
+            return;
+          }
+
           return startBroadcast({
             supabase,
             topic,
@@ -262,9 +291,11 @@ export function createBetterSvelte<B extends ClientLike>(
           });
         },
       );
+
       return {
         get current() {
           track();
+
           return status;
         },
       };
@@ -272,21 +303,29 @@ export function createBetterSvelte<B extends ClientLike>(
     liveQuery(spec, options = {}) {
       let status: SubscriptionStatus = "closed";
       let joined: string | null = null;
+
       const track = followed(
         () => {
           const current = spec();
+
           if (current && !queryClient) {
             throw new Error(
               "better-supabase: liveQuery needs setBetterSupabase(bs, { queryClient })",
             );
           }
+
           return liveKey(client, current, auth.current, options);
         },
         (key, notify) => {
           const current = spec();
-          if (!current || !queryClient) return;
+
+          if (!current || !queryClient) {
+            return;
+          }
+
           const resumed = joined === key;
           joined = key;
+
           return startLiveQuery({
             client,
             queryClient,
@@ -301,9 +340,11 @@ export function createBetterSvelte<B extends ClientLike>(
           });
         },
       );
+
       return {
         get current() {
           track();
+
           return status;
         },
       };
@@ -314,11 +355,17 @@ export function createBetterSvelte<B extends ClientLike>(
       let joined: { key: string; at: number } | null = null;
       const parsed = () => countSource(source(), options);
       const key = () => liveKey(client, parsed().spec, auth.current, options);
+
       const track = followed(key, (next, notify) => {
         const { spec, initial, seedAt } = parsed();
-        if (!spec) return;
+
+        if (!spec) {
+          return;
+        }
+
         const previous = joined?.key === next ? joined : null;
         joined = { key: next, at: previous?.at ?? seedAt ?? 0 };
+
         return startLiveCount({
           client,
           spec,
@@ -329,7 +376,11 @@ export function createBetterSvelte<B extends ClientLike>(
           since: previous ? previous.at : seedAt,
           onState: (update) => {
             state = update(state);
-            if (joined?.key === next) joined = { key: next, at: state.at };
+
+            if (joined?.key === next) {
+              joined = { key: next, at: state.at };
+            }
+
             notify();
           },
           onStatus: (value) => {
@@ -338,16 +389,20 @@ export function createBetterSvelte<B extends ClientLike>(
           },
         });
       });
+
       const shown = () => {
         track();
+
         return shownCount(state, key(), parsed());
       };
+
       return {
         get count() {
           return shown().count;
         },
         get status() {
           track();
+
           return status;
         },
         get error() {
@@ -365,20 +420,31 @@ export function createBetterSvelte<B extends ClientLike>(
       let members: readonly PresenceMember<O>[] = NO_MEMBERS;
       let status: SubscriptionStatus = "closed";
       let join: PresenceJoin<I> | undefined;
+
       const name = (): string | null => {
         const current = values();
+
         return current ? topic.topic(current) : null;
       };
+
       const follow = followed(
         () => {
           const current = name();
           const who = caller.current;
-          if (current === null || who.status === "loading") return null;
+
+          if (current === null || who.status === "loading") {
+            return null;
+          }
+
           return JSON.stringify([current, who.userId]);
         },
         (_key, notify) => {
           const current = name();
-          if (current === null) return;
+
+          if (current === null) {
+            return;
+          }
+
           const joined = joinPresence(supabase, topic, current, {
             onStatus: (next) => {
               status = next;
@@ -389,9 +455,14 @@ export function createBetterSvelte<B extends ClientLike>(
               notify();
             },
           });
-          if (!joined) return;
+
+          if (!joined) {
+            return;
+          }
+
           join = joined;
           joined.sync(options.state?.());
+
           return () => {
             join = undefined;
             members = NO_MEMBERS;
@@ -401,17 +472,21 @@ export function createBetterSvelte<B extends ClientLike>(
           };
         },
       );
+
       const track = (): void => {
         follow();
         join?.sync(options.state?.());
       };
+
       return {
         get members() {
           track();
+
           return members;
         },
         get status() {
           track();
+
           return status;
         },
         track: (state) => join?.track(state) ?? notJoined(),
@@ -426,8 +501,10 @@ export function createBetterSvelte<B extends ClientLike>(
       const call = action as (
         input: ActionInputOf<I>,
       ) => Promise<ActionResultOf<T>>;
+
       const runner = createActionRunner(() => ({ action: call, options }));
       const state = reactive(runner);
+
       return {
         run: runner.run,
         reset: runner.reset,
@@ -469,7 +546,11 @@ export function setBetterSupabase<B extends ClientLike>(
 ): BetterSvelte<B> {
   const bound = createBetterSvelte(client, options);
   const { queryClient } = options;
-  if (queryClient) onMount(() => clearOnUserChange(queryClient, client.auth));
+
+  if (queryClient) {
+    onMount(() => clearOnUserChange(queryClient, client.auth));
+  }
+
   return setContext(CLIENT, bound);
 }
 
@@ -478,11 +559,13 @@ export function getBetterSupabase<
   B extends ClientLike = ClientLike,
 >(): BetterSvelte<B> {
   const bound = getContext<BetterSvelte<B> | undefined>(CLIENT);
+
   if (!bound) {
     throw new Error(
       "better-supabase: call setBetterSupabase(bs) in a parent component",
     );
   }
+
   return bound;
 }
 
@@ -553,11 +636,13 @@ export function useSession<C = unknown, P = unknown>(): Current<
   AuthSession<C, P>
 > {
   const session = getContext<(() => AuthSession) | undefined>(SESSION);
+
   if (!session) {
     throw new Error(
       "better-supabase: useSession() needs setSession(() => data.session) in a parent component",
     );
   }
+
   return {
     get current() {
       // SAFETY: setSession receives `bs.session()` from the same

@@ -87,11 +87,13 @@ for (const name of Object.keys(users) as UserName[]) {
       await signIn(page, users[name].email);
       await page.goto("/en/settings/profile");
       await expect(visibleTestId(page, "profile-role")).toBeVisible();
+
       for (const tab of tabs) {
         if (!tab.visibleTo.includes(name)) {
           await expect(settingsTab(page, tab.label)).toHaveCount(0);
           continue;
         }
+
         await expectInstant(page, {
           during: clickSettingsTab(page, tab.label, `/en${tab.path}`),
           visible: [heading(page, "Settings"), ...tab.content(page, name)],

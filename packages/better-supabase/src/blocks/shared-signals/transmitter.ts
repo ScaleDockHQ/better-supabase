@@ -33,6 +33,7 @@ import {
 } from "./set.ts";
 
 export type SsfDeliveryMethod = "push" | "poll";
+
 export type SsfStreamStatus = "enabled" | "paused" | "disabled";
 
 /** A stream as the `shared-signals` module stores it. */
@@ -189,13 +190,17 @@ const STATUSES: readonly SsfStreamStatus[] = ["enabled", "paused", "disabled"];
 
 const statusOf = (value: unknown): SsfStreamStatus => {
   const found = STATUSES.find((status) => status === value);
-  if (found === undefined)
+
+  if (found === undefined) {
     throw new TypeError(`Unknown stream status ${String(value)}`);
+  }
+
   return found;
 };
 
 function streamOf(value: unknown): SsfStream {
   const row = recordOf(value, "ssf_stream");
+
   return {
     id: textOf(row["id"]),
     tenant: nullableText(row["tenant"]),
@@ -226,7 +231,11 @@ const json = (
 
 const noStore = (init: Readonly<Record<string, string>>): Headers => {
   const headers = new Headers(init);
-  if (!headers.has("cache-control")) headers.set("cache-control", "no-store");
+
+  if (!headers.has("cache-control")) {
+    headers.set("cache-control", "no-store");
+  }
+
   return headers;
 };
 
@@ -244,21 +253,26 @@ export function createSsfTransmitter(
   options: SsfTransmitterOptions,
 ): SsfTransmitter {
   applyTemporal(options);
+
   const call = blockCall(
     options.service ?? options.transport,
     options.schema,
     options.mappers,
   );
+
   const issuer = options.issuer.replace(/\/$/, "");
   const base = (options.basePath ?? "/ssf").replace(/\/$/, "");
   const url = (path: string): string => `${issuer}${base}${path}`;
+
   const supported = options.eventsSupported ?? [
     ...Object.values(CAEP_EVENTS),
     ...Object.values(RISC_EVENTS),
   ];
+
   const methods = options.deliveryMethods ?? ["push", "poll"];
   const minVerification = options.minVerificationInterval ?? 30;
   const maxBody = options.maxBodyBytes ?? 65_536;
+
   const delivered = (requested: readonly string[]): string[] =>
     requested.filter((type) => supported.includes(type));
 
@@ -296,28 +310,35 @@ export function createSsfTransmitter(
 
   const createStream: SsfTransmitter["createStream"] = (input) =>
     AsyncResult.from(async (): Promise<Result<SsfStream>> => {
-      if (!methods.includes(input.method))
+      if (!methods.includes(input.method)) {
         return err(
           invalid(`The delivery method ${input.method} is not supported`),
         );
+      }
+
       const id = crypto.randomUUID();
       const identity = input.receiver;
       const tenant = identity.tenant ?? null;
       const audience = identity.audience ?? identity.receiver;
       let credentialRef: CredentialRef | null = null;
+
       if (input.method === "push") {
         if (
           input.endpointUrl === undefined ||
           !/^https:\/\//i.test(input.endpointUrl)
-        )
+        ) {
           return err(invalid("A push stream needs an https endpoint_url"));
+        }
+
         if (input.authorizationHeader !== undefined) {
-          if (options.credentials === undefined)
+          if (options.credentials === undefined) {
             return err(
               invalid(
                 "This transmitter does not accept an authorization_header",
               ),
             );
+          }
+
           credentialRef = {
             provider: "vault",
             secret: `ssf/${id}`,
@@ -325,13 +346,18 @@ export function createSsfTransmitter(
             scheme: null,
             ...(tenant === null ? {} : { tenant }),
           };
+
           const stored = await options.credentials.set(
             credentialRef,
             input.authorizationHeader,
           );
-          if (!stored.ok) return stored;
+
+          if (!stored.ok) {
+            return stored;
+          }
         }
       }
+
       return call(
         "create_ssf_stream",
         {
@@ -353,30 +379,45 @@ export function createSsfTransmitter(
 
   const setStatus: SsfTransmitter["setStatus"] = (id, status, reason) =>
     stream(id).andThen(async (found): Promise<Result<SsfStreamStatus>> => {
-      if (found === null)
+      if (found === null) {
         return err(
           dbError("not_found", "Stream not found", {
             hint: "SSF_STREAM_NOT_FOUND",
           }),
         );
+      }
+
       const update = {
         type: SSF_EVENTS.streamUpdated,
         claims: { status, ...(reason === undefined ? {} : { reason }) },
       };
+
       if (found.status === "enabled" && status !== "enabled") {
         const sent = await send(id, found.audience, streamSubject(id), update);
-        if (!sent.ok) return sent;
+
+        if (!sent.ok) {
+          return sent;
+        }
       }
+
       const previous = await call(
         "set_ssf_stream_status",
         { id, status, reason: reason ?? null },
         statusOf,
       );
-      if (!previous.ok) return previous;
+
+      if (!previous.ok) {
+        return previous;
+      }
+
       if (status === "enabled" && previous.data !== "enabled") {
         const sent = await send(id, found.audience, streamSubject(id), update);
-        if (!sent.ok) return sent;
+
+        if (!sent.ok) {
+          return sent;
+        }
       }
+
       return ok(previous.data);
     });
 
@@ -405,6 +446,7 @@ export function createSsfTransmitter(
         })),
     ).andThen(async (targets): Promise<Result<EmitResult>> => {
       const counts = { dispatched: 0, queued: 0, held: 0 };
+
       for (const target of targets) {
         const sent = await send(
           target.id,
@@ -413,14 +455,20 @@ export function createSsfTransmitter(
           input.event,
           input.txn,
         );
-        if (!sent.ok) return sent;
+
+        if (!sent.ok) {
+          return sent;
+        }
+
         if (
           sent.data === "dispatched" ||
           sent.data === "queued" ||
           sent.data === "held"
-        )
+        ) {
           counts[sent.data] += 1;
+        }
       }
+
       return ok({ streams: targets.length, ...counts });
     });
 
@@ -436,6 +484,7 @@ export function createSsfTransmitter(
       (value) => {
         const row = recordOf(value, "poll_ssf_events");
         const sets = isRecord(row["sets"]) ? row["sets"] : {};
+
         return {
           sets: Object.fromEntries(
             Object.entries(sets).map(([jti, token]) => [jti, textOf(token)]),
@@ -490,12 +539,16 @@ export function createSsfTransmitter(
       ),
     deleteStream: (id) =>
       stream(id).andThen(async (found): Promise<Result<boolean>> => {
-        if (found === null) return ok(false);
+        if (found === null) {
+          return ok(false);
+        }
+
         const deleted = await call(
           "delete_ssf_stream",
           { id },
           (value) => value === true,
         );
+
         if (
           deleted.ok &&
           found.method === "push" &&
@@ -510,6 +563,7 @@ export function createSsfTransmitter(
             { subject: { type: "app" } },
           );
         }
+
         return deleted;
       }),
     setStatus,
@@ -537,10 +591,12 @@ export function createSsfTransmitter(
         supported,
       }),
   };
+
   const hooked = withBlockHooks(transmitter, options.hooks, {
     block: "shared-signals",
     ...(options.logger ? { logger: options.logger } : {}),
   });
+
   return hooked;
 }
 
@@ -572,9 +628,14 @@ async function bodyOf(
   limit: number,
 ): Promise<Record<string, unknown> | undefined> {
   const text = await readBodyCapped(request, limit);
-  if (text === undefined || text === "") return undefined;
+
+  if (text === undefined || text === "") {
+    return undefined;
+  }
+
   try {
     const value: unknown = JSON.parse(text);
+
     return isRecord(value) ? value : undefined;
   } catch {
     return undefined;
@@ -611,6 +672,7 @@ function routes(
   const metadata = transmitter.metadata();
   const issuer = textOf(metadata["issuer"]);
   const pollUrl = (id: string): string => `${issuer}${context.base}/poll/${id}`;
+
   const config = (stream: SsfStream): Record<string, unknown> =>
     configOf(
       stream,
@@ -625,13 +687,24 @@ function routes(
     id: string | null | undefined,
     identity: SsfReceiverIdentity,
   ): Promise<SsfStream | Response> => {
-    if (typeof id !== "string" || id === "")
+    if (typeof id !== "string" || id === "") {
       return failure(invalid("stream_id is required"));
-    if (!/^[0-9a-f-]{36}$/i.test(id)) return notFound();
-    const found = await transmitter.stream(id);
-    if (!found.ok) return failure(found.error);
-    if (found.data === null || found.data.receiver !== identity.receiver)
+    }
+
+    if (!/^[0-9a-f-]{36}$/i.test(id)) {
       return notFound();
+    }
+
+    const found = await transmitter.stream(id);
+
+    if (!found.ok) {
+      return failure(found.error);
+    }
+
+    if (found.data === null || found.data.receiver !== identity.receiver) {
+      return notFound();
+    }
+
     return found.data;
   };
 
@@ -640,32 +713,44 @@ function routes(
     identity: SsfReceiverIdentity,
   ): Promise<Response> => {
     const query = new URL(request.url).searchParams;
+
     switch (request.method) {
       case "GET": {
         const id = query.get("stream_id");
+
         if (id === null) {
           const all = await transmitter.streams(identity.receiver);
+
           return all.ok ? json(all.data.map(config)) : failure(all.error);
         }
+
         const found = await owned(id, identity);
+
         return found instanceof Response ? found : json(config(found));
       }
+
       case "POST": {
         const body = await bodyOf(request, context.maxBody);
         const delivery = isRecord(body?.["delivery"]) ? body["delivery"] : {};
+
         const method =
           delivery["method"] === SSF_PUSH
             ? "push"
             : delivery["method"] === SSF_POLL
               ? "poll"
               : undefined;
+
         const requested = strings(body?.["events_requested"]) ?? [];
-        if (body === undefined || method === undefined)
+
+        if (body === undefined || method === undefined) {
           return failure(
             invalid("delivery.method must be a supported delivery method"),
           );
+        }
+
         const endpoint = delivery["endpoint_url"];
         const authorization = delivery["authorization_header"];
+
         const created = await transmitter.createStream({
           receiver: identity,
           method,
@@ -678,31 +763,45 @@ function routes(
             ? { description: body["description"] }
             : {}),
         });
+
         return created.ok
           ? json(config(created.data), 201)
           : failure(created.error);
       }
+
       case "PATCH":
       case "PUT": {
         const body = await bodyOf(request, context.maxBody);
-        if (body === undefined)
+
+        if (body === undefined) {
           return failure(invalid("The body must be a stream configuration"));
+        }
+
         const found = await owned(textOf(body["stream_id"] ?? ""), identity);
-        if (found instanceof Response) return found;
+
+        if (found instanceof Response) {
+          return found;
+        }
+
         const replace = request.method === "PUT";
+
         const delivery = isRecord(body["delivery"])
           ? body["delivery"]
           : undefined;
+
         if (
           delivery?.["method"] !== undefined &&
           delivery["method"] !== METHODS[found.method]
-        )
+        ) {
           return failure(
             invalid("The delivery method of a stream can't change"),
           );
+        }
+
         const requested = strings(body["events_requested"]);
         const endpoint = delivery?.["endpoint_url"];
         const description = body["description"];
+
         const updated = await transmitter.updateStream(found.id, {
           ...(typeof description === "string"
             ? { description }
@@ -718,22 +817,34 @@ function routes(
             ? { endpointUrl: endpoint }
             : {}),
         });
-        if (!updated.ok) return failure(updated.error);
+
+        if (!updated.ok) {
+          return failure(updated.error);
+        }
+
         return updated.data === null ? notFound() : json(config(updated.data));
       }
+
       case "DELETE": {
         const found = await owned(query.get("stream_id"), identity);
-        if (found instanceof Response) return found;
+
+        if (found instanceof Response) {
+          return found;
+        }
+
         const deleted = await transmitter.deleteStream(found.id);
+
         return deleted.ok
           ? new Response(null, { status: 204 })
           : failure(deleted.error);
       }
-      default:
+
+      default: {
         return new Response(null, {
           status: 405,
           headers: { allow: "GET, POST, PATCH, PUT, DELETE" },
         });
+      }
     }
   };
 
@@ -746,31 +857,51 @@ function routes(
         new URL(request.url).searchParams.get("stream_id"),
         identity,
       );
-      if (found instanceof Response) return found;
+
+      if (found instanceof Response) {
+        return found;
+      }
+
       return json({
         stream_id: found.id,
         status: found.status,
         ...(found.reason === null ? {} : { reason: found.reason }),
       });
     }
-    if (request.method !== "POST")
+
+    if (request.method !== "POST") {
       return new Response(null, {
         status: 405,
         headers: { allow: "GET, POST" },
       });
+    }
+
     const body = await bodyOf(request, context.maxBody);
+
     const found = await owned(
       typeof body?.["stream_id"] === "string" ? body["stream_id"] : undefined,
       identity,
     );
-    if (found instanceof Response) return found;
+
+    if (found instanceof Response) {
+      return found;
+    }
+
     const next = STATUSES.find((value) => value === body?.["status"]);
-    if (next === undefined)
+
+    if (next === undefined) {
       return failure(invalid("status is enabled, paused or disabled"));
+    }
+
     const reason =
       typeof body?.["reason"] === "string" ? body["reason"] : undefined;
+
     const changed = await transmitter.setStatus(found.id, next, reason);
-    if (!changed.ok) return failure(changed.error);
+
+    if (!changed.ok) {
+      return failure(changed.error);
+    }
+
     return json({
       stream_id: found.id,
       status: next,
@@ -782,30 +913,45 @@ function routes(
     request: Request,
     identity: SsfReceiverIdentity,
   ): Promise<Response> => {
-    if (request.method !== "POST")
+    if (request.method !== "POST") {
       return new Response(null, { status: 405, headers: { allow: "POST" } });
+    }
+
     const body = await bodyOf(request, context.maxBody);
+
     const found = await owned(
       typeof body?.["stream_id"] === "string" ? body["stream_id"] : undefined,
       identity,
     );
-    if (found instanceof Response) return found;
+
+    if (found instanceof Response) {
+      return found;
+    }
+
     const noted = await context.call(
       "note_ssf_verification",
       { stream_id: found.id, min_interval: interval(context.minVerification) },
       (value) => value === true,
     );
-    if (!noted.ok) return failure(noted.error);
-    if (!noted.data)
+
+    if (!noted.ok) {
+      return failure(noted.error);
+    }
+
+    if (!noted.data) {
       return new Response(null, {
         status: 429,
         headers: { "retry-after": String(context.minVerification) },
       });
+    }
+
     const state = body?.["state"];
+
     const sent = await transmitter.verify(
       found.id,
       typeof state === "string" ? state : undefined,
     );
+
     return sent.ok ? new Response(null, { status: 204 }) : failure(sent.error);
   };
 
@@ -814,14 +960,24 @@ function routes(
     identity: SsfReceiverIdentity,
     id: string,
   ): Promise<Response> => {
-    if (request.method !== "POST")
+    if (request.method !== "POST") {
       return new Response(null, { status: 405, headers: { allow: "POST" } });
+    }
+
     const found = await owned(id, identity);
-    if (found instanceof Response) return found;
-    if (found.method !== "poll") return notFound();
+
+    if (found instanceof Response) {
+      return found;
+    }
+
+    if (found.method !== "poll") {
+      return notFound();
+    }
+
     const body = (await bodyOf(request, context.maxBody)) ?? {};
     const max = body["maxEvents"];
     const errs = isRecord(body["setErrs"]) ? body["setErrs"] : {};
+
     const polled = await transmitter.poll(found.id, {
       ...(typeof max === "number" ? { maxEvents: max } : {}),
       ack: strings(body["ack"]) ?? [],
@@ -833,27 +989,49 @@ function routes(
         ),
       ),
     });
+
     return polled.ok ? json(polled.data) : failure(polled.error);
   };
 
   return async (request) => {
     const path = new URL(request.url).pathname;
+
     if (path.includes("/.well-known/ssf-configuration")) {
       return request.method === "GET"
         ? json(metadata, 200, { "cache-control": "public, max-age=300" })
         : new Response(null, { status: 405, headers: { allow: "GET" } });
     }
+
     const route = path.startsWith(context.base)
       ? path.slice(context.base.length)
       : undefined;
-    if (route === undefined) return notFound();
+
+    if (route === undefined) {
+      return notFound();
+    }
+
     const identity = await context.authorize(request);
-    if (identity === null) return unauthorized();
-    if (route === "/stream") return manage(request, identity);
-    if (route === "/status") return status(request, identity);
-    if (route === "/verify") return verification(request, identity);
-    if (route.startsWith("/poll/"))
+
+    if (identity === null) {
+      return unauthorized();
+    }
+
+    if (route === "/stream") {
+      return manage(request, identity);
+    }
+
+    if (route === "/status") {
+      return status(request, identity);
+    }
+
+    if (route === "/verify") {
+      return verification(request, identity);
+    }
+
+    if (route.startsWith("/poll/")) {
       return pollRoute(request, identity, route.slice(6));
+    }
+
     return notFound();
   };
 }

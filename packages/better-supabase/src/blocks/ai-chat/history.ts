@@ -12,9 +12,11 @@ export type AiMessageCheck =
 /** Checks an untrusted value (a request body) against the canonical format. */
 export function validateMessage(value: unknown): AiMessageCheck {
   const result = aiMessageSchema["~standard"].validate(value);
+
   if (result instanceof Promise) {
     throw new TypeError("aiMessageSchema validates synchronously");
   }
+
   return result.issues
     ? { ok: false, issues: result.issues }
     : { ok: true, message: result.value };
@@ -48,21 +50,29 @@ export function repairDanglingToolCalls(
 ): AiMessage[] {
   const answered = new Set<string>();
   const waiting = new Set<string>();
+
   for (const message of messages) {
     for (const part of message.parts) {
-      if (part.type === "tool-result") answered.add(part.toolCallId);
+      if (part.type === "tool-result") {
+        answered.add(part.toolCallId);
+      }
+
       if (part.type === "tool-approval" && part.state === "requested") {
         waiting.add(part.toolCallId);
       }
     }
   }
+
   return messages.map((message) => {
     if (!message.parts.some((part) => dangling(part, answered, waiting))) {
       return message;
     }
+
     const parts: AiMessagePart[] = [];
+
     for (const part of message.parts) {
       parts.push(part);
+
       if (part.type === "tool-call" && dangling(part, answered, waiting)) {
         const result: AiToolResultPart = {
           type: "tool-result",
@@ -71,9 +81,11 @@ export function repairDanglingToolCalls(
           output: INTERRUPTED_TOOL_OUTPUT,
           isError: true,
         };
+
         parts.push(result);
       }
     }
+
     return { ...message, parts };
   });
 }

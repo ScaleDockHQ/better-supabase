@@ -9,17 +9,21 @@ import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
+
 const env = {
   url: PROJECT_URL,
   publishableKey: "sb_publishable_test",
   jwksUrl: new URL(`${PROJECT_URL}/auth/v1/.well-known/jwks.json`),
 };
+
 const USER = "11111111-1111-4111-8111-111111111111";
 const signer = await createTestSigner();
+
 const bs = createEdge(defineSupabase(schema), {
   env,
   auth: { jwks: signer.jwks as never },
 });
+
 const token = await signer.sign({ sub: USER });
 
 const Invite = v.object({ email: v.pipe(v.string(), v.email()) });
@@ -54,6 +58,7 @@ describe("defineFunction", () => {
     const response = await call(sendInvite, {
       body: JSON.stringify({ email: "ada@acme.test" }),
     });
+
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ email: "ada@acme.test", by: USER });
   });
@@ -62,11 +67,14 @@ describe("defineFunction", () => {
     const response = await call(sendInvite, {
       body: JSON.stringify({ email: "nope" }),
     });
+
     expect(response.status).toBe(422);
+
     const problem = (await response.json()) as {
       kind: string;
       issues: { path?: string[] }[];
     };
+
     expect(problem.kind).toBe("validation");
     expect(problem.issues[0]?.path).toEqual(["email"]);
   });
@@ -87,6 +95,7 @@ describe("defineFunction", () => {
       body: JSON.stringify({ email: "ada@acme.test" }),
       auth: false,
     });
+
     expect(response.status).toBe(401);
   });
 
@@ -97,6 +106,7 @@ describe("defineFunction", () => {
       // @ts-expect-error -- the handler returns what the output rejects
       handler: () => ({ id: 1 }),
     });
+
     const response = await call(broken, { method: "GET" });
     expect(response.status).toBe(500);
     expect(await response.json()).toMatchObject({ kind: "unexpected" });
@@ -107,6 +117,7 @@ describe("defineFunction", () => {
       input: v.optional(v.object({})),
       handler: () => err(dbError("conflict", "Already invited")),
     });
+
     expect((await call(failing, { body: "" })).status).toBe(409);
 
     const raw = defineFunction(bs, {
@@ -114,12 +125,14 @@ describe("defineFunction", () => {
       output: v.object({ id: v.string() }),
       handler: () => new Response("teapot", { status: 418 }),
     });
+
     expect((await call(raw, { method: "GET" })).status).toBe(418);
 
     const empty = defineFunction(bs, {
       input: v.optional(v.object({})),
       handler: () => undefined,
     });
+
     expect((await call(empty, { method: "GET" })).status).toBe(204);
   });
 
@@ -129,6 +142,7 @@ describe("defineFunction", () => {
       input: v.optional(v.object({})),
       handler: (_input, ctx) => ({ kind: ctx.auth.kind, url: ctx.request.url }),
     });
+
     const response = await call(open, { method: "GET", auth: false });
     expect(await response.json()).toEqual({
       kind: "anon",

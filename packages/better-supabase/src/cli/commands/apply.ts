@@ -97,21 +97,30 @@ function adoptBlocks(
   const refused: AdoptProposal[] = [];
   const lines: string[] = [];
   let next = text;
+
   for (const block of blocks) {
     if (!adoptable.has(block) || !hasDefaultTable(block, tables, schemas)) {
       continue;
     }
-    if ((config.blocks[block]?.mode ?? "managed") !== "managed") continue;
+
+    if ((config.blocks[block]?.mode ?? "managed") !== "managed") {
+      continue;
+    }
+
     const proposal = proposeAdoption(block, tables, {
       blocks: config.blocks,
       schemas,
     });
+
     lines.push(`Adopting ${block}:`, ...describeProposal(proposal));
+
     if (proposal.errors.length > 0) {
       refused.push(proposal);
       continue;
     }
+
     const edit = withAdoptedBlock(file, next, proposal);
+
     if (!edit.ok) {
       refused.push({
         ...proposal,
@@ -119,14 +128,17 @@ function adoptBlocks(
       });
       continue;
     }
+
     next = edit.text;
     adopted.push(proposal);
   }
+
   return { text: next, lines, adopted, refused };
 }
 
 const describeConflicts = (preset: Preset): string | undefined => {
   const { conflicts } = resolvePreset(preset);
+
   return conflicts.length === 0
     ? undefined
     : `The preset can't install: ${conflicts.map((conflict) => `${conflict.block ?? conflict.field ?? ""} (${conflict.reason})`).join("; ")}.`;
@@ -141,18 +153,22 @@ function edited(
   only: string | undefined,
 ): ConfigEdit {
   const json = file.endsWith(".json");
+
   if (only === "blocks") {
     const names = resolvePreset(preset).blocks.map((block) => block.name);
+
     return json
       ? addBlocksToJson(source, names)
       : addBlocksToConfig(source, names);
   }
+
   const value =
     only === "conventions"
       ? encodePreset({ ...preset, blocks: [] })
       : isPresetName(input)
         ? input
         : encodePreset(preset);
+
   return json
     ? setPresetInJson(source, value)
     : setPresetInConfig(source, value);
@@ -169,6 +185,7 @@ export async function runApply(
   deps: ApplyDeps,
 ): Promise<CommandResult> {
   const input = args.preset;
+
   if (input === undefined) {
     return {
       code: 2,
@@ -176,18 +193,24 @@ export async function runApply(
         "Pass --preset with a named preset, a code from /create or its URL.",
     };
   }
+
   const only = args.only;
+
   if (only !== undefined && only !== "blocks" && only !== "conventions") {
     return { code: 2, error: '--only must be "blocks" or "conventions"' };
   }
+
   const file = deps.configFile;
+
   if (file === undefined) {
     return {
       code: 2,
       error: `No config file to apply the preset to. Start a project with \`better-supabase init --preset ${input}\`.`,
     };
   }
+
   let preset: Preset;
+
   try {
     preset = presetOf(input);
   } catch (error) {
@@ -196,23 +219,31 @@ export async function runApply(
       error: error instanceof Error ? error.message : String(error),
     };
   }
+
   const conflict = describeConflicts(
     only === "conventions" ? { ...preset, blocks: [] } : preset,
   );
-  if (conflict !== undefined) return { code: 2, error: conflict };
-  const source = await readFile(file, "utf8");
+
+  if (conflict !== undefined) {
+    return { code: 2, error: conflict };
+  }
+
+  const source = await readFile(file, "utf-8");
   const edit = edited(file, source, input, preset, only);
   const shown = display(config.root, file);
+
   if (!edit.ok) {
     return {
       code: 1,
       error: `${shown} wasn't changed: ${edit.reason}. Set preset: "${encodePreset(preset)}" in it yourself.`,
     };
   }
+
   const paint = deps.paint ?? plain;
   let text = edit.text;
   const lines: string[] = [];
   let adopted: Readonly<Record<string, BlockConfig>> = {};
+
   if (args.adopt === true) {
     if (only === "conventions" || deps.tables === undefined) {
       return {
@@ -223,6 +254,7 @@ export async function runApply(
             : "--adopt needs the database or a snapshot to read the tables from.",
       };
     }
+
     const adoption = adoptBlocks(
       config,
       file,
@@ -230,6 +262,7 @@ export async function runApply(
       resolvePreset(preset).blocks.map((block) => block.name),
       await deps.tables(),
     );
+
     if (adoption.refused.length > 0) {
       return {
         code: 1,
@@ -247,6 +280,7 @@ export async function runApply(
         error: `Nothing was written: ${adoption.refused.map((proposal) => proposal.block).join(", ")} ${adoption.refused.length === 1 ? "has a table" : "have tables"} under the default names that can't be adopted as they are, and the managed block would skip them. Fix what the report lists, map them with \`better-supabase adopt <block> --from <schema.table>\`, or leave the block out of the preset.`,
       };
     }
+
     text = adoption.text;
     adopted = Object.fromEntries(
       adoption.adopted.map((proposal) => [proposal.block, proposal.entry]),
@@ -258,33 +292,43 @@ export async function runApply(
       "",
     );
   }
+
   const data = { file: shown, adopted, contents: text };
+
   if (text === source) {
     lines.push(`${shown} already holds the preset.`);
+
     return {
       code: 0,
       output: lines.join("\n"),
       data: { ...data, written: false },
     };
   }
+
   lines.push(fileDiff(shown, source, text, paint));
+
   if (args["dry-run"] === true) {
     lines.push(
       "",
       "Dry run: nothing written. Run without --dry-run to apply it.",
     );
+
     return {
       code: 0,
       output: lines.join("\n"),
       data: { ...data, written: false },
     };
   }
+
   await writeFile(file, text);
+
   const reload =
     deps.reload ?? ((root: string, path: string) => loadConfig(root, path));
+
   const next = await reload(config.root, file);
   const synced = await syncModules(next, {}, paint, deps.now);
   lines.push("", `Updated ${shown}.`, "", synced.output ?? synced.error ?? "");
+
   return {
     code: synced.code,
     output: lines.join("\n"),

@@ -57,37 +57,62 @@ function scalarJsonSchema(
   kind: ScalarKind | { readonly kind: "custom" },
 ): JsonSchema {
   switch (kind.kind) {
-    case "uuid":
+    case "uuid": {
       return { type: "string", format: "uuid" };
-    case "string":
+    }
+
+    case "string": {
       return { type: "string" };
-    case "integer":
+    }
+
+    case "integer": {
       return { type: "integer" };
-    case "number":
+    }
+
+    case "number": {
       return { type: "number" };
-    case "boolean":
+    }
+
+    case "boolean": {
       return { type: "boolean" };
-    case "datetime":
+    }
+
+    case "datetime": {
       return { type: "string", format: "date-time" };
-    case "date":
+    }
+
+    case "date": {
       return { type: "string", format: "date" };
-    case "instant":
+    }
+
+    case "instant": {
       return { type: "string", format: "date-time" };
-    case "plainDateTime":
+    }
+
+    case "plainDateTime": {
       return {
         type: "string",
         pattern: "^\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?$",
       };
-    case "bigint":
+    }
+
+    case "bigint": {
       return { type: "string", pattern: "^-?\\d+$" };
+    }
+
     case "json":
     case "unknown":
-    case "custom":
+    case "custom": {
       return {};
-    case "enum":
+    }
+
+    case "enum": {
       return { type: "string", enum: [...kind.values] };
+    }
+
     default: {
       const exhaustive: never = kind;
+
       return exhaustive;
     }
   }
@@ -99,11 +124,21 @@ function columnJsonSchema(
   field: Pick<FieldOptions, "array" | "nullable">,
 ): JsonSchema {
   const schema = field.array ? { type: "array", items: base } : base;
-  if (!field.nullable) return schema;
-  if (Object.keys(schema).length === 0) return schema;
+
+  if (!field.nullable) {
+    return schema;
+  }
+
+  if (Object.keys(schema).length === 0) {
+    return schema;
+  }
+
   const { enum: values, ...rest } = schema;
-  if (isList(values))
+
+  if (isList(values)) {
     return { ...rest, type: ["string", "null"], enum: [...values, null] };
+  }
+
   return typeof schema["type"] === "string"
     ? { ...schema, type: [schema["type"], "null"] }
     : { anyOf: [schema, { type: "null" }] };
@@ -120,10 +155,15 @@ const BOUND_KEYS = [
 
 function propertySchema(field: FieldSpec, base: JsonSchema): JsonSchema {
   const bounds: JsonSchema = {};
+
   for (const key of BOUND_KEYS) {
     const value = field[key];
-    if (value !== undefined) bounds[key] = value;
+
+    if (value !== undefined) {
+      bounds[key] = value;
+    }
   }
+
   const schema = {
     ...columnJsonSchema({ ...base, ...bounds }, field),
     ...(field.description === undefined
@@ -131,6 +171,7 @@ function propertySchema(field: FieldSpec, base: JsonSchema): JsonSchema {
       : { description: field.description }),
     ...(field.examples === undefined ? {} : { examples: [...field.examples] }),
   };
+
   return field.readOnly ? { ...schema, readOnly: true } : schema;
 }
 
@@ -144,12 +185,18 @@ export function tableJsonSchema(
 ): JsonSchema {
   const properties: Record<string, JsonSchema> = {};
   const required: string[] = [];
+
   for (const [name, field] of Object.entries(spec.fields)) {
     const base =
       (field.schema && nested?.(field.schema)) ?? scalarJsonSchema(field);
+
     properties[name] = propertySchema(field, base);
-    if (!field.optional) required.push(name);
+
+    if (!field.optional) {
+      required.push(name);
+    }
   }
+
   return {
     ...(spec.title === undefined ? {} : { title: spec.title }),
     ...(spec.description === undefined

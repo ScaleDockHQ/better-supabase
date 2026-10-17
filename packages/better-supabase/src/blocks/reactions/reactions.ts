@@ -111,6 +111,7 @@ function emojiOf(value: unknown, fn: string): CustomEmoji {
   const row = recordOf(value, fn);
   const attachmentId = optionalText(row["attachmentId"]);
   const url = optionalText(row["url"]);
+
   return {
     id: textOf(row["id"]),
     shortcode: textOf(row["shortcode"]),
@@ -124,6 +125,7 @@ function emojiOf(value: unknown, fn: string): CustomEmoji {
 export function createReactions(options: ReactionsOptions): Reactions {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const client: Reactions = {
     react: (organizationId, subjectType, subjectId, emoji, react = {}) =>
       call(
@@ -173,6 +175,7 @@ export function createReactions(options: ReactionsOptions): Reactions {
     deleteCustomEmoji: (id) =>
       call("delete_custom_emoji", { emoji_id: id }, (value) => value === true),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "reactions",
     ...(options.logger ? { logger: options.logger } : {}),

@@ -73,6 +73,9 @@ set bucket_id = $3, name = $4, owner = $5::uuid, owner_id = $6
 where bucket_id = $1 and name = $2
 returning name`;
 
+// Storage refuses a direct delete on `storage.objects` without this flag.
+// It is set locally inside the rehearsal's savepoint, which is always rolled
+// back, so the delete only reports which rows the target's policies allow.
 const ALLOW_DELETE =
   "select set_config('storage.allow_delete_query', 'true', true)";
 
@@ -101,9 +104,11 @@ const LIST_SORT_COLUMNS = new Set([
   "created_at",
   "last_accessed_at",
 ]);
+
 const LIST_V2_SORT_COLUMNS = new Set(["name", "updated_at", "created_at"]);
 const FLAT_SORT_COLUMNS = new Set(["updated_at", "created_at"]);
 const SORT_ORDERS = new Set(["asc", "desc"]);
+
 const CURSOR_PARTS = {
   l: "startAfter",
   o: "sortOrder",
@@ -112,6 +117,7 @@ const CURSOR_PARTS = {
 } as const;
 
 type CursorPart = (typeof CURSOR_PARTS)[keyof typeof CURSOR_PARTS];
+
 type Cursor = Partial<Record<CursorPart, string>>;
 
 const isCursorKey = (key: string): key is keyof typeof CURSOR_PARTS =>
@@ -132,9 +138,16 @@ function escapeLike(text: string): string {
 }
 
 function iso(value: unknown): unknown {
-  if (value instanceof Date) return value.toISOString();
-  if (typeof value !== "string") return value;
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  if (typeof value !== "string") {
+    return value;
+  }
+
   const time = Date.parse(value);
+
   return Number.isNaN(time) ? value : new Date(time).toISOString();
 }
 
@@ -143,14 +156,19 @@ function encodeCursor(cursor: Cursor): string {
   const text = Object.entries(CURSOR_PARTS)
     .flatMap(([key, part]) => (cursor[part] ? [`${key}:${cursor[part]}`] : []))
     .join("\n");
+
   let binary = "";
-  for (const byte of new TextEncoder().encode(text))
+
+  for (const byte of new TextEncoder().encode(text)) {
     binary += String.fromCodePoint(byte);
+  }
+
   return btoa(binary);
 }
 
 function decodeCursor(token: string): Cursor | undefined {
   let text: string;
+
   try {
     text = new TextDecoder().decode(
       Uint8Array.from(atob(token), (char) => char.codePointAt(0) ?? 0),
@@ -158,13 +176,20 @@ function decodeCursor(token: string): Cursor | undefined {
   } catch {
     return undefined;
   }
+
   const cursor: Cursor = { startAfter: "", sortOrder: "asc" };
+
   for (const part of text.split("\n")) {
     const match = /^(\S):(.*)/.exec(part);
     const key = match?.[1];
-    if (!key || !isCursorKey(key)) return undefined;
+
+    if (!key || !isCursorKey(key)) {
+      return undefined;
+    }
+
     cursor[CURSOR_PARTS[key]] = match[2] ?? "";
   }
+
   return cursor;
 }
 
@@ -211,13 +236,15 @@ const invalid = (message: string): StorageFailure =>
 function sqlFailure(cause: unknown): StorageFailure {
   const raw = fromPgError(cause);
   const error: DbError = raw ? mapDbError(raw) : toDbError(cause);
+
   return { name: "DbError", ...error };
 }
 
 /** An RLS or duplicate failure of a dry run, as Storage reports it for the target's own request. */
 function refusedWrite(cause: unknown): StorageFailure | undefined {
   const raw = fromPgError(cause);
-  if (raw?.code === "42501")
+
+  if (raw?.code === "42501") {
     return apiError(
       403,
       raw.message === undefined || raw.message.includes("row-level security")
@@ -225,8 +252,12 @@ function refusedWrite(cause: unknown): StorageFailure | undefined {
         : raw.message,
       "AccessDenied",
     );
-  if (raw?.code === "23505")
+  }
+
+  if (raw?.code === "23505") {
     return apiError(409, "The resource already exists", "Duplicate");
+  }
+
   return undefined;
 }
 
@@ -242,25 +273,41 @@ async function settled<T>(
 
 function listProblem(options: StorageSearchOptions): string | undefined {
   const { limit, offset, sortBy } = options;
-  if (limit !== undefined && (!Number.isInteger(limit) || limit < 1))
+
+  if (limit !== undefined && (!Number.isInteger(limit) || limit < 1)) {
     return "body/limit must be an integer of at least 1";
-  if (offset !== undefined && (!Number.isInteger(offset) || offset < 0))
+  }
+
+  if (offset !== undefined && (!Number.isInteger(offset) || offset < 0)) {
     return "body/offset must be an integer of at least 0";
-  if (sortBy?.column !== undefined && !LIST_SORT_COLUMNS.has(sortBy.column))
+  }
+
+  if (sortBy?.column !== undefined && !LIST_SORT_COLUMNS.has(sortBy.column)) {
     return "body/sortBy/column must be name, updated_at, created_at or last_accessed_at";
-  if (sortBy?.order !== undefined && !SORT_ORDERS.has(sortBy.order))
+  }
+
+  if (sortBy?.order !== undefined && !SORT_ORDERS.has(sortBy.order)) {
     return "body/sortBy/order must be asc or desc";
+  }
+
   return undefined;
 }
 
 function listV2Problem(options: StorageSearchV2Options): string | undefined {
   const { limit, sortBy } = options;
-  if (limit !== undefined && (!Number.isInteger(limit) || limit < 1))
+
+  if (limit !== undefined && (!Number.isInteger(limit) || limit < 1)) {
     return "body/limit must be an integer of at least 1";
-  if (sortBy !== undefined && !LIST_V2_SORT_COLUMNS.has(sortBy.column))
+  }
+
+  if (sortBy !== undefined && !LIST_V2_SORT_COLUMNS.has(sortBy.column)) {
     return "body/sortBy/column must be name, updated_at or created_at";
-  if (sortBy?.order !== undefined && !SORT_ORDERS.has(sortBy.order))
+  }
+
+  if (sortBy?.order !== undefined && !SORT_ORDERS.has(sortBy.order)) {
     return "body/sortBy/order must be asc or desc";
+  }
+
   return undefined;
 }
 
@@ -275,16 +322,21 @@ function flatPage(
 ): { readonly text: string; readonly values: unknown[] } {
   const values: unknown[] = [bucket, maxKeys];
   const conditions = ["bucket_id = $1"];
+
   const sortColumn =
     column && FLAT_SORT_COLUMNS.has(column) ? column : undefined;
+
   const sortOrder = order && SORT_ORDERS.has(order) ? order : "asc";
   const operator = sortOrder === "asc" ? ">" : "<";
   const param = () => `$${String(values.length)}`;
+
   if (prefix) {
     values.push(`${escapeLike(prefix)}%`);
     conditions.push(`name like ${param()}`);
   }
+
   const startAfter = cursor?.startAfter;
+
   if (startAfter && sortColumn && cursor.sortColumnAfter) {
     values.push(cursor.sortColumnAfter);
     const afterParam = param();
@@ -296,6 +348,7 @@ function flatPage(
     values.push(startAfter);
     conditions.push(`name collate "C" ${operator} ${param()}`);
   }
+
   return {
     text: `select id::text as id, name, metadata, updated_at, created_at, last_accessed_at
 from storage.objects
@@ -310,18 +363,26 @@ limit $2::int`,
 function delimited(entries: readonly Row[], prefix: string): Row[] {
   const grouped: Row[] = [];
   let previous = "";
+
   for (const entry of entries) {
     const name = String(entry["name"]);
     const index = name.replace(prefix, "").indexOf("/");
-    if (index < 0) {
+
+    if (index === -1) {
       grouped.push(entry);
       continue;
     }
+
     const folder = name.slice(0, prefix.length + index + 1);
-    if (folder === previous) continue;
+
+    if (folder === previous) {
+      continue;
+    }
+
     previous = folder;
     grouped.push({ id: null, name: folder });
   }
+
   return grouped;
 }
 
@@ -346,6 +407,7 @@ function listEntryOf(row: Row): StorageListEntry {
 function folderOf(row: Row): StorageListV2Folder {
   const name = String(row["name"]);
   const key = text(row["key"]);
+
   return {
     name: name.endsWith("/") ? name : `${name}/`,
     ...(key === undefined ? {} : { key }),
@@ -355,6 +417,7 @@ function folderOf(row: Row): StorageListV2Folder {
 function objectOf(row: Row): StorageListV2Object {
   const key = text(row["key"]);
   const lastAccessed = text(iso(row["last_accessed_at"]));
+
   return {
     name: String(row["name"]),
     ...(key === undefined ? {} : { key }),
@@ -377,6 +440,7 @@ function infoOf(row: Row): StorageObjectInfo {
   const archivedAt = row["archived_at"];
   const deleteMarker = row["is_delete_marker"];
   const versioned = row["is_versioned"];
+
   return {
     id: text(row["id"]) ?? "",
     name: text(row["name"]) ?? "",
@@ -426,10 +490,12 @@ function infoOf(row: Row): StorageObjectInfo {
 export function supportStorage(options: SupportStorageOptions): StorageApi {
   const readOnly = options.readOnly ?? true;
   const { adminSql, session, sql } = options;
+
   const writer =
     !readOnly && adminSql && session && sql.transaction
       ? { adminSql, session }
       : undefined;
+
   const refusal = readOnly
     ? apiError(403, "The support session is read-only", "SUPPORT_READ_ONLY")
     : apiError(
@@ -437,6 +503,7 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
         "Storage writes in a support session need adminSql, session and a sql client with transaction",
         "SUPPORT_STORAGE_WRITES",
       );
+
   const signedRefusal = readOnly
     ? refusal
     : apiError(
@@ -444,13 +511,18 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
         "Signed uploads are not available in a support session",
         "SUPPORT_STORAGE_WRITES",
       );
+
   const refuse = <T>(): Promise<StorageResponse<T>> =>
     Promise.resolve(failed(refusal));
+
   const refuseSigned = <T>(): Promise<StorageResponse<T>> =>
     Promise.resolve(failed(signedRefusal));
+
   const rows = (query: string, values: unknown[]): Promise<Row[]> =>
     sql.queryRaw<Row>(query, values);
+
   let versioned: Promise<boolean> | undefined;
+
   const upsertStatement = (): Promise<string> =>
     (versioned ??= rows(CURRENT_VERSION_INDEX, [])
       .then(([row]) => row?.["versioned"] === true)
@@ -458,13 +530,18 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
         versioned = undefined;
         throw cause;
       })).then(upsertObject);
+
   const rehearse = async (
     run: (client: SqlClient) => Promise<StorageFailure | null>,
   ): Promise<StorageFailure | null> => {
-    if (!sql.transaction) return refusal;
+    if (!sql.transaction) {
+      return refusal;
+    }
+
     try {
       return await sql.transaction(async (client) => {
         await client.queryRaw(`savepoint ${SAVEPOINT}`);
+
         try {
           return await run(client);
         } finally {
@@ -473,7 +550,11 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
       });
     } catch (cause) {
       const refused = refusedWrite(cause);
-      if (refused) return refused;
+
+      if (refused) {
+        return refused;
+      }
+
       throw cause;
     }
   };
@@ -481,31 +562,47 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
   return {
     from(bucket): StorageBucketApi {
       const admin = () => options.admin.from(bucket);
+
       const visible = async (path: string): Promise<boolean> => {
         const [row] = await rows(VISIBLE_OBJECT, [bucket, path]);
+
         return row?.["visible"] === true;
       };
+
       const checked = <T>(
         path: string,
         read: (name: string) => PromiseLike<StorageResponse<T>>,
       ): Promise<StorageResponse<T>> =>
         settled(async () => {
           const name = normalizePath(path);
-          if (!(await visible(name))) return failed(NOT_FOUND);
+
+          if (!(await visible(name))) {
+            return failed(NOT_FOUND);
+          }
+
           return read(name);
         });
 
       const list: StorageBucketApi["list"] = (path, listOptions = {}) =>
         settled(async () => {
           const problem = listProblem(listOptions);
-          if (problem) return failed(invalid(problem));
+
+          if (problem) {
+            return failed(invalid(problem));
+          }
+
           let prefix = path ?? "";
-          if (prefix.length > 0 && !prefix.endsWith("/")) prefix = `${prefix}/`;
+
+          if (prefix.length > 0 && !prefix.endsWith("/")) {
+            prefix = `${prefix}/`;
+          }
+
           const column = listOptions.sortBy?.column ?? "name";
           const escape = column !== "name";
           const safePrefix = escape ? escapeLike(prefix) : prefix;
           const search = listOptions.search ?? "";
           const safeSearch = escape ? escapeLike(search) : search;
+
           const found = await rows(SEARCH, [
             safePrefix,
             bucket,
@@ -516,27 +613,39 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
             column,
             listOptions.sortBy?.order ?? "asc",
           ]);
+
           return { data: found.map(listEntryOf), error: null };
         });
 
       const listV2: StorageBucketApi["listV2"] = (listOptions = {}) =>
         settled(async () => {
           const problem = listV2Problem(listOptions);
-          if (problem) return failed(invalid(problem));
+
+          if (problem) {
+            return failed(invalid(problem));
+          }
+
           const limit = Math.min(listOptions.limit ?? 1000, 1000);
           const prefix = listOptions.prefix ?? "";
+
           const cursor = listOptions.cursor
             ? decodeCursor(listOptions.cursor)
             : undefined;
-          if (listOptions.cursor && !cursor)
+
+          if (listOptions.cursor && !cursor) {
             return failed(
               apiError(400, "Invalid continuation token", "InvalidParameter"),
             );
+          }
+
           const sortOrder =
             filled(cursor?.sortOrder) ?? listOptions.sortBy?.order;
+
           const sortColumn =
             filled(cursor?.sortColumn) ?? listOptions.sortBy?.column;
+
           let found: Row[];
+
           if (listOptions.with_delimiter) {
             found = await rows(SEARCH_V2, [
               prefix,
@@ -557,25 +666,34 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
               sortColumn,
               sortOrder,
             );
+
             found = await rows(page.text, page.values);
           }
+
           const entries = listOptions.with_delimiter
             ? delimited(found, prefix)
             : found;
+
           const hasNext = entries.length > limit;
           const count = hasNext ? limit : entries.length;
           const folders: StorageListV2Folder[] = [];
           const objects: StorageListV2Object[] = [];
+
           for (const entry of entries.slice(0, count)) {
-            if (entry["id"] === null || entry["id"] === undefined)
+            if (entry["id"] === null || entry["id"] === undefined) {
               folders.push(folderOf(entry));
-            else objects.push(objectOf(entry));
+            } else {
+              objects.push(objectOf(entry));
+            }
           }
+
           const last = entries[count - 1];
+
           const after =
             last && sortColumn && sortColumn !== "name"
               ? iso(last[sortColumn])
               : undefined;
+
           const nextCursor =
             hasNext && last
               ? encodeCursor({
@@ -587,12 +705,14 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
                     : {}),
                 })
               : undefined;
+
           const data: StorageListV2Result = {
             hasNext,
             ...(nextCursor === undefined ? {} : { nextCursor }),
             folders,
             objects,
           };
+
           return { data, error: null };
         });
 
@@ -603,14 +723,19 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
           body: Parameters<StorageBucketApi["upload"]>[1],
           fileOptions: StorageFileOptions = {},
         ): Promise<StorageResponse<{ readonly path: string }>> => {
-          if (!writer) return refuse();
+          if (!writer) {
+            return refuse();
+          }
+
           const { adminSql: ownerSql, session: active } = writer;
+
           return settled(async () => {
             const name = normalizePath(path);
             const owner = ownerOf(active.targetUserId);
             const metadata = { ...fileOptions.metadata, ...stampOf(active) };
             const upsert = method === "update" || fileOptions.upsert === true;
             const statement = upsert ? await upsertStatement() : INSERT_OBJECT;
+
             const refused = await rehearse(async (client) => {
               await client.queryRaw(statement, [
                 bucket,
@@ -619,14 +744,23 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
                 active.targetUserId,
                 JSON.stringify(metadata),
               ]);
+
               return null;
             });
-            if (refused) return failed(refused);
+
+            if (refused) {
+              return failed(refused);
+            }
+
             const reply = await admin()[method](name, body, {
               ...fileOptions,
               metadata,
             });
-            if (reply.error) return reply;
+
+            if (reply.error) {
+              return reply;
+            }
+
             try {
               await ownerSql.queryRaw(OWN_UPLOAD, [
                 bucket,
@@ -637,8 +771,10 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
               ]);
             } catch (cause) {
               await admin().remove([name]);
+
               return failed(sqlFailure(cause));
             }
+
             return reply;
           });
         };
@@ -650,8 +786,12 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
           to: string,
           destination: StorageDestinationOptions = {},
         ): Promise<StorageResponse<T>> => {
-          if (!writer) return refuse();
+          if (!writer) {
+            return refuse();
+          }
+
           const { adminSql: ownerSql, session: active } = writer;
+
           return settled(async () => {
             const source = normalizePath(from);
             const name = normalizePath(to);
@@ -659,13 +799,19 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
             const owner = ownerOf(active.targetUserId);
             const stamp = JSON.stringify(stampOf(active));
             let previousOwner: string | null = null;
+
             const refused = await rehearse(async (client) => {
               const [found] = await client.queryRaw<Row>(SOURCE_OBJECT, [
                 bucket,
                 source,
               ]);
-              if (!found) return NOT_FOUND;
+
+              if (!found) {
+                return NOT_FOUND;
+              }
+
               previousOwner = text(found["owner_id"]) ?? null;
+
               if (method === "copy") {
                 await client.queryRaw(INSERT_OBJECT, [
                   target,
@@ -674,8 +820,10 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
                   active.targetUserId,
                   stamp,
                 ]);
+
                 return null;
               }
+
               const [moved] = await client.queryRaw(MOVE_OBJECT, [
                 bucket,
                 source,
@@ -684,16 +832,25 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
                 owner,
                 active.targetUserId,
               ]);
+
               return moved ? null : NOT_FOUND;
             });
-            if (refused) return failed(refused);
+
+            if (refused) {
+              return failed(refused);
+            }
+
             // SAFETY: copy and move resolve to the reply shape their caller names as T.
             const reply = (await admin()[method](
               source,
               name,
               destination,
             )) as StorageResponse<T>;
-            if (reply.error) return reply;
+
+            if (reply.error) {
+              return reply;
+            }
+
             try {
               await (method === "copy"
                 ? ownerSql.queryRaw(OWN_COPY, [
@@ -716,8 +873,10 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
               await (method === "copy"
                 ? written.remove([name])
                 : written.move(name, source, { destinationBucket: bucket }));
+
               return failed(sqlFailure(cause));
             }
+
             return reply;
           });
         };
@@ -725,31 +884,50 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
       const remove = (
         paths: StorageRemoveEntry[],
       ): Promise<StorageResponse<readonly StorageListEntry[]>> => {
-        if (!writer) return refuse();
+        if (!writer) {
+          return refuse();
+        }
+
         return settled(async () => {
           const entries = paths.map((entry) =>
             typeof entry === "string"
               ? normalizePath(entry)
               : { ...entry, path: normalizePath(entry.path) },
           );
+
           const names = entries.map((entry) =>
             typeof entry === "string" ? entry : entry.path,
           );
+
           const removable = new Set<string>();
+
           const refused = await rehearse(async (client) => {
             await client.queryRaw(ALLOW_DELETE);
+
             const deleted = await client.queryRaw(DELETE_OBJECTS, [
               bucket,
               [...new Set(names)],
             ]);
-            for (const row of deleted) removable.add(String(row["name"]));
+
+            for (const row of deleted) {
+              removable.add(String(row["name"]));
+            }
+
             return null;
           });
-          if (refused) return failed(refused);
+
+          if (refused) {
+            return failed(refused);
+          }
+
           const permitted = entries.filter((_, index) =>
             removable.has(names[index] ?? ""),
           );
-          if (permitted.length === 0) return { data: [], error: null };
+
+          if (permitted.length === 0) {
+            return { data: [], error: null };
+          }
+
           return admin().remove(permitted);
         });
       };
@@ -766,6 +944,7 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
           settled(async () => {
             const versionId = infoOptions?.versionId;
             const name = normalizePath(path);
+
             const [row] = await rows(
               versionId === undefined
                 ? OBJECT_INFO
@@ -774,7 +953,9 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
                 ? [bucket, name]
                 : [bucket, name, versionId],
             );
+
             const object = row?.["object"];
+
             return isRecord(object)
               ? { data: infoOf(object), error: null }
               : failed(NOT_FOUND);
@@ -790,23 +971,34 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
         createSignedUrls: (paths, expiresIn, urlOptions) =>
           settled(async () => {
             const names = paths.map(normalizePath);
+
             const seen = new Set(
               (await rows(VISIBLE_OBJECTS, [bucket, names])).map((row) =>
                 String(row["path"]),
               ),
             );
+
             const shown = [...new Set(names.filter((name) => seen.has(name)))];
             const signed = new Map<string, StorageSignedUrlEntry>();
+
             if (shown.length > 0) {
               const reply = await admin().createSignedUrls(
                 shown,
                 expiresIn,
                 urlOptions,
               );
-              if (reply.error) return failed(reply.error);
-              for (const entry of reply.data)
-                if (entry.path !== null) signed.set(entry.path, entry);
+
+              if (reply.error) {
+                return failed(reply.error);
+              }
+
+              for (const entry of reply.data) {
+                if (entry.path !== null) {
+                  signed.set(entry.path, entry);
+                }
+              }
             }
+
             const data = names.map(
               (name): StorageSignedUrlEntry =>
                 signed.get(name) ?? {
@@ -815,6 +1007,7 @@ export function supportStorage(options: SupportStorageOptions): StorageApi {
                   signedUrl: null,
                 },
             );
+
             return { data, error: null };
           }),
         getPublicUrl: (path, urlOptions) =>

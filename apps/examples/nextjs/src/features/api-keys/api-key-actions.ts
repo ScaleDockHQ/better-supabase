@@ -22,6 +22,7 @@ export const apiKeyCreated = bs.action(
       "api-key",
       organizationId,
     );
+
     return ok(true);
   },
 );

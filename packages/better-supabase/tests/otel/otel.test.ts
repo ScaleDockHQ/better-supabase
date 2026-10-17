@@ -36,6 +36,7 @@ interface Recorded {
 
 function memoryTracer() {
   const spans: Recorded[] = [];
+
   const make = (name: string, options?: SpanOptions): Span => {
     const record: Recorded = {
       name,
@@ -43,18 +44,23 @@ function memoryTracer() {
       ended: false,
       startTime: options?.startTime,
     };
+
     spans.push(record);
+
     const span = {
       setAttribute: (key: string, value: unknown) => {
         record.attributes[key] = value as never;
+
         return span;
       },
       setAttributes: (values: Attributes) => {
         Object.assign(record.attributes, values);
+
         return span;
       },
       setStatus: (status: { code: SpanStatusCode; message?: string }) => {
         record.status = status;
+
         return span;
       },
       recordException: () => undefined,
@@ -63,8 +69,10 @@ function memoryTracer() {
         record.ended = true;
       },
     };
+
     return span as unknown as Span;
   };
+
   const tracer = {
     startSpan: make,
     startActiveSpan: (
@@ -73,17 +81,20 @@ function memoryTracer() {
       fn: (span: Span) => unknown,
     ) => fn(make(name, options)),
   } as unknown as Tracer;
+
   return { tracer, spans };
 }
 
 function memoryMeter() {
   const records: { value: number; attributes: Attributes | undefined }[] = [];
+
   const meter = {
     createHistogram: () => ({
       record: (value: number, attributes?: Attributes) =>
         records.push({ value, attributes }),
     }),
   } as unknown as Meter;
+
   return { meter, records };
 }
 
@@ -128,16 +139,20 @@ describe("otel", () => {
 
   it("marks failed operations", async () => {
     const { tracer, spans } = memoryTracer();
+
     const betterSupabase = defineSupabase(schema).use(
       otel({ tracer, metrics: false }),
     );
+
     const { client } = capturingClient(() => ({
       status: 409,
       body: { code: "23505", message: "duplicate key value" },
     }));
+
     const result = await betterSupabase
       .connect(client)
       .customers.create({ organizationId: "o1", name: "A" });
+
     expect(result.error?.kind).toBe("conflict");
     expect(spans[0]).toMatchObject({
       name: "INSERT customers",
@@ -153,6 +168,7 @@ describe("otel", () => {
   it("adds the database, server and only SQLSTATE status codes", async () => {
     const { tracer, spans } = memoryTracer();
     const { meter, records } = memoryMeter();
+
     const betterSupabase = defineSupabase(schema).use(
       otel({
         tracer,
@@ -161,13 +177,16 @@ describe("otel", () => {
         server: { address: "abc.supabase.co", port: 443 },
       }),
     );
+
     const { client } = capturingClient(() => ({
       status: 406,
       body: { code: "PGRST116", message: "no rows" },
     }));
+
     const result = await betterSupabase
       .connect(client)
       .customers.findMany({ select: ["id"] });
+
     expect(result.ok).toBe(false);
     expect(spans[0]?.attributes).toMatchObject({
       "db.namespace": "crm|public",
@@ -185,11 +204,13 @@ describe("otel", () => {
     const { tracer, spans } = memoryTracer();
     const { meter, records } = memoryMeter();
     const betterSupabase = defineSupabase(schema).use(otel({ tracer, meter }));
+
     const db = betterSupabase.connect({
       name: "postgres",
       execute: async () => ok({ rows: [], count: null }),
       rpc: async () => err(dbError("forbidden", "denied", { code: "42501" })),
     });
+
     await db.$rpc("rs_workspace_summary", { p: null });
     expect(spans[0]).toMatchObject({
       name: "EXECUTE rs_workspace_summary",
@@ -214,6 +235,7 @@ describe("otel", () => {
     const { meter, records } = memoryMeter();
     const betterSupabase = defineSupabase(schema).use(otel({ tracer, meter }));
     let failSecond = false;
+
     const db = betterSupabase.connect({
       name: "postgres",
       execute: async () => ok({ rows: [], count: null }),
@@ -224,6 +246,7 @@ describe("otel", () => {
             : ok({ rows: [{ id: "c1" }], count: null }),
         ),
     });
+
     await db.$many([
       betterSupabase.spec.customers.findMany({ select: ["id"] }),
       betterSupabase.spec.customers.findMany({ select: ["id"] }),
@@ -264,13 +287,16 @@ describe("otel", () => {
 
   it("keeps the schema alone as the namespace for other executors", async () => {
     const { tracer, spans } = memoryTracer();
+
     const betterSupabase = defineSupabase(schema).use(
       otel({ tracer, metrics: false, server: { address: "db.internal" } }),
     );
+
     const db = betterSupabase.connect({
       name: "custom",
       execute: async () => ok({ rows: [], count: null }),
     });
+
     await db.customers.findMany({ select: ["id"] });
     expect(spans[0]?.attributes).toMatchObject({
       "db.system.name": "custom",
@@ -310,11 +336,13 @@ describe("otel", () => {
     );
     emitBlockEvent(events, "organization.created", { organizationId: "o1" });
     const added: [string, Attributes | undefined][] = [];
+
     const active = vi.spyOn(trace, "getActiveSpan").mockReturnValue({
       addEvent: (name: string, attributes?: Attributes) => {
         added.push([name, attributes]);
       },
     } as unknown as Span);
+
     emitBlockEvent(events, "webhook.failed", { endpointId: "e1" });
     active.mockRestore();
     stop();
@@ -354,12 +382,16 @@ describe("otel", () => {
       extract: (value) => value,
       fields: () => ["traceparent"],
     };
+
     propagation.setGlobalPropagator(propagator);
     let seen: Headers | undefined;
+
     const fetch = tracedFetch(async (_input, init) => {
       seen = new Headers(init?.headers);
+
       return new Response(null, { status: 204 });
     });
+
     await context.with(
       trace.setSpanContext(
         context.active(),

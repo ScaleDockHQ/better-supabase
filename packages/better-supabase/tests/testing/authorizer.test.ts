@@ -15,6 +15,7 @@ import { ConformanceError } from "../../src/testing/conformance.ts";
 type Ref = "export" | "invite" | "purge";
 
 const USER = "11111111-1111-4111-8111-111111111111";
+
 const member = {
   actor: { id: USER, kind: "user", role: "authenticated" },
 } as const;
@@ -37,7 +38,9 @@ async function failures<R>(
     () => undefined,
     (cause: unknown) => cause,
   );
+
   expect(error).toBeInstanceOf(ConformanceError);
+
   return (error as ConformanceError).report.checks
     .filter((check) => !check.ok)
     .map((check) => check.name);
@@ -50,6 +53,7 @@ describe("testAuthorizer", () => {
       granted: { permission: "export", context: member },
       unknown: "drop",
     });
+
     expect(report.subject).toBe('Authorizer "static"');
     expect(report.checks.every((check) => check.ok)).toBe(true);
   });
@@ -69,6 +73,7 @@ describe("testAuthorizer", () => {
           ),
         ),
     });
+
     expect(await failures(shuffled, ["read"])).toEqual([
       "keeps the request order in evaluations",
     ]);
@@ -83,6 +88,7 @@ describe("testAuthorizer", () => {
           ? { outcome: "granted" }
           : { outcome: "denied" },
     });
+
     expect(await failures(trusting, ["read"])).toEqual([
       "decides from the subject, never from the input",
     ]);
@@ -95,6 +101,7 @@ describe("testAuthorizer", () => {
         "context claims": (request) => request.context["claims"],
         "context memberships": (request) => request.context["memberships"],
       };
+
     for (const read of Object.values(readers)) {
       const trusting = defineAuthorizer({
         name: "claims",
@@ -102,6 +109,7 @@ describe("testAuthorizer", () => {
         evaluate: (request) =>
           read(request) ? { outcome: "granted" } : { outcome: "denied" },
       });
+
       expect(await failures(trusting, ["read"])).toEqual([
         "decides from the subject, never from the input",
       ]);
@@ -117,26 +125,31 @@ describe("testAuthorizer", () => {
           ? { outcome: "granted" }
           : { outcome: "denied" },
     });
+
     const report = await testAuthorizer(reading, { permissions: ["read"] });
     expect(report.checks.every((check) => check.ok)).toBe(true);
   });
 
   it("refuses unstable keys, references that aren't JSON and unknown grants", async () => {
     let calls = 0;
+
     const unstable = defineAuthorizer({
       name: "unstable",
       key: (ref) => `${ref}:${calls++}`,
       evaluate: () => ({ outcome: "granted" }),
     });
+
     expect(await failures(unstable, ["read"], "nope")).toEqual([
       "keys every permission stably, as plain JSON",
       "never grants an unknown permission",
     ]);
+
     const objects = defineAuthorizer<{ name: string } | Date>({
       name: "objects",
       key: (ref) => ("name" in ref ? ref.name : "date"),
       evaluate: () => ({ outcome: "denied" }),
     });
+
     expect(await failures(objects, [new Date(0)])).toEqual([
       "keys every permission stably, as plain JSON",
     ]);
@@ -152,6 +165,7 @@ describe("testAuthorizer", () => {
       }),
       apiVersion: 2,
     };
+
     // SAFETY: the kit checks adapters written in JavaScript too.
     const subject = vague as unknown as Authorizer;
     expect(await failures(subject, ["read"])).toEqual([
@@ -197,12 +211,14 @@ describe("staticAuthorizer", () => {
       outcome: "approval-required",
       approval: { id: "approval:invite" },
     });
+
     const checked = await checkPermission({
       authorizer,
       permission: "invite",
       resource: { type: "test" },
       context: member,
     });
+
     expect(checked.ok ? undefined : checked.error).toMatchObject({
       code: "APPROVAL_REQUIRED",
     });

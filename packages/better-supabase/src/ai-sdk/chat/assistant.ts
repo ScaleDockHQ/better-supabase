@@ -193,16 +193,28 @@ const TRIGGERS: ReadonlySet<unknown> = new Set([
 ]);
 
 function parseBody(value: unknown): AssistantRequestBody | string {
-  if (!isRecord(value)) return "Expected a JSON object.";
+  if (!isRecord(value)) {
+    return "Expected a JSON object.";
+  }
+
   const { id, trigger, messageId, model } = value;
-  if (typeof id !== "string" || id === "") return "Expected the chat id.";
+
+  if (typeof id !== "string" || id === "") {
+    return "Expected the chat id.";
+  }
+
   const messages: unknown = value["messages"];
   const last: unknown = Array.isArray(messages) ? messages.at(-1) : undefined;
   const message = value["message"] ?? last;
-  if (!isUIMessage(message) || message.role !== "user")
+
+  if (!isUIMessage(message) || message.role !== "user") {
     return "Expected the user's message.";
-  if (trigger !== undefined && !TRIGGERS.has(trigger))
+  }
+
+  if (trigger !== undefined && !TRIGGERS.has(trigger)) {
     return "Expected submit-message or regenerate-message.";
+  }
+
   return {
     id,
     message,
@@ -237,12 +249,20 @@ export function createAssistant(options: AssistantOptions): Assistant {
     body: AssistantRequestBody,
   ): Promise<AiChatRecord | Response> {
     const found = await context.chats.chats.get(body.id);
-    if (found.ok) return found.data;
-    if (found.error.kind !== "not_found") return problemResponse(found.error);
+
+    if (found.ok) {
+      return found.data;
+    }
+
+    if (found.error.kind !== "not_found") {
+      return problemResponse(found.error);
+    }
+
     const created = await context.chats.chats.create(context.organizationId, {
       id: body.id,
       ...(body.model === undefined ? {} : { model: body.model }),
     });
+
     return created.ok ? created.data : problemResponse(created.error);
   }
 
@@ -252,19 +272,36 @@ export function createAssistant(options: AssistantOptions): Assistant {
     requested: string | undefined,
   ): Promise<string | Response> {
     const allowed = await context.chats.models.allowed(chat.organizationId);
-    if (!allowed.ok) return problemResponse(allowed.error);
+
+    if (!allowed.ok) {
+      return problemResponse(allowed.error);
+    }
+
     const ids = new Set(allowed.data.map((model) => model.id));
     const fits = (id: string) => ids.size === 0 || ids.has(id);
-    if (requested !== undefined && fits(requested)) return requested;
-    if (requested !== undefined)
+
+    if (requested !== undefined && fits(requested)) {
+      return requested;
+    }
+
+    if (requested !== undefined) {
       return problemResponse(
         dbError("forbidden", `The model ${requested} is not allowed.`, {
           code: "AI_MODEL_NOT_ALLOWED",
         }),
       );
-    if (chat.model !== undefined && fits(chat.model)) return chat.model;
-    if (fits(options.defaultModel)) return options.defaultModel;
+    }
+
+    if (chat.model !== undefined && fits(chat.model)) {
+      return chat.model;
+    }
+
+    if (fits(options.defaultModel)) {
+      return options.defaultModel;
+    }
+
     const first = allowed.data[0];
+
     return first === undefined ? options.defaultModel : first.id;
   }
 
@@ -274,7 +311,11 @@ export function createAssistant(options: AssistantOptions): Assistant {
     message: AiMessage,
   ): Promise<Response | undefined> {
     const verdict = await options.moderate?.({ message, chat });
-    if (verdict === undefined || verdict.action === "allow") return undefined;
+
+    if (verdict === undefined || verdict.action === "allow") {
+      return undefined;
+    }
+
     await context.chats.moderation.record({
       organizationId: chat.organizationId,
       chatId: chat.id,
@@ -285,6 +326,7 @@ export function createAssistant(options: AssistantOptions): Assistant {
       category: verdict.category,
       ...(verdict.score === undefined ? {} : { score: verdict.score }),
     });
+
     return verdict.action === "block"
       ? problemResponse(
           dbError("forbidden", "The message was blocked.", {
@@ -299,18 +341,38 @@ export function createAssistant(options: AssistantOptions): Assistant {
     context: AssistantContext,
   ): Promise<AssistantTurn | Response> {
     const body = parseBody(value);
-    if (typeof body === "string") return badRequest(body);
+
+    if (typeof body === "string") {
+      return badRequest(body);
+    }
+
     const chat = await chatOf(context, body);
-    if (chat instanceof Response) return chat;
+
+    if (chat instanceof Response) {
+      return chat;
+    }
+
     const model = await modelOf(context, chat, body.model);
-    if (model instanceof Response) return model;
+
+    if (model instanceof Response) {
+      return model;
+    }
+
     const userMessage = fromUIMessage(body.message);
     const blocked = await moderated(context, chat, userMessage);
-    if (blocked) return blocked;
+
+    if (blocked) {
+      return blocked;
+    }
+
     if (options.quota) {
       const exceeded = await options.quota(chat.organizationId);
-      if (exceeded) return problem429(exceeded);
+
+      if (exceeded) {
+        return problem429(exceeded);
+      }
     }
+
     const appended = await context.chats.messages.appendUser(
       chat.id,
       userMessage,
@@ -319,19 +381,29 @@ export function createAssistant(options: AssistantOptions): Assistant {
         ...(body.messageId === undefined ? {} : { messageId: body.messageId }),
       },
     );
-    if (!appended.ok) return problemResponse(appended.error);
+
+    if (!appended.ok) {
+      return problemResponse(appended.error);
+    }
+
     const parentId = appended.data.messageId;
+
     const path = await context.chats.messages.path(chat.id, {
       leafId: parentId,
       native: true,
     });
-    if (!path.ok) return problemResponse(path.error);
+
+    if (!path.ok) {
+      return problemResponse(path.error);
+    }
+
     const repaired = new Map(
       repairDanglingToolCalls(pathToHistory(path.data)).map((message) => [
         message.id,
         message,
       ]),
     );
+
     const uiMessages = toUIMessages(
       path.data.map((stored) =>
         stored.format === AI_SDK_UI_FORMAT
@@ -339,6 +411,7 @@ export function createAssistant(options: AssistantOptions): Assistant {
           : (repaired.get(stored.id) ?? stored),
       ),
     );
+
     return {
       chat,
       model,
@@ -361,24 +434,36 @@ export function createAssistant(options: AssistantOptions): Assistant {
     context: AssistantContext,
   ): Promise<Response> {
     const turn = await prepare(await readJson(request), context);
-    if (turn instanceof Response) return turn;
+
+    if (turn instanceof Response) {
+      return turn;
+    }
+
     const { chat, model, parentId, uiMessages } = turn;
 
     const streamId = newId();
     const assistantId = newId();
+
     const claim = await context.chats.runs.claim(chat.id, streamId, {
       model,
       messageId: assistantId,
     });
-    if (!claim.ok) return problemResponse(claim.error);
-    if (!claim.data.claimed)
+
+    if (!claim.ok) {
+      return problemResponse(claim.error);
+    }
+
+    if (!claim.data.claimed) {
       return problemResponse(
         dbError("conflict", "An answer is already being written.", {
           code: "AI_CHAT_BUSY",
         }),
       );
+    }
+
     const runId = claim.data.runId;
     const abort = new AbortController();
+
     const release = (status: AiRunStatus, usage?: AiUsage, error?: string) =>
       context.chats.runs.release(
         chat.id,
@@ -387,6 +472,7 @@ export function createAssistant(options: AssistantOptions): Assistant {
       );
 
     let result: AssistantRunResult;
+
     try {
       result = await options.run({
         chat,
@@ -399,6 +485,7 @@ export function createAssistant(options: AssistantOptions): Assistant {
       });
     } catch (cause) {
       await release("failed", undefined, String(cause));
+
       return problemResponse(
         dbError("unexpected", "The answer could not be started.", {
           code: "AI_CHAT_RUN_FAILED",
@@ -407,10 +494,12 @@ export function createAssistant(options: AssistantOptions): Assistant {
     }
 
     let finished: Promise<void> | undefined;
+
     const onEnd: UIMessageStreamOnEndCallback<UIMessage> = (event) => {
       finished = (async () => {
         const stopped = event.isAborted || abort.signal.aborted;
         const status: AiRunStatus = stopped ? "cancelled" : "completed";
+
         const saved = await context.chats.messages.saveAssistant(
           chat.id,
           fromUIMessage(event.responseMessage),
@@ -423,24 +512,29 @@ export function createAssistant(options: AssistantOptions): Assistant {
             runId,
           },
         );
+
         const usage = usageOf({
           totalUsage: await settle(result.totalUsage),
           providerMetadata: await settle(result.providerMetadata),
         });
+
         await release(
           saved.ok ? status : "failed",
           usage,
           saved.ok ? undefined : saved.error.message,
         );
+
         if (
           usage.costMicroUsd === undefined &&
           usage.generationId !== undefined &&
           options.enqueueCostBackfill
-        )
+        ) {
           await options.enqueueCostBackfill({
             generationId: usage.generationId,
             organizationId: chat.organizationId,
           });
+        }
+
         await options.onFinish?.({
           chat,
           message: event.responseMessage,
@@ -450,6 +544,7 @@ export function createAssistant(options: AssistantOptions): Assistant {
           context,
         });
       })();
+
       return finished;
     };
 
@@ -459,6 +554,7 @@ export function createAssistant(options: AssistantOptions): Assistant {
       onEnd,
       ...(options.onError === undefined ? {} : { onError: options.onError }),
     });
+
     const teed = teeToStore(
       options.streams,
       streamId,
@@ -473,12 +569,14 @@ export function createAssistant(options: AssistantOptions): Assistant {
         },
       },
     );
+
     context.waitUntil?.(
       (async () => {
         await teed.persisted;
         await finished;
       })(),
     );
+
     return sse(teed.stream);
   }
 
@@ -491,13 +589,19 @@ export function createAssistant(options: AssistantOptions): Assistant {
     } = {},
   ): Promise<Response> {
     const chat = await context.chats.chats.get(chatId);
-    if (!chat.ok)
+
+    if (!chat.ok) {
       return chat.error.kind === "not_found"
         ? new Response(null, { status: 204 })
         : problemResponse(chat.error);
+    }
+
     const { activeStreamId } = chat.data;
-    if (activeStreamId === undefined)
+
+    if (activeStreamId === undefined) {
       return new Response(null, { status: 204 });
+    }
+
     const stream = await resumeFromStore(options.streams, activeStreamId, {
       ...(resumeOptions.fromIdx === undefined
         ? {}
@@ -506,7 +610,11 @@ export function createAssistant(options: AssistantOptions): Assistant {
         ? {}
         : { signal: resumeOptions.signal }),
     });
-    if (!stream.ok) return problemResponse(stream.error);
+
+    if (!stream.ok) {
+      return problemResponse(stream.error);
+    }
+
     return stream.data === undefined
       ? new Response(null, { status: 204 })
       : sse(stream.data);
@@ -517,7 +625,11 @@ export function createAssistant(options: AssistantOptions): Assistant {
     context: AssistantContext,
   ): Promise<Response> {
     const stopped = await context.chats.runs.stop(chatId);
-    if (!stopped.ok) return problemResponse(stopped.error);
+
+    if (!stopped.ok) {
+      return problemResponse(stopped.error);
+    }
+
     return new Response(null, { status: 204 });
   }
 

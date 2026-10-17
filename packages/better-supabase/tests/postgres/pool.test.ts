@@ -9,10 +9,13 @@ function recordingPool(
   answer: (text: string, values: readonly unknown[]) => unknown[] = () => [],
 ) {
   const values: (readonly unknown[])[] = [];
+
   const fake = fakePgPool((text, params) => {
     values.push(params);
+
     return answer(text, params);
   });
+
   return Object.assign(fake, { values });
 }
 
@@ -31,6 +34,7 @@ describe("createPostgres", () => {
     const fake = recordingPool((text) =>
       text === "select $1::int as n" ? [{ n: 1 }] : [],
     );
+
     const pg = createPostgres({ pool: fake.pool });
     expect(await pg.admin.queryRaw("select $1::int as n", [1])).toEqual([
       { n: 1 },
@@ -43,9 +47,11 @@ describe("createPostgres", () => {
 
   it("releases the connection when a bare admin query fails", async () => {
     const failure = new Error("syntax error");
+
     const fake = recordingPool(() => {
       throw failure;
     });
+
     const pg = createPostgres({ pool: fake.pool });
     await expect(pg.admin.queryRaw("selec 1")).rejects.toBe(failure);
     expect(fake.log).toEqual(["selec 1"]);
@@ -70,9 +76,11 @@ describe("createPostgres", () => {
       readOnly: true,
       settings: { "app.job": "export" },
     });
+
     const timeouts = fake.values
       .filter((values) => values[0] === "statement_timeout")
       .map((values) => values[1]);
+
     expect(timeouts).toEqual(["60000", "100", "120000"]);
     expect(fake.log.slice(-4)).toEqual([
       "begin read only",
@@ -87,11 +95,13 @@ describe("createPostgres", () => {
 
   it("sets a truncated statement timeout per transaction", async () => {
     const fake = recordingPool();
+
     const pg = createPostgres({
       pool: fake.pool,
       statementTimeout: 1500.9,
       idleInTransactionTimeout: 30_000.5,
     });
+
     await pg.admin.queryRaw("select 1");
     await pg.anon.queryRaw("select 2");
     expect(fake.log).toEqual([
@@ -115,16 +125,20 @@ describe("createPostgres", () => {
 
   it("applies Supabase's role timeouts unless set per role", async () => {
     const fake = recordingPool();
+
     const pg = createPostgres({
       pool: fake.pool,
       statementTimeout: { admin: 60_000, authenticated: 5000 },
     });
+
     await pg.admin.queryRaw("select 1");
     await pg.asUser({ sub: "u1" }).queryRaw("select 2");
     await pg.anon.queryRaw("select 3");
+
     const timeouts = fake.values
       .filter((values) => values[0] === "statement_timeout")
       .map((values) => values[1]);
+
     expect(timeouts).toEqual(["60000", "5000", "3000"]);
     const defaults = recordingPool();
     const plain = createPostgres({ pool: defaults.pool });
@@ -194,6 +208,7 @@ describe("createPostgres", () => {
     const pg = createPostgres({ pool: fake.pool });
     await pg.asUser({}).queryRaw("select 1");
     await pg.anon.queryRaw("select 2");
+
     for (const at of [1, 5]) {
       expect(fake.log[at]).toBe(USER_SQL);
       const values = fake.values[at]!;
@@ -223,16 +238,20 @@ describe("createPostgres", () => {
   it("runs a transaction with claims on one connection, nested transactions included", async () => {
     const fake = recordingPool();
     const pg = createPostgres({ pool: fake.pool });
+
     const result = await pg.transaction(
       async (tx) => {
         await tx.queryRaw("insert into a values (1)");
+
         return tx.transaction!(async (inner) => {
           await inner.queryRaw("insert into b values (2)");
+
           return "done";
         });
       },
       { claims: { sub: "u1" } },
     );
+
     expect(result).toBe("done");
     expect(fake.log).toEqual([
       "begin",
@@ -277,11 +296,19 @@ describe("createPostgres", () => {
     const failure = Object.assign(new Error("duplicate key"), {
       code: "23505",
     });
+
     const fake = recordingPool((text) => {
-      if (text === "insert") throw failure;
-      if (text === "rollback") throw new Error("connection lost");
+      if (text === "insert") {
+        throw failure;
+      }
+
+      if (text === "rollback") {
+        throw new Error("connection lost");
+      }
+
       return [];
     });
+
     const pg = createPostgres({ pool: fake.pool });
     await expect(pg.transaction((tx) => tx.queryRaw("insert"))).rejects.toBe(
       failure,
@@ -313,6 +340,7 @@ describe("createPostgres", () => {
       connectionString: "postgresql://postgres:postgres@127.0.0.1:1/postgres",
       max: 2,
     });
+
     await explicit.end();
     vi.stubEnv("SUPABASE_DB_URL", undefined);
     vi.stubEnv("DATABASE_URL", "postgresql://127.0.0.1:1/postgres");

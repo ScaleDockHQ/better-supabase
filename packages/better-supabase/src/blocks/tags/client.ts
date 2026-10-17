@@ -67,18 +67,28 @@ export function createTagInputController(
   options: TagInputControllerOptions,
 ): TagInputController {
   const { client, organizationId, subjectType, subjectId, kind } = options;
+
   return defineController<TagInputSnapshot, TagInputActions>(
     { tags: undefined, available: undefined, pending: [], error: undefined },
     (state) => {
       let ticket = 0;
+
       const refresh = async (): Promise<void> => {
-        if (organizationId === null) return;
+        if (organizationId === null) {
+          return;
+        }
+
         const request = ++ticket;
+
         const [tags, available] = await Promise.all([
           client.forSubject(organizationId, subjectType, subjectId),
           client.list(organizationId, kind),
         ]);
-        if (request !== ticket) return;
+
+        if (request !== ticket) {
+          return;
+        }
+
         if (tags.ok && available.ok) {
           state.set({
             tags: tags.data,
@@ -89,6 +99,7 @@ export function createTagInputController(
           state.set({ error: tags.error ?? available.error ?? undefined });
         }
       };
+
       const changed = async (change: TagChange): Promise<void> => {
         try {
           await options.onChanged?.(change);
@@ -96,11 +107,15 @@ export function createTagInputController(
           state.set({ error: toDbError(cause) });
         }
       };
+
       const apply = async (
         tag: Tag,
         created: boolean,
       ): Promise<Result<Tag>> => {
-        if (organizationId === null) return noOrganization();
+        if (organizationId === null) {
+          return noOrganization();
+        }
+
         // A load that started before the change would answer without it.
         ticket += 1;
         state.set((current) => ({
@@ -110,12 +125,14 @@ export function createTagInputController(
           pending: [...current.pending, tag.id],
           error: undefined,
         }));
+
         const result = await client.tag(
           organizationId,
           subjectType,
           subjectId,
           tag.id,
         );
+
         state.set((current) => ({
           pending: without(current.pending, tag.id),
           ...(result.ok
@@ -125,10 +142,16 @@ export function createTagInputController(
                 tags: current.tags?.filter((each) => each.id !== tag.id),
               }),
         }));
-        if (!result.ok) return result;
+
+        if (!result.ok) {
+          return result;
+        }
+
         await changed({ kind: "added", tag, created });
+
         return ok(tag);
       };
+
       return {
         actions: {
           refresh,
@@ -136,25 +159,38 @@ export function createTagInputController(
             const tag = state
               .get()
               .available?.find((each) => each.id === tagId);
-            if (!tag) return err(dbError("not_found", "No such tag"));
+
+            if (!tag) {
+              return err(dbError("not_found", "No such tag"));
+            }
+
             return apply(tag, false);
           },
           remove: async (tagId) => {
-            if (organizationId === null) return noOrganization();
+            if (organizationId === null) {
+              return noOrganization();
+            }
+
             const tag = state.get().tags?.find((each) => each.id === tagId);
-            if (!tag) return ok(false);
+
+            if (!tag) {
+              return ok(false);
+            }
+
             ticket += 1;
             state.set((current) => ({
               tags: current.tags?.filter((each) => each.id !== tagId),
               pending: [...current.pending, tagId],
               error: undefined,
             }));
+
             const result = await client.untag(
               organizationId,
               subjectType,
               subjectId,
               tagId,
             );
+
             state.set((current) => ({
               pending: without(current.pending, tagId),
               ...(result.ok
@@ -164,21 +200,34 @@ export function createTagInputController(
                     tags: [...(current.tags ?? []), tag],
                   }),
             }));
-            if (result.ok) await changed({ kind: "removed", tag });
+
+            if (result.ok) {
+              await changed({ kind: "removed", tag });
+            }
+
             return result;
           },
           create: async (name) => {
-            if (organizationId === null) return noOrganization();
+            if (organizationId === null) {
+              return noOrganization();
+            }
+
             const label = name.trim();
+
             if (label === "") {
               return err(dbError("invalid_input", "A tag needs a name"));
             }
+
             const existing = state
               .get()
               .available?.find(
                 (each) => each.name.toLowerCase() === label.toLowerCase(),
               );
-            if (existing) return apply(existing, false);
+
+            if (existing) {
+              return apply(existing, false);
+            }
+
             state.set((current) => ({
               pending: [...current.pending, label],
               error: undefined,
@@ -195,7 +244,11 @@ export function createTagInputController(
                   }
                 : { error: made.error }),
             }));
-            if (!made.ok) return made;
+
+            if (!made.ok) {
+              return made;
+            }
+
             return apply({ ...made.data, kind }, true);
           },
         },
@@ -204,6 +257,7 @@ export function createTagInputController(
             ? undefined
             : whileSignedIn(options.auth, () => {
                 void refresh();
+
                 return;
               }),
       };

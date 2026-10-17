@@ -36,13 +36,16 @@ export function startCounter(): {
 } {
   let given: (EnvOptions & { readonly label?: string }) | undefined;
   let starts = 0;
+
   return {
     create: (options) => {
       given = options;
+
       return defineController({ label: "initial" }, () => ({
         actions: {},
         start: () => {
           starts += 1;
+
           return () => undefined;
         },
       }));

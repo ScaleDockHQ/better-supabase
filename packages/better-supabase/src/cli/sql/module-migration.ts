@@ -49,6 +49,7 @@ export function renderModuleMigration(parts: ModuleMigrationParts): string {
   const modules = [...new Set(schema.map((file) => file.module))];
   const extensions = moduleSchemaExtensions(parts.files);
   const upgrade = parts.upgrade ?? [];
+
   const sections = [
     [
       `-- better-supabase sql: ${modules.length > 0 ? `the SQL modules ${modules.join(", ")}` : "the realtime topic policies"}, in one migration (sql.workflow: 'migrations').`,
@@ -65,6 +66,7 @@ export function renderModuleMigration(parts: ModuleMigrationParts): string {
     ...(parts.topics === undefined ? [] : [parts.topics.trim()]),
     ...data.map((file) => file.contents.trim()),
   ];
+
   return `${sections.join("\n\n")}\n`;
 }
 
@@ -99,14 +101,20 @@ export async function latestMigration(
   suffix: string,
 ): Promise<{ readonly path: string; readonly text: string } | undefined> {
   const dir = migrationsDir(config);
+
   const names: string[] = await readdir(resolve(config.root, dir)).catch(
     () => [],
   );
+
   const latest = names.toSorted().findLast((name) => name.endsWith(suffix));
-  if (latest === undefined) return undefined;
+
+  if (latest === undefined) {
+    return undefined;
+  }
+
   return {
     path: `${dir}/${latest}`,
-    text: await readFile(resolve(config.root, dir, latest), "utf8"),
+    text: await readFile(resolve(config.root, dir, latest), "utf-8"),
   };
 }
 
@@ -142,6 +150,7 @@ export async function writeLatestMigration(
   readonly line: string;
 }> {
   const latest = await latestMigration(config, suffix);
+
   if (
     options.force !== true &&
     latest !== undefined &&
@@ -153,13 +162,20 @@ export async function writeLatestMigration(
       line: `Kept    ${latest.path} (it has these statements)`,
     };
   }
+
   const dir = migrationsDir(config);
+
   const names: string[] = await readdir(resolve(config.root, dir)).catch(
     () => [],
   );
+
   const path = `${dir}/${stampAfter(names, options.now)}${suffix}`;
-  if (options.dryRun)
+
+  if (options.dryRun) {
     return { path, wrote: false, line: `Would write ${path}` };
+  }
+
   await writeIfChanged(resolve(config.root, path), contents);
+
   return { path, wrote: true, line: `Wrote ${path}` };
 }

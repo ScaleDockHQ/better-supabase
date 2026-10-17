@@ -10,6 +10,7 @@ const env = () => ({
 
 function build(overrides: Record<string, unknown> = {}) {
   const createClient = vi.fn(() => ({ id: Math.random() }));
+
   const clients = createClients({
     options: {},
     // SAFETY: the test environment has the keys the clients read.
@@ -20,6 +21,7 @@ function build(overrides: Record<string, unknown> = {}) {
     createClient: createClient as never,
     ...overrides,
   });
+
   return { clients, createClient };
 }
 

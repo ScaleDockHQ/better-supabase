@@ -12,9 +12,11 @@ export const GET = bs.route<{ id: string }, true>(
     if (session.kind !== "user") {
       return err(dbError("unauthorized", "Sign in to use the assistant"));
     }
+
     const startIndex = Number(
       new URL(request.url).searchParams.get("startIndex") ?? 0,
     );
+
     return durable().resume(
       params.id,
       durableContext(supabase, session.user.id, tenant),

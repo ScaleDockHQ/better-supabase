@@ -83,7 +83,7 @@ The organization events are now `organization.created`,
 `organization.updated`, `organization.deleted`, `organization.role_changed`,
 `organization.member_added`, `organization.member_removed`,
 `organization.member_left`, `organization.ownership_transferred` and
-`organization.switched`. Update `sb.on` patterns, outbox consumers and
+`organization.switched`. Update `betterSupabase.on` patterns, outbox consumers and
 webhook subscriptions that name an `org.*` type.
 
 Every event type is now `<entity>.<past_tense_verb>`, with a snake_case

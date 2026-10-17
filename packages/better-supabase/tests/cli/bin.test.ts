@@ -25,6 +25,7 @@ function spawn(args: readonly string[], cwd: string): Promise<Spawned> {
         resolve({ code: error ? Number(error.code) : 0, stdout, stderr });
       },
     );
+
     child.stdin?.end();
   });
 }

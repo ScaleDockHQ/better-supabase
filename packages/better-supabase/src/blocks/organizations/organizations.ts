@@ -344,6 +344,7 @@ const INVITATION_KEYS: ReadonlySet<string> = new Set([
 function invitationFrom(row: Record<string, unknown>): Invitation {
   const invitedBy = optionalText(row["invited_by"]);
   const createdAt = optionalText(row["created_at"]);
+
   return {
     id: text(row["id"]),
     organizationId: optionalText(row["tenant"]),
@@ -386,9 +387,11 @@ const PREVIEW_KEYS: ReadonlySet<string> = new Set([
 
 function previewFrom(row: Record<string, unknown>): InvitationPreview {
   const status = row["status"];
+
   if (!isStatus(status)) {
     throw new TypeError(`Unknown invitation status ${String(status)}`);
   }
+
   return {
     status,
     email: text(row["email"]),
@@ -405,6 +408,7 @@ const disabledAtOf = (
   row: Record<string, unknown>,
 ): { readonly disabledAt?: Temporal.Instant } => {
   const disabledAt = optionalText(row["disabled_at"]);
+
   return disabledAt === null
     ? {}
     : { disabledAt: temporal().Instant.from(disabledAt) };
@@ -414,6 +418,7 @@ function recordOf(value: unknown, fn: string): Record<string, unknown> {
   if (!isRecord(value)) {
     throw new TypeError(`${fn} returned ${JSON.stringify(value)}`);
   }
+
   return value;
 }
 
@@ -433,6 +438,7 @@ const splitAttributes = (
   readonly extra: Record<string, unknown>;
 } => {
   const { name, slug, ...extra } = attributes;
+
   return {
     base: {
       ...(name === undefined ? {} : { name }),
@@ -450,6 +456,7 @@ export function createOrganizations<
   options: OrganizationsOptions<S, SI>,
 ): Organizations<FieldsOf<S>, FieldsOf<SI>> {
   const client = organizationsClient<FieldsOf<S>, FieldsOf<SI>>(options);
+
   return withBlockHooks(client, options.hooks, {
     block: "organizations",
     ...(options.events ? { logger: options.events.logger } : {}),
@@ -463,28 +470,36 @@ function organizationsClient<F extends object, I extends object>(
   >,
 ): Organizations<F, I> {
   applyTemporal(options);
+
   const fields: BlockFields<F> = blockFields(
     options.fields,
     "organization fields",
   );
+
   const invitationFields: BlockFields<I> = blockFields(
     options.invitationFields,
     "invitation fields",
   );
+
   const checked = (
     attributes: OrganizationAttributes,
   ): AsyncResult<OrganizationAttributes> =>
     AsyncResult.from(async () => {
       const { base, extra } = splitAttributes(attributes);
       const result = await fields.write(extra);
+
       return result.ok ? ok({ ...result.data, ...base }) : result;
     });
+
   const { transport } = options;
+
   const schemaOf = (module: "organizations" | "invitations"): string =>
     typeof options.schema === "string"
       ? options.schema
       : (options.schema?.[module] ?? DEFAULT_BLOCK_SCHEMA);
+
   const mappers = options.mappers ?? [];
+
   const calls = {
     organizations: blockCall(transport, schemaOf("organizations"), mappers),
     invitations: blockCall(transport, schemaOf("invitations"), mappers),
@@ -534,15 +549,18 @@ function organizationsClient<F extends object, I extends object>(
     resent: boolean,
   ): Promise<InvitationSent<I>> => {
     const row = recordOf(value, fn);
+
     const invitation = await readFields(
       invitationFields,
       invitationFrom(row),
     ).orThrow();
+
     const result: InvitationSent<I> = {
       invitation,
       token: text(row["token"]),
       resent,
     };
+
     invitationEvent(resent ? "invitation.resent" : "invitation.created", {
       invitationId: invitation.id,
       ...(invitation.organizationId === null
@@ -552,6 +570,7 @@ function organizationsClient<F extends object, I extends object>(
       role: invitation.role,
     });
     await options.onInvite?.(result);
+
     return result;
   };
 
@@ -559,12 +578,14 @@ function organizationsClient<F extends object, I extends object>(
     value: unknown,
   ): { readonly organizationId: string | null } => {
     const organizationId = optionalText(value);
+
     if (organizationId !== null) {
       organizationEvent("organization.member_added", {
         organizationId,
         ...(options.actorId ? { userId: options.actorId } : {}),
       });
     }
+
     return { organizationId };
   };
 
@@ -577,6 +598,7 @@ function organizationsClient<F extends object, I extends object>(
             ? { owner_id: createOptions.ownerId }
             : {}),
         };
+
         return run(
           "organizations",
           "create_organization",
@@ -589,6 +611,7 @@ function organizationsClient<F extends object, I extends object>(
                 ? { userId: createOptions?.ownerId ?? options.actorId }
                 : {}),
             });
+
             return { id };
           },
         );
@@ -602,6 +625,7 @@ function organizationsClient<F extends object, I extends object>(
           { organization: organizationId, attrs: valid },
           () => {
             organizationEvent("organization.updated", { organizationId });
+
             return true as const;
           },
         ),
@@ -613,8 +637,10 @@ function organizationsClient<F extends object, I extends object>(
         "delete_organization",
         { organization: organizationId },
         (value) => {
-          if (value === true)
+          if (value === true) {
             organizationEvent("organization.deleted", { organizationId });
+          }
+
           return value === true;
         },
       );
@@ -625,9 +651,18 @@ function organizationsClient<F extends object, I extends object>(
         "organization_slug_problem",
         { value: slug, except_organization: exceptOrganizationId },
         (value) => {
-          if (value === null) return;
-          if (value === "invalid" || value === "reserved" || value === "taken")
+          if (value === null) {
+            return;
+          }
+
+          if (
+            value === "invalid" ||
+            value === "reserved" ||
+            value === "taken"
+          ) {
             return value;
+          }
+
           throw new TypeError(`Unknown slug problem ${String(value)}`);
         },
       );
@@ -643,6 +678,7 @@ function organizationsClient<F extends object, I extends object>(
             userId,
             role,
           });
+
           return true as const;
         },
       );
@@ -657,6 +693,7 @@ function organizationsClient<F extends object, I extends object>(
             organizationId,
             userId,
           });
+
           return true as const;
         },
       );
@@ -667,11 +704,13 @@ function organizationsClient<F extends object, I extends object>(
         "suspend_member",
         { organization: organizationId, member: userId },
         (value) => {
-          if (value === true)
+          if (value === true) {
             organizationEvent("organization.member_suspended", {
               organizationId,
               userId,
             });
+          }
+
           return value === true;
         },
       );
@@ -682,11 +721,13 @@ function organizationsClient<F extends object, I extends object>(
         "resume_member",
         { organization: organizationId, member: userId },
         (value) => {
-          if (value === true)
+          if (value === true) {
             organizationEvent("organization.member_resumed", {
               organizationId,
               userId,
             });
+          }
+
           return value === true;
         },
       );
@@ -701,6 +742,7 @@ function organizationsClient<F extends object, I extends object>(
             organizationId,
             ...(options.actorId ? { userId: options.actorId } : {}),
           });
+
           return true as const;
         },
       );
@@ -719,6 +761,7 @@ function organizationsClient<F extends object, I extends object>(
             organizationId,
             userId: newOwnerId,
           });
+
           return true as const;
         },
       );
@@ -742,6 +785,7 @@ function organizationsClient<F extends object, I extends object>(
             organizationId,
             ...(options.actorId ? { userId: options.actorId } : {}),
           });
+
           return {
             organizationId: text(row["organization_id"]),
             refresh: row["refresh"] === true,
@@ -754,6 +798,7 @@ function organizationsClient<F extends object, I extends object>(
         recordsOf(value, "list_my_organizations"),
       ).andThen(async (rows) => {
         const memberships: (OrganizationMembership & F)[] = [];
+
         for (const row of rows) {
           const attributes = isRecord(row["attributes"])
             ? Object.fromEntries(
@@ -762,8 +807,13 @@ function organizationsClient<F extends object, I extends object>(
                 ),
               )
             : {};
+
           const parsed = await fields.read(attributes);
-          if (!parsed.ok) return parsed;
+
+          if (!parsed.ok) {
+            return parsed;
+          }
+
           const slug = optionalText(row["slug"]);
           memberships.push({
             ...parsed.data,
@@ -774,6 +824,7 @@ function organizationsClient<F extends object, I extends object>(
             ...disabledAtOf(row),
           });
         }
+
         return ok(memberships);
       });
     },
@@ -798,6 +849,7 @@ function organizationsClient<F extends object, I extends object>(
         (value) =>
           recordsOf(value, "list_organization_invitations").map((row) => {
             const expiresAt = optionalText(row["expires_at"]);
+
             return {
               id: text(row["id"]),
               email: text(row["email"]),
@@ -818,11 +870,16 @@ function organizationsClient<F extends object, I extends object>(
             }),
           );
         }
+
         const checked =
           request.fields === undefined
             ? ok(undefined)
             : await invitationFields.write({ ...request.fields });
-        if (!checked.ok) return checked;
+
+        if (!checked.ok) {
+          return checked;
+        }
+
         return run(
           "invitations",
           "invite_member",
@@ -860,6 +917,7 @@ function organizationsClient<F extends object, I extends object>(
           const invitation = invitationFrom(
             recordOf(value, "update_invitation"),
           );
+
           invitationEvent("invitation.updated", {
             invitationId: invitation.id,
             ...(invitation.organizationId === null
@@ -868,6 +926,7 @@ function organizationsClient<F extends object, I extends object>(
             email: invitation.email,
             role: invitation.role,
           });
+
           return invitation;
         },
       ).andThen((invitation) => readFields(invitationFields, invitation));
@@ -881,6 +940,7 @@ function organizationsClient<F extends object, I extends object>(
           if (value === true) {
             invitationEvent("invitation.revoked", { invitationId });
           }
+
           return value === true;
         },
       );

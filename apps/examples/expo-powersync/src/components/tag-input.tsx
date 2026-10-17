@@ -20,6 +20,7 @@ import { API_SCHEMA } from "../lib/blocks";
  */
 export function TagInput({ customerId }: { readonly customerId: string }) {
   const [name, setName] = useState("");
+
   const { tags, available, pending, error, add, remove, create } = useTagInput({
     organizationId: tenantOf(useAuth()),
     subjectType: "customer",
@@ -27,7 +28,11 @@ export function TagInput({ customerId }: { readonly customerId: string }) {
     kind: "customer",
     schema: API_SCHEMA,
   });
-  if (tags === undefined) return <ActivityIndicator />;
+
+  if (tags === undefined) {
+    return <ActivityIndicator />;
+  }
+
   const applied = new Set(tags.map((tag) => tag.id));
   const suggestions = (available ?? []).filter((tag) => !applied.has(tag.id));
 
@@ -79,7 +84,9 @@ export function TagInput({ customerId }: { readonly customerId: string }) {
         disabled={!name.trim()}
         onPress={() =>
           void create(name).then((result) => {
-            if (result.ok) setName("");
+            if (result.ok) {
+              setName("");
+            }
           })
         }
       />

@@ -79,6 +79,7 @@ export interface BindClientOptions {
 }
 
 const LOADING: AuthSnapshot = { status: "loading", user: null, claims: null };
+
 const SIGNED_OUT: AuthSnapshot = {
   status: "signed-out",
   user: null,
@@ -101,13 +102,21 @@ const text = (value: unknown): string | undefined =>
   typeof value === "string" && value !== "" ? value : undefined;
 
 function snapshotOf(session: Session | null): AuthSnapshot {
-  if (!session) return SIGNED_OUT;
+  if (!session) {
+    return SIGNED_OUT;
+  }
+
   const claims = decodeJwtPayload(session.access_token) ?? {};
   const stored = storedUser(session);
   const id = text(claims["sub"]) ?? stored?.id;
-  if (id === undefined) return SIGNED_OUT;
+
+  if (id === undefined) {
+    return SIGNED_OUT;
+  }
+
   const email = text(claims["email"]) ?? text(stored?.email);
   const role = text(claims["role"]) ?? text(stored?.role);
+
   return {
     status: "signed-in",
     user: {
@@ -126,6 +135,7 @@ function contextOf(snapshot: AuthSnapshot): RequestContext {
       claims: { role: "anon" },
     };
   }
+
   return userContext(snapshot.user, snapshot.claims);
 }
 
@@ -151,16 +161,22 @@ export function bindClient<
 
   const { data } = supabase.auth.onAuthStateChange((_event, session) => {
     const next = snapshotOf(session);
+
     // A refresh only moves the time claims: keeping the snapshot keeps `db`
     // and spares every `useAuth` consumer a render once an hour.
     if (
       next.status === snapshot.status &&
       identityKey(next) === identityKey(snapshot)
-    )
+    ) {
       return;
+    }
+
     snapshot = next;
     db = undefined;
-    for (const listener of listeners) listener();
+
+    for (const listener of listeners) {
+      listener();
+    }
   });
 
   const client: BetterClient<M, F, E, C, P> = {
@@ -169,6 +185,7 @@ export function bindClient<
     ports: options.ports ?? {},
     get db() {
       db ??= betterSupabase.connect(supabase, contextOf(snapshot));
+
       return db;
     },
     queries: createQueries(
@@ -184,11 +201,13 @@ export function bindClient<
       current: () => snapshot,
       subscribe: (listener) => {
         listeners.add(listener);
+
         return () => {
           listeners.delete(listener);
         };
       },
     },
   };
+
   return client;
 }

@@ -25,7 +25,9 @@ function fake(answer: (fn: string) => unknown) {
     async (_schema: string, fn: string, _args: Record<string, unknown>) =>
       answer(fn),
   );
+
   const transport: BlockTransport = { call };
+
   return { call, client: createAnnouncements({ transport }) };
 }
 
@@ -36,6 +38,7 @@ describe("createAnnouncements", () => {
         ? [{ ...row, severity: "unknown", body: null, href: null }]
         : true,
     );
+
     const [first] = await client.listActive("org").orThrow();
     expect(first).toMatchObject({
       id: "a1",
@@ -58,6 +61,7 @@ describe("createAnnouncements", () => {
       { ...row, audience: "plan", targets: ["pro"] },
       { ...row, audience: "all", targets: [] },
     ];
+
     const { call, client } = fake((fn) =>
       fn === "list_announcements"
         ? rows
@@ -65,6 +69,7 @@ describe("createAnnouncements", () => {
           ? true
           : row,
     );
+
     expect((await client.list().orThrow()).map((a) => a.audience)).toEqual([
       { type: "role", roles: ["admin"] },
       { type: "tenant", organizationIds: ["o1"] },
@@ -84,6 +89,7 @@ describe("createAnnouncements", () => {
         dismissible: true,
       })
       .orThrow();
+
     expect(published.createdBy).toBe("staff");
     expect(call.mock.calls[1]?.[2]).toEqual({
       id: null,
@@ -107,6 +113,7 @@ describe("createAnnouncements", () => {
     ] as const) {
       await client.update("a1", { audience });
     }
+
     await client.update("a1", { endsAt: null, href: null });
     expect(call.mock.calls.slice(2).map((c) => c[2])).toEqual([
       { id: "a1", fields: { audience: "all", targets: [] } },

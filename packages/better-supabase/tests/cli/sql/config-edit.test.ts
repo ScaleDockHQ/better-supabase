@@ -12,7 +12,11 @@ import {
 
 const edited = (source: string, names: readonly string[]): string => {
   const result = addBlocksToConfig(source, names);
-  if (!result.ok) throw new Error(result.reason);
+
+  if (!result.ok) {
+    throw new Error(result.reason);
+  }
+
   return result.text;
 };
 
@@ -29,6 +33,7 @@ export default defineConfig({
   },
 });
 `;
+
     expect(edited(source, ["tags", "saved-views"]))
       .toBe(`import { defineConfig } from "better-supabase/config";
 
@@ -57,6 +62,7 @@ export default defineConfig({
     const source = `export default defineConfig({
   blocks: ['audit', 'jobs']
 });`;
+
     expect(edited(source, ["jobs", "invitations"]))
       .toBe(`export default defineConfig({
   blocks: ['audit', 'jobs', 'invitations']
@@ -119,6 +125,7 @@ export default defineConfig({
   name: "blocks: { }",
   blocks: { audit: { options: { exempt: ["public.}*"] } } },
 });`;
+
     expect(edited(source, ["tags"])).toContain(
       `blocks: { audit: { options: { exempt: ["public.}*"] } }, tags: {} },`,
     );
@@ -153,6 +160,7 @@ module.exports = {
   hook(value) { return { value }; },
   blocks: { audit: {} },
 }; // trailing`;
+
     expect(edited(source, ["tags"])).toContain(
       "blocks: { audit: {}, tags: {} },",
     );
@@ -220,6 +228,7 @@ describe("addBlocksToJson", () => {
     const result = addBlocksToJson(`{\n    "blocks": { "audit": {} }\n}\n`, [
       "tags",
     ]);
+
     expect(result).toEqual({
       ok: true,
       text: `{\n    "blocks": {\n        "audit": {},\n        "tags": {}\n    }\n}\n`,
@@ -253,6 +262,7 @@ describe("setPresetInConfig", () => {
   it("adds preset, or replaces the one there, in the file's quotes", () => {
     const single =
       "import { defineConfig } from 'better-supabase/config';\n\nexport default defineConfig({\n  casing: 'snake',\n});\n";
+
     expect(setPresetInConfig(single, "saas")).toEqual({
       ok: true,
       text: single.replace(
@@ -299,6 +309,7 @@ describe("addBlocksToWiring", () => {
   it("adds the import and the entry once", () => {
     const source =
       'import { createBlocks } from "better-supabase/blocks";\n\nexport const blocks = createBlocks({ transport }, { tags: tagsBlock });\n';
+
     const edit = addBlocksToWiring(source, [block]);
     expect(edit).toEqual({
       ok: true,
@@ -315,6 +326,7 @@ describe("addBlocksToWiring", () => {
       "export const blockSet = defineBlocks(blockConfig, { tags: tagsBlock });\n",
       [block],
     );
+
     expect(edit).toEqual({
       ok: true,
       text: 'import { commentsBlock } from "better-supabase/blocks/comments";\n\nexport const blockSet = defineBlocks(blockConfig, { tags: tagsBlock, comments: commentsBlock });\n',
@@ -354,7 +366,11 @@ const ADOPTED = {
 
 const setBlock = (source: string): string => {
   const result = setBlockInConfig(source, "teams", ADOPTED);
-  if (!result.ok) throw new Error(result.reason);
+
+  if (!result.ok) {
+    throw new Error(result.reason);
+  }
+
   return result.text;
 };
 
@@ -369,6 +385,7 @@ export default defineConfig({
   },
 });
 `;
+
     const replaced = `import { defineConfig } from "better-supabase/config";
 
 export default defineConfig({
@@ -389,6 +406,7 @@ export default defineConfig({
   },
 });
 `;
+
     expect(setBlock(source)).toBe(replaced);
     expect(setBlock(source.replace("    teams: {},\n", ""))).toBe(
       `import { defineConfig } from "better-supabase/config";
@@ -418,12 +436,15 @@ export default defineConfig({
     const listed = setBlock(
       "import { defineConfig } from 'better-supabase/config';\n\nexport default defineConfig({\n  blocks: ['tags'],\n});\n",
     );
+
     expect(listed).toContain(
       "  blocks: {\n    tags: {},\n    teams: {\n      mode: 'adopt',",
     );
+
     const added = setBlock(
       'export default defineConfig({\n  casing: "camel",\n});\n',
     );
+
     expect(added).toContain(
       '  casing: "camel",\n  blocks: {\n    teams: {\n      mode: "adopt",',
     );
@@ -450,6 +471,7 @@ describe("setBlockInJson", () => {
       "teams",
       ADOPTED,
     );
+
     expect(result.ok && JSON.parse(result.text)).toEqual({
       blocks: { tags: {}, teams: ADOPTED },
     });

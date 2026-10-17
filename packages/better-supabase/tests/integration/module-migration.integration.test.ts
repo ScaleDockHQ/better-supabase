@@ -13,8 +13,10 @@ async function reachable(): Promise<boolean> {
     max: 1,
     connectionTimeoutMillis: 1000,
   });
+
   try {
     await pool.query("select 1");
+
     return true;
   } catch {
     return false;
@@ -37,15 +39,19 @@ describe.skipIf(!live)(
       const migration = renderModuleMigration({
         files: renderModules(MODULES).filter((file) => file.kind !== "test"),
       });
+
       const client = await pool.connect();
+
       try {
         await client.query("begin");
         await client.query("drop schema if exists better_supabase cascade");
         await client.query(migration);
         await client.query(migration);
+
         const { rows } = await client.query<{ name: string }>(
           "select name from better_supabase.modules order by name",
         );
+
         expect(rows.map((row) => row.name)).toEqual(
           expect.arrayContaining(MODULES),
         );

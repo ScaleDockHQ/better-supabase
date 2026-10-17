@@ -19,11 +19,13 @@ import { fakeSql } from "../fixtures/fake-sql.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
+
 const env = {
   url: PROJECT_URL,
   publishableKey: "sb_publishable_test",
   jwksUrl: new URL(`${PROJECT_URL}/auth/v1/.well-known/jwks.json`),
 };
+
 const signer = await createTestSigner();
 
 afterEach(() => {
@@ -35,7 +37,9 @@ describe("createServer headers", () => {
     const fetch = vi.fn<typeof globalThis.fetch>(() =>
       Promise.resolve(Response.json([])),
     );
+
     vi.stubGlobal("fetch", fetch);
+
     const server = createServer(defineSupabase(schema), {
       env,
       auth: { jwks: signer.jwks as never },
@@ -44,6 +48,7 @@ describe("createServer headers", () => {
         "x-request-id": request.headers.get("x-request-id") ?? "",
       }),
     });
+
     const token = await signer.sign({
       sub: "11111111-1111-4111-8111-111111111111",
     });
@@ -55,6 +60,7 @@ describe("createServer headers", () => {
       const ctx = await server.context(
         new Request("https://api.test/", { headers }),
       );
+
       await ctx.db.customers.findMany({ select: ["id"] }).orThrow();
     }
 
@@ -74,23 +80,29 @@ describe("createServer headers", () => {
   it("sends every client's requests through options.fetch", async () => {
     const global = vi.fn<typeof globalThis.fetch>();
     vi.stubGlobal("fetch", global);
+
     const traced = vi.fn<typeof globalThis.fetch>(() =>
       Promise.resolve(Response.json([])),
     );
+
     const server = createServer(defineSupabase(schema), {
       env: { ...env, secretKey: "sb_secret_test" },
       auth: { jwks: signer.jwks as never },
       fetch: traced,
     });
+
     const token = await signer.sign({
       sub: "11111111-1111-4111-8111-111111111111",
     });
+
     for (const headers of [{}, { authorization: `Bearer ${token}` }]) {
       const ctx = await server.context(
         new Request("https://api.test/", { headers }),
       );
+
       await ctx.db.customers.findMany({ select: ["id"] }).orThrow();
     }
+
     await server
       .admin()
       .customers.findMany({ select: ["id"] })
@@ -107,15 +119,19 @@ describe("createServer db options", () => {
       const fetch = vi.fn<typeof globalThis.fetch>(() =>
         Promise.resolve(Response.json([])),
       );
+
       const server = createServer(
         defineSupabase(schema, { postgrestVersion: "12.2" }),
         { env, auth: { jwks: signer.jwks as never }, fetch, ...options },
       );
+
       const ctx = await server.context(new Request("https://api.test/"));
+
       const result = await ctx.db.customers.deleteMany({
         where: { status: "lead" },
         maxAffected: 1,
       });
+
       expect(result).toMatchObject({
         ok: false,
         error: { kind: "invalid_request" },
@@ -133,20 +149,24 @@ describe("createServer db options", () => {
           });
         }),
     );
+
     const server = createServer(defineSupabase(schema), {
       env,
       auth: { jwks: signer.jwks as never },
       fetch,
       db: { timeout: 20 },
     });
+
     const token = await signer.sign({
       sub: "11111111-1111-4111-8111-111111111111",
     });
+
     const ctx = await server.context(
       new Request("https://api.test/", {
         headers: { authorization: `Bearer ${token}` },
       }),
     );
+
     const result = await ctx.db.customers.findMany({ select: ["id"] });
     expect(result).toMatchObject({ ok: false, error: { kind: "timeout" } });
   });
@@ -157,10 +177,12 @@ describe("createServer claims", () => {
     const betterSupabase = defineSupabase(schema).claims(
       v.object({ tenant_id: v.pipe(v.string(), v.minLength(1)) }),
     );
+
     const server = createServer(betterSupabase, {
       env,
       auth: { jwks: signer.jwks as never },
     });
+
     const request = async (claims: Record<string, unknown>) =>
       new Request("https://api.test/", {
         headers: {
@@ -194,11 +216,14 @@ describe("createServer claims", () => {
         ),
       }),
     );
+
     const server = createServer(betterSupabase, {
       env,
       auth: { jwks: signer.jwks as never },
     });
+
     const organization = "22222222-2222-4222-8222-222222222222";
+
     const extra = {
       tenant_id: organization,
       user_role: "member",
@@ -207,7 +232,7 @@ describe("createServer claims", () => {
         {
           scope: "project",
           id: "p1",
-          within: { organization: organization },
+          within: { organization },
           roles: ["editor"],
           expiresAt: 1_900_000_000,
         },
@@ -216,17 +241,24 @@ describe("createServer claims", () => {
       authz_ver: 7,
       memberships_truncated: true,
     };
+
     const token = await signer.sign({
       sub: "11111111-1111-4111-8111-111111111111",
       ...extra,
     });
+
     const ctx = await server.context(
       new Request("https://api.test/", {
         headers: { authorization: `Bearer ${token}` },
       }),
     );
+
     expect(ctx.auth.kind).toBe("user");
-    if (ctx.auth.kind !== "user") return;
+
+    if (ctx.auth.kind !== "user") {
+      return;
+    }
+
     expect(ctx.auth.claims).toMatchObject(extra);
   });
 });
@@ -239,13 +271,16 @@ describe("createServer userMetadata", () => {
       warn: vi.fn(),
       error: vi.fn(),
     };
+
     const betterSupabase = defineSupabase(schema, { logger }).userMetadata(
       v.object({ display_name: v.string() }),
     );
+
     const server = createServer(betterSupabase, {
       env,
       auth: { jwks: signer.jwks as never },
     });
+
     const request = async (metadata: Record<string, unknown>) =>
       new Request("https://api.test/", {
         headers: {
@@ -276,14 +311,18 @@ function stubFetch() {
   const fetch = vi.fn<typeof globalThis.fetch>(() =>
     Promise.resolve(Response.json([])),
   );
+
   vi.stubGlobal("fetch", fetch);
+
   const sent = (index: number) => {
     const [input, init] = fetch.mock.calls[index]!;
+
     return {
       url: String(input),
       headers: new Headers(init?.headers),
     };
   };
+
   return { fetch, sent };
 }
 
@@ -291,6 +330,7 @@ function fakePostgres() {
   const fake = fakeSql();
   const claims: SqlClaims[] = [];
   const sessions: (SessionOptions | undefined)[] = [];
+
   // SAFETY: the server only calls executorFor; the executor only calls queryRaw.
   const postgres = {
     admin: fake.sql,
@@ -298,14 +338,17 @@ function fakePostgres() {
     executorFor: (value: SqlClaims, session?: SessionOptions) => {
       claims.push(value);
       sessions.push(session);
+
       return postgresExecutor(fake.sql);
     },
   } as unknown as BetterPostgres;
+
   return { postgres, claims, sessions, fake };
 }
 
 const service: AuthState = { kind: "service", keyName: "default" };
 const anon: AuthState = { kind: "anon", reason: "none" };
+
 const user = (token: string): AuthState => ({
   kind: "user",
   token,
@@ -374,6 +417,7 @@ describe("createServer clients", () => {
   it("answers unauthorized to queries on invalid credentials, without a request", async () => {
     const { fetch } = stubFetch();
     const server = createServer(defineSupabase(schema), { env });
+
     const invalid: AuthState = {
       kind: "invalid",
       reason: "token",
@@ -383,14 +427,17 @@ describe("createServer clients", () => {
         status: 401,
       } as never,
     };
+
     const viaContext = await server.contextFor(invalid).db.customers.findMany();
     const viaDbFor = await server.dbFor(invalid).customers.findMany();
+
     for (const result of [viaContext, viaDbFor]) {
       expect(result).toMatchObject({
         ok: false,
         error: { kind: "unauthorized" },
       });
     }
+
     expect(fetch).not.toHaveBeenCalled();
   });
 
@@ -487,6 +534,7 @@ describe("createServer contextFor", () => {
       env,
       readUrl: false,
     });
+
     const ctx = server.contextFor(anon);
     expect(ctx.supabase).toBe(ctx.supabase);
     expect(ctx.db).toBe(ctx.db);
@@ -523,6 +571,7 @@ describe("createServer request ids", () => {
     const { sent } = stubFetch();
     const { postgres, sessions } = fakePostgres();
     const server = createServer(defineSupabase(schema), { env, postgres });
+
     const ctx = await server.context(
       new Request("https://app.test/", {
         headers: {
@@ -531,6 +580,7 @@ describe("createServer request ids", () => {
         },
       }),
     );
+
     expect(ctx.requestId).toBe("iad1::abc-123");
     expect(ctx.correlationId).toBe("checkout/42");
     await ctx.db.customers.findMany({ select: ["id"] }).orThrow();
@@ -550,12 +600,14 @@ describe("createServer request ids", () => {
   it("generates one id per request when the incoming one is missing or invalid", async () => {
     const { sent } = stubFetch();
     const server = createServer(defineSupabase(schema), { env });
+
     const request = new Request("https://app.test/", {
       headers: {
         "x-request-id": "has spaces",
         "x-correlation-id": "x".repeat(129),
       },
     });
+
     const resolution = await server.resolve(request);
     const first = server.contextFromResolution(resolution, request);
     const second = server.contextFromResolution(resolution, request);
@@ -572,6 +624,7 @@ describe("createServer request ids", () => {
 
   it("takes header names, explicit ids and app headers from the options", async () => {
     const { sent } = stubFetch();
+
     const server = createServer(defineSupabase(schema), {
       env,
       requestIds: {
@@ -581,10 +634,12 @@ describe("createServer request ids", () => {
       },
       headers: () => ({ "x-action": "from-app" }),
     });
+
     const ctx = await server.context(
       new Request("https://app.test/", { headers: { "x-trace": "client" } }),
       { correlationId: "flow-7" },
     );
+
     expect(ctx.requestId).toMatch(UUID);
     expect(ctx.correlationId).toBe("flow-7");
     await ctx.db.customers.findMany({ select: ["id"] }).orThrow();
@@ -595,13 +650,16 @@ describe("createServer request ids", () => {
 
   it("sends nothing with requestIds false, and only explicit ids without a request", async () => {
     const { sent } = stubFetch();
+
     const off = createServer(defineSupabase(schema), {
       env,
       requestIds: false,
     });
+
     const ctx = await off.context(
       new Request("https://app.test/", { headers: { "x-request-id": "r1" } }),
     );
+
     expect(ctx.requestId).toBeUndefined();
     await ctx.db.customers.findMany({ select: ["id"] }).orThrow();
     expect(sent(0).headers.get("x-request-id")).toBeNull();
@@ -622,18 +680,22 @@ describe("createServer tenant", () => {
   it("sends the resolved tenant as context, setting and header", async () => {
     const { sent } = stubFetch();
     const { postgres, sessions } = fakePostgres();
+
     const resolver = vi.fn(
       async (request: Request) =>
         new URL(request.url).searchParams.get("organization") ?? undefined,
     );
+
     const server = createServer(defineSupabase(schema), {
       env,
       postgres,
       tenant: resolver,
     });
+
     const ctx = await server.context(
       new Request(`https://app.test/?organization=${TENANT}`),
     );
+
     expect(resolver).toHaveBeenCalledWith(expect.any(Request), ctx.auth);
     expect(ctx.db.$context.tenant).toBe(TENANT);
     await ctx.db.customers.findMany({ select: ["id"] }).orThrow();
@@ -661,6 +723,7 @@ describe("createServer tenant", () => {
       env,
       tenant: async () => "from-resolver",
     });
+
     const request = new Request("https://app.test/");
     const resolution = await server.resolve(request);
     expect(() => server.contextFromResolution(resolution, request)).toThrow(
@@ -682,6 +745,7 @@ describe("createServer tenant", () => {
       env,
       tenant: () => "sync",
     });
+
     expect(
       sync.contextFromResolution(resolution, request).db.$context.tenant,
     ).toBe("sync");
@@ -705,11 +769,13 @@ describe("createServer actingAs", () => {
       kind: "user",
       role: "authenticated",
     });
+
     const impersonated = server.actingAs(
       USER,
       { role: "anon" },
       { actor: "admin-1", reason: "support ticket" },
     );
+
     expect(impersonated.$context.actor).toEqual({
       id: USER,
       kind: "user",
@@ -738,9 +804,11 @@ describe("createServer forContext", () => {
   it("runs as the recorded user, scoped to the recorded tenant", async () => {
     const { postgres, claims, sessions } = fakePostgres();
     const server = createServer(defineSupabase(schema), { env, postgres });
+
     const db = await server
       .forContext({ actor: userActor, tenant: TENANT })
       .orThrow();
+
     expect(db.$context.actor).toEqual({
       id: USER,
       kind: "user",
@@ -771,12 +839,14 @@ describe("createServer forContext", () => {
   it("keeps a recorded support session read-only, with its act claim", async () => {
     const { postgres, claims, sessions } = fakePostgres();
     const server = createServer(defineSupabase(schema), { env, postgres });
+
     const act = {
       kind: "support",
       sub: "admin-1",
       session_id: "s-1",
       read_only: true,
     };
+
     const actor = { ...userActor, impersonator: "admin-1" };
     await server.forContext({ actor, claims: { act } }).orThrow();
     await server
@@ -792,27 +862,32 @@ describe("createServer forContext", () => {
   it("refuses a context whose act claim is not a valid chain", async () => {
     const { postgres, claims } = fakePostgres();
     const server = createServer(defineSupabase(schema), { env, postgres });
+
     const result = await server.forContext({
       actor: userActor,
       claims: { act: { kind: "root", sub: "admin-1" } },
     });
+
     expect(result.error).toMatchObject({ kind: "forbidden" });
     expect(claims).toEqual([]);
   });
 
   it("adds claimsFor, which can't replace sub, role or the tenant", async () => {
     const { postgres, claims } = fakePostgres();
+
     const claimsFor = vi.fn(async () => ({
       sub: "someone-else",
       role: "service_role",
       tenant_id: "other",
       user_role: "admin",
     }));
+
     const server = createServer(defineSupabase(schema), {
       env,
       postgres,
       claimsFor,
     });
+
     const context = { actor: userActor, tenant: TENANT };
     await server.forContext(context).orThrow();
     expect(claimsFor).toHaveBeenCalledWith(USER, context);
@@ -830,6 +905,7 @@ describe("createServer forContext", () => {
       postgres,
       claimsFor: () => ({ organization_ids: [TENANT] }),
     });
+
     await sync.forContext({ actor: userActor }).orThrow();
     expect(claims[1]).toEqual({
       organization_ids: [TENANT],
@@ -841,6 +917,7 @@ describe("createServer forContext", () => {
   it("refuses contexts without a user and never falls back to admin", async () => {
     const { postgres, claims } = fakePostgres();
     const server = createServer(defineSupabase(schema), { env, postgres });
+
     for (const [context, kind] of [
       [{}, "none"],
       [{ actor: { id: "service", kind: "service" as const } }, "service"],
@@ -850,6 +927,7 @@ describe("createServer forContext", () => {
       expect(result.error).toMatchObject({ kind: "forbidden" });
       expect(result.error?.message).toContain(`got ${kind}`);
     }
+
     expect(claims).toEqual([]);
   });
 
@@ -865,11 +943,13 @@ describe("createServer forContext", () => {
 
   it("returns claimsFor failures as a result", async () => {
     const { postgres } = fakePostgres();
+
     const server = createServer(defineSupabase(schema), {
       env,
       postgres,
       claimsFor: () => Promise.reject(new Error("profile lookup failed")),
     });
+
     const result = await server.forContext({ actor: userActor });
     expect(result.ok).toBe(false);
   });
@@ -880,11 +960,14 @@ describe("createServer events", () => {
     const betterSupabase = defineSupabase(schema);
     const events: AuthEvent[] = [];
     betterSupabase.on("auth", (event) => events.push(event));
+
     const server = createServer(betterSupabase, {
       env: secretEnv,
       auth: { jwks: signer.jwks as never, secret: true },
     });
+
     const token = await signer.sign({ sub: USER });
+
     const cookie = writeSession([], "sb-abcdefghijklmnopqrst-auth-token", {
       access_token: token,
       refresh_token: "r",
@@ -894,6 +977,7 @@ describe("createServer events", () => {
     })
       .map((write) => `${write.name}=${encodeURIComponent(write.value)}`)
       .join("; ");
+
     for (const headers of [
       { authorization: `Bearer ${token}` },
       { cookie },
@@ -903,6 +987,7 @@ describe("createServer events", () => {
     ]) {
       await server.resolve(new Request("https://api.test/", { headers }));
     }
+
     expect(events).toEqual([
       { source: "bearer", ok: true, userId: USER, rawSource: "bearer" },
       { source: "cookie", ok: true, userId: USER, rawSource: "cookie" },
@@ -917,6 +1002,7 @@ describe("createServer events", () => {
     const events: RefreshEvent[] = [];
     betterSupabase.on("refresh", (event) => events.push(event));
     const onRefresh = vi.fn();
+
     const server = createServer(betterSupabase, {
       env,
       auth: {
@@ -926,7 +1012,9 @@ describe("createServer events", () => {
           Response.json({ msg: "Invalid Refresh Token" }, { status: 400 }),
       },
     });
+
     const stale = await signer.sign({ sub: USER, expiresIn: 10 });
+
     const cookie = writeSession([], "sb-abcdefghijklmnopqrst-auth-token", {
       access_token: stale,
       refresh_token: "r-server-refresh",
@@ -936,6 +1024,7 @@ describe("createServer events", () => {
     })
       .map((write) => `${write.name}=${encodeURIComponent(write.value)}`)
       .join("; ");
+
     const request = () =>
       new Request("https://app.test/", { headers: { cookie } });
 

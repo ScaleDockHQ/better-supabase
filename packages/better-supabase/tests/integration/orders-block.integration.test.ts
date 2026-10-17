@@ -33,6 +33,7 @@ function fakePayments(): PaymentProvider & {
   const created = new Map<string, Payment>();
   const byKey = new Map<string, Payment>();
   let refunds = 0;
+
   return {
     apiVersion: 1,
     name: "fake",
@@ -40,7 +41,11 @@ function fakePayments(): PaymentProvider & {
     createPayment(input, options) {
       const key = options?.idempotencyKey ?? "";
       const existing = byKey.get(key);
-      if (existing) return AsyncResult.ok(existing);
+
+      if (existing) {
+        return AsyncResult.ok(existing);
+      }
+
       const payment: Payment = {
         id: `${prefix}${String(created.size + 1)}`,
         provider: "fake",
@@ -55,23 +60,29 @@ function fakePayments(): PaymentProvider & {
         clientSecret: "secret",
         metadata: input.metadata ?? {},
       };
+
       created.set(payment.id, payment);
       byKey.set(key, payment);
+
       return AsyncResult.ok(payment);
     },
     capture(paymentId) {
       const payment = created.get(paymentId)!;
+
       const captured = {
         ...payment,
         status: "succeeded" as const,
         captured: payment.amount,
       };
+
       created.set(paymentId, captured);
+
       return AsyncResult.ok(captured);
     },
     refund(paymentId, input) {
       refunds += 1;
       const payment = created.get(paymentId)!;
+
       return AsyncResult.ok({
         id: `re_${prefix}${String(refunds)}`,
         paymentId,
@@ -98,13 +109,16 @@ describe.skipIf(!live)("orders block in Postgres", () => {
   /** Runs each call in a savepoint, as `role`, so a raised error doesn't end the test's transaction. */
   const transport = (role: () => Promise<void>): BlockTransport => {
     const inner = sqlTransport(session.sql);
+
     return {
       async call(schema, fn, args) {
         await role();
         await session.client.query("savepoint block_call");
+
         try {
           const value = await inner.call(schema, fn, args);
           await session.client.query("release savepoint block_call");
+
           return value;
         } catch (cause) {
           await session.client.query("rollback to savepoint block_call");
@@ -145,10 +159,12 @@ describe.skipIf(!live)("orders block in Postgres", () => {
     shopper = await session.user("orders-block-shopper");
     tenant = await session.organization(owner);
     await session.as(owner);
+
     const product = await call<{ id: string }>(
       "better_supabase.save_product($1, null, 'Tee', null, null, 'physical')",
       [tenant],
     );
+
     await call("better_supabase.set_product_status($1, 'active')", [
       product.id,
     ]);
@@ -182,10 +198,12 @@ describe.skipIf(!live)("orders block in Postgres", () => {
   it("checks out, pays, ships, refunds and reverses the tax", async () => {
     const payments = fakePayments();
     const asOwner = () => session.as(owner);
+
     const admin = createOrders({
       transport: transport(asOwner),
       service: transport(() => session.service()),
     });
+
     flat = (
       await admin
         .saveShippingRate(tenant, {
@@ -198,15 +216,18 @@ describe.skipIf(!live)("orders block in Postgres", () => {
     ).id;
 
     const tax = fixedRates({ rates: { NL: { standard: "0.21" } } });
+
     const orders = createOrders({
       transport: transport(() => session.as(shopper)),
       service: transport(() => session.service()),
       payments,
       tax,
     });
+
     const cart = await orders
       .createCart(tenant, { currency: "EUR", email: shopper.email })
       .orThrow();
+
     await orders.addToCart(cart.id, tee, 2).orThrow();
     expect(
       await orders.checkout(cart.id).then((r) => !r.ok && r.error.hint),
@@ -254,6 +275,7 @@ describe.skipIf(!live)("orders block in Postgres", () => {
     const returned = await orders
       .requestReturn(order.id, [{ lineId: order.lines[0]!.id, quantity: 1 }])
       .orThrow();
+
     expect(returned.quantity).toBe(1);
     await admin.receiveReturn(returned.id).orThrow();
 
@@ -263,9 +285,11 @@ describe.skipIf(!live)("orders block in Postgres", () => {
       payments,
       tax,
     });
+
     const refund = await refunder
       .refund(order.id, { amount: money(2420, "EUR"), returnId: returned.id })
       .orThrow();
+
     expect(refund.status).toBe("succeeded");
     expect(refund.orderStatus).toBe("completed");
     expect(refund.refundedTotal).toEqual(money(2420, "EUR"));
@@ -278,12 +302,14 @@ describe.skipIf(!live)("orders block in Postgres", () => {
 
   it("handles a manual capture and a refund webhook", async () => {
     const payments = fakePayments();
+
     const orders = createOrders({
       transport: transport(() => session.as(shopper)),
       service: transport(() => session.service()),
       payments,
       capture: "manual",
     });
+
     const cart = await orders.createCart(tenant, { currency: "EUR" }).orThrow();
     await orders.setCartLine(cart.id, tee, 1).orThrow();
     await orders
@@ -306,6 +332,7 @@ describe.skipIf(!live)("orders block in Postgres", () => {
         occurredAt: Temporal.Now.instant(),
       })
       .orThrow();
+
     expect(outcome.kind).toBe("ignored");
   });
 
@@ -314,6 +341,7 @@ describe.skipIf(!live)("orders block in Postgres", () => {
       transport: transport(() => session.as(shopper)),
       service: transport(() => session.service()),
     });
+
     const cart = await orders.createCart(tenant, { currency: "EUR" }).orThrow();
     await orders.setCartLine(cart.id, tee, 1).orThrow();
     await orders

@@ -40,7 +40,11 @@ function withTable(
 ) {
   const { meta } = schema;
   const tableMeta = meta.tables[table];
-  if (!tableMeta) throw new Error(table);
+
+  if (!tableMeta) {
+    throw new Error(table);
+  }
+
   return defineSupabase(
     defineSchema<Models>({
       ...meta,
@@ -58,6 +62,7 @@ async function settle(): Promise<void> {
 describe("supabaseCollection", () => {
   it("builds on supabaseCollectionOptions with the table name and primary key", () => {
     const { client } = capturingClient();
+
     const config = supabaseCollection(betterSupabase, client, "customers", {
       schema: customerRow,
       db: betterSupabase.connect(client),
@@ -65,6 +70,7 @@ describe("supabaseCollection", () => {
       realtimeUseFilter: false,
       queryClient: new QueryClient(),
     });
+
     expect(config.id).toBe("customers");
     expect(config.getKey({ id: "c1", name: "Acme" })).toBe("c1");
     expect(config.onInsert).toBeTypeOf("function");
@@ -72,10 +78,12 @@ describe("supabaseCollection", () => {
 
   it("keeps the package's own handlers with direct writes", () => {
     const { client } = capturingClient();
+
     const config = supabaseCollection(betterSupabase, client, "customers", {
       schema: customerRow,
       writes: "direct",
     });
+
     expect(config.onInsert?.name).not.toBe("onInsert");
   });
 
@@ -93,20 +101,24 @@ describe("supabaseCollection", () => {
         writes: "direct",
       }),
     ).toThrow(/unknown table "missing"/);
+
     const privateSchema = withTable("customers", (meta) => ({
       ...meta,
       schema: "crm",
     }));
+
     expect(() =>
       supabaseCollection(privateSchema, client, "customers", {
         schema: customerRow,
         writes: "direct",
       }),
     ).toThrow(/"crm.customers" is not/);
+
     const keyless = withTable("customers", (meta) => ({
       ...meta,
       primaryKey: [],
     }));
+
     expect(() =>
       supabaseCollection(keyless, client, "customers", {
         schema: customerRow,
@@ -120,7 +132,9 @@ describe("supabaseCollection", () => {
       body: [{ id: "c1", name: "Acme", status: "active" }],
       headers: { "content-range": "0-0/1" },
     }));
+
     const db = betterSupabase.connect(client);
+
     const customers = createCollection(
       supabaseCollection(betterSupabase, client, "customers", {
         schema: customerRow,
@@ -166,18 +180,23 @@ describe("supabaseCollection", () => {
         created_at: { ...meta.columns["created_at"]!, codec: "instant" },
       },
     }));
+
     const { client } = capturingClient(() => ({
       body: [{ id: "c1", name: "Acme" }],
     }));
+
     const config = supabaseCollection(withCodec, client, "customers", {
       schema: customerRow,
       db: withCodec.connect(client),
     });
+
     const mutation = { original: {}, modified: { id: "c1" }, changes: {} };
+
     const params = {
       transaction: { mutations: [mutation] },
       collection: { utils: {} },
     };
+
     await expect(config.onInsert?.(params as never)).resolves.toEqual({
       refetch: true,
     });
@@ -212,11 +231,14 @@ describe("supabaseCollection", () => {
         hint: null,
       },
     }));
+
     const config = supabaseCollection(betterSupabase, client, "customer_tags", {
       schema: rowSchema<{ customer_id: string; tag_id: string }>(),
       db: betterSupabase.connect(client),
     });
+
     expect(config.getKey({ customer_id: "c1", tag_id: "t1" })).toBe("c1-t1");
+
     const params = {
       transaction: {
         mutations: [
@@ -229,6 +251,7 @@ describe("supabaseCollection", () => {
       },
       collection: { utils: {} },
     };
+
     await expect(config.onDelete?.(params as never)).rejects.toBeInstanceOf(
       DbException,
     );
@@ -238,10 +261,12 @@ describe("supabaseCollection", () => {
 
   it("names the repository method when the db lacks it", async () => {
     const { client } = capturingClient();
+
     const config = supabaseCollection(betterSupabase, client, "customers", {
       schema: customerRow,
       db: {} as never,
     });
+
     await expect(
       config.onInsert?.({
         transaction: { mutations: [] },

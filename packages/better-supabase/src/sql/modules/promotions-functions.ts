@@ -22,7 +22,7 @@ export interface PromotionsNames {
 const MAX_CART_CODES = 5;
 
 /** Codes one `create_promotion_codes` call can generate. */
-const MAX_GENERATED = 10000;
+const MAX_GENERATED = 10_000;
 
 /** Generated code characters: no 0/O or 1/I. */
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -52,6 +52,7 @@ export function promotionFunctions(
   const r = columns(ctx, "redemptions");
   const promotions = ctx.table("promotions");
   const units = catalog.fn("currency_minor_units");
+
   const targetTables: Readonly<Record<string, string | undefined>> = {
     products: catalog.table("products"),
     categories:
@@ -63,12 +64,14 @@ export function promotionFunctions(
         ? catalog.table("collections")
         : undefined,
   };
+
   const scopes = [
     "order",
     ...Object.keys(targetTables).filter(
       (key) => targetTables[key] !== undefined,
     ),
   ];
+
   const targetCheck = Object.entries(targetTables)
     .flatMap(([scope, table]) =>
       table === undefined
@@ -78,7 +81,9 @@ export function promotionFunctions(
           ],
     )
     .join("\n");
+
   const amount = (key: string): string => amountOf(`(data ->> '${key}')`);
+
   const fields: readonly (readonly [string, string])[] = [
     ["name", "data ->> 'name'"],
     ["description", "data ->> 'description'"],
@@ -101,6 +106,7 @@ export function promotionFunctions(
     ["automatic", "coalesce((data ->> 'automatic')::boolean, false)"],
     ["active", "coalesce((data ->> 'active')::boolean, true)"],
   ];
+
   return `
 -- Creates or updates a promotion. data holds name, description, kind
 -- (percentage, fixed or free_shipping), percent, currency, amount and
@@ -265,6 +271,7 @@ export function codeFunctions(
   const cc = columns(ctx, "cartCodes");
   const c = columns(orders, "carts");
   const codes = ctx.table("codes");
+
   return `
 -- Adds codes to a promotion: the given ones, or count generated ones of
 -- the prefix and eight random characters. Codes are stored upper case and
@@ -445,10 +452,12 @@ ${userGrant(`${fn("remove_promotion_code")}(uuid, text)`)}
 /** The SQL condition that product `product` falls in promotion `v_promo`'s scope. */
 function scopeCheck(ctx: ModuleContext, product: string): string {
   const catalog = ctx.of("catalog");
+
   const parts = [
     "v_promo.scope = 'order'",
     `(v_promo.scope = 'products' and ${product} = any (v_promo.targets))`,
   ];
+
   if (catalog.hasTable("categories") && catalog.hasTable("productCategories")) {
     const cat = columns(catalog, "categories");
     const pc = columns(catalog, "productCategories");
@@ -461,12 +470,14 @@ function scopeCheck(ctx: ModuleContext, product: string): string {
       select 1 from ${catalog.table("productCategories")} y where y.${pc("product")} = ${product} and y.${pc("category")} in (select id from d)
     ))`);
   }
+
   if (catalog.hasTable("collectionProducts")) {
     const cp = columns(catalog, "collectionProducts");
     parts.push(
       `(v_promo.scope = 'collections' and exists (select 1 from ${catalog.table("collectionProducts")} y where y.${cp("product")} = ${product} and y.${cp("collection")} = any (v_promo.targets)))`,
     );
   }
+
   return parts.join("\n      or ");
 }
 
@@ -485,6 +496,7 @@ export function discountFunctions(
   const promotions = ctx.table("promotions");
   const codes = ctx.table("codes");
   const redemptions = ctx.table("redemptions");
+
   const customerUses = (
     promotion: string,
     customer: string,
@@ -492,6 +504,7 @@ export function discountFunctions(
   ): string =>
     `(select count(*) from ${redemptions} y where y.${r("promotion")} = ${promotion} and y.${r("status")} = 'redeemed'
       and (y.${r("customer")} = ${customer} or (${email} is not null and lower(y.${r("email")}) = lower(${email}))))`;
+
   return `
 -- Rounds half to even, like money everywhere else in the commerce blocks.
 create or replace function ${fn("round_half_even")}(p_value numeric)

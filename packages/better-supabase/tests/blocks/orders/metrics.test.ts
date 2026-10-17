@@ -43,8 +43,11 @@ describe("orderMetrics", () => {
     const keys = new Set<string>(
       orderMetrics({ currency: "EUR" }).map((metric) => metric.key),
     );
+
     for (const metrics of Object.values(ORDER_METRIC_EVENTS)) {
-      for (const metric of metrics) expect(keys.has(metric)).toBe(true);
+      for (const metric of metrics) {
+        expect(keys.has(metric)).toBe(true);
+      }
     }
   });
 });

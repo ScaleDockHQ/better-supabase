@@ -43,8 +43,13 @@ export function persistQueryCache<T>(
     timer = undefined;
     const next = pending;
     pending = undefined;
-    if (!next) return writing;
+
+    if (!next) {
+      return writing;
+    }
+
     writing = writing.then(() => store.set(key, next.value));
+
     return writing;
   };
 
@@ -52,11 +57,13 @@ export function persistQueryCache<T>(
     persistClient(client) {
       pending = { value: JSON.stringify(client) };
       timer ??= setTimeout(() => void flush(), throttleMs);
+
       return Promise.resolve();
     },
     async restoreClient(): Promise<T | undefined> {
       const raw = await store.get(key);
       let restored: T | undefined;
+
       if (raw !== null) {
         try {
           // SAFETY: only `persistClient` writes this key, with a serialized T.
@@ -65,10 +72,14 @@ export function persistQueryCache<T>(
           // A corrupt entry restores nothing; the next write replaces it.
         }
       }
+
       return restored;
     },
     async removeClient() {
-      if (timer !== undefined) clearTimeout(timer);
+      if (timer !== undefined) {
+        clearTimeout(timer);
+      }
+
       timer = undefined;
       pending = undefined;
       await writing;

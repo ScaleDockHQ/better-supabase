@@ -32,30 +32,36 @@ export function LoginForm() {
   const locale = useLocale();
   const supabase = useSupabase();
   const changeSession = useSessionChange(sessionChanged, useRouter());
+
   const [error, submit, pending] = useActionState(
     async (_previous: string | null, form: FormData) => {
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: String(form.get("email")),
         password: String(form.get("password")),
       });
+
       if (signInError) {
         return signInError.code === "invalid_credentials"
           ? t("That email and password don't match.")
           : signInError.message;
       }
+
       // A verified factor means this session must reach aal2 first.
       const { data: aal } =
         await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+
       const next = safeNext(`/${locale}`);
       await changeSession(
         aal?.nextLevel === "aal2" && aal.currentLevel !== "aal2"
           ? `/${locale}/mfa?next=${encodeURIComponent(next)}`
           : next,
       );
+
       return null;
     },
     null,
   );
+
   return (
     <Card>
       <CardHeader className="text-center">
@@ -83,7 +89,7 @@ export function LoginForm() {
                 </FieldLabel>
                 <Link
                   href="/forgot-password"
-                  className="text-muted-foreground ml-auto text-sm underline-offset-4 hover:underline"
+                  className="ml-auto text-sm text-muted-foreground underline-offset-4 hover:underline"
                 >
                   {t("Forgot your password?")}
                 </Link>
@@ -101,7 +107,7 @@ export function LoginForm() {
             <Button type="submit" className="w-full" disabled={pending}>
               {t("Sign in")}
             </Button>
-            <p className="text-muted-foreground text-center text-sm">
+            <p className="text-center text-sm text-muted-foreground">
               {t("No account yet?")}{" "}
               <Link
                 href="/signup"

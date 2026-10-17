@@ -10,6 +10,7 @@ export {
   type SigningKeys,
   type SigningKeysOptions,
 } from "./signing-keys.ts";
+
 export {
   type Jwk,
   type Jwks,
@@ -22,10 +23,15 @@ export {
   verifyCompact,
   type VerifyCompactOptions,
 } from "../../core/jws.ts";
+
 export { sqlTransport } from "../../core/block-transport.ts";
+
 export type { BlockTransport } from "../../core/block-transport.ts";
+
 export { signingKeysBlock } from "./manifest.ts";
+
 export { signingKeysEvents } from "./events.ts";
+
 export type {
   SigningKeyCreatedEventData,
   SigningKeyEventData,

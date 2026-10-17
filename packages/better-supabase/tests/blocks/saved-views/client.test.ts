@@ -31,10 +31,13 @@ function setup(
   options: { openDefault?: boolean } = {},
 ) {
   let urlState = url;
+
   const setUrlState = vi.fn((next: Record<string, unknown>) => {
     urlState = next;
   });
+
   const onApplyState = vi.fn();
+
   const calls = {
     load: vi.fn(async () => views),
     save: vi.fn(async () => undefined),
@@ -42,6 +45,7 @@ function setup(
     duplicate: vi.fn(async () => undefined),
     setPreference: vi.fn(async () => undefined),
   };
+
   const controller = createSavedViewsController({
     ...calls,
     urlState: () => urlState,
@@ -50,15 +54,18 @@ function setup(
     onApplyState,
     ...options,
   });
+
   return { controller, calls, setUrlState, onApplyState, url: () => urlState };
 }
 
 describe("createSavedViewsController", () => {
   it("opens the default view for an empty URL and matches the URL against views", async () => {
     const open = view("open", undefined, { isDefault: true });
+
     const { controller, setUrlState, onApplyState } = setup([open], {
       q: null,
     });
+
     const mounted = mount(controller);
     await flush();
     expect(controller.getSnapshot().opened).toBe(open);
@@ -69,6 +76,7 @@ describe("createSavedViewsController", () => {
       { columns: { visible: ["name"] } },
       open,
     );
+
     const match = matchSavedViews(
       controller.getSnapshot(),
       {},
@@ -76,6 +84,7 @@ describe("createSavedViewsController", () => {
         columns: { visible: ["name"] },
       },
     );
+
     expect(match).toMatchObject({ active: open, isDirty: false });
     expect(
       matchSavedViews(
@@ -129,6 +138,7 @@ describe("createSavedViewsController", () => {
       urlState: () => ({}),
       setUrlState: () => undefined,
     });
+
     const { view: current, unmount } = mount(controller);
     await flush();
     expect(current().error).toEqual(new Error("offline"));
@@ -144,6 +154,7 @@ describe("createSavedViewsController", () => {
 
   it("drops a first load that finishes after it stopped", async () => {
     let finish = (_views: readonly SavedViewLike[]): void => undefined;
+
     const controller = createSavedViewsController({
       load: () =>
         new Promise<readonly SavedViewLike[]>((resolve) => {
@@ -152,12 +163,14 @@ describe("createSavedViewsController", () => {
       urlState: () => ({}),
       setUrlState: () => undefined,
     });
+
     mount(controller).unmount();
     finish([view("late", undefined)]);
     await flush();
     expect(controller.getSnapshot().views).toBeUndefined();
 
     let fail = (_cause: Error): void => undefined;
+
     const failing = createSavedViewsController({
       load: () =>
         new Promise<readonly SavedViewLike[]>((_resolve, reject) => {
@@ -166,6 +179,7 @@ describe("createSavedViewsController", () => {
       urlState: () => ({}),
       setUrlState: () => undefined,
     });
+
     mount(failing).unmount();
     fail(new Error("late"));
     await flush();

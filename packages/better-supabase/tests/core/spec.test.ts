@@ -18,6 +18,7 @@ describe("QuerySpec", () => {
       where: { status: "active" },
       limit: 5,
     });
+
     expect(spec).toEqual({
       v: 1,
       table: "customers",
@@ -37,16 +38,21 @@ describe("QuerySpec", () => {
     const { client, requests } = capturingClient(() => ({
       body: [{ id: "c1", name: "Acme" }],
     }));
+
     const db = betterSupabase.connect(client);
+
     const spec = betterSupabase.spec.customers.findById("c1", {
       select: ["id", "name"],
     });
+
     const viaSpec = await db.$run(
       JSON.parse(JSON.stringify(spec)) as typeof spec,
     );
+
     const direct = await db.customers.findById("c1", {
       select: ["id", "name"],
     });
+
     expect(viaSpec).toEqual(direct);
     expect(query(requests[0]!)).toEqual(query(requests[1]!));
   });
@@ -55,23 +61,27 @@ describe("QuerySpec", () => {
     const controller = new AbortController();
     controller.abort();
     const { client } = capturingClient();
+
     const result = await betterSupabase
       .connect(client)
       .$run(betterSupabase.spec.customers.count(), {
         signal: controller.signal,
       });
+
     expect(result.ok).toBe(false);
   });
 
   it("rejects values that are not specs", async () => {
     const { client } = capturingClient();
     const db = betterSupabase.connect(client);
+
     const result = await db.$run({
       v: 1,
       table: "customers",
       method: "delete",
       args: [],
     } as never);
+
     expect(result.error?.kind).toBe("invalid_request");
   });
 });
@@ -83,6 +93,7 @@ describe("touched tables", () => {
       include: { notes: { select: ["id"] } },
       where: { organization: { is: { slug: "acme" } } },
     });
+
     expect(betterSupabase.tablesOf(spec).sort()).toEqual(
       ["customers", "notes", "organizations"].sort(),
     );
@@ -133,6 +144,7 @@ describe("defineRpc", () => {
     const withRpc = betterSupabase.defineRpc("archive_customer" as never, {
       invalidates: ["customers"],
     });
+
     const cache = memoryCache();
     withRpc.cache(cache);
     await (

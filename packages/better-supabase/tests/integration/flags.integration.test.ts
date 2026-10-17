@@ -25,8 +25,10 @@ describe.skipIf(!live)("flags", () => {
 
   it("buckets like the TypeScript provider", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["flags"]);
+
       for (const [key, target, bucket] of BUCKET_VECTORS) {
         expect(
           await s.value<number>("better_supabase.flag_bucket($1, $2)", [
@@ -43,6 +45,7 @@ describe.skipIf(!live)("flags", () => {
   it("serves a service-role server through the API schema wrappers", async () => {
     const s = await BlockSession.open(pool);
     const api = `bs_api_${crypto.randomUUID().slice(0, 8)}`;
+
     try {
       await s.install(["flags", "announcements"], {
         modules: { flags: { api }, announcements: { api } },
@@ -54,6 +57,7 @@ describe.skipIf(!live)("flags", () => {
       await s.client.query("set local role service_role");
       const sql = sqlTransport(s.sql);
       const calls: string[] = [];
+
       const transport = {
         call: (
           _schema: string,
@@ -61,15 +65,19 @@ describe.skipIf(!live)("flags", () => {
           args: Readonly<Record<string, unknown>>,
         ) => {
           calls.push(fn);
+
           return sql.call(api, fn, args);
         },
       };
+
       const provider = createFlagsProvider({ transport });
+
       const resolved = await provider.resolveBooleanEvaluation(
         "beta",
         true,
         {},
       );
+
       expect(resolved.errorCode).toBeUndefined();
       const announcements = createAnnouncements({ transport });
       expect((await announcements.list()).ok).toBe(true);
@@ -82,6 +90,7 @@ describe.skipIf(!live)("flags", () => {
   it("lets platform staff manage flags through the API schema", async () => {
     const s = await BlockSession.open(pool);
     const api = `bs_api_${crypto.randomUUID().slice(0, 8)}`;
+
     try {
       await s.install(["organizations", "flags"], {
         modules: { flags: { api } },
@@ -90,11 +99,13 @@ describe.skipIf(!live)("flags", () => {
       const staff = await s.user("staff");
       const organization = await s.organization(owner);
       const sql = sqlTransport(s.sql);
+
       const admin = createFlags({
         transport: {
           call: (_schema, fn, args) => sql.call(api, fn, args),
         },
       });
+
       await s.asRole(staff, { platform_permissions: ["flags.manage"] });
       expect(
         await admin
@@ -122,9 +133,11 @@ describe.skipIf(!live)("flags", () => {
           .override("new_editor", { userId: owner.id }, "on")
           .orThrow(),
       ).toBe(true);
+
       const flag = (await admin.list().orThrow()).find(
         (entry) => entry.key === "new_editor",
       );
+
       expect(flag!.overrides).toHaveLength(2);
       expect(
         await admin
@@ -154,6 +167,7 @@ describe.skipIf(!live)("flags", () => {
 
   it("evaluates rules, overrides and rollouts as evaluateFlag() does", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "flags"]);
       await s.clear(["better_supabase.flags"]);
@@ -181,6 +195,7 @@ describe.skipIf(!live)("flags", () => {
       );
 
       const provider = createFlagsProvider({ transport: sqlTransport(s.sql) });
+
       const definitions = new Map(
         (
           await s.value<readonly { key: string }[]>(
@@ -188,6 +203,7 @@ describe.skipIf(!live)("flags", () => {
           )
         ).map((row) => [row.key, row]),
       );
+
       expect([...definitions.keys()]).toEqual([
         "dark_mode",
         "new_editor",
@@ -203,11 +219,13 @@ describe.skipIf(!live)("flags", () => {
         ["dark_mode", other, outsider.id],
         ["theme", organization, owner.id],
       ];
+
       for (const [key, tenant, user] of cases) {
         const sql = await s.value<Record<string, unknown>>(
           "better_supabase.flag_evaluation($1, $2, $3)",
           [key, tenant, user],
         );
+
         const role =
           user === owner.id
             ? "owner"
@@ -216,17 +234,21 @@ describe.skipIf(!live)("flags", () => {
               : user === outsider.id
                 ? "owner"
                 : undefined;
+
         const context: FlagContext = {
           targetingKey: user,
           ...(tenant !== null && { tenant }),
           ...(role !== undefined && { role }),
         };
+
         const typed =
           key === "theme"
             ? await provider.resolveStringEvaluation(key, "", context)
             : await provider.resolveBooleanEvaluation(key, false, context);
+
         expect({ key, user, ...typed }).toEqual({ key, user, ...sql });
       }
+
       expect(
         await s.value("better_supabase.flag_evaluation('missing', null, null)"),
       ).toBeNull();

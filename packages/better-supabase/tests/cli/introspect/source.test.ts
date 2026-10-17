@@ -12,31 +12,42 @@ describe("pgSource", () => {
   it("runs concurrent queries one at a time and keeps going after a failure", async () => {
     const events: string[] = [];
     const pending = new Map<string, () => void>();
+
     const client: PgQueryable = {
       query: <R>(text: string) => {
         events.push(`start ${text}`);
+
         return new Promise<{ rows: R[] }>((done, fail) => {
           pending.set(text, () => {
             events.push(`end ${text}`);
-            if (text === "bad") fail(new Error("syntax error"));
-            else done({ rows: [{ text }] as R[] });
+
+            if (text === "bad") {
+              fail(new Error("syntax error"));
+            } else {
+              done({ rows: [{ text }] as R[] });
+            }
           });
         });
       },
     };
+
     let closed = 0;
     const urls: string[] = [];
+
     const source = await pgSource("postgresql://u:p@db/x", (url) => {
       urls.push(url);
+
       return Promise.resolve({
         client,
         close: () => {
           closed += 1;
+
           return Promise.resolve();
         },
         describe: "postgresql://u:***@db/x",
       });
     });
+
     expect(urls).toEqual(["postgresql://u:p@db/x"]);
     expect(source.describe).toBe("postgresql://u:***@db/x");
 
@@ -61,12 +72,15 @@ describe("pgSource", () => {
     const client: PgQueryable = {
       query: <R>() => Promise.resolve({ rows: [] as R[] }),
     };
+
     const signal = new AbortController().signal;
     const requested: unknown[] = [];
+
     const source = await pgSource(
       "postgresql://db/x",
       (_url, _load, options) => {
         requested.push(options);
+
         return Promise.resolve({
           client,
           pooled: true,
@@ -76,6 +90,7 @@ describe("pgSource", () => {
       },
       signal,
     );
+
     expect(requested).toEqual([{ pool: 4, statementTimeout: 120_000, signal }]);
     expect(source.queryable).toBe(client);
   });
@@ -84,12 +99,14 @@ describe("pgSource", () => {
 describe("managementSource", () => {
   it("uses a custom API URL and closes without a connection", async () => {
     const api = fakeFetch(() => ({ body: [] }));
+
     const source = managementSource({
       projectRef: "a/b",
       accessToken: "t",
       apiUrl: "http://localhost:9000/",
       fetch: api.fetch,
     });
+
     expect(source.describe).toBe("project a/b (Management API)");
     expect(await source.queryable.query("select 1")).toEqual({ rows: [] });
     expect(api.calls[0]!.url).toBe(
@@ -101,15 +118,18 @@ describe("managementSource", () => {
   it("passes the abort signal to fetch", async () => {
     const signals: unknown[] = [];
     const signal = new AbortController().signal;
+
     const source = managementSource({
       projectRef: "abc",
       accessToken: "t",
       fetch: async (_input, init) => {
         signals.push(init?.signal);
+
         return Response.json([]);
       },
       signal,
     });
+
     await source.queryable.query("select 1");
     expect(signals).toEqual([signal]);
   });
@@ -120,6 +140,7 @@ describe("managementSource", () => {
       accessToken: "t",
       fetch: fakeFetch(() => ({ body: { message: "ok" } })).fetch,
     });
+
     await expect(source.queryable.query("select 1")).rejects.toThrow(
       "Management API returned an unexpected body for project abc.",
     );

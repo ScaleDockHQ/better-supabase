@@ -3,12 +3,13 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const repo = join(import.meta.dirname, "../../..");
+
 const [workspace, manifest, page] = await Promise.all([
-  readFile(join(repo, "pnpm-workspace.yaml"), "utf8"),
-  readFile(join(repo, "packages/better-supabase/package.json"), "utf8"),
+  readFile(join(repo, "pnpm-workspace.yaml"), "utf-8"),
+  readFile(join(repo, "packages/better-supabase/package.json"), "utf-8"),
   readFile(
     join(repo, "apps/docs/content/docs/getting-started/peers.mdx"),
-    "utf8",
+    "utf-8",
   ),
 ]);
 
@@ -17,11 +18,19 @@ function peersCatalog(): Map<string, string> {
   const start = workspace.indexOf("\n  peers:\n");
   const lines = workspace.slice(start + "\n  peers:\n".length).split("\n");
   const ranges = new Map<string, string>();
+
   for (const line of lines) {
-    if (!line.startsWith("    ")) break;
+    if (!line.startsWith("    ")) {
+      break;
+    }
+
     const match = /^\s+"?([^"#:\s][^":]*)"?:\s*"?([^"]+?)"?\s*$/.exec(line);
-    if (match) ranges.set(match[1]!, match[2]!);
+
+    if (match) {
+      ranges.set(match[1]!, match[2]!);
+    }
   }
+
   return ranges;
 }
 

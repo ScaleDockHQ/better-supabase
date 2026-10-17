@@ -12,9 +12,11 @@ const CUSTOMER_COLUMNS = [
   "billingEmail",
   "website",
 ] as const;
+
 const CONTACT_COLUMNS = ["id", "jobTitle", "isPrimary"] as const;
 const PROFILE_COLUMNS = ["id", "firstName", "lastName", "displayName"] as const;
 const METHOD_COLUMNS = ["id", "type", "value", "isPrimary"] as const;
+
 const LOCATION_COLUMNS = [
   "id",
   "name",

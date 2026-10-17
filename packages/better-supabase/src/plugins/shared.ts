@@ -33,7 +33,10 @@ export function withDefault(
   column: string | undefined,
   value: unknown,
 ): Row {
-  if (column === undefined || column in row) return row;
+  if (column === undefined || column in row) {
+    return row;
+  }
+
   return { ...row, [column]: value };
 }
 
@@ -48,11 +51,18 @@ export function guardManaged(
   plugin: string,
   options: CallOptions,
 ): boolean {
-  if (options["override"] === true) return true;
+  if (options["override"] === true) {
+    return true;
+  }
+
   const rows =
     op.kind === "insert" ? op.rows : op.kind === "update" ? [op.set] : [];
+
   for (const column of columns) {
-    if (column === undefined) continue;
+    if (column === undefined) {
+      continue;
+    }
+
     if (rows.some((row) => column in row)) {
       throw new DbException(
         dbError(
@@ -63,6 +73,7 @@ export function guardManaged(
       );
     }
   }
+
   return false;
 }
 

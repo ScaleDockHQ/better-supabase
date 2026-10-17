@@ -11,6 +11,7 @@ const body = (modules: AnyBlocksConfig = {}) =>
 describe("agents module", () => {
   it("owns agents, installs, ratings and skills", () => {
     const sql = body();
+
     for (const table of [
       "agents",
       "agent_installs",
@@ -21,6 +22,7 @@ describe("agents module", () => {
         `create table if not exists "better_supabase"."${table}" (`,
       );
     }
+
     expect(sql).toContain("'^[a-z0-9]+(-[a-z0-9]+)*$'");
   });
 
@@ -34,6 +36,7 @@ describe("agents module", () => {
 
   it("defines the store functions", () => {
     const sql = body();
+
     for (const name of [
       "save_agent",
       "publish_agent",

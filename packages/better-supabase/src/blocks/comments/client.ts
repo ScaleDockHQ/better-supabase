@@ -66,31 +66,43 @@ export function createCommentsController(
 ): CommentsController {
   const { client, organizationId, subjectType, subjectId } = options;
   const topic = options.topic ?? null;
+
   return defineController<CommentsSnapshot, CommentsActions>(
     { comments: undefined, status: "closed", error: undefined },
     (state) => {
       let ticket = 0;
+
       const refresh = async (): Promise<void> => {
-        if (organizationId === null) return;
+        if (organizationId === null) {
+          return;
+        }
+
         const request = ++ticket;
+
         const result = await client.list(
           organizationId,
           subjectType,
           subjectId,
           options.limit === undefined ? {} : { limit: options.limit },
         );
-        if (request !== ticket) return;
+
+        if (request !== ticket) {
+          return;
+        }
+
         state.set(
           result.ok
             ? { comments: result.data, error: undefined }
             : { error: result.error },
         );
       };
+
       const replace = (comment: Comment): void => {
         // A load that started before the write would answer without it.
         ticket += 1;
         state.set((current) => {
           const comments = current.comments ?? [];
+
           return {
             error: undefined,
             comments: comments.some((each) => each.id === comment.id)
@@ -101,12 +113,15 @@ export function createCommentsController(
           };
         });
       };
+
       return {
         actions: {
           refresh,
           add: async (body, draft = {}) => {
-            if (organizationId === null)
+            if (organizationId === null) {
               return err(dbError("invalid_input", "No organization is active"));
+            }
+
             const result = await client.create({
               ...draft,
               organizationId,
@@ -114,20 +129,35 @@ export function createCommentsController(
               subjectId,
               body,
             });
-            if (result.ok) replace(result.data);
-            else state.set({ error: result.error });
+
+            if (result.ok) {
+              replace(result.data);
+            } else {
+              state.set({ error: result.error });
+            }
+
             return result;
           },
           edit: async (id, edit) => {
             const result = await client.edit(id, edit);
-            if (result.ok) replace(result.data);
-            else state.set({ error: result.error });
+
+            if (result.ok) {
+              replace(result.data);
+            } else {
+              state.set({ error: result.error });
+            }
+
             return result;
           },
           remove: async (id) => {
             const result = await client.remove(id);
-            if (result.ok) await refresh();
-            else state.set({ error: result.error });
+
+            if (result.ok) {
+              await refresh();
+            } else {
+              state.set({ error: result.error });
+            }
+
             return result;
           },
         },
@@ -136,7 +166,11 @@ export function createCommentsController(
             ? undefined
             : whileSignedIn(options.auth, () => {
                 void refresh();
-                if (topic === null) return;
+
+                if (topic === null) {
+                  return;
+                }
+
                 const { leave } = options.ports.topic(topic, {
                   onMessage: () => void refresh(),
                   onRejoin: () => void refresh(),
@@ -144,6 +178,7 @@ export function createCommentsController(
                     state.set({ status });
                   },
                 });
+
                 return leave;
               }),
       };

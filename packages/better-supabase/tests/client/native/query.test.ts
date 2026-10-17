@@ -11,18 +11,23 @@ import { syncQueryWithApp } from "../../../src/client/native/query.ts";
 
 function fakeAppState(currentState: string) {
   const listeners = new Set<(state: string) => void>();
+
   const appState: AppStateLike = {
     currentState,
     addEventListener: (_type, listener) => {
       listeners.add(listener);
+
       return { remove: () => listeners.delete(listener) };
     },
   };
+
   return {
     appState,
     listeners,
     change: (state: string) => {
-      for (const listener of listeners) listener(state);
+      for (const listener of listeners) {
+        listener(state);
+      }
     },
   };
 }
@@ -30,6 +35,7 @@ function fakeAppState(currentState: string) {
 function fakeManager<V>() {
   const values: V[] = [];
   let cleanup: (() => void) | undefined;
+
   const manager = {
     setEventListener(
       setup: (set: (value: V) => void) => (() => void) | undefined,
@@ -38,6 +44,7 @@ function fakeManager<V>() {
       cleanup = setup((value) => values.push(value));
     },
   };
+
   return { manager, values };
 }
 
@@ -45,10 +52,12 @@ describe("syncQueryWithApp", () => {
   it("reports focus from the app state and stops on cleanup", () => {
     const app = fakeAppState("background");
     const focus = fakeManager<boolean | undefined>();
+
     const stop = syncQueryWithApp({
       focusManager: focus.manager satisfies FocusManagerLike,
       appState: app.appState,
     });
+
     app.change("active");
     app.change("inactive");
     expect(focus.values).toEqual([false, true, false]);
@@ -60,25 +69,32 @@ describe("syncQueryWithApp", () => {
     const app = fakeAppState("active");
     const focus = fakeManager<boolean | undefined>();
     const online = fakeManager<boolean>();
+
     type State = Parameters<Parameters<NetInfoLike["addEventListener"]>[0]>[0];
+
     const listeners = new Set<(state: State) => void>();
+
     const netInfo: NetInfoLike = {
       addEventListener: (listener) => {
         listeners.add(listener);
+
         return () => listeners.delete(listener);
       },
     };
+
     const stop = syncQueryWithApp({
       focusManager: focus.manager,
       onlineManager: online.manager satisfies OnlineManagerLike,
       appState: app.appState,
       netInfo,
     });
+
     for (const listener of listeners) {
       listener({ isConnected: true, isInternetReachable: true });
       listener({ isConnected: true, isInternetReachable: false });
       listener({ isConnected: null });
     }
+
     expect(online.values).toEqual([true, false, false]);
     stop();
     expect(listeners.size).toBe(0);
@@ -87,6 +103,7 @@ describe("syncQueryWithApp", () => {
   it("refreshes the session only in the foreground", () => {
     const app = fakeAppState("active");
     const calls: string[] = [];
+
     const stop = syncQueryWithApp({
       focusManager: fakeManager<boolean | undefined>().manager,
       appState: app.appState,
@@ -94,15 +111,18 @@ describe("syncQueryWithApp", () => {
         auth: {
           startAutoRefresh: () => {
             calls.push("start");
+
             return Promise.resolve();
           },
           stopAutoRefresh: () => {
             calls.push("stop");
+
             return Promise.resolve();
           },
         },
       },
     });
+
     app.change("background");
     expect(calls).toEqual(["start", "stop"]);
     stop();

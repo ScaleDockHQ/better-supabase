@@ -47,6 +47,7 @@ export function testBlockTransportMiddleware(
               typeof request.schema === "string",
             "next got a request without a schema and function",
           );
+
           return Promise.resolve([{ id: "organization_1" }]);
         });
         expect(calls <= 1, `next was called ${String(calls)} times`);
@@ -59,7 +60,9 @@ export function testBlockTransportMiddleware(
           code: "42501",
           hint: "ORGANIZATION_FORBIDDEN",
         });
+
         let rejected: unknown;
+
         try {
           await middleware.call(frozenCopy(REQUEST), () =>
             Promise.reject(denied),
@@ -67,6 +70,7 @@ export function testBlockTransportMiddleware(
         } catch (cause) {
           rejected = cause;
         }
+
         expect(rejected !== undefined, "resolved although next rejected");
         const raw = rawError(rejected);
         expect(

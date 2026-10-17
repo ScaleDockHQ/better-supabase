@@ -30,7 +30,7 @@ import { CreateOrganizationDialog } from "./create-organization-dialog";
 
 function Mark({ name }: { name: string }) {
   return (
-    <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg text-sm font-semibold">
+    <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sm font-semibold text-sidebar-primary-foreground">
       {name.slice(0, 1).toUpperCase()}
     </div>
   );
@@ -38,7 +38,11 @@ function Mark({ name }: { name: string }) {
 
 async function loadOrganizations(): Promise<readonly OrganizationSummary[]> {
   const result = await loadMyOrganizations({});
-  if (!result.ok) throw new DbException(result.error);
+
+  if (!result.ok) {
+    throw new DbException(result.error);
+  }
+
   return result.data;
 }
 
@@ -60,6 +64,7 @@ export function OrganizationSwitcherMenu({
   const refreshSession = useRefreshSession();
   const [pending, startTransition] = useTransition();
   const [creating, setCreating] = useState(false);
+
   const { organizations, active, activeId, switchTo } = useOrganizations({
     load: loadOrganizations,
     initial,
@@ -71,10 +76,13 @@ export function OrganizationSwitcherMenu({
   const choose = (organization: OrganizationSummary) => {
     startTransition(async () => {
       const result = await switchTo(organization.id);
+
       if (!result.ok) {
         toast.error(errorMessage(result.error));
+
         return;
       }
+
       toast.success(t("Switched to {name}", { name: organization.name }));
     });
   };
@@ -100,7 +108,7 @@ export function OrganizationSwitcherMenu({
             >
               {active?.name ?? t("No organization")}
             </span>
-            <span className="text-muted-foreground truncate text-xs capitalize">
+            <span className="truncate text-xs text-muted-foreground capitalize">
               {active ? active.plan : t("Create one to start")}
             </span>
           </div>
@@ -114,13 +122,15 @@ export function OrganizationSwitcherMenu({
                 key={organization.id}
                 className="gap-2"
                 onClick={() => {
-                  if (organization.id !== activeId) choose(organization);
+                  if (organization.id !== activeId) {
+                    choose(organization);
+                  }
                 }}
               >
                 <Mark name={organization.name} />
                 <div className="grid flex-1 leading-tight">
                   <span className="truncate">{organization.name}</span>
-                  <span className="text-muted-foreground text-xs">
+                  <span className="text-xs text-muted-foreground">
                     {roleLabel(organization.role)}
                   </span>
                 </div>

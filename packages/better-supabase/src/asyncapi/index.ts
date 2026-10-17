@@ -11,7 +11,9 @@ import { type DefineApiOptions, defineApi } from "../spec/api.ts";
 import { asyncapiFormat } from "./format.ts";
 
 export { asyncapiFormat } from "./format.ts";
+
 export { CLOUD_EVENT_TRAIT } from "../spec/events.ts";
+
 export type {
   BlockEventSchema,
   BlockEventSchemas,
@@ -19,6 +21,7 @@ export type {
   EventsOptions,
   TopicInput,
 } from "../spec/events.ts";
+
 export type {
   AnyAsyncApiDocument,
   AsyncApi30Document,
@@ -30,6 +33,7 @@ export type {
   AsyncApiVersion,
   RenderedAsyncApi,
 } from "./types.ts";
+
 export { ASYNCAPI_FILE_NAME } from "./types.ts";
 
 export interface AsyncApiOptions<
@@ -69,6 +73,7 @@ export function createAsyncApi<V extends AsyncApiVersion = "3.0", Ref = string>(
 ): AsyncApiDocuments[V] {
   const { version, transform, overlays, onDiagnostic, ...apiOptions } = options;
   const api = defineApi(betterSupabase, apiOptions);
+
   const result = api.render(asyncapiFormat, {
     ...(version === undefined ? {} : { version }),
     ...(transform === undefined
@@ -83,10 +88,12 @@ export function createAsyncApi<V extends AsyncApiVersion = "3.0", Ref = string>(
         }),
     ...(overlays === undefined ? {} : { overlays }),
   });
+
   const errors = result.diagnostics.filter(
     (diagnostic) => diagnostic.severity === "error",
   );
-  if (errors.length > 0)
+
+  if (errors.length > 0) {
     throw new TypeError(
       `createAsyncApi: ${errors
         .map(
@@ -95,8 +102,14 @@ export function createAsyncApi<V extends AsyncApiVersion = "3.0", Ref = string>(
         )
         .join("; ")}`,
     );
-  if (onDiagnostic)
-    for (const diagnostic of result.diagnostics) onDiagnostic(diagnostic);
+  }
+
+  if (onDiagnostic) {
+    for (const diagnostic of result.diagnostics) {
+      onDiagnostic(diagnostic);
+    }
+  }
+
   // SAFETY: asyncapiFormat.lower(model, V) returns AsyncApiDocuments[V];
   // the two versions differ only in the `asyncapi` field.
   return result.document as AsyncApiDocuments[V];

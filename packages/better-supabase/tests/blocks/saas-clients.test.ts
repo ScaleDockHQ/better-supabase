@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { createCustomFields } from "../../src/blocks/custom-fields/index.ts";
-import { createImports } from "../../src/blocks/imports/index.ts";
-import { suggestMapping } from "../../src/blocks/imports/index.ts";
+import {
+  createImports,
+  suggestMapping,
+} from "../../src/blocks/imports/index.ts";
 import { createNumberSequences } from "../../src/blocks/number-sequences/index.ts";
 import { createReminders } from "../../src/blocks/reminders/index.ts";
 import { createShareLinks } from "../../src/blocks/share-links/index.ts";
@@ -15,6 +17,7 @@ function fakeTransport(results: Record<string, unknown>) {
     call(schema: string, fn: string) {
       expect(schema).toBe("app");
       const result = results[fn];
+
       return result instanceof Error
         ? Promise.reject(result)
         : Promise.resolve(result);
@@ -40,6 +43,7 @@ describe("saas block clients", () => {
         list_teams: [{ id: "t1", name: "Ops", slug: "ops" }],
       }),
     );
+
     expect((await teams.create("org", "Ops", "desk").orThrow()).slug).toBe(
       "ops",
     );
@@ -81,6 +85,7 @@ describe("saas block clients", () => {
         mark_reminder_sent: true,
       }),
     );
+
     expect((await reminders.save("org", "invoices", "i1").orThrow()).id).toBe(
       "r1",
     );
@@ -92,16 +97,19 @@ describe("saas block clients", () => {
   it("delivers a reminder once and notifies on the first delivery", async () => {
     const notified: unknown[] = [];
     let first = true;
+
     const reminders = createReminders({
       transport: {
         call: () => {
           const sent = first;
           first = false;
+
           return Promise.resolve(sent);
         },
       },
       notifyDelivery: (delivery) => void notified.push(delivery),
     });
+
     const payload = {
       reminderId: "r1",
       occurrenceAt: "2026-01-01T00:00:00Z",
@@ -109,6 +117,7 @@ describe("saas block clients", () => {
       subjectType: "task",
       subjectId: "42",
     };
+
     await reminders.job(
       payload,
       undefined as never,
@@ -131,11 +140,13 @@ describe("saas block clients", () => {
         error: { kind: "forbidden", message: "no", status: 403 },
       }),
     });
+
     const result = await reminders.deliver({
       reminderId: "r1",
       occurrenceAt: "2026-01-01T00:00:00Z",
       organizationId: "org",
     });
+
     expect(result.ok).toBe(false);
   });
 
@@ -169,6 +180,7 @@ describe("saas block clients", () => {
         subject_tags: null,
       }),
     );
+
     expect(
       (await tags.create("org", "deal", "Gold", "#fff", "hot").orThrow()).id,
     ).toBe("g1");
@@ -209,6 +221,7 @@ describe("saas block clients", () => {
         set_user_state: true,
       }),
     );
+
     expect(
       (await links.create("org", "files", "f1", "edit").orThrow()).token,
     ).toBe("once");
@@ -236,15 +249,18 @@ describe("saas block clients", () => {
 
   it("sends a share link's expiry", async () => {
     const calls: unknown[] = [];
+
     const links = createShareLinks({
       schema: "app",
       transport: {
         call(_schema: string, _fn: string, args?: unknown) {
           calls.push(args);
+
           return Promise.resolve({ id: "s1", token: "once" });
         },
       },
     });
+
     await links
       .create("org", "files", "f1", {
         expiresAt: Temporal.Instant.from("2026-11-01T00:00:00Z"),
@@ -266,6 +282,7 @@ describe("saas block clients", () => {
         set_field_value: { id: "v1" },
       }),
     );
+
     expect(
       (
         await fields
@@ -285,12 +302,15 @@ describe("saas block clients", () => {
 
   it("reorders tags and field definitions with a key between the neighbours", async () => {
     const calls: { fn: string; args: unknown }[] = [];
+
     const transport = {
       call(_schema: string, fn: string, args: unknown) {
         calls.push({ fn, args });
+
         return Promise.resolve(true);
       },
     };
+
     const tags = createTags({ transport });
     expect(
       await tags.reorder("g1", { previous: "V", next: "W" }).orThrow(),
@@ -316,6 +336,7 @@ describe("saas block clients", () => {
     const tags = createTags(
       options({ create_tag: { id: "g1", slug: "gold", rank: "V" } }),
     );
+
     expect((await tags.create("org", "deal", "Gold").orThrow()).rank).toBe("V");
   });
 });

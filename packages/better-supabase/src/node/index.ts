@@ -19,9 +19,13 @@ import {
 } from "./http.ts";
 
 export { applyWebHeaders, toWebHeaders } from "../bridges/node-headers.ts";
+
 export type { NodeHeaderTarget } from "../bridges/node-headers.ts";
+
 export { sendWebResponse, toWebRequest } from "./http.ts";
+
 export type { WebRequestOptions } from "./http.ts";
+
 export type { RouteGuardOptions } from "../server/refusal.ts";
 
 export interface ToNodeOptions<Req = IncomingMessage> extends Omit<
@@ -47,8 +51,10 @@ export function toNodeHandler<const Entries extends readonly AnyEntry[]>(
   options: ToNodeOptions = {},
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   const run = around(entries);
+
   return async (req, res) => {
     const request = toWebRequest(req, options);
+
     const response = await run(
       request,
       options.env?.(req),
@@ -58,6 +64,7 @@ export function toNodeHandler<const Entries extends readonly AnyEntry[]>(
           await handler(request, contributions as Contributions<Entries>),
         ),
     );
+
     await sendWebResponse(res, response);
   };
 }
@@ -68,13 +75,18 @@ async function continueWith(
   next: (error?: unknown) => void,
 ): Promise<void> {
   let proceed: boolean;
+
   try {
     proceed = await step;
   } catch (error) {
     next(error);
+
     return;
   }
-  if (proceed) next();
+
+  if (proceed) {
+    next();
+  }
 }
 
 /** The part of an Express response the middleware writes. */
@@ -112,6 +124,7 @@ export function toExpress<const Entries extends readonly AnyEntry[]>(
   options: ToNodeOptions = {},
 ): ExpressMiddleware {
   const run = beforeRoute(entries);
+
   const handle = async (
     req: IncomingMessage,
     res: ExpressResponse,
@@ -120,14 +133,19 @@ export function toExpress<const Entries extends readonly AnyEntry[]>(
       toWebRequest(req, { ...options, body: false }),
       options.env?.(req),
     );
+
     if (!outcome.reached) {
       await sendWebResponse(res, outcome.response);
+
       return false;
     }
+
     applyWebHeaders(res, outcome.headers);
     Object.assign(res.locals, outcome.contributions);
+
     return true;
   };
+
   return (req, res, next) => {
     void continueWith(handle(req, res), next);
   };
@@ -151,10 +169,16 @@ export function guard(options: RouteGuardOptions = {}): ExpressMiddleware {
       toWebRequest(req, { body: false }),
       options,
     );
-    if (!refused) return true;
+
+    if (!refused) {
+      return true;
+    }
+
     await sendWebResponse(res, refused);
+
     return false;
   };
+
   return (req, res, next) => {
     void continueWith(handle(req, res), next);
   };
@@ -174,10 +198,13 @@ export function problemErrorHandler(
       toWebRequest(req, { body: false }),
       options,
     );
+
     if (!response || res.headersSent) {
       next(error);
+
       return;
     }
+
     void continueWith(
       sendWebResponse(res, response).then(() => false),
       next,
@@ -226,9 +253,11 @@ async function sendReply(
 ): Promise<void> {
   applyWebHeaders(replyHeaders(reply), response.headers);
   reply.code(response.status);
+
   const body = response.body
     ? new Uint8Array(await response.arrayBuffer())
     : undefined;
+
   reply.send(body);
 }
 
@@ -247,13 +276,17 @@ export function toFastify<const Entries extends readonly AnyEntry[]>(
   options: ToNodeOptions<FastifyRequestLike> = {},
 ): FastifyHook {
   const run = beforeRoute(entries);
+
   return async (request, reply) => {
     const web = toWebRequest(request.raw, { ...options, body: false });
     const outcome = await run(web, options.env?.(request));
+
     if (!outcome.reached) {
       await sendReply(reply, outcome.response);
+
       return;
     }
+
     applyWebHeaders(replyHeaders(reply), outcome.headers);
     request.locals = { ...request.locals, ...outcome.contributions };
   };
@@ -270,7 +303,10 @@ export function fastifyGuard(options: RouteGuardOptions = {}): FastifyHook {
       toWebRequest(request.raw, { body: false }),
       options,
     );
-    if (refused) await sendReply(reply, refused);
+
+    if (refused) {
+      await sendReply(reply, refused);
+    }
   };
 }
 
@@ -299,6 +335,7 @@ function koaHeaders(ctx: KoaContextLike): {
   return {
     getHeader: (name) => {
       const value = ctx.response.get(name);
+
       return value === "" ? undefined : value;
     },
     setHeader: (name, value) => {
@@ -327,20 +364,29 @@ export function toKoa<const Entries extends readonly AnyEntry[]>(
   options: ToNodeOptions<KoaContextLike> & { readonly expose?: boolean } = {},
 ): KoaMiddleware {
   const run = beforeRoute(entries);
+
   return async (ctx, next) => {
     const web = toWebRequest(ctx.req, { ...options, body: false });
     const outcome = await run(web, options.env?.(ctx));
+
     if (!outcome.reached) {
       await sendKoa(ctx, outcome.response);
+
       return;
     }
+
     applyWebHeaders(koaHeaders(ctx), outcome.headers);
     Object.assign(ctx.state, outcome.contributions);
+
     try {
       await next();
     } catch (error) {
       const response = errorResponse(error, web, options);
-      if (!response) throw error;
+
+      if (!response) {
+        throw error;
+      }
+
       await sendKoa(ctx, response);
     }
   };
@@ -354,10 +400,13 @@ export function koaGuard(options: RouteGuardOptions = {}): KoaMiddleware {
       toWebRequest(ctx.req, { body: false }),
       options,
     );
+
     if (refused) {
       await sendKoa(ctx, refused);
+
       return;
     }
+
     await next();
   };
 }

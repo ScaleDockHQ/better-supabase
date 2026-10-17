@@ -12,14 +12,17 @@ const snapshot = await parseSnapshot(fixture);
 describe("managementSource", () => {
   it("posts SQL to the read-only endpoint and returns the rows", async () => {
     const calls: { url: string; init: RequestInit }[] = [];
+
     const source = managementSource({
       projectRef: "abc",
       accessToken: "sbp_token",
       fetch: (async (url: string, init: RequestInit) => {
         calls.push({ url, init });
-        return new Response(JSON.stringify([{ one: 1 }]));
+
+        return Response.json([{ one: 1 }]);
       }) as typeof fetch,
     });
+
     expect(await source.queryable.query("select 1 as one")).toEqual({
       rows: [{ one: 1 }],
     });
@@ -43,6 +46,7 @@ describe("managementSource", () => {
           status: 401,
         }),
     });
+
     await expect(source.queryable.query("select 1")).rejects.toThrow(
       /\(401\) for project abc/,
     );
@@ -51,6 +55,7 @@ describe("managementSource", () => {
 
 describe("toCatalog", () => {
   const catalog = toCatalog(snapshot);
+
   const customers = catalog.tables.find(
     (table) => table.schema === "public" && table.name === "customers",
   )!;
@@ -77,6 +82,7 @@ describe("toCatalog", () => {
     const fk = snapshot.generator.relationships.find(
       (rel) => rel.foreign_key_name === "customers_organization_id_fkey",
     )!;
+
     const withView = {
       ...snapshot,
       generator: {
@@ -97,6 +103,7 @@ describe("toCatalog", () => {
         ],
       },
     } as typeof snapshot;
+
     const keys = toCatalog(withView)
       .tables.find(
         (table) => table.schema === "public" && table.name === "customers",
@@ -104,6 +111,7 @@ describe("toCatalog", () => {
       .foreignKeys.filter(
         (key) => key.name === "customers_organization_id_fkey",
       );
+
     expect(keys.map((key) => key.refTable)).toEqual(["organizations"]);
   });
 
@@ -117,6 +125,7 @@ describe("toCatalog", () => {
     const fn = catalog.functions.find(
       (entry) => entry.name === "current_tenant_id",
     )!;
+
     expect(fn).toMatchObject({
       schema: "better_supabase",
       volatility: "stable",
@@ -135,15 +144,24 @@ describe("fromCatalog", () => {
 describe("stabilizeMetadata", () => {
   it("derives ids from names, so oids do not leak into snapshots", () => {
     const shifted = structuredClone(snapshot.generator);
+
     for (const table of [
       ...shifted.tables,
       ...shifted.views,
       ...shifted.materializedViews,
       ...shifted.foreignTables,
-    ])
+    ]) {
       table.id += 500;
-    for (const column of shifted.columns) column.table_id += 500;
-    for (const key of shifted.primaryKeys) key.table_id += 500;
+    }
+
+    for (const column of shifted.columns) {
+      column.table_id += 500;
+    }
+
+    for (const key of shifted.primaryKeys) {
+      key.table_id += 500;
+    }
+
     expect(stabilizeMetadata(shifted).metadata).toEqual(
       stabilizeMetadata(snapshot.generator).metadata,
     );

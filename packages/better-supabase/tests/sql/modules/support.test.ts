@@ -14,6 +14,7 @@ describe("support-sessions module", () => {
     const sql = support({
       permissions: { start: "system.users.manage", view: "system.audit.read" },
     });
+
     expect(sql).toContain(
       'create table if not exists "better_supabase"."support_sessions" (',
     );
@@ -69,6 +70,7 @@ describe("support-sessions module", () => {
         auditCategory: "users",
       },
     });
+
     expect(sql).toContain(
       `to_regprocedure('"app"."check_ticket"(uuid, uuid, text, jsonb)')`,
     );
@@ -95,6 +97,7 @@ describe("support-sessions module", () => {
         },
       },
     });
+
     expect(sql).not.toContain(
       'create table if not exists "better_supabase"."support_sessions"',
     );
@@ -117,6 +120,7 @@ describe("support-sessions module", () => {
         requests: "public.impersonation_requests",
       },
     });
+
     expect(sql).not.toContain("create table if not exists");
     expect(sql).toContain('from "public"."impersonation_requests" x');
   });
@@ -151,6 +155,7 @@ describe("support-sessions module", () => {
     const sql = support({
       options: { approval: "none", approvalTtl: "15 minutes" },
     });
+
     expect(sql).not.toContain("SUPPORT_APPROVAL_REQUIRED");
     expect(sql).not.toContain("approval_id");
     expect(sql).toContain("now() + '15 minutes'::interval");
@@ -163,11 +168,13 @@ describe("support-sessions module", () => {
     expect(() =>
       support({ mode: "adopt", tables: { requests: null } }),
     ).toThrow(/tables.requests is null/);
+
     const sql = support({
       mode: "adopt",
       tables: { requests: null },
       options: { approval: "none" },
     });
+
     expect(sql).not.toContain("request_support_session");
   });
 
@@ -186,6 +193,7 @@ describe("support-sessions module", () => {
     const names = resolveModules(["support-sessions"]).map(
       (module) => module.name,
     );
+
     expect(names).toEqual(
       expect.arrayContaining(["access", "audit", "support-sessions"]),
     );
@@ -214,6 +222,7 @@ describe("support-sessions approvers from the provider", () => {
     const sql = withApprover(
       "authz.is_approver({kind}, {subject}, {tenant}, '{scope}')",
     );
+
     expect(sql).toContain(
       `if not service and not coalesce((authz.is_approver('support-session', v_row."id"::text, v_row."organization_id", 'organization')), false) then`,
     );
@@ -246,9 +255,11 @@ describe("support-sessions next to provider platform roles", () => {
       },
       accessProvider: moduleProvider,
     });
+
     const sql = files.find(
       (file) => file.module === "support-sessions" && file.kind === "schema",
     )!.contents;
+
     expect(sql).toContain(
       'select 1 from "public"."user_roles" a where a."user_id" = target',
     );
@@ -276,9 +287,11 @@ describe("support-sessions next to provider platform roles", () => {
       },
       accessProvider: moduleProvider,
     });
+
     const sql = files.find(
       (file) => file.module === "support-sessions" && file.kind === "schema",
     )!.contents;
+
     expect(sql).toContain(
       `select 1 from "public"."user_roles" a
     join "public"."roles" r on r."id"::text = a."role_id"::text

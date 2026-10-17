@@ -82,12 +82,14 @@ describe("createPlanPickerController", () => {
 
   it("skips the first load with initial rows and waits for a session", async () => {
     const calls = options();
+
     const { view, unmount } = mount(
       createPlanPickerController({
         ...calls,
         initial: { plans: plans.slice(1), current: "pro" },
       }),
     );
+
     await flush();
     expect(calls.load).not.toHaveBeenCalled();
     expect(view().plans).toHaveLength(1);

@@ -26,6 +26,7 @@ as $$
   returning to_jsonb(x.*)
 $$;`;
   }
+
   return `language plpgsql
 security invoker
 set search_path = ''
@@ -54,6 +55,7 @@ export function commentWrites(
   const c = (logical: string): string => ctx.col("comments", logical);
   const fn = (name: string): string => ctx.fn(name);
   const extra = extraFieldsArg(extras);
+
   const after = (name: string, guard = "") => ({
     copy: writeExtraColumns(
       comments,
@@ -65,8 +67,10 @@ export function commentWrites(
     json: withExtraFields("to_jsonb(v_row)", "v_row", extras),
     guard,
   });
+
   const insert = `insert into ${comments} as x (${[c("tenant"), c("subjectType"), c("subjectId"), c("body"), c("document"), c("mentions"), c("parent")].join(", ")})
   values (${ctx.scope.value("create_comment.tenant")}, create_comment.subject_type, create_comment.subject_id, create_comment.body, create_comment.document, coalesce(create_comment.mentions, '{}'), create_comment.parent)`;
+
   const update = `update ${comments} x
   set ${c("body")} = edit_comment.body,
       ${c("document")} = case
@@ -75,6 +79,7 @@ export function commentWrites(
       end,
       ${c("mentions")} = coalesce(edit_comment.mentions, x.${c("mentions")})
   where x.${c("id")} = edit_comment.id`;
+
   return `-- The functions run as the caller, so the policies above decide.
 drop function if exists ${fn("create_comment")}(${id}, text, text, text, uuid[], uuid);
 drop function if exists ${fn("edit_comment")}(uuid, text, uuid[]);

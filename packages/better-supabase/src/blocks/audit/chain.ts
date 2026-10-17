@@ -87,6 +87,7 @@ export interface AuditChain {
 
 function headOf(value: unknown): AuditChainHead {
   const row = recordOf(value, "audit_chain_heads");
+
   return {
     organizationId: optionalText(row["tenant"]),
     seq: Number(row["seq"]),
@@ -97,6 +98,7 @@ function headOf(value: unknown): AuditChainHead {
 
 function checkpointOf(value: unknown): AuditCheckpoint {
   const row = recordOf(value, "audit_checkpoints");
+
   return {
     ...headOf(row),
     id: textOf(row["id"]),
@@ -109,6 +111,7 @@ function checkpointOf(value: unknown): AuditCheckpoint {
 function verdictOf(value: unknown): AuditChainVerdict {
   const row = recordOf(value, "verify_audit_chain");
   const seq = row["seq"] === null ? undefined : Number(row["seq"]);
+
   if (row["valid"] === true) {
     return {
       valid: true,
@@ -117,8 +120,10 @@ function verdictOf(value: unknown): AuditChainVerdict {
       hash: optionalText(row["hash"]),
     };
   }
+
   // SAFETY: verify_audit_chain only returns these reasons.
   const reason = textOf(row["reason"]) as AuditChainBreak;
+
   return {
     valid: false,
     checked: Number(row["checked"]),
@@ -131,10 +136,12 @@ function verdictOf(value: unknown): AuditChainVerdict {
 /** The `kid` of a compact JWS header, or an empty string. */
 function keyIdOf(token: string): string {
   const header: unknown = JSON.parse(base64ToText(token.split(".")[0] ?? ""));
+
   const kid =
     typeof header === "object" && header !== null && "kid" in header
       ? header.kid
       : undefined;
+
   return typeof kid === "string" ? kid : "";
 }
 
@@ -142,10 +149,12 @@ function keyIdOf(token: string): string {
 export function createAuditChain(options: AuditChainOptions): AuditChain {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const heads = () =>
     call("audit_chain_heads", {}, (value) =>
       recordsOf(value, "audit_chain_heads").map(headOf),
     );
+
   const sign = (head: AuditChainHead, signer: AuditCheckpointSigner) =>
     signer
       .signJwt({
@@ -169,6 +178,7 @@ export function createAuditChain(options: AuditChainOptions): AuditChain {
           checkpointOf,
         ),
       );
+
   return {
     verify: (range = {}) =>
       call(
@@ -183,6 +193,7 @@ export function createAuditChain(options: AuditChainOptions): AuditChain {
     heads,
     checkpoint: () => {
       const { signer } = options;
+
       if (!signer) {
         return AsyncResult.err(
           dbError("invalid_request", "checkpoint() needs a signer", {
@@ -190,6 +201,7 @@ export function createAuditChain(options: AuditChainOptions): AuditChain {
           }),
         );
       }
+
       return heads().andThen((list) =>
         list.reduce<AsyncResult<AuditCheckpoint[]>>(
           (done, head) =>

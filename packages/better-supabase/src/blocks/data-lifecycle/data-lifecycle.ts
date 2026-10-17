@@ -142,14 +142,17 @@ const EXPORT_STATUSES: readonly DataExportStatus[] = [
 
 export function exportOf(value: unknown): DataExport {
   const row = recordOf(value, "data_exports");
+
   const status = EXPORT_STATUSES.find(
     (candidate) => candidate === row["status"],
   );
+
   if (status === undefined) {
     throw new TypeError(
       `Unknown export status ${JSON.stringify(row["status"])}`,
     );
   }
+
   return {
     id: textOf(row["id"]),
     subject: row["subject"] === "organization" ? "organization" : "user",
@@ -168,6 +171,7 @@ export function exportOf(value: unknown): DataExport {
 
 export function deletionOf(value: unknown): OrganizationDeletion {
   const row = recordOf(value, "organization_deletions");
+
   return {
     organizationId: textOf(row["organization_id"]),
     requestedBy: optionalText(row["requested_by"]),
@@ -187,10 +191,15 @@ export function stored<T>(
   return AsyncResult.from(async () => {
     try {
       const { data, error } = await reply;
-      if (error) return err(fromStorageError(error, "storage.objects"));
+
+      if (error) {
+        return err(fromStorageError(error, "storage.objects"));
+      }
+
       if (data === null || data === undefined) {
         return err(dbError("network", "Storage returned no data"));
       }
+
       return ok(data);
     } catch (cause) {
       return err(fromStorageError(cause, "storage.objects"));
@@ -209,6 +218,7 @@ export function createDataLifecycle(
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const ttl = options.downloadTtl ?? 300;
+
   const client: DataLifecycle = {
     requestExport: (request = {}) =>
       call(
@@ -232,7 +242,9 @@ export function createDataLifecycle(
               }),
             );
           }
+
           const found = exportOf(value);
+
           if (found.status !== "ready") {
             return err(
               dbError("invalid_request", "The export is not ready", {
@@ -240,6 +252,7 @@ export function createDataLifecycle(
               }),
             );
           }
+
           if (!options.storage) {
             return err(
               dbError(
@@ -248,15 +261,22 @@ export function createDataLifecycle(
               ),
             );
           }
+
           const bucket = options.storage.from(found.bucket);
           const files: { table: string; url: string }[] = [];
+
           for (const path of found.files) {
             const signed = await stored(
               bucket.createSignedUrl(path, ttl, { download: true }),
             );
-            if (!signed.ok) return signed;
+
+            if (!signed.ok) {
+              return signed;
+            }
+
             files.push({ table: tableOf(path), url: signed.data.signedUrl });
           }
+
           return ok({ export: found, files });
         },
       ),
@@ -283,6 +303,7 @@ export function createDataLifecycle(
         optionalDeletion,
       ),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "data-lifecycle",
     ...(options.logger ? { logger: options.logger } : {}),

@@ -20,6 +20,7 @@ const rendered = (names: readonly string[], modules: AnyBlocksConfig = {}) =>
 describe("ai-files module", () => {
   it("owns the file, provider file and document tables", () => {
     const sql = body();
+
     for (const table of [
       "ai_files",
       "ai_provider_files",
@@ -31,6 +32,7 @@ describe("ai-files module", () => {
         `create table if not exists "better_supabase"."${table}" (`,
       );
     }
+
     expect(sql).toContain(
       `"path" text generated always as ("organization_id"::text || '/' || "owner_id"::text || '/' || "id"::text || '/' || "filename") stored`,
     );
@@ -49,10 +51,12 @@ describe("ai-files module", () => {
 
   it("checks permissions in read policies with a set", () => {
     const sql = body();
+
     const policy = sql.slice(
       sql.indexOf("create policy ai_files_read"),
       sql.indexOf("-- What a provider's file API"),
     );
+
     expect(policy).toContain("better_supabase.tenant_ids_with('ai.admin')");
     expect(policy).not.toContain("better_supabase.can(");
   });
@@ -76,6 +80,7 @@ describe("ai-files module", () => {
         },
       },
     });
+
     expect(sql).toContain(
       "values ('chat-files', 'chat-files', false, 1024, array['image/*', 'application/pdf']::text[])",
     );
@@ -86,6 +91,7 @@ describe("ai-files module", () => {
   it("rejects a bad bucket, size or media type", () => {
     const options = (value: Record<string, unknown>) => () =>
       moduleBody("ai-files", { modules: { "ai-files": { options: value } } });
+
     expect(options({ bucket: "Bad Bucket" })).toThrow(/bucket/);
     expect(options({ maxSize: -1 })).toThrow(/maxSize/);
     expect(options({ allowedMimeTypes: ["pdf"] })).toThrow(/MIME/);
@@ -93,6 +99,7 @@ describe("ai-files module", () => {
 
   it("keeps service writes to the service role", () => {
     const sql = body();
+
     for (const signature of [
       `"better_supabase"."store_ai_file"(uuid, uuid, text, text, bigint, uuid, text, text)`,
       `"better_supabase"."purge_ai_files"(interval, integer)`,
@@ -114,6 +121,7 @@ describe("ai-files module", () => {
     const contract = customContracts(["tenant", "access", "ai-files"], {
       modules: { "ai-files": { mode: "custom" } },
     }).find((entry) => entry.module === "ai-files");
+
     const names = contract?.functions.map((fn) => fn.name) ?? [];
     expect(names).toContain("reserve_ai_file");
     expect(names).toContain("confirm_ai_file");

@@ -18,11 +18,14 @@ const ajv = new Ajv2020({
   strictRequired: false,
   allErrors: true,
 });
+
 addFormats(ajv);
+
 const schema = formSchema(SIGNUP);
 const answers = ajv.compile(schema);
 
 const BASE = { name: "Ada", email: "ada@example.com" };
+
 const CASES: readonly unknown[] = [
   BASE,
   { ...BASE, plan: "free" },

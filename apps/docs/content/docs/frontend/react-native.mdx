@@ -3,7 +3,7 @@ title: React Native
 description: Repositories in Expo and React Native apps, with sessions in the device keychain.
 ---
 
-```ts title="src/lib/supabase/native.ts"
+```ts title="src/lib/supabase/client.native.ts"
 import { createClient } from "@supabase/supabase-js";
 import {
   autoRefreshOnForeground,
@@ -49,7 +49,7 @@ do in React DOM: their state lives in a [controller](/docs/frontend/block-contro
 that reaches the platform only through ports. Pass the Expo modules you
 installed to `nativePorts`:
 
-```ts title="src/lib/supabase/native.ts"
+```ts title="src/lib/supabase/client.native.ts"
 import { createNativeClient, nativePorts } from "better-supabase/client/native";
 import * as Linking from "expo-linking";
 import * as Notifications from "expo-notifications";
@@ -96,7 +96,7 @@ that removes the listener and stops refreshing.
 import { useEffect } from "react";
 import { AppState } from "react-native";
 import { autoRefreshOnForeground } from "better-supabase/client/native";
-import { supabase } from "@/lib/supabase/native";
+import { supabase } from "@/lib/supabase/client.native";
 
 export default function RootLayout() {
   useEffect(() => autoRefreshOnForeground(supabase, AppState), []);
@@ -119,7 +119,7 @@ When the key and the data come from different installs (a reinstall kept one
 of them), the read returns `null`, so the user signs in again instead of
 seeing an error.
 
-```ts title="src/lib/supabase/native.ts"
+```ts title="src/lib/supabase/client.native.ts"
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 import { largeSecureStorage } from "better-supabase/client/native";

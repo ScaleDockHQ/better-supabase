@@ -16,6 +16,7 @@ async function withGenerator(
 ): Promise<Snapshot> {
   const snapshot = structuredClone(await loadFixtureSnapshot());
   change(snapshot.generator);
+
   return snapshot;
 }
 
@@ -31,6 +32,7 @@ describe("view columns", () => {
         is_updatable: true,
         comment: null,
       });
+
       for (const column of generator.columns.filter(
         (entry) => entry.table_id === notes.id,
       )) {
@@ -43,11 +45,14 @@ describe("view columns", () => {
         });
       }
     });
+
     const view = buildModel(snapshot, config).tables.find(
       (table) => table.key === "noteView",
     );
+
     const column = (name: string) =>
       view?.columns.find((entry) => entry.db === name);
+
     expect(column("body")).toMatchObject({
       insertable: false,
       updatable: false,
@@ -72,13 +77,16 @@ describe("function types", () => {
         comment: null,
         type_relation_id: null,
       });
+
       generator.types.push(
         enumType(1_999_100, "public", ["plain"]),
         enumType(1_999_101, "better_supabase", ["calm", "busy"]),
       );
+
       const template = generator.functions.find(
         (fn) => fn.name === "purge_rate_limits",
       )!;
+
       generator.functions.push({
         ...template,
         id: 1_999_200,
@@ -98,9 +106,11 @@ describe("function types", () => {
         return_type: "better_supabase.mood",
       });
     });
+
     const fn = buildModel(snapshot, config).functions.find(
       (entry) => entry.key === "next_mood",
     );
+
     expect(fn?.args[0]?.tsType).toBe('"calm" | "busy"');
     expect(fn?.returns).toBe('"calm" | "busy" | null');
   });

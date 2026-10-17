@@ -94,9 +94,16 @@ const kindOf = (value: unknown): DeliveryEventKind | null =>
   DELIVERY_EVENT_KINDS.find((kind) => kind === value) ?? null;
 
 const recordedOf = (value: unknown): RecordedDeliveryEvent | null => {
-  if (!isRecord(value)) return null;
+  if (!isRecord(value)) {
+    return null;
+  }
+
   const kind = kindOf(value["kind"]);
-  if (kind === null) return null;
+
+  if (kind === null) {
+    return null;
+  }
+
   return {
     deliveryId: String(value["delivery_id"]),
     notificationId: String(value["notification_id"]),
@@ -135,6 +142,7 @@ const subjectDeliveryOf = (row: Record<string, unknown>): SubjectDelivery => ({
     .filter(isRecord)
     .flatMap((event) => {
       const kind = kindOf(event["kind"]);
+
       return kind === null
         ? []
         : [
@@ -153,6 +161,7 @@ const deliveryData = (
   channel: string,
 ): NotificationDeliveryEventData => {
   const notification = message.notification;
+
   return {
     notificationId: notification.eventId,
     organizationId: notification.tenant,
@@ -174,12 +183,17 @@ function deliveryChannels(
   options: Pick<NotificationsOptions<NotificationTypes>, "channels" | "email">,
 ): readonly NotificationChannel[] {
   const channels = options.channels ?? [];
-  if (options.email === undefined) return channels;
+
+  if (options.email === undefined) {
+    return channels;
+  }
+
   if (channels.some((channel) => channel.name === "email")) {
     throw new TypeError(
       'createNotifications: `email` adds the "email" channel; remove the channel named "email" from `channels`',
     );
   }
+
   return [...channels, emailChannel(options.email)];
 }
 
@@ -202,13 +216,17 @@ export function createNotifications<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: NotificationsOptions<K, H, S>): Notifications<K, FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
+
   const fields: BlockFields<F> = blockFields(
     options.fields,
     "notification fields",
   );
+
   /** An item with its data and fields parsed. */
   type ParsedItem = NotificationItem & { readonly fields: RowFields<F> };
+
   const { transport } = options;
   const schema = options.schema ?? DEFAULT_BLOCK_SCHEMA;
   const mappers = options.mappers ?? [];
@@ -235,7 +253,10 @@ export function createNotifications<
     locale?: string,
     hydrated?: H,
   ): Rendered => {
-    if (!options.render) return item;
+    if (!options.render) {
+      return item;
+    }
+
     return {
       ...item,
       text: options.render(item, {
@@ -248,7 +269,11 @@ export function createNotifications<
   const withAvatarUrl = (actor: NotificationActor): NotificationActor => {
     const avatars = options.avatars;
     const path = actor.avatarPath;
-    if (!avatars || typeof path !== "string" || path === "") return actor;
+
+    if (!avatars || typeof path !== "string" || path === "") {
+      return actor;
+    }
+
     return {
       ...actor,
       avatarUrl:
@@ -264,8 +289,13 @@ export function createNotifications<
     const ids = [
       ...new Set(items.flatMap((item) => (item.actorId ? [item.actorId] : []))),
     ];
-    if (ids.length === 0) return new Map();
+
+    if (ids.length === 0) {
+      return new Map();
+    }
+
     const value = await call("notification_actors", { ids });
+
     return new Map(
       Object.entries(isRecord(value) ? value : {}).flatMap(([id, profile]) =>
         isRecord(profile) ? [[id, withAvatarUrl({ ...profile, id })]] : [],
@@ -286,28 +316,42 @@ export function createNotifications<
     items: readonly NotificationItem[],
   ): Promise<Result<ParsedItem[]>> => {
     const out: ParsedItem[] = [];
+
     for (const item of items) {
       const schemaOf = Object.hasOwn(options.types, item.type)
         ? options.types[item.type]
         : undefined;
+
       if (schemaOf === undefined) {
         const extra = await fields.read(item.fields);
-        if (!extra.ok) return extra;
+
+        if (!extra.ok) {
+          return extra;
+        }
+
         out.push({ ...item, fields: extra.data });
         continue;
       }
+
       const data = await validate(
         schemaOf,
         item.data,
         `${item.type} data of notification ${item.id}`,
       );
+
       if (!data.ok) {
         return err({ ...data.error, hint: "NOTIFICATION_DATA_INVALID" });
       }
+
       const extra = await fields.read(item.fields);
-      if (!extra.ok) return extra;
+
+      if (!extra.ok) {
+        return extra;
+      }
+
       out.push({ ...item, data: data.data, fields: extra.data });
     }
+
     return ok(out);
   };
 
@@ -317,7 +361,11 @@ export function createNotifications<
   ): AsyncResult<readonly NotificationOf<K, F>[]> =>
     AsyncResult.from(async () => {
       const valid = await parsed(items);
-      if (!valid.ok) return valid;
+
+      if (!valid.ok) {
+        return valid;
+      }
+
       return rendered(valid.data, listOptions);
     });
 
@@ -328,16 +376,19 @@ export function createNotifications<
     try {
       const locale = listOptions.locale;
       const context = locale === undefined ? {} : { locale };
+
       const [hydrated, actors] = await Promise.all([
         options.hydrate ? options.hydrate(items, context) : undefined,
         listOptions.include?.includes("actor") ? actorsOf(items) : undefined,
       ]);
+
       const out = items.map(
         (item): Rendered & { readonly fields: RowFields<F> } => {
           const text = {
             ...render(item, locale, hydrated),
             fields: item.fields,
           };
+
           return actors
             ? {
                 ...text,
@@ -346,6 +397,7 @@ export function createNotifications<
             : text;
         },
       );
+
       // SAFETY: `parsed` gave each item of a listed type the output of its
       // type's schema and its fields the output of `options.fields`, which
       // is what NotificationOf<K, F> pairs with that type.
@@ -356,6 +408,7 @@ export function createNotifications<
   };
 
   const channelList = deliveryChannels(options);
+
   const audience =
     options.audience ??
     options.server?.authorization?.delivery?.audience ??
@@ -370,7 +423,11 @@ export function createNotifications<
     const notification = isRecord(row["notification"])
       ? toItem(row["notification"])
       : undefined;
-    if (!notification) throw new TypeError("claim returned no notification");
+
+    if (!notification) {
+      throw new TypeError("claim returned no notification");
+    }
+
     return {
       message: {
         deliveryId: String(row["delivery_id"]),
@@ -402,6 +459,7 @@ export function createNotifications<
       { ...deliveryData(message, channel.name), error },
       message.notification.tenant,
     );
+
     return "failed";
   };
 
@@ -414,6 +472,7 @@ export function createNotifications<
       status: "skipped",
       error,
     });
+
     return "skipped";
   };
 
@@ -429,36 +488,47 @@ export function createNotifications<
     const claimed = rows.map((row) => claimedOf(channel, row));
     const outcomes: ("sent" | "skipped" | "failed")[] = [];
     const byEvent = new Map<string, NotificationMessage[]>();
+
     for (const { message, suppressed } of claimed) {
       if (suppressed !== null) {
         outcomes.push(await skip(message, `suppressed: ${suppressed}`));
         continue;
       }
+
       const group = byEvent.get(message.notification.eventId) ?? [];
       group.push(message);
       byEvent.set(message.notification.eventId, group);
     }
+
     for (const messages of byEvent.values()) {
       const notification = messages[0]!.notification;
+
       const subscribers = messages.map((message) => ({
         principal: message.userId,
         kind: "user" as const,
         message,
       }));
+
       const checked = await allowedSubscribers(
         audience,
         subscriberEventOf(notification),
         subscribers,
       );
+
       if (!checked.ok) {
         const error = `audience check failed: ${errorText(checked.cause)}`;
-        for (const message of messages)
+
+        for (const message of messages) {
           outcomes.push(await fail(channel, message, error, maxAttempts));
+        }
+
         continue;
       }
+
       const allowed = new Set(
         checked.allowed.map((subscriber) => subscriber.message),
       );
+
       for (const message of messages) {
         outcomes.push(
           allowed.has(message)
@@ -467,6 +537,7 @@ export function createNotifications<
         );
       }
     }
+
     return outcomes;
   }
 
@@ -476,6 +547,7 @@ export function createNotifications<
     maxAttempts: number,
   ): Promise<"sent" | "skipped" | "failed"> {
     const notification = message.notification;
+
     try {
       const result = await channel.send(message);
       const status = result?.status ?? "sent";
@@ -488,6 +560,7 @@ export function createNotifications<
           ? {}
           : { template_key: result.templateKey }),
       });
+
       if (status === "sent") {
         emit(
           "notification.delivered",
@@ -495,6 +568,7 @@ export function createNotifications<
           notification.tenant,
         );
       }
+
       return status;
     } catch (cause) {
       return fail(channel, message, errorText(cause), maxAttempts);
@@ -507,6 +581,7 @@ export function createNotifications<
         const schemaOf = Object.hasOwn(options.types, type)
           ? options.types[type]
           : undefined;
+
         if (schemaOf === undefined) {
           return err(
             dbError("validation", `Unknown notification type "${type}"`, {
@@ -515,13 +590,22 @@ export function createNotifications<
             }),
           );
         }
+
         const data = await validate(schemaOf, input.data, `${type} data`);
-        if (!data.ok) return err(data.error);
+
+        if (!data.ok) {
+          return err(data.error);
+        }
+
         const extra =
           input.fields === undefined
             ? ok(undefined)
             : await fields.write({ ...input.fields });
-        if (!extra.ok) return extra;
+
+        if (!extra.ok) {
+          return extra;
+        }
+
         if (
           input.permission !== undefined &&
           (input.tenant === undefined || input.tenant === "")
@@ -538,6 +622,7 @@ export function createNotifications<
             }),
           );
         }
+
         const notification = {
           type,
           data: data.data,
@@ -560,6 +645,7 @@ export function createNotifications<
           exclude: input.exclude,
           fields: extra.data,
         };
+
         const sent = await run(
           "send_notification",
           { notification },
@@ -574,13 +660,18 @@ export function createNotifications<
                 }
               : null,
         );
-        if (!sent.ok || sent.data === null) return sent;
+
+        if (!sent.ok || sent.data === null) {
+          return sent;
+        }
+
         const { id, recipients } = sent.data;
         emit(
           "notification.created",
           { notificationId: id, type, recipientIds: recipients },
           input.tenant ?? null,
         );
+
         if (options.onSent) {
           try {
             await options.onSent({
@@ -593,6 +684,7 @@ export function createNotifications<
             return err(toDbError(cause));
           }
         }
+
         return sent;
       });
     },
@@ -707,6 +799,7 @@ export function createNotifications<
             .filter(isRecord)
             .flatMap((row): NotificationSubscription[] => {
               const level = LEVELS.find((entry) => entry === row["level"]);
+
               return level === undefined
                 ? []
                 : [
@@ -752,9 +845,11 @@ export function createNotifications<
     },
     async deliver(deliverOptions = {}) {
       const wanted = deliverOptions.channels;
+
       const channels = channelList.filter(
         (channel) => !wanted || wanted.includes(channel.name),
       );
+
       const spent = budget(deliverOptions.budgetMs);
       const batch = deliverOptions.batch ?? 50;
       const counts = { sent: 0, skipped: 0, failed: 0 };
@@ -769,19 +864,28 @@ export function createNotifications<
               lease: deliverOptions.lease ?? "5 minutes",
               max_attempts: deliverOptions.maxAttempts ?? 5,
             });
+
             const rows = (Array.isArray(claimed) ? claimed : []).filter(
               isRecord,
             );
+
             const outcomes = await deliverBatch(
               channel,
               rows,
               deliverOptions.maxAttempts ?? 5,
             );
-            for (const outcome of outcomes) counts[outcome] += 1;
-            if (rows.length < batch) break;
+
+            for (const outcome of outcomes) {
+              counts[outcome] += 1;
+            }
+
+            if (rows.length < batch) {
+              break;
+            }
           }
         }),
       );
+
       return counts;
     },
     purge(olderThan, batch) {
@@ -823,6 +927,7 @@ export function createNotifications<
               const reason = SUPPRESSION_REASONS.find(
                 (entry) => entry === row["reason"],
               );
+
               return reason === undefined
                 ? []
                 : [
@@ -869,6 +974,7 @@ export function createNotifications<
             recorded.tenant,
           );
         }
+
         return recorded;
       });
     },
@@ -893,17 +999,24 @@ export function createNotifications<
           for (const event of events) {
             const type = stripTypePrefix(event.type, sinkOptions.typePrefix);
             const mapped = await sinkOptions.map({ ...event, type });
-            if (mapped === null) continue;
+
+            if (mapped === null) {
+              continue;
+            }
+
             const { type: notificationType, ...rest } = mapped;
+
             // SAFETY: SinkNotification pairs each type with its own send input;
             // destructuring loses that pairing, not the shape.
             const input = rest as SendInput<
               StandardSchemaV1.InferInput<K[TypeName<K>]>
             >;
+
             const tenant =
               typeof event["partitionkey"] === "string"
                 ? event["partitionkey"]
                 : undefined;
+
             await hooked
               .send(notificationType, {
                 ...input,
@@ -918,9 +1031,11 @@ export function createNotifications<
       };
     },
   };
+
   const hooked = withBlockHooks(notifications, options.hooks, {
     block: "notifications",
     ...(options.events ? { logger: options.events.logger } : {}),
   });
+
   return hooked;
 }

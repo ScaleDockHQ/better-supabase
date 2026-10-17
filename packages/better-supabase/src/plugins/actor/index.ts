@@ -16,6 +16,7 @@ export interface ActorOptions {
 
 function defaultActor(context: RequestContext): string | undefined {
   const actor = context.actor;
+
   return actor && actor.kind !== "anon" ? actor.id : undefined;
 }
 
@@ -29,27 +30,40 @@ function defaultActor(context: RequestContext): string | undefined {
  */
 export function actor(options: ActorOptions = {}): Plugin<"actor"> {
   const resolve = options.resolve ?? defaultActor;
+
   return definePlugin({
     name: "actor",
     beforeMutation(op, { table, context, options }): MutationOp {
       const flags = table.flags.actor;
-      if (!flags) return op;
+
+      if (!flags) {
+        return op;
+      }
+
       const created = dbName(table, flags.createdBy);
       const updated = dbName(table, flags.updatedBy);
       const impersonated = dbName(table, flags.impersonatedBy);
       guardManaged(op, [created, updated, impersonated], "actor", options);
       const id = resolve(context);
-      if (id === undefined) return op;
+
+      if (id === undefined) {
+        return op;
+      }
+
       const impersonator = context.actor?.impersonator;
+
       const stamp = (row: Row): Row => {
         const stamped = withDefault(row, updated, id);
+
         return impersonator === undefined
           ? stamped
           : withDefault(stamped, impersonated, impersonator);
       };
+
       switch (op.kind) {
         case "insert": {
           const stampCreated = insertsOnly(op);
+
           return {
             ...op,
             rows: op.rows.map((row) =>
@@ -57,12 +71,18 @@ export function actor(options: ActorOptions = {}): Plugin<"actor"> {
             ),
           };
         }
-        case "update":
+
+        case "update": {
           return { ...op, set: stamp(op.set) };
-        case "delete":
+        }
+
+        case "delete": {
           return op;
+        }
+
         default: {
           const exhaustive: never = op;
+
           return exhaustive;
         }
       }

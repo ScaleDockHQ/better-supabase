@@ -45,5 +45,6 @@ export function subjectAttribute(subject: {
       "better-supabase: a workflow subject has a type of 1 to 100 characters without a slash and an id of 1 to 200",
     );
   }
+
   return `${subject.type}/${subject.id}`;
 }

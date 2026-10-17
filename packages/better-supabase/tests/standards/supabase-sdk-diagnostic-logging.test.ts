@@ -19,6 +19,7 @@ const recording = () => {
     warn: vi.fn(),
     error: vi.fn(),
   } satisfies Logger;
+
   return logger;
 };
 
@@ -54,13 +55,16 @@ describe("Supabase SDK diagnostic logging", () => {
 
   it("logs request outcomes with timing at debug level", async () => {
     const logger = recording();
+
     const db = defineSupabase(schema, { logger, diagnostics: true }).connect(
       conflict().client,
     );
+
     const found = await db.contacts.findMany({
       select: ["id"],
       where: { email: SECRET },
     });
+
     expect(found.ok).toBe(true);
     expect(logger.debug).toHaveBeenCalledWith(
       expect.stringMatching(/^select contacts ok in \d+ms$/),
@@ -79,13 +83,16 @@ describe("Supabase SDK diagnostic logging", () => {
 
   it("never logs values, filters or database messages, and never changes the outcome", async () => {
     const logger = recording();
+
     const db = defineSupabase(schema, { logger, diagnostics: true }).connect(
       conflict().client,
     );
+
     const created = await db.contacts.create({
       organizationId: "o",
       email: SECRET,
     });
+
     expect(created.ok).toBe(false);
     expect(created.error?.kind).toBe("conflict");
     expect(logger.debug).toHaveBeenCalledWith("conflict error on contacts", {
@@ -102,10 +109,12 @@ describe("Supabase SDK diagnostic logging", () => {
 
   it("logs session refreshes and auth resolution without user ids", () => {
     const logger = recording();
+
     const betterSupabase = defineSupabase(schema, {
       logger,
       diagnostics: true,
     });
+
     betterSupabase.events.emit("refresh", {
       ok: true,
       shared: false,
@@ -129,20 +138,25 @@ describe("Supabase SDK diagnostic logging", () => {
     const fail = () => {
       throw new Error("logger down");
     };
+
     const logger = { debug: fail, info: fail, warn: fail, error: fail };
+
     const db = defineSupabase(schema, { logger, diagnostics: true }).connect(
       conflict().client,
     );
+
     const found = await db.contacts.findMany({ select: ["id"] });
     expect(found.data).toEqual([{ id: "c1" }, { id: "c2" }]);
   });
 
   it("keeps one set of handlers on derived definitions", () => {
     const logger = recording();
+
     const derived = defineSupabase(schema, {
       logger,
       diagnostics: true,
     }).mapError((error) => new Error(error.message));
+
     derived.events.emit("refresh", { ok: false, shared: true, durationMs: 1 });
     expect(logger.debug).toHaveBeenCalledTimes(1);
   });

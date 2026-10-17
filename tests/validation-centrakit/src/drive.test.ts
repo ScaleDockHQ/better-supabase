@@ -19,33 +19,40 @@ describe.skipIf(!live)("drive on CentraKit's file tree", () => {
   it("shares a folder with a team and inherits the grant", async () => {
     await withCentraKit(pool, async (s) => {
       await s.as("service");
+
       const [{ id: org }] = (await s.rows<{ id: string }>(
         "insert into centrakit.organizations (name, slug) values ('Acme', $1) returning id",
         [`acme-${crypto.randomUUID().slice(0, 8)}`],
       )) as [{ id: string }];
+
       await s.rows(
         `insert into centrakit.organization_users (organization_id, user_id, role_id)
          values ($1, $2, $3), ($1, $4, $5)`,
         [org, USERS.owner, ROLES.owner, USERS.member, ROLES.member],
       );
+
       const [{ id: team }] = (await s.rows<{ id: string }>(
         "insert into centrakit.teams (tenant_id, name, slug) values ($1, 'Design', 'design') returning id",
         [org],
       )) as [{ id: string }];
+
       await s.rows(
         "insert into centrakit.team_members (team_id, user_id, tenant_id) values ($1, $2, $3)",
         [team, USERS.member, org],
       );
 
       await s.as("owner");
+
       const projects = await s.value<Node>(
         "better_supabase.drive_create_folder($1, null, 'Projects')",
         [org],
       );
+
       const launch = await s.value<Node>(
         "better_supabase.drive_create_folder($1, $2, 'Launch')",
         [org, projects.id],
       );
+
       expect(launch.parentId).toBe(projects.id);
       expect(
         await s.rows<{ name: string; kind: string }>(
@@ -94,10 +101,12 @@ describe.skipIf(!live)("drive on CentraKit's file tree", () => {
         USERS.member,
       ]);
       await s.as("member");
+
       const notes = await s.value<Node>(
         "better_supabase.drive_create_folder($1, $2, 'Notes')",
         [org, launch.id],
       );
+
       expect(notes.role).toBe("editor");
     });
   });

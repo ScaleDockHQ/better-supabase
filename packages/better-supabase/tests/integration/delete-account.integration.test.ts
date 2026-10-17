@@ -13,9 +13,11 @@ import { stackDbUrl, stackUrl } from "./stack-env.ts";
 
 const url = stackUrl();
 const dbUrl = stackDbUrl();
+
 const publishableKey =
   process.env["SUPABASE_PUBLISHABLE_KEY"] ??
   "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";
+
 const secretKey =
   process.env["SUPABASE_SECRET_KEY"] ??
   "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -28,6 +30,7 @@ async function reachable(): Promise<boolean> {
     const response = await fetch(`${url}/storage/v1/status`, {
       signal: AbortSignal.timeout(1000),
     });
+
     return response.ok;
   } catch {
     return false;
@@ -39,11 +42,13 @@ const documents = defineBucket({
   path: "{userId}/{file}",
   policy: "owner",
 });
+
 // `{userId}` is not the first segment: the whole bucket is listed and filtered.
 const shared = defineBucket({
   id: "bs-it-shared",
   path: "{organizationId}/{userId}/{file}",
 });
+
 const logos = defineBucket({
   id: "bs-it-logos",
   path: "{organizationId}/{file}",
@@ -53,9 +58,11 @@ describe.skipIf(!(await reachable()))("deleteAccount", () => {
   const service = createClient(url, secretKey, {
     auth: { persistSession: false },
   });
+
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
   const table = `bs_del_${RUN}`;
   const betterSupabase = defineSupabase(schema);
+
   const server = createServer(betterSupabase, {
     env: {
       url,
@@ -64,6 +71,7 @@ describe.skipIf(!(await reachable()))("deleteAccount", () => {
       jwksUrl: new URL("/auth/v1/.well-known/jwks.json", url),
     },
   });
+
   let userId: string;
   let otherId: string;
 
@@ -73,9 +81,14 @@ describe.skipIf(!(await reachable()))("deleteAccount", () => {
       password: `pw-${crypto.randomUUID()}`,
       email_confirm: true,
     });
-    if (error) throw error;
+
+    if (error) {
+      throw error;
+    }
+
     return data.user.id;
   };
+
   const file = (text: string) => new Blob([text], { type: "text/plain" });
 
   beforeAll(async () => {
@@ -87,9 +100,12 @@ describe.skipIf(!(await reachable()))("deleteAccount", () => {
     ]);
     const docs = documents.connect(service);
     const organization = shared.connect(service);
+
     for (const owner of [userId, otherId]) {
-      for (const name of ["a.txt", "b.txt"])
+      for (const name of ["a.txt", "b.txt"]) {
         await docs.upload({ userId: owner, file: name }, file(name)).orThrow();
+      }
+
       await organization
         .upload(
           { organizationId: ORG, userId: owner, file: "c.txt" },
@@ -97,6 +113,7 @@ describe.skipIf(!(await reachable()))("deleteAccount", () => {
         )
         .orThrow();
     }
+
     await pool.query(
       `create table public.${table} (id bigint generated always as identity primary key,
         user_id uuid not null references auth.users (id))`,
@@ -108,13 +125,21 @@ describe.skipIf(!(await reachable()))("deleteAccount", () => {
 
   afterAll(async () => {
     await pool.query(`drop table if exists public.${table}`);
+
     for (const bucket of [documents, shared]) {
       const all = await bucket.connect(service).list();
-      if (all.ok)
+
+      if (all.ok) {
         await bucket.connect(service).remove(all.data.map((o) => o.path));
+      }
     }
-    for (const id of [userId, otherId])
-      if (id) await service.auth.admin.deleteUser(id);
+
+    for (const id of [userId, otherId]) {
+      if (id) {
+        await service.auth.admin.deleteUser(id);
+      }
+    }
+
     await pool.end();
   });
 
@@ -132,6 +157,7 @@ describe.skipIf(!(await reachable()))("deleteAccount", () => {
   it("keeps the objects and returns the database's hint when a check refuses the delete", async () => {
     const guard = `bs_del_guard_${RUN}`;
     const postgres = createPostgres({ connectionString: dbUrl, max: 1 });
+
     const withPostgres = createServer(betterSupabase, {
       env: {
         url,
@@ -141,6 +167,7 @@ describe.skipIf(!(await reachable()))("deleteAccount", () => {
       },
       postgres,
     });
+
     try {
       await pool.query(`
         create table public.${guard} (user_id uuid references auth.users (id) on delete cascade);
@@ -155,9 +182,11 @@ describe.skipIf(!(await reachable()))("deleteAccount", () => {
         alter table public.${table} drop constraint ${table}_user_id_fkey,
           add foreign key (user_id) references auth.users (id) on delete cascade;
       `);
+
       const result = await withPostgres.deleteAccount(userId, {
         buckets: [documents],
       });
+
       expect(result).toMatchObject({
         ok: false,
         error: { hint: "ORGANIZATION_OWNER_REQUIRED", table: "auth.users" },
@@ -189,6 +218,7 @@ describe.skipIf(!(await reachable()))("deleteAccount", () => {
       buckets: [documents, shared, logos],
       cascades: ["customers"],
     });
+
     off();
 
     expect(result).toMatchObject({
@@ -201,10 +231,12 @@ describe.skipIf(!(await reachable()))("deleteAccount", () => {
     expect(await documents.connect(service).list({ userId }).orThrow()).toEqual(
       [],
     );
+
     const kept = await shared
       .connect(service)
       .list({ organizationId: ORG })
       .orThrow();
+
     expect(kept.map((object) => object.path)).toEqual([
       `${ORG}/${otherId}/c.txt`,
     ]);

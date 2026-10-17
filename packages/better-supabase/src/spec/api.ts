@@ -90,10 +90,16 @@ export interface Api {
 
 function dedupe(diagnostics: readonly SpecDiagnostic[]): SpecDiagnostic[] {
   const seen = new Set<string>();
+
   return diagnostics.filter((diagnostic) => {
     const key = `${diagnostic.code}\u0000${diagnostic.pointer ?? ""}\u0000${diagnostic.message}`;
-    if (seen.has(key)) return false;
+
+    if (seen.has(key)) {
+      return false;
+    }
+
     seen.add(key);
+
     return true;
   });
 }
@@ -125,21 +131,27 @@ export function defineApi<Ref = string>(
 
   const lower = (format: AnyDocumentFormat, version: string): Lowered => {
     let byVersion = lowered.get(format);
+
     if (!byVersion) {
       byVersion = new Map();
       lowered.set(format, byVersion);
     }
+
     let hit = byVersion.get(version);
+
     if (!hit) {
       const diagnostics: SpecDiagnostic[] = [];
+
       const document: unknown = format.lower(built.model, version, {
         report: (diagnostic) => {
           diagnostics.push(diagnostic);
         },
       });
+
       hit = { document, diagnostics };
       byVersion.set(version, hit);
     }
+
     return hit;
   };
 
@@ -151,12 +163,15 @@ export function defineApi<Ref = string>(
     const fallback: VersionOf<F> = format.defaultVersion;
     const version = renderOptions.version ?? fallback;
     const status = format.versions[version];
+
     if (!status) {
       throw new TypeError(
         `Document format "${format.id}" has no version "${String(version)}"`,
       );
     }
+
     const diagnostics: SpecDiagnostic[] = [...built.diagnostics];
+
     if (status.status === "preview") {
       diagnostics.push({
         code: "preview-version",
@@ -164,9 +179,11 @@ export function defineApi<Ref = string>(
         message: `${format.id} ${String(version)} follows a draft (${status.pin}); its fields may change before release`,
       });
     }
+
     const base = lower(format, version);
     diagnostics.push(...base.diagnostics);
     let document: unknown = structuredClone(base.document);
+
     if (renderOptions.transform) {
       // SAFETY: lower() returned the document of this format and version,
       // which is what RenderedOf<F> pairs with the version.
@@ -175,21 +192,28 @@ export function defineApi<Ref = string>(
         version,
         document,
       } as RenderedOf<F>;
+
       document = renderOptions.transform(rendered) ?? document;
     }
+
     const overlays = renderOptions.overlays ?? [];
+
     if (overlays.length > 0) {
       const engine = renderOptions.applyOverlays ?? options.applyOverlays;
+
       if (!engine) {
         throw new TypeError(
           "better-supabase/spec: overlays need applyOverlays (from better-supabase/overlay)",
         );
       }
+
       const result = engine(document, overlays);
       document = result.document;
       diagnostics.push(...(result.diagnostics ?? []));
     }
+
     diagnostics.push(...(format.lint?.(document, version) ?? []));
+
     return {
       format: format.id,
       version,
@@ -209,6 +233,7 @@ export function defineApi<Ref = string>(
       openapiOptions: OpenApiRenderOptions<V> = {},
     ): OpenApiRenderResult<V> {
       const { transform, version, overlays, applyOverlays } = openapiOptions;
+
       const renderOptions: RenderOptions<typeof openapiFormat> = {
         ...(version === undefined ? {} : { version }),
         ...(overlays === undefined ? {} : { overlays }),
@@ -224,7 +249,9 @@ export function defineApi<Ref = string>(
                 ),
             }),
       };
+
       const result = render(openapiFormat, renderOptions);
+
       return {
         format: "openapi",
         // SAFETY: render() uses the requested version, or 3.1 when V is the default.

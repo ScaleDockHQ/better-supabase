@@ -69,13 +69,16 @@ export function rateLimitGate<I>(
   options: RateLimitRouteOptions<I>,
 ): (input: I) => Promise<RateLimitOutcome> {
   const policy = options.policy ?? options.scope;
+
   if (!isRateLimitPolicyName(policy)) {
     throw new TypeError(
       `rateLimit(): "${policy}" can't name a RateLimit policy; pass a printable ASCII \`policy\``,
     );
   }
+
   const window =
     options.rule === undefined ? undefined : periodSeconds(options.rule.period);
+
   const policyHeader =
     options.rule === undefined
       ? undefined
@@ -86,42 +89,56 @@ export function rateLimitGate<I>(
             ...(window === undefined ? {} : { window }),
           },
         ]);
+
   const headersFor = (remaining: number, reset?: number): Headers => {
     const headers = new Headers();
-    if (policyHeader !== undefined)
+
+    if (policyHeader !== undefined) {
       headers.set("ratelimit-policy", policyHeader);
+    }
+
     headers.set(
       "ratelimit",
       rateLimitHeader([
         { policy, remaining, ...(reset === undefined ? {} : { reset }) },
       ]),
     );
+
     return headers;
   };
 
   return async (input) => {
     const key = await options.key(input);
-    if (key === undefined) return { kind: "skip" };
+
+    if (key === undefined) {
+      return { kind: "skip" };
+    }
+
     const checked = await options.limiter.check(
       options.scope,
       key,
       options.rule,
     );
+
     if (!checked.ok) {
       return options.failOpen
         ? { kind: "skip" }
         : { kind: "deny", error: checked.error, headers: new Headers() };
     }
+
     const verdict = checked.data;
+
     if (verdict.allowed) {
       return {
         kind: "allow",
         headers: headersFor(Math.max(0, verdict.remaining)),
       };
     }
+
     const retryAfter = Math.max(1, Math.ceil(verdict.retryAfter));
     const headers = headersFor(0, retryAfter);
     headers.set("retry-after", String(retryAfter));
+
     return {
       kind: "deny",
       error: dbError(

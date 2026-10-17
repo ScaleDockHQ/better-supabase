@@ -16,6 +16,7 @@ export async function recordAudit(
     source: "app",
     ...event,
   });
+
   if (!recorded.ok) {
     console.error("audit event not recorded", event.eventType, recorded.error);
   }

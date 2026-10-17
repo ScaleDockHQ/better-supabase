@@ -69,6 +69,7 @@ export interface Teams<F extends object = Record<never, never>> {
 
 function teamOf(value: unknown): Team {
   const row = recordOf(value, "team");
+
   return {
     id: textOf(row["id"]),
     name: optionalText(row["name"]) ?? "",
@@ -82,9 +83,11 @@ export function createTeams<S extends StandardSchemaV1 | undefined = undefined>(
   options: TeamsOptions<S>,
 ): Teams<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const fields: BlockFields<F> = blockFields(options.fields, "team fields");
+
   const client: Teams<F> = {
     create: (organizationId, name, description, extra) =>
       fields.args(extra).andThen((checked) =>
@@ -137,6 +140,7 @@ export function createTeams<S extends StandardSchemaV1 | undefined = undefined>(
         recordsOf(value, "list_teams").map(teamOf),
       ).andThen(fields.rows),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "teams",
     ...(options.logger ? { logger: options.logger } : {}),

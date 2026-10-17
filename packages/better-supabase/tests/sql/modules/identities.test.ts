@@ -43,15 +43,18 @@ describe("identities module", () => {
       `encode(extensions.digest(convert_to(v_code, 'utf8'), 'sha256'), 'hex')`,
     );
     expect(sql).not.toContain('"code" text');
+
     for (const signature of [
       "redeem_identity_link(text, text, text, text, text)",
       "principal_by_identity(text, text, text, text)",
       "link_verified_email(uuid)",
       "backfill_verified_emails()",
-    ])
+    ]) {
       expect(sql).toContain(
         `revoke execute on function "better_supabase"."${signature.split("(")[0]!}"(${signature.split("(")[1]!} from public, anon, authenticated;`,
       );
+    }
+
     expect(sql).toContain(
       `revoke execute on function "better_supabase"."begin_identity_link"(text, text) from public, anon;`,
     );
@@ -65,6 +68,7 @@ describe("identities module", () => {
       sqlOf(["identities"], {
         modules: { identities: { options: { codeMinutes } } },
       });
+
     expect(at(5)).toContain("interval '5 minutes'");
     expect(at(600)).toContain("interval '60 minutes'");
     expect(at(0)).toContain("interval '1 minutes'");
@@ -75,9 +79,11 @@ describe("identities module", () => {
       "after insert or update of email, email_confirmed_at on auth.users",
     );
     expect(sqlOf()).toContain("u.email_confirmed_at is not null");
+
     const off = sqlOf(["identities"], {
       modules: { identities: { options: { verifiedEmails: false } } },
     });
+
     expect(off).toContain(
       'drop trigger if exists "bs_identity_email" on auth.users;',
     );
@@ -95,6 +101,7 @@ describe("identities module", () => {
     const sql = sqlOf(["identities"], {
       modules: { identities: { schema: "app_private" } },
     });
+
     expect(sql).toContain(
       'create table if not exists "app_private"."identity_links"',
     );

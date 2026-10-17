@@ -75,27 +75,39 @@ export function vaultOAuthProvider(
   const parse = (text: string): Record<string, unknown> | undefined => {
     try {
       const value: unknown = JSON.parse(text);
+
       return isRecord(value) ? value : undefined;
     } catch {
       return undefined;
     }
   };
+
   const load = async (): Promise<StoredConnection> => {
-    if (cached !== undefined) return cached;
+    if (cached !== undefined) {
+      return cached;
+    }
+
     const stored = await vault.getToken(ref, { subject });
     // SAFETY: only this provider writes the secret, as a StoredConnection.
     cached = (stored.ok ? parse(stored.data.token) : undefined) ?? {};
+
     return cached;
   };
+
   const store = async (patch: StoredConnection): Promise<void> => {
     const next = { ...(await load()), ...patch };
     cached = next;
+
     const saved = await vault.set(ref, JSON.stringify(next), {
       subject,
       description: `MCP connection to ${server.id}`,
     });
-    if (!saved.ok) throw new DbException(saved.error);
+
+    if (!saved.ok) {
+      throw new DbException(saved.error);
+    }
   };
+
   const metadata: OAuthClientMetadata = options.clientMetadata ?? {
     client_name: "better-supabase",
     grant_types: ["authorization_code", "refresh_token"],
@@ -124,7 +136,11 @@ export function vaultOAuthProvider(
     saveCodeVerifier: (codeVerifier) => store({ codeVerifier }),
     codeVerifier: async () => {
       const verifier = (await load()).codeVerifier;
-      if (verifier === undefined) throw new Error("No PKCE verifier is stored");
+
+      if (verifier === undefined) {
+        throw new Error("No PKCE verifier is stored");
+      }
+
       return verifier;
     },
     state: () => crypto.randomUUID(),
@@ -134,6 +150,7 @@ export function vaultOAuthProvider(
       const stored = await vault.getToken(clientRef(server.id), {
         subject: { type: "app" },
       });
+
       // SAFETY: only saveClientInformation writes the secret.
       return stored.ok
         ? (parse(stored.data.token) as OAuthClientInformation | undefined)
@@ -146,19 +163,30 @@ export function vaultOAuthProvider(
         JSON.stringify(information),
         { description: `MCP client for ${server.id}` },
       );
-      if (!saved.ok) throw new DbException(saved.error);
+
+      if (!saved.ok) {
+        throw new DbException(saved.error);
+      }
     },
     invalidateCredentials: async (scope) => {
       if (scope === "all" || scope === "client") {
         await vault.revoke(clientRef(server.id), { subject: { type: "app" } });
       }
+
       if (scope === "all") {
         cached = {};
         await vault.revoke(ref, { subject });
+
         return;
       }
-      if (scope === "tokens") await store({ tokens: undefined });
-      if (scope === "verifier") await store({ codeVerifier: undefined });
+
+      if (scope === "tokens") {
+        await store({ tokens: undefined });
+      }
+
+      if (scope === "verifier") {
+        await store({ codeVerifier: undefined });
+      }
     },
   };
 }
@@ -176,6 +204,7 @@ async function recordGrant(
   provider: OAuthClientProvider,
 ): Promise<Result<void>> {
   const expiresIn = (await provider.tokens())?.expires_in;
+
   const recorded = await options.connectors.grants.record(
     options.server.id,
     options.userId,
@@ -191,6 +220,7 @@ async function recordGrant(
           }),
     },
   );
+
   return recorded.ok ? ok(undefined) : recorded;
 }
 
@@ -209,6 +239,7 @@ export function authorizeConnector(
 ): AsyncResult<{ readonly url: string | undefined }> {
   return AsyncResult.from(async () => {
     const provider = vaultOAuthProvider(options);
+
     try {
       const result = await auth(provider, {
         serverUrl: options.server.url,
@@ -216,13 +247,16 @@ export function authorizeConnector(
           ? {}
           : { scope: options.server.scopes.join(" ") }),
       });
+
       if (result === "REDIRECT") {
         return ok({ url: provider.authorizationUrl?.toString() });
       }
     } catch (cause) {
       return err(authFailed(cause));
     }
+
     const recorded = await recordGrant(options, provider);
+
     return recorded.ok ? ok({ url: undefined }) : recorded;
   });
 }
@@ -238,6 +272,7 @@ export function completeConnector(
     const callback = new URL(options.callback);
     const code = callback.searchParams.get("code");
     const state = callback.searchParams.get("state") ?? undefined;
+
     if (code === null) {
       return err(
         authFailed(
@@ -245,11 +280,14 @@ export function completeConnector(
         ),
       );
     }
+
     const provider = vaultOAuthProvider(options);
     const stored = await provider.storedState?.();
+
     if (stored !== undefined && stored !== state) {
       return err(authFailed("The callback state does not match"));
     }
+
     try {
       await auth(provider, {
         serverUrl: options.server.url,
@@ -262,6 +300,7 @@ export function completeConnector(
     } catch (cause) {
       return err(authFailed(cause));
     }
+
     return recordGrant(options, provider);
   });
 }

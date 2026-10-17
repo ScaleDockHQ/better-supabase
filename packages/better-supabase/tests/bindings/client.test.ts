@@ -27,12 +27,14 @@ const token = (payload: Record<string, unknown>) =>
 describe("sessionUserId", () => {
   it("reads the user, or the token's sub behind a tokens-only placeholder", () => {
     expect(sessionUserId({ user: { id: USER } } as Session)).toBe(USER);
+
     const placeholder = {
       get user(): never {
         throw new Error("tokens-only");
       },
       access_token: token({ sub: "from-token" }),
     } as unknown as Session;
+
     expect(sessionUserId(placeholder)).toBe("from-token");
     expect(
       sessionUserId({
@@ -129,6 +131,7 @@ describe("joinPresence", () => {
 describe("createActionRunner", () => {
   it("keeps two runs with equal inputs apart and stops notifying", async () => {
     const resolvers: (() => void)[] = [];
+
     const runner = createActionRunner(() => ({
       action: (input: number) =>
         new Promise<{ ok: true; data: number; error: null }>((resolve) => {
@@ -138,6 +141,7 @@ describe("createActionRunner", () => {
         }),
       options: {},
     }));
+
     const listener = vi.fn();
     const stop = runner.subscribe(listener);
     const first = runner.run(1);

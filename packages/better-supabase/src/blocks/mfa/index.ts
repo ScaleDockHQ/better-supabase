@@ -16,4 +16,5 @@ export {
   type StepUpControllerOptions,
   type StepUpSnapshot,
 } from "./client.ts";
+
 export { mfaBlock } from "./manifest.ts";

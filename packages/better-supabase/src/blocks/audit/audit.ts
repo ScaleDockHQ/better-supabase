@@ -1,5 +1,6 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { BetterSupabase } from "../../core/define.ts";
+import type { AsyncResult } from "../../core/result.ts";
 import type { WhereInput } from "../../ir/args.ts";
 import type { ListDefinition, ListQueryConfig } from "../../list/list-query.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
@@ -11,7 +12,6 @@ import type {
 } from "../../schema/types.ts";
 
 import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
-import { type AsyncResult } from "../../core/result.ts";
 import { SPEC_PINS } from "../../core/spec-pins.ts";
 import { sqlIdent } from "../../core/template.ts";
 import { temporal } from "../../core/temporal-required.ts";
@@ -65,6 +65,7 @@ function sqlPurgeCalls(sql: SqlClient): AuditPurgeCalls {
           : "select better_supabase.purge_audit_log($1::interval, $2, $3, true) as n",
         tenant === undefined ? [olderThan, batch] : [olderThan, batch, tenant],
       );
+
       return Number(row?.n ?? 0);
     },
     async tenants() {
@@ -72,6 +73,7 @@ function sqlPurgeCalls(sql: SqlClient): AuditPurgeCalls {
         "select tenant::text from better_supabase.audit_events_tenants($1::interval) as tenant",
         ["1 day"],
       );
+
       return rows.map((row) => row.tenant);
     },
   };
@@ -82,6 +84,7 @@ function transportPurgeCalls(
   schema: string,
 ): AuditPurgeCalls {
   const call = blockCall(transport, schema);
+
   return {
     purge: (olderThan, batch, tenant) =>
       call(
@@ -99,12 +102,16 @@ function transportPurgeCalls(
         "audit_events_tenants",
         { older_than: "1 day" },
         (value): readonly (string | null)[] => {
-          if (value === null || value === undefined) return [];
+          if (value === null || value === undefined) {
+            return [];
+          }
+
           if (!Array.isArray(value)) {
             throw new TypeError(
               "audit_events_tenants returned one value, not rows: pass a SqlClient instead of sqlTransport",
             );
           }
+
           return value.map((tenant: unknown) =>
             tenant === null || tenant === undefined ? null : String(tenant),
           );
@@ -133,29 +140,36 @@ export function purgeAuditLog(
   applyTemporal(options);
   const olderThan = seconds(options.olderThan ?? "1 year");
   const batch = options.batch ?? 10_000;
+
   const calls =
     "call" in source
       ? transportPurgeCalls(source, options.schema ?? DEFAULT_BLOCK_SCHEMA)
       : sqlPurgeCalls(source);
+
   const { retention } = options;
+
   if (!retention) {
     return run(() => calls.purge(olderThan, batch));
   }
+
   return run(async () => {
     const tenants = await calls.tenants();
     const many = RETENTION_MANY.get(retention);
     const ids = tenants.flatMap((tenant) => (tenant === null ? [] : [tenant]));
     const known = many && ids.length > 0 ? await many(ids) : undefined;
     let purged = 0;
+
     for (const tenant of tenants) {
       const days = known
         ? tenant === null
           ? undefined
           : known.get(tenant)
         : await retention(tenant);
+
       const keep = days === undefined ? olderThan : `${days} days`;
       purged += await calls.purge(keep, batch, tenant);
     }
+
     return purged;
   });
 }
@@ -181,30 +195,45 @@ export function setAuditRetention(
   const [schema, name] = source.table.includes(".")
     ? source.table.split(".", 2)
     : ["public", source.table];
+
   const key = sqlIdent(source.key ?? "id");
   const from = `${sqlIdent(source.column)}::integer as days from ${sqlIdent(schema!)}.${sqlIdent(name!)}`;
+
   const kept = (days: number | null | undefined) =>
     typeof days === "number" && days > 0 ? days : undefined;
+
   const retention: Retention = async (tenant) => {
-    if (tenant === null) return;
+    if (tenant === null) {
+      return;
+    }
+
     const [row] = await sql.queryRaw<{ days: number | null }>(
       `select ${from} where ${key}::text = $1`,
       [tenant],
     );
+
     return kept(row?.days);
   };
+
   RETENTION_MANY.set(retention, async (tenants) => {
     const rows = await sql.queryRaw<{ tenant: string; days: number | null }>(
       `select ${key}::text as tenant, ${from} where ${key}::text = any($1::text[])`,
       [tenants],
     );
+
     const days = new Map<string, number>();
+
     for (const row of rows) {
       const value = kept(row.days);
-      if (value !== undefined) days.set(row.tenant, value);
+
+      if (value !== undefined) {
+        days.set(row.tenant, value);
+      }
     }
+
     return days;
   });
+
   return retention;
 }
 
@@ -248,9 +277,12 @@ const COLUMNS = [
 
 function entryOf(row: Readonly<Record<string, unknown>>): AuditEntry {
   const text = (key: string) => optionalText(row[key]);
+
   const pick = (key: keyof AuditEntry, value: unknown) =>
     value === undefined ? {} : { [key]: value };
+
   const metadata = row["metadata"];
+
   return {
     id: textOf(row["id"]),
     occurredAt:
@@ -310,14 +342,19 @@ function status(outcome: string | undefined): {
   switch (outcome) {
     case undefined:
     case "success":
-    case "succeeded":
+    case "succeeded": {
       return { status_id: 1, status: "Success" };
+    }
+
     case "failure":
     case "failed":
-    case "denied":
+    case "denied": {
       return { status_id: 2, status: "Failure" };
-    default:
+    }
+
+    default: {
       return { status_id: 99, status: outcome };
+    }
   }
 }
 
@@ -337,12 +374,14 @@ export function toOcsf(
     log_name: "audit_events",
     ...(entry.organizationId ? { tenant_uid: entry.organizationId } : {}),
   };
+
   const actor = {
     user: {
       uid: entry.actor ?? "system",
       ...(entry.actorRole ? { type: entry.actorRole } : {}),
     },
   };
+
   const base = {
     severity_id: 1,
     severity: "Informational",
@@ -351,9 +390,12 @@ export function toOcsf(
     metadata,
     actor,
   };
+
   const known = ENTITY_ACTIVITY[entry.op];
+
   if (entry.op !== "event" && known) {
     const [activity, name] = known;
+
     return {
       class_uid: 3004,
       class_name: "Entity Management",
@@ -370,9 +412,11 @@ export function toOcsf(
       ...(entry.changed ? { unmapped: { changed: entry.changed } } : {}),
     };
   }
+
   const operation = entry.eventType ?? entry.op;
   const match = API_ACTIVITY.find(([pattern]) => pattern.test(operation));
   const [activity, name] = match ? [match[1], match[2]] : [99, operation];
+
   return {
     class_uid: 6003,
     class_name: "API Activity",
@@ -434,13 +478,17 @@ export function exportAuditLog(
 ): ReadableStream<Uint8Array> {
   applyTemporal(options);
   const format = options.format ?? "ndjson";
+
   if (format === "ocsf" && !options.product) {
     throw new TypeError("exportAuditLog: the ocsf format needs product");
   }
+
   const batch = options.batch ?? 1000;
+
   const [schema, name] = (
     options.table ?? "better_supabase.audit_events"
   ).split(".", 2);
+
   const text = `select ${COLUMNS.map((column) => sqlIdent(column)).join(", ")}
 from ${sqlIdent(schema!)}.${sqlIdent(name!)}
 where organization_id::text = $1
@@ -449,12 +497,17 @@ where organization_id::text = $1
   and id > $4
 order by id
 limit $5`;
+
   const encoder = new TextEncoder();
   let after = "0";
   let done = false;
+
   return new ReadableStream<Uint8Array>({
     async pull(controller) {
-      if (done) return;
+      if (done) {
+        return;
+      }
+
       const rows = await sql.queryRaw(text, [
         options.organizationId,
         instantArg(options.from) ?? null,
@@ -462,16 +515,20 @@ limit $5`;
         after,
         batch,
       ]);
+
       const lines = rows.map((row) => {
         const entry = entryOf(row);
+
         return JSON.stringify(
           format === "ocsf" ? toOcsf(entry, options.product!) : entry,
         );
       });
+
       if (lines.length > 0) {
         controller.enqueue(encoder.encode(`${lines.join("\n")}\n`));
         after = textOf(rows.at(-1)!["id"]);
       }
+
       if (rows.length < batch) {
         done = true;
         controller.close();
@@ -481,6 +538,7 @@ limit $5`;
 }
 
 export type AuditSort = "newest" | "oldest";
+
 export type AuditFacet =
   | "table"
   | "record"
@@ -532,16 +590,23 @@ export function auditListQuery<
   options: { readonly pageSize?: number; readonly maxPageSize?: number } = {},
 ): AuditListDefinition<M, T, E> {
   const meta: TableMeta | undefined = betterSupabase.meta.tables[table];
-  if (!meta) throw new TypeError(`auditListQuery: unknown table "${table}"`);
+
+  if (!meta) {
+    throw new TypeError(`auditListQuery: unknown table "${table}"`);
+  }
+
   const camel = meta.columns["occurredAt"] !== undefined;
   const col = (snake: string, camelName: string) => (camel ? camelName : snake);
+
   const facets: Record<string, string> = Object.fromEntries(
     FACETS.map(([key, snake, camelName]): [AuditFacet, string] => [
       key,
       col(snake, camelName),
     ]).filter(([, column]) => meta.columns[column] !== undefined),
   );
+
   const occurredAt = col("occurred_at", "occurredAt");
+
   // SAFETY: defineListQuery checks every column against the table's meta
   // and throws for one the table lacks; facets keeps only columns it has.
   // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the column names are known only at runtime (camel or snake casing), so the config can't be typed against M.
@@ -558,13 +623,16 @@ export function auditListQuery<
       ? {}
       : { maxPageSize: options.maxPageSize }),
   } as unknown as ListQueryConfig<M, T, AuditSort, AuditFacet, false, "cursor">;
+
   const list = defineListQuery(betterSupabase, table, config);
+
   return Object.assign(list, {
     between(from?: Temporal.Instant, to?: Temporal.Instant): WhereInput<M, T> {
       const range = {
         ...(from ? { gte: from.toString() } : {}),
         ...(to ? { lt: to.toString() } : {}),
       };
+
       // SAFETY: occurredAt is a timestamptz column of the audit table; the
       // repository validates the filter against its meta.
       return (

@@ -64,16 +64,22 @@ export function createInboxController<T>(
     options.organizationId === null
       ? null
       : `${options.topic ?? "inbox"}:org:${options.organizationId}`;
+
   return defineController<InboxListSnapshot<T>, InboxListActions>(
     { items: undefined, status: "closed", error: undefined },
     (state) => {
       const refresh = loader(options.load, state);
+
       return {
         actions: { refresh },
         start: () => {
-          if (topic === null) return;
+          if (topic === null) {
+            return;
+          }
+
           return whileSignedIn(options.auth, () => {
             void refresh();
+
             return options.ports.topic(topic, {
               onMessage: (event, payload) => {
                 options.onMessage?.(event, payload);
@@ -128,61 +134,87 @@ export function createConversationController<T>(
   options: ConversationControllerOptions<T>,
 ): ConversationController<T> {
   const typingMs = options.typingMs ?? 5000;
+
   const topic =
     options.conversationId === null
       ? null
       : `${options.topic ?? "inbox"}:${options.conversationId}`;
+
   let joined:
     | { readonly userId: string; readonly send: (on: boolean) => void }
     | undefined;
+
   return defineController<ConversationSnapshot<T>, ConversationActions>(
     { items: undefined, status: "closed", error: undefined, typing: NO_TYPERS },
     (state) => {
       const refresh = loader(options.load, state);
+
       const join = (name: string, userId: string): (() => void) => {
         const seen = new Map<string, ReturnType<typeof setTimeout>>();
+
         const typer = (who: string, on: boolean): void => {
           const timer = seen.get(who);
-          if (timer !== undefined) clearTimeout(timer);
-          if (on)
+
+          if (timer !== undefined) {
+            clearTimeout(timer);
+          }
+
+          if (on) {
             seen.set(
               who,
               setTimeout(() => {
                 typer(who, false);
               }, typingMs),
             );
-          else seen.delete(who);
+          } else {
+            seen.delete(who);
+          }
+
           state.set({ typing: [...seen.keys()] });
         };
+
         const handle = options.ports.topic(name, {
           onMessage: (event, payload) => {
             if (event !== "typing") {
               void refresh();
+
               return;
             }
-            if (typeof payload !== "object" || payload === null) return;
+
+            if (typeof payload !== "object" || payload === null) {
+              return;
+            }
+
             const who = "user_id" in payload ? String(payload.user_id) : "";
-            if (who !== "" && who !== userId)
+
+            if (who !== "" && who !== userId) {
               typer(who, !("typing" in payload) || payload.typing !== false);
+            }
           },
           onRejoin: () => void refresh(),
           onStatus: (status) => {
             state.set({ status });
           },
         });
+
         joined = {
           userId,
           send: (on) => {
             handle.send("typing", { user_id: userId, typing: on });
           },
         };
+
         return () => {
-          for (const timer of seen.values()) clearTimeout(timer);
+          for (const timer of seen.values()) {
+            clearTimeout(timer);
+          }
+
           joined = undefined;
           handle.leave();
           state.set({ typing: NO_TYPERS });
         };
       };
+
       return {
         actions: {
           refresh,
@@ -191,9 +223,13 @@ export function createConversationController<T>(
           },
         },
         start: () => {
-          if (topic === null) return;
+          if (topic === null) {
+            return;
+          }
+
           return whileSignedIn(options.auth, (userId) => {
             void refresh();
+
             return join(topic, userId);
           });
         },
@@ -250,12 +286,14 @@ export function createInboxWidgetController<T>(
     options.storageKey === undefined
       ? "better-supabase:inbox-widget"
       : options.storageKey;
+
   const storage = key === null ? undefined : options.ports.storage;
   let conversationId: string | null = null;
   let restored = storage === undefined;
   let active = false;
   let inner: ConversationController<T> | undefined;
   let leaveInner: (() => void) | undefined;
+
   return defineController<InboxWidgetSnapshot<T>, InboxWidgetActions>(
     {
       items: undefined,
@@ -266,12 +304,15 @@ export function createInboxWidgetController<T>(
     },
     (state) => {
       let show = (): void => undefined;
+
       const attach = (): void => {
         leaveInner?.();
         leaveInner = active ? inner?.subscribe(show) : undefined;
       };
+
       const follow = (): void => {
         const id = conversationId;
+
         const current = createConversationController<T>({
           auth: options.auth,
           ports: options.ports,
@@ -279,19 +320,27 @@ export function createInboxWidgetController<T>(
           load: () => (id === null ? Promise.resolve([]) : options.load(id)),
           ...(options.topic === undefined ? {} : { topic: options.topic }),
         });
+
         inner = current;
         show = () => {
           state.set({ ...current.getSnapshot(), conversationId: id });
         };
+
         show();
         attach();
       };
+
       const choose = (id: string | null): void => {
-        if (id === conversationId) return;
+        if (id === conversationId) {
+          return;
+        }
+
         conversationId = id;
         follow();
       };
+
       follow();
+
       return {
         actions: {
           refresh: () => inner?.actions.refresh() ?? Promise.resolve(),
@@ -301,27 +350,40 @@ export function createInboxWidgetController<T>(
           submit: async (message) => {
             if (conversationId === null) {
               const id = await options.open(message);
-              if (key !== null) await storage?.set(key, id);
+
+              if (key !== null) {
+                await storage?.set(key, id);
+              }
+
               choose(id);
+
               return;
             }
+
             await options.send(conversationId, message);
             await inner?.actions.refresh();
           },
           reset: () => {
-            if (key !== null) void storage?.remove(key);
+            if (key !== null) {
+              void storage?.remove(key);
+            }
+
             choose(null);
           },
         },
         start: () => {
           active = true;
           attach();
+
           if (!restored && key !== null && storage) {
             restored = true;
             void storage.get(key).then((stored) => {
-              if (stored !== null && conversationId === null) choose(stored);
+              if (stored !== null && conversationId === null) {
+                choose(stored);
+              }
             });
           }
+
           return () => {
             active = false;
             leaveInner?.();

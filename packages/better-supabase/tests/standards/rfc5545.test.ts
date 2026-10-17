@@ -16,6 +16,7 @@ describe("RFC 5545", () => {
       ),
       rrule: "FREQ=DAILY;COUNT=3",
     });
+
     expect(found.map((item) => item.toPlainDate().toString())).toEqual([
       "1997-09-02",
       "1997-09-03",
@@ -39,6 +40,7 @@ describe("RFC 5545", () => {
         "END:VCALENDAR",
       ].join("\r\n"),
     );
+
     expect(parsed.events).toMatchObject([
       {
         uid: "19970610T172345Z-AF23B2@example.com",
@@ -63,6 +65,7 @@ describe("RFC 5545", () => {
         "END:VCALENDAR",
       ].join("\r\n"),
     );
+
     expect(parsed.events[0]).toMatchObject({
       title: "Project XYZ Final Review\nConference Room - 3B, and more",
       allDay: true,
@@ -86,10 +89,14 @@ describe("RFC 5545", () => {
       ],
       { now: Temporal.Instant.from("2026-01-01T00:00:00Z") },
     );
+
     const lines = text.split("\r\n");
     expect(text.endsWith("\r\n")).toBe(true);
-    for (const line of lines)
+
+    for (const line of lines) {
       expect(new TextEncoder().encode(line).length).toBeLessThanOrEqual(75);
+    }
+
     expect(lines).toContain("BEGIN:VTIMEZONE");
     expect(lines).toContain("TZID:America/New_York");
     expect(lines).toContain("DTSTART;TZID=America/New_York:20260701T040000");

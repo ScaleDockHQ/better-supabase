@@ -17,9 +17,13 @@ import {
 /** A minimal `RouterContextProvider`: a map keyed by context objects. */
 function contextProvider(): ReactRouterArgs["context"] {
   const values = new Map<unknown, unknown>();
+
   return {
     get: (key) => {
-      if (!values.has(key)) throw new Error("no value");
+      if (!values.has(key)) {
+        throw new Error("no value");
+      }
+
       return values.get(key);
     },
     set: (key, value) => {
@@ -50,10 +54,15 @@ async function serve(
     } catch (error) {
       thrown = error;
     }
+
     return new Response(null);
   });
-  // oxlint-disable-next-line typescript/only-throw-error -- rethrows the thrown Response the adapter answers with.
-  if (thrown !== undefined) throw thrown;
+
+  if (thrown !== undefined) {
+    // oxlint-disable-next-line typescript/only-throw-error -- rethrows the thrown Response the adapter answers with.
+    throw thrown;
+  }
+
   return out;
 }
 
@@ -62,6 +71,7 @@ describe("createReactRouter", () => {
     const loader = bs.loader({}, (_args, ctx) =>
       ok({ id: ctx.session.kind === "user" ? ctx.session.user.id : null }),
     );
+
     expect(await serve(await requestAs({ role: "member" }), loader)).toEqual({
       id: USER,
     });
@@ -69,23 +79,28 @@ describe("createReactRouter", () => {
 
   it("throws a redirect or Problem Details response for refusals and errors", async () => {
     const loader = bs.loader({}, () => 1);
+
     const redirect = await serve(
       await requestAs(undefined, { url: "https://app.test/notes" }),
       loader,
     ).catch((error: unknown) => error);
+
     expect(redirect).toBeInstanceOf(Response);
     expect((redirect as Response).status).toBe(303);
 
     const failing = bs.loader({}, () => err(dbError("not_found", "Gone")));
+
     const problem = await serve(
       await requestAs({ role: "member" }),
       failing,
     ).catch((error: unknown) => error);
+
     expect((problem as Response).status).toBe(404);
   });
 
   it("runs actions into ActionResults", async () => {
     const action = bs.action({}, (input) => ok(input));
+
     const request = await requestAs(
       { role: "member" },
       {
@@ -94,6 +109,7 @@ describe("createReactRouter", () => {
         headers: { "content-type": "application/json" },
       },
     );
+
     expect(await serve(request, action)).toEqual({
       ok: true,
       data: { title: "Hello" },

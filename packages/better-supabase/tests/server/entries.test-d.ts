@@ -26,6 +26,7 @@ import { schema } from "../fixtures/generated-camel.ts";
 const betterSupabase = defineSupabase(schema);
 const server = createServer(betterSupabase);
 const entry = withBetterSupabase(server);
+
 type Keys = Contributions<readonly [typeof entry]>;
 
 describe("withBetterSupabase", () => {
@@ -57,6 +58,7 @@ describe("withBetterSupabase", () => {
       expectTypeOf(ctx.authMode).toEqualTypeOf<AuthMode>();
       // @ts-expect-error -- `session`, `auth` and `guard` are internal to the composite.
       void ctx.session;
+
       return Promise.resolve(new Response(null));
     });
   });
@@ -64,6 +66,7 @@ describe("withBetterSupabase", () => {
   it("composes withPostgresClient downstream", () => {
     pipeline([entry, withPostgresClient()], (_req, ctx) => {
       expectTypeOf(ctx.postgres).not.toBeNever();
+
       return Promise.resolve(new Response(null));
     });
   });
@@ -80,6 +83,7 @@ describe("withBetterSupabase", () => {
       (_req, ctx) => {
         expectTypeOf(ctx.jobs).toHaveProperty("drainRoute");
         expectTypeOf(ctx.db).toEqualTypeOf<Keys["db"]>();
+
         return Promise.resolve(new Response(null));
       },
     );
@@ -114,6 +118,7 @@ describe("withBetterSupabase", () => {
       Record<never, never>,
       string
     >({ key: "db", run: () => () => Promise.resolve({ db: "taken" }) });
+
     pipeline(
       [withDb(), entry],
       // @ts-expect-error -- middleware-conflict: key 'db' is already present.

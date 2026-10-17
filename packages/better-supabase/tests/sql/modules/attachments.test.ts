@@ -38,6 +38,7 @@ describe("attachments module", () => {
       allowedMimeTypes: ["image/*", "application/pdf"],
       requireScan: false,
     });
+
     expect(sql).toContain(
       "values ('files', 'files', false, 1024, array['image/*', 'application/pdf']::text[])",
     );
@@ -63,6 +64,7 @@ describe("attachments module", () => {
     const sql = sqlOf(["attachments"], {
       subjects: { note: { table: "notes", tenant: false } },
     });
+
     expect(sql).toContain(
       `alter table "better_supabase"."attachments" alter column "organization_id" drop not null;`,
     );
@@ -94,6 +96,7 @@ describe("attachments module", () => {
         },
       },
     });
+
     expect(sql).toContain(
       `("subject_type" = 'contract' and ("organization_id" in (select better_supabase.tenant_ids_with('contracts.read'))))`,
     );
@@ -123,6 +126,7 @@ describe("attachments module", () => {
       .filter((file) => file.module === "attachments")
       .map((file) => file.contents)
       .join("\n");
+
     expect(scoped).toContain(
       `or "subject_id" in (select t.id::text from authz.ids_project('attachments.read') as t(id))`,
     );
@@ -137,8 +141,10 @@ describe("attachments module", () => {
       scanBuckets: ["x"],
       subjects: { note: { table: "notes", bucket: "files.v2" } },
     });
+
     expect(sql).toContain("'ai'");
     expect(sql).toContain("'files.v2'");
+
     for (const bucket of ["", "Upper", "-dash", "a/b", "a".repeat(101)]) {
       expect(() => sqlOf(["attachments"], { bucket })).toThrow(/bucket/);
     }
@@ -170,6 +176,7 @@ describe("attachments module", () => {
         note: { table: "notes" },
       },
     });
+
     expect(sql).toContain(
       `"organization_id"::text || '/' || coalesce("subject_type", '-') || '/' || "id"::text`,
     );
@@ -187,6 +194,7 @@ describe("attachments module", () => {
     expect(sqlOf(["attachments"])).toContain(
       "drop trigger if exists bs_object_scan_pending on storage.objects;",
     );
+
     for (const [options, message] of [
       [{ path: "{organization_id}/x" }, /must contain \{id\}/],
       [

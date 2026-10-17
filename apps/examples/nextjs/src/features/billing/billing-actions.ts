@@ -23,8 +23,13 @@ export const markPlanReviewed = bs.action(
       "plan",
       organizationId,
     );
-    if (!completed.ok) return completed;
+
+    if (!completed.ok) {
+      return completed;
+    }
+
     refresh();
+
     return ok(completed.data);
   },
 );
@@ -34,6 +39,7 @@ export const loadPlanCatalog = bs.action(
   { requireTenant: true, authorize: (session) => can(session, "billing.read") },
   async (_input, { tenant: organizationId, db }) => {
     const plans = await getPlans();
+
     return db.subscriptions
       .findFirst({ select: ["planKey"], where: { organizationId } })
       .map((subscription) => ({ plans, current: subscription?.planKey }));
@@ -55,9 +61,11 @@ export const startCheckout = bs.action(
   },
   async ({ plan }): Promise<Result<{ url: string | undefined }>> => {
     const plans: readonly PlanOption[] = await getPlans();
+
     if (!plans.some((each) => each.key === plan)) {
       return err(dbError("not_found", `There is no "${plan}" plan`));
     }
+
     return err(
       dbError(
         "unsupported",

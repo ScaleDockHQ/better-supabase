@@ -12,6 +12,7 @@ const RoleMeta = v.object({ role: v.string() });
 
 const requiredRole = (tool: ToolRef): string | undefined => {
   const meta = v.safeParse(RoleMeta, tool.meta);
+
   return meta.success ? meta.output.role : undefined;
 };
 
@@ -27,12 +28,16 @@ export const bs = createMcp(betterSupabase, {
   // RLS still decides every row. These hooks keep admin tools away from members.
   visible: (ctx, tool) => {
     const role = requiredRole(tool);
+
     return role === undefined || hasRole(ctx.auth, [role], ROLE_CLAIM);
   },
   authorize: (ctx, tool) => {
     const role = requiredRole(tool);
-    if (role === undefined || hasRole(ctx.auth, [role], ROLE_CLAIM))
+
+    if (role === undefined || hasRole(ctx.auth, [role], ROLE_CLAIM)) {
       return { allowed: true };
+    }
+
     return { allowed: false, reason: `Needs the ${role} role` };
   },
 }).tool({

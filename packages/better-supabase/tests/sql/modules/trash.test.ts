@@ -23,6 +23,7 @@ describe("trash module", () => {
         tag: { table: "public.tags" },
       },
     });
+
     expect(sql).toContain(`update "public"."docs" s set "deleted_at" = now()`);
     expect(sql).toContain(`returning s."name"::text into v_title;`);
     expect(sql).not.toContain(`"public"."tags"`);
@@ -55,6 +56,7 @@ describe("trash module", () => {
         },
       },
     });
+
     expect(sql).toContain(
       `where c."project_id"::text = trash_cascade.subject_id`,
     );

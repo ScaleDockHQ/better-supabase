@@ -112,12 +112,20 @@ function nodeOperationsOf(
   operations: OperationTable | undefined,
 ): Readonly<Record<string, string>> {
   const steps: Record<string, string> = {};
+
   for (const name of Object.keys(operations ?? {})) {
-    if (!name.startsWith(OPERATION_PREFIXES.workflowNode)) continue;
+    if (!name.startsWith(OPERATION_PREFIXES.workflowNode)) {
+      continue;
+    }
+
     const permission = operationPermission(operations, name);
     const step = name.slice(OPERATION_PREFIXES.workflowNode.length);
-    if (permission !== undefined && step !== "") steps[step] = permission;
+
+    if (permission !== undefined && step !== "") {
+      steps[step] = permission;
+    }
   }
+
   return steps;
 }
 
@@ -127,11 +135,19 @@ function operationKeysOf(
 ): Readonly<Record<string, string>> {
   const prefixes = Object.values(OPERATION_PREFIXES);
   const keys: Record<string, string> = {};
+
   for (const name of Object.keys(operations ?? {})) {
-    if (prefixes.some((prefix) => name.startsWith(prefix))) continue;
+    if (prefixes.some((prefix) => name.startsWith(prefix))) {
+      continue;
+    }
+
     const permission = operationPermission(operations, name);
-    if (permission !== undefined) keys[name] = permission;
+
+    if (permission !== undefined) {
+      keys[name] = permission;
+    }
   }
+
   return keys;
 }
 
@@ -167,42 +183,57 @@ export function builderSql(
   const r = workflows.table("runs");
   const cr = (column: string): string => workflows.col("runs", column);
   const permissions = moduleOperations("workflow-builder");
+
   const permission = (action: BuilderAction): string =>
     ctx.permission(action, permissions[action]);
+
   const nodeOperations = `${sqlString(JSON.stringify(nodeOperationsOf(operations)))}::jsonb`;
   const operationKeys = `${sqlString(JSON.stringify(operationKeysOf(operations)))}::jsonb`;
+
   const can = (tenant: string, action: BuilderAction): string =>
     ctx.can("tenant", tenant, permission(action));
+
   const holds = (tenant: string, key: string): string =>
     ctx.can("tenant", tenant, key);
+
   const userHolds = (user: string, tenant: string, key: string): string =>
     ctx.scope.canUser(user, tenant, key);
+
   const allowed = (tenant: string, action: BuilderAction): string =>
     `(${SERVICE_CALLER} or (${tenant} is not null and ${can(tenant, action)}))`;
+
   const forbidden = (message: string): string =>
     fail("WORKFLOW_FORBIDDEN", message);
+
   const callable = (signature: string): string =>
     `revoke execute on function ${signature} from public, anon;
 grant execute on function ${signature} to authenticated, service_role;`;
+
   const readable = (tenant: string): string =>
     ctx.scope.check(tenant, permission("read"));
+
   const definitionReadable = (column: string): string =>
     `${column} in (select x.${cd("id")} from ${d} x)`;
+
   const tenant = ctx.of("tenant");
   const m = (column: string): string => tenant.col("memberships", column);
+
   const teams =
     ctx.installed("teams") && ctx.of("teams").mode !== "custom"
       ? ctx.of("teams")
       : undefined;
+
   const principalMatch = (grant: string, tenantId: string): string => {
     const team =
       teams === undefined
         ? ""
         : `
         or (${grant}.${cg("principalKind")} = 'team' and exists (select 1 from ${teams.table("members")} tm where tm.${teams.col("members", "team")}::text = ${grant}.${cg("principalId")} and tm.${teams.col("members", "user")} = (select auth.uid())))`;
+
     return `((${grant}.${cg("principalKind")} = 'user' and ${grant}.${cg("principalId")} = (select auth.uid())::text)${team}
         or (${grant}.${cg("principalKind")} = 'role' and exists (select 1 from ${tenant.table("memberships")} mr where mr.${m("tenant")} = ${tenantId} and mr.${m("user")} = (select auth.uid()) and mr.${m("role")}::text = ${grant}.${cg("principalId")}${activeMembership(ctx, "mr")})))`;
   };
+
   const granted = (
     definition: string,
     tenantId: string,
@@ -216,6 +247,7 @@ grant execute on function ${signature} to authenticated, service_role;`;
           and gr.${cg("action")} in (${action === "run" ? "'run', 'edit'" : "'edit'"})
           and ${principalMatch("gr", tenantId)}
       ))`;
+
   const optedOut = (definition: string, tenantId: string): string =>
     `exists (select 1 from ${o} oo where oo.${co("tenant")} = ${tenantId} and oo.${co("definition")} = ${definition})`;
 
@@ -239,6 +271,7 @@ grant execute on function ${signature} to authenticated, service_role;`;
       alias,
       ctx.extraColumns("definitions", ["fields"]),
     );
+
   const versionJson = (
     alias: string,
     full: boolean,
@@ -261,6 +294,7 @@ grant execute on function ${signature} to authenticated, service_role;`;
         : ""
     }
   )`;
+
   const triggerJson = (alias: string): string => `jsonb_build_object(
     'id', ${alias}.${ct("id")},
     'definition', ${alias}.${ct("definition")},
@@ -270,6 +304,7 @@ grant execute on function ${signature} to authenticated, service_role;`;
     'createdAt', ${alias}.${ct("createdAt")},
     'updatedAt', ${alias}.${ct("updatedAt")}
   )`;
+
   const credentialJson = (alias: string): string => `jsonb_build_object(
     'id', ${alias}.${cc("id")},
     'tenant', ${alias}.${cc("tenant")},
@@ -280,6 +315,7 @@ grant execute on function ${signature} to authenticated, service_role;`;
     'createdBy', ${alias}.${cc("createdBy")},
     'createdAt', ${alias}.${cc("createdAt")}
   )`;
+
   const stepJson = (alias: string): string => `jsonb_build_object(
     'name', ${alias}.${cl("name")},
     'title', ${alias}.${cl("title")},
@@ -290,6 +326,7 @@ grant execute on function ${signature} to authenticated, service_role;`;
     'operation', ${alias}.${cl("operation")},
     'updatedAt', ${alias}.${cl("updatedAt")}
   )`;
+
   const nodeRunJson = (alias: string): string => `jsonb_build_object(
     'run', ${alias}.${cn("run")},
     'node', ${alias}.${cn("node")},
@@ -300,6 +337,7 @@ grant execute on function ${signature} to authenticated, service_role;`;
     'startedAt', ${alias}.${cn("startedAt")},
     'endedAt', ${alias}.${cn("endedAt")}
   )`;
+
   const alertJson = (alias: string): string => `jsonb_build_object(
     'id', ${alias}.${ca("id")},
     'definition', ${alias}.${ca("definition")},
@@ -309,6 +347,7 @@ grant execute on function ${signature} to authenticated, service_role;`;
     'createdBy', ${alias}.${ca("createdBy")},
     'createdAt', ${alias}.${ca("createdAt")}
   )`;
+
   const alertEmit = ctx.record({
     type: "workflow_alert.triggered",
     payload: `jsonb_build_object('alertId', v_alert.${ca("id")}, 'organizationId', v_run.${cr("tenant")}::text, 'definition', v_alert.${ca("definition")}, 'onEvent', v_alert.${ca("onEvent")}, 'channel', v_alert.${ca("channel")}, 'runId', v_run.${cr("id")}, 'status', v_run.${cr("status")}, 'error', v_run.${cr("error")})`,
@@ -317,12 +356,15 @@ grant execute on function ${signature} to authenticated, service_role;`;
     key: `'workflow_alert.triggered:' || v_alert.${ca("id")} || ':' || v_run.${cr("id")}`,
     audit: false,
   });
+
   const fire = `insert into ${f} (${cf("alert")}, ${cf("run")}) values (v_alert.${ca("id")}, v_run.${cr("id")})
       on conflict do nothing;
       if found then
         v_fired := v_fired + 1;${alertEmit === NOTHING ? "" : `\n        ${alertEmit}`}
       end if;`;
+
   const failedTrigger = ctx.trigger("workflow_runs_alert");
+
   return {
     id,
     fn,
@@ -424,6 +466,7 @@ export function builderRuntimeSql(s: BuilderSql): string {
     fire,
     failedTrigger,
   } = s;
+
   return `-- Creates or updates a trigger: workflow.edit in the definition's tenant.
 create or replace function ${fn("save_workflow_trigger")}(
   definition uuid,

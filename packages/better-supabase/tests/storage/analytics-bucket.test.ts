@@ -7,6 +7,7 @@ import {
 
 function analyticsApi(names: string[]) {
   const catalog = { listNamespaces: vi.fn() };
+
   const analytics = {
     listBuckets: vi.fn(async (): Promise<unknown> => ({
       data: names.map((name) => ({ name, type: "ANALYTICS" })),
@@ -18,6 +19,7 @@ function analyticsApi(names: string[]) {
     })),
     from: vi.fn(() => catalog),
   };
+
   return {
     analytics,
     catalog,

@@ -21,6 +21,7 @@ const withModules = (names: readonly string[]): string =>
 describe("ai-chat module", () => {
   it("owns the chat, message tree and run tables", () => {
     const sql = body();
+
     for (const table of [
       "ai_projects",
       "ai_chats",
@@ -39,6 +40,7 @@ describe("ai-chat module", () => {
         `create table if not exists "better_supabase"."${table}" (`,
       );
     }
+
     expect(sql).toContain('primary key ("chat_id", "id")');
     expect(sql).toContain(
       'foreign key ("chat_id", "parent_id") references "better_supabase"."ai_messages" ("chat_id", "id")',
@@ -62,6 +64,7 @@ describe("ai-chat module", () => {
 
   it("keeps replies, claims and the catalog for the service role", () => {
     const sql = body();
+
     for (const signature of [
       '"save_ai_assistant_message"(uuid, jsonb, text, text, text, text, jsonb, uuid)',
       '"claim_ai_chat_stream"(uuid, text, text, text, text, text)',
@@ -97,6 +100,7 @@ describe("ai-chat module", () => {
       /grant select on "?[\w.]*"?\.?"?ai_harness_sessions"? to authenticated/,
     );
     expect(sql).toContain("for update skip locked");
+
     for (const signature of [
       '"get_ai_run"(uuid)',
       '"list_ai_runs"(uuid, boolean, integer)',
@@ -117,6 +121,7 @@ describe("ai-chat module", () => {
     expect(sql).toMatch(/"harness_id" text check/);
     expect(sql).not.toMatch(/ai_harness_sessions" \([^;]*"sandbox_id"/);
     expect(sql).toContain("default 600");
+
     for (const signature of [
       '"register_ai_sandbox"(uuid, text, text, jsonb)',
       '"idle_ai_sandboxes"(integer, integer)',
@@ -126,6 +131,7 @@ describe("ai-chat module", () => {
         `revoke execute on function "better_supabase".${signature} from public, anon, authenticated;`,
       );
     }
+
     expect(() =>
       body({ "ai-chat": { options: { sandboxIdleAfter: 0 } } }),
     ).toThrow(/sandboxIdleAfter/);
@@ -148,9 +154,11 @@ describe("ai-chat module", () => {
 
   it("checks the default permission keys and takes overrides", () => {
     expect(body()).toContain("'ai_chat.create'");
+
     const sql = body({
       "ai-chat": { permissions: { create: "chat.write" } },
     });
+
     expect(sql).toContain("'chat.write'");
     expect(sql).not.toContain("'ai_chat.create'");
   });
@@ -193,6 +201,7 @@ describe("ai-chat module", () => {
         },
       },
     });
+
     expect(sql).toContain("'chat:' || chat::text");
     expect(sql).toContain("interval '2 hours'");
     expect(sql).toContain("interval '1 minute'");
@@ -245,6 +254,7 @@ describe("ai-chat tool approvals with the provider's approver templates", () => 
       false,
       "authz.is_approver({kind}, {subject}, {tenant}, '{scope}')",
     );
+
     expect(sql).toContain(
       `v_row."owner_id" is distinct from (select auth.uid()) and coalesce((authz.is_approver('ai-tool', v_row."tool", (select c."organization_id" from "better_supabase"."ai_chats" c where c."id" = v_row."chat_id"), 'organization')), false)`,
     );
@@ -260,6 +270,7 @@ describe("ai-chat tool approvals with the provider's approver templates", () => 
       "authz.is_approver({kind}, {subject}, {tenant})",
       "roles",
     );
+
     expect(sql).not.toContain("is_approver");
     expect(sql).not.toContain("can_approve");
   });

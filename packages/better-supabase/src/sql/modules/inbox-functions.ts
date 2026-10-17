@@ -5,6 +5,7 @@ import { serviceGrant, pageSize, fail } from "../shared.ts";
 
 export const forbidden = (what: string): string =>
   fail("INBOX_FORBIDDEN", what);
+
 export const missing = (what: string, hint: string): string =>
   fail(hint, `${what} not found`, "P0002");
 
@@ -33,13 +34,16 @@ export function inboxFunctions(
   const mn = q.cols("mentions");
   const T = (name: string): string => q.t(name);
   const service = q.service;
+
   const authed = (signature: string): string =>
     `revoke execute on function ${signature} from public, anon;
 grant execute on function ${signature} to authenticated, service_role;`;
+
   const internal = (signature: string): string =>
     `revoke execute on function ${signature} from public, anon, authenticated;`;
 
   const ctx = q.ctx;
+
   const reactionsWrite = reactionWrite(
     q,
     ms,
@@ -56,15 +60,20 @@ grant execute on function ${signature} to authenticated, service_role;`;
       end
     end`,
   );
+
   const notifyOn = ctx.installed("notifications") && ctx.flag("notify", true);
+
   const notify = (fields: string): string =>
     notifyOn
       ? `
   ${ctx.notify(fields)}`
       : "";
+
   const notifyDeclare = notifyOn ? "\n  v_claims text;" : "";
+
   const enqueue = (queue: string, payload: string, dedupe: string): string =>
     ctx.enqueue(queue, payload, dedupe);
+
   const conversationEvent = (type: string, extra: string): string =>
     ctx.record({
       type,
@@ -73,6 +82,7 @@ grant execute on function ${signature} to authenticated, service_role;`;
       tenant: `v_conv.${cv("tenant")}`,
       audit: false,
     });
+
   const received = ctx.record({
     type: "inbox_message.received",
     payload: `jsonb_build_object('conversationId', v_conv.${cv("id")}, 'organizationId', v_conv.${cv("tenant")}::text, 'messageId', v_msg.${ms("id")}, 'inboxId', v_conv.${cv("inbox")}, 'contactId', v_conv.${cv("contact")})`,
@@ -81,20 +91,26 @@ grant execute on function ${signature} to authenticated, service_role;`;
     key: `'inbox_message.received:' || v_msg.${ms("id")}::text`,
     audit: false,
   });
+
   const log = (type: string, data = "'{}'::jsonb"): string =>
     `insert into ${T("events")} (${ev("tenant")}, ${ev("conversation")}, ${ev("type")}, ${ev("actor")}, ${ev("data")})
   values (v_conv.${cv("tenant")}, v_conv.${cv("id")}, ${sqlString(type)}, (select auth.uid()), ${data});`;
+
   // Who to tell about the conversation: the assignee, or the inbox's members
   // while nobody is assigned.
   const audience = `case when v_conv.${cv("assignee")} is not null then to_jsonb(array[v_conv.${cv("assignee")}])
     else coalesce((select jsonb_agg(m.${mb("user")}) from ${T("members")} m where m.${mb("inbox")} = v_conv.${cv("inbox")}), '[]'::jsonb) end`;
+
   const conversationJson = fn("inbox_conversation_json");
+
   const staffCan = (action: "read" | "reply" | "assign" | "manage"): string =>
     q.can(`v_conv.${cv("tenant")}`, action);
+
   const command = (
     name: InboxCommand,
     action: "read" | "reply" | "assign" | "manage",
   ): string => q.command(`v_conv.${cv("tenant")}`, name, action);
+
   const loadConversation = (
     param: string,
   ): string => `select * into v_conv from ${T("conversations")} where ${cv("id")} = ${param} for update;
@@ -969,11 +985,20 @@ function reactionWrite(
   jsonbUpdate: string,
 ): string {
   const ctx = q.ctx;
-  if (!ctx.installed("reactions")) return jsonbUpdate;
+
+  if (!ctx.installed("reactions")) {
+    return jsonbUpdate;
+  }
+
   const reactions = ctx.of("reactions");
-  if (reactions.mode === "custom") return jsonbUpdate;
+
+  if (reactions.mode === "custom") {
+    return jsonbUpdate;
+  }
+
   const table = reactions.table("reactions");
   const r = (column: string): string => reactions.col("reactions", column);
+
   return `  if coalesce(present, true) then
     insert into ${table} (${r("tenant")}, ${r("subjectType")}, ${r("subjectId")}, ${r("actor")}, ${r("user")}, ${r("emoji")})
     values (v_msg.${ms("tenant")}, 'inbox_message', v_msg.${ms("id")}::text, v_who, case when ${q.service} then null else (select auth.uid()) end, react_to_message.emoji)

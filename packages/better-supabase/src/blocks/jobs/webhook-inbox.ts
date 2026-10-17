@@ -200,16 +200,19 @@ export function purgeWebhookInbox(
     batch: options.batch ?? 10_000,
     for_tenant: options.tenant ?? null,
   };
+
   if ("call" in source) {
     return blockCall(source, options.schema)("purge_webhooks", args, (value) =>
       Number(value ?? 0),
     );
   }
+
   return run(async () => {
     const [row] = await source.queryRaw<{ purged: number }>(
       "select better_supabase.purge_webhooks($1::interval, $2, $3, $4) as purged",
       [args.older_than, args.include_dead, args.batch, args.for_tenant],
     );
+
     return row?.purged ?? 0;
   });
 }
@@ -255,7 +258,10 @@ const STATUSES: ReadonlySet<string> = new Set([
 ]);
 
 function statusOf(value: unknown): WebhookInboxEntry["status"] {
-  if (typeof value !== "string" || !STATUSES.has(value)) return "pending";
+  if (typeof value !== "string" || !STATUSES.has(value)) {
+    return "pending";
+  }
+
   // SAFETY: the set holds exactly the status values.
   return value as WebhookInboxEntry["status"];
 }
@@ -274,9 +280,13 @@ const headersOf = (value: unknown): Readonly<Record<string, string>> =>
     : {};
 
 function defaultType(payload: unknown): string | null {
-  if (typeof payload !== "object" || payload === null) return null;
+  if (typeof payload !== "object" || payload === null) {
+    return null;
+  }
+
   // SAFETY: payload is a non-null object here, and type is checked below.
   const type = (payload as { type?: unknown }).type;
+
   return typeof type === "string" ? type : null;
 }
 
@@ -311,11 +321,13 @@ export async function receiveWebhook(
       input.maxAttempts ?? null,
     ],
   );
+
   return storedOf(row?.value);
 }
 
 function storedOf(value: unknown): { id: number; duplicate: boolean } {
   const row = recordOf(value, "receive_webhook");
+
   return { id: Number(row["id"]), duplicate: row["duplicate"] === true };
 }
 
@@ -328,21 +340,27 @@ export function createWebhookInbox<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: WebhookInboxOptions<S>): WebhookInbox<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const fields: BlockFields<F> = blockFields(
     options.fields,
     "webhook inbox fields",
   );
+
   const worker = options.worker ?? workerId();
   const format = options.problem;
   const maxAttempts = options.maxAttempts ?? 8;
+
   if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
     throw new TypeError(
       `createWebhookInbox maxAttempts must be a positive integer, not ${String(maxAttempts)}`,
     );
   }
+
   const maxBodyBytes = options.maxBodyBytes ?? 1_048_576;
+
   if (!Number.isInteger(maxBodyBytes) || maxBodyBytes < 1) {
     throw new TypeError(
       `createWebhookInbox maxBodyBytes must be a positive integer, not ${String(maxBodyBytes)}`,
@@ -355,11 +373,15 @@ export function createWebhookInbox<
   ): Promise<
     Result<{ id: string; payload: unknown; tenant?: string | null }>
   > => {
-    if (options.verify) return options.verify(request, body);
+    if (options.verify) {
+      return options.verify(request, body);
+    }
+
     const result = await verifyWebhook(
       { headers: request.headers, body },
       options.secrets ?? [],
     );
+
     return result.ok
       ? ok({ id: result.data.id, payload: result.data.payload })
       : result;
@@ -437,15 +459,19 @@ export function createWebhookInbox<
       client.purge(purgeOptions).orThrow(),
     async receive(request) {
       const instance = new URL(request.url).pathname;
+
       if (request.method !== "POST") {
         return new Response(null, { status: 405, headers: { allow: "POST" } });
       }
+
       if (!options.verify && !options.secrets) {
         throw new TypeError(
           `The inbox for "${options.source}" has no \`secrets\` or \`verify\`, so it only stores events through \`store\``,
         );
       }
+
       const body = await readBodyCapped(request.clone(), maxBodyBytes);
+
       if (body === undefined) {
         return problemResponse(
           {
@@ -457,15 +483,21 @@ export function createWebhookInbox<
           { instance, format },
         );
       }
+
       const message = await verified(request, body);
-      if (!message.ok)
+
+      if (!message.ok) {
         return problemResponse(message.error, { instance, format });
+      }
+
       const headers = Object.fromEntries(
         (options.keepHeaders ?? []).flatMap((name) => {
           const value = request.headers.get(name);
+
           return value === null ? [] : [[name.toLowerCase(), value]];
         }),
       );
+
       const stored = await save({
         id: message.data.id,
         payload: message.data.payload,
@@ -474,8 +506,11 @@ export function createWebhookInbox<
           ? {}
           : { tenant: message.data.tenant }),
       });
-      if (!stored.ok)
+
+      if (!stored.ok) {
         return problemResponse(stored.error, { instance, format });
+      }
+
       return Response.json(stored.data, {
         status: stored.data.duplicate ? 200 : 202,
       });
@@ -486,8 +521,12 @@ export function createWebhookInbox<
       let failed = 0;
       const lease = seconds(processOptions.lease ?? 300);
       const spent = budget(processOptions.budgetMs);
+
       for (;;) {
-        if (spent.expired()) return { succeeded, failed };
+        if (spent.expired()) {
+          return { succeeded, failed };
+        }
+
         const rows = await must(
           "claim_webhooks",
           {
@@ -498,10 +537,15 @@ export function createWebhookInbox<
           },
           (value) => recordsOf(value, "claim_webhooks"),
         );
-        if (rows.length === 0) return { succeeded, failed };
+
+        if (rows.length === 0) {
+          return { succeeded, failed };
+        }
+
         for (const row of rows) {
           const id = Number(row["id"]);
           const attempt = Number(row["attempts"]);
+
           // Renews the lease, which ran from the claim while earlier messages
           // of the batch were handled. No lease: another claim took it over.
           const extend = (): Promise<number | undefined> =>
@@ -513,17 +557,27 @@ export function createWebhookInbox<
                   ? undefined
                   : Number(value),
             );
+
           const leaseSeconds = await extend();
-          if (leaseSeconds === undefined) continue;
+
+          if (leaseSeconds === undefined) {
+            continue;
+          }
+
           const stopHeartbeat = leaseHeartbeat(
             leaseSeconds,
             () => void extend().catch(() => undefined),
           );
+
           try {
             const parsed = await fields.read(
               isRecord(row["fields"]) ? row["fields"] : {},
             );
-            if (!parsed.ok) throw new Error(parsed.error.message);
+
+            if (!parsed.ok) {
+              throw new Error(parsed.error.message);
+            }
+
             const message: WebhookInboxMessage<never, F> = {
               id,
               source: String(row["source"]),
@@ -550,7 +604,9 @@ export function createWebhookInbox<
                   (value) => value === true,
                 ),
             };
+
             const outcome: unknown = await handler(message);
+
             if (
               typeof outcome === "object" &&
               outcome !== null &&
@@ -566,12 +622,16 @@ export function createWebhookInbox<
                 ),
               );
             }
+
             const done = await must(
               "complete_webhook",
               { inbox_id: id, worker, attempt },
               (value) => value !== false,
             );
-            if (done) succeeded += 1;
+
+            if (done) {
+              succeeded += 1;
+            }
           } catch (cause) {
             await must(
               "fail_webhook",
@@ -586,6 +646,7 @@ export function createWebhookInbox<
       }
     },
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "webhook-inbox",
     ...(options.logger ? { logger: options.logger } : {}),

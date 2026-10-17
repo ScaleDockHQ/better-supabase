@@ -15,6 +15,7 @@ describe.skipIf(!live)("announcements", () => {
 
   it("shows each user the announcements for their audience until they dismiss them", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "announcements"]);
       const owner = await s.user("owner");
@@ -22,6 +23,7 @@ describe.skipIf(!live)("announcements", () => {
       const member = await s.user("member");
       const tenant = await s.organization(owner, { admin, member });
       const other = await s.organization(await s.user("other"));
+
       const announcements = createAnnouncements({
         transport: sqlTransport(s.sql),
       });
@@ -35,9 +37,11 @@ describe.skipIf(!live)("announcements", () => {
 
       await s.service();
       const now = Temporal.Now.instant();
+
       const everyone = await announcements
         .publish({ title: "Everyone", severity: "success" })
         .orThrow();
+
       const admins = await announcements
         .publish({
           title: "Admins",
@@ -45,6 +49,7 @@ describe.skipIf(!live)("announcements", () => {
           dismissible: false,
         })
         .orThrow();
+
       const ours = await announcements
         .publish({
           title: "Ours",
@@ -52,6 +57,7 @@ describe.skipIf(!live)("announcements", () => {
           href: "/billing",
         })
         .orThrow();
+
       await announcements
         .publish({
           title: "Theirs",
@@ -64,6 +70,7 @@ describe.skipIf(!live)("announcements", () => {
           startsAt: now.add({ hours: 1 }),
         })
         .orThrow();
+
       const ended = await announcements
         .publish({
           title: "Ended",
@@ -71,6 +78,7 @@ describe.skipIf(!live)("announcements", () => {
           endsAt: now.subtract({ hours: 1 }),
         })
         .orThrow();
+
       expect(ours).toMatchObject({
         href: "/billing",
         audience: { type: "tenant", organizationIds: [tenant] },
@@ -82,6 +90,7 @@ describe.skipIf(!live)("announcements", () => {
       ).toBe(false);
       expect(
         await announcements
+          // oxlint-disable-next-line eslint/no-script-url -- the publish check must refuse it
           .publish({ title: "Bad", href: "javascript:alert(1)" })
           .then((r) => r.ok),
       ).toBe(false);
@@ -124,12 +133,14 @@ describe.skipIf(!live)("announcements", () => {
       expect(await titles(tenant)).toContain("Everyone");
 
       await s.service();
+
       const updated = await announcements
         .update(admins.id, {
           title: "Admins and members",
           audience: { type: "role", roles: ["admin", "member"] },
         })
         .orThrow();
+
       expect(updated).toMatchObject({
         title: "Admins and members",
         dismissible: false,

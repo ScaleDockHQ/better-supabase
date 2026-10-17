@@ -16,6 +16,9 @@ export function avatarSrc(
     readonly avatarUrl: string | null;
   },
 ): string | null {
-  if (row.avatarPath) return storage.publicUrl(row.avatarPath).data ?? null;
+  if (row.avatarPath) {
+    return storage.publicUrl(row.avatarPath).data ?? null;
+  }
+
   return row.avatarUrl;
 }

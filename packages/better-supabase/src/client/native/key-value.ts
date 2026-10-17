@@ -34,15 +34,21 @@ export function keyValue(store: KeyValueStoreLike): KeyValue {
       remove: (key) => store.removeItem(key),
     };
   }
+
   return {
     get: (key) => Promise.resolve(store.getString(key) ?? null),
     set: (key, value) => {
       store.set(key, value);
+
       return Promise.resolve();
     },
     remove: (key) => {
-      if (store.remove) store.remove(key);
-      else store.delete?.(key);
+      if (store.remove) {
+        store.remove(key);
+      } else {
+        store.delete?.(key);
+      }
+
       return Promise.resolve();
     },
   };

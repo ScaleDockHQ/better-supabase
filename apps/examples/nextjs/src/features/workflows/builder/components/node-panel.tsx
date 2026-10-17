@@ -32,13 +32,19 @@ const OPERATORS = [
 ] as const;
 
 const Scalar = v.union([v.string(), v.number(), v.boolean(), v.null()]);
+
 type Scalar = v.InferOutput<typeof Scalar>;
+
 const Properties = v.looseObject({});
 
 /** A config field as the text an input shows: strings as they are, other values as JSON. */
 function text(config: NodeConfig, key: string): string {
   const value = config[key];
-  if (v.is(v.string(), value)) return value;
+
+  if (v.is(v.string(), value)) {
+    return value;
+  }
+
   return value === undefined ? "" : JSON.stringify(value);
 }
 
@@ -46,6 +52,7 @@ function text(config: NodeConfig, key: string): string {
 function valueOf(raw: string): Scalar {
   try {
     const parsed = v.safeParse(Scalar, JSON.parse(raw));
+
     return parsed.success ? parsed.output : raw;
   } catch {
     return raw;
@@ -54,6 +61,7 @@ function valueOf(raw: string): Scalar {
 
 function properties(step: WorkflowStepInfo | undefined): readonly string[] {
   const props = step?.inputSchema?.["properties"];
+
   return v.is(Properties, props) ? Object.keys(props) : [];
 }
 
@@ -78,12 +86,15 @@ export function NodePanel({
   const t = useExtracted("workflows");
   const id = useId();
   const { data } = node;
+
   const setConfig = (key: string, value: Scalar) => {
     onChange({ config: { ...data.config, [key]: value } });
   };
+
   const step = steps.find((item) => item.name === data.step);
+
   return (
-    <aside className="bg-card w-72 shrink-0 space-y-4 rounded-lg border p-4">
+    <aside className="w-72 shrink-0 space-y-4 rounded-lg border bg-card p-4">
       <FieldGroup>
         <Field>
           <FieldLabel htmlFor={`${id}-label`}>{t("Label")}</FieldLabel>
@@ -101,6 +112,7 @@ export function NodePanel({
               const options = credentials.filter(
                 (credential) => credential.kind === step?.credentialKind,
               );
+
               return (
                 <Field key={key}>
                   <FieldLabel htmlFor={`${id}-${key}`}>{key}</FieldLabel>

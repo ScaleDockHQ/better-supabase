@@ -62,6 +62,7 @@ describe("supportClaims", () => {
       { id: "s", adminId: "a", targetUserId: "t", reason: "r", readOnly: true },
       { sub: "ignored", role: "", organization_roles: { o: "member" } },
     );
+
     expect(claims).toEqual({
       sub: "t",
       role: "authenticated",
@@ -88,6 +89,7 @@ describe("supportClaims", () => {
       { id: "s", adminId: "a", targetUserId: "t", reason: "", readOnly: false },
       { role: "authenticated" },
     );
+
     const session = toSession({
       kind: "user",
       token: "",
@@ -96,6 +98,7 @@ describe("supportClaims", () => {
       source: "support",
       expiresAt: 100,
     });
+
     expect(supportOf(session)).toEqual({
       sessionId: "s",
       adminId: "a",
@@ -117,6 +120,7 @@ describe("sqlSupportStore", () => {
       ended_by: "revoked",
       metadata: null,
     });
+
     expect(session).toMatchObject({
       tenant: "42",
       readOnly: true,
@@ -134,17 +138,21 @@ describe("sqlSupportStore", () => {
       ["list_support_sessions", [{ session: ROW }]],
       ["support_target_claims", [{ claims: { role: "authenticated" } }]],
     ]);
+
     const asUser: SqlClaims[] = [];
+
     const store = sqlSupportStore(
       {
         admin: fake.sql,
         asUser: (claims) => {
           asUser.push(claims);
+
           return fake.sql;
         },
       },
       { schema: "ops" },
     );
+
     const started = await store.start({
       adminId: "a",
       adminClaims: { sub: "a", role: "authenticated" },
@@ -154,6 +162,7 @@ describe("sqlSupportStore", () => {
       readOnly: true,
       metadata: { ticket: 7 },
     });
+
     expect(started.id).toBe(ROW.id);
     expect(asUser).toEqual([{ sub: "a", role: "authenticated" }]);
     expect(fake.calls[0]).toEqual({
@@ -179,6 +188,7 @@ describe("sqlSupportStore", () => {
         ],
       ],
     ]);
+
     const store = sqlSupportStore(
       {
         admin: fake.sql,
@@ -188,6 +198,7 @@ describe("sqlSupportStore", () => {
       },
       { schema: "ops" },
     );
+
     const expired = await store.expire!();
     expect(expired).toMatchObject([{ id: ROW.id, endedBy: "expired" }]);
     expect(fake.calls).toEqual([
@@ -201,24 +212,31 @@ describe("sqlSupportStore", () => {
   it("reads time values with its own temporal, else the one passed in", async () => {
     const fake = fakeSql([["list_support_sessions", [{ session: ROW }]]]);
     const postgres = { admin: fake.sql, asUser: () => fake.sql };
+
     const namespace = (tag: string) => {
       const from = vi.fn((value: string) => ({ tag, value }));
+
       // SAFETY: the store only calls Instant.from.
       return {
         from,
         temporal: { Instant: { from } } as unknown as typeof Temporal,
       };
     };
+
     const own = namespace("own");
     const passed = namespace("passed");
+
     const [session] = await sqlSupportStore(postgres, {
       temporal: own.temporal,
     }).withTemporal!(passed.temporal).list();
+
     expect(session?.startedAt).toEqual({ tag: "own", value: ROW.started_at });
     expect(passed.from).not.toHaveBeenCalled();
+
     const [fromServer] = await sqlSupportStore(postgres).withTemporal!(
       passed.temporal,
     ).list();
+
     expect(fromServer?.expiresAt).toEqual({
       tag: "passed",
       value: ROW.expires_at,
@@ -240,25 +258,30 @@ describe("sqlSupportStore", () => {
       approved_at: "2026-10-03T10:05:00Z",
       session_id: "s1",
     };
+
     const rules: Parameters<typeof fakeSql>[0] = [
       ["request_support_session", [{ request: REQUEST }]],
       ["approve_support_request", [{ request: REQUEST }]],
       ["approved_support_request", [{ request: null }]],
       ["support_request", [{ request: REQUEST }]],
     ];
+
     const admin = fakeSql(rules);
     const caller = fakeSql(rules);
     const asUser: SqlClaims[] = [];
+
     const store = sqlSupportStore(
       {
         admin: admin.sql,
         asUser: (claims) => {
           asUser.push(claims);
+
           return caller.sql;
         },
       },
       { schema: "ops" },
     );
+
     const input = {
       adminId: "a",
       adminClaims: { sub: "a" },
@@ -267,6 +290,7 @@ describe("sqlSupportStore", () => {
       readOnly: true,
       metadata: { ticket: 7 },
     };
+
     const asked = await store.request!(input);
     expect(asked).toMatchObject({
       id: "r1",
@@ -346,6 +370,7 @@ describe("sqlSupportStore", () => {
         ],
       ],
     ]);
+
     const store = sqlSupportStore({ admin: fake.sql, asUser: () => fake.sql });
     const found = await store.getRequest!("r2");
     expect(found).toEqual({
@@ -358,10 +383,12 @@ describe("sqlSupportStore", () => {
       requestedAt: Temporal.Instant.from("2026-10-03T10:00:00Z"),
       expiresAt: Temporal.Instant.from("2026-10-03T11:00:00Z"),
     });
+
     const empty = sqlSupportStore({
       admin: fakeSql().sql,
       asUser: () => fakeSql().sql,
     });
+
     expect(await empty.getRequest!("r2")).toBeUndefined();
     await expect(
       empty.request!({

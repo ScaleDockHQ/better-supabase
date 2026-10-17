@@ -89,6 +89,7 @@ const instant = (value: unknown): Temporal.Instant =>
 function entryOf<T>(value: unknown): AiCacheEntry<T> {
   const row = recordOf(value, "ai_cache_entries");
   const kind = textOf(row["kind"]);
+
   return {
     key: textOf(row["key"]),
     organizationId: optionalText(row["organization_id"]),
@@ -107,21 +108,40 @@ function entryOf<T>(value: unknown): AiCacheEntry<T> {
 function canonical(value: unknown): unknown {
   if (value instanceof Uint8Array) {
     let binary = "";
-    for (const byte of value) binary += String.fromCodePoint(byte);
+
+    for (const byte of value) {
+      binary += String.fromCodePoint(byte);
+    }
+
     return { $bytes: btoa(binary) };
   }
-  if (value instanceof Date) return value.toISOString();
-  if (value instanceof URL) return value.href;
-  if (Array.isArray(value)) return value.map(canonical);
+
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  if (value instanceof URL) {
+    return value.href;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(canonical);
+  }
+
   if (isRecord(value)) {
     const out: Record<string, unknown> = {};
+
     for (const key of Object.keys(value).toSorted()) {
       const item = value[key];
-      if (item !== undefined && typeof item !== "function")
+
+      if (item !== undefined && typeof item !== "function") {
         out[key] = canonical(item);
+      }
     }
+
     return out;
   }
+
   return value;
 }
 
@@ -138,10 +158,12 @@ export function cacheKey(parts: unknown): Promise<string> {
 export function createAiCache(options: AiCacheOptions): AiCache {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const purge = (purgeOptions: { readonly batch?: number } = {}) =>
     call("purge_ai_cache", { batch: purgeOptions.batch }, (value) =>
       Number(value ?? 0),
     );
+
   const client: AiCache = {
     get: <T>(key: string) =>
       call("ai_cache_get", { key }, (value) =>
@@ -160,6 +182,7 @@ export function createAiCache(options: AiCacheOptions): AiCache {
         },
         (row) => {
           const { value: _value, ...entry } = entryOf<undefined>(row);
+
           return entry;
         },
       ),
@@ -174,6 +197,7 @@ export function createAiCache(options: AiCacheOptions): AiCache {
     purge,
     purgeJob: (jobOptions) => async () => purge(jobOptions).orThrow(),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "ai-cache",
     ...(options.logger ? { logger: options.logger } : {}),

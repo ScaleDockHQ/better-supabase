@@ -15,6 +15,7 @@ import {
 function counter() {
   const start = vi.fn();
   const stop = vi.fn();
+
   const controller = defineController({ count: 0, label: "a" }, (state) => ({
     actions: {
       add: () => {
@@ -27,9 +28,11 @@ function counter() {
     },
     start: () => {
       start();
+
       return stop;
     },
   }));
+
   return { controller, start, stop };
 }
 

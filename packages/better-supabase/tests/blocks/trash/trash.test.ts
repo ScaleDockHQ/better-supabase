@@ -4,13 +4,18 @@ import { createTrash } from "../../../src/blocks/trash/index.ts";
 
 function transport(results: Record<string, (args: unknown) => unknown>) {
   const calls: [string, unknown][] = [];
+
   return {
     calls,
     call(schema: string, fn: string, args: unknown) {
       expect(schema).toBe("app");
       calls.push([fn, args]);
       const result = results[fn];
-      if (!result) return Promise.reject(new Error(`unexpected ${fn}`));
+
+      if (!result) {
+        return Promise.reject(new Error(`unexpected ${fn}`));
+      }
+
       return Promise.resolve(result(args));
     },
   };
@@ -45,12 +50,14 @@ describe("trash client", () => {
       ],
       purge_trash: () => 3,
     });
+
     const trash = createTrash({ transport: fake, schema: "app" });
     expect(await trash.trash("o", "project", "p1").orThrow()).toEqual({
       id: "t1",
       batchId: "b1",
       count: 3,
     });
+
     const listed = await trash
       .list("o", {
         subjectType: "project",
@@ -58,6 +65,7 @@ describe("trash client", () => {
         before: Temporal.Instant.from("2026-10-02T00:00:00Z"),
       })
       .orThrow();
+
     expect(listed[0]).toMatchObject({ title: "Launch", trashedBy: "u1" });
     expect(listed[0]!.purgeAfter?.toString()).toBe("2026-10-31T00:00:00Z");
     expect(listed[1]).not.toHaveProperty("title");
@@ -87,6 +95,7 @@ describe("trash client", () => {
 
   it("runs hooks around a method", async () => {
     const seen: string[] = [];
+
     const trash = createTrash({
       transport: transport({ purge_trash: () => 1 }),
       schema: "app",
@@ -99,6 +108,7 @@ describe("trash client", () => {
         },
       },
     });
+
     await trash.purge("t1").orThrow();
     expect(seen).toEqual(["before"]);
   });

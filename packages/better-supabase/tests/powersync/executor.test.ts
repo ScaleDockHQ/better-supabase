@@ -30,12 +30,14 @@ const OTHER = "00000000-0000-4000-8000-000000000002";
 function setup() {
   const sqlite = createSqlite(betterSupabase.meta);
   const db = betterSupabase.connect(powersyncExecutor(sqlite.db));
+
   return { ...sqlite, client: db };
 }
 
 describe("powersyncExecutor", () => {
   it("decodes timestamps with the injected namespace and no global", async () => {
     const customers = schema.meta.tables["customers"]!;
+
     const coded = defineSchema({
       ...schema.meta,
       tables: {
@@ -49,6 +51,7 @@ describe("powersyncExecutor", () => {
         },
       },
     }) as unknown as typeof schema;
+
     vi.stubGlobal("Temporal", undefined);
     onTestFinished(() => {
       provideTemporal(undefined);
@@ -57,18 +60,22 @@ describe("powersyncExecutor", () => {
     const definition = defineSupabase(coded, { temporal: Polyfill });
     const sqlite = createSqlite(definition.meta);
     const client = definition.connect(powersyncExecutor(sqlite.db));
+
     const created = await client.customers
       .create({ organizationId: ORG, name: "Acme" })
       .orThrow();
+
     const [found] = await client.customers
       .findMany({ where: { id: created.id } })
       .orThrow();
+
     expect(created.createdAt).toBeInstanceOf(Polyfill.Instant);
     expect(found?.createdAt).toBeInstanceOf(Polyfill.Instant);
   });
 
   it("conforms to the executor contract", () => {
     const { db } = setup();
+
     return testExecutor(powersyncExecutor(db), {
       betterSupabase,
       table: "tags",
@@ -78,6 +85,7 @@ describe("powersyncExecutor", () => {
 
   it("writes, reads and decodes rows in the PostgREST shape", async () => {
     const { client } = setup();
+
     const customer = await client.customers
       .create({
         organizationId: ORG,
@@ -85,6 +93,7 @@ describe("powersyncExecutor", () => {
         metadata: { source: "web", tier: "pro" },
       })
       .orThrow();
+
     expect(customer.id).toMatch(/^[0-9a-f-]{36}$/);
     expect(customer.metadata).toEqual({ source: "web", tier: "pro" });
     expect(customer.status).toBe("lead");
@@ -99,6 +108,7 @@ describe("powersyncExecutor", () => {
         isPrimary: true,
       })
       .orThrow();
+
     expect(location.isPrimary).toBe(true);
 
     const found = await client.customers
@@ -111,11 +121,13 @@ describe("powersyncExecutor", () => {
         select: ["id", "name"],
       })
       .orThrow();
+
     expect(found).toEqual([{ id: customer.id, name: "Acme" }]);
 
     const updated = await client.customers
       .update(customer.id, { status: "active" })
       .orThrow();
+
     expect(updated.status).toBe("active");
     expect(
       await client.customers
@@ -135,10 +147,12 @@ describe("powersyncExecutor", () => {
   it("decodes bigint values without losing precision", async () => {
     const { db } = setup();
     const big = 2n ** 60n + 1n;
+
     const wide: PowerSyncDatabaseLike = {
       ...db,
       getAll: async <R>(sql: string, parameters?: unknown[]) => {
         const rows = await db.getAll<Record<string, unknown>>(sql, parameters);
+
         // SAFETY: the rows are the tags rows the query selected.
         return rows.map((row, index) => ({
           ...row,
@@ -146,13 +160,16 @@ describe("powersyncExecutor", () => {
         })) as R[];
       },
     };
+
     const client = betterSupabase.connect(powersyncExecutor(db));
     await client.tags.create({ organizationId: ORG, name: "a" }).orThrow();
     await client.tags.create({ organizationId: ORG, name: "b" }).orThrow();
+
     const rows = await betterSupabase
       .connect(powersyncExecutor(wide))
       .tags.findMany({ select: ["name"], orderBy: { name: "asc" } })
       .orThrow();
+
     expect(rows.map((row) => row.name as unknown)).toEqual([big.toString(), 7]);
   });
 
@@ -160,25 +177,32 @@ describe("powersyncExecutor", () => {
     const { db } = setup();
     const inTransaction: string[] = [];
     let transactions = 0;
+
     const readTransaction = <T>(
       callback: (tx: SqliteContextLike) => Promise<T>,
     ): Promise<T> => {
       transactions += 1;
+
       return callback({
         ...db,
         getAll: <R>(sql: string, parameters?: unknown[]) => {
           inTransaction.push(sql);
+
           return db.getAll<R>(sql, parameters);
         },
       });
     };
+
     const client = betterSupabase.connect(
       powersyncExecutor({ ...db, readTransaction }),
     );
+
     await client.tags.create({ organizationId: ORG, name: "a" }).orThrow();
+
     const page = await client.tags
       .paginate({ select: ["name"], page: 1, size: 10, count: "exact" })
       .orThrow();
+
     expect(page).toMatchObject({
       items: [{ name: "a" }],
       page: { total: 1 },
@@ -195,11 +219,13 @@ describe("powersyncExecutor", () => {
         { organizationId: ORG, name: "b", color: "red" },
       ])
       .orThrow();
+
     const refused = await client.tags.updateMany({
       where: { color: "red" },
       data: { color: "blue" },
       maxAffected: 1,
     });
+
     expect(refused.error).toMatchObject({
       kind: "max_affected",
       status: 400,
@@ -222,20 +248,24 @@ describe("powersyncExecutor", () => {
 
   it("upserts on a unique key without crossing tenants", async () => {
     const { client } = setup();
+
     const first = await client.tags
       .upsert(
         { organizationId: ORG, name: "vip", color: "red" },
         { onConflict: ["organizationId", "name"] },
       )
       .orThrow();
+
     const second = await client.tags
       .upsert(
         { organizationId: ORG, name: "vip", color: "blue" },
         { onConflict: ["organizationId", "name"] },
       )
       .orThrow();
+
     expect(second.id).toBe(first.id);
     expect(second.color).toBe("blue");
+
     const ignored = await client.tags
       .upsertMany(
         [
@@ -245,6 +275,7 @@ describe("powersyncExecutor", () => {
         { onConflict: ["organizationId", "name"], ignoreDuplicates: true },
       )
       .orThrow();
+
     expect(ignored.map((tag) => tag.organizationId)).toEqual([OTHER]);
     expect(
       (await client.tags.findUnique({ where: { id: first.id } }).orThrow())
@@ -255,10 +286,12 @@ describe("powersyncExecutor", () => {
   it("maps constraint errors to DbError kinds", async () => {
     const { client } = setup();
     await client.tags.create({ organizationId: ORG, name: "a" }).orThrow();
+
     const conflict = await client.tags.create({
       organizationId: ORG,
       name: "a",
     });
+
     expect(conflict.error).toMatchObject({
       kind: "conflict",
       code: "23505",
@@ -279,9 +312,11 @@ describe("powersyncExecutor", () => {
 
   it("returns unsupported for what SQLite can't run, before running it", async () => {
     const { client, statements } = setup();
+
     const result = await client.customers.findMany({
       include: { locations: true },
     });
+
     expect(result.error).toMatchObject({
       kind: "unsupported",
       table: "customers",
@@ -303,29 +338,36 @@ describe("powersyncExecutor", () => {
   it("uses newId for missing keys", async () => {
     const { db } = setup();
     let next = 0;
+
     const client = betterSupabase.connect(
       powersyncExecutor(db, {
         newId: () => {
           next += 1;
+
           return `00000000-0000-4000-8000-00000000000${next}`;
         },
       }),
     );
+
     const tag = await client.tags
       .create({ organizationId: ORG, name: "a" })
       .orThrow();
+
     expect(tag.id).toBe("00000000-0000-4000-8000-000000000001");
   });
 
   it("falls back to SQLite's uuid() without crypto, and fails without a row", async () => {
     const { db } = setup();
     vi.stubGlobal("crypto", undefined);
+
     try {
       const tag = await betterSupabase
         .connect(powersyncExecutor(db))
         .tags.create({ organizationId: ORG, name: "a" })
         .orThrow();
+
       expect(tag.id).toMatch(/^[0-9a-f-]{36}$/);
+
       const empty: PowerSyncDatabaseLike = {
         ...db,
         getAll: <T>(sql: string, parameters?: unknown[]) =>
@@ -333,9 +375,11 @@ describe("powersyncExecutor", () => {
             ? Promise.resolve<T[]>([])
             : db.getAll<T>(sql, parameters),
       };
+
       const failed = await betterSupabase
         .connect(powersyncExecutor(empty))
         .tags.create({ organizationId: ORG, name: "b" });
+
       expect(failed.error?.message).toMatch(/uuid\(\) returned no row/);
     } finally {
       vi.unstubAllGlobals();
@@ -344,9 +388,11 @@ describe("powersyncExecutor", () => {
 
   it("decodes values however the sync stored them", async () => {
     const { client, sqlite } = setup();
+
     const customer = await client.customers
       .create({ organizationId: ORG, name: "Acme" })
       .orThrow();
+
     await client.locations
       .create({ organizationId: ORG, customerId: customer.id, label: "HQ" })
       .orThrow();
@@ -354,60 +400,75 @@ describe("powersyncExecutor", () => {
       "update customers set metadata = 'not json', created_at = 12345, kvk = null",
     );
     sqlite.exec("update locations set is_primary = 'true'");
+
     const read = await client.customers
       .findById(customer.id, { select: ["metadata", "createdAt", "kvk"] })
       .orThrow();
+
     expect(read).toEqual({
       metadata: "not json",
       createdAt: "12345",
       kvk: null,
     });
+
     const [location] = await client.locations
       .findMany({ select: ["isPrimary"] })
       .orThrow();
+
     expect(location).toEqual({ isPrimary: true });
   });
 
   it("checks the row count of single reads and honors an aborted signal", async () => {
     const { db, client } = setup();
+
     const singled = (
       single: "one" | "maybe",
       source: PowerSyncDatabaseLike,
     ): Executor => {
       const inner = powersyncExecutor(source);
+
       return {
         ...inner,
         execute: (op, context) =>
           inner.execute(op.kind === "select" ? { ...op, single } : op, context),
       };
     };
+
     const one = betterSupabase.connect(singled("one", db));
     expect((await one.tags.findMany()).error?.kind).toBe("not_found");
+
     const doubled: PowerSyncDatabaseLike = {
       ...db,
       getAll: <T>() => Promise.resolve([{ id: "a" }, { id: "b" }] as T[]),
     };
+
     const twice = await betterSupabase
       .connect(singled("maybe", doubled))
       .tags.findMany({ select: ["id"] });
+
     expect(twice.error?.kind).toBe("multiple_rows");
     const controller = new AbortController();
     controller.abort();
+
     const aborted = await client.tags.delete("a", {
       signal: controller.signal,
     });
+
     expect(aborted.error?.kind).toBe("aborted");
   });
 
   it("maps errors that aren't SQLite constraints", async () => {
     const { db } = setup();
+
     const broken: PowerSyncDatabaseLike = {
       ...db,
       getAll: () => Promise.reject(new Error("disk I/O error")),
     };
+
     const result = await betterSupabase
       .connect(powersyncExecutor(broken))
       .tags.findMany();
+
     expect(result.error?.kind).toBe("unexpected");
   });
 });
@@ -432,6 +493,7 @@ describe("lists on SQLite", () => {
         { organizationId: ORG, name: "Delta 100%", status: "archived" },
       ])
       .orThrow();
+
     const page = await list
       .run(
         client,
@@ -441,6 +503,7 @@ describe("lists on SQLite", () => {
         },
       )
       .orThrow();
+
     expect(page.items).toEqual([{ name: "Acme" }, { name: "Bolt" }]);
     expect(page.page).toMatchObject({ total: 3, pages: 2, hasMore: true });
     expect(page.facetCounts).toEqual({
@@ -451,6 +514,7 @@ describe("lists on SQLite", () => {
     const searched = await list
       .run(client, list.parse({ q: "100%" }).value!, { select: ["name"] })
       .orThrow();
+
     expect(searched.items).toEqual([{ name: "Delta 100%" }]);
   });
 
@@ -465,6 +529,7 @@ describe("lists on SQLite", () => {
       sorts: { organization: { organization: { name: "asc" } } },
       defaultSort: "organization",
     });
+
     const first = await checkSqlite(betterSupabase, serverOnly);
     expect(first.error?.kind).toBe("unsupported");
     const all = await checkSqlite(betterSupabase, serverOnly, { all: true });
@@ -487,20 +552,24 @@ function serverStub(rows: readonly Record<string, unknown>[] = []) {
   const ops: string[] = [];
   const rpcs: string[] = [];
   let offline = false;
+
   const executor: Executor = {
     name: "server",
     functionSources: true,
     execute: async (op) => {
       ops.push(`${op.kind} ${op.table.key}`);
+
       return offline
         ? err(dbError("network", "offline"))
         : ok({ rows, count: rows.length });
     },
     rpc: async (name) => {
       rpcs.push(name);
+
       return ok([{ noteCount: 3 }]);
     },
   };
+
   return {
     executor,
     ops,
@@ -515,9 +584,11 @@ describe("powersyncExecutor with a fallback", () => {
   function withFallback(rows?: readonly Record<string, unknown>[]) {
     const sqlite = createSqlite(betterSupabase.meta);
     const server = serverStub(rows);
+
     const client = betterSupabase.connect(
       powersyncExecutor(sqlite.db, { fallback: server.executor }),
     );
+
     return { ...sqlite, server, client };
   }
 
@@ -525,10 +596,12 @@ describe("powersyncExecutor with a fallback", () => {
     const { client, server, statements } = withFallback([
       { id: "c1", name: "Acme", locations: [] },
     ]);
+
     const result = await client.customers.findMany({
       select: ["id", "name"],
       include: { locations: true },
     });
+
     expect(result.ok).toBe(true);
     expect(server.ops).toEqual(["select customers"]);
     expect(statements).toEqual([]);
@@ -539,10 +612,12 @@ describe("powersyncExecutor with a fallback", () => {
 
   it("never sends writes to the fallback", async () => {
     const { client, server } = withFallback();
+
     const created = await client.customers.create(
       { organizationId: ORG, name: "Acme" },
       { include: { locations: true } },
     );
+
     expect(created.error?.kind).toBe("unsupported");
     expect(server.ops).toEqual([]);
   });
@@ -574,14 +649,17 @@ describe("powersyncExecutor with a fallback", () => {
   it("returns the fallback's error when it fails, for example offline", async () => {
     const { client, server } = withFallback();
     server.goOffline();
+
     const result = await client.customers.findMany({
       include: { locations: true },
     });
+
     expect(result.error).toMatchObject({ kind: "network" });
   });
 
   it("reruns a fallback read in watch only when a watched local table changes", async () => {
     const { db, client, server } = withFallback([{ id: "c1", locations: [] }]);
+
     const stop = watch(
       db,
       () => client.customers.findMany({ include: { locations: true } }),
@@ -591,6 +669,7 @@ describe("powersyncExecutor with a fallback", () => {
         structuralSharing: false,
       },
     );
+
     await tick();
     expect(server.ops).toHaveLength(1);
     await client.customers.create({ organizationId: ORG, name: "Local" });
@@ -604,12 +683,16 @@ describe("watch", () => {
   it("reruns the query when a watched table changes", async () => {
     const { db, client } = setup();
     const results: number[] = [];
+
     const stop = watch(db, () => client.tags.count(), {
       tables: sqliteTables(betterSupabase, ["tags"]),
       onResult: (result) => {
-        if (result.ok) results.push(result.data);
+        if (result.ok) {
+          results.push(result.data);
+        }
       },
     });
+
     await tick();
     await client.tags.create({ organizationId: ORG, name: "a" });
     await client.customers.create({ organizationId: ORG, name: "A" });
@@ -628,18 +711,23 @@ describe("watch", () => {
     const onChange = db.onChange!.bind(db);
     vi.spyOn(db, "onChange").mockImplementation((handler, options) => {
       rerun = () => void handler.onChange({ changedTables: ["tags"] });
+
       return onChange(handler, options);
     });
+
     const stop = watch(
       db,
       () => client.tags.findMany({ orderBy: { name: "asc" } }),
       {
         tables: sqliteTables(betterSupabase, ["tags"]),
         onResult: (result) => {
-          if (result.ok) results.push(result.data);
+          if (result.ok) {
+            results.push(result.data);
+          }
         },
       },
     );
+
     await tick();
     rerun?.();
     await tick();
@@ -656,11 +744,13 @@ describe("watch", () => {
     const { db, client } = setup();
     await client.tags.create({ organizationId: ORG, name: "a" });
     const results: unknown[] = [];
+
     const stop = watch(db, () => client.tags.findMany(), {
       tables: sqliteTables(betterSupabase, ["tags"]),
       structuralSharing: false,
       onResult: (result) => results.push(result.data),
     });
+
     await tick();
     await client.tags.create({ organizationId: ORG, name: "b" });
     await tick();
@@ -671,16 +761,20 @@ describe("watch", () => {
 
   it("never starts with an aborted signal and detaches from it on stop", async () => {
     const { db } = setup();
+
     const query = vi.fn(() =>
       Promise.resolve({ ok: true as const, data: 1, error: null }),
     );
+
     const onResult = vi.fn();
     const onChange = vi.spyOn(db, "onChange");
+
     const stop = watch(db, query, {
       tables: [],
       onResult,
       signal: AbortSignal.abort(),
     });
+
     await tick();
     expect(query).not.toHaveBeenCalled();
     expect(onChange).not.toHaveBeenCalled();

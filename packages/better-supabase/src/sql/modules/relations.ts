@@ -119,28 +119,37 @@ interface ResolvedKind {
 function relationKinds(ctx: ModuleContext): readonly ResolvedKind[] {
   const where = "blocks.relations.options.kinds";
   const raw: unknown = ctx.option("kinds") ?? DEFAULT_RELATION_KINDS;
+
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     throw new TypeError(`${where} must be an object of kind name to options`);
   }
+
   const kinds: ResolvedKind[] = [];
   const names = new Set<string>();
+
   const claim = (name: string): void => {
     if (!NAME.test(name)) {
       throw new TypeError(
         `${where}: "${name}" must be lowercase letters, digits and underscores`,
       );
     }
+
     if (names.has(name)) {
       throw new TypeError(`${where}: "${name}" is named twice`);
     }
+
     names.add(name);
   };
+
   for (const [name, value] of new Map<string, unknown>(Object.entries(raw))) {
     claim(name);
+
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
       throw new TypeError(`${where}.${name} must be an object`);
     }
+
     const entry = new Map<string, unknown>(Object.entries(value));
+
     for (const key of entry.keys()) {
       if (!["inverse", "acyclic", "cardinality", "symmetric"].includes(key)) {
         throw new TypeError(
@@ -148,21 +157,31 @@ function relationKinds(ctx: ModuleContext): readonly ResolvedKind[] {
         );
       }
     }
+
     const inverse = entry.get("inverse");
+
     if (inverse !== undefined && typeof inverse !== "string") {
       throw new TypeError(`${where}.${name}.inverse must be a string`);
     }
+
     const cardinality = entry.get("cardinality") ?? "many";
+
     if (cardinality !== "one" && cardinality !== "many") {
       throw new TypeError(`${where}.${name}.cardinality must be one or many`);
     }
+
     const symmetric = entry.get("symmetric") === true;
+
     if (symmetric && (inverse !== undefined || cardinality === "one")) {
       throw new TypeError(
         `${where}.${name}: a symmetric kind has no inverse and no cardinality`,
       );
     }
-    if (inverse !== undefined) claim(inverse);
+
+    if (inverse !== undefined) {
+      claim(inverse);
+    }
+
     kinds.push({
       name,
       inverse,
@@ -171,6 +190,7 @@ function relationKinds(ctx: ModuleContext): readonly ResolvedKind[] {
       symmetric,
     });
   }
+
   return kinds;
 }
 
@@ -179,6 +199,7 @@ function kindTable(kinds: readonly ResolvedKind[]): string {
   const rows = kinds.flatMap((kind) => {
     const flags = `${String(kind.acyclic)}, ${String(kind.single)}, ${String(kind.symmetric)}`;
     const own = `(${sqlString(kind.name)}, ${sqlString(kind.name)}, false, ${flags}, ${sqlString(kind.inverse ?? kind.name)})`;
+
     return kind.inverse === undefined
       ? [own]
       : [
@@ -186,12 +207,16 @@ function kindTable(kinds: readonly ResolvedKind[]): string {
           `(${sqlString(kind.inverse)}, ${sqlString(kind.name)}, true, ${flags}, ${sqlString(kind.name)})`,
         ];
   });
+
   return `(values ${rows.join(", ")}) as k(name, canonical, inverted, acyclic, single, both_ways, opposite)`;
 }
 
 /** Subject type to table, id column and id type, for `rollup`. */
 function subjectTables(list: readonly (readonly [string, Subject])[]): string {
-  if (list.length === 0) return "";
+  if (list.length === 0) {
+    return "";
+  }
+
   return list
     .map(
       ([type, subject]) =>
@@ -213,10 +238,14 @@ const extrasOf = (ctx: ModuleContext) =>
   ]);
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
   const extras = extrasOf(ctx);
   const relations = ctx.table("relations");
   const c = (column: string): string => ctx.col("relations", column);
+
   const [id, tenant, kind, sourceType, sourceId, targetType, targetId, data] = [
     c("id"),
     c("tenant"),
@@ -227,6 +256,7 @@ function build(ctx: ModuleContext): string {
     c("targetId"),
     c("data"),
   ];
+
   const createdBy = c("createdBy");
   const createdAt = c("createdAt");
   const read = ctx.permission("read", OPERATIONS["relations.read"]);
@@ -235,12 +265,14 @@ function build(ctx: ModuleContext): string {
   const list = subjectsOption(ctx);
   const kindsOf = kindTable(kinds);
   const fn = (value: string): string => ctx.fn(value);
+
   const readable = (prefix: string, type: string, idValue: string): string =>
     subjectReadable(ctx, list, {
       type,
       id: idValue,
       tenant: `${prefix}.tenant`,
     });
+
   const tables = ctx.manages
     ? `create table if not exists ${relations} (
   ${id} uuid primary key default gen_random_uuid(),
@@ -260,6 +292,7 @@ create index if not exists relations_target_idx on ${relations} (${tenant}, ${ta
 ${lockTable(relations, { read: true })}
 `
     : "";
+
   const cascades = subjectCascades(
     ctx,
     list,
@@ -267,6 +300,7 @@ ${lockTable(relations, { read: true })}
   where (${sourceType} = v_type and ${sourceId} = v_id)
      or (${targetType} = v_type and ${targetId} = v_id);`,
   );
+
   // Puts (source, target) in the stored direction: an inverse name swaps the
   // ends, and a symmetric kind stores the smaller end first.
   const canonical = (prefix: string): string => `
@@ -287,6 +321,7 @@ ${lockTable(relations, { read: true })}
     select v_target_type, v_target_id, v_source_type, v_source_id
       into v_source_type, v_source_id, v_target_type, v_target_id;
   end if;`;
+
   const canonicalVars = `  v_kind text;
   v_inverted boolean;
   v_acyclic boolean;
@@ -296,6 +331,7 @@ ${lockTable(relations, { read: true })}
   v_source_id text;
   v_target_type text;
   v_target_id text;`;
+
   const event = (
     type: "subject.linked" | "subject.unlinked",
     idValue: string,
@@ -308,7 +344,9 @@ ${lockTable(relations, { read: true })}
       tenant: tenantValue,
       audit: false,
     });
+
   const tableCase = subjectTables(list);
+
   return `${schemaPreamble(ctx)}
 ${tables}
 drop policy if exists relations_read on ${relations};

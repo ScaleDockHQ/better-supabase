@@ -49,13 +49,17 @@ export function testPaymentProvider(
   const amount = options.amount ?? money(1000n, "EUR");
   const reference = (): string => `conformance-${crypto.randomUUID()}`;
   const { authorize, webhook } = options;
+
   const authorized = async (): Promise<Payment> => {
     const created = await provider
       .createPayment({ amount, reference: reference(), capture: "manual" })
       .orThrow();
+
     await authorize?.(created);
+
     return created;
   };
+
   return conform(`PaymentProvider "${provider.name}"`, [
     [
       "has apiVersion 1 and a name",
@@ -72,12 +76,15 @@ export function testPaymentProvider(
           amount: { amount: 0n, currency: amount.currency },
           reference: reference(),
         });
+
         expect(kindOf(zero) === "invalid_input", `zero gave ${kindOf(zero)}`);
+
         const plain = await provider.createPayment({
           // @ts-expect-error -- a plain number is what the check refuses
           amount: 1000,
           reference: reference(),
         });
+
         expect(
           kindOf(plain) === "invalid_input",
           `a number gave ${kindOf(plain)}`,
@@ -88,9 +95,11 @@ export function testPaymentProvider(
       "creates a payment with its amount, reference and provider",
       async () => {
         const ref = reference();
+
         const payment = await provider
           .createPayment({ amount, reference: ref })
           .orThrow();
+
         expect(payment.id.length > 0, "the payment has no id");
         expect(
           payment.provider === provider.name,
@@ -114,12 +123,15 @@ export function testPaymentProvider(
       async () => {
         const key = crypto.randomUUID();
         const input = { amount, reference: reference() };
+
         const first = await provider
           .createPayment(input, { idempotencyKey: key })
           .orThrow();
+
         const again = await provider
           .createPayment(input, { idempotencyKey: key })
           .orThrow();
+
         expect(first.id === again.id, "the same key created a second payment");
       },
     ],
@@ -145,6 +157,7 @@ export function testPaymentProvider(
         const created = await provider
           .createPayment({ amount, reference: reference() })
           .orThrow();
+
         const read = await provider.get?.(created.id).orThrow();
         expect(read?.id === created.id, "get returned another payment");
         expect(read.reference === created.reference, "get lost the reference");
@@ -168,9 +181,11 @@ export function testPaymentProvider(
         const payment = await authorized();
         await provider.capture(payment.id).orThrow();
         const part = half(amount);
+
         const refund = await provider
           .refund(payment.id, { amount: part })
           .orThrow();
+
         expect(
           refund.paymentId === payment.id,
           "the refund names another payment",
@@ -196,6 +211,7 @@ export function testPaymentProvider(
         const created = await provider
           .createPayment({ amount, reference: reference(), capture: "manual" })
           .orThrow();
+
         const canceled = await provider.cancel?.(created.id).orThrow();
         expect(
           canceled?.status === "canceled",
@@ -209,9 +225,11 @@ export function testPaymentProvider(
         const payment = await provider
           .createPayment({ amount, reference: reference() })
           .orThrow();
+
         const { valid, tampered } = await webhook(payment);
         const events = await provider.parseWebhook(valid).orThrow();
         expect(events.length > 0, "a signed delivery gave no events");
+
         for (const event of events) {
           expect(event.id.length > 0, "an event has no id");
           expect(
@@ -219,6 +237,7 @@ export function testPaymentProvider(
             `an event names payment ${event.paymentId}`,
           );
         }
+
         const refused = await provider.parseWebhook(tampered);
         expect(
           kindOf(refused) === "unauthorized",

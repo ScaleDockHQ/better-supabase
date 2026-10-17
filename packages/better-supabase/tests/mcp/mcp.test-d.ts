@@ -29,6 +29,7 @@ describe("mcp authorization hooks", () => {
         expectTypeOf(ref).toEqualTypeOf<ToolRef>();
         expectTypeOf(args).toEqualTypeOf<unknown>();
         expectTypeOf(ctx.request).toEqualTypeOf<Request>();
+
         return ctx.auth.kind === "user"
           ? { allowed: true }
           : { allowed: false, reason: "Sign in", scopes: ["openid"] };
@@ -48,6 +49,7 @@ describe("mcp authorization hooks", () => {
 });
 
 const Claims = v.object({ user_role: v.string() });
+
 type Claims = v.InferOutput<typeof Claims>;
 
 describe("betterSupabase.claims(schema) in MCP", () => {
@@ -57,20 +59,24 @@ describe("betterSupabase.claims(schema) in MCP", () => {
       version: "1",
       authorize: (ctx) => {
         expectTypeOf(ctx.auth).toEqualTypeOf<AuthState<Claims>>();
+
         return ctx.auth.kind === "user" && ctx.auth.claims.user_role === "admin"
           ? { allowed: true }
           : { allowed: false };
       },
       visible: (ctx) => {
         expectTypeOf(ctx.auth).toEqualTypeOf<AuthState<Claims>>();
+
         return true;
       },
     });
+
     bs.tool({
       name: "whoami",
       description: "The caller's role.",
       run: (_args, ctx) => {
         expectTypeOf(ctx.auth).toEqualTypeOf<AuthState<Claims>>();
+
         return ctx.auth.kind === "user" ? ctx.auth.claims.user_role : null;
       },
     });

@@ -81,6 +81,7 @@ describe("search module", () => {
       },
       ["vector-search", "search"],
     );
+
     expect(sql).toContain(
       `alter table "better_supabase"."search_documents" add column if not exists "embedding" "extensions".vector(384);`,
     );
@@ -105,6 +106,7 @@ describe("search module", () => {
         .filter((file) => file.kind === "data")
         .map((file) => file.contents)
         .join("");
+
     expect(data({ subjects })).toContain(
       `select "better_supabase"."search_reindex"();`,
     );
@@ -130,12 +132,14 @@ describe("search module", () => {
     expect(
       sqlOf({ subjects, modules: { search: { mode: "custom" } } }),
     ).not.toContain("search_refresh");
+
     const adopted = sqlOf({
       subjects,
       modules: {
         search: { mode: "adopt", tables: { documents: "app.search_index" } },
       },
     });
+
     expect(adopted).not.toContain('"better_supabase"."search_documents"');
     expect(adopted).toContain(`from "app"."search_index" d`);
   });

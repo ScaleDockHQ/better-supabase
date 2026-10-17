@@ -14,6 +14,7 @@ describe("ai-sdk http helpers", () => {
       method: "POST",
       body: '{"a":1}',
     });
+
     const bad = new Request("https://x.test", { method: "POST", body: "nope" });
     expect(await readJson(good)).toEqual({ a: 1 });
     expect(await readJson(bad)).toBeUndefined();
@@ -26,6 +27,7 @@ describe("ai-sdk http helpers", () => {
         controller.close();
       },
     });
+
     const response = sse(stream, { "x-workflow-run-id": "run1" });
     expect(response.headers.get("x-workflow-run-id")).toBe("run1");
     expect(response.headers.get("content-type")).toContain("text/event-stream");

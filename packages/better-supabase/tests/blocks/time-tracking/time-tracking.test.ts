@@ -4,19 +4,25 @@ import { createTimeTracking } from "../../../src/blocks/time-tracking/index.ts";
 
 function transport(results: Record<string, (args: unknown) => unknown>) {
   const calls: [string, unknown][] = [];
+
   return {
     calls,
     call(schema: string, fn: string, args: unknown) {
       expect(schema).toBe("better_supabase");
       calls.push([fn, args]);
       const result = results[fn];
-      if (!result) return Promise.reject(new Error(`unexpected ${fn}`));
+
+      if (!result) {
+        return Promise.reject(new Error(`unexpected ${fn}`));
+      }
+
       return Promise.resolve(result(args));
     },
   };
 }
 
 const AT = "2026-10-06T09:00:00Z";
+
 const ENTRY = {
   id: "e1",
   organizationId: "o",
@@ -32,6 +38,7 @@ const ENTRY = {
   createdAt: AT,
   updatedAt: AT,
 };
+
 const RUNNING = {
   ...ENTRY,
   id: "e2",
@@ -43,6 +50,7 @@ const RUNNING = {
   rate: null,
   note: null,
 };
+
 const SHEET = {
   id: "t1",
   organizationId: "o",
@@ -55,6 +63,7 @@ const SHEET = {
   approvedAt: null,
   createdAt: AT,
 };
+
 const WEEK = Temporal.PlainDate.from("2026-10-05");
 
 describe("time-tracking client", () => {
@@ -64,6 +73,7 @@ describe("time-tracking client", () => {
       stop_timer: () => ENTRY,
       running_timer: () => null,
     });
+
     const time = createTimeTracking({ transport: fake });
     const started = await time.start("o").orThrow();
     expect(started).toMatchObject({ id: "e2", billable: false });
@@ -119,6 +129,7 @@ describe("time-tracking client", () => {
       delete_time_entry: () => ENTRY,
       list_time_entries: () => [ENTRY, RUNNING],
     });
+
     const time = createTimeTracking({ transport: fake });
     expect((await time.running("o").orThrow())?.id).toBe("e2");
     const start = Temporal.Instant.from(AT);
@@ -257,6 +268,7 @@ describe("time-tracking client", () => {
       }),
       list_timesheets: () => [{ ...SHEET, status: "approved", approvedAt: AT }],
     });
+
     const time = createTimeTracking({ transport: fake });
     const sheet = await time.timesheet("o", WEEK).orThrow();
     expect(sheet.week.toString()).toBe("2026-10-05");
@@ -321,6 +333,7 @@ describe("time-tracking client", () => {
         totals: null,
       }),
     });
+
     const time = createTimeTracking({ transport: fake });
     const sheet = await time.timesheet("o", WEEK).orThrow();
     expect(sheet.id).toBeUndefined();
@@ -331,6 +344,7 @@ describe("time-tracking client", () => {
     const fake = transport({
       submit_timesheet: () => ({ ...SHEET, status: "lost" }),
     });
+
     const time = createTimeTracking({ transport: fake });
     expect((await time.submit("o", WEEK)).ok).toBe(false);
   });
@@ -338,6 +352,7 @@ describe("time-tracking client", () => {
   it("wraps its methods with hooks", async () => {
     const seen: string[] = [];
     const fake = transport({ stop_timer: () => ENTRY });
+
     const time = createTimeTracking({
       transport: fake,
       schema: "better_supabase",
@@ -350,6 +365,7 @@ describe("time-tracking client", () => {
       },
       logger: console,
     });
+
     await time.stop("o").orThrow();
     expect(seen).toEqual(["before"]);
   });

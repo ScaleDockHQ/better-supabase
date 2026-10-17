@@ -34,6 +34,7 @@ describe("avatarBucket", () => {
       fileSizeLimit: "1MiB",
       allowedMimeTypes: ["image/webp"],
     });
+
     expect(avatars.public).toBe(false);
     expect(avatars.path({ userId: "u", version: "1" }).data).toBe(
       "users/u/1.webp",
@@ -84,6 +85,7 @@ describe("access bucket policies", () => {
         segment: 1,
       },
     });
+
     const sql = docs.sql();
     expect(sql).toContain("tenant_ids_with('docs.list')");
     expect(sql).toContain("tenant_ids_with('docs.delete')");
@@ -97,6 +99,7 @@ describe("access bucket policies", () => {
         scope: "platform",
       },
     });
+
     expect(shared.sql()).toContain(
       "(select better_supabase.is_platform('files.write'))",
     );

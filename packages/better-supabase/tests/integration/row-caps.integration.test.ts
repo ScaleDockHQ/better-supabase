@@ -7,9 +7,11 @@ import { openPg } from "../fixtures/pg.ts";
 import { stackDbUrl, stackUrl } from "./stack-env.ts";
 
 const url = stackUrl();
+
 const secretKey =
   process.env["SUPABASE_SECRET_KEY"] ??
   "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
+
 const dbUrl = stackDbUrl();
 
 const GLOBEX = "00000000-0000-4000-8000-000000000002";
@@ -19,10 +21,12 @@ const source = await openPg(dbUrl);
 
 describe.skipIf(!source)("row caps against the local stack", () => {
   const db = source!;
+
   const betterSupabase = defineSupabase(schema, {
     maxRows: 1000,
     logger: { debug() {}, info() {}, warn() {}, error() {} },
   });
+
   const admin = betterSupabase.connect(
     createClient(url, secretKey, {
       auth: { persistSession: false, autoRefreshToken: false },
@@ -50,15 +54,18 @@ describe.skipIf(!source)("row caps against the local stack", () => {
 
   it("marks a read cut short by db-max-rows as truncated", async () => {
     const seen: boolean[] = [];
+
     const off = betterSupabase.on("query", (event) =>
       seen.push(event.truncated),
     );
+
     const capped = await admin.tags
       .findMany({
         select: ["id", "name"],
         where: { name: { startsWith: PREFIX } },
       })
       .orThrow();
+
     const page = await admin.tags
       .findMany({
         select: ["id"],
@@ -66,6 +73,7 @@ describe.skipIf(!source)("row caps against the local stack", () => {
         limit: 1000,
       })
       .orThrow();
+
     off();
     expect(capped).toHaveLength(1000);
     expect(page).toHaveLength(1000);
@@ -77,6 +85,7 @@ describe.skipIf(!source)("row caps against the local stack", () => {
       admin.tags
         .findMany({ select: ["id"], where: { name: { startsWith: PREFIX } } })
         .orThrow();
+
     const first = await read();
     const ids = first.map((row) => row.id);
     expect(ids).toEqual([...ids].sort());

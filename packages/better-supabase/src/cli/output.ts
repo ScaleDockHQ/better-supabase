@@ -33,6 +33,7 @@ export function renderResult(
       ...(result.error ? { stderr: options.paint("red", result.error) } : {}),
     };
   }
+
   if (result.data === undefined && result.error) {
     return {
       stdout: document(
@@ -41,10 +42,12 @@ export function renderResult(
       ...(result.output ? { stderr: result.output } : {}),
     };
   }
+
   const diagnostics = [
     ...(result.data !== undefined && result.output ? [result.output] : []),
     ...(result.error ? [result.error] : []),
   ];
+
   return {
     stdout: document(result.data ?? { message: result.output ?? "" }),
     ...(diagnostics.length > 0 ? { stderr: diagnostics.join("\n") } : {}),
@@ -56,7 +59,10 @@ export function renderError(
   error: CliError,
   options: RenderOptions & { readonly usage?: string },
 ): Rendered {
-  if (options.json) return { stdout: document(error.problem) };
+  if (options.json) {
+    return { stdout: document(error.problem) };
+  }
+
   return {
     stderr: options.usage
       ? `${error.message}\n\n${options.usage}`

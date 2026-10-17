@@ -45,6 +45,7 @@ export function testCredentialProvider(
 ): Promise<ConformanceReport> {
   const value = (): string => `token-${crypto.randomUUID()}`;
   const { ref, seed, userRef, inbound } = options;
+
   return conform(`CredentialProvider "${provider.name}"`, [
     [
       "has apiVersion 1 and a name",
@@ -61,6 +62,7 @@ export function testCredentialProvider(
           { provider: "conformance-unknown" },
           { subject: APP },
         );
+
         expect(
           kindOf(result) === "invalid_input",
           `got ${kindOf(result) ?? "a token"}`,
@@ -109,16 +111,20 @@ export function testCredentialProvider(
           type: "user",
           id: crypto.randomUUID(),
         };
+
         const bob: CredentialSubject = {
           type: "user",
           id: crypto.randomUUID(),
         };
+
         const [forAlice, forBob] = [value(), value()];
         await seed(userRef, alice, forAlice);
         await seed(userRef, bob, forBob);
+
         const a = await provider
           .getToken(userRef, { subject: alice })
           .orThrow();
+
         const b = await provider.getToken(userRef, { subject: bob }).orThrow();
         expect(
           a.token === forAlice && b.token === forBob,
@@ -128,9 +134,11 @@ export function testCredentialProvider(
           provider.capabilities(userRef).userSubjects,
           "capabilities do not report user subjects",
         );
+
         const asApp = await provider.getToken(userRef, {
           subject: APP,
         });
+
         expect(!asApp.ok, "the app read a per-user credential");
       },
     ],
@@ -141,10 +149,12 @@ export function testCredentialProvider(
           type: "user",
           id: crypto.randomUUID(),
         };
+
         const bob: CredentialSubject = {
           type: "user",
           id: crypto.randomUUID(),
         };
+
         const forBob = value();
         await seed(userRef, alice, value());
         await seed(userRef, bob, forBob);
@@ -157,9 +167,11 @@ export function testCredentialProvider(
           kindOf(after) === "not_found",
           `after revoke got ${kindOf(after) ?? "a token"}`,
         );
+
         const kept = await provider
           .getToken(userRef, { subject: bob })
           .orThrow();
+
         expect(
           kept.token === forBob,
           "revoking a user's credential removed another user's",
@@ -176,8 +188,10 @@ export function testCredentialProvider(
         await seed(ref, APP, app);
         await seed(forA, APP, a);
         await seed(forB, APP, b);
+
         const tokenOf = async (of: CredentialRef) =>
           (await provider.getToken(of, { subject: APP }).orThrow()).token;
+
         expect(
           (await tokenOf(ref)) === app &&
             (await tokenOf(forA)) === a &&
@@ -232,11 +246,13 @@ export function testCredentialProvider(
           await verify(signed, inbound.ref).orThrow(),
           "refused a signed request",
         );
+
         const tampered = new Request(signed.url, {
           method: "POST",
           headers: signed.headers,
           body: `${body} `,
         });
+
         expect(
           !(await verify(tampered, inbound.ref).orThrow()),
           "accepted a tampered request",

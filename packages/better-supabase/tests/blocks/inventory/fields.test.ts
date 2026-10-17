@@ -16,7 +16,9 @@ describe("inventory fields", () => {
         fields: { timezone: "Europe/Amsterdam" },
       }),
     });
+
     const inventory = createInventory({ transport: t, fields: Fields });
+
     const saved = await inventory
       .saveLocation("o", {
         code: "WH-1",
@@ -24,6 +26,7 @@ describe("inventory fields", () => {
         fields: { timezone: "Europe/Amsterdam" },
       })
       .orThrow();
+
     expect(saved.fields?.timezone).toBe("Europe/Amsterdam");
     expect(t.calls[0]?.[1]["fields"]).toEqual({
       timezone: "Europe/Amsterdam",
@@ -32,6 +35,7 @@ describe("inventory fields", () => {
 
   it("refuses a bad field before the call", async () => {
     const t = fieldsTransport({});
+
     const saved = await createInventory({
       transport: t,
       fields: Fields,
@@ -40,6 +44,7 @@ describe("inventory fields", () => {
       name: "Main",
       fields: { timezone: "" },
     });
+
     expect(saved.ok ? undefined : saved.error.kind).toBe("validation");
     expect(t.calls).toEqual([]);
   });

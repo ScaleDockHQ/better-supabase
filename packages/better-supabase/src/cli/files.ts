@@ -21,6 +21,7 @@ export async function fileState(
 ): Promise<FileState> {
   const path = resolve(root, out);
   const current = await readIfExists(path);
+
   return {
     file: display(root, out),
     path,
@@ -51,5 +52,6 @@ export async function writeLine(
   options: { readonly mode?: number } = {},
 ): Promise<{ readonly wrote: boolean; readonly line: string }> {
   const wrote = await writeIfChanged(path, contents, options);
+
   return { wrote, line: `${wrote ? "Wrote" : "Unchanged"} ${shown}${suffix}` };
 }

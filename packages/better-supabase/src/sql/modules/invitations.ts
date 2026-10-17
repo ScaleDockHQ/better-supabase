@@ -47,7 +47,7 @@ import {
   tokenHash,
   type InviteTable,
 } from "./invitations-tables.ts";
-import { assignableRole, roleValue } from "./organizations.ts";
+import { assignableRole, roleValue } from "./organizations-roles.ts";
 import { roleThrough } from "./tenant.ts";
 
 const EVENTS: ModuleEvents<OrganizationsEvents> = {
@@ -137,22 +137,27 @@ const NAMES: ModuleNames = {
 function tenantTableSql(ctx: ModuleContext): string {
   const t = tenantTable(ctx);
   const c = (logical: string) => t.col(logical);
+
   if (!ctx.manages) {
     return `
 -- Adopted: ${t.table} belongs to the app (blocks.invitations.tables.invitations).
 `;
   }
+
   const add = (logical: string, type: string) =>
     t.has(logical)
       ? `alter table ${t.table} add column if not exists ${c(logical)} ${type};\n`
       : "";
+
   const roleCheck =
     accessModel(ctx) === "roles" && !roleThrough(ctx.of("tenant"))
       ? `alter table ${t.table}
   add constraint invitations_role_check check (${c("role")} in (${roleNames(ctx).map(sqlString).join(", ")}));
 `
       : "";
+
   const where = openFilter(t, t.table).replaceAll(`${t.table}.`, "");
+
   return `
 create table if not exists ${t.table} (
   ${c("id")} uuid primary key default gen_random_uuid(),
@@ -200,13 +205,20 @@ create policy bs_invitations_read on ${t.table} for select to authenticated
 
 function platformTableSql(ctx: ModuleContext): string {
   const p = platformTable(ctx);
-  if (!p || !ctx.manages) return "";
+
+  if (!p || !ctx.manages) {
+    return "";
+  }
+
   const c = (logical: string) => p.col(logical);
+
   const add = (logical: string, type: string) =>
     p.has(logical)
       ? `alter table ${p.table} add column if not exists ${c(logical)} ${type};\n`
       : "";
+
   const where = openFilter(p, p.table).replaceAll(`${p.table}.`, "");
+
   return `
 -- Invitations to a platform role (the catalog model's platform assignments).
 create table if not exists ${p.table} (
@@ -246,6 +258,7 @@ create policy bs_platform_invitations_read on ${p.table} for select to authentic
 /** Raises unless `valid_for` is positive and at most `blocks.invitations.options.maxValidFor`. */
 function validity(ctx: ModuleContext): string {
   const max = sqlString(ctx.text("maxValidFor", "30 days"));
+
   return `if valid_for is null or valid_for <= interval '0' or valid_for > ${max}::interval then
     ${raise("INVITATION_VALIDITY", "An invitation is valid for at most %", max)}
   end if;`;
@@ -256,16 +269,19 @@ function platformInvite(
   p: InviteTable | undefined,
 ): string {
   const fail = raise;
+
   if (!p) {
     return fail(
       "INVITATION_SCOPE_UNSUPPORTED",
       "Platform invitations need platform roles: blocks.access.model 'catalog' with platform assignments, or blocks.invitations.options.platformRoles under 'provider'",
     );
   }
+
   const c = (logical: string) => p.col(logical);
   const assignment = platformAssignment(ctx);
   const role = assignment.value("invitee_role");
   const ceiling = assignment.canAssign("auth.uid()", `(${role})`);
+
   const columns: (readonly [string, string])[] = [
     ["email", "lower(btrim(invitee_email))"],
     ["role", role],
@@ -274,8 +290,10 @@ function platformInvite(
     ["expiresAt", "now() + valid_for"],
     ["prefill", "coalesce(prefill, '{}')"],
   ];
+
   const present = columns.filter(([logical]) => p.has(logical));
   const open = openFilter(p, "i");
+
   return `if not service and not ${ctx.scope.platform(invitePlatform(ctx))} then
       ${fail("INVITATION_FORBIDDEN", "Not allowed to invite platform users")}
     end if;
@@ -316,6 +334,7 @@ function invite(ctx: ModuleContext): string {
   const bytes = ctx.number("tokenBytes", 24);
   const validFor = sqlString(ctx.text("validFor", "7 days"));
   const { stored, unknownRole } = tenantRole(ctx);
+
   const columns: (readonly [string, string])[] = [
     ["tenant", "tenant"],
     ["email", "lower(btrim(invitee_email))"],
@@ -325,10 +344,12 @@ function invite(ctx: ModuleContext): string {
     ["expiresAt", "now() + valid_for"],
     ["prefill", "coalesce(prefill, '{}')"],
   ];
+
   const present = columns.filter(([logical]) => t.has(logical));
   const open = openFilter(t, "i");
   const pOpen = p ? openFilter(p, "i") : "";
   const pc = (logical: string) => p!.col(logical);
+
   const platformResend = p
     ? `
     update ${p.table} i
@@ -342,6 +363,7 @@ function invite(ctx: ModuleContext): string {
       return ${inviteJson(ctx, p, "platform_updated", "token", null)};
     end if;`
     : "";
+
   return `
 -- Invites email to tenant (null: a platform invitation) with role, a catalog
 -- role id or key under blocks.access.model 'catalog'. Returns the invitation
@@ -457,22 +479,27 @@ $$;
 /** Whether the caller may manage tenant invitation row `alias` (revoke and resend). */
 function canManage(ctx: ModuleContext, alias: string): string {
   const tenant = `${alias}.${ctx.col("invitations", "tenant")}`;
+
   return `coalesce(better_supabase.member_can(auth.uid(), ${tenant}, ${modulePermission(ctx, "revoke", OPERATIONS["invitations.revoke"])}), false)`;
 }
 
 function close(ctx: ModuleContext): string {
   const t = tenantTable(ctx);
   const p = platformTable(ctx);
+
   /** Ends open invitations of `table` matching `where`: sets `logical`, or deletes when the table lacks it. */
   const end = (table: InviteTable, logical: string, where: string) => {
     const open = openFilter(table, "i");
     const filter = `${where}${open ? ` and ${open}` : ""}${table.only("i")}`;
+
     return table.has(logical)
       ? `update ${table.table} i set ${table.col(logical)} = now() where ${filter}`
       : `delete from ${table.table} i where ${filter}`;
   };
+
   const hash = (table: InviteTable) =>
     `i.${table.col("tokenHash")} = ${tokenHash(ctx, "token")}`;
+
   const platformRevoke = p
     ? `
   ${end(p, "revokedAt", `i.${p.col("id")} = invitation_id and (${SERVICE_CALLER} or ${ctx.scope.platform(invitePlatform(ctx))})`)};
@@ -481,6 +508,7 @@ function close(ctx: ModuleContext): string {
     return true;
   end if;`
     : "";
+
   const platformDecline = (match: (table: InviteTable) => string) =>
     p
       ? `
@@ -491,11 +519,14 @@ function close(ctx: ModuleContext): string {
     return true;
   end if;`
       : "";
+
   const mine = (table: InviteTable) =>
     `i.${table.col("id")} = invitation_id and lower(i.${table.col("email")}) = invitee_email`;
+
   const confirmed = ctx.flag("requireConfirmedEmail", true)
     ? " and u.email_confirmed_at is not null"
     : "";
+
   return `
 -- Revokes an open invitation (deletes it when revokedAt is mapped to null).
 create or replace function ${ctx.fn("revoke_invitation")}(invitation_id uuid)
@@ -576,6 +607,7 @@ function preview(ctx: ModuleContext): string {
   const p = platformTable(ctx);
   const c = (logical: string) => `i.${t.col(logical)}`;
   const organization = organizationJson(ctx, c("tenant"));
+
   const json = (table: InviteTable, tenant: string, organization: string) =>
     `jsonb_build_object(
     'status', ${statusOf(table, "i")},
@@ -586,6 +618,7 @@ function preview(ctx: ModuleContext): string {
     'organization', ${organization},
     'prefill', ${optionalCol(table, "i", "prefill", "'{}'::jsonb")}
   )`;
+
   const platform = p
     ? `
   if preview is null then
@@ -595,6 +628,7 @@ function preview(ctx: ModuleContext): string {
     where i.${p.col("tokenHash")} = ${tokenHash(ctx, "invitation_preview.token")}${p.only("i")};
   end if;`
     : "";
+
   return `
 -- What an invitation link shows before sign-in: status (pending, accepted,
 -- declined, revoked or expired), email, role, organization (id plus
@@ -631,10 +665,12 @@ function accept(
   by: "token" | "id" = "token",
 ): string {
   const t = tenantTable(ctx);
+
   const match = (table: InviteTable) =>
     by === "token"
       ? `i.${table.col("tokenHash")} = ${tokenHash(ctx, "token")}`
       : `i.${table.col("id")} = invitation_id`;
+
   const p = platformTable(ctx);
   const c = (logical: string) => t.col(logical);
   const id = ctx.idType;
@@ -645,22 +681,27 @@ function accept(
   const mu = tenantCtx.col("memberships", "user");
   const mr = tenantCtx.col("memberships", "role");
   const model = accessModel(ctx);
+
   const invitePermission = ctx.permission(
     "invite",
     OPERATIONS["invitations.invite"],
   );
+
   const storedRole = `invite.${t.col("role")}`;
   const role = roleValue(ctx, storedRole, `invite.${t.col("tenant")}`);
+
   const roleKnown = roleThrough(tenantCtx)
     ? `
   if ${role} is null then
     ${fail("INVITATION_ROLE_UNKNOWN", "Unknown role %", storedRole)}
   end if;`
     : "";
+
   /** Checks shared by both kinds of invitation in row `row`. */
   const invitee = (table: InviteTable, row: string) => {
     const col = (logical: string) => `${row}.${table.col(logical)}`;
     const open = openFilter(table, row);
+
     const confirmed = ctx.flag("requireConfirmedEmail", true)
       ? `
   -- The email claim alone does not prove the address: an unconfirmed sign-up carries it too.
@@ -671,12 +712,14 @@ function accept(
     ${fail("INVITATION_EMAIL_UNCONFIRMED", "Confirm your email address before accepting the invitation")}
   end if;`
       : "";
+
     const self = table.has("invitedBy")
       ? `
   if ${col("invitedBy")} = me then
     ${fail("INVITATION_SELF", "You cannot accept your own invitation")}
   end if;`
       : "";
+
     return `if not (${open || "true"}) then
     ${fail("INVITATION_INVALID", "The invitation is invalid or has expired")}
   end if;
@@ -687,10 +730,12 @@ function accept(
     ${fail("INVITATION_EMAIL_MISMATCH", "The invitation is for another email address")}
   end if;${confirmed}${self}`;
   };
+
   // The inviter's authority is checked again: a role or permission they
   // lost after inviting must not reach the invitee.
   const inviter = t.has("invitedBy") ? `invite.${c("invitedBy")}` : undefined;
   const forUser = model === "provider" ? providerForUser(layout) : undefined;
+
   const assignAs = hasCanAssignAs(ctx, layout)
     ? `
     if ${inviter} is not null
@@ -698,6 +743,7 @@ function accept(
       ${fail("INVITATION_INVITER_REVOKED", "The person who invited you can no longer assign that role")}
     end if;`
     : "";
+
   const recheck =
     inviter && model === "provider" && !(forUser?.permitted && forUser.has)
       ? `
@@ -710,14 +756,18 @@ function accept(
       ${fail("INVITATION_INVITER_REVOKED", "The person who invited you can no longer invite members")}
     end if;${assignAs}`
         : "";
+
   let platformAccept = "";
+
   if (p) {
     const pc = (logical: string) => p.col(logical);
     const assignment = platformAssignment(ctx);
+
     const inviterCeiling = assignment.inviterCanAssign(
       `pinvite.${pc("invitedBy")}`,
       `pinvite.${pc("role")}`,
     );
+
     const platformInviter =
       p.has("invitedBy") && (assignment.recheck || forUser?.has)
         ? `
@@ -727,6 +777,7 @@ function accept(
     ${fail("INVITATION_INVITER_REVOKED", "The person who invited you can no longer assign that role")}
   end if;`
         : "";
+
     platformAccept = `
   select * into pinvite
   from ${p.table} i
@@ -751,6 +802,7 @@ function accept(
   return null;
   end if;`;
   }
+
   return `${
     by === "token"
       ? `
@@ -806,6 +858,7 @@ $$;
 
 function invitationsSql(ctx: ModuleContext, layout: ModuleLayout): string {
   const id = ctx.idType;
+
   const grant = (
     fn: string,
     args: string,
@@ -814,6 +867,7 @@ function invitationsSql(ctx: ModuleContext, layout: ModuleLayout): string {
   ) =>
     `revoke execute on function ${ctx.fn(fn)}(${args}) from ${revokeFrom};
 grant execute on function ${ctx.fn(fn)}(${args}) to ${roles};`;
+
   return `${schemaPreamble(ctx)}
 ${tenantTableSql(ctx)}${platformTableSql(ctx)}${platformRoleScope(ctx)}${invitationExtra(ctx)}${invite(ctx)}${updateInvitation(ctx)}${close(ctx)}${preview(ctx)}${accept(ctx, layout)}${accept(ctx, layout, "id")}${myInvitations(ctx)}
 ${grant("invite_member", `${id}, text, text, interval, jsonb${extraFieldsArg(tenantTable(ctx).extras).type}`, "authenticated, service_role")}

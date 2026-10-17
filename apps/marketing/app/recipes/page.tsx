@@ -14,13 +14,13 @@ export default function RecipesPage() {
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-12 px-6 py-16 md:px-8">
       <div className="flex max-w-2xl flex-col gap-3">
-        <p className="text-brand text-xs font-semibold tracking-wide uppercase">
+        <p className="text-xs font-semibold tracking-wide text-brand uppercase">
           Recipes
         </p>
         <h1 className="text-3xl font-semibold tracking-tight">
           Build the UI from your own components
         </h1>
-        <p className="text-muted-foreground text-base leading-7 text-pretty">
+        <p className="text-base leading-7 text-pretty text-muted-foreground">
           better-supabase ships no UI components. Each recipe shows the shadcn
           components to add, the glue to install from the{" "}
           <SiteLink href="/docs/registry" className="text-foreground underline">
@@ -41,10 +41,10 @@ export default function RecipesPage() {
             <li key={recipe.slug}>
               <SiteLink
                 href={recipePath(recipe.slug)}
-                className="border-border bg-card hover:bg-muted/50 focus-visible:ring-ring/50 flex h-full flex-col gap-3 rounded-xl border p-5 transition-colors outline-none focus-visible:ring-3"
+                className="flex h-full flex-col gap-3 rounded-xl border border-border bg-card p-5 transition-colors outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50"
               >
                 <span className="text-sm font-semibold">{recipe.title}</span>
-                <span className="text-muted-foreground line-clamp-3 text-sm leading-6">
+                <span className="line-clamp-3 text-sm leading-6 text-muted-foreground">
                   {recipe.description}
                 </span>
                 <span className="mt-auto flex flex-wrap gap-1.5">
@@ -66,13 +66,13 @@ export default function RecipesPage() {
             <h2 id="planned" className="text-xl font-semibold tracking-tight">
               Planned
             </h2>
-            <p className="text-muted-foreground text-sm leading-6">
+            <p className="text-sm leading-6 text-muted-foreground">
               These wait for their block&apos;s hook. Until it ships, build them
               from the block&apos;s TypeScript client in a server action or
               loader.
             </p>
           </div>
-          <ul className="border-border divide-border divide-y rounded-xl border">
+          <ul className="divide-y divide-border rounded-xl border border-border">
             {plannedRecipes.map((recipe) => (
               <li
                 key={recipe.slug}
@@ -81,12 +81,12 @@ export default function RecipesPage() {
                 <span className="text-sm font-medium sm:w-48">
                   {recipe.title}
                 </span>
-                <span className="text-muted-foreground flex-1 text-sm">
+                <span className="flex-1 text-sm text-muted-foreground">
                   {recipe.description}
                 </span>
                 <SiteLink
                   href={`/blocks/${recipe.block}`}
-                  className="text-muted-foreground hover:text-foreground font-mono text-xs"
+                  className="font-mono text-xs text-muted-foreground hover:text-foreground"
                 >
                   {recipe.block}
                 </SiteLink>

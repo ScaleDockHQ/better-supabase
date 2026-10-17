@@ -18,6 +18,7 @@ function overPostgres(answer: () => readonly Record<string, unknown>[]) {
     ["pg_catalog.pg_proc", SIGNATURE],
     ["bs_call", () => answer()],
   ]);
+
   return { fake, db: { $executor: postgresExecutor(fake.sql) } };
 }
 
@@ -25,6 +26,7 @@ function overPostgrest(response: { data: unknown; error: unknown }) {
   const rpc = vi.fn(() => Promise.resolve(response));
   const schema = vi.fn(() => ({ rpc }));
   const executor = postgrestExecutor({ from: vi.fn(), schema });
+
   return { rpc, schema, db: { $executor: executor } };
 }
 
@@ -79,6 +81,7 @@ describe("dbTransport over Postgres", () => {
     const { db } = overPostgres(() => {
       throw pgError("42501", "nope", { hint: "ORGANIZATION_FORBIDDEN" });
     });
+
     const organizations = createOrganizations({ transport: dbTransport(db) });
     expect(await organizations.leave("organization")).toMatchObject({
       ok: false,
@@ -95,6 +98,7 @@ describe("dbTransport over Postgres", () => {
     const { db } = overPostgres(() => {
       throw pgError("P0001", "gone", { hint: "ORGANIZATION_GONE" });
     });
+
     const organizations = createOrganizations({
       transport: dbTransport(db),
       mappers: [
@@ -104,6 +108,7 @@ describe("dbTransport over Postgres", () => {
             : undefined,
       ],
     });
+
     expect(await organizations.leave("organization")).toMatchObject({
       ok: false,
       error: { kind: "not_found", message: "No such organization" },
@@ -135,6 +140,7 @@ describe("dbTransport over PostgREST", () => {
       data: null,
       error: { message: "nope", code: "42501", hint: "ORGANIZATION_FORBIDDEN" },
     });
+
     const organizations = createOrganizations({ transport: dbTransport(db) });
     expect(await organizations.leave("organization")).toMatchObject({
       ok: false,
@@ -155,9 +161,11 @@ describe("dbTransport errors without a database error", () => {
           ),
         ),
     };
+
     const organizations = createOrganizations({
       transport: dbTransport({ $executor: executor }),
     });
+
     expect(await organizations.leave("organization")).toMatchObject({
       ok: false,
       error: { kind: "unsupported", code: "RPC_UNAVAILABLE" },
@@ -169,6 +177,7 @@ describe("dbTransport errors without a database error", () => {
       name: "custom",
       execute: () => Promise.resolve(err(dbError("unsupported", "no"))),
     };
+
     await expect(
       dbTransport({ $executor: executor }).call("s", "f", {}),
     ).rejects.toThrow(/custom executor has none/);

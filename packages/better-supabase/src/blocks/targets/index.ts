@@ -7,6 +7,7 @@ export {
   type Targets,
   type TargetsOptions,
 } from "./targets.ts";
+
 export {
   extendBlock,
   withBlockHooks,
@@ -14,6 +15,7 @@ export {
   type BlockHooks,
   type BlockTransportMiddleware,
 } from "../../core/block-hooks.ts";
+
 export {
   dbTransport,
   rpcTransport,
@@ -21,4 +23,5 @@ export {
   type BlockTransport,
   type RpcClient,
 } from "../../core/block-transport.ts";
+
 export { targetsBlock } from "./manifest.ts";

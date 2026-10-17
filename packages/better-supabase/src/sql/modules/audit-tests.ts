@@ -5,6 +5,7 @@ import type { ModuleTestFile } from "../module-types.ts";
 import { sqlString } from "../../core/template.ts";
 
 const PROBE = "pg_temp.bs_audit_probe";
+
 const PROBE_NAME =
   "(select n.nspname from pg_catalog.pg_namespace n where n.oid = pg_catalog.pg_my_temp_schema()) || '.bs_audit_probe'";
 
@@ -14,6 +15,7 @@ const textArray = (names: readonly string[]): string =>
 /** A quoted identifier for `schema.table` from its unquoted parts. */
 const quotedTarget = (target: string): string => {
   const dot = target.indexOf(".");
+
   return [target.slice(0, dot), target.slice(dot + 1)]
     .map((part) => `"${part.replaceAll('"', '""')}"`)
     .join(".");
@@ -86,13 +88,16 @@ function auditTableTest(
   const regclass = `${sqlString(quotedTarget(table.target))}::regclass`;
   const log = ctx.table("log");
   const c = (logical: string) => ctx.col("log", logical);
+
   const checks: string[] = [
     `select extensions.has_trigger(${schema}, ${name}, 'bs_audit', ${sqlString(`${table.target} has the bs_audit trigger`)});`,
     `select extensions.trigger_is(${schema}, ${name}, 'bs_audit', 'better_supabase', 'audit_row_change', ${sqlString(`bs_audit on ${table.target} calls audit_row_change()`)});`,
     `select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings(${regclass}) -> 'ignore', '[]'))), ${textArray(table.ignore)}, ${sqlString(`${table.target} is registered with its ignored columns`)});`,
     `select extensions.is(array(select jsonb_array_elements_text(coalesce(better_supabase.audit_settings(${regclass}) -> 'redact', '[]'))), ${textArray(table.redact)}, ${sqlString(`${table.target} is registered with its redacted columns`)});`,
   ];
+
   const behaviour = ctx.has("log", "table") && ctx.has("log", "op");
+
   if (!behaviour) {
     return `begin;
 create extension if not exists pgtap with schema extensions;
@@ -103,26 +108,33 @@ ${checks.join("\n")}
 select * from extensions.finish();
 rollback;`;
   }
+
   const joined = restricted && ctx.hasTable("restricted");
+
   const entries = `from ${log} l${
     joined
       ? ` left join ${ctx.table("restricted")} r on r.${ctx.col("restricted", "entry")} = l.${c("id")}`
       : ""
   } where l.${c("table")} = ${PROBE_NAME}`;
+
   const side = (logical: "old" | "new"): string | undefined => {
     if (joined) {
       return ctx.has("restricted", logical)
         ? `r.${ctx.col("restricted", logical)}`
         : undefined;
     }
+
     return ctx.has("log", logical) ? `l.${c(logical)}` : undefined;
   };
+
   const records = [side("old"), side("new")].filter(
     (value) => value !== undefined,
   );
+
   checks.push(
     `select extensions.results_eq($$select l.${c("op")}::text ${entries} order by l.${c("id")}$$, $$values ('insert'), ('update'), ('delete')$$, ${sqlString(`inserts, updates and deletes on ${table.target} write entries`)});`,
   );
+
   if (table.ignore.length > 0) {
     const tests = [
       ...(ctx.has("log", "changed")
@@ -132,18 +144,22 @@ rollback;`;
         (record) => `coalesce(${record} ?| ${textArray(table.ignore)}, false)`,
       ),
     ];
+
     if (tests.length > 0) {
       checks.push(
         `select extensions.is((select count(*)::int ${entries} and (${tests.join(" or ")})), 0, ${sqlString(`entries for ${table.target} leave out ${table.ignore.join(", ")}`)});`,
       );
     }
   }
+
   const after = side("new");
+
   if (table.redact.length > 0 && after !== undefined) {
     checks.push(
       `select extensions.is((select count(*)::int ${entries} and l.${c("op")} <> 'delete' and exists (select 1 from unnest(${textArray(table.redact)}) k where ${after} ? k and ${after} ->> k is distinct from '[redacted]')), 0, ${sqlString(`entries for ${table.target} mask ${table.redact.join(", ")}`)});`,
     );
   }
+
   return `begin;
 create extension if not exists pgtap with schema extensions;
 select extensions.plan(${String(checks.length)});

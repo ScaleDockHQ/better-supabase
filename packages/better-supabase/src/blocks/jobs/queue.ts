@@ -80,6 +80,7 @@ const TRANSIENT: ReadonlySet<DbError["kind"]> = new Set([
 function toJob(queue: string, row: QueueMessageRow): Job {
   const message = row.message ?? {};
   const { payload, context } = unwrap(message.payload);
+
   return {
     id: Number(row.id),
     queue,
@@ -117,7 +118,11 @@ function mappedTransport(
         args,
         (value) => value,
       );
-      if (!result.ok) throw new DbException(result.error);
+
+      if (!result.ok) {
+        throw new DbException(result.error);
+      }
+
       return result.data;
     },
   };
@@ -130,15 +135,25 @@ function backendOf(
   >,
   now: () => Temporal.Instant,
 ): QueueBackend {
-  if (options.backend) return options.backend;
-  if (options.sql) return sqlQueueBackend(options.sql, now);
-  if (options.client) return pgmqPublicBackend(options.client);
+  if (options.backend) {
+    return options.backend;
+  }
+
+  if (options.sql) {
+    return sqlQueueBackend(options.sql, now);
+  }
+
+  if (options.client) {
+    return pgmqPublicBackend(options.client);
+  }
+
   if (options.transport) {
     return transportQueueBackend(
       mappedTransport(options.transport, options.mappers),
       { now, ...(options.schema ? { schema: options.schema } : {}) },
     );
   }
+
   throw new TypeError(
     "createJobs needs a backend, sql, client or transport to store jobs",
   );
@@ -163,6 +178,7 @@ export function createJobs<const Q extends QueueSchemas>(
   // SAFETY: without `queues` Q is the default, which `{}` satisfies.
   const queues = options.queues ?? ({} as Q);
   const now = options.now ?? nowInstant;
+
   for (const name of Object.keys(queues)) {
     if (!QUEUE_NAME.test(name)) {
       throw new TypeError(
@@ -170,37 +186,44 @@ export function createJobs<const Q extends QueueSchemas>(
       );
     }
   }
+
   const transport = backendOf(options, now);
 
   const schemaOf = (queue: string): StandardSchemaV1 => {
     const schema = queues[queue];
+
     if (!schema) {
       throw new TypeError(
         `Unknown queue "${queue}". Queues: ${Object.keys(queues).join(", ")}`,
       );
     }
+
     return schema;
   };
 
   const complete = (job: Job): AsyncResult<boolean> =>
     run(() => transport.complete(job));
+
   const fail = (
     job: Job,
     error: unknown,
     failOptions: FailOptions = {},
   ): AsyncResult<"queued" | "dead" | null> =>
     run(() => transport.fail(job, errorText(error), failOptions.retryIn));
+
   const claim = (
     queue: string,
     claimOptions: ClaimOptions = {},
   ): AsyncResult<Job[]> =>
     run(async () => {
       schemaOf(queue);
+
       const rows = await transport.read(
         queue,
         claimOptions.lease ?? 300,
         claimOptions.batch ?? 1,
       );
+
       return rows.map((row) => toJob(queue, row));
     });
 
@@ -214,7 +237,9 @@ export function createJobs<const Q extends QueueSchemas>(
   ): (() => void) | undefined =>
     transport.leases
       ? leaseHeartbeat(lease, () => {
-          for (const job of held) void run(() => transport.extend(job, lease));
+          for (const job of held) {
+            void run(() => transport.extend(job, lease));
+          }
         })
       : undefined;
 
@@ -224,26 +249,32 @@ export function createJobs<const Q extends QueueSchemas>(
     workOptions: WorkOptions,
   ): Promise<boolean> => {
     const controller = new AbortController();
+
     try {
       const payload = await validate(
         schemaOf(job.queue),
         job.payload,
         "payload",
       );
+
       if (!payload.ok) {
         await fail(job, payload.error.message);
         workOptions.onError?.(payload.error, job);
+
         return false;
       }
+
       const context =
         workOptions.allTenants && job.context.tenant === undefined
           ? allTenantsContext(job.context)
           : job.context;
+
       const outcome: unknown = await handler(
         payload.data,
         { ...job, payload: payload.data, context },
         controller.signal,
       );
+
       if (
         typeof outcome === "object" &&
         outcome !== null &&
@@ -254,7 +285,9 @@ export function createJobs<const Q extends QueueSchemas>(
         // SAFETY: the in check above proves outcome has an error field.
         throw (outcome as { error: unknown }).error;
       }
+
       await complete(job);
+
       return true;
     } catch (cause) {
       controller.abort();
@@ -266,6 +299,7 @@ export function createJobs<const Q extends QueueSchemas>(
           : toDbError(cause),
         job,
       );
+
       return false;
     }
   };
@@ -285,46 +319,66 @@ export function createJobs<const Q extends QueueSchemas>(
     let failed = 0;
     // One lane's fatal claim error stops the others before the loop throws.
     const stop = new AbortController();
+
     const signal = workOptions.signal
       ? AbortSignal.any([workOptions.signal, stop.signal])
       : stop.signal;
+
     const lanes = Array.from({ length: concurrency }, async () => {
       let wait = firstWait;
       let misses = 0;
+
       while (!signal.aborted) {
-        if (spent.expired()) return;
+        if (spent.expired()) {
+          return;
+        }
+
         const claimed = await claim(queue, {
           ...workOptions,
           batch: workOptions.batch ?? 1,
         });
+
         if (!claimed.ok) {
           misses += 1;
+
           if (misses > CLAIM_RETRIES || !TRANSIENT.has(claimed.error.kind)) {
             stop.abort();
             throw new TypeError(claimed.error.message, {
               cause: claimed.error,
             });
           }
+
           await sleep(
             Math.min(firstWait * 2 ** (misses - 1), spent.remaining()),
             signal,
           );
           continue;
         }
+
         misses = 0;
+
         if (claimed.data.length === 0) {
-          if (!forever) return;
+          if (!forever) {
+            return;
+          }
+
           await sleep(wait, signal);
           wait = Math.min(maxWait, wait * 2);
           continue;
         }
+
         wait = firstWait;
         const held = new Set(claimed.data);
         const stopHeartbeat = heartbeat(held, lease);
+
         try {
           for (const job of claimed.data) {
-            if (await handle(job, handler, workOptions)) succeeded += 1;
-            else failed += 1;
+            if (await handle(job, handler, workOptions)) {
+              succeeded += 1;
+            } else {
+              failed += 1;
+            }
+
             held.delete(job);
           }
         } finally {
@@ -332,22 +386,32 @@ export function createJobs<const Q extends QueueSchemas>(
         }
       }
     });
+
     const settled = await Promise.allSettled(lanes);
+
     for (const lane of settled) {
-      if (lane.status === "rejected") throw lane.reason;
+      if (lane.status === "rejected") {
+        throw lane.reason;
+      }
     }
+
     return { succeeded, failed };
   };
 
   const runSchedules = async (
     scheduleOptions: RunSchedulesOptions,
   ): Promise<number> => {
-    if (!transport.dueSchedules || !transport.advanceSchedule) return 0;
+    if (!transport.dueSchedules || !transport.advanceSchedule) {
+      return 0;
+    }
+
     const due = await transport.dueSchedules(
       scheduleOptions.lease ?? 60,
       scheduleOptions.batch ?? 100,
     );
+
     let ran = 0;
+
     for (const schedule of due) {
       await transport.send(
         schedule.queue,
@@ -356,6 +420,7 @@ export function createJobs<const Q extends QueueSchemas>(
         5,
         `schedule:${schedule.name}:${schedule.nextRun.toString()}`,
       );
+
       const next = millis(
         nextCronRun(
           schedule.cron,
@@ -363,11 +428,14 @@ export function createJobs<const Q extends QueueSchemas>(
           later(now(), schedule.nextRun),
         ),
       );
+
       if (
         await transport.advanceSchedule(schedule.name, schedule.nextRun, next)
-      )
+      ) {
         ran += 1;
+      }
     }
+
     return ran;
   };
 
@@ -389,8 +457,13 @@ export function createJobs<const Q extends QueueSchemas>(
     tenantDefault?: string,
   ): Promise<Result<PreparedSchedule>> => {
     const valid = await validate(schemaOf(queue), payload, "payload");
-    if (!valid.ok) return valid;
+
+    if (!valid.ok) {
+      return valid;
+    }
+
     const timeZone = scheduleOptions.timeZone ?? "UTC";
+
     try {
       nextCronRun(cron, timeZone, now());
     } catch (cause) {
@@ -400,8 +473,13 @@ export function createJobs<const Q extends QueueSchemas>(
         }),
       );
     }
+
     const wrapped = wrapPayload(valid.data, scheduleOptions.context);
-    if (!wrapped.ok) return wrapped;
+
+    if (!wrapped.ok) {
+      return wrapped;
+    }
+
     return ok({
       name,
       cron,
@@ -430,13 +508,19 @@ export function createJobs<const Q extends QueueSchemas>(
 
   const purge: Jobs<Q>["purge"] = (purgeOptions = {}) =>
     run(async () => {
-      if (!transport.purge) sqlOnly("purge");
+      if (!transport.purge) {
+        sqlOnly("purge");
+      }
+
       const backendPurge = transport.purge.bind(transport);
+
       const interval = (value: number | string | undefined) =>
         value === undefined ? undefined : seconds(value);
+
       const counts = await Promise.all(
         (purgeOptions.queues ?? Object.keys(queues)).map((queue) => {
           schemaOf(queue);
+
           return backendPurge(queue, {
             olderThan: interval(purgeOptions.olderThan),
             deadOlderThan: interval(purgeOptions.deadOlderThan),
@@ -444,11 +528,13 @@ export function createJobs<const Q extends QueueSchemas>(
           });
         }),
       );
+
       return counts.reduce((sum, count) => sum + count, 0);
     });
 
   const delayOf = (enqueueOptions: EnqueueOptions): Result<number> => {
     const delay = enqueueOptions.delay;
+
     if (delay !== undefined && (!Number.isInteger(delay) || delay < 0)) {
       return err(
         dbError("validation", "delay is a whole number of seconds", {
@@ -458,6 +544,7 @@ export function createJobs<const Q extends QueueSchemas>(
         }),
       );
     }
+
     return ok(
       delay ??
         (enqueueOptions.runAt
@@ -480,15 +567,27 @@ export function createJobs<const Q extends QueueSchemas>(
     enqueueOptions: EnqueueOptions,
   ): Promise<Result<{ message: unknown; delay: number }>> => {
     const valid = await validate(schemaOf(queue), payload, "payload");
-    if (!valid.ok) return valid;
+
+    if (!valid.ok) {
+      return valid;
+    }
+
     const delay = delayOf(enqueueOptions);
-    if (!delay.ok) return delay;
+
+    if (!delay.ok) {
+      return delay;
+    }
+
     const message = wrapPayload(valid.data, enqueueOptions.context, {
       ...(enqueueOptions.ticket === undefined
         ? {}
         : { ticket: enqueueOptions.ticket }),
     });
-    if (!message.ok) return message;
+
+    if (!message.ok) {
+      return message;
+    }
+
     return ok({ message: message.data, delay: delay.data });
   };
 
@@ -496,8 +595,13 @@ export function createJobs<const Q extends QueueSchemas>(
     enqueue(queue, payload, enqueueOptions = {}) {
       return AsyncResult.from(async () => {
         const prepared = await prepareSend(queue, payload, enqueueOptions);
-        if (!prepared.ok) return prepared;
+
+        if (!prepared.ok) {
+          return prepared;
+        }
+
         const { message, delay } = prepared.data;
+
         return run(() =>
           transport.send(
             queue,
@@ -513,10 +617,18 @@ export function createJobs<const Q extends QueueSchemas>(
     enqueueOnce(queue, payload, enqueueOptions) {
       return AsyncResult.from(async () => {
         const prepared = await prepareSend(queue, payload, enqueueOptions);
-        if (!prepared.ok) return prepared;
+
+        if (!prepared.ok) {
+          return prepared;
+        }
+
         const { message, delay } = prepared.data;
+
         return run(() => {
-          if (!transport.sendOnce) sqlOnly("enqueueOnce");
+          if (!transport.sendOnce) {
+            sqlOnly("enqueueOnce");
+          }
+
           return transport.sendOnce(
             queue,
             message,
@@ -527,7 +639,7 @@ export function createJobs<const Q extends QueueSchemas>(
         });
       });
     },
-    claim: claim,
+    claim,
     complete,
     fail,
     extend: (job, lease) => run(() => transport.extend(job, lease)),
@@ -535,13 +647,17 @@ export function createJobs<const Q extends QueueSchemas>(
       run(async () => {
         const stats = (queue: string): Promise<QueueStats> =>
           transport.stats?.(queue) ?? sqlOnly("stats");
+
         const list = names ?? Object.keys(queues);
+
         const entries = await Promise.all(
           list.map(async (queue) => {
             schemaOf(queue);
+
             return [queue, await stats(queue)] as const;
           }),
         );
+
         // SAFETY: the entries are exactly the requested queue names.
         return Object.fromEntries(entries) as Record<
           (typeof list)[number],
@@ -550,16 +666,22 @@ export function createJobs<const Q extends QueueSchemas>(
       }),
     listDead: (queue, listOptions = {}) =>
       run(async () => {
-        if (!transport.listDead) sqlOnly("listDead");
+        if (!transport.listDead) {
+          sqlOnly("listDead");
+        }
+
         schemaOf(queue);
+
         const rows = await transport.listDead(
           queue,
           listOptions.limit ?? 100,
           pageOf(listOptions).cursor,
         );
+
         return rows.map((row) => {
           const message = row.message ?? {};
           const { payload, context } = unwrap(message.payload);
+
           return {
             id: Number(row.id),
             queue,
@@ -576,8 +698,12 @@ export function createJobs<const Q extends QueueSchemas>(
       }),
     retryDead: (queue, retryOptions = {}) =>
       run(async () => {
-        if (!transport.retryDead) sqlOnly("retryDead");
+        if (!transport.retryDead) {
+          sqlOnly("retryDead");
+        }
+
         schemaOf(queue);
+
         return transport.retryDead(
           queue,
           retryOptions.ids,
@@ -588,7 +714,10 @@ export function createJobs<const Q extends QueueSchemas>(
     purgeJob: (purgeOptions) => async () => purge(purgeOptions).orThrow(),
     replay: (queue, id) =>
       run(() => {
-        if (!transport.replay) sqlOnly("replay");
+        if (!transport.replay) {
+          sqlOnly("replay");
+        }
+
         return transport.replay(queue, id);
       }),
     schedule(name, cron, queue, payload, scheduleOptions = {}) {
@@ -600,7 +729,11 @@ export function createJobs<const Q extends QueueSchemas>(
           payload,
           scheduleOptions,
         );
-        if (!prepared.ok) return prepared;
+
+        if (!prepared.ok) {
+          return prepared;
+        }
+
         return run(() => write(prepared.data));
       });
     },
@@ -608,6 +741,7 @@ export function createJobs<const Q extends QueueSchemas>(
     ensureSchedules(definitions, ensureOptions) {
       return AsyncResult.from(async () => {
         const { prefix, tenant } = ensureOptions;
+
         if (prefix.length === 0) {
           return err(
             dbError(
@@ -616,8 +750,10 @@ export function createJobs<const Q extends QueueSchemas>(
             ),
           );
         }
+
         const names = new Set<string>();
         const prepared: PreparedSchedule[] = [];
+
         for (const definition of definitions) {
           if (
             !definition.name.startsWith(prefix) ||
@@ -632,7 +768,9 @@ export function createJobs<const Q extends QueueSchemas>(
               ),
             );
           }
+
           names.add(definition.name);
+
           const ready = await prepare(
             definition.name,
             definition.cron,
@@ -641,34 +779,58 @@ export function createJobs<const Q extends QueueSchemas>(
             definition,
             tenant,
           );
-          if (!ready.ok) return ready;
+
+          if (!ready.ok) {
+            return ready;
+          }
+
           prepared.push(ready.data);
         }
+
         return run(async () => {
-          if (!transport.listSchedules) sqlOnly("ensureSchedules");
+          if (!transport.listSchedules) {
+            sqlOnly("ensureSchedules");
+          }
+
           const existing = await transport.listSchedules({
             prefix,
             ...(tenant === undefined ? {} : { tenant }),
           });
-          for (const schedule of prepared) await write(schedule);
-          const removed: string[] = [];
-          for (const schedule of existing) {
-            if (names.has(schedule.name)) continue;
-            if (await transport.unschedule(schedule.name))
-              removed.push(schedule.name);
+
+          for (const schedule of prepared) {
+            await write(schedule);
           }
+
+          const removed: string[] = [];
+
+          for (const schedule of existing) {
+            if (names.has(schedule.name)) {
+              continue;
+            }
+
+            if (await transport.unschedule(schedule.name)) {
+              removed.push(schedule.name);
+            }
+          }
+
           return { scheduled: [...names], removed };
         });
       });
     },
     listSchedules: (filter = {}) =>
       run(async () => {
-        if (!transport.listSchedules) sqlOnly("listSchedules");
+        if (!transport.listSchedules) {
+          sqlOnly("listSchedules");
+        }
+
         return [...(await transport.listSchedules(filter))];
       }),
     unscheduleAll: (filter) =>
       run(() => {
-        if (!transport.unscheduleTenant) sqlOnly("unscheduleAll");
+        if (!transport.unscheduleTenant) {
+          sqlOnly("unscheduleAll");
+        }
+
         return transport.unscheduleTenant(filter.tenant);
       }),
     runSchedules: (scheduleOptions = {}) =>
@@ -678,7 +840,10 @@ export function createJobs<const Q extends QueueSchemas>(
     work: (queue, handler, workOptions = {}) =>
       loop(queue, handler, workOptions, true),
     drainRoute(routeOptions) {
-      for (const queue of Object.keys(routeOptions.handlers)) schemaOf(queue);
+      for (const queue of Object.keys(routeOptions.handlers)) {
+        schemaOf(queue);
+      }
+
       return cronRoute(
         {
           name: "drain",
@@ -689,36 +854,52 @@ export function createJobs<const Q extends QueueSchemas>(
           const spent = budget(routeOptions.budgetMs ?? 50_000);
           const monitor = routeOptions.monitor;
           let errors = 0;
+
           const report = (cause: unknown): void => {
             errors += 1;
             routeOptions.onError?.(toDbError(cause));
           };
+
           const watch = async (fn: () => unknown): Promise<unknown> => {
             try {
               return await fn();
             } catch (cause) {
               routeOptions.onError?.(toDbError(cause));
+
               return undefined;
             }
           };
+
           const started = monitor?.onStart
             ? await watch(() => monitor.onStart?.(request))
             : undefined;
+
           let scheduled = 0;
+
           if (routeOptions.schedules ?? true) {
             const ran = await run(() => runSchedules({}));
-            if (ran.ok) scheduled = ran.data;
-            else {
+
+            if (ran.ok) {
+              scheduled = ran.data;
+            } else {
               errors += 1;
               routeOptions.onError?.(ran.error);
             }
           }
+
           const results: Record<string, DrainResult> = {};
+
           for (const [queue, handler] of Object.entries(
             routeOptions.handlers,
           )) {
-            if (handler === undefined) continue;
-            if (spent.expired()) break;
+            if (handler === undefined) {
+              continue;
+            }
+
+            if (spent.expired()) {
+              break;
+            }
+
             try {
               results[queue] = await loop(
                 queue,
@@ -734,20 +915,24 @@ export function createJobs<const Q extends QueueSchemas>(
               results[queue] = { succeeded: 0, failed: 0 };
             }
           }
+
           const result: DrainRouteResult = {
             schedules: scheduled,
             queues: results,
             budgetExhausted: spent.expired(),
             errors,
           };
+
           if (monitor?.onFinish) {
             await watch(() => monitor.onFinish?.(result, started));
           }
+
           return Response.json(result);
         },
       );
     },
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "jobs",
     ...(options.logger ? { logger: options.logger } : {}),

@@ -17,8 +17,7 @@ import type {
 import type { ApiOptions } from "./options.ts";
 
 import { isPlainObject } from "../core/clone.ts";
-import { dataschemaOf } from "../events/cloud-event.ts";
-import { DEFAULT_TYPE_PREFIX } from "../events/cloud-event.ts";
+import { dataschemaOf, DEFAULT_TYPE_PREFIX } from "../events/cloud-event.ts";
 import { ROW_EVENT_TYPES } from "../events/index.ts";
 import {
   convertStandard,
@@ -105,6 +104,7 @@ export interface EventsContext<Ref> {
 }
 
 const OPEN: JsonSchema = { type: "object" };
+
 const DEFAULT_INTENTS: readonly MutationIntent[] = [
   "insert",
   "update",
@@ -155,14 +155,22 @@ function convert<Ref>(
   where: string,
   ctx: EventsContext<Ref>,
 ): JsonSchema {
-  if (schema === true) return OPEN;
+  if (schema === true) {
+    return OPEN;
+  }
+
   const converted = convertStandard(schema, "output");
-  if (converted) return converted.schema;
+
+  if (converted) {
+    return converted.schema;
+  }
+
   ctx.report({
     code: "asyncapi-schema-opaque",
     severity: "warning",
     message: `${where}: the schema does not implement Standard JSON Schema; the payload is left open`,
   });
+
   return OPEN;
 }
 
@@ -172,12 +180,17 @@ function tableChannels<Ref>(
   channels: ModelChannel[],
   messages: Record<string, ModelMessage>,
 ): void {
-  if (selection === false) return;
+  if (selection === false) {
+    return;
+  }
+
   const realtime = ctx.meta.realtime ?? {};
   const keys = selection === true ? Object.keys(realtime) : selection;
+
   for (const key of keys) {
     const table = ctx.meta.tables[key];
     const config = realtime[key];
+
     if (!table || !config) {
       ctx.report({
         code: "asyncapi-table-unknown",
@@ -186,13 +199,16 @@ function tableChannels<Ref>(
       });
       continue;
     }
+
     const id = `table${keyPart(key)}`;
     const base = `bs:t:${table.schema}.${table.name}`;
+
     const address = config.user
       ? `${base}:u:{userId}`
       : config.tenant
         ? `${base}:{tenant}`
         : base;
+
     const messageId = `${id}Change`;
     messages[messageId] = {
       id: messageId,
@@ -254,6 +270,7 @@ function topicChannels<Ref>(
     const id = `topic${keyPart(key)}`;
     const ids: string[] = [];
     const events = Object.entries(topic.events ?? {});
+
     if (events.length === 0) {
       ctx.report({
         code: "asyncapi-topic-open",
@@ -262,6 +279,7 @@ function topicChannels<Ref>(
       });
       events.push(["*", true]);
     }
+
     for (const [event, schema] of events) {
       const messageId = `${id}${event === "*" ? "Any" : keyPart(event)}`;
       ids.push(messageId);
@@ -274,6 +292,7 @@ function topicChannels<Ref>(
         extensions: { [`${ctx.prefix}event`]: event },
       };
     }
+
     if (topic.presence) {
       const messageId = `${id}Presence`;
       ids.push(messageId);
@@ -286,11 +305,14 @@ function topicChannels<Ref>(
         extensions: { [`${ctx.prefix}event`]: "presence" },
       };
     }
+
     const permission =
       topic.permission === undefined
         ? undefined
         : ctx.keyOf(topic.permission, `topics.${key}`);
+
     const extra = permission === undefined ? {} : { permission };
+
     const operations: ModelChannelOperation[] = [
       {
         id: `receive${keyPart(key)}`,
@@ -299,15 +321,19 @@ function topicChannels<Ref>(
         ...extra,
       },
     ];
-    if (topic.send || topic.presence)
+
+    if (topic.send || topic.presence) {
       operations.push({
         id: `send${keyPart(key)}`,
         action: "send",
         ...extra,
       });
+    }
+
     const params = [...topic.template.matchAll(/\{([^}]+)\}/g)].map(
       (match) => match[1] ?? "",
     );
+
     channels.push({
       id,
       address: topic.template,
@@ -327,7 +353,11 @@ function topicChannels<Ref>(
 
 function withActor(schema: JsonSchema): JsonSchema {
   const properties = schema["properties"];
-  if (!isPlainObject(properties) || "actorId" in properties) return schema;
+
+  if (!isPlainObject(properties) || "actorId" in properties) {
+    return schema;
+  }
+
   return {
     ...schema,
     properties: {
@@ -344,6 +374,7 @@ function cloudEventChannel<Ref>(
   messages: Record<string, ModelMessage>,
 ): boolean {
   const ids: string[] = [];
+
   const add = (
     messageId: string,
     type: string,
@@ -355,6 +386,7 @@ function cloudEventChannel<Ref>(
       type,
       ...(table ? { table } : {}),
     });
+
     ids.push(messageId);
     messages[messageId] = {
       id: messageId,
@@ -372,9 +404,12 @@ function cloudEventChannel<Ref>(
   };
 
   const rows = input.rows ?? false;
+
   const rowTables =
     rows === true ? Object.keys(ctx.meta.tables) : rows === false ? [] : rows;
+
   const defs = rowTables.length > 0 ? tableSchemas(ctx.meta, ctx.json) : {};
+
   for (const table of rowTables) {
     if (!ctx.meta.tables[table]) {
       ctx.report({
@@ -384,15 +419,20 @@ function cloudEventChannel<Ref>(
       });
       continue;
     }
+
     const component = ctx.served.get(table)?.components.Row;
+
     const row = component
       ? schemaRef(component)
       : (defs[`${table}Row`] ?? OPEN);
+
     for (const intent of input.intents ?? DEFAULT_INTENTS) {
       const last = ROW_EVENT_TYPES[intent].split(".").at(-1) ?? intent;
+
       const type = input.typePrefix
         ? `${input.typePrefix}.row.${last}`
         : ROW_EVENT_TYPES[intent];
+
       add(
         `row${keyPart(table)}${keyPart(last)}`,
         type,
@@ -412,7 +452,10 @@ function cloudEventChannel<Ref>(
   }
 
   for (const [event, schema] of Object.entries(input.blocks ?? {})) {
-    if (schema === undefined) continue;
+    if (schema === undefined) {
+      continue;
+    }
+
     const type = `${input.typePrefix ?? DEFAULT_TYPE_PREFIX}.${event}`;
     add(
       `block${keyPart(event)}`,
@@ -422,7 +465,10 @@ function cloudEventChannel<Ref>(
     );
   }
 
-  if (ids.length === 0) return false;
+  if (ids.length === 0) {
+    return false;
+  }
+
   channels.push({
     id: "cloudEvents",
     address: input.address ?? "events",
@@ -432,6 +478,7 @@ function cloudEventChannel<Ref>(
     messages: ids,
     operations: [{ id: "sendCloudEvents", action: "send" }],
   });
+
   return true;
 }
 
@@ -456,6 +503,7 @@ export function eventParts<Ref>(
   operations: readonly ModelOperation[],
 ): EventParts {
   const built = buildEvents(options.events, ctx);
+
   return {
     channels: [...built.channels, ...(options.channels ?? [])],
     messages: { ...built.messages, ...options.messages },
@@ -476,13 +524,20 @@ function buildEvents<Ref>(
   const channels: ModelChannel[] = [];
   const messages: Record<string, ModelMessage> = {};
   const messageTraits: Record<string, ModelMessageTrait> = {};
-  if (!events) return { channels, messages, messageTraits };
+
+  if (!events) {
+    return { channels, messages, messageTraits };
+  }
+
   tableChannels(ctx, events.tables ?? true, channels, messages);
   topicChannels(ctx, events.topics ?? {}, channels, messages);
+
   if (
     events.cloudEvents &&
     cloudEventChannel(ctx, events.cloudEvents, channels, messages)
-  )
+  ) {
     messageTraits["cloudEvent"] = CLOUD_EVENT_TRAIT;
+  }
+
   return { channels, messages, messageTraits };
 }

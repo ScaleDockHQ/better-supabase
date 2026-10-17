@@ -26,10 +26,12 @@ describe.skipIf(!live)("organizations on CentraKit's tables", () => {
       const events = new EventHub();
       const seen: string[] = [];
       events.on("block", (event) => seen.push(event.type));
+
       const organizations = createOrganizations({
         transport: sqlTransport(s.sql),
         events,
       });
+
       const roleOf = (organization: string, user: string) =>
         s.value<string | null>(
           "(select role_id::text from centrakit.organization_users where organization_id = $1 and user_id = $2)",
@@ -37,8 +39,11 @@ describe.skipIf(!live)("organizations on CentraKit's tables", () => {
         );
 
       await s.as("service");
-      for (const user of Object.values(USERS))
+
+      for (const user of Object.values(USERS)) {
         await s.value("better_supabase.sync_profile($1)", [user]);
+      }
+
       expect(
         await s.rows(
           "select display_name from centrakit.contact_profiles where user_id = $1",
@@ -47,6 +52,7 @@ describe.skipIf(!live)("organizations on CentraKit's tables", () => {
       ).toEqual([{ display_name: "owner Tester" }]);
 
       await s.as("owner");
+
       const { id: organization } = await organizations
         .create({
           name: "Acme",
@@ -55,6 +61,7 @@ describe.skipIf(!live)("organizations on CentraKit's tables", () => {
           default_currency: "USD",
         })
         .orThrow();
+
       expect(await roleOf(organization, USERS.owner)).toBe(ROLES.owner);
       expect(
         await s.rows(
@@ -82,6 +89,7 @@ describe.skipIf(!live)("organizations on CentraKit's tables", () => {
         organizations
           .invite({ organizationId: organization, email: email(who), role })
           .orThrow();
+
       const adminInvite = await invite("admin", "admin");
       expect(
         await s.value(

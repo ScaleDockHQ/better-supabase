@@ -33,6 +33,7 @@ function database(
   session = true,
 ): LiveDatabase & { texts: () => string[] } {
   const sql = fakeSql(rules);
+
   return {
     describe: "test db",
     session,
@@ -43,6 +44,7 @@ function database(
 }
 
 const only = (code: string) => RULES.filter((rule) => rule.code === code);
+
 const check = (code: string, extra: Partial<DoctorContext>) =>
   runRules(context(extra), only(code));
 
@@ -89,6 +91,7 @@ describe("BS208 temporary files", () => {
     const [finding] = await check("BS208", {
       database: database([stats("2", "1048576")]),
     });
+
     expect(finding).toMatchObject({
       code: "BS208",
       severity: "warning",
@@ -100,17 +103,21 @@ describe("BS208 temporary files", () => {
 
   it("leaves out the top statements when they can't be read or there are none", async () => {
     const extension = [/pg_extension/, [{ schema: "ext" }]] as const;
+
     const failing = database([
       stats(1),
       extension,
       [/temp_blks_written > 0/, { throws: pgError("42501", "denied") }],
     ]);
+
     const [denied] = await check("BS208", { database: failing });
     expect(denied!.message).not.toContain("Top statements");
     expect(failing.texts().at(-1)).toContain('from "ext".pg_stat_statements');
+
     const [none] = await check("BS208", {
       database: database([stats(1), extension]),
     });
+
     expect(none!.message).not.toContain("Top statements");
   });
 
@@ -155,6 +162,7 @@ describe("BS209 slow statements", () => {
 
   it("names the table a statement reads, quoted or not", async () => {
     const long = `select * from public.notes where ${"x = 1 and ".repeat(30)}true`;
+
     const findings = await check("BS209", {
       stats: true,
       database: database([
@@ -178,6 +186,7 @@ describe("BS209 slow statements", () => {
         ],
       ]),
     });
+
     expect(findings[0]).toMatchObject({
       target: "pg_stat_statements:1",
       object: { kind: "table", schema: "public", name: "notes" },
@@ -228,12 +237,14 @@ describe("BS212 --explain", () => {
 
   const explainDb = (rules: readonly SqlRule[] = []) => {
     let reads = 0;
+
     return database([
       ...rules,
       [
         /pg_stat_xact_user_functions/,
         () => {
           reads += 1;
+
           return reads === 1
             ? [{ name: "private.is_member", calls: 2, self_time: 0.1 }]
             : [
@@ -265,6 +276,7 @@ describe("BS212 --explain", () => {
 
   it("plans a table as the claims and reports function time and per-row SubPlans", async () => {
     const db = explainDb();
+
     const [finding] = await check("BS212", {
       database: db,
       explain: {
@@ -272,6 +284,7 @@ describe("BS212 --explain", () => {
         claims: { role: "authenticated", sub: "u1" },
       },
     });
+
     expect(finding).toMatchObject({
       severity: "warning",
       target: "public.notes:explain",
@@ -311,10 +324,12 @@ describe("BS212 --explain", () => {
         ],
       ],
     ]);
+
     const [finding] = await check("BS212", {
       database: db,
       explain: { tables: ["public.tags"], claims: { role: "anon" } },
     });
+
     expect(finding!.severity).toBe("info");
     expect(finding!.message).toBe(
       "public.tags as anon: 0.00 ms, 0 InitPlans. Plan: Seq Scan on tags 0.00 ms ×1. Function times need `track_functions`, which this role may not set; showing the plan only.",
@@ -332,6 +347,7 @@ describe("BS212 --explain", () => {
       ]),
       explain: { tables: ["notes"], claims: {} },
     });
+
     expect(finding!.message).toContain(
       "public.notes as anon: 0.00 ms, 0 InitPlans. Plan: Result 0.00 ms ×1. No tracked function ran",
     );
@@ -339,6 +355,7 @@ describe("BS212 --explain", () => {
 
   it("gives every function a share of 0 when the plan took no time", async () => {
     let reads = 0;
+
     const zero = database([
       [
         /pg_stat_xact_user_functions/,
@@ -346,10 +363,12 @@ describe("BS212 --explain", () => {
       ],
       [/^explain/, [{ "QUERY PLAN": [{ Plan: { "Node Type": "Result" } }] }]],
     ]);
+
     const [finding] = await check("BS212", {
       database: zero,
       explain: { tables: ["notes"], claims: {} },
     });
+
     expect(finding!.message).toContain(
       "Function time: f.g 0.50 ms over 1 call (0%).",
     );
@@ -357,6 +376,7 @@ describe("BS212 --explain", () => {
 
   it("reports unknown tables, bad roles, missing plans and failures, and always rolls back", async () => {
     const empty = database([]);
+
     const findings = await check("BS212", {
       database: empty,
       explain: {
@@ -364,6 +384,7 @@ describe("BS212 --explain", () => {
         claims: { role: "x; drop" },
       },
     });
+
     expect(findings).toMatchObject([
       {
         severity: "warning",
@@ -378,10 +399,12 @@ describe("BS212 --explain", () => {
     ]);
 
     const noPlan = database([]);
+
     const [missing] = await check("BS212", {
       database: noPlan,
       explain: { tables: ["notes"], claims: {} },
     });
+
     expect(missing!.message).toBe(
       "--explain public.notes failed: EXPLAIN returned no plan",
     );
@@ -393,6 +416,7 @@ describe("BS212 --explain", () => {
       ]),
       explain: { tables: ["notes"], claims: {} },
     });
+
     expect(failed!.message).toBe(
       "--explain public.notes failed: canceling statement",
     );

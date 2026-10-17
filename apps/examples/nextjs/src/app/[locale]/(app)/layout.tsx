@@ -33,6 +33,7 @@ import {
 export default function AppLayout({ children }: LayoutProps<"/[locale]">) {
   const t = useExtracted("navigation");
   const toggle = t("Toggle sidebar");
+
   return (
     <SidebarProvider>
       <Sidebar collapsible="icon">

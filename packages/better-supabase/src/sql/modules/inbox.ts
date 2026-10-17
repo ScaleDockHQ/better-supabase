@@ -14,10 +14,14 @@ import {
 } from "./inbox-tables.ts";
 
 function build(ctx: ModuleContext, layout: ModuleLayout): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
   const q = inboxSql(ctx, layout.accessProvider?.operations);
   const teams = ctx.installed("teams") ? ctx.of("teams") : undefined;
   const sharedTeams = teams !== undefined;
+
   return `${schemaPreamble(ctx)}
 -- A shared inbox: conversations with contacts across the in-app widget and
 -- the channels better-supabase/chat-sdk connects, internal notes, mentions,
@@ -46,8 +50,12 @@ ${inboxStorage(q)}`;
 
 // An existing bucket keeps its settings.
 function data(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
   const { bucket } = inboxSql(ctx);
+
   return `insert into storage.buckets (id, name, public, file_size_limit)
 values (${sqlString(bucket)}, ${sqlString(bucket)}, false, 26214400)
 on conflict (id) do nothing;`;
@@ -197,6 +205,7 @@ export const INBOX: ModuleDefinition = {
   data,
   topics: (ctx) => {
     const { topic } = inboxSql(ctx);
+
     return [`${topic}:{conversationId}`, `${topic}:org:{organizationId}`];
   },
 };

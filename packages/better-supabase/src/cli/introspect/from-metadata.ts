@@ -28,17 +28,21 @@ export const METADATA_GAPS_TEXT: string = `${METADATA_GAPS.slice(0, -1).join(", 
 export function fromMetadata(document: GeneratorMetadata): Snapshot {
   const { metadata } = stabilizeMetadata(document);
   const tableIds = new Set(metadata.tables.map((table) => table.id));
+
   const relations = [
     ...metadata.tables,
     ...metadata.foreignTables,
     ...metadata.views,
     ...metadata.materializedViews,
   ];
+
   const tables = relations.map((relation): ExtrasTable => {
     const columns = metadata.columns
       .filter((column) => column.table_id === relation.id)
       .sort((a, b) => a.ordinal_position - b.ordinal_position);
+
     const own = tableIds.has(relation.id);
+
     return {
       id: relation.id,
       schema: relation.schema,
@@ -85,6 +89,7 @@ export function fromMetadata(document: GeneratorMetadata): Snapshot {
       grants: [],
     };
   });
+
   return {
     version: 2,
     schemas: [...new Set(metadata.schemas.map((schema) => schema.name))].sort(

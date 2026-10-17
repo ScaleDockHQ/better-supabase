@@ -29,16 +29,19 @@ export const productExtras = (ctx: ModuleContext): readonly ExtraColumn[] =>
 
 export function storefrontOption(ctx: ModuleContext): boolean {
   const value = ctx.text("storefront", "private");
+
   if (value !== "public" && value !== "private") {
     throw new TypeError(
       'blocks.catalog.options.storefront must be "public" or "private"',
     );
   }
+
   if (value === "public" && !ctx.hasTable("storefronts")) {
     throw new TypeError(
       'blocks.catalog.options.storefront "public" needs the storefronts table',
     );
   }
+
   return value === "public";
 }
 
@@ -48,15 +51,27 @@ export function storefrontOption(ctx: ModuleContext): boolean {
  * transition rules, history and `status.changed` to the machine's trigger.
  */
 function machineGoverns(ctx: ModuleContext): boolean {
-  if (!ctx.installed("state-machine")) return false;
+  if (!ctx.installed("state-machine")) {
+    return false;
+  }
+
   const raw = ctx.of("state-machine").option("machines");
-  if (typeof raw !== "object" || raw === null) return false;
+
+  if (typeof raw !== "object" || raw === null) {
+    return false;
+  }
+
   const { schema, name } = ctx.tableName("products");
   const column = ctx.col("products", "status").replaceAll('"', "");
+
   return Object.values(raw).some((entry: unknown) => {
-    if (!isRecord(entry)) return false;
+    if (!isRecord(entry)) {
+      return false;
+    }
+
     const table = entry["table"];
     const col = entry["column"];
+
     return (
       (table === `${schema}.${name}` ||
         (schema === "public" && table === name)) &&
@@ -93,15 +108,18 @@ export function productFunctions(ctx: ModuleContext, names: Names): string {
   const governed = machineGoverns(ctx);
   const extras = productExtras(ctx);
   const saveArgs = `${ctx.idType}, uuid, text, text, text, text`;
+
   const edges = Object.entries(STATUS_EDGES)
     .map(
       ([from, to]) =>
         `    when ${sqlString(from)} then set_product_status.status = any (${sqlString(`{${to.join(",")}}`)}::text[])`,
     )
     .join("\n");
+
   const inventory = ctx.installed("inventory")
     ? ctx.of("inventory")
     : undefined;
+
   const historyCheck = (variantFilter: string, code: string): string =>
     inventory === undefined
       ? ""
@@ -109,6 +127,7 @@ export function productFunctions(ctx: ModuleContext, names: Names): string {
   if exists (select 1 from ${inventory.table("movements")} m where m.${inventory.col("movements", "variant")} in (${variantFilter})) then
     ${fail(code, "the stock ledger has movements for this record; archive it instead", "23503")}
   end if;`;
+
   return `
 -- Creates a product (product null) or updates one. Returns its id, slug and status.
 ${extraFieldsArg(extras).drop(fn("save_product"), saveArgs)}
@@ -261,7 +280,10 @@ ${variantFunctions(ctx, names, historyCheck)}`;
 }
 
 export function optionFunctions(ctx: ModuleContext, names: Names): string {
-  if (!ctx.hasTable("options") || !ctx.hasTable("optionValues")) return "";
+  if (!ctx.hasTable("options") || !ctx.hasTable("optionValues")) {
+    return "";
+  }
+
   const { fn } = names;
   const products = ctx.table("products");
   const options = ctx.table("options");
@@ -271,6 +293,7 @@ export function optionFunctions(ctx: ModuleContext, names: Names): string {
   const o = (column: string): string => ctx.col("options", column);
   const ov = (column: string): string => ctx.col("optionValues", column);
   const v = (column: string): string => ctx.col("variants", column);
+
   return `
 -- Creates an option (option null) or updates one, with its values in order.
 -- Values missing from the list are removed; values a variant uses can't be.
@@ -377,10 +400,12 @@ function variantFunctions(
   const p = (column: string): string => ctx.col("products", column);
   const v = (column: string): string => ctx.col("variants", column);
   const optional = (column: string): boolean => ctx.has("variants", column);
+
   const hasValues =
     ctx.hasTable("variantValues") &&
     ctx.hasTable("optionValues") &&
     ctx.hasTable("options");
+
   const columns: readonly (readonly [string, string])[] = [
     ["sku", "save_variant.sku"],
     ...(optional("title") ? ([["title", "save_variant.title"]] as const) : []),
@@ -393,6 +418,7 @@ function variantFunctions(
     ["trackInventory", "coalesce(save_variant.track_inventory, true)"],
     ["allowBackorder", "coalesce(save_variant.allow_backorder, false)"],
   ];
+
   const valueChecks = hasValues
     ? (() => {
         const options = ctx.table("options");
@@ -401,6 +427,7 @@ function variantFunctions(
         const o = (column: string): string => ctx.col("options", column);
         const ov = (column: string): string => ctx.col("optionValues", column);
         const vv = (column: string): string => ctx.col("variantValues", column);
+
         return {
           check: `  v_wanted := coalesce((select array_agg(distinct x order by x) from unnest(save_variant.option_values) x), '{}'::uuid[]);
   if cardinality(v_wanted) <> coalesce(cardinality(save_variant.option_values), 0)
@@ -439,6 +466,7 @@ function variantFunctions(
   end if;`,
         write: "",
       };
+
   return `
 -- Creates a variant (variant null) or updates one. option_values holds one
 -- option value id per product option; no two variants share a combination.

@@ -13,6 +13,7 @@ export const instant = true;
 
 export default function KnowledgePage() {
   const t = useExtracted("knowledge");
+
   return (
     <>
       <PageHeader

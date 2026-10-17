@@ -3,12 +3,13 @@ import { defineConfig } from "oxlint";
 // @boundaries-ignore the root lint and format config is repo tooling, not a package
 import root, {
   ignorePatterns,
+  next,
   react,
   settings,
 } from "../../../oxlint.config.ts";
 
 export default defineConfig({
-  extends: [root, react],
+  extends: [root, react, next],
   settings,
   ignorePatterns,
   overrides: [

@@ -15,22 +15,27 @@ describe.skipIf(!live)("retention policies and legal holds", () => {
 
   it("keeps rows for a tenant's policy and skips held tenants in the purges", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["outbox", "audit", "data-lifecycle"]);
       const [a, b] = [crypto.randomUUID(), crypto.randomUUID()];
+
       const emit = async (tenant: string, age: string) => {
         const id = await s.value<string>(
           "better_supabase.emit_event('test.retained', '{}'::jsonb, tenant => $1)",
           [tenant],
         );
+
         await s.client.query("set local session_replication_role = replica");
         await s.client.query(
           `update better_supabase.outbox_events set created_at = now() - $2::interval where id = $1`,
           [id, age],
         );
         await s.client.query("set local session_replication_role = origin");
+
         return id;
       };
+
       await emit(a, "10 days");
       await emit(b, "10 days");
       await emit(b, "100 days");
@@ -38,9 +43,11 @@ describe.skipIf(!live)("retention policies and legal holds", () => {
       await s.service();
       await s.client.query("set local role service_role");
       const retention = createRetention({ transport: sqlTransport(s.sql) });
+
       const policy = await retention
         .setPolicy("outbox", "60 days", { organizationId: b })
         .orThrow();
+
       expect(policy).toMatchObject({
         kind: "outbox",
         keep: "60 days",
@@ -56,14 +63,17 @@ describe.skipIf(!live)("retention policies and legal holds", () => {
           "better_supabase.purge_outbox(older_than => '30 days')",
         ),
       ).toBe(2);
+
       const left = await s.rows<{ organization_id: string }>(
         "select organization_id from better_supabase.outbox_events where type = 'test.retained'",
       );
+
       expect(left).toEqual([{ organization_id: b }]);
 
       const hold = await retention
         .placeHold({ reason: "Litigation", organizationId: b })
         .orThrow();
+
       expect(hold).toMatchObject({ organizationId: b, kind: undefined });
       await s.client.query("reset role");
       await emit(b, "200 days");
@@ -90,6 +100,7 @@ describe.skipIf(!live)("retention policies and legal holds", () => {
 
   it("holds audit events and refuses to purge a held organization", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["audit", "data-lifecycle"]);
       const tenant = crypto.randomUUID();
@@ -139,6 +150,7 @@ describe.skipIf(!live)("retention policies and legal holds", () => {
 
   it("runs every module purge with the helpers in place", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install([
         "outbox",
@@ -157,6 +169,7 @@ describe.skipIf(!live)("retention policies and legal holds", () => {
       );
       await s.service();
       await s.client.query("set local role service_role");
+
       for (const purge of [
         "purge_outbox()",
         "purge_webhook_deliveries()",

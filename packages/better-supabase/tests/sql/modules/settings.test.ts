@@ -38,6 +38,7 @@ describe("settings module", () => {
         note: { schema: v.string() },
       },
     });
+
     const sql = sqlOf(["jsonb-schemas", "settings"], { schemas: settings });
     expect(sql).toContain('add constraint "bs_json_value_theme"');
     expect(sql).toContain(
@@ -51,6 +52,7 @@ describe("settings module", () => {
     const sql = sqlOf(["jsonb-schemas", "settings"], {
       schemas: { user: { theme: { type: "string" } } },
     });
+
     expect(sql).toContain("bs_json_value_theme");
   });
 
@@ -80,6 +82,7 @@ describe("settings module", () => {
         },
       },
     });
+
     expect(sql).toMatch(/create table if not exists \S+platform_settings/);
     expect(sql).toContain(
       "better_supabase.is_platform(case \"key\" when 'fee' then 'billing.platform' when 'banner' then 'platform.settings' else 'platform.settings' end)",

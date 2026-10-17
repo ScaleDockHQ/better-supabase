@@ -122,9 +122,11 @@ export function matchSavedViews<V extends SavedViewLike>(
   display: SavedViewDisplayState | undefined,
 ): SavedViewsMatch<V> {
   const query = queryFromUrlState(urlState);
+
   const shows = (view: V): boolean =>
     sameQuery(view.state.query, query) &&
     (display === undefined || sameDisplayState(view.state, display));
+
   return {
     active: snapshot.views?.find(shows),
     query,
@@ -134,8 +136,10 @@ export function matchSavedViews<V extends SavedViewLike>(
 }
 
 function needs<T>(value: T | undefined, name: string): T {
-  if (value === undefined)
+  if (value === undefined) {
     throw new Error(`better-supabase: saved views need \`${name}\``);
+  }
+
   return value;
 }
 
@@ -157,6 +161,7 @@ export function createSavedViewsController<V extends SavedViewLike>(
         );
         options.onApplyState?.(displayStateOf(view.state), view);
       };
+
       const refresh = async (): Promise<void> => {
         try {
           state.set({ views: await options.load(), error: undefined });
@@ -164,6 +169,7 @@ export function createSavedViewsController<V extends SavedViewLike>(
           state.set({ error: cause });
         }
       };
+
       return {
         actions: {
           apply,
@@ -203,13 +209,21 @@ export function createSavedViewsController<V extends SavedViewLike>(
           },
         },
         start: () => {
-          if (state.get().views !== undefined) return;
+          if (state.get().views !== undefined) {
+            return;
+          }
+
           const run = state.run();
           void (async () => {
             try {
               const loaded = await options.load();
-              if (run !== state.run()) return;
+
+              if (run !== state.run()) {
+                return;
+              }
+
               state.set({ views: loaded, error: undefined });
+
               if (
                 options.openDefault !== false &&
                 sameQuery(queryFromUrlState(options.urlState()), undefined)
@@ -220,12 +234,18 @@ export function createSavedViewsController<V extends SavedViewLike>(
                       view.isDefault || view.preference?.isDefault === true,
                   ),
                 );
-                if (first) apply(first);
+
+                if (first) {
+                  apply(first);
+                }
               }
             } catch (cause) {
-              if (run === state.run()) state.set({ error: cause });
+              if (run === state.run()) {
+                state.set({ error: cause });
+              }
             }
           })();
+
           return;
         },
       };

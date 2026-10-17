@@ -101,6 +101,7 @@ describe("constraint guards", () => {
   const conflict = dbError("conflict", "Taken", {
     constraint: "customers_kvk_key",
   });
+
   const check = dbError("check", "Bad", { constraint: "status_check" });
   const foreignKey = dbError("foreign_key", "Missing", {});
 
@@ -584,6 +585,34 @@ describe("mapDbError", () => {
       },
     ],
     [
+      "a busy connection pool",
+      {
+        code: "POSTGRES_POOL_BUSY",
+        message: "all 4 connections stayed busy for 10000ms",
+      },
+      {
+        kind: "network",
+        status: 503,
+        code: "POSTGRES_POOL_BUSY",
+        message: "all 4 connections stayed busy for 10000ms",
+      },
+    ],
+    [
+      "a paused connection pool, rounding the wait up to seconds",
+      {
+        code: "POSTGRES_CONNECT_PAUSED",
+        message: "new connections paused for 1500ms after a connection failure",
+        retryAfterMs: 1500,
+      },
+      {
+        kind: "network",
+        status: 503,
+        code: "POSTGRES_CONNECT_PAUSED",
+        message: "new connections paused for 1500ms after a connection failure",
+        retryAfter: 2,
+      },
+    ],
+    [
       "a fetch failure",
       { message: "TypeError: fetch failed" },
       { kind: "network", status: 503, message: "TypeError: fetch failed" },
@@ -689,24 +718,29 @@ describe("mapDbError", () => {
         message: "You may not publish a workflow whose steps need crm.read",
         hint: "WORKFLOW_PUBLISHER_FORBIDDEN",
       };
+
       expect(
         mapDbError({ ...raw, details: '{"permissions":["crm.read"]}' }),
       ).toMatchObject({ kind: "forbidden", permissions: ["crm.read"] });
-      for (const details of ["{oops", '{"permissions":[1]}', "null", "text"])
+
+      for (const details of ["{oops", '{"permissions":[1]}', "null", "text"]) {
         expect(mapDbError({ ...raw, details })).not.toHaveProperty(
           "permissions",
         );
+      }
     });
   });
 
   describe("custom mappers", () => {
     it("returns the first mapped error and passes the built-in fallback", () => {
       const seen: DbError[] = [];
+
       const mapped = mapDbError(
         { code: "P0001", message: "Quota", hint: "QUOTA" },
         [
           (_raw, fallback) => {
             seen.push(fallback);
+
             return;
           },
           (raw) =>
@@ -716,6 +750,7 @@ describe("mapDbError", () => {
           () => dbError("unexpected", "never reached"),
         ],
       );
+
       expect(mapped).toEqual({
         kind: "rate_limited",
         status: 429,

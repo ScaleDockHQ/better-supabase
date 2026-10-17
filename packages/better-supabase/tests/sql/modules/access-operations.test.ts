@@ -9,6 +9,7 @@ import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
 const operationFn = (sql: string): string => {
   const start = sql.indexOf("better_supabase.operation_permission(op text)");
+
   return sql.slice(start, sql.indexOf("$$;", start));
 };
 
@@ -23,8 +24,9 @@ const accessSql = (
 
 describe("OPERATIONS", () => {
   it("keys every operation <module>.<action>", () => {
-    for (const name of Object.keys(OPERATIONS))
+    for (const name of Object.keys(OPERATIONS)) {
       expect(name).toMatch(/^[a-z][a-z-]*\.[A-Za-z]+$/);
+    }
   });
 
   it("gives each module its actions by name", () => {
@@ -46,6 +48,7 @@ describe("operation_permission", () => {
         modules: { audit: { permissions: { view: "logs.read" } } },
       }),
     );
+
     expect(sql).toContain("when 'audit.view' then 'logs.read'");
     expect(sql).toContain("when 'audit.revert' then 'audit.revert'");
     expect(sql).not.toContain("'billing.read'");
@@ -63,6 +66,7 @@ describe("operation_permission", () => {
         },
       }),
     );
+
     expect(sql).toContain("when 'audit.revert' then 'audit.undo'");
     expect(sql).toContain("when 'invoices.void' then 'billing.manage'");
   });

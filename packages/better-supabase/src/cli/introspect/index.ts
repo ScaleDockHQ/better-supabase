@@ -19,11 +19,14 @@ export async function introspect(
   options: IntrospectOptions = {},
 ): Promise<Snapshot> {
   const unique = [...new Set(schemas)].sort();
+
   const [metadata, extras] = await Promise.all([
     readGeneratorMetadata(db, unique),
     readExtras(db, unique, options.hooks),
   ]);
+
   const { metadata: generator, ids } = stabilizeMetadata(metadata);
+
   return {
     version: 2,
     schemas: unique,
@@ -39,6 +42,9 @@ export async function introspect(
 }
 
 export { toCatalog } from "./catalog.ts";
+
 export { managementSource, pgSource } from "./source.ts";
+
 export type { IntrospectionSource, ManagementSourceOptions } from "./source.ts";
+
 export type { Queryable } from "./typegen.ts";

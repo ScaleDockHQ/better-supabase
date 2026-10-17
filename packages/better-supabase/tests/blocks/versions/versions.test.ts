@@ -18,13 +18,18 @@ const ROW = {
 
 function transport(results: Record<string, (args: unknown) => unknown>) {
   const calls: [string, unknown][] = [];
+
   return {
     calls,
     call(schema: string, fn: string, args: unknown) {
       expect(schema).toBe("app");
       calls.push([fn, args]);
       const result = results[fn];
-      if (!result) return Promise.reject(new Error(`unexpected ${fn}`));
+
+      if (!result) {
+        return Promise.reject(new Error(`unexpected ${fn}`));
+      }
+
       return Promise.resolve(result(args));
     },
   };
@@ -46,6 +51,7 @@ describe("versions client", () => {
       label_version: () => true,
       delete_version: () => true,
     });
+
     const versions = createVersions({ transport: fake, schema: "app" });
     expect(
       await versions
@@ -58,9 +64,11 @@ describe("versions client", () => {
         })
         .orThrow(),
     ).toEqual({ id: "v2", number: 2, contentHash: "def", unchanged: false });
+
     const listed = await versions
       .list("o", "doc", "d1", { pageSize: 10, before: 5 })
       .orThrow();
+
     expect(listed[0]).toMatchObject({
       label: "Final",
       storagePath: "a/b",
@@ -94,6 +102,7 @@ describe("versions client", () => {
       }),
       list_versions: () => null,
     });
+
     const versions = createVersions({ transport: fake, schema: "app" });
     await versions
       .snapshot({ organizationId: "o", subjectType: "doc", subjectId: "d1" })
@@ -124,9 +133,11 @@ describe("versions client", () => {
       v2: { title: "B", tags: ["x", "y"] },
       v3: null,
     };
+
     const fake = transport({
       get_version: (args) => {
         const id = (args as { version_id: string }).version_id;
+
         return { ...ROW, id, content: contents[id] };
       },
       restore_version: () => ({
@@ -138,6 +149,7 @@ describe("versions client", () => {
         content: { title: "A" },
       }),
     });
+
     const versions = createVersions({ transport: fake, schema: "app" });
     expect(await versions.restore("v1").orThrow()).toEqual({
       id: "v3",
@@ -166,12 +178,14 @@ describe("versions client", () => {
       }),
       schema: "app",
     });
+
     const result = await versions.get("v1");
     expect(result.ok).toBe(false);
   });
 
   it("runs hooks around a method", async () => {
     const seen: string[] = [];
+
     const versions = createVersions({
       transport: transport({ delete_version: () => true }),
       schema: "app",
@@ -183,6 +197,7 @@ describe("versions client", () => {
         },
       },
     });
+
     await versions.delete("v1").orThrow();
     expect(seen).toEqual(["before"]);
   });

@@ -49,7 +49,9 @@ const PROFILES = {
   default: { tables: 150, queried: 40, composite: false },
   centrakit: { tables: 250, queried: 40, composite: true },
 } satisfies Readonly<Record<string, Profile>>;
+
 const TOLERANCE = 0.1;
+
 /**
  * Check time fails only past twice the baseline and at least half a second
  * more, after scaling the baseline by how much slower this machine checks the
@@ -61,12 +63,15 @@ const TIME_SLACK = 0.5;
 const here = import.meta.dirname;
 const work = join(here, "tmp");
 const require = createRequire(import.meta.url);
+
 const tscFrom = (resolve: (id: string) => string): string =>
   join(dirname(resolve("typescript/package.json")), "bin", "tsc");
+
 const compilers = {
   ts6: tscFrom(require.resolve),
   ts7: tscFrom(createRequire(join(here, "../ts-7/package.json")).resolve),
 } satisfies Readonly<Record<Compiler, string>>;
+
 const cli = join(
   dirname(require.resolve("better-supabase/package.json")),
   "bin",
@@ -209,8 +214,10 @@ function snapshot(profile: Profile, extraColumnOn?: string): Snapshot {
       [],
     ),
   ];
+
   for (let i = 0; i < profile.tables - (profile.composite ? 1 : 0); i++) {
     const tableName = name(i);
+
     const columns = [
       column("id", "uuid", { default: "gen_random_uuid()" }),
       column("organization_id", "uuid"),
@@ -225,17 +232,25 @@ function snapshot(profile: Profile, extraColumnOn?: string): Snapshot {
       column("updated_at", "timestamptz", { default: "now()" }),
       column("archived_at", "timestamptz", { nullable: true }),
     ];
-    for (let c = 0; c < 8; c++)
+
+    for (let c = 0; c < 8; c++) {
       columns.push(column(`field_${String(c)}`, "text", { nullable: true }));
-    if (profile.composite)
+    }
+
+    if (profile.composite) {
       columns.push(
         column("priority", "priority", { default: "'normal'", enum: true }),
         column("kind", "text", { default: "'task'" }),
       );
-    if (tableName === extraColumnOn)
+    }
+
+    if (tableName === extraColumnOn) {
       columns.push(column("extra", "text", { nullable: true }));
+    }
+
     const keys = [foreignKey(tableName, ["organization_id"], "organizations")];
-    if (i > 0)
+
+    if (i > 0) {
       keys.push(
         profile.composite
           ? foreignKey(
@@ -246,6 +261,8 @@ function snapshot(profile: Profile, extraColumnOn?: string): Snapshot {
             )
           : foreignKey(tableName, ["parent_id"], name(i - 1)),
       );
+    }
+
     const uniques = profile.composite
       ? [
           {
@@ -254,12 +271,14 @@ function snapshot(profile: Profile, extraColumnOn?: string): Snapshot {
           },
         ]
       : [];
+
     tables.push(
       table(tableName, columns, keys, uniques, {
         checks: profile.composite ? [KIND_CHECK] : [],
       }),
     );
   }
+
   if (profile.composite) {
     tables.push(
       table(
@@ -289,6 +308,7 @@ function snapshot(profile: Profile, extraColumnOn?: string): Snapshot {
       ),
     );
   }
+
   return fromCatalog({
     schemas: profile.composite ? ["public", "graphql_public"] : ["public"],
     tables,
@@ -322,7 +342,8 @@ function consumer(profile: Profile): string {
     "const db = defineSupabase(schema).use(timestamps()).use(softDelete()).use(tenant()).connect(client);",
     "export async function run(): Promise<void> {",
   ];
-  if (profile.composite)
+
+  if (profile.composite) {
     lines.push(
       "  const typed = createClient<Database>('https://x.supabase.co', 'key');",
       "  await typed.from('item_summaries').select('id, priority');",
@@ -331,6 +352,8 @@ function consumer(profile: Profile): string {
       "  await db.itemSummaries.findMany({ where: { priority: 'high' } }).orThrow();",
       `  await db.${name(1)}.update('id', { kind: 'note', priority: 'low', metadata: { tags: ['a'] } }).orThrow();`,
     );
+  }
+
   for (let i = 1; i <= profile.queried; i++) {
     const key = name(i);
     const child = name(i + 1);
@@ -340,7 +363,9 @@ function consumer(profile: Profile): string {
       `  await db.${key}.update('id', { name: 'x' }).orThrow();`,
     );
   }
+
   lines.push("}", "");
+
   return lines.join("\n");
 }
 
@@ -350,17 +375,20 @@ function calibrationProgram(): string {
     "type Deep<T> = { readonly [K in keyof T]: T[K] extends object ? Deep<T[K]> : T[K] };",
     "type Pick2<T, K extends keyof T> = { [P in K]: T[P] };",
   ];
+
   for (let i = 0; i < 400; i++) {
     const fields = Array.from(
       { length: 20 },
       (_, f) =>
         `f${String(f)}: ${f % 2 ? "string" : `{ n: number; s: string[] }`};`,
     ).join(" ");
+
     lines.push(
       `interface I${String(i)} { ${fields} }`,
       `export const v${String(i)}: Pick2<Deep<I${String(i)}>, "f0" | "f1" | "f2"> = { f0: { n: 1, s: [] }, f1: "", f2: { n: 2, s: ["a"] } };`,
     );
   }
+
   return `${lines.join("\n")}\n`;
 }
 
@@ -380,6 +408,7 @@ function calibrate() {
       files: ["calibration.ts"],
     }),
   );
+
   return {
     ts6: measure(compilers.ts6).checkTime,
     ts7: measure(compilers.ts7).checkTime,
@@ -391,18 +420,26 @@ function measure(tsc: string): Measurement {
     process.execPath,
     [tsc, "-p", join(work, "tsconfig.json"), "--extendedDiagnostics"],
     {
-      encoding: "utf8",
+      encoding: "utf-8",
     },
   );
+
   const output = `${result.stdout}${result.stderr}`;
+
   if (result.status !== 0) {
     throw new Error(`tsc failed on the benchmark schema:\n${output}`);
   }
+
   const read = (label: string): string => {
     const match = new RegExp(`^${label}:\\s+(\\S+)`, "m").exec(output);
-    if (!match?.[1]) throw new Error(`tsc output has no "${label}" line`);
+
+    if (!match?.[1]) {
+      throw new Error(`tsc output has no "${label}" line`);
+    }
+
     return match[1];
   };
+
   return {
     types: Number(read("Types")),
     instantiations: Number(read("Instantiations")),
@@ -430,6 +467,7 @@ function gen(): number {
   execFileSync(process.execPath, [cli, "gen", "--cwd", work], {
     stdio: "pipe",
   });
+
   return Number(((performance.now() - started) / 1000).toFixed(2));
 }
 
@@ -474,25 +512,30 @@ function run(profile: Profile): Run {
     }),
   );
   const cold = gen();
+
   const measurement = {
     ts6: measure(compilers.ts6),
     ts7: measure(compilers.ts7),
   };
+
   const warm = gen();
   writeFileSync(
     join(work, "snapshot.json"),
     JSON.stringify(snapshot(profile, name(1))),
   );
   const incremental = gen();
+
   return { measurement, gen: { cold, warm, incremental } };
 }
 
 const baselinePath = join(here, "baseline.json");
 const update = process.env["BENCH_UPDATE"] === "1";
+
 // SAFETY: this script writes the baseline file in the Baseline shape.
-const baseline = JSON.parse(readFileSync(baselinePath, "utf8")) as Baseline;
+const baseline = JSON.parse(readFileSync(baselinePath, "utf-8")) as Baseline;
 const next: Record<string, BaselineEntry> = {};
 const calibration = calibrate();
+
 console.log(
   `calibration: ts6 ${calibration.ts6.toFixed(2)}s, ts7 ${calibration.ts7.toFixed(2)}s`,
 );
@@ -510,11 +553,17 @@ for (const [profileName, profile] of Object.entries(PROFILES)) {
   console.log(
     `${profileName}: ${String(profile.tables)} tables, ${String(profile.queried)} queried, gen cold ${current.gen.cold.toFixed(2)}s, warm ${current.gen.warm.toFixed(2)}s, incremental ${current.gen.incremental.toFixed(2)}s`,
   );
+
   for (const compiler of ["ts6", "ts7"] as const) {
     console.log(`  ${compiler}: ${describe(current.measurement[compiler])}`);
   }
-  if (update) continue;
+
+  if (update) {
+    continue;
+  }
+
   const previous = baseline.profiles[profileName];
+
   if (!previous) {
     console.error(
       `${profileName} has no baseline. Run \`pnpm --filter @better-supabase/types-perf update\`.`,
@@ -522,22 +571,30 @@ for (const [profileName, profile] of Object.entries(PROFILES)) {
     process.exitCode = 1;
     continue;
   }
+
   for (const compiler of ["ts6", "ts7"] as const) {
     const now = current.measurement[compiler];
     const before = previous.measurement[compiler];
+
     for (const metric of ["instantiations", "types"] as const) {
-      if (now[metric] <= before[metric] * (1 + TOLERANCE)) continue;
+      if (now[metric] <= before[metric] * (1 + TOLERANCE)) {
+        continue;
+      }
+
       console.error(
         `${profileName} (${compiler}): ${metric} grew from ${String(before[metric])} to ${String(now[metric])} (tolerance ${String(TOLERANCE * 100)}%). Run \`pnpm --filter @better-supabase/types-perf update\` if the growth is intended.`,
       );
       process.exitCode = 1;
     }
+
     const speed = Math.max(
       1,
       calibration[compiler] / baseline.calibration[compiler],
     );
+
     const expected = before.checkTime * speed;
     const limit = Math.max(expected * TIME_FACTOR, expected + TIME_SLACK);
+
     if (now.checkTime > limit) {
       console.error(
         `${profileName} (${compiler}): check time grew from ${expected.toFixed(2)}s to ${now.checkTime.toFixed(2)}s (limit ${limit.toFixed(2)}s, baseline ${before.checkTime.toFixed(2)}s on a machine ${speed.toFixed(1)}x faster).`,
@@ -545,6 +602,7 @@ for (const [profileName, profile] of Object.entries(PROFILES)) {
       process.exitCode = 1;
     }
   }
+
   checkGen(profileName, current.gen, previous.gen);
 }
 
@@ -562,13 +620,20 @@ function checkGen(
       `${profileName} has no gen baseline. Run \`pnpm --filter @better-supabase/types-perf update\`.`,
     );
     process.exitCode = 1;
+
     return;
   }
+
   const speed = Math.max(1, calibration.ts6 / baseline.calibration.ts6);
+
   for (const phase of ["cold", "warm", "incremental"] as const) {
     const expected = before[phase] * speed;
     const limit = Math.max(expected * TIME_FACTOR, expected + TIME_SLACK);
-    if (now[phase] <= limit) continue;
+
+    if (now[phase] <= limit) {
+      continue;
+    }
+
     console.error(
       `${profileName}: ${phase} gen grew from ${expected.toFixed(2)}s to ${now[phase].toFixed(2)}s (limit ${limit.toFixed(2)}s).`,
     );

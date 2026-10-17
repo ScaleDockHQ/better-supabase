@@ -29,6 +29,7 @@ export const recorder = (ops: Operation[]): Executor => ({
   name: "recorder",
   execute: (op) => {
     ops.push(op);
+
     return Promise.resolve(ok({ rows: [], count: 0 }));
   },
 });
@@ -41,7 +42,11 @@ export async function captureOp(
   const ops: Operation[] = [];
   await run(betterSupabase.connect(recorder(ops)));
   const [op] = ops;
-  if (!op) throw new Error("the repository call did not reach the executor");
+
+  if (!op) {
+    throw new Error("the repository call did not reach the executor");
+  }
+
   return op;
 }
 
@@ -50,8 +55,11 @@ export function tableKey(
   table: string | undefined,
 ): string {
   const key = table ?? Object.keys(betterSupabase.meta.tables)[0];
-  if (!key || !(key in betterSupabase.meta.tables))
+
+  if (!key || !(key in betterSupabase.meta.tables)) {
     throw new TypeError(`better-supabase: unknown table "${String(key)}"`);
+  }
+
   return key;
 }
 
@@ -91,9 +99,12 @@ export function testExecutor(
   const { betterSupabase } = options;
   const table = tableKey(betterSupabase, options.table);
   const context: ExecuteContext = { errorMappers: [] };
+
   const read = (): Promise<Operation> =>
     captureOp(betterSupabase, (db) => db[table]!["findMany"]!({ limit: 2 }));
+
   const create = options.create;
+
   return conform(`Executor "${executor.name}"`, [
     hasName(executor),
     [
@@ -114,10 +125,15 @@ export function testExecutor(
           result.data.count === null || typeof result.data.count === "number",
           "count must be a number or null",
         );
-        if (op.kind !== "select") return;
+
+        if (op.kind !== "select") {
+          return;
+        }
+
         const aliases = new Set(
           op.selection.columns.map((column) => column.alias),
         );
+
         for (const row of result.data.rows) {
           const extra = Object.keys(row).filter((key) => !aliases.has(key));
           expect(
@@ -133,6 +149,7 @@ export function testExecutor(
         const op = await captureOp(betterSupabase, (db) =>
           db[table]!["count"]!(),
         );
+
         const result = await executor.execute(op, context);
         expect(
           result.ok,
@@ -149,10 +166,12 @@ export function testExecutor(
       async () => {
         const controller = new AbortController();
         controller.abort();
+
         const result = await executor.execute(await read(), {
           ...context,
           signal: controller.signal,
         });
+
         expect(!result.ok, "an aborted request must fail");
         expect(
           result.error.kind === "aborted",
@@ -164,11 +183,13 @@ export function testExecutor(
       "returns failures as results instead of throwing",
       async () => {
         const op = await read();
+
         // SAFETY: only the table name changes, so the copy is still an Operation.
         const missing = {
           ...op,
           table: { ...op.table, name: "__better_supabase_missing__" },
         } as Operation;
+
         const result = await executor.execute(missing, context);
         expect(!result.ok, "a missing table must fail");
         expect(
@@ -186,6 +207,7 @@ export function testExecutor(
           {},
           { ...context, schema: "public" },
         );
+
         expect(!result.ok, "calling a missing function must fail");
       },
     ],
@@ -193,7 +215,11 @@ export function testExecutor(
       "reads from SelectOp.source instead of the table",
       async () => {
         const op = await read();
-        if (op.kind !== "select") return;
+
+        if (op.kind !== "select") {
+          return;
+        }
+
         const result = await executor.execute(
           {
             ...op,
@@ -205,6 +231,7 @@ export function testExecutor(
           },
           context,
         );
+
         expect(
           !result.ok,
           "a missing source function must fail; reading the table ignores source",
@@ -215,14 +242,17 @@ export function testExecutor(
       "batch returns one result per operation, in order",
       async () => {
         const rows = await read();
+
         const count = await captureOp(betterSupabase, (db) =>
           db[table]!["count"]!(),
         );
+
         // SAFETY: only the table name changes, so the copy is still an Operation.
         const missing = {
           ...rows,
           table: { ...rows.table, name: "__better_supabase_missing__" },
         } as Operation;
+
         const results = await executor.batch!([rows, count, missing], context);
         expect(
           results.length === 3,
@@ -251,24 +281,29 @@ export function testExecutor(
         const db =
           // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the kit runs against any schema, so repositories are indexed by name.
           betterSupabase.connect(executor) as unknown as AnyDb;
+
         const repository = db[table]!;
         const created = await repository["create"]!(create);
         expect(created.ok, `create failed: ${JSON.stringify(created.error)}`);
         // SAFETY: the ok check above means create returned the inserted row.
         const row = created.data as Record<string, unknown>;
+
         for (const [key, value] of Object.entries(create)) {
           expect(
             same(row[key], value),
             `created row has ${key} = ${JSON.stringify(row[key])}`,
           );
         }
+
         const [primary] = betterSupabase.meta.tables[table]!.primaryKey;
         expect(primary, "write checks need a table with a primary key");
         const removed = await repository["delete"]!(row[primary]);
         expect(removed.ok, `delete failed: ${JSON.stringify(removed.error)}`);
+
         const again = await repository["findFirst"]!({
           where: { [primary]: row[primary] },
         });
+
         expect(
           again.ok && again.data === null,
           "the deleted row is still readable",
@@ -283,6 +318,7 @@ export function testExecutor(
         const db =
           // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the kit runs against any schema, so repositories are indexed by name.
           betterSupabase.connect(executor) as unknown as AnyDb;
+
         const repository = db[table]!;
         const [primary] = betterSupabase.meta.tables[table]!.primaryKey;
         expect(primary, "write checks need a table with a primary key");
@@ -290,11 +326,13 @@ export function testExecutor(
         expect(created.ok, `create failed: ${JSON.stringify(created.error)}`);
         // SAFETY: the ok check above means create returned the inserted row.
         const id = (created.data as Record<string, unknown>)[primary];
+
         try {
           const refused = await repository["deleteMany"]!({
             where: { [primary]: id },
             maxAffected: 0,
           });
+
           expect(!refused.ok, "deleteMany past maxAffected must fail");
           // SAFETY: the ok check above means the result carries an error.
           const kind = (refused.error as { kind?: unknown } | undefined)?.kind;
@@ -302,17 +340,21 @@ export function testExecutor(
             kind === "max_affected",
             `expected kind "max_affected", got "${String(kind)}"`,
           );
+
           const kept = await repository["findFirst"]!({
             where: { [primary]: id },
           });
+
           expect(
             kept.ok && kept.data !== null,
             "a refused deleteMany must not delete the row",
           );
+
           const allowed = await repository["deleteMany"]!({
             where: { [primary]: id },
             maxAffected: 1,
           });
+
           expect(
             allowed.ok,
             `deleteMany within maxAffected failed: ${JSON.stringify(allowed.error)}`,

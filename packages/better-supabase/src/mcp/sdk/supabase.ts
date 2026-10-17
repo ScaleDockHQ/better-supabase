@@ -46,8 +46,12 @@ export interface SupabaseMcpLoaders {
 }
 
 function userOf<C, P>(authInfo: unknown): UserAuth<C, P> | undefined {
-  if (!isRecord(authInfo) || !isRecord(authInfo["extra"])) return undefined;
+  if (!isRecord(authInfo) || !isRecord(authInfo["extra"])) {
+    return undefined;
+  }
+
   const state = authInfo["extra"][MCP_AUTH_STATE_KEY];
+
   // SAFETY: auth.serve puts the AuthState its verifier resolved under this key.
   return isRecord(state) && state["kind"] === "user"
     ? (state as UserAuth<C, P>)
@@ -57,15 +61,20 @@ function userOf<C, P>(authInfo: unknown): UserAuth<C, P> | undefined {
 /** The response, with `done` called once its body is read, cancelled or fails. */
 function onFinish(response: Response, done: () => void): Response {
   const source = response.body;
+
   if (source === null) {
     done();
+
     return response;
   }
+
   const reader = source.getReader();
+
   const body = new ReadableStream<Uint8Array>({
     async pull(controller) {
       try {
         const chunk = await reader.read();
+
         if (chunk.done) {
           controller.close();
           done();
@@ -79,9 +88,11 @@ function onFinish(response: Response, done: () => void): Response {
     },
     cancel(reason) {
       done();
+
       return reader.cancel(reason);
     },
   });
+
   return new Response(body, {
     status: response.status,
     statusText: response.statusText,
@@ -108,22 +119,30 @@ export function supabaseMcpHandler<
 ): (request: Request) => Promise<Response> {
   const loadServer = loaders.server ?? loadSupabaseMcp;
   const loadPlatform = loaders.platform ?? loadSupabaseMcpPlatform;
+
   return auth.serve({
     async fetch(request, init) {
       const user = userOf<C, P>(init?.authInfo);
+
       if (user === undefined || !(await options.authorize(user))) {
         return problemResponse(
           dbError("forbidden", "Supabase's MCP server is not open to you"),
         );
       }
+
       const token = await options.credentials.getToken(options.credentialRef, {
         subject: { type: "app" },
       });
-      if (!token.ok) return problemResponse(token.error);
+
+      if (!token.ok) {
+        return problemResponse(token.error);
+      }
+
       const [server, platform] = await Promise.all([
         loadServer(),
         loadPlatform(),
       ]);
+
       const handler = server.createSupabaseMcpHandler({
         platform: platform.createSupabaseApiPlatform({
           accessToken: token.data.token,
@@ -137,12 +156,18 @@ export function supabaseMcpHandler<
           ? {}
           : { features: [...options.features] }),
       });
+
       let closed = false;
+
       const close = (): void => {
-        if (closed) return;
+        if (closed) {
+          return;
+        }
+
         closed = true;
         void handler.close().catch(() => {});
       };
+
       try {
         return onFinish(await handler.fetch(request, init), close);
       } catch (error) {

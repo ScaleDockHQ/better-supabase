@@ -62,6 +62,7 @@ describe("session encoding", () => {
         encode: "tokens-only",
       },
     );
+
     const stored = decoded(writes);
     expect(stored).not.toHaveProperty("user");
     expect(stored).toMatchObject({
@@ -79,6 +80,7 @@ describe("session encoding", () => {
       applyCookieWrites([], writeSession([], NAME, session())),
       NAME,
     )!;
+
     expect(full.user).toEqual(USER);
     expect(sessionEncoding(full)).toBe("user-and-tokens");
     expect(sessionEncoding(session({ user: null }))).toBe("tokens-only");
@@ -88,8 +90,10 @@ describe("session encoding", () => {
     const big = session({
       user: { ...USER, user_metadata: { bio: "x".repeat(6000) } },
     });
+
     const before = applyCookieWrites([], writeSession([], NAME, big));
     expect(before.length).toBeGreaterThan(1);
+
     const writes = writeSession(
       before,
       NAME,
@@ -99,6 +103,7 @@ describe("session encoding", () => {
         encode: "tokens-only",
       },
     );
+
     expect(writes.filter((write) => write.options.maxAge === 0)).not.toEqual(
       [],
     );
@@ -111,14 +116,17 @@ describe("session encoding", () => {
     const big = session({
       user: { ...USER, user_metadata: { bio: "x".repeat(6000) } },
     });
+
     const chunks = applyCookieWrites([], writeSession([], NAME, big));
     const count = chunks.length;
     expect(count).toBeGreaterThan(1);
+
     const leftover = [
       ...chunks,
       { name: `${NAME}.${count}`, value: "stale" },
       { name: `${NAME}.${count + 1}`, value: "stale" },
     ];
+
     expect(readSession(leftover, NAME)?.user).toEqual(big.user);
     expect(
       pruneSessionChunks(leftover, NAME).map((write) => write.name),
@@ -147,6 +155,7 @@ describe("session encoding", () => {
         encode: "tokens-only",
       },
     );
+
     const client = createServerClient(PROJECT_URL, "sb_publishable_test", {
       cookies: {
         encode: "tokens-only",
@@ -154,6 +163,7 @@ describe("session encoding", () => {
         setAll: () => undefined,
       },
     });
+
     const { data } = await client.auth.getSession();
     expect(data.session?.access_token).toBe("access");
     expect(data.session?.refresh_token).toBe("refresh");
@@ -167,6 +177,7 @@ describe("clearSessionAtScopes", () => {
     { name: `${NAME}-code-verifier`, value: "c" },
     { name: "other", value: "d" },
   ];
+
   const scopes = [{ domain: ".old.example.com" }, { path: "/app" }];
 
   it("writes what clearAuthCookiesAtScopes writes", async () => {

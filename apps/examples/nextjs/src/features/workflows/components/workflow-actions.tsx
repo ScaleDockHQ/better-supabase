@@ -14,6 +14,7 @@ import { requestApproval, startWorkflow } from "../workflows-actions";
 export function WorkflowActions() {
   const t = useExtracted("workflows");
   const errorMessage = useErrorMessage();
+
   const handlers = {
     onSuccess: () => {
       toast.success(t("Workflow started"));
@@ -22,8 +23,10 @@ export function WorkflowActions() {
       toast.error(errorMessage(error));
     },
   };
+
   const start = useAction(startWorkflow, handlers);
   const approval = useAction(requestApproval, handlers);
+
   return (
     <>
       <Button

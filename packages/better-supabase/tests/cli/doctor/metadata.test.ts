@@ -37,6 +37,7 @@ describe("doctor --metadata", () => {
   const doctor = async (args: readonly string[], stdin: string = document) => {
     const stdout: string[] = [];
     const stderr: string[] = [];
+
     const io: CliIo = {
       stdout: (text) => {
         stdout.push(text);
@@ -46,7 +47,9 @@ describe("doctor --metadata", () => {
       },
       stdin: () => Promise.resolve(stdin),
     };
+
     const result = await run(["doctor", ...args, "--cwd", root], { io });
+
     return { ...result, stdout: stdout.join(""), stderr: stderr.join("") };
   };
 
@@ -59,11 +62,13 @@ describe("doctor --metadata", () => {
   it("skips the rules that need extras with an info finding, and runs the rest", async () => {
     const result = await doctor(["--metadata", "-", "--json"]);
     const report = JSON.parse(result.stdout) as Report;
+
     const skipped = report.findings.filter((finding) =>
       finding.message.startsWith(
         "Skipped: the schema came from a GeneratorMetadata document",
       ),
     );
+
     expect(skipped.map((finding) => finding.code).sort()).toEqual(
       [...EXTRAS_RULES].sort(),
     );

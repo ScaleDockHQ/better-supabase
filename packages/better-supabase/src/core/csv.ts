@@ -15,7 +15,10 @@ export interface CsvOptions {
 const FORMULA = /^[=+\-@\t\r]/;
 
 function cell(value: unknown, escapeFormulas: boolean): string {
-  if (value === null || value === undefined) return "";
+  if (value === null || value === undefined) {
+    return "";
+  }
+
   let text =
     typeof value === "string"
       ? value
@@ -24,9 +27,11 @@ function cell(value: unknown, escapeFormulas: boolean): string {
           typeof value === "bigint"
         ? String(value)
         : JSON.stringify(value);
+
   if (escapeFormulas && typeof value === "string" && FORMULA.test(text)) {
     text = `'${text}`;
   }
+
   return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
@@ -35,7 +40,13 @@ export function csvColumns(
   rows: readonly Readonly<Record<string, unknown>>[],
 ): string[] {
   const columns = new Set<string>();
-  for (const row of rows) for (const key of Object.keys(row)) columns.add(key);
+
+  for (const row of rows) {
+    for (const key of Object.keys(row)) {
+      columns.add(key);
+    }
+  }
+
   return [...columns];
 }
 
@@ -49,12 +60,14 @@ export function toCsv(
 ): string {
   const columns = options.columns ?? csvColumns(rows);
   const escape = options.escapeFormulas ?? true;
+
   const lines = [
     columns.map((column) => cell(column, false)).join(","),
     ...rows.map((row) =>
       columns.map((column) => cell(row[column], escape)).join(","),
     ),
   ];
+
   return `${lines.join("\r\n")}\r\n`;
 }
 
@@ -68,17 +81,21 @@ export function parseCsv(text: string): string[][] {
   let field = "";
   let quoted = false;
   let i = 0;
+
   const pushField = (): void => {
     row.push(field);
     field = "";
   };
+
   const pushRow = (): void => {
     pushField();
     rows.push(row);
     row = [];
   };
+
   while (i < text.length) {
     const char = text[i] ?? "";
+
     if (quoted) {
       if (char === '"') {
         if (text[i + 1] === '"') {
@@ -86,39 +103,56 @@ export function parseCsv(text: string): string[][] {
           i += 2;
           continue;
         }
+
         quoted = false;
         i += 1;
         continue;
       }
+
       field += char;
       i += 1;
       continue;
     }
+
     if (char === '"') {
       quoted = true;
       i += 1;
       continue;
     }
+
     if (char === ",") {
       pushField();
       i += 1;
       continue;
     }
+
     if (char === "\r") {
-      if (text[i + 1] === "\n") i += 1;
+      if (text[i + 1] === "\n") {
+        i += 1;
+      }
+
       pushRow();
       i += 1;
       continue;
     }
+
     if (char === "\n") {
       pushRow();
       i += 1;
       continue;
     }
+
     field += char;
     i += 1;
   }
-  if (quoted) throw new TypeError("a quoted CSV field was not closed");
-  if (field !== "" || row.length > 0) pushRow();
+
+  if (quoted) {
+    throw new TypeError("a quoted CSV field was not closed");
+  }
+
+  if (field !== "" || row.length > 0) {
+    pushRow();
+  }
+
   return rows;
 }

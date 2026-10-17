@@ -9,8 +9,15 @@ import type { Condition, Operation, Selection } from "./types.ts";
 export function touchedTables(op: Operation): string[] {
   const tables = new Set<string>([op.table.key]);
   const selection = op.kind === "select" ? op.selection : op.returning;
-  if (selection) visitSelection(selection, tables);
-  if (op.kind !== "insert") visitCondition(op.where, tables);
+
+  if (selection) {
+    visitSelection(selection, tables);
+  }
+
+  if (op.kind !== "insert") {
+    visitCondition(op.where, tables);
+  }
+
   return [...tables];
 }
 
@@ -26,21 +33,35 @@ function visitCondition(
   condition: Condition | undefined,
   tables: Set<string>,
 ): void {
-  if (!condition) return;
+  if (!condition) {
+    return;
+  }
+
   switch (condition.kind) {
     case "and":
-    case "or":
-      for (const item of condition.items) visitCondition(item, tables);
+    case "or": {
+      for (const item of condition.items) {
+        visitCondition(item, tables);
+      }
+
       break;
-    case "not":
+    }
+
+    case "not": {
       visitCondition(condition.item, tables);
       break;
-    case "column":
+    }
+
+    case "column": {
       break;
-    case "relation":
+    }
+
+    case "relation": {
       tables.add(condition.target.key);
       visitCondition(condition.where, tables);
       break;
+    }
+
     default: {
       const exhaustive: never = condition;
       throw new TypeError(`Unknown condition: ${String(exhaustive)}`);
@@ -58,15 +79,19 @@ export function invalidationTargets(
   table: string,
 ): readonly string[] {
   let byTable = targetsByMeta.get(meta);
+
   if (!byTable) {
     byTable = new Map();
     targetsByMeta.set(meta, byTable);
   }
+
   let targets = byTable.get(table);
+
   if (!targets) {
     targets = Object.freeze(computeTargets(meta, table));
     byTable.set(table, targets);
   }
+
   return targets;
 }
 
@@ -75,14 +100,26 @@ const targetsByMeta = new WeakMap<SchemaMeta, Map<string, readonly string[]>>();
 function computeTargets(meta: SchemaMeta, table: string): string[] {
   const targets = new Set<string>([table]);
   const queue = [table];
+
   for (let key = queue.shift(); key !== undefined; key = queue.shift()) {
     const relations = meta.tables[key]?.relations ?? {};
+
     for (const relation of Object.values(relations)) {
-      if (relation.direction !== "reverse" || !relation.onDelete) continue;
-      if (targets.has(relation.table)) continue;
+      if (relation.direction !== "reverse" || !relation.onDelete) {
+        continue;
+      }
+
+      if (targets.has(relation.table)) {
+        continue;
+      }
+
       targets.add(relation.table);
-      if (relation.onDelete === "cascade") queue.push(relation.table);
+
+      if (relation.onDelete === "cascade") {
+        queue.push(relation.table);
+      }
     }
   }
+
   return [...targets];
 }

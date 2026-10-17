@@ -41,6 +41,7 @@ describe("service-principals module", () => {
       .filter((file) => file.module === "service-principals")
       .map((file) => file.contents)
       .join("\n");
+
     expect(sql).toContain("register_service_principal");
     expect(sql).not.toContain('"memberships"');
   });
@@ -51,6 +52,7 @@ describe("service-principals module", () => {
       "workflows",
       "workflow-builder",
     ]);
+
     expect(sql).toContain(
       'v_publisher := "better_supabase"."default_service_principal"(v_tenant);',
     );

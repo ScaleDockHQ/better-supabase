@@ -32,10 +32,12 @@ const transport = (
   answer: () => unknown,
 ): BlockTransport & { calls: unknown[] } => {
   const calls: unknown[] = [];
+
   return {
     calls,
     call: (schema, fn, args) => {
       calls.push([schema, fn, args]);
+
       return Promise.resolve().then(answer);
     },
   };
@@ -59,16 +61,19 @@ describe("blockCall", () => {
         });
       }),
     );
+
     const denied = await db("x", {}, () => 1);
     expect(denied).toMatchObject({
       ok: false,
       error: { kind: "forbidden", hint: "THING_FORBIDDEN" },
     });
+
     const other = await blockCall(
       transport(() => {
         throw new Error("boom");
       }),
     )("x", {}, () => 1);
+
     expect(other.ok).toBe(false);
   });
 });
@@ -128,7 +133,10 @@ describe("eachLimit", () => {
     await expect(
       eachLimit([1, 2, 3, 4], 1, async (item) => {
         started.push(item);
-        if (item === 2) throw new Error("boom");
+
+        if (item === 2) {
+          throw new Error("boom");
+        }
       }),
     ).rejects.toThrow("boom");
     expect(started).toEqual([1, 2]);
@@ -200,6 +208,7 @@ describe("budget", () => {
 describe("leaseHeartbeat", () => {
   it("extends at half the lease until stopped", () => {
     vi.useFakeTimers();
+
     try {
       const extend = vi.fn();
       const stop = leaseHeartbeat(10, extend);
@@ -218,10 +227,12 @@ describe("toBlockError", () => {
   it("maps a database error through the mappers and wraps anything else", () => {
     const wrapped = toBlockError(new Error("boom"));
     expect(wrapped.kind).toBe("unexpected");
+
     const mapped = toBlockError(
       { code: "23505", message: "dup", details: "", hint: "" },
       [() => dbError("conflict", "mapped")],
     );
+
     expect(mapped.message).toBe("mapped");
   });
 });

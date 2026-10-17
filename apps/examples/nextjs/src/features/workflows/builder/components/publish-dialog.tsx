@@ -34,6 +34,7 @@ export function PublishDialog({
 }) {
   const t = useExtracted("workflows");
   const diff = diffGraphs(published?.graph ?? { nodes: [], edges: [] }, graph);
+
   const rows = [
     [t("Nodes added"), diff.nodes.added],
     [t("Nodes removed"), diff.nodes.removed],
@@ -41,6 +42,7 @@ export function PublishDialog({
     [t("Edges added"), diff.edges.added],
     [t("Edges removed"), diff.edges.removed],
   ] as const;
+
   return (
     <Dialog>
       <DialogTrigger render={<Button size="sm" />}>

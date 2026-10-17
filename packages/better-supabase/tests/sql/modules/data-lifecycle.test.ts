@@ -22,6 +22,7 @@ describe("data-lifecycle module", () => {
     expect(sqlOf(["organizations", "data-lifecycle"])).toContain(
       `coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_organization_deletion.tenant, 'organization.delete'), false)`,
     );
+
     const custom = renderModules(["data-lifecycle"], {
       modules: {
         "data-lifecycle": { permissions: { cancelDelete: "billing.manage" } },
@@ -30,6 +31,7 @@ describe("data-lifecycle module", () => {
       .filter((file) => file.module === "data-lifecycle")
       .map((file) => file.contents)
       .join("\n");
+
     expect(custom).toContain(
       "member_can_while_deleting(auth.uid(), cancel_organization_deletion.tenant, 'billing.manage')",
     );
@@ -39,9 +41,11 @@ describe("data-lifecycle module", () => {
     const sql = sqlOf(["organizations", "data-lifecycle"], undefined, {
       access: { mode: "custom" },
     });
+
     expect(sql).toContain(
       `coalesce(better_supabase.organization_member_role(cancel_organization_deletion.tenant, auth.uid()) = 'owner', false)`,
     );
+
     const through = renderModules(["data-lifecycle"], {
       modules: {
         tenant: {
@@ -57,6 +61,7 @@ describe("data-lifecycle module", () => {
       .filter((file) => file.module === "tenant")
       .map((file) => file.contents)
       .join("\n");
+
     expect(through).toMatch(
       /organization_member_role[\s\S]*?"public"\."roles"/,
     );
@@ -100,6 +105,7 @@ describe("data-lifecycle module", () => {
         },
       },
     );
+
     for (const table of [
       "better_supabase.profiles",
       "better_supabase.user_settings",
@@ -111,6 +117,7 @@ describe("data-lifecycle module", () => {
     ]) {
       expect(sql).toContain(`'${table}'`);
     }
+
     expect(sql).toMatch(
       /\('organization', '[a-z_]+\.audit_events', .*, false, array\['old_record', 'new_record', 'impersonated_by', 'impersonation_reason', 'support_session_id'\]::text\[\], true\)/,
     );
@@ -142,6 +149,7 @@ describe("data-lifecycle module", () => {
       "notifications",
       "data-lifecycle",
     ]);
+
     for (const row of [
       `('organization', 'better_supabase.usage_history', '"better_supabase"."usage_history"', 'organization_id', true, '{}'::text[], true)`,
       `('user', 'better_supabase.usage_history', '"better_supabase"."usage_history"', 'actor_id', true, '{}'::text[], true)`,
@@ -151,6 +159,7 @@ describe("data-lifecycle module", () => {
     ]) {
       expect(sql).toContain(row);
     }
+
     expect(sql).toContain(
       `('organization', 'better_supabase.webhook_endpoint_secrets', '"better_supabase"."webhook_endpoint_secrets"', 'organization_id', true, '{}'::text[], false)`,
     );
@@ -169,6 +178,7 @@ describe("data-lifecycle module", () => {
     const sql = sqlOf(["data-lifecycle"], undefined, {
       access: { disabled: { tenant: "public.teams.archived_at" } },
     });
+
     expect(sql).toContain(
       `update "public"."teams" set "archived_at" = coalesce("archived_at", now()) where "id" = request_organization_deletion.tenant;`,
     );
@@ -195,6 +205,7 @@ describe("data-lifecycle module", () => {
         exclude: ["public.*_log"],
       },
     });
+
     expect(sql).toContain("n.nspname in ('public', 'app')");
     expect(sql).toContain("a.attname = 'organization_id'");
     expect(sql).toContain("a.attname = 'owner_id'");
@@ -231,6 +242,7 @@ describe("data-lifecycle module", () => {
         permissions: { deletePlatform: "platform.teams.delete" },
       },
     });
+
     expect(sql).toContain(
       `delete from "public"."teams" where "id" = purge_organization.tenant;`,
     );
@@ -247,6 +259,7 @@ describe("data-lifecycle module", () => {
     );
     expect(empty).not.toContain("v_max");
     expect(empty).toContain("hint = 'DATA_ANONYMIZE_FORBIDDEN'");
+
     const sql = sqlOf(["data-lifecycle"], {
       anonymize: [
         {
@@ -265,6 +278,7 @@ describe("data-lifecycle module", () => {
         },
       ],
     });
+
     expect(sql).toContain(`select r.ctid from "public"."candidates" r
     where r."anonymized_at" is null
       and r."process_ended_at" is not null
@@ -288,8 +302,10 @@ describe("data-lifecycle module", () => {
       set: { email: null },
       markedBy: "anonymized_at",
     };
+
     const fails = (anonymize: unknown) => () =>
       sqlOf(["data-lifecycle"], { anonymize });
+
     expect(fails(rule)).toThrow(/must be a list/);
     expect(fails([{ ...rule, set: undefined }])).toThrow(/markedBy/);
     expect(fails([{ ...rule, set: {} }])).toThrow(/at least one column/);
@@ -312,6 +328,7 @@ describe("data-lifecycle module", () => {
     const sql = sqlOf(["data-lifecycle", "webhooks-in"], {
       tables: { "app.keys": { tenant: "organization_id", omit: ["hash"] } },
     });
+
     expect(sql).toContain(
       `('organization', 'better_supabase.incoming_webhooks', '"better_supabase"."incoming_webhooks"', 'tenant', true, array['token_hash', 'secret', 'secret_id', 'previous_secret', 'previous_secret_id']::text[], true)`,
     );
@@ -351,6 +368,7 @@ describe("data-lifecycle module", () => {
         },
       },
     });
+
     expect(sql).toContain(
       `('organization', 'better_supabase.api_keys', '"better_supabase"."api_keys"', 'organization_id', true, '{}'::text[], false)`,
     );
@@ -387,6 +405,7 @@ describe("data-lifecycle module", () => {
       "workflow-builder",
       "chat-sdk-state",
     ]);
+
     for (const [subject, table, column] of [
       ["organization", "ai_provider_keys", "organization_id"],
       ["organization", "connector_servers", "organization_id"],
@@ -398,9 +417,11 @@ describe("data-lifecycle module", () => {
         `('${subject}', 'better_supabase.${table}', '"better_supabase"."${table}"', '${column}', true, array['credential_ref']::text[], true)`,
       );
     }
+
     expect(sql).toContain(
       `('organization', 'better_supabase.chat_installations', '"better_supabase"."chat_installations"', 'tenant_id', false, array['credential_ref']::text[], true)`,
     );
+
     for (const row of [
       `('better_supabase.ai_provider_keys', '"better_supabase"."ai_provider_keys"', 'credential_ref', null::text)`,
       `('better_supabase.connector_grants', '"better_supabase"."connector_grants"', 'credential_ref', 'user_id')`,
@@ -408,6 +429,7 @@ describe("data-lifecycle module", () => {
     ]) {
       expect(sql).toContain(row);
     }
+
     expect(sql).toContain(
       'join "better_supabase"."data_lifecycle_tables"() t on t.subject = \'organization\' and t.name = c.name and t.purge',
     );

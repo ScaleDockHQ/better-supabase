@@ -18,7 +18,11 @@ function check(
   value: unknown,
 ): StandardSchemaV1.Result<Row> {
   const result = tableSchema<Row>(spec)["~standard"].validate(value);
-  if (result instanceof Promise) throw new Error("expected a sync result");
+
+  if (result instanceof Promise) {
+    throw new TypeError("expected a sync result");
+  }
+
   return result;
 }
 
@@ -68,6 +72,7 @@ describe("tableSchema() validation", () => {
       minimum: 0,
       exclusiveMaximum: 10,
     };
+
     expect(messages(one(number, -1))).toEqual(["Expected at least 0"]);
     expect(messages(one(number, 10))).toEqual(["Expected less than 10"]);
     expect(
@@ -107,6 +112,7 @@ describe("tableSchema() validation", () => {
         c: { kind: "unknown" },
       },
     };
+
     expect(check(spec, { a: "x", extra: 1 })).toEqual({ value: { a: "x" } });
     expect(check(spec, {}).issues).toEqual([
       { message: "Required", path: ["a"] },
@@ -132,22 +138,26 @@ describe("tableSchema() validation", () => {
             typeof value === "object"
               ? { value }
               : { issues: [{ message: "Nope", path: ["tier"] }] };
+
           return async ? Promise.resolve(result) : result;
         },
       },
     });
+
     expect(one({ kind: "json", schema: nested(false) }, 1).issues).toEqual([
       { message: "Nope", path: ["v", "tier"] },
     ]);
     expect(
       one({ kind: "json", schema: nested(false), array: true }, [{}]),
     ).toEqual({ value: { v: [{}] } });
+
     const schema = tableSchema<Row>({
       fields: {
         v: { kind: "json", schema: nested(true) },
         w: { kind: "string" },
       },
     });
+
     await expect(schema["~standard"].validate({ v: 1, w: 2 })).resolves.toEqual(
       {
         issues: [
@@ -185,6 +195,7 @@ describe("tableSchema() JSON Schema", () => {
       meta: { kind: "json", nullable: true, description: "Free form." },
     },
   };
+
   const json = tableSchema(spec)["~standard"].jsonSchema;
 
   it("writes draft 2020-12 and draft-07 with their $schema", () => {
@@ -246,6 +257,7 @@ describe("tableSchema() JSON Schema", () => {
 
   it("uses a nested schema's own JSON Schema when it has one", () => {
     const targets: string[] = [];
+
     const nested: StandardSchemaV1 = {
       "~standard": {
         version: 1,
@@ -254,15 +266,18 @@ describe("tableSchema() JSON Schema", () => {
         jsonSchema: {
           input: (options: StandardJSONSchemaV1.Options) => {
             targets.push(options.target);
+
             return { $schema: "x", type: "object" };
           },
           output: () => ({ type: "string" }),
         },
       } as StandardSchemaV1.Props,
     };
+
     const schema = tableSchema({
       fields: { meta: { kind: "json", schema: nested, nullable: true } },
     })["~standard"].jsonSchema;
+
     expect(schema.input({ target: "draft-07" })["properties"]).toEqual({
       meta: { type: ["object", "null"] },
     });
@@ -270,6 +285,7 @@ describe("tableSchema() JSON Schema", () => {
       meta: { type: ["string", "null"] },
     });
     expect(targets).toEqual(["draft-07"]);
+
     const oneOf: StandardSchemaV1 = {
       "~standard": {
         version: 1,
@@ -281,9 +297,11 @@ describe("tableSchema() JSON Schema", () => {
         },
       } as StandardSchemaV1.Props,
     };
+
     const either = tableSchema({
       fields: { v: { kind: "json", schema: oneOf, nullable: true } },
     })["~standard"].jsonSchema;
+
     expect(either.input({ target: "draft-07" })["properties"]).toEqual({
       v: {
         anyOf: [
@@ -295,6 +313,7 @@ describe("tableSchema() JSON Schema", () => {
     expect(either.input({ target: "openapi-3.0" })["properties"]).toEqual({
       v: { oneOf: [{ type: "string" }, { type: "number" }], nullable: true },
     });
+
     const plain = tableSchema({
       fields: {
         meta: {
@@ -309,6 +328,7 @@ describe("tableSchema() JSON Schema", () => {
         },
       },
     })["~standard"].jsonSchema;
+
     expect(plain.input({ target: "draft-07" })["properties"]).toEqual({
       meta: {},
     });

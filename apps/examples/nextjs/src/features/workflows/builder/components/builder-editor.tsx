@@ -13,7 +13,11 @@ export async function BuilderEditor({
 }) {
   const { definition } = await params;
   const detail = await getBuilderDetail(definition);
-  if (detail === null) notFound();
+
+  if (detail === null) {
+    notFound();
+  }
+
   return (
     <>
       <h2 className="text-lg font-semibold">{detail.definition.name}</h2>

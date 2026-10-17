@@ -112,16 +112,23 @@ function allowedScopes(
   layout: ModuleLayout,
 ): readonly string[] | undefined {
   const option = ctx.option("scopes");
-  if (option === undefined) return undefined;
+
+  if (option === undefined) {
+    return undefined;
+  }
+
   if (option === "catalog") {
     if (!layout.permissionCatalog) {
       throw new TypeError(
         'blocks.api-keys.options.scopes is "catalog", but the config has no authorization.permissions to read. Set authorization, or list the scopes.',
       );
     }
+
     return layout.permissionCatalog;
   }
+
   const scopes = ctx.list("scopes", []);
+
   for (const scope of scopes) {
     if (!SCOPE.test(scope)) {
       throw new TypeError(
@@ -129,12 +136,14 @@ function allowedScopes(
       );
     }
   }
+
   return scopes;
 }
 
 /** `blocks.api-keys.options.kinds`: the kinds a key may have, any when unset. */
 function kindsOf(ctx: ModuleContext): readonly string[] {
   const kinds = ctx.list("kinds", []);
+
   for (const kind of kinds) {
     if (!KIND.test(kind)) {
       throw new TypeError(
@@ -142,35 +151,45 @@ function kindsOf(ctx: ModuleContext): readonly string[] {
       );
     }
   }
+
   return kinds;
 }
 
 function prefixOf(ctx: ModuleContext): string {
   const prefix = ctx.text("prefix", "bs");
+
   if (!PREFIX.test(prefix)) {
     throw new TypeError(
       `blocks.api-keys.options.prefix must be lowercase letters and digits, not "${prefix}"`,
     );
   }
+
   return prefix;
 }
 
 function build(ctx: ModuleContext, layout: ModuleLayout): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
   const id = ctx.idType;
   const t = ctx.table("keys");
   const c = (logical: string): string => ctx.col("keys", logical);
   const fn = (name: string): string => ctx.fn(name);
   const permissions = moduleOperations("api-keys");
+
   const can = (tenant: string, action: "manage" | "own"): string =>
     ctx.can("tenant", tenant, ctx.permission(action, permissions[action]));
+
   const allowed = allowedScopes(ctx, layout);
   const prefix = sqlString(prefixOf(ctx));
   const touch = Math.max(0, Math.trunc(ctx.number("touchInterval", 60)));
   const reset = `(k.${c("windowStart")} is null or k.${c("windowStart")} + interval '1 minute' <= now())`;
   const nextHits = `case when ${reset} then 1 else k.${c("windowHits")} + 1 end`;
+
   const due = (alias: string): string =>
     `(${alias}.${c("lastUsedAt")} is null or ${alias}.${c("lastUsedAt")} + interval '${touch} seconds' <= now())`;
+
   const wildcard =
     allowed === undefined && accessModel(ctx) === "provider"
       ? `
@@ -178,25 +197,30 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     ${fail("API_KEY_SCOPE_WILDCARD", "The authorization provider checks scopes as exact permission keys, so a key cannot carry *", "22023")}
   end if;`
       : "";
+
   const scopeCheck = allowed
     ? `
   if exists (select 1 from unnest(coalesce(scopes, '{}')) s where s <> all (${sqlString(`{${allowed.join(",")}}`)}::text[])) then
     ${fail("API_KEY_SCOPE_UNKNOWN", "A scope is not one of blocks.api-keys.options.scopes", "22023")}
   end if;`
     : "";
+
   const state = (alias: string): string => `case
       when ${alias}.${c("revokedAt")} is not null and ${alias}.${c("revokedAt")} <= now() then 'revoked'
       when ${alias}.${c("expiresAt")} is not null and ${alias}.${c("expiresAt")} <= now() then 'expired'
       when ${alias}.${c("revokedAt")} is not null then 'grace'
       else 'active'
     end`;
+
   const successor = (alias: string): string =>
     `(select s.${c("id")} from ${t} s where s.${c("rotatedFrom")} = ${alias}.${c("id")} order by s.${c("createdAt")} desc limit 1)`;
+
   const extras = ctx.extraColumns("keys", KEY_KEYS);
   const kinds = kindsOf(ctx);
   // Version 3 had no kind argument; drop its signatures so calls stay unambiguous.
   const previousArgs = `text, text, text, ${id}, boolean, text[], timestamptz, integer, text`;
   const createArgs = `${previousArgs}, text`;
+
   const kindCheck =
     kinds.length === 0
       ? `alter table ${t} drop constraint if exists api_keys_kind_check;`
@@ -205,6 +229,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
           "api_keys_kind_check",
           `${c("kind")} is null or ${c("kind")} = any (${sqlString(`{${kinds.join(",")}}`)}::text[])`,
         );
+
   const json = (
     alias: string,
     withSuccessor = true,
@@ -226,9 +251,11 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     'created_at', ${alias}.${c("createdAt")},
     'state', ${state(alias)}${withSuccessor ? `,\n    'successor_id', ${successor(alias)}` : ""}${extraFieldsJson(alias, extras)}
   )`;
+
   // Who may change a key: a manager of its tenant, or the user it acts as.
   const mayChange = (alias: string): string =>
     `((${alias}.${c("tenant")} is not null and ${can(`${alias}.${c("tenant")}`, "manage")}) or coalesce(${alias}.${c("user")} = auth.uid(), false) or ${SERVICE_CALLER})`;
+
   const keyEvent = (type: string, row: string, extra = ""): string =>
     ctx.record({
       type,
@@ -512,6 +539,7 @@ grant execute on function ${fn("api_key_tenant")}() to anon, authenticated, serv
 
 function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   const extra = extraFieldsArg(ctx.extraColumns("keys", KEY_KEYS)).contract;
+
   return [
     {
       name: "create_api_key",

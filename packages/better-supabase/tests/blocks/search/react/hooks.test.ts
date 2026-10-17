@@ -24,6 +24,7 @@ const supabase = {
   schema: () => ({
     rpc: (fn: string, args: Record<string, unknown>) => {
       rpc.calls.push({ fn, args });
+
       try {
         return Promise.resolve({ data: rpc.handler(fn, args), error: null });
       } catch (cause) {
@@ -64,6 +65,7 @@ const item = (subjectId: string) => ({
 });
 
 let keydown: ((event: KeyboardEvent) => void) | undefined;
+
 const keyWindow = {
   addEventListener: vi.fn(
     (_type: string, listener: (event: KeyboardEvent) => void) => {
@@ -86,6 +88,7 @@ const press = (init: Partial<KeyboardEvent>) => {
     preventDefault,
     ...init,
   } as KeyboardEvent);
+
   return preventDefault;
 };
 
@@ -96,9 +99,18 @@ beforeEach(() => {
   vi.stubGlobal("window", keyWindow);
   rpc.calls = [];
   rpc.handler = (fn) => {
-    if (fn === "search_recents") return [item("r1")];
-    if (fn === "search_favorites") return [item("f1")];
-    if (fn === "search") return [hit("note", "n1"), hit("deal", "d1")];
+    if (fn === "search_recents") {
+      return [item("r1")];
+    }
+
+    if (fn === "search_favorites") {
+      return [item("f1")];
+    }
+
+    if (fn === "search") {
+      return [hit("note", "n1"), hit("deal", "d1")];
+    }
+
     return true;
   };
 });
@@ -114,6 +126,7 @@ describe("useCommandSearch", () => {
     const view = renderHook(() =>
       useCommandSearch({ types: ["note"], listLimit: 3 }),
     );
+
     expect(view.result.open).toBe(false);
     expect(press({ key: "j", metaKey: true })).not.toHaveBeenCalled();
     expect(press({ metaKey: true, shiftKey: true })).not.toHaveBeenCalled();
@@ -138,6 +151,7 @@ describe("useCommandSearch", () => {
     const view = renderHook(() =>
       useCommandSearch({ organizationId: "org", limit: 5 }),
     );
+
     view.result.setOpen(true);
     view.result.setQuery("  rev ");
     expect(view.result.loading).toBe(true);
@@ -164,6 +178,7 @@ describe("useCommandSearch", () => {
     const view = renderHook(() =>
       useCommandSearch({ shortcut: false, debounceMs: 0 }),
     );
+
     expect(keydown).toBeUndefined();
     rpc.handler = (fn, args) =>
       fn === "search" ? [hit("note", String(args["q"]))] : [];
@@ -185,10 +200,13 @@ describe("useCommandSearch", () => {
     view.result.setQuery("rev");
     await settle();
     rpc.handler = (fn) => {
-      if (fn === "search")
+      if (fn === "search") {
         throw Object.assign(new Error("boom"), { hint: "X" });
+      }
+
       return [];
     };
+
     view.result.setQuery("revenue");
     await settle();
     expect(view.result.error?.message).toBe("boom");
@@ -199,9 +217,13 @@ describe("useCommandSearch", () => {
 
   it("reports a failed recents or favorites list", async () => {
     rpc.handler = (fn) => {
-      if (fn === "search_recents") throw new Error("no recents");
+      if (fn === "search_recents") {
+        throw new Error("no recents");
+      }
+
       return [item("f1")];
     };
+
     const recents = renderHook(() => useCommandSearch());
     recents.result.setOpen(true);
     await settle();
@@ -210,9 +232,13 @@ describe("useCommandSearch", () => {
     recents.unmount();
 
     rpc.handler = (fn) => {
-      if (fn === "search_favorites") throw new Error("no favorites");
+      if (fn === "search_favorites") {
+        throw new Error("no favorites");
+      }
+
       return [item("r1")];
     };
+
     const favorites = renderHook(() => useCommandSearch());
     favorites.result.setOpen(true);
     await settle();
@@ -246,6 +272,7 @@ describe("useCommandSearch", () => {
     rpc.handler = () => {
       throw new Error("denied");
     };
+
     await view.result.select(item("n1"));
     expect(view.result.error?.message).toBe("denied");
     await view.result.star(item("n2"));

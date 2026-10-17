@@ -57,7 +57,7 @@ describe("assertSameSlugs", () => {
 
 describe("lib/page-slugs.json", () => {
   it("lists every page in content/docs (run node scripts/page-slugs.ts)", () => {
-    expect(readFileSync(PAGE_SLUGS_FILE, "utf8")).toBe(
+    expect(readFileSync(PAGE_SLUGS_FILE, "utf-8")).toBe(
       formatPageSlugs(readPageSlugs()),
     );
   });

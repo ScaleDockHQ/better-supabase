@@ -23,6 +23,7 @@ interface PanelProps {
 /** The answer streams from the request; a reload picks it up from the stream store. */
 function StandardPanel({ id, messages }: PanelProps) {
   const router = useRouter();
+
   const chat = useAssistant({
     id,
     messages,
@@ -30,6 +31,7 @@ function StandardPanel({ id, messages }: PanelProps) {
       router.refresh();
     },
   });
+
   return <ChatView id={id} chat={chat} />;
 }
 
@@ -41,6 +43,7 @@ function DurablePanel({
   agent,
 }: PanelProps & { readonly agent: "assistant" | "research" }) {
   const router = useRouter();
+
   const chat = useDurableAssistant({
     id,
     api: "/api/chat/durable",
@@ -51,6 +54,7 @@ function DurablePanel({
       router.refresh();
     },
   });
+
   return <ChatView id={id} chat={chat} />;
 }
 
@@ -72,14 +76,17 @@ export function AssistantChat({
   durableAvailable: boolean;
 }) {
   const t = useExtracted("assistant");
+
   const [mode, setMode] = useState<ChatMode>(
     durableAvailable ? initialMode : "standard",
   );
+
   const modes: readonly { mode: ChatMode; label: string }[] = [
     { mode: "standard", label: t("Standard") },
     { mode: "durable", label: t("Durable") },
     { mode: "research", label: t("Research") },
   ];
+
   const panel = { id, messages, streaming };
 
   return (
@@ -101,7 +108,7 @@ export function AssistantChat({
           </Button>
         ))}
         {durableAvailable ? null : (
-          <p className="text-muted-foreground text-xs">
+          <p className="text-xs text-muted-foreground">
             {t("Durable answers need AI_GATEWAY_API_KEY.")}
           </p>
         )}

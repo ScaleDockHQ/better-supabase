@@ -32,23 +32,36 @@ export function sessionStale(
 ): number {
   const min = Math.max(MIN_CLIENT_STALE, options.min ?? MIN_CLIENT_STALE);
   const max = options.max ?? 300;
+
   switch (session.kind) {
-    case "invalid":
+    case "invalid": {
       return 0;
-    case "anon":
+    }
+
+    case "anon": {
       return session.reason === "expired" || session.reason === "refresh_failed"
         ? 0
         : max;
+    }
+
     case "service":
-    case "apiKey":
+    case "apiKey": {
       return max;
+    }
+
     case "user": {
-      if (session.expiresAt === null) return max;
+      if (session.expiresAt === null) {
+        return max;
+      }
+
       const remaining = session.expiresAt - Math.floor(now / 1000);
+
       return remaining < min ? 0 : Math.min(max, remaining);
     }
+
     default: {
       const exhaustive: never = session;
+
       return exhaustive;
     }
   }
@@ -65,8 +78,10 @@ export function sessionTag(userId: string): string {
  * mutation invalidates, including one scoped to a single tenant.
  */
 export function tableTags(table: string, options: TagOptions): string[] {
-  if (options.tenant === "*")
+  if (options.tenant === "*") {
     return [tagFor(table), tagFor(table, undefined, options)];
+  }
+
   return options.tenant === undefined
     ? [tagFor(table)]
     : [
@@ -88,14 +103,21 @@ export function invalidateAll(
   profile: RevalidateProfile = EXPIRE_NOW,
 ): void {
   let index = 0;
+
   try {
-    for (; index < tags.length; index++) updateTag(tags[index]!);
+    for (; index < tags.length; index++) {
+      updateTag(tags[index]!);
+    }
+
     return;
   } catch {
     // Not in a Server Action: revalidate from the tag that failed.
   }
+
   try {
-    for (; index < tags.length; index++) revalidateTag(tags[index]!, profile);
+    for (; index < tags.length; index++) {
+      revalidateTag(tags[index]!, profile);
+    }
   } catch {
     // Outside a Next.js request (jobs, scripts): nothing to invalidate.
   }

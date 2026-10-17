@@ -118,10 +118,14 @@ const NAMES: ModuleNames = {
 };
 
 function tables(ctx: ModuleContext, n: InvoiceNames): string {
-  if (!ctx.manages) return "";
+  if (!ctx.manages) {
+    return "";
+  }
+
   const { t, c } = n;
   const i = (column: string): string => c("invoices", column);
   const p = (column: string): string => c("payments", column);
+
   return `
 create table if not exists ${t("invoices")} (
   ${i("id")} uuid primary key default gen_random_uuid(),
@@ -189,14 +193,19 @@ using (${ctx.scope.check(p("tenant"), n.read)});
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
   const keys = moduleOperations("invoices");
   const termsDays = ctx.number("termsDays", 30);
+
   if (!Number.isInteger(termsDays) || termsDays < 0) {
     throw new TypeError(
       "blocks.invoices.options.termsDays must be 0 or a positive integer",
     );
   }
+
   const n: InvoiceNames = {
     fn: (name) => ctx.fn(name),
     t: (table) => ctx.table(table),
@@ -217,6 +226,7 @@ function build(ctx: ModuleContext): string {
       "overdue",
     ]),
   };
+
   return `${schemaPreamble(ctx)}
 -- Invoices an organization sends its own customers: drafts with lines, a
 -- number on issue, payments, credit notes, void and write-off, and aging.

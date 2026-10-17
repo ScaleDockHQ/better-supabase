@@ -63,7 +63,10 @@ function randomToken(bytes: number): string {
 }
 
 function list(value: string | readonly string[] | undefined): string[] {
-  if (value === undefined) return [];
+  if (value === undefined) {
+    return [];
+  }
+
   return typeof value === "string" ? [value] : [...value];
 }
 
@@ -82,8 +85,11 @@ export async function liteStack(
   options: LiteStackOptions = {},
 ): Promise<LiteStack> {
   const lite = await loadLite();
-  if (!lite)
+
+  if (!lite) {
     throw new Error(`liteStack() needs @supabase/lite. ${LITE_INSTALL}`);
+  }
+
   const driver = options.driver ?? "sqlite-postgres";
   const jwtSecret = options.jwtSecret ?? randomToken(32);
   const publishableKey = `sb_publishable_${randomToken(16)}`;
@@ -95,6 +101,7 @@ export async function liteStack(
         readonly driver: "sqlite-postgres";
         readonly connection: LiteConnection;
       };
+
   if (driver === "pglite") {
     target = { driver, connection: await lite.createPgliteConnection() };
   } else {
@@ -103,7 +110,9 @@ export async function liteStack(
       connection: await lite.createSqliteConnection(":memory:"),
     };
   }
+
   const { connection } = target;
+
   try {
     const app = new lite.App({
       connection,
@@ -114,20 +123,27 @@ export async function liteStack(
         secret_key: secretKey,
       },
     });
+
     await app.init();
     await migrateLite(connection, [
       ...(options.migrations ?? []),
       ...(options.schemas ?? []),
     ]);
-    for (const seed of list(options.seed)) await seedLite(target, seed);
+
+    for (const seed of list(options.seed)) {
+      await seedLite(target, seed);
+    }
 
     const fetch: typeof globalThis.fetch = (input, init) =>
       app.fetch(new Request(input, init));
+
     const stateless = {
       auth: { persistSession: false, autoRefreshToken: false },
       global: { fetch },
     };
+
     const close = (): Promise<void> => connection.close();
+
     return {
       url: LITE_URL,
       publishableKey,

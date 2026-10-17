@@ -11,11 +11,13 @@ import {
 
 const files = (names: readonly string[], modules: AnyBlocksConfig = {}) =>
   renderModules(names, { modules });
+
 const schemaOf = (names: readonly string[], modules: AnyBlocksConfig = {}) =>
   files(names, modules)
     .filter((file) => file.kind === "schema")
     .map((file) => file.contents)
     .join("\n");
+
 const dataOf = (name: string, modules: AnyBlocksConfig = {}) =>
   files([name], modules).find(
     (file) => file.kind === "data" && file.module === name,
@@ -68,6 +70,7 @@ describe("workflow-sdk-world module", () => {
 
   it("schedules pg_net delivery only in the pg_net mode", () => {
     expect(dataOf("workflow-sdk-world")).not.toContain("cron.schedule");
+
     const sql = dataOf("workflow-sdk-world", {
       "workflow-sdk-world": {
         options: {
@@ -79,9 +82,11 @@ describe("workflow-sdk-world module", () => {
         },
       },
     });
+
     expect(sql).toContain(
       "cron.schedule('better-supabase-workflow-deliveries', '5 seconds'",
     );
+
     const body = moduleBody("workflow-sdk-world", {
       modules: {
         "workflow-sdk-world": {
@@ -89,6 +94,7 @@ describe("workflow-sdk-world module", () => {
         },
       },
     })!;
+
     expect(body).toContain(
       `"claim_jobs"('wf_q', 40, greatest(coalesce(batch, 5), 1))`,
     );
@@ -117,12 +123,15 @@ describe("workflow-sdk-world module", () => {
     const custom: AnyBlocksConfig = {
       "workflow-sdk-world": { mode: "custom" },
     };
+
     expect(
       moduleBody("workflow-sdk-world", { modules: custom }),
     ).toBeUndefined();
+
     const [contract] = customContracts(["workflow-sdk-world"], {
       modules: custom,
     });
+
     expect(contract!.functions).toEqual([
       {
         name: "dispatch_workflow_deliveries",

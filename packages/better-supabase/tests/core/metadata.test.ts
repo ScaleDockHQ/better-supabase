@@ -85,10 +85,12 @@ describe("read-only columns", () => {
   it("rejects writes to generated and identity always columns", async () => {
     const { client, requests } = capturingClient();
     const db = ledger(client);
+
     const insert = await db.create({
       id: 1n,
       code: "a",
     });
+
     expect(insert.error).toMatchObject({
       kind: "invalid_request",
       message: expect.stringContaining('"id" on "ledger" is read-only'),
@@ -114,6 +116,7 @@ describe("read-only columns", () => {
         },
       },
     };
+
     const { client } = capturingClient();
     const db = ledger(client, view);
     const result = await db.update(1n, { code: "x" });
@@ -134,13 +137,14 @@ describe("codecs", () => {
         },
       ],
     }));
+
     const db = ledger(client);
     const [row] = await db.findMany().orThrow();
     expect(query(last())[0]).toBe(
       "select=id::text,code,amount::text,bookedAt:booked_at::text,total",
     );
     expect(row).toEqual({
-      id: 9007199254740993n,
+      id: 9_007_199_254_740_993n,
       code: "a",
       amount: "10.10",
       bookedAt: Temporal.Instant.from("2026-09-24T10:00:00Z"),
@@ -152,6 +156,7 @@ describe("codecs", () => {
     const { client } = capturingClient(() => ({
       body: [{ bookedAt: "2026-09-24T10:00:00+00:00" }],
     }));
+
     vi.stubGlobal("Temporal", undefined);
     onTestFinished(() => {
       vi.unstubAllGlobals();
@@ -192,13 +197,16 @@ describe("findUnique", () => {
     const { client, last } = capturingClient(() => ({
       body: [{ id: "c1", kvk: "123" }],
     }));
+
     const db = defineSupabase(camel).connect(client);
+
     const row = await db.customers
       .findUnique({
         where: { organizationId: "o1", kvk: "123" },
         select: ["id", "kvk"],
       })
       .orThrow();
+
     expect(row).toEqual({ id: "c1", kvk: "123" });
     expect(query(last())).toEqual([
       "select=id,kvk",
@@ -214,9 +222,11 @@ describe("findUnique", () => {
     expect(
       await db.customers.findUnique({ where: { id: "missing" } }).orThrow(),
     ).toBeNull();
+
     const partial = await db.customers.findUnique({
       where: { kvk: "1" } as never,
     });
+
     expect(partial.error?.message).toContain(
       "needs one complete unique key: { id }, { id, organizationId }, { organizationId, kvk }",
     );
@@ -249,6 +259,7 @@ describe("errors", () => {
         this.status = status;
       }
     }
+
     await expect(
       AsyncResult.err(conflict).orThrow((error) => new HttpError(error.status)),
     ).rejects.toMatchObject({ status: 409 });

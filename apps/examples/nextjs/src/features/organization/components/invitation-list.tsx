@@ -26,6 +26,7 @@ export function InvitationList({
   const t = useExtracted("organization");
   const errorMessage = useErrorMessage();
   const format = useFormatter();
+
   const revoke = useAction(revokeInvitation, {
     onSuccess: () => {
       toast.success(t("Invitation revoked"));
@@ -34,15 +35,18 @@ export function InvitationList({
       toast.error(errorMessage(error));
     },
   });
+
   const revoking = (id: string) =>
     revoke.pendingInputs.some((input) => input.invitationId === id);
+
   if (invitations.length === 0) {
     return (
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         {t("No open invitations.")}
       </p>
     );
   }
+
   return (
     <ul className="divide-y" data-testid="invitations">
       {invitations.map((invitation) => (
@@ -58,7 +62,7 @@ export function InvitationList({
             {invitation.email}
           </span>
           <RoleBadge role={invitation.role} />
-          <span className="text-muted-foreground hidden text-xs sm:inline">
+          <span className="hidden text-xs text-muted-foreground sm:inline">
             {t("Expires {date}", {
               date: invitation.expiresAt
                 ? format.dateTime(new Date(invitation.expiresAt), {

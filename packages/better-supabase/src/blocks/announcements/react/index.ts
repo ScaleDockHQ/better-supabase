@@ -33,6 +33,7 @@ export function useAnnouncements(
 ): AnnouncementsState {
   const { supabase, auth, ports } = useBlockEnv();
   const { organizationId, topic, schema } = options;
+
   return useController(
     () =>
       createAnnouncementsController({

@@ -54,9 +54,11 @@ export interface CustomFields {
 
 export function createCustomFields(options: CustomFieldsOptions): CustomFields {
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const idOf = (label: string) => (value: unknown) => ({
     id: textOf(recordOf(value, label)["id"]),
   });
+
   const client: CustomFields = {
     saveDefinition: (organizationId, entity, key, label, type, sensitive) =>
       call(
@@ -73,7 +75,11 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
       ),
     reorderDefinition: (id, neighbors) => {
       const key = rankBetweenResult(neighbors);
-      if (!key.ok) return AsyncResult.err(key.error);
+
+      if (!key.ok) {
+        return AsyncResult.err(key.error);
+      }
+
       return call(
         "rank_field_definition",
         { definition: id, rank: key.data },
@@ -109,6 +115,7 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
         idOf("set_field_value"),
       ),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "custom-fields",
     ...(options.logger ? { logger: options.logger } : {}),

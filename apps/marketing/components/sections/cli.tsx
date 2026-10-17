@@ -25,7 +25,7 @@ export function CliSection() {
               <li key={point} className="flex gap-3 text-sm leading-6">
                 <span
                   aria-hidden="true"
-                  className="bg-brand mt-2 size-1.5 shrink-0 rounded-full"
+                  className="mt-2 size-1.5 shrink-0 rounded-full bg-brand"
                 />
                 <span className="text-muted-foreground">{point}</span>
               </li>

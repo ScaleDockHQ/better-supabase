@@ -39,22 +39,27 @@ export function toElysia<const Entries extends readonly AnyEntry[]>(
 ): ElysiaBridge<Entries> {
   const run = around(entries);
   const contexts = new WeakMap<Request, Contributions<Entries>>();
+
   return {
     wrap: (handle) => (incoming, env) => {
       const request = incoming.body ? bufferRequest(incoming) : incoming;
+
       return run(request, env, (contributions) => {
         // SAFETY: around() hands over exactly the entries' contributions.
         contexts.set(request, contributions as Contributions<Entries>);
+
         return handle(request);
       });
     },
     context(request) {
       const contributions = contexts.get(request);
+
       if (!contributions) {
         throw new Error(
           "better-supabase: this request did not pass through toElysia().wrap(); serve the app with the wrapped fetch",
         );
       }
+
       return contributions;
     },
   };

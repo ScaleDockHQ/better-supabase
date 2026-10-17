@@ -36,6 +36,7 @@ export function parseInterval(
   const interval = Number(
     flag ?? configured ?? CONFIG_DEFAULTS.gen.watchInterval,
   );
+
   return Number.isFinite(interval) && interval > 0
     ? interval
     : `--interval must be a positive number of milliseconds, got "${flag ?? configured}".`;
@@ -44,9 +45,11 @@ export function parseInterval(
 /** Returns `true` the first time it sees `message` after a different one, so a repeating failure prints once. */
 export function onceReporter(): (message: string) => boolean {
   let reported = "";
+
   return (message) => {
     const fresh = message !== "" && message !== reported;
     reported = message;
+
     return fresh;
   };
 }

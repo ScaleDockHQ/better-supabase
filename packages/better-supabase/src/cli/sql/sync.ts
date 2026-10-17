@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { CommandResult } from "../io.ts";
+import type { Paint } from "../style.ts";
 import type { SqlFlags } from "./args.ts";
 import type { Now } from "./migrations.ts";
 
@@ -16,7 +17,6 @@ import { fileDiff } from "../diff.ts";
 import { writeLine } from "../files.ts";
 import { display, sameText } from "../io.ts";
 import { migrationsDir } from "../sql-layout.ts";
-import { type Paint } from "../style.ts";
 import { topicPolicyFile } from "../topic-policies.ts";
 import {
   latestMigration,
@@ -43,16 +43,23 @@ export async function syncModules(
           await layoutFor(config, args, config.blockNames),
         ),
   );
+
   if (config.blockNames.length === 0 && topics === undefined) {
     return { code: 0, output: "blocks is empty; nothing to sync." };
   }
+
   if (await writesMigrations(config)) {
     const sqlLayout = await layoutFor(config, args, config.blockNames);
-    if (args.check === true)
+
+    if (args.check === true) {
       return checkModuleMigration(config, sqlLayout, paint, topics?.contents);
+    }
+
     const lines = await write(config, args, config.blockNames, sqlLayout, now);
+
     return { code: 0, output: lines.join("\n") };
   }
+
   if (args.check !== true) {
     const lines =
       config.blockNames.length === 0
@@ -64,10 +71,13 @@ export async function syncModules(
             await layoutFor(config, args, config.blockNames),
             now,
           );
+
     if (topics !== undefined) {
       const shown = display(config.root, topics.path);
-      if (args["dry-run"] === true) lines.push(`Would write ${shown} (topics)`);
-      else {
+
+      if (args["dry-run"] === true) {
+        lines.push(`Would write ${shown} (topics)`);
+      } else {
         lines.push(
           (
             await writeLine(
@@ -80,13 +90,17 @@ export async function syncModules(
         );
       }
     }
+
     return { code: 0, output: lines.join("\n") };
   }
+
   const sqlLayout = await layoutFor(config, args, config.blockNames);
+
   const files: { path: string; contents: string; topics?: true }[] = [
     ...renderModules(config.blockNames, sqlLayout),
     ...(topics === undefined ? [] : [{ ...topics, topics: true as const }]),
   ];
+
   const stale: string[] = (
     await staleModuleTests(
       config,
@@ -95,14 +109,17 @@ export async function syncModules(
       renderModules(config.blockNames, sqlLayout),
     )
   ).map((path) => display(config.root, path));
+
   const diffs: string[] = stale.map(
     (path) => `${path} is no longer written; \`sql sync\` removes it.`,
   );
+
   for (const file of files) {
     const current = await readFile(
       resolve(config.root, file.path),
-      "utf8",
+      "utf-8",
     ).catch(() => undefined);
+
     if (
       file.topics
         ? !sameText(current, file.contents)
@@ -113,6 +130,7 @@ export async function syncModules(
       diffs.push(fileDiff(shown, current, file.contents, paint));
     }
   }
+
   return stale.length === 0
     ? { code: 0, output: "SQL module files are up to date." }
     : {
@@ -130,34 +148,43 @@ async function checkModuleMigration(
   topics: string | undefined,
 ): Promise<CommandResult> {
   const files = renderModules(config.blockNames, sqlLayout);
+
   const expected = renderModuleMigration({
     files,
     ...(topics === undefined ? {} : { topics }),
   });
+
   const latest = await latestMigration(config, MODULES_SUFFIX);
+
   const stale: string[] = (
     await staleModuleTests(config, config.blockNames, sqlLayout, files)
   ).map((path) => display(config.root, path));
+
   const diffs: string[] = stale.map(
     (path) => `${path} is no longer written; \`sql sync\` removes it.`,
   );
+
   for (const file of files.filter((entry) => entry.kind === "test")) {
     const current = await readFile(
       resolve(config.root, file.path),
-      "utf8",
+      "utf-8",
     ).catch(() => undefined);
+
     if (!sameModuleFile(current, file.contents)) {
       const shown = display(config.root, file.path);
       stale.push(shown);
       diffs.push(fileDiff(shown, current, file.contents, paint));
     }
   }
+
   if (!sameModuleMigration(latest?.text, expected)) {
     const shown =
       latest?.path ?? `${migrationsDir(config)}/<stamp>${MODULES_SUFFIX}`;
+
     stale.push(shown);
     diffs.push(fileDiff(shown, latest?.text, expected, paint));
   }
+
   return stale.length === 0
     ? { code: 0, output: "SQL module migration is up to date." }
     : {

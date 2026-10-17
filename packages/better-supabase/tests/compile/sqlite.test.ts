@@ -18,7 +18,11 @@ import { createSqlite } from "../fixtures/sqlite.ts";
 
 function table(key: string): TableMeta {
   const found = schema.meta.tables[key];
-  if (!found) throw new Error(`No fixture table ${key}`);
+
+  if (!found) {
+    throw new Error(`No fixture table ${key}`);
+  }
+
   return found;
 }
 
@@ -48,8 +52,10 @@ const col = (
 ): Condition => ({ kind: "column", column, op, value });
 
 function selectPlan(plan: SqlitePlan) {
-  if (plan.kind !== "select")
+  if (plan.kind !== "select") {
     throw new Error(`expected select, got ${plan.kind}`);
+  }
+
   return plan;
 }
 
@@ -57,9 +63,13 @@ function unsupportedOf(run: () => unknown): unknown {
   try {
     run();
   } catch (cause) {
-    if (cause instanceof DbException) return cause.error;
+    if (cause instanceof DbException) {
+      return cause.error;
+    }
+
     throw cause;
   }
+
   throw new Error("expected an unsupported error");
 }
 
@@ -88,6 +98,7 @@ describe("compileSqlite", () => {
         }),
       ),
     );
+
     expect(plan.rows?.text).toBe(
       'select t0."id" as "id" from "customers" as t0 where (t0."name" like ? escape \'\\\' and t0."kvk" glob ? and t0."status" in (?, ?) and not t0."archived_at" is null and julianday(t0."created_at") >= julianday(?)) order by t0."name" collate nocase asc nulls last, julianday(t0."created_at") desc nulls first limit 10 offset 20',
     );
@@ -133,6 +144,7 @@ describe("compileSqlite", () => {
   it("compiles neq, boolean is, and empty groups under not", () => {
     const where = (condition: Condition) =>
       selectPlan(compileSqlite(select({ where: condition }))).rows?.text;
+
     expect(where(col("name", "neq", "A"))).toMatch(/where t0\."name" <> \?$/);
     expect(where(col("archived_at", "is", true))).toMatch(/is 1$/);
     expect(where(col("archived_at", "is", false))).toMatch(/is 0$/);
@@ -313,6 +325,7 @@ describe("compileSqlite", () => {
         }),
       ),
     );
+
     expect(plan.rows?.text).toBe(
       'select t0."status" as "status", count(*) as "_count", max(t0."created_at") as "max_created", cast(min(t0."name") as text) as "min_name" from "customers" as t0 group by t0."status"',
     );
@@ -341,6 +354,7 @@ describe("compileSqlite", () => {
         }),
       ),
     );
+
     expect(plan.rows?.text).toBe(
       'select t0."status" as "status", count(*) as "_count" from "customers" as t0 group by t0."status" order by count(*) desc nulls first, min(t0."name" collate nocase) asc nulls last, max(julianday(t0."created_at")) desc nulls first',
     );
@@ -371,6 +385,7 @@ describe("SQLite semantics", () => {
         }),
       ),
     );
+
     return sqlite
       .prepare(plan.rows!.text)
       .all(...(plan.rows!.params as never[]))
@@ -413,6 +428,7 @@ describe("SQLite semantics", () => {
       col("created_at", "gte", "2026-03-08T05:00:00Z"),
       col("created_at", "lt", "2026-03-09T04:00:00Z"),
     ];
+
     expect(ids({ kind: "and", items: day }, customers)).toEqual([
       "c1",
       "c2",
@@ -438,6 +454,7 @@ describe("SQLite semantics", () => {
         }),
       ),
     );
+
     expect(plan.rows?.params).toEqual(["call", "meeting", "email"]);
     expect(
       sqlite
@@ -452,6 +469,7 @@ describe("SQLite semantics", () => {
     sqlite.exec(
       "insert into notes (id, organization_id, customer_id, kind, body) values (5, 'o', 'c1', 'call', 'hi')",
     );
+
     const relationCondition = (
       quantifier: "some" | "none" | "every",
     ): Condition => ({
@@ -462,6 +480,7 @@ describe("SQLite semantics", () => {
       quantifier,
       where: col("kind", "eq", "call"),
     });
+
     expect(ids(relationCondition("some"), customers)).toEqual(["c1"]);
     expect(ids(relationCondition("none"), customers)).toEqual(["c2", "c3"]);
     expect(ids(relationCondition("every"), customers)).toEqual([

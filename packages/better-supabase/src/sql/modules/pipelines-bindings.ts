@@ -14,6 +14,7 @@ type PipelineOutcome = (typeof PIPELINE_OUTCOMES)[number];
 
 const NAME = /^[a-z][a-z0-9_]{0,62}$/;
 const COLUMN = /^[a-z_][a-z0-9_]{0,62}$/;
+
 /** A default stage a subject's first pipeline starts with. */
 interface StageTemplate {
   readonly key: string;
@@ -50,10 +51,14 @@ function columnOf(
   value: unknown,
   fallback?: string,
 ): string | undefined {
-  if (value === undefined) return fallback;
+  if (value === undefined) {
+    return fallback;
+  }
+
   if (typeof value !== "string" || !COLUMN.test(value)) {
     throw new TypeError(`${where} must be a column name`);
   }
+
   return value;
 }
 
@@ -66,22 +71,29 @@ function categoriesOf(
       `${where}.categories must map each category to open, success or failure`,
     );
   }
+
   const out: Record<string, PipelineOutcome> = {};
+
   for (const [name, outcome] of Object.entries(value)) {
     if (!NAME.test(name)) {
       throw new TypeError(`${where}.categories.${name} has an invalid name`);
     }
+
     const known = PIPELINE_OUTCOMES.find((item) => item === outcome);
+
     if (known === undefined) {
       throw new TypeError(
         `${where}.categories.${name} must be open, success or failure`,
       );
     }
+
     out[name] = known;
   }
+
   if (!Object.values(out).includes("open")) {
     throw new TypeError(`${where}.categories needs an open category`);
   }
+
   return out;
 }
 
@@ -97,24 +109,36 @@ function stagesOf(
       category,
     }));
   }
+
   if (!Array.isArray(value) || value.length === 0) {
     throw new TypeError(`${where}.stages must be a non-empty list`);
   }
+
   const keys = new Set<string>();
+
   const stages = value.map((item: unknown, index): StageTemplate => {
     const at = `${where}.stages[${String(index)}]`;
-    if (!isRecord(item)) throw new TypeError(`${at} must be an object`);
+
+    if (!isRecord(item)) {
+      throw new TypeError(`${at} must be an object`);
+    }
+
     const { key, name, category, probability } = item;
+
     if (typeof key !== "string" || !NAME.test(key) || keys.has(key)) {
       throw new TypeError(`${at}.key must be a distinct lowercase name`);
     }
+
     keys.add(key);
+
     if (typeof name !== "string" || name.length === 0) {
       throw new TypeError(`${at}.name is required`);
     }
+
     if (typeof category !== "string" || !(category in categories)) {
       throw new TypeError(`${at}.category must be one of the categories`);
     }
+
     if (
       probability !== undefined &&
       (typeof probability !== "number" ||
@@ -124,6 +148,7 @@ function stagesOf(
     ) {
       throw new TypeError(`${at}.probability must be an integer 0 to 100`);
     }
+
     return {
       key,
       name,
@@ -131,9 +156,11 @@ function stagesOf(
       ...(typeof probability === "number" && { probability }),
     };
   });
+
   if (!stages.some((stage) => categories[stage.category] === "open")) {
     throw new TypeError(`${where}.stages needs an open stage`);
   }
+
   return stages;
 }
 
@@ -142,24 +169,34 @@ function statusOf(
   value: unknown,
   categories: Readonly<Record<string, PipelineOutcome>>,
 ): PipelineBinding["status"] {
-  if (value === undefined) return undefined;
+  if (value === undefined) {
+    return undefined;
+  }
+
   if (!isRecord(value) || !isRecord(value["values"])) {
     throw new TypeError(`${where}.status needs column and values`);
   }
+
   const column = columnOf(`${where}.status.column`, value["column"]);
+
   if (column === undefined) {
     throw new TypeError(`${where}.status.column is required`);
   }
+
   const values: Record<string, string> = {};
+
   for (const [category, status] of Object.entries(value["values"])) {
     if (!(category in categories)) {
       throw new TypeError(`${where}.status.values.${category} is no category`);
     }
+
     if (typeof status !== "string" || status.length === 0) {
       throw new TypeError(`${where}.status.values.${category} must be text`);
     }
+
     values[category] = status;
   }
+
   return { column, values };
 }
 
@@ -310,13 +347,19 @@ export function pipelineBindings(
   ctx: ModuleContext,
 ): readonly PipelineBinding[] {
   const configured = ctx.option("subjects") ?? {};
+
   if (!isRecord(configured)) {
     throw new TypeError("blocks.pipelines.options.subjects must be an object");
   }
+
   const raw: Record<string, unknown> = {};
   const builtInSubjects: Record<string, SubjectConfig> = {};
+
   for (const builtIn of BUILT_IN_BINDINGS) {
-    if (!ctx.installed(builtIn.module)) continue;
+    if (!ctx.installed(builtIn.module)) {
+      continue;
+    }
+
     const own = configured[builtIn.type];
     raw[builtIn.type] = { ...builtIn.entry, ...(isRecord(own) ? own : {}) };
     const { schema, name } = ctx.of(builtIn.module).tableName(builtIn.table);
@@ -326,37 +369,53 @@ export function pipelineBindings(
       tenant: "tenant_id",
     };
   }
+
   for (const [type, entry] of Object.entries(configured)) {
-    if (!(type in raw)) raw[type] = entry;
+    if (!(type in raw)) {
+      raw[type] = entry;
+    }
   }
+
   const registry = registeredSubjects({ ...builtInSubjects, ...ctx.subjects });
+
   return Object.entries(raw).map(([type, entry]) => {
     const where = `blocks.pipelines.options.subjects.${type}`;
     const subject = registry.find((item) => item.type === type);
+
     if (subject === undefined) {
       throw new TypeError(
         `${where}: register "${type}" in config.subjects first`,
       );
     }
+
     if (subject.tenant === undefined) {
       throw new TypeError(
         `${where}: config.subjects.${type} needs a tenant column`,
       );
     }
-    if (!isRecord(entry)) throw new TypeError(`${where} must be an object`);
+
+    if (!isRecord(entry)) {
+      throw new TypeError(`${where} must be an object`);
+    }
+
     const categories = categoriesOf(where, entry["categories"]);
+
     const optional = (key: string): string | undefined =>
       columnOf(`${where}.${key}`, entry[key]);
+
     const amount = optional("amount");
     const currency = optional("currency");
+
     if ((amount === undefined) !== (currency === undefined)) {
       throw new TypeError(`${where}: amount and currency go together`);
     }
+
     const status = statusOf(where, entry["status"], categories);
     const enteredAt = optional("enteredAt");
     const probability = optional("probability");
     const owner = optional("owner");
     const scope = optional("scope");
+
     return {
       type,
       subject,
@@ -395,7 +454,10 @@ export function byType(
   branch: (binding: PipelineBinding) => string,
   otherwise: string,
 ): string {
-  if (bindings.length === 0) return otherwise;
+  if (bindings.length === 0) {
+    return otherwise;
+  }
+
   return `case ${selector}
 ${bindings.map((binding) => `    when ${sqlString(binding.type)} then\n${branch(binding)}`).join("\n")}
     else

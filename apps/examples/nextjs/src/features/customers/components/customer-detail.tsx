@@ -31,20 +31,30 @@ export async function CustomerDetail({
 }) {
   const [{ id }, session] = await Promise.all([params, getSession()]);
   const organizationId = tenantOf(session);
-  if (!organizationId) notFound();
+
+  if (!organizationId) {
+    notFound();
+  }
+
   const [customer, members, t, format] = await Promise.all([
     getCustomer(id),
     getMembers(organizationId),
     getExtracted("customers"),
     getFormatter(),
   ]);
-  if (!customer) notFound();
+
+  if (!customer) {
+    notFound();
+  }
+
   const authors = Object.fromEntries(
     members.flatMap((member) => {
       const name = member.name ?? member.email;
+
       return name ? [[member.userId, name]] : [];
     }),
   );
+
   return (
     <div className="grid gap-6 lg:grid-cols-3">
       <div className="space-y-6 lg:col-span-2">
@@ -58,7 +68,7 @@ export async function CustomerDetail({
               className="rounded-xl"
             />
           ) : (
-            <span className="bg-muted text-muted-foreground flex size-14 items-center justify-center rounded-xl text-lg font-semibold">
+            <span className="flex size-14 items-center justify-center rounded-xl bg-muted text-lg font-semibold text-muted-foreground">
               {initials(customer.name, null)}
             </span>
           )}
@@ -66,7 +76,7 @@ export async function CustomerDetail({
             <h1 className="text-2xl font-semibold tracking-tight">
               {customer.name}
             </h1>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-sm text-muted-foreground">
               {t("Customer since {date}", {
                 date: format.dateTime(new Date(customer.createdAt), {
                   dateStyle: "long",
@@ -113,7 +123,7 @@ export async function CustomerDetail({
           </CardHeader>
           <CardContent>
             {customer.notes.length === 0 ? (
-              <p className="text-muted-foreground text-sm">
+              <p className="text-sm text-muted-foreground">
                 {t("No notes yet.")}
               </p>
             ) : (

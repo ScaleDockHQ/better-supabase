@@ -12,18 +12,22 @@ type Answer = (args: Record<string, unknown>) => unknown;
 
 function fakeTransport(results: Record<string, unknown>) {
   const calls: [string, Record<string, unknown>][] = [];
+
   const transport: BlockTransport = {
     call(_schema, fn, args) {
       calls.push([fn, { ...args }]);
       const result = results[fn];
+
       const value =
         typeof result === "function" ? (result as Answer)({ ...args }) : result;
+
       return value instanceof Error ||
         (typeof value === "object" && value !== null && "code" in value)
         ? Promise.reject(value)
         : Promise.resolve(value);
     },
   };
+
   return { calls, transport };
 }
 
@@ -58,11 +62,14 @@ function fakeFetch(
   answer: (url: string, init: RequestInit) => Response | Promise<Response>,
 ) {
   const requests: { url: string; init: RequestInit }[] = [];
+
   const fetcher = ((input: RequestInfo | URL, init: RequestInit = {}) => {
     const url = input instanceof Request ? input.url : String(input);
     requests.push({ url, init });
+
     return Promise.resolve(answer(url, init));
   }) as typeof fetch;
+
   return { requests, fetch: fetcher };
 }
 
@@ -94,6 +101,7 @@ describe("createSso", () => {
             }
           : null,
     });
+
     const sso = createSso({ transport });
     const added = await sso.addDomain("org-1", "Acme.test").orThrow();
     expect(added.record.name).toBe("_better-supabase.acme.test");
@@ -104,6 +112,7 @@ describe("createSso", () => {
     const updated = await sso
       .updateDomain("d1", { enforceSso: true })
       .orThrow();
+
     expect(updated).toMatchObject({ autoJoinRole: "member", enforceSso: true });
     await sso.updateDomain("d1", { autoJoinRole: null }).orThrow();
     expect(calls.at(-1)).toEqual([
@@ -150,10 +159,12 @@ describe("dohResolver", () => {
         ],
       }),
     );
+
     const resolve = dohResolver({
       endpoint: "https://dns.test/resolve",
       fetch,
     });
+
     expect(await resolve("_better-supabase.acme.test")).toEqual([
       "better-supabase-domain-verification=abc",
       'plain \\"quoted\\"',
@@ -173,6 +184,7 @@ describe("dohResolver", () => {
       new Response("down", { status: 502 }),
       Response.json([]),
     ];
+
     const { fetch } = fakeFetch(() => answers.shift()!);
     const resolve = dohResolver({ fetch });
     expect(await resolve("a.test")).toEqual([]);
@@ -190,20 +202,25 @@ describe("createSsoAdmin", () => {
         verified_at: "2026-10-06T12:05:00Z",
       }),
     });
+
     let records: readonly string[] = [];
+
     const admin = createSsoAdmin({
       transport,
       resolver: () => Promise.resolve(records),
     });
+
     const missing = await admin.verifyDomain("d1", { actorId: "u1" });
     expect(!missing.ok && missing.error).toMatchObject({
       kind: "invalid_request",
       hint: "SSO_DOMAIN_RECORD_MISSING",
     });
     records = ["better-supabase-domain-verification=abc"];
+
     const verified = await admin
       .verifyDomain("d1", { actorId: "u1" })
       .orThrow();
+
     expect(verified.verifiedAt).toBeDefined();
     expect(calls.at(-1)).toEqual([
       "verify_organization_domain",
@@ -216,12 +233,15 @@ describe("createSsoAdmin", () => {
       transport: fakeTransport({ organization_domain: null }).transport,
       resolver: () => Promise.resolve([]),
     });
+
     const result = await unknown.verifyDomain("d1");
     expect(!result.ok && result.error.kind).toBe("not_found");
+
     const failing = createSsoAdmin({
       transport: fakeTransport({ organization_domain: domainRow() }).transport,
       resolver: () => Promise.reject(new Error("dns down")),
     });
+
     const failed = await failing.verifyDomain("d1");
     expect(!failed.ok && failed.error).toMatchObject({
       kind: "network",
@@ -241,15 +261,18 @@ describe("createSsoAdmin", () => {
       sso_provider: providerRow(),
       unregister_sso_provider: providerRow(),
     });
+
     const { requests, fetch } = fakeFetch((_url, init) =>
       init.method === "DELETE"
         ? new Response(null, { status: 200 })
         : Response.json({ id: "p1" }),
     );
+
     const admin = createSsoAdmin({
       transport,
       auth: { url: "https://project.test/", secretKey: "sb_secret_x", fetch },
     });
+
     const created = await admin
       .addSamlProvider(
         "org-1",
@@ -263,6 +286,7 @@ describe("createSsoAdmin", () => {
         { actorId: "u1" },
       )
       .orThrow();
+
     expect(created.id).toBe("p1");
     expect(requests[0]?.url).toBe(
       "https://project.test/auth/v1/admin/sso/providers",
@@ -285,6 +309,7 @@ describe("createSsoAdmin", () => {
         domains: ["acme.test", "acme.example"],
       })
       .orThrow();
+
     expect(updated.metadataUrl).toBeUndefined();
     expect(requests[1]?.init.method).toBe("PUT");
     expect(requests[1]?.url).toBe(
@@ -296,6 +321,7 @@ describe("createSsoAdmin", () => {
     const removed = await admin
       .removeSamlProvider("p1", { actorId: "u1" })
       .orThrow();
+
     expect(removed?.id).toBe("p1");
     expect(requests.at(-1)?.init.method).toBe("DELETE");
     expect(calls.at(-1)).toEqual([
@@ -313,15 +339,19 @@ describe("createSsoAdmin", () => {
         hint: "SSO_FORBIDDEN",
       },
     });
+
     const { requests, fetch } = fakeFetch(() => Response.json({ id: "p9" }));
+
     const admin = createSsoAdmin({
       transport,
       auth: { url: "https://p.test", secretKey: "k", fetch },
     });
+
     const result = await admin.addSamlProvider("org-1", {
       metadataXml: "<xml/>",
       domains: ["acme.test"],
     });
+
     expect(result.ok).toBe(false);
     expect(requests.map((r) => r.init.method)).toEqual(["POST", "DELETE"]);
     expect(requests[1]?.url).toBe(
@@ -340,17 +370,21 @@ describe("createSsoAdmin", () => {
     [500, "network"],
   ])("maps an Auth %i to %s", async (status, kind) => {
     const { transport } = fakeTransport({ check_sso_provider: null });
+
     const { fetch } = fakeFetch(() =>
       Response.json({ msg: "auth said no" }, { status }),
     );
+
     const admin = createSsoAdmin({
       transport,
       auth: { url: "https://p.test", secretKey: "k", fetch },
     });
+
     const result = await admin.addSamlProvider("org-1", {
       metadataXml: "<xml/>",
       domains: ["acme.test"],
     });
+
     expect(!result.ok && result.error).toMatchObject({
       kind,
       message: "auth said no",
@@ -362,12 +396,16 @@ describe("createSsoAdmin", () => {
       check_sso_provider: null,
       sso_provider: null,
     });
+
     const without = createSsoAdmin({ transport });
+
     const result = await without.addSamlProvider("org-1", {
       metadataXml: "<xml/>",
       domains: ["a.test"],
     });
+
     expect(!result.ok && result.error.kind).toBe("invalid_request");
+
     const offline = createSsoAdmin({
       transport,
       auth: {
@@ -376,14 +414,17 @@ describe("createSsoAdmin", () => {
         fetch: () => Promise.reject(new Error("offline")),
       },
     });
+
     const failed = await offline.addSamlProvider("org-1", {
       metadataXml: "<xml/>",
       domains: ["a.test"],
     });
+
     expect(!failed.ok && failed.error).toMatchObject({
       kind: "network",
       message: "offline",
     });
+
     const garbled = createSsoAdmin({
       transport,
       auth: {
@@ -392,15 +433,19 @@ describe("createSsoAdmin", () => {
         fetch: () => Promise.resolve(new Response("<html>", { status: 502 })),
       },
     });
+
     const bad = await garbled.addSamlProvider("org-1", {
       metadataXml: "<xml/>",
       domains: ["a.test"],
     });
+
     expect(!bad.ok && bad.error.message).toBe("Supabase Auth answered 502");
     expect(await offline.removeSamlProvider("p1").orThrow()).toBeUndefined();
+
     const update = await offline.updateSamlProvider("p1", {
       domains: ["a.test"],
     });
+
     expect(!update.ok && update.error).toMatchObject({
       kind: "not_found",
       hint: "SSO_PROVIDER_NOT_FOUND",

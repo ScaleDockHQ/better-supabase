@@ -8,6 +8,7 @@ export type {
   StepUpState,
   UseMfaOptions,
 } from "./index.ts";
+
 export { needsStepUp } from "../client.ts";
 
 /** The `react-server` build of `useMfa`: it runs in Client Components only. */

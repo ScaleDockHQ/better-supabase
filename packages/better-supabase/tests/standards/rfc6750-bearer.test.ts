@@ -16,6 +16,7 @@ import {
 // separated auth-params `token = quoted-string`.
 const TOKEN = "[!#$%&'*+.^_`|~0-9A-Za-z-]+";
 const QUOTED = '"(?:[^"\\\\]|\\\\.)*"';
+
 const CHALLENGE = new RegExp(
   `^Bearer(?: ${TOKEN}=(?:${TOKEN}|${QUOTED})(?:, ${TOKEN}=(?:${TOKEN}|${QUOTED}))*)?$`,
 );
@@ -37,6 +38,7 @@ describe("RFC 6750 Bearer token challenges", () => {
     const header = problemResponse(dbError("unauthorized", "Expired"), {
       realm: "crm",
     }).headers.get("www-authenticate")!;
+
     expect(header).toMatch(CHALLENGE);
     expect(params(header)).toEqual({ realm: "crm", error: "invalid_token" });
   });
@@ -45,6 +47,7 @@ describe("RFC 6750 Bearer token challenges", () => {
     const header = problemResponse(
       dbError("unauthorized", "Sign in", { code: "MISSING_CREDENTIALS" }),
     ).headers.get("www-authenticate")!;
+
     expect(header).toMatch(CHALLENGE);
     expect(params(header)).toEqual({ realm: "supabase" });
   });
@@ -56,6 +59,7 @@ describe("RFC 6750 Bearer token challenges", () => {
         scopes: ["crm.read", "crm.write"],
       }),
     );
+
     expect(response.status).toBe(403);
     const header = response.headers.get("www-authenticate")!;
     expect(header).toMatch(CHALLENGE);
@@ -74,6 +78,7 @@ describe("RFC 6750 Bearer token challenges", () => {
       }),
       { realm: 'my"realm' },
     ).headers.get("www-authenticate")!;
+
     expect(header).toMatch(CHALLENGE);
     expect(header).toContain('realm="myrealm"');
     expect(header).toContain('scope="ab"');
@@ -83,11 +88,13 @@ describe("RFC 6750 Bearer token challenges", () => {
     const header = problemResponse(dbError("unauthorized", "x"), {
       headers: { "www-authenticate": 'Bearer realm="other"' },
     }).headers.get("www-authenticate");
+
     expect(header).toBe('Bearer realm="other"');
   });
 
   it("reads the token from the Authorization header with the Bearer scheme (section 2.1)", async () => {
     const betterSupabase = defineSupabase(schema);
+
     const bs = createHono(betterSupabase, {
       env: {
         url: PROJECT_URL,
@@ -96,13 +103,16 @@ describe("RFC 6750 Bearer token challenges", () => {
       },
       auth: { jwks: signer.jwks as never },
     });
+
     const app = new Hono<HonoEnv<Models, Functions, unknown>>()
       .onError(bs.onError)
       .use("/api/*", bs.middleware())
       .get("/api/me", (c) => c.json({ ok: true }));
+
     const token = await signer.sign({
       sub: "11111111-1111-4111-8111-111111111111",
     });
+
     expect(
       (
         await app.request("/api/me", {
@@ -110,9 +120,11 @@ describe("RFC 6750 Bearer token challenges", () => {
         })
       ).status,
     ).toBe(200);
+
     const rejected = await app.request("/api/me", {
       headers: { authorization: "Bearer not-a-jwt" },
     });
+
     expect(rejected.status).toBe(401);
     expect(rejected.headers.get("www-authenticate")).toMatch(CHALLENGE);
     expect(params(rejected.headers.get("www-authenticate")!)).toMatchObject({

@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("next/headers.js", () => ({
   headers: () => Promise.resolve(mocks.headers),
 }));
+
 vi.mock("next/cache.js", () => ({
   cacheLife: mocks.cacheLife,
   cacheTag: mocks.cacheTag,
@@ -29,41 +30,50 @@ vi.mock("next/cache.js", () => ({
   revalidateTag: vi.fn(),
   io: () => Promise.resolve(),
 }));
+
 vi.mock("@supabase/server/core", async (original) => {
   const actual = await original<typeof ServerCore>();
+
   return {
     ...actual,
     verifyCredentials: (
       ...args: Parameters<typeof actual.verifyCredentials>
     ) => {
       mocks.verifications += 1;
+
       return actual.verifyCredentials(...args);
     },
   };
 });
+
 vi.mock("@supabase/supabase-js", async (original) => {
   const actual = await original<typeof SupabaseJs>();
+
   return {
     ...actual,
     createClient: (...args: Parameters<typeof actual.createClient>) => {
       mocks.clients += 1;
+
       return actual.createClient(...args);
     },
   };
 });
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
+
 const env = {
   url: PROJECT_URL,
   publishableKey: "sb_publishable_test",
   jwksUrl: new URL(`${PROJECT_URL}/auth/v1/.well-known/jwks.json`),
 };
+
 const USER = "11111111-1111-4111-8111-111111111111";
 const OTHER = "22222222-2222-4222-8222-222222222222";
 const signer = await createTestSigner();
 
 describe("private-cache scopes", () => {
   const betterSupabase = defineSupabase(schema);
+
   const bs = createNext(betterSupabase, {
     env,
     cacheTags: false,
@@ -80,20 +90,28 @@ describe("private-cache scopes", () => {
   it("verifies a token once and builds clients only when used", async () => {
     const token = await signer.sign({ sub: USER });
     const bearer = { authorization: `Bearer ${token}` };
+
     // Twelve islands, each its own scope: four read data, eight only the session.
     for (let island = 0; island < 12; island++) {
       const ctx = await bs.context(
         new Request("https://app.test/", { headers: bearer }),
       );
+
       expect(ctx.auth.kind).toBe("user");
-      if (island % 3 === 0) void ctx.db.customers;
+
+      if (island % 3 === 0) {
+        void ctx.db.customers;
+      }
     }
+
     expect(mocks.verifications).toBe(1);
     // A user's ctx.db runs on a bare PostgREST client.
     expect(mocks.clients).toBe(0);
+
     const ctx = await bs.context(
       new Request("https://app.test/", { headers: bearer }),
     );
+
     expect(ctx.db.$client).toBe(ctx.supabase);
     expect(mocks.clients).toBe(1);
   });
@@ -105,9 +123,11 @@ describe("private-cache scopes", () => {
     const ctx = await bs.cached({ life: { expire: 3600 } });
     expect(ctx.session).toMatchObject({ kind: "user", user: { id: USER } });
     expect(ctx.auth.kind).toBe("user");
+
     const [life] = mocks.cacheLife.mock.calls[0]! as [
       { stale: number; expire: number },
     ];
+
     expect(life.expire).toBe(3600);
     expect(life.stale).toBeGreaterThanOrEqual(
       exp - Math.floor(Date.now() / 1000) - 1,
@@ -148,33 +168,40 @@ describe("private-cache scopes", () => {
 
   it("builds a context from a session and its token", async () => {
     const token = await signer.sign({ sub: USER });
+
     const session = {
       kind: "user",
       user: { id: USER },
       claims: { sub: USER },
       expiresAt: null,
     } as never;
+
     const ctx = await bs.contextForSession(session, { token });
     expect(ctx.auth).toMatchObject({ kind: "user", user: { id: USER } });
 
     const foreign = await bs.contextForSession(session, {
       token: await signer.sign({ sub: OTHER }),
     });
+
     expect(foreign.auth).toMatchObject({
       kind: "invalid",
       error: { kind: "unauthorized" },
     });
+
     const anon = await bs.contextForSession(
       { kind: "anon", reason: "none" },
       {
         token: null,
       },
     );
+
     expect(anon.auth.kind).toBe("anon");
+
     const service = await bs.contextForSession(
       { kind: "service", keyName: "cron" },
       { token: null },
     );
+
     expect(service.auth).toMatchObject({
       kind: "invalid",
       error: { kind: "unauthorized" },
@@ -183,12 +210,14 @@ describe("private-cache scopes", () => {
 
   it("keeps the verification error of an expired token", async () => {
     const token = await signer.sign({ sub: USER, expiresIn: -60 });
+
     const session = {
       kind: "user",
       user: { id: USER },
       claims: { sub: USER },
       expiresAt: null,
     } as never;
+
     const ctx = await bs.contextForSession(session, { token });
     expect(ctx.auth.kind).toBe("invalid");
     expect(
@@ -198,17 +227,22 @@ describe("private-cache scopes", () => {
 
   it("drops the cached session after deleting the account", async () => {
     const calls: string[] = [];
+
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
       .mockImplementation((input, init) => {
         calls.push(`${init?.method ?? "GET"} ${String(input)}`);
+
         return Promise.resolve(Response.json({}));
       });
+
     const admin = createNext(betterSupabase, {
       env: { ...env, secretKey: "sb_secret_test" },
       cacheTags: false,
     });
+
     mocks.updateTag.mockReset();
+
     try {
       const result = await admin.deleteAccount(USER);
       expect(result).toMatchObject({
@@ -240,6 +274,7 @@ describe("suspending accounts", () => {
       env: { ...env, secretKey: "sb_secret_test" },
       cacheTags: false,
     });
+
     expect(await bs.endSessions(USER)).toMatchObject({
       ok: false,
       error: { kind: "invalid_request" },
@@ -252,19 +287,25 @@ describe("suspending accounts", () => {
 
   it("drops the cached session after ending sessions or suspending", async () => {
     const calls: string[] = [];
+
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
       .mockImplementation((input, init) => {
         calls.push(`${init?.method ?? "GET"} ${String(input)}`);
+
         return Promise.resolve(Response.json({}));
       });
+
     const queryRaw = vi.fn(async () => [{ ended: 2 }]);
+
     const bs = createNext(betterSupabase, {
       env: { ...env, secretKey: "sb_secret_test" },
       cacheTags: false,
       postgres: { admin: { queryRaw } } as never,
     });
+
     mocks.updateTag.mockReset();
+
     try {
       expect(await bs.endSessions(USER)).toMatchObject({
         ok: true,
@@ -288,10 +329,13 @@ describe("suspending accounts", () => {
 describe("explicit tenants", () => {
   const TENANT = "00000000-0000-4000-8000-0000000000aa";
   const OTHER_TENANT = "00000000-0000-4000-8000-0000000000bb";
+
   const resolver = vi.fn(async (request: Request) => {
     await Promise.resolve();
+
     return request.headers.get("x-organization") ?? undefined;
   });
+
   const bs = createNext(defineSupabase(schema), {
     env,
     cacheTags: false,
@@ -315,6 +359,7 @@ describe("explicit tenants", () => {
         },
       }),
     );
+
     const explicit = await bs.context({ tenant: TENANT });
     expect(explicit.db.$context).toEqual(resolved.db.$context);
     expect(explicit.db.$context.tenant).toBe(TENANT);
@@ -342,21 +387,25 @@ describe("explicit tenants", () => {
       },
       (_input, actionCtx) => actionCtx.db.$context.tenant ?? null,
     );
+
     expect(await action({ organizationId: TENANT })).toEqual({
       ok: true,
       data: TENANT,
       error: null,
     });
+
     const unscoped = bs.action(
       {},
       (_input, actionCtx) => actionCtx.db.$context.tenant ?? null,
     );
+
     expect(await unscoped(undefined)).toMatchObject({ data: null });
   });
 });
 
 describe("sessionStale", () => {
   const now = 1_000_000_000_000;
+
   const user = (expiresAt: number | null) =>
     ({ kind: "user", expiresAt }) as never;
 

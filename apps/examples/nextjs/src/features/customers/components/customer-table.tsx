@@ -58,12 +58,14 @@ export function CustomerTable({
   const [query, setQuery] = useState("");
   const needle = query.trim().toLowerCase();
   const search = useCustomerSearch(needle);
+
   // Until the search answers, the first page filters locally.
   const rows = (needle === "" ? customers : (search.data ?? customers)).filter(
     (customer) =>
       (status === null || customer.status === status) &&
       (needle === "" || customer.name.toLowerCase().includes(needle)),
   );
+
   return (
     <div
       className="space-y-4"
@@ -72,7 +74,7 @@ export function CustomerTable({
     >
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative w-full max-w-sm">
-          <SearchIcon className="text-muted-foreground absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
+          <SearchIcon className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="search"
             value={query}
@@ -161,7 +163,7 @@ export function CustomerTable({
                           className="rounded-md"
                         />
                       ) : (
-                        <span className="bg-muted text-muted-foreground flex size-7 items-center justify-center rounded-md text-xs font-semibold">
+                        <span className="flex size-7 items-center justify-center rounded-md bg-muted text-xs font-semibold text-muted-foreground">
                           {initials(customer.name, null)}
                         </span>
                       )}
@@ -180,7 +182,7 @@ export function CustomerTable({
                   <TableCell className="text-right tabular-nums">
                     {customer.notes}
                   </TableCell>
-                  <TableCell className="text-muted-foreground hidden md:table-cell">
+                  <TableCell className="hidden text-muted-foreground md:table-cell">
                     {customer.lastNoteAt
                       ? format.dateTime(new Date(customer.lastNoteAt), {
                           dateStyle: "medium",

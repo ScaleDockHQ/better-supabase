@@ -64,7 +64,7 @@ function SettingControl({
   onChange: (value: ControlValue) => void;
 }) {
   switch (field.kind) {
-    case "boolean":
+    case "boolean": {
       return (
         <Switch
           id={id}
@@ -75,11 +75,14 @@ function SettingControl({
           }}
         />
       );
+    }
+
     case "choice": {
       const items = field.choices.map((choice) => ({
         value: String(choice),
         label: String(choice),
       }));
+
       return (
         <Select
           value={String(value)}
@@ -87,7 +90,10 @@ function SettingControl({
           disabled={disabled}
           onValueChange={(next) => {
             const choice = field.choices.find((each) => String(each) === next);
-            if (choice !== undefined) onChange(choice);
+
+            if (choice !== undefined) {
+              onChange(choice);
+            }
           }}
         >
           <SelectTrigger id={id} className="w-48 capitalize">
@@ -107,9 +113,10 @@ function SettingControl({
         </Select>
       );
     }
+
     case "number":
     case "text":
-    case "json":
+    case "json": {
       return (
         <Input
           id={id}
@@ -123,8 +130,11 @@ function SettingControl({
           }}
         />
       );
+    }
+
     default: {
       const unknown: never = field.kind;
+
       return unknown;
     }
   }
@@ -145,6 +155,7 @@ function SettingsSection<E extends SettingEntries>({
   const t = useExtracted("settings");
   const errorMessage = useErrorMessage();
   const baseId = useId();
+
   return (
     <Card>
       <CardHeader>
@@ -178,7 +189,9 @@ function SettingsSection<E extends SettingEntries>({
                   disabled={!editable || state.saving === field.key}
                   onChange={(value) => {
                     void state.setField(field.key, value).then((saved) => {
-                      if (!saved.ok) toast.error(errorMessage(saved.error));
+                      if (!saved.ok) {
+                        toast.error(errorMessage(saved.error));
+                      }
                     });
                   }}
                 />
@@ -203,11 +216,13 @@ export function SettingsLayout({
   const t = useExtracted("settings");
   const organizationId = tenantOf(useAuth()) ?? null;
   const user = useSettings(settings, { scope: "user", schema: API_SCHEMA });
+
   const organization = useSettings(settings, {
     scope: "organization",
     organizationId,
     schema: API_SCHEMA,
   });
+
   return (
     <div className="space-y-6" data-testid="settings-layout">
       <SettingsSection

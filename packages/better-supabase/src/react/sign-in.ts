@@ -66,11 +66,13 @@ export interface SignOut extends PendingState {
 function useAuthApi(options: AuthHookOptions, hook: string): AuthApi {
   const context = useContext(ClientContext);
   const auth = options.client?.auth ?? context?.client.supabase.auth;
+
   if (!auth) {
     throw new Error(
       `better-supabase: ${hook} needs <BetterSupabaseProvider client={bs}> or { client: supabase }`,
     );
   }
+
   return auth;
 }
 
@@ -87,9 +89,11 @@ export function usePending(options: {
     pending: false,
     error: undefined,
   });
+
   const latest = useRef({ call: 0, options });
   // oxlint-disable-next-line react/refs -- latest-ref pattern; the react peer range predates useEffectEvent.
   latest.current.options = options;
+
   const run = useMemo(
     () =>
       async (call: () => Promise<{ readonly error: AuthFailure | null }>) => {
@@ -97,20 +101,30 @@ export function usePending(options: {
         const id = latest.current.call;
         setState({ pending: true, error: undefined });
         let error: AuthFailure | null;
+
         try {
           ({ error } = await call());
         } catch (cause) {
-          if (id === latest.current.call)
+          if (id === latest.current.call) {
             setState({ pending: false, error: undefined });
+          }
+
           throw cause;
         }
-        if (id === latest.current.call)
+
+        if (id === latest.current.call) {
           setState({ pending: false, error: error ?? undefined });
-        if (!error) latest.current.options.onSuccess?.();
+        }
+
+        if (!error) {
+          latest.current.options.onSuccess?.();
+        }
+
         return error ?? undefined;
       },
     [],
   );
+
   return { state, run };
 }
 
@@ -126,6 +140,7 @@ export function usePending(options: {
 export function useSignIn(options: AuthHookOptions = {}): SignIn {
   const auth = useAuthApi(options, "useSignIn");
   const { state, run } = usePending(options);
+
   const calls = useMemo(
     () => ({
       password: (credentials: {
@@ -147,6 +162,7 @@ export function useSignIn(options: AuthHookOptions = {}): SignIn {
     }),
     [auth, run],
   );
+
   return { ...state, ...calls };
 }
 
@@ -154,6 +170,7 @@ export function useSignIn(options: AuthHookOptions = {}): SignIn {
 export function useSignOut(options: AuthHookOptions = {}): SignOut {
   const auth = useAuthApi(options, "useSignOut");
   const { state, run } = usePending(options);
+
   const signOut = useMemo(
     () =>
       (signOutOptions?: { readonly scope?: "global" | "local" | "others" }) =>
@@ -162,5 +179,6 @@ export function useSignOut(options: AuthHookOptions = {}): SignOut {
         ),
     [auth, run],
   );
+
   return { ...state, signOut };
 }

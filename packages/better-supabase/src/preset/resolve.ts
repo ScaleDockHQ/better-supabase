@@ -49,7 +49,10 @@ export interface ResolvedPreset {
 
 /** "a", "a and b", "a, b and c". */
 export function listNames(names: readonly string[]): string {
-  if (names.length <= 1) return names.join("");
+  if (names.length <= 1) {
+    return names.join("");
+  }
+
   return `${names.slice(0, -1).join(", ")} and ${names.at(-1) ?? ""}`;
 }
 
@@ -63,6 +66,7 @@ function requiresOf(
   preset: Pick<Preset, "access" | "scope">,
 ): readonly string[] {
   const requires = block.requiresByAccess?.[preset.access] ?? block.requires;
+
   return preset.scope === "tenant" || TENANT_PROVIDERS.has(block.name)
     ? requires
     : requires.filter((name) => !TENANT_PROVIDERS.has(name));
@@ -75,13 +79,23 @@ function closureOf(
   byName: ReadonlyMap<string, PresetCatalogBlock>,
 ): string[] {
   const out: string[] = [];
+
   const visit = (each: string): void => {
     const block = byName.get(each);
-    if (block === undefined || out.includes(each)) return;
+
+    if (block === undefined || out.includes(each)) {
+      return;
+    }
+
     out.push(each);
-    for (const dependency of requiresOf(block, preset)) visit(dependency);
+
+    for (const dependency of requiresOf(block, preset)) {
+      visit(dependency);
+    }
   };
+
   visit(name);
+
   return out;
 }
 
@@ -95,15 +109,28 @@ export function presetBlockConflict(
   catalog: PresetCatalog = PRESET_CATALOG,
 ): string | undefined {
   const byName = new Map(catalog.blocks.map((block) => [block.name, block]));
-  if (!byName.has(name)) return `"${name}" is not a block`;
-  if (preset.scope === "tenant") return undefined;
-  if (TENANT_PROVIDERS.has(name))
+
+  if (!byName.has(name)) {
+    return `"${name}" is not a block`;
+  }
+
+  if (preset.scope === "tenant") {
+    return undefined;
+  }
+
+  if (TENANT_PROVIDERS.has(name)) {
     return `scope "${preset.scope}" has no tenants`;
+  }
+
   const tenantOnly = closureOf(name, preset, byName).filter(
     (each) =>
       !(byName.get(each)?.scopes ?? [preset.scope]).includes(preset.scope),
   );
-  if (tenantOnly.length === 0) return undefined;
+
+  if (tenantOnly.length === 0) {
+    return undefined;
+  }
+
   return tenantOnly[0] === name
     ? `it needs tenants, and scope "${preset.scope}" has none`
     : `it needs ${listNames(tenantOnly)}, which need tenants, and scope "${preset.scope}" has none`;
@@ -111,18 +138,21 @@ export function presetBlockConflict(
 
 function fieldConflicts(preset: Preset): PresetConflict[] {
   const conflicts: PresetConflict[] = [];
+
   if (preset.framework === "expo" && preset.platforms === "web") {
     conflicts.push({
       field: "platforms",
       reason: "Expo builds a native app: choose native or both",
     });
   }
+
   if (preset.platforms === "native" && preset.framework !== "expo") {
     conflicts.push({
       field: "framework",
       reason: `a native-only app runs on Expo, not ${preset.framework}`,
     });
   }
+
   return conflicts;
 }
 
@@ -141,24 +171,38 @@ export function resolvePreset(
   const selected = [...new Set(preset.blocks)];
   const installed = new Set<string>();
   const requiredBy = new Map<string, string[]>();
+
   for (const name of selected) {
     const problem = presetBlockConflict(preset, name, catalog);
+
     if (problem !== undefined) {
       conflicts.push({ block: name, reason: problem });
       continue;
     }
-    for (const each of closureOf(name, preset, byName)) installed.add(each);
+
+    for (const each of closureOf(name, preset, byName)) {
+      installed.add(each);
+    }
   }
+
   for (const block of catalog.blocks) {
-    if (!installed.has(block.name)) continue;
-    if (!block.tenantNameClashes?.includes(preset.tenantName)) continue;
+    if (!installed.has(block.name)) {
+      continue;
+    }
+
+    if (!block.tenantNameClashes?.includes(preset.tenantName)) {
+      continue;
+    }
+
     conflicts.push({
       block: block.name,
       field: "tenantName",
       reason: `tenant name "${preset.tenantName}" renames the tenant tables and columns to names the ${block.name} block already uses`,
     });
   }
+
   const members = catalog.blocks.filter((block) => installed.has(block.name));
+
   for (const block of members) {
     for (const dependency of requiresOf(block, preset)) {
       requiredBy.set(dependency, [
@@ -167,9 +211,11 @@ export function resolvePreset(
       ]);
     }
   }
+
   const blocks = members.map((block): ResolvedPresetBlock => {
     const by = requiredBy.get(block.name) ?? [];
     const isSelected = selected.includes(block.name);
+
     return {
       name: block.name,
       title: block.title,
@@ -179,26 +225,35 @@ export function resolvePreset(
       reason: isSelected ? "selected" : `required by ${listNames(by)}`,
     };
   });
+
   const integrations = members.flatMap((block) =>
     block.integrates
       .filter((to) => to !== block.name && installed.has(to))
       .map((to) => ({ from: block.name, to })),
   );
+
   const manifestNames = new Set(members.map((block) => block.manifest));
+
   const manifests = catalog.manifests.filter((manifest) =>
     manifestNames.has(manifest.name),
   );
+
   for (const manifest of manifests) {
     for (const [port, need] of Object.entries(manifest.consumes)) {
-      if (need !== "required") continue;
+      if (need !== "required") {
+        continue;
+      }
+
       if (manifests.some((each) => each.provides.some((p) => p === port))) {
         continue;
       }
+
       conflicts.push({
         block: manifest.name,
         reason: `it needs a ${port} port, and no selected block provides one`,
       });
     }
   }
+
   return { preset, blocks, integrations, conflicts, manifests };
 }

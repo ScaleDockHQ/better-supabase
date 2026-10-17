@@ -77,7 +77,7 @@ describe("fixtures", () => {
     for (const file of await renderFixtures()) {
       expect({
         path: file.path,
-        contents: await readFile(file.path, "utf8"),
+        contents: await readFile(file.path, "utf-8"),
       }).toEqual(file);
     }
   });
@@ -89,10 +89,12 @@ describe("relations", () => {
       await loadFixtureSnapshot(),
       resolveConfig({ casing: "camel" }, fixtures),
     );
+
     const relation = (table: string, name: string) =>
       model.tables
         .find((entry) => entry.key === table)
         ?.relations.find((entry) => entry.name === name)?.meta;
+
     expect(relation("customers", "primaryContact")).toMatchObject({
       table: "contacts",
       columns: ["primaryContactId", "organizationId"],
@@ -128,6 +130,7 @@ describe("relations.nullableUnderRls", () => {
 describe("relation names", () => {
   const withSimpleKeys = async (keys: readonly string[]) => {
     const fixture = await loadFixtureSnapshot();
+
     const simple = (name: string) => ({
       foreign_key_name: name,
       schema: "public",
@@ -138,6 +141,7 @@ describe("relation names", () => {
       referenced_columns: ["id"],
       is_one_to_one: false,
     });
+
     const snapshot = {
       ...fixture,
       generator: {
@@ -166,10 +170,12 @@ describe("relation names", () => {
         ),
       },
     };
+
     const model = buildModel(
       snapshot,
       resolveConfig({ casing: "camel" }, fixtures),
     );
+
     return (table: string) =>
       model.tables
         .find((entry) => entry.key === table)
@@ -197,6 +203,7 @@ describe("relation names", () => {
       "locations_customer_only_fkey",
       "locations_customer_again_fkey",
     ]);
+
     expect(names("locations")).toEqual([
       "customerByCustomerOrganization",
       "customerByLocationsCustomerAgainFkey",
@@ -208,6 +215,7 @@ describe("relation names", () => {
 describe("storagePaths", () => {
   const model = async (config: BetterSupabaseConfig) =>
     buildModel(await loadFixtureSnapshot(), resolveConfig(config, fixtures));
+
   const logo = (built: Awaited<ReturnType<typeof model>>) =>
     built.tables
       .find((table) => table.key === "customers")
@@ -218,6 +226,7 @@ describe("storagePaths", () => {
       buckets: { customerLogos: { path: "{organizationId}/{file}" } },
       storagePaths: { "public.customers.logo_path": "customerLogos" },
     });
+
     expect(logo(byKey)).toMatchObject({
       storage: "customer-logos",
       tsType: 'StoragePath<"customer-logos">',
@@ -225,9 +234,11 @@ describe("storagePaths", () => {
     expect(byKey.meta.tables["customers"]?.columns["logo_path"]?.storage).toBe(
       "customer-logos",
     );
+
     const byId = await model({
       storagePaths: { "customers.logo_path": "logos" },
     });
+
     expect(logo(byId)?.tsType).toBe('StoragePath<"logos">');
   });
 
@@ -244,6 +255,7 @@ describe("storagePaths", () => {
 describe("function results", () => {
   const model = async (config: BetterSupabaseConfig) =>
     buildModel(await loadFixtureSnapshot(), resolveConfig(config, fixtures));
+
   const fn = (built: Awaited<ReturnType<typeof model>>, name: string) =>
     built.functions.find((entry) => entry.key === name);
 
@@ -272,10 +284,12 @@ describe("function results", () => {
     const snake = await model({ casing: "snake" });
     expect(fn(snake, "customers_by_status")?.meta.result).toBeUndefined();
     expect(fn(snake, "customer_note_counts")?.meta.result).toBeUndefined();
+
     const coded = await model({
       casing: "snake",
       codecs: { timestamptz: "instant", int8: "bigint" },
     });
+
     expect(fn(coded, "customer_note_counts")).toMatchObject({
       returns:
         '{ "customer_id": string | null; "last_note_at": Temporal.Instant | null; "note_count": bigint | null }[]',
@@ -298,12 +312,15 @@ describe("function results", () => {
 describe("function result nullability", () => {
   const withScalars = async (config: BetterSupabaseConfig = {}) => {
     const fixture = await loadFixtureSnapshot();
+
     const template = fixture.generator.functions.find(
       (fn) => fn.name === "rs_workspace_summary",
     )!;
+
     const customers = fixture.generator.tables.find(
       (table) => table.schema === "public" && table.name === "customers",
     )!;
+
     const scalar = (
       name: string,
       returnType: string,
@@ -320,6 +337,7 @@ describe("function result nullability", () => {
       is_set_returning_function: false,
       ...fields,
     });
+
     const snapshot = {
       ...fixture,
       generator: {
@@ -335,7 +353,9 @@ describe("function result nullability", () => {
         ],
       },
     };
+
     const model = buildModel(snapshot, resolveConfig(config, fixtures));
+
     return (name: string) =>
       model.functions.find((entry) => entry.key === name)?.returns;
   };
@@ -358,6 +378,7 @@ describe("function result nullability", () => {
         customer_note_counts: { notNull: ["customer_id", "note_count"] },
       },
     });
+
     expect(returns("open_count")).toBe("number");
     expect(returns("customer_note_counts")).toBe(
       '{ "customer_id": string; "last_note_at": string | null; "note_count": number }[]',
@@ -378,6 +399,7 @@ describe("function result nullability", () => {
 describe("CHECK not null", () => {
   it("narrows the column in the row, insert and update shapes", async () => {
     const fixture = await loadFixtureSnapshot();
+
     const snapshot = {
       ...fixture,
       extras: {
@@ -403,11 +425,14 @@ describe("CHECK not null", () => {
         ),
       },
     };
+
     const model = buildModel(snapshot, resolveConfig({}, fixtures));
+
     const column = (name: string) =>
       model.tables
         .find((table) => table.key === "customers")
         ?.columns.find((entry) => entry.db === name);
+
     expect(column("kvk")).toMatchObject({ nullable: false, optional: false });
     expect(column("primary_contact_id")).toMatchObject({
       nullable: true,
@@ -423,6 +448,7 @@ describe("CHECK not null", () => {
     config: BetterSupabaseConfig = {},
   ) => {
     const fixture = await loadFixtureSnapshot();
+
     const snapshot = {
       ...fixture,
       extras: {
@@ -443,11 +469,13 @@ describe("CHECK not null", () => {
         ),
       },
     };
+
     // SAFETY: change only adds catalog fields the snapshot type has.
     const model = buildModel(
       snapshot as typeof fixture,
       resolveConfig(config, fixtures),
     );
+
     return (name: string) => ({
       column: model.tables
         .find((table) => table.key === "customers")
@@ -464,10 +492,12 @@ describe("CHECK not null", () => {
       level,
       function: "public.fill",
     });
+
     const filled = await customersWith((table) => ({
       ...table,
       triggers: [trigger("before", ["insert", "update"])],
     }));
+
     expect(filled("kvk").column).toMatchObject({
       nullable: false,
       optional: true,
@@ -476,6 +506,7 @@ describe("CHECK not null", () => {
       nullable: false,
       hasDefault: true,
     });
+
     for (const triggers of [
       [trigger("after", ["insert"])],
       [trigger("before", ["update"])],
@@ -490,6 +521,7 @@ describe("CHECK not null", () => {
     const listed = await customersWith((table) => table, {
       tables: { customers: { insertOptional: ["kvk", "name"] } },
     });
+
     expect(listed("kvk").column).toMatchObject({
       nullable: false,
       optional: true,
@@ -512,6 +544,7 @@ describe("metadata module", () => {
       await loadFixtureSnapshot(),
       resolveConfig({ casing: "camel" }, fixtures),
     );
+
     const { js } = emitMeta(model);
     const body = js.slice(js.indexOf("export default ") + 15, -2);
     expect(JSON.parse(body)).toEqual(JSON.parse(JSON.stringify(model.meta)));
@@ -533,6 +566,7 @@ describe("function arguments", () => {
     const snake = (await renderFixtures()).find((file) =>
       file.path.endsWith("/generated.ts"),
     );
+
     expect(snake?.contents).toContain("p_limit?: number | null;");
     expect(snake?.contents).toContain("p_status: string | null;");
   });
@@ -544,6 +578,7 @@ describe("plugin flags", () => {
       { plugins: { softDelete: { column: "name" } } },
       fixtures,
     );
+
     const snapshot = await loadFixtureSnapshot();
     expect(() => buildModel(snapshot, config)).toThrow(
       "plugins.softDelete.column: public.customers.name is text, but softDelete() writes a timestamp",
@@ -573,9 +608,10 @@ describe("config JSON Schema", () => {
     const schema = JSON.parse(
       await readFile(
         new URL(import.meta.resolve("better-supabase/schemas/config-v1.json")),
-        "utf8",
+        "utf-8",
       ),
     ) as { properties: Record<string, unknown> };
+
     const keys: Record<keyof BetterSupabaseConfig, true> = {
       $schema: true,
       source: true,
@@ -621,6 +657,7 @@ describe("config JSON Schema", () => {
       $test: true,
       $ci: true,
     };
+
     expect(Object.keys(schema.properties).sort()).toEqual(
       Object.keys(keys).sort(),
     );
@@ -654,9 +691,10 @@ describe("gen", () => {
       "--cwd",
       dir,
     ]);
+
     expect(first.code).toBe(0);
     expect(first.stdout).toContain("src/db/generated.ts");
-    const generated = await readFile(join(dir, "src/db/generated.ts"), "utf8");
+    const generated = await readFile(join(dir, "src/db/generated.ts"), "utf-8");
     expect(generated).toContain('from "better-supabase"');
     expect(generated).toContain("customerTags");
 
@@ -667,6 +705,7 @@ describe("gen", () => {
       "--cwd",
       dir,
     ]);
+
     expect(again.stdout).toContain("No changes");
 
     const check = await run([
@@ -677,12 +716,14 @@ describe("gen", () => {
       "--cwd",
       dir,
     ]);
+
     expect(check.code).toBe(0);
 
     await writeFile(
       join(dir, "src/db/generated.ts"),
       `${generated}// edited\n`,
     );
+
     const drift = await run([
       "gen",
       "--check",
@@ -691,13 +732,19 @@ describe("gen", () => {
       "--cwd",
       dir,
     ]);
+
     expect(drift.code).toBe(1);
     expect(drift.stderr).toContain("out of date");
   });
 
   it("writes database.types.ts next to the main module", async () => {
     await run(["gen", "--snapshot", "snapshot.json", "--cwd", dir]);
-    const types = await readFile(join(dir, "src/db/database.types.ts"), "utf8");
+
+    const types = await readFile(
+      join(dir, "src/db/database.types.ts"),
+      "utf-8",
+    );
+
     expect(types).toContain("export type Database = {");
     expect(types).toContain('PostgrestVersion: "13"');
   });
@@ -718,10 +765,12 @@ describe("gen", () => {
     expect(
       (await run(["gen", "--snapshot", "snapshot.json", "--cwd", dir])).code,
     ).toBe(0);
+
     const generated = await readFile(
       join(dir, "src/db/generated.meta.js"),
-      "utf8",
+      "utf-8",
     );
+
     expect(generated).toMatch(
       /"realtime": \{\s+"customers": \{"tenant":"organizationId"\},\s+"tags": \{"user":"organizationId"\},\s+"organizations": \{\}/,
     );
@@ -730,6 +779,7 @@ describe("gen", () => {
       join(dir, "better-supabase.config.json"),
       JSON.stringify({ realtime: { tables: ["nope"] } }),
     );
+
     const failed = await run([
       "gen",
       "--snapshot",
@@ -737,6 +787,7 @@ describe("gen", () => {
       "--cwd",
       dir,
     ]);
+
     expect(failed.code).not.toBe(0);
     expect(failed.stderr).toContain('realtime.tables: unknown table "nope"');
 
@@ -746,6 +797,7 @@ describe("gen", () => {
         realtime: { tables: ["customers"], users: { customers: "nope" } },
       }),
     );
+
     const noColumn = await run([
       "gen",
       "--snapshot",
@@ -753,6 +805,7 @@ describe("gen", () => {
       "--cwd",
       dir,
     ]);
+
     expect(noColumn.code).not.toBe(0);
     expect(noColumn.stderr).toContain(
       'realtime.users: "customers" has no column "nope"',
@@ -785,6 +838,7 @@ describe("gen", () => {
         },
       }),
     );
+
     const refused = await run([
       "gen",
       "--snapshot",
@@ -792,6 +846,7 @@ describe("gen", () => {
       "--cwd",
       dir,
     ]);
+
     expect(refused.code).toBe(1);
     expect(refused.stderr).toContain(
       `buckets.docs: "docs.read" has conditions the authorization provider (stub)'s SQL functions don't check (sqlComplete: false)`,
@@ -809,8 +864,11 @@ describe("gen", () => {
   it("prints help and version", async () => {
     const help = (await run(["--help"])).stdout;
     expect(help).toContain("USAGE better-supabase [OPTIONS]");
-    for (const command of ["init", "gen", "doctor", "sql"])
+
+    for (const command of ["init", "gen", "doctor", "sql"]) {
       expect(help).toMatch(new RegExp(`^ +${command} +\\S`, "m"));
+    }
+
     expect((await run(["--version"])).stdout).toMatch(/\d+\.\d+\.\d+/);
   });
 });
@@ -844,7 +902,7 @@ describe("sql", () => {
     );
     expect(
       JSON.parse(
-        await readFile(join(dir, "better-supabase.config.json"), "utf8"),
+        await readFile(join(dir, "better-supabase.config.json"), "utf-8"),
       ),
     ).toEqual({ blocks: ["invitations", "jobs", "pgtap"] });
 
@@ -938,15 +996,18 @@ describe("sql", () => {
           },
         }),
       );
+
     await config(stubProvider);
     const added = await run(["sql", "add", "entitlements", "--cwd", dir]);
     expect(added.code).toBe(0);
     expect(added.stdout).not.toContain("came along as a dependency");
+
     const path =
       /supabase\/schemas\/900_better_supabase_\d\d_entitlements\.sql/.exec(
         added.stdout,
       )![0];
-    expect(await readFile(join(dir, path), "utf8")).toContain(
+
+    expect(await readFile(join(dir, path), "utf-8")).toContain(
       "authz.member_organization_ids_for(feature_claims.user_id)",
     );
 
@@ -956,6 +1017,7 @@ describe("sql", () => {
     expect(invalid.stderr).toContain('tenantScope "team" is not a scope');
 
     await config(stubProvider, "tenant");
+
     const tenant = await run([
       "sql",
       "add",
@@ -964,6 +1026,7 @@ describe("sql", () => {
       "--cwd",
       dir,
     ]);
+
     expect(tenant.stdout).toContain("tenant came along as a dependency");
   });
 

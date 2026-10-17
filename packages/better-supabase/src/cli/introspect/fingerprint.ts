@@ -32,11 +32,15 @@ const TEMP_NAMESPACES = String.raw`(select oid from pg_catalog.pg_namespace wher
 const TEMP_RELATIONS = `(select oid from pg_catalog.pg_class where relnamespace in ${TEMP_NAMESPACES})`;
 
 const catalogRows = ([name, column]: readonly [string, string?]): string => {
-  if (column === undefined) return `pg_catalog.${name}`;
+  if (column === undefined) {
+    return `pg_catalog.${name}`;
+  }
+
   const temp =
     column === "oid" || column === "typnamespace"
       ? TEMP_NAMESPACES
       : TEMP_RELATIONS;
+
   return `(select * from pg_catalog.${name} where ${column} not in ${temp})`;
 };
 
@@ -67,11 +71,15 @@ const FINGERPRINT_SQL = `select md5(concat_ws('|',
 export async function catalogFingerprint(db: Queryable): Promise<string> {
   const rows: readonly unknown[] = (await db.query(FINGERPRINT_SQL)).rows;
   const [row] = rows;
+
   const value: unknown =
     row && typeof row === "object" && "fingerprint" in row
       ? row.fingerprint
       : undefined;
-  if (typeof value !== "string")
+
+  if (typeof value !== "string") {
     throw new TypeError("The catalog fingerprint query returned no row.");
+  }
+
   return value;
 }

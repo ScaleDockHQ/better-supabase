@@ -8,9 +8,9 @@ import { CloudIcon } from "lucide-react";
  */
 export default function AuthLayout({ children }: LayoutProps<"/[locale]">) {
   return (
-    <div className="bg-muted/40 flex min-h-svh flex-col items-center justify-center gap-6 p-6">
+    <div className="flex min-h-svh flex-col items-center justify-center gap-6 bg-muted/40 p-6">
       <div className="flex items-center gap-2 text-lg font-semibold">
-        <span className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded-lg">
+        <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
           <CloudIcon className="size-4" />
         </span>
         Acme Cloud

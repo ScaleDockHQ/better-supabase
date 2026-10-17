@@ -1,8 +1,8 @@
 import type { CliArgs } from "../command.ts";
+import type { CliIo } from "../io.ts";
+import type { SnapshotSource } from "./snapshot.ts";
 
 import { stdinDatabaseUrl } from "../config.ts";
-import { type CliIo } from "../io.ts";
-import { type SnapshotSource } from "./snapshot.ts";
 
 /** Where to read the schema from, shared by gen, introspect and doctor. */
 export const SOURCE_ARGS = {
@@ -30,6 +30,7 @@ export async function sourceArgs(
   const snapshotPath = args.snapshot;
   const dbUrl = await stdinDatabaseUrl(args["db-url-stdin"], io);
   const projectRef = args["project-ref"];
+
   return {
     ...(snapshotPath ? { snapshotPath } : {}),
     ...(dbUrl ? { dbUrl } : {}),

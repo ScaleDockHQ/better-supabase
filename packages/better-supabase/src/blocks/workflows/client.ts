@@ -44,30 +44,41 @@ export function createWorkflowRunsController(
   const tenant = options.tenant ?? null;
   const { definition, limit } = options;
   const runStatus = options.status;
+
   return defineController<WorkflowRunsSnapshot, WorkflowRunsActions>(
     { runs: undefined, error: undefined, status: "closed" },
     (state) => {
       const refresh = async (): Promise<void> => {
         const run = state.run();
+
         const result = await options.client.runs.list({
           ...(tenant === null ? {} : { tenant }),
           ...(definition === undefined ? {} : { definition }),
           ...(runStatus === undefined ? {} : { status: runStatus }),
           ...(limit === undefined ? {} : { limit }),
         });
-        if (run !== state.run()) return;
+
+        if (run !== state.run()) {
+          return;
+        }
+
         state.set(
           result.ok
             ? { runs: result.data, error: undefined }
             : { error: result.error },
         );
       };
+
       return {
         actions: { refresh },
         start: () =>
           whileSignedIn(options.auth, () => {
             void refresh();
-            if (tenant === null) return;
+
+            if (tenant === null) {
+              return;
+            }
+
             return options.ports.topic(`workflow-runs:${tenant}`, {
               onMessage: () => void refresh(),
               onRejoin: () => void refresh(),
@@ -117,6 +128,7 @@ export function createWorkflowRunController(
   options: WorkflowRunControllerOptions,
 ): WorkflowRunController {
   const { client, run } = options;
+
   return defineController<WorkflowRunSnapshot, WorkflowRunActions>(
     { run: undefined, error: undefined, status: "closed" },
     (state) => {
@@ -125,6 +137,7 @@ export function createWorkflowRunController(
           ...options,
           load: async () => {
             const result = await client.runs.get(run ?? "");
+
             return result.ok
               ? {
                   id: result.data?.id ?? null,
@@ -135,14 +148,22 @@ export function createWorkflowRunController(
         },
         state,
       );
+
       return {
         actions: {
           refresh: watch.refresh,
           cancel: async () => {
-            if (run === null) return;
+            if (run === null) {
+              return;
+            }
+
             const result = await client.runs.requestCancel(run);
-            if (result.ok) await watch.refresh();
-            else state.set({ error: result.error });
+
+            if (result.ok) {
+              await watch.refresh();
+            } else {
+              state.set({ error: result.error });
+            }
           },
         },
         start: watch.start,

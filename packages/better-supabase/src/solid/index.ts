@@ -30,8 +30,9 @@ import type {
   PresenceJoin,
   PresenceTopic,
   UseActionOptions,
+  ClaimsOf,
+  ProfileOf,
 } from "../bindings/client.ts";
-import type { ClaimsOf, ProfileOf } from "../bindings/client.ts";
 import type { AuthSnapshot } from "../client/index.ts";
 import type { DbError } from "../core/errors.ts";
 import type { QuerySpec } from "../core/spec.ts";
@@ -79,9 +80,13 @@ export type {
   PresenceTopic,
   UseActionOptions,
 } from "../bindings/client.ts";
+
 export type { AuthSnapshot } from "../client/index.ts";
+
 export type { AuthSession } from "../auth/view.ts";
+
 export type { SupportView } from "../auth/support-view.ts";
+
 export { fieldErrorsOf } from "../bindings/field-errors.ts";
 
 /** A value, or an accessor Solid tracks. */
@@ -115,14 +120,19 @@ export function BetterSupabaseProvider(
         setAuth(client.auth.current());
       }),
     );
-    if (queryClient) onCleanup(clearOnUserChange(queryClient, client.auth));
+
+    if (queryClient) {
+      onCleanup(clearOnUserChange(queryClient, client.auth));
+    }
   });
+
   const value: Context = {
     client,
     queryClient,
     auth,
     session: props.session,
   };
+
   return createComponent(ClientContext.Provider, {
     value,
     get children() {
@@ -145,11 +155,13 @@ export function useSession<C = unknown, P = unknown>(): Accessor<
   AuthSession<C, P> | undefined
 > {
   const { session } = useContext();
+
   if (!session) {
     throw new Error(
       "better-supabase: useSession() needs <BetterSupabaseProvider session={...}>",
     );
   }
+
   // SAFETY: the provider receives `bs.session()` from the same
   // `betterSupabase`, whose schemas fix `C` and `P`.
   return session as Accessor<AuthSession<C, P> | undefined>;
@@ -158,8 +170,10 @@ export function useSession<C = unknown, P = unknown>(): Accessor<
 /** The support session the page renders in, or `undefined` for a normal session. */
 export function useSupportSession(): Accessor<SupportView | undefined> {
   const session = useSession();
+
   return () => {
     const current = session();
+
     return current ? supportOf(current) : undefined;
   };
 }
@@ -212,9 +226,16 @@ function useCaller(
   context: Context | undefined,
   client: SupabaseClient | undefined,
 ): Accessor<Caller> {
-  if (context && client === undefined) return () => callerOf(context.auth());
+  if (context && client === undefined) {
+    return () => callerOf(context.auth());
+  }
+
   const supabase = client ?? context?.client.supabase;
-  if (!supabase) throw new Error("better-supabase: no supabase client");
+
+  if (!supabase) {
+    throw new Error("better-supabase: no supabase client");
+  }
+
   const store = plainCaller(supabase);
   const [caller, setCaller] = createSignal(store.current());
   onMount(() => {
@@ -224,6 +245,7 @@ function useCaller(
       }),
     );
   });
+
   return caller;
 }
 
@@ -233,11 +255,13 @@ function supabaseFor(
   client: SupabaseClient | undefined,
 ): SupabaseClient {
   const supabase = client ?? context?.client.supabase;
+
   if (!supabase) {
     throw new Error(
       `better-supabase: ${hook} needs <BetterSupabaseProvider client={bs}> or { client: supabase }`,
     );
   }
+
   return supabase;
 }
 
@@ -261,19 +285,30 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
   assertInvalidateClient("useBroadcast", options, queryClient);
   const caller = useCaller(context, options?.client);
   const [status, setStatus] = createSignal<SubscriptionStatus>("closed");
+
   const name = createMemo(() => {
     const current = read(values);
+
     return current ? topic.topic(current) : null;
   });
+
   follow(
     createMemo(() => {
       const current = name();
-      if (current === null || caller().status === "loading") return null;
+
+      if (current === null || caller().status === "loading") {
+        return null;
+      }
+
       return JSON.stringify([current, caller().userId]);
     }),
     () => {
       const current = name();
-      if (current === null) return;
+
+      if (current === null) {
+        return;
+      }
+
       return startBroadcast({
         supabase,
         topic,
@@ -286,6 +321,7 @@ export function useBroadcast<P extends string, E extends EventSchemas>(
       });
     },
   );
+
   return status;
 }
 
@@ -308,18 +344,25 @@ export function useLiveQuery(
   follow(
     createMemo(() => {
       const value = current();
+
       if (value && !queryClient) {
         throw new Error(
           "better-supabase: useLiveQuery needs <BetterSupabaseProvider queryClient={...}>",
         );
       }
+
       return liveKey(client, value, auth(), options);
     }),
     (key) => {
       const value = current();
-      if (!value || !queryClient) return;
+
+      if (!value || !queryClient) {
+        return;
+      }
+
       const resumed = joined === key;
       joined = key;
+
       return startLiveQuery({
         client,
         queryClient,
@@ -333,6 +376,7 @@ export function useLiveQuery(
       });
     },
   );
+
   return status;
 }
 
@@ -366,9 +410,14 @@ export function useLiveCount(
   const key = createMemo(() => liveKey(client, parsed().spec, auth(), options));
   follow(key, (next) => {
     const { spec, initial, seedAt } = parsed();
-    if (!spec) return;
+
+    if (!spec) {
+      return;
+    }
+
     const previous = joined?.key === next ? joined : null;
     joined = { key: next, at: previous?.at ?? seedAt ?? 0 };
+
     return startLiveCount({
       client,
       spec,
@@ -379,7 +428,10 @@ export function useLiveCount(
       since: previous ? previous.at : seedAt,
       onState: (update) => {
         const value = setState(update);
-        if (joined?.key === next) joined = { key: next, at: value.at };
+
+        if (joined?.key === next) {
+          joined = { key: next, at: value.at };
+        }
       },
       onStatus: (next) => {
         setStatus(next);
@@ -387,6 +439,7 @@ export function useLiveCount(
     });
   });
   const shown = createMemo(() => shownCount(state(), key(), parsed()));
+
   return {
     get count() {
       return shown().count;
@@ -434,26 +487,40 @@ export function usePresence<P extends string, I, O>(
   const context = useSolidContext(ClientContext);
   const supabase = supabaseFor("usePresence", context, options.client);
   const caller = useCaller(context, options.client);
+
   const [members, setMembers] =
     createSignal<readonly PresenceMember<O>[]>(NO_MEMBERS);
+
   const [status, setStatus] = createSignal<SubscriptionStatus>("closed");
   const [join, setJoin] = createSignal<PresenceJoin<I> | undefined>();
+
   const name = createMemo(() => {
     const current = read(values);
+
     return current ? topic.topic(current) : null;
   });
+
   const state = createMemo(() => read(options.state), undefined, {
     equals: (a, b) => JSON.stringify(a) === JSON.stringify(b),
   });
+
   follow(
     createMemo(() => {
       const current = name();
-      if (current === null || caller().status === "loading") return null;
+
+      if (current === null || caller().status === "loading") {
+        return null;
+      }
+
       return JSON.stringify([current, caller().userId]);
     }),
     () => {
       const current = name();
-      if (current === null) return;
+
+      if (current === null) {
+        return;
+      }
+
       const joined = joinPresence(supabase, topic, current, {
         onStatus: (next) => {
           setStatus(next);
@@ -462,8 +529,13 @@ export function usePresence<P extends string, I, O>(
           setMembers(next);
         },
       });
-      if (!joined) return;
+
+      if (!joined) {
+        return;
+      }
+
       setJoin(() => joined);
+
       return () => {
         setJoin(undefined);
         setMembers(NO_MEMBERS);
@@ -477,6 +549,7 @@ export function usePresence<P extends string, I, O>(
     const value = state();
     joined?.sync(value);
   });
+
   return {
     get members() {
       return members();
@@ -513,6 +586,7 @@ export function useAction<I, T>(
   const call = action as (
     input: ActionInputOf<I>,
   ) => Promise<ActionResultOf<T>>;
+
   const runner = createActionRunner(() => ({ action: call, options }));
   const [state, setState] = createSignal(runner.current());
   onCleanup(
@@ -520,6 +594,7 @@ export function useAction<I, T>(
       setState(runner.current());
     }),
   );
+
   return {
     run: runner.run,
     reset: runner.reset,

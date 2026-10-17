@@ -9,7 +9,7 @@ import { navLinks, site } from "@/lib/site";
 
 export function Navbar() {
   return (
-    <header className="border-border bg-background/80 sticky top-0 z-20 w-full border-b backdrop-blur">
+    <header className="sticky top-0 z-20 w-full border-b border-border bg-background/80 backdrop-blur">
       <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-4 px-6 md:px-8">
         <div className="flex items-center gap-6">
           <Link
@@ -24,7 +24,7 @@ export function Navbar() {
               <SiteLink
                 key={link.href}
                 href={link.href}
-                className="text-muted-foreground hover:text-foreground hover:bg-muted rounded-md px-3 py-1.5 text-sm"
+                className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
               >
                 {link.label}
               </SiteLink>

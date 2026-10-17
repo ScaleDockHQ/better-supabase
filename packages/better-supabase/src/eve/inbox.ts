@@ -56,11 +56,18 @@ export function routeInbox<T extends EveChatThread>(
   options: RouteInboxOptions,
 ): void {
   const handle = async (thread: T, message: EveChatMessage): Promise<void> => {
-    if (!thread.id.startsWith(INBOX_PREFIX)) return;
+    if (!thread.id.startsWith(INBOX_PREFIX)) {
+      return;
+    }
+
     const conversation = await options.inbox.conversations
       .get(thread.id.slice(INBOX_PREFIX.length))
       .orThrow();
-    if (conversation?.botMode !== "bot") return;
+
+    if (conversation?.botMode !== "bot") {
+      return;
+    }
+
     const title = options.title ?? conversation.subject ?? undefined;
     await bridge.send(message.text, {
       thread,
@@ -76,6 +83,7 @@ export function routeInbox<T extends EveChatThread>(
       ...(title === undefined ? {} : { title }),
     });
   };
+
   bridge.bot.onNewMention(async (thread, message) => {
     await thread.subscribe();
     await handle(thread, message);

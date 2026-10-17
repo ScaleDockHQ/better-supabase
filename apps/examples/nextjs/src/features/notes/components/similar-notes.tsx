@@ -18,7 +18,11 @@ export async function SimilarNotes() {
     getSimilarNotes(),
     getExtracted("notes"),
   ]);
-  if (!result) return null;
+
+  if (!result) {
+    return null;
+  }
+
   return (
     <Card>
       <CardHeader>

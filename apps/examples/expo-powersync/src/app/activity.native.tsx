@@ -11,6 +11,7 @@ import { OrganizationSwitcher } from "../components/organization-switcher";
 /** iOS and Android: the UI recipes, with the same hooks as the Next.js example. */
 export default function ActivityScreen() {
   const [showList, setShowList] = useState(false);
+
   return (
     <View style={{ flex: 1, gap: 16, padding: 16 }}>
       <View style={{ flexDirection: "row", justifyContent: "space-between" }}>

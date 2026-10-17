@@ -28,6 +28,7 @@ type XhrConstructor = new () => Xhr;
 export function xhrConstructor(): XhrConstructor | undefined {
   // SAFETY: a global XMLHttpRequest is the browser or React Native constructor.
   const runtime = globalThis as { XMLHttpRequest?: XhrConstructor };
+
   return typeof runtime.XMLHttpRequest === "function"
     ? runtime.XMLHttpRequest
     : undefined;
@@ -67,37 +68,50 @@ export function xhrUpload(
 ): Promise<XhrFailure | undefined> {
   return new Promise((resolve) => {
     const xhr = new Request();
+
     const onAbort = () => {
       xhr.abort();
     };
+
     const done = (failure: XhrFailure | undefined) => {
       options.signal?.removeEventListener("abort", onAbort);
       resolve(failure);
     };
+
     xhr.open("PUT", url);
     xhr.setRequestHeader("x-upsert", String(options.upsert));
     xhr.setRequestHeader(
       "cache-control",
       `max-age=${options.cacheControl ?? "3600"}`,
     );
+
     const type =
       options.contentType ??
       (typeof Blob !== "undefined" && body instanceof Blob && body.type
         ? body.type
         : undefined);
-    if (type) xhr.setRequestHeader("content-type", type);
+
+    if (type) {
+      xhr.setRequestHeader("content-type", type);
+    }
+
     xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable && event.total > 0)
+      if (event.lengthComputable && event.total > 0) {
         options.onProgress(Math.min(1, event.loaded / event.total));
+      }
     };
+
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         options.onProgress(1);
         done(undefined);
+
         return;
       }
+
       done(parseFailure(xhr.status, xhr.responseText));
     };
+
     xhr.onerror = () => {
       done({
         message: "Upload failed",
@@ -105,6 +119,7 @@ export function xhrUpload(
         name: "StorageUnknownError",
       });
     };
+
     xhr.onabort = () => {
       done({
         message: "The upload was aborted",
@@ -112,6 +127,7 @@ export function xhrUpload(
         name: "AbortError",
       });
     };
+
     options.signal?.addEventListener("abort", onAbort, { once: true });
     xhr.send(body);
   });
@@ -120,16 +136,25 @@ export function xhrUpload(
 function parseFailure(status: number, text: string): XhrFailure {
   let message = `Upload failed with status ${String(status)}`;
   let statusCode = String(status);
+
   try {
     const parsed: unknown = JSON.parse(text);
+
     if (typeof parsed === "object" && parsed !== null) {
       // SAFETY: an object; each field read is type-checked below.
       const fields = parsed as { message?: unknown; statusCode?: unknown };
-      if (typeof fields.message === "string") message = fields.message;
-      if (typeof fields.statusCode === "string") statusCode = fields.statusCode;
+
+      if (typeof fields.message === "string") {
+        message = fields.message;
+      }
+
+      if (typeof fields.statusCode === "string") {
+        statusCode = fields.statusCode;
+      }
     }
   } catch {
     // a non-JSON error body keeps the status message
   }
+
   return { message, statusCode };
 }

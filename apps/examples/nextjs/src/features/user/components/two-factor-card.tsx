@@ -55,9 +55,11 @@ export function TwoFactorCard({
   const fieldId = useId();
   const supabase = useSupabase();
   const changeSession = useSessionChange(sessionChanged);
+
   const refreshAndChange = useSessionChange(sessionChanged, undefined, {
     refreshToken: supabase,
   });
+
   const [factorId, setFactorId] = useState(initial.ok ? initial.value : null);
   const readError = initial.ok ? null : initial.error;
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
@@ -68,14 +70,18 @@ export function TwoFactorCard({
   const enroll = () => {
     startTransition(async () => {
       setError(null);
+
       const { data, error: enrollError } = await supabase.auth.mfa.enroll({
         factorType: "totp",
         friendlyName: `Acme Cloud ${new Date().toISOString().slice(0, 10)}`,
       });
+
       if (enrollError) {
         setError(enrollError.message);
+
         return;
       }
+
       setEnrollment({
         factorId: data.id,
         qrCode: data.totp.qr_code,
@@ -85,7 +91,10 @@ export function TwoFactorCard({
   };
 
   const verify = () => {
-    if (!enrollment) return;
+    if (!enrollment) {
+      return;
+    }
+
     startTransition(async () => {
       const { error: verifyError } = await supabase.auth.mfa.challengeAndVerify(
         {
@@ -93,10 +102,13 @@ export function TwoFactorCard({
           code,
         },
       );
+
       if (verifyError) {
         setError(t("That code didn't work. Try the next one."));
+
         return;
       }
+
       await changeSession();
       setFactorId(enrollment.factorId);
       setEnrollment(null);
@@ -106,15 +118,21 @@ export function TwoFactorCard({
   };
 
   const remove = () => {
-    if (!factorId) return;
+    if (!factorId) {
+      return;
+    }
+
     startTransition(async () => {
       const { error: removeError } = await supabase.auth.mfa.unenroll({
         factorId,
       });
+
       if (removeError) {
         toast.error(removeError.message);
+
         return;
       }
+
       await refreshAndChange();
       setFactorId(null);
       toast.success(t("Two-factor authentication is off"));
@@ -145,7 +163,7 @@ export function TwoFactorCard({
       </CardHeader>
       <CardContent className="space-y-4">
         {readError ? (
-          <p className="text-destructive text-sm">{readError}</p>
+          <p className="text-sm text-destructive">{readError}</p>
         ) : enrollment ? (
           <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
             {/* An SVG data URL from Supabase Auth: nothing to optimize. */}
@@ -208,7 +226,7 @@ export function TwoFactorCard({
             <Button onClick={enroll} disabled={pending}>
               {t("Set up")}
             </Button>
-            {error ? <p className="text-destructive text-sm">{error}</p> : null}
+            {error ? <p className="text-sm text-destructive">{error}</p> : null}
           </>
         )}
       </CardContent>

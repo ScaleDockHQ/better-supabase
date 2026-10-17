@@ -14,6 +14,7 @@ import { keyValue } from "./key-value.ts";
 import { expoPushToken } from "./push-token.ts";
 
 export { expoPushToken } from "./push-token.ts";
+
 export type {
   ExpoNotificationsLike,
   ExpoPushTokenOptions,
@@ -41,6 +42,7 @@ export function nativeDeepLinks(linking: LinkingLike): DeepLinkPort {
       const subscription = linking.addEventListener("url", ({ url }) => {
         listener(url);
       });
+
       return () => {
         subscription.remove();
       };
@@ -85,7 +87,11 @@ export function nativeFilePicker(
       multiple: options.multiple ?? false,
       copyToCacheDirectory: true,
     });
-    if (picked.canceled) return [];
+
+    if (picked.canceled) {
+      return [];
+    }
+
     return picked.assets.map((asset) => ({
       name: asset.name,
       type: asset.mimeType,

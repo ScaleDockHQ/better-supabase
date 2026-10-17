@@ -21,6 +21,7 @@ export {
   type StockLine,
   type TransferInput,
 } from "./inventory.ts";
+
 export {
   extendBlock,
   withBlockHooks,
@@ -28,6 +29,7 @@ export {
   type BlockHooks,
   type BlockTransportMiddleware,
 } from "../../core/block-hooks.ts";
+
 export {
   dbTransport,
   rpcTransport,
@@ -35,6 +37,9 @@ export {
   type BlockTransport,
   type RpcClient,
 } from "../../core/block-transport.ts";
+
 export { inventoryBlock } from "./manifest.ts";
+
 export { inventoryEvents } from "./events.ts";
+
 export type { InventoryEvents } from "./events.ts";

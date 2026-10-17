@@ -127,6 +127,7 @@ type Unlisted = Exclude<
   SubjectEventType<AllBlockEvents>,
   (typeof SUBJECT_EVENTS)[number]
 >;
+
 const everyTypeListed: Unlisted extends never ? true : false = true;
 
 /** Events that name a subject only when the row is attached to one. */
@@ -165,6 +166,7 @@ describe("subject-bound events in the SQL catalogs", () => {
     (type) => {
       const entries = catalog.filter((entry) => entry.type === type);
       expect(entries.length).toBeGreaterThan(0);
+
       for (const entry of entries) {
         expect(entry.payload).toEqual(
           expect.arrayContaining([
@@ -179,6 +181,7 @@ describe("subject-bound events in the SQL catalogs", () => {
 
   it("every event with a subject in its payload is a SubjectEventType", () => {
     const listed = new Set<string>(SUBJECT_EVENTS);
+
     const unlisted = catalog
       .filter(
         (entry) =>
@@ -188,6 +191,7 @@ describe("subject-bound events in the SQL catalogs", () => {
           !OPTIONAL_SUBJECT.has(entry.type),
       )
       .map((entry) => `${entry.module}: ${entry.type}`);
+
     expect(unlisted).toEqual([]);
   });
 });

@@ -103,17 +103,25 @@ function notDurable(): Response {
 function decisionsOf(
   value: unknown,
 ): readonly DurableApprovalDecision[] | string | undefined {
-  if (value === undefined) return undefined;
-  if (!Array.isArray(value) || value.length === 0)
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (!Array.isArray(value) || value.length === 0) {
     return "Expected a list of approvals.";
+  }
+
   const decisions: DurableApprovalDecision[] = [];
+
   for (const item of value) {
     if (
       !isRecord(item) ||
       typeof item["approvalId"] !== "string" ||
       typeof item["approved"] !== "boolean"
-    )
+    ) {
       return "Expected approvals with an approvalId and approved.";
+    }
+
     const { reason } = item;
     decisions.push({
       approvalId: item["approvalId"],
@@ -121,16 +129,22 @@ function decisionsOf(
       ...(typeof reason === "string" ? { reason } : {}),
     });
   }
+
   return decisions;
 }
 
 function streamOf<T>(iterable: AsyncIterable<T>): ReadableStream<T> {
   const iterator = iterable[Symbol.asyncIterator]();
+
   return new ReadableStream<T>({
     async pull(controller) {
       const next = await iterator.next();
-      if (next.done === true) controller.close();
-      else controller.enqueue(next.value);
+
+      if (next.done === true) {
+        controller.close();
+      } else {
+        controller.enqueue(next.value);
+      }
     },
     async cancel(reason) {
       await iterator.return?.(reason);
@@ -143,16 +157,26 @@ async function* chunksOf(
   signal?: AbortSignal,
 ): AsyncGenerator<UIMessageChunk> {
   const reader = stream.getReader();
+
   // getReadable takes no signal: cancelling the reader closes the World's stream.
   const cancel = (): void => {
     reader.cancel(signal?.reason).catch(() => undefined);
   };
-  if (signal?.aborted === true) cancel();
-  else signal?.addEventListener("abort", cancel, { once: true });
+
+  if (signal?.aborted === true) {
+    cancel();
+  } else {
+    signal?.addEventListener("abort", cancel, { once: true });
+  }
+
   try {
     for (;;) {
       const next = await reader.read();
-      if (next.done) return;
+
+      if (next.done) {
+        return;
+      }
+
       yield next.value;
     }
   } finally {
@@ -172,6 +196,7 @@ function segmentChunks(
   const parts = getRun(workflowRunId).getReadable<ModelCallStreamPart>({
     namespace: streamId,
   });
+
   const chunks = parts
     .pipeThrough(createModelCallToUIChunkTransform({ uiStartIndex }))
     .pipeThrough(
@@ -185,6 +210,7 @@ function segmentChunks(
         },
       }),
     );
+
   return streamOf(normalizeUIMessageStreamParts(chunksOf(chunks, signal)));
 }
 
@@ -194,18 +220,25 @@ async function opened<T>(
 ): Promise<ReadableStream<T> | undefined> {
   const reader = stream.getReader();
   let first: ReadableStreamReadResult<T>;
+
   try {
     first = await reader.read();
   } catch {
     return undefined;
   }
+
   let pending: ReadableStreamReadResult<T> | undefined = first;
+
   return new ReadableStream<T>({
     async pull(controller) {
       const next = pending ?? (await reader.read());
       pending = undefined;
-      if (next.done) controller.close();
-      else controller.enqueue(next.value);
+
+      if (next.done) {
+        controller.close();
+      } else {
+        controller.enqueue(next.value);
+      }
     },
     async cancel(reason) {
       await reader.cancel(reason);
@@ -254,11 +287,13 @@ export function durableChat(options: DurableChatOptions): DurableChat {
         ...(options.streamTtl === undefined ? {} : { ttl: options.streamTtl }),
       },
     );
+
     context.waitUntil?.(
       (async () => {
         await teed.persisted;
       })(),
     );
+
     return runSse(teed.stream, workflowRunId);
   }
 
@@ -267,18 +302,31 @@ export function durableChat(options: DurableChatOptions): DurableChat {
     context: DurableChatContext,
   ): Promise<Response> {
     const turn = await options.assistant.prepare(body, context);
-    if (turn instanceof Response) return turn;
+
+    if (turn instanceof Response) {
+      return turn;
+    }
+
     const { chat, model } = turn;
     const streamId = newId();
     const messageId = newId();
+
     const claim = await context.chats.runs.claim(chat.id, streamId, {
       model,
       messageId,
       engine: WORKFLOW_ENGINE,
     });
-    if (!claim.ok) return problemResponse(claim.error);
+
+    if (!claim.ok) {
+      return problemResponse(claim.error);
+    }
+
     const runId = claim.data.runId;
-    if (!claim.data.claimed || runId === undefined) return busy();
+
+    if (!claim.data.claimed || runId === undefined) {
+      return busy();
+    }
+
     const input: DurableTurnInput = {
       chatId: chat.id,
       organizationId: chat.organizationId,
@@ -291,7 +339,9 @@ export function durableChat(options: DurableChatOptions): DurableChat {
       messages: turn.messages,
       providerOptions: turn.providerOptions,
     };
+
     let workflowRunId: string;
+
     try {
       const run = await start(options.workflow, [input], {
         attributes: {
@@ -300,19 +350,23 @@ export function durableChat(options: DurableChatOptions): DurableChat {
           [WORKFLOW_ATTRIBUTES.key]: `ai-chat:${chat.id}`,
         },
       });
+
       workflowRunId = run.runId;
     } catch (cause) {
       await context.chats.runs.release(chat.id, streamId, {
         status: "failed",
         error: String(cause),
       });
+
       return problemResponse(
         dbError("unexpected", "The answer could not be started.", {
           code: "AI_CHAT_RUN_FAILED",
         }),
       );
     }
+
     const attached = await context.chats.runs.attach(runId, workflowRunId);
+
     if (!attached.ok) {
       // Without the link, stop and resume can't find the run: end it.
       await getRun(workflowRunId)
@@ -322,8 +376,10 @@ export function durableChat(options: DurableChatOptions): DurableChat {
         status: "failed",
         error: attached.error.message,
       });
+
       return problemResponse(attached.error);
     }
+
     return streamSegment(context, chat, workflowRunId, streamId, messageId);
   }
 
@@ -333,9 +389,17 @@ export function durableChat(options: DurableChatOptions): DurableChat {
     decided: readonly AiToolApproval[],
   ): Promise<AiRun | Response> {
     const runId = decided.find((row) => row.runId !== undefined)?.runId;
-    if (runId === undefined) return notDurable();
+
+    if (runId === undefined) {
+      return notDurable();
+    }
+
     const run = await context.chats.runs.get(runId);
-    if (!run.ok) return problemResponse(run.error);
+
+    if (!run.ok) {
+      return problemResponse(run.error);
+    }
+
     return run.data.engine === WORKFLOW_ENGINE &&
       run.data.externalRunId !== undefined
       ? run.data
@@ -359,29 +423,52 @@ export function durableChat(options: DurableChatOptions): DurableChat {
       }
   > {
     const chat = await context.chats.chats.get(chatId);
-    if (!chat.ok) return problemResponse(chat.error);
+
+    if (!chat.ok) {
+      return problemResponse(chat.error);
+    }
+
     const decided: AiToolApproval[] = [];
+
     for (const decision of decisions) {
       const row = await context.chats.approvals.decide(
         decision.approvalId,
         decision.approved,
         decision.reason,
       );
-      if (!row.ok) return problemResponse(row.error);
-      if (row.data.chatId !== chatId)
+
+      if (!row.ok) {
+        return problemResponse(row.error);
+      }
+
+      if (row.data.chatId !== chatId) {
         return badRequest("The approvals belong to another chat.");
+      }
+
       decided.push(row.data);
     }
+
     const run = await runOf(context, decided);
-    if (run instanceof Response) return run;
+
+    if (run instanceof Response) {
+      return run;
+    }
+
     const all = await context.chats.approvals.list(chatId);
-    if (!all.ok) return problemResponse(all.error);
+
+    if (!all.ok) {
+      return problemResponse(all.error);
+    }
+
     if (
       all.data.some((row) => row.runId === run.id && row.decision === "pending")
-    )
+    ) {
       return { continued: false };
+    }
+
     const workflowRunId = run.externalRunId ?? "";
     const streamId = newId();
+
     const claim = await context.chats.runs.claim(chatId, streamId, {
       engine: WORKFLOW_ENGINE,
       externalRunId: workflowRunId,
@@ -390,10 +477,19 @@ export function durableChat(options: DurableChatOptions): DurableChat {
         ? {}
         : { messageId: run.assistantMessageId }),
     });
-    if (!claim.ok) return problemResponse(claim.error);
+
+    if (!claim.ok) {
+      return problemResponse(claim.error);
+    }
+
     const runId = claim.data.runId;
-    if (!claim.data.claimed || runId === undefined) return busy();
+
+    if (!claim.data.claimed || runId === undefined) {
+      return busy();
+    }
+
     const resume: DurableResume = { streamId, runId };
+
     try {
       await resumeHook(durableTurnToken(workflowRunId), resume);
     } catch (cause) {
@@ -401,12 +497,14 @@ export function durableChat(options: DurableChatOptions): DurableChat {
         status: "failed",
         error: String(cause),
       });
+
       return problemResponse(
         dbError("conflict", "The turn is no longer waiting.", {
           code: "AI_CHAT_NOT_WAITING",
         }),
       );
     }
+
     return {
       continued: true,
       chat: chat.data,
@@ -421,22 +519,39 @@ export function durableChat(options: DurableChatOptions): DurableChat {
     context: DurableChatContext,
   ): Promise<Response> {
     const body = await readJson(request);
+
     const approvals = decisionsOf(
       isRecord(body) ? body["approvals"] : undefined,
     );
-    if (approvals === undefined) return startTurn(body, context);
-    if (typeof approvals === "string") return badRequest(approvals);
+
+    if (approvals === undefined) {
+      return startTurn(body, context);
+    }
+
+    if (typeof approvals === "string") {
+      return badRequest(approvals);
+    }
+
     const chatId = isRecord(body) ? body["id"] : undefined;
-    if (typeof chatId !== "string" || chatId === "")
+
+    if (typeof chatId !== "string" || chatId === "") {
       return badRequest("Expected the chat id.");
+    }
+
     const continued = await continueTurn(chatId, approvals, context);
-    if (continued instanceof Response) return continued;
-    if (!continued.continued)
+
+    if (continued instanceof Response) {
+      return continued;
+    }
+
+    if (!continued.continued) {
       return problemResponse(
         dbError("conflict", "Other approvals of this answer are pending.", {
           code: "AI_APPROVALS_PENDING",
         }),
       );
+    }
+
     return streamSegment(
       context,
       continued.chat,
@@ -453,11 +568,20 @@ export function durableChat(options: DurableChatOptions): DurableChat {
   ): Promise<AiRun | undefined | Response> {
     if (chat.activeRunId !== undefined) {
       const run = await context.chats.runs.get(chat.activeRunId);
-      if (!run.ok) return problemResponse(run.error);
+
+      if (!run.ok) {
+        return problemResponse(run.error);
+      }
+
       return run.data;
     }
+
     const runs = await context.chats.runs.list({ chatId: chat.id, limit: 1 });
-    if (!runs.ok) return problemResponse(runs.error);
+
+    if (!runs.ok) {
+      return problemResponse(runs.error);
+    }
+
     return runs.data[0];
   }
 
@@ -470,18 +594,30 @@ export function durableChat(options: DurableChatOptions): DurableChat {
     } = {},
   ): Promise<Response> {
     const chat = await context.chats.chats.get(chatId);
-    if (!chat.ok)
+
+    if (!chat.ok) {
       return chat.error.kind === "not_found"
         ? new Response(null, { status: 204 })
         : problemResponse(chat.error);
+    }
+
     const run = await latestRun(context, chat.data);
-    if (run instanceof Response) return run;
+
+    if (run instanceof Response) {
+      return run;
+    }
+
     const streamId = run?.streamId;
-    if (run === undefined || streamId === undefined)
+
+    if (run === undefined || streamId === undefined) {
       return new Response(null, { status: 204 });
+    }
+
     const startIndex = Math.max(0, Math.trunc(resumeOptions.startIndex ?? 0));
+
     if (run.engine === WORKFLOW_ENGINE && run.externalRunId !== undefined) {
       let live: ReadableStream<string> | undefined;
+
       try {
         live = await opened(
           segmentChunks(
@@ -495,16 +631,24 @@ export function durableChat(options: DurableChatOptions): DurableChat {
       } catch {
         live = undefined;
       }
+
       // Without the World's stream, the stream store has the copy the client read.
-      if (live !== undefined) return runSse(live, run.externalRunId);
+      if (live !== undefined) {
+        return runSse(live, run.externalRunId);
+      }
     }
+
     const stored = await resumeFromStore(options.streams, streamId, {
       fromIdx: startIndex,
       ...(resumeOptions.signal === undefined
         ? {}
         : { signal: resumeOptions.signal }),
     });
-    if (!stored.ok) return problemResponse(stored.error);
+
+    if (!stored.ok) {
+      return problemResponse(stored.error);
+    }
+
     return stored.data === undefined
       ? new Response(null, { status: 204 })
       : runSse(stored.data, run.externalRunId);
@@ -515,31 +659,51 @@ export function durableChat(options: DurableChatOptions): DurableChat {
     context: DurableChatContext,
   ): Promise<Response> {
     const stopped = await context.chats.runs.stop(chatId);
-    if (!stopped.ok) return problemResponse(stopped.error);
-    if (stopped.data === undefined) return new Response(null, { status: 204 });
+
+    if (!stopped.ok) {
+      return problemResponse(stopped.error);
+    }
+
+    if (stopped.data === undefined) {
+      return new Response(null, { status: 204 });
+    }
+
     const run = await context.chats.runs.get(stopped.data.runId);
-    if (!run.ok) return problemResponse(run.error);
+
+    if (!run.ok) {
+      return problemResponse(run.error);
+    }
+
     const workflowRunId = run.data.externalRunId;
-    if (workflowRunId === undefined) return new Response(null, { status: 204 });
+
+    if (workflowRunId === undefined) {
+      return new Response(null, { status: 204 });
+    }
+
     try {
       await resumeHook(durableStopToken(workflowRunId), {});
     } catch {
       let cancelled = true;
+
       try {
         await getRun(workflowRunId).cancel();
       } catch {
         cancelled = false;
       }
+
       await context.chats.runs.release(chatId, stopped.data.streamId, {
         status: "cancelled",
       });
-      if (!cancelled)
+
+      if (!cancelled) {
         return problemResponse(
           dbError("unexpected", "The answer could not be stopped.", {
             code: "AI_CHAT_STOP_FAILED",
           }),
         );
+      }
     }
+
     return new Response(null, { status: 204 });
   }
 
@@ -548,9 +712,16 @@ export function durableChat(options: DurableChatOptions): DurableChat {
     decisions: readonly DurableApprovalDecision[],
     context: DurableChatContext,
   ): Promise<Response> {
-    if (decisions.length === 0) return badRequest("Expected approvals.");
+    if (decisions.length === 0) {
+      return badRequest("Expected approvals.");
+    }
+
     const continued = await continueTurn(chatId, decisions, context);
-    if (continued instanceof Response) return continued;
+
+    if (continued instanceof Response) {
+      return continued;
+    }
+
     return Response.json(
       continued.continued
         ? { continued: true, streamId: continued.streamId }

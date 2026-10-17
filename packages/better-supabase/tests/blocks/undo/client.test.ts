@@ -34,6 +34,7 @@ describe("createUndoController", () => {
         apply: () => Promise.reject(new Error("changed since")),
       }),
     );
+
     view().push(token("a"));
     expect(await view().undo()).toBe(false);
     expect(view()).toMatchObject({

@@ -34,6 +34,7 @@ type Functions = FixtureFunctions & {
 };
 
 declare const client: SupabaseClient;
+
 // SAFETY: the extra overloads exist only in types; these tests never run a call.
 const schema = camel as unknown as Schema<Models, Database, Functions>;
 const db = defineSupabase(schema).connect(client);

@@ -28,9 +28,15 @@ export const updateProfile = bs.action(
     if (auth.kind !== "user") {
       return err(dbError("unauthorized", "Sign in to change your profile"));
     }
+
     const updated = await db.$rpc("update_my_profile", { full_name: fullName });
-    if (!updated.ok) return updated;
+
+    if (!updated.ok) {
+      return updated;
+    }
+
     refresh();
+
     return ok(true);
   },
 );
@@ -60,7 +66,9 @@ export const uploadAvatar = bs.action(
     if (auth.kind !== "user") {
       return err(dbError("unauthorized", "Sign in to change your avatar"));
     }
+
     const ext = AVATAR_EXTENSIONS.get(avatar.type);
+
     if (!ext) {
       return err(
         dbError("invalid_input", "Use a PNG, JPEG, WebP, GIF or AVIF image", {
@@ -68,8 +76,13 @@ export const uploadAvatar = bs.action(
         }),
       );
     }
+
     const profile = await db.$rpc("my_profile");
-    if (!profile.ok) return profile;
+
+    if (!profile.ok) {
+      return profile;
+    }
+
     const replaced = await avatars
       .connect(supabase)
       .replace(
@@ -82,7 +95,11 @@ export const uploadAvatar = bs.action(
             db.$rpc("set_my_avatar_path", { avatar_path: path }),
         },
       );
-    if (replaced.ok) refresh();
+
+    if (replaced.ok) {
+      refresh();
+    }
+
     return replaced;
   },
 );
@@ -98,6 +115,7 @@ export const deleteMyAccount = bs.action(
     if (auth.kind !== "user") {
       return err(dbError("unauthorized", "Sign in to delete your account"));
     }
+
     return bs.deleteAccount(auth.user.id, { buckets: [avatars] });
   },
 );

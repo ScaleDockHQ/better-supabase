@@ -125,6 +125,7 @@ describe("usageEntries", () => {
       totalUsage: { inputTokens: 4, outputTokens: 0 },
       providerMetadata: { gateway: { cost: 0.000002 } },
     });
+
     expect(usageEntries(usage)).toEqual([
       { meter: "ai.input_tokens", quantity: 4 },
     ]);
@@ -142,6 +143,7 @@ describe("problem429", () => {
     const response = problem429(
       dbError("rate_limited", "slow down", { retryAfter: 7 }),
     );
+
     expect(response.status).toBe(429);
     expect(response.headers.get("retry-after")).toBe("7");
   });
@@ -151,6 +153,7 @@ describe("problem429", () => {
       status(),
       Temporal.Instant.from("2030-01-01T00:00:00Z"),
     );
+
     expect(response.status).toBe(429);
     expect(response.headers.get("retry-after")).toBe("60");
     expect(await response.json()).toMatchObject({
@@ -158,12 +161,14 @@ describe("problem429", () => {
       meter: "ai.tokens",
       limit: 100,
     });
+
     const unlimited = problem429(
       status({
         limit: undefined,
         resetsAt: Temporal.Instant.from("2000-01-01T00:00:00Z"),
       }),
     );
+
     expect(unlimited.headers.get("retry-after")).toBe("1");
   });
 });
@@ -201,16 +206,20 @@ describe("usageQuota", () => {
       ),
       "ai.tokens",
     )("o");
+
     expect(exceeded).toMatchObject({
       kind: "quota_exceeded",
       meter: "ai.tokens",
       limit: 100,
     });
+
     const noLimit = await usageQuota(
       usage(AsyncResult.from(async () => ok(status({ limit: undefined })))),
       "m",
     )("o");
+
     expect(noLimit).not.toHaveProperty("limit");
+
     const failed = await usageQuota(
       usage(
         AsyncResult.from<UsageStatus>(async () =>
@@ -219,6 +228,7 @@ describe("usageQuota", () => {
       ),
       "m",
     )("o");
+
     expect(failed).toMatchObject({ kind: "network" });
   });
 });
@@ -226,9 +236,11 @@ describe("usageQuota", () => {
 describe("costBackfill", () => {
   it("writes the cost and records it on the meter", async () => {
     const setCost = vi.fn(() => AsyncResult.from(async () => ok(true)));
+
     const record = vi.fn(() =>
       AsyncResult.from(async () => ok({ recorded: true, today: 1, used: 1 })),
     );
+
     const handler = costBackfill({
       chats: { runs: { setCost } } as unknown as Pick<AiChat, "runs">,
       gateway: {
@@ -241,6 +253,7 @@ describe("costBackfill", () => {
       usage: { record },
       meter: "ai.cost",
     });
+
     expect(
       await handler({ generationId: "gen", organizationId: "o" }, job, signal),
     ).toBe(1200);
@@ -265,15 +278,18 @@ describe("costBackfill", () => {
       } as unknown as Pick<AiChat, "runs">,
       gateway: { getGenerationInfo: async () => ({ totalCost: Number.NaN }) },
     });
+
     await expect(handler({ generationId: "g" }, job, signal)).rejects.toThrow(
       "no run",
     );
+
     const quiet = costBackfill({
       chats: {
         runs: { setCost: () => AsyncResult.from(async () => ok(true)) },
       } as unknown as Pick<AiChat, "runs">,
       gateway: { getGenerationInfo: async () => ({ totalCost: 0 }) },
     });
+
     expect(await quiet({ generationId: "g" }, job, signal)).toBe(0);
   });
 });
@@ -281,6 +297,7 @@ describe("costBackfill", () => {
 describe("modelCatalogRefresh", () => {
   it("upserts the language models", async () => {
     const upsert = vi.fn(() => AsyncResult.from(async () => ok(2)));
+
     const handler = modelCatalogRefresh({
       chats: { models: { upsert } } as unknown as Pick<AiChat, "models">,
       gateway: {
@@ -305,6 +322,7 @@ describe("modelCatalogRefresh", () => {
       plans: (model) => (model.id === "local" ? ["pro"] : undefined),
       prune: true,
     });
+
     expect(await handler(undefined, job, signal)).toBe(2);
     expect(upsert).toHaveBeenCalledWith(
       [

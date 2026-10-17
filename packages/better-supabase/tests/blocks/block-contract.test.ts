@@ -34,11 +34,17 @@ function fake(
   const call = vi.fn(
     async (_schema: string, fn: string, args: Record<string, unknown>) => {
       const answer = answers[fn];
-      if (!answer) throw new Error(`unexpected ${fn}`);
+
+      if (!answer) {
+        throw new Error(`unexpected ${fn}`);
+      }
+
       return answer(args);
     },
   );
+
   const transport: BlockTransport = { call };
+
   return { call, transport };
 }
 
@@ -49,11 +55,13 @@ const region = v.object({ region: v.picklist(["eu", "us"]) });
 describe("block hooks", () => {
   it("refuse calls before they reach the database", async () => {
     const { call, transport } = fake({});
+
     const checklist = defineChecklist({
       id: "team",
       scope: "user",
       steps: [{ id: "invite" }],
     });
+
     const refused = [
       createRank({ transport, hooks: { move: { before: refuse } } }).move(
         "task",
@@ -115,9 +123,11 @@ describe("block hooks", () => {
         hooks: { emit: { before: refuse } },
       }).emit("invoice.paid"),
     ];
+
     for (const result of await Promise.all(refused)) {
       expect(result).toMatchObject({ ok: false, error: { kind: "forbidden" } });
     }
+
     expect(call).not.toHaveBeenCalled();
   });
 
@@ -127,6 +137,7 @@ describe("block hooks", () => {
       purge_rate_limits: () => 2,
       mark_reminder_sent: () => false,
     });
+
     const rebalance = vi.fn();
     await createRank({
       transport,
@@ -177,21 +188,26 @@ describe("block fields", () => {
         },
       ],
     });
+
     const createUser = vi.fn();
+
     const principals = createServicePrincipals({
       transport,
       admin: { createUser, deleteUser: vi.fn() },
       fields: region,
     });
+
     const [principal] = await principals.list("o").orThrow();
     expectTypeOf(principal?.fields.region).toEqualTypeOf<
       "eu" | "us" | undefined
     >();
     expect(principal?.fields).toEqual({ region: "eu" });
+
     const bad = await principals.create("o", "Bot", "member", {
       // @ts-expect-error not one of the regions
       fields: { region: "apac" },
     });
+
     expect(bad).toMatchObject({ ok: false, error: { kind: "validation" } });
     expect(createUser).not.toHaveBeenCalled();
   });
@@ -221,7 +237,9 @@ describe("block fields", () => {
         },
       ],
     });
+
     const relations = createRelations({ transport, fields: region });
+
     const linked = await relations
       .link({
         organizationId: "o",
@@ -231,11 +249,14 @@ describe("block fields", () => {
         fields: { region: "us" },
       })
       .orThrow();
+
     expect(call.mock.calls[0]?.[2]).toMatchObject({ fields: { region: "us" } });
     expect(linked.fields).toEqual({ region: "us" });
+
     const [relation] = await relations
       .of("o", { type: "task", id: "a" })
       .orThrow();
+
     expect(relation?.fields.region).toBe("us");
   });
 
@@ -257,12 +278,14 @@ describe("block fields", () => {
         },
       ],
     });
+
     const reminders = createReminders({ transport, fields: region });
     expect(
       await reminders.save("o", "task", "t1", 15, { region: "eu" }).orThrow(),
     ).toEqual({ id: "r1", fields: { region: "eu" } });
     expect(call.mock.calls[0]?.[2]).toMatchObject({ fields: { region: "eu" } });
     const views = createSavedViews({ transport, fields: region });
+
     const saved = await views
       .save({
         organizationId: "o",
@@ -272,6 +295,7 @@ describe("block fields", () => {
         fields: { region: "eu" },
       })
       .orThrow();
+
     expect(saved.fields).toEqual({ region: "eu" });
     const [view] = await views.list("o", "tasks").orThrow();
     expect(view?.fields.region).toBe("us");
@@ -304,7 +328,9 @@ describe("block fields", () => {
         },
       ],
     });
+
     const promotions = createPromotions({ transport, fields: region });
+
     const promotion = await promotions
       .savePromotion("o", {
         name: "Free shipping",
@@ -312,6 +338,7 @@ describe("block fields", () => {
         fields: { region: "eu" },
       })
       .orThrow();
+
     expect(promotion).toEqual({ id: "p1", fields: { region: "eu" } });
     expect(call.mock.calls[0]?.[2]).toMatchObject({ fields: { region: "eu" } });
     const pipelines = createPipelines({ transport, fields: region });
@@ -320,11 +347,13 @@ describe("block fields", () => {
     const parties = createParties({ transport, fields: region });
     const page = await parties.listCompanies("o").orThrow();
     expect(page.items[0]?.fields.region).toBe("eu");
+
     const bad = await parties.saveCompany("o", {
       name: "Acme",
       // @ts-expect-error not one of the regions
       fields: { region: "apac" },
     });
+
     expect(bad).toMatchObject({ ok: false, error: { kind: "validation" } });
     expect(call).toHaveBeenCalledTimes(3);
   });
@@ -344,11 +373,13 @@ describe("block fields", () => {
         },
       ],
     });
+
     const notifications = createNotifications({
       transport,
       types: { "task.assigned": v.object({ title: v.string() }) },
       fields: region,
     });
+
     await notifications
       .send("task.assigned", {
         recipients: ["u1"],
@@ -376,14 +407,17 @@ describe("block fields", () => {
       inviter: null,
       fields: { region: "eu" },
     };
+
     const { call, transport } = fake({
       invite_member: () => ({ ...invitation, token: "tok" }),
       my_invitations: () => [invitation],
     });
+
     const organizations = createOrganizations({
       transport,
       invitationFields: region,
     });
+
     const bad = await organizations.invite({
       organizationId: "o",
       email: "a@example.test",
@@ -391,8 +425,10 @@ describe("block fields", () => {
       // @ts-expect-error not one of the regions
       fields: { region: "apac" },
     });
+
     expect(bad).toMatchObject({ ok: false, error: { kind: "validation" } });
     expect(call).not.toHaveBeenCalled();
+
     const sent = await organizations
       .invite({
         organizationId: "o",
@@ -401,6 +437,7 @@ describe("block fields", () => {
         fields: { region: "eu" },
       })
       .orThrow();
+
     expect(call.mock.calls[0]?.[2]).toMatchObject({ fields: { region: "eu" } });
     expect(sent.invitation.fields).toEqual({ region: "eu" });
     expect(sent.invitation.extra).toEqual({});

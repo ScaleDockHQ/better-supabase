@@ -21,6 +21,7 @@ export { NOTHING };
 
 /** The scope id types SQL modules render. */
 export const MODULE_ID_TYPES = ["uuid", "text", "bigint", "integer"] as const;
+
 export type ModuleIdType = (typeof MODULE_ID_TYPES)[number];
 
 export const isModuleIdType = (value: string): value is ModuleIdType =>
@@ -41,6 +42,7 @@ const ID_TYPE_ALIASES: Readonly<Record<string, ModuleIdType>> = {
  */
 export function moduleIdType(value: string): ModuleIdType | undefined {
   const name = value.trim().toLowerCase().replaceAll(/\s+/g, " ");
+
   return isModuleIdType(name) ? name : ID_TYPE_ALIASES[name];
 }
 
@@ -421,6 +423,7 @@ function splitTable(
   schema: string,
 ): { readonly schema: string; readonly name: string } {
   const dot = value.indexOf(".");
+
   return dot === -1
     ? { schema, name: value }
     : { schema: value.slice(0, dot), name: value.slice(dot + 1) };
@@ -430,6 +433,7 @@ function checkIdent(where: string, value: string): string {
   if (!IDENT.test(value) || value.length > 63) {
     throw new TypeError(`${where}: "${value}" is not a valid identifier`);
   }
+
   return value;
 }
 
@@ -450,53 +454,64 @@ export function createModuleContext(
 
   for (const [table, name] of Object.entries(config.tables)) {
     const known = names.tables[table];
+
     if (!known) {
       throw new TypeError(
         `${where}.tables: unknown table "${table}". Tables: ${Object.keys(names.tables).join(", ") || "none"}`,
       );
     }
+
     if (name === null && !known.optionalTable) {
       throw new TypeError(
         `${where}.tables.${table} is required and can't be null`,
       );
     }
   }
+
   for (const [table, columns] of Object.entries(config.columns)) {
     const known = names.tables[table];
+
     if (!known) {
       throw new TypeError(
         `${where}.columns: unknown table "${table}". Tables: ${Object.keys(names.tables).join(", ") || "none"}`,
       );
     }
+
     for (const [column, name] of Object.entries(columns)) {
       if (!(column in known.columns)) {
         throw new TypeError(
           `${where}.columns.${table}: unknown column "${column}". Columns: ${Object.keys(known.columns).join(", ")}`,
         );
       }
+
       if (name === null) {
         if (!known.optional?.includes(column)) {
           throw new TypeError(
             `${where}.columns.${table}.${column} is required and can't be null`,
           );
         }
-      } else checkIdent(`${where}.columns.${table}.${column}`, name);
+      } else {
+        checkIdent(`${where}.columns.${table}.${column}`, name);
+      }
     }
   }
 
   checkIdent(`${where}.hooks.schema`, config.hooks.schema);
+
   for (const [hook, target] of Object.entries(config.hooks.functions)) {
     if (!names.hooks?.includes(hook)) {
       throw new TypeError(
         `${where}.hooks.functions: unknown hook "${hook}". Hooks: ${names.hooks?.length ? names.hooks.join(", ") : "none"}`,
       );
     }
+
     const parts = splitTable(target, config.hooks.schema);
     checkIdent(`${where}.hooks.functions.${hook}`, parts.schema);
     checkIdent(`${where}.hooks.functions.${hook}`, parts.name);
   }
 
-  const declared = new Set(names.options ?? []);
+  const declared = new Set(names.options);
+
   for (const key of Object.keys(config.options)) {
     if (!declared.has(key)) {
       throw new TypeError(
@@ -504,9 +519,12 @@ export function createModuleContext(
       );
     }
   }
+
   const optionsSchema = optionSchemaOf(module);
+
   if (optionsSchema !== undefined) {
     const outcome = optionsSchema["~standard"].validate(config.options);
+
     if (!(outcome instanceof Promise) && outcome.issues !== undefined) {
       const [issue] = outcome.issues;
       throw new TypeError(
@@ -514,12 +532,14 @@ export function createModuleContext(
       );
     }
   }
+
   const option = (name: string): unknown => {
     if (!declared.has(name)) {
       throw new TypeError(
         `Module "${module}" reads option "${name}", which its names.options doesn't declare`,
       );
     }
+
     return config.options[name];
   };
 
@@ -528,6 +548,7 @@ export function createModuleContext(
   const scopeKind = TENANT_PROVIDERS.has(module)
     ? "tenant"
     : (config.scope ?? source.scope ?? "tenant");
+
   const rawId =
     scopeKind === "user"
       ? (config.idType ?? "uuid")
@@ -535,76 +556,101 @@ export function createModuleContext(
         modules.access?.idType ??
         source.providerIdType ??
         "uuid");
+
   const idType = moduleIdType(rawId);
+
   if (!idType) {
     throw new TypeError(
       `${where}.idType: "${rawId}" is not one of ${MODULE_ID_TYPES.join(", ")}`,
     );
   }
+
   if (scopeKind === "user" && idType !== "uuid") {
     throw new TypeError(
       `${where}.idType: in user scope the scope id is a user id, so it is uuid, not ${idType}`,
     );
   }
+
   const naming = tenantNames(source.tenantName);
   // blocks.access.functions holds the custom model's templates, and the
   // access contract's names (can, tenant_ids_with) name no tenant.
   const renames = module === "access" ? {} : config.functions;
+
   for (const [name, target] of Object.entries(renames)) {
     checkIdent(`${where}.functions`, name);
     checkIdent(`${where}.functions.${name}`, target);
   }
+
   const requested = new Set<string>();
   const applied = new Map<string, string>();
+
   const fnName = (name: string): string => {
     const renamed = naming.rename(name);
     requested.add(name);
     requested.add(renamed);
     const written = renames[name] ?? renames[renamed] ?? renamed;
-    if (written !== name) applied.set(name, written);
+
+    if (written !== name) {
+      applied.set(name, written);
+    }
+
     return written;
   };
 
   const tableName = (logical: string) => {
     const table = names.tables[logical];
+
     if (!table) {
       throw new TypeError(`Module "${module}" has no table "${logical}"`);
     }
+
     const mapped = config.tables[logical];
+
     if (mapped === null) {
       throw new TypeError(
         `Module "${module}" needs table "${logical}", which blocks.${module}.tables maps to null`,
       );
     }
+
     const parts = splitTable(
       mapped ?? naming.rename(table.name),
       config.schema,
     );
+
     checkIdent(`${where}.tables.${logical}`, parts.schema);
     checkIdent(`${where}.tables.${logical}`, parts.name);
+
     return parts;
   };
+
   const column = (table: string, logical: string): string | null => {
     const known = names.tables[table];
+
     if (!known || !(logical in known.columns)) {
       throw new TypeError(
         `Module "${module}" has no column "${table}.${logical}"`,
       );
     }
+
     const mapped = config.columns[table]?.[logical];
+
     return mapped === undefined
       ? naming.rename(known.columns[logical]!)
       : mapped;
   };
+
   const requiredColumn = (table: string, logical: string): string => {
     const name = column(table, logical);
+
     if (name === null) {
       throw new TypeError(
         `Module "${module}" needs ${table}.${logical}, which blocks.${module}.columns maps to null`,
       );
     }
+
     return name;
   };
+
   function optionOf(name: string, type: "string", fallback: string): string;
   function optionOf(name: string, type: "number", fallback: number): number;
   function optionOf(name: string, type: "boolean", fallback: boolean): boolean;
@@ -614,7 +660,11 @@ export function createModuleContext(
     fallback: string | number | boolean,
   ): string | number | boolean {
     const value = option(name);
-    if (value === undefined) return fallback;
+
+    if (value === undefined) {
+      return fallback;
+    }
+
     if (
       typeof value !== "string" &&
       typeof value !== "number" &&
@@ -622,24 +672,32 @@ export function createModuleContext(
     ) {
       throw new TypeError(`${where}.options.${name} must be a ${type}`);
     }
+
     if (typeof value !== type) {
       throw new TypeError(`${where}.options.${name} must be a ${type}`);
     }
+
     return value;
   }
+
   const schema = sqlIdent(config.schema);
+
   const hookTarget = (name: string): string => {
     if (!names.hooks?.includes(name)) {
       throw new TypeError(`Module "${module}" declares no hook "${name}"`);
     }
+
     const parts = splitTable(
       config.hooks.functions[name] ?? name,
       config.hooks.schema,
     );
+
     return `${sqlIdent(parts.schema)}.${sqlIdent(parts.name)}`;
   };
+
   const installed = new Set(source.installed ?? [module]);
   const readable = source.integrations?.(module);
+
   const declares = (name: string): void => {
     if (readable && name !== module && !readable.has(name)) {
       throw new TypeError(
@@ -647,48 +705,71 @@ export function createModuleContext(
       );
     }
   };
+
   const checkEvent = (event: ModuleEmit): void => {
-    if (!names.events) return;
+    if (!names.events) {
+      return;
+    }
+
     const spec: CheckedEventSpec | undefined = Object.entries(
       names.events,
     ).find(([type]) => type === event.type)?.[1];
+
     if (!spec) {
       throw new TypeError(
         `Module "${module}" records "${event.type}", which its names.events doesn't declare`,
       );
     }
+
     const fault = (problem: string): never => {
       throw new TypeError(
         `Module "${module}" event "${event.type}" ${problem}`,
       );
     };
+
     if (!SUBJECT_COLLECTION.test(spec.subject)) {
       fault(`has subject "${spec.subject}", not a kebab-case plural`);
     }
+
     if (!event.subject?.startsWith(`'${spec.subject}/`)) {
       fault(`needs a subject that starts with '${spec.subject}/'`);
     }
+
     const missing = spec.payload.filter(
       (key) => !event.payload.includes(`'${key}'`),
     );
-    if (missing.length > 0) fault(`payload lacks ${missing.join(", ")}`);
+
+    if (missing.length > 0) {
+      fault(`payload lacks ${missing.join(", ")}`);
+    }
+
     const tenanted = event.tenant !== undefined && event.tenant !== "null";
+
     if (tenanted && !spec.payload.includes("organizationId")) {
       fault("has a tenant, so its payload needs organizationId");
     }
+
     if (spec.retries === true && event.key === undefined) {
       fault("is written by a writer that retries, so it needs a key");
     }
   };
+
   const outbox = (event: ModuleEmit): string => {
     checkEvent(event);
-    if (!config.events || !installed.has("outbox")) return "";
+
+    if (!config.events || !installed.has("outbox")) {
+      return "";
+    }
+
     const outboxConfig = resolveModule(modules["outbox"]);
+
     const template =
       outboxConfig.options["blockSource"] ?? "better-supabase/{module}";
+
     if (typeof template !== "string") {
       throw new TypeError("blocks.outbox.options.blockSource must be a string");
     }
+
     return `perform ${sqlIdent(outboxConfig.schema)}.emit_event(${[
       sqlString(event.type),
       event.payload,
@@ -698,21 +779,29 @@ export function createModuleContext(
       sqlString(template.replaceAll("{module}", module)),
     ].join(", ")});`;
   };
+
   const auditEntry = (action: ModuleAction): string => {
     const audit = action.audit;
-    if (!audit || !config.audit || !installed.has("audit")) return "";
+
+    if (!audit || !config.audit || !installed.has("audit")) {
+      return "";
+    }
+
     // auditCategory is the deprecated per-module override of every category.
     const legacy = declared.has("auditCategory")
       ? config.options["auditCategory"]
       : undefined;
+
     if (legacy !== undefined && typeof legacy !== "string") {
       throw new TypeError(`${where}.options.auditCategory must be a string`);
     }
+
     const auditIdType =
       modules["audit"]?.idType ??
       modules.access?.idType ??
       source.providerIdType ??
       "uuid";
+
     const args: [string, string | undefined][] = [
       ["event_type", sqlString(action.type)],
       ["category", sqlString(legacy ?? audit.category)],
@@ -733,11 +822,13 @@ export function createModuleContext(
       ["impersonated_by", audit.impersonatedBy],
       ["impersonation_reason", audit.impersonationReason],
     ];
+
     return `perform better_supabase.audit_event(\n${args
       .filter((arg): arg is [string, string] => arg[1] !== undefined)
       .map(([name, value]) => `    ${name} => ${value}`)
       .join(",\n")}\n  );`;
   };
+
   const scope = moduleScope({
     kind: scopeKind,
     idType,
@@ -747,10 +838,12 @@ export function createModuleContext(
         "member_organization_ids",
       ),
   });
+
   function entitlements(tenant: string): string | undefined;
   function entitlements(tenant: string, fallback: string): string;
   function entitlements(tenant: string, fallback?: string): string | undefined {
     declares("entitlements");
+
     return installed.has("entitlements")
       ? `better_supabase.tenant_entitlements(${tenant})`
       : fallback;
@@ -758,10 +851,12 @@ export function createModuleContext(
 
   const lifecycle = (name: string, args: string): string | undefined => {
     declares("data-lifecycle");
+
     return installed.has("data-lifecycle")
       ? `${createModuleContext("data-lifecycle", namesOf, source).fn(name)}(${args})`
       : undefined;
   };
+
   const retention = (
     kind: string,
     tenant: string,
@@ -771,8 +866,10 @@ export function createModuleContext(
       "retention_for",
       `${sqlString(kind)}, (${tenant})::text`,
     );
+
     return policy ? `coalesce(${policy}, ${fallback})` : fallback;
   };
+
   const held = (kind: string, tenant: string): string =>
     lifecycle("is_held", `${sqlString(kind)}, (${tenant})::text`) ?? "false";
 
@@ -802,6 +899,7 @@ export function createModuleContext(
     tableName,
     table(logical) {
       const parts = tableName(logical);
+
       return `${sqlIdent(parts.schema)}.${sqlIdent(parts.name)}`;
     },
     col(table, logical) {
@@ -814,6 +912,7 @@ export function createModuleContext(
       if (!names.tables[table]) {
         throw new TypeError(`Module "${module}" has no table "${table}"`);
       }
+
       return config.tables[table] !== null;
     },
     permissionKey: (action, fallback) => config.permissions[action] ?? fallback,
@@ -822,10 +921,12 @@ export function createModuleContext(
     trigger: (name) => sqlIdent(`bs_${naming.rename(name)}`),
     installed(name) {
       declares(name);
+
       return installed.has(name);
     },
     of(name) {
       declares(name);
+
       return createModuleContext(name, namesOf, source);
     },
     text: (name, fallback) => optionOf(name, "string", fallback),
@@ -834,42 +935,59 @@ export function createModuleContext(
     option,
     list(name, fallback) {
       const value = option(name);
-      if (value === undefined) return fallback;
+
+      if (value === undefined) {
+        return fallback;
+      }
+
       if (
         !Array.isArray(value) ||
         !value.every((item) => typeof item === "string")
       ) {
         throw new TypeError(`${where}.options.${name} must be a string array`);
       }
+
       return value;
     },
     extraColumns(table, reserved = []) {
       const value = option("extraColumns");
-      if (value === undefined) return [];
+
+      if (value === undefined) {
+        return [];
+      }
+
       const at = `${where}.options.extraColumns`;
+
       if (typeof value !== "object" || value === null || Array.isArray(value)) {
         throw new TypeError(`${at} must be an object`);
       }
+
       const known = names.tables[table];
+
       if (!known) {
         throw new TypeError(`Module "${module}" has no table "${table}"`);
       }
+
       const taken = new Set([
         ...reserved,
         ...Object.keys(known.columns).flatMap((logical) => {
           const name = column(table, logical);
+
           return name === null ? [] : [name];
         }),
       ]);
+
       return Object.entries(value).map(([name, type]) => {
         if (!EXTRA_COLUMN.test(name) || name.length > 63) {
           throw new TypeError(`${at}: "${name}" is not a valid column name`);
         }
+
         if (taken.has(name)) {
           throw new TypeError(
             `${at}.${name} shadows a column the module already returns`,
           );
         }
+
         if (
           typeof type !== "string" ||
           !SQL_TYPE.test(type) ||
@@ -879,6 +997,7 @@ export function createModuleContext(
             `${at}.${name} must be a SQL type such as "text not null default 'en'"`,
           );
         }
+
         return { name, ident: sqlIdent(name), type };
       });
     },
@@ -886,6 +1005,7 @@ export function createModuleContext(
       const target = hookTarget(name);
       const types = args.map(([type]) => type).join(", ");
       const params = args.map(([type], i) => `$${String(i + 1)}::${type}`);
+
       return `declare
     v_hook regprocedure := to_regprocedure(${sqlString(`${target}(${types})`)});
   begin
@@ -904,13 +1024,19 @@ export function createModuleContext(
       const parts = [outbox(action), auditEntry(action)].filter(
         (part) => part !== "",
       );
+
       return parts.length === 0 ? NOTHING : parts.join("\n  ");
     },
     notify(fields, options = {}) {
       declares("notifications");
-      if (!installed.has("notifications")) return NOTHING;
+
+      if (!installed.has("notifications")) {
+        return NOTHING;
+      }
+
       const indent = options.indent ?? "  ";
       const target = createModuleContext("notifications", namesOf, source);
+
       return [
         "v_claims := current_setting('request.jwt.claims', true);",
         `perform set_config('request.jwt.claims', '{"role": "service_role"}', true);`,
@@ -920,8 +1046,13 @@ export function createModuleContext(
     },
     enqueue(queue, payload, dedupe) {
       declares("jobs");
-      if (!installed.has("jobs")) return NOTHING;
+
+      if (!installed.has("jobs")) {
+        return NOTHING;
+      }
+
       const jobs = createModuleContext("jobs", namesOf, source);
+
       return `perform ${jobs.fn("enqueue_job")}(queue => ${sqlString(queue)}, payload => ${payload}, dedupe_key => ${dedupe}, dedupe_running => false);`;
     },
     entitlements,
@@ -929,7 +1060,11 @@ export function createModuleContext(
     held,
     expired(kind, row) {
       const floor = lifecycle("retention_floor", sqlString(kind));
-      if (!floor) return `${row.at} < now() - ${row.fallback}`;
+
+      if (!floor) {
+        return `${row.at} < now() - ${row.fallback}`;
+      }
+
       return `(${row.at} < now() - least(${row.fallback}, ${floor})
       and ${row.at} < now() - ${retention(kind, row.tenant, row.fallback)}
       and not ${held(kind, row.tenant)})`;
@@ -942,6 +1077,7 @@ export function createModuleContext(
     },
     broadcast(topic, event, payload, options = {}) {
       const indent = options.indent ?? "  ";
+
       return `if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then
 ${indent}  perform realtime.send(${payload}, ${event}, ${topic}, true);
 ${indent}end if;`;
@@ -952,6 +1088,7 @@ ${indent}end if;`;
         : `coalesce(better_supabase.can(${sqlString(name)}, ${id}, ${permission}), false)`,
     staff(permission) {
       declares("access");
+
       return installed.has("access")
         ? `(${SERVICE_CALLER} or coalesce(${scope.platform(permission)}, false))`
         : SERVICE_CALLER;
@@ -972,5 +1109,6 @@ function optionSchemaOf(module: string): BlockOptionsSchema | undefined {
   const entry = Object.entries(BLOCK_OPTION_SCHEMAS).find(
     ([name]) => name === module,
   );
+
   return entry?.[1];
 }

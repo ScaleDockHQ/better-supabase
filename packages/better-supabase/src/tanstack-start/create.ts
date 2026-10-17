@@ -101,6 +101,7 @@ export function createTanStackStart<
   const server = createServer(betterSupabase, options);
   const expose = options.exposeErrors ?? defaultExpose();
   const requests = new WeakMap<object, Request>();
+
   type Locals = FrameworkLocals<M, F, E, C, P>;
 
   const served = tanStackStartServer(
@@ -109,6 +110,7 @@ export function createTanStackStart<
     (contributions, request): Locals => {
       const locals = localsOf<M, F, E, C, P>(contributions);
       requests.set(locals, request);
+
       return locals;
     },
   );
@@ -119,6 +121,7 @@ export function createTanStackStart<
         "better-supabase: no context; add bs.middleware to the request middleware in src/start.ts",
       );
     }
+
     return context;
   };
 
@@ -129,17 +132,20 @@ export function createTanStackStart<
 
     require: async (context, requireOptions = {}) => {
       const scope = scopeOf(context);
+
       const caller = await requireCaller(
         scope.bs.auth,
         requireOptions,
         scope.tenant,
         options.authorizer,
       );
+
       if ("kind" in caller) {
         const request = requests.get(scope) ?? new Request("http://localhost/");
         // oxlint-disable-next-line typescript/only-throw-error -- TanStack Start sends a thrown Response as the answer.
         throw refusalResponse(caller, request, options, expose);
       }
+
       // SAFETY: requireTenant refused a missing tenant.
       return { ...scope, ...caller } as never;
     },
@@ -147,6 +153,7 @@ export function createTanStackStart<
     action(actionOptions, fn) {
       return async ({ data, context }) => {
         const scope = scopeOf(context);
+
         const result = await runAction(
           scope.bs.auth,
           actionOptions,
@@ -158,6 +165,7 @@ export function createTanStackStart<
             fn(parsed as never, { ...scope, ...caller } as never),
           options.authorizer,
         );
+
         // SAFETY: the settled data is what fn returned, unwrapped.
         return result as never;
       };

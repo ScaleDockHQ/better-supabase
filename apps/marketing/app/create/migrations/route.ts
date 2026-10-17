@@ -17,6 +17,7 @@ async function presetMigrations(
   "use cache";
   cacheLife("max");
   const config = resolveConfig({ preset: code }, "/");
+
   return renderModules(config.blockNames, moduleLayout(config)).map((file) => ({
     path: file.path,
     module: file.module,
@@ -26,9 +27,11 @@ async function presetMigrations(
 
 export async function GET(request: Request): Promise<Response> {
   const code = new URL(request.url).searchParams.get("preset") ?? "";
+
   if (!isPresetCode(code)) {
     return Response.json({ error: "preset must be a code" }, { status: 400 });
   }
+
   try {
     return Response.json({ files: await presetMigrations(code) });
   } catch (error) {

@@ -33,6 +33,7 @@ describe.skipIf(!live)("reactions", () => {
 
   it("reacts to subjects and comments under their read rules, with custom emoji", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.client.query(TABLES);
       await s.install(
@@ -48,6 +49,7 @@ describe.skipIf(!live)("reactions", () => {
       const comments = createComments({ transport: sqlTransport(s.sql) });
 
       await s.service();
+
       const doc = (
         await s.rows<{ id: string }>(
           "insert into reactions_it.docs (organization_id) values ($1) returning id",
@@ -89,9 +91,11 @@ describe.skipIf(!live)("reactions", () => {
           })
           .then((r) => !r.ok && r.error.hint),
       ).toBe("REACTION_FORBIDDEN");
+
       const removed = await reactions
         .react(tenant, "doc", doc, "👍", { present: false })
         .orThrow();
+
       expect(removed.find((row) => row.emoji === "👍")).toMatchObject({
         count: 1,
         reacted: false,
@@ -110,10 +114,13 @@ describe.skipIf(!live)("reactions", () => {
           body: "Looks good",
         })
         .orThrow();
+
       await reactions.react(tenant, "comment", comment.id, "👀").orThrow();
+
       const summary = await reactions
         .summary(tenant, "comment", [comment.id, "nope"])
         .orThrow();
+
       expect(summary[comment.id]).toEqual([
         { emoji: "👀", count: 1, reacted: true, actors: [member.id] },
       ]);
@@ -140,10 +147,12 @@ describe.skipIf(!live)("reactions", () => {
       ).toEqual(["🎉", "👍"]);
 
       await s.service();
+
       const events = await s.rows<{ type: string }>(
         "select type from better_supabase.outbox_events where organization_id = $1 and type like 'reaction.%'",
         [tenant],
       );
+
       expect(new Set(events.map((event) => event.type))).toEqual(
         new Set(["reaction.added", "reaction.removed"]),
       );
@@ -154,6 +163,7 @@ describe.skipIf(!live)("reactions", () => {
 
   it("keeps an inbox message's reactions column as a copy of the table", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const modules = ["organizations", "jobs", "streams", "outbox", "inbox"];
       await s.install(modules);
@@ -164,14 +174,19 @@ describe.skipIf(!live)("reactions", () => {
       const reactions = createReactions({ transport: sqlTransport(s.sql) });
 
       await s.asRole(owner);
+
       const widget = await inbox.inboxes
         .create({ tenant, name: "Help", settings: { widget: true } })
         .orThrow();
+
       await s.asRole(visitor);
+
       const opened = await inbox.conversations
         .open(widget.id, { message: "Hello" })
         .orThrow();
+
       await s.asRole(owner);
+
       const reply = await inbox.messages
         .send(opened.id, { body: "Hi there" })
         .orThrow();
@@ -192,14 +207,18 @@ describe.skipIf(!live)("reactions", () => {
         ),
       ).toBe(0);
       await s.asRole(owner);
+
       const counts = await reactions
         .react(tenant, "inbox_message", reply.id, "🎉")
         .orThrow();
+
       expect(counts.map((row) => row.emoji).toSorted()).toEqual(["🎉", "👍"]);
       await s.service();
+
       const byBot = await inbox.messages
         .react(reply.id, "👍", { actor: "bot" })
         .orThrow();
+
       expect(byBot["👍"]?.toSorted()).toEqual([owner.id, "bot"].toSorted());
       expect(byBot["🎉"]).toEqual([owner.id]);
       await s.asRole(owner);

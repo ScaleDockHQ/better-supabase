@@ -27,6 +27,7 @@ import { liveShareLink } from "./share-links.ts";
 
 /** The share-links subject type of a public form link. */
 const FORM_SUBJECT = "form";
+
 /** The share-links role a public form link carries. */
 const FORM_LINK_ROLE = "respond";
 
@@ -140,21 +141,28 @@ function handlersOf(
   ctx: ModuleContext,
 ): readonly (readonly [string, string])[] {
   const raw = ctx.option("handlers");
-  if (raw === undefined) return [];
+
+  if (raw === undefined) {
+    return [];
+  }
+
   if (!isObject(raw)) {
     throw new TypeError(
       `${WHERE}.handlers must map form keys to functions, such as { contact: "public.lead_from_submission" }`,
     );
   }
+
   return Object.entries(raw).map(([key, fn]) => {
     if (!FORM_KEY.test(key)) {
       throw new TypeError(`${WHERE}.handlers: "${key}" is not a form key`);
     }
+
     if (typeof fn !== "string" || !FUNCTION.test(fn)) {
       throw new TypeError(
         `${WHERE}.handlers.${key} must name a function, such as public.lead_from_submission`,
       );
     }
+
     return [key, fn] as const;
   });
 }
@@ -167,10 +175,18 @@ interface PublicLimit {
 /** `options.publicLimit`: public submissions per form and caller, or `false`. */
 function publicLimitOf(ctx: ModuleContext): PublicLimit | undefined {
   const raw = ctx.option("publicLimit");
-  if (raw === false) return undefined;
-  if (raw === undefined) return { max: 20, period: "PT1H" };
+
+  if (raw === false) {
+    return undefined;
+  }
+
+  if (raw === undefined) {
+    return { max: 20, period: "PT1H" };
+  }
+
   const max = isObject(raw) ? raw["max"] : undefined;
   const period = isObject(raw) ? raw["period"] : undefined;
+
   if (
     typeof max !== "number" ||
     !Number.isInteger(max) ||
@@ -182,6 +198,7 @@ function publicLimitOf(ctx: ModuleContext): PublicLimit | undefined {
       `${WHERE}.publicLimit must be false or { max, period } with a whole max and an ISO 8601 period such as PT1H`,
     );
   }
+
   return { max, period };
 }
 
@@ -191,7 +208,10 @@ const answersInvalid = (table: string): string =>
       using errcode = '23514', column = 'answers', detail = to_jsonb(v_errors)::text, hint = 'JSON_SCHEMA_INVALID';`;
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
   const forms = ctx.table("forms");
   const versions = ctx.table("versions");
   const submissions = ctx.table("submissions");
@@ -209,19 +229,25 @@ function build(ctx: ModuleContext): string {
   const shares = ctx.installed("share-links");
   const extras = ctx.extraColumns("forms", ["version"]);
   const notFound = fail("FORM_NOT_FOUND", "form not found", "P0002");
+
   const submissionNotFound = fail(
     "FORM_SUBMISSION_NOT_FOUND",
     "submission not found",
     "P0002",
   );
+
   const formJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${f("id")}, 'organizationId', ${row}.${f("tenant")}, 'key', ${row}.${f("key")}, 'title', ${row}.${f("title")}, 'description', ${row}.${f("description")}, 'status', ${row}.${f("status")}, 'currentVersionId', ${row}.${f("currentVersion")}, 'createdBy', ${row}.${f("createdBy")}, 'createdAt', ${row}.${f("createdAt")}, 'updatedAt', ${row}.${f("updatedAt")}${extraFieldsJson(row, extras)})`;
+
   const versionJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${v("id")}, 'formId', ${row}.${v("form")}, 'number', ${row}.${v("number")}, 'definition', ${row}.${v("definition")}, 'schema', ${row}.${v("schema")}, 'createdBy', ${row}.${v("createdBy")}, 'createdAt', ${row}.${v("createdAt")})`;
+
   const submissionJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${s("id")}, 'organizationId', ${row}.${s("tenant")}, 'formId', ${row}.${s("form")}, 'versionId', ${row}.${s("version")}, 'subjectType', ${row}.${s("subjectType")}, 'subjectId', ${row}.${s("subjectId")}, 'respondentId', ${row}.${s("respondent")}, 'answers', ${row}.${s("answers")}, 'status', ${row}.${s("status")}, 'source', ${row}.${s("source")}, 'reviewedBy', ${row}.${s("reviewedBy")}, 'reviewedAt', ${row}.${s("reviewedAt")}, 'createdAt', ${row}.${s("createdAt")}, 'submittedAt', ${row}.${s("submittedAt")}, 'updatedAt', ${row}.${s("updatedAt")})`;
+
   const subjectOf = (row: string): string =>
     `'subjectType', coalesce(${row}.${s("subjectType")}, ${sqlString(FORM_SUBJECT)}), 'subjectId', coalesce(${row}.${s("subjectId")}, ${row}.${s("form")}::text)`;
+
   const submissionRecord = (
     type: string,
     row: string,
@@ -241,6 +267,7 @@ function build(ctx: ModuleContext): string {
           }
         : false,
     });
+
   const handlerCase =
     handlers.length === 0
       ? ""
@@ -257,10 +284,16 @@ ${handlers.map(([key, name]) => `        when ${sqlString(key)} then v_link := $
           returning * into v_row;
       end if;
     end if;`;
+
   const links = shares ? ctx.of("share-links") : undefined;
+
   const linkCheck = (token: string): string => {
-    if (links === undefined) return "";
+    if (links === undefined) {
+      return "";
+    }
+
     const l = (column: string): string => links.col("links", column);
+
     return `select x.${f("id")} into v_form_id
   from ${links.table("links")} k
   join ${forms} x on x.${f("id")}::text = k.${l("subjectId")} and x.${f("tenant")} = k.${l("tenant")}
@@ -270,6 +303,7 @@ ${handlers.map(([key, name]) => `        when ${sqlString(key)} then v_link := $
     ${fail("FORM_LINK_INVALID", "this form link isn't valid", "P0002")}
   end if;`;
   };
+
   const rateLimit =
     limit === undefined || !ctx.installed("rate-limit")
       ? ""
@@ -292,6 +326,7 @@ ${handlers.map(([key, name]) => `        when ${sqlString(key)} then v_link := $
         'headers', json_build_object('Retry-After', v_retry::text)
       )::text;
   end if;`;
+
   const tables = ctx.manages
     ? `create table if not exists ${forms} (
   ${f("id")} uuid primary key default gen_random_uuid(),
@@ -355,6 +390,7 @@ create policy "form_submissions_read" on ${submissions} for select to authentica
   using (${ctx.scope.check(s("tenant"), review)} or ${s("respondent")} = (select auth.uid()));
 `
     : "";
+
   return `${schemaPreamble(ctx)}
 ${tables}
 ${formSchemaFunctions(ctx)}

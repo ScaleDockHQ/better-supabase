@@ -50,11 +50,13 @@ describe("blockEmitter", () => {
 describe("block events", () => {
   it("emits a copy of the data with a time, only when someone listens", () => {
     const events = new EventHub();
+
     const data = {
       notificationId: "n1",
       type: "mention",
       recipientIds: ["u1"],
     };
+
     emitBlockEvent<NotificationsEvents>(events, "notification.created", data);
     const seen: BlockEvent[] = [];
     events.on("block", (event) => {
@@ -78,6 +80,7 @@ describe("block events", () => {
   it("filters by type or prefix pattern", () => {
     const events = new EventHub();
     const types: string[] = [];
+
     const stop = onBlockEvent(
       { events },
       organizationsEvents,
@@ -94,6 +97,7 @@ describe("block events", () => {
         types.push(event.type);
       },
     );
+
     onBlockEvent(
       { events },
       organizationsEvents,

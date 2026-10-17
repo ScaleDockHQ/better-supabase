@@ -11,14 +11,17 @@ export {
   type OnboardingOptions,
   type StepProgress,
 } from "./onboarding.ts";
+
 export {
   dbTransport,
   rpcTransport,
   sqlTransport,
 } from "../../core/block-transport.ts";
+
 export type { BlockTransport } from "../../core/block-transport.ts";
 
 export { createOnboardingController } from "./client.ts";
+
 export type {
   OnboardingActions,
   OnboardingController,
@@ -26,4 +29,5 @@ export type {
   OnboardingControllerOptions,
   OnboardingSnapshot,
 } from "./client.ts";
+
 export { onboardingBlock } from "./manifest.ts";

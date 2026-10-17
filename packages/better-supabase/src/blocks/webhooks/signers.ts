@@ -37,8 +37,9 @@ export interface StandardWebhooksOptions {
 }
 
 function needSecrets(secrets: readonly string[]): void {
-  if (secrets.length === 0)
+  if (secrets.length === 0) {
     throw new TypeError("The endpoint has no signing secret");
+  }
 }
 
 /**
@@ -54,14 +55,17 @@ export function standardWebhooks(
     timestamp: options.headers?.timestamp ?? "webhook-timestamp",
     signature: options.headers?.signature ?? "webhook-signature",
   };
+
   return {
     apiVersion: 1,
     name: "standard-webhooks",
     async sign({ id, body, timestamp, secrets }) {
       needSecrets(secrets);
+
       const signed = await Promise.all(
         secrets.map((secret) => signWebhook(secret, { id, body, timestamp })),
       );
+
       return {
         [names.id]: id,
         [names.timestamp]: signed[0]!["webhook-timestamp"]!,
@@ -108,20 +112,27 @@ export function standardWebhooksAsymmetric(
     timestamp: options.headers?.timestamp ?? "webhook-timestamp",
     signature: options.headers?.signature ?? "webhook-signature",
   };
+
   return {
     apiVersion: 1,
     name: "standard-webhooks-v1a",
     async sign({ id, body, timestamp, secrets }) {
       const seconds = String(Math.floor(timestamp.epochMilliseconds / 1000));
+
       const result = await options.signer.sign(
         encoder.encode(`${id}.${seconds}.${body}`),
       );
-      if (!result.ok) throw new Error(result.error.message);
+
+      if (!result.ok) {
+        throw new Error(result.error.message);
+      }
+
       if (result.data.alg !== "EdDSA" && result.data.alg !== "Ed25519") {
         throw new TypeError(
           `v1a signatures need an Ed25519 key, not ${result.data.alg}`,
         );
       }
+
       const symmetric = options.hmac
         ? await Promise.all(
             secrets.map(
@@ -132,6 +143,7 @@ export function standardWebhooksAsymmetric(
             ),
           )
         : [];
+
       return {
         [names.id]: id,
         [names.timestamp]: seconds,
@@ -153,6 +165,7 @@ export function webhookPublicKey(jwk: {
   if (jwk.kty !== "OKP" || jwk.crv !== "Ed25519" || jwk.x === undefined) {
     throw new TypeError("A v1a public key is an Ed25519 JWK");
   }
+
   return `${PUBLIC_KEY_PREFIX}${toBase64(fromBase64(jwk.x))}`;
 }
 
@@ -192,8 +205,10 @@ export function hmacSigner(options: HmacSignerOptions): WebhookSigner {
     options.content ??
     ((input: { timestamp: string; body: string }) =>
       `${input.timestamp}.${input.body}`);
+
   const encode = options.encoding === "base64" ? toBase64 : hex;
   const prefix = options.prefix ?? "v1=";
+
   return {
     apiVersion: 1,
     name: options.name ?? "hmac",
@@ -201,6 +216,7 @@ export function hmacSigner(options: HmacSignerOptions): WebhookSigner {
       needSecrets(secrets);
       const seconds = String(Math.floor(timestamp.epochMilliseconds / 1000));
       const message = encoder.encode(content({ id, timestamp: seconds, body }));
+
       const signatures = await Promise.all(
         secrets.map(async (secret) => {
           const key = await crypto.subtle.importKey(
@@ -210,10 +226,13 @@ export function hmacSigner(options: HmacSignerOptions): WebhookSigner {
             false,
             ["sign"],
           );
+
           const mac = await crypto.subtle.sign("HMAC", key, message);
+
           return `${prefix}${encode(new Uint8Array(mac))}`;
         }),
       );
+
       return {
         [options.signatureHeader]: signatures.join(options.separator ?? ","),
         ...(options.timestampHeader

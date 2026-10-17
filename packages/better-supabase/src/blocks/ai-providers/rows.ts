@@ -25,12 +25,14 @@ const BATCH_STATUSES: readonly AiBatchStatus[] = [
   "failed",
   "cancelled",
 ];
+
 const ITEM_STATUSES: readonly AiBatchItemStatus[] = [
   "succeeded",
   "failed",
   "cancelled",
   "expired",
 ];
+
 const instant = (value: unknown): Temporal.Instant =>
   value instanceof Date ? toInstant(value) : toInstant(textOf(value));
 
@@ -39,14 +41,17 @@ const numberOf = (value: unknown): number =>
 
 export function refOf(value: unknown): CredentialRef {
   const ref = credentialRefOf(value);
+
   if (ref === undefined) {
     throw new TypeError("ai_provider_keys returned a key without a ref");
   }
+
   return ref;
 }
 
 export function keyOf(value: unknown): AiProviderKey {
   const row = recordOf(value, "ai_provider_keys");
+
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["organization_id"]),
@@ -64,13 +69,19 @@ export function keyOf(value: unknown): AiProviderKey {
 function countsOf(value: unknown): AiBatchCounts {
   const row = recordOrEmpty(value);
   const out: Record<string, number> = {};
-  for (const key of ["total", "pending", "completed", "failed"] as const)
-    if (typeof row[key] === "number") out[key] = row[key];
+
+  for (const key of ["total", "pending", "completed", "failed"] as const) {
+    if (typeof row[key] === "number") {
+      out[key] = row[key];
+    }
+  }
+
   return out;
 }
 
 export function batchOf(value: unknown): AiBatch {
   const row = recordOf(value, "ai_batches");
+
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["organization_id"]),
@@ -95,6 +106,7 @@ export function batchOf(value: unknown): AiBatch {
 
 export function itemOf(value: unknown): AiBatchItem {
   const row = recordOf(value, "ai_batch_items");
+
   return {
     batchId: textOf(row["batch_id"]),
     requestId: textOf(row["request_id"]),

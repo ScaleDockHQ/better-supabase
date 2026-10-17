@@ -20,7 +20,7 @@ alwaysApply: true
 4. Repository methods never throw for database errors. They return a `Result`
    whose errors are plain, serializable `DbError` objects. `.orThrow()` is the
    only way to turn one into an exception.
-5. Event handlers (`sb.on`) and sinks can never change a result.
+5. Event handlers (`betterSupabase.on`) and sinks can never change a result.
 6. Runtime entries (everything except `cli`, `node`, `nestjs`, `postgres` and
    `testing`) import no Node built-ins, so they run on every WinterTC runtime.
    The CLI is Node-only. SDK adapters whose SDK needs Node join that list

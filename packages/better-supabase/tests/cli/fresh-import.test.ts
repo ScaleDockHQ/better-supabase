@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { importFresh } from "../../src/cli/fresh-import.ts";
 
 const run = promisify(execFile);
+
 const source = pathToFileURL(
   join(import.meta.dirname, "../../src/cli/fresh-import.ts"),
 ).href;
@@ -48,11 +49,13 @@ describe("importFresh", () => {
       const second = await importFresh(entry);
       console.log(JSON.stringify([first.value, second.value, second.loads]));
     `;
+
     const { stdout } = await run(
       process.execPath,
       ["--input-type=module", "--no-warnings", "-e", script],
       { cwd: dir },
     );
+
     expect(JSON.parse(stdout)).toEqual([1, 2, 1]);
   });
 

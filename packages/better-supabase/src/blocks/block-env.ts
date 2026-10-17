@@ -46,6 +46,7 @@ export function withEnv<O>(
   env: (() => BlockEnv) | undefined,
 ): O {
   const given = new Map<string, unknown>(Object.entries(options));
+
   if (
     env === undefined ||
     (given.get("auth") !== undefined && given.get("ports") !== undefined)
@@ -54,7 +55,9 @@ export function withEnv<O>(
     // present, so `options` is the full `O`.
     return options as O;
   }
+
   const { auth, ports } = env();
+
   // SAFETY: `BlockOptions<O>` is `O` without `auth` and `ports`, which the
   // spread adds; a controller ignores the keys its options don't declare.
   return { auth, ports, ...options } as O;

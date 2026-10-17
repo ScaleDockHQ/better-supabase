@@ -6,11 +6,15 @@ import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 const live = await reachable();
 
 const staff = { platform_permissions: ["support.*"] };
+
 const REQUEST =
   "better_supabase.request_support_session($1, $2, true, '{}', $3)";
+
 const APPROVE = "better_supabase.approve_support_request($1)";
+
 const START =
   "better_supabase.start_support_session($1, $2, '30 minutes', true, '{}', $3)";
+
 const DECIDE = "better_supabase.decide_approval($1, $2, $3)";
 
 interface Approval {
@@ -27,32 +31,43 @@ describe.skipIf(!live)("requests other modules file in approvals", () => {
 
   async function linked(s: BlockSession, subjectId: string): Promise<Approval> {
     await s.service();
+
     const [row] = await s.rows<{ id: string }>(
       "select id::text from better_supabase.approval_requests where subject_id = $1",
       [subjectId],
     );
-    if (row === undefined) throw new Error(`no approval for ${subjectId}`);
+
+    if (row === undefined) {
+      throw new Error(`no approval for ${subjectId}`);
+    }
+
     return s.value<Approval>("better_supabase.get_approval($1)", [row.id]);
   }
 
   it("decides a tool call from either side, and only its approver reads it", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "outbox", "ai-chat", "approvals"]);
       const owner = await s.user("owner");
       const member = await s.user("member");
       const tenant = await s.organization(owner, { member });
       await s.as(owner);
+
       const chat = await s.value<{ id: string }>(
         "better_supabase.create_ai_chat($1)",
         [tenant],
       );
+
       await s.service();
-      for (const id of ["ap1", "ap2", "ap3"])
+
+      for (const id of ["ap1", "ap2", "ap3"]) {
         await s.value("better_supabase.record_ai_tool_approval($1, $2)", [
           chat.id,
           { approval_id: id, tool: "send_email", tool_call_id: `tc-${id}` },
         ]);
+      }
+
       expect(await linked(s, "ap1")).toMatchObject({
         status: "pending",
         subjectType: "ai_tool_approval",
@@ -123,6 +138,7 @@ describe.skipIf(!live)("requests other modules file in approvals", () => {
 
   it("decides a support request from either side", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "approvals", "support-sessions"]);
       const requester = await s.user("requester");
@@ -132,11 +148,13 @@ describe.skipIf(!live)("requests other modules file in approvals", () => {
       const tenant = await s.organization(requester, { member });
 
       await s.as(requester, staff);
+
       const first = await s.value<{ id: string }>(REQUEST, [
         target.id,
         "ticket 1",
         tenant,
       ]);
+
       const request = await linked(s, first.id);
       expect(request).toMatchObject({
         status: "pending",
@@ -171,6 +189,7 @@ describe.skipIf(!live)("requests other modules file in approvals", () => {
         "ticket 2",
         tenant,
       ]);
+
       await s.as(approver, { ...staff, act: { kind: "support" } });
       expect(await s.hint(APPROVE, [second.id])).toBe("ACTOR_READ_ONLY");
       await s.as(approver, staff);
@@ -179,11 +198,13 @@ describe.skipIf(!live)("requests other modules file in approvals", () => {
 
       // Rejecting it in the approvals block closes the support request.
       await s.as(requester, staff);
+
       const third = await s.value<{ id: string }>(REQUEST, [
         target.id,
         "ticket 3",
         tenant,
       ]);
+
       const rejected = await linked(s, third.id);
       await s.as(approver, staff);
       await s.value(DECIDE, [rejected.id, "rejected", "not now"]);
@@ -191,11 +212,13 @@ describe.skipIf(!live)("requests other modules file in approvals", () => {
 
       // The support module decides who approves, so nobody delegates.
       await s.as(requester, staff);
+
       const fourth = await s.value<{ id: string }>(REQUEST, [
         target.id,
         "ticket 4",
         tenant,
       ]);
+
       const pending = await linked(s, fourth.id);
       await s.as(approver, staff);
       expect(

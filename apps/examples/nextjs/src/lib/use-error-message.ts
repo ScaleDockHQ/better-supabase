@@ -15,6 +15,7 @@ export function useErrorMessage(): (error: DbError) => string {
   const stale = t("Someone else changed this. Reload and try again.");
   const offline = t("The server didn't answer. Try again.");
   const generic = t("Something went wrong. Try again.");
+
   return createErrorMessages({
     unauthorized: t("Sign in again to continue."),
     forbidden: t("You don't have permission to do that."),

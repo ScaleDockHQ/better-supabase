@@ -19,10 +19,12 @@ const files = defineBucket({
   policy: "tenant",
   tenant: {},
 });
+
 const attachments = defineBucket({
   id: "attachments",
   path: "{organizationId}/{messageId}/{name}",
 });
+
 const avatars = avatarBucket();
 
 const buckets = defineBuckets({ files, attachments, avatars });
@@ -44,6 +46,7 @@ describe("defineBuckets", () => {
       data: attachments,
       error: null,
     });
+
     for (const id of ["unknown", "", "__proto__", "constructor"]) {
       expect(buckets.byId(id)).toMatchObject({
         ok: false,
@@ -54,6 +57,7 @@ describe("defineBuckets", () => {
         },
       });
     }
+
     expectTypeOf(buckets.byId("files")).toEqualTypeOf<Result<typeof files>>();
     expectTypeOf(buckets.byId("x" as string)).toEqualTypeOf<
       Result<typeof files | typeof attachments | typeof avatars>
@@ -104,12 +108,17 @@ describe("defineBuckets", () => {
     const { client, calls } = fakeStorage({
       files: { "files/o1/files/f1.pdf": "x" },
     });
+
     const ref = buckets.connectStored(
       client,
       { bucket: "files", path: "o1/files/f1.pdf" },
       { tenant: "o1" },
     );
-    if (!ref.ok) throw new Error(ref.error.message);
+
+    if (!ref.ok) {
+      throw new Error(ref.error.message);
+    }
+
     expect(ref.data.bucket).toBe(files);
     expect(ref.data.path).toBe("o1/files/f1.pdf");
     expect(ref.data.storage.bucket).toBe(files);

@@ -10,6 +10,7 @@ vi.mock("next/headers.js", () => ({
   headers: () => Promise.resolve(new Headers()),
   cookies: () => Promise.resolve({ set: vi.fn() }),
 }));
+
 vi.mock("next/cache.js", () => ({
   updateTag: vi.fn(),
   revalidateTag: vi.fn(),
@@ -18,19 +19,23 @@ vi.mock("next/cache.js", () => ({
 }));
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
+
 const env = {
   url: PROJECT_URL,
   publishableKey: "sb_publishable_test",
   jwksUrl: new URL(`${PROJECT_URL}/auth/v1/.well-known/jwks.json`),
 };
+
 const signer = await createTestSigner();
 const sub = "6f1c2c1e-5d0a-4d9e-9a51-6b1f0e7c2a10";
 const client = "5f0e4d3c-2b1a-4098-8776-655443322110";
+
 const bs = createNext(defineSupabase(schema), {
   env,
   auth: { jwks: signer.jwks as never },
   cacheTags: false,
 });
+
 const segment = { params: Promise.resolve({ id: "c1" }) };
 
 function call(
@@ -89,6 +94,7 @@ describe("next.route for bearer callers", () => {
       client_id: client,
       scope: "openid email",
     });
+
     const response = await call(read, token);
     expect(response.status).toBe(403);
     expect(response.headers.get("www-authenticate")).toBe(
@@ -105,11 +111,13 @@ describe("next.route for bearer callers", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(() =>
       Promise.resolve(Response.json([])),
     );
+
     const delegated = await signer.sign({
       sub,
       client_id: client,
       scope: "openid customers:read",
     });
+
     const hidden = await call(read, delegated);
     expect(hidden.status).toBe(404);
     expect(await hidden.json()).toMatchObject({ kind: "not_found" });

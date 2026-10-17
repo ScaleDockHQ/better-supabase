@@ -34,10 +34,12 @@ const VERSION_STATUSES: readonly WorkflowVersionStatus[] = [
   "published",
   "archived",
 ];
+
 const VERSION_OWNERS: readonly WorkflowVersionOwner[] = [
   "user",
   "organization",
 ];
+
 const TRIGGER_KINDS: readonly WorkflowTriggerKind[] = [
   "manual",
   "webhook",
@@ -46,13 +48,17 @@ const TRIGGER_KINDS: readonly WorkflowTriggerKind[] = [
   "form",
   "chat",
 ];
+
 const SCOPES: readonly WorkflowDefinitionScope[] = ["tenant", "system"];
+
 const GRANT_PRINCIPALS: readonly WorkflowGrantPrincipal[] = [
   "user",
   "team",
   "role",
 ];
+
 const GRANT_ACTIONS: readonly WorkflowGrantAction[] = ["run", "edit"];
+
 const NODE_RUN_STATUSES: readonly WorkflowNodeRunStatus[] = [
   "running",
   "waiting",
@@ -63,6 +69,7 @@ const NODE_RUN_STATUSES: readonly WorkflowNodeRunStatus[] = [
 
 export function definitionOf(row: Record<string, unknown>): WorkflowDefinition {
   const published = row["published"];
+
   return {
     id: textOf(row["id"]),
     tenant: optionalText(row["tenant"]),
@@ -156,6 +163,7 @@ function refOf(value: unknown): CredentialRef {
   if (!isRecord(value) || typeof value["provider"] !== "string") {
     throw new TypeError("workflow-builder: a credential_ref has no provider");
   }
+
   return { ...value, provider: value["provider"] };
 }
 
@@ -199,6 +207,7 @@ export function nodeRunOf(row: Record<string, unknown>): WorkflowNodeRun {
 
 export function alertOf(row: Record<string, unknown>): WorkflowAlert {
   const threshold = row["threshold"];
+
   return {
     id: textOf(row["id"]),
     definition: textOf(row["definition"]),

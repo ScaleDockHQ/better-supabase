@@ -6,6 +6,7 @@ import {
 } from "../../src/core/supabase-mcp.ts";
 
 vi.mock("@supabase/mcp-server-supabase", () => ({}));
+
 vi.mock("@supabase/mcp-server-supabase/platform/api", () => ({}));
 
 describe("loadSupabaseMcp", () => {

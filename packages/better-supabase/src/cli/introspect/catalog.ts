@@ -30,10 +30,12 @@ const byName = (a: { schema: string; name: string }, b: typeof a): number =>
 function toColumn(column: PostgresColumn): CatalogColumn {
   const isArray = column.data_type === "ARRAY";
   const udt = isArray ? column.format.replace(/^_/, "") : column.format;
+
   const defaultValue =
     column.default_value === null || column.default_value === undefined
       ? null
       : String(column.default_value);
+
   return {
     name: column.name,
     udt,
@@ -71,6 +73,7 @@ function toFunction(
     const raw = type?.name ?? "unknown";
     const typeSchema = type ? { typeSchema: type.schema } : {};
     const name = arg.name || `arg${index + 1}`;
+
     if (arg.mode === "in" || arg.mode === "inout" || arg.mode === "variadic") {
       const isArray = raw.startsWith("_");
       args.push({
@@ -81,11 +84,14 @@ function toFunction(
         hasDefault: arg.has_default === true,
       });
     }
-    if (arg.mode === "table" || arg.mode === "out" || arg.mode === "inout")
+
+    if (arg.mode === "table" || arg.mode === "out" || arg.mode === "inout") {
       table.push({ name, udt: raw, ...typeSchema });
+    }
   });
   const returnType = typeOf(fn.return_type_id);
   const searchPath = fn.config_params?.["search_path"];
+
   return {
     schema: fn.schema,
     name: fn.name,
@@ -109,30 +115,46 @@ function toFunction(
 /** Joins the typegen metadata and the extras into one record per object. */
 export function toCatalog(snapshot: Snapshot): Catalog {
   const meta: GeneratorMetadata = snapshot.generator;
+
   const extras = new Map<number, ExtrasTable>(
     snapshot.extras.tables.map((table) => [table.id, table]),
   );
+
   const columns = new Map<number, PostgresColumn[]>();
+
   for (const column of meta.columns) {
     const list = columns.get(column.table_id);
-    if (list) list.push(column);
-    else columns.set(column.table_id, [column]);
+
+    if (list) {
+      list.push(column);
+    } else {
+      columns.set(column.table_id, [column]);
+    }
   }
+
   const primaryKeys = new Map<number, string[]>();
+
   for (const key of meta.primaryKeys) {
     const list = primaryKeys.get(key.table_id);
-    if (list) list.push(key.name);
-    else primaryKeys.set(key.table_id, [key.name]);
+
+    if (list) {
+      list.push(key.name);
+    } else {
+      primaryKeys.set(key.table_id, [key.name]);
+    }
   }
+
   const relationNames = new Map<number, string>();
+
   for (const list of [
     meta.tables,
     meta.foreignTables,
     meta.views,
     meta.materializedViews,
   ]) {
-    for (const entry of list)
+    for (const entry of list) {
       relationNames.set(entry.id, `${entry.schema}.${entry.name}`);
+    }
   }
 
   // PostgREST also lists a foreign key once per view over the referenced
@@ -144,6 +166,7 @@ export function toCatalog(snapshot: Snapshot): Catalog {
       (view) => `${view.schema}.${view.name}`,
     ),
   );
+
   const foreignKeysOf = (
     schema: string,
     name: string,
@@ -152,6 +175,7 @@ export function toCatalog(snapshot: Snapshot): Catalog {
     const actions = new Map(
       (extra?.foreignKeys ?? []).map((fk) => [fk.name, fk]),
     );
+
     return meta.relationships
       .filter(
         (rel) =>
@@ -162,6 +186,7 @@ export function toCatalog(snapshot: Snapshot): Catalog {
       )
       .map((rel) => {
         const action = actions.get(rel.foreign_key_name);
+
         return {
           name: rel.foreign_key_name,
           columns: rel.columns,
@@ -189,9 +214,11 @@ export function toCatalog(snapshot: Snapshot): Catalog {
     >,
   ): CatalogTable => {
     const extra = extras.get(entry.id);
+
     const own = [...(columns.get(entry.id) ?? [])].sort(
       (a, b) => a.ordinal_position - b.ordinal_position,
     );
+
     return {
       id: entry.id,
       schema: entry.schema,
@@ -258,6 +285,7 @@ export function toCatalog(snapshot: Snapshot): Catalog {
   ].sort(byName);
 
   const included = new Set(snapshot.schemas);
+
   const enums: CatalogEnum[] = meta.types
     .filter((type) => type.enums.length > 0 && included.has(type.schema))
     .map((type) => ({
@@ -268,6 +296,7 @@ export function toCatalog(snapshot: Snapshot): Catalog {
     .sort(byName);
 
   const types = new Map(meta.types.map((type) => [type.id, type]));
+
   const functions = meta.functions
     .map((fn) =>
       toFunction(

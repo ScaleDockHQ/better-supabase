@@ -111,8 +111,12 @@ function first(
 ): string | undefined {
   for (const name of names) {
     const value = source[name]?.trim();
-    if (value) return value;
+
+    if (value) {
+      return value;
+    }
   }
+
   return undefined;
 }
 
@@ -124,17 +128,24 @@ function keySet(
   issues: EnvIssue[],
 ): Readonly<Record<string, string>> | undefined {
   const raw = source[name];
-  if (!raw) return undefined;
+
+  if (!raw) {
+    return undefined;
+  }
+
   let parsed: unknown;
+
   try {
     parsed = JSON.parse(raw);
   } catch {
     parsed = undefined;
   }
+
   const entries =
     typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
       ? Object.entries(parsed)
       : [];
+
   if (
     entries.length === 0 ||
     entries.some(([, value]) => typeof value !== "string")
@@ -143,20 +154,29 @@ function keySet(
       variables: [name],
       message: "must be a JSON object of key names to keys",
     });
+
     return undefined;
   }
+
   const keys: Record<string, string> = {};
+
   // SAFETY: the filter above kept only entries with string values.
   for (const [key, value] of entries as [string, string][]) {
-    if (checkKey(value, kind, [name], issues)) keys[key] = value;
+    if (checkKey(value, kind, [name], issues)) {
+      keys[key] = value;
+    }
   }
+
   return keys;
 }
 
 function preferred(
   keys: Readonly<Record<string, string>> | undefined,
 ): string | undefined {
-  if (!keys) return undefined;
+  if (!keys) {
+    return undefined;
+  }
+
   return keys["default"] ?? Object.values(keys)[0];
 }
 
@@ -177,6 +197,7 @@ function isJwkList(value: unknown): value is InlineJwks["keys"] {
 /** `SUPABASE_JWKS` as `@supabase/server` reads it: `{"keys":[...]}` or `[...]`. */
 function checkJwks(raw: string, issues: EnvIssue[]): InlineJwks | undefined {
   let parsed: unknown;
+
   try {
     parsed = JSON.parse(raw);
   } catch {
@@ -184,21 +205,26 @@ function checkJwks(raw: string, issues: EnvIssue[]): InlineJwks | undefined {
       variables: ENV_VARIABLES.jwks,
       message: 'must be JSON: {"keys":[...]} or [...]',
     });
+
     return undefined;
   }
+
   const keys: unknown =
     typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
       ? "keys" in parsed
         ? parsed.keys
         : undefined
       : parsed;
+
   if (!isJwkList(keys)) {
     issues.push({
       variables: ENV_VARIABLES.jwks,
       message: "must hold at least one JSON Web Key with a kty",
     });
+
     return undefined;
   }
+
   return { keys };
 }
 
@@ -208,19 +234,29 @@ function checkUrl(
   issues: EnvIssue[],
 ): URL | undefined {
   let url: URL;
+
   try {
     url = new URL(value);
   } catch {
     issues.push({ variables, message: "is not a valid URL" });
+
     return undefined;
   }
-  if (url.protocol === "https:") return url;
-  if (url.protocol === "http:" && LOOPBACK.test(url.hostname)) return url;
+
+  if (url.protocol === "https:") {
+    return url;
+  }
+
+  if (url.protocol === "http:" && LOOPBACK.test(url.hostname)) {
+    return url;
+  }
+
   issues.push({
     variables,
     message:
       "must use https (http is only allowed for localhost / 127.0.0.1 / [::1])",
   });
+
   return undefined;
 }
 
@@ -230,7 +266,10 @@ function checkKey(
   variables: readonly string[],
   issues: EnvIssue[],
 ): boolean {
-  if (value.startsWith(`sb_${kind}_`)) return true;
+  if (value.startsWith(`sb_${kind}_`)) {
+    return true;
+  }
+
   if (value.startsWith("eyJ")) {
     issues.push({
       variables,
@@ -249,6 +288,7 @@ function checkKey(
   } else {
     issues.push({ variables, message: `must start with sb_${kind}_` });
   }
+
   return false;
 }
 
@@ -262,12 +302,14 @@ export function parseEnv(
   options: EnvOptions = {},
 ): EnvResult {
   const issues: EnvIssue[] = [];
-  const required = new Set(options.require ?? []);
+  const required = new Set(options.require);
 
   const rawUrl = first(source, ENV_VARIABLES.url);
   const url = rawUrl ? checkUrl(rawUrl, ENV_VARIABLES.url, issues) : undefined;
-  if (!rawUrl)
+
+  if (!rawUrl) {
     issues.push({ variables: ENV_VARIABLES.url, message: "is not set" });
+  }
 
   const publishableKeys = keySet(
     source,
@@ -275,8 +317,10 @@ export function parseEnv(
     "publishable",
     issues,
   );
+
   const singlePublishable = first(source, ENV_VARIABLES.publishableKey);
   const publishableKey = singlePublishable ?? preferred(publishableKeys);
+
   if (!publishableKey) {
     issues.push({
       variables: ENV_VARIABLES.publishableKey,
@@ -294,12 +338,15 @@ export function parseEnv(
   const namedSecrets = keySet(source, "SUPABASE_SECRET_KEYS", "secret", issues);
   const singleSecret = first(source, ENV_VARIABLES.secretKey);
   const secretKey = singleSecret ?? preferred(namedSecrets);
-  if (singleSecret)
+
+  if (singleSecret) {
     checkKey(singleSecret, "secret", ENV_VARIABLES.secretKey, issues);
-  else if (!secretKey && required.has("secretKey"))
+  } else if (!secretKey && required.has("secretKey")) {
     issues.push({ variables: ENV_VARIABLES.secretKey, message: "is not set" });
+  }
 
   const dbUrl = first(source, ENV_VARIABLES.dbUrl);
+
   if (dbUrl && !/^postgres(ql)?:\/\//.test(dbUrl)) {
     issues.push({
       variables: ENV_VARIABLES.dbUrl,
@@ -310,6 +357,7 @@ export function parseEnv(
   }
 
   const rawJwks = first(source, ENV_VARIABLES.jwksUrl);
+
   const jwksOverride = rawJwks
     ? checkUrl(rawJwks, ENV_VARIABLES.jwksUrl, issues)
     : undefined;
@@ -318,11 +366,13 @@ export function parseEnv(
   const jwks = rawInline ? checkJwks(rawInline, issues) : undefined;
 
   const rawRead = first(source, ENV_VARIABLES.readUrl);
+
   const readUrl = rawRead
     ? checkUrl(rawRead, ENV_VARIABLES.readUrl, issues)
     : undefined;
 
   const jwtSecret = first(source, ENV_VARIABLES.jwtSecret);
+
   if (jwtSecret !== undefined && jwtSecret.length < 32) {
     issues.push({
       variables: ENV_VARIABLES.jwtSecret,
@@ -330,11 +380,13 @@ export function parseEnv(
     });
   }
 
-  if (issues.length > 0 || !url || !publishableKey)
+  if (issues.length > 0 || !url || !publishableKey) {
     return { ok: false, issues };
+  }
 
   const base = url.href.replace(/\/+$/, "");
   const projectRef = HOSTED.exec(url.hostname)?.[1];
+
   return {
     ok: true,
     env: {
@@ -359,6 +411,7 @@ export function parseEnv(
 function processEnv(): EnvSource {
   // SAFETY: process is optional here; every property read is guarded.
   const runtime = globalThis as { process?: { env?: EnvSource } };
+
   return runtime.process?.env ?? {};
 }
 
@@ -368,7 +421,11 @@ export function loadEnv(
   options: EnvOptions = {},
 ): BetterSupabaseEnv {
   const result = parseEnv(source, options);
-  if (!result.ok) throw new EnvValidationError(result.issues);
+
+  if (!result.ok) {
+    throw new EnvValidationError(result.issues);
+  }
+
   return result.env;
 }
 
@@ -384,10 +441,15 @@ export function envSchema(
         if (typeof value !== "object" || value === null) {
           return { issues: [{ message: "Expected an environment object" }] };
         }
+
         // SAFETY: the check above narrows value to an object, and parseEnv
         // checks each key.
         const result = parseEnv(value as EnvSource, options);
-        if (result.ok) return { value: result.env };
+
+        if (result.ok) {
+          return { value: result.env };
+        }
+
         return {
           issues: result.issues.map((issue) => ({
             message: `${issue.variables[0] ?? "env"} ${issue.message}`,

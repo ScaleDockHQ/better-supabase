@@ -151,34 +151,52 @@ async function moduleVersionsBehind(
 ): Promise<FindingInput[]> {
   const findings: FindingInput[] = [];
   const upgrade = "Run `better-supabase sql upgrade`";
+
   for (const { file, path, installed, behind } of await moduleFiles(context)) {
-    if (!behind || installed === undefined) continue;
+    if (!behind || installed === undefined) {
+      continue;
+    }
+
     findings.push({
       message: `${path} has ${file.module} version ${String(installed)}; this release ships version ${String(moduleFileVersion(file.contents)?.version ?? 1)}. ${upgrade}, then \`${migrationCommand(workflowOf(context))}\`.`,
       target: path,
       location: { file: path, line: 1 },
     });
   }
+
   const db = context.database;
+
   if (!db || "skipped" in db || context.config.blockNames.length === 0) {
     return findings;
   }
+
   let rows: { name: string; version: number }[];
+
   try {
     rows = await db.query("select name, version from better_supabase.modules");
   } catch {
     return findings;
   }
+
   for (const row of rows) {
     const module = SQL_MODULES[row.name];
-    if (!module || !context.config.blockNames.includes(row.name)) continue;
+
+    if (!module || !context.config.blockNames.includes(row.name)) {
+      continue;
+    }
+
     const version = moduleVersion(module);
-    if (row.version >= version) continue;
+
+    if (row.version >= version) {
+      continue;
+    }
+
     findings.push({
       message: `The database has ${row.name} version ${String(row.version)}; this release ships version ${String(version)}. ${upgrade} and apply the migrations it prints.`,
       target: `better_supabase.modules.${row.name}`,
     });
   }
+
   return findings;
 }
 
@@ -195,10 +213,14 @@ function tomlLocation(
   context: DoctorContext,
   key: string,
 ): Location | undefined {
-  if (!context.configToml) return undefined;
+  if (!context.configToml) {
+    return undefined;
+  }
+
   const line =
     lineOf(context.configToml.text, new RegExp(`^\\s*${key}\\s*=`)) ??
     lineOf(context.configToml.text, /^\[auth\]/);
+
   return line ? { file: context.configToml.path, line } : undefined;
 }
 
@@ -217,8 +239,13 @@ function envEntries(
     const match = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(
       raw,
     );
-    if (!match) return [];
+
+    if (!match) {
+      return [];
+    }
+
     const value = match[2]!.trim().replace(/^(['"])(.*)\1$/, "$2");
+
     return [{ key: match[1]!, value, line: index + 1 }];
   });
 }
@@ -288,17 +315,23 @@ const OWN_RULES: readonly Rule[] = [
             "auto_expose_new_tables",
           ])
         : undefined;
+
       const note =
         auto === false || auto === "false"
           ? " config.toml sets [api] auto_expose_new_tables = false, so new tables start without grants."
           : "";
+
       return exposed(context).flatMap((table) => {
         const options = configFor(
           context.config.tables,
           table.schema,
           table.name,
         );
-        if (options?.exclude) return [];
+
+        if (options?.exclude) {
+          return [];
+        }
+
         const granted = (role: string): Set<string> =>
           new Set(
             table.grants
@@ -307,14 +340,21 @@ const OWN_RULES: readonly Rule[] = [
                 grant.privileges.map((privilege) => privilege.toLowerCase()),
               ),
           );
+
         if (options?.serviceRole) {
           const fromPublic = table.grants.some(
             (grant) => grant.role === "PUBLIC" && grant.privileges.length > 0,
           );
+
           return (["anon", "authenticated"] as const).flatMap((role) => {
             const have = [...granted(role)];
-            if (have.length === 0) return [];
+
+            if (have.length === 0) {
+              return [];
+            }
+
             const from = fromPublic ? `${role}, public` : role;
+
             return [
               {
                 message: `${qualified(table)} has \`serviceRole: true\` in \`tables\`, but ${role} has ${have.join(", ")} on it, so the Data API reaches it. Remove it from \`expose\` and run \`revoke all on table ${qualified(table)} from ${from};\`.`,
@@ -324,6 +364,7 @@ const OWN_RULES: readonly Rule[] = [
             ];
           });
         }
+
         const serviceOnly =
           context.config.blockNames.includes("grants") &&
           context.config.blocks["grants"]?.options?.["fromPolicies"] === true &&
@@ -333,17 +374,24 @@ const OWN_RULES: readonly Rule[] = [
               policy.permissive &&
               (appliesTo(policy, "anon") || appliesTo(policy, "authenticated")),
           );
+
         const wanted = context.config.expose[qualified(table)] ??
           context.config.expose[table.name] ?? {
             anon: [],
             authenticated: serviceOnly ? [] : ["select" as const],
           };
+
         return (["anon", "authenticated"] as const).flatMap((role) => {
           const have = granted(role);
+
           const missing = wanted[role].filter(
             (privilege) => !privilege.includes("(") && !have.has(privilege),
           );
-          if (missing.length === 0) return [];
+
+          if (missing.length === 0) {
+            return [];
+          }
+
           return [
             {
               message: `${role} has no ${missing.join(", ")} on ${qualified(table)}, so the Data API answers 42501. Add it to \`expose\` and run \`better-supabase sql add grants\`, or run \`grant ${missing.join(", ")} on table ${qualified(table)} to ${role};\`.${note}`,
@@ -363,6 +411,7 @@ const OWN_RULES: readonly Rule[] = [
       "A tenant-scoped table with policies for some commands but not all four denies the rest silently: an update or delete then affects 0 rows without an error. Add the missing policies, or a restrictive one, so the intent is explicit, and test it with `expectTenantIsolation`.",
     check: (context) => {
       const column = context.config.plugins.tenant?.column;
+
       const providerFunctions = [
         ...new Set(
           (context.config.authorization?.requires ?? []).flatMap((entry) => [
@@ -371,7 +420,9 @@ const OWN_RULES: readonly Rule[] = [
           ]),
         ),
       ];
+
       const tables = exposed(context);
+
       const roots = new Set(
         tables.flatMap((table) =>
           table.foreignKeys
@@ -385,23 +436,39 @@ const OWN_RULES: readonly Rule[] = [
             .map((key) => `${key.refSchema}.${key.refTable}`),
         ),
       );
+
       return tables.flatMap((table) => {
-        if (table.kind !== "table" || !table.rls) return [];
-        if (roots.has(qualified(table))) return [];
+        if (table.kind !== "table" || !table.rls) {
+          return [];
+        }
+
+        if (roots.has(qualified(table))) {
+          return [];
+        }
+
         const options = configFor(
           context.config.tables,
           table.schema,
           table.name,
         );
-        if (options?.exclude || options?.serviceRole) return [];
+
+        if (options?.exclude || options?.serviceRole) {
+          return [];
+        }
+
         const forAuthenticated = (policy: CatalogPolicy): boolean =>
           policy.roles.some((role) =>
             ["authenticated", "public"].includes(role),
           );
+
         const granting = table.policies.filter(
           (policy) => policy.permissive && forAuthenticated(policy),
         );
-        if (granting.length === 0) return [];
+
+        if (granting.length === 0) {
+          return [];
+        }
+
         const scoped =
           (column !== undefined &&
             table.columns.some((entry) => entry.name === column)) ||
@@ -411,25 +478,36 @@ const OWN_RULES: readonly Rule[] = [
               policy.check ?? "",
               ...(policy.functions ?? []),
             ].join(" ");
+
             return (
               TENANT_HELPER.test(text) ||
               providerFunctions.some((fn) => text.includes(fn))
             );
           });
-        if (!scoped) return [];
+
+        if (!scoped) {
+          return [];
+        }
+
         const denying = table.policies.filter(
           (policy) =>
             !policy.permissive &&
             forAuthenticated(policy) &&
             /^\s*false\s*$/i.test(policy.using ?? ""),
         );
+
         const covered = new Set(
           [...granting, ...denying].flatMap((policy) =>
             policy.command === "all" ? COMMANDS : [policy.command],
           ),
         );
+
         const missing = COMMANDS.filter((command) => !covered.has(command));
-        if (missing.length === 0) return [];
+
+        if (missing.length === 0) {
+          return [];
+        }
+
         return [
           {
             message: `${qualified(table)} is tenant-scoped but has no ${missing.join(", ")} policy for authenticated, so ${missing.join(" and ")} silently match no rows. Add the policies, or state the intent with a restrictive \`using (false)\` policy.`,
@@ -473,7 +551,11 @@ const OWN_RULES: readonly Rule[] = [
       "The tenant plugin and tenant policies filter every query on this column.",
     check: (context) => {
       const tenant = context.config.plugins.tenant;
-      if (!tenant) return [];
+
+      if (!tenant) {
+        return [];
+      }
+
       return exposed(context)
         .filter(
           (table) =>
@@ -497,13 +579,25 @@ const OWN_RULES: readonly Rule[] = [
       "PostgREST rejects `count()`, `sum()` and the other aggregates with PGRST123 unless `pgrst.db_aggregates_enabled` is on for the authenticator role. `aggregate()`, `_sum`/`_avg`/`_min`/`_max` includes and list `facetCounts` need it; `better-supabase/postgres` does not.",
     check: (context) => {
       const settings = context.snapshot.extras.roleSettings;
-      if (!settings) return [];
+
+      if (!settings) {
+        return [];
+      }
+
       const enabled =
         settings["authenticator"]?.["pgrst.db_aggregates_enabled"];
-      if (enabled === "true" || enabled === "on") return [];
+
+      if (enabled === "true" || enabled === "on") {
+        return [];
+      }
+
       for (const file of context.sources) {
         const line = lineOf(file.text, AGGREGATE_USE);
-        if (line === undefined) continue;
+
+        if (line === undefined) {
+          continue;
+        }
+
         return [
           {
             message: `${file.path} uses aggregates, but PostgREST has them off, so these requests fail with PGRST123. Run \`alter role authenticator set pgrst.db_aggregates_enabled = 'true'; notify pgrst, 'reload config';\` in a migration.`,
@@ -512,6 +606,7 @@ const OWN_RULES: readonly Rule[] = [
           },
         ];
       }
+
       return [];
     },
   },
@@ -523,10 +618,18 @@ const OWN_RULES: readonly Rule[] = [
       "PostgREST re-reads updated rows through the select policy. If it hides deleted rows, soft-deleting fails with an RLS error unless the update returns nothing.",
     check: (context) => {
       const softDelete = context.config.plugins.softDelete;
-      if (!softDelete) return [];
+
+      if (!softDelete) {
+        return [];
+      }
+
       return exposed(context).flatMap((table) => {
-        if (!table.columns.some((column) => column.name === softDelete.column))
+        if (
+          !table.columns.some((column) => column.name === softDelete.column)
+        ) {
           return [];
+        }
+
         return table.policies
           .filter(
             (policy) =>
@@ -554,6 +657,7 @@ const OWN_RULES: readonly Rule[] = [
         const id =
           bucket.id ??
           name.replaceAll(/[A-Z]/g, (char) => `-${char.toLowerCase()}`);
+
         const defined = defineBucket({
           id,
           path: bucket.path,
@@ -571,34 +675,43 @@ const OWN_RULES: readonly Rule[] = [
             ? {}
             : { lifecycle: bucket.lifecycle }),
         });
+
         const actual = catalogOf(context).buckets.find(
           (entry) => entry.id === id,
         );
+
         const inDatabase = defined.drift(actual).map((drift) => ({
           message: `Bucket ${id}: ${drift.message}`,
           target: `storage.buckets.${id}`,
         }));
+
         const toml = context.configToml;
+
         const declared = toml
           ? tomlGet(toml.document, ["storage", "buckets", id])
           : undefined;
+
         if (
           !toml ||
           !declared ||
           typeof declared !== "object" ||
           Array.isArray(declared)
-        )
+        ) {
           return inDatabase;
+        }
+
         // SAFETY: the check above narrows declared to a TOML table.
         const entry = declared as Readonly<Record<string, TomlValue>>;
         const size = entry["file_size_limit"];
         const mimes = entry["allowed_mime_types"];
+
         const line = lineOf(
           toml.text,
           new RegExp(
             `^\\[storage\\.buckets\\.${id.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\]`,
           ),
         );
+
         const inToml = defined
           .drift({
             public: entry["public"] === true,
@@ -613,6 +726,7 @@ const OWN_RULES: readonly Rule[] = [
             target: `[storage.buckets.${id}]`,
             ...(line ? { location: { file: toml.path, line } } : {}),
           }));
+
         return [...inDatabase, ...inToml];
       }),
   },
@@ -624,11 +738,13 @@ const OWN_RULES: readonly Rule[] = [
       "The generated module no longer matches the database, so types and metadata are wrong. Same check as `gen --check`.",
     check: async (context) => {
       const stale: FindingInput[] = [];
+
       for (const file of await renderFiles(context.config, context.snapshot)) {
         const current = await readFile(
           resolve(context.config.root, file.path),
-          "utf8",
+          "utf-8",
         ).catch(() => undefined);
+
         if (!sameText(current, file.contents)) {
           stale.push({
             message: `${file.path} is ${current === undefined ? "missing" : "out of date"}. Run \`better-supabase gen\`.`,
@@ -639,6 +755,7 @@ const OWN_RULES: readonly Rule[] = [
           });
         }
       }
+
       return stale;
     },
   },
@@ -651,22 +768,30 @@ const OWN_RULES: readonly Rule[] = [
     check: async (context) => {
       const stale: FindingInput[] = [];
       const workflow = workflowOf(context);
+
       for (const { file, path, current, behind } of await moduleFiles(
         context,
       )) {
-        if (behind || sameModuleFile(current, file.contents)) continue;
+        if (behind || sameModuleFile(current, file.contents)) {
+          continue;
+        }
+
         const migrated = workflow === "migrations" && file.kind !== "test";
+
         const edited =
           current === undefined || migrated
             ? ""
             : ` If you edited it, move the change to \`blocks.${file.module}\` in better-supabase.config.ts or to the module's SQL hooks: sync overwrites the file.`;
+
         const next =
           file.kind === "data" && !migrated
             ? "Run `better-supabase sql sync`, which also writes the rows into a migration, since a schema diff skips them."
             : `Run \`better-supabase sql sync\`, then \`${migrationCommand(workflow)}\`.`;
+
         const subject = migrated
           ? `${file.module} in ${path} is ${current === undefined ? "missing" : "out of date"}`
           : `${path} (${file.module}) is ${current === undefined ? "missing" : "out of date"}`;
+
         if (
           stale.some(
             (finding) => finding.message === `${subject}. ${next}${edited}`,
@@ -674,6 +799,7 @@ const OWN_RULES: readonly Rule[] = [
         ) {
           continue;
         }
+
         stale.push({
           message: `${subject}. ${next}${edited}`,
           target: path,
@@ -682,6 +808,7 @@ const OWN_RULES: readonly Rule[] = [
             : { location: { file: path, line: 1 } }),
         });
       }
+
       return stale;
     },
   },
@@ -693,21 +820,33 @@ const OWN_RULES: readonly Rule[] = [
       "`supabase/config.toml` has no `[experimental.pgdelta] enabled = true`, so the Supabase CLI diffs `supabase/schemas` with migra, which drops grants, comments and security-invoker views and needs the stack stopped. New projects from `supabase init` use pg-delta. Setting `sql.workflow` to `migra` or `migrations` silences it.",
     check: (context) => {
       const toml = context.configToml;
-      if (toml === undefined || diffEngine(toml) === "pg-delta") return [];
+
+      if (toml === undefined || diffEngine(toml) === "pg-delta") {
+        return [];
+      }
+
       if (
         context.config.sql.workflow !== undefined &&
         context.config.sql.workflow !== "pg-delta"
-      )
+      ) {
         return [];
+      }
+
       const schemas = `${toml.dir}/schemas/`;
+
       const declarative =
         context.config.blockNames.length > 0 ||
         (context.sqlFiles ?? []).some((file) => file.path.startsWith(schemas));
-      if (!declarative) return [];
+
+      if (!declarative) {
+        return [];
+      }
+
       const keep =
         context.config.sql.workflow === undefined
           ? ' To stay on migra, set `sql.workflow: "migra"` in better-supabase.config.ts.'
           : "";
+
       return [
         {
           message: `${toml.path} uses the legacy migra engine. Add \`[experimental.pgdelta]\` with \`enabled = true\`, remove \`[db.migrations] schema_paths\`, and create migrations with \`supabase db schema declarative sync\` instead of \`supabase db diff\`.${keep}`,
@@ -725,10 +864,12 @@ const OWN_RULES: readonly Rule[] = [
       "A table in `realtime.tables` has no `bs_realtime` trigger, so live queries never hear about its changes.",
     check: (context) => {
       const tables = catalogOf(context).tables;
+
       return context.config.realtime.tables.flatMap((name) => {
         const table = tables.find(
           (entry) => entry.name === name || qualified(entry) === name,
         );
+
         if (!table) {
           return [
             {
@@ -737,12 +878,15 @@ const OWN_RULES: readonly Rule[] = [
             },
           ];
         }
+
         if (
           table.triggers.some((trigger) =>
             trigger.name.startsWith("bs_realtime"),
           )
-        )
+        ) {
           return [];
+        }
+
         return [
           {
             message: `${qualified(table)} is in realtime.tables but has no broadcast trigger. Run \`better-supabase sql add realtime-tables\`, then \`${migrationCommand(workflowOf(context))}\`.`,
@@ -761,6 +905,7 @@ const OWN_RULES: readonly Rule[] = [
       "Tables in the `supabase_realtime` publication send the replica identity of deleted rows. With `nothing`, or `default` without a primary key, delete events carry no keys and clients cannot tell which row went away.",
     check: (context) => {
       const published = new Set(catalogOf(context).realtime);
+
       return catalogOf(context)
         .tables.filter(
           (table) =>
@@ -791,17 +936,24 @@ const OWN_RULES: readonly Rule[] = [
     description:
       "Server instances refreshing the same session at once need a reuse interval, or all but one of them sign the user out.",
     check: (context) => {
-      if (!context.configToml) return [];
+      if (!context.configToml) {
+        return [];
+      }
+
       const rotation = authSetting(context, "enable_refresh_token_rotation");
       const interval = authSetting(context, "refresh_token_reuse_interval");
+
       if (
         rotation === false ||
         rotation === "false" ||
         interval === undefined ||
         Number(interval) > 0
-      )
+      ) {
         return [];
+      }
+
       const location = tomlLocation(context, "refresh_token_reuse_interval");
+
       return [
         {
           message:
@@ -819,10 +971,18 @@ const OWN_RULES: readonly Rule[] = [
     description:
       "Tokens are verified locally without an auth call, so a revoked session stays valid until the token expires.",
     check: (context) => {
-      if (!context.configToml) return [];
+      if (!context.configToml) {
+        return [];
+      }
+
       const expiry = Number(authSetting(context, "jwt_expiry") ?? 3600);
-      if (expiry <= 3600) return [];
+
+      if (expiry <= 3600) {
+        return [];
+      }
+
       const location = tomlLocation(context, "jwt_expiry");
+
       return [
         {
           message: `jwt_expiry is ${expiry}s. Keep it at 3600 or less; sessions refresh in the proxy.`,
@@ -844,9 +1004,12 @@ const OWN_RULES: readonly Rule[] = [
         authSetting(context, "signing_keys_path") ||
         // Supabase Lite signs with its jwt_secret and has no asymmetric keys.
         tomlGet(context.configToml.document, ["db", "driver"]) !== undefined
-      )
+      ) {
         return [];
+      }
+
       const location = tomlLocation(context, "signing_keys_path");
+
       return [
         {
           message:
@@ -914,25 +1077,31 @@ const OWN_RULES: readonly Rule[] = [
         .split("\n")
         .map((line) => line.trim())
         .filter((line) => line.length > 0 && !line.startsWith("#"));
+
       const ignored = (path: string): boolean =>
         patterns.some((pattern) => {
           const source = pattern
             .replace(/^\//, "")
             .replaceAll(/[.+^${}()|[\]\\]/g, "\\$&")
             .replaceAll("*", ".*");
+
           return (
             new RegExp(`^${source}$`).test(path) ||
             new RegExp(`(^|/)${source}$`).test(path)
           );
         });
+
       return context.envFiles.flatMap((file) => {
         const secret = envEntries(file).find(
           (entry) =>
             entry.value.startsWith("sb_secret_") ||
             /SECRET_KEY|SERVICE_ROLE|DB_URL|DATABASE_URL/.test(entry.key),
         );
-        if (!secret || ignored(file.path) || file.path.endsWith(".example"))
+
+        if (!secret || ignored(file.path) || file.path.endsWith(".example")) {
           return [];
+        }
+
         return [
           {
             message: `${file.path} contains ${secret.key} but isn't in .gitignore.`,
@@ -969,13 +1138,16 @@ export async function runRules(
 ): Promise<Finding[]> {
   const findings: Finding[] = [];
   const scoped = { ...context, codes: rules.map((rule) => rule.code) };
+
   for (const rule of rules) {
     const help = `${DOCS_URL}#${rule.code.toLowerCase()}`;
     const skipped = skippedForMetadata(context.snapshot, rule, help);
+
     if (skipped) {
       findings.push(skipped);
       continue;
     }
+
     for (const input of await rule.check(scoped)) {
       findings.push({
         code: rule.code,
@@ -986,5 +1158,6 @@ export async function runRules(
       });
     }
   }
+
   return findings;
 }

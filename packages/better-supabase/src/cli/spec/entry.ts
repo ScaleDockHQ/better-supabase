@@ -46,14 +46,21 @@ function isApi(value: unknown): value is ApiLike {
 
 /** The format id of a finished document (`{ openapi: "3.1.0", ... }` is `openapi`). */
 export function documentFormatId(value: unknown): string | undefined {
-  if (!isRecord(value)) return undefined;
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
   return DOCUMENT_KEYS.find((key) => typeof value[key] === "string");
 }
 
 async function settle(value: unknown): Promise<unknown> {
-  if (typeof value !== "function") return value;
+  if (typeof value !== "function") {
+    return value;
+  }
+
   // SAFETY: an exported function takes no arguments and returns the value.
   const result: unknown = await (value as () => unknown)();
+
   return result;
 }
 
@@ -64,26 +71,48 @@ async function settle(value: unknown): Promise<unknown> {
  * document formats and `cacheKey` adds to the cache key.
  */
 export async function loadSpecEntry(path: string): Promise<SpecEntry> {
-  if (!existsSync(path)) throw new Error(`Module not found: ${path}`);
+  if (!existsSync(path)) {
+    throw new Error(`Module not found: ${path}`);
+  }
+
   const loaded = await importFresh(path);
   const formats: AnyDocumentFormat[] = [];
   const exportedFormats = await settle(loaded["formats"]);
-  if (Array.isArray(exportedFormats))
-    for (const format of exportedFormats)
-      if (isDocumentFormat(format)) formats.push(format);
+
+  if (Array.isArray(exportedFormats)) {
+    for (const format of exportedFormats) {
+      if (isDocumentFormat(format)) {
+        formats.push(format);
+      }
+    }
+  }
+
   const cacheKey =
     typeof loaded["cacheKey"] === "string" ? loaded["cacheKey"] : undefined;
+
   const base = { formats, ...(cacheKey === undefined ? {} : { cacheKey }) };
 
   const api = await settle(loaded["api"] ?? loaded["default"]);
-  if (isApi(api)) return { ...base, api, documents: new Map() };
+
+  if (isApi(api)) {
+    return { ...base, api, documents: new Map() };
+  }
 
   const documents = new Map<string, unknown>();
+
   for (const key of DOCUMENT_KEYS) {
     const document = await settle(loaded[key]);
-    if (documentFormatId(document) === key) documents.set(key, document);
+
+    if (documentFormatId(document) === key) {
+      documents.set(key, document);
+    }
   }
+
   const fallback = documentFormatId(api);
-  if (fallback && !documents.has(fallback)) documents.set(fallback, api);
+
+  if (fallback && !documents.has(fallback)) {
+    documents.set(fallback, api);
+  }
+
   return { ...base, documents };
 }

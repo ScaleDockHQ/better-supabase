@@ -21,6 +21,7 @@ describe("defineSeed", () => {
       },
       organizations: { one: { id: "o1", name: "One", slug: "one" } },
     });
+
     expect(isSeed(seed)).toBe(true);
     const [organizations, customers] = seed.statements();
     expect(organizations).toBe(
@@ -41,11 +42,13 @@ describe("defineSeed", () => {
         one: { organizationId: "o1", name: "x", kvk: null },
       },
     }).sql();
+
     expect(sql).toContain("('o1', 'x', null)");
 
     const bad = defineSeed(betterSupabase, {
       organizations: { bad: { id: "o1", name: "x", nope: 1 } as never },
     });
+
     expect(() => bad.statements()).toThrow('unknown column "nope"');
   });
 
@@ -57,6 +60,7 @@ describe("defineSeed", () => {
       hasDefault: false,
       ...extra,
     });
+
     const fake = {
       meta: {
         version: 1,
@@ -82,6 +86,7 @@ describe("defineSeed", () => {
         },
       },
     };
+
     const sql = defineSeed(
       fake as never,
       {
@@ -94,6 +99,7 @@ describe("defineSeed", () => {
         },
       } as never,
     ).sql();
+
     expect(sql).toContain(
       `('{"a \\"b\\"","c\\\\d",NULL}', '2026-01-02T03:04:05Z', '["kept","as json"]')`,
     );
@@ -113,6 +119,7 @@ describe("defineSeed literals and ordering", () => {
     hasDefault: false,
     ...extra,
   });
+
   const table = (key: string, extra: object = {}) => ({
     key,
     name: key,
@@ -125,6 +132,7 @@ describe("defineSeed literals and ordering", () => {
     columns: { value: column("value"), id: column("id") },
     ...extra,
   });
+
   const forward = (target: string) => ({
     table: target,
     direction: "forward",
@@ -132,6 +140,7 @@ describe("defineSeed literals and ordering", () => {
     columns: [],
     references: [],
   });
+
   const fakeSb = {
     meta: {
       version: 1,
@@ -154,8 +163,10 @@ describe("defineSeed literals and ordering", () => {
       },
     },
   };
+
   const render = (fixtures: object) =>
     defineSeed(fakeSb as never, fixtures as never);
+
   const value = (input: unknown) =>
     render({ values: { one: { value: input } } }).sql();
 
@@ -208,6 +219,7 @@ describe("defineSeed literals and ordering", () => {
       render(fixtures)
         .statements()
         .map((text) => /"app"\."(\w+)"/.exec(text)?.[1]);
+
     const row = { r: { value: "x" } };
     expect(tables({ c: row, a: row, b: row })).toEqual(["b", "a", "c"]);
     expect(tables({ a: row, b: row })).toEqual(["b", "a"]);

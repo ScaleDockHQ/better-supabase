@@ -9,6 +9,7 @@ import { schema } from "../fixtures/generated-camel.ts";
 import { deepFreeze } from "./helpers.ts";
 
 const betterSupabase = defineSupabase(schema);
+
 const options = {
   info: { title: "CRM", version: "1.0.0" },
   resources: { customers: true, notes: { operations: ["list", "get"] } },
@@ -61,6 +62,7 @@ describe("defineApi", () => {
           info: { ...options.info },
         }).openapi({ version: "3.2" }).document,
       );
+
     expect(text()).toBe(text());
   });
 
@@ -72,35 +74,44 @@ describe("defineApi", () => {
       ],
       fragments: [{ info: { description: "From a fragment" } }],
     });
+
     deepFreeze(api.model);
-    for (const version of ["3.0", "3.1", "3.2", "3.3-preview"] as const)
+
+    for (const version of ["3.0", "3.1", "3.2", "3.3-preview"] as const) {
       expect(() => api.openapi({ version })).not.toThrow();
+    }
   });
 
   it("passes a typed copy to transform and keeps its return value", () => {
     const api = defineApi(betterSupabase, options);
+
     const result = api.render(openapiFormat, {
       version: "3.2",
       transform: (rendered) => {
         expect(rendered.format).toBe("openapi");
+
         if (rendered.version === "3.2") {
           return {
             ...rendered.document,
             info: { ...rendered.document.info, title: "Renamed" },
           };
         }
+
         return;
       },
     });
+
     expect(result.document.info.title).toBe("Renamed");
     expect(api.openapi({ version: "3.2" }).document.info.title).toBe("CRM");
 
     const inPlace = api.openapi({
       transform: (rendered) => {
         Object.assign(rendered.document, { "x-edited": true });
+
         return;
       },
     });
+
     expect(inPlace.document["x-edited"]).toBe(true);
   });
 
@@ -114,6 +125,7 @@ describe("defineApi", () => {
         ],
       }),
     });
+
     const result = api.openapi({ overlays: [{}, {}] });
     expect(result.document["x-overlays"]).toBe(2);
     expect(result.diagnostics).toContainEqual(
@@ -122,15 +134,18 @@ describe("defineApi", () => {
     expect(() =>
       defineApi(betterSupabase, options).openapi({ overlays: [{}] }),
     ).toThrow("overlays need applyOverlays");
+
     const own = api.openapi({
       overlays: [{}],
       applyOverlays: (document) => ({ document }),
     });
+
     expect(own.document["x-overlays"]).toBeUndefined();
   });
 
   it("runs the format's lint after transform", () => {
     const api = defineApi(betterSupabase, options);
+
     const result = api.openapi({
       transform: (rendered) => {
         Object.assign(rendered.document, {
@@ -138,6 +153,7 @@ describe("defineApi", () => {
         });
       },
     });
+
     expect(result.diagnostics).toContainEqual(
       expect.objectContaining({
         code: "security-unresolved",
@@ -155,13 +171,16 @@ describe("defineApi", () => {
       },
       defaultVersion: "1",
       lower: (model, version, ctx) => {
-        if (version === "2-preview")
+        if (version === "2-preview") {
           ctx.report({ code: "c", severity: "info", message: "m" });
+        }
+
         return { operations: model.operations.length };
       },
       lint: () => [{ code: "c", severity: "info", message: "m" }],
       fileName: (version) => `count-${version}.json`,
     });
+
     const api = defineApi(betterSupabase, options);
     const result = api.render(counter);
     expect(result).toMatchObject({

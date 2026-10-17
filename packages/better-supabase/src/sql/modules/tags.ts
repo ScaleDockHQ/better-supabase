@@ -106,21 +106,29 @@ function links(ctx: ModuleContext) {
 
 function kindsOf(extra: Readonly<Record<string, unknown>>): readonly string[] {
   const value = extra["kinds"];
-  if (value === undefined) return [];
+
+  if (value === undefined) {
+    return [];
+  }
+
   if (!Array.isArray(value)) {
     throw new TypeError(
       "blocks.tags.options.subjects.<type>.kinds must be a list of strings",
     );
   }
+
   const kinds: string[] = [];
+
   for (const item of value) {
     if (typeof item !== "string" || item.length === 0) {
       throw new TypeError(
         "blocks.tags.options.subjects.<type>.kinds must be a list of strings",
       );
     }
+
     kinds.push(item);
   }
+
   return kinds;
 }
 
@@ -137,15 +145,21 @@ function untagBody(
         and g.${ctx.col("taggings", "tag")} = untag.tag_id
         and g.${ctx.col("taggings", "subjectType")} = untag.subject_type
         and g.${ctx.col("taggings", "subjectId")} = untag.subject_id;`;
-  if (bound.length === 0) return polymorphic;
+
+  if (bound.length === 0) {
+    return polymorphic;
+  }
+
   const whens = bound
     .map((link) => {
       const subject = link.columns["subject"] ?? "subject";
       const tagCol = link.columns["tag"] ?? "tag";
+
       return `    when ${sqlString(link.type)} then
       delete from ${link.qualified} l where l.${sqlIdent(subject)}::text = untag.subject_id and l.${sqlIdent(tagCol)} = untag.tag_id;`;
     })
     .join("\n");
+
   return `case untag.subject_type
 ${whens}
     else
@@ -154,7 +168,10 @@ ${whens}
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
   const tags = ctx.table("tags");
   const taggings = ctx.hasTable("taggings") ? ctx.table("taggings") : "";
   const id = ctx.col("tags", "id");
@@ -177,6 +194,7 @@ function build(ctx: ModuleContext): string {
   const shared = ctx.scope.kind !== "tenant";
   const extras = ctx.extraColumns("tags", RESERVED);
   const extra = extraFieldsArg(extras);
+
   const tables = ctx.manages
     ? `create table if not exists ${tags} (
   ${id} uuid primary key default gen_random_uuid(),
@@ -202,28 +220,35 @@ create table if not exists ${taggings} (
 ${lockTable(taggings, { read: true })}
 `
     : "";
+
   const apply = bound
     .map((link) => {
       const subject = list.find(([type]) => type === link.type)?.[1];
       const tenantCol = link.columns["tenant"];
       const created = link.columns["createdAt"];
+
       return `    when ${sqlString(link.type)} then
       insert into ${link.qualified} (${sqlIdent(link.columns["subject"] ?? "subject")}, ${sqlIdent(link.columns["tag"] ?? "tag")}${tenantCol ? `, ${sqlIdent(tenantCol)}` : ""}${created ? `, ${sqlIdent(created)}` : ""})
       values (tag.subject_id${subject?.idType ? `::${subject.idType}` : ""}, tag.tag_id${tenantCol ? ", tag.tenant" : ""}${created ? ", now()" : ""})
       on conflict do nothing;`;
     })
     .join("\n");
+
   const kindCase = list
     .map(([type, subject]) => {
       const allowed = kindsOf(subject.extra);
+
       const check =
         allowed.length === 0
           ? "true"
           : `v_kind = any (${sqlString(`{${allowed.join(",")}}`)}::text[])`;
+
       return `    when ${sqlString(type)} then ${check}`;
     })
     .join("\n");
+
   const fn = (value: string): string => ctx.fn(value);
+
   return `${schemaPreamble(ctx)}
 ${tables}
 -- fields: the extra columns (blocks.tags.options.extraColumns) to set.
@@ -468,6 +493,7 @@ function tagJson(
 ): string {
   const col = (logical: string): string =>
     `${alias}.${ctx.col("tags", logical)}`;
+
   return `jsonb_build_object('id', ${col("id")}, 'kind', ${col("kind")}, 'name', ${col("name")}, 'slug', ${col("slug")}, 'color', ${col("color")}, 'description', ${col("description")}${ctx.has("tags", "rank") ? `, 'rank', ${col("rank")}` : ""}${extraFieldsJson(alias, extras)})`;
 }
 
@@ -484,15 +510,21 @@ function subjectTagIds(
       where ${ctx.scope.eq(`g.${ctx.col("taggings", "tenant")}`, "subject_tags.tenant")}
         and g.${ctx.col("taggings", "subjectType")} = subject_tags.subject_type
         and g.${ctx.col("taggings", "subjectId")} = subject_tags.subject_id;`;
-  if (bound.length === 0) return polymorphic;
+
+  if (bound.length === 0) {
+    return polymorphic;
+  }
+
   const whens = bound
     .map((link) => {
       const subject = link.columns["subject"] ?? "subject";
       const tagCol = link.columns["tag"] ?? "tag";
+
       return `    when ${sqlString(link.type)} then
       select array_agg(l.${sqlIdent(tagCol)}) into v_ids from ${link.qualified} l where l.${sqlIdent(subject)}::text = subject_tags.subject_id;`;
     })
     .join("\n");
+
   return `case subject_tags.subject_type
 ${whens}
     else
@@ -502,6 +534,7 @@ ${whens}
 
 function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   const extra = extraFieldsArg(ctx.extraColumns("tags", RESERVED)).contract;
+
   return [
     {
       name: "create_tag",
@@ -532,6 +565,7 @@ interface RankTagNames {
 
 function rankTag(ctx: ModuleContext, names: RankTagNames): string {
   const { tags, id, tenant, rank, updatedAt, manage } = names;
+
   return `
 -- Sets a tag's rank key, from rankBetween over its neighbours' keys.
 create or replace function ${ctx.fn("rank_tag")}(tag_id uuid, rank text)
@@ -578,9 +612,13 @@ export const TAGS: ModuleDefinition = {
       description:
         "Tags order by a fractional rank key instead of an integer position; rank_tag sets it.",
       sql: (ctx) => {
-        if (!ctx.manages) return "";
+        if (!ctx.manages) {
+          return "";
+        }
+
         const tags = ctx.table("tags");
         const rank = ctx.col("tags", "rank");
+
         return `alter table ${tags} add column if not exists ${rank} text collate "C";
 ${rankBackfill({
   table: tags,

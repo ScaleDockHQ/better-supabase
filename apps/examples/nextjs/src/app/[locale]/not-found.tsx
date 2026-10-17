@@ -14,6 +14,7 @@ import { Link } from "@/i18n/navigation";
 
 export default function NotFound() {
   const t = useExtracted("app");
+
   return (
     <main className="flex min-h-svh items-center justify-center p-6">
       <Empty>

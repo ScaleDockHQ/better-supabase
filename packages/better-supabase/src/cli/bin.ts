@@ -22,8 +22,11 @@ const prompts: Prompter = {
     let stop: (() => void) | undefined;
     let stopped = false;
     void clack().then((prompter) => {
-      if (!stopped) stop = prompter.spinner(message);
+      if (!stopped) {
+        stop = prompter.spinner(message);
+      }
     });
+
     return () => {
       stopped = true;
       stop?.();
@@ -32,9 +35,11 @@ const prompts: Prompter = {
 };
 
 const controller = new AbortController();
+
 process.once("SIGINT", () => {
   controller.abort();
 });
+
 process.once("SIGTERM", () => {
   controller.abort();
 });

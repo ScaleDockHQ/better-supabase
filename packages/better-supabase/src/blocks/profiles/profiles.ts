@@ -61,11 +61,13 @@ export function createProfiles<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: ProfilesOptions<S>): Profiles<FieldsOf<S>> {
   applyTemporal(options);
+
   const run = blockCall(
     options.transport,
     options.schema,
     options.mappers ?? [],
   );
+
   const fields: BlockFields<FieldsOf<S>> = blockFields(
     options.fields,
     "profile fields",
@@ -85,6 +87,7 @@ export function createProfiles<
       );
     },
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "profiles",
     ...(options.logger ? { logger: options.logger } : {}),

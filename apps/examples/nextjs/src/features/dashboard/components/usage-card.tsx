@@ -25,17 +25,26 @@ export function UsageCard() {
   const t = useExtracted("dashboard");
   const format = useFormatter();
   const organizationId = tenantOf(useAuth()) ?? null;
+
   const { meters } = useUsageMeter({
     organizationId,
     meters: ["api.calls", "customers.created"],
     schema: API_SCHEMA,
   });
-  if (!organizationId) return null;
-  if (meters === undefined) return <UsageCardSkeleton />;
+
+  if (!organizationId) {
+    return null;
+  }
+
+  if (meters === undefined) {
+    return <UsageCardSkeleton />;
+  }
+
   const labels = new Map([
     ["api.calls", t("API calls")],
     ["customers.created", t("Customers added")],
   ]);
+
   return (
     <Card data-testid="usage">
       <CardHeader>
@@ -69,7 +78,7 @@ export function UsageCard() {
               </span>
             </div>
             <Progress value={(meter.fraction ?? 0) * 100} />
-            <p className="text-muted-foreground text-xs">
+            <p className="text-xs text-muted-foreground">
               {t("Resets {date}", {
                 date: format.dateTime(
                   new Date(meter.resetsAt.epochMilliseconds),

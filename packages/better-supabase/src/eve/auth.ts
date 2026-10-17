@@ -13,10 +13,13 @@ export class EveAuthRejection extends Error {
 
   constructor(message: string, status = 401) {
     super(message);
-    this.response = new Response(JSON.stringify({ error: message }), {
-      status,
-      headers: { "content-type": "application/json" },
-    });
+    this.response = Response.json(
+      { error: message },
+      {
+        status,
+        headers: { "content-type": "application/json" },
+      },
+    );
   }
 }
 
@@ -40,11 +43,16 @@ function rolesIn(
   claim: string,
 ): readonly string[] {
   const memberships = claims[claim];
+
   const strings = (value: unknown): string[] =>
     Array.isArray(value)
       ? value.filter((role): role is string => typeof role === "string")
       : [];
-  if (tenantId === undefined) return [];
+
+  if (tenantId === undefined) {
+    return [];
+  }
+
   if (Array.isArray(memberships)) {
     return [
       ...new Set(
@@ -56,6 +64,7 @@ function rolesIn(
       ),
     ];
   }
+
   return isRecord(memberships) ? strings(memberships[tenantId]) : [];
 }
 
@@ -67,13 +76,19 @@ export function principalOf(
     "tenantClaim" | "membershipsClaim" | "attributes"
   > = {},
 ): EveSessionAuth | null {
-  if (auth.kind !== "user") return null;
+  if (auth.kind !== "user") {
+    return null;
+  }
+
   const claims: Readonly<Record<string, unknown>> = auth.claims;
   let tenantId: string | undefined;
+
   for (const path of tenantClaimPaths(options.tenantClaim)) {
     tenantId ??= claimAt(claims, path);
   }
+
   const issuer = typeof claims["iss"] === "string" ? claims["iss"] : undefined;
+
   return {
     authenticator: "supabase",
     principalType: "user",
@@ -103,8 +118,11 @@ export function supabaseAuth(
 ): (request: Request) => Promise<EveSessionAuth | null> {
   return async (request) => {
     const { auth } = await resolveAuth(request, options);
-    if (auth.kind === "invalid")
+
+    if (auth.kind === "invalid") {
       throw new EveAuthRejection("The Supabase session is not valid");
+    }
+
     return principalOf(auth, options);
   };
 }

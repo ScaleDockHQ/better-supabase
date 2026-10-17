@@ -38,12 +38,16 @@ export async function watching(
   types: Readonly<Record<string, keyof typeof NOTIFICATION_TYPES>> = WATCHED,
 ) {
   await s.client.query("reset role");
+
   const [latest] = await s.rows<{ after: string }>(
     "select coalesce(max(position), 0)::text as after from better_supabase.outbox_events",
   );
+
   const after = latest!.after;
+
   const read = async () => {
     await s.client.query("reset role");
+
     const rows = await s.rows<OutboxRow>(
       `select position::text, id::text, type, payload, source, subject,
               organization_id::text as tenant, actor_id::text, created_at::text
@@ -51,6 +55,7 @@ export async function watching(
        where position > $1::bigint order by position`,
       [after],
     );
+
     return rows.map((row) => ({
       position: Number(row.position),
       id: row.id,
@@ -64,12 +69,14 @@ export async function watching(
       createdAt: Temporal.Instant.from(row.created_at),
     }));
   };
+
   return {
     /** Sends the new events through the watcher handler, as the relay route does. */
     async relay(): Promise<number> {
       const events = await read();
       await s.service();
       await watcherHandler(notificationsFor(s), { types })(events);
+
       return events.length;
     },
     /** Sends the new events to an outbox sink as CloudEvents, as `outbox.relay` does. */
@@ -113,6 +120,7 @@ export async function workspace(
   const [row] = await s.rows<{ id: string }>(insert, [organizationId]);
   const subjectId = row!.id;
   await s.watch(member, organizationId, subjectType, subjectId);
+
   return { owner, member, organizationId, subjectId };
 }
 
@@ -123,6 +131,7 @@ export async function received(
   subjectId: string,
 ): Promise<string[]> {
   await s.client.query("reset role");
+
   const rows = await s.rows<{ type: string }>(
     `select e.type from better_supabase.notification_events e
      join better_supabase.notification_recipients r on r.event_id = e.id
@@ -130,5 +139,6 @@ export async function received(
      order by e.type`,
     [user.id, subjectId],
   );
+
   return rows.map((row) => row.type);
 }

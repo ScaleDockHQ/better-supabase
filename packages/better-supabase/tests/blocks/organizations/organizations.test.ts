@@ -23,12 +23,14 @@ function fake(results: Record<string, unknown>): {
   calls: Call[];
 } {
   const calls: Call[] = [];
+
   return {
     calls,
     transport: {
       call(schema, fn, args) {
         calls.push({ schema, fn, args });
         const value = results[fn];
+
         return value instanceof Error
           ? Promise.reject(value)
           : Promise.resolve(value ?? null);
@@ -58,10 +60,12 @@ describe("createOrganizations", () => {
       create_organization: "org-1",
       invite_member: invitationRow,
     });
+
     const organizations = createOrganizations({
       transport,
       schema: { organizations: "public", invitations: "block" },
     });
+
     expect(
       await organizations.create({ name: "Acme", slug: "acme" }),
     ).toMatchObject({
@@ -109,10 +113,12 @@ describe("createOrganizations", () => {
     const { transport } = fake({
       remove_member: pgError("42501", "ORGANIZATION_FORBIDDEN"),
     });
+
     const result = await createOrganizations({ transport }).removeMember(
       "organization",
       "user",
     );
+
     expect(result).toMatchObject({
       ok: false,
       error: {
@@ -127,6 +133,7 @@ describe("createOrganizations", () => {
     const { transport } = fake({
       leave_organization: pgError("P0001", "ORGANIZATION_OWNER_REQUIRED"),
     });
+
     const result = await createOrganizations({
       transport,
       mappers: [
@@ -136,6 +143,7 @@ describe("createOrganizations", () => {
             : undefined,
       ],
     }).leave("organization");
+
     expect(result).toMatchObject({
       ok: false,
       error: { message: "Transfer ownership first" },
@@ -144,9 +152,11 @@ describe("createOrganizations", () => {
 
   it("turns other failures into unexpected errors", async () => {
     const { transport } = fake({ mark_used: new Error("socket closed") });
+
     const result = await createOrganizations({ transport }).markUsed(
       "organization",
     );
+
     expect(result).toMatchObject({
       ok: false,
       error: { kind: "unexpected", message: "socket closed" },
@@ -156,11 +166,13 @@ describe("createOrganizations", () => {
   it("refuses an invitation when canInvite says no", async () => {
     const { transport, calls } = fake({});
     const canInvite = vi.fn(() => false);
+
     const result = await createOrganizations({ transport, canInvite }).invite({
       organizationId: "org-1",
       email: "ada@example.com",
       role: "admin",
     });
+
     expect(result).toMatchObject({
       ok: false,
       error: { kind: "forbidden", hint: "INVITATION_FORBIDDEN" },
@@ -183,21 +195,25 @@ describe("createOrganizations", () => {
         roleLabel: "Member",
       },
     });
+
     const events = new EventHub();
     const seen: BlockEvent[] = [];
     events.on("block", (event) => seen.push(event));
     const onInvite = vi.fn();
+
     const organizations = createOrganizations({
       transport,
       events,
       actorId: "user-1",
       onInvite,
     });
+
     const result = await organizations.invite({
       organizationId: "org-1",
       email: "ada@example.com",
       role: "member",
     });
+
     expect(result.ok && result.data.token).toBe("secret");
     expect(result.ok && result.data.invitation).toMatchObject({
       id: "inv-1",
@@ -243,13 +259,16 @@ describe("createOrganizations", () => {
         role: "admin",
       },
     });
+
     const events = new EventHub();
     const seen: BlockEvent[] = [];
     events.on("block", (event) => seen.push(event));
     const organizations = createOrganizations({ transport, events });
+
     const updated = await organizations
       .updateInvitation("inv-1", { email: "grace@example.com", role: "admin" })
       .orThrow();
+
     expect(updated).toMatchObject({
       id: "inv-1",
       email: "grace@example.com",
@@ -282,12 +301,14 @@ describe("createOrganizations", () => {
 
   it("returns an error when onInvite throws", async () => {
     const { transport } = fake({ invite_member: invitationRow });
+
     const result = await createOrganizations({
       transport,
       onInvite: () => {
         throw new Error("mail down");
       },
     }).invite({ organizationId: "org-1", email: "a@b.c", role: "member" });
+
     expect(result).toMatchObject({
       ok: false,
       error: { message: "mail down" },
@@ -304,14 +325,17 @@ describe("createOrganizations", () => {
       accept_invitation: "org-1",
       revoke_invitation: false,
     });
+
     const events = new EventHub();
     const seen: string[] = [];
     events.on("block", (event) => seen.push(event.type));
+
     const organizations = createOrganizations({
       transport,
       events,
       actorId: "user-1",
     });
+
     await organizations.update("org-1", { name: "Acme" });
     await organizations.updateMemberRole("org-1", "user-2", "admin");
     await organizations.transferOwnership("org-1", "user-2");
@@ -349,14 +373,17 @@ describe("createOrganizations", () => {
       decline_invitation: true,
       invitation_preview: null,
     });
+
     const events = new EventHub();
     const seen: string[] = [];
     events.on("block", (event) => seen.push(event.type));
+
     const organizations = createOrganizations({
       transport,
       events,
       actorId: "user-1",
     });
+
     expect(await organizations.removeMember("org-1", "user-2")).toMatchObject({
       ok: true,
       data: true,
@@ -405,6 +432,7 @@ describe("createOrganizations", () => {
         branding: { color: "#123456" },
       },
     });
+
     const organizations = createOrganizations({ transport });
     expect(await organizations.slugProblem("acme")).toMatchObject({
       ok: true,
@@ -436,7 +464,9 @@ describe("createOrganizations", () => {
       invitation_preview: { status: "lost" },
       switch_organization: "org-1",
     });
+
     const organizations = createOrganizations({ transport });
+
     for (const result of [
       await organizations.slugProblem("x"),
       await organizations.previewInvitation("x"),
@@ -453,10 +483,12 @@ describe("createOrganizations", () => {
 describe("sqlTransport", () => {
   it("calls the function with named arguments", async () => {
     const queryRaw = vi.fn(() => Promise.resolve([{ value: "org-1" }]));
+
     const transport = sqlTransport({
       queryRaw,
       query: vi.fn(),
     } as unknown as Parameters<typeof sqlTransport>[0]);
+
     expect(
       await transport.call("better_supabase", "create_organization", {
         attrs: { name: "Acme" },
@@ -474,6 +506,7 @@ describe("sqlTransport", () => {
     const transport = sqlTransport({
       queryRaw: () => Promise.resolve([]),
     });
+
     expect(await transport.call("s", "f", {})).toBeNull();
   });
 });
@@ -515,6 +548,7 @@ describe("rpcTransport", () => {
           }),
       }),
     });
+
     const organizations = createOrganizations({ transport });
     expect(await organizations.leave("organization")).toMatchObject({
       ok: false,
@@ -543,6 +577,7 @@ describe("invitations by id", () => {
       accept_invitation_by_id: "org-1",
       decline_invitation_by_id: true,
     });
+
     const organizations = createOrganizations({ transport });
     const mine = await organizations.myInvitations().orThrow();
     expect(mine).toHaveLength(1);
@@ -583,6 +618,7 @@ describe("organization reads", () => {
         },
       ],
     });
+
     const organizations = createOrganizations({ transport });
     expect(await organizations.mine().orThrow()).toEqual([
       { id: "org-1", name: "Acme", slug: "acme", role: "owner" },
@@ -611,6 +647,7 @@ describe("membership suspension", () => {
       suspend_member: true,
       resume_member: false,
     });
+
     const events = new EventHub();
     const seen: string[] = [];
     events.on("block", (event) => seen.push(event.type));
@@ -634,10 +671,12 @@ describe("membership suspension", () => {
     const { transport } = fake({
       suspend_member: pgError("23514", "ORGANIZATION_OWNER_REQUIRED"),
     });
+
     const result = await createOrganizations({ transport }).suspendMember(
       "org-1",
       "user-1",
     );
+
     expect(result).toMatchObject({
       ok: false,
       error: { hint: "ORGANIZATION_OWNER_REQUIRED" },
@@ -663,6 +702,7 @@ describe("membership suspension", () => {
         },
       ],
     });
+
     const organizations = createOrganizations({ transport });
     const [membership] = await organizations.mine().orThrow();
     expect(membership?.disabledAt?.toString()).toBe("2026-10-08T10:00:00Z");
@@ -689,6 +729,7 @@ describe("organization fields and hooks", () => {
         },
       ],
     });
+
     const organizations = createOrganizations({ transport, fields: Fields });
     const [acme] = await organizations.mine().orThrow();
     expect(acme).toEqual({
@@ -707,6 +748,7 @@ describe("organization fields and hooks", () => {
         { id: "o", name: "A", role: "owner", attributes: { plan: "gold" } },
       ],
     });
+
     const organizations = createOrganizations({ transport, fields: Fields });
     expect(await organizations.mine()).toMatchObject({
       ok: false,
@@ -719,6 +761,7 @@ describe("organization fields and hooks", () => {
       create_organization: "org-1",
       update_organization: null,
     });
+
     const organizations = createOrganizations({ transport, fields: Fields });
     expect(
       await organizations.create({ name: "Acme", plan: "gold" as "pro" }),
@@ -736,6 +779,7 @@ describe("organization fields and hooks", () => {
   it("lets a before hook refuse invite, and observes results after", async () => {
     const { transport, calls } = fake({ invite_member: invitationRow });
     const seen: unknown[] = [];
+
     const organizations = createOrganizations({
       transport,
       hooks: {
@@ -750,6 +794,7 @@ describe("organization fields and hooks", () => {
         },
       },
     });
+
     expect(
       await organizations.invite({
         organizationId: "org-1",

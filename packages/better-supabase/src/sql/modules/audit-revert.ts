@@ -18,26 +18,38 @@ export function revert(ctx: ModuleContext, restricted: boolean): string {
   const snapshots = restricted
     ? hasColumn(ctx, "restricted", "old") && hasColumn(ctx, "restricted", "new")
     : hasColumn(ctx, "log", "old") && hasColumn(ctx, "log", "new");
+
   const needed = ["table", "op"].every((logical) =>
     hasColumn(ctx, "log", logical),
   );
-  if (!snapshots || !needed || !ctx.installed("access")) return "";
+
+  if (!snapshots || !needed || !ctx.installed("access")) {
+    return "";
+  }
+
   const log = ctx.table("log");
   const c = (logical: string) => ctx.col("log", logical);
+
   const snapshot = (logical: "old" | "new") =>
     restricted ? `d.${ctx.col("restricted", logical)}` : `l.${c(logical)}`;
+
   const join = restricted
     ? `left join ${ctx.table("restricted")} d on d.${ctx.col("restricted", "entry")} = l.${c("id")}`
     : "";
+
   const changed = hasColumn(ctx, "log", "changed")
     ? `to_jsonb(l.${c("changed")})`
     : "null::jsonb";
+
   const correlated = hasColumn(ctx, "log", "correlationId");
   const key = ctx.permission("revert", OPERATIONS["audit.revert"]);
+
   const mayRead = restricted
     ? ` and coalesce(better_supabase.member_can(auth.uid(), l.${c("tenant")}, ${ctx.permission("reveal", ctx.permissionKey("view", OPERATIONS["audit.view"]))}), false)`
     : "";
+
   const target = `to_regclass(quote_ident(split_part(l.${c("table")}, '.', 1)) || '.' || quote_ident(split_part(l.${c("table")}, '.', 2)))`;
+
   const written = correlated
     ? `
 -- The entries the caller wrote under one correlation id, for the undo of a revert.
@@ -56,6 +68,7 @@ $$;
 ${userGrant(`${ctx.fn("audit_entries_correlated")}(text)`)}
 `
     : "";
+
   return `-- The row changes the caller may revert, newest first, with their snapshots
 -- and the target's key columns.
 create or replace function ${ctx.fn("audit_revert_source")}(entries text[])

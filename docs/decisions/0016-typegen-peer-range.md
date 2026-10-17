@@ -40,3 +40,13 @@ Apps on another 0.4 patch install cleanly and get a notice when their
 `TYPEGEN_VERSION` still needs the parity test, the copy's type test and a
 changeset; a new minor also widens the peer range. Revisit when
 postgrest-typegen reaches 1.0 and follows semver for its generator output.
+
+## Addendum: 0.6.0
+
+The pin moved to 0.6.0 and the range to `>=0.6.0 <0.7`. The floor moved
+with it instead of widening, because 0.6 changes the generated types (view
+column nullability) and adds `rpcFunctions`, which older releases don't
+write. `rpcFunctions` is derived from `functions`, so the CLI drops it
+wherever it reorders, renumbers or filters functions, and the generator
+resolves it again. Supabase CLI 2.121 writes `ComputedFields`, so the parity
+test only normalizes the `__InternalSupabase` key that `--local` omits.

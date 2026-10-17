@@ -46,6 +46,7 @@ describe("sql upgrade with forward steps", () => {
 
   it("writes the steps with SQL into a migration before the schema diff", async () => {
     await sql(["sync"]);
+
     const path =
       "supabase/migrations/20261003080910_better_supabase_block_upgrade.sql";
 
@@ -60,7 +61,7 @@ describe("sql upgrade with forward steps", () => {
     expect(done.output).toContain(`Wrote ${path}`);
     expect(done.output).toContain("tenant: version 1 to 3");
     expect(done.output).toContain("  Renames org_id to tenant_id.");
-    const migration = await readFile(join(root, path), "utf8");
+    const migration = await readFile(join(root, path), "utf-8");
     expect(migration).toContain(
       "-- tenant: version 2 to 3. Renames org_id to tenant_id.\nalter table memberships rename column org_id to tenant_id;",
     );

@@ -5,6 +5,7 @@ import { defineBucket, defineVectorBucket } from "../../src/storage/index.ts";
 import { stackUrl } from "./stack-env.ts";
 
 const url = stackUrl();
+
 const secretKey =
   process.env["SUPABASE_SECRET_KEY"] ??
   "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -14,6 +15,7 @@ async function reachable(): Promise<boolean> {
     const response = await fetch(`${url}/storage/v1/status`, {
       signal: AbortSignal.timeout(1000),
     });
+
     return response.ok;
   } catch {
     return false;
@@ -21,9 +23,11 @@ async function reachable(): Promise<boolean> {
 }
 
 const live = await reachable();
+
 const admin = createClient(url, secretKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
+
 const suffix = String(Date.now());
 
 describe.skipIf(!live)("Storage buckets through the API", () => {
@@ -33,6 +37,7 @@ describe.skipIf(!live)("Storage buckets through the API", () => {
     fileSizeLimit: "1MiB",
     allowedMimeTypes: ["application/pdf"],
   });
+
   const embeddings = defineVectorBucket({
     id: `bs-it-vectors-${suffix}`,
     indexes: { documents: { dimension: 3 } },

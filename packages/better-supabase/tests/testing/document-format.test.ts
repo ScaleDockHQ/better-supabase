@@ -32,7 +32,9 @@ async function failures(
     () => undefined,
     (cause: unknown) => cause,
   );
+
   expect(error).toBeInstanceOf(ConformanceError);
+
   return (error as ConformanceError).report.checks
     .filter((check) => !check.ok)
     .map((check) => check.name);
@@ -53,6 +55,7 @@ describe("testDocumentFormat", () => {
       info: { title: "CRM", version: "1.0.0" },
       resources: { customers: true, notes: { operations: ["list", "get"] } },
     });
+
     await expect(
       fromIndex(openapiFormat, { model, versions: ["3.0", "3.2"] }),
     ).resolves.toMatchObject({ subject: 'DocumentFormat "openapi"' });
@@ -70,11 +73,13 @@ describe("testDocumentFormat", () => {
       // @ts-expect-error -- 4.0 is not an OpenAPI version the format lists
       versions: ["4.0"],
     }).catch((cause: unknown) => cause);
+
     expect(error).toBeInstanceOf(ConformanceError);
   });
 
   it("reports every broken rule of a broken format", async () => {
     let calls = 0;
+
     const broken: DocumentFormat = {
       apiVersion: 2 as 1,
       id: "broken",
@@ -87,11 +92,13 @@ describe("testDocumentFormat", () => {
         calls += 1;
         ctx.report({ code: "Bad Code", severity: "error", message: "" });
         Object.assign(model.info, { version: String(calls) });
+
         return { version, calls, at: new Date(0) };
       },
       lint: () => [{ code: "lint-error", severity: "error", message: "x" }],
       fileName: (version) => `out/${version}-${calls}.json`,
     };
+
     expect(await failures(broken)).toEqual([
       "targets API v1 with an id",
       "lists versions with a pin and a known status",
@@ -115,6 +122,7 @@ describe("testDocumentFormat", () => {
       ],
       fileName: () => "strict.json",
     });
+
     expect(await failures(strict)).toEqual([
       "finds no error in its own output",
     ]);

@@ -20,6 +20,7 @@ describe.skipIf(!live)("identities module", () => {
 
   it("links a chat user through a code the signed-in user issued", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["identities"]);
       const alice = await s.user("alice");
@@ -28,17 +29,21 @@ describe.skipIf(!live)("identities module", () => {
       const chatUser = `U${crypto.randomUUID().slice(0, 8)}`;
 
       await s.asRole(alice);
+
       const { code, expiresAt } = await identities
         .beginLink("chat", "slack")
         .orThrow();
+
       expect(code).toMatch(/^[0-9A-F]{12}$/);
       expect(expiresAt.epochMilliseconds).toBeGreaterThan(Date.now());
 
       await s.service();
       await s.client.query("set local role service_role");
+
       const linked = await identities
         .redeemLink(code.toLowerCase(), slack(chatUser))
         .orThrow();
+
       expect(linked.userId).toBe(alice.id);
       expect(
         await identityResolver(sqlTransport(s.sql))(slack(chatUser)),
@@ -72,6 +77,7 @@ describe.skipIf(!live)("identities module", () => {
 
   it("refuses direct writes, anon reads and user calls to the service functions", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["identities"]);
       const alice = await s.user("alice");
@@ -126,17 +132,21 @@ describe.skipIf(!live)("identities module", () => {
 
   it("refuses a reused, expired, replaced or mismatched code and a taken identity", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["identities"]);
       const alice = await s.user("alice");
       const bob = await s.user("bob");
       const identities = createIdentities({ transport: sqlTransport(s.sql) });
+
       const begin = async (user: typeof alice): Promise<string> => {
         await s.as(user);
         const { code } = await identities.beginLink("chat", "slack").orThrow();
         await s.service();
+
         return code;
       };
+
       const redeem = (code: string, value: string) =>
         identities.redeemLink(code, slack(value));
 
@@ -186,6 +196,7 @@ describe.skipIf(!live)("identities module", () => {
 
   it("creates email identities from confirmed addresses only", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["identities"]);
       const confirmed = await s.user("confirmed");

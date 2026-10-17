@@ -54,8 +54,11 @@ function tableRef(table: TableMeta): string {
 
 function dbColumn(table: TableMeta, app: string): string {
   const meta = table.columns[app];
-  if (!meta)
+
+  if (!meta) {
     invalidRequest(`Unknown column "${app}" on "${table.key}"`, table.key);
+  }
+
   return meta.db;
 }
 
@@ -71,16 +74,27 @@ function jsonText(value: unknown): unknown {
 
 function columnValue(table: TableMeta, db: string, value: unknown): unknown {
   const meta = lookupOf(table).byDb.get(db)?.[1];
-  if (!meta?.json) return value;
-  if (meta.array && Array.isArray(value)) return value.map(jsonText);
+
+  if (!meta?.json) {
+    return value;
+  }
+
+  if (meta.array && Array.isArray(value)) {
+    return value.map(jsonText);
+  }
+
   return jsonText(value);
 }
 
 function comparedValue(table: TableMeta, condition: ColumnCondition): unknown {
   const { value } = condition;
-  if (condition.path || typeof value !== "object" || value === null)
+
+  if (condition.path || typeof value !== "object" || value === null) {
     return value;
+  }
+
   const meta = lookupOf(table).byDb.get(condition.column)?.[1];
+
   return meta?.json && !meta.array ? JSON.stringify(value) : value;
 }
 
@@ -95,31 +109,50 @@ function rowComparison(condition: Extract<Condition, { kind: "or" }>): {
   readonly values: unknown[];
 } | null {
   const steps: ColumnCondition[] = [];
+
   for (const [index, item] of condition.items.entries()) {
     const terms = index === 0 ? [item] : item.kind === "and" ? item.items : [];
-    if (terms.length !== index + 1) return null;
+
+    if (terms.length !== index + 1) {
+      return null;
+    }
+
     const step = terms[index]!;
+
     if (
       step.kind !== "column" ||
       step.path ||
       (step.op !== "gt" && step.op !== "lt")
-    )
+    ) {
       return null;
+    }
+
     for (const [at, term] of terms.slice(0, index).entries()) {
       const prev = steps[at]!;
+
       if (
         term.kind !== "column" ||
         term.op !== "eq" ||
         term.column !== prev.column ||
         !Object.is(term.value, prev.value)
-      )
+      ) {
         return null;
+      }
     }
+
     steps.push(step);
   }
+
   const op = steps[0]?.op;
-  if (op !== "gt" && op !== "lt") return null;
-  if (steps.length < 2 || steps.some((step) => step.op !== op)) return null;
+
+  if (op !== "gt" && op !== "lt") {
+    return null;
+  }
+
+  if (steps.length < 2 || steps.some((step) => step.op !== op)) {
+    return null;
+  }
+
   return {
     columns: steps.map((step) => step.column),
     op,
@@ -134,11 +167,13 @@ class SqlCompiler {
   alias(): string {
     const alias = `t${this.#aliases}`;
     this.#aliases += 1;
+
     return alias;
   }
 
   param(value: unknown, cast?: string): string {
     this.params.push(value);
+
     return cast ? `$${this.params.length}::${cast}` : `$${this.params.length}`;
   }
 
@@ -150,23 +185,35 @@ class SqlCompiler {
     switch (condition.kind) {
       case "and":
       case "or": {
-        if (condition.items.length === 0)
+        if (condition.items.length === 0) {
           return condition.kind === "and" ? "true" : "false";
+        }
+
         const row = condition.kind === "or" ? rowComparison(condition) : null;
+
         if (row) {
           const columns = row.columns.map((name) => this.column(alias, name));
           const values = row.values.map((value) => this.param(value));
+
           return `(${columns.join(", ")}) ${row.op === "gt" ? ">" : "<"} (${values.join(", ")})`;
         }
+
         const joiner = condition.kind === "and" ? " and " : " or ";
+
         return `(${condition.items.map((item) => this.condition(item, table, alias)).join(joiner)})`;
       }
-      case "not":
+
+      case "not": {
         return `not ${this.condition(condition.item, table, alias)}`;
-      case "column":
+      }
+
+      case "column": {
         return this.columnCondition(condition, table, alias);
+      }
+
       case "relation": {
         const target = this.alias();
+
         const join = this.join(
           condition.relation,
           table,
@@ -174,19 +221,24 @@ class SqlCompiler {
           condition.target,
           target,
         );
+
         const where =
           condition.quantifier === "every" && condition.where
             ? `not ${this.condition(condition.where, condition.target, target)}`
             : condition.where
               ? this.condition(condition.where, condition.target, target)
               : undefined;
+
         const body = `select 1 from ${tableRef(condition.target)} as ${target} where ${join}${where ? ` and ${where}` : ""}`;
+
         return condition.quantifier === "some"
           ? `exists (${body})`
           : `not exists (${body})`;
       }
+
       default: {
         const exhaustive: never = condition;
+
         return exhaustive;
       }
     }
@@ -200,36 +252,74 @@ class SqlCompiler {
     const column = condition.path
       ? `(${this.column(alias, condition.column)} #>> ${this.param(condition.path, "text[]")})`
       : this.column(alias, condition.column);
+
     const { value } = condition;
+
     switch (condition.op) {
-      case "eq":
+      case "eq": {
         return `${column} = ${this.param(comparedValue(table, condition))}`;
-      case "neq":
+      }
+
+      case "neq": {
         return `${column} <> ${this.param(comparedValue(table, condition))}`;
-      case "gt":
+      }
+
+      case "gt": {
         return `${column} > ${this.param(comparedValue(table, condition))}`;
-      case "gte":
+      }
+
+      case "gte": {
         return `${column} >= ${this.param(comparedValue(table, condition))}`;
-      case "lt":
+      }
+
+      case "lt": {
         return `${column} < ${this.param(comparedValue(table, condition))}`;
-      case "lte":
+      }
+
+      case "lte": {
         return `${column} <= ${this.param(comparedValue(table, condition))}`;
-      case "like":
+      }
+
+      case "like": {
         return `${column} like ${this.param(value)}`;
-      case "ilike":
+      }
+
+      case "ilike": {
         return `${column} ilike ${this.param(value)}`;
-      case "match":
+      }
+
+      case "match": {
         return `${column} ~ ${this.param(value)}`;
-      case "imatch":
+      }
+
+      case "imatch": {
         return `${column} ~* ${this.param(value)}`;
-      case "in":
-        if (!Array.isArray(value)) invalidRequest('"in" needs an array');
+      }
+
+      case "in": {
+        if (!Array.isArray(value)) {
+          invalidRequest('"in" needs an array');
+        }
+
         return `${column} = any(${this.param(value)})`;
-      case "is":
-        if (value === null) return `${column} is null`;
-        if (value === true) return `${column} is true`;
-        if (value === false) return `${column} is false`;
+      }
+
+      case "is": {
+        if (value === null) {
+          return `${column} is null`;
+        }
+
+        if (value === true) {
+          return `${column} is true`;
+        }
+
+        if (value === false) {
+          return `${column} is false`;
+        }
+
         return invalidRequest('"is" needs null, true or false');
+      }
+
       case "contains":
       case "containedBy":
       case "overlaps": {
@@ -239,23 +329,30 @@ class SqlCompiler {
             : condition.op === "containedBy"
               ? "<@"
               : "&&";
+
         return Array.isArray(value) && !condition.json
           ? `${column} ${operator} ${this.param(value)}`
           : `${column} ${operator} ${this.param(JSON.stringify(value), "jsonb")}`;
       }
+
       case "fts": {
         const config = condition.config
           ? `${this.param(condition.config, "regconfig")}, `
           : "";
+
         const query = `websearch_to_tsquery(${config}${this.param(value)})`;
+
         const vector =
           columnType(table, condition.column) === "tsvector"
             ? column
             : `to_tsvector(${config}${column})`;
+
         return `${vector} @@ ${query}`;
       }
+
       default: {
         const exhaustive: never = condition.op;
+
         return exhaustive;
       }
     }
@@ -268,13 +365,18 @@ class SqlCompiler {
     target: TableMeta,
     targetAlias: string,
   ): string {
-    if (relation.columns.length !== relation.references.length)
+    if (relation.columns.length !== relation.references.length) {
       invalidRequest(`Relation to "${target.key}" has mismatched columns`);
+    }
+
     return relation.columns
       .map((column, index) => {
         const reference = relation.references[index];
-        if (reference === undefined)
+
+        if (reference === undefined) {
           invalidRequest(`Relation to "${target.key}" has mismatched columns`);
+        }
+
         return `${this.column(targetAlias, dbColumn(target, reference))} = ${this.column(sourceAlias, dbColumn(source, column))}`;
       })
       .join(" and ");
@@ -288,6 +390,7 @@ class SqlCompiler {
     return terms
       .map((term) => {
         const nulls = term.nulls ? ` nulls ${term.nulls}` : "";
+
         return `${this.sortKey(term, alias, table)} ${term.direction}${nulls}`;
       })
       .join(", ");
@@ -298,13 +401,26 @@ class SqlCompiler {
    * relation's row as a scalar subquery.
    */
   private sortKey(term: OrderTerm, alias: string, table?: TableMeta): string {
-    if (term.aggregate === "count") return "count(*)";
-    if (term.aggregate)
+    if (term.aggregate === "count") {
+      return "count(*)";
+    }
+
+    if (term.aggregate) {
       return `${term.aggregate}(${this.column(alias, term.column)})`;
+    }
+
     const { relation } = term;
-    if (!relation) return this.column(alias, term.column);
-    if (!table) invalidRequest("A relation sort needs the root table");
+
+    if (!relation) {
+      return this.column(alias, term.column);
+    }
+
+    if (!table) {
+      invalidRequest("A relation sort needs the root table");
+    }
+
     const target = this.alias();
+
     const join = this.join(
       relation.relation,
       table,
@@ -312,6 +428,7 @@ class SqlCompiler {
       relation.target,
       target,
     );
+
     return `(select ${this.column(target, term.column)} from ${tableRef(relation.target)} as ${target} where ${join} limit 1)`;
   }
 
@@ -321,27 +438,37 @@ class SqlCompiler {
       (entry) =>
         `'${entry.alias.replaceAll("'", "''")}', ${this.column(alias, entry.column)}${entry.cast ? `::${entry.cast}` : ""}`,
     );
+
     if (selection.aggregate) {
-      if (selection.aggregate.count) pairs.push(`'_count', count(*)`);
+      if (selection.aggregate.count) {
+        pairs.push(`'_count', count(*)`);
+      }
+
       for (const measure of selection.aggregate.measures) {
         pairs.push(
           `'${measure.key.replaceAll("'", "''")}', ${measure.fn}(${this.column(alias, measure.column)})${measure.cast ? `::${measure.cast}` : ""}`,
         );
       }
     }
+
     for (const include of selection.includes) {
       pairs.push(
         `'${include.alias.replaceAll("'", "''")}', ${this.include(include, table, alias)}`,
       );
     }
-    if (pairs.length <= MAX_PAIRS)
+
+    if (pairs.length <= MAX_PAIRS) {
       return `json_build_object(${pairs.join(", ")})`;
+    }
+
     const chunks: string[] = [];
+
     for (let index = 0; index < pairs.length; index += MAX_PAIRS) {
       chunks.push(
         `jsonb_build_object(${pairs.slice(index, index + MAX_PAIRS).join(", ")})`,
       );
     }
+
     return `(${chunks.join(" || ")})::json`;
   }
 
@@ -356,6 +483,7 @@ class SqlCompiler {
       .map((include) => {
         const target = this.alias();
         const where = this.includeWhere(include, table, alias, target);
+
         return `exists (select 1 from ${tableRef(include.target)} as ${target} where ${where})`;
       });
   }
@@ -369,13 +497,19 @@ class SqlCompiler {
     const parts = [
       this.join(include.relation, parent, parentAlias, include.target, alias),
     ];
+
     const simple = simplifyOrFalse(include.where);
-    if (simple.never) parts.push("false");
-    else if (simple.condition)
+
+    if (simple.never) {
+      parts.push("false");
+    } else if (simple.condition) {
       parts.push(this.condition(simple.condition, include.target, alias));
+    }
+
     parts.push(
       ...this.requiredIncludes(include.selection, include.target, alias),
     );
+
     return parts.join(" and ");
   }
 
@@ -387,28 +521,45 @@ class SqlCompiler {
     const alias = this.alias();
     const where = this.includeWhere(include, parent, parentAlias, alias);
     const from = `from ${tableRef(include.target)} as ${alias} where ${where}`;
-    if (include.count !== undefined) return `(select count(*) ${from})`;
+
+    if (include.count !== undefined) {
+      return `(select count(*) ${from})`;
+    }
+
     const row = this.rowExpression(include.selection, include.target, alias);
-    if (include.selection.aggregate) return `(select ${row} ${from})`;
+
+    if (include.selection.aggregate) {
+      return `(select ${row} ${from})`;
+    }
+
     if (include.relation.kind === "one") {
       return `(select ${row} ${from} limit 1)`;
     }
+
     const order =
       include.orderBy.length > 0
         ? this.orderBy(include.orderBy, alias)
         : undefined;
+
     const limit =
       include.limit === undefined ? "" : ` limit ${integer(include.limit)}`;
+
     const rank = `row_number() over (${order ? `order by ${order}` : ""})`;
     const inner = `select ${row} as r, ${rank} as o ${from}${order ? ` order by ${order}` : ""}${limit}`;
+
     return `(select coalesce(json_agg(s.r order by s.o), '[]'::json) from (${inner}) as s)`;
   }
 }
 
 function insertColumns(op: InsertOp): string[] {
   const columns = new Set<string>();
-  for (const row of op.rows)
-    for (const key of Object.keys(row)) columns.add(key);
+
+  for (const row of op.rows) {
+    for (const key of Object.keys(row)) {
+      columns.add(key);
+    }
+  }
+
   return [...columns];
 }
 
@@ -427,6 +578,7 @@ export function compileSql(op: Operation): SqlPlan {
   const compiler = new SqlCompiler();
   const alias = compiler.alias();
   const source = op.kind === "select" ? op.source : undefined;
+
   const from = source
     ? `${quoteIdent(source.schema)}.${quoteIdent(source.name)}(${Object.entries(
         source.args,
@@ -440,39 +592,53 @@ export function compileSql(op: Operation): SqlPlan {
   switch (op.kind) {
     case "select": {
       const simple = simplifyOrFalse(op.where);
-      if (simple.never)
+
+      if (simple.never) {
         return { rows: undefined, count: undefined, never: true };
+      }
+
       const where = simple.condition
         ? compiler.condition(simple.condition, op.table, alias)
         : undefined;
+
       const required = compiler.requiredIncludes(op.selection, op.table, alias);
       const filter = whereClause([where, ...required]);
+
       const countText = op.count
         ? `select count(*)::int as count from ${from}${filter}`
         : undefined;
+
       if (op.head) {
         const countQuery = {
           text:
             countText ?? `select count(*)::int as count from ${from}${filter}`,
           params: [...compiler.params],
         };
+
         return { rows: undefined, count: countQuery, never: false };
       }
+
       const countQuery = countText
         ? { text: countText, params: [...compiler.params] }
         : undefined;
+
       const row = compiler.rowExpression(op.selection, op.table, alias);
+
       const group =
         op.selection.aggregate && op.selection.columns.length > 0
           ? ` group by ${op.selection.columns.map((entry) => compiler.column(alias, entry.column)).join(", ")}`
           : "";
+
       const order =
         op.orderBy.length > 0
           ? ` order by ${compiler.orderBy(op.orderBy, alias, op.table)}`
           : "";
+
       const limit = op.limit === undefined ? "" : ` limit ${integer(op.limit)}`;
+
       const offset =
         op.offset === undefined ? "" : ` offset ${integer(op.offset)}`;
+
       return {
         rows: {
           text: `select ${row} as row from ${from}${filter}${group}${order}${limit}${offset}`,
@@ -482,16 +648,23 @@ export function compileSql(op: Operation): SqlPlan {
         never: false,
       };
     }
+
     case "insert": {
-      if (op.rows.length === 0)
+      if (op.rows.length === 0) {
         return { rows: undefined, count: undefined, never: true };
+      }
+
       const columns = insertColumns(op);
       const perChunk = Math.floor(MAX_PARAMS / Math.max(columns.length, 1));
-      if (op.rows.length <= perChunk)
+
+      if (op.rows.length <= perChunk) {
         return insertPlan(compiler, from, alias, op, columns);
+      }
+
       const [first, ...rest] = chunk(op.rows, perChunk).map((rows) => {
         const own = new SqlCompiler();
         const ownAlias = own.alias();
+
         return insertPlan(
           own,
           `${tableRef(op.table)} as ${ownAlias}`,
@@ -500,25 +673,36 @@ export function compileSql(op: Operation): SqlPlan {
           columns,
         );
       });
+
       return { ...first!, chunks: rest };
     }
+
     case "update": {
       const simple = simplifyOrFalse(op.where);
-      if (simple.never)
+
+      if (simple.never) {
         return { rows: undefined, count: undefined, never: true };
+      }
+
       const entries = Object.entries(op.set);
-      if (entries.length === 0)
+
+      if (entries.length === 0) {
         invalidRequest(`Update on "${op.table.key}" sets no columns`);
+      }
+
       const set = entries
         .map(
           ([column, value]) =>
             `${quoteIdent(column)} = ${compiler.param(columnValue(op.table, column, value))}`,
         )
         .join(", ");
+
       const where = simple.condition
         ? compiler.condition(simple.condition, op.table, alias)
         : undefined;
+
       const statement = `update ${from} set ${set}${whereClause([where])}${returningRows(compiler, op, alias)}`;
+
       return mutation(
         statement,
         op.returning !== undefined,
@@ -526,14 +710,20 @@ export function compileSql(op: Operation): SqlPlan {
         maxAffectedOf(op),
       );
     }
+
     case "delete": {
       const simple = simplifyOrFalse(op.where);
-      if (simple.never)
+
+      if (simple.never) {
         return { rows: undefined, count: undefined, never: true };
+      }
+
       const where = simple.condition
         ? compiler.condition(simple.condition, op.table, alias)
         : undefined;
+
       const statement = `delete from ${from}${whereClause([where])}${returningRows(compiler, op, alias)}`;
+
       return mutation(
         statement,
         op.returning !== undefined,
@@ -541,8 +731,10 @@ export function compileSql(op: Operation): SqlPlan {
         maxAffectedOf(op),
       );
     }
+
     default: {
       const exhaustive: never = op;
+
       return exhaustive;
     }
   }
@@ -550,8 +742,11 @@ export function compileSql(op: Operation): SqlPlan {
 
 function chunk<T>(items: readonly T[], size: number): T[][] {
   const out: T[][] = [];
-  for (let start = 0; start < items.length; start += size)
+
+  for (let start = 0; start < items.length; start += size) {
     out.push(items.slice(start, start + size));
+  }
+
   return out;
 }
 
@@ -563,9 +758,12 @@ function insertPlan(
   columns: readonly string[],
 ): SqlPlan {
   let body: string;
+
   if (columns.length === 0) {
-    if (op.rows.length > 1)
+    if (op.rows.length > 1) {
       invalidRequest("Cannot insert several rows without columns");
+    }
+
     body = "default values";
   } else {
     const values = op.rows.map(
@@ -580,20 +778,27 @@ function insertPlan(
           )
           .join(", ")})`,
     );
+
     body = `(${columns.map(quoteIdent).join(", ")}) values ${values.join(", ")}`;
   }
+
   let conflict = "";
+
   if (op.onConflict) {
     const target = `(${op.onConflict.columns.map(quoteIdent).join(", ")})`;
+
     const updates = columns.map(
       (column) => `${quoteIdent(column)} = excluded.${quoteIdent(column)}`,
     );
+
     conflict =
       op.onConflict.action === "ignore" || updates.length === 0
         ? ` on conflict ${target} do nothing`
         : ` on conflict ${target} do update set ${updates.join(", ")}${tenantGuard(op, alias)}`;
   }
+
   const statement = `insert into ${from} ${body}${conflict}${returningRows(compiler, op, alias)}`;
+
   return mutation(statement, op.returning !== undefined, compiler.params);
 }
 
@@ -601,17 +806,26 @@ function insertPlan(
 function tenantGuard(op: InsertOp, alias: string): string {
   const app = op.table.flags.tenant;
   const column = app === undefined ? undefined : op.table.columns[app]?.db;
-  if (column === undefined) return "";
+
+  if (column === undefined) {
+    return "";
+  }
+
   return ` where ${alias}.${quoteIdent(column)} = excluded.${quoteIdent(column)}`;
 }
 
 function maxAffectedOf(op: UpdateOp | DeleteOp): number | undefined {
-  if (op.maxAffected === undefined) return undefined;
-  if (!Number.isInteger(op.maxAffected) || op.maxAffected < 0)
+  if (op.maxAffected === undefined) {
+    return undefined;
+  }
+
+  if (!Number.isInteger(op.maxAffected) || op.maxAffected < 0) {
     invalidRequest(
       `"maxAffected" must be a non-negative integer, got ${op.maxAffected}`,
       op.table.key,
     );
+  }
+
   return op.maxAffected;
 }
 
@@ -634,6 +848,7 @@ function mutation(
 ): SqlPlan {
   if (maxAffected !== undefined) {
     const guard = guardedCount(maxAffected);
+
     return returning
       ? {
           rows: {
@@ -652,12 +867,15 @@ function mutation(
           never: false,
         };
   }
-  if (returning)
+
+  if (returning) {
     return {
       rows: { text: statement, params },
       count: undefined,
       never: false,
     };
+  }
+
   return {
     rows: undefined,
     count: {

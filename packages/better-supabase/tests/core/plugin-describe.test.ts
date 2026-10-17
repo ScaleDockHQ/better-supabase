@@ -25,6 +25,7 @@ describe("Plugin.describe", () => {
       info,
       resources: { notes: true },
     });
+
     expect(property(model.schemas, "NotesRow", "createdAt")).toMatchObject({
       readOnly: true,
       description: "Set by the server when the row is created.",
@@ -39,6 +40,7 @@ describe("Plugin.describe", () => {
       info,
       resources: { customers: true, notes: true },
     });
+
     expect(property(model.schemas, "CustomersRow", "archivedAt")).toMatchObject(
       {
         readOnly: true,
@@ -59,6 +61,7 @@ describe("Plugin.describe", () => {
       info,
       resources: { notes: { operations: ["list", "get"] }, tags: true },
     });
+
     expect(
       property(model.schemas, "NotesInsert", "organizationId"),
     ).toMatchObject({
@@ -68,9 +71,11 @@ describe("Plugin.describe", () => {
     expect(
       (model.schemas["NotesInsert"] as { required?: string[] }).required ?? [],
     ).not.toContain("organizationId");
+
     const list = model.operations.find(
       (operation) => operation.id === "listNotes",
     );
+
     expect(list?.parameters).toContainEqual({
       name: "x-tenant",
       in: "header",
@@ -83,13 +88,16 @@ describe("Plugin.describe", () => {
       base.use(tenant({ header: "x-tenant", onMissing: "skip" })),
       { info, resources: { notes: { operations: ["get"] } } },
     );
+
     expect(optional.model.operations[0]?.parameters).toContainEqual(
       expect.objectContaining({ name: "x-tenant", required: false }),
     );
+
     const noHeader = defineApi(base.use(tenant()), {
       info,
       resources: { notes: { operations: ["get"] } },
     });
+
     expect(noHeader.model.operations[0]?.parameters).toHaveLength(1);
   });
 
@@ -105,11 +113,13 @@ describe("Plugin.describe", () => {
             resource.operations,
           ]),
         ).toEqual([["notes", ["list", "get"]]]);
+
         const parameter = {
           name: "trace",
           in: "header",
           schema: { type: "string" },
         } as const;
+
         api.addParameter("notes", parameter, ["get"]);
         api.addParameter("notes", parameter, ["get"]);
         api.addParameter("unknown", parameter);
@@ -118,10 +128,12 @@ describe("Plugin.describe", () => {
         api.markReadOnly("unknown", "id");
       },
     });
+
     const { model, diagnostics } = defineApi(base.use(plugin), {
       info,
       resources: { notes: { operations: ["list", "get"] } },
     });
+
     expect(diagnostics).toEqual([]);
     const [list, get] = model.operations;
     expect(list?.parameters.map((parameter) => parameter.name)).not.toContain(
@@ -142,6 +154,7 @@ describe("Plugin.describe", () => {
         throw new Error("boom");
       },
     });
+
     const { diagnostics } = defineApi(base.use(plugin), { info });
     expect(diagnostics).toEqual([
       expect.objectContaining({

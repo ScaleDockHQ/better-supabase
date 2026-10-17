@@ -6,9 +6,11 @@
  */
 function required(key: string): string {
   const value = process.env[key];
+
   if (value === undefined || value === "") {
     throw new Error(`${key} is not set; run pnpm env:local`);
   }
+
   return value;
 }
 

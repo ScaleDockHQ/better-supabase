@@ -24,19 +24,23 @@ async function setUp(s: BlockSession) {
   const outsider = await s.user("outsider");
   const tenant = await s.organization(owner, { member });
   await s.as(owner);
+
   const chat = await s.value<{ id: string }>(
     "better_supabase.create_ai_chat($1, $2)",
     [tenant, { title: "Research" }],
   );
+
   return { owner, member, outsider, tenant, chat: chat.id };
 }
 
 /** A user transport and a service transport over one session. */
 function transports(s: BlockSession, caller: () => TestUser) {
   const user = sqlTransport(s.sql);
+
   const service: BlockTransport = {
     async call(schema, fn, args) {
       await s.service();
+
       try {
         return await user.call(schema, fn, args);
       } finally {
@@ -44,6 +48,7 @@ function transports(s: BlockSession, caller: () => TestUser) {
       }
     },
   };
+
   return { user, service };
 }
 
@@ -53,13 +58,16 @@ describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
 
   it("attaches engine runs, records steps and lists them for readers", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const { owner, outsider, chat } = await setUp(s);
       await s.service();
+
       const claim = await s.value<{ run_id: string }>(
         "better_supabase.claim_ai_chat_stream($1, 's1', null, null, 'workflow', 'wrun_1')",
         [chat],
       );
+
       expect(
         await s.value("better_supabase.attach_ai_run($1, 'wrun_2')", [
           claim.run_id,
@@ -75,11 +83,13 @@ describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
         "better_supabase.record_ai_run_step($1, $2)",
         [claim.run_id, { key: "search", label: "Search the web" }],
       );
+
       expect(first).toMatchObject({
         status: "running",
         label: "Search the web",
         ended_at: null,
       });
+
       const done = await s.value<{
         status: string;
         label: string;
@@ -89,6 +99,7 @@ describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
         claim.run_id,
         { key: "search", status: "done", detail: { hits: 3 } },
       ]);
+
       expect(done).toMatchObject({
         status: "done",
         label: "Search the web",
@@ -164,6 +175,7 @@ describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
 
   it("drives runs and the approval inbox through the block client", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const { owner, outsider, chat } = await setUp(s);
       let caller: TestUser = owner;
@@ -174,12 +186,15 @@ describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
       const claim = await ai.runs
         .claim(chat, "stream-1", { model: "openai/gpt-5" })
         .orThrow();
+
       expect(claim.runId).toBeDefined();
       const runId = claim.runId ?? "";
       expect(await runs.attach(runId, "wrun_9").orThrow()).toBe(true);
+
       const step = await runs.steps
         .record(runId, { key: "plan", label: "Plan" })
         .orThrow();
+
       expect(step).toMatchObject({ key: "plan", status: "running" });
       expect(step.endedAt).toBeUndefined();
       await runs.steps
@@ -240,10 +255,12 @@ describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
       expect(await runs.pendingApprovals().orThrow()).toEqual([]);
       const hidden = await runs.get(runId);
       expect(hidden.ok ? undefined : hidden.error.kind).toBe("not_found");
+
       const denied = await createAiChat({ transport: user }).runs.attach(
         runId,
         "x",
       );
+
       expect(denied.ok ? undefined : denied.error.kind).toBe("forbidden");
     } finally {
       await s.close();
@@ -252,6 +269,7 @@ describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
 
   it("locks harness sessions per holder and saves partial patches", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const { owner, chat } = await setUp(s);
       await s.service();
@@ -313,6 +331,7 @@ describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
         "better_supabase.save_ai_harness_session($1, 'claude', $2, 'turn-1')",
         [chat, { sandbox_id: "sbx_1", resume_state: { session: "abc" } }],
       );
+
       expect(saved).toMatchObject({
         owner_id: owner.id,
         sandbox_id: "sbx_1",
@@ -321,10 +340,12 @@ describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
         status: "active",
         lock_holder: "turn-1",
       });
+
       const patched = await s.value<Record<string, unknown>>(
         "better_supabase.save_ai_harness_session($1, 'claude', $2, 'turn-1')",
         [chat, { continue_state: { cursor: 2 } }],
       );
+
       expect(patched).toMatchObject({
         sandbox_id: "sbx_1",
         resume_state: { session: "abc" },
@@ -361,13 +382,15 @@ describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
       ).toBe(true);
 
       await s.as(owner);
+
       for (const call of [
         "better_supabase.load_ai_harness_session($1, 'claude')",
         "better_supabase.save_ai_harness_session($1, 'claude', '{}')",
         "better_supabase.lock_ai_harness_session($1, 'claude', 'me')",
         "better_supabase.unlock_ai_harness_session($1, 'claude', 'me')",
-      ])
+      ]) {
         expect(await s.hint(call, [chat])).toBe("AI_CHAT_FORBIDDEN");
+      }
 
       await s.asRole(owner);
       expect(
@@ -382,6 +405,7 @@ describe.skipIf(!live)("ai-chat durable runs and harness sessions", () => {
 
   it("turns an idle session active again when a turn saves it", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const { owner, chat } = await setUp(s);
       const { user, service } = transports(s, () => owner);

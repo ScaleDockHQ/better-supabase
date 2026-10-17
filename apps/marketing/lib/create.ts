@@ -26,7 +26,10 @@ export const DEFAULT_PRESET: PresetName = "saas";
 
 /** The preset in `?preset=`, a name or a code; the default when it is missing or unreadable. */
 export function initialPreset(param: string | null): Preset {
-  if (param === null || param === "") return namedPreset(DEFAULT_PRESET);
+  if (param === null || param === "") {
+    return namedPreset(DEFAULT_PRESET);
+  }
+
   try {
     return presetOf(param);
   } catch {
@@ -42,8 +45,10 @@ export function createHref(preset: Preset): string {
 /** The named preset whose blocks the selection matches, if any. */
 export function matchingPreset(preset: Preset): PresetName | undefined {
   const selected = [...new Set(preset.blocks)].toSorted();
+
   return PRESET_NAMES.find((name) => {
     const blocksOf = [...new Set(PRESETS[name].blocks)].toSorted();
+
     return (
       blocksOf.length === selected.length &&
       blocksOf.every((block, index) => block === selected[index])
@@ -56,6 +61,7 @@ export function toggleBlock(preset: Preset, name: string): Preset {
   const blocks = preset.blocks.includes(name)
     ? preset.blocks.filter((each) => each !== name)
     : [...preset.blocks, name];
+
   return { ...preset, blocks };
 }
 
@@ -85,18 +91,27 @@ export interface BlockGroup {
 /** What the row says under the block's name. */
 export function rowNote(state: BlockRowState): string | undefined {
   switch (state.kind) {
-    case "selected":
+    case "selected": {
       return undefined;
-    case "required":
+    }
+
+    case "required": {
       return `Required by ${listNames(state.by)}`;
-    case "conflict":
+    }
+
+    case "conflict": {
       return `Unavailable: ${state.reason}`;
-    case "available":
+    }
+
+    case "available": {
       return state.worksWith.length === 0
         ? undefined
         : `Works with ${listNames(state.worksWith)}`;
+    }
+
     default: {
       const unknown: never = state;
+
       return unknown;
     }
   }
@@ -110,15 +125,28 @@ export function blockGroups(
   const installed = new Map(
     resolved.blocks.map((block) => [block.name, block]),
   );
+
   const integrates = new Map(
     PRESET_CATALOG.blocks.map((block) => [block.name, block.integrates]),
   );
+
   const stateOf = (name: string): BlockRowState => {
     const block = installed.get(name);
-    if (block?.selected === true) return { kind: "selected" };
-    if (block !== undefined) return { kind: "required", by: block.requiredBy };
+
+    if (block?.selected === true) {
+      return { kind: "selected" };
+    }
+
+    if (block !== undefined) {
+      return { kind: "required", by: block.requiredBy };
+    }
+
     const reason = presetBlockConflict(preset, name);
-    if (reason !== undefined) return { kind: "conflict", reason };
+
+    if (reason !== undefined) {
+      return { kind: "conflict", reason };
+    }
+
     const worksWith = resolved.blocks
       .filter(
         (each) =>
@@ -126,8 +154,10 @@ export function blockGroups(
           (integrates.get(name) ?? []).includes(each.name),
       )
       .map((each) => each.name);
+
     return { kind: "available", worksWith };
   };
+
   return blockCategories
     .map((category) => ({
       category,
@@ -177,26 +207,38 @@ const PADDING = 8;
 export function graphLayout(resolved: ResolvedPreset): GraphLayout {
   const names = new Set(resolved.blocks.map((block) => block.name));
   const requires = new Map<string, string[]>();
+
   for (const block of resolved.blocks) {
     for (const dependent of block.requiredBy) {
       requires.set(dependent, [...(requires.get(dependent) ?? []), block.name]);
     }
   }
+
   const depth = new Map<string, number>();
+
   const depthOf = (name: string): number => {
     const known = depth.get(name);
-    if (known !== undefined) return known;
+
+    if (known !== undefined) {
+      return known;
+    }
+
     const own =
       Math.max(-1, ...(requires.get(name) ?? []).map((each) => depthOf(each))) +
       1;
+
     depth.set(name, own);
+
     return own;
   };
+
   const columns: string[][] = [];
+
   for (const block of resolved.blocks) {
     const column = depthOf(block.name);
     columns[column] = [...(columns[column] ?? []), block.name];
   }
+
   const nodes = columns.flatMap((column, x) =>
     column.map((name, y) => ({
       name,
@@ -207,6 +249,7 @@ export function graphLayout(resolved: ResolvedPreset): GraphLayout {
       ),
     })),
   );
+
   const edges: GraphEdge[] = [
     ...[...requires].flatMap(([from, tos]) =>
       tos.map((to) => ({ from, to, kind: "requires" as const })),
@@ -215,7 +258,9 @@ export function graphLayout(resolved: ResolvedPreset): GraphLayout {
       .filter((each) => names.has(each.from) && names.has(each.to))
       .map((each) => ({ ...each, kind: "integrates" as const })),
   ];
+
   const rows = Math.max(0, ...columns.map((column) => column.length));
+
   return {
     width:
       PADDING * 2 +

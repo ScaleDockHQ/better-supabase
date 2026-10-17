@@ -11,9 +11,14 @@ export async function getConversations(): Promise<readonly ConversationRow[]> {
   "use cache: private";
   const { session, supabase } = await bs.cached();
   const tenant = tenantOf(session);
-  if (!tenant) return [];
+
+  if (!tenant) {
+    return [];
+  }
+
   const conversations = await blocks(supabase)
     .inbox.conversations.list(tenant, { limit: 50 })
     .orThrow();
+
   return conversations.map(toConversationRow);
 }

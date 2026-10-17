@@ -1,10 +1,12 @@
 import type { ClaimsMeta } from "../../schema/types.ts";
-import type { ModuleLayout } from "../module-types.ts";
-import type { ModuleEntitlementsProvider } from "../module-types.ts";
+import type { ModuleIdType } from "../context.ts";
+import type {
+  ModuleLayout,
+  ModuleEntitlementsProvider,
+} from "../module-types.ts";
 
 import { fillTemplate } from "../../core/access-sql.ts";
 import { sqlString } from "../../core/template.ts";
-import { type ModuleIdType } from "../context.ts";
 import { moduleContext } from "../module-context.ts";
 
 /** The tenant module's memberships table and columns, for the entitlement lookups. */
@@ -20,6 +22,7 @@ interface Memberships {
 
 export function memberships(layout: ModuleLayout): Memberships {
   const ctx = moduleContext("tenant", layout);
+
   return {
     table: ctx.table("memberships"),
     tenant: ctx.col("memberships", "tenant"),
@@ -48,18 +51,25 @@ function featureClaimsBody(
   rows: string,
   claim: FeatureClaimOption | undefined,
 ): string {
-  if (claim === false) return "  select '{}'::jsonb";
+  if (claim === false) {
+    return "  select '{}'::jsonb";
+  }
+
   const max = claim?.maxTenants;
+
   if (max !== undefined && (!Number.isInteger(max) || max < 1)) {
     throw new TypeError(
       "entitlements.claim.maxTenants must be a positive integer",
     );
   }
+
   const keys = claim?.keys ?? {};
+
   const mapped =
     Object.keys(keys).length === 0
       ? "to_jsonb(r.keys)"
       : `to_jsonb(array(select coalesce(${sqlString(JSON.stringify(keys))}::jsonb ->> k, k) from unnest(r.keys) as k))`;
+
   return `  select coalesce(jsonb_object_agg(r.tenant, ${mapped}), '{}'::jsonb)
   from (
 ${rows}
@@ -205,13 +215,16 @@ export const providerEntitlementChecks = (
     provider.memberIds,
     { scope: provider.scope },
   );
+
   const memberFor = fillTemplate(
     "authorization.functions.memberIdsFor",
     provider.memberIdsFor,
     { scope: provider.scope, user: "feature_claims.user_id" },
   );
+
   const id = provider.idType;
   const members = `tenant::text in (select t.id::text from ${member} as t(id))`;
+
   return checksSql(
     {
       intro: `-- Memberships come from the authorization provider (${provider.name}), in its

@@ -19,11 +19,13 @@ import {
 } from "../fixtures/generated-camel.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
+
 const env = {
   url: PROJECT_URL,
   publishableKey: "sb_publishable_test",
   jwksUrl: new URL(`${PROJECT_URL}/auth/v1/.well-known/jwks.json`),
 };
+
 const USER = "11111111-1111-4111-8111-111111111111";
 const signer = await createTestSigner();
 
@@ -31,6 +33,7 @@ describe("bs.app()", () => {
   it("installs bs.onError, and Env carries only a type", async () => {
     const bs = createHono(defineSupabase(schema), { env });
     expect(bs.Env).toBeUndefined();
+
     const app = bs
       .app()
       .get("/thrown", () => {
@@ -39,6 +42,7 @@ describe("bs.app()", () => {
       .get("/teapot", () => {
         throw new HTTPException(418, { message: "Short and stout" });
       });
+
     const thrown = await app.request("/thrown");
     expect(thrown.status).toBe(404);
     expect(thrown.headers.get("content-type")).toContain(
@@ -51,10 +55,12 @@ describe("bs.app()", () => {
 describe("createHono", () => {
   const betterSupabase = defineSupabase(schema);
   const refresh = vi.fn<typeof fetch>();
+
   const bs = createHono(betterSupabase, {
     env,
     auth: { jwks: signer.jwks as never, fetch: refresh },
   });
+
   type Env = HonoEnv<Models, Functions, unknown>;
 
   const app = new Hono<Env>()
@@ -128,6 +134,7 @@ describe("createHono", () => {
     const bare = new Hono<Env>()
       .onError(bs.onError)
       .route("/customers", bs.resource("customers"));
+
     const response = await bare.request("/customers");
     expect(response.status).toBe(500);
   });
@@ -144,6 +151,7 @@ describe("bs.require()", () => {
     env,
     auth: { jwks: signer.jwks as never },
   });
+
   const app = bs
     .app()
     .use("*", bs.middleware({ allow: ["user", "anon"] }))
@@ -196,11 +204,13 @@ describe("authorizer", () => {
           ? { outcome: "approval-required", approval: { id: "apr_9" } }
           : { outcome: "denied" },
   });
+
   const bs = createHono(defineSupabase(schema), {
     env,
     auth: { jwks: signer.jwks as never },
     authorizer,
   });
+
   const app = bs
     .app()
     .use("*", bs.middleware())
@@ -223,6 +233,7 @@ describe("authorizer", () => {
         },
       }),
     );
+
   const call = async (path: string, method = "GET") =>
     app.request(path, {
       method,

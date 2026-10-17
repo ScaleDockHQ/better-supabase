@@ -10,7 +10,7 @@ import defaultMdxComponents from "fumadocs-ui/mdx";
 function Table(props: ComponentProps<"table">) {
   return (
     <section
-      className="prose-no-margin relative my-6 overflow-auto"
+      className="relative my-6 prose-no-margin overflow-auto"
       // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrolling region needs keyboard focus (axe scrollable-region-focusable)
       tabIndex={0}
       aria-label="Table"

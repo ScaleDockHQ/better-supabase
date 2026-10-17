@@ -29,18 +29,30 @@ export function opaque(): StandardLike {
 export function deepFreeze<T>(value: T): T {
   if (value && typeof value === "object" && !Object.isFrozen(value)) {
     Object.freeze(value);
-    for (const entry of Object.values(value)) deepFreeze(entry);
+
+    for (const entry of Object.values(value)) {
+      deepFreeze(entry);
+    }
   }
+
   return value;
 }
 
 /** Every `$ref` value in a document. */
 export function refsIn(value: unknown, out: string[] = []): string[] {
-  if (Array.isArray(value)) for (const item of value) refsIn(item, out);
-  else if (value && typeof value === "object")
-    for (const [key, item] of Object.entries(value)) {
-      if (key === "$ref" && typeof item === "string") out.push(item);
-      else refsIn(item, out);
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      refsIn(item, out);
     }
+  } else if (value && typeof value === "object") {
+    for (const [key, item] of Object.entries(value)) {
+      if (key === "$ref" && typeof item === "string") {
+        out.push(item);
+      } else {
+        refsIn(item, out);
+      }
+    }
+  }
+
   return out;
 }

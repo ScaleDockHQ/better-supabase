@@ -16,6 +16,7 @@ function edgePath(from: GraphNode, to: GraphNode): string {
   const endX = to.x + NODE_WIDTH;
   const endY = to.y + NODE_HEIGHT / 2;
   const bend = Math.max(24, Math.abs(startX - endX) / 2);
+
   return `M ${String(startX)} ${String(startY)} C ${String(startX - bend)} ${String(startY)}, ${String(endX + bend)} ${String(endY)}, ${String(endX)} ${String(endY)}`;
 }
 
@@ -27,16 +28,18 @@ export function PresetGraph({ resolved }: { resolved: ResolvedPreset }) {
   const titleId = useId();
   const layout = graphLayout(resolved);
   const byName = new Map(layout.nodes.map((node) => [node.name, node]));
+
   if (layout.nodes.length === 0) {
     return (
-      <p className="text-muted-foreground text-sm">
+      <p className="text-sm text-muted-foreground">
         Select a block to see its graph.
       </p>
     );
   }
+
   return (
     <figure className="flex flex-col gap-3">
-      <div className="border-border bg-card max-h-144 overflow-auto rounded-xl border p-2">
+      <div className="max-h-144 overflow-auto rounded-xl border border-border bg-card p-2">
         <svg
           aria-labelledby={titleId}
           viewBox={`0 0 ${String(layout.width)} ${String(layout.height)}`}
@@ -51,7 +54,11 @@ export function PresetGraph({ resolved }: { resolved: ResolvedPreset }) {
             {layout.edges.map((edge) => {
               const from = byName.get(edge.from);
               const to = byName.get(edge.to);
-              if (from === undefined || to === undefined) return null;
+
+              if (from === undefined || to === undefined) {
+                return null;
+              }
+
               return (
                 <path
                   key={`${edge.kind}:${edge.from}:${edge.to}`}
@@ -95,7 +102,7 @@ export function PresetGraph({ resolved }: { resolved: ResolvedPreset }) {
           ))}
         </svg>
       </div>
-      <figcaption className="text-muted-foreground text-xs leading-5">
+      <figcaption className="text-xs leading-5 text-muted-foreground">
         Columns follow dependency depth. Outlined blocks are selected, filled
         ones are required by another block. Solid lines are requirements, dashed
         lines the integrations between installed blocks.

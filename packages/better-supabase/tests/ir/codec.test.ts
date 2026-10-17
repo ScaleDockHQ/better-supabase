@@ -11,11 +11,16 @@ import { schema } from "../fixtures/generated-camel.ts";
 const customers = schema.meta.tables["customers"];
 const notes = schema.meta.tables["notes"];
 const notesRelation = customers?.relations["notes"];
-if (!customers || !notes || !notesRelation)
+
+if (!customers || !notes || !notesRelation) {
   throw new Error("Fixture tables missing");
+}
 
 function include(overrides: Partial<Include>): Include {
-  if (!notes || !notesRelation) throw new Error("Fixture tables missing");
+  if (!notes || !notesRelation) {
+    throw new Error("Fixture tables missing");
+  }
+
   return {
     alias: "notes",
     relation: notesRelation,
@@ -50,7 +55,7 @@ describe("encodeValue", () => {
     ],
     ["a PlainDate", Temporal.PlainDate.from("2026-01-02"), "2026-01-02"],
     ["a PlainTime", Temporal.PlainTime.from("10:30"), "10:30:00"],
-    ["a bigint", 9007199254740993n, "9007199254740993"],
+    ["a bigint", 9_007_199_254_740_993n, "9007199254740993"],
     [
       "an array of both",
       [1n, [Temporal.Instant.fromEpochMilliseconds(0)]],
@@ -162,6 +167,7 @@ describe("decodeRows", () => {
       ],
       includes: [],
     };
+
     expect(
       decodeRows(selection, [
         {
@@ -177,7 +183,7 @@ describe("decodeRows", () => {
       {
         at: Temporal.Instant.from("2026-01-02T00:00:00.123456Z"),
         local: Temporal.PlainDateTime.from("2026-01-02T10:30:00"),
-        big: 9007199254740993n,
+        big: 9_007_199_254_740_993n,
         exact: "1.5",
         days: [Temporal.Instant.fromEpochMilliseconds(0), null],
         gone: null,
@@ -194,12 +200,15 @@ describe("decodeRows", () => {
       columns: [{ alias: "at", column: "at", cast: "text", codec }],
       includes: [],
     };
+
     let thrown: unknown;
+
     try {
       decodeRows(selection, [{ at: value }]);
     } catch (cause) {
       thrown = cause;
     }
+
     expect(thrown).toBeInstanceOf(DbException);
     expect(thrown instanceof DbException && thrown.error).toMatchObject({
       kind: "invalid_value",
@@ -235,6 +244,7 @@ describe("decodeRows", () => {
         ],
       },
     };
+
     expect(
       decodeRows(selection, [
         {
@@ -288,6 +298,7 @@ describe("decodeRows", () => {
         include({ alias: "_count_locations", count: "locations" }),
       ],
     };
+
     expect(
       decodeRows(selection, [
         { _count_notes: [{ count: 3 }], _count_locations: 1 },
@@ -326,6 +337,7 @@ describe("decodeRows", () => {
         }),
       ],
     };
+
     expect(
       decodeRows(selection, [
         { _sum_notes: [{ id: "7" }] },
@@ -346,6 +358,7 @@ describe("decodeRows", () => {
       columns: [{ alias: "id", column: "id", cast: "text", codec: "bigint" }],
       includes: [],
     };
+
     const selection: Selection = {
       columns: [],
       includes: [
@@ -353,6 +366,7 @@ describe("decodeRows", () => {
         include({ alias: "first", selection: inner }),
       ],
     };
+
     expect(
       decodeRows(selection, [
         { notes: [{ id: "1" }, { id: "2" }], first: { id: "1" } },

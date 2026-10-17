@@ -7,8 +7,11 @@ import { bs } from "../../../../lib/supabase/server";
  */
 export const GET = bs.route((request, { db }) => {
   const query = customerList.parse(request.nextUrl.searchParams);
-  if (!query.ok)
+
+  if (!query.ok) {
     return Response.json({ issues: query.issues }, { status: 400 });
+  }
+
   return customerList.run(db, query.value, {
     select: ["id", "name", "status"],
   });

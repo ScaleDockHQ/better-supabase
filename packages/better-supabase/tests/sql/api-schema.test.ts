@@ -14,21 +14,28 @@ const schemaFile = (name: string, api: NonNullable<BlockConfig["api"]>) =>
 describe("blocks.<module>.api", () => {
   it("wraps every function a module grants to anon, authenticated or service_role", () => {
     for (const module of Object.values(SQL_MODULES)) {
-      if (module.target !== "schema") continue;
+      if (module.target !== "schema") {
+        continue;
+      }
+
       try {
         renderModules([module.name]);
       } catch {
         continue;
       }
+
       const file = schemaFile(module.name, "api");
       const internal = new Set(module.internal);
+
       const granted = [
         ...file.matchAll(
           /^grant execute on function "?better_supabase"?\.([^\n(]+)\([^\n]*\bto [^;]*\b(?:anon|authenticated|service_role)\b/gm,
         ),
       ].filter((match) => !internal.has(match[1]!.replaceAll('"', ""))).length;
+
       const wrapped = [...file.matchAll(/create or replace function "api"\./g)]
         .length;
+
       expect({ module: module.name, wrapped }).toEqual({
         module: module.name,
         wrapped: granted,
@@ -48,6 +55,7 @@ describe("blocks.<module>.api", () => {
     expect(notifications).toContain(
       `drop function if exists "api"."notification_page"(uuid, text, text[], text[], text, integer, integer);`,
     );
+
     const listed = renderModules(["notifications"], {
       modules: {
         notifications: {
@@ -55,6 +63,7 @@ describe("blocks.<module>.api", () => {
         },
       },
     }).find((file) => file.module === "notifications")!.contents;
+
     expect(listed).not.toContain(`drop function if exists "api".`);
   });
 
@@ -76,6 +85,7 @@ describe("blocks.<module>.api", () => {
     expect(invitations).toContain(
       `create or replace function "api"."my_invitations"`,
     );
+
     for (const [name, helper] of [
       ["comments", "comment_subject_readable"],
       ["attachments", "attachment_object_allowed"],
@@ -88,17 +98,20 @@ describe("blocks.<module>.api", () => {
         `create or replace function "api"."${helper}"`,
       );
     }
+
     expect(() =>
       schemaFile("organizations", {
         schema: "api",
         functions: ["guard_membership_role"],
       }),
     ).toThrow(/guard_membership_role is a helper/);
+
     const sql = `create or replace function better_supabase.only_helper()
 returns boolean
 language sql
 as $$ select true $$;
 grant execute on function better_supabase.only_helper() to authenticated;`;
+
     expect(
       apiWrappers(sql, "better_supabase", { schema: "api" }, "x", [
         "only_helper",
@@ -119,8 +132,12 @@ grant execute on function better_supabase.only_helper() to authenticated;`;
         `create or replace function "api"."${fn}"(`,
       );
     }
+
     for (const module of Object.values(SQL_MODULES)) {
-      if (module.target !== "schema") continue;
+      if (module.target !== "schema") {
+        continue;
+      }
+
       try {
         expect({
           module: module.name,
@@ -131,7 +148,10 @@ grant execute on function better_supabase.only_helper() to authenticated;`;
           ),
         }).toEqual({ module: module.name, loops: false });
       } catch (cause) {
-        if (cause instanceof TypeError) continue;
+        if (cause instanceof TypeError) {
+          continue;
+        }
+
         throw cause;
       }
     }
@@ -142,6 +162,7 @@ grant execute on function better_supabase.only_helper() to authenticated;`;
       schema: "api",
       functions: ["set_user_setting", "get_user_settings"],
     });
+
     expect(file).toContain(`create schema if not exists "api";`);
     expect(file)
       .toContain(`create or replace function "api"."set_user_setting"(key text, value jsonb)
@@ -159,15 +180,22 @@ grant execute on function "api"."set_user_setting"(text, jsonb) to authenticated
   it("revokes execute from anon on every function it does not grant to anon", () => {
     const signature = (text: string) =>
       text.replaceAll('"', "").replaceAll(/\s+/g, " ").trim();
+
     const missing: string[] = [];
+
     for (const module of Object.values(SQL_MODULES)) {
-      if (module.target !== "schema") continue;
+      if (module.target !== "schema") {
+        continue;
+      }
+
       let file: string;
+
       try {
         file = schemaFile(module.name, "api");
       } catch {
         continue;
       }
+
       const revoked = new Set(
         [
           ...file.matchAll(
@@ -179,16 +207,22 @@ grant execute on function "api"."set_user_setting"(text, jsonb) to authenticated
           )
           .map((match) => signature(match[1]!)),
       );
+
       for (const match of file.matchAll(
         /^grant execute on function ([^\n]+?\)) to ([^;]+);/gm,
       )) {
         const roles = match[2]!.split(",").map((role) => role.trim());
-        if (roles.includes("anon")) continue;
+
+        if (roles.includes("anon")) {
+          continue;
+        }
+
         if (!revoked.has(signature(match[1]!))) {
           missing.push(`${module.name}: ${signature(match[1]!)}`);
         }
       }
     }
+
     expect(missing).toEqual([]);
   });
 
@@ -198,6 +232,7 @@ returns setof public.things
 language sql
 as $$ select 1 $$;
 grant execute on function better_supabase.list_things(uuid, integer, text[]) to anon;`;
+
     const out = apiWrappers(sql, "better_supabase", { schema: "api" }, "x");
     expect(out).toContain(
       `"api"."list_things"(tenant uuid, max_items integer default 50, variadic tags text[] default '{}')`,
@@ -216,11 +251,13 @@ grant execute on function better_supabase.list_things(uuid, integer, text[]) to 
     expect(file).toContain(
       `grant execute on function "api"."flag_definitions"() to service_role;`,
     );
+
     const sql = `create or replace function better_supabase.claims(user_id uuid)
 returns jsonb
 language sql
 as $$ select '{}'::jsonb $$;
 grant execute on function better_supabase.claims(uuid) to service_role, supabase_auth_admin;`;
+
     expect(
       apiWrappers(sql, "better_supabase", { schema: "api" }, "x"),
     ).toContain(

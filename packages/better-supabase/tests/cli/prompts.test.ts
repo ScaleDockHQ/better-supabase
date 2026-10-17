@@ -16,6 +16,7 @@ const clack = vi.hoisted(() => ({
 
 vi.mock("@clack/prompts", () => {
   const next = (): unknown => clack.answers.shift();
+
   return {
     select: vi.fn(next),
     multiselect: vi.fn(next),
@@ -27,6 +28,7 @@ vi.mock("@clack/prompts", () => {
 
 const { createClackPrompter, withSpinner } =
   await import("../../src/cli/prompts.ts");
+
 const clackPrompter = createClackPrompter(process.stderr);
 
 interface Asked {
@@ -42,6 +44,7 @@ function fake(answers: unknown[]): Prompter & {
 } {
   const asked: Asked[] = [];
   const spun: string[] = [];
+
   return {
     asked,
     spun,
@@ -51,6 +54,7 @@ function fake(answers: unknown[]): Prompter & {
       initial: T,
     ) => {
       asked.push({ kind: "select", message, initial });
+
       return answers.shift() as T | undefined;
     },
     multiselect: async <T extends string>(
@@ -59,14 +63,17 @@ function fake(answers: unknown[]): Prompter & {
       initial: readonly T[],
     ) => {
       asked.push({ kind: "multiselect", message, initial });
+
       return answers.shift() as T[] | undefined;
     },
     confirm: async (message) => {
       asked.push({ kind: "confirm", message });
+
       return answers.shift() as boolean | undefined;
     },
     spinner: (message) => {
       spun.push(message);
+
       return () => spun.push(`done: ${message}`);
     },
   };
@@ -102,7 +109,7 @@ describe("init prompts", () => {
       { kind: "multiselect", message: "Integrations", initial: ["hono"] },
     ]);
     expect(
-      await readFile(join(dir, "better-supabase.config.ts"), "utf8"),
+      await readFile(join(dir, "better-supabase.config.ts"), "utf-8"),
     ).toContain("snake");
     expect(existsSync(join(dir, "supabase/functions/mcp/index.ts"))).toBe(true);
   });
@@ -167,7 +174,7 @@ describe("init prompts", () => {
     const replace = fake(["none", "camel", [], true]);
     await runWith(["init"], replace);
     expect(
-      await readFile(join(dir, "better-supabase.config.ts"), "utf8"),
+      await readFile(join(dir, "better-supabase.config.ts"), "utf-8"),
     ).not.toBe("// mine\n");
   });
 
@@ -182,6 +189,7 @@ describe("init prompts", () => {
         stderr: "Cancelled.\n",
       });
     }
+
     await writeFile(join(dir, "better-supabase.config.ts"), "// mine\n");
     expect(
       (await runWith(["init"], fake(["none", "camel", [], undefined]))).code,

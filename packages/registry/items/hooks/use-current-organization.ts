@@ -24,6 +24,7 @@ export interface CurrentOrganization {
 export function useCurrentOrganization(): CurrentOrganization {
   const auth = useAuth();
   const supabase = useSupabase();
+
   const organizations = useMemo(
     () =>
       createOrganizations({
@@ -32,21 +33,29 @@ export function useCurrentOrganization(): CurrentOrganization {
       }),
     [supabase],
   );
+
   const [switching, setSwitching] = useState(false);
   const [error, setError] = useState<DbError | undefined>(undefined);
+
   const switchTo = useCallback(
     async (organizationId: string) => {
       setSwitching(true);
       const result = await organizations.switch(organizationId);
+
       if (result.ok) {
         setError(undefined);
-        if (result.data.refresh) await supabase.auth.refreshSession();
+
+        if (result.data.refresh) {
+          await supabase.auth.refreshSession();
+        }
       } else {
         setError(result.error);
       }
+
       setSwitching(false);
     },
     [organizations, supabase],
   );
+
   return { organizationId: tenantOf(auth), switching, error, switchTo };
 }

@@ -15,6 +15,7 @@ export {
   type WorkItemsOptions,
   type WorkItemState,
 } from "./work-items.ts";
+
 export {
   extendBlock,
   withBlockHooks,
@@ -22,6 +23,7 @@ export {
   type BlockHooks,
   type BlockTransportMiddleware,
 } from "../../core/block-hooks.ts";
+
 export {
   dbTransport,
   rpcTransport,
@@ -29,6 +31,9 @@ export {
   type BlockTransport,
   type RpcClient,
 } from "../../core/block-transport.ts";
+
 export { workItemsBlock } from "./manifest.ts";
+
 export { workItemsEvents } from "./events.ts";
+
 export type { WorkItemsEvents } from "./events.ts";

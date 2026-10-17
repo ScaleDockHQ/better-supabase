@@ -44,25 +44,36 @@ const settings = defineSettings({
 /** Stores values per function and tenant, like the settings module. */
 function fakeTransport() {
   const stored = new Map<string, Record<string, unknown>>();
+
   const keyOf = (fn: string, args: Record<string, unknown>) =>
     `${fn.includes("organization") ? "organization" : "user"}:${String(args["tenant"] ?? "")}`;
+
   const call = vi.fn(
     async (_schema: string, fn: string, args: Record<string, unknown>) => {
       const key = keyOf(fn, args);
       const values = stored.get(key) ?? {};
-      if (fn.startsWith("get_")) return values;
+
+      if (fn.startsWith("get_")) {
+        return values;
+      }
+
       if (fn.startsWith("set_")) {
         const { value } = args["value"] as { value: unknown };
         stored.set(key, { ...values, [String(args["key"])]: value });
+
         return null;
       }
+
       const removed = String(args["key"]) in values;
       const { [String(args["key"])]: _gone, ...rest } = values;
       stored.set(key, rest);
+
       return removed;
     },
   );
+
   const transport: BlockTransport = { call };
+
   return { transport, call };
 }
 
@@ -115,6 +126,7 @@ describe("settingFields", () => {
         },
       },
     } as const;
+
     expect(
       settingFields({ flag: { schema: broken, default: false } })[0]?.kind,
     ).toBe("boolean");
@@ -125,11 +137,13 @@ describe("createSettingsController", () => {
   it("loads, sets and resets the caller's own settings", async () => {
     const { transport } = fakeTransport();
     const client = createSettings({ settings, transport });
+
     const controller = createSettingsController({
       entries: settings.schemas.user,
       auth: fakeAuth(),
       user: client,
     });
+
     expect(controller.getSnapshot().fields).toHaveLength(4);
     const { view, unmount } = mount(controller);
     await flush();
@@ -162,12 +176,14 @@ describe("createSettingsController", () => {
   it("edits an organization's settings once it has one", async () => {
     const { transport, call } = fakeTransport();
     const client = createSettings({ settings, transport, schema: "api" });
+
     const waiting = createSettingsController({
       entries: settings.schemas.organization,
       auth: fakeAuth(),
       organization: client,
       organizationId: null,
     });
+
     const idle = mount(waiting);
     await flush();
     expect(call).not.toHaveBeenCalled();
@@ -184,6 +200,7 @@ describe("createSettingsController", () => {
         organizationId: "org-1",
       }),
     );
+
     await flush();
     expect(call).toHaveBeenCalledWith("api", "get_organization_settings", {
       tenant: "org-1",
@@ -211,11 +228,13 @@ describe("createSettingsController", () => {
 
   it("keeps values unset when a write lands before the first load", async () => {
     const { transport } = fakeTransport();
+
     const controller = createSettingsController({
       entries: settings.schemas.user,
       auth: fakeAuth(),
       user: createSettings({ settings, transport }),
     });
+
     expect((await controller.actions.set("signature", "Hi")).ok).toBe(true);
     expect(controller.getSnapshot().values).toBeUndefined();
   });

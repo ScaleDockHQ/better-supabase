@@ -30,6 +30,7 @@ describe("state machine", () => {
         },
       },
     });
+
     expect(sql).toContain("status_stages");
     expect(sql).toContain("cleared_at");
     expect(sql).toContain("STATE_TRANSITION_INVALID");
@@ -122,8 +123,10 @@ describe("state machine", () => {
     const sql = sqlOf({
       "state-machine": { options: { machines: { quote } } },
     });
+
     const transition =
       /function "better_supabase"\."transition"\([\s\S]*?\$\$;/.exec(sql)?.[0];
+
     expect(transition).toContain("security invoker");
     expect(transition).not.toContain("security definer");
     expect(transition).toContain("STATE_SUBJECT_NOT_FOUND");
@@ -137,6 +140,7 @@ describe("state machine", () => {
         options: { machines: { quote: { ...quote, stages: true } } },
       },
     });
+
     expect(sql).toContain(`where "tenant_id" = new."tenant_id"
     and "subject_type" = 'quote'`);
     expect(sql).toContain(
@@ -150,6 +154,7 @@ describe("state machine", () => {
         options: { machines: { quote: { ...quote, idType: "uuid" } } },
       },
     });
+
     expect(sql).toContain("create policy status_history_read");
     expect(sql).toContain("create policy subject_lifecycles_read");
     expect(sql).toContain(
@@ -179,6 +184,7 @@ describe("state machine", () => {
       .filter((file) => file.module === "state-machine")
       .map((file) => file.contents)
       .join("\n");
+
     expect(sql).toContain("create trigger bs_transition_deal");
     expect(sql).toContain(`on "crm"."deals"`);
     expect(sql).toContain(`new."org_id"`);
@@ -205,6 +211,7 @@ describe("state machine", () => {
       },
       ["outbox"],
     );
+
     expect(sql).toContain("subject_lifecycles");
     expect(sql).toContain("STATE_PAUSED");
     expect(sql).toContain("STATE_FLAG_UNKNOWN");
@@ -214,9 +221,11 @@ describe("state machine", () => {
       "array_position('{draft,sent,accepted}'::text[], v_status)",
     );
     expect(sql).toContain("round((v_step - 1)::numeric / 2, 4)");
+
     for (const type of ["status.paused", "status.resumed", "status.flagged"]) {
       expect(sql).toContain(type);
     }
+
     for (const fn of [
       "pause_lifecycle",
       "resume_lifecycle",
@@ -234,6 +243,7 @@ describe("state machine", () => {
     const sql = sqlOf({
       "state-machine": { options: { machines: { quote } } },
     });
+
     expect(sql).toContain("STATE_LIFECYCLE_DISABLED");
     expect(sql).not.toContain("v_op jsonb");
   });
@@ -255,6 +265,7 @@ describe("state machine", () => {
         },
       },
     });
+
     expect(sql).toContain(`from "public"."quote_history" h`);
     expect(sql).toContain(
       `h."quote_id"::text = list_status_history.subject_id`,
@@ -356,6 +367,7 @@ describe("state machine", () => {
         },
       },
     });
+
     expect(sql).toContain(`"quote_id"`);
     expect(sql).toContain(`"org_id"`);
     expect(sql).toContain(`"quote_history"`);

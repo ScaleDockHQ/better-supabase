@@ -13,6 +13,7 @@ import {
 import { isInstant, isPlainDateTime } from "./temporal.ts";
 
 export type { StandardJSONSchemaV1 };
+
 export type { FieldSpec, TableSchemaSpec } from "./table-json-schema.ts";
 
 /** A Standard Schema that also converts to JSON Schema (Standard JSON Schema). */
@@ -33,6 +34,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
 /** Rewrites a 2020-12 schema into the OpenAPI 3.0 dialect (`nullable`, `example`). */
 function toOpenApi30(schema: JsonSchema): JsonSchema {
   const out: JsonSchema = {};
+
   for (const [key, value] of Object.entries(schema)) {
     if (key === "properties" && isObject(value)) {
       out[key] = Object.fromEntries(
@@ -44,7 +46,9 @@ function toOpenApi30(schema: JsonSchema): JsonSchema {
     } else if (key === "items" && isObject(value)) {
       out[key] = toOpenApi30(value);
     } else if (key === "examples" && isList(value)) {
-      if (value.length > 0) out["example"] = value[0];
+      if (value.length > 0) {
+        out["example"] = value[0];
+      }
     } else if (key === "exclusiveMinimum" || key === "exclusiveMaximum") {
       out[key === "exclusiveMinimum" ? "minimum" : "maximum"] = value;
       out[key] = true;
@@ -52,19 +56,26 @@ function toOpenApi30(schema: JsonSchema): JsonSchema {
       out[key] = value;
     }
   }
+
   const type = out["type"];
+
   if (isList(type) && type.includes("null")) {
     out["type"] = type.find((entry) => entry !== "null");
     out["nullable"] = true;
   }
+
   const anyOf = out["anyOf"];
+
   if (isList(anyOf) && anyOf.length === 2) {
     const [inner, empty] = anyOf;
+
     if (isObject(inner) && isObject(empty) && empty["type"] === "null") {
       delete out["anyOf"];
+
       return { ...toOpenApi30(inner), ...out, nullable: true };
     }
   }
+
   return out;
 }
 
@@ -73,24 +84,48 @@ export function forTarget(
   schema: JsonSchema,
   target: StandardJSONSchemaV1.Target,
 ): JsonSchema {
-  if (target === "openapi-3.0") return toOpenApi30(schema);
+  if (target === "openapi-3.0") {
+    return toOpenApi30(schema);
+  }
+
   const uri = SCHEMA_URIS[target];
-  if (!uri) throw new Error(`Unsupported JSON Schema target "${target}"`);
+
+  if (!uri) {
+    throw new Error(`Unsupported JSON Schema target "${target}"`);
+  }
+
   return { $schema: uri, ...schema };
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
+
 const DATETIME =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}(?::?\d{2})?)$/;
 
 function isJson(value: unknown): boolean {
-  if (value === null || typeof value === "string" || typeof value === "boolean")
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "boolean"
+  ) {
     return true;
-  if (typeof value === "number") return Number.isFinite(value);
-  if (isList(value)) return value.every(isJson);
-  if (!isObject(value)) return false;
+  }
+
+  if (typeof value === "number") {
+    return Number.isFinite(value);
+  }
+
+  if (isList(value)) {
+    return value.every(isJson);
+  }
+
+  if (!isObject(value)) {
+    return false;
+  }
+
   const proto: unknown = Object.getPrototypeOf(value);
+
   return (
     (proto === Object.prototype || proto === null) &&
     Object.values(value).every(isJson)
@@ -100,48 +135,77 @@ function isJson(value: unknown): boolean {
 /** The issue message for a scalar, or `undefined` when the value passes. */
 function scalarIssue(field: FieldSpec, value: unknown): string | undefined {
   switch (field.kind) {
-    case "uuid":
+    case "uuid": {
       return typeof value === "string" && UUID.test(value)
         ? undefined
         : "Expected a UUID";
-    case "string":
+    }
+
+    case "string": {
       return typeof value === "string" ? undefined : "Expected a string";
-    case "integer":
+    }
+
+    case "integer": {
       return Number.isSafeInteger(value) ? undefined : "Expected an integer";
-    case "number":
+    }
+
+    case "number": {
       return typeof value === "number" && Number.isFinite(value)
         ? undefined
         : "Expected a number";
-    case "boolean":
+    }
+
+    case "boolean": {
       return typeof value === "boolean" ? undefined : "Expected a boolean";
-    case "datetime":
+    }
+
+    case "datetime": {
       return typeof value === "string" && DATETIME.test(value)
         ? undefined
         : "Expected an ISO 8601 date-time with an offset";
-    case "date":
+    }
+
+    case "date": {
       return typeof value === "string" && DATE.test(value)
         ? undefined
         : "Expected an ISO 8601 date";
-    case "instant":
+    }
+
+    case "instant": {
       return isInstant(value) ? undefined : "Expected a Temporal.Instant";
-    case "plainDateTime":
+    }
+
+    case "plainDateTime": {
       return isPlainDateTime(value)
         ? undefined
         : "Expected a Temporal.PlainDateTime";
-    case "bigint":
+    }
+
+    case "bigint": {
       return typeof value === "bigint" ? undefined : "Expected a bigint";
-    case "json":
+    }
+
+    case "json": {
       return isJson(value) ? undefined : "Expected a JSON value";
-    case "enum":
+    }
+
+    case "enum": {
       return typeof value === "string" && field.values.includes(value)
         ? undefined
         : `Expected one of ${field.values.map((entry) => JSON.stringify(entry)).join(", ")}`;
-    case "unknown":
+    }
+
+    case "unknown": {
       return undefined;
-    case "custom":
+    }
+
+    case "custom": {
       return value === undefined ? "Expected a value" : undefined;
+    }
+
     default: {
       const exhaustive: never = field;
+
       return exhaustive;
     }
   }
@@ -152,21 +216,39 @@ const characters = (count: number): string =>
 
 function boundIssue(field: FieldSpec, value: unknown): string | undefined {
   if (typeof value === "number") {
-    if (field.minimum !== undefined && value < field.minimum)
+    if (field.minimum !== undefined && value < field.minimum) {
       return `Expected at least ${field.minimum}`;
-    if (field.exclusiveMinimum !== undefined && value <= field.exclusiveMinimum)
+    }
+
+    if (
+      field.exclusiveMinimum !== undefined &&
+      value <= field.exclusiveMinimum
+    ) {
       return `Expected more than ${field.exclusiveMinimum}`;
-    if (field.maximum !== undefined && value > field.maximum)
+    }
+
+    if (field.maximum !== undefined && value > field.maximum) {
       return `Expected at most ${field.maximum}`;
-    if (field.exclusiveMaximum !== undefined && value >= field.exclusiveMaximum)
+    }
+
+    if (
+      field.exclusiveMaximum !== undefined &&
+      value >= field.exclusiveMaximum
+    ) {
       return `Expected less than ${field.exclusiveMaximum}`;
+    }
   }
+
   if (typeof value === "string") {
-    if (field.minLength !== undefined && value.length < field.minLength)
+    if (field.minLength !== undefined && value.length < field.minLength) {
       return `Expected at least ${characters(field.minLength)}`;
-    if (field.maxLength !== undefined && value.length > field.maxLength)
+    }
+
+    if (field.maxLength !== undefined && value.length > field.maxLength) {
       return `Expected at most ${characters(field.maxLength)}`;
+    }
   }
+
   return undefined;
 }
 
@@ -192,13 +274,21 @@ function checkValue(
 ): void {
   if (field.schema) {
     const result = field.schema["~standard"].validate(value);
-    if (result instanceof Promise)
+
+    if (result instanceof Promise) {
       pending.push(result.then((settled) => nestedIssues(settled, path)));
-    else issues.push(...nestedIssues(result, path));
+    } else {
+      issues.push(...nestedIssues(result, path));
+    }
+
     return;
   }
+
   const message = scalarIssue(field, value) ?? boundIssue(field, value);
-  if (message) issues.push({ message, path: [...path] });
+
+  if (message) {
+    issues.push({ message, path: [...path] });
+  }
 }
 
 function checkField(
@@ -208,15 +298,22 @@ function checkField(
   issues: Issues,
   pending: Promise<Issues>[],
 ): void {
-  if (value === null && field.nullable) return;
+  if (value === null && field.nullable) {
+    return;
+  }
+
   if (!field.array) {
     checkValue(field, value, [name], issues, pending);
+
     return;
   }
+
   if (!isList(value)) {
     issues.push({ message: "Expected an array", path: [name] });
+
     return;
   }
+
   value.forEach((item, index) => {
     checkValue(field, item, [name, index], issues, pending);
   });
@@ -230,32 +327,45 @@ function checkField(
  */
 export function tableSchema<T>(spec: TableSchemaSpec): TableSchema<T> {
   const entries = Object.entries(spec.fields);
+
   const validate = (
     input: unknown,
   ): StandardSchemaV1.Result<T> | Promise<StandardSchemaV1.Result<T>> => {
-    if (!isObject(input))
+    if (!isObject(input)) {
       return { issues: [{ message: "Expected an object" }] };
+    }
+
     const issues: Issues = [];
     const pending: Promise<Issues>[] = [];
     const value: Record<string, unknown> = {};
+
     for (const [name, field] of entries) {
       if (!Object.hasOwn(input, name)) {
-        if (!field.optional && field.kind !== "unknown")
+        if (!field.optional && field.kind !== "unknown") {
           issues.push({ message: "Required", path: [name] });
+        }
+
         continue;
       }
+
       value[name] = input[name];
       checkField(name, field, input[name], issues, pending);
     }
+
     const settle = (all: Issues): StandardSchemaV1.Result<T> =>
       // SAFETY: every known key passed its column check and unknown keys were
       // dropped, so the object has the shape of T.
       all.length > 0 ? { issues: all } : { value: value as T };
-    if (pending.length === 0) return settle(issues);
+
+    if (pending.length === 0) {
+      return settle(issues);
+    }
+
     return Promise.all(pending).then((nested) =>
       settle([...issues, ...nested.flat()]),
     );
   };
+
   const convert =
     (direction: "input" | "output") =>
     (options: StandardJSONSchemaV1.Options): JsonSchema =>
@@ -263,13 +373,20 @@ export function tableSchema<T>(spec: TableSchemaSpec): TableSchema<T> {
         tableJsonSchema(spec, (schema) => {
           const standard: Partial<StandardJSONSchemaV1.Props> =
             schema["~standard"];
+
           const converted = standard.jsonSchema?.[direction](options);
-          if (!converted) return converted;
+
+          if (!converted) {
+            return converted;
+          }
+
           const { $schema: _, ...rest } = converted;
+
           return rest;
         }),
         options.target,
       );
+
   return {
     "~standard": {
       version: 1,

@@ -7,31 +7,40 @@ import {
 
 function fakeAppState(currentState: string) {
   const listeners = new Set<(state: string) => void>();
+
   const appState: AppStateLike = {
     currentState,
     addEventListener: (_type, listener) => {
       listeners.add(listener);
+
       return { remove: () => listeners.delete(listener) };
     },
   };
+
   const change = (state: string): void => {
-    for (const listener of listeners) listener(state);
+    for (const listener of listeners) {
+      listener(state);
+    }
   };
+
   return { appState, change, listeners };
 }
 
 function fakeSupabase() {
   const calls: string[] = [];
+
   return {
     calls,
     supabase: {
       auth: {
         startAutoRefresh: () => {
           calls.push("start");
+
           return Promise.resolve();
         },
         stopAutoRefresh: () => {
           calls.push("stop");
+
           return Promise.resolve();
         },
       },

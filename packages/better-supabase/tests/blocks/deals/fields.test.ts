@@ -36,6 +36,7 @@ describe("deals fields", () => {
   it("writes the extra fields by column name and parses them back", async () => {
     const t = fieldsTransport({ create_deal: () => ROW });
     const deals = createDeals({ transport: t, fields: Fields });
+
     const deal = await deals
       .create("o", {
         name: "Growth",
@@ -43,6 +44,7 @@ describe("deals fields", () => {
         fields: { region: "emea" },
       })
       .orThrow();
+
     expect(deal.fields.region).toBe("emea");
     expect(t.calls[0]?.[1]["attrs"]).toEqual({
       name: "Growth",
@@ -55,10 +57,13 @@ describe("deals fields", () => {
     const t = fieldsTransport({
       update_deals: () => ({ accepted: [], rejected: [] }),
     });
+
     const deals = createDeals({ transport: t, fields: Fields });
+
     const refused = await deals.update([
       { dealId: "d1", field: "region", value: "mars" },
     ]);
+
     expect(refused.ok ? undefined : refused.error.kind).toBe("validation");
     expect(t.calls).toEqual([]);
     await deals
@@ -72,9 +77,11 @@ describe("deals fields", () => {
 
   it("returns a validation error for a stored value the schema refuses", async () => {
     const t = fieldsTransport({ reopen_deal: () => ({ ...ROW, region: "x" }) });
+
     const reopened = await createDeals({ transport: t, fields: Fields }).reopen(
       "d1",
     );
+
     expect(reopened.ok ? undefined : reopened.error.kind).toBe("validation");
   });
 });

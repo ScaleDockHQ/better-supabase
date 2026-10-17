@@ -49,6 +49,7 @@ function sampleModel(): ApiModel {
       note: { type: ["string", "null"] },
     },
   };
+
   return buildApiModel(
     {
       meta: {
@@ -133,28 +134,59 @@ function sampleModel(): ApiModel {
 }
 
 function isPlainJson(value: unknown): boolean {
-  if (value === null || typeof value === "string" || typeof value === "boolean")
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "boolean"
+  ) {
     return true;
-  if (typeof value === "number") return Number.isFinite(value);
-  if (Array.isArray(value)) return value.every(isPlainJson);
-  if (typeof value !== "object") return false;
+  }
+
+  if (typeof value === "number") {
+    return Number.isFinite(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.every(isPlainJson);
+  }
+
+  if (typeof value !== "object") {
+    return false;
+  }
+
   const prototype: unknown = Object.getPrototypeOf(value);
-  if (prototype !== Object.prototype && prototype !== null) return false;
+
+  if (prototype !== Object.prototype && prototype !== null) {
+    return false;
+  }
+
   return Object.values(value).every(
     (entry) => entry !== undefined && isPlainJson(entry),
   );
 }
 
 function diagnosticProblem(diagnostic: SpecDiagnostic): string | undefined {
-  if (typeof diagnostic.code !== "string" || !CODE.test(diagnostic.code))
+  if (typeof diagnostic.code !== "string" || !CODE.test(diagnostic.code)) {
     return `the code ${JSON.stringify(diagnostic.code)} is not kebab-case`;
+  }
+
   const severity: unknown = diagnostic.severity;
-  if (typeof severity !== "string" || !SEVERITIES.has(severity))
+
+  if (typeof severity !== "string" || !SEVERITIES.has(severity)) {
     return `${diagnostic.code} has the severity ${String(severity)}`;
-  if (typeof diagnostic.message !== "string" || diagnostic.message === "")
+  }
+
+  if (typeof diagnostic.message !== "string" || diagnostic.message === "") {
     return `${diagnostic.code} has no message`;
-  if (diagnostic.pointer !== undefined && !/^(?:\/|$)/.test(diagnostic.pointer))
+  }
+
+  if (
+    diagnostic.pointer !== undefined &&
+    !/^(?:\/|$)/.test(diagnostic.pointer)
+  ) {
     return `${diagnostic.code} has the pointer ${diagnostic.pointer}, which is not a JSON Pointer`;
+  }
+
   return undefined;
 }
 
@@ -174,20 +206,25 @@ export function testDocumentFormat<F extends AnyDocumentFormat>(
   const subject: DocumentFormat = format;
   const id: unknown = subject.id;
   const defaultVersion: unknown = subject.defaultVersion;
+
   const versions: readonly string[] =
     options.versions ?? Object.keys(subject.versions);
+
   let model: ApiModel | undefined;
   const modelOf = (): ApiModel => (model ??= options.model ?? sampleModel());
+
   const lower = (
     version: string,
     input: ApiModel,
   ): { readonly document: unknown; readonly diagnostics: SpecDiagnostic[] } => {
     const diagnostics: SpecDiagnostic[] = [];
+
     const document = subject.lower(input, version, {
       report: (diagnostic) => {
         diagnostics.push(diagnostic);
       },
     });
+
     return { document, diagnostics };
   };
 
@@ -208,6 +245,7 @@ export function testDocumentFormat<F extends AnyDocumentFormat>(
       () => {
         const listed = Object.entries(subject.versions);
         expect(listed.length > 0, "versions lists no version");
+
         for (const [version, entry] of listed) {
           const status: unknown = entry.status;
           expect(
@@ -219,11 +257,13 @@ export function testDocumentFormat<F extends AnyDocumentFormat>(
             `version ${version} has the status ${String(status)}`,
           );
         }
-        for (const version of versions)
+
+        for (const version of versions) {
           expect(
             Object.hasOwn(subject.versions, version),
             `options.versions names ${version}, which the format does not list`,
           );
+        }
       },
     ],
     [
@@ -232,6 +272,7 @@ export function testDocumentFormat<F extends AnyDocumentFormat>(
         const entry = Object.hasOwn(subject.versions, subject.defaultVersion)
           ? subject.versions[subject.defaultVersion]
           : undefined;
+
         expect(
           entry !== undefined,
           `the default version ${String(defaultVersion)} is not in versions`,
@@ -247,6 +288,7 @@ export function testDocumentFormat<F extends AnyDocumentFormat>(
       () => {
         const original = modelOf();
         const before = JSON.stringify(original);
+
         for (const version of versions) {
           lower(version, original);
           expect(
@@ -295,6 +337,7 @@ export function testDocumentFormat<F extends AnyDocumentFormat>(
         for (const version of versions) {
           const { document, diagnostics } = lower(version, modelOf());
           const linted = subject.lint?.(document, version) ?? [];
+
           for (const diagnostic of [...diagnostics, ...linted]) {
             const problem = diagnosticProblem(diagnostic);
             expect(problem === undefined, `${version}: ${problem ?? ""}`);
@@ -307,11 +350,17 @@ export function testDocumentFormat<F extends AnyDocumentFormat>(
       () => {
         for (const version of versions) {
           const { document, diagnostics } = lower(version, modelOf());
-          if (diagnostics.some((diagnostic) => diagnostic.severity === "error"))
+
+          if (
+            diagnostics.some((diagnostic) => diagnostic.severity === "error")
+          ) {
             continue;
+          }
+
           const errors = (subject.lint?.(document, version) ?? []).filter(
             (diagnostic) => diagnostic.severity === "error",
           );
+
           expect(
             errors.length === 0,
             `lint(lower(model, "${version}")) reports ${errors

@@ -92,6 +92,7 @@ export interface Retention {
 
 function policyOf(value: unknown): RetentionPolicy {
   const row = recordOf(value, "retention_policies");
+
   return {
     id: textOf(row["id"]),
     kind: textOf(row["kind"]),
@@ -104,6 +105,7 @@ function policyOf(value: unknown): RetentionPolicy {
 
 function holdOf(value: unknown): LegalHold {
   const row = recordOf(value, "legal_holds");
+
   return {
     id: textOf(row["id"]),
     organizationId: optionalText(row["organization_id"]),
@@ -120,10 +122,12 @@ function holdOf(value: unknown): LegalHold {
 export function createRetention(options: RetentionOptions): Retention {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const scoped = (scope: RetentionScope = {}) => ({
     tenant: scope.organizationId,
     plan: scope.plan,
   });
+
   return {
     setPolicy: (kind, keep, scope) =>
       call(

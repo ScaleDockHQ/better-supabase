@@ -65,6 +65,7 @@ describe("pipelines module", () => {
         scope: "job_id",
       },
     });
+
     expect(sql).toContain(
       'create trigger bs_pipeline_deal before insert or update of "stage_id", "pipeline_id", "owner_id" on "public"."deals"',
     );
@@ -102,6 +103,7 @@ describe("pipelines module", () => {
     const sql = render({}, [], {
       modules: { pipelines: { tables: { transitions: null } } },
     });
+
     expect(sql).not.toContain("set_pipeline_transitions");
     expect(sql).not.toContain("PIPELINE_TRANSITION_INVALID");
   });
@@ -175,6 +177,7 @@ describe("pipelines module, other layouts", () => {
         .map((file) => file.contents)
         .join(""),
     ).not.toContain("create table");
+
     const sql = renderModules(["pipelines", "notifications"], {
       subjects: SUBJECTS,
       modules: {
@@ -185,6 +188,7 @@ describe("pipelines module, other layouts", () => {
       .filter((file) => file.module === "pipelines")
       .map((file) => file.contents)
       .join("\n");
+
     expect(sql).not.toContain("The owner watches the record");
     expect(sql).toContain("'type', 'pipeline.stage_changed'");
   });

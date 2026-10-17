@@ -28,11 +28,13 @@ export function testChatState(
 ): Promise<ConformanceReport> {
   const fresh = options.id ?? (() => `conformance-${crypto.randomUUID()}`);
   const ttl = options.ttlMs ?? 300;
+
   const entry = (thread: string, text: string, expiresIn = 60_000) => ({
     enqueuedAt: Date.now(),
     expiresAt: Date.now() + expiresIn,
     message: options.message(`${thread}-${text}`, text),
   });
+
   return conform("StateAdapter", [
     [
       "subscribes and unsubscribes a thread",
@@ -53,10 +55,12 @@ export function testChatState(
       "gives the lock to one holder at a time",
       async () => {
         const thread = fresh();
+
         const [a, b] = await Promise.all([
           state.acquireLock(thread, 10_000),
           state.acquireLock(thread, 10_000),
         ]);
+
         expect((a === null) !== (b === null), "both or neither got the lock");
         const held = a ?? b;
         expect(held !== null, "no lock");
@@ -132,10 +136,13 @@ export function testChatState(
       "appends to a list and keeps the newest maxLength",
       async () => {
         const key = fresh();
-        for (const value of ["a", "b", "c", "d"])
+
+        for (const value of ["a", "b", "c", "d"]) {
           await state.appendToList(key, value, { maxLength: 3 });
+        }
+
         const list = await state.getList<string>(key);
-        expect(list.join() === "b,c,d", `list is ${list.join()}`);
+        expect(list.join(",") === "b,c,d", `list is ${list.join(",")}`);
         expect(
           (await state.getList(fresh())).length === 0,
           "missing list is not empty",
@@ -152,8 +159,11 @@ export function testChatState(
         );
         expect((await state.dequeue(thread)) === null, "empty queue dequeued");
         let depth = 0;
-        for (const text of ["one", "two", "three"])
+
+        for (const text of ["one", "two", "three"]) {
           depth = await state.enqueue(thread, entry(thread, text), 2);
+        }
+
         expect(
           depth === 2,
           `depth after three with maxSize 2 is ${String(depth)}`,

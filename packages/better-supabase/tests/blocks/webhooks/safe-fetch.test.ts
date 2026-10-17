@@ -10,6 +10,7 @@ type Hop = { url: string; method: string; headers: Headers; body: string };
 
 function fakeFetch(answer: (url: URL) => Response) {
   const hops: Hop[] = [];
+
   const fetch: typeof globalThis.fetch = async (input, init) => {
     const url = input instanceof URL ? input : new URL(String(input));
     hops.push({
@@ -20,8 +21,10 @@ function fakeFetch(answer: (url: URL) => Response) {
         ? new TextDecoder().decode(init.body as ArrayBuffer)
         : "",
     });
+
     return answer(url);
   };
+
   return { fetch, hops };
 }
 
@@ -35,6 +38,7 @@ describe("createSafeFetch", () => {
     const { fetch, hops } = fakeFetch(() => new Response("ok"));
     const safe = createSafeFetch({ fetch, resolve });
     expect(await (await safe("https://example.com/a")).text()).toBe("ok");
+
     for (const url of [
       "http://example.com/",
       "https://127.0.0.1/",
@@ -44,23 +48,29 @@ describe("createSafeFetch", () => {
     ]) {
       await expect(safe(url)).rejects.toBeInstanceOf(UnsafeUrlError);
     }
+
     expect(hops).toHaveLength(1);
   });
 
   it("checks every redirect and drops credentials across origins", async () => {
     const { fetch, hops } = fakeFetch((url) => {
-      if (url.pathname === "/start")
+      if (url.pathname === "/start") {
         return new Response(null, {
           status: 302,
           headers: { location: "https://other.example.com/next" },
         });
-      if (url.pathname === "/next")
+      }
+
+      if (url.pathname === "/next") {
         return new Response(null, {
           status: 307,
           headers: { location: "https://internal.example.com/secret" },
         });
+      }
+
       return new Response("done");
     });
+
     const safe = createSafeFetch({ fetch, resolve });
     await expect(
       safe("https://example.com/start", {
@@ -78,23 +88,29 @@ describe("createSafeFetch", () => {
 
   it("drops sensitiveHeaders across origins and keeps them on the same origin", async () => {
     const { fetch, hops } = fakeFetch((url) => {
-      if (url.pathname === "/start")
+      if (url.pathname === "/start") {
         return new Response(null, {
           status: 302,
           headers: { location: "/same" },
         });
-      if (url.pathname === "/same")
+      }
+
+      if (url.pathname === "/same") {
         return new Response(null, {
           status: 302,
           headers: { location: "https://other.example.com/next" },
         });
+      }
+
       return new Response("done");
     });
+
     const safe = createSafeFetch({
       fetch,
       resolve,
       sensitiveHeaders: ["X-Api-Key"],
     });
+
     await safe("https://example.com/start", {
       headers: { "x-api-key": "k", cookie: "c", accept: "text/plain" },
     });
@@ -113,20 +129,25 @@ describe("createSafeFetch", () => {
 
   it("keeps the body on 307, limits redirects and needs a location", async () => {
     let count = 0;
+
     const { fetch, hops } = fakeFetch(() => {
       count += 1;
+
       return count === 1
         ? new Response(null, { status: 307, headers: { location: "/again" } })
         : new Response("ok");
     });
+
     await createSafeFetch({ fetch, resolve })("https://example.com/", {
       method: "PUT",
       body: "data",
     });
     expect(hops[1]).toMatchObject({ method: "PUT", body: "data" });
+
     const loop = fakeFetch(
       () => new Response(null, { status: 301, headers: { location: "/" } }),
     );
+
     await expect(
       createSafeFetch({ fetch: loop.fetch, resolve, maxRedirects: 1 })(
         "https://example.com/",
@@ -140,16 +161,20 @@ describe("createSafeFetch", () => {
 
   it("reports a failed DNS lookup as UrlCheckError, not as a refused URL", async () => {
     const { fetch, hops } = fakeFetch(() => new Response("ok"));
+
     const lookup = Object.assign(new Error("getaddrinfo EAI_AGAIN"), {
       code: "EAI_AGAIN",
     });
+
     const safe = createSafeFetch({
       fetch,
       resolve: () => Promise.reject(lookup),
     });
+
     const error = await safe("https://example.com/").catch(
-      (thrown: unknown) => thrown,
+      (cause: unknown) => cause,
     );
+
     expect(error).toBeInstanceOf(UrlCheckError);
     expect(error).not.toBeInstanceOf(UnsafeUrlError);
     expect(error).toMatchObject({
@@ -157,10 +182,12 @@ describe("createSafeFetch", () => {
       message: "Could not check URL: example.com",
       cause: lookup,
     });
+
     const rejecting = createSafeFetch({
       fetch,
       allowUrl: () => Promise.reject(new Error("policy down")),
     });
+
     await expect(rejecting("https://example.com/")).rejects.toBeInstanceOf(
       UrlCheckError,
     );

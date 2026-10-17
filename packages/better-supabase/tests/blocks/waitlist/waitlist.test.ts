@@ -21,6 +21,7 @@ const entry = {
   decided_at: "2026-01-02T00:00:00Z",
   created_at: "2026-01-01T00:00:00Z",
 };
+
 const code = {
   id: "c1",
   prefix: "ABCD",
@@ -39,7 +40,9 @@ function fake(answer: (fn: string, args: Record<string, unknown>) => unknown) {
     async (_schema: string, fn: string, args: Record<string, unknown>) =>
       answer(fn, args),
   );
+
   const transport: BlockTransport = { call };
+
   return { call, transport };
 }
 
@@ -49,6 +52,7 @@ describe("createWaitlist", () => {
       position: 4,
       status: "waiting",
     }));
+
     const waitlist = createWaitlist({ transport, schema: "app" });
     expect(await waitlist.join("ada@example.com").orThrow()).toEqual({
       position: 4,
@@ -86,6 +90,7 @@ describe("createWaitlist", () => {
     const { call, transport } = fake((fn) =>
       fn === "list_waitlist" ? [entry] : entry,
     );
+
     const waitlist = createWaitlist({ transport });
     const [first] = await waitlist.entries().orThrow();
     expect(first).toMatchObject({
@@ -124,6 +129,7 @@ describe("createWaitlist", () => {
           ? true
           : code,
     );
+
     const waitlist = createWaitlist({ transport });
     const created = await waitlist.createCode().orThrow();
     expect(created.code).toMatch(/^[A-HJ-NP-Z2-9]{4}(-[A-HJ-NP-Z2-9]{4}){3}$/);
@@ -166,6 +172,7 @@ describe("createWaitlist", () => {
       organizationId: "org",
       role: "member",
     }));
+
     const waitlist = createWaitlist({ transport });
     expect(await waitlist.redeem("ABCD").orThrow()).toEqual({
       organizationId: "org",
@@ -178,18 +185,22 @@ describe("generateInviteCode", () => {
   it("draws from an alphabet without look-alike characters", () => {
     const codes = new Set(Array.from({ length: 50 }, generateInviteCode));
     expect(codes.size).toBe(50);
-    for (const value of codes) expect(value).not.toMatch(/[01IO]/);
+
+    for (const value of codes) {
+      expect(value).not.toMatch(/[01IO]/);
+    }
   });
 });
 
 describe("waitlistHook", () => {
-  const secret = "v1,whsec_" + btoa("hook-secret-for-tests-0123456789");
+  const secret = `v1,whsec_${btoa("hook-secret-for-tests-0123456789")}`;
 
   async function send(
     handler: (request: Request) => Promise<Response>,
     user: Record<string, unknown>,
   ) {
     const text = JSON.stringify({ metadata: {}, user });
+
     return handler(
       new Request("http://x/hook", {
         method: "POST",
@@ -203,6 +214,7 @@ describe("waitlistHook", () => {
     const { call, transport } = fake((_fn, args) => ({
       allowed: args["code"] === "GOOD" || args["email"] === "ok@x.test",
     }));
+
     const hook = waitlistHook({ transport, secret });
     const approved = await send(hook, { id: "u", email: "ok@x.test" });
     expect(approved.status).toBe(200);
@@ -214,6 +226,7 @@ describe("waitlistHook", () => {
       email: "new@x.test",
       user_metadata: { invite_code: "GOOD" },
     });
+
     expect(coded.status).toBe(200);
 
     const rejected = await send(hook, {
@@ -221,6 +234,7 @@ describe("waitlistHook", () => {
       email: "new@x.test",
       user_metadata: { invite_code: "" },
     });
+
     expect(rejected.status).toBe(403);
     expect(await rejected.json()).toEqual({
       error: {
@@ -232,20 +246,27 @@ describe("waitlistHook", () => {
 
   it("reads another field, says its own message and fails closed", async () => {
     let fail = false;
+
     const { call, transport } = fake(() => {
-      if (fail) throw Object.assign(new Error("down"), { code: "08006" });
+      if (fail) {
+        throw Object.assign(new Error("down"), { code: "08006" });
+      }
+
       return { allowed: false };
     });
+
     const hook = waitlistHook({
       transport,
       secret,
       codeField: "referral",
       message: "Invite only",
     });
+
     const rejected = await send(hook, {
       id: "u",
       user_metadata: { referral: "X" },
     });
+
     expect(call.mock.calls[0]?.[2]).toEqual({ email: "", code: "X" });
     expect(await rejected.json()).toMatchObject({
       error: { message: "Invite only" },

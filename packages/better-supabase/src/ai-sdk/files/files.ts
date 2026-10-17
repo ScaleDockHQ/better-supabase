@@ -39,6 +39,7 @@ export function aiFileDownload(
   options: AiFileDownloadOptions = {},
 ): Experimental_DownloadFunction {
   const fallback = options.fallback ?? sdkDownload(options.abortSignal);
+
   return (requests) =>
     Promise.all(
       requests.map(async (request) => {
@@ -46,10 +47,18 @@ export function aiFileDownload(
           const read = await files.files
             .resolve(request.url)
             .andThen((file) => files.files.read(file));
-          if (!read.ok) throw new AiFileDownloadError(request.url, read.error);
+
+          if (!read.ok) {
+            throw new AiFileDownloadError(request.url, read.error);
+          }
+
           return { data: read.data.data, mediaType: read.data.file.mediaType };
         }
-        if (request.isUrlSupportedByModel) return null;
+
+        if (request.isUrlSupportedByModel) {
+          return null;
+        }
+
         if (fallback === false) {
           throw new AiFileDownloadError(
             request.url,
@@ -58,7 +67,9 @@ export function aiFileDownload(
             }),
           );
         }
+
         const [downloaded] = await fallback([request]);
+
         return downloaded ?? null;
       }),
     );
@@ -66,6 +77,7 @@ export function aiFileDownload(
 
 function sdkDownload(abortSignal?: AbortSignal): Experimental_DownloadFunction {
   const download = createDownload();
+
   return (requests) =>
     Promise.all(
       requests.map((request) =>
@@ -117,10 +129,12 @@ export function saveGeneratedFiles(
 ): AsyncResult<readonly AiFilePart[]> {
   return AsyncResult.from(async () => {
     const parts: AiFilePart[] = [];
+
     for (const [index, file] of generated.entries()) {
       const filename =
         options.filename?.(file, index) ??
         `generated-${String(index + 1)}.${EXTENSIONS[file.mediaType] ?? "bin"}`;
+
       const stored = await files.files.store(options.organizationId, {
         ownerId: options.ownerId,
         filename,
@@ -129,7 +143,11 @@ export function saveGeneratedFiles(
         source: options.source ?? "generated",
         ...(options.chatId === undefined ? {} : { chatId: options.chatId }),
       });
-      if (!stored.ok) return err(stored.error);
+
+      if (!stored.ok) {
+        return err(stored.error);
+      }
+
       parts.push({
         type: "file",
         mediaType: stored.data.mediaType,
@@ -137,6 +155,7 @@ export function saveGeneratedFiles(
         filename: stored.data.filename,
       });
     }
+
     return ok(parts);
   });
 }
@@ -163,10 +182,18 @@ export function providerFile(
   }) => Promise<ProviderFileUpload>,
 ): AsyncResult<string> {
   return files.providerFiles.get(fileId, provider).andThen(async (cached) => {
-    if (cached) return ok(cached.reference);
+    if (cached) {
+      return ok(cached.reference);
+    }
+
     const read = await files.files.read(fileId);
-    if (!read.ok) return err(read.error);
+
+    if (!read.ok) {
+      return err(read.error);
+    }
+
     let uploaded: ProviderFileUpload;
+
     try {
       uploaded = await upload({
         data: read.data.data,
@@ -184,12 +211,14 @@ export function providerFile(
         ),
       );
     }
+
     const saved = await files.providerFiles.set(
       fileId,
       provider,
       uploaded.reference,
       uploaded.expiresAt,
     );
+
     return saved.ok ? ok(uploaded.reference) : err(saved.error);
   });
 }

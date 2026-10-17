@@ -35,6 +35,7 @@ describe("employees module", () => {
         person: { table: "app.people", idType: "uuid", title: "full_name" },
       },
     });
+
     expect(sql).toContain("employee_from_application");
     expect(sql).toContain("'created_from'");
     expect(sql).toContain('select s."full_name"::text from "app"."people" s');
@@ -51,6 +52,7 @@ describe("employees module", () => {
         },
       },
     });
+
     expect(sql).toContain("array['permanent', 'freelance']::text[]");
     expect(sql).toContain('add column if not exists "shoe_size" integer');
     expect(sql).toContain("when 'shoe_size' then");
@@ -93,6 +95,7 @@ describe("employees module", () => {
         },
       },
     };
+
     const sql = body(["outbox", "hiring", "pipelines", "employees"], layout);
     expect(sql).not.toContain('create table if not exists "hr"');
     expect(sql).not.toContain("employee_private_details");
@@ -103,6 +106,7 @@ describe("employees module", () => {
       "coalesce(create_employee.attrs ->> 'status', 'active')",
     );
     expect(sql).toContain("'endDate', current_date");
+
     const names = SQL_MODULES["employees"]
       ?.contract?.({
         installed: () => false,
@@ -110,6 +114,7 @@ describe("employees module", () => {
         has: () => false,
       } as never)
       .map((fn) => fn.name);
+
     expect(names).toEqual([
       "create_employee",
       "update_employees",
@@ -127,6 +132,7 @@ describe("employees module", () => {
         has: () => true,
       } as never)
       .map((fn) => fn.name);
+
     expect(names).toContain("employee_from_application");
     expect(names).toContain("save_employee_private_details");
     expect(names).toContain("add_employee_contract");

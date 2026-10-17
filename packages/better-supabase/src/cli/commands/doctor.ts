@@ -149,29 +149,42 @@ export async function runDoctor(
   options: DoctorOptions = {},
 ): Promise<CommandResult> {
   const format = reportFormat(args, config.doctor.format);
+
   const only =
     args.only === undefined ? [...config.doctor.only] : list(args.only);
+
   const ignore = new Set([...config.doctor.ignore, ...list(args.ignore)]);
+
   const unknown = [...only, ...ignore].filter(
     (code) => !RULE_CODES.includes(code),
   );
-  if (unknown.length > 0)
+
+  if (unknown.length > 0) {
     return {
       code: 2,
       error: `Unknown check ${unknown.join(", ")}. Checks: ${RULE_CODES.join(", ")}`,
     };
+  }
+
   const explainTables = list(args.explain);
   const stats = args.stats === true;
   const claims = explainClaims(args);
-  if ("error" in claims) return { code: 2, error: String(claims.error) };
+
+  if ("error" in claims) {
+    return { code: 2, error: String(claims.error) };
+  }
+
   // --stats and --explain ask for their checks even when --only leaves them out.
   const hookUser = args.as;
+
   const asked = new Set([
     ...(stats ? ["BS209"] : []),
     ...(explainTables.length > 0 ? ["BS212"] : []),
     ...(hookUser ? ["BS405"] : []),
   ]);
+
   const fixGrants = args["fix-grants"] === true;
+
   const rules = fixGrants
     ? RULES.filter((rule) => rule.code === "BS404")
     : RULES.filter(
@@ -185,6 +198,7 @@ export async function runDoctor(
   const snapshotPath = args.snapshot;
   const dbUrl = options.dbUrl;
   const projectRef = args["project-ref"];
+
   const source: SnapshotSource = {
     // Statistics, plans and hook calls need the database, not the saved snapshot.
     ...(stats || explainTables.length > 0 || hookUser ? { live: true } : {}),
@@ -193,9 +207,12 @@ export async function runDoctor(
     ...(projectRef ? { projectRef } : {}),
     ...(options.signal ? { signal: options.signal } : {}),
   };
+
   const pg = options.connect ?? connect;
+
   const wantsLive =
     hookUser !== undefined || rules.some((rule) => LIVE_CODES.has(rule.code));
+
   const opened: OpenLive =
     options.snapshot || !wantsLive
       ? {
@@ -212,6 +229,7 @@ export async function runDoctor(
             ? {}
             : { database: options.database }),
         };
+
   const [
     snapshot,
     envFiles,
@@ -242,13 +260,16 @@ export async function runDoctor(
     await opened.close();
     throw cause;
   });
+
   const replay = opened.open ? (await opened.open()).replay : undefined;
+
   const live = replay
     ? {
         advisors: options.advisors ?? { skipped: replay },
         database: options.database ?? { skipped: replay },
       }
     : opened;
+
   const context: DoctorContext = {
     config,
     snapshot,
@@ -267,32 +288,44 @@ export async function runDoctor(
       ? { explain: { tables: explainTables, claims } }
       : {}),
   };
+
   if (fixGrants) {
     await opened.close();
+
     return {
       code: 0,
       output: hookGrantBlock(hookGrantProblems(context), workflowOf(context)),
     };
   }
+
   let ran: Finding[];
+
   try {
     ran = await runRules(context, rules);
   } finally {
     await opened.close();
   }
+
   const findings: Finding[] = ran.map((finding) => {
-    if (finding.location || !finding.object) return finding;
+    if (finding.location || !finding.object) {
+      return finding;
+    }
+
     const location = locate(sql, finding.object);
+
     return location ? { ...finding, location } : finding;
   });
 
   const out =
     args.out ??
     (format === config.doctor.format ? config.doctor.output : undefined);
+
   const fromRepo = format === "sarif" || format === "github";
   const repoRoot = findRepoRoot(config.root);
+
   const repoPath = (file: string): string =>
     display(repoRoot, resolve(config.root, file));
+
   const report = formatReport(
     fromRepo
       ? findings.map((finding) =>
@@ -315,23 +348,28 @@ export async function runDoctor(
       ...(options.paint && !out ? { paint: options.paint } : {}),
     },
   );
+
   const errors = findings.filter(
     (finding) => finding.severity === "error",
   ).length;
+
   const warnings = findings.filter(
     (finding) => finding.severity === "warning",
   ).length;
+
   const strict = args.strict === true || config.doctor.strict;
   const code = errors > 0 || (strict && warnings > 0) ? 1 : 0;
 
   if (out) {
     await writeIfChanged(resolve(config.root, out), `${report}\n`);
+
     return {
       code,
       output: `Wrote ${out}: ${errors} errors, ${warnings} warnings.`,
       data: { out, errors, warnings },
     };
   }
+
   return format === "json"
     ? { code, data: jsonReport(findings, VERSION) }
     : { code, output: report };
@@ -355,21 +393,28 @@ export const doctorCommand: AnyCommand = defineCliCommand({
         ...(args.explain === undefined ? [] : ["--explain"]),
         ...(args.as === undefined ? [] : ["--as"]),
       ];
+
       if (conflicting.length > 0) {
         return {
           code: 2,
           error: `--metadata checks the document, not a database, so it can't be combined with ${conflicting.join(", ")}`,
         };
       }
+
       let snapshot: Snapshot;
+
       try {
         snapshot = await readMetadataSnapshot(args.metadata, cwd, io);
       } catch (cause) {
-        if (cause instanceof MetadataRejectedError)
+        if (cause instanceof MetadataRejectedError) {
           return { code: METADATA_REJECTED, error: cause.message };
+        }
+
         throw cause;
       }
+
       const skipped = `reading a GeneratorMetadata document; set $DATABASE_URL or $SUPABASE_DB_URL, or pass --db-url-stdin or --project-ref, to check a database.`;
+
       return runDoctor(config, args, env, {
         snapshot,
         advisors: { skipped },
@@ -377,7 +422,9 @@ export const doctorCommand: AnyCommand = defineCliCommand({
         paint: painter(io.color),
       });
     }
+
     const dbUrl = await stdinDatabaseUrl(args["db-url-stdin"], io);
+
     return withSpinner(
       args.snapshot === undefined ? io.prompts : undefined,
       "Checking the database",

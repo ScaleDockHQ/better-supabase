@@ -232,27 +232,35 @@ const NAMES: ModuleNames = {
 };
 
 function tables(ctx: ModuleContext, names: InventoryNames): string {
-  if (!ctx.manages) return "";
+  if (!ctx.manages) {
+    return "";
+  }
+
   const catalog = ctx.of("catalog");
   const variants = `${catalog.table("variants")} (${catalog.col("variants", "id")}) on delete cascade`;
   const t = (name: string): string => ctx.table(name);
+
   const read = (
     table: string,
   ): string => `drop policy if exists ${ctx.tableName(table).name}_read on ${t(table)};
 create policy ${ctx.tableName(table).name}_read on ${t(table)} for select to authenticated
 using (${ctx.col(table, "tenant")} in (select ${ctx.scope.ids(names.read)}));`;
+
   const l = columns(ctx, "locations");
   const lv = columns(ctx, "levels");
   const m = columns(ctx, "movements");
   const r = columns(ctx, "reservations");
   const location = `${t("locations")} (${l("id")}) on delete cascade`;
   const transfers = ctx.hasTable("transfers") && ctx.hasTable("transferLines");
+
   const orders =
     ctx.hasTable("purchaseOrders") && ctx.hasTable("purchaseOrderLines");
+
   const tr = columns(ctx, "transfers");
   const tl = columns(ctx, "transferLines");
   const po = columns(ctx, "purchaseOrders");
   const pl = columns(ctx, "purchaseOrderLines");
+
   return `
 create table if not exists ${t("locations")} (
   ${l("id")} uuid primary key default gen_random_uuid(),
@@ -404,6 +412,7 @@ function ledger(ctx: ModuleContext, names: InventoryNames): string {
   const lv = columns(ctx, "levels");
   const m = columns(ctx, "movements");
   const { name } = ctx.tableName("movements");
+
   return `
 -- Applies a stock movement to its level. A tracked variant without
 -- backorders can't go below zero on hand, and a sale or a transfer out
@@ -463,7 +472,10 @@ for each row execute function ${fn("stock_movements_append_only")}();
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
   const names: InventoryNames = {
     scope: ctx.scope,
     fn: (name) => ctx.fn(name),
@@ -473,6 +485,7 @@ function build(ctx: ModuleContext): string {
     purchase: ctx.permission("purchase", OPERATIONS["inventory.purchase"]),
     extras: ctx.extraColumns("locations"),
   };
+
   return `${schemaPreamble(ctx)}
 -- Stock per catalog variant and location: an append-only movement ledger,
 -- reservations with expiry, transfers and purchase orders with receiving.
@@ -481,8 +494,10 @@ ${tables(ctx, names)}${ledger(ctx, names)}${locationFunctions(ctx, names)}${stoc
 
 function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   const transfers = ctx.hasTable("transfers") && ctx.hasTable("transferLines");
+
   const orders =
     ctx.hasTable("purchaseOrders") && ctx.hasTable("purchaseOrderLines");
+
   return [
     {
       name: "save_location",

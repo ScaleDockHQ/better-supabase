@@ -10,12 +10,17 @@ export {
   createConnectors,
   type FingerprintStatus,
 } from "./connectors.ts";
+
 export {
   dbTransport,
   rpcTransport,
   sqlTransport,
 } from "../../core/block-transport.ts";
+
 export type { BlockTransport } from "../../core/block-transport.ts";
+
 export { connectorsBlock } from "./manifest.ts";
+
 export { connectorsEvents } from "./events.ts";
+
 export type { ConnectorsEvents } from "./events.ts";

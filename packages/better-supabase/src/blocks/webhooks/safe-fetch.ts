@@ -61,8 +61,10 @@ export function createSafeFetch(options: SafeFetchOptions = {}): typeof fetch {
   const maxRedirects = options.maxRedirects ?? 3;
   const timeoutMs = options.timeoutMs ?? 10_000;
   const sensitive = [...CREDENTIALS, ...(options.sensitiveHeaders ?? [])];
+
   const check = async (url: URL): Promise<void> => {
     let ok: boolean;
+
     try {
       ok = await allowUrl(url);
     } catch (error) {
@@ -70,8 +72,12 @@ export function createSafeFetch(options: SafeFetchOptions = {}): typeof fetch {
         cause: error,
       });
     }
-    if (!ok) throw new UnsafeUrlError(`URL is not allowed: ${url.host}`);
+
+    if (!ok) {
+      throw new UnsafeUrlError(`URL is not allowed: ${url.host}`);
+    }
   };
+
   return async (input, init) => {
     await check(new URL(input instanceof Request ? input.url : String(input)));
     const request = new Request(input, init);
@@ -80,12 +86,17 @@ export function createSafeFetch(options: SafeFetchOptions = {}): typeof fetch {
     let url = new URL(request.url);
     let method = request.method;
     const headers = new Headers(request.headers);
+
     let body: ArrayBuffer | undefined =
       method === "GET" || method === "HEAD"
         ? undefined
         : await request.arrayBuffer();
+
     for (let hop = 0; ; hop++) {
-      if (hop > 0) await check(url);
+      if (hop > 0) {
+        await check(url);
+      }
+
       const response = await send(url, {
         method,
         headers,
@@ -93,9 +104,14 @@ export function createSafeFetch(options: SafeFetchOptions = {}): typeof fetch {
         redirect: "manual",
         signal,
       });
-      if (!REDIRECTS.has(response.status)) return response;
+
+      if (!REDIRECTS.has(response.status)) {
+        return response;
+      }
+
       await response.body?.cancel();
       const location = response.headers.get("location");
+
       if (!location || hop >= maxRedirects) {
         throw new UnsafeUrlError(
           location
@@ -103,14 +119,20 @@ export function createSafeFetch(options: SafeFetchOptions = {}): typeof fetch {
             : `Redirect ${String(response.status)} without a location`,
         );
       }
+
       if (!keepsMethod(response.status, method)) {
         method = "GET";
         body = undefined;
       }
+
       const next = new URL(location, url);
+
       if (next.origin !== url.origin) {
-        for (const name of sensitive) headers.delete(name);
+        for (const name of sensitive) {
+          headers.delete(name);
+        }
       }
+
       url = next;
     }
   };

@@ -13,10 +13,12 @@ const browserClients = vi.hoisted((): unknown[][] => []);
 
 vi.mock("@supabase/ssr", async (importOriginal) => {
   const actual = await importOriginal<typeof Ssr>();
+
   return {
     ...actual,
     createBrowserClient: (url: string, key: string, options: object) => {
       browserClients.push([url, key, options]);
+
       return actual.createBrowserClient(url, key, options as never);
     },
   };
@@ -24,6 +26,7 @@ vi.mock("@supabase/ssr", async (importOriginal) => {
 
 const betterSupabase = defineSupabase(schema);
 const URL_BASE = "https://abcdefghijklmnopqrst.supabase.co";
+
 const ANON = {
   actor: { id: "anon", kind: "anon", role: "anon" },
   claims: { role: "anon" },
@@ -56,9 +59,11 @@ function setup(options: { staleTime?: number } = {}) {
   const unsubscribe = vi.fn();
   vi.spyOn(client.auth, "onAuthStateChange").mockImplementation((callback) => {
     emit = (event, value) => void callback(event, value);
+
     return { data: { subscription: { unsubscribe } } } as never;
   });
   const browser = createClient(betterSupabase, { client, ...options });
+
   return {
     browser,
     client,
@@ -104,12 +109,14 @@ describe("createClient", () => {
 
   it("follows the session in the snapshot and the repositories' context", () => {
     const { browser, emit } = setup();
+
     const claims = {
       sub: "u1",
       role: "authenticated",
       exp: 100,
       app_metadata: { tenant_id: "t1" },
     };
+
     emit(session(token(claims), { id: "u1", email: "ada@example.test" }));
     expect(browser.auth.current()).toEqual({
       status: "signed-in",
@@ -137,6 +144,7 @@ describe("createClient", () => {
 
   it("falls back to the user's role when the token has none or is unreadable", () => {
     const { browser, emit } = setup();
+
     for (const accessToken of [
       "opaque",
       "a.%%%.c",
@@ -155,6 +163,7 @@ describe("createClient", () => {
         role: "member",
       });
     }
+
     emit(null);
     emit(session("opaque", { id: "u1" }));
     expect(browser.auth.current()).toEqual({
@@ -170,21 +179,27 @@ describe("createClient", () => {
 
   it("reads the user from the claims when tokens-only cookies left no user object", () => {
     const { browser, emit } = setup();
+
     // auth-js puts a placeholder there that throws on every other property read.
     const missing = new Proxy(
       {},
       {
         get: (_target, property) => {
-          if (property === "__isUserNotAvailableProxy") return true;
+          if (property === "__isUserNotAvailableProxy") {
+            return true;
+          }
+
           throw new Error(`read ${String(property)}`);
         },
       },
     );
+
     const claims = {
       sub: "u1",
       email: "ada@example.test",
       role: "authenticated",
     };
+
     emit(session(token(claims), missing as never));
     expect(browser.auth.current()).toEqual({
       status: "signed-in",
@@ -252,9 +267,11 @@ describe("createClient", () => {
       "customers",
       "findMany",
     ]);
+
     const queryFn = options.queryFn as (context: {
       signal: AbortSignal;
     }) => Promise<unknown>;
+
     await expect(
       queryFn({ signal: new AbortController().signal }),
     ).resolves.toEqual([]);
@@ -275,11 +292,13 @@ describe("createClient", () => {
 
   it("passes cookies.encode and auth.userStorage to @supabase/ssr", () => {
     const env = { url: URL_BASE, publishableKey: "sb_publishable_test" };
+
     const userStorage = {
       getItem: () => null,
       setItem: () => undefined,
       removeItem: () => undefined,
     };
+
     browserClients.length = 0;
     createClient(betterSupabase, { env });
     createClient(betterSupabase, {
@@ -295,11 +314,13 @@ describe("createClient", () => {
         { auth: { userStorage }, cookies: { encode: "tokens-only" } },
       ],
     ]);
+
     const local = createClient(betterSupabase, {
       env,
       storage: "local",
       auth: { userStorage },
     });
+
     expect(local.auth.current().status).toBe("loading");
   });
 

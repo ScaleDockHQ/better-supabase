@@ -19,6 +19,7 @@ export const signedIn = (id: string = USER): AuthSnapshot => ({
   user: { id },
   claims: { sub: id },
 });
+
 export const SIGNED_OUT: AuthSnapshot = {
   status: "signed-out",
   user: null,
@@ -32,15 +33,20 @@ export function fakeAuth(initial: AuthSnapshot = signedIn()): AuthPort & {
 } {
   let snapshot = initial;
   const listeners = new Set<() => void>();
+
   return {
     current: () => snapshot,
     subscribe: (listener) => {
       listeners.add(listener);
+
       return () => void listeners.delete(listener);
     },
     set: (next) => {
       snapshot = next;
-      for (const listener of [...listeners]) listener();
+
+      for (const listener of [...listeners]) {
+        listener();
+      }
     },
     listeners: () => listeners.size,
   };
@@ -63,8 +69,10 @@ export function fakeTopic(): {
   readonly status: (topic: string, status: "subscribed" | "error") => void;
 } {
   const joined: Joined[] = [];
+
   const live = (topic: string) =>
     joined.filter((each) => each.topic === topic && !each.left);
+
   return {
     joined,
     port: (topic, watch) => {
@@ -72,9 +80,13 @@ export function fakeTopic(): {
       joined.push(entry);
       watch.onStatus("joining");
       watch.onStatus("subscribed");
+
       return {
         leave: () => {
-          if (entry.left) return;
+          if (entry.left) {
+            return;
+          }
+
           entry.left = true;
           watch.onStatus("closed");
         },
@@ -85,13 +97,19 @@ export function fakeTopic(): {
     },
     open: () => joined.filter((each) => !each.left).map((each) => each.topic),
     emit: (topic, event, payload = {}) => {
-      for (const each of live(topic)) each.watch.onMessage(event, payload);
+      for (const each of live(topic)) {
+        each.watch.onMessage(event, payload);
+      }
     },
     rejoin: (topic) => {
-      for (const each of live(topic)) each.watch.onRejoin();
+      for (const each of live(topic)) {
+        each.watch.onRejoin();
+      }
     },
     status: (topic, status) => {
-      for (const each of live(topic)) each.watch.onStatus(status);
+      for (const each of live(topic)) {
+        each.watch.onStatus(status);
+      }
     },
   };
 }
@@ -103,11 +121,14 @@ export function fakeKeyboard(): {
   readonly bound: () => number;
 } {
   const handlers = new Map<string, () => void>();
+
   const keyOf = (shortcut: Shortcut) =>
     `${shortcut.mod ? "mod+" : ""}${shortcut.key.toLowerCase()}`;
+
   return {
     port: (shortcut, run) => {
       handlers.set(keyOf(shortcut), run);
+
       return () => void handlers.delete(keyOf(shortcut));
     },
     press: (shortcut) => handlers.get(keyOf(shortcut))?.(),
@@ -124,9 +145,11 @@ export function mount<S, A>(
   readonly unmount: () => void;
 } {
   let renders = 0;
+
   const unmount = controller.subscribe(() => {
     renders += 1;
   });
+
   return {
     view: () => ({ ...controller.getSnapshot(), ...controller.actions }),
     renders: () => renders,
@@ -151,6 +174,7 @@ export function held<T>(data: T): {
   readonly release: () => void;
 } {
   let release = (): void => undefined;
+
   const result = new Async<T>(
     new Promise((resolve) => {
       release = () => {
@@ -158,6 +182,7 @@ export function held<T>(data: T): {
       };
     }),
   );
+
   return {
     result,
     release: () => {

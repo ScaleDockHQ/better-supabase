@@ -7,16 +7,21 @@ import { SPEC_PINS } from "../../src/core/spec-pins.ts";
 
 const listOne = await readFile(
   new URL("schemas/iso-4217-list-one-2026-09-17.xml", import.meta.url),
-  "utf8",
+  "utf-8",
 );
 
 const fromListOne = (): Record<string, number> => {
   const units: Record<string, number> = {};
+
   for (const [, entry] of listOne.matchAll(/<CcyNtry>([\s\S]*?)<\/CcyNtry>/g)) {
     const code = /<Ccy>([A-Z]{3})<\/Ccy>/.exec(entry ?? "")?.[1];
     const minor = /<CcyMnrUnts>(\d+)<\/CcyMnrUnts>/.exec(entry ?? "")?.[1];
-    if (code !== undefined && minor !== undefined) units[code] = Number(minor);
+
+    if (code !== undefined && minor !== undefined) {
+      units[code] = Number(minor);
+    }
   }
+
   return units;
 };
 

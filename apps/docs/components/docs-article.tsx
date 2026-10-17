@@ -21,7 +21,10 @@ export async function DocsArticle({
   slug: Promise<string[] | undefined>;
 }) {
   const page = source.getPage(await slug);
-  if (!page) notFound();
+
+  if (!page) {
+    notFound();
+  }
 
   const MDX = page.data.body;
   const markdownUrl = getPagePublicMarkdownUrl(page);
@@ -61,8 +64,8 @@ export function DocsArticleSkeleton() {
       aria-busy="true"
       className="mx-auto flex w-full max-w-[900px] flex-1 flex-col gap-4 px-4 pt-8 md:px-6 md:pt-12"
     >
-      <div className="bg-fd-muted h-9 w-2/3 rounded-md motion-safe:animate-pulse" />
-      <div className="bg-fd-muted h-5 w-full rounded-md motion-safe:animate-pulse" />
+      <div className="h-9 w-2/3 rounded-md bg-fd-muted motion-safe:animate-pulse" />
+      <div className="h-5 w-full rounded-md bg-fd-muted motion-safe:animate-pulse" />
     </div>
   );
 }

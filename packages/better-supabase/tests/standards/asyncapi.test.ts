@@ -73,9 +73,11 @@ describe.each([
 
   it("asyncapiFormat renders a document the vendored schema accepts", () => {
     const version = pin === SPEC_PINS.asyncapi30 ? "3.0" : "3.1";
+
     const { document, diagnostics } = events.render(asyncapiFormat, {
       version,
     });
+
     expect(diagnostics.filter((d) => d.severity === "error")).toEqual([]);
     expect(document.asyncapi).toBe(pin);
     expect(Object.keys(document.channels).length).toBeGreaterThan(0);

@@ -90,6 +90,7 @@ export interface Trash<F extends object = Record<never, never>> {
 
 function batchOf(value: unknown, fn: string): TrashBatch {
   const row = recordOf(value, fn);
+
   return {
     id: textOf(row["id"]),
     batchId: textOf(row["batchId"]),
@@ -101,6 +102,7 @@ function itemOf(value: unknown, fn: string): TrashItem {
   const row = recordOf(value, fn);
   const title = optionalText(row["title"]);
   const trashedBy = optionalText(row["trashedBy"]);
+
   return {
     ...batchOf(row, fn),
     subjectType: textOf(row["subjectType"]),
@@ -120,12 +122,15 @@ export function createTrash<S extends StandardSchemaV1 | undefined = undefined>(
   options: TrashOptions<S>,
 ): Trash<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const fields: BlockFields<F> = blockFields(
     options.fields,
     "trash item fields",
   );
+
   const client: Trash<F> = {
     trash: (organizationId, subjectType, subjectId, extra) =>
       fields.args(extra).andThen((checked) =>
@@ -160,6 +165,7 @@ export function createTrash<S extends StandardSchemaV1 | undefined = undefined>(
       ).andThen(fields.rows),
     purge: (id) => call("purge_trash", { item_id: id }, Number),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "trash",
     ...(options.logger ? { logger: options.logger } : {}),

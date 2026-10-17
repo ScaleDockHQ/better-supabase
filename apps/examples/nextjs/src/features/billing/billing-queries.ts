@@ -23,6 +23,7 @@ export async function getPlans(): Promise<readonly PlanOption[]> {
   "use cache";
   cacheLife("hours");
   bs.cacheTag("plans");
+
   const plans = await bs
     .admin()
     .plans.findMany({
@@ -33,6 +34,7 @@ export async function getPlans(): Promise<readonly PlanOption[]> {
       orderBy: { position: "asc" },
     })
     .orThrow();
+
   return plans.map((plan) => ({
     key: plan.key,
     name: plan.name,
@@ -47,6 +49,7 @@ export async function getPlans(): Promise<readonly PlanOption[]> {
 export async function getSubscription(organizationId: string) {
   "use cache: private";
   const { db } = await bs.cached();
+
   return db.subscriptions
     .findFirst({
       select: ["planKey", "status", "currentPeriodEnd"],

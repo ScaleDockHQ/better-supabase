@@ -11,6 +11,7 @@ import { timestamps } from "../../src/plugins/timestamps/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 declare const client: SupabaseClient;
+
 const db = defineSupabase(schema)
   .use(timestamps())
   .use(softDelete())
@@ -43,6 +44,7 @@ describe("plugin extensions", () => {
     const rows = await db.customers
       .findMany({ select: ["id"], withDeleted: true })
       .orThrow();
+
     expectTypeOf(rows).toEqualTypeOf<{ id: string }[]>();
   });
 });

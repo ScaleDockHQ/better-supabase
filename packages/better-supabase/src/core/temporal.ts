@@ -27,8 +27,12 @@ export function providedTemporal(): typeof Temporal | undefined {
 
 /** The provided `Temporal`, else the runtime's, or `undefined` when neither exists. */
 export function optionalTemporal(): typeof Temporal | undefined {
-  if (provided !== undefined) return provided;
+  if (provided !== undefined) {
+    return provided;
+  }
+
   const namespace: typeof Temporal | undefined = globalThis.Temporal;
+
   return namespace;
 }
 
@@ -38,7 +42,11 @@ export function optionalTemporal(): typeof Temporal | undefined {
  */
 export function nowInstant(): Temporal.Instant {
   const namespace = optionalTemporal();
-  if (namespace === undefined) throw new TypeError(TEMPORAL_MISSING);
+
+  if (namespace === undefined) {
+    throw new TypeError(TEMPORAL_MISSING);
+  }
+
   return namespace.Now.instant();
 }
 
@@ -50,8 +58,14 @@ const ISO_TAGS: ReadonlySet<unknown> = new Set([
 ]);
 
 function tagOf(value: unknown): unknown {
-  if (typeof value !== "object" || value === null) return undefined;
-  if (!(Symbol.toStringTag in value)) return undefined;
+  if (typeof value !== "object" || value === null) {
+    return undefined;
+  }
+
+  if (!(Symbol.toStringTag in value)) {
+    return undefined;
+  }
+
   return value[Symbol.toStringTag];
 }
 
@@ -65,8 +79,15 @@ function tagOf(value: unknown): unknown {
  */
 export function temporalText(value: unknown): string | undefined {
   const tag = tagOf(value);
-  if (tag === undefined) return undefined;
-  if (ISO_TAGS.has(tag)) return String(value);
+
+  if (tag === undefined) {
+    return undefined;
+  }
+
+  if (ISO_TAGS.has(tag)) {
+    return String(value);
+  }
+
   return tag === "Temporal.ZonedDateTime" &&
     typeof value === "object" &&
     value !== null &&

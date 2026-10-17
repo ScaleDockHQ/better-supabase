@@ -6,6 +6,7 @@ const route = cronRoute(
   { name: "drain", secret: "s3cret" },
   (_request, instance) => Promise.resolve(Response.json({ instance })),
 );
+
 const call = (method: string, authorization?: string): Promise<Response> =>
   route(
     new Request("https://app.test/api/cron", {

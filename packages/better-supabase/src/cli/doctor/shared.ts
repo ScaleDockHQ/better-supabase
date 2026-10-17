@@ -15,9 +15,13 @@ const catalogs = new WeakMap<Snapshot, Catalog>();
 /** The project's SQL workflow: `sql.workflow`, or the one `config.toml` and the schema files imply. */
 export function workflowOf(context: DoctorContext): SqlWorkflow {
   const toml = context.configToml;
-  if (context.config.sql.workflow !== undefined || toml === undefined)
+
+  if (context.config.sql.workflow !== undefined || toml === undefined) {
     return sqlWorkflow(context.config, toml);
+  }
+
   const schemas = `${toml.dir}/schemas/`;
+
   return detectWorkflow(
     context.config.root,
     toml,
@@ -28,10 +32,12 @@ export function workflowOf(context: DoctorContext): SqlWorkflow {
 /** The snapshot joined per table and function, computed once per snapshot. */
 export function catalogOf(context: DoctorContext): Catalog {
   let catalog = catalogs.get(context.snapshot);
+
   if (!catalog) {
     catalog = toCatalog(context.snapshot);
     catalogs.set(context.snapshot, catalog);
   }
+
   return catalog;
 }
 
@@ -40,6 +46,7 @@ export function exposedSchemas(context: DoctorContext): readonly string[] {
   const listed = context.configToml
     ? tomlGet(context.configToml.document, ["api", "schemas"])
     : undefined;
+
   return Array.isArray(listed) &&
     listed.every((entry): entry is string => typeof entry === "string")
     ? listed
@@ -48,6 +55,7 @@ export function exposedSchemas(context: DoctorContext): readonly string[] {
 
 export const exposed = (context: DoctorContext): CatalogTable[] => {
   const schemas = exposedSchemas(context);
+
   return catalogOf(context).tables.filter((table) =>
     schemas.includes(table.schema),
   );
@@ -78,17 +86,23 @@ const SPLIT_CACHE_SIZE = 64;
 /** `text` split into lines; doctor locates many objects in the same SQL files. */
 function linesOf(text: string): readonly string[] {
   let lines = splitTexts.get(text);
+
   if (!lines) {
-    if (splitTexts.size >= SPLIT_CACHE_SIZE) splitTexts.clear();
+    if (splitTexts.size >= SPLIT_CACHE_SIZE) {
+      splitTexts.clear();
+    }
+
     lines = text.split("\n");
     splitTexts.set(text, lines);
   }
+
   return lines;
 }
 
 /** Line number (1-based) of the first line matching `pattern`. */
 export function lineOf(text: string, pattern: RegExp): number | undefined {
   const index = linesOf(text).findIndex((line) => pattern.test(line));
+
   return index === -1 ? undefined : index + 1;
 }
 

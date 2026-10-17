@@ -22,8 +22,9 @@ describe("parseInterval", () => {
   });
 
   it("returns a message for a value that is not a positive number", () => {
-    for (const value of ["abc", "0", "-5"])
+    for (const value of ["abc", "0", "-5"]) {
       expect(parseInterval(value, undefined)).toContain("--interval");
+    }
   });
 });
 

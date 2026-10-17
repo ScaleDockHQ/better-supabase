@@ -6,6 +6,7 @@ import { useStatusLabel } from "../use-status-label";
 
 export function CustomerStatus({ status }: { status: string }) {
   const statusLabel = useStatusLabel();
+
   return (
     <Badge
       variant={status === "active" ? "default" : "secondary"}

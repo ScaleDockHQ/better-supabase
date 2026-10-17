@@ -17,6 +17,7 @@ import { moduleSnapshotFixture as fixture } from "../fixtures/library.ts";
 const generator = await validateGeneratorMetadata(fixture.generator);
 
 type TypeRow = GeneratorMetadata["types"][number];
+
 const type = (
   id: number,
   schema: string,
@@ -37,7 +38,7 @@ const type = (
 });
 
 const column = (format: string, typeSchema: string) => ({
-  table_id: 20000,
+  table_id: 20_000,
   schema: "public",
   table: "notes",
   id: "20000.1",
@@ -73,7 +74,7 @@ describe("readGeneratorMetadata", () => {
             args: [{ mode: "in", name: "a", type_id: 200, has_default: false }],
           },
           {
-            id: 30001,
+            id: 30_001,
             schema: "public",
             name: "touch",
             return_type: "trigger",
@@ -105,6 +106,7 @@ describe("readGeneratorMetadata", () => {
         ],
       ],
     ]);
+
     const metadata = await readGeneratorMetadata(db.pg, ["public"]);
     expect(
       db.texts().some((text) => text.includes("p.proargnames as names")),
@@ -113,8 +115,26 @@ describe("readGeneratorMetadata", () => {
       metadata.types.map((entry) => entry.id).sort((a, b) => a - b),
     ).toEqual([23, 25, 100, 200, 300, 1009]);
     expect(metadata.functions.map((fn) => fn.name)).toEqual(["make_address"]);
-    expect(metadata.functions[0]!.id).toBe(30000);
+    expect(metadata.functions[0]!.id).toBe(30_000);
+    expect(metadata).not.toHaveProperty("rpcFunctions");
     expect(db.calls.length).toBeGreaterThan(5);
+  });
+});
+
+describe("rpcFunctions", () => {
+  const derived: GeneratorMetadata = {
+    ...generator,
+    rpcFunctions: [{ schema: "private", name: "stale", overloads: [] }],
+  };
+
+  it("is dropped wherever functions are reordered, renumbered or filtered", () => {
+    expect(orderArgsByPosition(derived, [])).not.toHaveProperty("rpcFunctions");
+    expect(stabilizeMetadata(derived).metadata).not.toHaveProperty(
+      "rpcFunctions",
+    );
+    expect(restrictSchemas(derived, ["public"])).not.toHaveProperty(
+      "rpcFunctions",
+    );
   });
 });
 
@@ -123,9 +143,11 @@ describe("readGeneratorMetadata queries", () => {
     const db = fakeSql();
     await readGeneratorMetadata(db.pg, ["public"]);
     const texts = db.texts();
+
     const positions = texts.findIndex((text) =>
       text.includes("p.proargnames as names"),
     );
+
     expect(positions).toBeGreaterThanOrEqual(0);
     expect(positions).toBeLessThan(texts.length - 1);
   });
@@ -138,9 +160,10 @@ describe("orderArgsByPosition", () => {
     type_id: typeId,
     has_default: false,
   });
+
   const fn = (args: ReturnType<typeof arg>[]) => ({
     ...generator.functions[0]!,
-    id: 40000,
+    id: 40_000,
     name: "l2_distance",
     args,
   });
@@ -148,25 +171,31 @@ describe("orderArgsByPosition", () => {
   it("restores declaration order for unnamed arguments", () => {
     const shuffled = fn([arg("", 20), arg("", 10)]);
     const metadata = { ...generator, functions: [shuffled] };
+
     const ordered = orderArgsByPosition(metadata, [
       { id: "40000", types: ["10", "20"], names: null },
     ]);
+
     expect(ordered.functions[0]!.args.map((entry) => entry.type_id)).toEqual([
       10, 20,
     ]);
+
     const twice = orderArgsByPosition(
       { ...generator, functions: [fn([arg("", 10), arg("", 20)])] },
-      [{ id: 40000, types: [10, 20], names: null }],
+      [{ id: 40_000, types: [10, 20], names: null }],
     );
+
     expect(twice.functions[0]!.args).toEqual(ordered.functions[0]!.args);
   });
 
   it("keeps arguments it can't place and functions it has no row for", () => {
     const named = fn([arg("b", 20), arg("a", 10), arg("", 30)]);
     const metadata = { ...generator, functions: [named] };
+
     const ordered = orderArgsByPosition(metadata, [
-      { id: 40000, types: [10, 20], names: ["a", "b"] },
+      { id: 40_000, types: [10, 20], names: ["a", "b"] },
     ]);
+
     expect(ordered.functions[0]!.args.map((entry) => entry.name)).toEqual([
       "a",
       "b",
@@ -179,15 +208,16 @@ describe("orderArgsByPosition", () => {
 describe("stabilizeMetadata", () => {
   it("maps views, foreign tables, types and function references to name-derived ids", () => {
     const base = structuredClone(generator);
+
     const metadata: GeneratorMetadata = {
       ...base,
       tables: [],
       columns: [],
       primaryKeys: [],
-      schemas: [{ id: 50000, name: "public", owner: "postgres" }],
+      schemas: [{ id: 50_000, name: "public", owner: "postgres" }],
       views: [
         {
-          id: 40001,
+          id: 40_001,
           schema: "public",
           name: "b_view",
           comment: null,
@@ -195,11 +225,11 @@ describe("stabilizeMetadata", () => {
         },
       ],
       foreignTables: [
-        { id: 40002, schema: "public", name: "a_remote", comment: null },
+        { id: 40_002, schema: "public", name: "a_remote", comment: null },
       ],
       materializedViews: [
         {
-          id: 40003,
+          id: 40_003,
           schema: "public",
           name: "c_mat",
           comment: null,
@@ -208,34 +238,37 @@ describe("stabilizeMetadata", () => {
       ],
       types: [
         {
-          ...type(41000, "public", "row_type", [23, 41001]),
-          type_relation_id: 40001,
+          ...type(41_000, "public", "row_type", [23, 41_001]),
+          type_relation_id: 40_001,
         },
-        type(41001, "public", "addr"),
+        type(41_001, "public", "addr"),
         type(23, "pg_catalog", "int4"),
       ],
       functions: [
         {
           ...base.functions[0]!,
-          id: 42000,
+          id: 42_000,
           schema: "public",
           name: "f",
           identity_argument_types: "",
-          return_type_id: 41000,
+          return_type_id: 41_000,
           return_type_relation_id: null,
-          args: [{ mode: "in", name: "x", type_id: 41001, has_default: false }],
+          args: [
+            { mode: "in", name: "x", type_id: 41_001, has_default: false },
+          ],
         },
       ],
     };
+
     const { metadata: stable, ids } = stabilizeMetadata(metadata);
     expect(Object.fromEntries(ids)).toEqual({
-      40002: 1_000_000,
-      40001: 1_000_001,
-      40003: 1_000_002,
-      41001: 2_000_001,
-      41000: 2_000_002,
-      42000: 3_000_000,
-      50000: 4_000_000,
+      40_002: 1_000_000,
+      40_001: 1_000_001,
+      40_003: 1_000_002,
+      41_001: 2_000_001,
+      41_000: 2_000_002,
+      42_000: 3_000_000,
+      50_000: 4_000_000,
     });
     expect(stable.views[0]!.id).toBe(1_000_001);
     expect(stable.foreignTables[0]!.id).toBe(1_000_000);
@@ -280,6 +313,7 @@ describe("restrictSchemas", () => {
   it("keeps only the listed schemas", () => {
     const only = restrictSchemas(generator, ["public"]);
     expect(only.schemas.map((schema) => schema.name)).toEqual(["public"]);
+
     for (const list of [
       only.tables,
       only.columns,
@@ -290,6 +324,7 @@ describe("restrictSchemas", () => {
       expect(list.length).toBeGreaterThan(0);
       expect(list.every((entry) => entry.schema === "public")).toBe(true);
     }
+
     expect(only.tables.length).toBeLessThan(generator.tables.length);
     expect(restrictSchemas(generator, []).tables).toEqual([]);
   });
@@ -303,15 +338,23 @@ describe("restrictSchemas", () => {
       is_updatable: false,
       is_populated: true,
     });
+
     const metadata = {
       ...generator,
       views: [relation("public", "v"), relation("private", "v")],
       materializedViews: [relation("private", "m"), relation("public", "m")],
       foreignTables: [relation("private", "f"), relation("public", "f")],
     } as GeneratorMetadata;
+
     const only = restrictSchemas(metadata, ["public"]);
-    for (const list of [only.views, only.materializedViews, only.foreignTables])
+
+    for (const list of [
+      only.views,
+      only.materializedViews,
+      only.foreignTables,
+    ]) {
       expect(list.map((entry) => entry.schema)).toEqual(["public"]);
+    }
   });
 });
 

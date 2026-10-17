@@ -193,12 +193,15 @@ function fake(answers: Record<string, unknown> = ANSWERS) {
     async (_schema: string, fn: string, _args: Record<string, unknown>) =>
       answers[fn],
   );
+
   const server = vi.fn(
     async (_schema: string, fn: string, _args: Record<string, unknown>) =>
       answers[fn],
   );
+
   const transport: BlockTransport = { call: user };
   const service: BlockTransport = { call: server };
+
   return { user, server, chat: createAiChat({ transport, service }) };
 }
 
@@ -298,6 +301,7 @@ describe("createAiChat", () => {
         archived: true,
       })
       .orThrow();
+
     expect(updated.visibility).toBe("private");
     expect(lastArgs(user)).toEqual({
       chat: "c1",
@@ -318,6 +322,7 @@ describe("createAiChat", () => {
 
   it("saves and lists projects", async () => {
     const { user, chat } = fake();
+
     const project = await chat.projects
       .create("o1", {
         name: "Research",
@@ -327,6 +332,7 @@ describe("createAiChat", () => {
         archived: false,
       })
       .orThrow();
+
     expect(project).toMatchObject({
       name: "Research",
       instructions: "",
@@ -385,6 +391,7 @@ describe("createAiChat", () => {
         },
       )
       .orThrow();
+
     expect(saved).toEqual({ messageId: "m2", parentId: "m1", created: false });
     expect(lastArgs(server)).toEqual({
       chat: "c1",
@@ -408,6 +415,7 @@ describe("createAiChat", () => {
     const [first, second] = await chat.messages
       .path("c1", { leafId: "m2", native: true })
       .orThrow();
+
     expect(lastArgs(user)).toEqual({
       chat: "c1",
       leaf: "m2",
@@ -500,9 +508,11 @@ describe("createAiChat", () => {
 
   it("records and decides approvals and policies", async () => {
     const { user, server, chat } = fake();
+
     const pending = await chat.approvals
       .request("c1", { approvalId: "ap1", tool: "search", toolCallId: "t1" })
       .orThrow();
+
     expect(pending.decision).toBe("pending");
     expect(lastArgs(server)).toEqual({
       chat: "c1",
@@ -590,9 +600,11 @@ describe("createAiChat", () => {
     });
     await chat.feedback.rate("c1", "m2", 0).orThrow();
     expect(lastArgs(user)).toMatchObject({ rating: null });
+
     const cleared = fake({
       rate_ai_message: { chat_id: "c1", message_id: "m2", rating: null },
     });
+
     expect(
       (await cleared.chat.feedback.rate("c1", "m2", 0).orThrow()).rating,
     ).toBe(0);
@@ -647,6 +659,7 @@ describe("createAiChat", () => {
         category: "pii",
       })
       .orThrow();
+
     expect(event).toMatchObject({ action: "redact", score: 0.9 });
     expect(lastArgs(server)).toMatchObject({
       event: { organization_id: "o1", chat_id: null, score: null },
@@ -665,9 +678,11 @@ describe("createAiChat", () => {
       .orThrow();
     const [listed] = await chat.moderation.list("o1", 5).orThrow();
     expect(listed?.score).toBeUndefined();
+
     const blank = fake({
       list_ai_moderation_events: [{ ...moderationRow, category: null }],
     });
+
     const [none] = await blank.chat.moderation.list("o1").orThrow();
     expect(none?.category).toBe("");
   });
@@ -694,6 +709,7 @@ describe("createAiChat", () => {
           ),
       },
     });
+
     expect(await chat.chats.get("c1")).toMatchObject({
       ok: false,
       error: { kind: "not_found" },

@@ -42,11 +42,15 @@ const missing = (): never => {
  */
 const generation: typeof Generation | undefined =
   await import("@supabase/postgrest-typegen/generation").catch(() => undefined);
+
 const loadGeneration = (): typeof Generation => generation ?? missing();
 
 /** The installed postgrest-typegen release, `undefined` when it is missing. */
 export async function typegenVersion(): Promise<string | undefined> {
-  if (generation === undefined) return undefined;
+  if (generation === undefined) {
+    return undefined;
+  }
+
   return versionAt(fileURLToPath(import.meta.resolve(`${TYPEGEN}/generation`)));
 }
 
@@ -54,12 +58,16 @@ export async function typegenVersion(): Promise<string | undefined> {
 export function typegenVersionNotice(
   installed: string | undefined,
 ): string | undefined {
-  if (installed === undefined || installed === TYPEGEN_VERSION)
+  if (installed === undefined || installed === TYPEGEN_VERSION) {
     return undefined;
+  }
+
   return `Notice: ${TYPEGEN}@${installed} is installed; this better-supabase release is tested against ${TYPEGEN_VERSION}. database.types.ts can differ from \`supabase gen types\` output until both use the same release. Pin it: pnpm add -D ${TYPEGEN}@${TYPEGEN_VERSION}`;
 }
+
 const metadataModule = () =>
   import("@supabase/postgrest-typegen").catch(missing);
+
 const introspectionModule = () =>
   import("@supabase/postgrest-typegen/introspection").catch(missing);
 
@@ -86,6 +94,7 @@ export async function readGeneratorMetadata(
     ),
     db.query(argumentPositionsSql(schemas)),
   ]);
+
   return pruneTypes(orderArgsByPosition(metadata, positions.rows), schemas);
 }
 
@@ -115,6 +124,18 @@ where p.prokind = 'f'
 }
 
 /**
+ * `rpcFunctions` is derived from `functions`, so it goes stale when they are
+ * reordered, renumbered or filtered. Generators resolve it again when it is
+ * absent.
+ */
+function withoutRpcFunctions({
+  rpcFunctions: _derived,
+  ...metadata
+}: GeneratorMetadata): GeneratorMetadata {
+  return metadata;
+}
+
+/**
  * Puts every function's arguments back in declaration order, so the sort by
  * name that follows (stable) keeps unnamed arguments by position.
  */
@@ -123,27 +144,37 @@ export function orderArgsByPosition(
   rows: readonly ArgumentPositions[],
 ): GeneratorMetadata {
   const byId = new Map(rows.map((row) => [Number(row.id), row]));
+
   return {
-    ...metadata,
+    ...withoutRpcFunctions(metadata),
     functions: metadata.functions.map((fn) => {
       const row = byId.get(fn.id);
-      if (!row?.types || fn.args.length < 2) return fn;
+
+      if (!row?.types || fn.args.length < 2) {
+        return fn;
+      }
+
       const pending = [...fn.args];
       const ordered: (typeof fn.args)[number][] = [];
       row.types.forEach((type, index) => {
         const name = row.names?.[index] ?? "";
+
         const at = pending.findIndex(
           (arg) => arg.type_id === Number(type) && arg.name === name,
         );
-        if (at >= 0) ordered.push(...pending.splice(at, 1));
+
+        if (at !== -1) {
+          ordered.push(...pending.splice(at, 1));
+        }
       });
+
       return { ...fn, args: [...ordered, ...pending] };
     }),
   };
 }
 
 /** Postgres assigns oids below this to built-in objects; those are stable. */
-const FIRST_NORMAL_OID = 16384;
+const FIRST_NORMAL_OID = 16_384;
 
 /**
  * Replaces the oids of user objects with ids derived from their names and
@@ -156,6 +187,7 @@ export function stabilizeMetadata(metadata: GeneratorMetadata): {
   ids: ReadonlyMap<number, number>;
 } {
   const ids = new Map<number, number>();
+
   const assign = (
     base: number,
     entries: readonly { id: number; key: string }[],
@@ -163,9 +195,12 @@ export function stabilizeMetadata(metadata: GeneratorMetadata): {
     [...entries]
       .sort((a, b) => byCodePoint(a.key, b.key))
       .forEach((entry, index) => {
-        if (entry.id >= FIRST_NORMAL_OID) ids.set(entry.id, base + index);
+        if (entry.id >= FIRST_NORMAL_OID) {
+          ids.set(entry.id, base + index);
+        }
       });
   };
+
   assign(
     1_000_000,
     [
@@ -194,11 +229,12 @@ export function stabilizeMetadata(metadata: GeneratorMetadata): {
     metadata.schemas.map((entry) => ({ id: entry.id, key: entry.name })),
   );
   const map = (id: number): number => ids.get(id) ?? id;
+
   const mapNullable = (id: number | null): number | null =>
     id === null ? null : map(id);
 
   const stable: GeneratorMetadata = {
-    ...metadata,
+    ...withoutRpcFunctions(metadata),
     schemas: metadata.schemas.map((entry) => ({ ...entry, id: map(entry.id) })),
     tables: metadata.tables.map((entry) => ({
       ...entry,
@@ -243,6 +279,7 @@ export function stabilizeMetadata(metadata: GeneratorMetadata): {
       })),
     })),
   };
+
   return { metadata: loadGeneration().sortGeneratorMetadata(stable), ids };
 }
 
@@ -251,6 +288,7 @@ export async function validateGeneratorMetadata(
   data: unknown,
 ): Promise<GeneratorMetadata> {
   const { parseGeneratorMetadata } = await metadataModule();
+
   return parseGeneratorMetadata(data);
 }
 
@@ -280,7 +318,9 @@ export async function parseMetadataDocument(
 ): Promise<GeneratorMetadata> {
   const { GENERATOR_METADATA_VERSION, parseGeneratorMetadata } =
     await metadataModule();
+
   let data: unknown;
+
   try {
     data = JSON.parse(text);
   } catch (cause) {
@@ -290,10 +330,12 @@ export async function parseMetadataDocument(
         : `The GeneratorMetadata document is not JSON: ${errorText(cause)}`,
     );
   }
+
   const version =
     typeof data === "object" && data !== null && "version" in data
       ? data.version
       : undefined;
+
   if (version !== GENERATOR_METADATA_VERSION) {
     throw new MetadataRejectedError(
       version === undefined
@@ -302,6 +344,7 @@ export async function parseMetadataDocument(
       version,
     );
   }
+
   try {
     return parseGeneratorMetadata(data);
   } catch (cause) {
@@ -312,11 +355,13 @@ export async function parseMetadataDocument(
 /** JSON Schema of the metadata contract, embedded in `snapshot-v2.json`. */
 export async function generatorJsonSchema(): Promise<Record<string, unknown>> {
   const { generatorMetadataJsonSchema } = await metadataModule();
+
   // SAFETY: the generator metadata schema is a JSON Schema object with an
   // optional $schema dialect.
   const { $schema: _dialect, ...schema } = generatorMetadataJsonSchema as {
     $schema?: string;
   } & Record<string, unknown>;
+
   return schema;
 }
 
@@ -325,6 +370,7 @@ export async function serializeGenerator(
   metadata: GeneratorMetadata,
 ): Promise<string> {
   const { serializeGeneratorMetadata } = await metadataModule();
+
   return serializeGeneratorMetadata(
     loadGeneration().sortGeneratorMetadata(metadata),
   );
@@ -339,8 +385,9 @@ export function restrictSchemas(
   schemas: readonly string[],
 ): GeneratorMetadata {
   const keep = new Set(schemas);
+
   return {
-    ...metadata,
+    ...withoutRpcFunctions(metadata),
     schemas: metadata.schemas.filter((schema) => keep.has(schema.name)),
     tables: metadata.tables.filter((table) => keep.has(table.schema)),
     foreignTables: metadata.foreignTables.filter((table) =>
@@ -369,6 +416,7 @@ let oxfmt: Promise<typeof Oxfmt | undefined> | undefined;
 /** oxfmt is an optional peer, loaded on demand; `undefined` when it is not installed. */
 function loadOxfmt(): Promise<typeof Oxfmt | undefined> {
   oxfmt ??= import("oxfmt").catch(() => undefined);
+
   return oxfmt;
 }
 
@@ -380,7 +428,11 @@ export async function oxfmtInstalled(): Promise<boolean> {
 /** Formats like `supabase gen types`, or returns `code` as it is without oxfmt. */
 async function formatTypes(code: string): Promise<string> {
   const formatter = await loadOxfmt();
-  if (!formatter) return code;
+
+  if (!formatter) {
+    return code;
+  }
+
   const { code: formatted, errors } = await formatter.format(
     "output.ts",
     code,
@@ -389,23 +441,26 @@ async function formatTypes(code: string): Promise<string> {
       printWidth: 80,
     },
   );
+
   if (errors.length > 0) {
     throw new Error(
       `oxfmt failed to format database.types.ts: ${errors.map((error) => error.message).join("; ")}`,
     );
   }
+
   return formatted;
 }
 
 /**
  * Renders `database.types.ts` as `supabase gen types` prints it when oxfmt is
- * installed, plus the `ComputedFields` keys Supabase CLI 2.119 doesn't write.
+ * installed.
  */
 export function generateDatabaseTypes(
   metadata: GeneratorMetadata,
   options: DatabaseTypesOptions,
 ): Promise<string> {
   const { generateTypescript, sortGeneratorMetadata } = loadGeneration();
+
   return generateTypescript(
     sortGeneratorMetadata(restrictSchemas(metadata, options.schemas)),
     {
@@ -431,6 +486,7 @@ export function tsTypeOf(
     name: schema,
     owner: "",
   };
+
   return loadGeneration().pgTypeToTsType(
     owner,
     format,
@@ -456,19 +512,37 @@ function pruneTypes(
   schemas: readonly string[],
 ): GeneratorMetadata {
   const byId = new Map(metadata.types.map((type) => [type.id, type]));
+
   const byName = new Map(
     metadata.types.map((type) => [`${type.schema}.${type.name}`, type]),
   );
+
   const keep = new Set<number>();
+
   const visit = (id: number | null | undefined): void => {
-    if (id === null || id === undefined || keep.has(id)) return;
+    if (id === null || id === undefined || keep.has(id)) {
+      return;
+    }
+
     const type = byId.get(id);
-    if (!type) return;
+
+    if (!type) {
+      return;
+    }
+
     keep.add(id);
-    for (const attribute of type.attributes) visit(attribute.type_id);
+
+    for (const attribute of type.attributes) {
+      visit(attribute.type_id);
+    }
   };
-  for (const type of metadata.types)
-    if (schemas.includes(type.schema)) visit(type.id);
+
+  for (const type of metadata.types) {
+    if (schemas.includes(type.schema)) {
+      visit(type.id);
+    }
+  }
+
   for (const column of metadata.columns) {
     visit(byName.get(`${column.type_schema}.${column.format}`)?.id);
     visit(
@@ -476,10 +550,15 @@ function pruneTypes(
         ?.id,
     );
   }
+
   for (const fn of metadata.functions) {
     visit(fn.return_type_id);
-    for (const arg of fn.args) visit(arg.type_id);
+
+    for (const arg of fn.args) {
+      visit(arg.type_id);
+    }
   }
+
   return {
     ...metadata,
     types: metadata.types.filter((type) => keep.has(type.id)),

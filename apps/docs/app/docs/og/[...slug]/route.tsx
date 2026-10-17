@@ -14,7 +14,10 @@ export async function GET(
 ): Promise<Response> {
   const { slug } = await context.params;
   const page = source.getPage(slug.slice(0, -1));
-  if (!page) notFound();
+
+  if (!page) {
+    notFound();
+  }
 
   return generateOGImage({
     title: page.data.title,

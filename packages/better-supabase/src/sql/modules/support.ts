@@ -51,6 +51,7 @@ const EVENTS: ModuleEvents<SupportSessionsEvents> = {
 };
 
 const APPROVAL_MODES = ["distinct", "none"] as const;
+
 type ApprovalMode = (typeof APPROVAL_MODES)[number];
 
 const isApprovalMode = (value: string): value is ApprovalMode =>
@@ -113,8 +114,10 @@ const NAMES: ModuleNames = {
 /** The session as the jsonb every function returns, with fixed keys whatever the column names. */
 function sessionJson(ctx: ModuleContext, row: string): string {
   const c = (logical: string) => `${row}.${ctx.col("sessions", logical)}`;
+
   const optional = (logical: string, fallback: string) =>
     ctx.has("sessions", logical) ? c(logical) : fallback;
+
   return `jsonb_build_object(
     'id', ${c("id")},
     'admin_id', ${c("admin")},
@@ -136,9 +139,13 @@ function supportPayload(session: string, extra = ""): string {
 }
 
 function table(ctx: ModuleContext): string {
-  if (!ctx.manages) return "";
+  if (!ctx.manages) {
+    return "";
+  }
+
   const sessions = ctx.table("sessions");
   const c = (logical: string) => ctx.col("sessions", logical);
+
   return `
 create table if not exists ${sessions} (
   ${c("id")} uuid primary key default gen_random_uuid(),
@@ -176,15 +183,23 @@ grant select on ${sessions} to authenticated;
  * tables, or in `adopt` mode while `tables.requests` keeps its default name.
  */
 function ownsRequests(ctx: ModuleContext): boolean {
-  if (!ctx.hasTable("requests")) return false;
-  if (ctx.manages) return true;
+  if (!ctx.hasTable("requests")) {
+    return false;
+  }
+
+  if (ctx.manages) {
+    return true;
+  }
+
   const { schema, name } = ctx.tableName("requests");
+
   return schema === ctx.schemaName && name === NAMES.tables["requests"]!.name;
 }
 
 /** The request as the jsonb the request functions return. */
 function requestJson(ctx: ModuleContext, row: string): string {
   const c = (logical: string) => `${row}.${ctx.col("requests", logical)}`;
+
   return `jsonb_build_object(
     'id', ${c("id")},
     'admin_id', ${c("admin")},
@@ -202,10 +217,14 @@ function requestJson(ctx: ModuleContext, row: string): string {
 }
 
 function requestsTable(ctx: ModuleContext): string {
-  if (!ownsRequests(ctx)) return "";
+  if (!ownsRequests(ctx)) {
+    return "";
+  }
+
   const requests = ctx.table("requests");
   const c = (logical: string) => ctx.col("requests", logical);
   const isPlatform = ctx.of("access").fn("is_platform");
+
   return `
 -- A support session waits for a second admin: the requester asks here, and
 -- another admin approves. Rows are written only through the functions below.
@@ -254,14 +273,20 @@ function approverOf(
   row: string,
 ): string {
   const c = (logical: string) => `${row}.${ctx.col("requests", logical)}`;
+
   const check = approverCheck(ctx, layout, {
     kind: SUPPORT_SESSION_APPROVAL,
     subject: `${c("id")}::text`,
     tenant: c("tenant"),
     requester: c("admin"),
   });
-  if (check) return `coalesce((${check.sql}), false)`;
+
+  if (check) {
+    return `coalesce((${check.sql}), false)`;
+  }
+
   const isPlatform = ctx.of("access").fn("is_platform");
+
   return `${isPlatform}(${ctx.permission("approve", OPERATIONS["support-sessions.start"])})`;
 }
 
@@ -280,6 +305,7 @@ function usableRequest(
   },
 ): string {
   const c = (logical: string) => `x.${ctx.col("requests", logical)}`;
+
   return `from ${ctx.table("requests")} x
   where ${c("admin")} = ${values.admin}
     and ${c("target")} = ${values.target}
@@ -295,21 +321,28 @@ function usableRequest(
 
 /** `request_support_session`, `approve_support_request` and their reads. */
 function requestFunctions(ctx: ModuleContext, layout: ModuleLayout): string {
-  if (!ctx.hasTable("requests")) return "";
+  if (!ctx.hasTable("requests")) {
+    return "";
+  }
+
   const requests = ctx.table("requests");
   const c = (logical: string) => ctx.col("requests", logical);
   const id = ctx.idType;
   const isPlatform = ctx.of("access").fn("is_platform");
+
   const startPermission = ctx.permission(
     "start",
     OPERATIONS["support-sessions.start"],
   );
+
   const approvalTtl = sqlString(ctx.text("approvalTtl", "1 hour"));
   const requireReason = ctx.flag("requireReason", true);
+
   const approvals =
     ctx.installed("approvals") && ctx.of("approvals").mode !== "custom"
       ? ctx.of("approvals")
       : undefined;
+
   return `-- Asks for a support session. Another admin approves it with
 -- approve_support_request before start_support_session accepts it. The
 -- service role passes admin_id, and approved_by for an approval the server's
@@ -536,14 +569,18 @@ function platformTarget(ctx: ModuleContext): string {
   const claim = sqlString(
     ctx.modules.access?.platformClaim ?? "platform_permissions",
   );
+
   const claimed = `exists (
     select 1 from auth.users u
     where u.id = target and jsonb_typeof(u.raw_app_meta_data -> ${claim}) = 'array'
       and jsonb_array_length(u.raw_app_meta_data -> ${claim}) > 0
   )`;
+
   const platform = providerPlatformRoles(ctx);
+
   if (platform) {
     const through = platform.through;
+
     if (through?.where) {
       return `(${claimed} or exists (
     select 1 from ${platform.table} a
@@ -551,12 +588,18 @@ function platformTarget(ctx: ModuleContext): string {
     where a.${platform.user} = target and (${through.where.replaceAll("{row}", "r")})
   ))`;
     }
+
     return `(${claimed} or exists (
     select 1 from ${platform.table} a where a.${platform.user} = target
   ))`;
   }
-  if (!hasPlatformRoles(ctx)) return claimed;
+
+  if (!hasPlatformRoles(ctx)) {
+    return claimed;
+  }
+
   const access = ctx.of("access");
+
   return `(${claimed} or exists (
     select 1 from ${access.table("platformAssignments")} a
     where a.${access.col("platformAssignments", "user")} = target
@@ -571,6 +614,7 @@ function start(ctx: ModuleContext): string {
   const isPlatform = ctx.of("access").fn("is_platform");
   const maxTtl = sqlString(ctx.text("maxTtl", "4 hours"));
   const requireReason = ctx.flag("requireReason", true);
+
   const columns: (readonly [string, string])[] = [
     ["admin", "admin"],
     ["target", "target"],
@@ -580,10 +624,12 @@ function start(ctx: ModuleContext): string {
     ["expiresAt", "now() + ttl"],
     ["metadata", "coalesce(metadata, '{}')"],
   ];
+
   const present = columns.filter(([logical]) => ctx.has("sessions", logical));
   const approval = approvalMode(ctx) === "distinct";
   const requests = approval ? ctx.table("requests") : "";
   const rc = (logical: string) => ctx.col("requests", logical);
+
   const approvalCheck = approval
     ? `
   -- A second admin approved this start: the approval is consumed below.
@@ -594,10 +640,12 @@ function start(ctx: ModuleContext): string {
     ${fail("SUPPORT_APPROVAL_REQUIRED", "A second admin must approve this support session (approve_support_request)")}
   end if;`
     : "";
+
   const consume = approval
     ? `
   update ${requests} x set ${rc("session")} = session_id where x.${rc("id")} = approval_id;`
     : "";
+
   return `-- Starts a support session: the admin sees the app as target until it expires
 -- or ends. An admin has one active session; starting another ends the first.${
     approval
@@ -721,9 +769,11 @@ function end(ctx: ModuleContext): string {
   const sessions = ctx.table("sessions");
   const c = (logical: string) => ctx.col("sessions", logical);
   const isPlatform = ctx.of("access").fn("is_platform");
+
   const tenant = ctx.has("sessions", "tenant")
     ? `(ended ->> 'tenant')::${ctx.idType}`
     : undefined;
+
   return `-- Ends a session. The admin who started it ends their own ('admin');
 -- platform staff with the revoke permission end anyone's ('revoked'). Only
 -- the service role chooses ended_by, for example 'expired' from a sweep.
@@ -796,6 +846,7 @@ $$;`;
 function expire(ctx: ModuleContext): string {
   const sessions = ctx.table("sessions");
   const c = (logical: string) => ctx.col("sessions", logical);
+
   return `-- Ends the sessions past their expiry, each with ended_by 'expired', and
 -- returns them. Run it from a cron job as the service role.
 create or replace function ${ctx.fn("expire_support_sessions")}()
@@ -828,6 +879,7 @@ function reads(ctx: ModuleContext): string {
   const sessions = ctx.table("sessions");
   const c = (logical: string) => ctx.col("sessions", logical);
   const isPlatform = ctx.of("access").fn("is_platform");
+
   return `-- Parameters are positional below: in SQL functions a column name wins over a
 -- parameter of the same name.
 -- The admin's session while it is active, or null. Read on every request
@@ -887,10 +939,12 @@ $$;`;
  */
 function claims(ctx: ModuleContext): string {
   const hook = ctx.text("claimsHook", "");
+
   const apply =
     hook === ""
       ? "  return base -> 'claims';"
       : `  return coalesce(${hook}(base) -> 'claims', base -> 'claims');`;
+
   return `create or replace function ${ctx.fn("support_target_claims")}(target uuid)
 returns jsonb
 language plpgsql
@@ -928,6 +982,7 @@ $$;`;
 
 function grants(ctx: ModuleContext): string {
   const id = ctx.idType;
+
   const shared = [
     `${ctx.fn("start_support_session")}(uuid, text, interval, boolean, jsonb, ${id}, uuid)`,
     `${ctx.fn("end_support_session")}(uuid, text)`,
@@ -942,10 +997,12 @@ function grants(ctx: ModuleContext): string {
         ]
       : []),
   ];
+
   const serviceOnly = [
     `${ctx.fn("support_target_claims")}(uuid)`,
     `${ctx.fn("expire_support_sessions")}()`,
   ];
+
   return [...shared.map(userGrant), ...serviceOnly.map(serviceGrant)].join(
     "\n",
   );
@@ -954,23 +1011,30 @@ function grants(ctx: ModuleContext): string {
 /** `options.approval`: `distinct` (the default) or `none`. */
 function approvalMode(ctx: ModuleContext): ApprovalMode {
   const mode = ctx.text("approval", "distinct");
+
   if (!isApprovalMode(mode)) {
     throw new TypeError(
       `blocks.support-sessions.options.approval must be ${APPROVAL_MODES.join(" or ")}, not "${mode}"`,
     );
   }
+
   if (mode === "distinct" && !ctx.hasTable("requests")) {
     throw new TypeError(
       'blocks.support-sessions.tables.requests is null, so starts cannot wait for a second admin; map the table or set options.approval to "none"',
     );
   }
+
   return mode;
 }
 
 function build(ctx: ModuleContext, layout: ModuleLayout): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
   approvalMode(ctx);
   const claimsHook = ctx.text("claimsHook", "");
+
   if (
     claimsHook !== "" &&
     !/^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/.test(claimsHook)
@@ -979,6 +1043,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
       `blocks.support-sessions.options.claimsHook must be schema.function, not "${claimsHook}"`,
     );
   }
+
   return [
     `${SCHEMA}${table(ctx)}${requestsTable(ctx)}`,
     requestFunctions(ctx, layout),

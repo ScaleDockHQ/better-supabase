@@ -27,6 +27,7 @@ describe("orders module", () => {
   it("prices carts from the catalog and keeps checkout service only", () => {
     const sql = sqlOf(["catalog", "orders"]);
     expect(sql).toContain(`references "better_supabase"."product_variants"`);
+
     for (const fn of [
       "place_order",
       "record_payment",
@@ -64,8 +65,11 @@ describe("orders module", () => {
 
   it("records subject events through the outbox", () => {
     const sql = sqlOf(["catalog", "outbox", "orders"]);
-    for (const type of ["order.placed", "order.paid", "order.refunded"])
+
+    for (const type of ["order.placed", "order.paid", "order.refunded"]) {
       expect(sql).toContain(`'${type}'`);
+    }
+
     expect(sqlOf(["catalog", "orders"])).not.toContain("'order.placed'");
   });
 

@@ -9,11 +9,13 @@ import { money } from "../../../src/commerce/index.ts";
 
 function recorder(...results: unknown[]) {
   const calls: { fn: string; args: unknown }[] = [];
+
   return {
     calls,
     transport: {
       call(_schema: string, fn: string, args: unknown) {
         calls.push({ fn, args });
+
         return Promise.resolve(
           results.length > 1 ? results.shift() : results[0],
         );
@@ -29,6 +31,7 @@ describe("catalog block", () => {
       slug: "linen-shirt",
       status: "draft",
     });
+
     const catalog = createCatalog({ transport });
     expect(
       await catalog
@@ -66,10 +69,12 @@ describe("catalog block", () => {
 
   it("refuses a status the database doesn't know", async () => {
     const { transport } = recorder({ status: "live", from: "draft" });
+
     const result = await createCatalog({ transport }).setProductStatus(
       "p1",
       "active",
     );
+
     expect(result.ok).toBe(false);
   });
 
@@ -78,6 +83,7 @@ describe("catalog block", () => {
       { id: "o1", values: [{ id: "v1", value: "S" }] },
       { id: "x1", sku: "TEE-S", rank: "V" },
     );
+
     const catalog = createCatalog({ transport });
     expect(
       await catalog.saveOption("p1", { name: "Size", values: ["S"] }).orThrow(),
@@ -113,15 +119,18 @@ describe("catalog block", () => {
       amount: "900719925474099300",
       previousAmount: "1299",
     });
+
     const catalog = createCatalog({ transport });
+
     const saved = await catalog
       .setPrice("x1", {
-        amount: money(900719925474099300n, "EUR"),
-        compareAt: money(900719925474099400n, "EUR"),
+        amount: money(900_719_925_474_099_300n, "EUR"),
+        compareAt: money(900_719_925_474_099_400n, "EUR"),
         validFrom: Temporal.Instant.from("2026-01-01T00:00:00Z"),
       })
       .orThrow();
-    expect(saved.amount).toEqual(money(900719925474099300n, "EUR"));
+
+    expect(saved.amount).toEqual(money(900_719_925_474_099_300n, "EUR"));
     expect(saved.previousAmount).toEqual(money(1299n, "EUR"));
     expect(calls[0]).toEqual({
       fn: "set_price",
@@ -139,10 +148,12 @@ describe("catalog block", () => {
 
   it("refuses a compare-at amount in another currency without a call", async () => {
     const { calls, transport } = recorder(null);
+
     const result = await createCatalog({ transport }).setPrice("x1", {
       amount: money(100, "EUR"),
       compareAt: money(200, "USD"),
     });
+
     expect(result).toMatchObject({
       ok: false,
       error: { hint: "CATALOG_COMPARE_AT_INVALID" },
@@ -162,6 +173,7 @@ describe("catalog block", () => {
       },
       null,
     );
+
     const catalog = createCatalog({ transport });
     expect(
       await catalog.variantPrice("x1", "JPY", { priceListId: "l1" }).orThrow(),
@@ -193,10 +205,12 @@ describe("catalog block", () => {
       { category: "c1", parent: null, rank: "F" },
       { collection: "k1", product: "p1", rank: null },
     ]);
+
     const invalid = await catalog.reorderVariant("x1", {
       previous: "k",
       next: "V",
     });
+
     expect(invalid.ok).toBe(false);
   });
 
@@ -206,12 +220,14 @@ describe("catalog block", () => {
       slug: "physical",
       kind: "rule",
     });
+
     const rule = {
       id: "root",
       type: "group" as const,
       combinator: "and" as const,
       rules: [],
     };
+
     await createCatalog({ transport })
       .saveCollection("org", { title: "Physical", kind: "rule", rule })
       .orThrow();
@@ -221,12 +237,14 @@ describe("catalog block", () => {
   it("runs hooks around a method", async () => {
     const { transport } = recorder(true);
     const seen: string[] = [];
+
     const catalog = createCatalog({
       transport,
       hooks: {
         deleteProduct: {
           before: (args) => {
             seen.push(`before ${args[0]}`);
+
             return args;
           },
           after: (result, _args, info) => {
@@ -235,6 +253,7 @@ describe("catalog block", () => {
         },
       },
     });
+
     await catalog.deleteProduct("p1").orThrow();
     expect(seen).toEqual(["before p1", "after catalog true"]);
   });
@@ -307,6 +326,7 @@ describe("catalog block", () => {
         (c) => c.publishStorefront("org", true).orThrow(),
       ],
     ];
+
     for (const [fn, result, run] of cases) {
       const { calls, transport } = recorder(result);
       await run(createCatalog({ transport }));

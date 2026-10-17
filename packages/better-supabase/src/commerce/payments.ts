@@ -149,24 +149,31 @@ export interface PaymentProvider {
 /** Checks the provider's `apiVersion` before a block uses it. */
 export function paymentProviderOf(provider: PaymentProvider): PaymentProvider {
   const version: unknown = provider.apiVersion;
-  if (version !== 1)
+
+  if (version !== 1) {
     throw new TypeError(
       `payments "${provider.name}" targets payment provider API ${String(version)}; this better-supabase supports 1. Upgrade better-supabase or use a release of the provider for API 1.`,
     );
+  }
+
   return provider;
 }
 
 /** The error for an amount a payment can't carry: not money, or not above zero. */
 export function invalidPaymentAmount(amount: unknown): DbError | undefined {
-  if (!isMoney(amount))
+  if (!isMoney(amount)) {
     return dbError(
       "invalid_input",
       "A payment amount is Money: a bigint of minor units and an ISO 4217 currency",
       { hint: "PAYMENT_AMOUNT_INVALID" },
     );
-  if (amount.amount <= 0n)
+  }
+
+  if (amount.amount <= 0n) {
     return dbError("invalid_input", "A payment amount must be more than zero", {
       hint: "PAYMENT_AMOUNT_INVALID",
     });
+  }
+
   return undefined;
 }

@@ -21,12 +21,16 @@ function relativeImport(from: string, to: string): string {
   const fromParts = from.split("/").slice(0, -1);
   const toParts = to.split("/");
   let common = 0;
-  while (common < fromParts.length && fromParts[common] === toParts[common])
+
+  while (common < fromParts.length && fromParts[common] === toParts[common]) {
     common += 1;
+  }
+
   const path = [
     ...Array.from({ length: fromParts.length - common }, () => ".."),
     ...toParts.slice(common),
   ].join("/");
+
   return path.startsWith(".") ? path : `./${path}`;
 }
 
@@ -91,6 +95,7 @@ export function testGenerator(
   options: TestGeneratorOptions,
 ): Promise<ConformanceReport> {
   const config = options.config ?? resolveConfig({}, "/project");
+
   const input = (): GeneratorInput => ({
     meta: frozenCopy(options.meta),
     introspection: frozenCopy(options.introspection ?? EMPTY_INTROSPECTION),
@@ -102,6 +107,7 @@ export function testGenerator(
     importPath: (from, to) => relativeImport(from, to),
     model: frozenCopy(options.model ?? modelFromMeta(options.meta)),
   });
+
   return conform(`Generator "${generator.name}"`, [
     hasName(generator),
     [
@@ -119,6 +125,7 @@ export function testGenerator(
       async () => {
         const files = await generator.generate(input());
         expect(isList(files), "generate() must return an array");
+
         for (const file of files) {
           expect(
             typeof file.path === "string" && typeof file.contents === "string",
@@ -133,6 +140,7 @@ export function testGenerator(
             `${file.path} must stay inside the project`,
           );
         }
+
         const paths = files.map((file) => file.path);
         expect(new Set(paths).size === paths.length, "paths must be unique");
       },

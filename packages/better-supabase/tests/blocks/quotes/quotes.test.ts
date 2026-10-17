@@ -7,12 +7,17 @@ function transport(
   results: Record<string, (args: Record<string, unknown>) => unknown>,
 ) {
   const calls: [string, Record<string, unknown>][] = [];
+
   return {
     calls,
     call(_schema: string, fn: string, args: Record<string, unknown>) {
       calls.push([fn, args]);
       const result = results[fn];
-      if (!result) return Promise.reject(new Error(`unexpected ${fn}`));
+
+      if (!result) {
+        return Promise.reject(new Error(`unexpected ${fn}`));
+      }
+
       return Promise.resolve(result(args));
     },
   };
@@ -27,6 +32,7 @@ const LINE = {
   taxCode: null,
   product: { type: "product", id: "p1" },
 };
+
 const ROW = {
   id: "q1",
   tenant_id: "o",
@@ -55,11 +61,11 @@ const ROW = {
   created_by: "u1",
   created_at: "2026-10-15T09:00:00Z",
   updated_at: "2026-10-15T09:00:00Z",
-  list_total: 1000000,
+  list_total: 1_000_000,
   discount_total: 0,
-  subtotal: 1000000,
-  tax_total: 210000,
-  total: 1210000,
+  subtotal: 1_000_000,
+  tax_total: 210_000,
+  total: 1_210_000,
   lines: [LINE],
   region: "eu",
 };
@@ -67,6 +73,7 @@ const ROW = {
 describe("quotes block", () => {
   it("creates with lines and dates as the database reads them", async () => {
     const t = transport({ create_quote: () => ROW });
+
     const quote = await createQuotes({ transport: t })
       .create(
         "o",
@@ -74,6 +81,7 @@ describe("quotes block", () => {
         [{ description: "Licences", quantity: 10, unitAmount: 100_000n }],
       )
       .orThrow();
+
     expect(t.calls[0]?.[1]).toEqual({
       tenant: "o",
       attrs: { title: "Rollout", validUntil: "2026-11-14" },
@@ -113,6 +121,7 @@ describe("quotes block", () => {
         total: "1",
       }),
     });
+
     const quotes = createQuotes({ transport: t });
     expect((await quotes.send("q1").orThrow()).token).toBe("tok");
     expect(
@@ -149,6 +158,7 @@ describe("quotes block", () => {
       respond_to_quote: () => ({ status: "accepted", identifier: "Q-1" }),
       expire_quotes: () => 3,
     });
+
     const quotes = createQuotes({ transport: t });
     expect(await quotes.view("tok").orThrow()).toMatchObject({
       status: "viewed",
@@ -191,6 +201,7 @@ describe("quotes block, defaults", () => {
         },
       ],
     };
+
     const t = transport({
       decide_quote: () => decided,
       public_quote: () => ({
@@ -209,6 +220,7 @@ describe("quotes block, defaults", () => {
       }),
       respond_to_quote: () => ({ status: "changes_requested" }),
     });
+
     const quotes = createQuotes({ transport: t });
     const quote = await quotes.decide("q1", "rejected").orThrow();
     expect(quote).toMatchObject({
@@ -247,17 +259,22 @@ describe("quote fields", () => {
       create_quote: () => ({ ...ROW, fields: { region: "us" } }),
       update_quote: () => ROW,
     });
+
     const quotes = createQuotes({ transport: t, fields: schema });
+
     const bad = await quotes.create("o", {
       title: "Rollout",
       // @ts-expect-error not one of the regions
       fields: { region: "apac" },
     });
+
     expect(bad).toMatchObject({ ok: false, error: { kind: "validation" } });
     expect(t.calls).toHaveLength(0);
+
     const quote = await quotes
       .create("o", { title: "Rollout", fields: { region: "us" } })
       .orThrow();
+
     expect(t.calls[0]?.[1]).toMatchObject({
       attrs: { title: "Rollout", fields: { region: "us" } },
     });

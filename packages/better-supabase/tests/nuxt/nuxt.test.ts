@@ -10,17 +10,24 @@ import * as vue from "../../src/vue/index.ts";
 
 function fakeNuxt(betterSupabase?: NuxtLike["options"]["betterSupabase"]) {
   const hooks: ((imports: NuxtImportLike[]) => void)[] = [];
+
   const nuxt: NuxtLike = {
     options: { betterSupabase, nitro: {} },
     hook: (_name, fn) => {
       hooks.push(fn);
     },
   };
+
   const imports = (): NuxtImportLike[] => {
     const list: NuxtImportLike[] = [];
-    for (const hook of hooks) hook(list);
+
+    for (const hook of hooks) {
+      hook(list);
+    }
+
     return list;
   };
+
   return { nuxt, imports };
 }
 
@@ -38,7 +45,9 @@ describe("better-supabase/nuxt", () => {
   });
 
   it("auto-imports only names better-supabase/vue exports", () => {
-    for (const name of VUE_COMPOSABLES) expect(vue).toHaveProperty(name);
+    for (const name of VUE_COMPOSABLES) {
+      expect(vue).toHaveProperty(name);
+    }
   });
 
   it("prefers inline options and can skip the composables", () => {

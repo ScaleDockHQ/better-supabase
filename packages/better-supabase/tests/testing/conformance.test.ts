@@ -56,7 +56,9 @@ async function failures(pending: Promise<unknown>): Promise<string[]> {
     () => undefined,
     (cause: unknown) => cause,
   );
+
   expect(error).toBeInstanceOf(ConformanceError);
+
   return (error as ConformanceError).report.checks
     .filter((check) => !check.ok)
     .map((check) => check.name);
@@ -66,14 +68,20 @@ function memoryExecutor(rows: Record<string, unknown>[]): Executor {
   return {
     name: "memory",
     execute: (op, context) => {
-      if (context.signal?.aborted)
+      if (context.signal?.aborted) {
         return Promise.resolve(err(dbError("aborted", "aborted")));
-      if (op.table.name !== "tags")
+      }
+
+      if (op.table.name !== "tags") {
         return Promise.resolve(
           err(dbError("not_found", `no table ${op.table.name}`)),
         );
-      if (op.kind !== "select")
+      }
+
+      if (op.kind !== "select") {
         return Promise.resolve(err(dbError("invalid_request", "read only")));
+      }
+
       const selected = rows
         .slice(0, op.limit)
         .map((row) =>
@@ -84,6 +92,7 @@ function memoryExecutor(rows: Record<string, unknown>[]): Executor {
             ]),
           ),
         );
+
       return Promise.resolve(
         ok({ rows: op.head ? [] : selected, count: rows.length }),
       );
@@ -103,6 +112,7 @@ describe("testExecutor", () => {
       betterSupabase,
       table: "tags",
     });
+
     expect(report.subject).toBe('Executor "memory"');
     expect(report.checks.map((check) => check.name)).toContain(
       "returns an aborted error for an aborted signal",
@@ -113,12 +123,16 @@ describe("testExecutor", () => {
     const broken: Executor = {
       name: "broken",
       execute: (op) => {
-        if (op.table.name !== "tags") throw new Error("boom");
+        if (op.table.name !== "tags") {
+          throw new Error("boom");
+        }
+
         return Promise.resolve(
           ok({ rows: [{ id: "1", extra: true }, {}, {}], count: null }),
         );
       },
     };
+
     expect(
       await failures(testExecutor(broken, { betterSupabase, table: "tags" })),
     ).toEqual([
@@ -144,15 +158,20 @@ describe("testCacheAdapter", () => {
         (target.ids as string[]).push("x");
       },
     };
+
     expect(await failures(testCacheAdapter(mutating))).toContain(
       "invalidates rows of a tenant",
     );
+
     const picky: CacheAdapter = {
       name: "picky",
       invalidate: (target) => {
-        if (target.table.startsWith("__")) throw new Error("unknown table");
+        if (target.table.startsWith("__")) {
+          throw new Error("unknown table");
+        }
       },
     };
+
     expect(await failures(testCacheAdapter(picky))).toEqual([
       "accepts tables it has never seen",
     ]);
@@ -162,9 +181,11 @@ describe("testCacheAdapter", () => {
 describe("testEventSink", () => {
   it("passes a sink that delivers", async () => {
     const delivered: CloudEvent[] = [];
+
     const sink: EventSink = {
       send: (events) => void delivered.push(...events),
     };
+
     const report = await testEventSink(sink, { received: () => delivered });
     expect(report.checks).toHaveLength(3);
   });
@@ -174,11 +195,15 @@ describe("testEventSink", () => {
     expect(
       await failures(testEventSink(dropping, { received: () => [] })),
     ).toEqual(["delivers every event"]);
+
     const mutating: EventSink = {
       send: (events) => {
-        for (const event of events) (event as { id: string }).id = "x";
+        for (const event of events) {
+          (event as { id: string }).id = "x";
+        }
       },
     };
+
     expect(await failures(testEventSink(mutating))).toEqual([
       "accepts a batch without mutating it",
     ]);
@@ -197,15 +222,21 @@ interface Stored {
 function memoryQueue(options: { leases?: boolean } = {}): QueueBackend {
   const rows: Stored[] = [];
   const now = () => Date.now();
+
   const find = (id: number, attempts: number) =>
     rows.find((row) => row.id === id && row.attempts === attempts && !row.done);
+
   return {
     apiVersion: 1,
     name: "memory",
     leases: options.leases ?? true,
     send: (_queue, payload, delay, maxAttempts, key) => {
       const existing = key && rows.find((row) => row.key === key && !row.done);
-      if (existing) return Promise.resolve(existing.id);
+
+      if (existing) {
+        return Promise.resolve(existing.id);
+      }
+
       const id = rows.length + 1;
       rows.push({
         id,
@@ -218,6 +249,7 @@ function memoryQueue(options: { leases?: boolean } = {}): QueueBackend {
           max_attempts: maxAttempts,
         },
       });
+
       return Promise.resolve(id);
     },
     read: (_queue, lease, batch) => {
@@ -227,6 +259,7 @@ function memoryQueue(options: { leases?: boolean } = {}): QueueBackend {
         .map((row) => {
           row.attempts += 1;
           row.visibleAt = now() + lease * 1000;
+
           return {
             id: row.id,
             attempts: row.attempts,
@@ -235,27 +268,44 @@ function memoryQueue(options: { leases?: boolean } = {}): QueueBackend {
             message: structuredClone(row.message),
           };
         });
+
       return Promise.resolve(claimed);
     },
     complete: (job) => {
       const row = find(job.id, job.attempts);
-      if (row) row.done = true;
+
+      if (row) {
+        row.done = true;
+      }
+
       return Promise.resolve(row !== undefined);
     },
     fail: (job, error, retryIn) => {
       const row = find(job.id, job.attempts);
-      if (!row) return Promise.resolve(null);
+
+      if (!row) {
+        return Promise.resolve(null);
+      }
+
       row.message.last_error = error;
+
       if (row.attempts >= row.message.max_attempts) {
         row.done = true;
+
         return Promise.resolve("dead");
       }
+
       row.visibleAt = now() + (retryIn ?? 10) * 1000;
+
       return Promise.resolve("queued");
     },
     extend: (job, lease) => {
       const row = find(job.id, job.attempts);
-      if (row) row.visibleAt = now() + lease * 1000;
+
+      if (row) {
+        row.visibleAt = now() + lease * 1000;
+      }
+
       return Promise.resolve(row !== undefined);
     },
     schedule: () => Promise.resolve(),
@@ -268,20 +318,24 @@ describe("testQueueBackend", () => {
     const report = await testQueueBackend(memoryQueue(), { queue: "q" });
     expect(report.checks.every((check) => check.ok)).toBe(true);
     expect(report.checks).toHaveLength(6);
+
     const lite = await testQueueBackend(memoryQueue({ leases: false }), {
       queue: "q",
     });
+
     expect(lite.checks).toHaveLength(4);
   });
 
   it("fails a backend that never hides or dead-letters messages", async () => {
     const base = memoryQueue();
+
     const leaky: QueueBackend = {
       ...base,
       apiVersion: 2 as 1,
       read: async (queue, _lease, batch) => base.read(queue, 0, batch),
       fail: () => Promise.resolve("queued"),
     };
+
     expect(await failures(testQueueBackend(leaky, { queue: "q" }))).toEqual([
       "has apiVersion 1",
       "round-trips a payload and leases it",
@@ -304,11 +358,13 @@ describe("testSupportSessionStore", () => {
 
   it("fails a store that shows sessions to anyone and never ends them", async () => {
     const base = memorySupportStore();
+
     const leaky = {
       ...base,
       get: async (id: string) => (await base.list()).find((s) => s.id === id),
       end: () => Promise.resolve(true),
     };
+
     expect(await failures(testSupportSessionStore(leaky, options))).toEqual([
       "starts a session with its input and shows it to its admin only",
       "ends the admin's previous session on start",
@@ -329,7 +385,11 @@ describe("testAuthResolver", () => {
       name: "api-key",
       resolve: (incoming) => {
         const key = incoming.headers.get("x-api-key");
-        if (key === null) return;
+
+        if (key === null) {
+          return;
+        }
+
         return key === "good"
           ? { kind: "service", keyName: "ci" }
           : {
@@ -338,6 +398,7 @@ describe("testAuthResolver", () => {
             };
       },
     };
+
     await testAuthResolver(apiKeys, {
       invalid: [request("bad"), request("")],
       valid: [{ request: request("good") }],
@@ -349,12 +410,17 @@ describe("testAuthResolver", () => {
       name: "lenient",
       resolve: (incoming) => {
         const key = incoming.headers.get("x-api-key");
-        if (key === "throw") throw new Error("database down");
+
+        if (key === "throw") {
+          throw new Error("database down");
+        }
+
         return key === null
           ? { kind: "anon", reason: "none" }
           : { kind: "anon", reason: "none" };
       },
     };
+
     expect(
       await failures(
         testAuthResolver(lenient, {
@@ -379,10 +445,12 @@ describe("testGenerator", () => {
 
   it("fails generators that escape the project or are not deterministic", async () => {
     let run = 0;
+
     const sloppy: Generator = {
       name: "sloppy",
       generate: () => {
         run += 1;
+
         return [
           { path: "../outside.ts", contents: `// run ${run}\n` },
           { path: "a.ts", contents: "" },
@@ -390,6 +458,7 @@ describe("testGenerator", () => {
         ];
       },
     };
+
     expect(
       await failures(testGenerator(sloppy, { meta: schema.meta, config })),
     ).toEqual([
@@ -407,6 +476,7 @@ describe("testPlugin", () => {
       tenant: ACME,
       actor: { id: "user-1", kind: "user" as const },
     };
+
     for (const plugin of [
       timestamps(),
       softDelete(),
@@ -428,17 +498,20 @@ describe("testPlugin", () => {
       name: "sneaky",
       transformQuery: (op) => {
         (op as { limit: number | undefined }).limit = 1;
+
         return op;
       },
       wrapExecutor: (inner) => ({
         name: "sneaky",
         execute: async (op, context) => {
           const result = await inner.execute(op, context);
+
           return result.ok ? ok({ ...result.data, rows: [] }) : result;
         },
       }),
       context: (context) => ({ ...context, tenant: crypto.randomUUID() }),
     });
+
     expect(
       await failures(testPlugin(sneaky, { betterSupabase, table: "tags" })),
     ).toEqual([
@@ -457,6 +530,7 @@ describe("testPlugin", () => {
           ? { findMany: () => 1, restore: () => 2, label: "x" as never }
           : undefined,
     });
+
     expect(
       await failures(testPlugin(clashing, { betterSupabase, table: "tags" })),
     ).toEqual([
@@ -474,11 +548,13 @@ describe("testPlugin", () => {
         (raw as { code?: string }).code === "XX000" ? fallback : undefined,
       beforeMutation: (op) => op,
     });
+
     const report = await testPlugin(mappers, {
       betterSupabase,
       table: "tags",
       create: { organizationId: ACME, name: "x" },
     });
+
     expect(report.checks.map((check) => check.name)).toEqual([
       "has a name",
       "targets plugin API v1",
@@ -490,14 +566,17 @@ describe("testPlugin", () => {
     ]);
 
     let calls = 0;
+
     const broken = definePlugin({
       name: "broken",
       mapError: () => "nope" as never,
       beforeMutation: (op) => {
         calls += 1;
+
         return { ...op, rows: [{ call: calls }] } as never;
       },
     });
+
     expect(
       await failures(
         testPlugin(broken, {
@@ -519,11 +598,13 @@ describe("testPlugin", () => {
         (event.rows[0] as Record<string, unknown>)["marker"] = "changed";
       },
     });
+
     const report = await testPlugin(tamper, {
       betterSupabase,
       table: "tags",
       create: { organizationId: ACME, name: "x" },
     });
+
     expect(report.checks.map((check) => check.name)).toContain(
       "afterMutation cannot change the result",
     );
@@ -572,6 +653,7 @@ describe("conform", () => {
         },
       ],
     ]).catch((cause: unknown) => cause);
+
     expect(error).toBeInstanceOf(ConformanceError);
     expect((error as Error).message).toBe(
       [
@@ -591,20 +673,34 @@ describe("conform", () => {
 type Row = Record<string, unknown>;
 
 function matches(row: Row, where: Condition | undefined): boolean {
-  if (!where) return true;
+  if (!where) {
+    return true;
+  }
+
   switch (where.kind) {
-    case "and":
+    case "and": {
       return where.items.every((item) => matches(row, item));
-    case "or":
+    }
+
+    case "or": {
       return where.items.some((item) => matches(row, item));
-    case "not":
+    }
+
+    case "not": {
       return !matches(row, where.item);
-    case "column":
+    }
+
+    case "column": {
       return where.op !== "eq" || row[where.column] === where.value;
-    case "relation":
+    }
+
+    case "relation": {
       return true;
+    }
+
     default: {
       const unknown: never = where;
+
       return unknown;
     }
   }
@@ -634,19 +730,27 @@ function storeExecutor(
 ): Executor {
   const rows = seed.map((row) => ({ ...row }));
   let next = 100;
+
   const execute: Executor["execute"] = (op, context) => {
-    if (context.signal?.aborted)
+    if (context.signal?.aborted) {
       return Promise.resolve(err(dbError("aborted", "aborted")));
-    if (op.table.name !== "tags")
+    }
+
+    if (op.table.name !== "tags") {
       return Promise.resolve(
         err(dbError("not_found", `no table ${op.table.name}`)),
       );
+    }
+
     switch (op.kind) {
       case "select": {
-        if (op.source && !quirks.ignoresSource)
+        if (op.source && !quirks.ignoresSource) {
           return Promise.resolve(err(dbError("not_found", "no function")));
+        }
+
         const found = rows.filter((row) => matches(row, op.where));
         const limited = found.slice(0, op.limit);
+
         return Promise.resolve(
           ok({
             rows: op.head ? [] : project(limited, op.selection),
@@ -654,24 +758,29 @@ function storeExecutor(
           }),
         );
       }
+
       case "insert": {
         const created = op.rows.map((row) => ({
           ...row,
           id: String((next += 1)),
           ...(quirks.renames ? { name: "renamed" } : {}),
         }));
+
         rows.push(...created);
+
         return Promise.resolve(
           ok({ rows: project(created, op.returning), count: created.length }),
         );
       }
+
       case "delete": {
         const removed = rows.filter((row) => matches(row, op.where));
+
         if (
           op.maxAffected !== undefined &&
           removed.length > op.maxAffected &&
           !quirks.ignoresMaxAffected
-        )
+        ) {
           return Promise.resolve(
             err(
               dbError("max_affected", "too many rows", {
@@ -679,20 +788,31 @@ function storeExecutor(
               }),
             ),
           );
-        if (!quirks.keepsDeleted)
-          for (const row of removed) rows.splice(rows.indexOf(row), 1);
+        }
+
+        if (!quirks.keepsDeleted) {
+          for (const row of removed) {
+            rows.splice(rows.indexOf(row), 1);
+          }
+        }
+
         return Promise.resolve(
           ok({ rows: project(removed, op.returning), count: removed.length }),
         );
       }
-      case "update":
+
+      case "update": {
         return Promise.resolve(err(dbError("invalid_request", "read only")));
+      }
+
       default: {
         const unknown: never = op;
+
         return unknown;
       }
     }
   };
+
   return {
     name: "store",
     functionSources: true,
@@ -705,6 +825,7 @@ function storeExecutor(
       ),
     batch: async (ops, context) => {
       const results = await Promise.all(ops.map((op) => execute(op, context)));
+
       return quirks.batchDrops ? results.slice(0, 2) : results;
     },
   };
@@ -717,6 +838,7 @@ describe("testExecutor optional contracts", () => {
       table: "tags",
       create: { organizationId: ACME, name: "fresh", color: "red" },
     });
+
     expect(report.checks.map((check) => check.name)).toEqual([
       "has a name",
       "reads rows keyed by the selection aliases",
@@ -753,10 +875,12 @@ describe("testExecutor optional contracts", () => {
       "round-trips a write",
       "refuses a write past maxAffected and writes nothing",
     ]);
+
     const error = await testExecutor(
       storeExecutor(tagRows, { keepsDeleted: true }),
       { betterSupabase, table: "tags", create },
     ).catch((cause: unknown) => cause);
+
     expect(
       (error as ConformanceError).report.checks.find(
         (check) => check.name === "round-trips a write",
@@ -785,9 +909,16 @@ describe("testAuthResolver edge cases", () => {
       name: "odd",
       resolve: (incoming) => {
         const key = incoming.headers.get("x-api-key");
-        if (key === null) return;
-        // oxlint-disable-next-line typescript/only-throw-error -- the module must report non-Error throws.
-        if (key === "throw") throw "offline";
+
+        if (key === null) {
+          return;
+        }
+
+        if (key === "throw") {
+          // oxlint-disable-next-line typescript/only-throw-error -- the module must report non-Error throws.
+          throw "offline";
+        }
+
         return key === "user"
           ? {
               kind: "user",
@@ -800,6 +931,7 @@ describe("testAuthResolver edge cases", () => {
           : { kind: "invalid", error: dbError("unauthorized", "bad") };
       },
     };
+
     const error = await testAuthResolver(resolver, {
       invalid: [request("bad")],
       valid: [
@@ -807,15 +939,18 @@ describe("testAuthResolver edge cases", () => {
         { request: request("throw") },
       ],
     }).catch((cause: unknown) => cause);
+
     expect((error as ConformanceError).report.checks.at(-1)).toEqual({
       name: "resolves valid credentials",
       ok: false,
       message: "expected user u1",
     });
+
     const thrown = await testAuthResolver(resolver, {
       invalid: [request("throw")],
       unrelated: new Request("https://example.com/other"),
     }).catch((cause: unknown) => cause);
+
     expect(
       (thrown as ConformanceError).report.checks.find((check) => !check.ok),
     ).toEqual({
@@ -832,6 +967,7 @@ describe("testAuthResolver edge cases", () => {
 describe("testGenerator imports", () => {
   it("hands generators relative import paths and default inputs", async () => {
     const seen: string[] = [];
+
     const generator: Generator = {
       name: "imports",
       generate: (input) => {
@@ -840,9 +976,11 @@ describe("testGenerator imports", () => {
           input.importPath("src/lib/db.ts", "src/gen/types.ts"),
           input.importPath("a/b.ts", "c.ts"),
         );
+
         return [{ path: "out.ts", contents: input.output }];
       },
     };
+
     await testGenerator(generator, { meta: schema.meta });
     expect(seen.slice(0, 3)).toEqual([
       "./schema.ts",
@@ -856,20 +994,25 @@ describe("testGenerator imports", () => {
       name: "bad",
       generate: () => [{ path: "/abs.ts", contents: "" }],
     };
+
     expect(await failures(testGenerator(bad, { meta: schema.meta }))).toEqual([
       "writes files inside the project",
     ]);
+
     const windows: Generator = {
       name: "windows",
       generate: () => [{ path: "C:\\x.ts", contents: "" }],
     };
+
     expect(
       await failures(testGenerator(windows, { meta: schema.meta })),
     ).toEqual(["writes files inside the project"]);
+
     const malformed: Generator = {
       name: "malformed",
       generate: () => [{ path: 1, contents: "" }] as never,
     };
+
     expect(
       await failures(testGenerator(malformed, { meta: schema.meta })),
     ).toContain("writes files inside the project");
@@ -877,14 +1020,17 @@ describe("testGenerator imports", () => {
 
   it("passes a frozen model built from meta and fails unknown API versions", async () => {
     let model: GeneratorInput["model"] | undefined;
+
     const reader: Generator = {
       apiVersion: 1,
       name: "reader",
       generate: (input) => {
         model = input.model;
+
         return [];
       },
     };
+
     await testGenerator(reader, { meta: schema.meta });
     expect(model?.tables.map((table) => table.key)).toEqual(
       Object.keys(schema.meta.tables),

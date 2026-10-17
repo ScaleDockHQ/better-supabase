@@ -51,11 +51,16 @@ function fakeClient(
   const open: unknown[] = [];
   let presence: Record<string, Record<string, unknown>[]> = {};
   let report: ((status: string, error?: Error) => void) | undefined;
+
   const channel = {
     topic: "",
     on: vi.fn((type: string, _filter: unknown, listener: Listener) => {
-      if (type === "presence") syncs.push(listener as () => void);
-      else listeners.push(listener);
+      if (type === "presence") {
+        syncs.push(listener as () => void);
+      } else {
+        listeners.push(listener);
+      }
+
       return channel;
     }),
     presenceState: () => presence,
@@ -67,6 +72,7 @@ function fakeClient(
       queueMicrotask(() => {
         callback(status, error ?? undefined);
       });
+
       return channel;
     }),
     httpSend: vi.fn(
@@ -75,9 +81,13 @@ function fakeClient(
       }),
     ),
   };
+
   const client = {
     channel: vi.fn((topic: string) => {
-      if (!open.includes(channel)) channel.topic = `realtime:${topic}`;
+      if (!open.includes(channel)) {
+        channel.topic = `realtime:${topic}`;
+      }
+
       return channel;
     }),
     getChannels: vi.fn(() => open),
@@ -85,17 +95,26 @@ function fakeClient(
       removed.push(value);
       open.splice(open.indexOf(value), 1);
       report?.("CLOSED");
+
       return "ok" as const;
     }),
     realtime: { setAuth: vi.fn(async () => undefined) },
   };
+
   const emit = (event: string, payload: unknown) => {
-    for (const listener of listeners) listener({ event, payload });
+    for (const listener of listeners) {
+      listener({ event, payload });
+    }
   };
+
   const sync = (state: Record<string, Record<string, unknown>[]>) => {
     presence = state;
-    for (const listener of syncs) listener();
+
+    for (const listener of syncs) {
+      listener();
+    }
   };
+
   return {
     client: client as unknown as RealtimeClient,
     raw: client,
@@ -163,8 +182,10 @@ describe("defineTopic", () => {
         sql: SQL,
       },
     }).sql();
+
     const ids = (key: string) =>
       `split_part((select realtime.topic()), ':', 2) in (select t.id::text from authz.ids_organization('${key}') as t(id))`;
+
     expect(board).toContain(
       `for select to authenticated\n  using (\n    (select realtime.topic()) ~ '^organization:[^:]+:board$'\n    and realtime.messages.extension in ('broadcast')\n    and ${ids("board.read")}\n  );`,
     );
@@ -176,6 +197,7 @@ describe("defineTopic", () => {
     const receiveOnly = defineTopic("announcements", {
       access: { receive: "announcements.read", scope: "platform", sql: SQL },
     }).sql();
+
     expect(receiveOnly).toContain(
       `(select authz.is_platform('announcements.read'))`,
     );
@@ -196,6 +218,7 @@ describe("defineTopic", () => {
     const topic = defineTopic("organization:{organizationId}:board", {
       access: { receive: "board.read", scope: "organization", sql: "provider" },
     });
+
     expect(() => topic.sql()).toThrow(/sql "provider" needs `authorization`/);
     expect(topic.sql({ functions: SQL })).toContain(
       "in (select t.id::text from authz.ids_organization('board.read') as t(id))",
@@ -210,6 +233,7 @@ describe("defineTopic", () => {
         values: { organizationId: "organizationId" },
       },
     );
+
     expect(sql).toContain('create schema if not exists "better_supabase";');
     expect(sql).toContain(
       'create or replace function "better_supabase"."bs_broadcast_organization_customers_customers"()',
@@ -237,6 +261,7 @@ describe("defineTopic", () => {
         { created, "*": other },
         { onInvalid },
       );
+
       await subscription.ready;
       expect(raw.realtime.setAuth).toHaveBeenCalled();
       expect(raw.channel).toHaveBeenCalledWith(
@@ -250,6 +275,7 @@ describe("defineTopic", () => {
       emit("deleted", { id: 1 });
       await flush();
     }
+
     expect(created).toHaveBeenCalledWith(
       { title: "Hi" },
       {
@@ -278,12 +304,14 @@ describe("defineTopic", () => {
     const statuses: string[] = [];
     const a = notifications.subscribe(client, values, { "*": first });
     await a.ready;
+
     const b = notifications.subscribe(
       client,
       values,
       { "*": second },
       { onStatus: (status) => statuses.push(status) },
     );
+
     await b.ready;
     expect(raw.channel).toHaveBeenCalledTimes(1);
     expect(channel.subscribe).toHaveBeenCalledTimes(1);
@@ -329,24 +357,28 @@ describe("defineTopic", () => {
   it("rejects ready when the join is refused", async () => {
     const { client } = fakeClient("CHANNEL_ERROR");
     const statuses: string[] = [];
+
     const subscription = notifications.subscribe(
       client,
       { organizationId: "o1", userId: "u1" },
       {},
       { onStatus: (status) => statuses.push(status) },
     );
+
     await expect(subscription.ready).rejects.toThrow("Unauthorized");
     expect(statuses).toEqual(["joining", "error"]);
   });
 
   it("validates before sending", async () => {
     const { client, channel } = fakeClient();
+
     const invalid = await notifications.send(
       client,
       { organizationId: "o1", userId: "u1" },
       "created",
       {},
     );
+
     expect(invalid.error?.kind).toBe("validation");
     expect(channel.httpSend).not.toHaveBeenCalled();
     await notifications
@@ -359,11 +391,13 @@ describe("defineTopic", () => {
 
   it("keeps a subscribed channel open when sending on its topic", async () => {
     const { client, raw } = fakeClient();
+
     const subscription = notifications.subscribe(
       client,
       { organizationId: "o1", userId: "u1" },
       {},
     );
+
     await subscription.ready;
     raw.realtime.setAuth.mockClear();
     await notifications
@@ -379,6 +413,7 @@ describe("defineTopic", () => {
 
   it("maps failed sends to DbError kinds and removes the channel", async () => {
     const room = defineTopic("room:{roomId}", { private: false });
+
     const cases: [number, string, number][] = [
       [401, "unauthorized", 401],
       [403, "forbidden", 403],
@@ -387,6 +422,7 @@ describe("defineTopic", () => {
       [0, "network", 503],
       [418, "invalid_request", 418],
     ];
+
     for (const [status, kind, reported] of cases) {
       const { client, raw, channel, removed } = fakeClient();
       channel.httpSend.mockResolvedValueOnce({
@@ -410,12 +446,14 @@ describe("defineTopic", () => {
   it("joins public topics without setAuth and passes self", async () => {
     const room = defineTopic("room:{roomId}", { private: false });
     const { client, raw, channel } = fakeClient();
+
     const subscription = room.subscribe(
       client,
       { roomId: "r1" },
       {},
       { self: true },
     );
+
     await subscription.ready;
     expect(channel.subscribe).toHaveBeenCalledTimes(1);
     expect(raw.realtime.setAuth).not.toHaveBeenCalled();
@@ -427,11 +465,13 @@ describe("defineTopic", () => {
   it("ignores events without a handler and validates nothing for unknown events", async () => {
     const { client, emit } = fakeClient();
     const created = vi.fn();
+
     const subscription = notifications.subscribe(
       client,
       { organizationId: "o1", userId: "u1" },
       { created },
     );
+
     await subscription.ready;
     emit("deleted", { id: 1 });
     emit("created", { title: "Yo" });
@@ -451,15 +491,18 @@ describe("defineTopic", () => {
             : { issues: [{ message: "deep issue", path: [0, "x"] }] },
       },
     };
+
     const topic = defineTopic("room:{roomId}", { events: { msg: strict } });
     const { client, emit } = fakeClient();
     const onInvalid = vi.fn();
+
     const subscription = topic.subscribe(
       client,
       { roomId: "r1" },
       { msg: vi.fn() },
       { onInvalid },
     );
+
     await subscription.ready;
     emit("msg", "flat");
     emit("msg", "deep");
@@ -478,12 +521,14 @@ describe("defineTopic", () => {
   it("resolves ready on CLOSED and names a refusal without an error", async () => {
     const closed = fakeClient("CLOSED");
     const statuses: string[] = [];
+
     const subscription = notifications.subscribe(
       closed.client,
       { organizationId: "o1", userId: "u1" },
       {},
       { onStatus: (status) => statuses.push(status) },
     );
+
     await subscription.ready;
     expect(statuses).toEqual(["joining", "closed"]);
 
@@ -517,11 +562,13 @@ describe("defineTopic", () => {
           };
         }),
     );
+
     const subscription = notifications.subscribe(
       client,
       { organizationId: "o1", userId: "u1" },
       {},
     );
+
     await subscription.unsubscribe();
     await subscription.unsubscribe();
     release();
@@ -538,8 +585,10 @@ describe("defineTopic", () => {
         { organizationId: "o1", userId: "u1" },
         {},
       );
+
       await subscription.ready;
     }
+
     expect(removed).toHaveLength(1);
   });
 });
@@ -555,6 +604,7 @@ describe("presence", () => {
           : { issues: [{ message: "name is required" }] },
     },
   };
+
   const room = defineTopic("room:{roomId}", { presence: cursor });
   const values = { roomId: "r1" };
 
@@ -575,12 +625,14 @@ describe("presence", () => {
     const { client, sync } = fakeClient();
     const onPresence = vi.fn();
     const onInvalid = vi.fn();
+
     using subscription = room.subscribe(
       client,
       values,
       {},
       { onPresence, onInvalid },
     );
+
     await subscription.ready;
     sync({
       a: [{ presence_ref: "1", name: "Ada", extra: true }],
@@ -616,6 +668,7 @@ describe("presence", () => {
   it("keeps only the newest sync when validation finishes out of order", async () => {
     const { client, sync } = fakeClient();
     let release: (() => void) | undefined;
+
     const slow: StandardSchemaV1<unknown, unknown> = {
       "~standard": {
         version: 1,
@@ -630,10 +683,13 @@ describe("presence", () => {
             : { value },
       },
     };
+
     const onPresence = vi.fn();
+
     using subscription = defineTopic("slow:{roomId}", {
       presence: slow,
     }).subscribe(client, values, {}, { onPresence });
+
     await subscription.ready;
     sync({ a: [{ presence_ref: "1", slow: true }] });
     sync({ b: [{ presence_ref: "2" }] });
@@ -705,9 +761,11 @@ describe("presence", () => {
   it("accepts any object state with presence: true", async () => {
     const { client, channel, sync } = fakeClient();
     const onPresence = vi.fn();
+
     using subscription = defineTopic("open:{roomId}", {
       presence: true,
     }).subscribe(client, values, {}, { onPresence });
+
     await subscription.track({ anything: 1 });
     expect(channel.track).toHaveBeenCalledWith({ anything: 1 });
     sync({ k: [{ presence_ref: "1", anything: 1 }] });
@@ -762,6 +820,7 @@ describe("defineTopic policies", () => {
       tenant: false,
       owner: false,
     }).sql();
+
     expect(sql).not.toContain("split_part");
   });
 
@@ -821,6 +880,7 @@ describe("triggerSql", () => {
 
   it("fills placeholders from parent rows and sends a custom event and payload", () => {
     const tagged = defineTopic("org:{organizationSlug}:customer:{customerId}");
+
     const sql = tagged.triggerSql(betterSupabase, "customerTags", {
       values: {
         customerId: "customerId",
@@ -841,6 +901,7 @@ describe("triggerSql", () => {
         operation: { sql: "lower(tg_op) || ':' || {row}.tag_id" },
       },
     });
+
     expect(sql).toContain(
       `topic := 'org:' || (select j0."slug" from "public"."organizations" j0 where j0."id" = (select j1."organization_id" from "public"."customers" j1 where j1."id" = rec."customer_id" limit 1) limit 1)::text || ':customer:' || rec."customer_id"::text;`,
     );
@@ -849,10 +910,12 @@ describe("triggerSql", () => {
     case tg_op when 'INSERT' then 'tag_added' when 'DELETE' then 'tag_removed' else tg_op end, topic, true
   );`);
     expect(sql).not.toContain("broadcast_changes");
+
     const named = customers.triggerSql(betterSupabase, "customers", {
       values: { organizationId: "organizationId" },
       event: "customer_changed",
     });
+
     expect(named).toContain(
       "topic, 'customer_changed', tg_op, tg_table_name, tg_table_schema, new, old",
     );
@@ -877,11 +940,13 @@ describe("triggerSql", () => {
 
   it("rejects lookups through unknown tables, keys and columns", () => {
     const tagged = defineTopic("org:{organizationId}");
+
     const lookup = (value: object) => () =>
       tagged.triggerSql(betterSupabase, "customerTags", {
         // @ts-expect-error a lookup the types reject or the schema lacks
         values: { organizationId: value },
       });
+
     expect(
       lookup({ from: "nope", via: "customerId", select: "organizationId" }),
     ).toThrow('defineTopic: unknown table "nope" for {organizationId}');
@@ -916,6 +981,7 @@ describe("triggerSql", () => {
       events: ["insert"],
       functionSchema: "private",
     });
+
     expect(sql).toContain(
       'create or replace function "private"."bs_broadcast_organization_customers_customers"()',
     );
@@ -938,6 +1004,7 @@ describe("rowChange", () => {
         old_record: { id: "c1", name: "Old" },
       },
     };
+
     expect(rowChange(betterSupabase, "customers", message)).toEqual({
       operation: "UPDATE",
       table: "customers",
@@ -972,6 +1039,7 @@ describe("rowChange", () => {
   it("returns null for other schemas, unknown operations, empty payloads and unknown tables", () => {
     const at = (payload: unknown, event = "UPDATE") =>
       rowChange(betterSupabase, "customers", { event, topic: "t", payload });
+
     expect(at({ table: "customers", schema: "audit" })).toBeNull();
     expect(at({ table: "customers", operation: "TRUNCATE" })).toBeNull();
     expect(at({ table: "customers" }, "custom")).toBeNull();
@@ -1003,10 +1071,12 @@ describe("trigger", () => {
 
   it("maps columns, limits the operations and passes 'false' for a public topic", () => {
     const board = defineTopic("board:{boardId}", { private: false });
+
     const sql = board.trigger("app.cards", {
       values: { boardId: "board" },
       events: ["insert", "delete"],
     });
+
     expect(sql).toContain(
       "after insert or delete on \"app\".\"cards\"\n  for each row execute function better_supabase.broadcast_topic('board:{board}', '', 'false');",
     );

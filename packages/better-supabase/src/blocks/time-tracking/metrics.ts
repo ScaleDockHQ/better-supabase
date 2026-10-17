@@ -62,11 +62,18 @@ export const TIME_TRACKING_METRIC_EVENTS: {
 export function timeEntryMetricTime(
   event: CloudEvent,
 ): string | readonly string[] | undefined {
-  if (!event.type.includes("time_entry.") || !isRecord(event.data))
+  if (!event.type.includes("time_entry.") || !isRecord(event.data)) {
     return undefined;
+  }
+
   const startedAt = event.data["startedAt"];
-  if (typeof startedAt !== "string") return undefined;
+
+  if (typeof startedAt !== "string") {
+    return undefined;
+  }
+
   const previous = event.data["previousStartedAt"];
+
   return typeof previous === "string" && previous !== startedAt
     ? [startedAt, previous]
     : startedAt;

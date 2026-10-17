@@ -9,6 +9,7 @@ export const instant = true;
 
 export default function NotificationsPage() {
   const t = useExtracted("notifications");
+
   return (
     <>
       <PageHeader

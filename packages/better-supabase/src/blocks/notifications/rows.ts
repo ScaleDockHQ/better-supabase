@@ -13,6 +13,7 @@ export function toItem(row: Record<string, unknown>): NotificationItem {
   const type = nullableText(row["subject_type"]);
   const id = nullableText(row["subject_id"]);
   const label = nullableText(row["subject_label"]);
+
   return {
     id: String(row["id"]),
     eventId: String(row["event_id"]),
@@ -38,10 +39,14 @@ export function cursorOf(before: ListOptions["cursor"]): {
   readonly before: string | null;
   readonly before_id: string | null;
 } {
-  if (before === undefined) return { before: null, before_id: null };
+  if (before === undefined) {
+    return { before: null, before_id: null };
+  }
+
   if ("epochNanoseconds" in before) {
     return { before: before.toString(), before_id: null };
   }
+
   return { before: before.createdAt.toString(), before_id: before.id };
 }
 
@@ -55,6 +60,7 @@ export function publicObjectUrl(
     .split("/")
     .map(encodeURIComponent)
     .join("/");
+
   return `${url.replace(/\/+$/, "")}/storage/v1/object/public/${encodeURIComponent(bucket)}/${object}`;
 }
 

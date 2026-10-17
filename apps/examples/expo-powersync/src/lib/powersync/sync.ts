@@ -1,7 +1,7 @@
 import { syncWithAuth } from "better-supabase/powersync";
 import { useEffect } from "react";
 
-import { bs } from "../supabase/native";
+import { bs } from "../supabase/client.native";
 import { connector } from "./connector";
 import { powersync } from "./database";
 

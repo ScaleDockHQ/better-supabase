@@ -68,10 +68,15 @@ export const AUTH_CACHE_HEADERS: Readonly<Record<string, string>> = {
 /** `sb-<first label of the hostname>-auth-token`, the supabase-js default. */
 export function sessionCookieName(url: string): string {
   let name = cookieNames.get(url);
+
   if (name === undefined) {
     name = `sb-${new URL(url).hostname.split(".")[0] ?? ""}-auth-token`;
-    if (cookieNames.size < 16) cookieNames.set(url, name);
+
+    if (cookieNames.size < 16) {
+      cookieNames.set(url, name);
+    }
   }
+
   return name;
 }
 
@@ -98,10 +103,12 @@ function byNameOf(
   cookies: readonly CookieRecord[],
 ): ReadonlyMap<string, string> {
   let byName = cookieMaps.get(cookies);
+
   if (!byName) {
     byName = new Map(cookies.map((cookie) => [cookie.name, cookie.value]));
     cookieMaps.set(cookies, byName);
   }
+
   return byName;
 }
 
@@ -110,7 +117,9 @@ function parseSession(raw: string): StoredSession | null {
     const json = raw.startsWith(BASE64_PREFIX)
       ? stringFromBase64URL(raw.slice(BASE64_PREFIX.length))
       : raw;
+
     const parsed: unknown = JSON.parse(json);
+
     return isStoredSession(parsed) ? parsed : null;
   } catch {
     return null;
@@ -139,21 +148,33 @@ function readSessionParts(
 ): ReadParts {
   let memo = readParts.get(cookies);
   const known = memo?.get(name);
-  if (known) return known;
+
+  if (known) {
+    return known;
+  }
+
   const byName = byNameOf(cookies);
   let result: ReadParts = { session: null, used: [] };
   const whole = byName.get(name);
+
   if (whole) {
     result = { session: parseSession(whole), used: [name] };
   } else {
     const parts: string[] = [];
+
     for (let index = 0; ; index++) {
       const part = byName.get(`${name}.${index}`);
-      if (!part) break;
+
+      if (!part) {
+        break;
+      }
+
       parts.push(part);
     }
+
     for (let length = parts.length; length > 0; length--) {
       const session = parseSession(parts.slice(0, length).join(""));
+
       if (session) {
         result = {
           session,
@@ -163,18 +184,25 @@ function readSessionParts(
       }
     }
   }
+
   if (!memo) {
     memo = new Map();
     readParts.set(cookies, memo);
   }
+
   memo.set(name, result);
+
   return result;
 }
 
 function isStoredSession(value: unknown): value is StoredSession {
-  if (typeof value !== "object" || value === null) return false;
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
   // SAFETY: value is a non-null object here, and every field is checked below.
   const session = value as Record<string, unknown>;
+
   return (
     typeof session["access_token"] === "string" &&
     typeof session["refresh_token"] === "string"
@@ -205,9 +233,14 @@ export function pruneSessionChunks(
   options: CookieOptions = {},
 ): CookieWrite[] {
   const { session, used } = readSessionParts(cookies, name);
-  if (!session) return [];
+
+  if (!session) {
+    return [];
+  }
+
   const kept = new Set(used);
   const base: CookieOptions = { ...DEFAULT_COOKIE_OPTIONS, ...options };
+
   return cookies
     .filter(
       (cookie) => isChunkLike(cookie.name, name) && !kept.has(cookie.name),
@@ -228,14 +261,19 @@ export function sessionEncoding(session: StoredSession): SessionEncoding {
 
 function encoded(session: StoredSession, encode: SessionEncoding): string {
   switch (encode) {
-    case "user-and-tokens":
+    case "user-and-tokens": {
       return JSON.stringify(session);
+    }
+
     case "tokens-only": {
       const { user: _user, ...tokens } = session;
+
       return JSON.stringify(tokens);
     }
+
     default: {
       const unhandled: never = encode;
+
       return unhandled;
     }
   }
@@ -254,13 +292,16 @@ export function writeSession(
   { encode = DEFAULT_SESSION_ENCODING }: WriteSessionOptions = {},
 ): CookieWrite[] {
   const base: CookieOptions = { ...DEFAULT_COOKIE_OPTIONS, ...options };
+
   const chunks = session
     ? createChunks(
         name,
         BASE64_PREFIX + stringToBase64URL(encoded(session, encode)),
       )
     : [];
+
   const kept = new Set(chunks.map((chunk) => chunk.name));
+
   const removals = existing
     .filter(
       (cookie) => isChunkLike(cookie.name, name) && !kept.has(cookie.name),
@@ -270,6 +311,7 @@ export function writeSession(
       value: "",
       options: { ...base, maxAge: 0 },
     }));
+
   return [
     ...removals,
     ...chunks.map((chunk) => ({
@@ -292,10 +334,14 @@ export function clearSessionAtScopes(
   name: string,
   scopes: readonly CookieScope[],
 ): CookieWrite[] {
-  if (scopes.length === 0) return [];
+  if (scopes.length === 0) {
+    return [];
+  }
+
   const chunks = existing
     .map((cookie) => cookie.name)
     .filter((cookie) => isChunkLike(cookie, name));
+
   return scopes.flatMap((scope) => {
     const options: CookieOptions = {
       ...DEFAULT_COOKIE_OPTIONS,
@@ -303,6 +349,7 @@ export function clearSessionAtScopes(
       ...(scope.path === undefined ? {} : { path: scope.path }),
       maxAge: 0,
     };
+
     return chunks.map((chunk) => ({ name: chunk, value: "", options }));
   });
 }
@@ -313,9 +360,14 @@ export function applyCookieWrites(
   writes: readonly CookieWrite[],
 ): CookieRecord[] {
   const next = new Map(cookies.map((cookie) => [cookie.name, cookie.value]));
+
   for (const write of writes) {
-    if (write.options.maxAge === 0) next.delete(write.name);
-    else next.set(write.name, write.value);
+    if (write.options.maxAge === 0) {
+      next.delete(write.name);
+    } else {
+      next.set(write.name, write.value);
+    }
   }
+
   return [...next].map(([name, value]) => ({ name, value }));
 }

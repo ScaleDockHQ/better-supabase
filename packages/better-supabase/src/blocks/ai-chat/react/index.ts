@@ -32,6 +32,7 @@ interface ClientOptions {
 
 function useAiChatClient(schema: string | undefined): AiChat {
   const { supabase } = useBlockEnv();
+
   return useMemo(
     () =>
       createAiChat({
@@ -61,8 +62,10 @@ export interface AiChatsState extends AiChatsSnapshot, AiChatsActions {}
 export function useAiChats(options: UseAiChatsOptions = {}): AiChatsState {
   const { auth, ports } = useBlockEnv();
   const client = useAiChatClient(options.schema);
+
   const { topic, organizationId, search, projectId, pinned, archived, limit } =
     options;
+
   return useController(
     () =>
       createAiChatsController({
@@ -117,6 +120,7 @@ export function useAiChatTree(
   const { ports } = useBlockEnv();
   const client = useAiChatClient(options.schema);
   const { topic } = options;
+
   return useController(
     () =>
       createAiChatTreeController({
@@ -138,6 +142,7 @@ export function useAiModels(
 ): AiModelsState {
   const client = useAiChatClient(options.schema);
   const tenant = organizationId ?? null;
+
   return useController(
     () => createAiModelsController({ client, organizationId: tenant }),
     [client, tenant],
@@ -152,6 +157,7 @@ export function useAiShare(
   options: ClientOptions = {},
 ): AiShareState {
   const client = useAiChatClient(options.schema);
+
   return useController(
     () => createAiShareController({ client, chatId }),
     [client, chatId],

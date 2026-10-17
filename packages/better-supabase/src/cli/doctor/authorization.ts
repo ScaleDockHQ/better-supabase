@@ -44,18 +44,28 @@ function missingTemplates(
 ): FindingInput[] {
   const installed = new Set(context.config.blockNames);
   const callers = new Map<keyof AuthorizationProvider["functions"], string[]>();
+
   for (const module of Object.values(SQL_MODULES)) {
-    if (!installed.has(module.name)) continue;
+    if (!installed.has(module.name)) {
+      continue;
+    }
+
     for (const name of module.providerFunctions ?? []) {
-      if (provider.functions[name] !== undefined) continue;
+      if (provider.functions[name] !== undefined) {
+        continue;
+      }
+
       if (
         name === "canAssignFor" &&
         context.config.blocks.access?.functions?.canAssignFor
-      )
+      ) {
         continue;
+      }
+
       callers.set(name, [...(callers.get(name) ?? []), module.name]);
     }
   }
+
   return [...callers].map(([name, modules]) => ({
     severity: "warning",
     message: `The ${modules.join(", ")} ${modules.length > 1 ? "modules call" : "module calls"} authorization.functions.${name}, which ${providerLabel(provider)} doesn't set, so under the provider model ${TEMPLATE_EFFECT[name] ?? "those calls fail"}. Use a provider that sets ${name}${name === "canAssignFor" ? ", or set blocks.access.functions.canAssignFor" : ""}.`,
@@ -84,14 +94,23 @@ function templatePattern(template: string): RegExp {
   const source = template
     .split(/(\{\w+\})/)
     .map((part) => {
-      if (part === "{permission}")
+      if (part === "{permission}") {
         return String.raw`(?:\w+\s*=>\s*)?'((?:[^']|'')*)'`;
-      if (part === "{scope}") return "([a-z][a-z0-9_]*)";
-      if (/^\{\w+\}$/.test(part)) return String.raw`[\s\S]*?`;
+      }
+
+      if (part === "{scope}") {
+        return "([a-z][a-z0-9_]*)";
+      }
+
+      if (/^\{\w+\}$/.test(part)) {
+        return String.raw`[\s\S]*?`;
+      }
+
       return escapeRegExp(part.trim()).replaceAll(/\s+/g, String.raw`\s*`);
     })
     .filter((part) => part !== "")
     .join(String.raw`\s*`);
+
   return new RegExp(source, "gi");
 }
 
@@ -108,24 +127,36 @@ function providerCalls(
 ): ProviderCall[] {
   const calls: ProviderCall[] = [];
   const { idsWith, isPlatform } = provider.functions;
+
   const groups = (template: string): readonly string[] =>
     [...template.matchAll(/\{(permission|scope)\}/g)].map((match) => match[1]!);
+
   const idsGroups = groups(idsWith);
+
   for (const match of body.matchAll(templatePattern(idsWith))) {
     const key = match[idsGroups.indexOf("permission") + 1];
-    if (key === undefined) continue;
+
+    if (key === undefined) {
+      continue;
+    }
+
     const scopeIndex = idsGroups.indexOf("scope");
     calls.push({
       key: key.replaceAll("''", "'"),
       scope: scopeIndex === -1 ? provider.tenantScope : match[scopeIndex + 1]!,
     });
   }
+
   const platformGroups = groups(isPlatform);
+
   for (const match of body.matchAll(templatePattern(isPlatform))) {
     const key = match[platformGroups.indexOf("permission") + 1];
-    if (key !== undefined)
+
+    if (key !== undefined) {
       calls.push({ key: key.replaceAll("''", "'"), scope: "platform" });
+    }
   }
+
   return calls;
 }
 
@@ -149,19 +180,33 @@ function providerPolicies(
 ): ProviderPolicy[] {
   const seen = new Set<string>();
   const found: ProviderPolicy[] = [];
+
   for (const file of files) {
     for (const match of file.text.matchAll(POLICY)) {
       const name = unquote(match[1]!);
+
       const table = match[2]!
         .split(".")
         .map((part) => unquote(part.trim()))
         .join(".");
-      if (!POLICY_TABLES.has(table) || !name.startsWith("bs_")) continue;
+
+      if (!POLICY_TABLES.has(table) || !name.startsWith("bs_")) {
+        continue;
+      }
+
       const id = `${table}.${name}`;
-      if (seen.has(id)) continue;
+
+      if (seen.has(id)) {
+        continue;
+      }
+
       seen.add(id);
       const calls = providerCalls(provider, match[3]!);
-      if (calls.length === 0) continue;
+
+      if (calls.length === 0) {
+        continue;
+      }
+
       found.push({
         name,
         table,
@@ -171,6 +216,7 @@ function providerPolicies(
       });
     }
   }
+
   return found;
 }
 
@@ -187,13 +233,26 @@ export function providerBucketKeys(
   readonly scope: string;
 }[] {
   const provider = config.authorization;
-  if (!provider) return [];
+
+  if (!provider) {
+    return [];
+  }
+
   const providerModel = config.blocks.access?.model === "provider";
+
   return Object.entries(config.buckets).flatMap(([bucket, entry]) => {
     const policy = entry.policy;
-    if (policy === undefined || typeof policy === "string") return [];
-    if (policy.sql === undefined && !providerModel) return [];
+
+    if (policy === undefined || typeof policy === "string") {
+      return [];
+    }
+
+    if (policy.sql === undefined && !providerModel) {
+      return [];
+    }
+
     const scope = policy.scope ?? "tenant";
+
     return [
       {
         bucket,
@@ -219,18 +278,26 @@ function placementProblems(
   call: ProviderCall,
   where: string,
 ): string[] {
-  if (call.scope === "platform") return [];
+  if (call.scope === "platform") {
+    return [];
+  }
+
   const label = providerLabel(provider);
+
   if (!provider.scopes.some((scope) => scope.name === call.scope)) {
     return [
       `${where} uses scope "${call.scope}", which ${label} doesn't declare. Use one of ${provider.scopes.map((scope) => scope.name).join(", ") || "its scopes"}.`,
     ];
   }
+
   const declared = provider.permissions?.find(
     (permission) => permission.key === call.key,
   )?.scopes;
-  if (!declared || declared.length === 0 || declared.includes(call.scope))
+
+  if (!declared || declared.length === 0 || declared.includes(call.scope)) {
     return [];
+  }
+
   return [
     `${where} checks "${call.key}" at scope "${call.scope}", but ${label} grants it at ${declared.map((scope) => `"${scope}"`).join(", ")}, so its SQL functions never grant it there. Use scope "${declared[0]}".`,
   ];
@@ -241,6 +308,7 @@ export function entitlementsModule(
   context: Pick<DoctorContext, "config">,
 ): ModuleEntitlementsProvider | undefined {
   const mode = entitlementsMode(context.config);
+
   return mode.kind === "provider" ? mode.provider : undefined;
 }
 
@@ -252,8 +320,10 @@ export function accessModule(
     !resolveModules(context.config.blockNames, {}).some(
       (module) => module.name === "access",
     )
-  )
+  ) {
     return { kind: "off" };
+  }
+
   return accessProviderMode(context.config);
 }
 
@@ -269,14 +339,17 @@ function requirementProblem(
   caller: string,
 ): { readonly message: string; readonly severity?: "info" } | undefined {
   const label = providerLabel(provider);
+
   const listed = (provider.requires ?? []).filter(
     (entry) => entry.function === requirement.function,
   );
+
   if (provider.requires !== undefined && listed.length === 0) {
     return {
       message: `${caller} calls ${requirement.function}, but ${label} doesn't list it in authorization.requires. Use a provider version that lists every function its templates call.`,
     };
   }
+
   if (
     listed.length > 0 &&
     !listed.some((entry) => entry.role === requirement.role)
@@ -285,14 +358,20 @@ function requirementProblem(
       message: `${label} says only ${listed.map((entry) => entry.role).join(", ")} may execute ${requirement.function}, but ${caller} calls it as ${requirement.role}. Grant it execute to ${requirement.role} through the provider.`,
     };
   }
+
   const schema = requirement.function.slice(
     0,
     requirement.function.indexOf("."),
   );
-  if (!context.snapshot.schemas.includes(schema)) return undefined;
+
+  if (!context.snapshot.schemas.includes(schema)) {
+    return undefined;
+  }
+
   const present = catalogOf(context).functions.some(
     (fn) => `${fn.schema}.${fn.name}` === requirement.function,
   );
+
   return present
     ? undefined
     : {
@@ -310,8 +389,13 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
       "An access policy on a bucket or topic that reaches the authorization provider's functions (through `sql` templates, or through the access contract under the `provider` model) decides by role and scope only. A permission whose `authorization.permissions` entry isn't `sqlComplete: true` would grant every object or topic in the scope, so it is reported, and so is a key the provider doesn't list or every key when it lists no permissions. A scope the provider doesn't declare, and a key checked at another scope than its entry's `scopes`, are reported too. Doctor reads the keys from `buckets` in the config and from the generated `bs_` policies on `storage.objects` and `realtime.messages`. It also warns when a bucket's `sql` templates differ from the provider's `idsWith` and `isPlatform`, since a copy goes stale when the provider changes; `sql: \"provider\"` renders them at `gen` time instead.",
     check: (context) => {
       const provider = context.config.authorization;
-      if (!provider) return [];
+
+      if (!provider) {
+        return [];
+      }
+
       const findings: FindingInput[] = [];
+
       for (const { bucket, keys, scope } of providerBucketKeys(
         context.config,
       )) {
@@ -320,39 +404,59 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
             provider,
             { key, scope },
             `buckets.${bucket} ("${key}")`,
-          ))
+          )) {
             findings.push({ message, target: `buckets.${bucket}:${key}` });
+          }
+
           const problem = unsafeKey(provider, key);
-          if (!problem) continue;
+
+          if (!problem) {
+            continue;
+          }
+
           findings.push({
             message: `buckets.${bucket} uses "${key}", which ${problem.reason}. The bucket policy could grant every object in the scope. ${problem.fix}`,
             target: `buckets.${bucket}:${key}`,
           });
         }
       }
+
       for (const [bucket, entry] of Object.entries(context.config.buckets)) {
         const sql =
           typeof entry.policy === "object" ? entry.policy.sql : undefined;
-        if (typeof sql !== "object") continue;
+
+        if (typeof sql !== "object") {
+          continue;
+        }
+
         const stale = (["idsWith", "isPlatform"] as const).filter(
           (name) => sql[name] !== provider.functions[name],
         );
-        if (stale.length === 0) continue;
+
+        if (stale.length === 0) {
+          continue;
+        }
+
         findings.push({
           severity: "warning",
           message: `buckets.${bucket} copies sql templates that differ from ${providerLabel(provider)}'s ${stale.join(" and ")}. Set sql: "provider" so gen renders the provider's templates.`,
           target: `buckets.${bucket}.policy.sql`,
         });
       }
+
       for (const policy of providerPolicies(provider, context.sqlFiles ?? [])) {
         const seen = new Set<string>();
+
         for (const call of policy.calls) {
           for (const message of placementProblems(
             provider,
             call,
             `Policy "${policy.name}" on ${policy.table}`,
           )) {
-            if (seen.has(message)) continue;
+            if (seen.has(message)) {
+              continue;
+            }
+
             seen.add(message);
             findings.push({
               message,
@@ -361,9 +465,14 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
             });
           }
         }
+
         for (const key of new Set(policy.calls.map((call) => call.key))) {
           const problem = unsafeKey(provider, key);
-          if (!problem) continue;
+
+          if (!problem) {
+            continue;
+          }
+
           findings.push({
             message: `Policy "${policy.name}" on ${policy.table} passes "${key}" to the provider's SQL functions, but it ${problem.reason}. ${problem.fix}`,
             target: `${policy.table}.${policy.name}:${key}`,
@@ -371,6 +480,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
           });
         }
       }
+
       return findings;
     },
   },
@@ -381,23 +491,35 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
     description:
       "With `entitlements.memberships: 'provider'` (the default with `authorization`), the `entitlements` SQL module reads memberships through the provider's `memberIds` template (in `has_entitlement`, as `authenticated`) and `memberIdsFor` (in `feature_claims`, which the provider's hook calls as `supabase_auth_admin`). Doctor warns when the provider can't back that mode (no tenant scope, an id type the module doesn't render, no `memberIds` or `memberIdsFor`), when its hook doesn't fill `claims.features` from `better_supabase.feature_claims` (unless `entitlements.claim` is `false`), when no membership table covers the tenant scope, and when a function those templates call is missing from `authorization.requires`, not executable by that role, or not in the database.",
     check: (context) => {
-      if (!context.config.blockNames.includes("entitlements")) return [];
+      if (!context.config.blockNames.includes("entitlements")) {
+        return [];
+      }
+
       const mode = entitlementsMode(context.config);
-      if (mode.kind === "tenant") return [];
-      if (mode.kind === "invalid")
+
+      if (mode.kind === "tenant") {
+        return [];
+      }
+
+      if (mode.kind === "invalid") {
         return [{ message: mode.problem, target: "entitlements.memberships" }];
+      }
+
       const provider = context.config.authorization!;
       const label = providerLabel(provider);
       const findings: FindingInput[] = [];
       const features = context.config.claims.features;
       const hook = provider.tokenHook;
+
       if (hook && context.config.entitlements.claim !== false) {
         const claims = hook.registeredClaims ?? [];
         const featureClaim = claims.find((claim) => claim.name === features);
+
         if (featureClaim?.function !== "better_supabase.feature_claims") {
           const registered = claims.find(
             (claim) => claim.function === "better_supabase.feature_claims",
           );
+
           findings.push({
             message: registered
               ? `The hook of ${label} fills the "${registered.name}" claim from better_supabase.feature_claims, but claims.features is "${features}", so hasEntitlement() never finds the plan features. Set claims.features to "${registered.name}".`
@@ -408,7 +530,9 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
           });
         }
       }
+
       const scope = mode.provider.scope;
+
       if (provider.memberships === undefined) {
         findings.push({
           severity: "info",
@@ -421,6 +545,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
           target: "authorization.memberships",
         });
       }
+
       for (const requirement of entitlementRequirements(mode.provider)) {
         const problem = requirementProblem(
           context,
@@ -428,7 +553,11 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
           requirement,
           requirement.caller,
         );
-        if (!problem) continue;
+
+        if (!problem) {
+          continue;
+        }
+
         findings.push({
           ...(requirement.kind === "member-for" &&
           problem.message.includes("may execute")
@@ -438,6 +567,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
           target: requirement.function,
         });
       }
+
       return findings;
     },
   },
@@ -449,15 +579,22 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
       "The provider's hook writes the active tenant to `tokenHook.tenantClaim`, and its tenant scope is `tenantScope`. Doctor warns when `claims.tenant` names another claim (the tenant plugin, guards and RLS would read a claim the hook never writes), notes when `claims.scope` is neither `tenant` nor the provider's tenant scope, notes when the provider sets `suspension` or `roleSources` but `blocks.access.model` is not `provider` (only that model reads them), and reports the `problems` the provider found while it was built.",
     check: (context) => {
       const provider = context.config.authorization;
-      if (!provider) return [];
+
+      if (!provider) {
+        return [];
+      }
+
       const label = providerLabel(provider);
+
       const findings: FindingInput[] = (provider.problems ?? []).map(
         (problem) => ({
           message: `${label}: ${problem}`,
           target: "authorization",
         }),
       );
+
       const tenantClaim = provider.tokenHook?.tenantClaim;
+
       if (
         tenantClaim !== undefined &&
         tenantClaim !== context.config.claims.tenant
@@ -467,7 +604,9 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
           target: "claims.tenant",
         });
       }
+
       const scope = context.config.claims.scope;
+
       if (scope !== "tenant" && scope !== provider.tenantScope) {
         findings.push({
           severity: "info",
@@ -475,13 +614,16 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
           target: "claims.scope",
         });
       }
+
       const model = context.config.blocks.access?.model ?? "roles";
+
       const unread = [
         ...(provider.suspension ? ["suspension"] : []),
         ...(provider.roleSources && provider.roleSources.length > 0
           ? ["roleSources"]
           : []),
       ];
+
       if (model !== "provider" && unread.length > 0) {
         findings.push({
           severity: "info",
@@ -489,6 +631,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
           target: `authorization.${unread[0]!}`,
         });
       }
+
       return findings;
     },
   },
@@ -500,11 +643,18 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
       "With `blocks.access.model: 'provider'`, the `access` module fills the provider's `idsWith` template for tenant checks and `isPlatform` for platform checks, at its tenant scope. Doctor reports a config without `authorization`, a tenant scope or id type the module can't render, a function those templates call that `authorization.requires` doesn't list, doesn't let `authenticated` execute or the database lacks, and every module permission key (from `modulePermissionKeys`) the provider doesn't mark `sqlComplete: true`, since its functions are trusted with role and scope only. It warns when neither `blocks.access.functions.canAssign` nor the provider's `canAssign` is set, because only the service role then assigns roles, and when an installed module calls a template the provider doesn't set (`idsWithFor` and `isPlatformFor` to check another user, `canAssignFor` to recheck an inviter).",
     check: (context) => {
       const mode = accessModule(context);
-      if (mode.kind === "off") return [];
-      if (mode.kind === "invalid")
+
+      if (mode.kind === "off") {
+        return [];
+      }
+
+      if (mode.kind === "invalid") {
         return [{ message: mode.problem, target: "authorization" }];
+      }
+
       const provider = context.config.authorization!;
       const findings: FindingInput[] = [];
+
       for (const requirement of accessRequirements(mode.access)) {
         const problem = requirementProblem(
           context,
@@ -512,12 +662,15 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
           requirement,
           "the provider access model (can() and the SQL modules)",
         );
-        if (problem)
+
+        if (problem) {
           findings.push({
             message: problem.message,
             target: requirement.function,
           });
+        }
       }
+
       findings.push(
         ...moduleKeyProblems(
           provider,
@@ -527,9 +680,11 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
           ),
         ),
       );
+
       const canAssign =
         context.config.blocks.access?.functions?.canAssign ??
         provider.functions.canAssign;
+
       if (canAssign === undefined) {
         findings.push({
           severity: "warning",
@@ -537,7 +692,9 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
           target: "blocks.access.functions.canAssign",
         });
       }
+
       findings.push(...missingTemplates(context, provider));
+
       return findings;
     },
   },
@@ -548,15 +705,23 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
     description:
       "Support sessions default to read-only. Write functions refuse them through the built-in act check, or through authorization.functions.actorMayWrite when the provider sets it. With the provider access model, doctor warns when support is installed and actorMayWrite is missing, so the provider's helper is not the one the writes call.",
     check: (context) => {
-      if (!context.config.blockNames.includes("support")) return [];
-      if ((context.config.blocks.access?.model ?? "roles") !== "provider")
+      if (!context.config.blockNames.includes("support")) {
         return [];
+      }
+
+      if ((context.config.blocks.access?.model ?? "roles") !== "provider") {
+        return [];
+      }
+
       const provider = context.config.authorization;
+
       if (
         provider === undefined ||
         provider.functions.actorMayWrite !== undefined
-      )
+      ) {
         return [];
+      }
+
       return [
         {
           message: `Support sessions are installed and blocks.access.model is "provider", but ${providerLabel(provider)} does not set authorization.functions.actorMayWrite. Writes use the built-in act check. Set actorMayWrite to the provider's read-only helper.`,
@@ -574,21 +739,29 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
     check: (context) => {
       const provider = context.config.authorization;
       const model = context.config.blocks.access?.model;
+
       if (
         provider === undefined ||
         !context.config.blockNames.includes("access") ||
         model === undefined ||
         model === "provider"
-      )
+      ) {
         return [];
+      }
+
       const why = `blocks.access.model is "${model}", so it answers from the built-in roles, not ${providerLabel(provider)}. Remove the model to use the provider, or call the provider's function directly.`;
       const findings: FindingInput[] = [];
+
       for (const table of catalogOf(context).tables) {
         for (const policy of table.policies) {
           const calls = contractCalls(
             `${policy.using ?? ""} ${policy.check ?? ""}`,
           );
-          if (calls.length === 0) continue;
+
+          if (calls.length === 0) {
+            continue;
+          }
+
           findings.push({
             message: `Policy "${policy.name}" on ${qualified(table)} calls ${calls.join(" and ")}, but ${why}`,
             target: `${qualified(table)}.${policy.name}`,
@@ -596,20 +769,28 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
           });
         }
       }
+
       for (const fn of context.snapshot.generator.functions) {
         if (
           fn.schema === "better_supabase" ||
           !context.config.schemas.includes(fn.schema) ||
           !fn.definition
-        )
+        ) {
           continue;
+        }
+
         const calls = contractCalls(fn.definition);
-        if (calls.length === 0) continue;
+
+        if (calls.length === 0) {
+          continue;
+        }
+
         findings.push({
           message: `${fn.schema}.${fn.name} calls ${calls.join(" and ")}, but ${why}`,
           target: `${fn.schema}.${fn.name}`,
         });
       }
+
       return findings;
     },
   },
@@ -620,18 +801,33 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
     description:
       "`member_organization_ids()`, `has_organization_role()` and `organization_member_role()` answer by role name. Under an authorization provider they take membership from its `memberIds`, but a role list in the policy still names roles the provider may not have. `better_supabase.tenant_ids_with('<permission>')` and `member_can()` check a permission, so they follow renames, the provider and the delegation cap. Doctor reports each app policy and each function in `schemas` that calls a role helper.",
     check: (context) => {
-      if (!context.config.blockNames.includes("tenant")) return [];
+      if (!context.config.blockNames.includes("tenant")) {
+        return [];
+      }
+
       const findings: FindingInput[] = [];
+
       const advice =
         "check a permission with better_supabase.tenant_ids_with('<permission>') or member_can() instead, so it follows the provider and the delegation cap.";
+
       for (const table of catalogOf(context).tables) {
-        if (table.schema === "better_supabase") continue;
+        if (table.schema === "better_supabase") {
+          continue;
+        }
+
         for (const policy of table.policies) {
-          if (policy.name.startsWith("bs_")) continue;
+          if (policy.name.startsWith("bs_")) {
+            continue;
+          }
+
           const calls = roleHelperCalls(
             `${policy.using ?? ""} ${policy.check ?? ""}`,
           );
-          if (calls.length === 0) continue;
+
+          if (calls.length === 0) {
+            continue;
+          }
+
           findings.push({
             message: `Policy "${policy.name}" on ${qualified(table)} calls ${calls.join(" and ")}; ${advice}`,
             target: `${qualified(table)}.${policy.name}`,
@@ -639,20 +835,28 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
           });
         }
       }
+
       for (const fn of context.snapshot.generator.functions) {
         if (
           fn.schema === "better_supabase" ||
           !context.config.schemas.includes(fn.schema) ||
           !fn.definition
-        )
+        ) {
           continue;
+        }
+
         const calls = roleHelperCalls(fn.definition);
-        if (calls.length === 0) continue;
+
+        if (calls.length === 0) {
+          continue;
+        }
+
         findings.push({
           message: `${fn.schema}.${fn.name} calls ${calls.join(" and ")}; ${advice}`,
           target: `${fn.schema}.${fn.name}`,
         });
       }
+
       return findings;
     },
   },
@@ -664,8 +868,12 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
       "`authorization.functions.isApprover` replaces `canApprove`: one eligibility check for tool calls, support sessions and the app's own approvals, with `{kind}` and `{subject}` instead of `{tool}`. 0.9 still reads `canApprove` when `isApprover` is unset, and drops it in a later minor release.",
     check: (context) => {
       const provider = context.config.authorization;
+
       // oxlint-disable-next-line typescript/no-deprecated -- the rule reports the deprecated template
-      if (provider?.functions.canApprove === undefined) return [];
+      if (provider?.functions.canApprove === undefined) {
+        return [];
+      }
+
       return [
         {
           message: `${providerLabel(provider)} sets authorization.functions.canApprove, which is deprecated. Set isApprover with {kind}, {subject} and {tenant}; {kind} is 'ai-tool' and {subject} the tool name for AI tool calls.`,
@@ -685,15 +893,21 @@ const ROLE_HELPER_CALL =
 /** The tenant role helpers `text` calls, outside string literals. */
 function roleHelperCalls(text: string): string[] {
   const names = new Set<string>();
-  for (const match of withoutStrings(text).matchAll(ROLE_HELPER_CALL))
+
+  for (const match of withoutStrings(text).matchAll(ROLE_HELPER_CALL)) {
     names.add(`better_supabase.${match[1]!.toLowerCase()}()`);
+  }
+
   return [...names].sort();
 }
 
 /** The access contract functions `text` calls, outside string literals. */
 function contractCalls(text: string): string[] {
   const names = new Set<string>();
-  for (const match of withoutStrings(text).matchAll(CONTRACT_CALL))
+
+  for (const match of withoutStrings(text).matchAll(CONTRACT_CALL)) {
     names.add(`better_supabase.${match[1]!.toLowerCase()}()`);
+  }
+
   return [...names].sort();
 }

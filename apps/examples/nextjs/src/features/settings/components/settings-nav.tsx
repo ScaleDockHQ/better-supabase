@@ -8,9 +8,11 @@ import { SettingsNavLinks } from "./settings-nav-links";
 /** Render inside `<Suspense>`: shows the tabs the caller's role allows. */
 export async function SettingsNav() {
   const session = await getSession();
+
   const visible = settingsTabs
     .filter((tab) => !tab.requires || can(session, tab.requires))
     .map((tab) => tab.id);
+
   return <SettingsNavLinks visible={visible} />;
 }
 

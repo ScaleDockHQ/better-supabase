@@ -23,15 +23,19 @@ const TAG = "$rs$";
 /** The operation each spec of the set runs, without plugins. */
 async function operations(set: ReadSet): Promise<Map<string, Operation>> {
   const ops = new Map<string, Operation>();
+
   for (const [key, spec] of Object.entries(set.specs)) {
     const seen: Operation[] = [];
+
     const capture: Executor = {
       name: "read-set-compiler",
       execute: (op) => {
         seen.push(op);
+
         return Promise.resolve(ok({ rows: [], count: 0 }));
       },
     };
+
     // SAFETY: the capture executor only records queries, and repositories are
     // indexed by table name.
     // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the capture executor only records queries; repositories are indexed by name.
@@ -46,26 +50,33 @@ async function operations(set: ReadSet): Promise<Map<string, Operation>> {
         ) => PromiseLike<{ ok: boolean; error?: { message: string } }>
       >
     >;
+
     const method = db[spec.table]?.[spec.method];
+
     if (!method) {
       throw new TypeError(
         `Read set "${set.name}" entry "${key}": unknown table "${spec.table}"`,
       );
     }
+
     const result = await method(...spec.args);
     const [op, ...more] = seen;
+
     if (!op) {
       throw new TypeError(
         `Read set "${set.name}" entry "${key}": ${result.error?.message ?? "runs no query"}`,
       );
     }
+
     if (more.length > 0 || op.kind !== "select") {
       throw new TypeError(
         `Read set "${set.name}" entry "${key}": ${spec.method} needs more than one query; read sets take one select per entry`,
       );
     }
+
     ops.set(key, op);
   }
+
   return ops;
 }
 
@@ -73,15 +84,20 @@ const AUTH_UID = "(select auth.uid())";
 
 function placeholderRef(set: ReadSet, placeholder: Placeholder): string {
   switch (placeholder.kind) {
-    case "param":
+    case "param": {
       return paramRef(set, placeholder.name, placeholder.array);
-    case "auth":
+    }
+
+    case "auth": {
       if (placeholder.array) {
         throw new TypeError(
           `Read set "${set.name}": auth.uid is a single value; compare with it directly instead of putting it in a list`,
         );
       }
+
       return AUTH_UID;
+    }
+
     default: {
       const unknown: never = placeholder;
       throw new TypeError(`Unknown placeholder ${String(unknown)}`);
@@ -91,43 +107,77 @@ function placeholderRef(set: ReadSet, placeholder: Placeholder): string {
 
 function paramRef(set: ReadSet, name: string, array: boolean): string {
   const type = set.params[name];
-  if (!type)
+
+  if (!type) {
     throw new TypeError(`Read set "${set.name}" has no parameter "${name}"`);
+  }
+
   if (array !== type.endsWith("[]")) {
     throw new TypeError(
       `Read set "${set.name}": parameter "${name}" (${type}) is used as ${array ? "a list" : "a single value"}`,
     );
   }
+
   const key = sqlString(name);
+
   return array
     ? `(array(select jsonb_array_elements_text(p->${key}))::${type})`
     : `((p->>${key})::${type})`;
 }
 
 function arrayElement(value: unknown): string {
-  if (value === null || value === undefined) return "NULL";
+  if (value === null || value === undefined) {
+    return "NULL";
+  }
+
   const text = temporalText(value) ?? String(value);
+
   if (hasPlaceholder(text)) {
     throw new TypeError("A placeholder cannot sit inside a literal list");
   }
+
   return `"${text.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 }
 
 /** A parameter value as SQL: a reference to `p` for placeholders, else a literal. */
 function literal(set: ReadSet, value: unknown): string {
   const placeholder = placeholderOf(value);
-  if (placeholder) return placeholderRef(set, placeholder);
-  if (value === null || value === undefined) return "null";
-  if (typeof value === "boolean") return value ? "true" : "false";
+
+  if (placeholder) {
+    return placeholderRef(set, placeholder);
+  }
+
+  if (value === null || value === undefined) {
+    return "null";
+  }
+
+  if (typeof value === "boolean") {
+    return value ? "true" : "false";
+  }
+
   if (typeof value === "number") {
-    if (!Number.isFinite(value)) throw new TypeError(`Cannot inline ${value}`);
+    if (!Number.isFinite(value)) {
+      throw new TypeError(`Cannot inline ${value}`);
+    }
+
     return String(value);
   }
-  if (typeof value === "bigint") return value.toString();
+
+  if (typeof value === "bigint") {
+    return value.toString();
+  }
+
   const temporalValue = temporalText(value);
-  if (temporalValue !== undefined) return sqlString(temporalValue);
+
+  if (temporalValue !== undefined) {
+    return sqlString(temporalValue);
+  }
+
   if (typeof value === "string") {
-    if (!hasPlaceholder(value)) return sqlString(value);
+    if (!hasPlaceholder(value)) {
+      return sqlString(value);
+    }
+
     const parts = splitPlaceholders(value).map((part) =>
       "text" in part
         ? sqlString(part.text)
@@ -135,11 +185,14 @@ function literal(set: ReadSet, value: unknown): string {
           ? `(${AUTH_UID}::text)`
           : `(p->>${sqlString(part.name)})`,
     );
+
     return `(${parts.join(" || ")})`;
   }
+
   if (Array.isArray(value)) {
     return sqlString(`{${value.map(arrayElement).join(",")}}`);
   }
+
   throw new TypeError(`Cannot inline a ${typeof value} parameter`);
 }
 
@@ -153,28 +206,40 @@ export function substituteParams(
 ): string {
   let out = "";
   let index = 0;
+
   while (index < text.length) {
     const char = text[index]!;
+
     if (char === '"' || char === "'") {
       let end = index + 1;
+
       while (end < text.length) {
-        if (text[end] !== char) end += 1;
-        else if (text[end + 1] === char) end += 2;
-        else break;
+        if (text[end] !== char) {
+          end += 1;
+        } else if (text[end + 1] === char) {
+          end += 2;
+        } else {
+          break;
+        }
       }
+
       out += text.slice(index, end + 1);
       index = end + 1;
       continue;
     }
+
     const param = char === "$" ? /^\$(\d+)/.exec(text.slice(index)) : null;
+
     if (param && !/[\w$]/.test(text[index - 1] ?? "")) {
       out += replace(Number(param[1]));
       index += param[0].length;
       continue;
     }
+
     out += char;
     index += 1;
   }
+
   return out;
 }
 
@@ -186,11 +251,17 @@ function inline(set: ReadSet, query: SqlQuery): string {
 
 function entry(set: ReadSet, op: Operation): string {
   const plan = compileSql(op);
-  if (plan.never) return `jsonb_build_object('rows', '[]'::jsonb, 'count', 0)`;
+
+  if (plan.never) {
+    return `jsonb_build_object('rows', '[]'::jsonb, 'count', 0)`;
+  }
+
   const rows = plan.rows
     ? `(select coalesce(jsonb_agg(s.row), '[]'::jsonb) from (${inline(set, plan.rows)}) s)`
     : `'[]'::jsonb`;
+
   const count = plan.count ? `(${inline(set, plan.count)})` : "null";
+
   return `jsonb_build_object('rows', ${rows}, 'count', ${count})`;
 }
 
@@ -201,18 +272,24 @@ function entry(set: ReadSet, op: Operation): string {
  */
 export async function compileReadSet(set: ReadSet): Promise<CompiledReadSet> {
   const ops = await operations(set);
+
   const entries = [...ops].map(
     ([key, op]) => `    ${sqlString(key)}, ${entry(set, op)}`,
   );
+
   const body = `  select jsonb_build_object(\n${entries.join(",\n")}\n  )`;
+
   if (body.includes(TAG)) {
     throw new TypeError(`Read set "${set.name}" contains "${TAG}"`);
   }
+
   // defineReadSet only accepts snake_case names, so no quoting is needed.
   const fn = `public.${set.functionName}`;
+
   const grants = set.roles.map(
     (role) => `grant execute on function ${fn}(jsonb) to ${role};`,
   );
+
   const sql = [
     `create or replace function ${fn}(p jsonb)`,
     "  returns jsonb",
@@ -223,6 +300,7 @@ export async function compileReadSet(set: ReadSet): Promise<CompiledReadSet> {
     `revoke execute on function ${fn}(jsonb) from public, anon, authenticated;`,
     ...grants,
   ].join("\n");
+
   return { name: set.name, sql };
 }
 
@@ -231,13 +309,18 @@ export async function compileReadSets(
   sets: readonly ReadSet[],
 ): Promise<CompiledReadSet[]> {
   const byName = new Map<string, ReadSet>();
+
   for (const set of sets) {
     const existing = byName.get(set.name);
+
     if (existing && existing !== set) {
       throw new TypeError(`Two read sets are named "${set.name}"`);
     }
+
     byName.set(set.name, set);
   }
+
   const names = [...byName.keys()].sort();
+
   return Promise.all(names.map((name) => compileReadSet(byName.get(name)!)));
 }

@@ -44,9 +44,13 @@ export function createdFromLink(
     readonly originId: string;
   },
 ): string {
-  if (!ctx.installed("relations")) return "";
+  if (!ctx.installed("relations")) {
+    return "";
+  }
+
   const r = ctx.of("relations");
   const col = (name: string): string => r.col("relations", name);
+
   return `insert into ${r.table("relations")} (${col("tenant")}, ${col("kind")}, ${col("sourceType")}, ${col("sourceId")}, ${col("targetType")}, ${col("targetId")}, ${col("createdBy")})
     select ${link.tenant}, 'created_from', ${link.sourceType}, ${link.sourceId}, ${link.originType}, ${link.originId}, auth.uid()
     where not exists (
@@ -59,12 +63,16 @@ export function quoteFunctions(ctx: ModuleContext, n: QuoteNames): string {
   const { fn, t, c } = n;
   const q = (column: string): string => c("quotes", column);
   const l = (column: string): string => c("lines", column);
+
   const editable = (alias: string): string =>
     `(${n.service} or ${ctx.scope.can(`${alias}.${q("tenant")}`, n.write)})`;
+
   const open = (alias: string): string =>
     `${alias}.${q("status")} in ('draft', 'changes_requested')`;
+
   const lines = (alias: string): string =>
     `coalesce((select jsonb_agg(jsonb_build_object('description', ql.${l("description")}, 'quantity', ql.${l("quantity")}, 'unitAmount', ql.${l("unitAmount")}::text, 'discountBps', ql.${l("discountBps")}, 'taxRateBps', ql.${l("taxRateBps")}, 'taxCode', ql.${l("taxCode")}, 'product', case when ql.${l("productType")} is null then null else jsonb_build_object('type', ql.${l("productType")}, 'id', ql.${l("productId")}) end) order by ql.${l("position")}) from ${t("lines")} ql where ql.${l("parent")} = ${alias}.${q("id")}), '[]'::jsonb)`;
+
   const row = (alias: string): string =>
     `(to_jsonb(${alias}) - ${sqlString(q("tokenHash").replaceAll('"', ""))}) || jsonb_build_object('lines', ${lines(alias)}${
       n.extras.length === 0
@@ -74,6 +82,7 @@ export function quoteFunctions(ctx: ModuleContext, n: QuoteNames): string {
             n.extras.map((extra) => extra.name),
           )}`
     })`;
+
   const record = (type: string, alias: string, extra = ""): string =>
     ctx.record({
       type,
@@ -82,6 +91,7 @@ export function quoteFunctions(ctx: ModuleContext, n: QuoteNames): string {
       tenant: `${alias}.${q("tenant")}::text`,
       audit: false,
     });
+
   const checkParty = (
     kind: "COMPANY" | "CONTACT",
     type: string,
@@ -91,6 +101,7 @@ export function quoteFunctions(ctx: ModuleContext, n: QuoteNames): string {
   if ${id} is not null and not ${subjectInTenant(ctx, type, id, tenant)} then
     ${fail(`QUOTE_${kind}_FORBIDDEN`, `the ${kind.toLowerCase()} is unknown or not readable in this organization`, "42501")}
   end if;`;
+
   const notifyOwner = (event: string): string =>
     ctx.installed("notifications")
       ? `
@@ -110,6 +121,7 @@ export function quoteFunctions(ctx: ModuleContext, n: QuoteNames): string {
     )}
   end if;`
       : "";
+
   const decide = (decision: string, note: string, by: string): string => `
   update ${t("quotes")} x set ${q("status")} = ${decision}, ${q("decidedAt")} = now(), ${q("decidedBy")} = ${by},
     ${q("decisionNote")} = nullif(trim(${note}), ''), ${q("updatedAt")} = now()
@@ -123,7 +135,9 @@ export function quoteFunctions(ctx: ModuleContext, n: QuoteNames): string {
     else
       ${record("quote.changes_requested", "v_row", `, 'note', v_row.${q("decisionNote")}`)}
   end case;${notifyOwner("quote.decided")}`;
+
   const deals = ctx.installed("deals") ? ctx.of("deals") : undefined;
+
   const fromDeal =
     deals === undefined
       ? ""
@@ -131,6 +145,7 @@ export function quoteFunctions(ctx: ModuleContext, n: QuoteNames): string {
           const d = (column: string): string => deals.col("deals", column);
           const dk = (column: string): string => deals.col("contacts", column);
           const dl = (column: string): string => deals.col("lines", column);
+
           return `
 -- A draft quote from a deal: its name, company, primary contact, currency,
 -- owner and lines (or one line for its amount). Converting a deal again
@@ -177,6 +192,7 @@ $$;
 ${userGrant(`${fn("quote_from_deal")}(uuid)`)}
 `;
         })();
+
   return `
 -- Creates a draft quote. attrs: title (required), currency, company and
 -- contact ({ type, id }), ownerId, validUntil, terms, note, origin ({ type,
@@ -257,7 +273,7 @@ begin
   end if;
   if not (${open("v_row")}) then
     ${fail("QUOTE_NOT_EDITABLE", "only a draft quote, or one with changes requested, can change", "55000")}
-  end if;${checkParty("COMPANY", "coalesce(update_quote.attrs -> 'company' ->> 'type', " + sqlString(n.company) + ")", "(update_quote.attrs -> 'company' ->> 'id')", `v_row.${q("tenant")}`)}${checkParty("CONTACT", "coalesce(update_quote.attrs -> 'contact' ->> 'type', " + sqlString(n.contact) + ")", "(update_quote.attrs -> 'contact' ->> 'id')", `v_row.${q("tenant")}`)}
+  end if;${checkParty("COMPANY", `coalesce(update_quote.attrs -> 'company' ->> 'type', ${sqlString(n.company)})`, "(update_quote.attrs -> 'company' ->> 'id')", `v_row.${q("tenant")}`)}${checkParty("CONTACT", `coalesce(update_quote.attrs -> 'contact' ->> 'type', ${sqlString(n.contact)})`, "(update_quote.attrs -> 'contact' ->> 'id')", `v_row.${q("tenant")}`)}
   begin
     update ${t("quotes")} x set
       ${q("title")} = coalesce(nullif(trim(update_quote.attrs ->> 'title'), ''), x.${q("title")}),
@@ -319,13 +335,13 @@ begin
   if not exists (select 1 from ${t("lines")} x where x.${l("parent")} = v_row.${q("id")}) then
     ${fail("QUOTE_EMPTY", "a quote needs a line before it is sent", "23514")}
   end if;
-  ${ctx.hook("before_quote_send", [["uuid", "v_row." + q("id")]])}
+  ${ctx.hook("before_quote_send", [["uuid", `v_row.${q("id")}`]])}
   update ${t("quotes")} x set ${q("status")} = 'sent', ${q("sentAt")} = now(), ${q("tokenHash")} = ${sha256Hex("v_token")},
     ${q("decidedAt")} = null, ${q("decidedBy")} = null, ${q("decisionNote")} = null, ${q("updatedAt")} = now()
   where x.${q("id")} = v_row.${q("id")}
   returning * into v_row;
   ${record("quote.sent", "v_row")}
-  ${ctx.hook("after_quote_send", [["uuid", "v_row." + q("id")]])}
+  ${ctx.hook("after_quote_send", [["uuid", `v_row.${q("id")}`]])}
   return ${row("v_row")} || jsonb_build_object('token', v_token);
 end;
 $$;
@@ -354,10 +370,10 @@ begin
     ${fail("QUOTE_NOT_OPEN", "only a sent quote takes a decision", "55000")}
   end if;
   if decide_quote.decision = 'accepted' then
-    ${ctx.hook("before_quote_accept", [["uuid", "v_row." + q("id")]])}
+    ${ctx.hook("before_quote_accept", [["uuid", `v_row.${q("id")}`]])}
   end if;${decide("decide_quote.decision", "decide_quote.note", "coalesce(nullif(trim(decide_quote.by), ''), auth.uid()::text)")}
   if decide_quote.decision = 'accepted' then
-    ${ctx.hook("after_quote_accept", [["uuid", "v_row." + q("id")]])}
+    ${ctx.hook("after_quote_accept", [["uuid", `v_row.${q("id")}`]])}
   end if;
   return ${row("v_row")};
 end;
@@ -474,10 +490,10 @@ begin
     ${fail("QUOTE_NAME_REQUIRED", "say who answers", "23502")}
   end if;
   if respond_to_quote.decision = 'accepted' then
-    ${ctx.hook("before_quote_accept", [["uuid", "v_row." + q("id")]])}
+    ${ctx.hook("before_quote_accept", [["uuid", `v_row.${q("id")}`]])}
   end if;${decide("respond_to_quote.decision", "respond_to_quote.note", "trim(respond_to_quote.name)")}
   if respond_to_quote.decision = 'accepted' then
-    ${ctx.hook("after_quote_accept", [["uuid", "v_row." + q("id")]])}
+    ${ctx.hook("after_quote_accept", [["uuid", `v_row.${q("id")}`]])}
   end if;
   return jsonb_build_object('status', v_row.${q("status")}, 'identifier', v_row.${q("identifier")});
 end;

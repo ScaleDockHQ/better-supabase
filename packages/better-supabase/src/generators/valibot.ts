@@ -33,34 +33,61 @@ export interface ValibotGeneratorOptions {
 
 function scalar(kind: ScalarKind): string {
   switch (kind.kind) {
-    case "uuid":
+    case "uuid": {
       return "v.pipe(v.string(), v.uuid())";
-    case "string":
+    }
+
+    case "string": {
       return "v.string()";
-    case "integer":
+    }
+
+    case "integer": {
       return "v.pipe(v.number(), v.integer())";
-    case "number":
+    }
+
+    case "number": {
       return "v.number()";
-    case "boolean":
+    }
+
+    case "boolean": {
       return "v.boolean()";
-    case "datetime":
+    }
+
+    case "datetime": {
       return "v.pipe(v.string(), v.isoTimestamp())";
-    case "date":
+    }
+
+    case "date": {
       return "v.pipe(v.string(), v.isoDate())";
-    case "instant":
+    }
+
+    case "instant": {
       return "v.custom<Temporal.Instant>(isInstant)";
-    case "plainDateTime":
+    }
+
+    case "plainDateTime": {
       return "v.custom<Temporal.PlainDateTime>(isPlainDateTime)";
-    case "bigint":
+    }
+
+    case "bigint": {
       return "v.bigint()";
-    case "json":
+    }
+
+    case "json": {
       return "json";
-    case "enum":
+    }
+
+    case "enum": {
       return `v.picklist([${kind.values.map((value) => JSON.stringify(value)).join(", ")}])`;
-    case "unknown":
+    }
+
+    case "unknown": {
       return "v.unknown()";
+    }
+
     default: {
       const exhaustive: never = kind;
+
       return exhaustive;
     }
   }
@@ -68,8 +95,12 @@ function scalar(kind: ScalarKind): string {
 
 /** `expr` with `actions` appended, flattening an existing top-level `v.pipe`. */
 function piped(expr: string, actions: readonly string[]): string {
-  if (actions.length === 0) return expr;
+  if (actions.length === 0) {
+    return expr;
+  }
+
   const inner = /^v\.pipe\((.*)\)$/s.exec(expr)?.[1];
+
   return `v.pipe(${inner ?? expr}, ${actions.join(", ")})`;
 }
 
@@ -106,6 +137,7 @@ function field(
   docs: FieldDocs,
 ): string {
   const imported = jsonImports.get(`${table}.${plan.column.db}`);
+
   let expr =
     imported ??
     (plan.customJson
@@ -113,10 +145,21 @@ function field(
       : plan.column.storage === undefined
         ? piped(scalar(plan.scalar), boundActions(docs))
         : `(v.string() as unknown as v.GenericSchema<${rowType(table, plan)}>)`);
-  if (plan.column.array) expr = `v.array(${expr})`;
-  if (plan.nullable) expr = `v.nullable(${expr})`;
+
+  if (plan.column.array) {
+    expr = `v.array(${expr})`;
+  }
+
+  if (plan.nullable) {
+    expr = `v.nullable(${expr})`;
+  }
+
   expr = piped(expr, docActions(docs));
-  if (plan.optional) expr = `v.exactOptional(${expr})`;
+
+  if (plan.optional) {
+    expr = `v.exactOptional(${expr})`;
+  }
+
   return `  ${propertyKey(plan.name)}: ${expr},`;
 }
 
@@ -128,17 +171,22 @@ export function valibot(options: ValibotGeneratorOptions = {}): Generator {
     generate(input: GeneratorInput): GeneratedFile[] {
       const path =
         options.output ?? siblingPath(input.config.output, "valibot.ts");
+
       const imports = new Map<string, string[]>();
       const jsonImports = new Map<string, string>();
+
       const tableNames = new Map(
         Object.values(input.meta.tables).map((t) => [t.name, t.key]),
       );
+
       for (const [key, spec] of Object.entries(options.json ?? {})) {
         const [tableName, column] = key.split(".");
         const { from, name } = parseImport(spec);
+
         const specifier = from.startsWith(".")
           ? input.importPath(path, from)
           : from;
+
         imports.set(specifier, [...(imports.get(specifier) ?? []), name]);
         jsonImports.set(
           `${tableNames.get(tableName ?? "") ?? tableName}.${column}`,
@@ -153,11 +201,13 @@ export function valibot(options: ValibotGeneratorOptions = {}): Generator {
         "",
         `import type { InsertOf, Json, RowOf, UpdateOf } from ${JSON.stringify(input.importPath(path, input.config.output))};`,
       ];
+
       for (const [from, names] of imports) {
         lines.push(
           `import { ${[...new Set(names)].sort().join(", ")} } from ${JSON.stringify(from)};`,
         );
       }
+
       lines.push(
         "",
         "const json: v.GenericSchema<Json> = v.lazy(() =>",
@@ -167,12 +217,15 @@ export function valibot(options: ValibotGeneratorOptions = {}): Generator {
 
       const validators: string[] = [];
       const validatorTypes: string[] = [];
+
       for (const [key, table] of tableEntries(input)) {
         lines.push("");
         const variants = variantsFor(table);
         const docs = tableDocs(input, table);
+
         for (const variant of variants) {
           const name = schemaName(key, variant);
+
           const objectActions = docs
             ? [
                 `v.title(${JSON.stringify(variantTitle(docs, variant))})`,
@@ -181,17 +234,22 @@ export function valibot(options: ValibotGeneratorOptions = {}): Generator {
                   : [`v.description(${JSON.stringify(docs.description)})`]),
               ]
             : [];
+
           lines.push(
             `export const ${name}: v.GenericSchema<${variant}Of<'${key}'>> = ${objectActions.length > 0 ? "v.pipe(" : ""}v.object({`,
           );
-          for (const plan of fieldsFor(table, variant, input))
+
+          for (const plan of fieldsFor(table, variant, input)) {
             lines.push(field(key, plan, jsonImports, fieldDocs(docs, plan)));
+          }
+
           lines.push(
             objectActions.length > 0
               ? `}), ${objectActions.join(", ")});`
               : "});",
           );
         }
+
         if (variants.includes("Insert")) {
           const insert = schemaName(key, "Insert");
           const update = schemaName(key, "Update");
@@ -214,6 +272,7 @@ export function valibot(options: ValibotGeneratorOptions = {}): Generator {
         "};",
         "",
       );
+
       return [{ path, contents: lines.join("\n") }];
     },
   };

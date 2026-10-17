@@ -1,7 +1,7 @@
+import type { DbError } from "better-supabase";
 import type { BetterResultMapping } from "better-supabase/better-result";
 
 import { Result } from "better-result";
-import { type DbError } from "better-supabase";
 
 /**
  * The app's error type. `cause` keeps the `DbError`, so route handlers and

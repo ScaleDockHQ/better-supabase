@@ -53,6 +53,7 @@ export const columns =
 export function strict(ctx: ModuleContext, variant: string): string {
   const catalog = ctx.of("catalog");
   const v = columns(catalog, "variants");
+
   return `exists (select 1 from ${catalog.table("variants")} cv where cv.${v("id")} = ${variant} and cv.${v("trackInventory")} and not cv.${v("allowBackorder")})`;
 }
 
@@ -67,6 +68,7 @@ function variantCheck(
 ): string {
   const catalog = ctx.of("catalog");
   const v = columns(catalog, "variants");
+
   return `if not exists (select 1 from ${catalog.table("variants")} cv where cv.${v("id")} = ${variant} and cv.${v("tenant")} = ${tenant}) then
     ${fail("INVENTORY_VARIANT_NOT_FOUND", "variant not found in this organization", "P0002")}
   end if;`;
@@ -91,7 +93,11 @@ export function threshold(
     tenant: values.tenant,
     audit: false,
   });
-  if (record.trim() === "") return "";
+
+  if (record.trim() === "") {
+    return "";
+  }
+
   return `if ${values.point} is not null and ${values.before} > ${values.point} and ${values.after} <= ${values.point} then
     ${record}
   end if;`;
@@ -100,6 +106,7 @@ export function threshold(
 /** Loads a location's tenant into `v_tenant`, raising when it doesn't exist. */
 function loadLocation(ctx: ModuleContext, location: string): string {
   const l = columns(ctx, "locations");
+
   return `select x.${l("tenant")}, x.${l("active")} into v_tenant, v_active from ${ctx.table("locations")} x where x.${l("id")} = ${location};
   if v_tenant is null then
     ${fail("INVENTORY_LOCATION_NOT_FOUND", "location not found", "P0002")}
@@ -114,6 +121,7 @@ function lockLevel(
 ): string {
   const lv = columns(ctx, "levels");
   const levels = ctx.table("levels");
+
   return `insert into ${levels} (${lv("tenant")}, ${lv("variant")}, ${lv("location")})
   values (v_tenant, ${variant}, ${location})
   on conflict (${lv("variant")}, ${lv("location")}) do nothing;
@@ -129,6 +137,7 @@ export function locationFunctions(
   const l = columns(ctx, "locations");
   const m = columns(ctx, "movements");
   const r = columns(ctx, "reservations");
+
   return `
 -- Creates a location (location null) or updates one, with the extra columns
 -- in fields by name. Returns its id, code and active flag.
@@ -234,6 +243,7 @@ export function stockFunctions(
   const lv = columns(ctx, "levels");
   const m = columns(ctx, "movements");
   const reasons = ADJUST_REASONS.map((reason) => `'${reason}'`).join(", ");
+
   return `
 -- Adds or removes stock at a location through the ledger. Returns the
 -- movement id and the level's on-hand and available quantities.
@@ -364,6 +374,7 @@ export function reservationFunctions(
   const lv = columns(ctx, "levels");
   const m = columns(ctx, "movements");
   const r = columns(ctx, "reservations");
+
   const releaseLevel = (
     variant: string,
     location: string,
@@ -371,6 +382,7 @@ export function reservationFunctions(
   ): string =>
     `update ${levels} x set ${lv("reserved")} = greatest(x.${lv("reserved")} - ${quantity}, 0), ${lv("updatedAt")} = now()
   where x.${lv("variant")} = ${variant} and x.${lv("location")} = ${location};`;
+
   const released = (row: string, reason: string): string =>
     ctx.record({
       type: "reservation.released",
@@ -379,6 +391,7 @@ export function reservationFunctions(
       tenant: `${row}tenant`,
       audit: false,
     });
+
   return `
 -- Holds stock for a cart or an order until expires_at (15 minutes by default).
 -- Releases the level's expired reservations first. Returns the reservation id,

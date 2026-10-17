@@ -60,9 +60,17 @@ function invalidUser(userId: string): DbError {
 
 function fromSqlError(cause: unknown): DbError {
   const known = dbErrorOf(cause);
-  if (known) return known;
+
+  if (known) {
+    return known;
+  }
+
   const raw = fromPgError(cause);
-  if (raw) return { ...mapDbError(raw), table: "auth.sessions" };
+
+  if (raw) {
+    return { ...mapDbError(raw), table: "auth.sessions" };
+  }
+
   return dbError(
     "unexpected",
     cause instanceof Error ? cause.message : "Ending the sessions failed",
@@ -72,6 +80,7 @@ function fromSqlError(cause: unknown): DbError {
 
 async function deleteSessions(sql: SqlClient, userId: string): Promise<number> {
   const [row] = await sql.queryRaw<{ ended: number }>(END_SESSIONS, [userId]);
+
   return row?.ended ?? 0;
 }
 
@@ -80,7 +89,10 @@ export function endSessions(
   userId: string,
 ): AsyncResult<EndSessionsResult> {
   return AsyncResult.from(async () => {
-    if (!UUID.test(userId)) return err(invalidUser(userId));
+    if (!UUID.test(userId)) {
+      return err(invalidUser(userId));
+    }
+
     try {
       return ok({ userId, ended: await deleteSessions(sql, userId) });
     } catch (cause) {
@@ -109,13 +121,21 @@ export function lastSignIns(
 ): AsyncResult<ReadonlyMap<string, LastSignIn>> {
   return AsyncResult.from(async () => {
     const invalid = userIds.find((userId) => !UUID.test(userId));
-    if (invalid !== undefined) return err(invalidUser(invalid));
-    if (userIds.length === 0) return ok(new Map<string, LastSignIn>());
+
+    if (invalid !== undefined) {
+      return err(invalidUser(invalid));
+    }
+
+    if (userIds.length === 0) {
+      return ok(new Map<string, LastSignIn>());
+    }
+
     try {
       const rows = await sql.queryRaw<{
         user_id: string;
         last_sign_in_at: Date | string | null;
       }>(LAST_SIGN_INS, [[...new Set(userIds)]]);
+
       return ok(
         new Map(
           rows.map((row): [string, LastSignIn] => [
@@ -149,6 +169,7 @@ async function ban(
     const { error } = await client.auth.admin.updateUserById(userId, {
       ban_duration: duration,
     });
+
     return error ? fromAuthError(error) : undefined;
   } catch (cause) {
     return fromAuthError(cause);
@@ -162,25 +183,41 @@ export function suspendAccount(
   options: SuspendAccountOptions,
 ): AsyncResult<SuspendAccountResult> {
   return AsyncResult.from(async () => {
-    if (!UUID.test(userId)) return err(invalidUser(userId));
+    if (!UUID.test(userId)) {
+      return err(invalidUser(userId));
+    }
+
     const client = typeof service === "function" ? service() : service;
     const { suspended } = options;
+
     if (suspended) {
       const refused = await ban(client, userId, options.duration ?? FOREVER);
-      if (refused) return err(refused);
-      if (options.endSessions !== true)
+
+      if (refused) {
+        return err(refused);
+      }
+
+      if (options.endSessions !== true) {
         return ok({ userId, suspended, ended: 0 });
+      }
     }
+
     let ended: number;
+
     try {
       ended = await deleteSessions(sql, userId);
     } catch (cause) {
       return err(fromSqlError(cause));
     }
+
     if (!suspended) {
       const refused = await ban(client, userId, "none");
-      if (refused) return err(refused);
+
+      if (refused) {
+        return err(refused);
+      }
     }
+
     return ok({ userId, suspended, ended });
   });
 }

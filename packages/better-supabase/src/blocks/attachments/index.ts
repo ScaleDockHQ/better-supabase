@@ -20,12 +20,17 @@ export {
   type ScannedObject,
   type ScanVerdict,
 } from "./attachments.ts";
+
 export {
   dbTransport,
   rpcTransport,
   sqlTransport,
 } from "../../core/block-transport.ts";
+
 export type { BlockTransport } from "../../core/block-transport.ts";
+
 export { attachmentsBlock } from "./manifest.ts";
+
 export { attachmentsEvents } from "./events.ts";
+
 export type { AttachmentsEvents } from "./events.ts";

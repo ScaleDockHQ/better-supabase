@@ -13,17 +13,25 @@ function tagLocalImports(): void {
     resolve(specifier, context, next) {
       const resolved = next(specifier, context);
       const parent = context.parentURL;
+
       if (
         parent === undefined ||
         !parent.startsWith("file:") ||
         !resolved.url.startsWith("file:") ||
         resolved.url.includes("/node_modules/")
-      )
+      ) {
         return resolved;
+      }
+
       const run = new URL(parent).searchParams.get(RUN);
-      if (run === null) return resolved;
+
+      if (run === null) {
+        return resolved;
+      }
+
       const url = new URL(resolved.url);
       url.searchParams.set(RUN, run);
+
       return { ...resolved, url: url.href };
     },
   });
@@ -40,10 +48,14 @@ let runs = 0;
 export async function importFresh(
   path: string,
 ): Promise<Record<string, unknown>> {
-  if (runs === 0) tagLocalImports();
+  if (runs === 0) {
+    tagLocalImports();
+  }
+
   runs += 1;
   const url = pathToFileURL(path);
   url.searchParams.set(RUN, String(runs));
+
   // SAFETY: an ES module namespace is an object of its exports.
   return (await import(url.href)) as Record<string, unknown>;
 }

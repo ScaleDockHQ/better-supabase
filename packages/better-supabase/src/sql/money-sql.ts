@@ -12,6 +12,7 @@ export function currencyMinorUnitsFunction(name: string): string {
   const rows = Object.entries(ISO_4217_MINOR_UNITS)
     .map(([code, units]) => `(${sqlString(code)}, ${String(units)})`)
     .join(", ");
+
   return `create or replace function ${name}(code text)
 returns integer
 language sql

@@ -123,12 +123,14 @@ const SEVERITIES: ReadonlySet<string> = new Set([
 
 function severityOf(value: unknown): AnnouncementSeverity {
   const text = textOf(value);
+
   // SAFETY: the set holds exactly the AnnouncementSeverity values.
   return SEVERITIES.has(text) ? (text as AnnouncementSeverity) : "info";
 }
 
 function announcementOf(value: unknown): Announcement {
   const row = recordOf(value, "announcements");
+
   return {
     id: textOf(row["id"]),
     title: textOf(row["title"]),
@@ -145,20 +147,29 @@ function announcementOf(value: unknown): Announcement {
 
 function audienceOf(type: unknown, targets: unknown): AnnouncementAudience {
   const values = stringsOf(targets);
+
   switch (type) {
-    case "tenant":
+    case "tenant": {
       return { type, organizationIds: values };
-    case "role":
+    }
+
+    case "role": {
       return { type, roles: values };
-    case "plan":
+    }
+
+    case "plan": {
       return { type, plans: values };
-    default:
+    }
+
+    default: {
       return { type: "all" };
+    }
   }
 }
 
 function managedOf(value: unknown): ManagedAnnouncement {
   const row = recordOf(value, "announcements");
+
   return {
     ...announcementOf(row),
     audience: audienceOf(row["audience"], row["targets"]),
@@ -171,14 +182,22 @@ function audienceFields(audience: AnnouncementAudience): {
   readonly targets: readonly string[];
 } {
   switch (audience.type) {
-    case "all":
+    case "all": {
       return { audience: "all", targets: [] };
-    case "tenant":
+    }
+
+    case "tenant": {
       return { audience: "tenant", targets: audience.organizationIds };
-    case "role":
+    }
+
+    case "role": {
       return { audience: "role", targets: audience.roles };
-    case "plan":
+    }
+
+    case "plan": {
       return { audience: "plan", targets: audience.plans };
+    }
+
     default: {
       const unknown: never = audience;
       throw new TypeError(`Unknown audience ${JSON.stringify(unknown)}`);
@@ -189,22 +208,39 @@ function audienceFields(audience: AnnouncementAudience): {
 /** The columns `save_announcement` sets, from the fields the input names. */
 function fieldsOf(input: Partial<AnnouncementInput>): Record<string, unknown> {
   const fields: Record<string, unknown> = {};
-  if (input.title !== undefined) fields["title"] = input.title;
-  if (input.body !== undefined) fields["body"] = input.body;
-  if (input.severity !== undefined) fields["severity"] = input.severity;
-  if (input.href !== undefined) fields["href"] = input.href;
+
+  if (input.title !== undefined) {
+    fields["title"] = input.title;
+  }
+
+  if (input.body !== undefined) {
+    fields["body"] = input.body;
+  }
+
+  if (input.severity !== undefined) {
+    fields["severity"] = input.severity;
+  }
+
+  if (input.href !== undefined) {
+    fields["href"] = input.href;
+  }
+
   if (input.audience !== undefined) {
     Object.assign(fields, audienceFields(input.audience));
   }
+
   if (input.startsAt !== undefined) {
     fields["starts_at"] = instantArg(input.startsAt);
   }
+
   if (input.endsAt !== undefined) {
     fields["ends_at"] = instantArg(input.endsAt);
   }
+
   if (input.dismissible !== undefined) {
     fields["dismissible"] = input.dismissible;
   }
+
   return fields;
 }
 
@@ -223,18 +259,22 @@ export function createAnnouncements<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: AnnouncementsOptions<S>): Announcements<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const fields: BlockFields<F> = blockFields(
     options.fields,
     "announcement fields",
   );
+
   const save = (
     id: string | null,
     input: Partial<AnnouncementInput>,
   ): AsyncResult<ManagedAnnouncement & F> => {
     // An unknown audience throws here, before the call, as it always has.
     const columns = fieldsOf(input);
+
     return AsyncResult.from(() => fields.write(extraOf(input, INPUT_KEYS)))
       .andThen((extra) =>
         call(
@@ -245,6 +285,7 @@ export function createAnnouncements<
       )
       .andThen((value) => withFields(fields, value, managedOf(value)));
   };
+
   const client: Announcements<F> = {
     listActive: (organizationId) =>
       call(
@@ -276,6 +317,7 @@ export function createAnnouncements<
         (value) => value === true,
       ),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "announcements",
     ...(options.logger ? { logger: options.logger } : {}),

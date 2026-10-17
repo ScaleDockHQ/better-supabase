@@ -70,14 +70,17 @@ export function createOrganizationsController<
   // Without a tenant claim (the `profileColumn` and `resolver` sources) the
   // active organization is the server's, then the last one switched to.
   let chosen = options.activeId ?? undefined;
+
   const activeOf = (): string | undefined => {
     const session = options.auth.current();
+
     return (
       (session.status === "signed-in"
         ? tenantOf(session, options.claim)
         : undefined) ?? chosen
     );
   };
+
   return defineController<OrganizationsSnapshot<T>, OrganizationsActions>(
     {
       organizations: options.initial,
@@ -88,36 +91,49 @@ export function createOrganizationsController<
     (state) => {
       let ticket = 0;
       let seeded = options.initial !== undefined;
+
       const refresh = async (): Promise<void> => {
         const request = ++ticket;
+
         try {
           const organizations = await options.load();
-          if (request === ticket)
+
+          if (request === ticket) {
             state.set({ organizations, error: undefined });
+          }
         } catch (cause) {
-          if (request === ticket) state.set({ error: toDbError(cause) });
+          if (request === ticket) {
+            state.set({ error: toDbError(cause) });
+          }
         }
       };
+
       return {
         actions: {
           refresh,
           switchTo: async (organizationId) => {
             state.set({ switching: organizationId, error: undefined });
             const result = await options.client.switch(organizationId);
+
             if (!result.ok) {
               state.set({ switching: undefined, error: result.error });
+
               return result;
             }
+
             try {
               await options.onSwitched(result.data);
             } catch (cause) {
               const error = toDbError(cause);
               state.set({ switching: undefined, error });
+
               return err(error);
             }
+
             chosen = result.data.organizationId;
             state.set({ switching: undefined, activeId: activeOf() });
             await refresh();
+
             return result;
           },
         },
@@ -125,12 +141,19 @@ export function createOrganizationsController<
           const unsubscribe = options.auth.subscribe(() => {
             state.set({ activeId: activeOf() });
           });
+
           state.set({ activeId: activeOf() });
+
           const stop = whileSignedIn(options.auth, () => {
-            if (seeded) seeded = false;
-            else void refresh();
+            if (seeded) {
+              seeded = false;
+            } else {
+              void refresh();
+            }
+
             return;
           });
+
           return () => {
             unsubscribe();
             stop();
@@ -215,21 +238,33 @@ export function createMembersController<
     OrganizationMember,
 >(options: MembersControllerOptions<T>): MembersController<T> {
   const { client, organizationId } = options;
+
   return defineController<MembersSnapshot<T>, MembersActions<T["role"]>>(
     { members: options.initial, pending: [], error: undefined },
     (state) => {
       let ticket = 0;
       let seeded = options.initial !== undefined;
+
       const refresh = async (): Promise<void> => {
-        if (organizationId === null) return;
+        if (organizationId === null) {
+          return;
+        }
+
         const request = ++ticket;
+
         try {
           const members = await options.load(organizationId);
-          if (request === ticket) state.set({ members, error: undefined });
+
+          if (request === ticket) {
+            state.set({ members, error: undefined });
+          }
         } catch (cause) {
-          if (request === ticket) state.set({ error: toDbError(cause) });
+          if (request === ticket) {
+            state.set({ error: toDbError(cause) });
+          }
         }
       };
+
       const changed = async (change: MemberChange): Promise<void> => {
         try {
           await options.onChanged?.(change);
@@ -237,6 +272,7 @@ export function createMembersController<
           state.set({ error: toDbError(cause) });
         }
       };
+
       const withRole =
         (userId: string, role: T["role"]) =>
         (current: MembersSnapshot<T>): Partial<MembersSnapshot<T>> => ({
@@ -244,14 +280,19 @@ export function createMembersController<
             member.userId === userId ? { ...member, role } : member,
           ),
         });
+
       return {
         actions: {
           refresh,
           setRole: async (userId, role) => {
-            if (organizationId === null) return noOrganization();
+            if (organizationId === null) {
+              return noOrganization();
+            }
+
             const before = state
               .get()
               .members?.find((member) => member.userId === userId);
+
             // A load that started before the change would answer without it.
             ticket += 1;
             state.set((current) => ({
@@ -259,11 +300,13 @@ export function createMembersController<
               pending: [...current.pending, userId],
               error: undefined,
             }));
+
             const result = await client.updateMemberRole(
               organizationId,
               userId,
               role,
             );
+
             state.set((current) => ({
               ...(result.ok || before === undefined
                 ? {}
@@ -271,13 +314,18 @@ export function createMembersController<
               pending: without(current.pending, userId),
               ...(result.ok ? {} : { error: result.error }),
             }));
+
             if (result.ok) {
               await changed({ kind: "role", organizationId, userId, role });
             }
+
             return result;
           },
           remove: async (userId) => {
-            if (organizationId === null) return noOrganization();
+            if (organizationId === null) {
+              return noOrganization();
+            }
+
             state.set((current) => ({
               pending: [...current.pending, userId],
               error: undefined,
@@ -294,10 +342,12 @@ export function createMembersController<
                   }
                 : { error: result.error }),
             }));
+
             if (result.ok) {
               await refresh();
               await changed({ kind: "removed", organizationId, userId });
             }
+
             return result;
           },
         },
@@ -305,8 +355,12 @@ export function createMembersController<
           organizationId === null
             ? undefined
             : whileSignedIn(options.auth, () => {
-                if (seeded) seeded = false;
-                else void refresh();
+                if (seeded) {
+                  seeded = false;
+                } else {
+                  void refresh();
+                }
+
                 return;
               }),
       };
@@ -384,6 +438,7 @@ export function createInvitationsController<
   T extends { readonly id: string } = OrganizationInvitationRow,
 >(options: InvitationsControllerOptions<T>): InvitationsController<T> {
   const { client, organizationId } = options;
+
   return defineController<InvitationsSnapshot<T>, InvitationsActions>(
     {
       invitations: options.initial,
@@ -395,16 +450,27 @@ export function createInvitationsController<
     (state) => {
       let ticket = 0;
       let seeded = options.initial !== undefined;
+
       const refresh = async (): Promise<void> => {
-        if (organizationId === null) return;
+        if (organizationId === null) {
+          return;
+        }
+
         const request = ++ticket;
+
         try {
           const invitations = await options.load(organizationId);
-          if (request === ticket) state.set({ invitations, error: undefined });
+
+          if (request === ticket) {
+            state.set({ invitations, error: undefined });
+          }
         } catch (cause) {
-          if (request === ticket) state.set({ error: toDbError(cause) });
+          if (request === ticket) {
+            state.set({ error: toDbError(cause) });
+          }
         }
       };
+
       const changed = async (change: InvitationChange): Promise<void> => {
         try {
           await options.onChanged?.(change);
@@ -412,6 +478,7 @@ export function createInvitationsController<
           state.set({ error: toDbError(cause) });
         }
       };
+
       return {
         actions: {
           refresh,
@@ -419,7 +486,10 @@ export function createInvitationsController<
             state.set({ sent: undefined, error: undefined });
           },
           invite: async (draft) => {
-            if (organizationId === null) return noOrganization();
+            if (organizationId === null) {
+              return noOrganization();
+            }
+
             state.set({ inviting: true, sent: undefined, error: undefined });
             const result = await client.invite({ ...draft, organizationId });
             state.set(
@@ -427,6 +497,7 @@ export function createInvitationsController<
                 ? { inviting: false, sent: result.data }
                 : { inviting: false, error: result.error },
             );
+
             if (result.ok) {
               await refresh();
               await changed({
@@ -435,10 +506,14 @@ export function createInvitationsController<
                 sent: result.data,
               });
             }
+
             return result;
           },
           revoke: async (invitationId) => {
-            if (organizationId === null) return noOrganization();
+            if (organizationId === null) {
+              return noOrganization();
+            }
+
             state.set((current) => ({
               revoking: [...current.revoking, invitationId],
               error: undefined,
@@ -448,10 +523,12 @@ export function createInvitationsController<
               revoking: without(current.revoking, invitationId),
               ...(result.ok ? {} : { error: result.error }),
             }));
+
             if (result.ok) {
               await refresh();
               await changed({ kind: "revoked", organizationId, invitationId });
             }
+
             return result;
           },
         },
@@ -459,8 +536,12 @@ export function createInvitationsController<
           organizationId === null
             ? undefined
             : whileSignedIn(options.auth, () => {
-                if (seeded) seeded = false;
-                else void refresh();
+                if (seeded) {
+                  seeded = false;
+                } else {
+                  void refresh();
+                }
+
                 return;
               }),
       };

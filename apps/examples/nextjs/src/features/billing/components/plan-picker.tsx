@@ -25,7 +25,11 @@ import { loadPlanCatalog, startCheckout } from "../billing-actions";
 
 async function loadCatalog(): Promise<PlanCatalog<PlanOption>> {
   const result = await loadPlanCatalog({});
-  if (!result.ok) throw new DbException(result.error);
+
+  if (!result.ok) {
+    throw new DbException(result.error);
+  }
+
   return result.data;
 }
 
@@ -44,6 +48,7 @@ export function PlanPicker({
   const t = useExtracted("billing");
   const format = useFormatter();
   const errorMessage = useErrorMessage();
+
   const { plans, current, pending, choose } = usePlanPicker({
     load: loadCatalog,
     initial,
@@ -52,6 +57,7 @@ export function PlanPicker({
       window.location.assign(url);
     },
   });
+
   const price = (cents: number) =>
     cents === 0
       ? t("Free")
@@ -61,24 +67,36 @@ export function PlanPicker({
             currency: "USD",
           }),
         });
+
   const featureLabel = ({ key, value }: PlanOption["features"][number]) => {
     switch (key) {
-      case "seats":
+      case "seats": {
         return t("{seats} seats", { seats: String(value) });
-      case "exports":
+      }
+
+      case "exports": {
         return t("CSV exports");
-      case "audit":
+      }
+
+      case "audit": {
         return t("Audit log");
-      case "sso":
+      }
+
+      case "sso": {
         return t("Single sign-on");
-      default:
+      }
+
+      default: {
         return key;
+      }
     }
   };
+
   return (
     <div className="grid gap-4 md:grid-cols-3">
       {(plans ?? initial.plans).map((plan) => {
         const active = plan.key === current;
+
         return (
           <Card key={plan.key} size="sm" data-testid="plan">
             <CardHeader>
@@ -86,7 +104,7 @@ export function PlanPicker({
               <CardDescription>{price(plan.priceCents)}</CardDescription>
             </CardHeader>
             <CardContent>
-              <ul className="text-muted-foreground space-y-1 text-sm">
+              <ul className="space-y-1 text-sm text-muted-foreground">
                 {plan.features.map((feature) => (
                   <li key={feature.key}>{featureLabel(feature)}</li>
                 ))}
@@ -100,7 +118,9 @@ export function PlanPicker({
                 disabled={active || !canManage || pending !== undefined}
                 onClick={() => {
                   void choose(plan.key).then((started) => {
-                    if (!started.ok) toast.error(errorMessage(started.error));
+                    if (!started.ok) {
+                      toast.error(errorMessage(started.error));
+                    }
                   });
                 }}
               >

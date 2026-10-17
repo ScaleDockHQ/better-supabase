@@ -17,6 +17,7 @@ export {
   type SlugProblem,
   type SwitchResult,
 } from "./organizations.ts";
+
 export {
   extendBlock,
   withBlockHooks,
@@ -24,6 +25,7 @@ export {
   type BlockHooks,
   type BlockTransportMiddleware,
 } from "../../core/block-hooks.ts";
+
 export {
   dbTransport,
   rpcTransport,
@@ -31,9 +33,13 @@ export {
   type BlockTransport,
   type RpcClient,
 } from "../../core/block-transport.ts";
+
 export { organizationsBlock } from "./manifest.ts";
+
 export { organizationsEvents } from "./events.ts";
+
 export type { OrganizationsEvents } from "./events.ts";
+
 export {
   createInvitationsController,
   createMembersController,

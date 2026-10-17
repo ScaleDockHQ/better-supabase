@@ -23,14 +23,20 @@ type Handler = (args: Record<string, unknown>) => unknown;
 
 function fakeTransport(handlers: Record<string, Handler>) {
   const calls: { fn: string; args: Record<string, unknown> }[] = [];
+
   const transport: BlockTransport = {
     call: (_schema, fn, args) => {
       calls.push({ fn, args });
       const handler = handlers[fn];
-      if (!handler) return Promise.reject(new Error(`unexpected ${fn}`));
+
+      if (!handler) {
+        return Promise.reject(new Error(`unexpected ${fn}`));
+      }
+
       return Promise.resolve(handler(args));
     },
   };
+
   return { transport, calls };
 }
 
@@ -49,6 +55,7 @@ describe("cacheKey", () => {
       url: new URL("https://example.com/a"),
       list: [() => 1, null],
     });
+
     expect(await cacheKey(parts(2))).toBe(await cacheKey(parts(2)));
     expect(await cacheKey(parts(2))).not.toBe(await cacheKey(parts(3)));
     expect(await cacheKey(undefined)).toBe(await cacheKey(null));
@@ -65,6 +72,7 @@ describe("createAiCache", () => {
             ? entryRow({ kind: "bogus", hits: null, organization_id: null })
             : null,
     });
+
     const cache = createAiCache({ transport });
     const hit = await cache.get<{ text: string }>("k1").orThrow();
     expect(hit?.value.text).toBe("hi");
@@ -83,7 +91,9 @@ describe("createAiCache", () => {
     const { transport, calls } = fakeTransport({
       ai_cache_set: () => entryRow({ value: undefined }),
     });
+
     const cache = createAiCache({ transport });
+
     const entry = await cache
       .set(
         "k1",
@@ -91,6 +101,7 @@ describe("createAiCache", () => {
         { ttl: 0.2, organizationId: "o1", kind: "stream", model: "m" },
       )
       .orThrow();
+
     expect(calls[0]?.args).toEqual({
       key: "k1",
       value: { text: "hi" },
@@ -108,6 +119,7 @@ describe("createAiCache", () => {
         args["key"] === "k1" ? 1 : args["key"] ? 0 : 4,
       purge_ai_cache: () => 3,
     });
+
     const cache = createAiCache({ transport });
     expect(await cache.delete("k1").orThrow()).toBe(true);
     expect(await cache.delete("k2").orThrow()).toBe(false);

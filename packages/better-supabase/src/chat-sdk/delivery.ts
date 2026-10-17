@@ -54,24 +54,44 @@ const list = (value: unknown): readonly unknown[] =>
 /** WhatsApp Cloud API: `entry[].changes[].value.statuses[]`. */
 export const whatsappDeliveries: DeliveryParser = ({ body }) => {
   const payload = json(body);
-  if (!isRecord(payload) || payload["object"] !== "whatsapp_business_account")
+
+  if (!isRecord(payload) || payload["object"] !== "whatsapp_business_account") {
     return null;
+  }
+
   const updates: DeliveryUpdate[] = [];
   let other = false;
-  for (const entry of list(payload["entry"]))
+
+  for (const entry of list(payload["entry"])) {
     for (const change of list(isRecord(entry) ? entry["changes"] : undefined)) {
       const value = isRecord(change) ? change["value"] : undefined;
-      if (!isRecord(value)) continue;
-      if (list(value["messages"]).length > 0) other = true;
+
+      if (!isRecord(value)) {
+        continue;
+      }
+
+      if (list(value["messages"]).length > 0) {
+        other = true;
+      }
+
       for (const item of list(value["statuses"])) {
-        if (!isRecord(item)) continue;
+        if (!isRecord(item)) {
+          continue;
+        }
+
         const status = statusOf(item["status"]);
         const id = optionalText(item["id"]);
-        if (!status || id === undefined) continue;
+
+        if (!status || id === undefined) {
+          continue;
+        }
+
         const first = list(item["errors"])[0];
+
         const error = isRecord(first)
           ? (optionalText(first["title"]) ?? optionalText(first["message"]))
           : undefined;
+
         updates.push({
           externalId: id,
           status,
@@ -79,25 +99,33 @@ export const whatsappDeliveries: DeliveryParser = ({ body }) => {
         });
       }
     }
+  }
+
   return { updates, only: updates.length > 0 && !other };
 };
 
 /** Messenger and Instagram: `entry[].messaging[].delivery.mids`. Read receipts carry no ids and are skipped. */
 export const messengerDeliveries: DeliveryParser = ({ body }) => {
   const payload = json(body);
+
   if (
     !isRecord(payload) ||
     (payload["object"] !== "page" && payload["object"] !== "instagram")
-  )
+  ) {
     return null;
+  }
+
   const events = list(payload["entry"]).flatMap((entry) =>
     list(isRecord(entry) ? entry["messaging"] : undefined).filter(isRecord),
   );
+
   const receipts = events.filter(
     (event) => isRecord(event["delivery"]) || isRecord(event["read"]),
   );
+
   const updates: DeliveryUpdate[] = receipts.flatMap((event) => {
     const delivery = event["delivery"];
+
     return isRecord(delivery)
       ? list(delivery["mids"]).flatMap((mid) =>
           typeof mid === "string"
@@ -106,6 +134,7 @@ export const messengerDeliveries: DeliveryParser = ({ body }) => {
         )
       : [];
   });
+
   return {
     updates,
     only: receipts.length > 0 && receipts.length === events.length,
@@ -115,12 +144,21 @@ export const messengerDeliveries: DeliveryParser = ({ body }) => {
 /** Twilio status callbacks: a form body with `MessageSid` and `MessageStatus` and no `Body`. */
 export const twilioDeliveries: DeliveryParser = ({ body, headers }) => {
   const type = headers["content-type"] ?? "";
-  if (!type.includes("application/x-www-form-urlencoded")) return null;
+
+  if (!type.includes("application/x-www-form-urlencoded")) {
+    return null;
+  }
+
   const form = new URLSearchParams(body);
   const id = form.get("MessageSid") ?? form.get("SmsSid");
   const status = statusOf(form.get("MessageStatus") ?? form.get("SmsStatus"));
-  if (id === null || !status || form.has("Body")) return null;
+
+  if (id === null || !status || form.has("Body")) {
+    return null;
+  }
+
   const error = form.get("ErrorMessage") ?? form.get("ErrorCode");
+
   return {
     updates: [{ externalId: id, status, ...(error === null ? {} : { error }) }],
     only: true,

@@ -18,6 +18,7 @@ import { defineApi } from "../../../src/spec/api.ts";
 import { schema } from "../../fixtures/generated-camel.ts";
 
 const RUNS = 200;
+
 /** Generous on purpose: the gate catches work that scales wrongly, not noise. */
 const MAX_RATIO = 6;
 
@@ -27,8 +28,10 @@ const api = defineApi(defineSupabase(schema), {
     Object.keys(schema.meta.tables).map((table) => [table, true]),
   ),
 });
+
 const entry: SpecEntry = { api, documents: new Map(), formats: [] };
 const registry = formatRegistry();
+
 const targetsFor = (versions: readonly string[]): readonly SpecTarget[] =>
   resolveTargets(
     versions.map((version) => ({
@@ -39,8 +42,13 @@ const targetsFor = (versions: readonly string[]): readonly SpecTarget[] =>
     registry,
     {},
   );
+
 const [single] = targetsFor(["3.1"]);
-if (!single) throw new Error("No OpenAPI 3.1 target");
+
+if (!single) {
+  throw new Error("No OpenAPI 3.1 target");
+}
+
 const every = targetsFor(["3.0", "3.1", "3.2"]);
 
 const root = await mkdtemp(join(tmpdir(), "better-supabase-spec-bench-"));
@@ -49,15 +57,23 @@ async function measure(
   work: () => Promise<unknown>,
   runs = RUNS,
 ): Promise<number> {
-  for (let warm = 0; warm < 20; warm++) await work();
+  for (let warm = 0; warm < 20; warm++) {
+    await work();
+  }
+
   const started = performance.now();
-  for (let run = 0; run < runs; run++) await work();
+
+  for (let run = 0; run < runs; run++) {
+    await work();
+  }
+
   return (performance.now() - started) / runs;
 }
 
 try {
   const cold = { root, entry, cache: false, validate: false };
   const cached = { ...cold, cache: true };
+
   const timings = {
     "render ms": await measure(() => renderTarget(single, cold)),
     "cache hit ms": await measure(() => renderTarget(single, cached)),
@@ -69,6 +85,7 @@ try {
       Promise.all(every.map((target) => renderTarget(target, cold))),
     ),
   };
+
   console.table(
     Object.fromEntries(
       Object.entries(timings).map(([label, value]) => [
@@ -100,9 +117,11 @@ try {
       MAX_RATIO,
     ],
   ];
+
   for (const [label, slow, base, limit] of gates) {
     const ratio = slow / base;
     console.log(`${label}: ${ratio.toFixed(2)}x`);
+
     if (ratio > limit) {
       console.error(
         `${label} costs ${ratio.toFixed(1)}x its baseline (limit ${String(limit)}x).`,

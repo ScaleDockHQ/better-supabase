@@ -28,6 +28,7 @@ describe("custom-fields module", () => {
     const sql = sqlOf({
       modules: { "custom-fields": { options: { layout: "inline" } } },
     });
+
     expect(sql).not.toContain("rank_field_definition");
     expect(sql).not.toContain(`"rank"`);
   });
@@ -48,6 +49,7 @@ describe("custom-fields module", () => {
     const [plan] = upgradePlan([{ module: "custom-fields", version: 1 }], {
       modules: { "custom-fields": { options: { layout: "inline" } } },
     });
+
     expect(plan!.steps[0]!.sql).toBe("");
   });
 });

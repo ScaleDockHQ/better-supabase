@@ -39,20 +39,24 @@ export async function runOpenApi(
   args: OpenApiArgs,
 ): Promise<CommandResult> {
   const [action] = args._;
+
   if (action !== "emit") {
     return {
       code: 2,
       error: `${action ? `Unknown openapi action "${action}"` : "Name an action"}. Run \`better-supabase openapi emit\`.`,
     };
   }
+
   const entry = args.entry ?? config.openapi.entry;
   const out = args.out ?? config.openapi.output;
   const exported = await importExport(resolve(config.root, entry), "openapi");
+
   // SAFETY: an exported openapi function takes no arguments and returns the document.
   const document: unknown =
     typeof exported === "function"
       ? await (exported as () => unknown)()
       : exported;
+
   if (
     typeof document !== "object" ||
     document === null ||
@@ -63,11 +67,16 @@ export async function runOpenApi(
       error: `${display(config.root, entry)} must export an OpenAPI document (createOpenApi(...)) as \`openapi\` or default.`,
     };
   }
+
   const contents = `${JSON.stringify(document, null, 2)}\n`;
   const state = await fileState(config.root, out, contents);
-  if (args.check === true)
+
+  if (args.check === true) {
     return staleResult(state, "better-supabase openapi emit");
+  }
+
   const { line } = await writeLine(state.path, contents, state.file);
+
   return { code: 0, output: line };
 }
 

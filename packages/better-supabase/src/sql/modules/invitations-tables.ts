@@ -52,12 +52,17 @@ export function raise(
  */
 export function tokenHash(ctx: ModuleContext, token: string): string {
   const storage = ctx.text("tokenStorage", "sha256");
-  if (storage === "plain") return token;
+
+  if (storage === "plain") {
+    return token;
+  }
+
   if (storage !== "sha256") {
     throw new TypeError(
       `blocks.invitations.options.tokenStorage must be "sha256" or "plain", got "${storage}"`,
     );
   }
+
   return sha256Hex(token);
 }
 
@@ -95,10 +100,12 @@ const INVITATION_KEYS = [
 
 export function tenantTable(ctx: ModuleContext): InviteTable {
   const shared = sharesTable(ctx);
+
   // Managed tables add prefill only on request (`blocks.invitations.options.prefill`).
   const prefill =
     ctx.has("invitations", "prefill") &&
     (!ctx.manages || ctx.flag("prefill", false));
+
   return {
     table: ctx.table("invitations"),
     extras: ctx.extraColumns("invitations", INVITATION_KEYS),
@@ -121,14 +128,18 @@ export function platformTable(ctx: ModuleContext): InviteTable | undefined {
   if (!hasPlatformRoles(ctx) || !ctx.hasTable("platformInvitations")) {
     return undefined;
   }
+
   if (!ctx.manages && ctx.config.tables["platformInvitations"] === undefined) {
     return undefined;
   }
+
   const logical = sharesTable(ctx) ? "invitations" : "platformInvitations";
+
   // A table shared with tenant invitations has their prefill column.
   const columns = (column: string) =>
     column in PLATFORM_COLUMNS ||
     (logical === "invitations" && column === "prefill");
+
   return {
     table: ctx.table(logical),
     extras: [],
@@ -154,12 +165,15 @@ export function optionalCol(
 /** `pending`, `accepted`, `declined`, `revoked` or `expired` for row `alias`. */
 export function statusOf(t: InviteTable, alias: string): string {
   const c = (logical: string) => `${alias}.${t.col(logical)}`;
+
   const declined = t.has("declinedAt")
     ? `\n    when ${c("declinedAt")} is not null then 'declined'`
     : "";
+
   const revoked = t.has("revokedAt")
     ? `\n    when ${c("revokedAt")} is not null then 'revoked'`
     : "";
+
   return `case
     when ${c("acceptedAt")} is not null then 'accepted'${declined}${revoked}
     when ${c("expiresAt")} < now() then 'expired'

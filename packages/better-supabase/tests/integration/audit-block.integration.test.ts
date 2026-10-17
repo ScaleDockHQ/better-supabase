@@ -9,6 +9,7 @@ const live = await reachable();
 
 async function lines(stream: ReadableStream<Uint8Array>) {
   const text = await new Response(stream).text();
+
   return text
     .trim()
     .split("\n")
@@ -22,6 +23,7 @@ describe.skipIf(!live)("audit block", () => {
 
   it("exports one tenant's entries as NDJSON and OCSF, in pages", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "audit"], {
         modules: {
@@ -33,6 +35,7 @@ describe.skipIf(!live)("audit block", () => {
       const organization = await s.organization(owner);
       const other = await s.organization(await s.user("other"));
       await s.service();
+
       for (const [type, tenant] of [
         ["deal.created", organization],
         ["deal.deleted", organization],
@@ -48,6 +51,7 @@ describe.skipIf(!live)("audit block", () => {
       const ndjson = await lines(
         exportAuditLog(s.sql, { organizationId: organization, batch: 2 }),
       );
+
       expect(
         ndjson
           .filter((entry) => entry["op"] === "event")
@@ -64,11 +68,12 @@ describe.skipIf(!live)("audit block", () => {
           product: { name: "Acme" },
         }),
       );
+
       expect(
         ocsf
           .filter((event) => event["class_uid"] === 6003)
           .map((event) => event["type_uid"]),
-      ).toEqual([600301, 600304, 600304]);
+      ).toEqual([600_301, 600_304, 600_304]);
 
       // With the read policy, a member reads only their own tenant.
       await s.asRole(owner);
@@ -85,6 +90,7 @@ describe.skipIf(!live)("audit block", () => {
     const suffix = crypto.randomUUID().slice(0, 8);
     const log = `public.bs_activity_${suffix}`;
     const workspaces = `public.bs_workspaces_${suffix}`;
+
     try {
       await s.client.query(`
         create table ${workspaces} (workspace_id uuid primary key, title text);
@@ -143,9 +149,11 @@ describe.skipIf(!live)("audit block", () => {
         [workspace],
       );
       await s.client.query("select better_supabase.audit_event('system.ping')");
+
       const { rows } = await s.client.query<Record<string, string | null>>(
         `select event_type, category, outcome, scope, actor_type, workspace_name from ${log} order by id`,
       );
+
       expect(rows).toEqual([
         {
           event_type: "deal.lost",
@@ -200,6 +208,7 @@ describe.skipIf(!live)("audit block", () => {
   it("takes the actor context from definer functions through audit_event_trusted only", async () => {
     const s = await BlockSession.open(pool);
     const fn = `public.bs_save_role_${crypto.randomUUID().slice(0, 8)}`;
+
     try {
       await s.install(["audit"], {
         modules: {
@@ -222,20 +231,24 @@ describe.skipIf(!live)("audit block", () => {
       const staff = await s.user("staff");
       await s.asRole(staff);
       const trusted = await s.value<string>(`${fn}()`);
+
       const forged = await s.value<string>(
         `better_supabase.audit_event(event_type => 'role.forged', actor_kind => 'support', actor_label => 'Forged', scope => 'platform', actor_id => gen_random_uuid())`,
       );
+
       expect(
         await s.hint(
           `better_supabase.audit_event_trusted(event_type => 'role.direct', actor_kind => 'support')`,
         ),
       ).toMatch(/permission denied for function audit_event_trusted/);
       await s.service();
+
       const rows = await s.rows<Record<string, unknown>>(
         `select event_type, actor_id::text, actor_kind, actor_label, scope
          from better_supabase.audit_events where id::text = any ($1) order by event_type`,
         [[trusted, forged]],
       );
+
       expect(rows).toEqual([
         {
           event_type: "role.forged",
@@ -260,6 +273,7 @@ describe.skipIf(!live)("audit block", () => {
   it("fills an adopted log's column derived from the actor through a generated column", async () => {
     const s = await BlockSession.open(pool);
     const log = `public.bs_staff_log_${crypto.randomUUID().slice(0, 8)}`;
+
     try {
       await s.client.query(`
         create table ${log} (
@@ -344,6 +358,7 @@ describe.skipIf(!live)("audit block", () => {
     const s = await BlockSession.open(pool);
     const suffix = crypto.randomUUID().slice(0, 8);
     const log = `public.bs_activity_${suffix}`;
+
     try {
       await s.client.query(`
         create table ${log} (
@@ -389,6 +404,7 @@ describe.skipIf(!live)("audit block", () => {
       const ticket = crypto.randomUUID();
       const audit = createAudit({ transport: sqlTransport(s.sql) });
       await s.service();
+
       const id = await audit
         .record({
           eventType: "ticket.escalated",
@@ -398,6 +414,7 @@ describe.skipIf(!live)("audit block", () => {
           metadata: { ticketId: ticket, priority: 2, note: "kept" },
         })
         .orThrow();
+
       await audit
         .record({
           eventType: "system.ping",
@@ -416,9 +433,11 @@ describe.skipIf(!live)("audit block", () => {
         })
         .orThrow();
       await s.service();
+
       const { rows } = await s.client.query<Record<string, unknown>>(
         `select id::text, event_type, request_ref, scope, ticket_id, priority, metadata from ${log} order by id`,
       );
+
       expect(rows).toEqual([
         {
           id,
@@ -448,12 +467,14 @@ describe.skipIf(!live)("audit block", () => {
           metadata: {},
         },
       ]);
+
       const listed = await createAudit<{
         ticket_id: string | null;
         priority: number;
       }>({ transport: sqlTransport(s.sql) })
         .list({ organizationId: workspace, order: "asc" })
         .orThrow();
+
       expect(
         listed.entries.map((entry) => [entry.eventType, entry.columns]),
       ).toEqual([
@@ -467,6 +488,7 @@ describe.skipIf(!live)("audit block", () => {
 
   it("lists, reveals and exports through list_audit_events as the caller", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "audit"], {
         modules: {
@@ -478,6 +500,7 @@ describe.skipIf(!live)("audit block", () => {
       const outsider = await s.user("outsider");
       const organization = await s.organization(owner);
       await s.service();
+
       for (const [type, summary] of [
         ["invoice.sent", "=SUM(1)"],
         ["invoice.paid", "Paid, in full"],
@@ -489,12 +512,15 @@ describe.skipIf(!live)("audit block", () => {
           [type, organization, summary],
         );
       }
+
       const audit = createAudit({ transport: sqlTransport(s.sql) });
 
       await s.asRole(owner);
+
       const first = await audit
         .list({ organizationId: organization, limit: 2 })
         .orThrow();
+
       expect(first.entries.map((entry) => entry.eventType)).toEqual([
         "member.added",
         "invoice.paid",
@@ -504,13 +530,16 @@ describe.skipIf(!live)("audit block", () => {
         record: "r1",
         summary: "Added",
       });
+
       const second = await audit
         .list({ organizationId: organization, limit: 2, cursor: first.next })
         .orThrow();
+
       expect(second.entries.map((entry) => entry.eventType)).toEqual([
         "invoice.sent",
       ]);
       expect(second.next).toBeUndefined();
+
       const third = await audit
         .list({
           organizationId: organization,
@@ -519,6 +548,7 @@ describe.skipIf(!live)("audit block", () => {
           count: true,
         })
         .orThrow();
+
       expect(third.entries.map((entry) => entry.eventType)).toEqual([
         "invoice.sent",
       ]);
@@ -531,6 +561,7 @@ describe.skipIf(!live)("audit block", () => {
       const csv = await new Response(
         audit.export({ organizationId: organization, format: "csv", batch: 2 }),
       ).text();
+
       const rows = csv.trim().split("\r\n");
       // The three events and the audit.revealed entry the reveal wrote.
       expect(rows).toHaveLength(5);
@@ -550,11 +581,13 @@ describe.skipIf(!live)("audit block", () => {
         .trim()
         .split("\n")
         .map((line) => JSON.parse(line) as Record<string, unknown>);
+
       expect(ocsf.map((event) => event["class_uid"])).toEqual([
         6003, 6003, 6003, 6003,
       ]);
 
       const stored = new Map<string, string>();
+
       const target = await audit
         .exportToStorage({
           organizationId: organization,
@@ -562,6 +595,7 @@ describe.skipIf(!live)("audit block", () => {
             from: () => ({
               upload: async (path, body) => {
                 stored.set(path, await body.text());
+
                 return { data: { path }, error: null };
               },
               createSignedUrl: async (path) => ({
@@ -575,6 +609,7 @@ describe.skipIf(!live)("audit block", () => {
           signedUrlTtl: 60,
         })
         .orThrow();
+
       expect(target.url).toBe(
         `https://storage.test/${organization}/audit.ndjson`,
       );
@@ -593,6 +628,7 @@ describe.skipIf(!live)("audit block", () => {
           ],
         }),
       ).text();
+
       expect(revealed.split("\r\n")).toEqual([
         "Invoices",
         "eventType,Details",
@@ -600,6 +636,7 @@ describe.skipIf(!live)("audit block", () => {
         `invoice.paid,"{""card"":""4242""}"`,
         "",
       ]);
+
       const ids = (
         await audit
           .list({
@@ -609,9 +646,11 @@ describe.skipIf(!live)("audit block", () => {
           })
           .orThrow()
       ).entries.map((entry) => entry.id);
+
       const exported = await audit
         .list({ organizationId: organization, eventType: "audit.revealed" })
         .orThrow();
+
       expect(exported.entries[0]?.metadata).toEqual({ entries: ids });
 
       await s.asRole(outsider);

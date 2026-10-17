@@ -15,11 +15,13 @@ export interface SvelteController<S, A> extends Readable<S> {
 
 function contextClient(): ClientLike {
   const bound = getContext<{ readonly client: ClientLike } | undefined>(CLIENT);
+
   if (!bound) {
     throw new Error(
       "better-supabase: call setBetterSupabase(bs) in a parent component",
     );
   }
+
   return bound.client;
 }
 
@@ -36,23 +38,32 @@ export function useBlockController<O, S, A>(
   const controller = create(
     withEnv(options, usesEnv ? () => blockEnv(contextClient()) : undefined),
   );
+
   let mounted = false;
   let pending: (() => void) | undefined;
+
   const store = readable(controller.getSnapshot(), (set) => {
     let stop: (() => void) | undefined;
+
     const start = (): void => {
       stop = controller.subscribe(() => {
         set(controller.getSnapshot());
       });
       set(controller.getSnapshot());
     };
-    if (mounted) start();
-    else pending = start;
+
+    if (mounted) {
+      start();
+    } else {
+      pending = start;
+    }
+
     return () => {
       pending = undefined;
       stop?.();
     };
   });
+
   onMount(() => {
     mounted = true;
     pending?.();
@@ -61,6 +72,7 @@ export function useBlockController<O, S, A>(
   onDestroy(() => {
     controller.dispose();
   });
+
   return {
     subscribe: store.subscribe,
     actions: controller.actions,

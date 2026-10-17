@@ -21,7 +21,6 @@ import {
   fail,
   withExtraFields,
 } from "../shared.ts";
-import { registeredSubjects } from "../subject-registry.ts";
 import {
   qualifiedTable,
   type Subject,
@@ -32,7 +31,7 @@ import {
   subjectsOption,
 } from "../subjects.ts";
 import { moduleOperations } from "./access-model.ts";
-import { hasColumn } from "./audit-columns.ts";
+import { activityReads } from "./comments-activity.ts";
 import { commentWrites } from "./comments-writes.ts";
 
 const EVENTS: ModuleEvents<CommentsEvents> = {
@@ -134,17 +133,23 @@ function documentSchemaOf(
   ctx: ModuleContext,
 ): Readonly<Record<string, unknown>> | undefined {
   const option = ctx.option("documentSchema");
-  if (option === undefined) return undefined;
+
+  if (option === undefined) {
+    return undefined;
+  }
+
   if (!isObject(option)) {
     throw new TypeError(
       "blocks.comments.options.documentSchema must be a JSON Schema object",
     );
   }
+
   if (!ctx.installed("jsonb-schemas")) {
     throw new TypeError(
       "blocks.comments.options.documentSchema: add the jsonb-schemas module, which installs pg_jsonschema for the check",
     );
   }
+
   return option;
 }
 
@@ -159,11 +164,17 @@ const MENTION_GROUP_KEYS = new Set(["table", "group", "member", "tenant"]);
 
 function mentionGroupsOf(ctx: ModuleContext): MentionGroups | undefined {
   const option = ctx.option("mentionGroups");
-  if (option === undefined) return undefined;
+
+  if (option === undefined) {
+    return undefined;
+  }
+
   const where = "blocks.comments.options.mentionGroups";
+
   if (!isObject(option)) {
     throw new TypeError(`${where} must be { table, group, member, tenant? }`);
   }
+
   for (const key of Object.keys(option)) {
     if (!MENTION_GROUP_KEYS.has(key)) {
       throw new TypeError(
@@ -171,21 +182,31 @@ function mentionGroupsOf(ctx: ModuleContext): MentionGroups | undefined {
       );
     }
   }
+
   const text = (key: string): string | undefined => {
     const value = option[key];
-    if (value === undefined) return undefined;
+
+    if (value === undefined) {
+      return undefined;
+    }
+
     if (typeof value !== "string" || value.length === 0) {
       throw new TypeError(`${where}.${key} must be a non-empty string`);
     }
+
     return value;
   };
+
   const table = text("table");
   const group = text("group");
   const member = text("member");
+
   if (table === undefined || group === undefined || member === undefined) {
     throw new TypeError(`${where} needs table, group and member`);
   }
+
   const tenant = text("tenant");
+
   return { table, group, member, ...(tenant !== undefined && { tenant }) };
 }
 
@@ -195,11 +216,19 @@ function mentionGroupsOf(ctx: ModuleContext): MentionGroups | undefined {
  * of a new comment and its newly mentioned members follow the subject.
  */
 function followSql(ctx: ModuleContext, c: (logical: string) => string): string {
-  if (!ctx.installed("notifications") || !ctx.flag("follow", true)) return "";
+  if (!ctx.installed("notifications") || !ctx.flag("follow", true)) {
+    return "";
+  }
+
   const n = ctx.of("notifications");
-  if (!n.hasTable("subscriptions")) return "";
+
+  if (!n.hasTable("subscriptions")) {
+    return "";
+  }
+
   const s = (logical: string): string => n.col("subscriptions", logical);
   const tenant = n.has("subscriptions", "tenant");
+
   const columns = [
     ...(tenant ? [s("tenant")] : []),
     s("user"),
@@ -207,6 +236,7 @@ function followSql(ctx: ModuleContext, c: (logical: string) => string): string {
     s("subjectId"),
     s("level"),
   ];
+
   const values = [
     ...(tenant ? [`new.${c("tenant")}`] : []),
     "f.x",
@@ -214,6 +244,7 @@ function followSql(ctx: ModuleContext, c: (logical: string) => string): string {
     `new.${c("subjectId")}`,
     "'participating'",
   ];
+
   return `
   -- The author and newly mentioned members follow the subject
   -- (participating); a level a member already chose stays.
@@ -224,135 +255,11 @@ function followSql(ctx: ModuleContext, c: (logical: string) => string): string {
   on conflict do nothing;`;
 }
 
-interface ActivityReads {
-  /** The activity_subject_readable function, before the read policy. */
-  readonly readable: string;
-  /** Drops activity_subject_readable when the policy doesn't call it. */
-  readonly dropReadable: string;
-  /** The per-row registry check appended to the read policy. */
-  readonly rowCheck: string;
-  /** list_activity's early return for a subject the caller can't read. */
-  readonly gate: string;
-  /** Sets v_table to the subject type's registry table. */
-  readonly auditSetup: string;
-  /** The audit log entries on the subject's row, unioned into the timeline. */
-  readonly auditBranch: string;
-}
-
-/**
- * How the activity feed reads through the `subjects` registry and the
- * audit log. A registered subject type needs `can_subject(read)`, per row in
- * the read policy and once for a subject's timeline; types the registry
- * doesn't know keep the tenant check alone. With `audit` and its
- * `readPolicy`, a registered subject's timeline also returns the log's
- * entries on its row, which that policy gates by the audit read permission.
- */
-function activityReads(ctx: ModuleContext): ActivityReads {
-  const none: ActivityReads = {
-    readable: "",
-    dropReadable: `\ndrop function if exists ${ctx.fn("activity_subject_readable")}(text, text);`,
-    rowCheck: "",
-    gate: "",
-    auditSetup: "",
-    auditBranch: "",
-  };
-  if (!ctx.installed("subjects")) return none;
-  const registry = registeredSubjects(ctx.subjects);
-  if (registry.length === 0) return none;
-  const a = (logical: string): string => ctx.col("activity", logical);
-  const readable = ctx.fn("activity_subject_readable");
-  const types = `${sqlString(`{${registry.map((subject) => subject.type).join(",")}}`)}::text[]`;
-  const audit = ctx.installed("audit") ? ctx.of("audit") : undefined;
-  const auditOn =
-    audit !== undefined &&
-    audit.mode !== "custom" &&
-    audit.flag("readPolicy", false) &&
-    hasColumn(audit, "log", "table") &&
-    hasColumn(audit, "log", "record");
-  return {
-    // PL/pgSQL resolves can_subject when it runs: the subjects module
-    // installs after this one.
-    readable: `-- Whether the caller can read a registered subject (can_subject).
-create or replace function ${readable}(subject_type text, subject_id text)
-returns boolean
-language plpgsql
-stable
-security invoker
-set search_path = ''
-as $$
-begin
-  return coalesce(${ctx.of("subjects").fn("can_subject")}(subject_type, subject_id, 'read'), false);
-end;
-$$;
-revoke execute on function ${readable}(text, text) from public, anon;
-grant execute on function ${readable}(text, text) to authenticated, service_role;
-`,
-    dropReadable: "",
-    rowCheck: `
-    and (${a("subjectType")} is null or ${a("subjectId")} is null
-      or not (${a("subjectType")} = any (${types}))
-      or ${readable}(${a("subjectType")}, ${a("subjectId")}))`,
-    gate: `
-  if list_activity.subject_id is not null and list_activity.subject_type = any (${types})
-    and not ${readable}(list_activity.subject_type, list_activity.subject_id) then
-    return '[]'::jsonb;
-  end if;`,
-    auditSetup: auditOn
-      ? `
-  if list_activity.subject_id is not null then
-    v_table := case list_activity.subject_type
-${registry.map((subject) => `      when ${sqlString(subject.type)} then ${sqlString(`${subject.schema}.${subject.table}`)}`).join("\n")}
-    end;
-  end if;`
-      : "",
-    auditBranch: auditOn ? auditBranch(ctx, audit) : "",
-  };
-}
-
-/** The union branch that reads the audit log's entries on v_table's row. */
-function auditBranch(ctx: ModuleContext, audit: ModuleContext): string {
-  const a = (logical: string): string =>
-    sqlString(ctx.col("activity", logical).replaceAll('"', ""));
-  const l = (logical: string): string => `l.${audit.col("log", logical)}`;
-  const has = (logical: string): boolean => hasColumn(audit, "log", logical);
-  const op = has("op") ? l("op") : "null::text";
-  const type = has("eventType")
-    ? `coalesce(${l("eventType")}, 'audit.' || ${op})`
-    : `'audit.' || coalesce(${op}, 'event')`;
-  const data = [
-    `'op', ${op}`,
-    ...(has("changed") ? [`'changed', to_jsonb(${l("changed")})`] : []),
-    `'table', ${l("table")}`,
-  ];
-  const entry = [
-    `${a("id")}, ${l("id")}::text`,
-    `${a("tenant")}, ${l("tenant")}`,
-    `${a("event")}, null::text`,
-    `${a("type")}, ${type}`,
-    `${a("actor")}, ${l("actor")}`,
-    `${a("subjectType")}, list_activity.subject_type`,
-    `${a("subjectId")}, list_activity.subject_id`,
-    `${a("summary")}, ${has("summary") ? l("summary") : "null::text"}`,
-    `${a("data")}, jsonb_strip_nulls(jsonb_build_object(${data.join(", ")}))`,
-    `${a("occurredAt")}, ${l("occurredAt")}`,
-    `'source', 'audit'`,
-  ];
-  return `
-    union all
-    (select jsonb_build_object(${entry.join(", ")}) as entry,
-      ${l("occurredAt")} as at, ${l("id")}::text as id
-    from ${audit.table("log")} l
-    where v_table is not null
-      and ${l("table")} = v_table
-      and ${l("record")} = list_activity.subject_id
-      and ${ctx.scope.eq(l("tenant"), ctx.scope.value("list_activity.tenant"))}
-      and (list_activity.before is null or ${l("occurredAt")} < list_activity.before)
-    order by ${l("occurredAt")} desc, ${l("id")} desc
-    limit v_limit)`;
-}
-
 function build(ctx: ModuleContext, layout: ModuleLayout): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
   const id = ctx.idType;
   const comments = ctx.table("comments");
   const activity = ctx.table("activity");
@@ -362,19 +269,25 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const extras = ctx.extraColumns("comments", RESERVED);
   const extra = extraFieldsArg(extras);
   const extraIdents = extras.map((column) => column.ident);
+
   // A comment row as JSON, with the extra columns under fields.
   const commentJson = (row: string, json: string): string =>
     withExtraFields(json, row, extras);
+
   const reads = activityReads(ctx);
   const permissions = moduleOperations("comments");
+
   const permission = (action: keyof typeof permissions): string =>
     ctx.permission(action, permissions[action]);
+
   const maxBody = ctx.number("maxBodyLength", 10_000);
+
   if (!Number.isInteger(maxBody) || maxBody < 1) {
     throw new TypeError(
       "blocks.comments.options.maxBodyLength must be a whole number above zero",
     );
   }
+
   const subjects = subjectsOption(ctx, [
     "permissions",
     "label",
@@ -382,25 +295,30 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     "readableBy",
     "scope",
   ]);
+
   const access = subjectAccess(ctx, {
     subjects,
     actions: ["read", "create", "moderate"],
     permission,
     provider: layout.accessProvider,
   });
+
   const readable = subjectReadable(ctx, subjects, {
     type: "subject_type",
     id: "subject_id",
     tenant: "tenant",
   });
+
   // Without options.subjects every subject is readable, so the policies
   // leave out the per-row call that would only return true.
   const subjectCheck =
     subjects.length === 0
       ? ""
       : ` and ${fn("comment_subject_readable")}(${c("subjectType")}, ${c("subjectId")}, ${c("tenant")})`;
+
   const documentSchema = documentSchemaOf(ctx);
   const target = ctx.tableName("comments");
+
   const documentCheck = documentSchema
     ? jsonSchemaChecks([
         {
@@ -410,11 +328,13 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
         },
       ])
     : "";
+
   const cascades = subjectCascades(
     ctx,
     subjects,
     `delete from ${comments} x where x.${c("subjectType")} = v_type and x.${c("subjectId")} = v_id;`,
   );
+
   // options.subjects.<type>.label, path and readableBy: SQL on the subject
   // row {row} (and the mentioned user {user} for readableBy).
   // readableBy also takes { sql, enforce }: enforce applies it to the read
@@ -426,6 +346,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   ): string | undefined => {
     const where = `blocks.comments.options.subjects.${type}.${key}`;
     const raw = subject.extra[key];
+
     if (raw !== undefined && key === "readableBy" && isObject(raw)) {
       for (const name of Object.keys(raw)) {
         if (name !== "sql" && name !== "enforce") {
@@ -434,52 +355,72 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
           );
         }
       }
-      if (raw["enforce"] !== undefined && typeof raw["enforce"] !== "boolean")
+
+      if (raw["enforce"] !== undefined && typeof raw["enforce"] !== "boolean") {
         throw new TypeError(`${where}.enforce must be true or false`);
+      }
     }
+
     const object = key === "readableBy" && isObject(raw);
     const value = object ? raw["sql"] : raw;
-    if (value === undefined && !object) return undefined;
+
+    if (value === undefined && !object) {
+      return undefined;
+    }
+
     if (typeof value !== "string" || !value.includes("{row}")) {
       throw new TypeError(`${where} must be SQL on the subject row {row}`);
     }
+
     return value.replaceAll("{row}", "s");
   };
+
   const enforcedCases = subjects.flatMap(([type, subject]) => {
     const raw = subject.extra["readableBy"];
     const sql = expression(type, subject, "readableBy");
+
     return sql === undefined || !isObject(raw) || raw["enforce"] !== true
       ? []
       : [
           `when ${sqlString(type)} then exists (select 1 from ${qualifiedTable(subject.table)} s where ${subjectIdMatches(subject, `${comments}.${c("subjectId")}::text`)} and (${sql.replaceAll("{user}", "(select auth.uid())")}))`,
         ];
   });
+
   const readableByCheck =
     enforcedCases.length === 0
       ? ""
       : `\n    and case ${c("subjectType")} ${enforcedCases.join(" ")} else true end`;
-  for (const [type, subject] of subjects)
-    for (const key of ["label", "path", "readableBy"])
+
+  for (const [type, subject] of subjects) {
+    for (const key of ["label", "path", "readableBy"]) {
       expression(type, subject, key);
+    }
+  }
+
   const subjectValue = (key: "label" | "path"): string => {
     const cases = subjects.flatMap(([type, subject]) => {
       const value = expression(type, subject, key);
+
       return value === undefined
         ? []
         : [
             `when ${sqlString(type)} then (select (${value})::text from ${qualifiedTable(subject.table)} s where ${subjectIdMatches(subject, `new.${c("subjectId")}::text`)} limit 1)`,
           ];
     });
+
     return cases.length === 0
       ? "null::text"
       : `case new.${c("subjectType")} ${cases.join(" ")} end`;
   };
+
   // A mentioned member must be able to read comments on the subject: the
   // subject's read key, its permission and readableBy when it sets them.
   const mentionable = (user: string): string => {
     const key = access.keyFor(`new.${c("subjectType")}`, "read");
+
     const subjectCases = subjects.flatMap(([type, subject]) => {
       const checks: string[] = [];
+
       if (subject.permission !== undefined) {
         checks.push(
           ctx.scope.canUser(
@@ -489,16 +430,20 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
           ),
         );
       }
+
       const readableBy = expression(type, subject, "readableBy");
+
       if (readableBy !== undefined) {
         checks.push(
           `exists (select 1 from ${qualifiedTable(subject.table)} s where ${subjectIdMatches(subject, `new.${c("subjectId")}::text`)} and (${readableBy.replaceAll("{user}", user)}))`,
         );
       }
+
       return checks.length === 0
         ? []
         : [`when ${sqlString(type)} then ${checks.join(" and ")}`];
     });
+
     return `${ctx.scope.canUser(user, `new.${c("tenant")}`, key)}${
       subjectCases.length === 0
         ? ""
@@ -506,11 +451,14 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
       and case new.${c("subjectType")} ${subjectCases.join(" ")} else true end`
     }`;
   };
+
   const groups = mentionGroupsOf(ctx);
+
   const expand = (mentions: string): string =>
     groups === undefined
       ? `unnest(${mentions})`
       : `(select m.x from unnest(${mentions}) m(x) union select g.${sqlIdent(groups.member)} from ${quotedTable(groups.table)} g where g.${sqlIdent(groups.group)} = any(${mentions})${groups.tenant === undefined ? "" : ` and g.${sqlIdent(groups.tenant)} = new.${c("tenant")}`})`;
+
   const newMentions =
     groups === undefined
       ? `select x from unnest(new.${c("mentions")}) x
@@ -520,7 +468,9 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     where e.x is distinct from new.${c("author")}
       and (tg_op = 'INSERT' or not e.x = any(array(select o.x from ${expand(`old.${c("mentions")}`)} o(x))))
       and ${mentionable("e.x")}`;
+
   const notify = ctx.flag("notify", true);
+
   const notifications =
     ctx.installed("notifications") && notify
       ? `
@@ -545,11 +495,15 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     )}
   end if;`
       : "";
+
   const followers = followSql(ctx, c);
+
   const payload = (extra: string): string =>
     `jsonb_build_object('commentId', new.${c("id")}, 'organizationId', new.${c("tenant")}::text, 'subjectType', new.${c("subjectType")}, 'subjectId', new.${c("subjectId")}, 'authorId', new.${c("author")}${extra})`;
+
   const subject = `'comments/' || new.${c("id")}::text`;
   const tenant = `new.${c("tenant")}`;
+
   const created = ctx.record({
     type: "comment.created",
     payload: payload(
@@ -559,6 +513,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     tenant,
     audit: false,
   });
+
   const mentioned = ctx.record({
     type: "comment.mentioned",
     payload: payload(`, 'mentionIds', to_jsonb(v_new)`),
@@ -566,6 +521,7 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
     tenant,
     audit: false,
   });
+
   const deleted = ctx.record({
     type: "comment.deleted",
     payload: payload(""),
@@ -947,6 +903,7 @@ grant execute on function ${fn("record_activity")}(jsonb) to service_role;`;
 
 function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   const extra = extraFieldsArg(ctx.extraColumns("comments", RESERVED)).contract;
+
   return [
     {
       name: "comment_subject_readable",

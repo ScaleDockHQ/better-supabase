@@ -53,11 +53,13 @@ const WINDOW = /^[1-9][0-9]{0,3} (?:minute|hour|day|week)s?$/;
 /** How far back a periodic `metrics_rollup()` re-aggregates, for late rows. */
 function windowOf(ctx: ModuleContext): string {
   const window = ctx.text("window", "3 days");
+
   if (!WINDOW.test(window)) {
     throw new TypeError(
       'blocks.metrics.options.window must be an interval such as "3 days" or "12 hours"',
     );
   }
+
   return window;
 }
 
@@ -68,8 +70,12 @@ function declaredMetrics(ctx: ModuleContext): readonly MetricDefinition[] {
 
 /** The grains `metric_points` keeps for a metric, none when it is queried directly. */
 function storedGrains(metric: MetricDefinition): readonly MetricGrain[] {
-  if (metric.rollup === false) return [];
+  if (metric.rollup === false) {
+    return [];
+  }
+
   const grains = metric.rollup ?? ["day"];
+
   return METRIC_GRAINS.filter((grain) => grains.includes(grain));
 }
 
@@ -84,11 +90,14 @@ const literal = (value: string | number | boolean | null): string =>
 function rowSource(metric: MetricDefinition): string {
   const t = (name: string): string => `t.${sqlIdent(name)}`;
   const dims = metric.dimensions ?? [];
+
   const dimsSql =
     dims.length === 0
       ? "'{}'::jsonb"
       : `jsonb_build_object(${dims.map((name) => `${sqlString(name)}, ${t(name)}`).join(", ")})`;
+
   const { measure } = metric;
+
   const [value, count] =
     measure === "count"
       ? ["1::numeric", "1::bigint"]
@@ -98,9 +107,11 @@ function rowSource(metric: MetricDefinition): string {
             `${t(measure.avg)}::numeric`,
             `(${t(measure.avg)} is not null)::int::bigint`,
           ];
+
   const where = Object.entries(metric.where ?? {}).map(([name, v]) =>
     v === null ? `${t(name)} is null` : `${t(name)} = ${literal(v)}`,
   );
+
   return `select ${t(metric.tenant ?? "organization_id")} as tenant, ${t(metric.timeColumn)} as at, ${dimsSql} as dims, ${value} as value, ${count} as count
         from ${quotedTable(metric.table)} t${where.length === 0 ? "" : `\n        where ${where.join("\n          and ")}`}`;
 }
@@ -136,8 +147,10 @@ function rollupBranch(
   const tz = sqlString(metric.tz ?? "UTC");
   const key = sqlString(metric.key);
   const grains = storedGrains(metric);
+
   const steps = grains.map((grain) => {
     const g = sqlString(grain);
+
     return `    v_from := date_trunc(${g}, v_since, ${tz});
     v_to := ${plusGrain(`date_trunc(${g}, v_until - interval '1 microsecond', ${tz})`, `interval '1 ${grain}'`, tz)};
     delete from ${points}
@@ -151,6 +164,7 @@ function rollupBranch(
     get diagnostics v_rows = row_count;
     v_total := v_total + v_rows;`;
   });
+
   return `  if p_metric is null or p_metric = ${key} then
     ${ctx.hook("before_metric_rollup", [
       ["text", key],
@@ -177,6 +191,7 @@ function sourceCte(
 ): string {
   const { points, c } = names;
   const filter = "coalesce(p_dims, '{}'::jsonb)";
+
   const stored =
     storedGrains(metric).length === 0
       ? ""
@@ -191,6 +206,7 @@ function sourceCte(
           and p.${c("dims")} @> ${filter}
       union all
       `;
+
   return `source as (
       ${stored}select s.at, s.dims, s.value, s.count
         from (${rowSource(metric)}) s
@@ -208,12 +224,21 @@ function sourceGrainCase(
   pick: "coarsest" | "finest",
 ): string {
   const stored = storedGrains(metric);
-  if (stored.length === 0) return "null";
-  if (pick === "finest") return sqlString(stored[0]!);
+
+  if (stored.length === 0) {
+    return "null";
+  }
+
+  if (pick === "finest") {
+    return sqlString(stored[0]!);
+  }
+
   const branches = METRIC_GRAINS.map((grain) => {
     const from = stored.findLast((s) => grainDivides(s, grain));
+
     return `when ${sqlString(grain)} then ${from === undefined ? "null" : sqlString(from)}`;
   });
+
   return `case p_grain ${branches.join(" ")} end`;
 }
 
@@ -221,7 +246,9 @@ function readChecks(ctx: ModuleContext, metric: MetricDefinition): string {
   const permission = sqlString(
     metric.permission ?? ctx.permissionKey("read", OPERATIONS["metrics.read"]),
   );
+
   const dims = textArray(metric.dimensions ?? []);
+
   return `      if not (${SERVICE_CALLER} or ${ctx.can("tenant", "p_tenant", permission)}) then
         ${fail("METRIC_FORBIDDEN", "you cannot read this metric in this organization")}
       end if;
@@ -240,6 +267,7 @@ function seriesBranch(
 ): string {
   const tz = sqlString(metric.tz ?? "UTC");
   const dims = textArray(metric.dimensions ?? []);
+
   return `    when ${sqlString(metric.key)} then
 ${readChecks(ctx, metric)}
       if p_group_by is not null and p_group_by <> all (${dims}) then
@@ -312,11 +340,15 @@ function definitionsJson(metrics: readonly MetricDefinition[]): string {
     grains: storedGrains(metric),
     tz: metric.tz ?? "UTC",
   }));
+
   return `${sqlString(JSON.stringify(json))}::jsonb`;
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
   const points = ctx.table("points");
   const c = (column: string): string => ctx.col("points", column);
   const names: Names = { points, c };
@@ -326,6 +358,7 @@ function build(ctx: ModuleContext): string {
   const keys = textArray(metrics.map((metric) => metric.key));
   const unknown = fail("METRIC_UNKNOWN", "no metric has this key", "22023");
   const grains = textArray(METRIC_GRAINS);
+
   const tables = ctx.manages
     ? `create table if not exists ${points} (
   ${c("tenant")} ${ctx.idType} not null,
@@ -342,6 +375,7 @@ ${lockTable(points)}
 create index if not exists metric_points_rollup_idx on ${points} (${c("metric")}, ${c("grain")}, ${c("bucketStart")});
 `
     : "";
+
   const series =
     metrics.length === 0
       ? ""
@@ -350,6 +384,7 @@ ${metrics.map((metric) => seriesBranch(ctx, metric, names)).join("\n")}
     else
       ${unknown}
   end case;`;
+
   const value =
     metrics.length === 0
       ? ""
@@ -358,9 +393,11 @@ ${metrics.map((metric) => valueBranch(ctx, metric, names)).join("\n")}
     else
       ${unknown}
   end case;`;
+
   const rollups = metrics
     .filter((metric) => storedGrains(metric).length > 0)
     .map((metric) => rollupBranch(ctx, metric, names));
+
   return `${schemaPreamble(ctx)}
 ${tables}
 -- Re-aggregates the window [since, until), default the last ${window}, so

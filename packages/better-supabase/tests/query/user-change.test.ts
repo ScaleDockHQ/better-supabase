@@ -12,17 +12,24 @@ type Snapshot = ReturnType<UserChangeSource["current"]>;
 function fakeAuth(initial: Snapshot) {
   let snapshot = initial;
   const listeners = new Set<() => void>();
+
   const auth: UserChangeSource = {
     subscribe(listener) {
       listeners.add(listener);
+
       return () => listeners.delete(listener);
     },
     current: () => snapshot,
   };
+
   const set = (next: Snapshot) => {
     snapshot = next;
-    for (const listener of listeners) listener();
+
+    for (const listener of listeners) {
+      listener();
+    }
   };
+
   return { auth, set, listeners };
 }
 
@@ -34,6 +41,7 @@ const signedIn = (
   user: { id },
   claims: { sub: id, exp: 1000, iat: 900, ...claims },
 });
+
 const signedOut: Snapshot = { status: "signed-out", user: null };
 
 const BS_KEY = ["bs", "customers", "findMany"];
@@ -42,6 +50,7 @@ function seeded(): QueryClient {
   const client = new QueryClient();
   client.setQueryData(BS_KEY, [{ id: "c1" }]);
   client.setQueryData(["other"], 1);
+
   return client;
 }
 
@@ -80,14 +89,17 @@ describe("clearOnUserChange", () => {
   it("refetches a mounted query instead of leaving the old rows on screen", async () => {
     const client = seeded();
     let calls = 0;
+
     const observer = new QueryObserver(client, {
       queryKey: BS_KEY,
       queryFn: () => {
         calls += 1;
+
         return [{ id: "fresh" }];
       },
       staleTime: Infinity,
     });
+
     const unsubscribe = observer.subscribe(() => undefined);
     const { auth, set } = fakeAuth(signedIn("u1", { tenant_id: "acme" }));
     clearOnUserChange(client, auth);

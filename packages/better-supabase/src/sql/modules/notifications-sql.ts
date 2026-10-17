@@ -13,20 +13,15 @@ import {
   channelDefaults,
   permissionAudience,
 } from "./notifications-audience.ts";
+import { delivery, purge } from "./notifications-delivery.ts";
 import {
   changedJson,
   integerMutations,
   itemJson,
 } from "./notifications-items.ts";
 import { readers } from "./notifications-readers.ts";
-import {
-  claimSuppression,
-  suppressionFunctions,
-} from "./notifications-suppressions.ts";
-import {
-  keepsTemplateKey,
-  trackingFunctions,
-} from "./notifications-tracking.ts";
+import { suppressionFunctions } from "./notifications-suppressions.ts";
+import { trackingFunctions } from "./notifications-tracking.ts";
 import { hasAvatarPath } from "./profiles.ts";
 
 export interface NotifyNames {
@@ -68,13 +63,16 @@ const NAME = /^[a-z][a-z0-9_]*$/;
  */
 function wanted(ctx: ModuleContext, n: NotifyNames): string {
   const defaults = channelDefaults(ctx, "c");
+
   if (!ctx.hasTable("preferences")) {
     return `select x as member, c as channel
     from unnest(v_recipients) x cross join unnest(v_channels) c
     where ${defaults}`;
   }
+
   const p = (logical: string) => n.col("preferences", logical);
   const tenant = n.has("preferences", "tenant");
+
   return `select w.member, w.channel from (
       select distinct on (x, c) x as member, c as channel, coalesce(p.${p("enabled")}, ${defaults}) as enabled
       from unnest(v_recipients) x cross join unnest(v_channels) c
@@ -93,6 +91,7 @@ function wanted(ctx: ModuleContext, n: NotifyNames): string {
 
 function channels(ctx: ModuleContext): readonly string[] {
   const list = ctx.list("channels", ["in_app"]);
+
   for (const channel of list) {
     if (!NAME.test(channel)) {
       throw new TypeError(
@@ -100,6 +99,7 @@ function channels(ctx: ModuleContext): readonly string[] {
       );
     }
   }
+
   return list;
 }
 
@@ -108,6 +108,7 @@ function enabled(ctx: ModuleContext, n: NotifyNames): string {
   const id = ctx.idType;
   const fn = ctx.fn("notification_enabled");
   const defaults = channelDefaults(ctx, "notification_enabled.channel");
+
   const lookup = ctx.hasTable("preferences")
     ? `(
     select p.${n.col("preferences", "enabled")}
@@ -125,6 +126,7 @@ function enabled(ctx: ModuleContext, n: NotifyNames): string {
     limit 1
   )`
     : "null::boolean";
+
   return `
 -- A member's choice for a type on a channel: the tenant's exact type, the
 -- tenant's '*', the exact type anywhere, '*' anywhere, then the channel default.
@@ -150,16 +152,20 @@ function notify(
   const access = ctx.installed("access");
   const e = (logical: string) => n.col("events", logical);
   const r = (logical: string) => n.col("recipients", logical);
+
   const subjects =
     n.has("events", "subjectType") && n.has("events", "subjectId");
+
   const priorities = ctx.list("priorities", [
     "low",
     "normal",
     "high",
     "urgent",
   ]);
+
   const defaultChannels = `array[${channels(ctx).map(sqlString).join(", ")}]::text[]`;
   const maxRecipients = ctx.number("maxRecipients", 1000);
+
   if (!Number.isInteger(maxRecipients) || maxRecipients < 1) {
     throw new TypeError(
       "blocks.notifications.options.maxRecipients must be a whole number above zero",
@@ -170,6 +176,7 @@ function notify(
     [e("type"), "v_type"],
     [e("data"), "coalesce(notification -> 'data', '{}')"],
   ];
+
   const optional: [string, string][] = [
     ["tenant", "v_tenant"],
     ["actor", "v_actor"],
@@ -182,12 +189,17 @@ function notify(
     ["key", "v_key"],
     ["createdBy", "auth.uid()"],
   ];
+
   for (const [logical, value] of optional) {
-    if (n.has("events", logical)) columns.push([e(logical), value]);
+    if (n.has("events", logical)) {
+      columns.push([e(logical), value]);
+    }
   }
+
   const sameTenant = n.has("events", "tenant")
     ? ` and ev.${e("tenant")} is not distinct from v_tenant`
     : "";
+
   const keyed = n.has("events", "key")
     ? `
   if v_key is not null then
@@ -219,9 +231,11 @@ function notify(
 
   const subs = ctx.hasTable("subscriptions") && subjects;
   const s = (logical: string) => n.col("subscriptions", logical);
+
   const subTenant = n.has("subscriptions", "tenant")
     ? ` and s.${s("tenant")} is not distinct from v_tenant`
     : "";
+
   const watchers = subs
     ? `
   if v_subject_type is not null and v_subject_id is not null then
@@ -243,6 +257,7 @@ function notify(
     );
   end if;`
     : "";
+
   const readFilter = n.answersForOthers
     ? `
   if v_tenant is not null then
@@ -255,7 +270,9 @@ function notify(
   -- The provider model answers for the caller only, so recipients are not
   -- filtered by their read permission: the sender and notification_audience
   -- decide who gets it.`;
+
   const members = access ? readFilter : "";
+
   const authorize = access
     ? `
   if not (${SERVICE_CALLER}) then
@@ -265,7 +282,9 @@ function notify(
     v_actor := auth.uid();
   end if;`
     : "";
+
   const audience = ctx.hookTarget("notification_audience");
+
   const recipientColumns = [
     r("event"),
     ...(n.has("recipients", "tenant") ? [r("tenant")] : []),
@@ -274,6 +293,7 @@ function notify(
     ...(n.has("recipients", "resolvedAt") ? [r("resolvedAt")] : []),
     r("createdAt"),
   ];
+
   const recipientValues = [
     "v_event",
     ...(n.has("recipients", "tenant") ? ["v_tenant"] : []),
@@ -287,7 +307,9 @@ function notify(
     // Keeps newest-first order and paging stable within one transaction.
     "clock_timestamp()",
   ];
+
   const d = (logical: string) => n.col("deliveries", logical);
+
   const deliveries = ctx.hasTable("deliveries")
     ? `
   insert into ${n.table("deliveries")} (${[
@@ -425,21 +447,27 @@ function inbox(ctx: ModuleContext, n: NotifyNames): string {
   const id = ctx.idType;
   const e = (logical: string) => n.col("events", logical);
   const r = (logical: string) => n.col("recipients", logical);
+
   const tenantFilter = (fn: string, alias = "rc") =>
     n.has("recipients", "tenant")
       ? `and (${fn}.tenant is null or ${alias}.${r("tenant")} = ${fn}.tenant)`
       : "";
+
   const resolved = n.has("recipients", "resolvedAt");
   const subjectType = n.has("events", "subjectType");
   const subjects = subjectType && n.has("events", "subjectId");
+
   const settled = resolved
     ? `(rc.${r("resolvedAt")} is not null or rc.${r("dismissedAt")} is not null)`
     : `rc.${r("dismissedAt")} is not null`;
+
   const haystack = (["summary", "subjectLabel"] as const)
     .filter((logical) => n.has("events", logical))
     .map((logical) => `ev.${e(logical)}`);
+
   const where = (fn: string) => {
     const like = `'%' || replace(replace(replace(btrim(${fn}.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%'`;
+
     return `rc.${r("user")} = auth.uid()
       and case when coalesce(${fn}.status, 'all') = 'settled' then ${settled} when ${fn}.dismissed is null then true else (rc.${r("dismissedAt")} is not null) = ${fn}.dismissed end
       and (${fn}.read is null or (rc.${r("readAt")} is not null) = ${fn}.read)
@@ -459,20 +487,25 @@ function inbox(ctx: ModuleContext, n: NotifyNames): string {
         else true
       end`;
   };
+
   const isActionable = `${resolved ? `rc.${r("resolvedAt")} is null and ` : ""}ev.${e("type")} = any(coalesce(notification_counts.actionable, '{}'))`;
+
   const actionable = resolved
     ? `count(*) filter (
       where ${isActionable}
     )`
     : "0";
+
   const subjectKey = subjects
     ? `case when ev.${e("subjectType")} is not null and ev.${e("subjectId")} is not null then jsonb_build_array(${n.has("events", "tenant") ? `ev.${e("tenant")}, ` : ""}ev.${e("subjectType")}, ev.${e("subjectId")})::text else rc.${r("id")}::text end`
     : `rc.${r("id")}::text`;
+
   const actionableSubjects = resolved
     ? `count(distinct ${subjectKey}) filter (
       where ${isActionable}
     )`
     : "0";
+
   const parts = [
     `
 drop function if exists ${ctx.fn("list_notifications")}(${id}, text, text[], timestamptz, integer);
@@ -642,6 +675,7 @@ as $$
   ${changedJson(n)}
 $$;`,
   ];
+
   const grants = [
     `list_notifications(${id}, text, text[], timestamptz, integer, uuid, text[], text, boolean, boolean, boolean)`,
     `notification_page(${id}, text, text[], text[], text, integer, integer, boolean, boolean, boolean)`,
@@ -651,6 +685,7 @@ $$;`,
     "dismiss_notifications(uuid[])",
     "get_notification(uuid)",
   ];
+
   if (
     resolved &&
     n.has("events", "subjectType") &&
@@ -659,9 +694,11 @@ $$;`,
     const tenantMatch = n.has("events", "tenant")
       ? `and ev.${e("tenant")} is not distinct from resolve_notifications.tenant`
       : "";
+
     const allowed = ctx.installed("access")
       ? `(${SERVICE_CALLER}) or coalesce(better_supabase.member_can(auth.uid(), resolve_notifications.tenant, ${n.sendPermission}), false)`
       : SERVICE_CALLER;
+
     parts.push(`
 -- Marks every recipient's notification of this type about this subject
 -- resolved (and read), e.g. once the approval it asked for is given.
@@ -696,9 +733,11 @@ end;
 $$;`);
     grants.push(`resolve_notifications(text, text, text, ${id})`);
   }
+
   if (ctx.installed("profiles") && n.has("events", "actor")) {
     const profiles = ctx.of("profiles");
     const p = (logical: string) => profiles.col("profiles", logical);
+
     const fields = (
       [
         ["username", "username"],
@@ -716,6 +755,7 @@ $$;`);
       )
       .map(([key, logical]) => `, '${key}', pr.${p(logical)}`)
       .join("");
+
     parts.push(`
 -- The public profile fields of the actors behind the caller's notifications,
 -- keyed by user id, for list({ include: ['actor'] }). Only actors of the
@@ -738,10 +778,12 @@ as $$
 $$;`);
     grants.push("notification_actors(uuid[])");
   }
+
   for (const signature of grants) {
     parts.push(`revoke execute on function ${ctx.schema}.${signature} from public, anon;
 grant execute on function ${ctx.schema}.${signature} to authenticated, service_role;`);
   }
+
   return parts.join("\n");
 }
 
@@ -749,6 +791,7 @@ grant execute on function ${ctx.schema}.${signature} to authenticated, service_r
 function settings(ctx: ModuleContext, n: NotifyNames): string {
   const id = ctx.idType;
   const parts: string[] = [];
+
   const member = (fn: string) =>
     ctx.installed("access")
       ? `
@@ -757,6 +800,7 @@ function settings(ctx: ModuleContext, n: NotifyNames): string {
     ${fail("NOTIFICATION_FORBIDDEN", "Not a member of this organization")}
   end if;`
       : "";
+
   if (ctx.hasTable("subscriptions")) {
     const s = (logical: string) => n.col("subscriptions", logical);
     const t = n.has("subscriptions", "tenant");
@@ -821,6 +865,7 @@ $$;
 revoke execute on function ${ctx.fn(fn)}(text, text, text, ${id}, uuid, boolean) from public, anon;
 grant execute on function ${ctx.fn(fn)}(text, text, text, ${id}, uuid, boolean) to authenticated, service_role;`);
   }
+
   if (ctx.hasTable("preferences")) {
     const p = (logical: string) => n.col("preferences", logical);
     const t = n.has("preferences", "tenant");
@@ -851,173 +896,8 @@ $$;
 revoke execute on function ${ctx.fn(fn)}(text, text, boolean, ${id}) from public, anon;
 grant execute on function ${ctx.fn(fn)}(text, text, boolean, ${id}) to authenticated, service_role;`);
   }
+
   return parts.join("\n");
-}
-
-/** The worker side: claim pending deliveries of a channel, then complete them. */
-function delivery(ctx: ModuleContext, n: NotifyNames): string {
-  if (!ctx.hasTable("deliveries")) return "";
-  const d = (logical: string) => n.col("deliveries", logical);
-  const r = (logical: string) => n.col("recipients", logical);
-  const attempts = n.has("deliveries", "attempts")
-    ? `, ${d("attempts")} = d.${d("attempts")} + 1`
-    : "";
-  const set: string[] = [`${d("status")} = v_status`];
-  if (n.has("deliveries", "provider"))
-    set.push(
-      `${d("provider")} = coalesce(complete_notification_delivery.provider, d.${d("provider")})`,
-    );
-  if (n.has("deliveries", "providerMessageId"))
-    set.push(
-      `${d("providerMessageId")} = coalesce(complete_notification_delivery.provider_message_id, d.${d("providerMessageId")})`,
-    );
-  if (n.has("deliveries", "error"))
-    set.push(`${d("error")} = complete_notification_delivery.error`);
-  const templateKey = keepsTemplateKey(ctx);
-  if (templateKey)
-    set.push(
-      `${d("templateKey")} = coalesce(complete_notification_delivery.template_key, d.${d("templateKey")})`,
-    );
-  const completeArgs = `uuid, text, text, text, text, integer${templateKey ? ", text" : ""}`;
-  if (n.has("deliveries", "deliveredAt"))
-    set.push(
-      `${d("deliveredAt")} = case when v_status = 'sent' then now() else d.${d("deliveredAt")} end`,
-    );
-  set.push(
-    `${d("attemptedAt")} = case when v_status = 'pending' then null else d.${d("attemptedAt")} end`,
-  );
-  const retries = n.has("deliveries", "attempts");
-  const backoff = n.has("deliveries", "nextAttemptAt");
-  const suppression = claimSuppression(ctx, n);
-  if (backoff)
-    set.push(
-      `${d("nextAttemptAt")} = case when v_status = 'pending' then now() + make_interval(secs => 1 + floor(random() * least(3600, 30 * power(2, ${retries ? `greatest(d.${d("attempts")}, 1) - 1` : "0"})))) else d.${d("nextAttemptAt")} end`,
-    );
-  const lostLease = retries
-    ? `
-  -- A delivery whose lease ran out on its last attempt lost its worker.
-  update ${n.table("deliveries")} d
-  set ${d("status")} = 'failed'${n.has("deliveries", "error") ? `, ${d("error")} = 'The lease ran out on the last attempt'` : ""}
-  where d.${d("channel")} = claim_notification_deliveries.channel
-    and d.${d("status")} = 'pending'
-    and d.${d("attempts")} >= greatest(1, coalesce(claim_notification_deliveries.max_attempts, 5))
-    and d.${d("attemptedAt")} < now() - claim_notification_deliveries.lease;
-`
-    : "";
-  const giveUp = retries
-    ? `
-  if v_status = 'pending' and exists (
-    select 1 from ${n.table("deliveries")} d
-    where d.${d("id")} = complete_notification_delivery.delivery
-      and d.${d("attempts")} >= greatest(1, coalesce(complete_notification_delivery.max_attempts, 5))
-  ) then
-    v_status := 'failed';
-  end if;`
-    : "";
-  return `
-drop function if exists ${ctx.fn("claim_notification_deliveries")}(text, integer, interval);
-drop function if exists ${ctx.fn("complete_notification_delivery")}(uuid, text, text, text, text);
-drop function if exists ${ctx.fn("complete_notification_delivery")}(uuid, text, text, text, text, integer${templateKey ? "" : ", text"});
--- Leases up to max_items due deliveries of one channel and returns them
--- with the notification and the recipient's email, for a NotificationChannel.
-create or replace function ${ctx.fn("claim_notification_deliveries")}(channel text, max_items integer default 50, lease interval default '5 minutes', max_attempts integer default 5)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  claimed jsonb;
-begin${lostLease}
-  with picked as (
-    select d.${d("id")} as id from ${n.table("deliveries")} d
-    where d.${d("channel")} = claim_notification_deliveries.channel
-      and d.${d("status")} = 'pending'${
-        backoff
-          ? `
-      and d.${d("nextAttemptAt")} <= now()`
-          : ""
-      }
-      and (d.${d("attemptedAt")} is null or d.${d("attemptedAt")} < now() - claim_notification_deliveries.lease)
-    order by d.${d("createdAt")}
-    limit claim_notification_deliveries.max_items
-    for update skip locked
-  ), leased as (
-    update ${n.table("deliveries")} d set ${d("attemptedAt")} = now()${attempts}
-    from picked where d.${d("id")} = picked.id
-    returning d.*
-  )
-  select coalesce(jsonb_agg(jsonb_build_object(
-    'delivery_id', l.${d("id")},
-    'channel', l.${d("channel")},
-    'attempts', ${retries ? `l.${d("attempts")}` : "1"},
-    'user_id', rc.${r("user")},
-    'email', u.email,
-    'notification', ${itemJson(n)}${suppression.field}
-  )), '[]') into claimed
-  from leased l
-  join ${n.table("recipients")} rc on rc.${r("id")} = l.${d("recipient")}
-  join ${n.table("events")} ev on ev.${n.col("events", "id")} = rc.${r("event")}
-  left join auth.users u on u.id = rc.${r("user")}${suppression.join};
-  return claimed;
-end;
-$$;
-
--- Records the outcome: sent, failed, skipped, or pending to retry. A retry
--- waits a random time up to 30 seconds, doubling per attempt to an hour,
--- and after max_attempts the delivery is failed instead.${templateKey ? " template_key\n-- names the template the channel composed, for list_subject_deliveries." : ""}
-create or replace function ${ctx.fn("complete_notification_delivery")}(delivery uuid, status text, provider text default null, provider_message_id text default null, error text default null, max_attempts integer default 5${templateKey ? ", template_key text default null" : ""})
-returns text
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_status text := complete_notification_delivery.status;
-begin
-  if v_status is null or v_status not in ('sent', 'failed', 'skipped', 'pending') then
-    ${fail("NOTIFICATION_STATUS_UNKNOWN", "status must be sent, failed, skipped or pending", "22023")}
-  end if;${giveUp}
-  update ${n.table("deliveries")} d
-  set ${set.join(",\n    ")}
-  where d.${d("id")} = complete_notification_delivery.delivery;
-  return v_status;
-end;
-$$;
-revoke execute on function ${ctx.fn("claim_notification_deliveries")}(text, integer, interval, integer) from public, anon, authenticated;
-grant execute on function ${ctx.fn("claim_notification_deliveries")}(text, integer, interval, integer) to service_role;
-revoke execute on function ${ctx.fn("complete_notification_delivery")}(${completeArgs}) from public, anon, authenticated;
-grant execute on function ${ctx.fn("complete_notification_delivery")}(${completeArgs}) to service_role;`;
-}
-
-/** Deletes up to batch notifications older than older_than, with their recipients and deliveries. */
-function purge(ctx: ModuleContext, n: NotifyNames): string {
-  const e = (logical: string) => n.col("events", logical);
-  const fn = ctx.fn("purge_notifications");
-  return `
--- Deletes up to batch notifications past their retention, with their recipients
--- and deliveries, and returns how many. Run it until it returns less than batch.
-create or replace function ${fn}(older_than interval default '90 days', batch integer default 10000)
-returns integer
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare v_purged integer;
-begin
-  delete from ${n.table("events")}
-  where ${e("id")} in (
-    select ev.${e("id")} from ${n.table("events")} ev
-    where ${ctx.expired("notifications", { at: `ev.${e("createdAt")}`, tenant: n.has("events", "tenant") ? `ev.${e("tenant")}` : "null", fallback: "coalesce(older_than, '90 days')" })}
-    order by ev.${e("createdAt")}
-    limit coalesce(batch, 10000)
-  );
-  get diagnostics v_purged = row_count;
-  return v_purged;
-end;
-$$;
-revoke execute on function ${fn}(interval, integer) from public, anon, authenticated;
-grant execute on function ${fn}(interval, integer) to service_role;`;
 }
 
 export function functions(

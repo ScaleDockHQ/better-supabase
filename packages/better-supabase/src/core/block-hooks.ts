@@ -24,6 +24,7 @@ export type BlockMethodName<C> = {
 type ArgsOf<F> = F extends (...args: infer A) => AsyncResult<unknown>
   ? A
   : never;
+
 type DataOf<F> = F extends (...args: never[]) => AsyncResult<infer T>
   ? T
   : never;
@@ -71,23 +72,31 @@ export interface WithBlockHooksOptions {
 
 const isPlainObject = (value: object): boolean => {
   const proto: unknown = Object.getPrototypeOf(value);
+
   return proto === Object.prototype || proto === null;
 };
 
 /** A copy of plain objects and arrays; class instances (Temporal values) are immutable and stay shared. */
 function copyOf(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(copyOf);
+  if (Array.isArray(value)) {
+    return value.map(copyOf);
+  }
+
   if (typeof value === "object" && value !== null && isPlainObject(value)) {
     return Object.fromEntries(
       Object.entries(value).map(([key, entry]) => [key, copyOf(entry)]),
     );
   }
+
   return value;
 }
 
 /** A new client with the same methods: a spread for object literals, a child object otherwise. */
 function cloneClient(client: object): Record<string, unknown> {
-  if (isPlainObject(client)) return { ...client };
+  if (isPlainObject(client)) {
+    return { ...client };
+  }
+
   // SAFETY: Object.create returns an empty object whose prototype is client;
   // the caller only adds string-keyed methods to it.
   return Object.create(client) as Record<string, unknown>;
@@ -99,7 +108,11 @@ type Method = (...args: unknown[]) => unknown;
 function methodOf(client: object, name: string): Method | undefined {
   // SAFETY: a read of one string key; the result is checked before use.
   const value = (client as Readonly<Record<string, unknown>>)[name];
-  if (typeof value !== "function") return undefined;
+
+  if (typeof value !== "function") {
+    return undefined;
+  }
+
   // SAFETY: any function accepts unknown arguments at runtime; the hook
   // passes it the arguments its caller gave.
   return value as Method;
@@ -122,34 +135,52 @@ export function withBlockHooks<C extends object>(
   hooks: BlockHooks<C> | undefined,
   options: WithBlockHooksOptions = {},
 ): C {
-  if (hooks === undefined) return client;
+  if (hooks === undefined) {
+    return client;
+  }
+
   const block = options.block ?? "block";
   const logger = options.logger ?? consoleLogger;
   const wrapped = cloneClient(client);
+
   for (const [method, hook] of Object.entries(hooks)) {
-    if (hook === undefined) continue;
+    if (hook === undefined) {
+      continue;
+    }
+
     const original = methodOf(client, method);
+
     if (original === undefined) {
       throw new TypeError(
         `better-supabase: ${block} has no method "${method}" to hook`,
       );
     }
+
     // SAFETY: the key came from BlockHooks<C>, whose values are these hooks.
     const { before, after } = hook as BlockMethodHooks<unknown[], unknown>;
     const info: BlockHookInfo = { block, method };
     wrapped[method] = (...args: unknown[]): AsyncResult<unknown> =>
       AsyncResult.from(async () => {
         let current = args;
+
         if (before) {
           const outcome = await before(current, info);
-          if (isDbError(outcome)) return err(outcome);
-          if (Array.isArray(outcome)) current = outcome;
+
+          if (isDbError(outcome)) {
+            return err(outcome);
+          }
+
+          if (Array.isArray(outcome)) {
+            current = outcome;
+          }
         }
+
         // SAFETY: original is one of the client's AsyncResult methods.
         const result = await (original.apply(
           client,
           current,
         ) as AsyncResult<unknown>);
+
         if (after) {
           try {
             // SAFETY: copyOf keeps the shape of the value it copies.
@@ -158,9 +189,11 @@ export function withBlockHooks<C extends object>(
             logger.error(`${block}.${method} after hook threw`, { cause });
           }
         }
+
         return result;
       });
   }
+
   // SAFETY: wrapped has every member of client, with hooked methods replaced
   // by functions of the same signature.
   return wrapped as C;
@@ -203,6 +236,7 @@ export function extendBlock<C extends object, X extends object>(
   options: ExtendBlockOptions = {},
 ): C & X {
   const { transport } = options;
+
   const call: BlockCall = transport
     ? blockCall(
         transport,
@@ -216,13 +250,16 @@ export function extendBlock<C extends object, X extends object>(
             "extendBlock needs the transport option to call SQL functions",
           ),
         );
+
   const additions = build(client, { call });
   const taken = Object.keys(additions).filter((key) => key in client);
+
   if (taken.length > 0) {
     throw new TypeError(
       `better-supabase: extendBlock can't redefine ${taken.map((key) => `"${key}"`).join(", ")}; wrap a base method with withBlockHooks instead`,
     );
   }
+
   // SAFETY: the clone has every member of client and Object.assign adds
   // every member of additions, which share no keys.
   return Object.assign(cloneClient(client), additions) as C & X;
@@ -269,18 +306,21 @@ export function wrapTransport(
 ): BlockTransport {
   for (const entry of middleware) {
     const version: unknown = entry.apiVersion;
+
     if (version !== 1) {
       throw new TypeError(
         `better-supabase: transport middleware "${entry.name}" targets API ${String(version)}; this better-supabase supports 1`,
       );
     }
   }
+
   const run = middleware.reduceRight<
     (request: BlockTransportRequest) => Promise<unknown>
   >(
     (next, entry) => (request) => entry.call(request, next),
     (request) => transport.call(request.schema, request.fn, request.args),
   );
+
   return {
     call: (schema, fn, args) => run({ schema, fn, args }),
   };

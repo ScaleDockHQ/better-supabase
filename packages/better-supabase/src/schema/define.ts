@@ -27,14 +27,17 @@ function validateMeta(meta: SchemaMeta): SchemaMeta {
       `better-supabase: unsupported schema metadata version ${String(meta.version)}. Run \`better-supabase gen\` again.`,
     );
   }
+
   return meta;
 }
 
 export function tableMeta(meta: SchemaMeta, table: string): TableMeta {
   const found = meta.tables[table];
+
   if (!found) {
     throw new TypeError(`better-supabase: unknown table "${table}"`);
   }
+
   return found;
 }
 
@@ -44,10 +47,12 @@ export function relationMeta(
   relation: string,
 ): { relation: RelationMeta; target: TableMeta } {
   const found = table.relations[relation];
+
   if (!found) {
     throw new TypeError(
       `better-supabase: unknown relation "${relation}" on "${table.key}"`,
     );
   }
+
   return { relation: found, target: tableMeta(meta, found.table) };
 }

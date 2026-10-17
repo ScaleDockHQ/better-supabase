@@ -140,18 +140,22 @@ function assetsOf(
   ui: SpecUi,
   assets: SpecReferenceOptions["assets"],
 ): { readonly scripts: Asset[]; readonly styles: Asset[] } {
-  if (typeof assets === "object")
+  if (typeof assets === "object") {
     return {
       scripts: assets.scripts.map((url) => ({ url })),
       styles: (assets.styles ?? []).map((url) => ({ url })),
     };
+  }
+
   const { name, version } = SPEC_UI_PACKAGES[ui];
   const base = (assets ?? DEFAULT_CDN).replace(/\/+$/, "");
   const pinned = assets === undefined;
+
   const toAsset = (file: PinnedFile): Asset => ({
     url: `${base}/${name}@${version}/${file.path}`,
     ...(pinned ? { integrity: file.integrity } : {}),
   });
+
   return {
     scripts: PINNED[ui].scripts.map(toAsset),
     styles: PINNED[ui].styles.map(toAsset),
@@ -196,29 +200,39 @@ function attributes(values: Readonly<Record<string, unknown>>): string {
 
 function body(ui: SpecUi, specUrl: string, config: Record<string, unknown>) {
   switch (ui) {
-    case "scalar":
+    case "scalar": {
       return {
         markup: '<div id="app"></div>',
         init: `Scalar.createApiReference("#app", ${scriptJson({ url: specUrl, ...config })});`,
       };
-    case "swagger":
+    }
+
+    case "swagger": {
       return {
         markup: '<div id="swagger-ui"></div>',
         init: `window.ui = SwaggerUIBundle(${scriptJson({ url: specUrl, dom_id: "#swagger-ui", ...config })});`,
       };
-    case "redoc":
+    }
+
+    case "redoc": {
       return {
         markup: '<div id="redoc"></div>',
         init: `Redoc.init(${scriptJson(specUrl)}, ${scriptJson(config)}, document.getElementById("redoc"));`,
       };
-    case "elements":
+    }
+
+    case "elements": {
       return {
         markup: `<elements-api${attributes({ apiDescriptionUrl: specUrl, router: "hash", layout: "sidebar", ...config })}></elements-api>`,
       };
-    case "rapidoc":
+    }
+
+    case "rapidoc": {
       return {
         markup: `<rapi-doc${attributes({ "spec-url": specUrl, ...config })}></rapi-doc>`,
       };
+    }
+
     default: {
       const unknown: never = ui;
       throw new TypeError(`Unknown docs UI "${String(unknown)}"`);
@@ -236,19 +250,26 @@ function body(ui: SpecUi, specUrl: string, config: Record<string, unknown>) {
  */
 export function specReferenceHtml(options: SpecReferenceOptions): string {
   const ui = options.ui ?? "scalar";
-  if (!SPEC_UIS.includes(ui))
+
+  if (!SPEC_UIS.includes(ui)) {
     throw new TypeError(
       `Unknown docs UI "${ui}". Use one of ${SPEC_UIS.join(", ")}.`,
     );
+  }
+
   const { scripts, styles } = assetsOf(ui, options.assets);
+
   const nonce =
     options.nonce === undefined ? "" : ` nonce="${escapeHtml(options.nonce)}"`;
+
   const integrity = (asset: Asset): string =>
     asset.integrity === undefined
       ? ""
       : ` integrity="${asset.integrity}" crossorigin="anonymous"`;
+
   const { markup, init } = body(ui, options.specUrl, { ...options.config });
   const module = ui === "rapidoc" ? ' type="module"' : "";
+
   return [
     "<!doctype html>",
     '<html lang="en">',
@@ -287,10 +308,15 @@ export interface SpecReferenceResponseOptions extends SpecReferenceOptions {
 function origins(ui: SpecUi, assets: SpecReferenceOptions["assets"]): string[] {
   const { scripts, styles } = assetsOf(ui, assets);
   const found = new Set<string>();
+
   for (const { url } of [...scripts, ...styles]) {
-    if (!/^https?:\/\//.test(url)) continue;
+    if (!/^https?:\/\//.test(url)) {
+      continue;
+    }
+
     found.add(new URL(url).origin);
   }
+
   return [...found];
 }
 
@@ -301,8 +327,10 @@ export function specReferenceCsp(
   },
 ): string {
   const hosts = origins(options.ui ?? "scalar", options.assets).join(" ");
+
   const from = (...sources: string[]): string =>
     [...sources, hosts].filter(Boolean).join(" ");
+
   return [
     "default-src 'none'",
     `script-src ${from(`'nonce-${options.nonce}'`)}`,
@@ -331,27 +359,35 @@ export function specReference(
   request?: Request,
 ): Response {
   const method = request?.method.toUpperCase() ?? "GET";
-  if (method !== "GET" && method !== "HEAD")
+
+  if (method !== "GET" && method !== "HEAD") {
     return methodNotAllowed(["GET", "HEAD"]);
+  }
+
   const nonce =
     options.nonce ??
     (options.csp === true
       ? crypto.randomUUID().replaceAll("-", "")
       : undefined);
+
   const html = specReferenceHtml({
     ...options,
     ...(nonce === undefined ? {} : { nonce }),
   });
+
   const headers: Record<string, string> = {
     "content-type": "text/html; charset=utf-8",
     "cache-control": options.cacheControl ?? "no-cache",
   };
-  if (options.csp === true && nonce !== undefined)
+
+  if (options.csp === true && nonce !== undefined) {
     headers["content-security-policy"] = specReferenceCsp({
       nonce,
       ...(options.ui === undefined ? {} : { ui: options.ui }),
       ...(options.assets === undefined ? {} : { assets: options.assets }),
     });
+  }
+
   return new Response(method === "HEAD" ? null : html, {
     status: 200,
     headers,
@@ -382,29 +418,58 @@ export function scalarPreset<D extends object>(
 ): D {
   const copy = structuredClone(document);
   const root: unknown = copy;
-  if (!isRecord(root)) return copy;
-  if (options.environments !== undefined)
+
+  if (!isRecord(root)) {
+    return copy;
+  }
+
+  if (options.environments !== undefined) {
     root["x-scalar-environments"] = options.environments;
+  }
+
   const components = root["components"];
+
   const schemes = isRecord(components)
     ? components["securitySchemes"]
     : undefined;
-  if (!isRecord(schemes)) return copy;
+
+  if (!isRecord(schemes)) {
+    return copy;
+  }
+
   for (const scheme of Object.values(schemes)) {
-    if (!isRecord(scheme) || scheme["type"] !== "oauth2") continue;
+    if (!isRecord(scheme) || scheme["type"] !== "oauth2") {
+      continue;
+    }
+
     const flows = scheme["flows"];
-    if (!isRecord(flows)) continue;
+
+    if (!isRecord(flows)) {
+      continue;
+    }
+
     for (const [name, flow] of Object.entries(flows)) {
-      if (!isRecord(flow)) continue;
-      if (options.clientId !== undefined)
+      if (!isRecord(flow)) {
+        continue;
+      }
+
+      if (options.clientId !== undefined) {
         flow["x-scalar-client-id"] = options.clientId;
-      if (options.redirectUri !== undefined)
+      }
+
+      if (options.redirectUri !== undefined) {
         flow["x-scalar-redirect-uri"] = options.redirectUri;
-      if (options.defaultScopes !== undefined)
+      }
+
+      if (options.defaultScopes !== undefined) {
         flow["x-default-scopes"] = [...options.defaultScopes];
-      if (name === "authorizationCode")
+      }
+
+      if (name === "authorizationCode") {
         flow["x-usePkce"] = options.pkce ?? "SHA-256";
+      }
     }
   }
+
   return copy;
 }

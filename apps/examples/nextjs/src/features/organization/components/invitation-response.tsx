@@ -17,6 +17,7 @@ export function InvitationResponse({ token }: { token: string }) {
   const refreshSession = useRefreshSession();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+
   return (
     <div className="flex w-full gap-2">
       <Button
@@ -26,10 +27,13 @@ export function InvitationResponse({ token }: { token: string }) {
         onClick={() => {
           startTransition(async () => {
             const result = await declineInvitation({ token });
+
             if (!result.ok) {
               toast.error(errorMessage(result.error));
+
               return;
             }
+
             router.push("/");
           });
         }}
@@ -42,10 +46,13 @@ export function InvitationResponse({ token }: { token: string }) {
         onClick={() => {
           startTransition(async () => {
             const result = await acceptInvitation({ token });
+
             if (!result.ok) {
               toast.error(errorMessage(result.error));
+
               return;
             }
+
             await refreshSession("/");
             toast.success(t("Welcome aboard"));
           });

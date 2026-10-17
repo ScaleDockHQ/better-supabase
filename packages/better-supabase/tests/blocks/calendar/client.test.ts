@@ -34,6 +34,7 @@ function fakeClient() {
 describe("createCalendarController", () => {
   it("loads events for the range and saves, splits and cancels", async () => {
     const client = fakeClient();
+
     const { view, unmount } = mount(
       createCalendarController({
         // SAFETY: the fake returns what the controller reads.
@@ -44,6 +45,7 @@ describe("createCalendarController", () => {
         readOnly: () => true,
       }),
     );
+
     await flush();
     expect(view().events[0]).toMatchObject({
       id: "o1",
@@ -70,6 +72,7 @@ describe("createCalendarController", () => {
     const client = fakeClient();
     const slow = held([occurrence("old")]);
     client.occurrences.mockReturnValueOnce(slow.result);
+
     const { view, unmount } = mount(
       createCalendarController({
         client: client as never,
@@ -77,6 +80,7 @@ describe("createCalendarController", () => {
         range,
       }),
     );
+
     view().setRange(range);
     view().setRange({
       start: range.start,

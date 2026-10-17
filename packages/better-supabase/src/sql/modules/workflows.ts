@@ -170,7 +170,10 @@ const PRINCIPAL_KINDS = [
 const TERMINAL = "('completed', 'failed', 'cancelled')";
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
   const id = ctx.idType;
   const fn = (name: string): string => ctx.fn(name);
   const r = ctx.table("runs");
@@ -182,11 +185,14 @@ function build(ctx: ModuleContext): string {
   const cm = (column: string): string => ctx.col("semaphores", column);
   const cq = (column: string): string => ctx.col("startRequests", column);
   const permissions = moduleOperations("workflows");
+
   const can = (tenant: string, action: "read" | "run" | "admin"): string =>
     ctx.can("tenant", tenant, ctx.permission(action, permissions[action]));
+
   const callable = (signature: string): string =>
     `revoke execute on function ${signature} from public, anon;
 grant execute on function ${signature} to authenticated, service_role;`;
+
   const runJson = (alias: string): string => `jsonb_build_object(
     'id', ${alias}.${cr("id")},
     'engine', ${alias}.${cr("engine")},
@@ -209,6 +215,7 @@ grant execute on function ${signature} to authenticated, service_role;`;
     'mode', ${alias}.${cr("mode")},
     'triggerNode', ${alias}.${cr("triggerNode")}
   )`;
+
   const scheduleJson = (alias: string): string => `jsonb_build_object(
     'id', ${alias}.${cs("id")},
     'tenant', ${alias}.${cs("tenant")},
@@ -223,6 +230,7 @@ grant execute on function ${signature} to authenticated, service_role;`;
     'createdBy', ${alias}.${cs("createdBy")},
     'createdAt', ${alias}.${cs("createdAt")}
   )`;
+
   const emitTerminal = (status: string): string =>
     ctx.record({
       type: `workflow_run.${status}`,
@@ -232,14 +240,17 @@ grant execute on function ${signature} to authenticated, service_role;`;
       key: `'workflow_run.${status}:' || new.${cr("id")}`,
       audit: false,
     });
+
   const terminalEvents = ["completed", "failed", "cancelled"]
     .map((status) => {
       const emit = emitTerminal(status);
+
       return emit === NOTHING
         ? ""
         : `\n    when ${sqlString(status)} then\n      ${emit}`;
     })
     .join("");
+
   const statusTrigger = ctx.trigger("workflow_runs_status");
   const receive = ctx.trigger("workflow_runs_receive");
   // The tenant topic id is the tenant cast to text; the run topic id is the run's uuid.

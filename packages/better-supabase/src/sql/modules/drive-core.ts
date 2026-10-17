@@ -63,6 +63,7 @@ export function driveCoreSql(kit: DriveKit): string {
     directGrant,
     siblings,
   } = kit;
+
   const tables = ctx.manages
     ? `create table if not exists ${T} (
   ${n("id")} uuid primary key default gen_random_uuid(),
@@ -111,6 +112,7 @@ ${lockTable(G, { read: false })}
     select x.${n("id")}, x.${n("parent")}, up.depth + 1 from ${T} x join up on x.${n("id")} = up.parent where up.depth < 256
   )
   select array_agg(up.id order by up.depth desc) from up`;
+
   const subtree = pathMode
     ? `  select x.${n("id")}, (length(x.${n("path")}) - length(replace(x.${n("path")}, '/', ''))) - (length(r.${n("path")}) - length(replace(r.${n("path")}, '/', '')))
   from ${T} r join ${T} x on x.${n("path")} like r.${n("path")} || '%'
@@ -182,21 +184,26 @@ create trigger ${ctx.trigger("drive_node_moved")}
   const grantColumns = typed
     ? `${g("tenant")}, ${g("node")}, ${g("principalType")}, ${g("principalId")}, ${g("role")}${expiring ? `, ${g("expiresAt")}` : ""}${ctx.has("grants", "createdBy") ? `, ${g("createdBy")}` : ""}`
     : `${g("tenant")}, ${g("node")}, ${g("user")}${teamColumn ? `, ${g("team")}` : ""}, ${g("role")}${expiring ? `, ${g("expiresAt")}` : ""}${ctx.has("grants", "createdBy") ? `, ${g("createdBy")}` : ""}`;
+
   // The team id comes from the teams table, so it has the adopted column's type.
   const teamValue =
     teams === undefined
       ? "null"
       : `case when v_type = 'team' then (select t.${teams.col("teams", "id")} from ${teams.table("teams")} t where t.${teams.col("teams", "id")}::text = drive_share.principal_id) end`;
+
   const grantValues = typed
     ? `v_node.${n("tenant")}, v_node.${n("id")}, v_type, drive_share.principal_id, drive_share.role${expiring ? ", drive_share.expires_at" : ""}${ctx.has("grants", "createdBy") ? ", auth.uid()" : ""}`
     : `v_node.${n("tenant")}, v_node.${n("id")}, case when v_type = 'user' then drive_share.principal_id::uuid end${teamColumn ? `, ${teamValue}` : ""}, drive_share.role${expiring ? ", drive_share.expires_at" : ""}${ctx.has("grants", "createdBy") ? ", auth.uid()" : ""}`;
+
   const samePrincipal = (alias: string): string =>
     `${principalType(alias)} = v_type and ${principalId(alias)} = drive_share.principal_id`;
+
   const principalTypes = typed
     ? "('user', 'team', 'role')"
     : teamColumn
       ? "('user', 'team')"
       : "('user')";
+
   const teamExists =
     teams === undefined
       ? "false"
@@ -400,10 +407,10 @@ begin
   end if;
   select * into v_parent from ${T} x
   where x.${n("id")} = drive_check_parent.parent and x.${n("tenant")} = drive_check_parent.tenant${live("x")};
-  if not found or not ${canRead("v_parent." + n("id"))} then
+  if not found or not ${canRead(`v_parent.${n("id")}`)} then
     ${notFound}
   end if;
-  if not ${canWrite("v_parent." + n("id"))} then
+  if not ${canWrite(`v_parent.${n("id")}`)} then
     ${forbidden("add items to this folder")}
   end if;
   if v_parent.${n("kind")} <> 'folder' then
@@ -492,7 +499,7 @@ declare
   v_node ${T}%rowtype;
 begin
   select * into v_node from ${T} x where x.${n("id")} = drive_get.node${live("x")};
-  if not found or not (${SERVICE_CALLER} or ${canRead("v_node." + n("id"))}) then
+  if not found or not (${SERVICE_CALLER} or ${canRead(`v_node.${n("id")}`)}) then
     ${notFound}
   end if;
   return ${withRole("v_node")};
@@ -554,7 +561,7 @@ begin
       and exists (
         select 1 from ${G} dg
         where dg.${g("node")} = x.${n("id")}${grantLive("dg")}
-          and ${principalMatch("dg", "auth.uid()", "x." + n("tenant"))}
+          and ${principalMatch("dg", "auth.uid()", `x.${n("tenant")}`)}
       )
       and (x.${n("parent")} is null or not ${canRead(`x.${n("parent")}`)})
       and ${canRead(`x.${n("id")}`)}
@@ -602,10 +609,10 @@ declare
   v_name text := ${fn("drive_clean_name")}(drive_rename.name);
 begin
   select * into v_node from ${T} x where x.${n("id")} = drive_rename.node${live("x")} for update;
-  if not found or not (${SERVICE_CALLER} or ${canRead("v_node." + n("id"))}) then
+  if not found or not (${SERVICE_CALLER} or ${canRead(`v_node.${n("id")}`)}) then
     ${notFound}
   end if;
-  if not (${SERVICE_CALLER} or ${canWrite("v_node." + n("id"))}) then
+  if not (${SERVICE_CALLER} or ${canWrite(`v_node.${n("id")}`)}) then
     ${forbidden("rename this item")}
   end if;
   if v_name = v_node.${n("name")} then
@@ -621,7 +628,7 @@ begin
   update ${T} x set ${n("name")} = v_name${touch}
   where x.${n("id")} = v_node.${n("id")}
   returning * into v_node;
-  ${record("drive.node_renamed", "v_node", ", 'name', v_node." + n("name") + ", 'previousName', v_previous", dataAudit("v_node", "renamed"))}
+  ${record("drive.node_renamed", "v_node", `, 'name', v_node.${n("name")}, 'previousName', v_previous`, dataAudit("v_node", "renamed"))}
   ${ctx.hook("after_drive_node_rename", [["uuid", `v_node.${n("id")}`]])}
   return ${withRole("v_node")};
 end;
@@ -646,10 +653,10 @@ declare
   v_last text;
 begin
   select * into v_node from ${T} x where x.${n("id")} = drive_move.node${live("x")} for update;
-  if not found or not (${SERVICE_CALLER} or ${canRead("v_node." + n("id"))}) then
+  if not found or not (${SERVICE_CALLER} or ${canRead(`v_node.${n("id")}`)}) then
     ${notFound}
   end if;
-  if not (${SERVICE_CALLER} or ${canWrite("v_node." + n("id"))}) then
+  if not (${SERVICE_CALLER} or ${canWrite(`v_node.${n("id")}`)}) then
     ${forbidden("move this item")}
   end if;
   ${
@@ -661,7 +668,7 @@ begin
   }
   v_previous := v_node.${n("parent")};
   if drive_move.parent is null then
-    if v_previous is not null and not (${SERVICE_CALLER} or (${canShare("v_node." + n("id"))} and ${ctx.can("tenant", `v_node.${n("tenant")}`, create)})) then
+    if v_previous is not null and not (${SERVICE_CALLER} or (${canShare(`v_node.${n("id")}`)} and ${ctx.can("tenant", `v_node.${n("tenant")}`, create)})) then
       ${forbidden("move this item to the top of the drive")}
     end if;
   else
@@ -692,7 +699,7 @@ begin
     update ${T} x set ${n("parent")} = drive_move.parent, ${n("name")} = v_name${ranked ? `, ${n("rank")} = coalesce(drive_move.rank, ${rankAfter("v_last")})` : ""}${touch}
     where x.${n("id")} = v_node.${n("id")}
     returning * into v_node;
-    ${record("drive.node_moved", "v_node", ", 'parentId', v_node." + n("parent") + ", 'previousParentId', v_previous", dataAudit("v_node", "moved"))}
+    ${record("drive.node_moved", "v_node", `, 'parentId', v_node.${n("parent")}, 'previousParentId', v_previous`, dataAudit("v_node", "moved"))}
   ${
     ranked
       ? `elsif drive_move.rank is not null then
@@ -720,10 +727,10 @@ declare
   v_node ${T}%rowtype;
 begin
   select * into v_node from ${T} x where x.${n("id")} = drive_delete.node;
-  if not found or not (${SERVICE_CALLER} or ${canRead("v_node." + n("id"))}) then
+  if not found or not (${SERVICE_CALLER} or ${canRead(`v_node.${n("id")}`)}) then
     ${notFound}
   end if;
-  if not (${SERVICE_CALLER} or ${canShare("v_node." + n("id"))}) then
+  if not (${SERVICE_CALLER} or ${canShare(`v_node.${n("id")}`)}) then
     ${forbidden("delete this item for good")}
   end if;
   delete from ${T} x where x.${n("id")} in (select s.node_id from ${fn("drive_subtree")}(v_node.${n("id")}) s);
@@ -747,10 +754,10 @@ declare
   v_id uuid;
 begin
   select * into v_node from ${T} x where x.${n("id")} = drive_share.node${live("x")};
-  if not found or not (${SERVICE_CALLER} or ${canRead("v_node." + n("id"))}) then
+  if not found or not (${SERVICE_CALLER} or ${canRead(`v_node.${n("id")}`)}) then
     ${notFound}
   end if;
-  if not (${SERVICE_CALLER} or (${canShare("v_node." + n("id"))} and ${rank("drive_share.role")} <= ${rank(`${fn("drive_role")}(v_node.${n("id")})`)})) then
+  if not (${SERVICE_CALLER} or (${canShare(`v_node.${n("id")}`)} and ${rank("drive_share.role")} <= ${rank(`${fn("drive_role")}(v_node.${n("id")})`)})) then
     ${forbidden("share this item with that role")}
   end if;
   if ${rank("drive_share.role")} = 0 then
@@ -798,10 +805,10 @@ declare
   v_type text := lower(drive_unshare.principal_type);
 begin
   select * into v_node from ${T} x where x.${n("id")} = drive_unshare.node${live("x")};
-  if not found or not (${SERVICE_CALLER} or ${canRead("v_node." + n("id"))}) then
+  if not found or not (${SERVICE_CALLER} or ${canRead(`v_node.${n("id")}`)}) then
     ${notFound}
   end if;
-  if not (${SERVICE_CALLER} or ${canShare("v_node." + n("id"))}) then
+  if not (${SERVICE_CALLER} or ${canShare(`v_node.${n("id")}`)}) then
     ${forbidden("change who this item is shared with")}
   end if;
   delete from ${G} dg where dg.${g("node")} = v_node.${n("id")}

@@ -7,6 +7,7 @@ describe("csvResponse", () => {
     const response = csvResponse([{ a: "x", b: "=1" }], {
       filename: "rows.csv",
     });
+
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe(
       "text/csv; charset=utf-8",
@@ -25,6 +26,7 @@ describe("csvResponse", () => {
       status: 201,
       headers: { "cache-control": "no-store", "content-type": "text/plain" },
     });
+
     expect(response.status).toBe(201);
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.headers.get("content-type")).toBe(

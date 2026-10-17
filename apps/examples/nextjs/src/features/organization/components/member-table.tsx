@@ -39,7 +39,11 @@ import { useRoleLabel } from "../use-role-label";
 
 async function loadOrganizationMembers(): Promise<readonly Member[]> {
   const result = await loadMembers({});
-  if (!result.ok) throw new DbException(result.error);
+
+  if (!result.ok) {
+    throw new DbException(result.error);
+  }
+
   return result.data;
 }
 
@@ -66,6 +70,7 @@ export function MemberTable({
   const roleLabel = useRoleLabel();
   const errorMessage = useErrorMessage();
   const format = useFormatter();
+
   const { members, pending, setRole, remove } = useMembers({
     organizationId,
     load: loadOrganizationMembers,
@@ -75,27 +80,40 @@ export function MemberTable({
       await memberChanged({ userId });
     },
   });
+
   const assignable = assignableRoles(myRole);
+
   const roleItems = assignable.map((role) => ({
     value: role,
     label: roleLabel(role),
   }));
+
   // Nobody changes their own role or an owner's here; ownership moves by transfer.
   const editable = (member: Member) =>
     member.userId !== currentUserId &&
     member.role !== "owner" &&
     assignable.includes(member.role);
+
   const busy = (member: Member) => pending.includes(member.userId);
 
   const changeRole = async (member: Member, role: Role) => {
     const result = await setRole(member.userId, role);
-    if (result.ok) toast.success(t("Role updated"));
-    else toast.error(errorMessage(result.error));
+
+    if (result.ok) {
+      toast.success(t("Role updated"));
+    } else {
+      toast.error(errorMessage(result.error));
+    }
   };
+
   const removeMember = async (member: Member) => {
     const result = await remove(member.userId);
-    if (result.ok) toast.success(t("Member removed"));
-    else toast.error(errorMessage(result.error));
+
+    if (result.ok) {
+      toast.success(t("Member removed"));
+    } else {
+      toast.error(errorMessage(result.error));
+    }
   };
 
   return (
@@ -129,13 +147,13 @@ export function MemberTable({
                   <span className="font-medium">
                     {member.name ?? member.email}
                     {member.userId === currentUserId ? (
-                      <span className="text-muted-foreground font-normal">
+                      <span className="font-normal text-muted-foreground">
                         {" "}
                         ({t("you")})
                       </span>
                     ) : null}
                   </span>
-                  <span className="text-muted-foreground text-xs">
+                  <span className="text-xs text-muted-foreground">
                     {member.email}
                   </span>
                 </div>
@@ -148,7 +166,9 @@ export function MemberTable({
                   items={roleItems}
                   disabled={busy(member)}
                   onValueChange={(value) => {
-                    if (v.is(Role, value)) void changeRole(member, value);
+                    if (v.is(Role, value)) {
+                      void changeRole(member, value);
+                    }
                   }}
                 >
                   <SelectTrigger
@@ -170,7 +190,7 @@ export function MemberTable({
                 <RoleBadge role={member.role} />
               )}
             </TableCell>
-            <TableCell className="text-muted-foreground hidden sm:table-cell">
+            <TableCell className="hidden text-muted-foreground sm:table-cell">
               {member.joinedAt
                 ? format.dateTime(new Date(member.joinedAt), {
                     dateStyle: "medium",

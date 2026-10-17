@@ -222,6 +222,7 @@ const KNOWN = new Set([
 
 function quoteOf(value: unknown): Quote {
   const row = recordOf(value, "quote");
+
   return compact<Quote>({
     id: textOf(row["id"]),
     organizationId: textOf(row["tenant_id"]),
@@ -259,6 +260,7 @@ function quoteOf(value: unknown): Quote {
 
 function publicOf(value: unknown): PublicQuote {
   const row = recordOf(value, "public_quote");
+
   return compact<PublicQuote>({
     identifier: textOf(row["identifier"]),
     revision: Number(row["revision"] ?? 1),
@@ -283,24 +285,29 @@ export function createQuotes<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: QuotesOptions<S>): Quotes<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const fields: BlockFields<F> = blockFields(options.fields, "quote fields");
+
   const quote = <T extends { readonly fields: object }>(
     fn: string,
     args: Readonly<Record<string, unknown>>,
     then: (value: unknown) => T,
   ) => call(fn, args, then).andThen((row) => readFields(fields, row));
+
   const attrsOf = (
     input: QuoteInput<F>,
     checked: Readonly<Record<string, unknown>> | undefined,
   ): Record<string, unknown> => {
     const { fields: _fields, ...rest } = input;
+
     return {
       ...attrsArg(rest),
       ...(checked === undefined ? {} : { fields: checked }),
     };
   };
+
   const client: Quotes<F> = {
     create: (organizationId, input, lines) =>
       writeFields(fields, input.fields, (checked) =>
@@ -366,6 +373,7 @@ export function createQuotes<
       ),
     expire: () => call("expire_quotes", {}, (value) => Number(value ?? 0)),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "quotes",
     ...(options.logger ? { logger: options.logger } : {}),

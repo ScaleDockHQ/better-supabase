@@ -68,9 +68,11 @@ describe("installed versions", () => {
     const peers = await declaredPeers();
     expect(peers).toHaveProperty("@supabase/supabase-js");
     const versions = await peerVersions(import.meta.dirname);
+
     const supabase = versions.find(
       (peer) => peer.name === "@supabase/supabase-js",
     );
+
     expect(supabase?.installed).toMatch(/^2\./);
   });
 });

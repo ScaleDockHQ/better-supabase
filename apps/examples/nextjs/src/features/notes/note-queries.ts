@@ -11,6 +11,7 @@ import { bs } from "@/lib/supabase/server";
 export async function getSimilarNotes() {
   "use cache: private";
   const { db } = await bs.cached();
+
   const source = await db.notes
     .findFirst({
       select: ["id", "body", "embedding"],
@@ -18,7 +19,11 @@ export async function getSimilarNotes() {
       orderBy: { id: "desc" },
     })
     .orThrow();
-  if (!source?.embedding) return null;
+
+  if (!source?.embedding) {
+    return null;
+  }
+
   const similar = await db
     .$search("notes", {
       vector: source.embedding,
@@ -27,5 +32,6 @@ export async function getSimilarNotes() {
       where: { id: { neq: source.id } },
     })
     .orThrow();
+
   return { source, similar };
 }

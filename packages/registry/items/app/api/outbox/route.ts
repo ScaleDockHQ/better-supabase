@@ -10,7 +10,9 @@ export const GET = outbox.relayRoute({
   secret: process.env.CRON_SECRET,
   consumers: {
     log: (events) => {
-      for (const event of events) console.info(event.type, event.id);
+      for (const event of events) {
+        console.info(event.type, event.id);
+      }
     },
   },
   onError: (error, consumer) => {

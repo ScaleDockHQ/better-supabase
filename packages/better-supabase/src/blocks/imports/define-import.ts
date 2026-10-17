@@ -46,9 +46,11 @@ export function suggestMapping(
 ): Readonly<Record<string, string | undefined>> {
   const byKey = new Map(fields.map((field) => [normalize(field), field]));
   const mapping: Record<string, string | undefined> = {};
+
   for (const header of headers) {
     mapping[header] = byKey.get(normalize(header));
   }
+
   return mapping;
 }
 
@@ -63,23 +65,38 @@ export async function dryRun<T>(
 ): Promise<DryRunResult<T>> {
   const table = parseCsv(csv);
   const [header, ...body] = table;
-  if (header === undefined) return { rows: [], errors: [] };
+
+  if (header === undefined) {
+    return { rows: [], errors: [] };
+  }
+
   const rows: T[] = [];
   const errors: ImportRowError[] = [];
+
   for (const [index, cells] of body.entries()) {
     const record: Record<string, string> = {};
+
     for (const [column, cell] of cells.entries()) {
       const name = mapping[header[column] ?? ""];
-      if (name !== undefined) record[name] = cell;
+
+      if (name !== undefined) {
+        record[name] = cell;
+      }
     }
+
     const parsed = await validate(
       definition.columns,
       record,
       `${definition.kind} row ${index + 2}`,
     );
-    if (parsed.ok) rows.push(parsed.data);
-    else errors.push({ row: index + 2, message: parsed.error.message });
+
+    if (parsed.ok) {
+      rows.push(parsed.data);
+    } else {
+      errors.push({ row: index + 2, message: parsed.error.message });
+    }
   }
+
   return { rows, errors };
 }
 
@@ -115,11 +132,14 @@ export async function runImport<T>(
 ): Promise<RunImportResult<T>> {
   const preview = await dryRun(definition, csv, mapping);
   const id = await hooks.start();
+
   if (preview.errors.length > 0) {
     const error = preview.errors
       .map((item) => `row ${item.row}: ${item.message}`)
       .join("; ");
+
     await hooks.finish(id, "failed", 0, error);
+
     return {
       id,
       status: "failed",
@@ -128,19 +148,29 @@ export async function runImport<T>(
       rows: [],
     };
   }
+
   const seen = new Set(hooks.importedKeys);
+
   const fresh = preview.rows.filter((row) => {
     const key = definition.key(row);
-    if (seen.has(key)) return false;
+
+    if (seen.has(key)) {
+      return false;
+    }
+
     seen.add(key);
+
     return true;
   });
+
   for (let index = 0; index < fresh.length; index += BATCH) {
     await definition.insert(fresh.slice(index, index + BATCH), {
       organizationId: hooks.organizationId,
     });
   }
+
   await hooks.finish(id, "completed", fresh.length, null);
+
   return {
     id,
     status: "completed",

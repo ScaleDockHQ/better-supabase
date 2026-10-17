@@ -37,7 +37,11 @@ const messageOf = (error: unknown): string =>
 /** The value of a convention field, for printing. */
 function fieldValue(preset: Preset, key: PresetFieldKey): string {
   const value = preset[key];
-  if (typeof value === "string") return value;
+
+  if (typeof value === "string") {
+    return value;
+  }
+
   return value.length === 0 ? "none" : value.join(", ");
 }
 
@@ -45,6 +49,7 @@ function fieldValue(preset: Preset, key: PresetFieldKey): string {
 function describe(resolved: ResolvedPreset): string[] {
   const { preset } = resolved;
   const width = Math.max(...PRESET_FIELDS.map((field) => field.key.length));
+
   const lines = [
     `Code: ${encodePreset(preset)}`,
     "",
@@ -58,6 +63,7 @@ function describe(resolved: ResolvedPreset): string[] {
       (block) => `  ${block.name}${block.selected ? "" : ` (${block.reason})`}`,
     ),
   ];
+
   if (resolved.conflicts.length > 0) {
     lines.push(
       "",
@@ -68,6 +74,7 @@ function describe(resolved: ResolvedPreset): string[] {
       ),
     );
   }
+
   return lines;
 }
 
@@ -96,10 +103,13 @@ function decode(value: string | undefined): CommandResult {
       error: `Name a preset, a code or a /create URL.\n${USAGE}`,
     };
   }
+
   let preset: Preset;
   let derived: readonly PresetFieldKey[] = [];
+
   try {
     const param = /[?&]preset=([^&#]+)/.exec(value)?.[1] ?? value;
+
     if (isPresetCode(param)) {
       const decoded = decodePreset(param);
       preset = decoded.preset;
@@ -110,14 +120,17 @@ function decode(value: string | undefined): CommandResult {
   } catch (error) {
     return { code: 2, error: messageOf(error) };
   }
+
   const resolved = resolvePreset(preset);
   const lines = describe(resolved);
+
   if (derived.length > 0) {
     lines.push(
       "",
       `The code predates ${listNames(derived)}, so they are at their defaults.`,
     );
   }
+
   return {
     code: resolved.conflicts.length > 0 ? 1 : 0,
     output: lines.join("\n"),
@@ -134,19 +147,26 @@ function drift(
   const fromPreset = new Set(Object.keys(base.blocks));
   const added = config.blockNames.filter((name) => !fromPreset.has(name));
   const changed: string[] = [];
+
   if ((base.casing ?? "snake") !== config.casing) {
     changed.push(
       `casing is ${config.casing}, the preset sets ${base.casing ?? "snake"}`,
     );
   }
+
   for (const name of fromPreset) {
     const own = config.blocks[name];
     const preset = base.blocks[name] ?? {};
+
     const keys = Object.keys(own ?? {}).filter(
       (key) => key !== "schema" && key !== "api" && !(key in preset),
     );
-    if (keys.length > 0) changed.push(`${name} sets ${keys.join(", ")}`);
+
+    if (keys.length > 0) {
+      changed.push(`${name} sets ${keys.join(", ")}`);
+    }
   }
+
   return { added, changed };
 }
 
@@ -159,14 +179,18 @@ function info(config: ResolvedConfig): CommandResult {
       data: { preset: null },
     };
   }
+
   let preset: Preset;
+
   try {
     preset = presetOf(config.preset);
   } catch (error) {
     return { code: 2, error: messageOf(error) };
   }
+
   const resolved = resolvePreset(preset);
   const { added, changed } = drift(config, resolved);
+
   const lines = [
     `Preset: ${config.preset}`,
     "",
@@ -178,6 +202,7 @@ function info(config: ResolvedConfig): CommandResult {
     ...added.map((name) => `  + ${name}`),
     ...changed.map((line) => `  ~ ${line}`),
   ];
+
   return {
     code: 0,
     output: lines.join("\n"),
@@ -190,15 +215,23 @@ export function runPreset(
   args: PresetOptions,
 ): CommandResult {
   const [action, value] = args._ ?? [];
+
   switch (action) {
-    case "decode":
+    case "decode": {
       return decode(value);
-    case "info":
+    }
+
+    case "info": {
       return info(config);
-    case undefined:
+    }
+
+    case undefined: {
       return { code: 2, error: `Name an action.\n${USAGE}` };
-    default:
+    }
+
+    default: {
       return { code: 2, error: `Unknown preset action "${action}".\n${USAGE}` };
+    }
   }
 }
 

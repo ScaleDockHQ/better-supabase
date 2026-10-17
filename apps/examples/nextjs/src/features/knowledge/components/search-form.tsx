@@ -18,6 +18,7 @@ export function SearchForm() {
   const errorMessage = useErrorMessage();
   const form = useActionForm(searchKnowledge, { resetOnSuccess: false });
   const error = form.error === undefined ? null : errorMessage(form.error);
+
   return (
     <div className="space-y-4">
       <form {...form.formProps} className="flex items-end gap-2">
@@ -36,7 +37,7 @@ export function SearchForm() {
         </Button>
       </form>
       {form.data === undefined ? null : form.data.length === 0 ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           {t(
             "Nothing matches yet. A new document is searchable once it is ready.",
           )}
@@ -46,7 +47,7 @@ export function SearchForm() {
           {form.data.map((hit) => (
             <li key={hit.id} className="space-y-1 px-4 py-3 text-sm">
               <p className="font-medium">{hit.title}</p>
-              <p className="text-muted-foreground line-clamp-3">
+              <p className="line-clamp-3 text-muted-foreground">
                 {hit.content}
               </p>
             </li>

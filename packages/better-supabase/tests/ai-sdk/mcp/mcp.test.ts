@@ -38,6 +38,7 @@ const {
 } = await import("../../../src/ai-sdk/mcp/index.ts");
 
 const AT = Temporal.Instant.from("2026-01-01T00:00:00Z");
+
 const CAPABILITIES = {
   userSubjects: true,
   authorization: false,
@@ -77,27 +78,31 @@ const grant = (credentialRef: CredentialRef) => ({
 
 function fakeVault() {
   const secrets = new Map<string, string>();
+
   const key = (ref: CredentialRef, subject?: { type: string; id?: string }) =>
     `${String(ref["secret"])}@${subject?.type === "user" ? subject.id : "app"}`;
+
   const vault = {
     apiVersion: 1,
     name: "vault",
     capabilities: () => CAPABILITIES,
     getToken: (ref, options) => {
       const value = secrets.get(key(ref, options.subject));
+
       return value === undefined
         ? AsyncResult.err({ kind: "not_found", message: "none", status: 404 })
         : AsyncResult.ok({ token: value, headers: {} });
     },
     set: (ref, value, options) => {
       secrets.set(key(ref, options?.subject), value);
+
       return AsyncResult.ok(undefined);
     },
-    revoke: (ref, options) => {
-      return AsyncResult.ok(secrets.delete(key(ref, options.subject)));
-    },
+    revoke: (ref, options) =>
+      AsyncResult.ok(secrets.delete(key(ref, options.subject))),
     verifyInbound: () => AsyncResult.ok(false),
   } satisfies VaultCredentials;
+
   return { vault, secrets };
 }
 
@@ -106,13 +111,16 @@ function fakeConnectors(status: FingerprintStatus = "approved") {
   const saved: unknown[] = [];
   const forgotten: unknown[] = [];
   const checked: unknown[] = [];
+
   let session:
     | { sessionId: string; initializeResult: Record<string, unknown> }
     | undefined;
+
   const connectors = {
     grants: {
       record: (...args: unknown[]) => {
         recorded.push(args);
+
         return AsyncResult.ok(grant(mcpOAuthRef("s1")));
       },
     },
@@ -123,20 +131,24 @@ function fakeConnectors(status: FingerprintStatus = "approved") {
         ),
       save: (...args: unknown[]) => {
         saved.push(args);
+
         return AsyncResult.ok(true);
       },
       forget: (...args: unknown[]) => {
         forgotten.push(args);
+
         return AsyncResult.ok(true);
       },
     },
     fingerprints: {
       check: (...args: unknown[]) => {
         checked.push(args);
+
         return AsyncResult.ok(status);
       },
     },
   } as unknown as Connectors;
+
   return {
     connectors,
     recorded,
@@ -158,6 +170,7 @@ const echo = tool({
 function fakeClient(sessionId: string | null = "sess-1") {
   const close = vi.fn(() => Promise.resolve());
   const elicit: { handler?: (request: unknown) => unknown } = {};
+
   const client = {
     initializeResult: { protocolVersion: "2025-11-25" },
     onElicitationRequest: (
@@ -192,12 +205,15 @@ function fakeClient(sessionId: string | null = "sess-1") {
       ),
     close,
   };
+
   mcp.createMCPClient.mockImplementation(
     (options: { transport: { onSessionIdChange?: (id?: string) => void } }) => {
       options.transport.onSessionIdChange?.(sessionId ?? undefined);
+
       return Promise.resolve(client);
     },
   );
+
   return { client, close, elicit };
 }
 
@@ -209,12 +225,14 @@ beforeEach(() => {
 describe("vaultOAuthProvider", () => {
   it("keeps tokens, verifier and state in one per-user secret", async () => {
     const { vault, secrets } = fakeVault();
+
     const provider = vaultOAuthProvider({
       vault,
       server: server({ clientMetadata: { logo_uri: "https://x/logo.png" } }),
       userId: "u1",
       redirectUrl: "https://app.test/callback",
     });
+
     expect(provider.redirectUrl).toBe("https://app.test/callback");
     expect(provider.clientMetadata).toMatchObject({
       redirect_uris: ["https://app.test/callback"],
@@ -240,6 +258,7 @@ describe("vaultOAuthProvider", () => {
       userId: "u1",
       redirectUrl: "https://app.test/callback",
     });
+
     expect((await fresh.tokens())?.access_token).toBe("at");
 
     await provider.redirectToAuthorization(new URL("https://auth.test/x"));
@@ -262,6 +281,7 @@ describe("vaultOAuthProvider", () => {
     const { vault, secrets } = fakeVault();
     secrets.set("mcp:s1@u1", "not json");
     secrets.set("mcp-client:s1@app", "[]");
+
     const provider = vaultOAuthProvider({
       vault: {
         ...vault,
@@ -277,6 +297,7 @@ describe("vaultOAuthProvider", () => {
       redirectUrl: "https://app.test/callback",
       clientMetadata: { redirect_uris: ["https://app.test/callback"] },
     });
+
     expect(provider.clientMetadata).toEqual({
       redirect_uris: ["https://app.test/callback"],
     });
@@ -309,9 +330,11 @@ describe("authorizeConnector and completeConnector", () => {
         provider.redirectToAuthorization(
           new URL("https://auth.test/authorize"),
         );
+
         return "REDIRECT";
       },
     );
+
     const options = {
       connectors: fake.connectors,
       vault,
@@ -319,6 +342,7 @@ describe("authorizeConnector and completeConnector", () => {
       userId: "u1",
       redirectUrl,
     };
+
     expect(await authorizeConnector(options).orThrow()).toEqual({
       url: "https://auth.test/authorize",
     });
@@ -331,6 +355,7 @@ describe("authorizeConnector and completeConnector", () => {
       ...options,
       callback: `${redirectUrl}?code=c&state=other`,
     });
+
     expect(mismatch.ok ? undefined : mismatch.error.message).toContain("state");
 
     mcp.auth.mockImplementationOnce(
@@ -340,6 +365,7 @@ describe("authorizeConnector and completeConnector", () => {
           token_type: "Bearer",
           expires_in: 3600,
         });
+
         return "AUTHORIZED";
       },
     );
@@ -353,12 +379,14 @@ describe("authorizeConnector and completeConnector", () => {
       callbackState: "st",
       callbackIssuer: "https://auth.test",
     });
+
     const [serverId, userId, ref, extra] = fake.recorded[0] as [
       string,
       string,
       CredentialRef,
       { expiresAt?: Temporal.Instant },
     ];
+
     expect([serverId, userId, ref]).toEqual(["s1", "u1", mcpOAuthRef("s1")]);
     expect(extra.expiresAt).toBeInstanceOf(Temporal.Instant);
   });
@@ -389,6 +417,7 @@ describe("authorizeConnector and completeConnector", () => {
 
   it("maps auth failures and callback errors", async () => {
     const { vault } = fakeVault();
+
     const options = {
       connectors: fakeConnectors().connectors,
       vault,
@@ -396,25 +425,32 @@ describe("authorizeConnector and completeConnector", () => {
       userId: "u1",
       redirectUrl,
     };
+
     mcp.auth.mockRejectedValue(new Error("discovery failed"));
     const started = await authorizeConnector(options);
     expect(started.ok ? undefined : started.error.hint).toBe(
       "CONNECTOR_AUTHORIZATION_FAILED",
     );
+
     const denied = await completeConnector({
       ...options,
       callback: `${redirectUrl}?error=access_denied`,
     });
+
     expect(denied.ok ? undefined : denied.error.message).toBe("access_denied");
+
     const noCode = await completeConnector({
       ...options,
       callback: redirectUrl,
     });
+
     expect(noCode.ok ? undefined : noCode.error.message).toContain("no code");
+
     const failed = await completeConnector({
       ...options,
       callback: `${redirectUrl}?code=c`,
     });
+
     expect(failed.ok ? undefined : failed.error.message).toBe(
       "discovery failed",
     );
@@ -425,9 +461,11 @@ describe("connectTools", () => {
   it("connects, splits app tools, saves the session and closes", async () => {
     const { close, elicit } = fakeClient();
     const fake = fakeConnectors();
+
     const elicitAnswer = vi.fn(() =>
       Promise.resolve({ action: "accept" as const, content: {} }),
     );
+
     const connected = await connectTools({
       connectors: fake.connectors,
       server: server(),
@@ -437,6 +475,7 @@ describe("connectTools", () => {
       prefix: "gh_",
       elicit: elicitAnswer,
     }).orThrow();
+
     expect(Object.keys(connected.tools)).toEqual(["gh_search"]);
     expect(Object.keys(connected.appTools)).toEqual(["gh_render"]);
     expect(connected.fingerprint).toMatch(/^sha256:[0-9a-f]{64}$/);
@@ -462,17 +501,20 @@ describe("connectTools", () => {
   it("keeps the tools schemas names and fingerprints every tool", async () => {
     fakeClient();
     const fake = fakeConnectors();
+
     const all = await connectTools({
       connectors: fake.connectors,
       server: server(),
       userId: "u1",
     }).orThrow();
+
     const typed = await connectTools({
       connectors: fake.connectors,
       server: server(),
       userId: "u1",
       schemas: { search: { inputSchema: jsonSchema({ type: "object" }) } },
     }).orThrow();
+
     expect(Object.keys(all.tools)).toEqual(["search", "render"]);
     expect(Object.keys(typed.tools)).toEqual(["search"]);
     expect(typed.fingerprint).toBe(all.fingerprint);
@@ -502,11 +544,13 @@ describe("connectTools", () => {
 
   it("blocks a changed tool list until an admin approves it", async () => {
     const { close } = fakeClient();
+
     const result = await connectTools({
       connectors: fakeConnectors("pending").connectors,
       server: server(),
       userId: "u1",
     });
+
     expect(result.ok ? undefined : result.error.hint).toBe(
       "CONNECTOR_TOOLS_CHANGED",
     );
@@ -516,12 +560,14 @@ describe("connectTools", () => {
   it("sends header credentials and other providers' grants", async () => {
     fakeClient();
     const tokens: unknown[] = [];
+
     const credentials: CredentialProvider = {
       apiVersion: 1,
       name: "fake",
       capabilities: () => CAPABILITIES,
       getToken: (ref, options) => {
         tokens.push([ref, options]);
+
         return AsyncResult.ok({
           token: "t",
           headers: { authorization: `Bearer ${ref.provider}` },
@@ -529,6 +575,7 @@ describe("connectTools", () => {
       },
       revoke: () => AsyncResult.ok(true),
     };
+
     const fake = fakeConnectors();
     await connectTools({
       connectors: fake.connectors,
@@ -539,6 +586,7 @@ describe("connectTools", () => {
       userId: "u1",
       credentials,
     }).orThrow();
+
     const foreign = await connectTools({
       connectors: fake.connectors,
       server: server({
@@ -548,6 +596,7 @@ describe("connectTools", () => {
       userId: "u1",
       credentials,
     });
+
     expect(foreign.ok ? undefined : foreign.error.hint).toBe(
       "CREDENTIAL_REF_FOREIGN",
     );
@@ -590,6 +639,7 @@ describe("connectTools", () => {
 
   it("explains what is missing before connecting", async () => {
     const { connectors } = fakeConnectors();
+
     const hints = await Promise.all(
       [
         { server: server({ enabled: false }) },
@@ -613,9 +663,11 @@ describe("connectTools", () => {
           server: target,
           userId: "u1",
         });
+
         return result.ok ? undefined : result.error.hint;
       }),
     );
+
     expect(hints).toEqual([
       "CONNECTOR_DISABLED",
       "CONNECTOR_NOT_AUTHORIZED",
@@ -629,21 +681,25 @@ describe("connectTools", () => {
   it("maps connection and listing failures", async () => {
     const { connectors } = fakeConnectors();
     mcp.createMCPClient.mockRejectedValueOnce(new Error("refused"));
+
     const refused = await connectTools({
       connectors,
       server: server(),
       userId: "u1",
     });
+
     expect(refused.ok ? undefined : refused.error.hint).toBe(
       "CONNECTOR_UNREACHABLE",
     );
     const { client, close } = fakeClient();
     client.listTools.mockRejectedValueOnce(new Error("boom"));
+
     const listed = await connectTools({
       connectors,
       server: server(),
       userId: "u1",
     });
+
     expect(listed.ok ? undefined : listed.error.message).toBe("boom");
     expect(close).toHaveBeenCalled();
   });
@@ -651,6 +707,7 @@ describe("connectTools", () => {
   it("closes the client when the fingerprint check fails", async () => {
     const { close } = fakeClient();
     const fake = fakeConnectors();
+
     const connectors = {
       ...fake.connectors,
       fingerprints: {
@@ -658,11 +715,13 @@ describe("connectTools", () => {
           AsyncResult.err({ kind: "forbidden", message: "no", status: 403 }),
       },
     } as unknown as Connectors;
+
     const result = await connectTools({
       connectors,
       server: server(),
       userId: "u1",
     });
+
     expect(result.ok).toBe(false);
     expect(close).toHaveBeenCalled();
   });
@@ -672,10 +731,12 @@ describe("connectAll", () => {
   it("merges prefixed tools and reports the servers it skipped", async () => {
     const { close } = fakeClient();
     const { connectors } = fakeConnectors();
+
     const all = await connectAll(
       [server(), server({ id: "s2", name: "Off", enabled: false })],
       { connectors, userId: "u1" },
     );
+
     expect(Object.keys(all.tools)).toEqual([
       "git_hub_search",
       "git_hub_render",

@@ -14,8 +14,10 @@ async function reachable(): Promise<boolean> {
     max: 1,
     connectionTimeoutMillis: 1000,
   });
+
   try {
     await pool.query("select 1");
+
     return true;
   } catch {
     return false;
@@ -43,6 +45,7 @@ async function inTransaction<T>(
   run: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
   const client = await pool.connect();
+
   try {
     await client.query("begin");
     await client.query(
@@ -50,9 +53,15 @@ async function inTransaction<T>(
        values ($1, $2, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000')`,
       [USER, `access-${USER}@example.test`],
     );
-    if (setup) await client.query(setup);
-    for (const file of renderModules(names, layout))
+
+    if (setup) {
+      await client.query(setup);
+    }
+
+    for (const file of renderModules(names, layout)) {
       await client.query(file.contents);
+    }
+
     return await run(client);
   } finally {
     await client.query("rollback");
@@ -89,6 +98,7 @@ describe.skipIf(!live)("access contract against the local database", () => {
           [ORG, USER],
         );
         await asUser(client, { platform_permissions: ["support.*"] });
+
         const { rows } = await client.query<Record<string, unknown>>(
           `select better_supabase.can('organization', $1, 'members.invite') as invite,
           better_supabase.can('organization', $1, 'organization.delete') as delete,
@@ -101,9 +111,11 @@ describe.skipIf(!live)("access contract against the local database", () => {
           better_supabase.permission_claims($2) -> $1::text as claims`,
           [ORG, USER],
         );
+
         return rows[0]!;
       },
     );
+
     expect(row).toMatchObject({
       invite: true,
       delete: false,
@@ -132,8 +144,10 @@ describe.skipIf(!live)("access contract against the local database", () => {
           "insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, 'admin')",
           [ORG, USER],
         );
+
         const answers = async (claims: Record<string, unknown>) => {
           await asUser(client, claims);
+
           const { rows } = await client.query<Record<string, unknown>>(
             `select better_supabase.can('organization', $1, 'members.invite') as invite,
             better_supabase.can('organization', $1, 'audit.read') as audit,
@@ -141,8 +155,10 @@ describe.skipIf(!live)("access contract against the local database", () => {
             better_supabase.member_can($2, $1, 'audit.read') as member`,
             [ORG, USER],
           );
+
           return rows[0]!;
         };
+
         return {
           own: await answers({}),
           delegated: await answers({
@@ -155,6 +171,7 @@ describe.skipIf(!live)("access contract against the local database", () => {
         };
       },
     );
+
     expect(rows.own).toMatchObject({ invite: true, audit: true, ids: [ORG] });
     expect(rows.delegated).toMatchObject({
       invite: true,
@@ -184,6 +201,7 @@ describe.skipIf(!live)("access contract against the local database", () => {
       insert into public.bs_access_user_roles values ('${USER}', '${SUPPORT_ROLE}');
       insert into public.bs_access_organization_users (user_id, organization_id, role_id) values ('${USER}', '${ORG}', '${ADMIN_ROLE}');
     `;
+
     const layout: ModuleLayout = {
       modules: {
         tenant: {
@@ -213,6 +231,7 @@ describe.skipIf(!live)("access contract against the local database", () => {
         },
       },
     };
+
     const [before, after] = await inTransaction(
       pool,
       setup,
@@ -224,6 +243,7 @@ describe.skipIf(!live)("access contract against the local database", () => {
           "select set_config('better_supabase.tenant', $1, true)",
           [ORG],
         );
+
         const query = `select better_supabase.can('organization', $1, 'organization.members.invite') as invite,
             better_supabase.can('organization', $1, 'organization.billing.manage') as billing,
             better_supabase.is_platform('system.users.manage') as platform,
@@ -231,21 +251,26 @@ describe.skipIf(!live)("access contract against the local database", () => {
             better_supabase.has_organization_role($1, '{admin}') as admin,
             better_supabase.permission_claims($2) as claims,
             better_supabase.membership_claims($2) as memberships`;
+
         const first = await client.query<Record<string, unknown>>(query, [
           ORG,
           USER,
         ]);
+
         await client.query(
           "update public.bs_access_organizations set disabled_at = now() where id = $1",
           [ORG],
         );
+
         const second = await client.query<Record<string, unknown>>(query, [
           ORG,
           USER,
         ]);
+
         return [first.rows[0]!, second.rows[0]!];
       },
     );
+
     expect(before).toEqual({
       invite: true,
       billing: false,
@@ -275,18 +300,22 @@ describe.skipIf(!live)("access contract against the local database", () => {
           "select set_config('better_supabase.tenant', $1, true)",
           [crypto.randomUUID()],
         );
+
         const { rows } = await client.query<{ id: string | null }>(
           "select better_supabase.current_tenant_id() as id",
         );
+
         return rows[0]!.id;
       },
     );
+
     expect(active).toBeNull();
   });
 
   it("disables tenants and users through active rows", async () => {
     const SUSPENDED = crypto.randomUUID();
     const MISSING = crypto.randomUUID();
+
     const row = await inTransaction(
       pool,
       `create table public.bs_active_tenants (id uuid primary key, state text not null);
@@ -324,14 +353,17 @@ describe.skipIf(!live)("access contract against the local database", () => {
               [ORG, SUSPENDED, MISSING, USER],
             )
           ).rows[0]!;
+
         const before = await read();
         await client.query(
           "update public.bs_active_users set banned_at = now() where id = $1",
           [USER],
         );
+
         return { before, after: await read() };
       },
     );
+
     expect(row.before).toEqual({
       active_tenant: false,
       closed_tenant: true,
@@ -363,6 +395,7 @@ describe.skipIf(!live)("access contract against the local database", () => {
       },
       async (client) => {
         await asUser(client);
+
         const { rows } = await client.query<Record<string, unknown>>(
           `select better_supabase.can('organization', $1, 'ok') as yes,
             better_supabase.can('organization', $1, 'no') as no,
@@ -370,9 +403,11 @@ describe.skipIf(!live)("access contract against the local database", () => {
             array(select better_supabase.tenant_ids_with('ok')) as ids`,
           [ORG],
         );
+
         return rows[0]!;
       },
     );
+
     expect(row).toEqual({ yes: true, no: false, platform: true, ids: [ORG] });
   });
 });

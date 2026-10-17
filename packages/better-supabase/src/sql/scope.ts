@@ -64,10 +64,12 @@ const SIGNED_IN = `(${CALLER} is not null)`;
 
 export function moduleScope(source: ModuleScopeSource): ModuleScope {
   const { kind, idType } = source;
+
   const platform = (permission: string): string =>
     kind === "tenant" || source.access
       ? `better_supabase.is_platform(${permission})`
       : "false";
+
   switch (kind) {
     case "tenant": {
       return {
@@ -88,6 +90,7 @@ export function moduleScope(source: ModuleScopeSource): ModuleScope {
         members: () => `${source.members()}()`,
       };
     }
+
     case "user": {
       return {
         kind,
@@ -105,8 +108,10 @@ export function moduleScope(source: ModuleScopeSource): ModuleScope {
         members: () => `unnest(array[${CALLER}])`,
       };
     }
+
     case "none": {
       const none = `unnest(case when ${CALLER} is null then '{}'::${idType}[] else array[null::${idType}] end)`;
+
       return {
         kind,
         idType,
@@ -122,6 +127,7 @@ export function moduleScope(source: ModuleScopeSource): ModuleScope {
         members: () => none,
       };
     }
+
     default: {
       const never: never = kind;
       throw new TypeError(`Unknown scope "${String(never)}"`);

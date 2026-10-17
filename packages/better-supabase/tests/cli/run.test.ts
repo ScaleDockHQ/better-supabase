@@ -49,6 +49,7 @@ describe("run", () => {
       "--cwd",
       dir,
     ]);
+
     expect(missing).toEqual({
       code: 2,
       stdout: "",
@@ -113,6 +114,7 @@ describe("run", () => {
         }),
       "Usage: better-supabase legacy",
     );
+
     const result = await run([
       "legacy",
       "one",
@@ -124,6 +126,7 @@ describe("run", () => {
       "--cwd",
       dir,
     ]);
+
     expect(JSON.parse(result.stdout)).toEqual({
       rest: ["one"],
       flags: { only: ["a", "b"], check: true, out: "x.json", cwd: dir },
@@ -190,6 +193,7 @@ describe("run", () => {
     registerCommand("legacy-flags", ({ args }) =>
       Promise.resolve({ code: 0, output: JSON.stringify(args) }),
     );
+
     const result = await run([
       "legacy-flags",
       "--out=a.json",
@@ -200,6 +204,7 @@ describe("run", () => {
       "--",
       "--raw",
     ]);
+
     expect(JSON.parse(result.stdout)).toEqual({
       command: "legacy-flags",
       rest: ["-h2", "--raw"],
@@ -215,10 +220,12 @@ describe("run", () => {
     // oxlint-disable-next-line typescript/no-deprecated -- tests the deprecated overload.
     registerCommand("explode", () => Promise.reject(new Error("boom")));
     const lines: string[] = [];
+
     const result = await run(["explode", "--cwd", dir], {
       env: ENV,
       io: io({ stderr: (text) => lines.push(text) }),
     });
+
     expect(result).toEqual({ code: 1, stdout: "", stderr: "boom\n" });
     expect(lines).toEqual(["boom\n"]);
   });
@@ -226,6 +233,7 @@ describe("run", () => {
   it("introspects a hosted project and checks the saved snapshot", async () => {
     const api = emptyProject();
     vi.stubGlobal("fetch", api.fetch);
+
     const introspect = (...argv: string[]) =>
       run(["introspect", "--project-ref", "abc", ...argv, "--cwd", dir], {
         env: ENV,
@@ -247,7 +255,7 @@ describe("run", () => {
     });
 
     const path = join(dir, "supabase/snapshot.json");
-    await writeFile(path, `${await readFile(path, "utf8")} `);
+    await writeFile(path, `${await readFile(path, "utf-8")} `);
     expect(await introspect("--check")).toMatchObject({
       code: 1,
       stderr:
@@ -257,6 +265,7 @@ describe("run", () => {
 
   it("writes generator metadata restricted to the configured schemas", async () => {
     vi.stubGlobal("fetch", emptyProject().fetch);
+
     const result = await run(
       [
         "introspect",
@@ -271,10 +280,15 @@ describe("run", () => {
       ],
       { env: ENV, io: io() },
     );
+
     expect(result.stdout).toBe("Wrote meta.json (0 tables).\n");
-    const meta = JSON.parse(await readFile(join(dir, "meta.json"), "utf8")) as {
+
+    const meta = JSON.parse(
+      await readFile(join(dir, "meta.json"), "utf-8"),
+    ) as {
       schemas: unknown[];
     };
+
     expect(meta.schemas).toEqual([]);
   });
 
@@ -282,13 +296,19 @@ describe("run", () => {
     let failing = true;
     let printed = false;
     const controller = new AbortController();
+
     const api = fakeFetch((call) => {
-      if (printed && call.body?.includes("t_enums")) controller.abort();
+      if (printed && call.body?.includes("t_enums")) {
+        controller.abort();
+      }
+
       return failing ? { status: 500, text: "upstream down" } : { body: [] };
     });
+
     vi.stubGlobal("fetch", api.fetch);
     const stdout: string[] = [];
     const stderr: string[] = [];
+
     const result = await run(
       [
         "gen",
@@ -315,6 +335,7 @@ describe("run", () => {
         }),
       },
     );
+
     expect(result.code).toBe(0);
     expect(stderr).toHaveLength(1);
     expect(stderr[0]).toContain("500");
@@ -329,14 +350,24 @@ describe("run", () => {
   it("watches the catalog fingerprint and reads the schema only when it changes", async () => {
     const controller = new AbortController();
     let polls = 0;
+
     const api = fakeFetch((call) => {
-      if (!call.body?.includes("as fingerprint")) return { body: [] };
+      if (!call.body?.includes("as fingerprint")) {
+        return { body: [] };
+      }
+
       polls += 1;
-      if (polls === 6) controller.abort();
+
+      if (polls === 6) {
+        controller.abort();
+      }
+
       return { body: [{ fingerprint: polls < 4 ? "a" : "b" }] };
     });
+
     vi.stubGlobal("fetch", api.fetch);
     const stdout: string[] = [];
+
     const result = await run(
       [
         "gen",
@@ -354,6 +385,7 @@ describe("run", () => {
         io: io({ stdout: (text) => stdout.push(text) }),
       },
     );
+
     expect(result.code).toBe(0);
     expect(
       api.calls.filter((call) => call.body?.includes("t_enums")),
@@ -370,14 +402,17 @@ describe("run", () => {
 } }] };\n`,
     );
     const controller = new AbortController();
+
     const api = fakeFetch((call) =>
       call.body?.includes("as fingerprint")
         ? { body: [{ fingerprint: "a" }] }
         : { body: [] },
     );
+
     vi.stubGlobal("fetch", api.fetch);
     const stdout: string[] = [];
     const stderr: string[] = [];
+
     const result = await run(
       [
         "gen",
@@ -401,6 +436,7 @@ describe("run", () => {
         }),
       },
     );
+
     expect(result.code).toBe(0);
     expect(stderr).toEqual([`generator "flaky" failed: flaky failed\n`]);
     expect(stdout[0]).toContain("Generated 0 tables");
@@ -425,6 +461,7 @@ describe("run", () => {
       ).fetch,
     );
     const stdout: string[] = [];
+
     const result = await run(
       [
         "gen",
@@ -442,10 +479,13 @@ describe("run", () => {
         io: io({
           stdout: (text) => {
             stdout.push(text);
+
             if (stdout.length === 2) {
               controller.abort();
+
               return;
             }
+
             writeFileSync(
               configPath,
               `export default { output: "b/generated.ts" };\n`,
@@ -456,6 +496,7 @@ describe("run", () => {
         }),
       },
     );
+
     expect(result.code).toBe(0);
     expect(stdout[0]).toContain("a/generated.ts");
     expect(stdout[1]).toContain("  b/generated.ts\n");
@@ -472,6 +513,7 @@ describe("run", () => {
         ["gen", "--watch", "--interval", interval, "--cwd", dir],
         { env: ENV },
       );
+
       expect(result.code).toBe(2);
       expect(result.stderr).toContain("--interval");
     }
@@ -481,6 +523,7 @@ describe("run", () => {
     vi.stubGlobal("fetch", emptyProject().fetch);
     const controller = new AbortController();
     const started = Date.now();
+
     const result = await run(
       ["gen", "--watch", "--project-ref", "abc", "--cwd", dir],
       {
@@ -494,6 +537,7 @@ describe("run", () => {
         }),
       },
     );
+
     expect(result.code).toBe(0);
     expect(Date.now() - started).toBeLessThan(2000);
   });
@@ -532,6 +576,7 @@ describe("run", () => {
       dir,
       "--json",
     ]);
+
     expect(missing.code).toBe(2);
     expect(JSON.parse(missing.stdout)).toMatchObject({
       code: "config_not_found",
@@ -542,6 +587,7 @@ describe("run", () => {
     const env = await run(["sql", "list", "--cwd", dir], {
       env: { DATABASE_URL: "not a url" },
     });
+
     expect(env.code).toBe(2);
     expect(env.stderr).toMatch(
       /^Invalid environment variable:\n {2}DATABASE_URL: /,
@@ -575,7 +621,7 @@ describe("run", () => {
     const synced = await run(["sql", "sync", "--cwd", dir]);
     expect(synced).toMatchObject({ code: 0, stderr: "" });
     const path = /Wrote (\S+) \(grants\)/.exec(synced.stdout)?.[1];
-    const grants = await readFile(join(dir, path!), "utf8");
+    const grants = await readFile(join(dir, path!), "utf-8");
     expect(grants).toContain(
       'grant select, update ("username", "first_name") on table "public"."profiles" to authenticated;',
     );
@@ -597,15 +643,18 @@ describe("run", () => {
           }),
       }),
     );
+
     const prompts: CliIo["prompts"] = {
       confirm: () => Promise.resolve(true),
       spinner: () => () => {},
       select: () => Promise.reject(new Error("unused")),
       multiselect: () => Promise.reject(new Error("unused")),
     };
+
     const ask = async (argv: string[], env = {}) =>
       (await run(["asks", "--cwd", dir, ...argv], { env, io: io({ prompts }) }))
         .stdout;
+
     expect(await ask([])).toBe("prompts\n");
     expect(await ask(["--yes"])).toBe("no prompts\n");
     expect(await ask(["-y"])).toBe("no prompts\n");
@@ -619,6 +668,7 @@ describe("run", () => {
     const empty = await run(["seed", "--db-url-stdin", "--cwd", dir], {
       io: io({ stdin: () => Promise.resolve("  \n") }),
     });
+
     expect(empty.code).toBe(2);
     expect(empty.stderr).toMatch(/^--db-url-stdin read nothing from stdin/);
   });

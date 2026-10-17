@@ -15,7 +15,11 @@ const operation = (
   id: string,
 ) => {
   const found = model.operations.find((entry) => entry.id === id);
-  if (!found) throw new Error(`no operation ${id}`);
+
+  if (!found) {
+    throw new Error(`no operation ${id}`);
+  }
+
   return found;
 };
 
@@ -31,6 +35,7 @@ describe("buildApiModel: resources", () => {
       info,
       resources: { customers: true },
     });
+
     expect(model.schemas["CustomersRow"]).toMatchObject({
       description: "Companies the organization sells to.",
       properties: { name: { description: "Trading name." } },
@@ -51,11 +56,13 @@ describe("buildApiModel: resources", () => {
       defaultSort: "name",
       pagination: "cursor",
     });
+
     const { model } = buildApiModel(betterSupabase, {
       info,
       basePath: "/api/",
       resources: { customers: { list, operations: ["list"] } },
     });
+
     const listOp = operation(model, "listCustomers");
     expect(listOp.path).toBe("/api/customers");
     expect(listOp.parameters.map((parameter) => parameter.name)).toEqual([
@@ -80,6 +87,7 @@ describe("buildApiModel: resources", () => {
         source.kind === "resource" ? `api_${defaultId}` : defaultId,
       extensionPrefix: "x-crm-",
     });
+
     expect(model.schemas["NoteRow"]).toMatchObject({
       examples: [{ id: "n1" }],
     });
@@ -105,6 +113,7 @@ describe("buildApiModel: resources", () => {
       type: "object",
       properties: { name: { type: "string" } },
     });
+
     const { model, diagnostics } = buildApiModel(betterSupabase, {
       info,
       resources: {
@@ -115,6 +124,7 @@ describe("buildApiModel: resources", () => {
         },
       },
     });
+
     expect(model.schemas["NewCustomer"]).toEqual({
       type: "object",
       properties: { name: { type: "string" } },
@@ -147,6 +157,7 @@ describe("buildApiModel: resources", () => {
         },
       },
     });
+
     expect(diagnostics).toContainEqual(
       expect.objectContaining({
         code: "component-conflict",
@@ -184,6 +195,7 @@ describe("buildApiModel: resources", () => {
         },
       },
     });
+
     const send = operation(model, "sendCustomers");
     expect(send).toMatchObject({
       method: "post",
@@ -225,6 +237,7 @@ describe("buildApiModel: resources", () => {
         },
       },
     });
+
     const get = operation(model, "getNotes");
     expect(get.responses["404"]).toEqual({ ref: "Gone" });
     expect(model.responses["Gone"]).toMatchObject({ description: "Gone." });
@@ -238,10 +251,12 @@ describe("buildApiModel: resources", () => {
   it("marks operations of a deprecated table", () => {
     const deprecated = structuredClone(betterSupabase.meta);
     Object.assign(deprecated.tables["notes"]!, { deprecated: true });
+
     const { model } = buildApiModel(
       { meta: deprecated },
       { info, resources: { notes: { operations: ["get"] } } },
     );
+
     expect(operation(model, "getNotes").deprecated).toBe(true);
     expect(model.schemas["NotesRow"]).toMatchObject({ deprecated: true });
   });
@@ -282,6 +297,7 @@ describe("buildApiModel: routes", () => {
         { method: "delete", path: "/cache/{key}", status: 202 },
       ],
     });
+
     const run = operation(model, "postReportsReportIdRun");
     expect(run).toMatchObject({
       path: "/api/reports/{reportId}/run",
@@ -330,11 +346,13 @@ describe("buildApiModel: routes", () => {
         routes: [{ method: "fetch", path: "/x" }],
       }),
     ).toThrow('unknown method "fetch"');
+
     const { diagnostics } = buildApiModel(betterSupabase, {
       info,
       resources: { notes: { operations: ["get"] } },
       routes: [{ method: "get", path: "/x", operationId: "getNotes" }],
     });
+
     expect(diagnostics).toContainEqual(
       expect.objectContaining({
         code: "operation-id-duplicate",
@@ -367,6 +385,7 @@ describe("buildApiModel: security presets", () => {
       ],
       supabaseUrl: "https://abc.supabase.co/",
     });
+
     expect(model.securitySchemes["supabaseOAuth"]).toMatchObject({
       type: "oauth2",
       metadataUrl:
@@ -395,7 +414,10 @@ describe("buildApiModel: permissions", () => {
   const authorizer = defineAuthorizer<{ readonly id: string }>({
     name: "test",
     key: (ref) => {
-      if (ref.id === "broken") throw new Error("no key");
+      if (ref.id === "broken") {
+        throw new Error("no key");
+      }
+
       return `perm:${ref.id}`;
     },
     forOperation: (table, op) =>
@@ -412,6 +434,7 @@ describe("buildApiModel: permissions", () => {
       },
       routes: [{ method: "post", path: "/sync", permission: { id: "sync" } }],
     });
+
     const get = operation(model, "getNotes");
     expect(get.permission).toBe("perm:notes.get");
     expect(get.extensions["x-better-supabase-permission"]).toBe(
@@ -438,18 +461,21 @@ describe("buildApiModel: permissions", () => {
         notes: { operations: ["get"], permissions: { get: { id: "broken" } } },
       },
     });
+
     expect(diagnostics).toContainEqual(
       expect.objectContaining({
         code: "permission-unresolved",
         severity: "error",
       }),
     );
+
     const plain = buildApiModel<{ readonly id: string }>(betterSupabase, {
       info,
       resources: {
         notes: { operations: ["get"], permissions: { get: { id: "x" } } },
       },
     });
+
     expect(plain.diagnostics).toContainEqual(
       expect.objectContaining({ code: "permission-unresolved" }),
     );
@@ -471,6 +497,7 @@ describe("buildApiModel: permissions", () => {
         { method: "get", path: "/open", permission: "open.read", security: [] },
       ],
     });
+
     expect(model.securitySchemes["supabaseOAuth"]).toMatchObject({
       flows: {
         authorizationCode: {
@@ -501,6 +528,7 @@ describe("buildApiModel: permissions", () => {
         { method: "post", path: "/write" },
       ],
     });
+
     expect(
       diagnostics
         .filter((diagnostic) => diagnostic.code === "permission-missing")
@@ -541,6 +569,7 @@ describe("buildApiModel: enrich and passthrough", () => {
         workflow: (workflow) => ({ ...workflow, summary: "W" }),
       },
     });
+
     expect(model.schemas["NotesRow"]).toMatchObject({ title: "Note" });
     expect(model.schemas["NotesInsert"]).not.toHaveProperty("title");
     expect(operation(model, "getNotes").summary).toBe("Get a notes row!");

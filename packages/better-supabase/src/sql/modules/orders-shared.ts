@@ -41,11 +41,13 @@ const ORDER_STATUS_EDGES: Readonly<Record<string, readonly string[]>> = {
 /** Minutes a placed order holds its stock for payment. Default 30. */
 export function paymentWindow(ctx: ModuleContext): number {
   const minutes = ctx.number("paymentWindowMinutes", 30);
-  if (!Number.isInteger(minutes) || minutes < 1 || minutes > 10080) {
+
+  if (!Number.isInteger(minutes) || minutes < 1 || minutes > 10_080) {
     throw new TypeError(
       "blocks.orders.options.paymentWindowMinutes must be a whole number of minutes from 1 to 10080",
     );
   }
+
   return minutes;
 }
 
@@ -78,14 +80,26 @@ export function asService(statements: string): string {
 
 /** Whether a `state-machine` machine governs the orders status column. */
 function machineGoverns(ctx: ModuleContext): boolean {
-  if (!ctx.installed("state-machine")) return false;
+  if (!ctx.installed("state-machine")) {
+    return false;
+  }
+
   const raw = ctx.of("state-machine").option("machines");
-  if (!isRecord(raw)) return false;
+
+  if (!isRecord(raw)) {
+    return false;
+  }
+
   const { schema, name } = ctx.tableName("orders");
   const column = ctx.col("orders", "status").replaceAll('"', "");
+
   return Object.values(raw).some((entry: unknown) => {
-    if (!isRecord(entry)) return false;
+    if (!isRecord(entry)) {
+      return false;
+    }
+
     const table = entry["table"];
+
     return (
       (table === `${schema}.${name}` ||
         (schema === "public" && table === name)) &&
@@ -99,11 +113,22 @@ function sequenceFormat(
   ctx: ModuleContext,
   entity: "order" | "invoice",
 ): string | undefined {
-  if (!ctx.installed("number-sequences")) return undefined;
+  if (!ctx.installed("number-sequences")) {
+    return undefined;
+  }
+
   const entities = ctx.of("number-sequences").option("entities");
-  if (!isRecord(entities)) return undefined;
+
+  if (!isRecord(entities)) {
+    return undefined;
+  }
+
   const entry = entities[entity];
-  if (!isRecord(entry) || typeof entry["format"] !== "string") return undefined;
+
+  if (!isRecord(entry) || typeof entry["format"] !== "string") {
+    return undefined;
+  }
+
   return entry["format"];
 }
 
@@ -120,13 +145,17 @@ export function assignNumber(
   target: { readonly seq: string; readonly number: string },
 ): string {
   const format = sequenceFormat(ctx, entity);
+
   if (format !== undefined) {
     const next = ctx.of("number-sequences").fn("next_number");
+
     return `${target.seq} := ${next}(${tenant}, ${sqlString(entity)}, now());
   ${target.number} := better_supabase.format_assigned_number(${sqlString(format)}, ${target.seq}, now());`;
   }
+
   const o = columns(ctx, "orders");
   const column = entity === "order" ? o("sequence") : o("invoiceSequence");
+
   return `perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(${tenant}::text || ':orders:${entity}', 0));
   select coalesce(max(x.${column}), 0) + 1 into ${target.seq} from ${ctx.table("orders")} x where x.${o("tenant")} = ${tenant};
   ${target.number} := ${target.seq}::text;`;
@@ -143,13 +172,16 @@ export function transitionFunction(
 ): string {
   const o = columns(ctx, "orders");
   const governed = machineGoverns(ctx);
+
   const edges = Object.entries(ORDER_STATUS_EDGES)
     .map(
       ([from, to]) =>
         `    when ${sqlString(from)} then p_to = any (${sqlString(`{${to.join(",")}}`)}::text[])`,
     )
     .join("\n");
+
   const fn = names.fn("order_transition");
+
   return `
 -- Moves an order to p_to and stamps when it happened. Internal: the order
 -- functions call it after their own checks.
@@ -200,12 +232,14 @@ export function orderPayload(
     `'id', ${row}.id`,
     ...extra.map(([key, value]) => `'${key}', ${value}`),
   ];
+
   return `jsonb_build_object(${parts.join(", ")})`;
 }
 
 /** SQL `select` list that loads an order into a record with stable field names. */
 export function orderFields(ctx: ModuleContext, alias: string): string {
   const o = columns(ctx, "orders");
+
   return [
     ["id", "id"],
     ["tenant", "tenant"],

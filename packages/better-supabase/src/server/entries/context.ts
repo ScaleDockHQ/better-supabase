@@ -38,12 +38,14 @@ export function withServerContext<
     run: () => (request, ctx) => {
       const call = callOf(ctx);
       const options = call?.options ?? {};
+
       const bs = core.context(
         ctx.session,
         request,
         ctx.support ? { ...options, support: ctx.support } : options,
         ctx.tenant,
       );
+
       return Promise.resolve({ bs });
     },
   })();

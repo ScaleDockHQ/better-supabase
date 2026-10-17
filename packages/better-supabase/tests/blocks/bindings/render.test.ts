@@ -8,7 +8,7 @@ describe("block bindings", () => {
     for (const file of await renderBindings()) {
       expect({
         path: file.path,
-        contents: await readFile(file.path, "utf8"),
+        contents: await readFile(file.path, "utf-8"),
       }).toEqual({ path: file.path, contents: file.contents });
     }
   });
@@ -17,6 +17,7 @@ describe("block bindings", () => {
     const hooks = (await readBlocks()).flatMap((block) =>
       block.controllers.map((binding) => binding.hook),
     );
+
     expect(hooks).toContain("useUndoStack");
     expect(hooks).toContain("useOnboarding");
     expect(new Set(hooks).size).toBe(hooks.length);
@@ -46,6 +47,7 @@ export function createProbeController<
 >(options: ProbeOptions<T>): ProbeController<T> {
 `,
     );
+
     expect(parsed.controllers).toEqual([
       {
         factory: "createProbeController",

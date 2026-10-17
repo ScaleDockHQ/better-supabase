@@ -10,9 +10,11 @@ import { stackDbUrl, stackUrl } from "./stack-env.ts";
 
 const url = stackUrl();
 const dbUrl = stackDbUrl();
+
 const publishableKey =
   process.env["SUPABASE_PUBLISHABLE_KEY"] ??
   "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";
+
 const secretKey =
   process.env["SUPABASE_SECRET_KEY"] ??
   "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -27,6 +29,7 @@ async function reachable(): Promise<boolean> {
     const response = await fetch(`${url}/storage/v1/status`, {
       signal: AbortSignal.timeout(1000),
     });
+
     return response.ok;
   } catch {
     return false;
@@ -60,9 +63,11 @@ describe.skipIf(!live)("Storage module", async () => {
         signLocalJwt({ sub: USER, role: "authenticated", tenant_id: ACME }),
     }),
   );
+
   const service = createClient(url, secretKey, {
     auth: { persistSession: false },
   });
+
   const admin = logos.connect(service);
   const publicAdmin = avatars.connect(service);
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
@@ -76,7 +81,11 @@ describe.skipIf(!live)("Storage module", async () => {
       organizationId: ACME,
       customerId: CUSTOMER,
     });
-    if (all.ok) await admin.remove(all.data.map((object) => object.path));
+
+    if (all.ok) {
+      await admin.remove(all.data.map((object) => object.path));
+    }
+
     await publicAdmin.remove([
       { organizationId: ACME, file: `${CUSTOMER}.webp` },
     ]);
@@ -92,6 +101,7 @@ describe.skipIf(!live)("Storage module", async () => {
       "select public, file_size_limit, allowed_mime_types from storage.buckets where id = $1",
       [logos.id],
     );
+
     const row = rows[0]!;
     expect(
       logos.drift({
@@ -107,30 +117,35 @@ describe.skipIf(!live)("Storage module", async () => {
       { organizationId: ACME, customerId: CUSTOMER, version: "v1" },
       image("one"),
     );
+
     expect(own).toEqual(ok({ path: `${ACME}/${CUSTOMER}/logo/v1.webp` }));
 
     const other = await user.upload(
       { organizationId: OTHER, customerId: CUSTOMER, version: "v1" },
       image("x"),
     );
+
     expect(other.error?.kind).toBe("forbidden");
 
     const outside = await user.upload(
       `${ACME}/${CUSTOMER}/elsewhere.webp`,
       image("x"),
     );
+
     expect(outside.error).toMatchObject({ kind: "invalid_input" });
 
     const conflict = await user.upload(
       { organizationId: ACME, customerId: CUSTOMER, version: "v1" },
       image("again"),
     );
+
     expect(conflict.error?.kind).toBe("conflict");
 
     const wrongType = await user.upload(
       { organizationId: ACME, customerId: CUSTOMER, version: "v9" },
       new Blob(["x"], { type: "text/plain" }),
     );
+
     expect(wrongType.error).toMatchObject({
       kind: "invalid_input",
       status: 415,
@@ -143,6 +158,7 @@ describe.skipIf(!live)("Storage module", async () => {
       customerId: CUSTOMER,
       version: "v1",
     };
+
     const signed = await user.signedUrl(target, { ttl: "minute" }).orThrow();
     expect(await (await fetch(signed)).text()).toBe("one");
     expect(await user.exists(target).orThrow()).toBe(true);
@@ -150,9 +166,11 @@ describe.skipIf(!live)("Storage module", async () => {
       false,
     );
     expect(await (await user.download(target).orThrow()).text()).toBe("one");
+
     const rendered = new URL(
       await user.renderUrl(target, { width: 64, height: 64 }).orThrow(),
     );
+
     // `/object/sign/` when the stack has image transformations disabled
     // (no imgproxy), `/render/image/sign/` when they're on.
     expect(rendered.pathname).toMatch(
@@ -169,6 +187,7 @@ describe.skipIf(!live)("Storage module", async () => {
       customerId: CUSTOMER,
       version: "v1",
     };
+
     const copy = { ...target, version: "copy" };
     const moved = { ...target, version: "moved" };
     expect(await user.copy(target, copy).orThrow()).toEqual({
@@ -185,9 +204,11 @@ describe.skipIf(!live)("Storage module", async () => {
     await publicAdmin.upload(target, image("face"), { upsert: true }).orThrow();
     const object = publicAdmin.publicUrl(target).data!;
     expect(await (await fetch(object)).text()).toBe("face");
+
     const rendered = await publicAdmin
       .renderUrl(target, { width: 128, quality: 60 })
       .orThrow();
+
     expect(rendered).toBe(
       `${url}/storage/v1/render/image/public/bs-it-avatars/${ACME}/${CUSTOMER}.webp?width=128&quality=60`,
     );
@@ -202,7 +223,9 @@ describe.skipIf(!live)("Storage module", async () => {
       customerId: CUSTOMER,
       version: "v1",
     }).data!;
+
     let stored = v1;
+
     const replaced = await user
       .replace(
         { organizationId: ACME, customerId: CUSTOMER, version: "v2" },
@@ -215,6 +238,7 @@ describe.skipIf(!live)("Storage module", async () => {
         },
       )
       .orThrow();
+
     expect(replaced).toEqual({
       path: `${ACME}/${CUSTOMER}/logo/v2.webp`,
       removed: v1,
@@ -230,6 +254,7 @@ describe.skipIf(!live)("Storage module", async () => {
           err({ kind: "conflict", message: "row changed", status: 409 }),
       },
     );
+
     expect(failed.error?.message).toBe("row changed");
     expect(
       await user
@@ -243,6 +268,7 @@ describe.skipIf(!live)("Storage module", async () => {
     const reservation = await user
       .reserve({ organizationId: ACME, customerId: CUSTOMER, version: "r1" })
       .orThrow();
+
     expect(reservation.path).toBe(`${ACME}/${CUSTOMER}/logo/r1.webp`);
     await user.uploadReserved(reservation, image("reserved")).orThrow();
     expect(await user.exists(reservation.path).orThrow()).toBe(true);
@@ -258,6 +284,7 @@ describe.skipIf(!live)("Storage module", async () => {
     expect(listed[0]).toMatchObject({ contentType: "image/webp" });
 
     const keep = `${ACME}/${CUSTOMER}/logo/v2.webp`;
+
     const dry = await user
       .sweep({
         within,
@@ -266,11 +293,13 @@ describe.skipIf(!live)("Storage module", async () => {
         dryRun: true,
       })
       .orThrow();
+
     expect(dry).toEqual({
       scanned: 2,
       orphans: [`${ACME}/${CUSTOMER}/logo/r1.webp`],
       removed: [],
     });
+
     const young = await user
       .sweep({
         within,
@@ -278,7 +307,9 @@ describe.skipIf(!live)("Storage module", async () => {
         referenced: () => [],
       })
       .orThrow();
+
     expect(young.orphans).toEqual([]);
+
     const swept = await user
       .sweep({
         within,
@@ -286,6 +317,7 @@ describe.skipIf(!live)("Storage module", async () => {
         referenced: (paths) => paths.filter((path) => path === keep),
       })
       .orThrow();
+
     expect(swept.removed).toEqual([`${ACME}/${CUSTOMER}/logo/r1.webp`]);
     expect(
       (await user.list(within).orThrow()).map((object) => object.path),

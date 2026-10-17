@@ -21,10 +21,14 @@ const TIME_CLAIMS = new Set(["exp", "iat", "nbf", "jti"]);
 export function identityKey(
   snapshot: ReturnType<UserChangeSource["current"]>,
 ): string | null {
-  if (!snapshot.user) return null;
+  if (!snapshot.user) {
+    return null;
+  }
+
   const claims = Object.entries(snapshot.claims ?? {})
     .filter(([key]) => !TIME_CLAIMS.has(key))
     .toSorted(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+
   return JSON.stringify([snapshot.user.id, claims]);
 }
 
@@ -50,10 +54,13 @@ export function clearOnUserChange(
 ): () => void {
   let identity: string | null | undefined;
   let before: Map<string, number> | undefined;
+
   const bsQueries = () =>
     queryClient.getQueryCache().findAll({ queryKey: ["bs"] });
+
   const check = (): void => {
     const snapshot = auth.current();
+
     if (snapshot.status === "loading") {
       before ??= new Map(
         bsQueries().map((query) => [
@@ -61,13 +68,17 @@ export function clearOnUserChange(
           query.state.dataUpdatedAt,
         ]),
       );
+
       return;
     }
+
     const next = identityKey(snapshot);
+
     if (identity !== undefined && identity !== next) {
       void queryClient.resetQueries({ queryKey: ["bs"] });
     } else if (identity === undefined && next !== null && before) {
       const known = before;
+
       const fetchedAsAnon = new Set(
         bsQueries()
           .filter(
@@ -77,6 +88,7 @@ export function clearOnUserChange(
           )
           .map((query) => query.queryHash),
       );
+
       if (fetchedAsAnon.size > 0) {
         void queryClient.resetQueries({
           queryKey: ["bs"],
@@ -84,10 +96,13 @@ export function clearOnUserChange(
         });
       }
     }
+
     before = undefined;
     identity = next;
   };
+
   const stop = auth.subscribe(check);
   check();
+
   return stop;
 }

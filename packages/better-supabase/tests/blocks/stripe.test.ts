@@ -23,6 +23,7 @@ describe("stripeClient", () => {
 
   it("creates one from the stripe package with the fetch HTTP client", async () => {
     const made: unknown[] = [];
+
     class Stripe {
       constructor(key: string, options: unknown) {
         made.push([key, options]);
@@ -31,10 +32,12 @@ describe("stripeClient", () => {
         return "fetch";
       }
     }
+
     const created = await stripeClient(
       { secretKey: "sk_test", apiVersion: "2026-09-30" },
       () => Promise.resolve({ default: Stripe }),
     );
+
     expect(created).toBeInstanceOf(Stripe);
     expect(made).toEqual([
       ["sk_test", { httpClient: "fetch", apiVersion: "2026-09-30" }],
@@ -63,10 +66,13 @@ describe("a client factory", () => {
   it("runs on every use, sync or async, so each call can pick its client", async () => {
     const other = { customers: {} } as unknown as StripeClient;
     let calls = 0;
+
     const factory = () => {
       calls += 1;
+
       return calls === 1 ? client : Promise.resolve(other);
     };
+
     expect(await stripeClient(factory)).toBe(client);
     const lazy = lazyStripe(factory);
     expect(calls).toBe(1);

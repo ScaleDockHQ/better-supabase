@@ -16,16 +16,19 @@ describe("requestOf claims", () => {
       actor: { id: USER, kind: "user", role: "authenticated" },
       claims,
     });
+
     expect(subject.type).toBe("user");
     expect(subject.properties).toEqual({ role: "authenticated", claims });
   });
 
   it("passes the claims, including act, to an agent", () => {
     const delegated = { ...claims, act: { sub: "agent-1" } };
+
     const { subject } = requestOf({
       actor: { id: USER, kind: "user" },
       claims: delegated,
     });
+
     expect(subject.type).toBe("agent");
     expect(subject.properties?.["claims"]).toEqual(delegated);
   });
@@ -45,15 +48,18 @@ describe("requestOf claims", () => {
     const { subject } = requestOf({
       actor: { id: USER, kind: "user" },
     });
+
     expect(subject.properties).toEqual({});
   });
 
   it("returns a read-only copy", () => {
     const context = { actor: { id: USER, kind: "user" as const }, claims };
+
     const copy = requestOf(context).subject.properties?.["claims"] as Record<
       string,
       unknown
     >;
+
     expect(copy).not.toBe(claims);
     expect(() => {
       copy["roles"] = ["owner"];

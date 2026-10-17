@@ -21,13 +21,26 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 /** A `set` value: a literal, `null`, or `{ sql }` with `{row}` for the row. */
 function valueSql(at: string, value: unknown): string {
-  if (value === null) return "null";
-  if (typeof value === "string") return sqlString(value);
-  if (typeof value === "number" && Number.isFinite(value)) return String(value);
-  if (typeof value === "boolean") return String(value);
+  if (value === null) {
+    return "null";
+  }
+
+  if (typeof value === "string") {
+    return sqlString(value);
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+
+  if (typeof value === "boolean") {
+    return String(value);
+  }
+
   if (isRecord(value) && typeof value["sql"] === "string") {
     return `(${value["sql"].replaceAll("{row}", "r")})`;
   }
+
   throw new TypeError(
     `${at} must be a string, number, boolean, null or { sql: "<expression>" }`,
   );
@@ -36,20 +49,28 @@ function valueSql(at: string, value: unknown): string {
 function rulesOf(ctx: ModuleContext): readonly AnonymizeRule[] {
   const where = "blocks.data-lifecycle.options.anonymize";
   const value = ctx.option("anonymize");
-  if (value === undefined) return [];
+
+  if (value === undefined) {
+    return [];
+  }
+
   if (!Array.isArray(value)) {
     throw new TypeError(
       `${where} must be a list of { table, after, from, set, markedBy, unless? }`,
     );
   }
+
   const ident = (at: string, name: unknown): string => {
     if (typeof name !== "string" || !IDENT.test(name)) {
       throw new TypeError(`${at} must be a lowercase column name`);
     }
+
     return name;
   };
+
   return value.map((rule: unknown, index): AnonymizeRule => {
     const at = `${where}[${String(index)}]`;
+
     if (
       !isRecord(rule) ||
       typeof rule["table"] !== "string" ||
@@ -60,13 +81,16 @@ function rulesOf(ctx: ModuleContext): readonly AnonymizeRule[] {
         `${at} must be { table: "schema.table", after: "<interval>", from: "<column>", set: { column: value }, markedBy: "<column>", unless?: "<condition on {row}>" }`,
       );
     }
+
     const unless = rule["unless"];
+
     if (
       unless !== undefined &&
       (typeof unless !== "string" || !unless.includes("{row}"))
     ) {
       throw new TypeError(`${at}.unless must be a condition on {row}`);
     }
+
     const set = Object.entries(rule["set"]).map(
       ([column, item]) =>
         [
@@ -74,10 +98,13 @@ function rulesOf(ctx: ModuleContext): readonly AnonymizeRule[] {
           valueSql(`${at}.set.${column}`, item),
         ] as const,
     );
+
     if (set.length === 0) {
       throw new TypeError(`${at}.set must name at least one column`);
     }
+
     const [schema, table] = splitTable(rule["table"]);
+
     return {
       name: `${schema}.${table}`,
       table: `${sqlIdent(schema)}.${sqlIdent(table)}`,
@@ -98,6 +125,7 @@ function rulesOf(ctx: ModuleContext): readonly AnonymizeRule[] {
 export function anonymizeSql(ctx: ModuleContext): string {
   const fn = ctx.fn("anonymize_due");
   const rules = rulesOf(ctx);
+
   const blocks = rules.map(
     (rule) => `
   with due as (
@@ -121,6 +149,7 @@ export function anonymizeSql(ctx: ModuleContext): string {
   select count(*) into v_count from done;
   v_done := v_done || jsonb_build_object(${sqlString(rule.name)}, v_count);`,
   );
+
   return `
 -- Anonymizes the rows blocks.data-lifecycle.options.anonymize names once
 -- their time is up (service role): at most max_rows per rule, each row once,

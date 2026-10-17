@@ -14,6 +14,7 @@ async function reachable(): Promise<boolean> {
       headers: { apikey: process.env["SUPABASE_PUBLISHABLE_KEY"] ?? "" },
       signal: AbortSignal.timeout(1000),
     });
+
     return response.status < 500;
   } catch {
     return false;
@@ -60,6 +61,7 @@ describe.skipIf(!live)("Express example against the local stack", () => {
     const response = await asMember(`/customers/${USER}/archive`, {
       method: "POST",
     });
+
     expect(response.status).toBe(403);
   });
 

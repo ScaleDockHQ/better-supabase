@@ -80,19 +80,26 @@ async function addBlocks(
     names,
     deps,
   );
-  if (added.code !== 0) return added;
+
+  if (added.code !== 0) {
+    return added;
+  }
+
   const lines = [added.output ?? ""];
   const project = await detectProject(config.root);
   const context = templateContextFor(project, config.output);
+
   const resolved = resolvePreset({
     ...DEFAULT_CONVENTIONS,
     blocks: [...config.blockNames, ...names],
   });
+
   const wanted = new Set(
     resolvePreset({ ...DEFAULT_CONVENTIONS, blocks: names }).manifests.map(
       (manifest) => manifest.name,
     ),
   );
+
   const clients = resolved.manifests.flatMap((manifest) =>
     manifest.client === null || !wanted.has(manifest.name)
       ? []
@@ -106,14 +113,20 @@ async function addBlocks(
           },
         ],
   );
+
   if (clients.length > 0) {
     const wiring = blocksWiringPath(context);
     const path = resolve(config.root, wiring);
     const current = await readIfExists(path);
+
     const edit =
       current === undefined ? undefined : addBlocksToWiring(current, clients);
+
     if (edit?.ok === true && edit.text !== current) {
-      if (args["dry-run"] !== true) await writeFile(path, edit.text);
+      if (args["dry-run"] !== true) {
+        await writeFile(path, edit.text);
+      }
+
       lines.push(
         "",
         `${args["dry-run"] === true ? "Would wire" : "Wired"} ${clients.map((client) => client.key).join(", ")} in ${wiring}.`,
@@ -129,12 +142,15 @@ async function addBlocks(
       );
     }
   }
+
   const frameworks = PRESET_FRAMEWORKS.filter(
     (framework) =>
       config.integrations.some((name) => name === framework) ||
       project.frameworks.some((name) => name === framework),
   );
+
   const installed = new Set(resolved.blocks.map((block) => block.name));
+
   const glue = PRESET_CATALOG.glue.filter(
     (item) =>
       item.preset === undefined &&
@@ -144,9 +160,11 @@ async function addBlocks(
         frameworks.some((each) => each === framework),
       ),
   );
+
   if (glue.length > 0) {
     lines.push("", `Glue for ${frameworks.join(", ")}: ${glueCommand(glue)}`);
   }
+
   return { code: 0, output: lines.join("\n") };
 }
 
@@ -175,6 +193,7 @@ export async function runAdd(
   if (args._.length > 0 && args.framework === undefined) {
     return addBlocks(config, args, args._, deps);
   }
+
   if (args.framework !== undefined) {
     return addIntegrations(
       config,
@@ -182,6 +201,7 @@ export async function runAdd(
       prompts,
     );
   }
+
   return addIntegrations(config, args, prompts);
 }
 
@@ -193,35 +213,54 @@ async function addIntegrations(
   const project = await detectProject(config.root);
   const templateContext = templateContextFor(project, config.output);
   const fromConfig = args._.length === 0 && config.integrations.length > 0;
+
   const missing = config.integrations.filter((name) =>
     integrationFiles([name], templateContext).some(
       (file) => !existsSync(resolve(config.root, file.path)),
     ),
   );
-  if (fromConfig && missing.length === 0)
+
+  if (fromConfig && missing.length === 0) {
     return {
       code: 0,
       output: `Every integration in the config is set up: ${config.integrations.join(", ")}.`,
     };
+  }
+
   const named = fromConfig
     ? missing
     : args._.length === 0 && prompts
       ? await chooseIntegrations(prompts, [])
       : args._;
-  if (named === undefined) return CANCELLED;
-  if (named.length === 0)
+
+  if (named === undefined) {
+    return CANCELLED;
+  }
+
+  if (named.length === 0) {
     return {
       code: 2,
       error: `Name at least one integration (${INTEGRATIONS.join(", ")}), or list them in integrations in the config.`,
     };
+  }
+
   const requested = parseIntegrations(named);
-  if (typeof requested === "string") return { code: 2, error: requested };
+
+  if (typeof requested === "string") {
+    return { code: 2, error: requested };
+  }
+
   const integrations = resolveIntegrations(requested);
   const files = integrationFiles(integrations, templateContext);
   const force = await overwrite(config.root, files, args, prompts);
-  if (force === undefined) return CANCELLED;
+
+  if (force === undefined) {
+    return CANCELLED;
+  }
+
   const lines = await writeFiles(config.root, files, args, force);
   const lib = libEntry(templateContext);
+
   if (
     !existsSync(resolve(config.root, lib)) &&
     integrations.some((name) => needsLib([name]))
@@ -231,26 +270,36 @@ async function addIntegrations(
       `Warning: ${lib} is missing. Run \`better-supabase init\` first.`,
     );
   }
+
   const packages = packagesFor(project, integrations).filter(
     (name) => name !== "better-supabase" && name !== "@supabase/supabase-js",
   );
-  if (packages.length > 0)
+
+  if (packages.length > 0) {
     lines.push(
       "",
       `Install: ${installCommand(project.packageManager, packages)}`,
     );
-  for (const name of integrations) {
-    for (const hint of TEMPLATES[name].next ?? []) lines.push(`- ${hint}`);
   }
+
+  for (const name of integrations) {
+    for (const hint of TEMPLATES[name].next ?? []) {
+      lines.push(`- ${hint}`);
+    }
+  }
+
   const unlisted = integrations.filter(
     (name) => !config.integrations.includes(name),
   );
-  if (unlisted.length > 0)
+
+  if (unlisted.length > 0) {
     lines.push(
       "",
       "Add them to your config so `better-supabase add` sets them up in a fresh checkout:",
       `  integrations: [${[...config.integrations, ...unlisted].map((name) => `'${name}'`).join(", ")}]`,
     );
+  }
+
   return { code: 0, output: lines.join("\n") };
 }
 

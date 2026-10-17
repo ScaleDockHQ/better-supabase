@@ -21,21 +21,25 @@ import { READ_ONLY_GUARD } from "./drive-kit.ts";
 /** `jsonb_build_object` of an approval row, with stable keys. */
 export function approvalJson(names: AiChatNames, row: string): string {
   const a = names.c.approvals;
+
   return `jsonb_build_object('approval_id', ${row}.${a.id}, 'chat_id', ${row}.${a.chat}, 'run_id', ${row}.${a.run}, 'message_id', ${row}.${a.message}, 'tool', ${row}.${a.tool}, 'tool_call_id', ${row}.${a.toolCall}, 'input', ${row}.${a.input}, 'decision', ${row}.${a.decision}, 'reason', ${row}.${a.reason}, 'signature', ${row}.${a.signature}, 'decided_by', ${row}.${a.decidedBy}, 'decided_at', ${row}.${a.decidedAt}, 'created_at', ${row}.${a.createdAt})`;
 }
 
 function inputJson(names: AiChatNames, row: string): string {
   const i = names.c.inputs;
+
   return `jsonb_build_object('id', ${row}.${i.id}, 'chat_id', ${row}.${i.chat}, 'run_id', ${row}.${i.run}, 'tool_call_id', ${row}.${i.toolCall}, 'question', ${row}.${i.question}, 'schema', ${row}.${i.schema}, 'answer', ${row}.${i.answer}, 'answered_at', ${row}.${i.answeredAt}, 'created_at', ${row}.${i.createdAt})`;
 }
 
 function modelJson(names: AiChatNames, row: string): string {
   const mo = names.c.models;
+
   return `jsonb_build_object('model_id', ${row}.${mo.id}, 'provider', ${row}.${mo.provider}, 'name', ${row}.${mo.name}, 'pricing', ${row}.${mo.pricing}, 'capabilities', ${row}.${mo.capabilities}, 'plans', to_jsonb(${row}.${mo.plans}), 'enabled', ${row}.${mo.enabled}, 'refreshed_at', ${row}.${mo.refreshedAt})`;
 }
 
 function moderationJson(names: AiChatNames, row: string): string {
   const md = names.c.moderation;
+
   return `jsonb_build_object('id', ${row}.${md.id}, 'organization_id', ${row}.${md.tenant}, 'chat_id', ${row}.${md.chat}, 'message_id', ${row}.${md.message}, 'user_id', ${row}.${md.user}, 'stage', ${row}.${md.stage}, 'category', ${row}.${md.category}, 'score', ${row}.${md.score}, 'action', ${row}.${md.action}, 'created_at', ${row}.${md.createdAt})`;
 }
 
@@ -47,6 +51,7 @@ function toolApprover(
 ): ApproverCheck | undefined {
   const a = names.c.approvals;
   const ch = names.c.chats;
+
   return approverCheck(ctx, layout, {
     kind: AI_TOOL_APPROVAL,
     subject: `v_row.${a.tool}`,
@@ -65,10 +70,15 @@ function approver(
   check: ApproverCheck | undefined,
 ): string {
   const a = names.c.approvals;
-  if (check === undefined) return `v_row.${a.owner} = (select auth.uid())`;
+
+  if (check === undefined) {
+    return `v_row.${a.owner} = (select auth.uid())`;
+  }
+
   const distinct = check.distinct
     ? `v_row.${a.owner} is distinct from (select auth.uid()) and `
     : "";
+
   return `(select auth.uid()) is not null and ${distinct}coalesce((${check.sql}), false)`;
 }
 
@@ -83,20 +93,26 @@ function approvals(
   const a = names.c.approvals;
   const po = names.c.policies;
   const i = names.c.inputs;
+
   const can = (tenant: string, permission: string): string =>
     ctx.scope.can(tenant, permission);
+
   const provider = toolApprover(ctx, names, layout);
+
   const linked =
     ctx.installed("approvals") && ctx.of("approvals").mode !== "custom"
       ? ctx.of("approvals")
       : undefined;
+
   const serviceOnly = raise(
     "Only the server records this",
     "42501",
     "AI_CHAT_FORBIDDEN",
   );
+
   const chatTenant = (chat: string): string =>
     `(select c.${ch.tenant} from ${t.chats} c where c.${ch.id} = ${chat})`;
+
   const policyEvent = ctx.record({
     type: "ai_tool_policy.set",
     payload:
@@ -110,6 +126,7 @@ function approvals(
       recordId: "set_ai_tool_policy.tool",
     },
   });
+
   const decidedEvent = ctx.record({
     type: "ai_tool_approval.decided",
     payload: `jsonb_build_object('organizationId', ${chatTenant(`v_row.${a.chat}`)}::text, 'chatId', v_row.${a.chat}, 'approvalId', v_row.${a.id}, 'tool', v_row.${a.tool}, 'decision', v_decision)`,
@@ -396,8 +413,10 @@ function sharing(ctx: ModuleContext, names: AiChatNames): string {
   const m = names.c.messages;
   const f = names.c.feedback;
   const sh = names.c.shares;
+
   const can = (tenant: string, permission: string): string =>
     ctx.scope.can(tenant, permission);
+
   const shared = ctx.record({
     type: "ai_chat.shared",
     payload: `jsonb_build_object('chatId', v_chat.${ch.id}, 'shareId', v_id, 'organizationId', v_chat.${ch.tenant}::text, 'ownerId', v_chat.${ch.owner}, 'leafId', v_leaf)`,
@@ -410,6 +429,7 @@ function sharing(ctx: ModuleContext, names: AiChatNames): string {
       recordId: "v_id::text",
     },
   });
+
   const revoked = ctx.record({
     type: "ai_chat.share_revoked",
     payload: `jsonb_build_object('chatId', v_chat.${ch.id}, 'shareId', revoke_ai_chat_share.id, 'organizationId', v_chat.${ch.tenant}::text, 'ownerId', v_chat.${ch.owner})`,
@@ -421,6 +441,7 @@ function sharing(ctx: ModuleContext, names: AiChatNames): string {
       recordId: "revoke_ai_chat_share.id::text",
     },
   });
+
   const hash = (token: string): string =>
     `encode(sha256(convert_to(${token}, 'UTF8')), 'hex')`;
 
@@ -578,12 +599,16 @@ function catalog(ctx: ModuleContext, names: AiChatNames): string {
   const ch = names.c.chats;
   const mo = names.c.models;
   const md = names.c.moderation;
+
   const can = (tenant: string, permission: string): string =>
     ctx.scope.can(tenant, permission);
+
   const entitled = ctx.entitlements("v_tenant");
+
   const planned = entitled
     ? `(v_tenant is not null and x.${mo.plans} && ${entitled})`
     : "false";
+
   const serviceOnly = raise(
     "Only the server records this",
     "42501",

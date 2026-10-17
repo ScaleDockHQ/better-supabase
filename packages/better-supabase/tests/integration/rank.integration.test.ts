@@ -86,6 +86,7 @@ describe.skipIf(!live)("rank keys in Postgres", () => {
 
   const one = async <T>(sql: string, values: unknown[] = []): Promise<T> => {
     const { rows } = await client.query<{ value: T }>(sql, values);
+
     return rows[0]!.value;
   };
 
@@ -94,12 +95,15 @@ describe.skipIf(!live)("rank keys in Postgres", () => {
     values: unknown[] = [],
   ): Promise<PgError> => {
     await client.query("savepoint attempt");
+
     try {
       await client.query(sql, values);
     } catch (cause) {
       await client.query("rollback to savepoint attempt");
+
       return cause as PgError;
     }
+
     throw new Error(`expected ${sql} to fail`);
   };
 
@@ -125,12 +129,16 @@ describe.skipIf(!live)("rank keys in Postgres", () => {
     client = await pool.connect();
     await client.query("begin");
     await client.query(TABLE);
+
     for (const file of renderModules(
       ["rank", "state-machine", "tags", "custom-fields"],
       layout,
     )) {
-      if (file.kind !== "test") await client.query(file.contents);
+      if (file.kind !== "test") {
+        await client.query(file.contents);
+      }
     }
+
     await client.query(
       `insert into rank_it.deals (id, organization_id, rank)
        select 'd' || n, '${ACME}', better_supabase.rank_key(n, 4) from generate_series(1, 4) n`,
@@ -165,6 +173,7 @@ describe.skipIf(!live)("rank keys in Postgres", () => {
         "select better_supabase.rank_between($1, $2)",
         [previous, next],
       );
+
       expect(error.hint).toMatch(/^RANK_KEY_(INVALID|ORDER)$/);
     },
   );
@@ -190,11 +199,13 @@ describe.skipIf(!live)("rank keys in Postgres", () => {
       "Zz",
       "0001",
     ];
+
     for (const last of lasts) {
       expect(
         await one(`select ${rankAfter("$1::text")} as value`, [last]),
       ).toBe(rankBetween(last, null));
     }
+
     expect(await one(`select ${rankAfter("$1::text")} as value`, [null])).toBe(
       "V",
     );
@@ -214,9 +225,11 @@ describe.skipIf(!live)("rank keys in Postgres", () => {
   it("changes the group through the state-machine trigger", async () => {
     await move("d3", null, null, "won");
     expect(await deals()).toContainEqual({ id: "d3", stage: "won" });
+
     const back = await failure(
       "select better_supabase.move('deal', 'd3', null, null, 'lead')",
     );
+
     expect(back.message).toMatch(/transition|not allowed/i);
   });
 
@@ -225,6 +238,7 @@ describe.skipIf(!live)("rank keys in Postgres", () => {
       "00000000-0000-4000-8000-0000000000a1",
       "00000000-0000-4000-8000-0000000000a2",
     ];
+
     await client.query(
       `insert into rank_it.tickets values ('t1', '${ACME}', $1, 'V'), ('t2', '${ACME}', $2, 'V')`,
       [from, to],
@@ -247,9 +261,11 @@ describe.skipIf(!live)("rank keys in Postgres", () => {
     expect(
       await one("select lane::text as value from rank_it.bugs where id = 'b1'"),
     ).toBe("done");
+
     const bad = await failure(
       "select better_supabase.move('bug', 'b1', null, null, 'nope')",
     );
+
     expect(bad.message).toMatch(/invalid input value for enum/);
   });
 
@@ -257,15 +273,18 @@ describe.skipIf(!live)("rank keys in Postgres", () => {
     const error = await failure(
       "select better_supabase.move('deal', 'd1', 'd3', null, null)",
     );
+
     expect(error.hint).toBe("RANK_NEIGHBOR_MISMATCH");
   });
 
   it("runs as the caller, so policies hide other tenants' rows", async () => {
     await client.query("set local role authenticated");
+
     try {
       const hidden = await failure(
         "select better_supabase.move('deal', 'x1', null, null, null)",
       );
+
       expect(hidden.hint).toBe("RANK_FORBIDDEN");
       expect(typeof (await move("d2", null, "d1"))).toBe("string");
     } finally {
@@ -274,7 +293,10 @@ describe.skipIf(!live)("rank keys in Postgres", () => {
   });
 
   it("rebalances long keys to short ones in the same order", async () => {
-    for (let step = 0; step < 40; step += 1) await move("d2", "d1", "d4");
+    for (let step = 0; step < 40; step += 1) {
+      await move("d2", "d1", "d4");
+    }
+
     await move("d2", "d4", null);
     const before = (await deals()).map((deal) => deal.id);
     expect(
@@ -295,18 +317,23 @@ describe.skipIf(!live)("rank keys in Postgres", () => {
     await client.query(
       `select set_config('request.jwt.claims', '{"role":"service_role"}', true)`,
     );
+
     const first = await one<{ rank: string }>(
       `select rank_it.create_tag($1, 'deal', 'Hot', null, null) as value`,
       [ACME],
     );
+
     const second = await one<{ rank: string; id: string }>(
       `select rank_it.create_tag($1, 'deal', 'Cold', null, null) as value`,
       [ACME],
     );
+
     expect([first.rank, second.rank]).toEqual(["V", "k"]);
+
     const invalid = await failure("select rank_it.rank_tag($1, 'V0')", [
       second.id,
     ]);
+
     expect(invalid.hint).toBe("TAG_RANK_INVALID");
     expect(
       await one("select rank_it.rank_tag($1, 'F') as value", [second.id]),
@@ -344,13 +371,19 @@ create table rank_up.tags (
 insert into rank_up.tags (tenant_id, kind, name, slug, position) values
   ('${ACME}', 'deal', 'b', 'b', 2), ('${ACME}', 'deal', 'a', 'a', 1),
   ('${ACME}', 'deal', 'c', 'c', 2), ('${ACME}', 'note', 'z', 'z', 0);`);
+
     const [plan] = upgradePlan([{ module: "tags", version: 1 }], {
       modules: { tags: { schema: "rank_up" } },
     });
-    for (const step of plan!.steps) await client.query(step.sql);
+
+    for (const step of plan!.steps) {
+      await client.query(step.sql);
+    }
+
     const { rows } = await client.query<{ name: string; rank: string }>(
       `select name, rank from rank_up.tags order by kind, rank collate "C"`,
     );
+
     expect(rows).toEqual([
       { name: "a", rank: "0001V" },
       { name: "b", rank: "0002V" },

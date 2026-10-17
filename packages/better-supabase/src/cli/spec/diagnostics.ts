@@ -35,12 +35,18 @@ export const SPEC_CLI_CODES: Readonly<Record<string, string>> = {
 /** True when the diagnostic fails the run under `failOn`. */
 export function fails(diagnostic: SpecDiagnostic, failOn: FailOn): boolean {
   switch (failOn) {
-    case "error":
+    case "error": {
       return diagnostic.severity === "error";
-    case "warning":
+    }
+
+    case "warning": {
       return diagnostic.severity !== "info";
-    case "never":
+    }
+
+    case "never": {
       return false;
+    }
+
     default: {
       const unknown: never = failOn;
       throw new Error(`Unknown fail-on level: ${String(unknown)}`);
@@ -88,9 +94,13 @@ export function buildManifest(
   ok: boolean,
 ): SpecManifest {
   const summary = { error: 0, warning: 0, info: 0 };
-  for (const output of outputs)
-    for (const diagnostic of output.diagnostics)
+
+  for (const output of outputs) {
+    for (const diagnostic of output.diagnostics) {
       summary[diagnostic.severity] += 1;
+    }
+  }
+
   return {
     $schema: MANIFEST_SCHEMA,
     version: 1,
@@ -111,18 +121,26 @@ const HEADINGS: Readonly<Record<DiagnosticSeverity, string>> = {
 /** Findings grouped by severity, each line naming the output, the code and the pointer. */
 export function formatDiagnostics(outputs: readonly ManifestOutput[]): string {
   const sections: string[] = [];
+
   for (const severity of ["error", "warning", "info"] as const) {
     const lines: string[] = [];
-    for (const output of outputs)
-      for (const diagnostic of output.diagnostics)
-        if (diagnostic.severity === severity)
+
+    for (const output of outputs) {
+      for (const diagnostic of output.diagnostics) {
+        if (diagnostic.severity === severity) {
           lines.push(
             `  ${output.path} ${diagnostic.code}${diagnostic.pointer ? ` at ${diagnostic.pointer}` : ""}: ${diagnostic.message}`,
           );
-    if (lines.length > 0)
+        }
+      }
+    }
+
+    if (lines.length > 0) {
       sections.push(
         `${HEADINGS[severity]} (${lines.length}):\n${lines.join("\n")}`,
       );
+    }
   }
+
   return sections.join("\n");
 }

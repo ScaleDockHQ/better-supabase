@@ -19,11 +19,13 @@ import {
 export function serviceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env["SUPABASE_SECRET_KEY"];
+
   if (!url || !key) {
     throw new Error(
       "Workflow steps need NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY",
     );
   }
+
   return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
@@ -45,7 +47,11 @@ export async function notifyActor(
   title: string,
 ): Promise<void> {
   "use step";
-  if (context.tenant === undefined || context.actor?.kind !== "user") return;
+
+  if (context.tenant === undefined || context.actor?.kind !== "user") {
+    return;
+  }
+
   await serviceNotifications()
     .send("workflow.message", {
       tenant: context.tenant,
@@ -69,6 +75,7 @@ export async function summarizeDocument(
 ): Promise<DocumentSummary> {
   "use step";
   const trimmed = text.trim();
+
   return {
     words: trimmed === "" ? 0 : trimmed.split(/\s+/u).length,
     sentences: trimmed.split(/[.!?]+/u).filter((part) => part.trim() !== "")

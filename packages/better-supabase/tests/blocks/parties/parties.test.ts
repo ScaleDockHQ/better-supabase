@@ -9,12 +9,17 @@ function transport(
   results: Record<string, (args: Record<string, unknown>) => unknown>,
 ) {
   const calls: [string, Record<string, unknown>][] = [];
+
   return {
     calls,
     call(_schema: string, fn: string, args: Record<string, unknown>) {
       calls.push([fn, args]);
       const result = results[fn];
-      if (!result) return Promise.reject(new Error(`unexpected ${fn}`));
+
+      if (!result) {
+        return Promise.reject(new Error(`unexpected ${fn}`));
+      }
+
       return Promise.resolve(result(args));
     },
   };
@@ -37,6 +42,7 @@ const COMPANY = {
   updated_at: "2026-10-14T00:00:00Z",
   segment: "smb",
 };
+
 const PERSON = {
   id: "p1",
   tenant_id: "o",
@@ -57,9 +63,11 @@ const PERSON = {
 describe("parties block", () => {
   it("sends only the keys a write sets, nulls and fields included", async () => {
     const t = transport({ save_company: () => COMPANY });
+
     const company = await createParties({ transport: t })
       .saveCompany("o", { id: "c1", website: null, fields: { segment: "smb" } })
       .orThrow();
+
     expect(t.calls[0]).toEqual([
       "save_company",
       { tenant: "o", company: "c1", attrs: { website: null, segment: "smb" } },
@@ -84,10 +92,13 @@ describe("parties block", () => {
         { ...PERSON, role: "Champion", is_primary: true },
       ],
     });
+
     const parties = createParties({ transport: t });
+
     const page = await parties
       .listPeople("o", { search: "acme", limit: 2 })
       .orThrow();
+
     expect(page.next).toEqual({ name: "Bob", id: "p2" });
     expect(t.calls[0]?.[1]).toEqual({
       tenant: "o",
@@ -109,9 +120,11 @@ describe("parties block", () => {
 
   it("returns the last page without a cursor", async () => {
     const t = transport({ list_companies: () => [COMPANY] });
+
     const page = await createParties({ transport: t })
       .listCompanies("o")
       .orThrow();
+
     expect(page.next).toBeUndefined();
     expect(page.items[0]?.name).toBe("Acme");
   });
@@ -124,6 +137,7 @@ describe("parties block", () => {
       merge_companies: () => COMPANY,
       merge_people: () => PERSON,
     });
+
     const parties = createParties({ transport: t });
     await parties.linkPerson("c1", "p1").orThrow();
     await parties.unlinkPerson("c1", "p1").orThrow();
@@ -147,6 +161,7 @@ describe("parties block", () => {
       schema: "crm",
       url: { company: "/c/{id}" },
     });
+
     expect(subjects.company).toMatchObject({
       table: "crm.companies",
       idType: "uuid",
@@ -174,6 +189,7 @@ describe("parties block, optional fields", () => {
         address: null,
       }),
     });
+
     const parties = createParties({
       transport: t,
       logger: {
@@ -184,6 +200,7 @@ describe("parties block, optional fields", () => {
       },
       hooks: { savePerson: { after: () => undefined } },
     });
+
     expect(
       await parties.savePerson("o", { name: "Ada" }).orThrow(),
     ).toMatchObject({
@@ -210,6 +227,7 @@ describe("parties block, optional fields", () => {
       list_companies: () => [],
       archive_company: () => true,
     });
+
     const parties = createParties({ transport: t });
     await parties
       .listCompanies("o", {
@@ -237,6 +255,7 @@ describe("parties block with the inbox", () => {
       person_for_inbox_contact: (args) =>
         args["create"] === true ? PERSON : null,
     });
+
     const parties = createParties({ transport: t });
     expect(await parties.linkInboxContact("p1", "k1").orThrow()).toBe(true);
     expect(await parties.unlinkInboxContact("k1").orThrow()).toBe(false);

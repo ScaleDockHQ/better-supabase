@@ -70,6 +70,7 @@ function copyAct(level: Readonly<Record<string, unknown>>): ActClaim {
       key === "act" && isRecord(value) ? copyAct(value) : value,
     ],
   );
+
   // SAFETY: actorOf checked that this level and every nested `act` is an object with a non-empty string `sub`.
   return Object.fromEntries(entries) as ActClaim;
 }
@@ -88,9 +89,16 @@ function actorAt(
   const sessionId = outer["session_id"];
   const readOnly = outer["read_only"];
   const reason = outer["reason"];
+
   if (kind === "support") {
-    if (typeof sessionId !== "string" || sessionId === "") return INVALID;
-    if (readOnly !== undefined && typeof readOnly !== "boolean") return INVALID;
+    if (typeof sessionId !== "string" || sessionId === "") {
+      return INVALID;
+    }
+
+    if (readOnly !== undefined && typeof readOnly !== "boolean") {
+      return INVALID;
+    }
+
     return {
       ok: true,
       actor: {
@@ -102,6 +110,7 @@ function actorAt(
       },
     };
   }
+
   if (kind === "impersonation") {
     return {
       ok: true,
@@ -112,9 +121,14 @@ function actorAt(
       },
     };
   }
+
   if (kind === "agent") {
-    if (sessionId !== undefined) return INVALID;
+    if (sessionId !== undefined) {
+      return INVALID;
+    }
+
     const tools = outer["tools"];
+
     if (
       tools !== undefined &&
       !(
@@ -124,6 +138,7 @@ function actorAt(
     ) {
       return INVALID;
     }
+
     return {
       ok: true,
       actor: {
@@ -134,7 +149,11 @@ function actorAt(
       },
     };
   }
-  if (kind !== undefined || sessionId !== undefined) return INVALID;
+
+  if (kind !== undefined || sessionId !== undefined) {
+    return INVALID;
+  }
+
   return {
     ok: true,
     actor: { kind: "oauth-client", id, chain: copyAct(outer) },
@@ -153,22 +172,43 @@ export function actorOf(
   claims: Readonly<Record<string, unknown>>,
 ): ActorOutcome {
   const outer = claims["act"];
+
   if (outer !== undefined) {
-    if (!isRecord(outer)) return INVALID;
+    if (!isRecord(outer)) {
+      return INVALID;
+    }
+
     const id = outer["sub"];
-    if (typeof id !== "string" || id === "") return INVALID;
+
+    if (typeof id !== "string" || id === "") {
+      return INVALID;
+    }
+
     let level: unknown = outer["act"];
+
     while (level !== undefined) {
-      if (!isRecord(level)) return INVALID;
+      if (!isRecord(level)) {
+        return INVALID;
+      }
+
       const sub = level["sub"];
-      if (typeof sub !== "string" || sub === "") return INVALID;
+
+      if (typeof sub !== "string" || sub === "") {
+        return INVALID;
+      }
+
       level = level["act"];
     }
+
     return actorAt(outer, id);
   }
+
   const client = claims["client_id"];
-  if (typeof client === "string" && client !== "")
+
+  if (typeof client === "string" && client !== "") {
     return { ok: true, actor: { id: client, kind: "oauth-client" } };
+  }
+
   return { ok: true };
 }
 
@@ -189,12 +229,14 @@ export function agentClaims<C extends Readonly<Record<string, unknown>>>(
   options: AgentActOptions,
 ): C & { readonly act: ActClaim } {
   const prior = claims["act"];
+
   const act: ActClaim = {
     kind: "agent",
     sub: options.agent,
     tools: [...(options.tools ?? [])],
     ...(isRecord(prior) ? { act: copyAct(prior) } : {}),
   };
+
   return { ...claims, act };
 }
 
@@ -203,11 +245,13 @@ export function delegationOf(
   claims: Readonly<Record<string, unknown>>,
 ): SessionDelegation | undefined {
   const scope = claims["scope"];
+
   const scopes =
     typeof scope === "string"
       ? scope.split(/\s+/u).filter(Boolean)
       : Array.isArray(scope)
         ? scope.filter((item): item is string => typeof item === "string")
         : [];
+
   return scopes.length > 0 ? { scopes } : undefined;
 }

@@ -35,15 +35,20 @@ export function serverAudit(
   betterSupabase: { readonly events: EventHub },
   sink: EventSink | undefined,
 ): ServerAudit {
-  if (sink === undefined) return OFF;
+  if (sink === undefined) {
+    return OFF;
+  }
+
   const { events } = betterSupabase;
   forwardBlockEvents(betterSupabase, sink, {
     source: SERVER_EVENT_SOURCE,
     types: ["support.denied"],
   });
+
   const report = (cause: unknown): void => {
     events.logger.error("audit sink failed", { cause });
   };
+
   return {
     account(type, userId, data) {
       const event: CloudEvent = {
@@ -56,6 +61,7 @@ export function serverAudit(
         datacontenttype: "application/json",
         data: { userId, ...data },
       };
+
       try {
         events.track(Promise.resolve(sink.send([event])).catch(report));
       } catch (cause) {

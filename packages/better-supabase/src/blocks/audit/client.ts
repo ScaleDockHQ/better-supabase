@@ -59,6 +59,7 @@ function listOptions(
   cursor: AuditCursor | undefined,
 ): AuditListOptions {
   const { actorId, eventType, search } = filters;
+
   return {
     organizationId,
     order: "desc",
@@ -79,6 +80,7 @@ export function createAuditLogController(
   options: AuditLogControllerOptions,
 ): AuditLogController {
   const { client, organizationId, limit } = options;
+
   return defineController<AuditLogSnapshot, AuditLogActions>(
     {
       entries: undefined,
@@ -90,11 +92,19 @@ export function createAuditLogController(
     (state) => {
       let ticket = 0;
       let next: AuditCursor | undefined;
+
       const load = async (more: boolean): Promise<void> => {
-        if (organizationId === null) return;
-        if (more && next === undefined) return;
+        if (organizationId === null) {
+          return;
+        }
+
+        if (more && next === undefined) {
+          return;
+        }
+
         const request = ++ticket;
         state.set({ loading: true });
+
         const result = await client.list(
           listOptions(
             organizationId,
@@ -103,11 +113,17 @@ export function createAuditLogController(
             more ? next : undefined,
           ),
         );
-        if (request !== ticket) return;
-        if (!result.ok) {
-          state.set({ loading: false, error: result.error });
+
+        if (request !== ticket) {
           return;
         }
+
+        if (!result.ok) {
+          state.set({ loading: false, error: result.error });
+
+          return;
+        }
+
         next = result.data.next;
         state.set((current) => ({
           loading: false,
@@ -118,7 +134,9 @@ export function createAuditLogController(
             : result.data.entries,
         }));
       };
+
       const refresh = (): Promise<void> => load(false);
+
       return {
         actions: {
           refresh,
@@ -126,6 +144,7 @@ export function createAuditLogController(
           setFilters: (filters) => {
             next = undefined;
             state.set({ filters, entries: undefined, hasMore: false });
+
             return refresh();
           },
         },
@@ -134,6 +153,7 @@ export function createAuditLogController(
             ? undefined
             : whileSignedIn(options.auth, () => {
                 void refresh();
+
                 return;
               }),
       };

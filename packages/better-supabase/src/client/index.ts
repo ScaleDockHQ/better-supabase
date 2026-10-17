@@ -17,7 +17,9 @@ import { storageUpload } from "./ports.ts";
 import { webPorts } from "./web-ports.ts";
 
 export { bindClient } from "./bind.ts";
+
 export { functions } from "./functions.ts";
+
 export type {
   FunctionContract,
   FunctionContracts,
@@ -25,6 +27,7 @@ export type {
   InvokeOptions,
   TypedFunctions,
 } from "./functions.ts";
+
 export type {
   AuthSnapshot,
   AuthUser,
@@ -32,7 +35,9 @@ export type {
   BindClientOptions,
   ClientAuth,
 } from "./bind.ts";
+
 export { memoryStorage, storageUpload } from "./ports.ts";
+
 export type {
   ClientPorts,
   DeepLinkPort,
@@ -49,13 +54,16 @@ export type {
   UploadDestination,
   UploadPort,
 } from "./ports.ts";
+
 export { defineController, whileSignedIn } from "../blocks/controller.ts";
+
 export type {
   AuthPort,
   Controller,
   ControllerParts,
   ControllerState,
 } from "../blocks/controller.ts";
+
 export {
   webDeepLinks,
   webFilePicker,
@@ -64,6 +72,7 @@ export {
   webPushToken,
   webStorage,
 } from "./web-ports.ts";
+
 export type { PushRegistrationLike, WebPushTokenOptions } from "./web-ports.ts";
 
 export interface ClientOptions {
@@ -109,26 +118,39 @@ type UserStorage = NonNullable<
 >;
 
 function clientFor(options: ClientOptions): SupabaseClient {
-  if (options.client) return options.client;
-  if (!options.env)
+  if (options.client) {
+    return options.client;
+  }
+
+  if (!options.env) {
     throw new TypeError(
       "createClient needs `env` ({ url, publishableKey }) or `client`",
     );
+  }
+
   const checked = parseEnv({
     SUPABASE_URL: options.env.url,
     SUPABASE_PUBLISHABLE_KEY: options.env.publishableKey,
   });
-  if (!checked.ok) throw new EnvValidationError(checked.issues);
+
+  if (!checked.ok) {
+    throw new EnvValidationError(checked.issues);
+  }
+
   const userStorage = options.auth?.userStorage;
   const auth = userStorage ? { auth: { userStorage } } : {};
-  if (options.storage === "local")
+
+  if (options.storage === "local") {
     // oxlint-disable-next-line typescript/no-unsafe-return -- supabase-js infers `any` for the schema name without a Database type.
     return createSupabaseClient(
       checked.env.url,
       checked.env.publishableKey,
       auth,
     );
+  }
+
   const encode = options.cookies?.encode;
+
   // oxlint-disable-next-line typescript/no-unsafe-return -- supabase-js infers `any` for the schema name without a Database type.
   return createBrowserClient(checked.env.url, checked.env.publishableKey, {
     ...auth,
@@ -156,6 +178,7 @@ export function createClient<
   options: ClientOptions = {},
 ): BetterClient<M, F, E, C, P> {
   const supabase = clientFor(options);
+
   return bindClient(betterSupabase, supabase, {
     ...(options.staleTime === undefined
       ? {}

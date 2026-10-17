@@ -26,6 +26,7 @@ type Mutable<T> = { -readonly [K in keyof T]: T[K] };
 function snapshot(change: (tables: Mutable<CatalogTable>[]) => void): Snapshot {
   const copy = structuredClone(toCatalog(base)) as Mutable<Catalog>;
   change(copy.tables as Mutable<CatalogTable>[]);
+
   return fromCatalog(copy);
 }
 
@@ -70,8 +71,9 @@ const column = (overrides: Partial<CatalogColumn>): CatalogColumn => ({
 
 describe("schema design rules", () => {
   it("pass the fixture schema", async () => {
-    for (const code of ["BS216", "BS217", "BS218", "BS219", "BS220", "BS221"])
+    for (const code of ["BS216", "BS217", "BS218", "BS219", "BS220", "BS221"]) {
       expect(await run(context(base), code)).toEqual([]);
+    }
   });
 
   it("flags foreign keys without an index and defers to splinter's lint (BS216)", async () => {
@@ -81,6 +83,7 @@ describe("schema design rules", () => {
         (index) => index.columns[0] !== "customer_id",
       );
     });
+
     expect(await run(context(snap), "BS216")).toMatchObject([
       {
         target: "public.notes.notes_customer_id_fkey",
@@ -89,6 +92,7 @@ describe("schema design rules", () => {
         ),
       },
     ]);
+
     const lint = {
       name: "unindexed_foreign_keys",
       title: "Unindexed foreign keys",
@@ -101,14 +105,17 @@ describe("schema design rules", () => {
       metadata: { schema: "public", name: "notes", type: "table" },
       cache_key: "unindexed_foreign_keys_public_notes",
     } satisfies Lint;
+
     const advisors = {
       describe: "test",
       lints: () => Promise.resolve([lint]),
     };
+
     const both = await runRules(
       context(snap, { advisors }),
       RULES.filter((rule) => ["BS200", "BS216"].includes(rule.code)),
     );
+
     expect(both.map((finding) => finding.code)).toEqual(["BS200"]);
     expect(
       (await run(context(snap, { advisors }), "BS216")).map(
@@ -126,6 +133,7 @@ describe("schema design rules", () => {
           : key,
       );
     });
+
     expect(await run(context(snap), "BS217")).toMatchObject([
       {
         target: "public.notes.notes_customer_id_fkey",
@@ -141,15 +149,18 @@ describe("schema design rules", () => {
       const customers = table(tables, "customers");
       customers.indexes = customers.indexes.filter((index) => !index.partial);
     });
+
     expect(await run(context(snap), "BS218")).toMatchObject([
       { target: "public.customers.archived_at" },
     ]);
+
     const other = snapshot((tables) => {
       const customers = table(tables, "customers");
       customers.indexes = customers.indexes.map((index) =>
         index.partial ? { ...index, predicate: "(status = 'x'::text)" } : index,
       );
     });
+
     expect(await run(context(other), "BS218")).toHaveLength(1);
   });
 
@@ -158,9 +169,11 @@ describe("schema design rules", () => {
       const notes = table(tables, "notes");
       notes.columns = [...notes.columns, column({})];
     });
+
     const sources = [
       { path: "src/notes.ts", text: 'q.contains("meta", { pinned: true })' },
     ];
+
     expect(await run(context(snap, { sources }), "BS219")).toMatchObject([
       {
         target: "public.notes.meta",
@@ -168,6 +181,7 @@ describe("schema design rules", () => {
       },
     ]);
     expect(await run(context(snap), "BS219")).toEqual([]);
+
     const indexed = snapshot((tables) => {
       const notes = table(tables, "notes");
       notes.columns = [...notes.columns, column({})];
@@ -184,6 +198,7 @@ describe("schema design rules", () => {
         },
       ];
     });
+
     expect(await run(context(indexed, { sources }), "BS219")).toEqual([]);
   });
 
@@ -196,6 +211,7 @@ describe("schema design rules", () => {
         column({ name: "raw", udt: "json", format: "json" }),
       ];
     });
+
     expect(await run(context(snap), "BS220")).toMatchObject([
       {
         message:
@@ -211,9 +227,11 @@ describe("schema design rules", () => {
         text: "# DATABASE_URL=postgres://postgres:x@db.abcdefgh.supabase.co:5432/postgres\nDATABASE_URL=postgres://postgres:x@db.abcdefgh.supabase.co:5432/postgres\nPOOLED_URL=postgres://postgres.abc:x@aws-0-eu-central-1.pooler.supabase.com:6543/postgres\n",
       },
     ];
+
     const sources = [
       { path: "app/api/route.ts", text: "export async function GET() {}" },
     ];
+
     const findings = await run(context(base, { envFiles, sources }), "BS221");
     expect(findings).toMatchObject([
       {
@@ -246,6 +264,7 @@ describe("schema design rules", () => {
         column({ name: "amount", udt: "numeric", format: "numeric" }),
       ];
     });
+
     expect(await run(context(snap), "BS222")).toMatchObject([
       {
         target: "public.notes",
@@ -254,6 +273,7 @@ describe("schema design rules", () => {
       },
       { target: "public.notifications" },
     ]);
+
     const exact = context(snap, {
       config: resolveConfig(
         {
@@ -263,6 +283,7 @@ describe("schema design rules", () => {
         "/project",
       ),
     });
+
     expect(await run(exact, "BS222")).toEqual([]);
   });
 });

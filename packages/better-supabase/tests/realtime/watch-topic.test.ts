@@ -25,38 +25,50 @@ function fakeRealtime() {
   const open: FakeChannel[] = [];
   const subscribe = vi.fn();
   const sent = vi.fn();
+
   const client = {
     channel: vi.fn((name: string, _options?: unknown) => {
       const topic = `realtime:${name}`;
+
       const entry: FakeChannel = open.find((each) => each.topic === topic) ?? {
         topic,
         listeners: new Set(),
         joined: false,
       };
-      if (!open.includes(entry)) open.push(entry);
+
+      if (!open.includes(entry)) {
+        open.push(entry);
+      }
+
       const channel = {
         topic,
         on: (_type: string, _filter: unknown, listener: Listener) => {
           entry.listeners.add(listener);
+
           return channel;
         },
         subscribe: (callback: (state: string) => void) => {
-          if (entry.joined)
+          if (entry.joined) {
             throw new Error("tried to subscribe multiple times");
+          }
+
           entry.joined = true;
           entry.status = callback;
           subscribe(name);
           queueMicrotask(() => {
             callback("SUBSCRIBED");
           });
+
           return channel;
         },
         send: (message: unknown) => {
           sent(name, message);
+
           return Promise.resolve("ok");
         },
         entry,
       };
+
       return channel;
     }),
     getChannels: () => open,
@@ -65,24 +77,33 @@ function fakeRealtime() {
         setTimeout(resolve, 5);
       });
       open.splice(open.indexOf(channel.entry), 1);
+
       return "ok" as const;
     }),
     realtime: { setAuth: vi.fn(async () => undefined) },
   };
+
   const emit = (name: string, event: string, payload: unknown = {}) => {
     const entry = open.find((each) => each.topic === `realtime:${name}`);
-    for (const listener of entry?.listeners ?? []) listener({ event, payload });
+
+    for (const listener of entry?.listeners ?? []) {
+      listener({ event, payload });
+    }
   };
+
   const status = (name: string, state: string) => {
     open.find((each) => each.topic === `realtime:${name}`)?.status?.(state);
   };
+
   // SAFETY: the fake implements the members watchTopic and joinTopic call.
   const supabase = client as unknown as SupabaseClient;
+
   return { client, supabase, subscribe, sent, emit, status };
 }
 
 function watcher() {
   const statuses: SubscriptionStatus[] = [];
+
   const watch = {
     onMessage: vi.fn(),
     onRejoin: vi.fn(),
@@ -90,6 +111,7 @@ function watcher() {
       statuses.push(next);
     },
   };
+
   return { watch, statuses, last: () => statuses.at(-1) };
 }
 
@@ -97,6 +119,7 @@ const flush = () =>
   new Promise((resolve) => {
     setTimeout(resolve, 0);
   });
+
 const settle = () =>
   new Promise((resolve) => {
     setTimeout(resolve, 20);
@@ -107,16 +130,19 @@ describe("watchTopic", () => {
     const realtime = fakeRealtime();
     const first = watcher();
     const second = watcher();
+
     const { leave: leaveFirst } = watchTopic(
       realtime.supabase,
       "chat:c1",
       first.watch,
     );
+
     const { leave: leaveSecond } = watchTopic(
       realtime.supabase,
       "chat:c1",
       second.watch,
     );
+
     await flush();
     expect(realtime.client.channel).toHaveBeenCalledTimes(1);
     expect(realtime.client.channel).toHaveBeenCalledWith("chat:c1", {
@@ -142,16 +168,19 @@ describe("watchTopic", () => {
     const realtime = fakeRealtime();
     const first = watcher();
     const second = watcher();
+
     const { leave: leaveFirst } = watchTopic(
       realtime.supabase,
       "chat:c1",
       first.watch,
     );
+
     const { leave: leaveSecond } = watchTopic(
       realtime.supabase,
       "chat:c1",
       second.watch,
     );
+
     await flush();
 
     leaveFirst();
@@ -202,18 +231,22 @@ describe("watchTopic", () => {
   it("reports rejoins to each watcher, but not the first join", async () => {
     const realtime = fakeRealtime();
     const first = watcher();
+
     const { leave: leaveFirst } = watchTopic(
       realtime.supabase,
       "chat:c1",
       first.watch,
     );
+
     await flush();
     const late = watcher();
+
     const { leave: leaveLate } = watchTopic(
       realtime.supabase,
       "chat:c1",
       late.watch,
     );
+
     expect(late.statuses).toEqual(["joining", "subscribed"]);
     expect(first.watch.onRejoin).not.toHaveBeenCalled();
 
@@ -230,18 +263,22 @@ describe("watchTopic", () => {
   it("reports an error when the topic is joined with other settings", async () => {
     const realtime = fakeRealtime();
     const room = defineTopic("chat:{id}");
+
     const subscription = room.subscribe(
       realtime.supabase,
       { id: "c1" },
       {},
       { self: true },
     );
+
     const conflicting = watcher();
+
     const { leave } = watchTopic(
       realtime.supabase,
       "chat:c1",
       conflicting.watch,
     );
+
     expect(conflicting.statuses).toEqual(["error"]);
     leave();
     await subscription.unsubscribe();

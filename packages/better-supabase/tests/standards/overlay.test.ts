@@ -54,9 +54,11 @@ describe(`Overlay ${SPEC_PINS.overlay10}`, () => {
       ...base,
       info: { ...base.info, description: "Changed" },
     };
+
     const diff = overlayFromDiff(base, enriched, {
       version: SPEC_PINS.overlay10,
     });
+
     expect(diff.overlay).toBe(SPEC_PINS.overlay10);
     expect(valid(diff)).toEqual([]);
   });
@@ -80,6 +82,7 @@ describe(`Overlay ${SPEC_PINS.overlay11}`, () => {
 
   it("applies to a rendered OpenAPI document with RFC 9535 targets", async () => {
     const jsonpath = await loadJsonPath();
+
     const { document, diagnostics } = applyOverlay(
       base,
       defineOverlay({
@@ -88,6 +91,7 @@ describe(`Overlay ${SPEC_PINS.overlay11}`, () => {
       }),
       { jsonpath },
     );
+
     expect(diagnostics).toEqual([]);
     expect(document.info.description).toBe("Public");
     expect(base.info.description).toBeUndefined();

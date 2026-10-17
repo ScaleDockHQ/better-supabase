@@ -68,8 +68,10 @@ export async function signIn(
     .getByRole("button", { name: locale === "en" ? "Sign in" : "Inloggen" })
     .click();
   await page.waitForURL((url) => url.pathname === landing);
-  if (landing === `/${locale}`)
+
+  if (landing === `/${locale}`) {
     await expect(heading(page, "Dashboard")).toBeVisible();
+  }
 }
 
 export async function openAccountMenu(page: Page): Promise<void> {

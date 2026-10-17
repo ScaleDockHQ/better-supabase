@@ -9,18 +9,23 @@ import { fail, lockTable, userGrant } from "../shared.ts";
  * has many contacts (an email, a WhatsApp number); a contact has one person.
  */
 export function partiesInboxSql(ctx: ModuleContext, names: PartyNames): string {
-  if (!ctx.installed("inbox")) return "";
+  if (!ctx.installed("inbox")) {
+    return "";
+  }
+
   const inbox = ctx.of("inbox");
   const { t, c, fn } = names;
   const pc = (column: string): string => c("personContacts", column);
   const pe = (column: string): string => c("people", column);
   const ic = (column: string): string => inbox.col("contacts", column);
   const contacts = inbox.table("contacts");
+
   const guard = (
     tenant: string,
   ): string => `if not (auth.role() = 'service_role' or ${ctx.scope.can(tenant, names.write)}) then
     ${fail("PARTY_FORBIDDEN", "not allowed to change companies and people")}
   end if;`;
+
   const table = ctx.manages
     ? `
 create table if not exists ${t("personContacts")} (
@@ -36,6 +41,7 @@ create policy person_inbox_contacts_read on ${t("personContacts")} for select to
 using (${ctx.scope.check(pc("tenant"), names.read)});
 `
     : "";
+
   return `${table}
 -- Links an inbox contact to a person in the same organization; a contact
 -- linked to someone else moves.

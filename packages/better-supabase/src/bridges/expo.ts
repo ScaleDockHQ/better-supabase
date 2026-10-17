@@ -44,6 +44,7 @@ export function toExpo<const Entries extends readonly AnyEntry[]>(
       ),
     ),
   );
+
   return (request, params = {}) =>
     run(request.body ? bufferRequest(request) : request, {
       ...seedContext(options.env?.(request)),

@@ -30,20 +30,24 @@ export function useBlockController<O, S, A>(
   const controller = create(
     withEnv(options, usesEnv ? () => blockEnv(useContext().client) : undefined),
   );
+
   const state = shallowRef(controller.getSnapshot());
   let unsubscribe: (() => void) | undefined;
   onClient(() => {
     const sync = (): void => {
       state.value = controller.getSnapshot();
     };
+
     unsubscribe = controller.subscribe(sync);
     sync();
   });
+
   if (getCurrentScope()) {
     onScopeDispose(() => {
       unsubscribe?.();
       controller.dispose();
     });
   }
+
   return { state, actions: controller.actions, controller };
 }

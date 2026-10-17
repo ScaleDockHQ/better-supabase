@@ -5,7 +5,7 @@ import * as WebBrowser from "expo-web-browser";
 import { useState } from "react";
 import { Button, Text, TextInput, View } from "react-native";
 
-import { supabase } from "../lib/supabase/native";
+import { supabase } from "../lib/supabase/client.native";
 
 const redirectTo = Linking.createURL("auth/callback");
 
@@ -21,6 +21,7 @@ export function SignInScreen() {
       email,
       options: { emailRedirectTo: redirectTo },
     });
+
     setSent(failure === undefined);
   };
 
@@ -33,6 +34,7 @@ export function SignInScreen() {
         redirectTo,
       },
     );
+
     setOauthError(result.type === "error" ? result.error.message : undefined);
   };
 

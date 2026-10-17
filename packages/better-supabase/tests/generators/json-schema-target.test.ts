@@ -79,6 +79,7 @@ describe("toDraft07", () => {
   it("converts conditional subschemas", () => {
     const conditional = (schema: Record<string, unknown>) =>
       Object.fromEntries(["if", "then", "else"].map((key) => [key, schema]));
+
     expect(toDraft07(conditional({ $ref: "#/$defs/x" }))).toEqual(
       conditional({ $ref: "#/definitions/x" }),
     );
@@ -92,6 +93,7 @@ describe("toDraft07", () => {
       dependencies: { a: ["b"] },
       deprecated: true,
     };
+
     expect(toDraft07(schema)).toEqual(schema);
   });
 });

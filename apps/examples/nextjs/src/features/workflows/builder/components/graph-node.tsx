@@ -60,10 +60,11 @@ const branches = (kind: WorkflowNodeKind): boolean =>
 
 function GraphNode({ data, selected }: NodeProps<GraphFlowNode>) {
   const Icon = ICONS[data.kind];
+
   return (
     <div
       className={cn(
-        "bg-card text-card-foreground w-52 rounded-lg border px-3 py-2 text-sm shadow-sm",
+        "w-52 rounded-lg border bg-card px-3 py-2 text-sm text-card-foreground shadow-sm",
         selected && "border-primary",
         data.status === undefined ? undefined : STATUS_RING[data.status],
       )}
@@ -73,10 +74,10 @@ function GraphNode({ data, selected }: NodeProps<GraphFlowNode>) {
         <Handle type="target" position={Position.Top} />
       )}
       <div className="flex items-center gap-2">
-        <Icon className="text-muted-foreground size-4 shrink-0" />
+        <Icon className="size-4 shrink-0 text-muted-foreground" />
         <span className="truncate font-medium">{data.label}</span>
       </div>
-      <div className="text-muted-foreground mt-1 flex items-center justify-between gap-2 text-xs">
+      <div className="mt-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
         <span className="truncate font-mono">{data.step ?? data.kind}</span>
         {data.status === undefined ? null : (
           <Badge variant="outline">{data.status}</Badge>
@@ -96,7 +97,7 @@ function GraphNode({ data, selected }: NodeProps<GraphFlowNode>) {
             position={Position.Bottom}
             className="left-2/3!"
           />
-          <div className="text-muted-foreground mt-1 flex justify-around text-xs uppercase">
+          <div className="mt-1 flex justify-around text-xs text-muted-foreground uppercase">
             <span>true</span>
             <span>false</span>
           </div>
@@ -116,6 +117,7 @@ function toFlowNode(node: WorkflowGraphNode, index: number): GraphFlowNode {
     label: node.label ?? node.step ?? node.kind,
     config: node.config ?? {},
   };
+
   return {
     id: node.id,
     type: "graph",
@@ -134,6 +136,7 @@ export function toFlow(graph: WorkflowGraph) {
         source: edge.source,
         target: edge.target,
       };
+
       return edge.branch === undefined
         ? flowEdge
         : { ...flowEdge, sourceHandle: edge.branch, label: edge.branch };
@@ -161,17 +164,20 @@ export function fromFlow(
           y: Math.round(node.position.y),
         },
       };
+
       return node.data.step === undefined
         ? graphNode
         : { ...graphNode, step: node.data.step };
     }),
     edges: edges.map((edge) => {
       const branch = branchOf(edge.sourceHandle);
+
       const graphEdge = {
         id: edge.id,
         source: edge.source,
         target: edge.target,
       };
+
       return branch === undefined ? graphEdge : { ...graphEdge, branch };
     }),
   };

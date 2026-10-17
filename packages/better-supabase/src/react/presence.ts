@@ -75,15 +75,18 @@ export function usePresence<P extends string, I, O>(
 ): Presence<I, O> {
   const context = useContext(ClientContext);
   const supabase = options.client ?? context?.client.supabase;
+
   if (!supabase) {
     throw new Error(
       "better-supabase: usePresence needs <BetterSupabaseProvider client={bs}> or { client: supabase }",
     );
   }
+
   const auth = useBroadcastAuth(
     options.client === undefined ? context?.client : undefined,
     supabase,
   );
+
   const [members, setMembers] = useState<readonly PresenceMember<O>[]>(NONE);
   const [status, setStatus] = useState<SubscriptionStatus>("closed");
   const joinedRef = useRef<PresenceSubscription<I, O> | null>(null);
@@ -97,15 +100,24 @@ export function usePresence<P extends string, I, O>(
   latest.current = { state, stateKey };
 
   useEffect(() => {
-    if (!name || auth.status === "loading") return;
+    if (!name || auth.status === "loading") {
+      return;
+    }
+
     const matched = topic.match(name);
-    if (!matched) return;
+
+    if (!matched) {
+      return;
+    }
+
     const joined = topic.subscribe(supabase, matched, NO_HANDLERS, {
       onStatus: setStatus,
       onPresence: setMembers,
     });
+
     joinedRef.current = joined;
     syncState(joined, latest.current, trackedKey);
+
     return () => {
       joinedRef.current = null;
       trackedKey.current = undefined;
@@ -118,22 +130,34 @@ export function usePresence<P extends string, I, O>(
 
   useEffect(() => {
     const joined = joinedRef.current;
-    if (joined)
+
+    if (joined) {
       syncState(joined, { state: latest.current.state, stateKey }, trackedKey);
+    }
   }, [stateKey]);
 
   const calls = useMemo(
     () => ({
       track: async (next: I) => {
         const joined = joinedRef.current;
-        if (!joined) return notJoined();
+
+        if (!joined) {
+          return notJoined();
+        }
+
         const result = await joined.track(next);
+
         return result.ok ? undefined : result.error;
       },
       untrack: async () => {
         const joined = joinedRef.current;
-        if (!joined) return notJoined();
+
+        if (!joined) {
+          return notJoined();
+        }
+
         const result = await joined.untrack();
+
         return result.ok ? undefined : result.error;
       },
     }),
@@ -152,10 +176,15 @@ function syncState<I>(
   },
   tracked: { current: string | undefined },
 ): void {
-  if (current.stateKey === undefined || current.stateKey === tracked.current)
+  if (current.stateKey === undefined || current.stateKey === tracked.current) {
     return;
+  }
+
   tracked.current = current.stateKey;
-  if (current.state === null || current.state === undefined)
+
+  if (current.state === null || current.state === undefined) {
     void joined.untrack();
-  else void joined.track(current.state);
+  } else {
+    void joined.track(current.state);
+  }
 }

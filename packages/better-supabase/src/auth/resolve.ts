@@ -217,13 +217,18 @@ export interface AuthResolution<C = unknown, P = unknown> {
 }
 
 function expiryOf(session: StoredSession): number | undefined {
-  if (typeof session.expires_at === "number") return session.expires_at;
+  if (typeof session.expires_at === "number") {
+    return session.expires_at;
+  }
+
   const exp = decodeJwtPayload(session.access_token)?.["exp"];
+
   return typeof exp === "number" ? exp : undefined;
 }
 
 function serverEnv(options: ResolveAuthOptions): SupabaseEnv {
   const { env } = options;
+
   return {
     url: env.url,
     publishableKeys: { default: env.publishableKey },
@@ -241,23 +246,34 @@ type VerifiedUser = Omit<
 const MEMO_SIZE = 256;
 const memoByUrl = new Map<string, Map<string, VerifiedUser>>();
 let memoByJwks = new WeakMap<object, Map<string, Map<string, VerifiedUser>>>();
+
 /** The most JWT secrets remembered at once; the oldest goes first. */
 const SECRET_IDS_SIZE = 64;
+
 /** A number per JWT secret, so memo keys tell secrets apart. Bounded, and never reuses a number. */
 const secretIds = new Map<string, number>();
 let nextSecretId = 1;
 
 function secretId(secret: string | undefined): number | null {
-  if (secret === undefined) return null;
+  if (secret === undefined) {
+    return null;
+  }
+
   let id = secretIds.get(secret);
+
   if (id === undefined) {
     id = nextSecretId++;
     secretIds.set(secret, id);
+
     if (secretIds.size > SECRET_IDS_SIZE) {
       const oldest = secretIds.keys().next();
-      if (!oldest.done) secretIds.delete(oldest.value);
+
+      if (!oldest.done) {
+        secretIds.delete(oldest.value);
+      }
     }
   }
+
   return id;
 }
 
@@ -269,6 +285,7 @@ function secretId(secret: string | undefined): number | null {
 function memoFor(options: ResolveAuthOptions): Map<string, VerifiedUser> {
   const jwks = options.jwks ?? options.env.jwks;
   const inline = jwks && typeof jwks === "object" && !(jwks instanceof URL);
+
   const key = JSON.stringify([
     inline ? null : String(jwks ?? options.env.jwksUrl),
     options.env.url,
@@ -276,19 +293,32 @@ function memoFor(options: ResolveAuthOptions): Map<string, VerifiedUser> {
     options.issuer ?? null,
     secretId(options.jwtSecret),
   ]);
+
   if (inline) {
     let byKey = memoByJwks.get(jwks);
-    if (!byKey)
+
+    if (!byKey) {
       memoByJwks.set(
         jwks,
         (byKey = new Map<string, Map<string, VerifiedUser>>()),
       );
+    }
+
     let memo = byKey.get(key);
-    if (!memo) byKey.set(key, (memo = new Map<string, VerifiedUser>()));
+
+    if (!memo) {
+      byKey.set(key, (memo = new Map<string, VerifiedUser>()));
+    }
+
     return memo;
   }
+
   let memo = memoByUrl.get(key);
-  if (!memo) memoByUrl.set(key, (memo = new Map<string, VerifiedUser>()));
+
+  if (!memo) {
+    memoByUrl.set(key, (memo = new Map<string, VerifiedUser>()));
+  }
+
   return memo;
 }
 
@@ -306,19 +336,30 @@ function remembered(
   now: number,
 ): VerifiedUser | undefined {
   const hit = memo.get(token);
-  if (!hit) return undefined;
+
+  if (!hit) {
+    return undefined;
+  }
+
   memo.delete(token);
-  if (hit.expiresAt === null || hit.expiresAt <= now) return undefined;
+
+  if (hit.expiresAt === null || hit.expiresAt <= now) {
+    return undefined;
+  }
+
   memo.set(token, hit);
+
   return hit;
 }
 
 type CheckedState = DistributiveOmit<AuthState, "source">;
+
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown
   ? Omit<T, K>
   : never;
 
 const NO_SCHEMA = {};
+
 const checkedByMemo = new WeakMap<
   object,
   WeakMap<object, WeakMap<object, Map<string, CheckedState>>>
@@ -336,18 +377,33 @@ function checkedFor(
   const claims = options.claims ?? NO_SCHEMA;
   const metadata = options.userMetadata ?? NO_SCHEMA;
   let byClaims = checkedByMemo.get(memo);
-  if (!byClaims) checkedByMemo.set(memo, (byClaims = new WeakMap()));
+
+  if (!byClaims) {
+    checkedByMemo.set(memo, (byClaims = new WeakMap()));
+  }
+
   let byMetadata = byClaims.get(claims);
-  if (!byMetadata) byClaims.set(claims, (byMetadata = new WeakMap()));
+
+  if (!byMetadata) {
+    byClaims.set(claims, (byMetadata = new WeakMap()));
+  }
+
   let checked = byMetadata.get(metadata);
-  if (!checked)
+
+  if (!checked) {
     byMetadata.set(metadata, (checked = new Map<string, CheckedState>()));
+  }
+
   return checked;
 }
 
 function withoutSource(state: AuthState): CheckedState {
-  if (state.kind !== "user") return state;
+  if (state.kind !== "user") {
+    return state;
+  }
+
   const { source: _source, ...rest } = state;
+
   return rest;
 }
 
@@ -357,9 +413,15 @@ function remember<T>(
   user: T,
   expiresAt: number | null,
 ): void {
-  if (expiresAt === null) return;
+  if (expiresAt === null) {
+    return;
+  }
+
   memo.set(token, user);
-  if (memo.size > MEMO_SIZE) memo.delete(memo.keys().next().value!);
+
+  if (memo.size > MEMO_SIZE) {
+    memo.delete(memo.keys().next().value!);
+  }
 }
 
 async function verify(
@@ -370,21 +432,28 @@ async function verify(
 ): Promise<AuthState> {
   const token = modes.length === 1 && modes[0] === "user" && credentials.token;
   const memo = token ? memoFor(options) : undefined;
+
   if (token && memo) {
     const now = Math.floor((options.now ?? Date.now)() / 1000);
     const hit = remembered(memo, token, now);
+
     if (hit) {
       const checked = checkedFor(memo, options);
       const known = checked.get(token);
+
       if (known) {
         return known.kind === "user" ? { ...known, source } : known;
       }
+
       const state = await checkUser({ ...hit, source }, options);
       remember(checked, token, withoutSource(state), hit.expiresAt);
+
       return state;
     }
   }
+
   const state = await verifyOnce(credentials, modes, options, source);
+
   if (token && memo && state.kind === "user") {
     remember(
       memo,
@@ -399,7 +468,9 @@ async function verify(
       state.expiresAt,
     );
   }
+
   const checked = await checkUser(state, options);
+
   if (token && memo && state.kind === "user") {
     remember(
       checkedFor(memo, options),
@@ -408,6 +479,7 @@ async function verify(
       state.expiresAt,
     );
   }
+
   return checked;
 }
 
@@ -416,7 +488,10 @@ async function checkClaims(
   state: AuthState,
   options: ResolveAuthOptions,
 ): Promise<AuthState> {
-  if (state.kind !== "user") return state;
+  if (state.kind !== "user") {
+    return state;
+  }
+
   if (!actorOf(state.claims).ok) {
     return {
       kind: "invalid",
@@ -428,9 +503,17 @@ async function checkClaims(
       ),
     };
   }
-  if (!options.claims) return state;
+
+  if (!options.claims) {
+    return state;
+  }
+
   let outcome = options.claims["~standard"].validate(state.claims);
-  if (outcome instanceof Promise) outcome = await outcome;
+
+  if (outcome instanceof Promise) {
+    outcome = await outcome;
+  }
+
   if (outcome.issues) {
     const issues = outcome.issues
       .map((issue) => {
@@ -439,9 +522,11 @@ async function checkClaims(
             typeof segment === "object" ? String(segment.key) : String(segment),
           )
           .join(".");
+
         return path ? `${path}: ${issue.message}` : issue.message;
       })
       .join("; ");
+
     return {
       kind: "invalid",
       reason: "claims",
@@ -454,7 +539,9 @@ async function checkClaims(
       ),
     };
   }
+
   const extra = outcome.value;
+
   return typeof extra === "object" && extra !== null
     ? { ...state, claims: { ...state.claims, ...extra } }
     : state;
@@ -469,13 +556,25 @@ async function checkUser(
 ): Promise<AuthState> {
   const checked = await checkClaims(state, options);
   const schema = options.userMetadata;
-  if (checked.kind !== "user" || !schema) return checked;
+
+  if (checked.kind !== "user" || !schema) {
+    return checked;
+  }
+
   const { profile: _untrusted, ...user } = checked;
+
   let outcome = schema["~standard"].validate(
     checked.user.userMetadata ?? checked.claims.user_metadata ?? {},
   );
-  if (outcome instanceof Promise) outcome = await outcome;
-  if (!outcome.issues) return { ...user, profile: outcome.value };
+
+  if (outcome instanceof Promise) {
+    outcome = await outcome;
+  }
+
+  if (!outcome.issues) {
+    return { ...user, profile: outcome.value };
+  }
+
   if (!warnedMetadata.has(schema)) {
     warnedMetadata.add(schema);
     (options.logger ?? consoleLogger).warn(
@@ -494,6 +593,7 @@ async function checkUser(
       },
     );
   }
+
   return user;
 }
 
@@ -515,8 +615,10 @@ function base64url(text: string): string {
  * fetch it as before.
  */
 export function prefetchJwks(options: ResolveAuthOptions): Promise<void> {
-  if (options.jwks !== undefined || options.env.jwks !== undefined)
+  if (options.jwks !== undefined || options.env.jwks !== undefined) {
     return Promise.resolve();
+  }
+
   return verifyCredentials(
     { token: PREFETCH_TOKEN, apikey: null },
     { auth: ["user"], env: serverEnv(options) },
@@ -533,6 +635,7 @@ async function verifyOnce(
   source: "bearer" | "cookie",
 ): Promise<AuthState> {
   const token = credentials.token;
+
   if (
     options.jwtSecret !== undefined &&
     token &&
@@ -545,6 +648,7 @@ async function verifyOnce(
       ...(options.audience === undefined ? {} : { audience: options.audience }),
       ...(options.issuer === undefined ? {} : { issuer: options.issuer }),
     });
+
     if (!verified.ok) {
       return {
         kind: "invalid",
@@ -554,6 +658,7 @@ async function verifyOnce(
         }),
       };
     }
+
     return {
       kind: "user",
       token,
@@ -564,12 +669,14 @@ async function verifyOnce(
         typeof verified.claims.exp === "number" ? verified.claims.exp : null,
     };
   }
+
   const { data, error } = await verifyCredentials(credentials, {
     auth: modes,
     env: serverEnv(options),
     ...(options.audience === undefined ? {} : { audience: options.audience }),
     ...(options.issuer === undefined ? {} : { issuer: options.issuer }),
   });
+
   if (error) {
     const kind =
       error.code === "JWKS_FETCH_FAILED"
@@ -577,14 +684,18 @@ async function verifyOnce(
         : error.status >= 500
           ? "unexpected"
           : "unauthorized";
+
     return {
       kind: "invalid",
       reason: "token",
       error: dbError(kind, error.message, { code: error.code }),
     };
   }
-  if (data.authMode === "secret")
+
+  if (data.authMode === "secret") {
     return { kind: "service", keyName: data.keyName ?? "default" };
+  }
+
   if (
     data.authMode === "user" &&
     data.token &&
@@ -601,6 +712,7 @@ async function verifyOnce(
         typeof data.jwtClaims.exp === "number" ? data.jwtClaims.exp : null,
     };
   }
+
   return { kind: "anon", reason: "none" };
 }
 
@@ -613,6 +725,7 @@ function resolution(
 ): AuthResolution {
   const headers = writes.length > 0 ? AUTH_CACHE_HEADERS : {};
   let requestCookies: readonly CookieRecord[] | undefined;
+
   return {
     auth,
     ...(ended ? { sessionEnded: true, sessionEndedReason: ended } : {}),
@@ -623,21 +736,32 @@ function resolution(
     get requestCookies() {
       requestCookies ??=
         writes.length > 0 ? applyCookieWrites(cookies(), writes) : cookies();
+
       return requestCookies;
     },
     apply(response) {
-      if (writes.length === 0) return response;
+      if (writes.length === 0) {
+        return response;
+      }
+
       let target = response;
+
       try {
-        for (const write of writes)
+        for (const write of writes) {
           target.headers.append("set-cookie", serializeCookie(write));
+        }
       } catch {
         target = new Response(response.body, response);
-        for (const write of writes)
+
+        for (const write of writes) {
           target.headers.append("set-cookie", serializeCookie(write));
+        }
       }
-      for (const [name, value] of Object.entries(headers))
+
+      for (const [name, value] of Object.entries(headers)) {
         target.headers.set(name, value);
+      }
+
       return target;
     },
   };
@@ -656,6 +780,7 @@ export function clientIp(request: Request): string | undefined {
     ?.split(",")
     .at(-1)
     ?.trim();
+
   return last && IP.test(last) ? last : undefined;
 }
 
@@ -672,12 +797,17 @@ export async function resolveAuth(
   options: ResolveAuthOptions,
 ): Promise<AuthResolution> {
   let parsed: readonly CookieRecord[] | undefined;
+
   const cookies = (): readonly CookieRecord[] =>
     (parsed ??= parseCookies(request.headers.get("cookie")));
 
   for (const resolver of options.resolvers ?? []) {
     const state = await resolver.resolve(request);
-    if (!state) continue;
+
+    if (!state) {
+      continue;
+    }
+
     return resolution(
       state.kind === "invalid"
         ? {
@@ -691,6 +821,7 @@ export async function resolveAuth(
   }
 
   const credentials = extractCredentials(request);
+
   if (credentials.token) {
     return resolution(
       await verify(
@@ -702,6 +833,7 @@ export async function resolveAuth(
       cookies,
     );
   }
+
   if (options.secret && credentials.apikey?.startsWith("sb_secret_")) {
     return resolution(
       await verify(
@@ -719,20 +851,26 @@ export async function resolveAuth(
   if (options.cookies === false) {
     return resolution({ kind: "anon", reason: "none" }, cookies);
   }
+
   const name = options.cookie?.name ?? sessionCookieName(options.env.url);
+
   const encoding: WriteSessionOptions =
     options.cookie?.encode === undefined
       ? {}
       : { encode: options.cookie.encode };
+
   const session = readSession(cookies(), name);
+
   if (!session) {
     const stale = cookies().some(
       (cookie) => cookie.name === name || cookie.name.startsWith(`${name}.`),
     );
+
     const writes =
       stale && options.refresh
         ? writeSession(cookies(), name, null, options.cookie?.options, encoding)
         : [];
+
     return resolution(
       { kind: "anon", reason: stale ? "signed_out" : "none" },
       cookies,
@@ -746,6 +884,7 @@ export async function resolveAuth(
     options.refresh && options.pruneChunks !== false
       ? pruneSessionChunks(cookies(), name, options.cookie?.options)
       : [];
+
   const now = Math.floor((options.now ?? Date.now)() / 1000);
   const expiry = expiryOf(session);
   // The leeway only decides when to refresh: where refreshing isn't allowed,
@@ -760,6 +899,7 @@ export async function resolveAuth(
       options,
       "cookie",
     );
+
     const status =
       state.kind === "user" && options.checkSession
         ? await sessionStatus(state.token, {
@@ -772,6 +912,7 @@ export async function resolveAuth(
             ...(options.now ? { now: options.now } : {}),
           })
         : undefined;
+
     if (status === "ended" || status === "banned") {
       return resolution(
         { kind: "anon", reason: "signed_out" },
@@ -788,25 +929,32 @@ export async function resolveAuth(
         status,
       );
     }
+
     // A refresh can't fix claims the schema or the act check rejects, nor an unreachable JWKS.
     if (
       state.kind !== "invalid" ||
       state.reason !== "token" ||
       state.error.kind === "network"
-    )
+    ) {
       return resolution(state, cookies, pruned);
-    if (!options.refresh)
+    }
+
+    if (!options.refresh) {
       return resolution({ kind: "anon", reason: "signed_out" }, cookies);
+    }
   } else if (!options.refresh) {
     return resolution({ kind: "anon", reason: "expired" }, cookies);
   }
 
   const secretKey = options.env.secretKey;
+
   const ip =
     secretKey && options.clientIp !== false
       ? (options.clientIp ?? clientIp)(request)
       : undefined;
+
   const started = performance.now();
+
   const outcome = await refreshSession(session.refresh_token, {
     url: options.env.url,
     publishableKey: options.env.publishableKey,
@@ -817,6 +965,7 @@ export async function resolveAuth(
       ? {}
       : { timeoutMs: options.refreshTimeoutMs }),
   });
+
   const durationMs = performance.now() - started;
   options.onRefresh?.({
     ok: outcome.ok,
@@ -830,6 +979,7 @@ export async function resolveAuth(
           ...(outcome.code === undefined ? {} : { code: outcome.code }),
         }),
   });
+
   if (!outcome.ok) {
     if (outcome.reason === "network") {
       const outage = (kept: boolean): AuthOutageEvent => ({
@@ -843,6 +993,7 @@ export async function resolveAuth(
         kept,
         durationMs,
       });
+
       // A token refreshed early, in its leeway, is still good until it expires.
       if (!fresh && expiry !== undefined && expiry > now) {
         const state = await verify(
@@ -851,9 +1002,12 @@ export async function resolveAuth(
           options,
           "cookie",
         );
-        if (state.kind !== "invalid")
+
+        if (state.kind !== "invalid") {
           return resolution(state, cookies, pruned, undefined, outage(true));
+        }
       }
+
       return resolution(
         { kind: "anon", reason: "refresh_failed" },
         cookies,
@@ -862,6 +1016,7 @@ export async function resolveAuth(
         outage(false),
       );
     }
+
     return resolution(
       { kind: "anon", reason: "signed_out" },
       cookies,
@@ -869,6 +1024,7 @@ export async function resolveAuth(
       outcome.code === "user_banned" ? "banned" : undefined,
     );
   }
+
   const writes = writeSession(
     cookies(),
     name,
@@ -876,11 +1032,13 @@ export async function resolveAuth(
     options.cookie?.options,
     encoding,
   );
+
   const state = await verify(
     { token: outcome.session.access_token, apikey: null },
     ["user"],
     options,
     "cookie",
   );
+
   return resolution(state, cookies, writes);
 }

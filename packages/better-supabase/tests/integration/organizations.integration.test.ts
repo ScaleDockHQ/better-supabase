@@ -20,8 +20,10 @@ async function reachable(): Promise<boolean> {
     max: 1,
     connectionTimeoutMillis: 1000,
   });
+
   try {
     await pool.query("select 1");
+
     return true;
   } catch {
     return false;
@@ -60,16 +62,20 @@ const USERS = {
   member: crypto.randomUUID(),
   outsider: crypto.randomUUID(),
 } as const;
+
 type Who = keyof typeof USERS;
+
 const email = (who: Who) => `${who}-${USERS[who]}@example.test`;
 
 /** Runs each call in a savepoint, so a refused call leaves the test transaction usable. */
 const savepointSql = (client: PoolClient) => ({
   async queryRaw(text: string, params: readonly unknown[] = []) {
     await client.query("savepoint call");
+
     try {
       const { rows } = await client.query(text, [...params]);
       await client.query("release savepoint call");
+
       return rows;
     } catch (error) {
       await client.query("rollback to savepoint call");
@@ -97,6 +103,7 @@ class Session {
       who === "anon"
         ? { role: "anon" }
         : { sub: USERS[who], role: "authenticated", email: email(who) };
+
     await this.client.query(
       "select set_config('request.jwt.claims', $1, true)",
       [JSON.stringify(claims)],
@@ -108,20 +115,25 @@ class Session {
       `select ${sql} as value`,
       params,
     );
+
     return rows[0]!.value;
   }
 
   /** The hint of the error `sql` raises, rolled back to a savepoint. */
   async hint(sql: string, params: unknown[] = []): Promise<string> {
     await this.client.query("savepoint attempt");
+
     try {
       await this.client.query(`select ${sql}`, params);
       await this.client.query("set constraints all immediate");
     } catch (error) {
       await this.client.query("rollback to savepoint attempt");
+
       return (error as { hint?: string }).hint ?? (error as Error).message;
     }
+
     await this.client.query("release savepoint attempt");
+
     return "no error";
   }
 
@@ -140,8 +152,10 @@ describe.skipIf(!live)("organizations and invitations", () => {
   it("runs the organization lifecycle on the access contract", async () => {
     const client = await pool.connect();
     const s = new Session(client);
+
     try {
       await client.query("begin");
+
       for (const who of Object.keys(USERS) as Who[]) {
         await client.query(
           `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
@@ -149,18 +163,22 @@ describe.skipIf(!live)("organizations and invitations", () => {
           [USERS[who], email(who)],
         );
       }
+
       for (const file of renderModules(
         ["organizations", "invitations"],
         LAYOUT,
-      ))
+      )) {
         await client.query(file.contents);
+      }
 
       await s.as("owner");
       const slug = `acme-${USERS.owner.slice(0, 8)}`;
+
       const organization = await s.value<string>(
         "better_supabase.create_organization($1)",
         [{ name: "Acme", slug }],
       );
+
       expect(await s.role(organization, "owner")).toBe("owner");
       expect(
         await s.hint("better_supabase.create_organization($1)", [
@@ -183,12 +201,15 @@ describe.skipIf(!live)("organizations and invitations", () => {
           "better_supabase.invite_member($1, $2, $3)",
           [organization, email(who), role],
         );
+
       const memberInvite = await invite("member", "member");
       await s.as("anon");
+
       const preview = await s.value<Record<string, unknown>>(
         "better_supabase.invitation_preview($1)",
         [memberInvite.token],
       );
+
       expect(preview).toMatchObject({
         status: "pending",
         role: "member",
@@ -299,8 +320,10 @@ describe.skipIf(!live)("organizations and invitations", () => {
   it("fails closed on stale tenant claims, disabled organizations and non-owner transfers", async () => {
     const client = await pool.connect();
     const s = new Session(client);
+
     try {
       await client.query("begin");
+
       for (const who of ["owner", "admin", "member"] as const) {
         await client.query(
           `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
@@ -308,6 +331,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
           [USERS[who], email(who)],
         );
       }
+
       const layout: ModuleLayout = {
         modules: {
           access: {
@@ -320,14 +344,18 @@ describe.skipIf(!live)("organizations and invitations", () => {
           },
         },
       };
-      for (const file of renderModules(["organizations"], layout))
+
+      for (const file of renderModules(["organizations"], layout)) {
         await client.query(file.contents);
+      }
 
       await s.as("owner");
+
       const organization = await s.value<string>(
         "better_supabase.create_organization($1)",
         [{ name: "Stale", slug: `stale-${USERS.owner.slice(0, 8)}` }],
       );
+
       await client.query(
         `insert into better_supabase.memberships (organization_id, user_id, role)
          values ($1, $2, 'admin'), ($1, $3, 'member')`,
@@ -418,8 +446,10 @@ describe.skipIf(!live)("organizations and invitations", () => {
     const s = new Session(client);
     const schema = `bs_catalog_${USERS.owner.slice(0, 8)}`;
     const module = { schema };
+
     try {
       await client.query("begin");
+
       for (const who of ["owner", "member"] as const) {
         await client.query(
           `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
@@ -427,6 +457,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
           [USERS[who], email(who)],
         );
       }
+
       const layout: ModuleLayout = {
         modules: {
           access: { ...module, model: "catalog" },
@@ -435,11 +466,14 @@ describe.skipIf(!live)("organizations and invitations", () => {
           invitations: module,
         },
       };
+
       for (const file of renderModules(
         ["organizations", "invitations"],
         layout,
-      ))
+      )) {
         await client.query(file.contents);
+      }
+
       await client.query(`
         insert into ${schema}.roles (id, key) values
           ('00000000-0000-4000-8000-00000000f001', 'owner'),
@@ -451,14 +485,17 @@ describe.skipIf(!live)("organizations and invitations", () => {
       `);
 
       await s.as("owner");
+
       const organization = await s.value<string>(
         `${schema}.create_organization($1)`,
         [{ name: "Catalog", slug: `catalog-${USERS.owner.slice(0, 8)}` }],
       );
+
       const invite = await s.value<{ token: string; role: string }>(
         `${schema}.invite_member($1, $2, 'member')`,
         [organization, email("member")],
       );
+
       expect(invite.role).toBe("00000000-0000-4000-8000-00000000f002");
       await s.as("member");
       await s.value(`${schema}.accept_invitation($1)`, [invite.token]);
@@ -509,13 +546,16 @@ describe.skipIf(!live)("organizations and invitations", () => {
     const client = await pool.connect();
     const s = new Session(client);
     const schema = `bs_through_${USERS.owner.slice(0, 8)}`;
+
     const ids = {
       owner: "00000000-0000-4000-8000-00000000e001",
       admin: "00000000-0000-4000-8000-00000000e002",
       member: "00000000-0000-4000-8000-00000000e003",
     };
+
     try {
       await client.query("begin");
+
       for (const who of ["owner", "member"] as const) {
         await client.query(
           `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
@@ -523,6 +563,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
           [USERS[who], email(who)],
         );
       }
+
       await client.query(`
         create schema ${schema};
         create table ${schema}.team_roles (id uuid primary key, key text not null unique);
@@ -538,6 +579,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
         grant usage on schema ${schema} to authenticated;
         grant select on ${schema}.team_members, ${schema}.team_roles to authenticated;
       `);
+
       const layout: ModuleLayout = {
         modules: {
           access: { schema },
@@ -564,11 +606,14 @@ describe.skipIf(!live)("organizations and invitations", () => {
           invitations: { schema },
         },
       };
+
       for (const file of renderModules(
         ["organizations", "invitations"],
         layout,
-      ))
+      )) {
         await client.query(file.contents);
+      }
+
       const roleOf = (organization: string, who: Who) =>
         s.value<string>(
           `(select role_id::text from ${schema}.team_members where organization_id = $1 and user_id = $2)`,
@@ -576,10 +621,12 @@ describe.skipIf(!live)("organizations and invitations", () => {
         );
 
       await s.as("owner");
+
       const organization = await s.value<string>(
         `${schema}.create_organization($1)`,
         [{ name: "Through", slug: `through-${USERS.owner.slice(0, 8)}` }],
       );
+
       expect(await roleOf(organization, "owner")).toBe(ids.owner);
       expect(
         await s.value(`better_supabase.has_organization_role($1, '{owner}')`, [
@@ -592,10 +639,12 @@ describe.skipIf(!live)("organizations and invitations", () => {
           email("member"),
         ]),
       ).toBe("INVITATION_ROLE_UNKNOWN");
+
       const invite = await s.value<{ token: string; role: string }>(
         `${schema}.invite_member($1, $2, 'member')`,
         [organization, email("member")],
       );
+
       expect(invite.role).toBe(ids.member);
       await s.as("member");
       await s.value(`${schema}.accept_invitation($1)`, [invite.token]);
@@ -622,8 +671,10 @@ describe.skipIf(!live)("organizations and invitations", () => {
     const client = await pool.connect();
     const s = new Session(client);
     const schema = `bs_guard_${USERS.owner.slice(0, 8)}`;
+
     try {
       await client.query("begin");
+
       for (const who of ["owner", "member"] as const) {
         await client.query(
           `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
@@ -631,6 +682,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
           [USERS[who], email(who)],
         );
       }
+
       await client.query(`
         create schema ${schema};
         create table ${schema}.team_members (
@@ -641,6 +693,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
           primary key (organization_id, user_id)
         );
       `);
+
       const layout: ModuleLayout = {
         modules: {
           access: { schema },
@@ -658,18 +711,23 @@ describe.skipIf(!live)("organizations and invitations", () => {
           },
         },
       };
-      for (const file of renderModules(["organizations"], layout))
+
+      for (const file of renderModules(["organizations"], layout)) {
         await client.query(file.contents);
+      }
+
       expect(
         await s.value(
           `(select count(*)::int from pg_trigger where tgrelid = '${schema}.team_members'::regclass and tgname = 'bs_organization_role_guard')`,
         ),
       ).toBe(0);
       await s.as("owner");
+
       const organization = await s.value<string>(
         `${schema}.create_organization($1)`,
         [{ name: "Guard", slug: `guard-${USERS.owner.slice(0, 8)}` }],
       );
+
       await client.query(
         `insert into ${schema}.team_members (organization_id, user_id, role) values ($1, $2, 'member')`,
         [organization, USERS.member],
@@ -692,8 +750,10 @@ describe.skipIf(!live)("organizations and invitations", () => {
     const s = new Session(client);
     const schema = `bs_authzplat_${USERS.owner.slice(0, 8)}`;
     const support = "00000000-0000-4000-8000-00000000d001";
+
     try {
       await client.query("begin");
+
       for (const who of ["owner", "member", "outsider"] as const) {
         await client.query(
           `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
@@ -701,6 +761,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
           [USERS[who], email(who)],
         );
       }
+
       await client.query(`
         create schema ${schema};
         create table ${schema}.team_members (
@@ -725,6 +786,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
         create function ${schema}.can_assign_platform(member uuid, role text) returns boolean
           language sql stable as $$ select role <> 'superadmin' $$;
       `);
+
       const layout: ModuleLayout = {
         accessProvider: testProvider(schema),
         modules: {
@@ -753,8 +815,10 @@ describe.skipIf(!live)("organizations and invitations", () => {
           },
         },
       };
-      for (const file of renderModules(["invitations"], layout))
+
+      for (const file of renderModules(["invitations"], layout)) {
         await client.query(file.contents);
+      }
 
       await s.as("member");
       expect(
@@ -773,10 +837,12 @@ describe.skipIf(!live)("organizations and invitations", () => {
           email("member"),
         ]),
       ).toBe("INVITATION_ROLE_UNKNOWN");
+
       const invite = await s.value<{ token: string; role: string }>(
         `${schema}.invite_member(null, $1, 'support')`,
         [email("member")],
       );
+
       expect(invite.role).toBe(support);
       await s.as("member");
       expect(
@@ -800,8 +866,10 @@ describe.skipIf(!live)("organizations and invitations", () => {
     const schema = `bs_authzbyid_${USERS.owner.slice(0, 8)}`;
     const support = "00000000-0000-4000-8000-00000000e001";
     const organization = crypto.randomUUID();
+
     try {
       await client.query("begin");
+
       for (const who of ["owner", "admin", "member", "outsider"] as const) {
         await client.query(
           `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
@@ -809,6 +877,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
           [USERS[who], email(who)],
         );
       }
+
       await client.query(`
         create schema ${schema};
         create table ${schema}.team_members (
@@ -846,6 +915,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
         create function ${schema}.can_assign_for(p_user uuid, p_role text, p_scope_id text) returns boolean
           language sql stable as $$ select p_user = '${USERS.owner}' $$;
       `);
+
       const layout: ModuleLayout = {
         accessProvider: testProvider(schema, true),
         modules: {
@@ -874,22 +944,28 @@ describe.skipIf(!live)("organizations and invitations", () => {
           },
         },
       };
-      for (const file of renderModules(["invitations"], layout))
+
+      for (const file of renderModules(["invitations"], layout)) {
         await client.query(file.contents);
+      }
 
       await s.as("owner");
+
       const platform = await s.value<{ id: string }>(
         `${schema}.invite_member(null, $1, 'support')`,
         [email("member")],
       );
+
       const tenant = await s.value<{ id: string }>(
         `${schema}.invite_member($1, $2, 'member')`,
         [organization, email("member")],
       );
+
       const declined = await s.value<{ id: string }>(
         `${schema}.invite_member($1, $2, 'member')`,
         [organization, email("admin")],
       );
+
       expect(
         await s.hint(`${schema}.update_invitation($1, null, 'nope')`, [
           platform.id,
@@ -906,11 +982,13 @@ describe.skipIf(!live)("organizations and invitations", () => {
         organization: null,
         role: support,
       });
+
       const expire = (at: string) =>
         client.query(
           `update ${schema}.platform_invitations set expires_at = now() + $2::interval where id = $1`,
           [platform.id, at],
         );
+
       await expire("-1 minute");
       expect(
         await s.hint(`${schema}.update_invitation($1, null, 'support')`, [
@@ -936,9 +1014,11 @@ describe.skipIf(!live)("organizations and invitations", () => {
       ).toBe(false);
       expect(await s.value(`${schema}.my_invitations()`)).toEqual([]);
       await s.as("member");
+
       const inbox = await s.value<Record<string, unknown>[]>(
         `${schema}.my_invitations()`,
       );
+
       expect(new Set(inbox.map((entry) => entry["id"]))).toEqual(
         new Set([platform.id, tenant.id]),
       );
@@ -978,8 +1058,10 @@ describe.skipIf(!live)("organizations and invitations", () => {
     const s = new Session(client);
     const schema = `bs_authzfor_${USERS.owner.slice(0, 8)}`;
     const organization = crypto.randomUUID();
+
     try {
       await client.query("begin");
+
       for (const who of ["owner", "admin", "member"] as const) {
         await client.query(
           `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
@@ -987,6 +1069,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
           [USERS[who], email(who)],
         );
       }
+
       await client.query(`
         create schema ${schema};
         create table ${schema}.team_members (
@@ -1021,6 +1104,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
         create function ${schema}.can_assign_for(p_user uuid, p_role text, p_scope_id text) returns boolean
           language sql stable as $$ select p_role <> 'owner' and p_user <> '${USERS.admin}' $$;
       `);
+
       const layout: ModuleLayout = {
         accessProvider: testProvider(schema, true),
         modules: {
@@ -1034,8 +1118,10 @@ describe.skipIf(!live)("organizations and invitations", () => {
           invitations: { schema },
         },
       };
-      for (const file of renderModules(["invitations"], layout))
+
+      for (const file of renderModules(["invitations"], layout)) {
         await client.query(file.contents);
+      }
 
       await s.as("owner");
       expect(
@@ -1044,15 +1130,19 @@ describe.skipIf(!live)("organizations and invitations", () => {
           [USERS.admin, organization],
         ),
       ).toBe(true);
+
       const kept = await s.value<{ token: string }>(
         `${schema}.invite_member($1, $2, 'member')`,
         [organization, email("member")],
       );
+
       await s.as("admin");
+
       const lost = await s.value<{ token: string }>(
         `${schema}.invite_member($1, $2, 'member')`,
         [organization, `late-${email("member")}`],
       );
+
       expect(lost.token).not.toBe(kept.token);
       await client.query(`delete from ${schema}.grants where user_id = $1`, [
         USERS.owner,
@@ -1071,6 +1161,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
     const client = await pool.connect();
     const s = new Session(client);
     const api = `bs_api_${USERS.owner.slice(0, 8)}`;
+
     try {
       await client.query("begin");
       await client.query(
@@ -1081,14 +1172,18 @@ describe.skipIf(!live)("organizations and invitations", () => {
       await client.query(`create schema ${api};
         create function ${api}.guard_membership_role(uuid, uuid, text, uuid, text) returns void
           language sql as $$ select $$;`);
+
       for (const file of renderModules(["organizations", "invitations"], {
         modules: { organizations: { api }, invitations: { api } },
-      }))
+      })) {
         await client.query(file.contents);
+      }
+
       const exists = (signature: string) =>
         s.value<boolean>(`to_regprocedure($1) is not null`, [
           `${api}.${signature}`,
         ]);
+
       expect(
         await exists("guard_membership_role(uuid, uuid, text, uuid, text)"),
       ).toBe(false);
@@ -1098,10 +1193,12 @@ describe.skipIf(!live)("organizations and invitations", () => {
         true,
       );
       await s.as("owner");
+
       const organization = await s.value<string>(
         `${api}.create_organization($1)`,
         [{ name: "Api", slug: `wrapped-${USERS.owner.slice(0, 8)}` }],
       );
+
       expect(await s.role(organization, "owner")).toBe("owner");
     } finally {
       await client.query("rollback");
@@ -1112,8 +1209,10 @@ describe.skipIf(!live)("organizations and invitations", () => {
   it("updates an open invitation in place with the invite checks", async () => {
     const client = await pool.connect();
     const s = new Session(client);
+
     try {
       await client.query("begin");
+
       for (const who of Object.keys(USERS) as Who[]) {
         await client.query(
           `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
@@ -1121,22 +1220,27 @@ describe.skipIf(!live)("organizations and invitations", () => {
           [USERS[who], email(who)],
         );
       }
+
       for (const file of renderModules(
         ["organizations", "invitations"],
         LAYOUT,
-      ))
+      )) {
         await client.query(file.contents);
+      }
 
       await s.as("owner");
+
       const organization = await s.value<string>(
         "better_supabase.create_organization($1)",
         [{ name: "Edit", slug: `edit-${USERS.owner.slice(0, 8)}` }],
       );
+
       const invite = (to: string, role: string) =>
         s.value<{ token: string; id: string }>(
           "better_supabase.invite_member($1, $2, $3, '7 days', $4)",
           [organization, to, role, { name: "Out" }],
         );
+
       const admin = await invite(email("admin"), "admin");
       const open = await invite(email("outsider"), "member");
       const owner = await invite(`owner-${email("outsider")}`, "owner");
@@ -1177,6 +1281,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
         "better_supabase.update_invitation($1, $2, 'viewer', $3)",
         [open.id, ` Renamed-${email("outsider")} `, { name: "Renamed" }],
       );
+
       expect(updated).toMatchObject({
         id: open.id,
         email: `renamed-${email("outsider")}`,
@@ -1244,8 +1349,10 @@ describe.skipIf(!live)("organizations and invitations", () => {
     const client = await pool.connect();
     const s = new Session(client);
     const schema = `bs_extra_${USERS.owner.slice(0, 8)}`;
+
     try {
       await client.query("begin");
+
       for (const who of ["owner", "member", "outsider"] as const) {
         await client.query(
           `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
@@ -1253,9 +1360,11 @@ describe.skipIf(!live)("organizations and invitations", () => {
           [USERS[who], email(who)],
         );
       }
+
       await client.query(`create schema ${schema};
         create function ${schema}.invitation_preview_extra(invitation uuid) returns jsonb
           language sql stable as $$ select jsonb_build_object('roleLabel', 'Team member', 'invitation', invitation) $$;`);
+
       const layout: ModuleLayout = {
         modules: {
           access: { schema },
@@ -1269,11 +1378,14 @@ describe.skipIf(!live)("organizations and invitations", () => {
           profiles: { schema },
         },
       };
+
       for (const file of renderModules(
         ["organizations", "invitations", "reserved-slugs", "profiles"],
         layout,
-      ))
+      )) {
         await client.query(file.contents);
+      }
+
       await client.query(
         `insert into ${schema}.profiles (id, full_name) values ($1, 'Grace Hopper')
           on conflict (id) do update set full_name = excluded.full_name`,
@@ -1286,25 +1398,30 @@ describe.skipIf(!live)("organizations and invitations", () => {
           { name: "x", slug: "dashboard-beta" },
         ]),
       ).toBe("ORGANIZATION_SLUG_RESERVED");
+
       const organization = await s.value<string>(
         `${schema}.create_organization($1)`,
         [{ name: "Extra", slug: `extra-${USERS.owner.slice(0, 8)}` }],
       );
+
       const invite = await s.value<{ id: string; token: string }>(
         `${schema}.invite_member($1, $2, 'member')`,
         [organization, email("member")],
       );
+
       expect(invite).toMatchObject({
         roleLabel: "Team member",
         invitation: invite.id,
         inviter: { id: USERS.owner, fullName: "Grace Hopper" },
       });
+
       const resent = await createOrganizations({
         transport: sqlTransport(savepointSql(client)),
         schema,
       })
         .resendInvitation(invite.id)
         .orThrow();
+
       expect(resent.invitation).toMatchObject({
         inviter: { id: USERS.owner, fullName: "Grace Hopper" },
         extra: { roleLabel: "Team member", invitation: invite.id },
@@ -1319,23 +1436,27 @@ describe.skipIf(!live)("organizations and invitations", () => {
         invitation: invite.id,
       });
       expect(await s.value(`${schema}.invitation_preview('nope')`)).toBeNull();
+
       const preview = await createOrganizations({
         transport: sqlTransport(savepointSql(client)),
         schema,
       })
         .previewInvitation(invite.token)
         .orThrow();
+
       expect(preview?.extra).toEqual({
         roleLabel: "Team member",
         invitation: invite.id,
       });
       await s.as("member");
+
       const [inbox] = await createOrganizations({
         transport: sqlTransport(savepointSql(client)),
         schema,
       })
         .myInvitations()
         .orThrow();
+
       expect(inbox).toMatchObject({
         id: invite.id,
         organizationId: organization,
@@ -1372,8 +1493,10 @@ describe.skipIf(!live)("organizations and invitations", () => {
     const module = { schema };
     const role = (n: number) => `00000000-0000-4000-8000-00000000f00${n}`;
     const permission = (n: number) => `00000000-0000-4000-8000-00000000f10${n}`;
+
     try {
       await client.query("begin");
+
       for (const who of ["owner", "outsider"] as const) {
         await client.query(
           `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
@@ -1381,6 +1504,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
           [USERS[who], email(who)],
         );
       }
+
       const layout: ModuleLayout = {
         modules: {
           access: { ...module, model: "catalog" },
@@ -1389,11 +1513,14 @@ describe.skipIf(!live)("organizations and invitations", () => {
           invitations: module,
         },
       };
+
       for (const file of renderModules(
         ["organizations", "invitations"],
         layout,
-      ))
+      )) {
         await client.query(file.contents);
+      }
+
       await client.query(`
         insert into ${schema}.roles (id, key, scope) values
           ('${role(1)}', 'owner', 'tenant'), ('${role(2)}', 'member', 'tenant'),
@@ -1411,20 +1538,24 @@ describe.skipIf(!live)("organizations and invitations", () => {
       `);
 
       await s.as("owner");
+
       const organization = await s.value<string>(
         `${schema}.create_organization($1)`,
         [{ name: "Platform", slug: `platform-${USERS.owner.slice(0, 8)}` }],
       );
+
       expect(
         await s.hint(`${schema}.invite_member($1, $2, 'member', '90 days')`, [
           organization,
           email("outsider"),
         ]),
       ).toBe("INVITATION_VALIDITY");
+
       const lead = await s.value<{ token: string }>(
         `${schema}.invite_member($1, $2, 'lead')`,
         [organization, email("outsider")],
       );
+
       expect(
         await s.hint(`${schema}.invite_member(null, $1, 'support')`, [
           email("outsider"),
@@ -1435,10 +1566,12 @@ describe.skipIf(!live)("organizations and invitations", () => {
           email("outsider"),
         ]),
       ).toBe("INVITATION_ROLE_UNKNOWN");
+
       const platform = await s.value<{ token: string; tenant: null }>(
         `${schema}.invite_member(null, $1, 'inviter')`,
         [email("outsider")],
       );
+
       expect(platform.tenant).toBeNull();
       expect(
         await s.value(
@@ -1493,8 +1626,10 @@ describe.skipIf(!live)("organizations and invitations", () => {
     const client = await pool.connect();
     const s = new Session(client);
     const sql = savepointSql(client);
+
     try {
       await client.query("begin");
+
       for (const who of ["owner", "member"] as const) {
         await client.query(
           `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
@@ -1502,16 +1637,19 @@ describe.skipIf(!live)("organizations and invitations", () => {
           [USERS[who], email(who)],
         );
       }
+
       for (const file of renderModules(
         ["organizations", "invitations"],
         LAYOUT,
-      ))
+      )) {
         await client.query(file.contents);
+      }
 
       const events = new EventHub();
       const seen: string[] = [];
       events.on("block", (event) => seen.push(event.type));
       const mail: InvitationSent[] = [];
+
       const organizations = createOrganizations({
         transport: sqlTransport(sql),
         events,
@@ -1522,9 +1660,11 @@ describe.skipIf(!live)("organizations and invitations", () => {
 
       await s.as("owner");
       const slug = `api-${USERS.owner.slice(0, 8)}`;
+
       const created = await organizations
         .create({ name: "Api", slug })
         .orThrow();
+
       expect((await organizations.slugProblem(slug)).data).toBe("taken");
       expect(
         (await organizations.slugProblem(slug, created.id)).data,
@@ -1543,13 +1683,16 @@ describe.skipIf(!live)("organizations and invitations", () => {
           prefill: { name: "Member" },
         })
         .orThrow();
+
       expect(mail).toEqual([sent]);
       expect(sent.invitation.prefill).toEqual({ name: "Member" });
 
       await s.as("anon");
+
       const preview = await organizations
         .previewInvitation(sent.token)
         .orThrow();
+
       expect(preview).toMatchObject({
         status: "pending",
         organizationId: created.id,
@@ -1557,9 +1700,11 @@ describe.skipIf(!live)("organizations and invitations", () => {
       });
 
       await s.as("member");
+
       const forbidden = await organizations.update(created.id, {
         name: "Mine",
       });
+
       expect(forbidden.error).toMatchObject({ hint: "ORGANIZATION_FORBIDDEN" });
       expect(
         await organizations.acceptInvitation(sent.token).orThrow(),

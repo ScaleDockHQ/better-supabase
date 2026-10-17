@@ -79,9 +79,11 @@ describe("webhooks-out module", () => {
     const plain = renderModules(["webhooks-out"]).at(-1)!.contents;
     expect(plain).not.toContain("better_supabase.can(");
     expect(plain).not.toContain("tenant_ids_with(");
+
     const sql = renderModules(["access", "outbox", "webhooks-out"]).find(
       (file) => file.path.includes("webhooks_out"),
     )!.contents;
+
     expect(sql).toContain("better_supabase.can('tenant', ");
     expect(sql).toContain(
       `using (("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage'))) and (select better_supabase.actor_may_write()))`,
@@ -113,14 +115,17 @@ describe("webhooks-out module", () => {
     const sql = body({
       "webhooks-out": { options: { disableAfter: "3 days" } },
     });
+
     expect(sql).toContain('"failing_since" timestamptz');
     expect(sql).toContain("v_since <= now() - '3 days'::interval");
     expect(() =>
       body({ "webhooks-out": { options: { disableAfter: "soon" } } }),
     ).toThrow(/disableAfter/);
+
     const never = body({
       "webhooks-out": { columns: { endpoints: { failingSince: null } } },
     });
+
     expect(never).not.toContain("v_result := 'disabled'");
   });
 
@@ -164,6 +169,7 @@ describe("webhooks-out module", () => {
       const sql = renderModules(["access", "outbox", "webhooks-out"]).find(
         (file) => file.contents.includes("publish_webhook_event"),
       )!.contents;
+
       const fn = publish(sql);
       expect(fn).toContain(
         "subject text default null, read_permission text default null",
@@ -193,6 +199,7 @@ describe("webhooks-out module", () => {
           modules: { access: { model: "provider" } },
         })!,
       );
+
       expect(fn).toContain(
         `d."organization_id"::text in (select t.id::text from authz.ids_organization_for(d."created_by", v_permission) as t(id))`,
       );
@@ -203,6 +210,7 @@ describe("webhooks-out module", () => {
       expect(publish(body())).toContain(
         `when d."created_by" is not null then false else`,
       );
+
       const untenanted = publish(
         body({
           "webhooks-out": {
@@ -215,9 +223,11 @@ describe("webhooks-out module", () => {
           },
         }),
       );
+
       expect(untenanted).toContain(
         `when d."created_by" is not null then publish_webhook_event.read_permission is null else publish_webhook_event.read_permission is null end`,
       );
+
       const ownerless = publish(
         body({
           "webhooks-out": {
@@ -228,6 +238,7 @@ describe("webhooks-out module", () => {
           },
         }),
       );
+
       expect(ownerless).toContain(
         `and (publish_webhook_event.read_permission is null or coalesce(d."held_permissions" && v_held, false))`,
       );

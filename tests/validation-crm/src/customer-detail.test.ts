@@ -1,8 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from "vitest";
 
+import type { Json } from "./generated.ts";
+
 import { customerDetail, customerDetailSet } from "./customer-detail.ts";
-import { type Json } from "./generated.ts";
 import { betterSupabase } from "./latency.ts";
 
 const ORG = "00000000-0000-4000-8000-0000000000aa";
@@ -12,10 +13,13 @@ function connect(answer: (url: URL) => Json) {
   const fetch = vi.fn<typeof globalThis.fetch>((input) =>
     Promise.resolve(Response.json(answer(new URL(String(input))))),
   );
+
   const db = betterSupabase.connect(
     createClient(PROJECT_URL, "sb_publishable_test", { global: { fetch } }),
   );
+
   const urls = () => fetch.mock.calls.map(([input]) => new URL(String(input)));
+
   return { db, urls };
 }
 

@@ -13,6 +13,7 @@ const BASE = ["catalog", "orders", "promotions"];
 describe("promotions module", () => {
   it("keeps pricing and redemption internal to orders", () => {
     const sql = sqlOf(BASE);
+
     for (const fn of [
       "cart_discounts",
       "redeem_promotions",
@@ -27,12 +28,14 @@ describe("promotions module", () => {
         new RegExp(`grant execute on function "better_supabase"\\."${fn}"\\(`),
       );
     }
-    for (const fn of ["save_promotion", "apply_promotion_code"])
+
+    for (const fn of ["save_promotion", "apply_promotion_code"]) {
       expect(sql).toMatch(
         new RegExp(
           `grant execute on function "better_supabase"\\."${fn}"\\([^)]*\\) to authenticated`,
         ),
       );
+    }
   });
 
   it("references the orders carts and the catalog targets", () => {
@@ -54,6 +57,7 @@ describe("promotions module", () => {
     const modules = renderModules(["promotions"], {}).map(
       (file) => file.module,
     );
+
     expect(modules).toEqual(expect.arrayContaining(["catalog", "orders"]));
   });
 });

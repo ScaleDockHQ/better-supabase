@@ -16,6 +16,7 @@ export function CreateDefinitionForm() {
   const t = useExtracted("workflows");
   const router = useRouter();
   const errorMessage = useErrorMessage();
+
   const create = useAction(createDefinition, {
     onSuccess: (id) => {
       router.push(`/workflows/builder/${id}`);
@@ -24,6 +25,7 @@ export function CreateDefinitionForm() {
       toast.error(errorMessage(error));
     },
   });
+
   return (
     <form
       className="flex gap-2"

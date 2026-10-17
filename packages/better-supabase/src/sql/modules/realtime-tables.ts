@@ -208,22 +208,32 @@ function realtimeRegistrations(
   tenantColumn: string | undefined,
   users: Readonly<Record<string, string>>,
 ): string {
-  if (tables.length === 0) return "";
+  if (tables.length === 0) {
+    return "";
+  }
+
   const qualify = (table: string): string =>
     table.includes(".") ? table : `public.${table}`;
+
   const unscoped = new Set(global.map(qualify));
+
   const owners = new Map(
     Object.entries(users).map(([table, column]) => [qualify(table), column]),
   );
+
   const lines = tables.map((table) => {
     const target = qualify(table);
     const owner = owners.get(target);
+
     if (owner !== undefined) {
       return `select better_supabase.track_realtime(${sqlString(target)}, tenant_column => null, user_column => ${sqlString(owner)});`;
     }
+
     const tenant =
       tenantColumn && !unscoped.has(target) ? sqlString(tenantColumn) : "null";
+
     return `select better_supabase.track_realtime(${sqlString(target)}, tenant_column => ${tenant});`;
   });
+
   return `\n-- config.realtime.tables\n${lines.join("\n")}\n`;
 }

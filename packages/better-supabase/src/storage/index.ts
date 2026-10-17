@@ -1,8 +1,13 @@
 export { defineBucket, parseSize, TTL } from "./bucket.ts";
+
 export { fromStorageError } from "./errors.ts";
+
 export { storageImageUrl } from "./image-url.ts";
+
 export type { StorageImageOptions, StorageImageSize } from "./image-url.ts";
+
 export { defineBuckets } from "./registry.ts";
+
 export type {
   AnyBucket,
   BucketIdOf,
@@ -13,6 +18,7 @@ export type {
   ResolvedRef,
   StoredRef,
 } from "./registry.ts";
+
 export {
   avatarBucket,
   IMAGE_TYPES,
@@ -21,14 +27,19 @@ export {
   type ImageBucketOptions,
   type OrganizationLogoBucketOptions,
 } from "./presets.ts";
+
 export { defineAnalyticsBucket } from "./analytics-bucket.ts";
+
 export type {
   AnalyticsBucket,
   AnalyticsBucketClient,
   AnalyticsCatalog,
 } from "./analytics-bucket.ts";
+
 export type { AppliedBucket } from "./apply.ts";
+
 export { defineVectorBucket } from "./vector-bucket.ts";
+
 export type {
   VectorBucket,
   VectorBucketClient,
@@ -41,12 +52,14 @@ export type {
   VectorQueryOptions,
   VectorRecord,
 } from "./vector-bucket.ts";
+
 export type {
   BucketLifecycle,
   BucketLifecycleRule,
   ObjectVersion,
   VersioningStatus,
 } from "./versioning.ts";
+
 export type {
   ActualBucket,
   Bucket,
@@ -73,6 +86,7 @@ export type {
   UploadOptions,
   UrlOptions,
 } from "./bucket.ts";
+
 export type {
   StorageApi,
   StorageBucketApi,
@@ -95,6 +109,9 @@ export type {
   StorageTransform,
   StorageUrlOptions,
 } from "./storage-api.ts";
+
 export type { TemplateParams, TemplateValues } from "../core/template.ts";
+
 export type { PathIn, StoragePath } from "./path.ts";
+
 export type { AccessBucketPolicy, AccessPolicySql } from "../schema/types.ts";

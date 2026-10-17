@@ -8,6 +8,7 @@ import { schema } from "../fixtures/generated-camel.ts";
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 const signer = await createTestSigner();
 const betterSupabase = defineSupabase(schema);
+
 const env = {
   url: PROJECT_URL,
   publishableKey: "sb_publishable_test",
@@ -38,6 +39,7 @@ describe("RFC 9728 OAuth 2.0 Protected Resource Metadata", () => {
     const metadata = (await (
       await server().fetch(new Request(METADATA))
     ).json()) as Record<string, unknown>;
+
     expect(metadata["resource"]).toBe("https://tools.test/mcp");
     expect(new URL(String(metadata["resource"])).hash).toBe("");
   });
@@ -46,11 +48,15 @@ describe("RFC 9728 OAuth 2.0 Protected Resource Metadata", () => {
     const metadata = (await (
       await server().fetch(new Request(METADATA))
     ).json()) as Record<string, string[]>;
+
     expect(metadata["authorization_servers"]).toEqual([
       `${PROJECT_URL}/auth/v1`,
     ]);
-    for (const issuer of metadata["authorization_servers"]!)
+
+    for (const issuer of metadata["authorization_servers"]!) {
       expect(new URL(issuer).protocol).toBe("https:");
+    }
+
     expect(metadata["bearer_methods_supported"]).toEqual(["header"]);
   });
 
@@ -60,6 +66,7 @@ describe("RFC 9728 OAuth 2.0 Protected Resource Metadata", () => {
         new Request(METADATA),
       )
     ).json()) as Record<string, unknown>;
+
     expect(metadata["scopes_supported"]).toEqual(["openid", "crm.read"]);
   });
 
@@ -71,6 +78,7 @@ describe("RFC 9728 OAuth 2.0 Protected Resource Metadata", () => {
         body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize" }),
       }),
     );
+
     expect(anonymous.status).toBe(401);
     expect(anonymous.headers.get("www-authenticate")).toContain(
       `resource_metadata="${METADATA}"`,
@@ -86,6 +94,7 @@ describe("RFC 9728 OAuth 2.0 Protected Resource Metadata", () => {
         body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
       }),
     );
+
     expect(forbidden.status).toBe(403);
     expect(forbidden.headers.get("www-authenticate")).toContain(
       `resource_metadata="${METADATA}"`,
@@ -96,6 +105,7 @@ describe("RFC 9728 OAuth 2.0 Protected Resource Metadata", () => {
     const response = await server().fetch(
       new Request("https://tools.test/mcp/oauth-protected-resource"),
     );
+
     expect(response.status).toBe(200);
     expect(
       ((await response.json()) as Record<string, unknown>)["resource"],

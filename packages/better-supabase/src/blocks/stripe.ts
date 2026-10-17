@@ -160,15 +160,24 @@ export async function stripeClient<C extends object = StripeClient>(
   source: StripeSource<NoInfer<C>>,
   load: () => Promise<unknown> = loadStripeModule,
 ): Promise<C> {
-  if (typeof source === "function") return source();
-  if (!("secretKey" in source)) return source;
+  if (typeof source === "function") {
+    return source();
+  }
+
+  if (!("secretKey" in source)) {
+    return source;
+  }
+
   const loaded = await load();
+
   if (!isModule(loaded)) {
     throw new TypeError(
       "Stripe calls need the stripe package: pnpm add stripe, or pass a Stripe client as `stripe`",
     );
   }
+
   const Stripe = loaded.default;
+
   // SAFETY: the Stripe SDK implements every structural subset callers name
   // as C (tests/blocks/stripe.test.ts and the commerce tests check each one).
   return new Stripe(source.secretKey, {
@@ -183,7 +192,11 @@ export async function stripeClient<C extends object = StripeClient>(
 export function lazyStripe<C extends object = StripeClient>(
   source: StripeSource<NoInfer<C>>,
 ): () => Promise<C> {
-  if (typeof source === "function") return async () => source();
+  if (typeof source === "function") {
+    return async () => source();
+  }
+
   let client: Promise<C> | undefined;
+
   return () => (client ??= stripeClient<C>(source));
 }

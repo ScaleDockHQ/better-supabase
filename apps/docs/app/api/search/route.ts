@@ -7,6 +7,7 @@ const CACHE_CONTROL =
 export async function GET(request: Request): Promise<Response> {
   const query = new URL(request.url).searchParams.get("query");
   const results = query ? await search(query) : [];
+
   return Response.json(results, {
     headers: { "Cache-Control": CACHE_CONTROL },
   });

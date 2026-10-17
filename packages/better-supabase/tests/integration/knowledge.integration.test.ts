@@ -18,6 +18,7 @@ describe.skipIf(!live)("knowledge module", () => {
 
   it("ingests, embeds and finds chunks the caller may read", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "ai-chat", "ai-files", "knowledge"]);
       const owner = await s.user("owner");
@@ -25,6 +26,7 @@ describe.skipIf(!live)("knowledge module", () => {
       const outsider = await s.user("outsider");
       const tenant = await s.organization(owner, { member });
       const embedder = wordEmbedder();
+
       const knowledge = createKnowledge({
         transport: sqlTransport(s.sql),
         embedder,
@@ -32,11 +34,14 @@ describe.skipIf(!live)("knowledge module", () => {
       });
 
       await s.asRole(member);
+
       const text =
         "Penguins live in the southern hemisphere.\n\nKoalas sleep most of the day in eucalyptus trees.";
+
       const doc = await knowledge.ingest
         .text(tenant, { title: "Animals", text, metadata: { topic: "zoo" } })
         .orThrow();
+
       expect(doc).toMatchObject({
         status: "pending",
         chunkCount: 2,
@@ -48,6 +53,7 @@ describe.skipIf(!live)("knowledge module", () => {
       const textOnly = await knowledge
         .search(tenant, { text: "koalas" })
         .orThrow();
+
       expect(textOnly.map((hit) => hit.index)).toEqual([1]);
 
       await s.service();
@@ -60,6 +66,7 @@ describe.skipIf(!live)("knowledge module", () => {
       const hits = await knowledge
         .search(tenant, "where do penguins live", { k: 1 })
         .orThrow();
+
       expect(hits[0]).toMatchObject({
         documentId: doc.id,
         index: 0,
@@ -73,12 +80,14 @@ describe.skipIf(!live)("knowledge module", () => {
       ).toEqual([]);
 
       const calls = embedder.calls;
+
       const edited = await knowledge.documents
         .write(doc.id, [
           { content: "Penguins live in the southern hemisphere." },
           { content: "Koalas eat eucalyptus leaves." },
         ])
         .orThrow();
+
       expect(edited.status).toBe("pending");
       await s.service();
       expect(
@@ -96,14 +105,17 @@ describe.skipIf(!live)("knowledge module", () => {
       expect(foreign.ok ? undefined : foreign.error.hint).toBe(
         "KNOWLEDGE_NOT_FOUND",
       );
+
       const forbidden = await knowledge.documents.create(tenant, {
         title: "x",
       });
+
       expect(forbidden.ok ? undefined : forbidden.error.hint).toBe(
         "KNOWLEDGE_FORBIDDEN",
       );
 
       await s.asRole(owner);
+
       const shared = await knowledge.ingest
         .text(tenant, {
           title: "Handbook",
@@ -111,24 +123,31 @@ describe.skipIf(!live)("knowledge module", () => {
           scope: "organization",
         })
         .orThrow();
+
       await s.asRole(member);
+
       const visible = await knowledge
         .search(tenant, "expenses", { scopes: [{ scope: "organization" }] })
         .orThrow();
+
       expect(visible.map((hit) => hit.documentId)).toEqual([shared.id]);
       expect(await knowledge.documents.remove(shared.id).orThrow()).toBe(false);
+
       const badScope = await knowledge.documents.create(tenant, {
         title: "x",
         scope: "agent",
       });
+
       expect(badScope.ok ? undefined : badScope.error.hint).toBe(
         "KNOWLEDGE_FORBIDDEN",
       );
       await s.asRole(owner);
+
       const noAgent = await knowledge.documents.create(tenant, {
         title: "x",
         scope: "agent",
       });
+
       expect(noAgent.ok ? undefined : noAgent.error.hint).toBe(
         "KNOWLEDGE_SCOPE",
       );
@@ -157,12 +176,14 @@ describe.skipIf(!live)("knowledge module", () => {
 
   it("keeps a chunk rewritten during its embedding waiting", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "knowledge"]);
       const owner = await s.user("owner");
       const tenant = await s.organization(owner);
       let rewrite = true;
       const inner = wordEmbedder();
+
       const racing: Embedder = {
         model: inner.model,
         embed: async (values, options) => {
@@ -172,23 +193,30 @@ describe.skipIf(!live)("knowledge module", () => {
               "update better_supabase.knowledge_chunks set content = 'Koalas sleep' where content = 'Penguins swim'",
             );
           }
+
           return inner.embed(values, options);
         },
       };
+
       const knowledge = createKnowledge({
         transport: sqlTransport(s.sql),
         embedder: racing,
       });
+
       await s.asRole(owner);
+
       const doc = await knowledge.ingest
         .text(tenant, { title: "Race", text: "Penguins swim" })
         .orThrow();
+
       await s.service();
       expect(await knowledge.process(doc.id).orThrow()).toBe(0);
+
       const [row] = await s.rows<{ fresh: boolean }>(
         "select embedding_hash = md5(content) as fresh from better_supabase.knowledge_chunks where document_id = $1",
         [doc.id],
       );
+
       expect(row?.fresh).toBe(true);
       expect(inner.calls).toBe(2);
     } finally {
@@ -198,22 +226,28 @@ describe.skipIf(!live)("knowledge module", () => {
 
   it("marks a document failed when the embed job gives up", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "knowledge"]);
       const owner = await s.user("owner");
       const tenant = await s.organization(owner);
+
       const failing: Embedder = {
         model: "broken",
         embed: () => Promise.reject(new Error("rate limited")),
       };
+
       const knowledge = createKnowledge({
         transport: sqlTransport(s.sql),
         embedder: failing,
       });
+
       await s.asRole(owner);
+
       const doc = await knowledge.ingest
         .text(tenant, { title: "Notes", text: "Some notes." })
         .orThrow();
+
       await s.service();
       const handler = knowledge.embedJob();
       const job = { attempts: 3, maxAttempts: 3 };

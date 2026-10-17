@@ -85,21 +85,27 @@ const RESERVED = ["fields"] as const;
 
 function teamIdType(ctx: ModuleContext): "uuid" | "bigint" {
   const value = ctx.option("teamIdType") ?? "uuid";
+
   if (value !== "uuid" && value !== "bigint") {
     throw new TypeError(
       'blocks.teams.options.teamIdType must be "uuid" or "bigint"',
     );
   }
+
   if (ctx.installed("inbox") && value !== "uuid") {
     throw new TypeError(
       "inbox assigns teams by uuid. Leave blocks.teams.options.teamIdType unset, or do not install inbox.",
     );
   }
+
   return value;
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
   const idType = teamIdType(ctx);
   const teams = ctx.table("teams");
   const members = ctx.table("members");
@@ -120,12 +126,15 @@ function build(ctx: ModuleContext): string {
   const read = ctx.permission("read", OPERATIONS["teams.read"]);
   const extras = ctx.extraColumns("teams", RESERVED);
   const extra = extraFieldsArg(extras);
+
   const teamJson = (alias: string): string =>
     `jsonb_build_object('id', ${alias}.${id}, 'slug', ${alias}.${slug}${extraFieldsJson(alias, extras)})`;
+
   const idDefault =
     idType === "uuid"
       ? " default gen_random_uuid()"
       : " generated always as identity";
+
   const tables = ctx.manages
     ? `create table if not exists ${teams} (
   ${id} ${idType} primary key${idDefault},
@@ -160,7 +169,9 @@ using (${memberTenant} in (select ${ctx.scope.ids(read)}));
 ${membershipFk(ctx, members, memberTenant, memberUser)}
 `
     : "";
+
   const fn = (value: string): string => ctx.fn(value);
+
   return `${schemaPreamble(ctx)}
 -- Teams belong to a tenant. Inbox assignment uses these rows when inbox is installed.
 ${tables}
@@ -369,8 +380,12 @@ function membershipFk(
   tenant: string,
   user: string,
 ): string {
-  if (!ctx.installed("tenant")) return "";
+  if (!ctx.installed("tenant")) {
+    return "";
+  }
+
   const memberships = ctx.of("tenant");
+
   return `alter table ${members} drop constraint if exists team_members_membership_fkey;
 alter table ${members}
   add constraint team_members_membership_fkey
@@ -383,8 +398,12 @@ function membershipCheck(
   tenant: string,
   user: string,
 ): string {
-  if (!ctx.installed("tenant")) return "";
+  if (!ctx.installed("tenant")) {
+    return "";
+  }
+
   const memberships = ctx.of("tenant");
+
   return `if not exists (
     select 1 from ${memberships.table("memberships")} m
     where m.${memberships.col("memberships", "tenant")} = ${tenant}
@@ -403,7 +422,10 @@ function inboxMove(
   name: string,
   slug: string,
 ): string {
-  if (!ctx.installed("inbox") || !ctx.manages) return "";
+  if (!ctx.installed("inbox") || !ctx.manages) {
+    return "";
+  }
+
   const inbox = ctx.of("inbox");
   const oldTeams = inbox.table("teams");
   const oldMembers = inbox.table("teamMembers");
@@ -417,6 +439,7 @@ function inboxMove(
   const memberTeam = ctx.col("members", "team");
   const memberUser = ctx.col("members", "user");
   const memberTenant = ctx.col("members", "tenant");
+
   return `do $inbox_teams$
 declare
   legacy record;
@@ -466,6 +489,7 @@ function record(
     ...(name ? [`'name', ${name}`] : []),
     ...(userId ? [`'userId', ${userId}`] : []),
   ].join(", ");
+
   return ctx.record({
     type,
     payload: `jsonb_build_object(${payload})`,
@@ -482,6 +506,7 @@ function record(
 function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
   const id = teamIdType(ctx);
   const extra = extraFieldsArg(ctx.extraColumns("teams", RESERVED)).contract;
+
   return [
     {
       name: "create_team",

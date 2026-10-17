@@ -80,6 +80,7 @@ export function lineItemsSql(
   const list = `round(l.${c("quantity")} * l.${c("unitAmount")})`;
   const discount = `round(${list} * l.${c("discountBps")} / 10000.0)`;
   const tax = `round((${list} - ${discount}) * l.${c("taxRateBps")} / 10000.0)`;
+
   const manages = ctx.manages
     ? `create table if not exists ${t} (
   ${c("id")} uuid primary key default gen_random_uuid(),
@@ -104,6 +105,7 @@ create policy ${sqlIdent(`${ctx.tableName(items.lines).name}_read`)} on ${t} for
 using (exists (select 1 from ${p} x where x.${pc("id")} = ${c("parent")}));
 `
     : "";
+
   return `${manages}
 -- Writes a record's totals from its lines. A record without lines keeps
 -- zero totals.
@@ -194,6 +196,7 @@ grant execute on function ${fn}(uuid, jsonb) to authenticated, service_role;
 /** The totals columns of a record table, as `create table` lines. */
 export function totalColumnsSql(ctx: ModuleContext, table: string): string {
   const c = (column: string): string => ctx.col(table, column);
+
   return [
     `${c("listTotal")} bigint not null default 0`,
     `${c("discountTotal")} bigint not null default 0`,

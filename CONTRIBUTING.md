@@ -6,7 +6,7 @@ Thanks for contributing to better-supabase. This repository is a pnpm and Turbor
 
 - Node.js 24 or later (CI runs 24 LTS)
 - pnpm 12.8.1, the version pinned in `packageManager`
-- Docker and the [Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started), for the integration suites
+- The [Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started), installed by `pnpm install`, for the integration suites. Its stack engine runs natively, without Docker.
 - The Vercel CLI, to pull the hosted environment variables (maintainers only; everything runs without them)
 
 `devEngines` in `package.json` downloads the right Node version for pnpm. npm and Yarn are not supported. Any pnpm 11 or later switches to the pinned version on its own. Install pnpm with its [standalone installer](https://pnpm.io/installation) rather than Corepack, because pnpm does not switch versions when Corepack runs it.
@@ -24,20 +24,22 @@ pnpm run verify
 
 ```bash
 pnpm install
-vercel link           # maintainers: link the scaledock team's project
-pnpm env:pull         # maintainers: hosted keys in .env.local
-pnpm supabase:start   # native stack; writes its URLs to .env.development.local
-pnpm env:local        # local stack and Portless URLs in .env.development.local
-pnpm dev:portless     # docs, marketing and the Next.js example over HTTPS
+vercel link                # maintainers: link the scaledock team's project
+pnpm env:pull              # maintainers: hosted keys in .env.local
+pnpm supabase:signing-key  # the stack's ES256 key in supabase/signing_keys.json
+pnpm supabase:start        # native stack; its URLs and Portless URLs in .env.development.local
+pnpm dev:portless          # docs, marketing and the examples over HTTPS
 ```
 
 The first `pnpm dev:portless` asks to trust the Portless certificate authority. The apps are then served on stable HTTPS URLs:
 
-| App             | URL                           |
-| --------------- | ----------------------------- |
-| Marketing       | `https://www.localhost`       |
-| Docs            | `https://docs.localhost/docs` |
-| Next.js example | `https://example.localhost`   |
+| App             | URL                            |
+| --------------- | ------------------------------ |
+| Marketing       | `https://www.localhost`        |
+| Docs            | `https://docs.localhost/docs`  |
+| Next.js example | `https://example.localhost`    |
+| eve example     | `https://eve.localhost`        |
+| Vite example    | `https://vite-react.localhost` |
 
 The seed creates two users in the Acme organization, both with the password `password123`: `admin@acme.test` (role `admin`) and `member@acme.test` (role `member`).
 
@@ -46,7 +48,7 @@ The seed creates two users in the Acme organization, both with the password `pas
 | Command                  | What it does                                                              |
 | ------------------------ | ------------------------------------------------------------------------- |
 | `pnpm run verify`        | Format check, lint, prose, typecheck, boundaries, tests, doctor and audit |
-| `pnpm dev:portless`      | Docs, marketing and the Next.js example on `.localhost` URLs              |
+| `pnpm dev:portless`      | Docs, marketing and the examples on `.localhost` URLs                     |
 | `pnpm run build`         | `turbo run build`                                                         |
 | `pnpm run test`          | Unit and type tests                                                       |
 | `pnpm typecheck:matrix`  | Published types against TypeScript 6 and 7                                |
@@ -63,7 +65,7 @@ The seed creates two users in the Acme organization, both with the password `pas
 
 The local stack runs on the Supabase CLI's stack engine without Docker. The CLI picks its ports for each checkout and branch, so worktrees run their own stacks side by side; `pnpm supabase:start` writes the URLs and keys to `.env.development.local`, which `pnpm test:integration` and `pnpm db:gen` load. Run it again after switching branches. After you edit `supabase/schemas`, create the migration with `pnpm supabase:diff <name>` (see `docs/agents/database.md`).
 
-Before the first `supabase start`, create the stack's ES256 signing key with `node packages/better-supabase/src/cli/bin.ts keys --cwd .`. It writes `supabase/signing_keys.json` (gitignored), which `config.toml` loads, and the integration tests sign their tokens with it.
+Before the first `supabase start`, create the stack's ES256 signing key with `pnpm supabase:signing-key`. It writes `supabase/signing_keys.json` (gitignored), which `config.toml` loads, and the integration tests sign their tokens with it.
 
 ## Layout
 

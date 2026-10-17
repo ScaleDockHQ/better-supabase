@@ -92,7 +92,9 @@ export function defineCliCommand<const T extends ArgsDef>(
     args: { ...def.args, ...GLOBAL_ARGS },
     run: ({ args, data }) => def.run(args, cliContext(data)),
   });
+
   LISTS.set(command, def.lists ?? []);
+
   return command;
 }
 
@@ -119,31 +121,46 @@ export function joinRepeated(
   argv: readonly string[],
   names: readonly string[],
 ): string[] {
-  if (names.length === 0) return [...argv];
+  if (names.length === 0) {
+    return [...argv];
+  }
+
   const lists = new Set(names);
   const values = new Map<string, string[]>();
   const rest: string[] = [];
+
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index]!;
+
     if (token === "--") {
       rest.push(...argv.slice(index));
       break;
     }
+
     const match = /^--([^=]+)(?:=(.*))?$/.exec(token);
     const name = match?.[1];
+
     if (name === undefined || !lists.has(name)) {
       rest.push(token);
       continue;
     }
+
     let value = match?.[2];
+
     if (value === undefined) {
       const next = argv[index + 1];
-      if (next === undefined || next.startsWith("-")) continue;
+
+      if (next === undefined || next.startsWith("-")) {
+        continue;
+      }
+
       value = next;
       index += 1;
     }
+
     values.set(name, [...(values.get(name) ?? []), value]);
   }
+
   return [
     ...[...values].map(([name, parts]) => `--${name}=${parts.join(",")}`),
     ...rest,
@@ -156,8 +173,11 @@ export function parseCommandArgs<T extends ArgsDef>(
   argv: readonly string[],
 ): ParsedArgs<T> {
   const args = command.args;
-  if (typeof args !== "object" || args instanceof Promise)
+
+  if (typeof args !== "object" || args instanceof Promise) {
     throw new TypeError("parseCommandArgs needs a command with static args");
+  }
+
   return parseArgs<T>(joinRepeated(argv, listArgs(command)), args);
 }
 
@@ -173,9 +193,11 @@ function isCliContext(value: unknown): value is CliContext {
 }
 
 export function cliContext(data: unknown): CliContext {
-  if (!isCliContext(data))
+  if (!isCliContext(data)) {
     throw new TypeError(
       "better-supabase commands run through run() from better-supabase/cli",
     );
+  }
+
   return data;
 }

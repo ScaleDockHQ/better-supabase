@@ -15,9 +15,12 @@ afterEach(() => {
 
 describe("env loading", () => {
   it("waits for the first use, so builds without runtime env can import server modules", () => {
-    for (const name of Object.values(ENV_VARIABLES).flat())
+    for (const name of Object.values(ENV_VARIABLES).flat()) {
       vi.stubEnv(name, "");
+    }
+
     const betterSupabase = defineSupabase(schema);
+
     const servers = [
       createServer(betterSupabase),
       createEdge(betterSupabase),
@@ -25,6 +28,7 @@ describe("env loading", () => {
       createOrpc(betterSupabase),
       createMcp(betterSupabase, { name: "test", version: "1.0.0" }),
     ];
+
     for (const server of servers) {
       expect(typeof server.context).toBe("function");
       expect(() => server.env).toThrow(EnvValidationError);

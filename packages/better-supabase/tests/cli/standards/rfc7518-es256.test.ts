@@ -13,6 +13,7 @@ import {
 } from "../../../src/testing/index.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
+
 const env = {
   url: PROJECT_URL,
   publishableKey: "sb_publishable_test",
@@ -28,10 +29,12 @@ const decode = (part: string): Record<string, unknown> =>
       ),
     ),
   ) as Record<string, unknown>;
+
 const bytes = (part: string) =>
   atob(part.replaceAll("-", "+").replaceAll("_", "/")).length;
 
 const dir = await mkdtemp(join(tmpdir(), "bs-es256-"));
+
 afterAll(() => rm(dir, { recursive: true, force: true }));
 
 describe("RFC 7518 ES256 (section 3.4) and RFC 7517 JSON Web Keys", () => {
@@ -40,9 +43,11 @@ describe("RFC 7518 ES256 (section 3.4) and RFC 7517 JSON Web Keys", () => {
     await writeFile(join(dir, "supabase/config.toml"), "[auth]\n");
     await writeFile(join(dir, "package.json"), "{}");
     expect((await run(["keys", "--cwd", dir])).code).toBe(0);
+
     const [key] = JSON.parse(
-      await readFile(join(dir, "supabase/signing_keys.json"), "utf8"),
+      await readFile(join(dir, "supabase/signing_keys.json"), "utf-8"),
     ) as SigningJwk[];
+
     expect(key).toMatchObject({
       kty: "EC",
       crv: "P-256",
@@ -50,8 +55,10 @@ describe("RFC 7518 ES256 (section 3.4) and RFC 7517 JSON Web Keys", () => {
       use: "sig",
     });
     expect(key!.kid).toMatch(/\S/);
-    for (const coordinate of ["x", "y", "d"] as const)
+
+    for (const coordinate of ["x", "y", "d"] as const) {
       expect(bytes(String(key![coordinate]))).toBe(32);
+    }
 
     const token = await signTestJwtWithKey(key!, { sub: "u1" });
     const [header, , signature] = token.split(".");
@@ -75,6 +82,7 @@ describe("RFC 7518 ES256 (section 3.4) and RFC 7517 JSON Web Keys", () => {
 
   it("the published JWKS holds only public members", async () => {
     const signer = await createTestSigner();
+
     for (const key of signer.jwks.keys) {
       expect(key).toMatchObject({
         kty: "EC",
@@ -88,24 +96,31 @@ describe("RFC 7518 ES256 (section 3.4) and RFC 7517 JSON Web Keys", () => {
 
   it("verifies ES256 tokens through JWKS and rejects HS256 tokens there", async () => {
     const signer = await createTestSigner();
+
     const request = (token: string) =>
       new Request("https://api.test/", {
         headers: { authorization: `Bearer ${token}` },
       });
+
     const good = await resolveAuth(request(await signer.sign({ sub: "u1" })), {
       env,
       jwks: signer.jwks as never,
     });
+
     expect(good.auth.kind).toBe("user");
+
     const hs256 = await signTestJwt(
       "super-secret-jwt-token-with-at-least-32-characters",
       { sub: "u1" },
     );
+
     expect(decode(hs256.split(".")[0]!)).toMatchObject({ alg: "HS256" });
+
     const rejected = await resolveAuth(request(hs256), {
       env,
       jwks: signer.jwks as never,
     });
+
     expect(rejected.auth).toMatchObject({
       kind: "invalid",
       error: { status: 401 },
@@ -116,6 +131,7 @@ describe("RFC 7518 ES256 (section 3.4) and RFC 7517 JSON Web Keys", () => {
     const [mine, theirs] = [await createTestSigner(), await createTestSigner()];
     const forged = await theirs.sign({ sub: "u1" });
     const [, body, signature] = forged.split(".");
+
     const header = btoa(
       JSON.stringify({
         alg: "ES256",
@@ -123,12 +139,14 @@ describe("RFC 7518 ES256 (section 3.4) and RFC 7517 JSON Web Keys", () => {
         kid: (mine.jwks.keys[0] as JsonWebKey & { kid: string }).kid,
       }),
     ).replaceAll("=", "");
+
     const { auth } = await resolveAuth(
       new Request("https://api.test/", {
         headers: { authorization: `Bearer ${header}.${body}.${signature}` },
       }),
       { env, jwks: mine.jwks as never },
     );
+
     expect(auth.kind).toBe("invalid");
   });
 });

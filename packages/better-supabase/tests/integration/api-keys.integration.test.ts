@@ -16,6 +16,7 @@ describe.skipIf(!live)("api-keys", () => {
 
   it("creates, verifies, rate-limits, rotates and revokes keys", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "api-keys"]);
       const owner = await s.user("owner");
@@ -26,14 +27,17 @@ describe.skipIf(!live)("api-keys", () => {
 
       // A member can't create a tenant key, but can create a personal one.
       await s.as(member);
+
       const denied = await keys.create({
         name: "CI",
         organizationId: organization,
       });
+
       expect(denied).toMatchObject({
         ok: false,
         error: { kind: "forbidden", hint: "API_KEY_FORBIDDEN" },
       });
+
       const personal = await keys
         .create({
           name: "Mine",
@@ -42,6 +46,7 @@ describe.skipIf(!live)("api-keys", () => {
           scopes: ["deals:read"],
         })
         .orThrow();
+
       expect(personal.key).toMatchObject({
         userId: member.id,
         organizationId: organization,
@@ -57,6 +62,7 @@ describe.skipIf(!live)("api-keys", () => {
       ).toMatchObject({ ok: false, error: { hint: "API_KEY_FORBIDDEN" } });
 
       await s.as(owner);
+
       const ci = await keys
         .create({
           name: "CI",
@@ -65,6 +71,7 @@ describe.skipIf(!live)("api-keys", () => {
           rateLimit: 2,
         })
         .orThrow();
+
       expect(parseApiKey(ci.token)?.publicId).toBe(ci.key.publicId);
       expect(
         await s.value<string>(
@@ -119,6 +126,7 @@ describe.skipIf(!live)("api-keys", () => {
           grace: Temporal.Duration.from({ hours: 1 }),
         })
         .orThrow();
+
       expect(rotated.key.rotatedFrom).toBe(personal.key.id);
       expect(rotated.key.state).toBe("active");
       const during = await keys.list(organization).orThrow();
@@ -194,6 +202,7 @@ describe.skipIf(!live)("api-keys", () => {
   });
   it("needs the own permission in every tenant for a key without a tenant", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "api-keys"]);
       const owner = await s.user("owner");

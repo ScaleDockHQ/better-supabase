@@ -118,9 +118,11 @@ describe("extraColumns on the notifications to settings blocks", () => {
   for (const entry of CASES) {
     it(`${entry.module}: adds the columns, writes them from fields and returns them`, () => {
       const plain = sqlOf(entry.module, entry.needs);
+
       const sql = sqlOf(entry.module, entry.needs, {
         extraColumns: { app_note: "text", app_rank: "integer default 0" },
       });
+
       expect(plain).not.toContain('"app_note"');
       expect(plain).not.toContain("'fields', jsonb_build_object(");
       expect(sql).toContain(

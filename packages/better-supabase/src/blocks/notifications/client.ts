@@ -70,6 +70,7 @@ export function createNotificationsController<T>(
   options: NotificationsControllerOptions<T>,
 ): NotificationsController<T> {
   const countOf = options.count ?? unreadCount;
+
   return defineController<NotificationsSnapshot<T>, NotificationsActions>(
     { items: undefined, count: 0, status: "closed", error: undefined },
     (state) => {
@@ -80,6 +81,7 @@ export function createNotificationsController<T>(
               source(),
             ),
           );
+
           const merged = lists.flat();
           const items = options.sort ? [...merged].sort(options.sort) : merged;
           state.set({ items, count: countOf(items), error: undefined });
@@ -87,12 +89,17 @@ export function createNotificationsController<T>(
           state.set({ error: cause });
         }
       };
+
       return {
         actions: { refresh },
         start: () =>
           whileSignedIn(options.auth, () => {
             void refresh();
-            if (!options.topic) return;
+
+            if (!options.topic) {
+              return;
+            }
+
             const { leave } = options.ports.topic(options.topic, {
               onMessage: (event, payload) => {
                 options.onMessage?.(event, payload);
@@ -103,6 +110,7 @@ export function createNotificationsController<T>(
                 state.set({ status });
               },
             });
+
             return leave;
           }),
       };

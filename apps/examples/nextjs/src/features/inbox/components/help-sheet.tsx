@@ -29,6 +29,7 @@ const TYPING_EVERY_MS = 2000;
 export function HelpSheet() {
   const t = useExtracted("inbox");
   const [open, setOpen] = useState(false);
+
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger
@@ -62,6 +63,7 @@ function HelpChat() {
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
   const lastPing = useRef(0);
+
   const widget = useInboxWidget({
     storageKey: `acme:help:${userId}`,
     open: async (message) => unwrap(await askForHelp({ message })),
@@ -71,18 +73,20 @@ function HelpChat() {
     load: async (conversationId) =>
       unwrap(await loadThread({ conversationId })).messages,
   });
+
   const messages = widget.items ?? [];
 
   return (
     <>
       <ol className="flex-1 space-y-3 overflow-y-auto p-4">
         {messages.length === 0 ? (
-          <li className="text-muted-foreground text-sm">
+          <li className="text-sm text-muted-foreground">
             {t("No messages yet. Write below to start.")}
           </li>
         ) : null}
         {messages.map((message) => {
           const mine = message.authorType === "contact";
+
           return (
             <li
               key={message.id}
@@ -99,7 +103,7 @@ function HelpChat() {
               >
                 {message.body}
               </div>
-              <span className="text-muted-foreground text-xs">
+              <span className="text-xs text-muted-foreground">
                 {format.dateTime(new Date(message.createdAt), {
                   timeStyle: "short",
                 })}
@@ -109,7 +113,7 @@ function HelpChat() {
         })}
       </ol>
       {widget.typing.length > 0 ? (
-        <output className="text-muted-foreground block px-4 pb-2 text-xs">
+        <output className="block px-4 pb-2 text-xs text-muted-foreground">
           {t("Support is typing…")}
         </output>
       ) : null}
@@ -118,7 +122,11 @@ function HelpChat() {
         onSubmit={(event) => {
           event.preventDefault();
           const message = body.trim();
-          if (message === "") return;
+
+          if (message === "") {
+            return;
+          }
+
           setSending(true);
           widget
             .submit(message)
@@ -144,6 +152,7 @@ function HelpChat() {
           placeholder={t("How can we help?")}
           onChange={(event) => {
             setBody(event.target.value);
+
             if (
               widget.conversationId !== null &&
               event.timeStamp - lastPing.current > TYPING_EVERY_MS

@@ -50,7 +50,9 @@ export const startWorkflow = bs.action(
     if (auth.kind !== "user") {
       return err(dbError("unauthorized", "Sign in to start a workflow"));
     }
+
     const context = contextOf(auth.user.id, tenant);
+
     const run =
       workflow === "onboarding-drip"
         ? await startFor(context, onboardingDrip, [workflowContext(context)])
@@ -58,7 +60,9 @@ export const startWorkflow = bs.action(
             workflowContext(context),
             text ?? "",
           ]);
+
     refresh();
+
     return ok(run.runId);
   },
 );
@@ -74,13 +78,17 @@ export const requestApproval = bs.action(
     if (auth.kind !== "user") {
       return err(dbError("unauthorized", "Sign in to start a workflow"));
     }
+
     const context = contextOf(auth.user.id, tenant);
+
     const run = await startFor(context, expenseApproval, [
       workflowContext(context),
       amount,
       hookMetadata(context, "workflow.admin"),
     ]);
+
     refresh();
+
     return ok(run.runId);
   },
 );
@@ -98,6 +106,7 @@ export const decideApproval = bs.action(
     if (auth.kind !== "user") {
       return err(dbError("unauthorized", "Sign in to decide"));
     }
+
     try {
       const hook = await authorizeHook(
         approvalToken(run),
@@ -109,14 +118,18 @@ export const decideApproval = bs.action(
             can(session, permission),
         },
       );
+
       await resumeHook(hook, { approved, by: auth.user.id });
     } catch (error) {
       if (error instanceof HookForbiddenError) {
         return err(dbError("forbidden", "You may not decide this approval"));
       }
+
       throw error;
     }
+
     refresh();
+
     return ok(true);
   },
 );
@@ -126,12 +139,18 @@ export const cancelRun = bs.action(
   { input: v.object({ run: v.string() }), requireTenant: true },
   async ({ run }, { supabase }) => {
     const marked = await blocks(supabase).workflows.runs.requestCancel(run);
-    if (!marked.ok) return marked;
+
+    if (!marked.ok) {
+      return marked;
+    }
+
     if (marked.data === undefined) {
       return err(dbError("not_found", "No such run"));
     }
+
     await getRun(marked.data.externalId).cancel();
     refresh();
+
     return ok(true);
   },
 );
@@ -154,6 +173,7 @@ export const createSchedule = bs.action(
     if (auth.kind !== "user") {
       return err(dbError("unauthorized", "Sign in to schedule"));
     }
+
     const created = await blocks(supabase).workflows.schedules.create({
       name,
       workflow,
@@ -162,8 +182,13 @@ export const createSchedule = bs.action(
       // The arguments after the run's context, which the tick route prepends.
       input: workflow === "onboarding-drip" ? [] : ["A scheduled document."],
     });
-    if (!created.ok) return created;
+
+    if (!created.ok) {
+      return created;
+    }
+
     refresh();
+
     return ok(created.data.id);
   },
 );
@@ -178,8 +203,13 @@ export const pauseSchedule = bs.action(
       id,
       paused,
     );
-    if (!updated.ok) return updated;
+
+    if (!updated.ok) {
+      return updated;
+    }
+
     refresh();
+
     return ok(updated.data);
   },
 );
@@ -188,8 +218,13 @@ export const removeSchedule = bs.action(
   { input: v.object({ id: v.string() }), requireTenant: true },
   async ({ id }, { supabase }) => {
     const removed = await blocks(supabase).workflows.schedules.remove(id);
-    if (!removed.ok) return removed;
+
+    if (!removed.ok) {
+      return removed;
+    }
+
     refresh();
+
     return ok(removed.data);
   },
 );

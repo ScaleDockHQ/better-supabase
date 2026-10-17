@@ -48,9 +48,11 @@ describe.each([
 
   it("arazzoFormat renders a document the vendored schema accepts", () => {
     const version = pin === SPEC_PINS.arazzo10 ? "1.0" : "1.1";
+
     const { document, diagnostics } = workflows.render(arazzoFormat, {
       version,
     });
+
     expect(diagnostics.filter((d) => d.severity === "error")).toEqual([]);
     expect(document.arazzo).toBe(pin);
     expect(document.workflows.length).toBeGreaterThan(1);

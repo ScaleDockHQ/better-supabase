@@ -15,11 +15,13 @@ const BASE = ["versions", "signatures"];
 describe("signatures module", () => {
   it("keeps requests and signatures bound to a frozen version", () => {
     const sql = sqlOf(BASE);
+
     for (const table of ["signature_requests", "signatures"]) {
       expect(sql).toContain(
         `create table if not exists "better_supabase"."${table}"`,
       );
     }
+
     expect(sql).toContain(
       `references "better_supabase"."versions" ("id") on delete restrict`,
     );
@@ -61,6 +63,7 @@ describe("signatures module", () => {
         versions: { mode: "adopt", tables: { versions: "app.revisions" } },
       },
     });
+
     expect(sql).toContain(`from "app"."revisions" x`);
     expect(sql).not.toContain("on delete restrict");
   });
@@ -88,6 +91,7 @@ describe("signatures module", () => {
         },
       },
     });
+
     expect(sql).not.toMatch(/create table if not exists "app"/);
     expect(sql).toContain(`"app"."sign_requests"`);
     expect(sql).toContain(`"app"."sign_marks"`);

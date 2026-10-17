@@ -68,15 +68,18 @@ describe.skipIf(!live)("notification email delivery", () => {
 
   const mailer = (audience?: SubscriberPolicy) => {
     const sent: { message: EmailMessage; idempotencyKey: string }[] = [];
+
     const transport: DeliveryTransport = {
       apiVersion: 1,
       channel: "email",
       provider: "test",
       send(message, { idempotencyKey }) {
         sent.push({ message, idempotencyKey });
+
         return { providerMessageId: `m-${idempotencyKey}` };
       },
     };
+
     const notifications = createNotifications({
       transport: sqlTransport(s.sql),
       types: { "task.assigned": anything },
@@ -88,6 +91,7 @@ describe.skipIf(!live)("notification email delivery", () => {
       },
       ...(audience === undefined ? {} : { audience }),
     });
+
     return { notifications, sent };
   };
 
@@ -176,6 +180,7 @@ describe.skipIf(!live)("notification email delivery", () => {
     const { notifications, sent } = mailer((_event, subscribers) =>
       subscribers.filter((subscriber) => subscriber.principal !== bounced.id),
     );
+
     await notify(notifications);
     expect(await notifications.deliver()).toEqual({
       sent: 1,

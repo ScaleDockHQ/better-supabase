@@ -43,14 +43,20 @@ type Reply = (args: Readonly<Record<string, unknown>>) => unknown;
 
 function fake(replies: Record<string, Reply>) {
   const calls: { fn: string; args: Readonly<Record<string, unknown>> }[] = [];
+
   const transport: BlockTransport = {
     call: vi.fn(async (_schema, fn, args) => {
       calls.push({ fn, args });
       const reply = replies[fn];
-      if (reply === undefined) throw new Error(`unexpected ${fn}`);
+
+      if (reply === undefined) {
+        throw new Error(`unexpected ${fn}`);
+      }
+
       return reply(args);
     }),
   };
+
   return { transport, calls };
 }
 
@@ -66,8 +72,11 @@ describe("workflowRunOf", () => {
     });
     expect(run.createdAt.toString()).toBe("2026-01-01T00:00:00Z");
     expect(workflowRunOf({ ...RUN, attributes: null }).attributes).toEqual({});
-    for (const status of ["paused", "", null, 3])
+
+    for (const status of ["paused", "", null, 3]) {
       expect(workflowRunOf({ ...RUN, status }).status).toBe("running");
+    }
+
     expect(workflowRunOf({ ...RUN, status: "cancelled" }).status).toBe(
       "cancelled",
     );
@@ -89,12 +98,15 @@ describe("createWorkflows", () => {
       record_workflow_run: () => "r1",
       purge_workflow_runs: () => "3",
     });
+
     const workflows = createWorkflows({ transport, schema: "app" });
 
     const before = Temporal.Instant.from("2026-02-01T00:00:00Z");
+
     const runs = await workflows.runs
       .list({ tenant: "t1", status: "running", limit: 10, cursor: before })
       .orThrow();
+
     expect(runs.map((run) => run.id)).toEqual(["r1"]);
     expect(calls[0]?.args).toMatchObject({
       tenant: "t1",
@@ -140,7 +152,9 @@ describe("createWorkflows", () => {
       pause_workflow_schedule: () => true,
       remove_workflow_schedule: () => false,
     });
+
     const workflows = createWorkflows({ transport });
+
     const schedule = await workflows.schedules
       .create({
         name: "digest",
@@ -151,6 +165,7 @@ describe("createWorkflows", () => {
         tenant: "t1",
       })
       .orThrow();
+
     expect(schedule).toMatchObject({ id: "s1", input: ["weekly"] });
     expect(calls[0]?.args).toMatchObject({
       payload: { input: ["weekly"] },
@@ -174,6 +189,7 @@ describe("createWorkflows", () => {
 
   it("ticks due schedules with an idempotency key and keeps failures", async () => {
     const fireAt = "2026-01-05T08:00:00Z";
+
     const { transport, calls } = fake({
       claim_due_workflow_schedules: () => [
         { ...SCHEDULE, fireAt },
@@ -181,15 +197,21 @@ describe("createWorkflows", () => {
       ],
       advance_workflow_schedule: () => true,
     });
+
     const workflows = createWorkflows({ transport });
+
     const start = vi.fn(async (call: { idempotencyKey: string }) => {
-      if (call.idempotencyKey.startsWith("schedule:s2:"))
+      if (call.idempotencyKey.startsWith("schedule:s2:")) {
         throw new Error("down");
+      }
+
       return "wrun_9";
     });
+
     const result = await workflows.schedules
       .tick({ start, lease: 30, batch: 2 })
       .orThrow();
+
     expect(result).toEqual({
       started: 1,
       failed: [{ id: "s2", error: "down" }],
@@ -203,9 +225,11 @@ describe("createWorkflows", () => {
       idempotencyKey: `schedule:s1:${fireAt}`,
     });
     expect(calls[0]?.args).toEqual({ lease: 30, batch: 2 });
+
     const advance = calls.find(
       (entry) => entry.fn === "advance_workflow_schedule",
     );
+
     expect(advance?.args).toMatchObject({ schedule: "s1", fired: fireAt });
   });
 
@@ -218,10 +242,13 @@ describe("createWorkflows", () => {
         throw Object.assign(new Error("gone"), { code: "P0001" });
       },
     });
+
     const workflows = createWorkflows({ transport });
+
     const result = await workflows.admission.tick({
       start: async () => "wrun_1",
     });
+
     expect(result.ok).toBe(false);
   });
 
@@ -238,6 +265,7 @@ describe("createWorkflows", () => {
       ],
       mark_workflow_start_request: () => true,
     });
+
     const workflows = createWorkflows({ transport });
     expect(
       await workflows.semaphores.acquire("k", "h", { max: 2 }).orThrow(),

@@ -27,6 +27,7 @@ export const chrome = defineReadSet(defineSupabase(schema), "chrome", { params: 
   customers: s.customers.count({ where: { organizationId: p.organizationId } }),
 }));
 `;
+
 const READ_SET_FILE = "supabase/schemas/900_better_supabase_14_read_sets.sql";
 
 describe("gen", () => {
@@ -48,6 +49,7 @@ describe("gen", () => {
 
   it("runs configured generators with root-relative import paths", async () => {
     const seen: string[] = [];
+
     const tables: Generator = {
       name: "tables",
       generate: (input) => {
@@ -55,6 +57,7 @@ describe("gen", () => {
           input.importPath("src/db/tables.ts", "src/db/generated.ts"),
           input.output,
         );
+
         return [
           {
             path: "src/db/tables.ts",
@@ -63,6 +66,7 @@ describe("gen", () => {
         ];
       },
     };
+
     const config = configure({ generators: [tables] });
     const files = await renderFiles(config, snapshot);
     expect(files.map((file) => file.path)).toEqual([
@@ -81,11 +85,13 @@ describe("gen", () => {
       name,
       generate: () => [{ path, contents: "" }],
     });
+
     const failing = async (...generators: Generator[]) =>
       renderFiles(configure({ generators }), snapshot).then(
         () => "rendered",
         (error: unknown) => (error instanceof Error ? error.message : ""),
       );
+
     expect(await failing(writing("escape", "../outside.ts"))).toBe(
       'generator "escape" wrote ../outside.ts, which is outside the project root',
     );
@@ -115,7 +121,9 @@ describe("gen", () => {
         "customers.metadata": { import: "src/types/Customer.ts#Metadata" },
       },
     });
+
     const [, main] = await renderFiles(config, snapshot);
+
     const imports = main!.contents
       .split("\n")
       .filter(
@@ -123,6 +131,7 @@ describe("gen", () => {
           line.startsWith("import type { Attachments }") ||
           line.startsWith("import type { Metadata }"),
       );
+
     expect(imports).toEqual([
       'import type { Metadata } from "../types/Customer.ts";',
       'import type { Attachments } from "../types/notes.ts";',
@@ -133,6 +142,7 @@ describe("gen", () => {
     await mkdir(join(root, "src"), { recursive: true });
     await writeFile(join(root, "src/read-sets.ts"), READ_SETS);
     const config = configure({ readSets: ["src/read-sets.ts"] });
+
     const gen = (check: boolean) =>
       runGen({ config, env: {}, check, snapshot });
 
@@ -143,7 +153,7 @@ describe("gen", () => {
         `^Generated \\d+ tables:\\n  src/db/database.types.ts\\n  src/db/generated.ts\\n  src/db/generated.meta.js\\n  src/db/generated.meta.d.ts\\n  ${READ_SET_FILE}$`,
       ),
     );
-    const sql = await readFile(join(root, READ_SET_FILE), "utf8");
+    const sql = await readFile(join(root, READ_SET_FILE), "utf-8");
     expect(sql).toContain(
       "create or replace function public.rs_chrome(p jsonb)",
     );
@@ -172,21 +182,25 @@ describe("gen", () => {
   it("writes the read sets into a migration under the migrations workflow", async () => {
     await mkdir(join(root, "src"), { recursive: true });
     await writeFile(join(root, "src/read-sets.ts"), READ_SETS);
+
     const config = configure({
       readSets: ["src/read-sets.ts"],
       sql: { workflow: "migrations" },
     });
+
     const gen = (check: boolean) =>
       runGen({ config, env: {}, check, snapshot });
 
     const first = await gen(false);
+
     const path =
       /supabase\/migrations\/\d{14}_better_supabase_read_sets\.sql/.exec(
         first.output ?? "",
       )?.[0];
+
     expect(path).toBeDefined();
     expect(existsSync(join(root, READ_SET_FILE))).toBe(false);
-    expect(await readFile(join(root, path!), "utf8")).toContain(
+    expect(await readFile(join(root, path!), "utf-8")).toContain(
       "create or replace function public.rs_chrome(p jsonb)",
     );
     expect((await gen(true)).code).toBe(0);
@@ -202,6 +216,7 @@ describe("gen", () => {
 
   it("gives generators a frozen model with the column types gen wrote", async () => {
     let model: GeneratorModel | undefined;
+
     const config = configure({
       json: { "customers.metadata": { type: "{ tier: string }" } },
       generators: [
@@ -210,11 +225,13 @@ describe("gen", () => {
           name: "spy",
           generate: (input) => {
             model = input.model;
+
             return [];
           },
         },
       ],
     });
+
     await renderFiles(config, snapshot);
     const customers = model?.tables.find((table) => table.name === "customers");
     expect(customers?.key).toBe("customers");
@@ -238,6 +255,7 @@ describe("gen", () => {
       name: "future",
       generate: () => [],
     } as unknown as Generator;
+
     expect(() => configure({ generators: [future] })).toThrow(
       'generator "future" targets generator API 2',
     );
@@ -257,6 +275,7 @@ describe("gen", () => {
       check: false,
       snapshot,
     });
+
     expect(result.data).toMatchObject({
       warnings: [
         expect.stringContaining('tables["ghosts"]: no table by that name'),
@@ -272,6 +291,7 @@ describe("gen", () => {
       name: "extra",
       generate: () => [{ path: "src/db/extra.ts", contents: "x\n" }],
     };
+
     await runGen({
       config: configure({ generators: [extra] }),
       env: {},
@@ -286,6 +306,7 @@ describe("gen", () => {
       check: true,
       snapshot,
     });
+
     expect(check.code).toBe(1);
     expect(check.error).toBe(
       "Generated files are out of date:\n  src/db/extra.ts (no longer generated)\nRun `better-supabase gen`.",
@@ -297,6 +318,7 @@ describe("gen", () => {
       check: false,
       snapshot,
     });
+
     expect(written.output).toContain(
       "  src/db/extra.ts (removed, no longer generated)",
     );
@@ -312,17 +334,19 @@ describe("gen", () => {
     const config = configure({});
     await runGen({ config, env: {}, check: false, snapshot });
     const files = await renderFiles(config, snapshot);
+
     for (const file of files) {
       await writeFile(
         join(root, file.path),
         file.contents.replaceAll("\n", "\r\n"),
       );
     }
+
     const check = await runGen({ config, env: {}, check: true, snapshot });
     expect(check.code).toBe(0);
     const again = await runGen({ config, env: {}, check: false, snapshot });
     expect(again.output).toMatch(/^No changes/);
-    expect(await readFile(join(root, files[1]!.path), "utf8")).toContain(
+    expect(await readFile(join(root, files[1]!.path), "utf-8")).toContain(
       "\r\n",
     );
   });
@@ -334,6 +358,7 @@ describe("gen", () => {
       check: true,
       snapshot,
     });
+
     expect(result.error).toBe(
       "Generated files are out of date:\n  src/db/database.types.ts\n  src/db/generated.ts\n  src/db/generated.meta.js\n  src/db/generated.meta.d.ts\nRun `better-supabase gen`.",
     );

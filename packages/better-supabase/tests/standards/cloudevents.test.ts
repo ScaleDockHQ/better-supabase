@@ -29,15 +29,20 @@ const events = toCloudEvents(
 describe("CloudEvents 1.0", () => {
   it("specversion is the major.minor of SPEC_PINS.cloudevents", () => {
     expect(SPEC_PINS.cloudevents).toMatch(/^1\.0\.\d+$/);
-    for (const event of events)
+
+    for (const event of events) {
       expect(event.specversion).toBe(
         SPEC_PINS.cloudevents.split(".").slice(0, 2).join("."),
       );
+    }
   });
 
   it("every event validates against the official JSON format schema", () => {
     const validate = validatorFor("cloudevents-1.0.2.json");
-    for (const event of events) expect(problems(validate, event)).toEqual([]);
+
+    for (const event of events) {
+      expect(problems(validate, event)).toEqual([]);
+    }
   });
 
   it("has the REQUIRED context attributes (spec section 3.1) and unique ids", () => {
@@ -46,6 +51,7 @@ describe("CloudEvents 1.0", () => {
       expect(event.source).toMatch(/\S/);
       expect(event.type).toMatch(/^[a-z0-9.-]+$/);
     }
+
     expect(new Set(events.map((event) => event.id)).size).toBe(events.length);
   });
 
@@ -62,9 +68,12 @@ describe("CloudEvents 1.0", () => {
       "data",
       "data_base64",
     ]);
-    for (const event of events)
-      for (const name of Object.keys(event).filter((key) => !core.has(key)))
+
+    for (const event of events) {
+      for (const name of Object.keys(event).filter((key) => !core.has(key))) {
         expect(name).toMatch(/^[a-z0-9]{1,20}$/);
+      }
+    }
   });
 
   it("time is RFC 3339 (section 3.1.1 OPTIONAL attributes)", () => {
@@ -81,6 +90,7 @@ describe("CloudEvents 1.0", () => {
     expect(message!.headers["content-type"]).toBe(
       "application/cloudevents+json",
     );
+
     const parsed = await fromHttp(
       new Request("https://sink.test", {
         method: "POST",
@@ -88,6 +98,7 @@ describe("CloudEvents 1.0", () => {
         body: message!.body,
       }),
     );
+
     expect(parsed).toEqual([events[0]]);
   });
 
@@ -96,6 +107,7 @@ describe("CloudEvents 1.0", () => {
     expect(message!.headers["content-type"]).toBe(
       "application/cloudevents-batch+json",
     );
+
     const parsed = await fromHttp(
       new Request("https://sink.test", {
         method: "POST",
@@ -103,6 +115,7 @@ describe("CloudEvents 1.0", () => {
         body: message!.body,
       }),
     );
+
     expect(parsed).toEqual(events);
   });
 
@@ -114,6 +127,7 @@ describe("CloudEvents 1.0", () => {
     expect(message!.headers).not.toHaveProperty("ce-data");
     expect(message!.headers).not.toHaveProperty("ce-datacontenttype");
     expect(JSON.parse(message!.body)).toEqual(events[1]!.data);
+
     const [parsed] = await fromHttp(
       new Request("https://sink.test", {
         method: "POST",
@@ -121,6 +135,7 @@ describe("CloudEvents 1.0", () => {
         body: message!.body,
       }),
     );
+
     expect(parsed).toMatchObject({ ...events[1], data: events[1]!.data });
   });
 
@@ -139,6 +154,7 @@ describe("CloudEvents 1.0", () => {
 
 describe("CloudEvents 1.0 from webhooks-out", () => {
   const TRACE = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
+
   const claimed = (batch: boolean) =>
     ["del-1", "del-2"].map((id) => ({
       id,
@@ -157,16 +173,21 @@ describe("CloudEvents 1.0 from webhooks-out", () => {
   async function send(batch: boolean): Promise<WebhookRequest[]> {
     const sent: WebhookRequest[] = [];
     let rows: unknown = claimed(batch);
+
     const webhooks = createWebhooks({
       transport: {
         async call(_schema, fn) {
           if (fn === "claim_webhook_deliveries") {
             const next = rows;
             rows = [];
+
             return next;
           }
-          if (fn === "webhook_secrets")
+
+          if (fn === "webhook_secrets") {
             return ["whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw"];
+          }
+
           return "ok";
         },
       },
@@ -175,6 +196,7 @@ describe("CloudEvents 1.0 from webhooks-out", () => {
         name: "capture",
         async send(request) {
           sent.push(request);
+
           return { status: 204, body: "" };
         },
       },
@@ -182,7 +204,9 @@ describe("CloudEvents 1.0 from webhooks-out", () => {
       dataschema: "https://app.example.com/schemas/invoice-paid.json",
       traceparent: () => TRACE,
     });
+
     await webhooks.deliver();
+
     return sent;
   }
 
@@ -190,6 +214,7 @@ describe("CloudEvents 1.0 from webhooks-out", () => {
     const validate = validatorFor("cloudevents-1.0.2.json");
     const sent = await send(false);
     expect(sent).toHaveLength(2);
+
     for (const request of sent) {
       expect(request.headers["content-type"]).toBe(
         "application/cloudevents+json",
@@ -208,6 +233,7 @@ describe("CloudEvents 1.0 from webhooks-out", () => {
       });
       expect(URL.canParse(event.source)).toBe(true);
       expect(Temporal.Instant.from(event.time).toString()).toBe(event.time);
+
       const parsed = await fromHttp(
         new Request("https://sink.test", {
           method: "POST",
@@ -215,6 +241,7 @@ describe("CloudEvents 1.0 from webhooks-out", () => {
           body: request.body,
         }),
       );
+
       expect(parsed).toEqual([event]);
     }
   });
@@ -232,7 +259,11 @@ describe("CloudEvents 1.0 from webhooks-out", () => {
       "del-1",
       "del-2",
     ]);
-    for (const event of events) expect(problems(validate, event)).toEqual([]);
+
+    for (const event of events) {
+      expect(problems(validate, event)).toEqual([]);
+    }
+
     const parsed = await fromHttp(
       new Request("https://sink.test", {
         method: "POST",
@@ -240,6 +271,7 @@ describe("CloudEvents 1.0 from webhooks-out", () => {
         body: request!.body,
       }),
     );
+
     expect(parsed).toEqual(events);
   });
 });

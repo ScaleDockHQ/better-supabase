@@ -35,12 +35,14 @@ export function workflowParts(
   const cd = (column: string): string => builder.col("definitions", column);
   const cv = (column: string): string => builder.col("versions", column);
   const errors = fn("template_workflow_input_errors");
+
   const fullCheck = shared.schemas
     ? `
   if cardinality(v_errors) = 0 then
     v_errors := extensions.jsonschema_validation_errors(v_schema::json, inputs::json);
   end if;`
     : "";
+
   const workflowJson = (alias: string): string => `jsonb_build_object(
     'id', ${alias}.${cw("id")},
     'template', ${alias}.${cw("template")},
@@ -50,6 +52,7 @@ export function workflowParts(
     'createdBy', ${alias}.${cw("createdBy")},
     'createdAt', ${alias}.${cw("createdAt")}
   )`;
+
   return {
     ddl: `
 -- The workflow definitions a template starts on each record it creates, with

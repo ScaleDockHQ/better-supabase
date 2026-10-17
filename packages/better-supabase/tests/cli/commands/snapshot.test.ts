@@ -70,12 +70,14 @@ describe("managementTarget", () => {
 describe("openSource", () => {
   it("opens a piped URL, the Management API, then DATABASE_URL", async () => {
     const open = fakeConnect(fakeSql().pg);
+
     const direct = await openSource(
       config(),
       {},
       { dbUrl: "postgresql://u:pw@h/db" },
       open.connect,
     );
+
     expect(direct.describe).toBe("postgresql://u:***@h/db");
 
     const hosted = await openSource(
@@ -84,6 +86,7 @@ describe("openSource", () => {
       { projectRef: "abc" },
       open.connect,
     );
+
     expect(hosted.describe).toBe("project abc (Management API)");
 
     await openSource(
@@ -137,6 +140,7 @@ describe("openSource on the local stack", () => {
     const bin = join(root, "fake-supabase");
     await writeFile(bin, `#!/bin/sh\n${script}\n`);
     await chmod(bin, 0o755);
+
     return bin;
   }
 
@@ -154,9 +158,11 @@ describe("openSource on the local stack", () => {
       join(root, "supabase/config.toml"),
       "[experimental]\nstack = true\n",
     );
+
     const bin = await fakeSupabase(
       `if [ "$2" = "-o" ]; then exit 1; fi\necho '{"DB_URL":"postgresql://postgres:postgres@127.0.0.1:28910/postgres"}'`,
     );
+
     const open = fakeConnect(fakeSql().pg);
     await openSource(config({}, root), { SUPABASE_BIN: bin }, {}, open.connect);
     expect(open.urls).toEqual([
@@ -229,6 +235,7 @@ describe("loadSnapshot", () => {
 
   it("reads a saved file and reports a missing one", async () => {
     await write("snap.json", JSON.stringify(fixture));
+
     const loaded = await loadSnapshot(
       config({}, root),
       {},
@@ -236,6 +243,7 @@ describe("loadSnapshot", () => {
         snapshotPath: "snap.json",
       },
     );
+
     expect(loaded.extras.tables).toHaveLength(fixture.extras.tables.length);
     await expect(
       loadSnapshot(config({}, root), {}, { snapshotPath: "gone.json" }),
@@ -249,12 +257,14 @@ describe("loadSnapshot", () => {
     );
     const db = fakeSql();
     const open = fakeConnect(db.pg);
+
     const snapshot = await loadSnapshot(
       resolveConfig({ schemas: ["public", "api"] }, root),
       {},
       { dbUrl: "postgresql://local/db" },
       open.connect,
     );
+
     expect(snapshot.schemas).toEqual(["api", "better_supabase", "public"]);
     expect(snapshot.extras.hooks).toEqual([
       {
@@ -274,6 +284,7 @@ describe("loadSnapshot", () => {
     const db = fakeSql([
       [/./, { throws: new Error("relation does not exist") }],
     ]);
+
     const open = fakeConnect(db.pg);
     await expect(
       loadSnapshot(
@@ -339,6 +350,7 @@ describe("parseSnapshot", () => {
       generator: fixture.generator,
       extras: { tables: [] },
     });
+
     expect(older.extras).toEqual({ tables: [], buckets: [], realtime: [] });
     const full = await parseSnapshot(fixture);
     expect(Object.keys(full.extras).sort()).toEqual(
@@ -360,6 +372,7 @@ describe("serializeSnapshot", () => {
       ...(await parseSnapshot(fixture)),
       $schema: "./local.json",
     });
+
     expect(
       text.startsWith(
         '{\n  "$schema": "https://unpkg.com/better-supabase/schemas/snapshot-v2.json",\n  "version": 2,',

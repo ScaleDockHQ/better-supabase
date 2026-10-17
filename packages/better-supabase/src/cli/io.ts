@@ -48,7 +48,7 @@ export function sameText(
 
 /** The file's text, or `undefined` when it does not exist. */
 export async function readIfExists(path: string): Promise<string | undefined> {
-  return existsSync(path) ? readFile(path, "utf8") : undefined;
+  return existsSync(path) ? readFile(path, "utf-8") : undefined;
 }
 
 /** Writes a file when its contents changed, ignoring line endings. Returns whether it wrote. */
@@ -58,24 +58,38 @@ export async function writeIfChanged(
   options: { readonly mode?: number } = {},
 ): Promise<boolean> {
   const { mode } = options;
+
   if (existsSync(path)) {
-    const current = await readFile(path, "utf8");
+    const current = await readFile(path, "utf-8");
+
     if (sameText(current, contents)) {
-      if (mode !== undefined) await chmod(path, mode);
+      if (mode !== undefined) {
+        await chmod(path, mode);
+      }
+
       return false;
     }
   }
+
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, contents, mode === undefined ? {} : { mode });
+
   // writeFile applies `mode` only when it creates the file, and through the umask.
-  if (mode !== undefined) await chmod(path, mode);
+  if (mode !== undefined) {
+    await chmod(path, mode);
+  }
+
   return true;
 }
 
 /** Relative ESM import specifier from one file to another, keeping `.ts`. */
 export function importPath(fromFile: string, toFile: string): string {
   let path = relative(dirname(fromFile), toFile).split(sep).join("/");
-  if (!path.startsWith(".")) path = `./${path}`;
+
+  if (!path.startsWith(".")) {
+    path = `./${path}`;
+  }
+
   return path;
 }
 

@@ -51,21 +51,25 @@ function fakeExecutor(): Executor & {
 } {
   const batches: Operation[][] = [];
   const executed: Operation[] = [];
+
   const answer = (op: Operation): Result<ExecuteResult> =>
     ok({
       rows: op.kind === "select" && op.head ? [] : [{ id: op.table.key }],
       count: 3,
     });
+
   return {
     name: "fake",
     batches,
     executed,
     execute: async (op) => {
       executed.push(op);
+
       return answer(op);
     },
     batch: async (ops) => {
       batches.push([...ops]);
+
       return ops.map(answer);
     },
   };
@@ -120,16 +124,19 @@ describe("defineReadSet", () => {
     const warn = vi.fn();
     const logger = { debug() {}, info() {}, warn, error() {} };
     const transformQuery = (op: Operation): Operation => op;
+
     const inspector = definePlugin({
       name: "inspector",
       scopes: [],
       transformQuery,
     });
+
     const versioned = definePlugin({
       name: "versioned",
       scopes: ["version"],
       transformQuery,
     });
+
     const opaque = definePlugin({ name: "opaque", transformQuery });
     const base = defineSupabase(schema, { logger });
     defineReadSet(base.use(inspector).use(versioned), "quiet", {}, (s) => ({
@@ -180,6 +187,7 @@ describe("compileReadSet", () => {
         tags: s.tags.count(),
       }),
     );
+
     expect((await compileReadSet(open)).sql).toContain(
       "grant execute on function public.rs_open(jsonb) to anon;",
     );
@@ -194,11 +202,13 @@ describe("compileReadSet", () => {
         one: s.customers.count({ where: { id: { in: [p.id] } } }),
       }),
     );
+
     await expect(compileReadSet(wrong)).rejects.toThrow(/used as/);
   });
 
   it("inlines booleans, numbers, instants and escaped lists", async () => {
     const at = Temporal.Instant.from("2026-01-02T03:04:05Z");
+
     const set = defineReadSet(betterSupabase, "literals", {}, (s) => ({
       primary: s.locations.count({
         where: { isPrimary: true, city: { notIn: ['a"b', "c\\d"] } },
@@ -212,6 +222,7 @@ describe("compileReadSet", () => {
         },
       }),
     }));
+
     const { sql } = await compileReadSet(set);
     expect(sql).toContain("true");
     expect(sql).toContain("false");
@@ -227,6 +238,7 @@ describe("compileReadSet", () => {
     const set = defineReadSet(betterSupabase, "nothing", {}, (s) => ({
       none: s.customers.findMany({ where: { id: { in: [] } } }),
     }));
+
     expect((await compileReadSet(set)).sql).toContain(
       "jsonb_build_object('rows', '[]'::jsonb, 'count', 0)",
     );
@@ -236,7 +248,9 @@ describe("compileReadSet", () => {
     const infinite = defineReadSet(betterSupabase, "infinite", {}, (s) => ({
       one: s.customers.count({ where: { name: Infinity as never } }),
     }));
+
     await expect(compileReadSet(infinite)).rejects.toThrow(/Cannot inline/);
+
     const nested = defineReadSet(
       betterSupabase,
       "nested",
@@ -247,6 +261,7 @@ describe("compileReadSet", () => {
         }),
       }),
     );
+
     await expect(compileReadSet(nested)).rejects.toThrow(
       /inside a literal list/,
     );
@@ -259,6 +274,7 @@ describe("compileReadSet", () => {
       { params: { id: "uuid" } },
       (s, p) => ({ one: s.customers.count({ where: { id: p.id } }) }),
     );
+
     await expect(compileReadSet({ ...set, params: {} })).rejects.toThrow(
       /no parameter "id"/,
     );
@@ -268,10 +284,12 @@ describe("compileReadSet", () => {
     const set = defineReadSet(betterSupabase, "unknown_table", {}, (s) => ({
       one: s.tags.count(),
     }));
+
     const broken = {
       ...set,
       specs: { one: { ...set.specs.one, table: "nope" } },
     };
+
     await expect(compileReadSet(broken)).rejects.toThrow(
       /unknown table "nope"/,
     );
@@ -281,6 +299,7 @@ describe("compileReadSet", () => {
     const set = defineReadSet(betterSupabase, "tagged", {}, (s) => ({
       one: s.customers.count({ where: { name: "$rs$" } }),
     }));
+
     await expect(compileReadSet(set)).rejects.toThrow(/contains "\$rs\$"/);
   });
 });
@@ -302,6 +321,7 @@ describe("auth.uid", () => {
         mine: s.customers.count({ where: { createdBy: { in: [auth.uid] } } }),
       }),
     );
+
     await expect(compileReadSet(listed)).rejects.toThrow(
       /auth\.uid is a single value/,
     );
@@ -314,6 +334,7 @@ describe("auth.uid", () => {
         named: { rows: [], count: 0 },
       },
     }));
+
     const result = await betterSupabase.connect(client).$many(mine, {});
     expect(result.ok && result.data).toEqual({ mine: 2, named: 0 });
     expect(JSON.parse(requests[0]!.params.get("p")!)).toEqual({});
@@ -321,9 +342,11 @@ describe("auth.uid", () => {
 
   it("binds the verified sub claim on a batch executor", async () => {
     const executor = fakeExecutor();
+
     const result = await betterSupabase
       .connect(executor, { claims: { sub: USER } })
       .$many(mine, {});
+
     expect(result.ok).toBe(true);
     const text = JSON.stringify(executor.batches[0]);
     expect(text).toContain(USER);
@@ -343,6 +366,7 @@ describe("compileReadSets", () => {
   const a = defineReadSet(betterSupabase, "b_set", {}, (s) => ({
     one: s.tags.count(),
   }));
+
   const b = defineReadSet(betterSupabase, "a_set", {}, (s) => ({
     one: s.tags.count(),
   }));
@@ -356,6 +380,7 @@ describe("compileReadSets", () => {
     const twin = defineReadSet(betterSupabase, "b_set", {}, (s) => ({
       one: s.notes.count(),
     }));
+
     await expect(compileReadSets([a, twin])).rejects.toThrow(
       /Two read sets are named "b_set"/,
     );
@@ -371,12 +396,15 @@ describe("db.$many over PostgREST", () => {
         first: { rows: [], count: null },
       },
     }));
+
     const db = betterSupabase.connect(client);
+
     const result = await db.$many(chrome, {
       organizationId: USER,
       kinds: ["call"],
       search: "ac",
     });
+
     expect(result.ok && result.data).toEqual({
       customers: [{ id: "c1", name: "Acme" }],
       calls: 4,
@@ -395,9 +423,11 @@ describe("db.$many over PostgREST", () => {
 
   it("fails without calling the database when a parameter is missing", async () => {
     const { client, requests } = capturingClient();
+
     const result = await betterSupabase
       .connect(client)
       .$many(chrome, { organizationId: USER } as never);
+
     expect(!result.ok && result.error.kind).toBe("invalid_request");
     expect(requests).toHaveLength(0);
   });
@@ -408,11 +438,14 @@ describe("db.$many over PostgREST", () => {
         ? { body: [{ id: "t1" }] }
         : { body: [], headers: { "content-range": "*/7" } },
     );
+
     const db = betterSupabase.connect(client);
+
     const result = await db.$many([
       betterSupabase.spec.tags.findMany({ select: ["id"] }),
       betterSupabase.spec.notes.count(),
     ]);
+
     expect(result.ok && result.data).toEqual([[{ id: "t1" }], 7]);
     expect(requests).toHaveLength(2);
     expect(db.$stats().waves).toBe(1);
@@ -422,12 +455,14 @@ describe("db.$many over PostgREST", () => {
 describe("db.$many with Executor.batch", () => {
   it("sends ad-hoc specs as one batch", async () => {
     const executor = fakeExecutor();
+
     const result = await betterSupabase
       .connect(executor)
       .$many([
         betterSupabase.spec.tags.findMany({ select: ["id"] }),
         betterSupabase.spec.notes.count(),
       ]);
+
     expect(result.ok && result.data).toEqual([[{ id: "tags" }], 3]);
     expect(executor.batches).toHaveLength(1);
     expect(executor.batches[0]!.map((op) => op.table.key)).toEqual([
@@ -439,11 +474,13 @@ describe("db.$many with Executor.batch", () => {
 
   it("binds read-set parameters instead of calling a function", async () => {
     const executor = fakeExecutor();
+
     const result = await betterSupabase.connect(executor).$many(chrome, {
       organizationId: USER,
       kinds: ["call", "email"],
       search: "ac",
     });
+
     expect(result.ok).toBe(true);
     expect(executor.batches).toHaveLength(1);
     const text = JSON.stringify(executor.batches[0]);
@@ -456,21 +493,26 @@ describe("db.$many with Executor.batch", () => {
 describe("batchingExecutor", () => {
   it("waits for every reader, and batches a second round separately", async () => {
     const executor = fakeExecutor();
+
     const batcher = batchingExecutor(
       executor as Executor & { batch: NonNullable<Executor["batch"]> },
       2,
     );
+
     const op = await captureOp();
     const context = { errorMappers: [] };
+
     const first = (async () => {
       await batcher.executor.execute(op, context);
       await batcher.executor.execute(op, context);
       batcher.done();
     })();
+
     const second = (async () => {
       await batcher.executor.execute(op, context);
       batcher.done();
     })();
+
     await Promise.all([first, second]);
     expect(executor.batches.map((batch) => batch.length)).toEqual([2, 1]);
   });
@@ -478,9 +520,11 @@ describe("batchingExecutor", () => {
   it("aborts the batch only once every reader has aborted", async () => {
     const signals: (AbortSignal | undefined)[] = [];
     let release = (): void => {};
+
     const held = new Promise<void>((resolve) => {
       release = resolve;
     });
+
     const base = {
       name: "held",
       execute: async () => ok({ rows: [], count: 0 }),
@@ -490,21 +534,26 @@ describe("batchingExecutor", () => {
       ) => {
         signals.push(context.signal);
         await held;
+
         return ops.map(() => ok({ rows: [], count: 0 }));
       },
     };
+
     const batcher = batchingExecutor(base, 2);
     const op = await captureOp();
     const a = new AbortController();
     const b = new AbortController();
+
     const first = batcher.executor.execute(op, {
       errorMappers: [],
       signal: a.signal,
     });
+
     const second = batcher.executor.execute(op, {
       errorMappers: [],
       signal: b.signal,
     });
+
     const batchSignal = signals[0];
     a.abort();
     expect(await first).toMatchObject({ error: { kind: "aborted" } });
@@ -517,6 +566,7 @@ describe("batchingExecutor", () => {
 
   it("sends no signal when a reader has none", async () => {
     const signals: (AbortSignal | undefined)[] = [];
+
     const base = {
       name: "plain",
       execute: async () => ok({ rows: [], count: 0 }),
@@ -525,9 +575,11 @@ describe("batchingExecutor", () => {
         context: { signal?: AbortSignal },
       ) => {
         signals.push(context.signal);
+
         return ops.map(() => ok({ rows: [], count: 0 }));
       },
     };
+
     const batcher = batchingExecutor(base, 2);
     const op = await captureOp();
     await Promise.all([
@@ -548,9 +600,11 @@ async function captureOp(): Promise<Operation> {
       name: "capture",
       execute: async (op) => {
         seen = op;
+
         return ok({ rows: [], count: 0 });
       },
     })
     .tags.count();
+
   return seen!;
 }

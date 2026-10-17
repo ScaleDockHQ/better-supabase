@@ -1,14 +1,14 @@
 import type { Authorizer } from "../core/authorizer.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { AnyFunctions, AnyModels, TableKey } from "../schema/types.ts";
+import type {
+  ResourceHandler,
+  ResourceRouteOptions,
+} from "./resource-types.ts";
 
 import { dbError } from "../core/errors.ts";
 import { problemResponse } from "../core/problem.ts";
 import { actionFits } from "./resource-http.ts";
-import {
-  type ResourceHandler,
-  type ResourceRouteOptions,
-} from "./resource-types.ts";
 import { defineResource } from "./resource.ts";
 
 /** Resources by table name; `true` serves a table with the defaults. */
@@ -42,9 +42,14 @@ function serves(
   handler: ResourceHandler<unknown>,
   segments: readonly string[],
 ): boolean {
-  if (segments.length === 0) return true;
-  if (handler.plan.actions.some((action) => actionFits(action, segments)))
+  if (segments.length === 0) {
     return true;
+  }
+
+  if (handler.plan.actions.some((action) => actionFits(action, segments))) {
+    return true;
+  }
+
   return segments.length === 1 && handler.keyParam !== undefined;
 }
 
@@ -68,17 +73,23 @@ export function resourceRouter<
   } = {},
 ): ResourceRouter<Ref> {
   const base = split(options.basePath ?? "");
+
   const routes: {
     readonly prefix: readonly string[];
     readonly handler: ResourceHandler<Ref>;
   }[] = [];
+
   for (const [table, resource] of Object.entries(map)) {
-    if (!resource) continue;
+    if (!resource) {
+      continue;
+    }
+
     // SAFETY: the map is keyed by table names of M, and a value that is not
     // true is that table's options object.
     const routeOptions = (
       resource === true ? {} : resource
     ) as ResourceRouteOptions<M, TableKey<M>, Ref, DbT>;
+
     const handler = defineResource<M, D, F, E, TableKey<M>, Ref, DbT>(
       betterSupabase,
       // SAFETY: Object.entries widens the keys of a map keyed by TableKey<M>.
@@ -86,11 +97,13 @@ export function resourceRouter<
       routeOptions,
       options.authorizer,
     );
+
     routes.push({
       prefix: split(handler.plan.description.path ?? `/${table}`),
       handler,
     });
   }
+
   // The longest prefix wins, so `/billing/invoices` beats `/billing`.
   routes.sort((a, b) => b.prefix.length - a.prefix.length);
 
@@ -98,21 +111,32 @@ export function resourceRouter<
     handlers: routes.map((route) => route.handler),
     match(request) {
       const { pathname } = new URL(request.url);
+
       const notFound = (): Response =>
         problemResponse(dbError("not_found", `No route for ${pathname}`), {
           instance: pathname,
         });
+
       const raw = split(pathname);
-      if (!base.every((segment, index) => raw[index] === segment))
+
+      if (!base.every((segment, index) => raw[index] === segment)) {
         return notFound();
+      }
+
       const rest = raw.slice(base.length);
+
       const route = routes.find(
         ({ prefix }) =>
           prefix.length <= rest.length &&
           prefix.every((segment, index) => rest[index] === segment),
       );
-      if (!route) return notFound();
+
+      if (!route) {
+        return notFound();
+      }
+
       let segments: readonly string[];
+
       try {
         segments = rest
           .slice(route.prefix.length)
@@ -125,7 +149,11 @@ export function resourceRouter<
           },
         );
       }
-      if (!serves(route.handler, segments)) return notFound();
+
+      if (!serves(route.handler, segments)) {
+        return notFound();
+      }
+
       return { handler: route.handler, segments, instance: pathname };
     },
   };

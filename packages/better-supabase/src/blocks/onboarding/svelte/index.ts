@@ -14,8 +14,11 @@ import {
 import { createOnboardingController } from "../client.ts";
 
 export type { BlockOptions } from "../../block-env.ts";
+
 export type { SvelteController } from "../../svelte-controller.ts";
+
 export type { ChecklistScope } from "../onboarding.ts";
+
 export type {
   OnboardingActions,
   OnboardingControllerOptions,

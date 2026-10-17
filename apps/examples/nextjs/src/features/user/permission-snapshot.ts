@@ -29,6 +29,7 @@ export async function getPermissionSnapshot(): Promise<PermissionSnapshot> {
   "use cache: private";
   const { session } = await bs.cached();
   cacheTag(snapshotTag(session.kind === "user" ? session.user.id : null));
+
   return {
     permissions: PERMISSIONS.filter((permission) => can(session, permission)),
     expiresAt: session.kind === "user" ? session.expiresAt : null,

@@ -63,7 +63,11 @@ export function permissionCapOf(
   claims: Readonly<Record<string, unknown>>,
 ): readonly string[] | false | undefined {
   const cap = claims[PERMISSION_CAP_CLAIM];
-  if (cap === undefined) return undefined;
+
+  if (cap === undefined) {
+    return undefined;
+  }
+
   return Array.isArray(cap) && cap.every((key) => typeof key === "string")
     ? cap
     : false;
@@ -77,8 +81,14 @@ export function narrowCap(
   inherited: readonly string[] | undefined,
   wanted: readonly string[] | undefined,
 ): readonly string[] | undefined {
-  if (wanted === undefined) return inherited;
-  if (inherited === undefined) return wanted;
+  if (wanted === undefined) {
+    return inherited;
+  }
+
+  if (inherited === undefined) {
+    return wanted;
+  }
+
   return wanted.filter((key) =>
     inherited.some((granted) => permissionMatches(granted, key)),
   );
@@ -100,15 +110,23 @@ function isDetail(value: unknown): value is AuthorizationDetail {
 }
 
 function scopeOf(value: unknown): string | false | undefined {
-  if (value === undefined) return undefined;
+  if (value === undefined) {
+    return undefined;
+  }
+
   const scopes =
     typeof value === "string"
       ? value.split(/\s+/u)
       : Array.isArray(value) && value.every((item) => typeof item === "string")
         ? value
         : undefined;
-  if (scopes === undefined) return false;
+
+  if (scopes === undefined) {
+    return false;
+  }
+
   const joined = scopes.filter(Boolean).join(" ");
+
   return joined === "" ? undefined : joined;
 }
 
@@ -125,25 +143,43 @@ export function delegatedClaims(
   claims: Readonly<Record<string, unknown>>,
 ): DelegatedClaimsOutcome {
   const outcome = actorOf(claims);
-  if (!outcome.ok) return { ok: false, reason: "invalid-chain" };
+
+  if (!outcome.ok) {
+    return { ok: false, reason: "invalid-chain" };
+  }
+
   const client = claims["client_id"];
-  if (client !== undefined && (typeof client !== "string" || client === ""))
+
+  if (client !== undefined && (typeof client !== "string" || client === "")) {
     return INVALID;
+  }
+
   const actor = outcome.actor;
+
   const chain =
     actor?.kind === "oauth-client" || actor?.kind === "agent"
       ? actor.chain
       : undefined;
-  if (client === undefined && chain === undefined) return { ok: true };
+
+  if (client === undefined && chain === undefined) {
+    return { ok: true };
+  }
+
   const scope = scopeOf(claims["scope"]);
-  if (scope === false) return INVALID;
+
+  if (scope === false) {
+    return INVALID;
+  }
+
   const details = claims["authorization_details"];
+
   if (
     details !== undefined &&
     !(Array.isArray(details) && details.every(isDetail))
   ) {
     return INVALID;
   }
+
   return {
     ok: true,
     delegation: {
@@ -195,20 +231,25 @@ export function contextClaims(
   options: ContextClaimsOptions = {},
 ): ContextClaimsOutcome {
   const { actor, tenant } = context;
+
   if (actor?.kind !== "user") {
     return {
       ok: false,
       message: `forContext needs a user actor, got ${actor ? actor.kind : "none"}: use admin() for service work`,
     };
   }
+
   const claims = context.claims ?? {};
   const recorded = actorOf(claims);
   const delegated = delegatedClaims(claims);
   const inherited = permissionCapOf(claims);
+
   if (inherited === false) {
     return { ok: false, message: "forContext got an invalid permission cap" };
   }
+
   const cap = narrowCap(inherited, options.permissions);
+
   if (!recorded.ok || !delegated.ok) {
     return {
       ok: false,
@@ -218,9 +259,12 @@ export function contextClaims(
           : "forContext got invalid delegation claims",
     };
   }
+
   const support =
     recorded.actor?.kind === "support" ? recorded.actor : undefined;
+
   const delegation = delegated.delegation ?? {};
+
   const act = support
     ? impersonatorClaim(support)
     : (delegation.act ??
@@ -230,12 +274,15 @@ export function contextClaims(
             reason: options.reason ?? "job",
           })
         : undefined));
+
   const extra = Object.fromEntries(
     Object.entries(options.extra ?? {}).filter(
       ([key]) => !DELEGATION_CLAIMS.includes(key),
     ),
   );
+
   const impersonator = support?.id ?? actor.impersonator;
+
   return {
     ok: true,
     claims: {

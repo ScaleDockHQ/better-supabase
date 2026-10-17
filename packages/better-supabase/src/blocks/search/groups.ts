@@ -20,10 +20,16 @@ export function groupHits(
   hits: readonly SearchHit[],
 ): readonly CommandSearchGroup[] {
   const groups = new Map<string, CommandSearchItem[]>();
+
   for (const hit of hits) {
     const items = groups.get(hit.subjectType);
-    if (items === undefined) groups.set(hit.subjectType, [hit]);
-    else items.push(hit);
+
+    if (items === undefined) {
+      groups.set(hit.subjectType, [hit]);
+    } else {
+      items.push(hit);
+    }
   }
+
   return [...groups].map(([key, items]) => ({ key, items }));
 }

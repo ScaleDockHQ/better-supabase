@@ -53,6 +53,7 @@ describe("profiles module", () => {
         profiles: { options: { metadata: { picture: "avatar_url" } } },
       }),
     ).toContain("meta ->> 'picture'");
+
     const adopted = body({
       profiles: {
         mode: "adopt",
@@ -60,6 +61,7 @@ describe("profiles module", () => {
         options: { columnGrants: true },
       },
     });
+
     expect(adopted).not.toContain("avatar_path");
     expect(
       body({
@@ -159,6 +161,7 @@ describe("profiles module", () => {
         },
       },
     }).findLast((file) => file.kind === "schema")!.contents;
+
     expect(sql).toContain(
       `alter table "better_supabase"."profiles" add column if not exists "locale" text not null default 'en';`,
     );
@@ -169,10 +172,12 @@ describe("profiles module", () => {
     expect(sql).toContain(
       'revoke select on "better_supabase"."profiles" from authenticated;',
     );
+
     const grant =
       /grant select \(([^)]*)\) on "better_supabase"\."profiles"/.exec(
         sql,
       )?.[1];
+
     expect(grant).toContain('"username"');
     expect(grant).toContain('"locale"');
     expect(grant).not.toContain('"email"');
@@ -194,6 +199,7 @@ describe("profiles module", () => {
         },
       },
     });
+
     expect(sql).toContain(
       `"locale" = case when update_my_profile.attrs ? 'locale' then (jsonb_populate_record(null::"better_supabase"."profiles", update_my_profile.attrs))."locale" else p."locale" end`,
     );
@@ -237,6 +243,7 @@ describe("profiles module", () => {
         },
       },
     });
+
     expect(sql).toContain(
       'grant update ("full_name", "updated_at") on "better_supabase"."profiles" to authenticated;',
     );
@@ -293,6 +300,7 @@ describe("profiles module", () => {
     }).find(
       (file) => file.module === "profiles" && file.kind === "schema",
     )!.contents;
+
     expect(sql).toContain(
       "case when nullif(btrim(coalesce(meta ->> 'first_name')), '') is not null and nullif(btrim(coalesce(meta ->> 'last_name')), '') is not null then concat_ws('.',",
     );
@@ -339,6 +347,7 @@ describe("profiles module", () => {
         },
       },
     });
+
     expect(sql).toContain(
       "then concat_ws('.', nullif(btrim((coalesce(nullif(btrim(coalesce(meta ->> 'first_name', meta ->> 'given_name')), ''),",
     );
@@ -373,6 +382,7 @@ describe("profiles module", () => {
         },
       },
     });
+
     const guard = adopted.slice(adopted.indexOf("guard_profile"));
     expect(guard).toContain('new."email" is distinct from old."email"');
     expect(guard).not.toContain('new."updated_at" is distinct from');

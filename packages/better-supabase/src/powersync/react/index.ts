@@ -63,16 +63,21 @@ export function useWatch<T>(options: UseWatchOptions<T>): WatchState<T> {
   const onReconnect = options.refresh?.onReconnect ?? false;
   const enabled = options.enabled ?? true;
   const key = JSON.stringify([tables, options.deps ?? []]);
+
   const [state, setState] = useState<{
     readonly key: string;
     readonly result: Result<T> | undefined;
   }>({ key, result: undefined });
+
   const latest = useRef({ query: options.query, tables });
   // oxlint-disable-next-line react/refs -- latest-ref pattern; the react peer range predates useEffectEvent.
   latest.current = { query: options.query, tables };
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      return;
+    }
+
     // `key` covers the tables, so the ones read here match it.
     return watch(db, () => latest.current.query(), {
       tables: latest.current.tables,
@@ -85,6 +90,7 @@ export function useWatch<T>(options: UseWatchOptions<T>): WatchState<T> {
   }, [db, key, enabled, throttleMs, everyMs, onReconnect]);
 
   const result = state.result;
+
   return {
     result,
     data: result?.ok ? result.data : undefined,
@@ -126,6 +132,7 @@ export interface SyncState {
 
 function stateOf(status: SyncStatusLike): SyncState {
   const flow = status.dataFlowStatus;
+
   return {
     connected: status.connected,
     connecting: status.connecting ?? false,
@@ -153,16 +160,22 @@ function sameState(a: SyncState, b: SyncState): boolean {
  */
 export function useSyncStatus(db: SyncStatusSource): SyncState {
   const store = useMemo(() => statusStore(db), [db]);
+
   return useSyncExternalStore(store.subscribe, store.read, store.read);
 }
 
 /** Keeps the last snapshot while its fields stay equal, as `useSyncExternalStore` needs. */
 function statusStore(db: SyncStatusSource) {
   let snapshot = stateOf(db.currentStatus);
+
   return {
     read: (): SyncState => {
       const next = stateOf(db.currentStatus);
-      if (!sameState(snapshot, next)) snapshot = next;
+
+      if (!sameState(snapshot, next)) {
+        snapshot = next;
+      }
+
       return snapshot;
     },
     subscribe: (listener: () => void) =>
@@ -186,10 +199,12 @@ export function useConflicts(connector: {
   readonly rejected: RejectedStore;
 }): Conflicts {
   const { rejected } = connector;
+
   const changes = useSyncExternalStore(
     rejected.subscribe,
     rejected.current,
     rejected.current,
   );
+
   return { changes, dismiss: rejected.dismiss };
 }

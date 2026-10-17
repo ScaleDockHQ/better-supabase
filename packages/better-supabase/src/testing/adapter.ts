@@ -64,6 +64,7 @@ export function testAdapter(
   options: TestAdapterOptions,
 ): Promise<ConformanceReport> {
   const { events } = options.betterSupabase;
+
   const call = async (
     run: AdapterRun,
     allow: NonNullable<GuardOptions["allow"]> = ["anon"],
@@ -72,16 +73,20 @@ export function testAdapter(
     options.serve(MODULE_SERVER, run, { allow, waitUntil })(
       new Request("http://127.0.0.1/module"),
     );
+
   const errorStatus = (expected: number): number =>
     options.errorsInBody ? 200 : expected;
+
   return conform(`Adapter "${name}"`, [
     [
       "refuses a caller the guard rejects",
       async () => {
         let ran = false;
+
         const response = await call(() => {
           ran = true;
         }, ["user"]);
+
         expect(
           response.status === 401,
           `expected 401 for an anonymous caller, got ${response.status}`,
@@ -104,6 +109,7 @@ export function testAdapter(
         const response = await call(() => {
           throw new DbException(dbError("not_found", "module: no such row"));
         });
+
         expect(
           response.status === errorStatus(404),
           `expected ${errorStatus(404)}, got ${response.status}`,
@@ -121,6 +127,7 @@ export function testAdapter(
         const response = await call(() => {
           throw new Error("module-internal-detail");
         });
+
         expect(
           response.status === errorStatus(500),
           `expected ${errorStatus(500)}, got ${response.status}`,
@@ -136,11 +143,14 @@ export function testAdapter(
       "applies the context's cookies",
       async () => {
         let replica = false;
+
         const response = await call((ctx) => {
           replica = ctx.replica !== undefined;
           ctx.replica?.pin();
+
           return { pinned: true };
         });
+
         expect(replica, "ctx.replica is unset: pass `server` to the adapter");
         expect(
           response.headers
@@ -158,6 +168,7 @@ export function testAdapter(
         await call(
           () => {
             events.track(send);
+
             return { sent: true };
           },
           ["anon"],

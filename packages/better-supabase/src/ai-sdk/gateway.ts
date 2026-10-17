@@ -52,6 +52,7 @@ function microUsd(value: unknown): number | undefined {
       : typeof value === "string" && value.trim() !== ""
         ? Number(value)
         : Number.NaN;
+
   return Number.isFinite(amount) && amount >= 0
     ? Math.round(amount * 1_000_000)
     : undefined;
@@ -62,12 +63,15 @@ export function usageOf(source: UsageSource): AiUsage {
   const usage = source.totalUsage ?? source.usage ?? {};
   const input = count(usage.inputTokens);
   const output = count(usage.outputTokens);
+
   const gateway =
     isRecord(source.providerMetadata) &&
     isRecord(source.providerMetadata["gateway"])
       ? source.providerMetadata["gateway"]
       : {};
+
   const generationId = gateway["generationId"];
+
   return {
     inputTokens: input,
     outputTokens: output,
@@ -128,8 +132,11 @@ export function usageEntries(
       quantity: usage.outputTokens,
     },
   ];
-  if (meters.cost !== undefined && usage.costMicroUsd !== undefined)
+
+  if (meters.cost !== undefined && usage.costMicroUsd !== undefined) {
     entries.push({ meter: meters.cost, quantity: usage.costMicroUsd });
+  }
+
   return entries.filter((entry) => (entry.quantity ?? 0) > 0);
 }
 
@@ -142,11 +149,15 @@ export function problem429(
   decision: DbError | UsageStatus,
   now: Temporal.Instant = nowInstant(),
 ): Response {
-  if ("kind" in decision) return problemResponse(decision);
+  if ("kind" in decision) {
+    return problemResponse(decision);
+  }
+
   const retryAfter = Math.max(
     1,
     Math.ceil(now.until(decision.resetsAt).total("seconds")),
   );
+
   return problemResponse(
     dbError("quota_exceeded", `The ${decision.meter} quota is used up.`, {
       meter: decision.meter,
@@ -166,13 +177,22 @@ export function usageQuota(
 ): (organizationId: string) => Promise<DbError | undefined> {
   return async (organizationId) => {
     const status = await usage.current(organizationId, meter);
-    if (!status.ok) return status.error;
+
+    if (!status.ok) {
+      return status.error;
+    }
+
     const { remaining, limit } = status.data;
-    if (remaining === undefined || remaining > 0) return;
+
+    if (remaining === undefined || remaining > 0) {
+      return;
+    }
+
     const retryAfter = Math.max(
       1,
       Math.ceil(nowInstant().until(status.data.resetsAt).total("seconds")),
     );
+
     return dbError("quota_exceeded", `The ${meter} quota is used up.`, {
       meter,
       ...(limit === undefined ? {} : { limit }),
@@ -231,6 +251,7 @@ export function costBackfill(
     const info = await options.gateway.getGenerationInfo({
       id: payload.generationId,
     });
+
     const cost = microUsd(info.totalCost) ?? 0;
     await options.chats.runs
       .setCost(payload.generationId, cost, {
@@ -242,12 +263,13 @@ export function costBackfill(
           : { outputTokens: info.completionTokens }),
       })
       .orThrow();
+
     if (
       options.usage !== undefined &&
       options.meter !== undefined &&
       payload.organizationId !== undefined &&
       cost > 0
-    )
+    ) {
       await options.usage
         .record(payload.organizationId, options.meter, {
           quantity: cost,
@@ -255,6 +277,8 @@ export function costBackfill(
           source: "ai:gateway",
         })
         .orThrow();
+    }
+
     return cost;
   };
 }
@@ -282,8 +306,13 @@ export function modelInputOf(
   plans?: readonly string[],
 ): AiModelInput {
   const pricing: Record<string, string> = {};
-  for (const [key, value] of Object.entries(model.pricing ?? {}))
-    if (typeof value === "string") pricing[key] = value;
+
+  for (const [key, value] of Object.entries(model.pricing ?? {})) {
+    if (typeof value === "string") {
+      pricing[key] = value;
+    }
+  }
+
   return {
     id: model.id,
     provider: model.id.split("/", 1)[0] ?? "gateway",
@@ -305,11 +334,14 @@ export function modelCatalogRefresh(
   options: ModelCatalogRefreshOptions,
 ): JobHandler<unknown> {
   const keep = options.filter ?? isLanguageModel;
+
   return async () => {
     const { models } = await options.gateway.getAvailableModels();
+
     const rows = models
       .filter(keep)
       .map((model) => modelInputOf(model, options.plans?.(model)));
+
     return options.chats.models
       .upsert(rows, { prune: options.prune ?? false })
       .orThrow();

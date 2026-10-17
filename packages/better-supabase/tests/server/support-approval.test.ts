@@ -37,6 +37,7 @@ const user = (
   source: "bearer",
   expiresAt: null,
 });
+
 const admin = user(ADMIN);
 const second = user(SECOND);
 const anon: AuthState = { kind: "anon", reason: "none" };
@@ -47,15 +48,20 @@ function approvingStore() {
   const requests = new Map<string, SupportRequest>();
   const approvers: SupportApprover[] = [];
   let next = 0;
+
   const selfApproval = () =>
     pgError("42501", "self", { hint: "SUPPORT_SELF_APPROVAL" });
+
   const store: SupportSessionStore = {
     ...base,
     request(input) {
-      if (input.approvedBy === input.adminId)
+      if (input.approvedBy === input.adminId) {
         return Promise.reject(selfApproval());
+      }
+
       next += 1;
       const now = Temporal.Now.instant();
+
       const request: SupportRequest = {
         id: `r${String(next)}`,
         adminId: input.adminId,
@@ -70,21 +76,32 @@ function approvingStore() {
           ? {}
           : { approvedBy: input.approvedBy, approvedAt: now }),
       };
+
       requests.set(request.id, request);
+
       return Promise.resolve(request);
     },
     getRequest: (id) => Promise.resolve(requests.get(id)),
     approve(id, approver) {
       approvers.push(approver);
       const found = requests.get(id);
-      if (!found) return Promise.reject(new Error("missing"));
-      if (found.adminId === approver.id) return Promise.reject(selfApproval());
+
+      if (!found) {
+        return Promise.reject(new Error("missing"));
+      }
+
+      if (found.adminId === approver.id) {
+        return Promise.reject(selfApproval());
+      }
+
       const approved = {
         ...found,
         approvedBy: approver.id,
         approvedAt: Temporal.Now.instant(),
       };
+
       requests.set(id, approved);
+
       return Promise.resolve(approved);
     },
     approvedRequest: (query) =>
@@ -101,10 +118,15 @@ function approvingStore() {
     async start(input) {
       const session = await base.start(input);
       const used = input.requestId && requests.get(input.requestId);
-      if (used) requests.set(used.id, { ...used, sessionId: session.id });
+
+      if (used) {
+        requests.set(used.id, { ...used, sessionId: session.id });
+      }
+
       return session;
     },
   };
+
   return { store, requests, approvers };
 }
 
@@ -116,10 +138,12 @@ function setup(
   const betterSupabase = defineSupabase(schema);
   betterSupabase.events.on("block", (event) => events.push(event));
   const approving = approvingStore();
+
   const support = supportSessions({
     store: approving.store,
     ...options,
   }).create(betterSupabase.events, undefined, undefined, hooks);
+
   return { support, events, ...approving };
 }
 
@@ -144,46 +168,56 @@ describe("support sessions refuse by default", () => {
 
   it("asks the hooks' support.authorize, and a slot passed directly wins", async () => {
     const asked: string[] = [];
+
     const fromHooks = hooks({
       support: {
         authorize: () => {
           asked.push("hooks");
+
           return false;
         },
       },
     });
+
     const viaHooks = setup({ policy: { approval: "none" } }, fromHooks);
     expect((await viaHooks.support.start(admin, start)).error?.code).toBe(
       "SUPPORT_FORBIDDEN",
     );
+
     const direct = setup(
       {
         policy: { approval: "none" },
         authorize: () => {
           asked.push("direct");
+
           return true;
         },
       },
       fromHooks,
     );
+
     expect((await direct.support.start(admin, start)).ok).toBe(true);
     expect(asked).toEqual(["hooks", "direct"]);
   });
 
   it("refuses an empty or blank reason before authorize runs", async () => {
     let asked = false;
+
     const { support } = setup({
       authorize: () => {
         asked = true;
+
         return true;
       },
     });
+
     for (const reason of ["", "   \n"]) {
       expect(
         (await support.start(admin, { targetUserId: TARGET, reason })).error
           ?.code,
       ).toBe("SUPPORT_REASON_REQUIRED");
     }
+
     expect(asked).toBe(false);
   });
 
@@ -202,6 +236,7 @@ describe("support sessions need a second admin", () => {
     const { support, events, requests, approvers } = setup({
       authorize: () => true,
     });
+
     const refused = await support.start(admin, start);
     expect(refused.error).toMatchObject({
       kind: "forbidden",
@@ -250,6 +285,7 @@ describe("support sessions need a second admin", () => {
   it("asks approverOf, then records the approval for the server", async () => {
     const refs: ApprovalRequestRef[] = [];
     let answer: () => boolean = () => false;
+
     const { support, approvers } = setup(
       { authorize: () => true },
       hooks({
@@ -259,13 +295,16 @@ describe("support sessions need a second admin", () => {
             userId: SECOND,
             claims: second.claims,
           });
+
           return answer();
         },
       }),
     );
+
     const asked = await support
       .request(admin, { ...start, tenant: "o1" })
       .orThrow();
+
     expect((await support.approve(admin, asked.id)).error?.code).toBe(
       "SUPPORT_SELF_APPROVAL",
     );
@@ -276,6 +315,7 @@ describe("support sessions need a second admin", () => {
     answer = () => {
       throw new Error("down");
     };
+
     expect((await support.approve(second, asked.id)).error?.code).toBe(
       "SUPPORT_FORBIDDEN",
     );
@@ -328,13 +368,16 @@ describe("support sessions need a second admin", () => {
       getRequest: () => Promise.reject(pgError("57014", "timeout")),
       approvedRequest: () => Promise.reject(pgError("42501", "no")),
     };
+
     const events: BlockEvent[] = [];
     const betterSupabase = defineSupabase(schema);
     betterSupabase.events.on("block", (event) => events.push(event));
+
     const brokenSupport = supportSessions({
       store: broken,
       authorize: () => true,
     }).create(betterSupabase.events, undefined);
+
     expect((await brokenSupport.request(admin, start)).error?.code).toBe(
       "42501",
     );
@@ -349,17 +392,21 @@ describe("support sessions need a second admin", () => {
     const events: BlockEvent[] = [];
     const betterSupabase = defineSupabase(schema);
     betterSupabase.events.on("block", (event) => events.push(event));
+
     const support = supportSessions({
       store: memorySupportStore(),
       authorize: () => ({ approvedBy: SECOND }),
     }).create(betterSupabase.events, undefined);
+
     expect((await support.start(admin, start)).error?.code).toBe(
       "SUPPORT_APPROVAL_REQUIRED",
     );
+
     const lookup = supportSessions({
       store: memorySupportStore(),
       authorize: () => true,
     }).create(betterSupabase.events, undefined);
+
     expect((await lookup.start(admin, start)).error?.code).toBe(
       "SUPPORT_APPROVAL_REQUIRED",
     );

@@ -39,6 +39,7 @@ export type EmployeeStatus =
   | "active"
   | "on_leave"
   | "offboarded";
+
 export type SalaryPeriod = "hour" | "week" | "month" | "year";
 
 const STATUSES: readonly EmployeeStatus[] = [
@@ -47,6 +48,7 @@ const STATUSES: readonly EmployeeStatus[] = [
   "on_leave",
   "offboarded",
 ];
+
 const PERIODS: readonly SalaryPeriod[] = ["hour", "week", "month", "year"];
 
 const COLUMNS = new Set([
@@ -272,8 +274,14 @@ export interface EmployeesOptions<
 }
 
 function argOf(value: unknown): unknown {
-  if (typeof value === "bigint") return value.toString();
-  if (value instanceof temporal().PlainDate) return value.toString();
+  if (typeof value === "bigint") {
+    return value.toString();
+  }
+
+  if (value instanceof temporal().PlainDate) {
+    return value.toString();
+  }
+
   return value;
 }
 
@@ -284,7 +292,11 @@ const argsOf = (input: object): Record<string, unknown> =>
 
 function requiredDate(value: unknown, field: string): Temporal.PlainDate {
   const date = plainDate(value);
-  if (date === undefined) throw new TypeError(`${field} is missing`);
+
+  if (date === undefined) {
+    throw new TypeError(`${field} is missing`);
+  }
+
   return date;
 }
 
@@ -293,6 +305,7 @@ const num = (value: unknown): number | undefined =>
 
 function employeeOf(value: unknown): Employee {
   const row = recordOf(value, "employee");
+
   return compact<Employee>({
     id: textOf(row["id"]),
     organizationId: textOf(row["tenant_id"]),
@@ -330,6 +343,7 @@ function contactsOf(value: unknown): readonly EmergencyContact[] {
 function privateOf(value: unknown): PrivateDetails {
   const row = recordOf(value, "private details");
   const address = row["address"];
+
   return compact<PrivateDetails>({
     employeeId: textOf(row["employee_id"]),
     nationalId: optionalText(row["national_id"]),
@@ -347,6 +361,7 @@ function privateOf(value: unknown): PrivateDetails {
 function contractOf(value: unknown): Contract {
   const row = recordOf(value, "contract");
   const period = row["salary_period"];
+
   return compact<Contract>({
     id: textOf(row["id"]),
     employeeId: textOf(row["employee_id"]),
@@ -388,20 +403,24 @@ export function createEmployees<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: EmployeesOptions<S>): Employees<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const fields: BlockFields<F> = blockFields(options.fields, "employee fields");
+
   const parsed = (employee: Employee): AsyncResult<Employee<F>> =>
     AsyncResult.from(() => fields.read(employee.fields)).map((value) => ({
       ...employee,
       fields: value,
     }));
+
   const entries = (value: unknown, name: string) =>
     recordsOf(value, name).map((row) => ({
       employee: employeeOf(row),
       depth: num(row["depth"]) ?? 0,
       directReports: num(row["direct_reports"]) ?? 0,
     }));
+
   const chart = (
     fn: string,
     args: Record<string, unknown>,
@@ -409,23 +428,32 @@ export function createEmployees<
     call(fn, args, (value) => entries(value, fn)).andThen((rows) =>
       AsyncResult.from(async () => {
         const out: OrgChartEntry<F>[] = [];
+
         for (const row of rows) {
           const read = await parsed(row.employee);
-          if (!read.ok) return read;
+
+          if (!read.ok) {
+            return read;
+          }
+
           out.push({
             ...read.data,
             depth: row.depth,
             directReports: row.directReports,
           });
         }
+
         return ok(out);
       }),
     );
+
   const attrsOf = (input: Partial<EmployeeInput<F>>) =>
     AsyncResult.from(() => fields.write({ ...input.fields })).map((extra) => {
       const { fields: _fields, ...rest } = input;
+
       return { ...argsOf(rest), ...argsOf(extra) };
     });
+
   const client: Employees<F> = {
     create: (organizationId, input) =>
       attrsOf(input)
@@ -440,10 +468,17 @@ export function createEmployees<
     update: (changes) =>
       AsyncResult.from(async () => {
         for (const change of changes) {
-          if (BUILT_IN.has(change.field)) continue;
+          if (BUILT_IN.has(change.field)) {
+            continue;
+          }
+
           const valid = await fields.write({ [change.field]: change.value });
-          if (!valid.ok) return valid;
+
+          if (!valid.ok) {
+            return valid;
+          }
         }
+
         return ok(changes);
       }).andThen((checked) =>
         call(
@@ -457,6 +492,7 @@ export function createEmployees<
           },
           (value) => {
             const row = recordOf(value, "update_employees");
+
             return {
               accepted: recordsOf(row["accepted"], "accepted").map((item) => ({
                 employeeId: textOf(item["employeeId"]),
@@ -534,6 +570,7 @@ export function createEmployees<
         contractOf,
       ),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "employees",
     ...(options.logger ? { logger: options.logger } : {}),

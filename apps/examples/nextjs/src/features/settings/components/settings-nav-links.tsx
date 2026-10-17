@@ -9,26 +9,44 @@ import { type SettingsTabId, settingsTabs } from "../settings-tabs";
 
 function useTabLabel() {
   const t = useExtracted("settings");
+
   return (id: SettingsTabId): string => {
     switch (id) {
-      case "profile":
+      case "profile": {
         return t("Profile");
-      case "preferences":
+      }
+
+      case "preferences": {
         return t("Preferences");
-      case "security":
+      }
+
+      case "security": {
         return t("Security");
-      case "organization":
+      }
+
+      case "organization": {
         return t("Organization");
-      case "members":
+      }
+
+      case "members": {
         return t("Members");
-      case "billing":
+      }
+
+      case "billing": {
         return t("Billing");
-      case "apiKeys":
+      }
+
+      case "apiKeys": {
         return t("API keys");
-      case "audit":
+      }
+
+      case "audit": {
         return t("Audit log");
+      }
+
       default: {
         const unknown: never = id;
+
         return unknown;
       }
     }
@@ -44,15 +62,17 @@ export function SettingsNavLinks({
   const t = useExtracted("settings");
   const label = useTabLabel();
   const pathname = usePathname();
+
   return (
     <nav
       aria-label={t("Settings")}
-      className="bg-muted text-muted-foreground inline-flex h-9 w-fit max-w-full items-center overflow-x-auto rounded-lg p-1"
+      className="inline-flex h-9 w-fit max-w-full items-center overflow-x-auto rounded-lg bg-muted p-1 text-muted-foreground"
     >
       {settingsTabs
         .filter((tab) => visible.includes(tab.id))
         .map((tab) => {
           const active = pathname === tab.href;
+
           return (
             <Link
               key={tab.id}

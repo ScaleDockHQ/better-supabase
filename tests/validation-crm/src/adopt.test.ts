@@ -29,7 +29,7 @@ afterEach(async () => {
 
 const committed = async (): Promise<{ blocks: unknown }> =>
   JSON.parse(
-    await readFile(join(ROOT, "better-supabase.config.json"), "utf8"),
+    await readFile(join(ROOT, "better-supabase.config.json"), "utf-8"),
   ) as { blocks: unknown };
 
 describe("apply --adopt on the CRM schema", () => {
@@ -42,6 +42,7 @@ describe("apply --adopt on the CRM schema", () => {
         blocks: ["read-sets"],
       }),
     );
+
     const result = await run([
       "apply",
       "--preset",
@@ -54,11 +55,14 @@ describe("apply --adopt on the CRM schema", () => {
       "--cwd",
       dir,
     ]);
+
     expect(result.code).toBe(0);
+
     const data = JSON.parse(result.stdout) as {
       adopted: Record<string, { mode: string }>;
       contents: string;
     };
+
     expect(Object.keys(data.adopted)).toEqual([
       "access",
       "organizations",
@@ -73,6 +77,7 @@ describe("apply --adopt on the CRM schema", () => {
     const { blocks } = (await committed()) as {
       blocks: Record<string, { columns?: unknown }>;
     };
+
     expect(blocks["profiles"]?.columns).toMatchObject({
       profiles: { key: "user_id" },
     });
@@ -91,6 +96,7 @@ describe("apply --adopt on the CRM schema", () => {
         blocks: ["read-sets"],
       }),
     );
+
     const result = await run([
       "apply",
       "--preset",
@@ -105,18 +111,23 @@ describe("apply --adopt on the CRM schema", () => {
       "--cwd",
       dir,
     ]);
+
     expect(result.code).toBe(0);
+
     const data = JSON.parse(result.stdout) as {
       adopted: BlocksConfig;
       contents: string;
     };
+
     const proposed = JSON.parse(data.contents) as { preset: string };
     expect(decodePreset(proposed.preset).preset.tenantName).toBe("workspace");
+
     // The CRM's tables keep their names: adopted tables are named in the
     // config, and only the managed blocks' default names follow sql.naming.
     const { blocks } = (await committed()) as {
       blocks: BlocksConfig;
     };
+
     expect(data.adopted).toEqual({
       access: blocks.access,
       organizations: blocks.organizations,
@@ -137,6 +148,7 @@ describe("apply --adopt on the CRM schema", () => {
       "--cwd",
       ROOT,
     ]);
+
     expect(result.code).toBe(0);
     expect(result.stdout).toContain("already holds the preset");
   });

@@ -1,16 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 
-const sdkDownload = vi.hoisted(() =>
-  vi.fn(() =>
-    Promise.resolve({ data: new Uint8Array([5]), mediaType: "text/plain" }),
-  ),
-);
-
-vi.mock(import("ai"), async (importOriginal) => ({
-  ...(await importOriginal()),
-  createDownload: () => sdkDownload,
-}));
-
 import type { AiFileStorage } from "../../../src/blocks/ai-files/index.ts";
 
 import {
@@ -23,6 +12,17 @@ import {
   aiFileUrl,
   createAiFiles,
 } from "../../../src/blocks/ai-files/index.ts";
+
+const sdkDownload = vi.hoisted(() =>
+  vi.fn(() =>
+    Promise.resolve({ data: new Uint8Array([5]), mediaType: "text/plain" }),
+  ),
+);
+
+vi.mock(import("ai"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  createDownload: () => sdkDownload,
+}));
 
 const AT = "2026-01-01T00:00:00Z";
 
@@ -50,6 +50,7 @@ function filesWith(
   respond: (fn: string, args: Record<string, unknown>) => unknown,
 ) {
   const uploads: string[] = [];
+
   const storage: AiFileStorage = {
     from: () => ({
       createSignedUploadUrl: () =>
@@ -64,13 +65,16 @@ function filesWith(
       remove: () => Promise.resolve({ data: [], error: null }),
       upload: (path) => {
         uploads.push(path);
+
         return Promise.resolve({ data: {}, error: null });
       },
     }),
   };
+
   const call = vi.fn((_schema: string, fn: string, args: object) =>
     Promise.resolve(respond(fn, args as Record<string, unknown>)),
   );
+
   return {
     files: createAiFiles({ transport: { call }, storage }),
     uploads,
@@ -81,15 +85,19 @@ function filesWith(
 describe("aiFileDownload", () => {
   it("reads storage URLs as the caller and leaves supported URLs to the model", async () => {
     const { files } = filesWith(() => row());
+
     const fallback = vi.fn(() =>
       Promise.resolve([{ data: new Uint8Array([1]), mediaType: "text/plain" }]),
     );
+
     const download = aiFileDownload(files, { fallback });
+
     const result = await download([
       { url: new URL(aiFileUrl(row())), isUrlSupportedByModel: false },
       { url: new URL("https://cdn/x.png"), isUrlSupportedByModel: true },
       { url: new URL("https://cdn/y.txt"), isUrlSupportedByModel: false },
     ]);
+
     expect(result[0]).toEqual({
       data: new Uint8Array([7, 8, 9]),
       mediaType: "image/png",
@@ -116,9 +124,11 @@ describe("aiFileDownload", () => {
     const { files } = filesWith(() => null);
     const signal = new AbortController().signal;
     const download = aiFileDownload(files, { abortSignal: signal });
+
     const [result] = await download([
       { url: new URL("https://cdn/y.txt"), isUrlSupportedByModel: false },
     ]);
+
     expect(result?.data).toEqual(new Uint8Array([5]));
     expect(sdkDownload).toHaveBeenCalledWith({
       url: new URL("https://cdn/y.txt"),
@@ -146,11 +156,13 @@ describe("saveGeneratedFiles", () => {
         path: `o1/u1/f1/${String(args["filename"])}`,
       }),
     );
+
     const parts = await saveGeneratedFiles(
       files,
       [{ uint8Array: new Uint8Array([1, 2]), mediaType: "image/png" }],
       { organizationId: "o1", ownerId: "u1", chatId: "c1" },
     );
+
     expect(parts.ok && parts.data).toEqual([
       {
         type: "file",
@@ -172,6 +184,7 @@ describe("providerFile", () => {
       reference: "file-1",
       expires_at: null,
     }));
+
     const upload = vi.fn();
     const reference = await providerFile(files, "f1", "openai", upload);
     expect(reference.ok && reference.data).toBe("file-1");
@@ -186,10 +199,13 @@ describe("providerFile", () => {
           ? row()
           : true,
     );
+
     const reference = await providerFile(files, "f1", "openai", (file) => {
       expect([...file.data]).toEqual([7, 8, 9]);
+
       return Promise.resolve({ reference: "file-2" });
     });
+
     expect(reference.ok && reference.data).toBe("file-2");
     expect(call).toHaveBeenLastCalledWith(
       "better_supabase",
@@ -202,9 +218,11 @@ describe("providerFile", () => {
     const { files } = filesWith((fn) =>
       fn === "get_ai_provider_file" ? null : row(),
     );
+
     const reference = await providerFile(files, "f1", "openai", () =>
       Promise.reject(new Error("quota")),
     );
+
     expect(reference.ok ? undefined : reference.error.message).toBe(
       "The openai upload failed: quota",
     );

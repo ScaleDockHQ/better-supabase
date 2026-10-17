@@ -35,6 +35,7 @@ export function withSupport<
       const support =
         callOf(ctx)?.options.support ??
         (await supportLookup(core, request, ctx.session));
+
       return { support };
     },
   })();

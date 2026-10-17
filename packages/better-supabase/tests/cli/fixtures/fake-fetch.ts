@@ -20,26 +20,35 @@ export function fakeFetch(
   }),
 ): { fetch: typeof fetch; calls: FetchCall[] } {
   const calls: FetchCall[] = [];
+
   const fetchImpl = async (
     input: RequestInfo | URL,
     init?: RequestInit,
   ): Promise<Response> => {
     const request = input instanceof Request ? input : undefined;
+
     const call: FetchCall = {
       url: request ? request.url : String(input),
       method: init?.method ?? request?.method ?? "GET",
       headers: new Headers(init?.headers ?? request?.headers),
       body: typeof init?.body === "string" ? init.body : undefined,
     };
+
     calls.push(call);
     const answer = await respond(call);
-    if (answer instanceof Response) return answer;
+
+    if (answer instanceof Response) {
+      return answer;
+    }
+
     const text =
       answer.text ??
       (answer.body === undefined ? "" : JSON.stringify(answer.body));
+
     return new Response(answer.status === 204 ? null : text, {
       status: answer.status ?? 200,
     });
   };
+
   return { fetch: fetchImpl, calls };
 }

@@ -53,6 +53,7 @@ describe("approvals module", () => {
         },
       },
     });
+
     expect(sql).toContain(
       `when 'doc:publish' then '{"steps":[{"approvers":{"role":"admin"},"required":1}]`,
     );
@@ -66,18 +67,22 @@ describe("approvals module", () => {
         "state-machine": { options: { machines } },
       },
     };
+
     const approvals = sqlOf(
       ["approvals", "state-machine"],
       "approvals",
       layout,
     );
+
     expect(approvals).toContain(`"transition"(v_req."subject_type"`);
     expect(approvals).toContain(`"required":1`);
+
     const machine = sqlOf(
       ["approvals", "state-machine"],
       "state-machine",
       layout,
     );
+
     expect(machine).toContain("STATE_APPROVAL_REQUIRED");
     expect(machine).toContain(`"better_supabase"."approval_requests" a`);
   });
@@ -87,6 +92,7 @@ describe("approvals module", () => {
       sqlOf(modules, "approvals", {
         modules: { approvals: { options: { policies } } },
       });
+
     expect(() => build(invoices)).toThrow(/needs the state-machine module/);
     expect(() =>
       build({ doc: { publish: { steps: [{ approvers: {} }] } } }),
@@ -148,6 +154,7 @@ describe("approvals module", () => {
         },
       },
     });
+
     expect(sql).toContain(`enqueue_job"(queue => 'publish'`);
   });
 

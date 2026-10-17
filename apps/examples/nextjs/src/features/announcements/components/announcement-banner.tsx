@@ -23,12 +23,18 @@ export function AnnouncementBanner({
   organizationId: string | null;
 }) {
   const t = useExtracted("announcements");
+
   const { items, dismiss } = useAnnouncements({
     organizationId,
     schema: "api",
   });
+
   const announcement = items?.[0];
-  if (!announcement) return null;
+
+  if (!announcement) {
+    return null;
+  }
+
   return (
     <Alert
       variant={announcement.severity === "critical" ? "destructive" : "default"}

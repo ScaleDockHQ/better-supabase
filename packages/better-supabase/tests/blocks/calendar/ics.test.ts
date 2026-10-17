@@ -123,6 +123,7 @@ describe("parseIcs", () => {
         "END:VCALENDAR",
       ].join("\n"),
     );
+
     expect(events[0]?.tz).toBe("UTC");
     expect(events[0]?.startsAt.toString()).toBe("2026-06-01T12:00:00Z");
     expect(events[0]?.endsAt.toString()).toBe("2026-06-01T12:00:00Z");
@@ -151,17 +152,20 @@ describe("toIcs", () => {
       },
     ],
   };
+
   const text = toIcs([event], {
     name: "Team",
     tz: "Europe/Amsterdam",
     now: at("2026-01-01T00:00:00Z"),
   });
+
   const lines = text.split("\r\n");
 
   it("ends every line with CRLF and folds at 75 octets", () => {
     expect(text.endsWith("END:VCALENDAR\r\n")).toBe(true);
     expect(text.replaceAll("\r\n", "")).not.toContain("\n");
     const encoder = new TextEncoder();
+
     for (const line of lines) {
       expect(encoder.encode(line).length).toBeLessThanOrEqual(75);
     }
@@ -202,6 +206,7 @@ describe("toIcs", () => {
 
   it("writes all-day events as dates and UTC events with Z", () => {
     const { rrule: _rrule, originalStart: _originalStart, ...single } = event;
+
     const out = toIcs(
       [
         {
@@ -215,6 +220,7 @@ describe("toIcs", () => {
       ],
       { now: at("2026-01-01T00:00:00Z") },
     );
+
     expect(out).toContain("DTSTART;VALUE=DATE:20260427\r\n");
     expect(out).toContain("DTEND;VALUE=DATE:20260428\r\n");
     expect(out).toContain("DTSTART:20260302T080000Z\r\n");

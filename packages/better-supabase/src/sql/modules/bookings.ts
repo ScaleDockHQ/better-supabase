@@ -144,7 +144,11 @@ const NAMES: ModuleNames = {
 
 function tables(p: Parts): string {
   const { ctx, r, av, x, s, b } = p;
-  if (!ctx.manages) return "";
+
+  if (!ctx.manages) {
+    return "";
+  }
+
   return `create extension if not exists btree_gist with schema extensions;
 create table if not exists ${p.resources} (
   ${r("id")} uuid primary key default gen_random_uuid(),
@@ -250,6 +254,7 @@ using (${ctx.scope.check(b("tenant"), p.read)} or ${b("customerUser")} = (select
 function setup(p: Parts): string {
   const { ctx, r, av, x, s } = p;
   const fn = (name: string) => ctx.fn(name);
+
   const resourceFields: readonly (readonly [string, string, string])[] = [
     ["name", r("name"), "v_item ->> 'name'"],
     ["kind", r("kind"), "v_item ->> 'kind'"],
@@ -266,6 +271,7 @@ function setup(p: Parts): string {
         ]
       : []),
   ];
+
   const serviceFields: readonly (readonly [string, string, string])[] = [
     ["name", s("name"), "v_item ->> 'name'"],
     ["duration", s("duration"), "(v_item ->> 'duration')::interval"],
@@ -294,6 +300,7 @@ function setup(p: Parts): string {
         ]
       : []),
   ];
+
   const defaultOf = (column: string): string =>
     ({
       [r("kind")]: "'staff'",
@@ -308,6 +315,7 @@ function setup(p: Parts): string {
       [s("active")]: "true",
       [s("reminderOffsets")]: "'{1440}'::integer[]",
     })[column] ?? "null";
+
   const upsert = (
     table: string,
     id: string,
@@ -324,6 +332,7 @@ function setup(p: Parts): string {
       ${fail("BOOKING_NOT_FOUND", "not found", "P0002")}
     end if;
   end if;`;
+
   return `
 create or replace function ${fn("save_booking_resource")}(tenant ${ctx.idType}, item jsonb)
 returns jsonb
@@ -459,6 +468,7 @@ ${userGrant(`${fn("save_booking_service")}(${ctx.idType}, jsonb)`)}
 function slots(p: Parts): string {
   const { ctx, r, av, x, s, b } = p;
   const fn = (name: string) => ctx.fn(name);
+
   return `
 -- The open slots of a service in [range_start, range_end): for each resource
 -- of the service's kinds, its weekly hours in its own time zone, plus the
@@ -576,18 +586,22 @@ function lifecycle(p: Parts): string {
   const { ctx, r, s, b } = p;
   const fn = (name: string) => ctx.fn(name);
   const jobs = ctx.installed("jobs") ? ctx.of("jobs") : undefined;
+
   const expireJob =
     jobs === undefined
       ? ""
       : `if v_status = 'hold' then
     perform ${jobs.fn("enqueue_job")}(queue => '${BOOKING_EXPIRE_QUEUE}', payload => jsonb_build_object('bookingId', v_id), delay => ceil(extract(epoch from (v_expires - now())))::integer + 1, dedupe_key => 'bookings:expire:' || v_id::text, dedupe_running => false);
   end if;`;
+
   const bookingJson = (alias: string) =>
     `jsonb_build_object('id', ${alias}.${b("id")}, 'resourceId', ${alias}.${b("resource")}, 'serviceId', ${alias}.${b("service")}, 'seat', ${alias}.${b("seat")}, 'startsAt', lower(${alias}.${b("during")}), 'endsAt', upper(${alias}.${b("during")}), 'status', ${alias}.${b("status")}, 'holdExpiresAt', ${alias}.${b("holdExpiresAt")}, 'customerName', ${alias}.${b("customerName")}, 'customerEmail', ${alias}.${b("customerEmail")}, 'customerUserId', ${alias}.${b("customerUser")}${ctx.has("bookings", "notes") ? `, 'notes', ${alias}.${b("notes")}` : ""}, 'createdAt', ${alias}.${b("createdAt")}, 'cancelledAt', ${alias}.${b("cancelledAt")}, 'cancelReason', ${alias}.${b("cancelReason")}${extraFieldsJson(alias, p.extras)})`;
+
   const declareMirror = `v_calendar uuid;
   v_tz text;
   v_title text;
   v_event uuid;`;
+
   return `
 -- Cancels holds whose time is up: all of them, or those of one resource that
 -- overlap a range. Records booking.expired for each.
@@ -832,8 +846,12 @@ ${userGrant(`${fn("list_bookings")}(${ctx.idType}, timestamptz, timestamptz, uui
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
   const perms = moduleOperations("bookings");
+
   const p: Parts = {
     scope: ctx.scope,
     ctx,
@@ -860,6 +878,7 @@ function build(ctx: ModuleContext): string {
       "fields",
     ]),
   };
+
   return `${schemaPreamble(ctx)}
 ${tables(p)}${setup(p)}${slots(p)}${lifecycle(p)}${publicBooking(p)}`;
 }

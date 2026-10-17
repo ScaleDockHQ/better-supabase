@@ -45,8 +45,12 @@ const SEVERITY_FORMAT: Readonly<Record<Severity, Format>> = {
 };
 
 function text(findings: readonly Finding[], paint: Paint): string {
-  if (findings.length === 0) return "No problems found.";
+  if (findings.length === 0) {
+    return "No problems found.";
+  }
+
   const order: readonly Severity[] = ["error", "warning", "info"];
+
   const lines = [...findings]
     .sort(
       (a, b) =>
@@ -58,24 +62,33 @@ function text(findings: readonly Finding[], paint: Paint): string {
       `        ${finding.message}`,
       `        ${finding.help}`,
     ]);
+
   const summary = summarize(findings);
   lines.push(
     "",
     `${plural(summary.errors, "error")}, ${plural(summary.warnings, "warning")}, ${plural(summary.infos, "note")}.`,
   );
+
   return lines.join("\n");
 }
 
 function sarifLevel(severity: Severity): "error" | "warning" | "note" {
   switch (severity) {
-    case "error":
+    case "error": {
       return "error";
-    case "warning":
+    }
+
+    case "warning": {
       return "warning";
-    case "info":
+    }
+
+    case "info": {
       return "note";
+    }
+
     default: {
       const unreachable: never = severity;
+
       return unreachable;
     }
   }
@@ -134,6 +147,7 @@ function sarif(
 
 const escapeData = (value: string): string =>
   value.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");
+
 const escapeProperty = (value: string): string =>
   escapeData(value).replaceAll(":", "%3A").replaceAll(",", "%2C");
 
@@ -141,6 +155,7 @@ function github(findings: readonly Finding[]): string {
   return findings
     .map((finding) => {
       const command = finding.severity === "info" ? "notice" : finding.severity;
+
       const properties = [
         ...(finding.location
           ? [
@@ -150,6 +165,7 @@ function github(findings: readonly Finding[]): string {
           : []),
         `title=${escapeProperty(`${finding.code} ${finding.title}`)}`,
       ];
+
       return `::${command} ${properties.join(",")}::${escapeData(`${finding.message} (${finding.help})`)}`;
     })
     .join("\n");
@@ -192,20 +208,29 @@ export function formatReport(
   options: FormatOptions,
 ): string {
   switch (options.format) {
-    case "text":
+    case "text": {
       return text(findings, options.paint ?? plain);
-    case "json":
+    }
+
+    case "json": {
       return JSON.stringify(jsonReport(findings, options.version), null, 2);
-    case "sarif":
+    }
+
+    case "sarif": {
       return JSON.stringify(
         sarif(findings, options.rules, options.version, options.fallbackFile),
         null,
         2,
       );
-    case "github":
+    }
+
+    case "github": {
       return github(findings);
+    }
+
     default: {
       const unreachable: never = options.format;
+
       return unreachable;
     }
   }

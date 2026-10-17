@@ -53,6 +53,7 @@ import { stackDbUrl, stackUrl } from "./stack-env.ts";
 
 const url = stackUrl();
 const dbUrl = stackDbUrl();
+
 const publishableKey =
   process.env["SUPABASE_PUBLISHABLE_KEY"] ??
   "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";
@@ -61,6 +62,7 @@ const FIXTURE_SEARCH = new URL(
   "../../../../supabase/schemas/_better_supabase/900_better_supabase_70_search.sql",
   import.meta.url,
 );
+
 const ACME = "00000000-0000-4000-8000-000000000001";
 const RUN = String(Date.now());
 
@@ -70,8 +72,10 @@ async function reachable(): Promise<boolean> {
     max: 1,
     connectionTimeoutMillis: 1000,
   });
+
   try {
     await pool.query("select 1");
+
     return true;
   } catch {
     return false;
@@ -94,25 +98,31 @@ function postgrestOver(pool: Pool): RpcClient {
     schema: (schema: string) => ({
       rpc: async (fn: string, args: Record<string, unknown>) => {
         const client = await pool.connect();
+
         try {
           await client.query("begin");
           await client.query("set local role service_role");
+
           const { rows: procs } = await client.query<{ set: boolean }>(
             `select p.proretset as set from pg_proc p
              join pg_namespace n on n.oid = p.pronamespace
              where n.nspname = $1 and p.proname = $2`,
             [schema, fn],
           );
+
           const names = Object.keys(args);
+
           const call = `${quoted(schema)}.${quoted(fn)}(${names
             .map((name, index) => `${quoted(name)} => $${String(index + 1)}`)
             .join(", ")})`;
+
           const { rows } = await client.query<{ data: unknown }>(
             procs[0]?.set
               ? `select coalesce(jsonb_agg(to_jsonb(r)), '[]'::jsonb) as data from ${call} r`
               : `select to_jsonb(${call}) as data`,
             names.map((name) => {
               const value = args[name];
+
               return value !== null &&
                 typeof value === "object" &&
                 !Array.isArray(value)
@@ -120,10 +130,13 @@ function postgrestOver(pool: Pool): RpcClient {
                 : value;
             }),
           );
+
           await client.query("commit");
+
           return { data: rows[0]?.data ?? null, error: null };
         } catch (error) {
           await client.query("rollback");
+
           return { data: null, error };
         } finally {
           client.release();
@@ -135,8 +148,10 @@ function postgrestOver(pool: Pool): RpcClient {
 
 async function installSchemaModules(pool: Pool): Promise<void> {
   const client = await pool.connect();
+
   try {
     await client.query("begin");
+
     // ensure-rls would enable RLS on every table later tests create, so it
     // only runs in its own rolled-back transaction below.
     const names = Object.values(SQL_MODULES)
@@ -144,10 +159,15 @@ async function installSchemaModules(pool: Pool): Promise<void> {
         (module) => module.target === "schema" && module.name !== "ensure-rls",
       )
       .map((module) => module.name);
-    for (const file of renderModules(names))
-      if (file.kind !== "test") await client.query(file.contents);
+
+    for (const file of renderModules(names)) {
+      if (file.kind !== "test") {
+        await client.query(file.contents);
+      }
+    }
+
     // The default search render has no subjects, and the fixture's customers trigger needs its own.
-    await client.query(readFileSync(FIXTURE_SEARCH, "utf8"));
+    await client.query(readFileSync(FIXTURE_SEARCH, "utf-8"));
     await client.query(FIXTURE_TENANT_SQL);
     await client.query("commit");
   } catch (error) {
@@ -210,11 +230,13 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     // left inside a transaction.
     const restore = new Client({ connectionString: dbUrl });
     await restore.connect();
+
     try {
       await restore.query(FIXTURE_TENANT_SQL);
     } finally {
       await restore.end();
     }
+
     await pool.query(`drop table if exists ${table}`);
     await pool.query(
       `delete from better_supabase.audited_tables where target::text = $1`,
@@ -242,29 +264,36 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("resolves an identity linked to an inbox contact", async () => {
     const client = await pool.connect();
+
     try {
       await client.query("begin");
+
       const { rows: fk } = await client.query<{ target: string }>(
         `select confrelid::regclass::text as target from pg_constraint
          where conrelid = 'better_supabase.identity_links'::regclass and contype = 'f'
            and conkey = array[(select attnum from pg_attribute where attrelid = 'better_supabase.identity_links'::regclass and attname = 'contact_id')]`,
       );
+
       expect(fk.map((row) => row.target)).toEqual(["better_supabase.contacts"]);
+
       const {
         rows: [contact],
       } = await client.query<{ id: string }>(
         "insert into better_supabase.contacts (tenant_id, name) values ($1, 'Visitor') returning id",
         [ACME],
       );
+
       const value = `wa-${RUN}`;
       await client.query(
         "insert into better_supabase.identity_links (kind, provider, value, contact_id, source) values ('chat', 'whatsapp', $1, $2, 'link')",
         [value, contact!.id],
       );
+
       const { rows } = await client.query<{ target: unknown }>(
         "select better_supabase.principal_by_identity('chat', 'whatsapp', $1) as target",
         [value],
       );
+
       expect(rows[0]?.target).toEqual({
         kind: "contact",
         contactId: contact!.id,
@@ -295,11 +324,13 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
          )
        order by 1`,
     );
+
     expect(rows.map((row) => row.constraint)).toEqual([]);
   });
 
   it("ensure-rls enables RLS on new tables outside the managed schemas", async () => {
     const client = await pool.connect();
+
     try {
       await client.query("begin");
       const [file] = renderModules(["ensure-rls"]);
@@ -311,6 +342,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         select 1 as id into public.bs_rls_into_${RUN};
         create table extensions.bs_rls_skipped_${RUN} (id int);
       `);
+
       const { rows } = await client.query<{
         relname: string;
         relrowsecurity: boolean;
@@ -319,6 +351,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
          where relname like $1 order by relname`,
         [`bs_rls_%_${RUN}`],
       );
+
       expect(rows).toEqual([
         { relname: `bs_rls_as_${RUN}`, relrowsecurity: true },
         { relname: `bs_rls_into_${RUN}`, relrowsecurity: true },
@@ -335,17 +368,24 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const hooks = Object.values(SQL_MODULES).flatMap(
       (module) => module.names?.hooks ?? [],
     );
+
     const client = await pool.connect();
+
     try {
       await client.query("begin");
       await client.query("create extension if not exists plpgsql_check");
+
       const existing = await client.query<{ sql: string }>(
         `select format('drop function %s', p.oid::regprocedure) as sql
          from pg_proc p
          where p.pronamespace = 'public'::regnamespace and p.proname = any($1)`,
         [hooks],
       );
-      for (const row of existing.rows) await client.query(row.sql);
+
+      for (const row of existing.rows) {
+        await client.query(row.sql);
+      }
+
       const { rows } = await client.query<{
         fn: string;
         level: string;
@@ -357,6 +397,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         where p.pronamespace = 'better_supabase'::regnamespace
           and p.prolang = (select oid from pg_language where lanname = 'plpgsql')
           and p.prorettype not in ('trigger'::regtype, 'event_trigger'::regtype)`);
+
       expect(
         rows.filter(
           (row) =>
@@ -380,6 +421,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const notices: string[] = [];
     const client = await pool.connect();
     client.on("notice", (notice) => notices.push(notice.message ?? ""));
+
     try {
       await client.query(`
         create table ${name} (id int primary key, updated_at timestamptz);
@@ -390,6 +432,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       `);
       await client.query(`select better_supabase.track_updated_at('${name}')`);
       expect(notices.join("\n")).toContain("touch_row");
+
       const triggers = async () =>
         (
           await client.query<{ tgname: string }>(
@@ -397,6 +440,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
             [name],
           )
         ).rows.map((row) => row.tgname);
+
       expect(await triggers()).toEqual(["bs_updated_at", "touch_row"]);
       await client.query(
         `select better_supabase.track_updated_at('${name}', replace_trigger => true)`,
@@ -411,18 +455,25 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("writes the complete grants of the tables and functions in expose", async () => {
     const name = `bs_grants_${RUN}`;
+
     const read = async (): Promise<Response> => {
       for (let attempt = 0; ; attempt++) {
         const response = await fetch(`${url}/rest/v1/${name}?select=id`, {
           headers: { apikey: publishableKey },
         });
+
         const body = (await response.clone().json()) as { code?: string };
-        if (body.code !== "PGRST205" || attempt === 20) return response;
+
+        if (body.code !== "PGRST205" || attempt === 20) {
+          return response;
+        }
+
         await new Promise((done) => {
           setTimeout(done, 250);
         });
       }
     };
+
     try {
       await pool.query(`
         create table public.${name} (id int primary key);
@@ -443,6 +494,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         `grant truncate, update on public.${name} to anon, authenticated;
         create function public.${name}_count() returns integer language sql as $$ select 1 $$;`,
       );
+
       const [file] = renderModules(["grants"], {
         grants: [
           { table: name, role: "anon", privileges: ["select"] },
@@ -459,10 +511,12 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           },
         ],
       });
+
       await pool.query(file!.contents);
       const allowed = await read();
       expect(allowed.status).toBe(200);
       expect(await allowed.json()).toEqual([]);
+
       const { rows } = await pool.query<Record<string, boolean>>(
         `select
           has_table_privilege('anon', 'public.${name}', 'truncate') as anon_truncate,
@@ -473,6 +527,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           has_function_privilege('anon', 'public.${name}_count()', 'execute') as anon_execute,
           has_function_privilege('authenticated', 'public.${name}_count()', 'execute') as authenticated_execute`,
       );
+
       expect(rows[0]).toEqual({
         anon_truncate: false,
         anon_update: false,
@@ -492,6 +547,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const user = crypto.randomUUID();
     const claims = { sub: user, role: "authenticated" };
     const as = postgres.asUser(claims);
+
     const [row] = await as.queryRaw<{
       id: string;
       created_by: string;
@@ -500,12 +556,14 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       `insert into ${table} (organization_id, slug, name) values ($1, 'acme', 'Acme') returning *`,
       [ACME],
     );
+
     expect(row).toMatchObject({ created_by: user, updated_by: user });
 
     const [updated] = await as.queryRaw<{ updated_at: Date | null }>(
       `update ${table} set name = 'Acme 2' where id = $1 returning updated_at`,
       [row!.id],
     );
+
     expect(updated!.updated_at).toBeInstanceOf(Date);
 
     await expect(
@@ -515,6 +573,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       as.queryRaw(`insert into ${table} (slug) values ('Bad Slug')`),
     ).rejects.toMatchObject({ hint: "SLUG_INVALID" });
     const service = await pool.connect();
+
     try {
       await service.query("begin");
       await service.query("set local role service_role");
@@ -523,9 +582,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         service.query(`insert into ${table} (slug) values ('www')`),
       ).rejects.toMatchObject({ hint: "SLUG_RESERVED" });
       await service.query("rollback to savepoint reserved");
+
       const { rows } = await service.query<{ slug: string }>(
         `insert into ${table} (slug) values ('service-${RUN}') returning slug`,
       );
+
       expect(rows[0]!.slug).toBe(`service-${RUN}`);
     } finally {
       await service.query("rollback");
@@ -542,6 +603,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
        where table_name = $1 and record_id = $2 order by id`,
       [table, row!.id],
     );
+
     expect(log.rows).toEqual([
       { op: "insert", changed: null, actor_id: user, organization_id: ACME },
       {
@@ -559,16 +621,19 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   it("stamps impersonated_by from the act claim", async () => {
     const user = crypto.randomUUID();
     const admin = crypto.randomUUID();
+
     const acting = postgres.asUser({
       sub: user,
       role: "authenticated",
       act: { sub: admin, reason: "support" },
     });
+
     const [row] = await acting.queryRaw<{
       id: string;
       created_by: string;
       impersonated_by: string | null;
     }>(`insert into ${table} (name) values ('Impersonated') returning *`);
+
     expect(row).toMatchObject({ created_by: user, impersonated_by: admin });
 
     const [own] = await postgres
@@ -577,12 +642,15 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         `update ${table} set name = 'Own' where id = $1 returning impersonated_by`,
         [row!.id],
       );
+
     expect(own!.impersonated_by).toBe(admin);
+
     const log = await pool.query(
       `select impersonated_by, impersonation_reason from better_supabase.audit_events
        where table_name = $1 and record_id = $2 order by id`,
       [table, row!.id],
     );
+
     expect(log.rows).toEqual([
       { impersonated_by: admin, impersonation_reason: "support" },
       { impersonated_by: null, impersonation_reason: null },
@@ -592,6 +660,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   it("actor() stamps the same actor columns as track_actor", async () => {
     const plain = `bs_block_plain_${RUN}`;
     const uuid = { type: "uuid", nullable: true, hasDefault: false } as const;
+
     const stamped = defineSupabase(
       defineSchema<PlainModels>({
         version: 1,
@@ -630,6 +699,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         },
       }),
     ).use(actor());
+
     const user = crypto.randomUUID();
     const admin = crypto.randomUUID();
     const columns = "created_by, updated_by, impersonated_by";
@@ -638,14 +708,17 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
          name text, created_by uuid, updated_by uuid, impersonated_by uuid);
        grant all on public.${plain} to authenticated`,
     );
+
     try {
       const claims = { sub: user, role: "authenticated" };
       const act = { ...claims, act: { sub: admin } };
+
       const [trigger] = await postgres
         .asUser(act)
         .queryRaw<{ id: string }>(
           `insert into ${table} (name) values ('Parity') returning id, ${columns}`,
         );
+
       await stamped
         .connect(postgres.executorFor(act), {
           actor: { id: user, kind: "user", impersonator: admin },
@@ -653,8 +726,10 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         .$table("plain")
         .create({ name: "Parity" })
         .orThrow();
+
       const read = async (): Promise<unknown[]> =>
         (await pool.query(`select ${columns} from public.${plain}`)).rows;
+
       const { id: _id, ...triggerInsert } = trigger!;
       expect(await read()).toEqual([triggerInsert]);
       expect(triggerInsert).toEqual({
@@ -662,12 +737,14 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         updated_by: user,
         impersonated_by: admin,
       });
+
       const [triggerUpdate] = await postgres
         .asUser(claims)
         .queryRaw(
           `update ${table} set name = 'Own' where id = $1 returning ${columns}`,
           [trigger!.id],
         );
+
       await stamped
         .connect(postgres.executorFor(claims), {
           actor: { id: user, kind: "user" },
@@ -692,16 +769,19 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("keys audit entries by the table's primary key, composite ones too", async () => {
     const composite = `public.bs_block_pk_${RUN}`;
+
     try {
       await pool.query(`
         create table ${composite} (tenant int, code text, name text, primary key (tenant, code));
         select better_supabase.audit('${composite}');
         insert into ${composite} values (7, 'x', 'Seven');
       `);
+
       const log = await pool.query<{ record_id: string }>(
         `select record_id from better_supabase.audit_events where table_name = $1`,
         [composite],
       );
+
       expect(log.rows).toEqual([{ record_id: "7,x" }]);
     } finally {
       await pool.query(`select better_supabase.unaudit('${composite}')`);
@@ -719,15 +799,20 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         `insert into auth.users (id, instance_id, aud, role, email, email_confirmed_at) values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', $1, case when $2 then now() end) returning id`,
         [email, confirmed],
       );
+
       return created.rows[0]!.id;
     };
+
     const ownerId = await createUser(`owner-${RUN}@example.com`, true);
     const inviteeId = await createUser(`invitee-${RUN}@example.com`, true);
+
     const unconfirmedId = await createUser(
       `unconfirmed-${RUN}@example.com`,
       false,
     );
+
     const organization = crypto.randomUUID();
+
     try {
       await pool.query(
         "insert into better_supabase.organizations (id, name, slug) values ($1::uuid, 'Test', 'test-' || left($1::text, 8)) on conflict do nothing",
@@ -737,10 +822,12 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         `insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, 'owner')`,
         [organization, ownerId],
       );
+
       const asOwner = postgres.asUser({
         sub: ownerId,
         email: `owner-${RUN}@example.com`,
       });
+
       const asInvitee = postgres.asUser({
         sub: inviteeId,
         email: `invitee-${RUN}@example.com`,
@@ -752,6 +839,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           "x@example.com",
         ]),
       ).rejects.toMatchObject({ code: "42501" });
+
       const [{ token }] = (await asOwner.queryRaw<{ token: string }>(
         `select better_supabase.create_invitation($1, $2, 'admin') as token`,
         [organization, `invitee-${RUN}@example.com`],
@@ -761,11 +849,14 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         "select better_supabase.accept_invitation($1) as organization",
         [token],
       );
+
       expect(accepted!.organization).toBe(organization);
+
       const [role] = await asInvitee.queryRaw<{ admin: boolean }>(
         `select better_supabase.has_organization_role($1, '{admin}') as admin`,
         [organization],
       );
+
       expect(role!.admin).toBe(true);
       await expect(
         asInvitee.queryRaw("select better_supabase.accept_invitation($1)", [
@@ -785,10 +876,12 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           [organization, "x@example.com"],
         ),
       ).rejects.toMatchObject({ code: "23514" });
+
       const [owned] = await asOwner.queryRaw<{ token: string }>(
         `select better_supabase.create_invitation($1, $2, 'owner') as token`,
         [organization, `unconfirmed-${RUN}@example.com`],
       );
+
       await expect(
         postgres
           .asUser({
@@ -803,13 +896,16 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       for (const fn of [
         `better_supabase.has_organization_role('${organization}')`,
         "better_supabase.member_organization_ids()",
-      ])
+      ]) {
         await expect(
           postgres.anon.queryRaw(`select ${fn}`),
         ).rejects.toMatchObject({ code: "42501" });
+      }
+
       const ids = await asInvitee.queryRaw<{ id: string }>(
         `select better_supabase.member_organization_ids('{admin}') as id`,
       );
+
       expect(ids).toEqual([{ id: organization }]);
     } finally {
       await pool.query(
@@ -827,16 +923,20 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       `insert into auth.users (id, instance_id, aud, role, email) values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', $1) returning id`,
       [`mfa-${RUN}@example.com`],
     );
+
     const sub = user.rows[0]!.id;
     const secrets = `public.bs_mfa_${RUN}`;
+
     const satisfied = async (aal: "aal1" | "aal2"): Promise<boolean> => {
       const [row] = await postgres
         .asUser({ sub, aal })
         .queryRaw<{ ok: boolean }>(
           "select better_supabase.mfa_satisfied() as ok",
         );
+
       return row!.ok;
     };
+
     try {
       await pool.query(`
         create table ${secrets} (id int primary key);
@@ -866,6 +966,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
               `select count(*)::int as n from ${secrets}`,
             )
         )[0]!.n;
+
       expect(await visible("aal1")).toBe(0);
       expect(await visible("aal2")).toBe(1);
 
@@ -885,12 +986,14 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       `insert into auth.users (id, instance_id, aud, role, email) values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', $1) returning id`,
       [`session-${RUN}@example.com`],
     );
+
     const sub = user.rows[0]!.id;
     const session = crypto.randomUUID();
     await pool.query(
       `insert into auth.sessions (id, user_id, created_at, updated_at) values ($1, $2, now(), now())`,
       [session, sub],
     );
+
     const active = async (
       claims: Record<string, unknown>,
     ): Promise<boolean> => {
@@ -899,8 +1002,10 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         .queryRaw<{ ok: boolean }>(
           "select better_supabase.session_active() as ok",
         );
+
       return row!.ok;
     };
+
     try {
       expect(await active({ session_id: session })).toBe(true);
       expect(await active({ session_id: crypto.randomUUID() })).toBe(false);
@@ -943,12 +1048,15 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
        returning id`,
       [`last-a-${RUN}@example.com`, `last-b-${RUN}@example.com`],
     );
+
     const ids = created.rows.map((row) => row.id);
+
     try {
       const rows = await pool.query<{ user_id: string; at: Date | null }>(
         "select user_id, last_sign_in_at as at from better_supabase.last_sign_ins($1::uuid[])",
         [ids],
       );
+
       expect(rows.rows).toHaveLength(2);
       expect(rows.rows.filter((row) => row.at !== null)).toHaveLength(1);
       await expect(
@@ -967,12 +1075,15 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("writes the session policy on every declared table with options.policies", async () => {
     const name = `bs_sessions_${RUN}`;
+
     const user = await pool.query<{ id: string }>(
       `insert into auth.users (id, instance_id, aud, role, email) values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', $1) returning id`,
       [`sessions-${RUN}@example.com`],
     );
+
     const sub = user.rows[0]!.id;
     const session = crypto.randomUUID();
+
     try {
       await pool.query(
         `insert into auth.sessions (id, user_id, created_at, updated_at) values ($1, $2, now(), now())`,
@@ -985,6 +1096,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
          grant select on public.${name} to authenticated;
          insert into public.${name} values (1);`,
       );
+
       const [file] = renderModules(["sessions"], {
         modules: {
           sessions: {
@@ -993,14 +1105,17 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         },
         declaredTables: [`public.${name}`, "public.other_table"],
       });
+
       expect(file!.contents).not.toContain("other_table");
       await pool.query(file!.contents);
+
       const rows = async () =>
         (
           await postgres
             .asUser({ sub, role: "authenticated", session_id: session })
             .queryRaw(`select id from public.${name}`)
         ).length;
+
       expect(await rows()).toBe(1);
       await pool.query("delete from auth.sessions where id = $1", [session]);
       expect(await rows()).toBe(0);
@@ -1015,23 +1130,29 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const hook = `public.bs_hook_${RUN}`;
     const organization = crypto.randomUUID();
     const customer = `cus_${RUN}`;
+
     const users = await pool.query<{ id: string }>(
       `insert into auth.users (id, instance_id, aud, role, email)
        select gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', e
        from unnest($1::text[]) e returning id`,
       [[`ent-a-${RUN}@example.com`, `ent-b-${RUN}@example.com`]],
     );
+
     const [member, outsider] = users.rows.map((row) => row.id) as [
       string,
       string,
     ];
+
     const { rows: existing } = await pool.query(
       "select to_regclass('stripe.active_entitlements') as t",
     );
+
     const ownsStripe = existing[0].t === null;
+
     const module = renderModules(["entitlements"], {
       entitlements: { table: billing, column: "customer_id", key: "org_id" },
     }).find((file) => file.module === "entitlements");
+
     try {
       if (ownsStripe) {
         // Stripe Sync Engine 0.48.5, migration 0038.
@@ -1043,6 +1164,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
             updated_at timestamptz not null default now(), last_synced_at timestamptz
           );`);
       }
+
       await pool.query(`
         create table public.${billing} (org_id uuid primary key, customer_id text unique);
         insert into public.${billing} values ('${organization}', '${customer}');
@@ -1069,7 +1191,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           has_function_privilege('supabase_auth_admin', 'better_supabase.membership_claims(uuid)', 'execute') as fn,
           has_function_privilege('supabase_auth_admin', 'better_supabase.feature_claims(uuid)', 'execute') as features`,
       );
+
       expect(grants[0]).toEqual({ schema: true, fn: true, features: true });
+
       const claimsFor = async (sub: string) =>
         (
           await pool.query<{ event: { claims: unknown } }>(
@@ -1077,6 +1201,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
             [sub],
           )
         ).rows[0]!.event.claims;
+
       expect(await claimsFor(member)).toEqual({
         memberships: [{ scope: "tenant", id: organization, roles: ["admin"] }],
         features: { [organization]: ["exports", "sso"] },
@@ -1095,9 +1220,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
               [organization, key],
             )
         )[0]!.ok;
+
       expect(await has(member, "exports")).toBe(true);
       expect(await has(member, "audit")).toBe(false);
       expect(await has(outsider, "exports")).toBe(false);
+
       const tenantsWith = async (sub: string, key: string) =>
         (
           await postgres
@@ -1107,6 +1234,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
               [key],
             )
         ).map((row) => row.id);
+
       expect(await tenantsWith(member, "sso")).toEqual([organization]);
       expect(await tenantsWith(member, "audit")).toEqual([]);
       expect(await tenantsWith(outsider, "sso")).toEqual([]);
@@ -1125,6 +1253,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         type: ENTITLEMENTS_UPDATED,
         data: { object: { customer } },
       }).orThrow();
+
       expect(invalidate).toEqual([member]);
     } finally {
       await pool.query(`
@@ -1150,6 +1279,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const client = await pool.connect();
     const organization = crypto.randomUUID();
     const member = crypto.randomUUID();
+
     const as = async (sql: string, params: unknown[]) => {
       await client.query("savepoint plans");
       await client.query(
@@ -1158,8 +1288,10 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       );
       const { rows } = await client.query(sql, params);
       await client.query("rollback to savepoint plans");
+
       return rows;
     };
+
     try {
       await client.query("begin");
       await client.query(
@@ -1177,6 +1309,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         insert into better_supabase.organizations (id, name, slug) values ('${organization}', 'Plans', 'plans-${organization.slice(0, 8)}');
         insert into better_supabase.memberships (organization_id, user_id, role) values ('${organization}', '${member}', 'member');
       `);
+
       const module = renderModules(["entitlements"], {
         entitlements: {
           key: "id",
@@ -1200,7 +1333,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       }).find(
         (file) => file.module === "entitlements" && file.kind === "schema",
       )!;
+
       await client.query(module.contents);
+
       const usage = renderModules(["entitlements", "usage"], {
         entitlements: {
           key: "id",
@@ -1221,22 +1356,28 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           },
         },
       }).find((file) => file.module === "usage" && file.kind === "schema")!;
+
       await client.query(usage.contents);
       await client.query(
         `insert into better_supabase.usage_quotas (plan, meter, "limit") values
            ('pro', 'plan_meter_${RUN}', 50), ('old', 'plan_meter_${RUN}', 900)`,
       );
+
       const quota = await client.query<{ plans: string[]; quota: string }>(
         `select better_supabase.tenant_plans($1) as plans,
            (select quota_limit from better_supabase.usage_quota($1, 'plan_meter_${RUN}')) as quota`,
         [organization],
       );
+
       expect(quota.rows[0]).toEqual({ plans: ["pro"], quota: "50" });
+
       const { rows } = await client.query<{ claims: unknown }>(
         "select better_supabase.feature_claims($1) as claims",
         [member],
       );
+
       expect(rows[0]!.claims).toEqual({ [organization]: ["exports"] });
+
       const compact = renderModules(["entitlements"], {
         entitlements: {
           key: "id",
@@ -1246,12 +1387,15 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       }).find(
         (file) => file.module === "entitlements" && file.kind === "schema",
       )!;
+
       await client.query("savepoint compact");
       await client.query(compact.contents);
+
       const short = await client.query<{ claims: unknown }>(
         "select better_supabase.feature_claims($1) as claims",
         [member],
       );
+
       expect(short.rows[0]!.claims).toEqual({ [organization]: ["x"] });
       await client.query("rollback to savepoint compact");
       expect(
@@ -1271,19 +1415,24 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const organization = crypto.randomUUID();
     const member = crypto.randomUUID();
     const outsider = crypto.randomUUID();
+
     const as = async (user: string, key: string) => {
       await client.query("savepoint values");
       await client.query(
         "select set_config('request.jwt.claims', $1, true), set_config('role', 'authenticated', true)",
         [JSON.stringify({ sub: user, role: "authenticated" })],
       );
+
       const { rows } = await client.query<{ value: unknown }>(
         "select better_supabase.entitlement_value($1, $2) as value",
         [organization, key],
       );
+
       await client.query("rollback to savepoint values");
+
       return rows[0]!.value;
     };
+
     try {
       await client.query("begin");
       await client.query(
@@ -1304,6 +1453,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         insert into better_supabase.organizations (id, name, slug) values ('${organization}', 'Values', 'values-${organization.slice(0, 8)}');
         insert into better_supabase.memberships (organization_id, user_id, role) values ('${organization}', '${member}', 'member');
       `);
+
       const source = {
         plans: {
           subscriptions: {
@@ -1321,6 +1471,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           },
         },
       };
+
       await client.query(
         renderModules(["entitlements"], {
           entitlements: { key: "id", source },
@@ -1328,6 +1479,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           (file) => file.module === "entitlements" && file.kind === "schema",
         )!.contents,
       );
+
       const { rows } = await client.query<Record<string, unknown>>(
         `select better_supabase.tenant_entitlement_value($1, 'file_history_days') as days,
            better_supabase.tenant_entitlement_value($1, 'support') as support,
@@ -1335,6 +1487,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
            better_supabase.tenant_entitlement_value($1, 'sso') as sso`,
         [organization],
       );
+
       expect(rows[0]).toEqual({
         days: 365,
         support: "email",
@@ -1363,11 +1516,13 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           (file) => file.module === "entitlements" && file.kind === "schema",
         )!.contents,
       );
+
       const { rows: plain } = await client.query<Record<string, unknown>>(
         `select better_supabase.tenant_entitlement_value($1, 'file_history_days') as days,
            better_supabase.tenant_entitlement_value($1, 'sso') as sso`,
         [organization],
       );
+
       expect(plain[0]).toEqual({ days: true, sso: null });
     } finally {
       await client.query("rollback");
@@ -1380,6 +1535,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const billing = `bs_billing_pd_${RUN}`;
     const organization = crypto.randomUUID();
     const customer = `cus_pd_${RUN}`;
+
     const users = await pool.query<{ id: string }>(
       `insert into auth.users (id, instance_id, aud, role, email)
        select gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', e
@@ -1392,16 +1548,19 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         ],
       ],
     );
+
     const [member, expired, outsider] = users.rows.map((row) => row.id) as [
       string,
       string,
       string,
     ];
+
     const entitlements = {
       table: billing,
       column: "customer_id",
       key: "org_id",
     } as const;
+
     const entitlementsProvider = {
       name: "test",
       scope: "organization",
@@ -1417,18 +1576,23 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         },
       ],
     } as const;
+
     const module = renderModules(["entitlements"], {
       entitlements,
       entitlementsProvider,
     });
+
     expect(module.map((file) => [file.module, file.kind])).toEqual([
       ["entitlements", "schema"],
       ["entitlements", "data"],
     ]);
+
     const { rows: existing } = await pool.query(
       "select to_regclass('stripe.active_entitlements') as t",
     );
+
     const ownsStripe = existing[0].t === null;
+
     try {
       if (ownsStripe) {
         await pool.query(`
@@ -1439,6 +1603,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
             updated_at timestamptz not null default now(), last_synced_at timestamptz
           );`);
       }
+
       // Stand-ins for a provider's member functions: security definer, an
       // active-membership filter, and _for revoked from users.
       await pool.query(`
@@ -1481,6 +1646,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
             [sub],
           )
         ).rows[0]!.claims;
+
       expect(await features(member)).toEqual({ [organization]: ["exports"] });
       expect(await features(expired)).toEqual({});
       expect(await features(outsider)).toEqual({});
@@ -1494,6 +1660,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
               [organization],
             )
         )[0]!.ok;
+
       expect(await has(member)).toBe(true);
       expect(await has(expired)).toBe(false);
       expect(await has(outsider)).toBe(false);
@@ -1502,6 +1669,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         type: ENTITLEMENTS_UPDATED,
         data: { object: { customer } },
       }).orThrow();
+
       expect([...invalidate].sort()).toEqual([member, expired].sort());
     } finally {
       // Put back the tenant-mode functions the other suites expect.
@@ -1532,6 +1700,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const pd = `authz_access_${RUN}`;
     const me = "00000000-0000-4000-8000-0000000000a1";
     const other = "00000000-0000-4000-8000-0000000000a2";
+
     const sql = moduleBody("access", {
       modules: { access: { model: "provider" } },
       accessProvider: {
@@ -1544,7 +1713,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         },
       },
     })!;
+
     const client = await pool.connect();
+
     const raises = async (query: string, params: unknown[]) => {
       await client.query("savepoint caller_only");
       await expect(client.query(query, params)).rejects.toMatchObject({
@@ -1553,6 +1724,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       });
       await client.query("rollback to savepoint caller_only");
     };
+
     try {
       // The module's functions are shared, so this runs in a transaction that
       // rolls back and never replaces them for the other tests.
@@ -1567,8 +1739,10 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       await client.query("select set_config('request.jwt.claims', $1, true)", [
         JSON.stringify({ sub: me, role: "authenticated" }),
       ]);
+
       const answer = async (query: string, params: unknown[]) =>
         (await client.query<{ ok: boolean }>(query, params)).rows[0]!.ok;
+
       expect(
         await answer(
           "select better_supabase.member_can($1, $2, 'members.read') as ok",
@@ -1600,6 +1774,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const me = "00000000-0000-4000-8000-0000000000b1";
     const granted = "00000000-0000-4000-8000-0000000000b2";
     const hidden = "00000000-0000-4000-8000-0000000000b3";
+
     const layout = {
       modules: {
         access: { model: "provider" as const },
@@ -1626,7 +1801,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         },
       },
     };
+
     const client = await pool.connect();
+
     try {
       // The module's functions and policies are shared, so this runs in a
       // transaction that rolls back.
@@ -1657,10 +1834,12 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         JSON.stringify({ sub: me, role: "authenticated" }),
       ]);
       await client.query("set local role authenticated");
+
       const { rows } = await client.query<{ body: string }>(
         "select body from better_supabase.comments where subject_id = any($1)",
         [[granted, hidden]],
       );
+
       expect(rows.map((row) => row.body)).toEqual(["seen"]);
     } finally {
       await client.query("rollback");
@@ -1670,26 +1849,32 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("queues, retries, dedupes and dead-letters jobs on pgmq", async () => {
     const queue = `block_${RUN}`;
+
     const jobs = createJobs({
       sql: postgres.admin,
       queues: {
         [queue]: v.object({ to: v.pipe(v.string(), v.email()) }),
       },
     });
+
     const invalid = await jobs.enqueue(queue, { to: "nope" });
     expect(invalid).toMatchObject({ ok: false, error: { kind: "validation" } });
 
     const first = await jobs
       .enqueue(queue, { to: "a@example.com" }, { dedupeKey: "a" })
       .orThrow();
+
     const again = await jobs
       .enqueue(queue, { to: "a@example.com" }, { dedupeKey: "a" })
       .orThrow();
+
     expect(again).toBe(first);
+
     const index = await pool.query<{ indexdef: string }>(
       "select indexdef from pg_indexes where schemaname = 'pgmq' and indexname = $1",
       [`q_${queue}_dedupe_idx`],
     );
+
     expect(index.rows[0]!.indexdef).toContain("WHERE (message ? 'dedupe_key'");
     await jobs
       .enqueue(queue, { to: "b@example.com" }, { maxAttempts: 1 })
@@ -1704,10 +1889,12 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         [queue]: v.object({ to: v.pipe(v.string(), v.email()) }),
       },
     });
+
     const [mine, theirs] = await Promise.all([
       jobs.claim(queue, { batch: 1 }).orThrow(),
       other.claim(queue, { batch: 1 }).orThrow(),
     ]);
+
     expect(mine).toHaveLength(1);
     expect(theirs).toHaveLength(1);
     expect(mine[0]!.id).not.toBe(theirs[0]!.id);
@@ -1722,27 +1909,37 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     ).toMatch(/queued|dead/);
 
     const seen: string[] = [];
+
     const drained = await jobs.drain(queue, (payload, job) => {
       seen.push(payload.to);
-      if (job.attempts < 3 && payload.to === "a@example.com")
+
+      if (job.attempts < 3 && payload.to === "a@example.com") {
         throw new Error("retry me");
+      }
+
       return;
     });
+
     expect(drained.succeeded + drained.failed).toBeGreaterThan(0);
+
     const waiting = await pool.query<{
       message: { payload: { to: string }; last_error?: string };
       read_ct: number;
     }>(`select message, read_ct from pgmq.q_${queue} order by msg_id`);
+
     const archived = await pool.query<{
       message: { payload: { to: string }; dead?: boolean };
       read_ct: number;
     }>(`select message, read_ct from pgmq.a_${queue} order by msg_id`);
+
     const waitingBy = new Map(
       waiting.rows.map((row) => [row.message.payload.to, row]),
     );
+
     const archivedBy = new Map(
       archived.rows.map((row) => [row.message.payload.to, row]),
     );
+
     expect(archivedBy.get("b@example.com")).toMatchObject({
       read_ct: 1,
       message: { dead: true },
@@ -1755,31 +1952,38 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         `select msg_id from pgmq.a_${queue} where message ->> 'dead' = 'true'`,
       )
     ).rows[0]!.msg_id;
+
     const replayed = await jobs.replay(queue, Number(deadId)).orThrow();
     expect(replayed).toEqual(expect.any(Number));
     expect(await jobs.replay(queue, Number(deadId)).orThrow()).toBeNull();
+
     const back = await pool.query<{ message: { payload: { to: string } } }>(
       `select message from pgmq.q_${queue} where msg_id = $1`,
       [replayed],
     );
+
     expect(back.rows[0]!.message.payload.to).toBe("b@example.com");
   });
 
   it("dead-letters a pgmq job whose worker died on the last attempt", async () => {
     const queue = `block_${RUN}_lost`;
+
     const jobs = createJobs({
       sql: postgres.admin,
       queues: { [queue]: v.object({}) },
     });
+
     await jobs.enqueue(queue, {}, { maxAttempts: 1 }).orThrow();
     expect(await jobs.claim(queue, { lease: 1 }).orThrow()).toHaveLength(1);
     await pool.query(
       `update pgmq.q_${queue} set vt = now() - interval '1 second'`,
     );
     expect(await jobs.claim(queue).orThrow()).toEqual([]);
+
     const archived = await pool.query<{
       message: { dead?: boolean; last_error?: string };
     }>(`select message from pgmq.a_${queue}`);
+
     expect(archived.rows[0]!.message).toMatchObject({
       dead: true,
       last_error: "The lease ran out on the last attempt",
@@ -1788,28 +1992,34 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("carries the enqueuing actor and tenant through pgmq", async () => {
     const queue = `block_${RUN}_ctx`;
+
     const jobs = createJobs({
       sql: postgres.admin,
       queues: {
         [queue]: v.object({ to: v.pipe(v.string(), v.email()) }),
       },
     });
+
     const context = {
       actor: { id: "u1", kind: "user" as const },
       claims: { app_metadata: { tenant_id: "o1" } },
     };
+
     const id = await jobs
       .enqueue(queue, { to: "a@example.com" }, { context, dedupeKey: "a" })
       .orThrow();
+
     expect(
       await jobs
         .enqueue(queue, { to: "a@example.com" }, { context, dedupeKey: "a" })
         .orThrow(),
     ).toBe(id);
     const seen: unknown[] = [];
+
     const drained = await jobs.drain(queue, (payload, job) => {
       seen.push([payload, job.context]);
     });
+
     expect(drained).toEqual({ succeeded: 1, failed: 0 });
     expect(seen).toEqual([
       [{ to: "a@example.com" }, { actor: context.actor, tenant: "o1" }],
@@ -1818,45 +2028,60 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("schedules recurring jobs with pg_cron", async () => {
     const queue = `block_${RUN}_cron`;
+
     const jobs = createJobs({
       sql: postgres.admin,
       queues: {
         [queue]: v.object({ kind: v.string() }),
       },
     });
+
     const name = `bs-module-${RUN}`;
     await pool.query(
       "create extension if not exists pg_cron with schema pg_catalog",
     );
     await jobs.schedule(name, "0 3 * * *", queue, { kind: "digest" }).orThrow();
+
     const { rows } = await pool.query<{ command: string }>(
       "select command from cron.job where jobname = $1",
       [name],
     );
+
     expect(rows[0]?.command).toContain(`enqueue_job('${queue}'`);
     expect(await jobs.unschedule(name).orThrow()).toBe(true);
   });
 
   it("works a queue until the signal aborts", async () => {
     const queue = `block_${RUN}_work`;
+
     const jobs = createJobs({
       sql: postgres.admin,
       queues: {
         [queue]: v.object({ n: v.number() }),
       },
     });
-    for (const n of [1, 2, 3, 4]) await jobs.enqueue(queue, { n }).orThrow();
+
+    for (const n of [1, 2, 3, 4]) {
+      await jobs.enqueue(queue, { n }).orThrow();
+    }
+
     const controller = new AbortController();
     const done: number[] = [];
+
     const result = await jobs.work(
       queue,
       (payload) => {
         done.push(payload.n);
-        if (done.length === 4) controller.abort();
+
+        if (done.length === 4) {
+          controller.abort();
+        }
+
         return;
       },
       { concurrency: 2, pollInterval: 20, signal: controller.signal },
     );
+
     expect(done.toSorted((a, b) => a - b)).toEqual([1, 2, 3, 4]);
     expect(result).toEqual({ succeeded: 4, failed: 0 });
   });
@@ -1869,6 +2094,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           [queue]: v.object({ id: v.string() }),
         },
       });
+
       const waiting = { dedupeKey: "p1", dedupe: "waiting" } as const;
       const first = await jobs.enqueue(queue, { id: "1" }, waiting).orThrow();
       expect(await jobs.enqueue(queue, { id: "2" }, waiting).orThrow()).toBe(
@@ -1876,9 +2102,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       );
       const [running] = await jobs.claim(queue).orThrow();
       expect(running!.id).toBe(first);
+
       const followUp = await jobs
         .enqueue(queue, { id: "3" }, waiting)
         .orThrow();
+
       expect(followUp).not.toBe(first);
       expect(await jobs.enqueue(queue, { id: "4" }, waiting).orThrow()).toBe(
         followUp,
@@ -1893,6 +2121,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       expect(next!.id).toBe(followUp);
       await jobs.complete(next!).orThrow();
     };
+
     await check(`block_${RUN}_debounce`);
     await pool.query(
       moduleBody("jobs", {
@@ -1901,6 +2130,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         },
       })!,
     );
+
     try {
       await check(`block_${RUN}_debounce_table`);
     } finally {
@@ -1920,15 +2150,18 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("enqueues once per key, after the first job completed too", async () => {
     const queue = `block_${RUN}_once`;
+
     const jobs = createJobs({
       sql: postgres.admin,
       queues: {
         [queue]: v.object({ n: v.number() }),
       },
     });
+
     const first = await jobs
       .enqueueOnce(queue, { n: 1 }, { dedupeKey: "k" })
       .orThrow();
+
     expect(first.duplicate).toBe(false);
     const [job] = await jobs.claim(queue).orThrow();
     await jobs.complete(job!).orThrow();
@@ -1956,6 +2189,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         )
         .join("\n"),
     );
+
     try {
       const transport = rpcTransport(postgrestOver(pool), { schema: api });
       await testQueueBackend(
@@ -1965,12 +2199,14 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         },
       );
       const queue = `block_${RUN}_rpc_jobs`;
+
       const jobs = createJobs({
         transport,
         queues: {
           [queue]: v.object({ n: v.number() }),
         },
       });
+
       await jobs.enqueue(queue, { n: 1 }, { maxAttempts: 1 }).orThrow();
       const [job] = await jobs.claim(queue).orThrow();
       await jobs.fail(job!, new Error("boom")).orThrow();
@@ -1987,13 +2223,16 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         schema: api,
         scope: RUN,
       });
+
       const handler = () => Response.json({ n: 1 }, { status: 201 });
+
       const request = () =>
         new Request("https://api.test/orders", {
           method: "POST",
           headers: { "idempotency-key": `rpc-${RUN}` },
           body: "{}",
         });
+
       expect((await idempotency.handle(request(), handler)).status).toBe(201);
       const replay = await idempotency.handle(request(), handler);
       expect(replay.headers.get("idempotency-replayed")).toBe("true");
@@ -2010,6 +2249,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           ).acquired,
         { schema: api },
       ).orThrow();
+
       expect(lease).toEqual({ acquired: true, value: false });
     } finally {
       await pool.query(`drop schema ${api} cascade`);
@@ -2026,19 +2266,23 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         },
       })!,
     );
+
     try {
       await testQueueBackend(sqlQueueBackend(postgres.admin), {
         queue: `${queue}_conf`,
       });
+
       const jobs = createJobs({
         sql: postgres.admin,
         queues: {
           [queue]: v.object({ to: v.string() }),
         },
       });
+
       const first = await jobs
         .enqueue(queue, { to: "a" }, { dedupeKey: "a" })
         .orThrow();
+
       expect(
         await jobs.enqueue(queue, { to: "a" }, { dedupeKey: "a" }).orThrow(),
       ).toBe(first);
@@ -2050,19 +2294,23 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           [queue]: v.object({ to: v.string() }),
         },
       });
+
       const [mine, theirs] = await Promise.all([
         jobs.claim(queue).orThrow(),
         other.claim(queue).orThrow(),
       ]);
+
       expect(mine[0]!.id).not.toBe(theirs[0]!.id);
       expect(await jobs.complete({ ...mine[0]!, attempts: 99 }).orThrow()).toBe(
         false,
       );
+
       const states = await Promise.all(
         [...mine, ...theirs].map((job) =>
           jobs.fail(job, "boom", { retryIn: 0 }).orThrow(),
         ),
       );
+
       expect(
         states.toSorted((a, b) => String(a).localeCompare(String(b))),
       ).toEqual(["dead", "queued"]);
@@ -2070,21 +2318,25 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         succeeded: 1,
         failed: 0,
       });
+
       const rows = await pool.query<{ dead: boolean; archived: boolean }>(
         `select dead, archived_at is not null as archived
          from better_supabase.job_messages where queue = $1 order by id`,
         [queue],
       );
+
       expect(rows.rows).toEqual([
         { dead: false, archived: true },
         { dead: true, archived: true },
       ]);
+
       const deadRow = (
         await pool.query<{ id: string }>(
           "select id from better_supabase.job_messages where queue = $1 and dead",
           [queue],
         )
       ).rows[0]!.id;
+
       const replayed = await jobs.replay(queue, Number(deadRow)).orThrow();
       expect(replayed).not.toBeNull();
       expect(await jobs.replay(queue, Number(deadRow)).orThrow()).toBeNull();
@@ -2093,10 +2345,12 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         [replayed],
       );
       expect(await jobs.claim(queue).orThrow()).toEqual([]);
+
       const lost = await pool.query<{ dead: boolean; error: string }>(
         "select dead, message ->> 'last_error' as error from better_supabase.job_messages where id = $1",
         [replayed],
       );
+
       expect(lost.rows[0]).toEqual({
         dead: true,
         error: "The lease ran out on the last attempt",
@@ -2113,11 +2367,13 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           },
         )
         .orThrow();
+
       const stored = await pool.query<{ timezone: string; local: string }>(
         `select timezone, to_char(next_run at time zone timezone, 'HH24:MI') as local
          from better_supabase.job_schedules where job_name = $1`,
         [name],
       );
+
       expect(stored.rows[0]).toEqual({
         timezone: "Europe/Amsterdam",
         local: "09:00",
@@ -2128,23 +2384,28 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
          where job_name = $1`,
         [name],
       );
+
       const route = jobs.drainRoute({
         secret: "s3cret",
         handlers: { [queue]: () => undefined },
       });
+
       const response = await route(
         new Request("https://app.test/api/jobs/drain", {
           headers: { authorization: "Bearer s3cret" },
         }),
       );
+
       expect(await response.json()).toMatchObject({
         schedules: 1,
         queues: { [queue]: { succeeded: 1, failed: 0 } },
       });
+
       const moved = await pool.query<{ due: boolean }>(
         "select next_run > now() as due from better_supabase.job_schedules where job_name = $1",
         [name],
       );
+
       expect(moved.rows[0]!.due).toBe(true);
       await expect(
         pool.query(
@@ -2170,6 +2431,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         },
       })!,
     );
+
     try {
       const jobs = createJobs({
         sql: postgres.admin,
@@ -2177,6 +2439,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           [queue]: v.object({ report: v.string() }),
         },
       });
+
       await jobs
         .schedule(
           `ext-${RUN}:hourly`,
@@ -2195,9 +2458,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           { tenant: "tenant-b", timeZone: "Europe/Amsterdam" },
         )
         .orThrow();
+
       const listed = await jobs
         .listSchedules({ prefix: `ext-${RUN}:` })
         .orThrow();
+
       expect(listed.map((entry) => [entry.name, entry.tenant])).toEqual([
         [`ext-${RUN}:daily`, "tenant-b"],
         [`ext-${RUN}:hourly`, "tenant-a"],
@@ -2216,6 +2481,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       );
       const seen: [string, string | undefined][] = [];
       const finished: unknown[] = [];
+
       const route = jobs.drainRoute({
         secret: "s3cret",
         handlers: {
@@ -2225,12 +2491,14 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         },
         monitor: { onFinish: (result) => finished.push(result) },
       });
+
       const response = await route(
         new Request("https://app.test/api/jobs/drain", {
           method: "POST",
           headers: { authorization: "Bearer s3cret" },
         }),
       );
+
       expect(await response.json()).toMatchObject({
         schedules: 2,
         queues: { [queue]: { succeeded: 2, failed: 0 } },
@@ -2241,11 +2509,13 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         ["daily", undefined],
         ["hourly", "tenant-a"],
       ]);
+
       const again = await route(
         new Request("https://app.test/api/jobs/drain", {
           headers: { authorization: "Bearer s3cret" },
         }),
       );
+
       expect(await again.json()).toMatchObject({ schedules: 0 });
       expect(await jobs.unscheduleAll({ tenant: "tenant-a" }).orThrow()).toBe(
         1,
@@ -2278,6 +2548,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         },
       })!,
     );
+
     try {
       const jobs = createJobs({
         sql: postgres.admin,
@@ -2285,6 +2556,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           [queue]: v.object({ report: v.string() }),
         },
       });
+
       const set = (reports: readonly string[]) =>
         reports.map((report) => ({
           name: `${prefix}${report}`,
@@ -2293,6 +2565,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           payload: { report },
           timeZone: "Europe/Amsterdam",
         }));
+
       expect(
         await jobs
           .ensureSchedules(set(["a", "b"]), { prefix, tenant: "tenant-e" })
@@ -2309,6 +2582,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           .ensureSchedules(set(["a"]), { prefix, tenant: "tenant-e" })
           .orThrow(),
       ).toEqual({ scheduled: [`${prefix}a`], removed: [`${prefix}b`] });
+
       const rows = await pool.query<{
         job_name: string;
         due: boolean;
@@ -2317,6 +2591,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         "select job_name, next_run <= now() as due, tenant from better_supabase.job_schedules where job_name like $1",
         [`${prefix}%`],
       );
+
       expect(rows.rows).toEqual([
         { job_name: `${prefix}a`, due: true, tenant: "tenant-e" },
       ]);
@@ -2326,10 +2601,12 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           tenant: "tenant-e",
         })
         .orThrow();
+
       const moved = await pool.query<{ due: boolean }>(
         "select next_run <= now() as due from better_supabase.job_schedules where job_name = $1",
         [`${prefix}a`],
       );
+
       expect(moved.rows[0]!.due).toBe(false);
     } finally {
       await pool.query(
@@ -2350,6 +2627,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         },
       })!,
     );
+
     try {
       await expect(
         pool.query(
@@ -2360,22 +2638,28 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         "select better_supabase.schedule_job($1, '0 * * * *', $2, '{\"n\": 1}')",
         [name, queue],
       );
+
       const pending = await pool.query<{ next_run: Date | null }>(
         "select next_run from better_supabase.job_schedules where job_name = $1",
         [name],
       );
+
       expect(pending.rows[0]!.next_run).toBeNull();
+
       const jobs = createJobs({
         sql: postgres.admin,
         queues: {
           [queue]: v.object({ n: v.number() }),
         },
       });
+
       expect(await jobs.runSchedules().orThrow()).toBe(0);
+
       const first = await pool.query<{ minute: number; ahead: boolean }>(
         "select extract(minute from next_run)::int as minute, next_run > now() as ahead from better_supabase.job_schedules where job_name = $1",
         [name],
       );
+
       expect(first.rows[0]).toEqual({ minute: 0, ahead: true });
       await pool.query(
         `update better_supabase.job_schedules
@@ -2429,6 +2713,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         for each row execute function ${fn}();
     `);
     const client = await pool.connect();
+
     try {
       await client.query("begin");
       await client.query("set local role authenticated");
@@ -2437,6 +2722,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         [RUN],
       );
       await client.query("commit");
+
       const written = await pool.query<{
         next_run: Date | null;
         first_after: Date | null;
@@ -2445,6 +2731,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         "select next_run, first_after, tenant from better_supabase.job_schedules where job_name = $1",
         [`reminder:${RUN}`],
       );
+
       expect(written.rows[0]).toMatchObject({
         next_run: null,
         tenant: "tenant-r",
@@ -2461,7 +2748,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           [queue]: v.object({ id: v.string() }),
         },
       });
+
       const seen: string[] = [];
+
       const route = jobs.drainRoute({
         secret: "s3cret",
         handlers: {
@@ -2470,6 +2759,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           },
         },
       });
+
       const drain = () =>
         route(
           new Request("https://app.test/api/jobs/drain", {
@@ -2477,31 +2767,38 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
             headers: { authorization: "Bearer s3cret" },
           }),
         );
+
       expect(await (await drain()).json()).toMatchObject({
         schedules: 1,
         queues: { [queue]: { succeeded: 1, failed: 0 } },
         errors: 0,
       });
       expect(seen).toEqual([RUN]);
+
       const advanced = await pool.query<{ timed: boolean; ran: boolean }>(
         "select next_run is not null and first_after is null as timed, last_run is not null as ran from better_supabase.job_schedules where job_name = $1",
         [`reminder:${RUN}`],
       );
+
       expect(advanced.rows[0]).toEqual({ timed: true, ran: true });
 
       await pool.query(`update ${table} set cron = '0 6 * * *' where id = $1`, [
         RUN,
       ]);
+
       const moved = await pool.query<{ next_run: Date | null }>(
         "select next_run from better_supabase.job_schedules where job_name = $1",
         [`reminder:${RUN}`],
       );
+
       expect(moved.rows[0]!.next_run).toBeNull();
       expect(await (await drain()).json()).toMatchObject({ schedules: 0 });
+
       const first = await pool.query<{ hour: number; ahead: boolean }>(
         "select extract(hour from next_run at time zone 'Europe/Amsterdam')::int as hour, next_run > now() as ahead from better_supabase.job_schedules where job_name = $1",
         [`reminder:${RUN}`],
       );
+
       expect(first.rows[0]).toEqual({ hour: 6, ahead: true });
     } finally {
       client.release();
@@ -2527,6 +2824,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           [queue]: v.object({ n: v.number() }),
         },
       });
+
       expect((await jobs.stats().orThrow())[queue]).toEqual({
         ready: 0,
         inFlight: 0,
@@ -2573,12 +2871,14 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         dead: 0,
       });
     };
+
     await check(`block_${RUN}_health`);
     await pool.query(
       moduleBody("jobs", {
         modules: { jobs: { options: { backend: "table" } } },
       })!,
     );
+
     try {
       await check(`block_${RUN}_health_table`);
     } finally {
@@ -2593,16 +2893,20 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   it("replays idempotent requests and rejects reuse", async () => {
     const idempotency = createIdempotency({ sql: postgres.admin, scope: RUN });
     let runs = 0;
+
     const handler = async () => {
       runs += 1;
+
       return Response.json({ order: runs }, { status: 201 });
     };
+
     const request = (body: string, key = "order-1") =>
       new Request("https://api.test/orders", {
         method: "POST",
         headers: { "idempotency-key": key, "content-type": "application/json" },
         body,
       });
+
     const first = await idempotency.handle(request('{"sku":1}'), handler);
     expect(first.status).toBe(201);
     const replay = await idempotency.handle(request('{"sku":1}'), handler);
@@ -2617,6 +2921,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       request("{}", "order-2"),
       () => new Response("down", { status: 503 }),
     );
+
     expect(failing.status).toBe(503);
     expect(
       (await idempotency.handle(request("{}", "order-2"), handler)).status,
@@ -2658,20 +2963,25 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   it("holds a lease for one holder until it is released or expires", async () => {
     const key = `lease-${RUN}`;
     const order: string[] = [];
+
     const outer = await withLease(
       postgres.admin,
       key,
       async (lease) => {
         order.push("outer");
+
         const inner = await withLease(postgres.admin, key, () => {
           order.push("inner");
         }).orThrow();
+
         expect(inner).toEqual({ acquired: false });
         expect(await lease.extend(30).orThrow()).toBe(true);
+
         return lease.holder;
       },
       { seconds: 5 },
     ).orThrow();
+
     expect(outer.acquired).toBe(true);
     expect(order).toEqual(["outer"]);
     const after = await withLease(postgres.admin, key, () => "again").orThrow();
@@ -2681,6 +2991,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       "select better_supabase.acquire_lease($1, 60) as holder",
       [key],
     );
+
     const stale = rows[0]!.holder;
     expect(
       (
@@ -2693,15 +3004,19 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       "update better_supabase.leases set expires_at = now() - interval '1 second' where key = $1",
       [key],
     );
+
     const taken = await pool.query<{ h: string }>(
       "select better_supabase.acquire_lease($1, 60) as h",
       [key],
     );
+
     expect(taken.rows[0]!.h).not.toBeNull();
+
     const lost = await pool.query<{ extended: boolean; released: boolean }>(
       "select better_supabase.extend_lease($1, $2) as extended, better_supabase.release_lease($1, $2) as released",
       [key, stale],
     );
+
     expect(lost.rows[0]).toEqual({ extended: false, released: false });
     await pool.query("select better_supabase.release_lease($1, $2)", [
       key,
@@ -2711,6 +3026,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("runs blocks on @supabase/server's Postgres pool", async () => {
     const queue = `block_${RUN}_server`;
+
     const handler = pipeline(
       [
         withPostgresAdminClient({ connectionString: dbUrl }),
@@ -2734,24 +3050,30 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       async (request, ctx) =>
         ctx.idempotency.handle(request, async () => {
           const id = await ctx.jobs.enqueue(queue, { n: 1 }).orThrow();
+
           const slug = await sqlTransport(ctx.postgresAdmin).call(
             "better_supabase",
             "slug_problem",
             { slug: "admin" },
           );
+
           const seen: number[] = [];
+
           const drained = await ctx.jobs.drain(queue, (payload) => {
             seen.push(payload.n);
           });
+
           return Response.json({ id, slug, drained, seen }, { status: 201 });
         }),
     );
+
     const request = () =>
       new Request("https://api.test/run", {
         method: "POST",
         headers: { "idempotency-key": "run-1" },
         body: "{}",
       });
+
     const first = await handler(request());
     expect(first.status).toBe(201);
     const body = (await first.json()) as Record<string, unknown>;
@@ -2767,14 +3089,17 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("stores verified webhooks once and processes them with retries", async () => {
     const secret = `whsec_${btoa("a-webhook-secret-for-the-inbox-test")}`;
+
     const inbox = createWebhookInbox({
       transport: sqlTransport(postgres.admin),
       source: `module-${RUN}`,
       secrets: secret,
     });
+
     const deliver = async (id: string, payload: unknown) => {
       const body = JSON.stringify(payload);
       const headers = await signWebhook(secret, { id, body });
+
       return inbox.receive(
         new Request("https://api.test/hooks", {
           method: "POST",
@@ -2783,6 +3108,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         }),
       );
     };
+
     expect(
       (await deliver("msg_1", { type: "invoice.paid", n: 1 })).status,
     ).toBe(202);
@@ -2792,6 +3118,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     expect(
       (await deliver("msg_2", { type: "invoice.failed", n: 2 })).status,
     ).toBe(202);
+
     const forged = await inbox.receive(
       new Request("https://api.test/hooks", {
         method: "POST",
@@ -2803,14 +3130,21 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         body: "{}",
       }),
     );
+
     expect(forged.status).toBe(401);
 
     const types: string[] = [];
+
     const result = await inbox.process((message) => {
       types.push(message.type ?? "");
-      if (message.type === "invoice.failed") throw new Error("try later");
+
+      if (message.type === "invoice.failed") {
+        throw new Error("try later");
+      }
+
       return;
     });
+
     expect(result).toEqual({ succeeded: 1, failed: 1 });
     expect(types.sort()).toEqual(["invoice.failed", "invoice.paid"]);
     expect(await inbox.process(() => undefined)).toEqual({
@@ -2821,12 +3155,14 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("keeps inbox messages per tenant and resumes from a checkpoint", async () => {
     const source = `tenant-${RUN}`;
+
     const inbox = createWebhookInbox({
       transport: sqlTransport(postgres.admin),
       source,
       verify: () => Promise.reject(new Error("store only")),
       tenantOf: (payload) => (payload as { account?: string }).account ?? null,
     });
+
     expect(
       await inbox
         .store({ id: "page-1", payload: { account: "acct-a", pages: 3 } })
@@ -2842,20 +3178,28 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       .orThrow();
 
     const cursors: unknown[] = [];
+
     const first = await inbox.process<{ pages: number }>(async (message) => {
       cursors.push(message.progress["page"] ?? 0);
-      if (message.tenant !== "acct-a") return;
+
+      if (message.tenant !== "acct-a") {
+        return;
+      }
+
       await message.checkpoint({ page: 2 });
       throw new Error("provider timed out on page 3");
     });
+
     expect(first).toEqual({ succeeded: 1, failed: 1 });
     await pool.query(
       "update better_supabase.webhook_inbox set available_at = now() where source = $1",
       [source],
     );
+
     const second = await inbox.process(async (message) => {
       cursors.push(message.progress["page"]);
     });
+
     expect(second).toEqual({ succeeded: 1, failed: 0 });
     expect(cursors.toSorted((a, b) => Number(a) - Number(b))).toEqual([
       0, 0, 2,
@@ -2874,18 +3218,22 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("marks inbox messages dead at the source's maxAttempts", async () => {
     const source = `attempts-${RUN}`;
+
     const inbox = createWebhookInbox({
       transport: sqlTransport(postgres.admin),
       source,
       maxAttempts: 2,
     });
+
     try {
       await inbox.store({ id: "m1", payload: {} }).orThrow();
       const seen: [number, number][] = [];
+
       const fail = (message: { attempts: number; maxAttempts: number }) => {
         seen.push([message.attempts, message.maxAttempts]);
         throw new Error("still failing");
       };
+
       expect(await inbox.process(fail)).toEqual({ succeeded: 0, failed: 1 });
       await pool.query(
         "update better_supabase.webhook_inbox set available_at = now() where source = $1",
@@ -2904,6 +3252,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         [source],
       );
       expect(await inbox.process(fail)).toEqual({ succeeded: 0, failed: 0 });
+
       const rows = await pool.query<{
         message_id: string;
         status: string;
@@ -2913,6 +3262,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         "select message_id, status, max_attempts, last_error from better_supabase.webhook_inbox where source = $1 order by message_id",
         [source],
       );
+
       expect(rows.rows).toEqual([
         {
           message_id: "m1",
@@ -2937,11 +3287,13 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("keeps an overlapping process() call on one worker from completing a message it lost", async () => {
     const source = `overlap-${RUN}`;
+
     const inbox = createWebhookInbox({
       transport: sqlTransport(postgres.admin),
       source,
       worker: "same",
     });
+
     const status = async () =>
       (
         await pool.query<{ status: string; attempts: number }>(
@@ -2949,38 +3301,49 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           [source],
         )
       ).rows[0];
+
     try {
       await inbox.store({ id: "m1", payload: {} }).orThrow();
       let release!: () => void;
+
       const gate = new Promise<void>((resolve) => {
         release = resolve;
       });
+
       let claimed!: () => void;
+
       const started = new Promise<void>((resolve) => {
         claimed = resolve;
       });
+
       const first = inbox.process(async () => {
         claimed();
         await gate;
       });
+
       await started;
       await pool.query(
         "update better_supabase.webhook_inbox set locked_until = now() - interval '1 second' where source = $1",
         [source],
       );
       let releaseSecond!: () => void;
+
       const secondGate = new Promise<void>((resolve) => {
         releaseSecond = resolve;
       });
+
       let secondClaimed!: () => void;
+
       const secondStarted = new Promise<void>((resolve) => {
         secondClaimed = resolve;
       });
+
       const second = inbox.process(async (message) => {
         expect(message.attempts).toBe(2);
         secondClaimed();
         await secondGate;
       });
+
       await secondStarted;
       release();
       expect(await first).toEqual({ succeeded: 0, failed: 0 });
@@ -2998,8 +3361,10 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("purges old audit entries, processed webhooks and job archives", async () => {
     const old = "now() - interval '11 years'";
+
     const count = async (text: string, params: unknown[] = []) =>
       (await pool.query<{ n: number }>(text, params)).rows[0]!.n;
+
     const purge = (call: string) => count(`select ${call} as n`);
 
     await pool.query(
@@ -3042,10 +3407,13 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
     const queue = `block_${RUN}_purge`;
     await pool.query("select better_supabase.ensure_job_queue($1)", [queue]);
-    for (let index = 0; index < 2; index += 1)
+
+    for (let index = 0; index < 2; index += 1) {
       await pool.query("select pgmq.archive($1, pgmq.send($1, '{}'::jsonb))", [
         queue,
       ]);
+    }
+
     await pool.query(
       `update pgmq.a_${queue} set archived_at = ${old} where msg_id = (select min(msg_id) from pgmq.a_${queue})`,
     );
@@ -3088,8 +3456,10 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
               'better_supabase.replay_dead_job(text, bigint)'
             ]) as f(fn)`,
     );
-    for (const row of executable.rows)
+
+    for (const row of executable.rows) {
       expect(row.allowed).toBe(row.role === "service_role");
+    }
   });
 
   it("passes the pgTAP file it writes for an audited table", async () => {
@@ -3108,12 +3478,16 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       );
       ${register}
     `);
+
     const file = (tables: Parameters<typeof renderModules>[1]) =>
       renderModules(["audit"], tables).find((entry) => entry.kind === "test")!;
+
     const tap = async (contents: string): Promise<string[]> => {
       const client = await pool.connect();
+
       try {
         const results = await client.query(contents);
+
         return (Array.isArray(results) ? results : [results]).flatMap(
           (result: { rows: Record<string, unknown>[] }) =>
             result.rows.flatMap((row) => Object.values(row).map(String)),
@@ -3122,18 +3496,22 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         client.release();
       }
     };
+
     try {
       const passing = await tap(
         file({ auditedTables: auditRegistrations([{ text: register }]) })
           .contents,
       );
+
       expect(passing.filter((line) => /^not ok/m.test(line))).toEqual([]);
       expect(passing.filter((line) => line.startsWith("ok "))).toHaveLength(7);
+
       const drifted = await tap(
         file({
           auditedTables: [{ target: name, ignore: [], redact: ["status"] }],
         }).contents,
       );
+
       expect(
         drifted
           .filter((line) => /^not ok/m.test(line))
@@ -3158,6 +3536,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       insert into ${name} values (1, '${ACME}', 'sk_live', 'a');
       update ${name} set api_key = 'sk_new' where id = 1;
     `);
+
     try {
       const { rows } = await pool.query<{
         event_type: string;
@@ -3171,6 +3550,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
          from better_supabase.audit_events where table_name = $1 order by id`,
         [name],
       );
+
       expect(rows.map((row) => row.event_type)).toEqual([
         "secret.created",
         "secret.updated",
@@ -3189,13 +3569,16 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
              tenant => $1, metadata => '{"invoice": 7}', idempotency_key => $2) as id`,
           [ACME, key],
         );
+
       const first = (await event(`k_${RUN}`)).rows[0]!.id;
       expect((await event(`k_${RUN}`)).rows[0]!.id).toBe(first);
+
       const stored = await pool.query(
         `select op, event_type, category, outcome, source, metadata
          from better_supabase.audit_events where id = $1::bigint`,
         [first],
       );
+
       expect(stored.rows[0]).toEqual({
         op: "event",
         event_type: "invoice.sent",
@@ -3233,11 +3616,13 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       insert into better_supabase.audited_tables (target, ignore, event_prefix)
         values ('${legacy}', '{noise}', 'old');
     `);
+
     try {
       const { rows: registry } = await pool.query(
         "select target::text from better_supabase.audited_tables where target = any(array[$1, $2]::regclass[])",
         [called, declared],
       );
+
       expect(registry).toEqual([]);
       expect(
         (
@@ -3260,6 +3645,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         insert into ${legacy} values (1, '${ACME}', 'x', 'n');
         update ${legacy} set noise = 'm' where id = 1;
       `);
+
       const { rows } = await pool.query<{
         table_name: string;
         event_type: string;
@@ -3272,6 +3658,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
          from better_supabase.audit_events where table_name = any($1) order by id`,
         [[called, declared, legacy]],
       );
+
       expect(
         rows.map((row) => [row.event_type, row.record_id, row.changed]),
       ).toEqual([
@@ -3308,21 +3695,27 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("creates a module's event trigger from its data file", async () => {
     const client = await pool.connect();
+
     try {
       await client.query("begin");
       await client.query("drop event trigger bs_audit_forget_dropped");
+
       const data = renderModules(["audit"]).find(
         (file) => file.kind === "data",
       )!.contents;
+
       const statements =
         /^drop event trigger if exists bs_audit_forget_dropped;\n[^;]*;/m.exec(
           data,
         )![0];
+
       await client.query(statements);
       await client.query(statements);
+
       const { rows } = await client.query<{ event: string }>(
         "select evtevent as event from pg_catalog.pg_event_trigger where evtname = 'bs_audit_forget_dropped'",
       );
+
       expect(rows).toEqual([{ event: "sql_drop" }]);
     } finally {
       await client.query("rollback");
@@ -3339,12 +3732,14 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       select better_supabase.audit('${legacy}');
       insert into better_supabase.audited_tables (target) values ('${legacy}'), ('${stray}');
     `);
+
     const registered = async () =>
       (
         await pool.query<{ n: number }>(
           "select count(*)::int as n from better_supabase.audited_tables a where not exists (select 1 from pg_catalog.pg_class c where c.oid = a.target::oid)",
         )
       ).rows[0]!.n;
+
     try {
       await pool.query(`drop table ${legacy}`);
       expect(await registered()).toBe(0);
@@ -3365,9 +3760,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         alter event trigger bs_audit_forget_dropped enable;
       `);
       expect(await registered()).toBe(1);
+
       const data = renderModules(["audit"]).find(
         (file) => file.kind === "data",
       )!.contents;
+
       await pool.query(
         /^delete from better_supabase\.audited_tables[^;]*;/m.exec(data)![0],
       );
@@ -3384,6 +3781,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   it("takes the actor and request details from service-role events only", async () => {
     const client = await pool.connect();
     const actor = crypto.randomUUID();
+
     try {
       await client.query("begin");
       await client.query(
@@ -3398,6 +3796,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           },
         })!,
       );
+
       const record = async (claims: Record<string, unknown>, role?: string) => {
         await client.query(
           `select set_config('request.jwt.claims', $1, true),
@@ -3410,7 +3809,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
             }),
           ],
         );
-        if (role) await client.query(`set local role ${role}`);
+
+        if (role) {
+          await client.query(`set local role ${role}`);
+        }
+
         const { rows } = await client.query<{ id: string }>(
           `select better_supabase.audit_event('job.finished', actor_id => $1,
              actor_kind => 'job', actor_label => 'Nightly export', ip => '198.51.100.7',
@@ -3418,7 +3821,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
              restricted => '{}') as id`,
           [actor],
         );
+
         await client.query("reset role");
+
         const { rows: entries } = await client.query(
           `select l.actor_id::text, l.actor_kind, l.actor_label, host(r.ip_address) as ip,
              r.user_agent, r.session_id
@@ -3427,8 +3832,10 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
            where l.id = $1::bigint`,
           [rows[0]!.id],
         );
+
         return entries[0];
       };
+
       expect(await record({ role: "service_role" })).toEqual({
         actor_id: actor,
         actor_kind: "job",
@@ -3456,17 +3863,21 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         user_agent: "request-agent",
         session_id: "s-1",
       });
+
       const restrictedRows = async (sql: string) => {
         const { rows } = await client.query<{ id: string }>(
           `select ${sql} as id`,
         );
+
         const { rows: details } = await client.query(
           `select host(r.ip_address) as ip, r.user_agent, r.session_id, r.metadata
            from better_supabase.audit_events_restricted r where r.entry_id = $1::bigint`,
           [rows[0]!.id],
         );
+
         return details;
       };
+
       await client.query(
         `select set_config('request.jwt.claims', '{"role": "service_role", "session_id": "server"}', true)`,
       );
@@ -3500,6 +3911,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const client = await pool.connect();
     const name = `bs_audit_ctx_${RUN}`;
     const actor = crypto.randomUUID();
+
     try {
       await client.query("begin");
       await client.query(
@@ -3511,10 +3923,12 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         create table public.${name} (id int primary key, organization_id uuid, title text, secret text);
         create table public.${name}_free (id int primary key, note text);
       `);
+
       const calls = await client.query<{ call: string }>(
         "select better_supabase.audit_schema_calls('public', 'organization_id', $1) as call",
         [[`${name}_x%`]],
       );
+
       expect(calls.rows.map((row) => row.call)).toContain(
         `select better_supabase.audit('public.${name}');`,
       );
@@ -3543,6 +3957,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         `insert into public.${name} values (1, '${ACME}', 'Quarterly report', 'k1');
          update public.${name} set title = 'Annual report', secret = 'k2' where id = 1;`,
       );
+
       const { rows } = await client.query(
         `select e.actor_kind, e.actor_label, e.target_label, e.request_id, e.correlation_id, e.scope,
                 e.tenant_label, r.changed_values
@@ -3551,6 +3966,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
          where e.table_name = $1 order by e.id`,
         [`public.${name}`],
       );
+
       expect(rows[1]).toMatchObject({
         actor_kind: "user",
         actor_label: "ada@example.test",
@@ -3573,10 +3989,12 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         `select better_supabase.audit_event('report.exported', summary => 'Exported 3 reports',
            target_label => 'Q3', correlation_id => 'job-9')`,
       );
+
       const event = await client.query(
         `select actor_kind, summary, target_label, correlation_id, scope
          from better_supabase.audit_events where event_type = 'report.exported' order by id desc limit 1`,
       );
+
       expect(event.rows[0]).toEqual({
         actor_kind: "service",
         summary: "Exported 3 reports",
@@ -3588,11 +4006,14 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       await client.query(
         `delete from better_supabase.audited_tables where target = 'public.${name}'::regclass`,
       );
+
       const added = await client.query<{ n: number }>(
         "select better_supabase.audit_schema('public', 'organization_id', $1) as n",
         [["%"]],
       );
+
       expect(added.rows[0]!.n).toBe(0);
+
       const some = await client.query<{ n: number }>(
         `select better_supabase.audit_schema('public', 'organization_id', array(
            select c.relname::text from pg_class c join pg_namespace n on n.oid = c.relnamespace
@@ -3600,6 +4021,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
          )) as n`,
         [name],
       );
+
       expect(some.rows[0]!.n).toBe(1);
     } finally {
       await client.query("rollback");
@@ -3610,6 +4032,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   it("groups row changes and events by the request's correlation id", async () => {
     const client = await pool.connect();
     const name = `bs_audit_ids_${RUN}`;
+
     try {
       await client.query("begin");
       await client.query(
@@ -3664,6 +4087,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         ["r".repeat(129)],
       );
       await client.query(`delete from public.${name} where id = 1`);
+
       const { rows } = await client.query(
         `select coalesce(table_name, event_type) as entry, request_id, correlation_id
          from better_supabase.audit_events
@@ -3671,6 +4095,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
          order by id`,
         [`public.${name}`],
       );
+
       expect(rows).toEqual([
         {
           entry: `public.${name}`,
@@ -3694,9 +4119,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         },
         { entry: `public.${name}`, request_id: null, correlation_id: null },
       ]);
+
       const grouped = await client.query<{ n: number }>(
         `select jsonb_array_length(better_supabase.list_audit_events(for_correlation_ids => '{srv-action}')) as n`,
       );
+
       expect(grouped.rows[0]!.n).toBe(2);
     } finally {
       await client.query("rollback");
@@ -3710,9 +4137,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const admin = crypto.randomUUID();
     const outsider = crypto.randomUUID();
     let claims: object = { role: "service_role" };
+
     const sql: SqlClient = {
       async queryRaw<T>(text: string, params: unknown[] = []) {
         await client.query("savepoint call");
+
         try {
           await client.query(
             "select set_config('request.jwt.claims', $1, true), set_config('role', $2, true)",
@@ -3724,6 +4153,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           const { rows } = await client.query(text, params);
           await client.query("reset role");
           await client.query("release savepoint call");
+
           // SAFETY: the block names the row shape of its own queries.
           return rows as T[];
         } catch (error) {
@@ -3732,8 +4162,10 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         }
       },
     };
+
     try {
       await client.query("begin");
+
       for (const id of [admin, outsider]) {
         await client.query(
           `insert into auth.users (id, instance_id, aud, role, email)
@@ -3741,13 +4173,17 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           [id, `${id}@example.test`],
         );
       }
+
       for (const file of renderModules(["audit", "access"], {
         modules: {
           audit: { options: { restricted: true, readPolicy: true } },
         },
-      }))
-        if (file.kind === "schema" && file.module === "audit")
+      })) {
+        if (file.kind === "schema" && file.module === "audit") {
           await client.query(file.contents);
+        }
+      }
+
       await client.query(`
         create table public.${name} (id int primary key, organization_id uuid, title text);
         select better_supabase.audit('public.${name}', label_column => 'title');
@@ -3757,23 +4193,29 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         update public.${name} set title = 'Final' where id = 1;
       `);
       const transport = sqlTransport(sql);
+
       type Row = Record<string, unknown> & { id: number };
+
       const list = async (args: Record<string, unknown>): Promise<Row[]> =>
         // SAFETY: list_audit_events returns a jsonb array of entries.
         ((await transport.call("better_supabase", "list_audit_events", {
           max_items: 50,
           ...args,
         })) ?? []) as Row[];
+
       const reveal = (entry: number): Promise<unknown> =>
         transport.call("better_supabase", "reveal_audit_entry", {
           entry: String(entry),
         });
+
       claims = { sub: admin, role: "authenticated" };
+
       const entries = await list({
         for_tenants: [ACME],
         for_target_types: [name, "nothing"],
         max_items: 5,
       });
+
       expect(entries.map((item) => item["eventType"])).toEqual([
         `${name}.updated`,
         `${name}.created`,
@@ -3783,12 +4225,14 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         scope: "tenant",
       });
       expect(entries[0]).not.toHaveProperty("old");
+
       const older = await list({
         for_tenants: [ACME],
         for_target_types: [name],
         cursor_at: entries[0]!["occurredAt"],
         cursor_id: entries[0]!.id,
       });
+
       expect(older.map((item) => item.id)).toEqual([entries[1]!.id]);
       expect(
         (
@@ -3827,10 +4271,12 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         changes: { title: { old: "Draft", new: "Final" } },
       });
       claims = { role: "service_role" };
+
       const revealed = await list({
         for_event_types: ["audit.revealed"],
         max_items: 1,
       });
+
       expect(revealed[0]).toMatchObject({
         actorId: admin,
         record: String(entries[0]!.id),
@@ -3866,21 +4312,26 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         },
       })!,
     );
+
     try {
       await pool.query(`
         create table ${name} (id int primary key, organization_id uuid, note text);
         select better_supabase.audit('${name}');
         insert into ${name} values (1, '${ACME}', 'a');
       `);
+
       const entry = await pool.query<{ id: string; new_record: unknown }>(
         "select id, new_record from better_supabase.audit_events where table_name = $1",
         [name],
       );
+
       expect(entry.rows[0]!.new_record).toBeNull();
+
       const details = await pool.query<{ new_record: { note: string } }>(
         "select new_record from better_supabase.audit_events_restricted where entry_id = $1",
         [entry.rows[0]!.id],
       );
+
       expect(details.rows[0]!.new_record.note).toBe("a");
 
       await expect(
@@ -3896,6 +4347,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         ),
       ).rejects.toThrow(/append-only/);
       const writer = await pool.connect();
+
       try {
         await writer.query("begin");
         await writer.query(
@@ -3925,13 +4377,16 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         `select c as column, has_column_privilege('authenticated', 'better_supabase.audit_events', c, 'select') as allowed
          from unnest(array['actor_id', 'impersonated_by']) c`,
       );
+
       expect(privileges.rows).toEqual([
         { column: "actor_id", allowed: true },
         { column: "impersonated_by", allowed: false },
       ]);
+
       const policy = await pool.query(
         "select 1 from pg_policies where schemaname = 'better_supabase' and tablename = 'audit_events' and policyname = 'bs_audit_read'",
       );
+
       expect(policy.rowCount).toBe(1);
 
       await pool.query(
@@ -3945,14 +4400,18 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           select case when tenant = '${ACME}' then interval '30 days' end
         $$;
       `);
+
       const purged = await pool.query<{ n: number }>(
         "select better_supabase.purge_audit_log('10 years') as n",
       );
+
       expect(purged.rows[0]!.n).toBe(1);
+
       const left = await pool.query<{ organization_id: string }>(
         "select organization_id from better_supabase.audit_events where table_name = $1",
         [`${name}_old`],
       );
+
       expect(left.rows).toEqual([{ organization_id: other }]);
 
       await pool.query(`drop function ${hook}(uuid)`);
@@ -3961,15 +4420,19 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
          values ($1, 'insert', now() - interval '40 days')`,
         [`${name}_old`],
       );
+
       const retained = await purgeAuditLog(postgres.admin, {
         olderThan: "10 years",
         retention: (tenant) => (tenant === ACME ? undefined : 30),
       });
+
       expect(retained.data).toBe(2);
+
       const none = await pool.query(
         "select 1 from better_supabase.audit_events where table_name = $1",
         [`${name}_old`],
       );
+
       expect(none.rowCount).toBe(0);
     } finally {
       await pool.query(`drop function if exists ${hook}(uuid)`);
@@ -3988,35 +4451,46 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("pgTAP helpers authenticate as a user under RLS", async () => {
     const client = await pool.connect();
+
     try {
       await client.query("begin");
+
       const installed = await client.query<{ pass: string }>(
         SQL_MODULES["pgtap"]!.sql,
       );
+
       expect(JSON.stringify(installed)).toContain("ok 1");
+
       const user = await client.query<{ id: string }>(
         `select tests.create_user($1) as id`,
         [`pgtap-${RUN}@example.com`],
       );
+
       await client.query(`select tests.authenticate_as($1, $2)`, [
         user.rows[0]!.id,
         JSON.stringify({ tenant_id: ACME }),
       ]);
+
       const visible = await client.query<{ n: number }>(
         `select count(*)::int as n from public.customers where organization_id <> $1`,
         [ACME],
       );
+
       expect(visible.rows[0]!.n).toBe(0);
       await client.query("select tests.clear_authentication()");
+
       const rls = await client.query<{ result: string }>(
         `select tests.rls_enabled('public') as result`,
       );
+
       expect(rls.rows[0]!.result).toMatch(/^not ok/);
       expect(rls.rows[0]!.result).toContain(`bs_block_${RUN}`);
       await client.query(`alter table ${table} enable row level security`);
+
       const fixed = await client.query<{ result: string }>(
         `select tests.rls_enabled('public') as result`,
       );
+
       expect(fixed.rows[0]!.result).toMatch(/^ok/);
 
       await client.query("savepoint as_anon");
@@ -4044,25 +4518,30 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("asUser runs PostgREST and SQL as the same user", async () => {
     const betterSupabase = defineSupabase(schema);
+
     const alice = await asUser(
       betterSupabase,
       { sub: crypto.randomUUID(), tenant_id: ACME },
       { url, publishableKey, postgres },
     );
+
     const rest = await alice.db.customers.count().orThrow();
     const sql = await alice.sql!.customers.count().orThrow();
     expect(rest).toBe(sql);
     expect(rest).toBeGreaterThan(0);
+
     const stranger = await asUser(
       betterSupabase,
       { sub: crypto.randomUUID() },
       { url, publishableKey },
     );
+
     expect(await stranger.db.customers.count().orThrow()).toBe(0);
   });
 
   it("read sets run as one GET and one transaction, under RLS", async () => {
     const betterSupabase = defineSupabase(schema);
+
     const chrome = defineReadSet(
       betterSupabase,
       `block_${RUN}`,
@@ -4091,9 +4570,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         }),
       }),
     );
+
     const [file] = renderModules(["read-sets"], {
       readSets: [await compileReadSet(chrome)],
     });
+
     await pool.query(file!.contents);
     await pool.query(`notify pgrst, 'reload schema'`);
 
@@ -4103,14 +4584,17 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         { sub: crypto.randomUUID(), tenant_id: ACME },
         { url, publishableKey, postgres },
       );
+
       const params = { organizationId: ACME, kinds: ["call", "meeting"] };
       let rest = await alice.db.$many(chrome, params);
+
       for (let attempt = 0; !rest.ok && attempt < 20; attempt += 1) {
         await new Promise((resolve) => {
           setTimeout(resolve, 250);
         });
         rest = await alice.db.$many(chrome, params);
       }
+
       expect(rest.error).toBeNull();
       const sql = await alice.sql!.$many(chrome, params).orThrow();
       expect(rest.data).toEqual(sql);
@@ -4123,6 +4607,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           .findFirst({ select: ["id", "name"], where: { id: ACME } })
           .orThrow(),
       };
+
       await expect(
         alice.db.$run(chrome.specs.organization).orThrow(),
       ).rejects.toThrow(/placeholders/);
@@ -4139,6 +4624,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         { sub: crypto.randomUUID() },
         { url, publishableKey, postgres },
       );
+
       const hidden = await stranger.db.$many(chrome, params).orThrow();
       expect(hidden).toEqual({
         customers: 0,
@@ -4153,6 +4639,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("read sets count the caller's own rows through auth.uid", async () => {
     const betterSupabase = defineSupabase(schema);
+
     const mine = defineReadSet(
       betterSupabase,
       `mine_${RUN}`,
@@ -4161,9 +4648,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         mine: s.customers.count({ where: { createdBy: auth.uid } }),
       }),
     );
+
     const [file] = renderModules(["read-sets"], {
       readSets: [await compileReadSet(mine)],
     });
+
     const alice = crypto.randomUUID();
     const bob = crypto.randomUUID();
     await pool.query(file!.contents);
@@ -4181,17 +4670,22 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           { sub, tenant_id: ACME },
           { url, publishableKey, postgres },
         );
+
         let rest = await user.db.$many(mine, {});
+
         for (let attempt = 0; !rest.ok && attempt < 20; attempt += 1) {
           await new Promise((resolve) => {
             setTimeout(resolve, 250);
           });
           rest = await user.db.$many(mine, {});
         }
+
         expect(rest.error).toBeNull();
         const sql = await user.sql!.$many(mine, {}).orThrow();
+
         return { rest: rest.data!.mine, sql: sql.mine };
       };
+
       expect(await counts(alice)).toEqual({ rest: 2, sql: 2 });
       expect(await counts(bob)).toEqual({ rest: 1, sql: 1 });
     } finally {
@@ -4205,11 +4699,13 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("db.$many batches ad-hoc specs in one SQL transaction", async () => {
     const betterSupabase = defineSupabase(schema);
+
     const alice = await asUser(
       betterSupabase,
       { sub: crypto.randomUUID(), tenant_id: ACME },
       { url, publishableKey, postgres },
     );
+
     const specs = [
       betterSupabase.spec.customers.count(),
       betterSupabase.spec.notes.findMany({
@@ -4217,6 +4713,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         orderBy: { id: "asc" },
       }),
     ] as const;
+
     const rest = await alice.db.$many(specs).orThrow();
     const sql = await alice.sql!.$many(specs).orThrow();
     expect(sql).toEqual(rest);
@@ -4231,17 +4728,20 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       insert into public.${name} values (1, '[1,0,0]'), (2, '[0,1,0]');
       grant select on public.${name} to authenticated;
     `);
+
     const fresh = async <T>(
       run: (client: Client) => Promise<T>,
     ): Promise<T> => {
       const client = new Client({ connectionString: dbUrl });
       await client.connect();
+
       try {
         return await run(client);
       } finally {
         await client.end();
       }
     };
+
     try {
       for (const vectorSearch of [
         [{ table: name, column: "embedding", distance: "cosine" as const }],
@@ -4257,22 +4757,29 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         const [module] = renderModules(["vector-search"], { vectorSearch });
         await fresh((client) => client.query(module!.contents));
       }
+
       const result = await fresh(async (client) => {
         await client.query("begin");
         await client.query("set local role authenticated");
         await client.query("set local hnsw.iterative_scan = 'relaxed_order'");
+
         const { rows } = await client.query<{ id: number }>(
           `select id from public.search_${name}('[0,1,0]', 1, '{}')`,
         );
+
         const { rows: scores } = await client.query<{ id: number }>(
           `select id from public.search_${name}_scores('[1,0,0]', 1, '{}')`,
         );
+
         const { rows: setting } = await client.query<{ value: string }>(
           "select current_setting('hnsw.iterative_scan') as value",
         );
+
         await client.query("rollback");
+
         return { rows, scores, setting };
       });
+
       expect(result).toEqual({
         rows: [{ id: 2 }],
         scores: [{ id: 1 }],
@@ -4291,12 +4798,14 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const name = `bs_chunks_${RUN}`;
     const mine = crypto.randomUUID();
     const theirs = crypto.randomUUID();
+
     const column = (db: string, type: string) => ({
       db,
       type,
       nullable: false,
       hasDefault: false,
     });
+
     const table = (key: string, db: string) => ({
       key,
       name: db,
@@ -4312,6 +4821,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       relations: {},
       flags: {},
     });
+
     const betterSupabase = defineSupabase(
       defineSchema<AnyModels>({
         version: 1,
@@ -4324,6 +4834,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         functions: {},
       }),
     );
+
     const rows = [
       ...Array.from(
         { length: 20 },
@@ -4333,9 +4844,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       `(102, '${mine}', 'b', '[0.5,0.5,0]')`,
       `(103, '${mine}', 'c', '[0.9,0.1,0]')`,
     ];
+
     const [module] = renderModules(["vector-search"], {
       vectorSearch: [{ table: name, column: "embedding", distance: "cosine" }],
     });
+
     try {
       await pool.query(`
         create extension if not exists vector with schema extensions;
@@ -4360,12 +4873,15 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           { name: `search_${name}_scores`, args: { query: "[1,0,0]", k: 1 } },
         ],
       });
+
       const alice = await asUser(
         betterSupabase,
         { sub: crypto.randomUUID(), tenant_id: mine },
         { url, publishableKey, postgres },
       );
+
       const query = { vector: [1, 0, 0], k: 2, select: ["id", "content"] };
+
       // The ad-hoc schema is untyped (`AnyModels`), so the args are too.
       const search = (
         db: Pick<typeof alice.db, "$search">,
@@ -4380,17 +4896,21 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       ]);
       const sql = await search(alice.sql!, "chunks").orThrow();
       expect(sql).toEqual(rest);
+
       const filtered = await search(alice.db, "chunks", {
         ...query,
         k: 3,
         where: { content: "a" },
       }).orThrow();
+
       expect(filtered).toEqual([{ id: 101, content: "a" }]);
+
       for (const db of [alice.db, alice.sql!]) {
         const scored = (await search(db, "chunks", {
           ...query,
           score: true,
         }).orThrow()) as { id: number; $score: number }[];
+
         expect(scored.map((row) => row.id)).toEqual([103, 102]);
         expect(scored[0]!.$score).toBeGreaterThan(scored[1]!.$score);
       }
@@ -4409,12 +4929,14 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
   it("fuses full-text and halfvec rankings with prefilters and a boost", async () => {
     const name = `bs_hybrid_${RUN}`;
+
     const column = (db: string, type: string) => ({
       db,
       type,
       nullable: true,
       hasDefault: false,
     });
+
     const betterSupabase = defineSupabase(
       defineSchema<AnyModels>({
         version: 1,
@@ -4439,6 +4961,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         functions: {},
       }),
     );
+
     const [module] = renderModules(["vector-search"], {
       vectorSearch: [
         {
@@ -4452,6 +4975,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         },
       ],
     });
+
     try {
       await pool.query(`
         create extension if not exists vector with schema extensions;
@@ -4480,11 +5004,13 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           { name: `search_${name}_scores`, args: { query: "[1,0,0]", k: 1 } },
         ],
       });
+
       const alice = await asUser(
         betterSupabase,
         { sub: crypto.randomUUID() },
         { url, publishableKey, postgres },
       );
+
       const args = {
         vector: [1, 0, 0],
         k: 3,
@@ -4492,15 +5018,18 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         filter: { collection: ["a", null] },
         select: ["id"],
       };
+
       for (const db of [alice.db, alice.sql!]) {
         expect(await db.$search("chunks", args as never).orThrow()).toEqual([
           { id: 4 },
           { id: 1 },
           { id: 2 },
         ]);
+
         const scored = (await db
           .$search("chunks", { ...args, score: true } as never)
           .orThrow()) as { id: number; $score: number }[];
+
         expect(scored.map((row) => row.id)).toEqual([4, 1, 2]);
         expect(scored[0]!.$score).toBeGreaterThan(scored[1]!.$score);
       }
@@ -4516,6 +5045,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   it("searches by text alone, with a predicate, an additive boost and tie-breaks", async () => {
     const name = `bs_pred_${RUN}`;
     const folders = `bs_pred_folders_${RUN}`;
+
     const [module] = renderModules(["vector-search"], {
       vectorSearch: [
         {
@@ -4530,6 +5060,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         },
       ],
     });
+
     try {
       await pool.query(`
         create extension if not exists vector with schema extensions;
@@ -4549,6 +5080,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           (5, 1, 'pear', 5, null, '[0,1,0]');
       `);
       await pool.query(module!.contents);
+
       const ids = async (query: string | null, text: string | null) =>
         (
           await pool.query<{ id: number }>(
@@ -4556,16 +5088,19 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
             [query, text],
           )
         ).rows.map((row) => row.id);
+
       expect((await ids(null, "apple")).toSorted((a, b) => a - b)).toEqual([
         1, 2,
       ]);
       const nearest = await ids("[1,0,0]", null);
       expect(nearest[0]).toBe(5);
       expect(nearest.slice(1).toSorted((a, b) => a - b)).toEqual([1, 2]);
+
       const scores = await pool.query<{ id: string; score: number }>(
         `select id #>> '{}' as id, score from public.search_${name}_scores($1, 5, '{}', null)`,
         ["[1,0,0]"],
       );
+
       expect(scores.rows[0]!.id).toBe("5");
       expect(scores.rows[0]!.score).toBeGreaterThan(5);
     } finally {
@@ -4582,14 +5117,18 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
   it("limits route handler keys with hit_rate_limit", async () => {
     const scope = `route-${RUN}`;
     const limit = createRateLimit({ sql: postgres.admin });
+
     try {
       await pool.query(
         "select better_supabase.set_rate_limit($1, 2, interval '1 minute')",
         [scope],
       );
       const hits = [];
-      for (let i = 0; i < 3; i += 1)
+
+      for (let i = 0; i < 3; i += 1) {
         hits.push(await limit.check(scope, "token-a").orThrow());
+      }
+
       expect(hits.map((hit) => [hit.allowed, hit.remaining])).toEqual([
         [true, 1],
         [true, 0],
@@ -4599,9 +5138,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       expect((await limit.check(scope, "token-b").orThrow()).allowed).toBe(
         true,
       );
+
       const adhoc = await limit
         .check(`adhoc-${RUN}`, "thread-1", { max: 1, period: "1 hour" })
         .orThrow();
+
       expect(adhoc.allowed).toBe(true);
       expect(await limit.check(`none-${RUN}`, "k")).toMatchObject({
         ok: false,
@@ -4614,9 +5155,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           )
         ).rows[0]!.allowed,
       ).toBe(false);
+
       const overTransport = createRateLimit({
         transport: sqlTransport(postgres.admin),
       });
+
       expect(await overTransport.check(scope, "token-c").orThrow()).toEqual({
         allowed: true,
         remaining: 1,
@@ -4646,6 +5189,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     const probe = `bs_rate_probe_${RUN}`;
     const scope = `/rpc/${probe}`;
     const token = await signLocalJwt({ sub: crypto.randomUUID() });
+
     const call = (method: "GET" | "POST", fn = probe) =>
       fetch(`${url}/rest/v1/rpc/${fn}`, {
         method,
@@ -4656,6 +5200,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         },
         ...(method === "POST" ? { body: "{}" } : {}),
       });
+
     try {
       await pool.query(`
         create function public.${probe}() returns integer language sql as 'select 1';
@@ -4667,11 +5212,13 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       await expect
         .poll(async () => (await call("GET")).status, { timeout: 10_000 })
         .toBe(200);
+
       const { rows } = await pool.query(
         `select setting from pg_db_role_setting s join pg_roles r on r.oid = s.setrole,
            unnest(s.setconfig) setting
          where r.rolname = 'authenticator' and setting like 'pgrst.db_pre_request=%'`,
       );
+
       expect(rows[0]?.setting).toBe(
         "pgrst.db_pre_request=better_supabase.check_request",
       );
@@ -4687,8 +5234,11 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
           timeout: 10_000,
         })
         .toBe(200);
-      for (let i = 0; i < 3; i++)
+
+      for (let i = 0; i < 3; i++) {
         expect((await call("POST", `${probe}_read`)).status).toBe(200);
+      }
+
       await pool.query(`select better_supabase.set_rate_limit('*', null)`);
 
       expect((await call("POST")).status).toBe(200);
@@ -4713,10 +5263,12 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         [scope],
       );
       await pool.query(`select better_supabase.purge_rate_limits()`);
+
       const { rows: counters } = await pool.query<{ key: string }>(
         `select key from better_supabase.rate_limits where scope = $1`,
         [scope],
       );
+
       expect(counters.map((row) => row.key)).not.toContain("expired");
       expect(counters).toHaveLength(1);
 

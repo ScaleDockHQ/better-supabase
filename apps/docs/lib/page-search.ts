@@ -23,21 +23,26 @@ function scorePage(
   if (queryTokens.length === 0) {
     return 0;
   }
+
   const title = tokensOf(page.title);
   const description = tokensOf(page.description);
   const path = tokensOf(page.slugs.join(" "));
   let score = 0;
+
   for (const token of queryTokens) {
     if (title.includes(token)) {
       score += 3;
     }
+
     if (description.includes(token)) {
       score += 2;
     }
+
     if (path.includes(token)) {
       score += 1;
     }
   }
+
   return score;
 }
 
@@ -47,10 +52,12 @@ export function searchDocs(
   limit = DEFAULT_SEARCH_LIMIT,
 ): readonly DocsPageSummary[] {
   const queryTokens = tokensOf(query);
+
   const capped =
     Number.isInteger(limit) && limit > 0
       ? Math.min(limit, MAX_SEARCH_LIMIT)
       : DEFAULT_SEARCH_LIMIT;
+
   return pages
     .map((page) => ({ page, score: scorePage(page, queryTokens) }))
     .filter((entry) => entry.score > 0)

@@ -1,12 +1,12 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
+import type { SvelteKitHandle } from "../bridges/sveltekit.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { DbError } from "../core/errors.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { BetterServer } from "../server/server-types.ts";
 
 import { around, bufferInPlace } from "../bridges/shared.ts";
-import { type SvelteKitHandle } from "../bridges/sveltekit.ts";
 import { dbErrorOf, DbException } from "../core/errors.ts";
 import { toProblem } from "../core/problem.ts";
 import { withFlush } from "../server/adapter.ts";
@@ -146,27 +146,35 @@ export function createSvelteKit<
   const server = createServer(betterSupabase, options);
   const expose = options.exposeErrors ?? defaultExpose();
   const run = around([frameworkEntry(server, options, expose)]);
+
   type Locals = FrameworkLocals<M, F, E, C, P>;
 
   const localsFrom = (event: SvelteKitRequestEvent): Locals => {
     const locals: Partial<Locals> = event.locals;
+
     if (!locals.bs) {
       throw new TypeError(
         "better-supabase: no context on event.locals; export handle = bs.handle from hooks.server.ts",
       );
     }
+
     // SAFETY: handle wrote every key of Locals when it wrote bs.
     return locals as Locals;
   };
 
   const refuse = (error: DbError, request: Request): never => {
     const target = refusalTarget(error, request, options);
+
     if (options.kit) {
-      if (target) options.kit.redirect(303, target.pathname + target.search);
+      if (target) {
+        options.kit.redirect(303, target.pathname + target.search);
+      }
+
       options.kit.error(error.status, {
         message: toProblem(error, { expose }).detail ?? error.message,
       });
     }
+
     throw new DbException(error);
   };
 
@@ -177,8 +185,10 @@ export function createSvelteKit<
     bufferInPlace(event.request);
     const platform: unknown = event.platform;
     const env = event.platform?.env;
+
     return run(event.request, env, async (contributions) => {
       Object.assign(event.locals, localsOf<M, F, E, C, P>(contributions));
+
       return withFlush(
         server,
         options.waitUntil ?? platformWaitUntil(platform),
@@ -196,13 +206,18 @@ export function createSvelteKit<
 
     require: async (event, requireOptions = {}) => {
       const locals = localsFrom(event);
+
       const caller = await requireCaller(
         locals.bs.auth,
         requireOptions,
         locals.tenant,
         options.authorizer,
       );
-      if ("kind" in caller) return refuse(caller, event.request);
+
+      if ("kind" in caller) {
+        return refuse(caller, event.request);
+      }
+
       // SAFETY: requireTenant refused a missing tenant.
       return { ...locals, ...caller } as never;
     },
@@ -211,6 +226,7 @@ export function createSvelteKit<
       return async (event) => {
         const locals = localsFrom(event);
         const input = await actionInput(event.request);
+
         const result = await runAction(
           locals.bs.auth,
           actionOptions,
@@ -222,10 +238,12 @@ export function createSvelteKit<
             fn(parsed as never, { ...locals, ...caller } as never, event),
           options.authorizer,
         );
+
         if (!result.ok && options.kit) {
           // SAFETY: fail() wraps the failed ActionResult, the declared failure branch.
           return options.kit.fail(result.error.status, result) as never;
         }
+
         // SAFETY: the settled data is what fn returned, unwrapped.
         return result as never;
       };
@@ -233,10 +251,13 @@ export function createSvelteKit<
 
     handleError({ error }) {
       const found = dbErrorOf(error);
+
       if (found) {
         const problem = toProblem(found, { expose });
+
         return { message: problem.detail ?? problem.title, code: found.kind };
       }
+
       return {
         message:
           expose && error instanceof Error ? error.message : "Internal Error",
@@ -245,7 +266,9 @@ export function createSvelteKit<
 
     depends(load, ...tables) {
       // The same tag as tagFor(table), spelled out for the `bs:${string}` type.
-      for (const table of tables) load.depends(`bs:${table}`);
+      for (const table of tables) {
+        load.depends(`bs:${table}`);
+      }
     },
   });
 }

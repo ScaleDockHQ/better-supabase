@@ -40,14 +40,17 @@ export function defaultPipeline(
   const p = (column: string): string => c("pipelines", column);
   const s = (column: string): string => c("stages", column);
   const self = fn("default_pipeline");
+
   const seed = (binding: PipelineBinding): string => {
     const ranks = rankKeys(binding.stages.length);
+
     const rows = binding.stages
       .map(
         (stage, index) =>
           `(${sqlString(stage.key)}, ${sqlString(stage.name)}, ${sqlString(stage.category)}, ${sqlString(binding.categories[stage.category] ?? "open")}, ${stage.probability === undefined ? "null::smallint" : `${String(stage.probability)}::smallint`}, ${sqlString(ranks[index] ?? "V")})`,
       )
       .join(",\n          ");
+
     return `      insert into ${t("pipelines")} (${p("tenant")}, ${p("subjectType")}, ${p("scope")}, ${p("key")}, ${p("name")}, ${p("isDefault")})
       values (default_pipeline.tenant, default_pipeline.subject_type, default_pipeline.scope_id, 'default', 'Default', true)
       on conflict do nothing
@@ -61,6 +64,7 @@ export function defaultPipeline(
           ${rows}
       ) x(key, name, category, outcome, probability, rank);`;
   };
+
   return `
 -- The default pipeline of a subject type in a tenant and scope. The first
 -- call creates it from the type's stage template in options.subjects.
@@ -115,18 +119,25 @@ export function stageTrigger(
   const pipeline = col(binding.pipeline);
   const tenant = `new.${tenantColumn}`;
   const subjectId = `new.${subject.id}::text`;
+
   const scope =
     binding.scope === undefined ? "null" : `new.${col(binding.scope)}::text`;
+
   const h = (column: string): string => c("history", column);
+
   const amount =
     binding.amount === undefined ? "null" : `new.${col(binding.amount)}`;
+
   const currency =
     binding.currency === undefined ? "null" : `new.${col(binding.currency)}`;
+
   const entered =
     binding.enteredAt === undefined
       ? ""
       : `\n    new.${col(binding.enteredAt)} := now();`;
+
   const name = `bs_pipeline_${binding.type}`;
+
   const transitions = ctx.hasTable("transitions")
     ? `
     if tg_op = 'UPDATE' and old.${stage} is not null
@@ -138,9 +149,11 @@ export function stageTrigger(
       ${fail("PIPELINE_TRANSITION_INVALID", "that stage change is not allowed in this pipeline", "22023")}
     end if;`
     : "";
+
   const notifications = ctx.installed("notifications")
     ? ctx.of("notifications")
     : undefined;
+
   const watch =
     binding.owner === undefined
       ? ""
@@ -150,6 +163,7 @@ export function stageTrigger(
           subjectType: sqlString(binding.type),
           subjectId,
         });
+
   const follow =
     binding.owner === undefined || watch === ""
       ? ""
@@ -158,6 +172,7 @@ export function stageTrigger(
   if new.${col(binding.owner)} is not null and (tg_op = 'INSERT' or new.${col(binding.owner)} is distinct from old.${col(binding.owner)}) then
     ${watch}
   end if;`;
+
   const notify =
     notifications === undefined
       ? ""
@@ -177,8 +192,10 @@ export function stageTrigger(
         { indent: "      " },
       )}
     end if;`;
+
   const ownerColumns =
     binding.owner === undefined ? "" : `, ${col(binding.owner)}`;
+
   return `
 create or replace function better_supabase.${name}()
 returns trigger
@@ -226,7 +243,7 @@ begin
     ${ctx.hook("before_pipeline_stage_change", [
       ["text", sqlString(binding.type)],
       ["text", subjectId],
-      ["uuid", "case when tg_op = 'UPDATE' then old." + stage + " end"],
+      ["uuid", `case when tg_op = 'UPDATE' then old.${stage} end`],
       ["uuid", `new.${stage}`],
     ])}${entered}
     update ${t("history")} set ${h("exitedAt")} = now()
@@ -264,19 +281,23 @@ ${statusTrigger(names, binding)}`;
 function statusTrigger(names: Names, binding: PipelineBinding): string {
   const name = `bs_pipeline_status_${binding.type}`;
   const subject = binding.subject;
+
   if (binding.status === undefined) {
     return `drop trigger if exists ${name} on ${subject.qualified};
 drop function if exists better_supabase.${name}();`;
   }
+
   const { t, c } = names;
   const status = sqlIdent(binding.status.column);
   const stage = sqlIdent(binding.stage);
+
   const mapping = Object.entries(binding.status.values)
     .map(
       ([category, value]) =>
         `when ${sqlString(category)} then ${sqlString(value)}`,
     )
     .join(" ");
+
   return `
 create or replace function better_supabase.${name}()
 returns trigger
@@ -309,11 +330,13 @@ export function manageFunctions(
   const { fn, t, c } = names;
   const p = (column: string): string => c("pipelines", column);
   const s = (column: string): string => c("stages", column);
+
   const guard = (
     tenant: string,
   ): string => `if not (auth.role() = 'service_role' or ${ctx.scope.can(tenant, names.manage)}) then
     ${fail("PIPELINE_FORBIDDEN", "not allowed to manage pipelines")}
   end if;`;
+
   const categoryCheck = byType(
     "v_subject_type",
     bindings,
@@ -325,6 +348,7 @@ export function manageFunctions(
       "22023",
     ),
   );
+
   const occupied = (
     pipelineFilter: (binding: PipelineBinding) => string,
   ): string =>
@@ -337,6 +361,7 @@ export function manageFunctions(
       v_used := found;`,
       "v_used := false;",
     );
+
   const transitions = ctx.hasTable("transitions")
     ? `
 -- Replaces the allowed stage changes of a pipeline. An empty list allows
@@ -379,6 +404,7 @@ $$;
 ${userGrant(`${fn("set_pipeline_transitions")}(uuid, jsonb)`)}
 `
     : "";
+
   const configured = (
     type: string,
     payload: string,
@@ -398,6 +424,7 @@ ${userGrant(`${fn("set_pipeline_transitions")}(uuid, jsonb)`)}
         summary,
       },
     });
+
   return `
 -- Creates a pipeline (pipeline null) or renames one. The first pipeline of a
 -- subject type and scope is its default. Returns its row.
@@ -647,6 +674,7 @@ export function readFunctions(
   const { fn, t, c } = names;
   const s = (column: string): string => c("stages", column);
   const h = (column: string): string => c("history", column);
+
   const board = byType(
     "pipeline_board.subject_type",
     bindings,
@@ -654,15 +682,18 @@ export function readFunctions(
       const r = (column: string): string => `r.${sqlIdent(column)}`;
       const deleted = binding.subject.config.deletedAt;
       const live = deleted === undefined ? "" : ` and ${r(deleted)} is null`;
+
       const owner =
         binding.owner === undefined
           ? ""
           : ` and (pipeline_board.owner is null or ${r(binding.owner)} = pipeline_board.owner)`;
+
       const money =
         binding.amount === undefined || binding.currency === undefined
           ? "null::text as currency, null::bigint as amount, null::numeric as weighted"
           : `${r(binding.currency)}::text as currency, ${r(binding.amount)}::bigint as amount,
             ${r(binding.amount)} * coalesce(${binding.probability === undefined ? "null" : r(binding.probability)}, st.${s("probability")}, 0) / 100.0 as weighted`;
+
       return `      return (
         with rows as (
           select ${r(binding.stage)} as stage_id, ${money}
@@ -695,6 +726,7 @@ export function readFunctions(
       "22023",
     ),
   );
+
   return `
 -- One entry per active stage, in board order: the count of records the
 -- caller can see, and per currency the amount and the amount weighted by

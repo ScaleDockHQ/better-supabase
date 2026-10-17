@@ -8,7 +8,7 @@ import * as Notifications from "expo-notifications";
 import { useEffect } from "react";
 import { Platform } from "react-native";
 
-import { supabase } from "./supabase/native";
+import { supabase } from "./supabase/client.native";
 
 const devices = createPush({
   transport: rpcTransport(supabase, { schema: "api" }),
@@ -25,7 +25,9 @@ export function usePushRegistration(): void {
       platform: Platform.OS,
       projectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID,
     }).then((result) => {
-      if (result.ok && result.data) token = result.data.token;
+      if (result.ok && result.data) {
+        token = result.data.token;
+      }
     });
   }, []);
 }

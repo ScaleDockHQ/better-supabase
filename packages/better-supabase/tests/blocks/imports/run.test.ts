@@ -15,9 +15,11 @@ const columns: StandardSchemaV1<unknown, Row> = {
     validate: (value) => {
       const record = typeof value === "object" && value !== null ? value : {};
       const email = "email" in record ? record.email : undefined;
+
       if (typeof email !== "string" || email.length === 0) {
         return { issues: [{ message: "email required" }] };
       }
+
       return { value: { email } };
     },
   },
@@ -27,6 +29,7 @@ describe("runImport", () => {
   it("skips keys that already imported and finishes completed", async () => {
     const inserted: Row[][] = [];
     const finished: string[] = [];
+
     const result = await runImport(
       {
         kind: "people",
@@ -47,6 +50,7 @@ describe("runImport", () => {
         },
       },
     );
+
     expect(result).toMatchObject({
       id: "run-1",
       status: "completed",
@@ -58,6 +62,7 @@ describe("runImport", () => {
 
   it("finishes failed and inserts nothing when a row is invalid", async () => {
     const inserted: number[] = [];
+
     const result = await runImport(
       {
         kind: "people",
@@ -79,6 +84,7 @@ describe("runImport", () => {
         },
       },
     );
+
     expect(result.status).toBe("failed");
     expect(inserted).toEqual([]);
   });

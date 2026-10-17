@@ -13,6 +13,10 @@ export function temporalMissing(): DbError {
  */
 export function temporal(): typeof Temporal {
   const namespace = optionalTemporal();
-  if (namespace === undefined) throw new DbException(temporalMissing());
+
+  if (namespace === undefined) {
+    throw new DbException(temporalMissing());
+  }
+
   return namespace;
 }

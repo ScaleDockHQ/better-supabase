@@ -132,19 +132,24 @@ const AUTHORIZATION_HINTS = new Set([
 
 function connectionError(name: string, error: DbError): Error {
   const hint = "hint" in error ? error.hint : undefined;
+
   if (
     error.kind === "not_found" ||
     (typeof hint === "string" && AUTHORIZATION_HINTS.has(hint))
-  )
+  ) {
     return new ConnectionAuthorizationRequiredError(name, {
       message: error.message,
     });
-  if (error.kind === "forbidden" || error.kind === "invalid_input")
+  }
+
+  if (error.kind === "forbidden" || error.kind === "invalid_input") {
     return new ConnectionAuthorizationFailedError(name, {
       message: error.message,
       reason: typeof hint === "string" ? hint : error.kind,
       retryable: false,
     });
+  }
+
   return new DbException(error);
 }
 
@@ -158,18 +163,26 @@ export function credentialAuth(
   options: CredentialAuthOptions,
 ): EveConnectionAuthorization {
   const name = options.connection ?? options.ref.provider;
+
   const subjectOf = (principal: EveConnectionPrincipal): CredentialSubject => {
-    if (options.owner === "app") return { type: "app" };
-    if (principal.type !== "user")
+    if (options.owner === "app") {
+      return { type: "app" };
+    }
+
+    if (principal.type !== "user") {
       throw new ConnectionAuthorizationRequiredError(name, {
         message: `Connection "${name}" needs a signed-in user`,
       });
+    }
+
     return principal.issuer === undefined
       ? { type: "user", id: principal.id }
       : { type: "user", id: principal.id, issuer: principal.issuer };
   };
+
   const displayName =
     options.connection === undefined ? {} : { displayName: options.connection };
+
   const getToken = async ({
     principal,
   }: EveConnectionRequest): Promise<EveTokenResult> => {
@@ -177,24 +190,33 @@ export function credentialAuth(
       subject: subjectOf(principal),
       ...(options.scopes === undefined ? {} : { scopes: options.scopes }),
     });
-    if (!result.ok) throw connectionError(name, result.error);
+
+    if (!result.ok) {
+      throw connectionError(name, result.error);
+    }
+
     const { token, expiresAt } = result.data;
+
     return expiresAt === undefined
       ? { token }
       : { token, expiresAt: expiresAt.epochMilliseconds };
   };
 
   const { provider, ref } = options;
+
   if (
     options.owner === "app" ||
     options.interactive === false ||
     !provider.capabilities(ref).authorization ||
     !provider.startAuthorization ||
     !provider.completeAuthorization
-  )
+  ) {
     return { credentialOwner: options.owner, ...displayName, getToken };
+  }
+
   const start = provider.startAuthorization.bind(provider);
   const complete = provider.completeAuthorization.bind(provider);
+
   return {
     principalType: "user",
     ...displayName,
@@ -205,18 +227,29 @@ export function credentialAuth(
         redirectUri: callbackUrl,
         ...(options.scopes === undefined ? {} : { scopes: options.scopes }),
       });
-      if (!result.ok) throw connectionError(name, result.error);
+
+      if (!result.ok) {
+        throw connectionError(name, result.error);
+      }
+
       return { challenge: { url: result.data.url } };
     },
     completeAuthorization: async (request) => {
       const callback = new URL(request.callbackUrl);
-      for (const [key, value] of Object.entries(request.callback.params))
+
+      for (const [key, value] of Object.entries(request.callback.params)) {
         callback.searchParams.set(key, value);
+      }
+
       const result = await complete(ref, {
         subject: subjectOf(request.principal),
         callback,
       });
-      if (!result.ok) throw connectionError(name, result.error);
+
+      if (!result.ok) {
+        throw connectionError(name, result.error);
+      }
+
       return getToken(request);
     },
   };

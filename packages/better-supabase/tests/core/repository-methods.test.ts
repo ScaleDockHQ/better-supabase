@@ -36,31 +36,48 @@ const rowsOf = (rows: Record<string, unknown>[], count: number | null = null) =>
 function scripted(answer: Answer = () => rowsOf([])) {
   const ops: Operation[] = [];
   const contexts: ExecuteContext[] = [];
+
   const executor: Executor = {
     name: "scripted",
     async execute(op, context) {
       ops.push(op);
       contexts.push(context);
+
       return answer(op, ops.length - 1);
     },
   };
+
   const op = (index = 0): Operation => {
     const found = ops[index];
-    if (!found) throw new Error(`No operation ${index}`);
+
+    if (!found) {
+      throw new Error(`No operation ${index}`);
+    }
+
     return found;
   };
+
   const select = (index = 0): SelectOp => {
     const found = op(index);
-    if (found.kind !== "select") throw new Error("Expected a select");
+
+    if (found.kind !== "select") {
+      throw new Error("Expected a select");
+    }
+
     return found;
   };
+
   return { executor, ops, contexts, op, select };
 }
 
 function connect(answer?: Answer, plugins: AnyPlugin[] = []) {
   const fake = scripted(answer);
   let betterSupabase = defineSupabase(schema);
-  for (const plugin of plugins) betterSupabase = betterSupabase.use(plugin);
+
+  for (const plugin of plugins) {
+    betterSupabase = betterSupabase.use(plugin);
+  }
+
   return { db: betterSupabase.connect(fake.executor), ...fake };
 }
 
@@ -76,6 +93,7 @@ const cursor = (values: readonly unknown[], order: string) =>
 
 const timeout = dbError("timeout", "slow", { code: "57014" });
 const failing: Answer = () => err(timeout);
+
 const timeoutResult = {
   ok: false,
   data: null,
@@ -136,12 +154,14 @@ describe("single-row reads", () => {
     "passes executor errors through %s with the table",
     async (method) => {
       const { db } = connect(failing);
+
       const calls = {
         findFirst: () => db.customers.findFirst(),
         findUnique: () => db.customers.findUnique({ where: { id: "c1" } }),
         findById: () => db.customers.findById("c1"),
         findMany: () => db.customers.findMany(),
       };
+
       expect(await calls[method]()).toEqual(timeoutResult);
     },
   );
@@ -150,6 +170,7 @@ describe("single-row reads", () => {
     const { db } = connect(() =>
       err(dbError("timeout", "slow", { table: "notes" })),
     );
+
     expect((await db.customers.findMany()).error?.table).toBe("notes");
   });
 
@@ -183,13 +204,18 @@ describe("single-row reads", () => {
 
   it("skips the default order for a table without a primary key", async () => {
     const tags = schema.meta.tables["tags"];
-    if (!tags) throw new Error("No tags table");
+
+    if (!tags) {
+      throw new Error("No tags table");
+    }
+
     const keyless: typeof schema = {
       meta: {
         ...schema.meta,
         tables: { ...schema.meta.tables, tags: { ...tags, primaryKey: [] } },
       },
     };
+
     const fake = scripted();
     await defineSupabase(keyless)
       .connect(fake.executor)
@@ -249,9 +275,17 @@ describe("count, exists and aggregate", () => {
 
   it("exists reads one non-sensitive column of a table without a primary key", async () => {
     const tags = schema.meta.tables["tags"];
-    if (!tags) throw new Error("No tags table");
+
+    if (!tags) {
+      throw new Error("No tags table");
+    }
+
     const [first, ...rest] = Object.entries(tags.columns);
-    if (!first) throw new Error("No tags columns");
+
+    if (!first) {
+      throw new Error("No tags columns");
+    }
+
     const keyless: typeof schema = {
       meta: {
         ...schema.meta,
@@ -268,6 +302,7 @@ describe("count, exists and aggregate", () => {
         },
       },
     };
+
     const fake = scripted(() => rowsOf([{}]));
     const db = defineSupabase(keyless).connect(fake.executor);
     expect(await db.tags.exists()).toEqual(ok(true));
@@ -327,6 +362,7 @@ describe("count, exists and aggregate", () => {
     const { db, select } = connect(() =>
       rowsOf([{ status: "lead", _count: 2 }]),
     );
+
     expect(
       await db.customers.aggregate({
         groupBy: ["status"],
@@ -406,10 +442,12 @@ describe("create and createMany", () => {
     "counts inserted rows without returning (count %s)",
     async (count, expected) => {
       const { db } = connect(() => rowsOf([], count));
+
       const rows = [
         { organizationId: "o", name: "a" },
         { organizationId: "o", name: "b" },
       ];
+
       expect(await db.tags.createMany(rows, { returning: false })).toEqual(
         ok(expected),
       );
@@ -463,11 +501,13 @@ describe("update and updateMany", () => {
     ["a null count", () => rowsOf([], null)],
   ])("reports not_found for %s", async (_name, answer) => {
     const { db } = connect(answer);
+
     const result = await db.customers.update(
       "c1",
       { name: "B" },
       { returning: false },
     );
+
     expect(result.error).toMatchObject({
       kind: "not_found",
       message: "No customers row matched",
@@ -484,11 +524,13 @@ describe("update and updateMany", () => {
     ["the existence check has no count", () => rowsOf([], null)],
   ])("reports not_found with expect when %s", async (_name, answer) => {
     const { db, select } = connect(answer);
+
     const result = await db.customers.update(
       "c1",
       { name: "B" },
       { returning: false, expect: { updatedAt: "2026-01-01T00:00:00Z" } },
     );
+
     expect(result.error?.kind).toBe("not_found");
     expect(select(1)).toMatchObject({
       where: col("id", "eq", "c1"),
@@ -499,11 +541,13 @@ describe("update and updateMany", () => {
 
   it("reports a stale row with expect", async () => {
     const { db, op } = connect((_op, index) => rowsOf([], index === 0 ? 0 : 1));
+
     const result = await db.customers.update(
       "c1",
       { name: "B" },
       { returning: false, expect: { updatedAt: "2026-01-01T00:00:00Z" } },
     );
+
     expect(result.error).toEqual({
       kind: "stale",
       status: 412,
@@ -600,6 +644,7 @@ describe("empty updates", () => {
       beforeMutation: (op) =>
         op.kind === "update" ? { ...op, set: { updated_at: "now" } } : op,
     };
+
     const { db, ops } = connect(() => rowsOf([{ id: "c1" }]), [touch]);
     expect((await db.customers.update("c1", {})).ok).toBe(true);
     expect(ops).toHaveLength(1);
@@ -649,10 +694,12 @@ describe("upsert and upsertMany", () => {
     ["a number", 3, 'Invalid onConflict on "customers"'],
   ])("rejects %s", async (_name, onConflict, message) => {
     const { db, ops } = connect();
+
     const result = await db.customers.upsert(
       { organizationId: "o", name: "A" },
       { onConflict: onConflict as never },
     );
+
     expect(result.error).toMatchObject({
       kind: "invalid_request",
       message,
@@ -863,6 +910,7 @@ describe("offset pagination", () => {
     const { db, select } = connect(() =>
       rowsOf([{ id: "a" }, { id: "b" }, { id: "c" }]),
     );
+
     expect(await db.customers.paginate({ select: ["id"], size: 2 })).toEqual(
       ok({
         items: [{ id: "a" }, { id: "b" }],
@@ -877,12 +925,14 @@ describe("offset pagination", () => {
     ["estimated", 45, 5],
   ] as const)("reports %s totals", async (count, total, pages) => {
     const { db, select } = connect(() => rowsOf([], total));
+
     const result = await db.customers.paginate({
       select: ["id"],
       size: 10,
       page: 2,
       count,
     });
+
     expect(result.data?.page).toEqual({
       number: 2,
       size: 10,
@@ -933,6 +983,7 @@ describe("offset pagination", () => {
     const { db, select } = connect(() =>
       rowsOf([{ id: "a" }, { id: "b" }, { id: "c" }], 40),
     );
+
     expect(
       await db.customers.paginate({
         select: ["id"],
@@ -985,12 +1036,14 @@ describe("cursor pagination", () => {
         { name: "A", id: "c1", createdAt: "2026-01-01" },
       ]),
     );
+
     const result = await db.customers.paginate({
       select: ["name"],
       orderBy: { createdAt: "desc" },
       size: 2,
       after: null,
     });
+
     expect(result).toEqual(
       ok({
         items: [{ name: "C" }, { name: "B" }],
@@ -1020,6 +1073,7 @@ describe("cursor pagination", () => {
     const { db, select } = connect(() =>
       rowsOf([{ id: "c1", createdAt: "2026-01-01" }]),
     );
+
     const result = await db.customers.paginate({
       select: ["id", "createdAt"],
       orderBy: { createdAt: "desc" },
@@ -1027,6 +1081,7 @@ describe("cursor pagination", () => {
       size: 2,
       after: cursor(["2026-02-01", "c2"], "created_at.desc.,id.desc."),
     });
+
     expect(result).toEqual(
       ok({
         items: [{ id: "c1", createdAt: "2026-01-01" }],
@@ -1070,8 +1125,10 @@ describe("cursor pagination", () => {
         size: 2,
         after: cursor(after, `archived_at.${direction}.,id.${direction}.`),
       });
+
       return select().where;
     };
+
     const isNull = col("archived_at", "is", null);
     // asc puts nulls last, so they follow every timestamp.
     expect(await whereAfter(["2026-01-01", "c2"], "asc")).toEqual({
@@ -1104,11 +1161,13 @@ describe("cursor pagination", () => {
 
   it("orders by the primary key alone without orderBy", async () => {
     const { db, select } = connect(() => rowsOf([{ id: "a" }, { id: "b" }]));
+
     const result = await db.customers.paginate({
       select: ["id"],
       size: 1,
       after: cursor(["0"], "id.asc."),
     });
+
     expect(result.data).toEqual({
       items: [{ id: "a" }],
       nextCursor: cursor(["a"], "id.asc."),
@@ -1140,6 +1199,7 @@ describe("cursor pagination", () => {
         { id: "c2", name: "B" },
       ]),
     );
+
     const first = await db.customers
       .paginate({
         select: ["id", "name"],
@@ -1148,21 +1208,29 @@ describe("cursor pagination", () => {
         after: null,
       })
       .orThrow();
-    if (!("nextCursor" in first)) throw new Error("Expected a cursor page");
+
+    if (!("nextCursor" in first)) {
+      throw new Error("Expected a cursor page");
+    }
+
     expect(first.nextCursor).not.toBeNull();
+
     const again = await db.customers.paginate({
       select: ["id", "name"],
       orderBy: { name: "asc" },
       size: 1,
       after: first.nextCursor,
     });
+
     expect(again.ok).toBe(true);
+
     const other = await db.customers.paginate({
       select: ["id", "name"],
       orderBy: { name: "desc" },
       size: 1,
       after: first.nextCursor,
     });
+
     expect(other.error).toMatchObject({
       kind: "invalid_request",
       message: expect.stringContaining("another orderBy"),
@@ -1205,12 +1273,14 @@ describe("cursor pagination", () => {
         },
       },
     };
+
     const fake = scripted(() =>
       rowsOf([
         { memo: "a", id: "9007199254740993" },
         { memo: "b", id: "9007199254740995" },
       ]),
     );
+
     const db = defineSupabase(defineSchema(meta)).connect(
       fake.executor,
     ) as never as {
@@ -1223,9 +1293,11 @@ describe("cursor pagination", () => {
         };
       };
     };
+
     const page = await db.ledger
       .paginate({ select: ["memo"], size: 1, after: null })
       .orThrow();
+
     expect(fake.select().selection.columns).toContainEqual({
       alias: "id",
       column: "id",
@@ -1246,6 +1318,7 @@ describe("plugins and options", () => {
         throw new DbException(dbError("forbidden", "Denied"));
       },
     };
+
     const { db, ops } = connect(undefined, [plugin]);
     expect(await db.customers.findMany()).toEqual({
       ok: false,
@@ -1268,6 +1341,7 @@ describe("plugins and options", () => {
         throw new TypeError("bug");
       },
     };
+
     const { db, ops } = connect(undefined, [plugin]);
     const result = await db.customers.deleteMany({ where: { status: "lead" } });
     expect(result.error).toMatchObject({ kind: "unexpected", message: "bug" });
@@ -1277,6 +1351,7 @@ describe("plugins and options", () => {
   it("runs beforeMutation rewrites and logs afterMutation failures", async () => {
     const error = vi.fn();
     const logger = { debug() {}, info() {}, warn() {}, error };
+
     const plugin: AnyPlugin = {
       apiVersion: 1,
       name: "audit",
@@ -1286,10 +1361,13 @@ describe("plugins and options", () => {
         throw new Error("audit down");
       },
     };
+
     const fake = scripted(() => rowsOf([], 1));
+
     const db = defineSupabase(schema, { logger })
       .use(plugin)
       .connect(fake.executor);
+
     expect(
       await db.customers.deleteMany({ where: { status: "lead" } }),
     ).toEqual(ok({ count: 1 }));
@@ -1301,17 +1379,20 @@ describe("plugins and options", () => {
 
   it("reports upserts as upsert mutations and passes call options to hooks", async () => {
     const seen: unknown[] = [];
+
     const plugin: AnyPlugin = {
       apiVersion: 1,
       name: "spy",
       transformQuery: (op, args) => {
         seen.push(args.options);
+
         return op;
       },
       afterMutation: (event) => {
         seen.push(event.kind);
       },
     };
+
     const fake = scripted(() => rowsOf([{ id: "c1" }]));
     const betterSupabase = defineSupabase(schema).use(plugin);
     const kinds: string[] = [];
@@ -1362,15 +1443,18 @@ describe("write bounds and request options", () => {
     "rejects maxAffected %j before the executor",
     async (maxAffected) => {
       const { db, ops } = connect();
+
       const updated = await db.customers.updateMany({
         where: { status: "lead" },
         data: { status: "active" },
         maxAffected: maxAffected as number,
       });
+
       const deleted = await db.customers.deleteMany({
         where: { status: "lead" },
         maxAffected: maxAffected as number,
       });
+
       for (const result of [updated, deleted]) {
         expect(result.error).toMatchObject({
           kind: "invalid_request",
@@ -1378,16 +1462,19 @@ describe("write bounds and request options", () => {
           table: "customers",
         });
       }
+
       expect(ops).toHaveLength(0);
     },
   );
 
   it("sets defaultToNull and count on createMany and upsertMany", async () => {
     const { db, op } = connect(() => rowsOf([], 2));
+
     const rows = [
       { organizationId: "o", name: "a" },
       { organizationId: "o", name: "b" },
     ];
+
     await db.tags.createMany(rows);
     await db.tags.createMany(rows, {
       defaultToNull: true,
@@ -1442,16 +1529,20 @@ describe("write bounds and request options", () => {
           });
         }),
     };
+
     const betterSupabase = defineSupabase(schema);
+
     const byConnection = await betterSupabase
       .connect(slow, {}, { timeout: 5 })
       .tags.findMany();
+
     expect(byConnection.error).toMatchObject({
       kind: "timeout",
       status: 504,
       message: "The request timed out after 5 ms",
       table: "tags",
     });
+
     const byCall = await betterSupabase
       .connect(slow, {}, { timeout: 60_000 })
       .tags.updateMany({
@@ -1459,6 +1550,7 @@ describe("write bounds and request options", () => {
         data: { name: "b" },
         timeout: 5,
       });
+
     expect(byCall.error).toMatchObject({
       kind: "timeout",
       message: "The request timed out after 5 ms",
@@ -1477,38 +1569,47 @@ describe("write bounds and request options", () => {
 
   it("applies timeout and retry to $rpc", async () => {
     const contexts: ExecuteContext[] = [];
+
     const executor: Executor = {
       name: "rpc",
       execute: () => Promise.resolve(rowsOf([])),
       rpc: (_name, _args, context) => {
         contexts.push(context);
+
         return new Promise((resolve) => {
           if (!context.signal) {
             resolve(ok(1));
+
             return;
           }
+
           context.signal.addEventListener("abort", () => {
             resolve(err(dbError("aborted", "aborted")));
           });
         });
       },
     };
+
     const betterSupabase = defineSupabase(schema);
     const db = betterSupabase.connect(executor, {}, { retry: false });
     expect(await db.$rpc("rs_workspace_summary", { p: null })).toEqual(ok(1));
     expect(contexts[0]?.retry).toBe(false);
+
     const timedOut = await db.$rpc(
       "rs_workspace_summary",
       { p: null },
       { timeout: 5, retry: true },
     );
+
     expect(timedOut.error).toMatchObject({ kind: "timeout" });
     expect(contexts[1]?.retry).toBe(true);
+
     const invalid = await db.$rpc(
       "rs_workspace_summary",
       { p: null },
       { timeout: -1 },
     );
+
     expect(invalid.error).toMatchObject({ kind: "invalid_request" });
     expect(contexts).toHaveLength(2);
   });

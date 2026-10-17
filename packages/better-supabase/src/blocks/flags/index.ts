@@ -23,6 +23,7 @@ export {
   type FlagValue,
   type RequestFlagContext,
 } from "./flags.ts";
+
 export {
   createFlags,
   type FlagInput,
@@ -31,12 +32,17 @@ export {
   type Flags,
   type FlagsOptions,
 } from "./admin.ts";
+
 export {
   dbTransport,
   rpcTransport,
   sqlTransport,
 } from "../../core/block-transport.ts";
+
 export type { BlockTransport } from "../../core/block-transport.ts";
+
 export { flagsBlock } from "./manifest.ts";
+
 export { flagsEvents } from "./events.ts";
+
 export type { FlagsEvents } from "./events.ts";

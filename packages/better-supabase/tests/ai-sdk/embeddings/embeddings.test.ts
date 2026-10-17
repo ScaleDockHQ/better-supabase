@@ -41,6 +41,7 @@ function fakeKnowledge(hits: readonly KnowledgeHit[] | "fail") {
       hits === "fail" ? err(dbError("forbidden", "nope")) : ok(hits),
     ),
   );
+
   // SAFETY: the tool calls only `search`.
   return { knowledge: { search } as unknown as Knowledge, search };
 }
@@ -56,6 +57,7 @@ describe("embedWith", () => {
         warnings: [],
       }),
     });
+
     const embedder = embedWith(model, { providerOptions: { openai: {} } });
     expect(embedder.model).toBe("openai/text-embedding-3-small");
     const signal = new AbortController().signal;
@@ -82,10 +84,13 @@ describe("rerankWith", () => {
         ],
       }),
     });
+
     const hits = [hit("a", 0), hit("b", 0), hit("c", 0)];
+
     const reranked = await rerankWith(model, { topN: 3 })("q", hits, {
       signal: new AbortController().signal,
     });
+
     expect(reranked.map((item) => [item.documentId, item.score])).toEqual([
       ["c", 0.9],
       ["a", 0.4],
@@ -117,19 +122,24 @@ describe("searchTool", () => {
 
   it("reranks the hits and surfaces a search error", async () => {
     const { knowledge } = fakeKnowledge([hit("a", 0), hit("b", 0)]);
+
     const reverse = vi.fn(
       async (_query: string, hits: readonly KnowledgeHit[]) =>
         hits.toReversed(),
     );
+
     const reranked = searchTool(knowledge, "org", {
       rerank: reverse,
       description: "Search the handbook",
     });
+
     expect(reranked.description).toBe("Search the handbook");
+
     const output = await reranked.execute?.(
       { query: "q" },
       { toolCallId: "c2", messages: [], context: {} },
     );
+
     expect(output).toMatchObject({
       results: [{ id: "b#0" }, { id: "a#0" }],
     });
@@ -149,17 +159,21 @@ describe("searchTool", () => {
   it("drops the hits the results filter removes before rerank and onHits", async () => {
     const { knowledge } = fakeKnowledge([hit("a", 0), hit("secret", 0)]);
     const onHits = vi.fn();
+
     const rerank = vi.fn(
       async (_query: string, hits: readonly KnowledgeHit[]) => hits,
     );
+
     const results = vi.fn(async (hits: readonly KnowledgeHit[]) =>
       hits.filter((item) => item.documentId !== "secret"),
     );
+
     const output = await searchTool(knowledge, "org", {
       results,
       rerank,
       onHits,
     }).execute?.({ query: "q" }, call);
+
     expect(output).toEqual({
       results: [{ id: "a#0", title: "Doc a", content: "a chunk 0" }],
     });

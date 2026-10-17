@@ -145,7 +145,9 @@ export const PRESET_FIELDS: readonly PresetField<PresetFieldKey>[] = [
 ];
 
 export type PresetPlatforms = PresetConventions["platforms"];
+
 export type PresetScope = PresetConventions["scope"];
+
 export type PresetAccess = PresetConventions["access"];
 
 /** A block selection and its conventions: what a preset code encodes. */

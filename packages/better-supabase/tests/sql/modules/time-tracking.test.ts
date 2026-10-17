@@ -49,6 +49,7 @@ describe("time-tracking module", () => {
         },
       }),
     ).toContain(`at time zone 'Europe/Amsterdam'`);
+
     for (const timeZone of ["", "Mars/Olympus", 3]) {
       expect(() =>
         sqlOf(BASE, {
@@ -60,6 +61,7 @@ describe("time-tracking module", () => {
 
   it("files timesheets under options.policy", () => {
     expect(sqlOf(BASE)).toContain(`"permission":"time_tracking.approve"`);
+
     const custom = sqlOf(BASE, {
       modules: {
         "time-tracking": {
@@ -69,6 +71,7 @@ describe("time-tracking module", () => {
         },
       },
     });
+
     expect(custom).toContain(`"role":"manager"`);
     expect(() =>
       sqlOf(BASE, {
@@ -122,6 +125,7 @@ describe("time-tracking module", () => {
         },
       },
     });
+
     expect(sql).not.toMatch(/create table if not exists "app"/);
     expect(sql).not.toContain("btree_gist");
     expect(sql).toContain(`"app"."hours"`);

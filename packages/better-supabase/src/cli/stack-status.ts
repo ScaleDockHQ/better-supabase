@@ -13,8 +13,13 @@ export type StackStatusResult =
 /** Parses the JSON object `supabase status` prints after any progress lines. */
 export function parseStackStatus(stdout: string): StackStatus | undefined {
   const start = stdout.indexOf("{");
-  if (start === -1) return undefined;
+
+  if (start === -1) {
+    return undefined;
+  }
+
   const parsed: unknown = JSON.parse(stdout.slice(start));
+
   return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
     ? { ...parsed }
     : undefined;
@@ -30,16 +35,28 @@ export async function readStackStatus(
   env: CliEnv,
 ): Promise<StackStatusResult> {
   let result = await supabaseCli(["status", "-o", "json"], root, env);
+
   if (result.code !== 0) {
     const engine = await supabaseCli(
       ["status", "--env", "--output-format", "json"],
       root,
       env,
     );
-    if (engine.code === 0) result = engine;
+
+    if (engine.code === 0) {
+      result = engine;
+    }
   }
-  if (result.code !== 0) return { ok: false, code: result.code };
+
+  if (result.code !== 0) {
+    return { ok: false, code: result.code };
+  }
+
   const status = parseStackStatus(result.stdout);
-  if (!status) throw new Error("supabase status printed no JSON.");
+
+  if (!status) {
+    throw new Error("supabase status printed no JSON.");
+  }
+
   return { ok: true, status };
 }

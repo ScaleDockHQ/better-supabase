@@ -39,6 +39,7 @@ describe.skipIf(!live)("inventory module in Postgres", () => {
       "select on_hand, reserved, incoming, available from better_supabase.stock_levels where variant_id = $1 and location_id = $2",
       [variant, location],
     );
+
     return row ?? { on_hand: 0, reserved: 0, incoming: 0, available: 0 };
   };
 
@@ -47,10 +48,12 @@ describe.skipIf(!live)("inventory module in Postgres", () => {
       "better_supabase.save_product($1, null, $2, null, null, 'physical')",
       [tenant, sku],
     );
+
     const saved = await call<{ id: string }>(
       "better_supabase.save_variant($1, null, $2, '{}'::uuid[], null, null, null, true, $3)",
       [product.id, sku, backorder],
     );
+
     return saved.id;
   };
 
@@ -91,10 +94,12 @@ describe.skipIf(!live)("inventory module in Postgres", () => {
 
   it("keeps levels from the ledger and refuses to go below zero", async () => {
     await session.as(owner);
+
     const added = await call<{ onHand: number; available: number }>(
       "better_supabase.adjust_stock($1, $2, 10, 'receipt', 'first delivery')",
       [tee, warehouse],
     );
+
     expect(added).toMatchObject({ onHand: 10, available: 10 });
     await call("better_supabase.adjust_stock($1, $2, -2, 'damage', null)", [
       tee,
@@ -140,24 +145,30 @@ describe.skipIf(!live)("inventory module in Postgres", () => {
 
   it("sets on-hand from a count and writes the difference", async () => {
     await session.as(owner);
+
     const counted = await call<{ delta: number; onHand: number }>(
       "better_supabase.count_stock($1, $2, 5, 'cycle count')",
       [tee, warehouse],
     );
+
     expect(counted).toMatchObject({ delta: -3, onHand: 5 });
+
     const unchanged = await call<{ delta: number; movementId: string | null }>(
       "better_supabase.count_stock($1, $2, 5, null)",
       [tee, warehouse],
     );
+
     expect(unchanged).toEqual({ delta: 0, movementId: null, onHand: 5 });
   });
 
   it("reserves, commits and releases stock", async () => {
     await session.as(owner);
+
     const held = await call<{ id: string; available: number }>(
       "better_supabase.reserve_stock($1, $2, 2, 'cart', 'c1', null)",
       [tee, warehouse],
     );
+
     expect(held.available).toBe(3);
     expect(
       await session.hint(
@@ -165,10 +176,12 @@ describe.skipIf(!live)("inventory module in Postgres", () => {
         [tee, warehouse],
       ),
     ).toBe("INVENTORY_INSUFFICIENT");
+
     const committed = await call<{ movementId: string }>(
       "better_supabase.commit_reservation($1)",
       [held.id],
     );
+
     expect(committed.movementId).toBeTruthy();
     expect(await level(tee, warehouse)).toMatchObject({
       on_hand: 3,
@@ -178,10 +191,12 @@ describe.skipIf(!live)("inventory module in Postgres", () => {
     expect(
       await session.hint("better_supabase.commit_reservation($1)", [held.id]),
     ).toBe("INVENTORY_RESERVATION_CLOSED");
+
     const second = await call<{ id: string }>(
       "better_supabase.reserve_stock($1, $2, 1, 'cart', 'c3', null)",
       [tee, warehouse],
     );
+
     expect(
       await call<boolean>("better_supabase.release_reservation($1)", [
         second.id,
@@ -197,20 +212,24 @@ describe.skipIf(!live)("inventory module in Postgres", () => {
 
   it("expires reservations from the service job and lazily on the next reserve", async () => {
     await session.as(owner);
+
     const first = await call<{ id: string }>(
       "better_supabase.reserve_stock($1, $2, 3, 'cart', 'c4', null)",
       [tee, warehouse],
     );
+
     await session.service();
     await session.rows(
       "update better_supabase.stock_reservations set expires_at = now() - interval '1 second' where id = $1",
       [first.id],
     );
     await session.as(owner);
+
     const next = await call<{ id: string; available: number }>(
       "better_supabase.reserve_stock($1, $2, 3, 'cart', 'c5', null)",
       [tee, warehouse],
     );
+
     expect(next.available).toBe(0);
     await session.service();
     await session.rows(
@@ -261,6 +280,7 @@ describe.skipIf(!live)("inventory module in Postgres", () => {
 
   it("moves stock between locations with a transfer", async () => {
     await session.as(owner);
+
     const transfer = await call<{ id: string; status: string }>(
       "better_supabase.create_transfer($1, $2, $3, $4::jsonb, null)",
       [
@@ -270,6 +290,7 @@ describe.skipIf(!live)("inventory module in Postgres", () => {
         JSON.stringify([{ variantId: mug, quantity: 2 }]),
       ],
     );
+
     expect(transfer.status).toBe("draft");
     expect(
       await session.hint(
@@ -305,6 +326,7 @@ describe.skipIf(!live)("inventory module in Postgres", () => {
         JSON.stringify([{ variantId: mug, quantity: 1 }]),
       ],
     );
+
     await call("better_supabase.ship_transfer($1)", [back.id]);
     await call("better_supabase.cancel_transfer($1)", [back.id]);
     expect(await level(mug, store)).toMatchObject({ on_hand: 2 });
@@ -312,14 +334,17 @@ describe.skipIf(!live)("inventory module in Postgres", () => {
 
   it("receives a purchase order in parts and keeps the rest on backorder", async () => {
     await session.as(owner);
+
     const lines = JSON.stringify([
       { variantId: tee, quantity: 10, unitCost: "450" },
       { variantId: mug, quantity: 4, unitCost: "300" },
     ]);
+
     const order = await call<{ id: string }>(
       "better_supabase.save_purchase_order($1, null, $2, 'company', 'acme-supplies', 'EUR', null, $3::jsonb, null)",
       [tenant, warehouse, lines],
     );
+
     expect(
       await session.hint(
         "better_supabase.save_purchase_order($1, null, $2, 'company', null, 'EUR', null, $3::jsonb, null)",
@@ -345,10 +370,12 @@ describe.skipIf(!live)("inventory module in Postgres", () => {
       "select id from better_supabase.purchase_order_lines where purchase_order_id = $1 order by quantity_ordered desc",
       [order.id],
     );
+
     const partial = await call<{ status: string; backordered: number }>(
       "better_supabase.receive_purchase_order($1, $2::jsonb)",
       [order.id, JSON.stringify([{ lineId: teeLine!.id, quantity: 6 }])],
     );
+
     expect(partial).toEqual({ status: "partially_received", backordered: 8 });
     expect(await level(tee, warehouse)).toMatchObject({
       on_hand: 9,
@@ -360,6 +387,7 @@ describe.skipIf(!live)("inventory module in Postgres", () => {
         [order.id, JSON.stringify([{ lineId: teeLine!.id, quantity: 5 }])],
       ),
     ).toBe("INVENTORY_OVER_RECEIPT");
+
     const done = await call<{ status: string; backordered: number }>(
       "better_supabase.receive_purchase_order($1, $2::jsonb)",
       [
@@ -370,6 +398,7 @@ describe.skipIf(!live)("inventory module in Postgres", () => {
         ]),
       ],
     );
+
     expect(done).toEqual({ status: "received", backordered: 0 });
     expect(
       await session.hint("better_supabase.cancel_purchase_order($1)", [
@@ -385,6 +414,7 @@ describe.skipIf(!live)("inventory module in Postgres", () => {
         JSON.stringify([{ variantId: tee, quantity: 5, unitCost: "450" }]),
       ],
     );
+
     await call("better_supabase.place_purchase_order($1)", [cancelled.id]);
     expect(await level(tee, store)).toMatchObject({ incoming: 5 });
     await call("better_supabase.cancel_purchase_order($1)", [cancelled.id]);
@@ -407,15 +437,19 @@ describe.skipIf(!live)("inventory module in Postgres", () => {
   it("drives the TypeScript block against the SQL", async () => {
     await session.as(owner);
     const inventory = createInventory({ transport: sqlTransport(session.sql) });
+
     const shelf = await inventory
       .saveLocation(tenant, { code: "SHELF", name: "Shelf", kind: "store" })
       .orThrow();
+
     expect(
       await inventory.adjustStock(mug, shelf.id, 4, "receipt").orThrow(),
     ).toMatchObject({ onHand: 4, available: 4 });
+
     const held = await inventory
       .reserve(mug, shelf.id, { quantity: 3, referenceType: "cart" })
       .orThrow();
+
     expect(held.available).toBe(1);
     expect(held.expiresAt).toBeInstanceOf(Temporal.Instant);
     expect(

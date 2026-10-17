@@ -81,7 +81,10 @@ const NAMES: ModuleNames = {
 };
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
   const id = ctx.idType;
   const e = ctx.table("exports");
   const d = ctx.table("deletions");
@@ -89,8 +92,10 @@ function build(ctx: ModuleContext): string {
   const cd = (logical: string): string => ctx.col("deletions", logical);
   const fn = (name: string): string => ctx.fn(name);
   const permissions = moduleOperations("data-lifecycle");
+
   const can = (tenant: string, action: keyof typeof permissions): string =>
     ctx.can("tenant", tenant, ctx.permission(action, permissions[action]));
+
   const bucket = sqlString(bucketOf(ctx));
   const grace = ctx.text("grace", "30 days");
   const exportTtl = ctx.text("exportTtl", "7 days");
@@ -98,25 +103,32 @@ function build(ctx: ModuleContext): string {
   const m = tenant.table("memberships");
   const mTenant = tenant.col("memberships", "tenant");
   const mUser = tenant.col("memberships", "user");
+
   const ownerRole = sqlString(
     ctx.installed("organizations")
       ? ctx.of("organizations").text("ownerRole", "owner")
       : "owner",
   );
+
   const disable = disabling(ctx);
   const list = entries(ctx);
+
   const values = list
     .map(
       (entry) =>
         `(${sqlString(entry.subject)}, ${sqlString(entry.name)}, ${sqlString(entry.table)}, ${sqlString(entry.column)}, ${String(entry.purge)}, ${entry.omit.length === 0 ? "'{}'::text[]" : `array[${entry.omit.map(sqlString).join(", ")}]::text[]`}, ${String(entry.export)})`,
     )
     .join(",\n    ");
+
   const auto = autoTablesOf(ctx);
+
   const explicitBody =
     list.length === 0
       ? "select null::text, null::text, null::text, null::text, null::boolean, null::text[], null::boolean where false"
       : `select * from (values\n    ${values}\n  ) as t(subject, name, tbl, col, purge, omit, exported)`;
+
   const autoBody = auto ? autoTablesSql(auto, list) : "";
+
   const tablesBody = autoBody
     ? `${explicitBody}\n  union all${autoBody}`
     : explicitBody;
@@ -138,6 +150,7 @@ function build(ctx: ModuleContext): string {
         recordId: `v_row.${ce("id")}::text`,
       },
     });
+
   // The tenant is gone once the purge ends, so the event carries no tenant
   // partition; organizationId stays in the payload.
   const purgedEvent = ctx.record({
@@ -152,6 +165,7 @@ function build(ctx: ModuleContext): string {
       recordId: `v_row.${cd("tenant")}::text`,
     },
   });
+
   const deletionEvent = (type: string, actor: string): string =>
     ctx.record({
       type,
@@ -169,12 +183,15 @@ function build(ctx: ModuleContext): string {
     ? `select ${disable.column} is not null into v_disabled from ${disable.table} where ${disable.key} = request_organization_deletion.tenant;
   update ${disable.table} set ${disable.column} = coalesce(${disable.column}, now()) where ${disable.key} = request_organization_deletion.tenant;`
     : "v_disabled := false;";
+
   const enableSql = disable
     ? `if not v_row.${cd("previouslyDisabled")} then
     update ${disable.table} set ${disable.column} = null where ${disable.key} = cancel_organization_deletion.tenant;
   end if;`
     : "";
+
   const tenantRow = tenantRowOf(ctx);
+
   // The tenant row goes last, after every table that references it.
   const organizationRow = tenantRow
     ? `begin
@@ -184,6 +201,7 @@ function build(ctx: ModuleContext): string {
       using errcode = '23503', hint = 'ORGANIZATION_PURGE_BLOCKED';
   end;`
     : "";
+
   const skipTables = [
     `to_regclass(t.tbl) <> to_regclass(${sqlString(d)})`,
     ...(tenantRow
@@ -192,14 +210,18 @@ function build(ctx: ModuleContext): string {
         ]
       : []),
   ].join(" and ");
+
   const platformKey = ctx.permissionKey("deletePlatform", "");
+
   const platform =
     platformKey === ""
       ? ""
       : `\n    and not coalesce(${ctx.scope.platform(sqlString(platformKey))}, false)`;
+
   // An access module in custom mode may lack member_can_while_deleting; the
   // tenant module then resolves the owner's role name instead.
   const cancelKey = ctx.permission("cancelDelete", permissions.cancelDelete);
+
   const allowed =
     ctx.of("access").mode === "custom"
       ? `coalesce(${ctx.of("tenant").fn("organization_member_role")}(cancel_organization_deletion.tenant, auth.uid()) = ${ownerRole}, false)`
@@ -469,7 +491,7 @@ begin
   if v_row.${ce("id")} is null then
     return null;
   end if;
-  ${exportEvent("data_export.failed", ", 'error', v_row." + ce("error"), true)}
+  ${exportEvent("data_export.failed", `, 'error', v_row.${ce("error")}`, true)}
   return to_jsonb(v_row);
 end;
 $$;
@@ -713,8 +735,12 @@ grant execute on function ${fn("purge_organization")}(${id}) to service_role;`;
 }
 
 function data(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
   const bucket = sqlString(bucketOf(ctx));
+
   return `insert into storage.buckets (id, name, public)
 values (${bucket}, ${bucket}, false)
 on conflict (id) do nothing;`;

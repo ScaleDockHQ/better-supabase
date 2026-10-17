@@ -33,9 +33,11 @@ export function ConnectedAgentsCard({
   const format = useFormatter();
   const supabase = useSupabase();
   const changeSession = useSessionChange(sessionChanged);
+
   const [grants, setGrants] = useState<readonly Grant[]>(
     initial.ok ? initial.value : [],
   );
+
   const error = initial.ok ? null : initial.error;
   const [pending, startTransition] = useTransition();
 
@@ -44,10 +46,13 @@ export function ConnectedAgentsCard({
       const { error: revokeError } = await supabase.auth.oauth.revokeGrant({
         clientId: grant.client.id,
       });
+
       if (revokeError) {
         toast.error(revokeError.message);
+
         return;
       }
+
       setGrants((current) =>
         current.filter((item) => item.client.id !== grant.client.id),
       );
@@ -70,9 +75,9 @@ export function ConnectedAgentsCard({
       </CardHeader>
       <CardContent>
         {error ? (
-          <p className="text-destructive text-sm">{error}</p>
+          <p className="text-sm text-destructive">{error}</p>
         ) : grants.length === 0 ? (
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             {t("No agents are connected.")}
           </p>
         ) : (
@@ -84,7 +89,7 @@ export function ConnectedAgentsCard({
               >
                 <div className="min-w-0 text-sm">
                   <p className="truncate font-medium">{grant.client.name}</p>
-                  <p className="text-muted-foreground truncate">
+                  <p className="truncate text-muted-foreground">
                     {t("Connected {date}", {
                       date: format.dateTime(new Date(grant.granted_at), {
                         dateStyle: "medium",

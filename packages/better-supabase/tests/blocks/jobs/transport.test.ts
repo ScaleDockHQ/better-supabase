@@ -25,11 +25,13 @@ function fakeTransport(answers: Readonly<Record<string, unknown>>): {
   calls: Call[];
 } {
   const calls: Call[] = [];
+
   return {
     calls,
     transport: {
       call: (schema, fn, args) => {
         calls.push({ schema, fn, args });
+
         return Promise.resolve(answers[fn] ?? null);
       },
     },
@@ -41,7 +43,9 @@ function wrapperArgs(module: string): Map<string, readonly string[]> {
   const [file] = renderModules([module], {
     modules: { [module]: { api: "api" } },
   });
+
   const args = new Map<string, readonly string[]>();
+
   for (const match of file!.contents.matchAll(
     /create or replace function "api"\."(\w+)"\(([^)]*(?:\([^)]*\)[^)]*)*)\)/g,
   )) {
@@ -53,18 +57,21 @@ function wrapperArgs(module: string): Map<string, readonly string[]> {
         .filter(Boolean),
     );
   }
+
   return args;
 }
 
 function expectWrapped(module: string, calls: readonly Call[]): void {
   const wrappers = wrapperArgs(module);
   expect(wrappers.size).toBeGreaterThan(3);
+
   for (const call of calls) {
     const declared = wrappers.get(call.fn);
     expect({ fn: call.fn, wrapped: declared !== undefined }).toEqual({
       fn: call.fn,
       wrapped: true,
     });
+
     for (const name of Object.keys(call.args)) {
       expect({
         fn: call.fn,
@@ -143,12 +150,14 @@ describe("transportQueueBackend", () => {
       ],
       advance_schedule: true,
     });
+
     const backend = transportQueueBackend(transport, { schema: "api" });
     expect(
       await backend.send("emails", { to: "x" }, 0, 3, "k", "waiting"),
     ).toBe(7);
     const [row] = await backend.read("emails", 30, 1);
     expect(row?.id).toBe(7);
+
     const job = {
       id: 7,
       queue: "emails",
@@ -160,6 +169,7 @@ describe("transportQueueBackend", () => {
       visibleUntil: Temporal.Instant.from("2026-01-01T00:05:00Z"),
       lastError: null,
     };
+
     expect(await backend.complete(job)).toBe(true);
     expect(await backend.fail(job, "boom", 5)).toBe("dead");
     expect(await backend.extend(job, 60)).toBe(true);
@@ -222,6 +232,7 @@ describe("transportQueueBackend", () => {
       },
       list_dead_jobs: [],
     });
+
     const jobs = createJobs({ transport, queues: { emails: v.object({}) } });
     expect((await jobs.stats(["emails"]).orThrow()).emails.dead).toBe(1);
     expect(await jobs.listDead("emails").orThrow()).toEqual([]);
@@ -252,11 +263,13 @@ describe("idempotency and leases over a transport", () => {
       complete_idempotent: true,
       release_idempotent: true,
     });
+
     const idempotency = createIdempotency({
       transport,
       schema: "api",
       ttl: 60,
     });
+
     const response = await idempotency.handle(
       new Request("https://api.test/orders", {
         method: "POST",
@@ -265,6 +278,7 @@ describe("idempotency and leases over a transport", () => {
       }),
       () => Response.json({ ok: true }, { status: 201 }),
     );
+
     expect(response.status).toBe(201);
     expect(await idempotency.release("k-1", "h-1").orThrow()).toBe(true);
     expect(calls.map((call) => call.fn)).toEqual([
@@ -288,15 +302,18 @@ describe("idempotency and leases over a transport", () => {
       extend_lease: true,
       release_lease: true,
     });
+
     const outcome = await withLease(
       transport,
       "nightly",
       async (lease) => {
         expect(await lease.extend(120).orThrow()).toBe(true);
+
         return lease.holder;
       },
       { scope: "acme" },
     ).orThrow();
+
     expect(outcome).toEqual({ acquired: true, value: "holder-1" });
     expect(calls.map((call) => call.fn)).toEqual([
       "acquire_lease",
@@ -323,6 +340,7 @@ describe("purge", () => {
 
   it("purges every declared queue's archive by name", async () => {
     const { transport, calls } = fakeTransport({ purge_job_archive: 2 });
+
     const jobs = createJobs({
       transport,
       queues: {
@@ -330,6 +348,7 @@ describe("purge", () => {
         reports: v.object({}),
       },
     });
+
     expect(
       await jobs
         .purge({ olderThan: 3600, deadOlderThan: "90 days", batch: 5 })
@@ -358,10 +377,12 @@ describe("purge", () => {
 
   it("purges the archive over SQL with only the options given", async () => {
     const fake = fakeSql([["purge_job_archive", [{ purged: 3 }]]]);
+
     const jobs = createJobs({
       sql: fake.sql,
       queues: { emails: v.object({}) },
     });
+
     expect(await jobs.purge({ batch: 10 }).orThrow()).toBe(3);
     expect(fake.calls).toEqual([
       {
@@ -377,6 +398,7 @@ describe("purge", () => {
       purge_rate_limits: "6",
       purge_webhooks: 1,
     });
+
     expect(
       await createIdempotency({ transport, schema: "api" }).purge().orThrow(),
     ).toBe(4);
@@ -415,6 +437,7 @@ describe("purge", () => {
       ["purge_idempotency_keys", [{ purged: 2 }]],
       ["purge_rate_limits", [{ value: 7 }]],
     ]);
+
     expect(await createIdempotency({ sql: fake.sql }).purge().orThrow()).toBe(
       2,
     );

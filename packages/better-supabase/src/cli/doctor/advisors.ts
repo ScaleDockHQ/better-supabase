@@ -13,8 +13,10 @@ import { type TomlTable, tomlGet } from "../supabase-toml.ts";
  * downloaded at this commit and checked against the hash instead of bundled.
  */
 const SPLINTER_COMMIT = "e74a9e36cb12258cb67d1464bc1cb196e9cd8446";
+
 const SPLINTER_SHA256 =
   "d8d558baad3e03832e521c527907fa50a9a172fabd899dd0f5c2504a5a0e9349";
+
 const SPLINTER_URL: string = `https://raw.githubusercontent.com/supabase/splinter/${SPLINTER_COMMIT}/splinter.sql`;
 const REQUEST_TIMEOUT_MS = 30_000;
 
@@ -45,6 +47,7 @@ type Fetch = typeof fetch;
 function isLint(value: unknown): value is Lint {
   // SAFETY: every field is checked below before value counts as a Lint.
   const lint = value as Partial<Lint> | null;
+
   return (
     typeof lint === "object" &&
     lint !== null &&
@@ -69,28 +72,36 @@ export function managementAdvisors(
     /\/$/,
     "",
   );
+
   const doFetch = options.fetch ?? fetch;
+
   return {
     describe: `project ${options.projectRef} advisors (Management API)`,
     async lints(category) {
       const url = `${base}/v1/projects/${encodeURIComponent(options.projectRef)}/advisors/${category}`;
+
       const response = await doFetch(url, {
         headers: { authorization: `Bearer ${options.accessToken}` },
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
+
       const text = await response.text();
+
       if (!response.ok) {
         throw new Error(
           `Management API ${category} advisors failed (${response.status}): ${text.slice(0, 300)}`,
         );
       }
+
       // SAFETY: JSON.parse returns any, and lints is checked below.
       const body = JSON.parse(text) as { lints?: unknown };
+
       if (!Array.isArray(body.lints)) {
         throw new TypeError(
           `Management API ${category} advisors returned no "lints".`,
         );
       }
+
       return body.lints.filter(isLint);
     },
   };
@@ -111,7 +122,11 @@ export interface SplinterOptions {
 /** The `[api] schemas` list of a `config.toml`, when it names any. */
 export function apiSchemas(document: TomlTable | undefined): string[] {
   const value = document ? tomlGet(document, ["api", "schemas"]) : undefined;
-  if (!Array.isArray(value)) return [];
+
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
   return value.filter(
     (schema): schema is string =>
       typeof schema === "string" && schema.trim() !== "",
@@ -129,6 +144,7 @@ export function splinterScript(
     schemas.length > 0
       ? `set local pgrst.db_schemas = ${literal(schemas.join(","))};\n`
       : "";
+
   return `begin read only;\n${settings}${sql}\n;\nrollback;`;
 }
 
@@ -138,26 +154,36 @@ const sha256 = (text: string): string =>
 /** Downloads (once) and verifies the pinned `splinter.sql`. */
 async function splinterSql(options: SplinterOptions): Promise<string> {
   const file = resolve(options.cacheDir, `splinter-${SPLINTER_COMMIT}.sql`);
+
   if (existsSync(file)) {
-    const cached = await readFile(file, "utf8");
-    if (sha256(cached) === SPLINTER_SHA256) return cached;
+    const cached = await readFile(file, "utf-8");
+
+    if (sha256(cached) === SPLINTER_SHA256) {
+      return cached;
+    }
   }
+
   const response = await (options.fetch ?? fetch)(SPLINTER_URL, {
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
+
   if (!response.ok) {
     throw new Error(
       `Downloading splinter.sql failed (${response.status}) from ${SPLINTER_URL}`,
     );
   }
+
   const text = await response.text();
+
   if (sha256(text) !== SPLINTER_SHA256) {
     throw new Error(
       `splinter.sql from ${SPLINTER_URL} does not match the pinned hash; refusing to run it.`,
     );
   }
+
   await mkdir(dirname(file), { recursive: true });
   await writeFile(file, text);
+
   return text;
 }
 
@@ -172,9 +198,11 @@ function lintRows(result: unknown): readonly unknown[] {
   const results = (
     Array.isArray(result) ? result : [result]
   ) as QueryResultLike[];
+
   const match = results.find((entry) =>
     entry.fields?.some((field) => field.name === "cache_key"),
   );
+
   return match?.rows ?? results.at(-1)?.rows ?? [];
 }
 
@@ -188,18 +216,23 @@ export function splinterAdvisors(
   options: SplinterOptions,
 ): AdvisorSource {
   let all: Promise<readonly Lint[]> | undefined;
+
   const run = async (): Promise<readonly Lint[]> => {
     const sql = await splinterSql(options);
+
     const result: unknown = await queryable.query(
       splinterScript(sql, options.schemas),
     );
+
     return lintRows(result).filter(isLint);
   };
+
   return {
     describe: `${describe} (splinter ${SPLINTER_COMMIT.slice(0, 7)})`,
     async lints(category) {
       all ??= run();
       const wanted = category.toUpperCase();
+
       return (await all).filter((lint) => lint.categories.includes(wanted));
     },
   };

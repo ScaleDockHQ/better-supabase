@@ -29,8 +29,11 @@ import { createServer, extendServer } from "../server/server.ts";
 import { compileRoutes, matchRoute, type RouteMatch } from "./routes.ts";
 
 export type { GuardOptions, MiddlewareOptions } from "../server/respond.ts";
+
 export { toEdge } from "../bridges/edge.ts";
+
 export type { EdgeExecutionContext, EdgeHandler } from "../bridges/edge.ts";
+
 export type {
   ActionArgs,
   ResourceAction,
@@ -38,10 +41,15 @@ export type {
   ResourceHooks,
   ResourceRouteOptions,
 } from "../server/resource-types.ts";
+
 export { defineAction } from "../server/resource-execute.ts";
+
 export type { ResourceMap } from "../server/resources.ts";
+
 export type { BlockRequireOptions } from "../server/kit.ts";
+
 export { defineFunction } from "./function.ts";
+
 export type {
   ContractOf,
   FunctionContract,
@@ -223,12 +231,14 @@ export function createEdge<
 ): BetterEdge<M, F, E, C, P, PermissionRef<A>> {
   const server = createServer(betterSupabase, options);
   const expose = options.exposeErrors ?? defaultExpose();
+
   const cors: CorsOptions | undefined =
     options.cors === true
       ? {}
       : options.cors === false
         ? undefined
         : options.cors;
+
   const withCorsConfig = cors ? corsConfig(cors) : undefined;
 
   const serve = (
@@ -245,6 +255,7 @@ export function createEdge<
       [withBetterSupabase(server, { ...handlerOptions, expose })],
       async (request, ctx) => {
         const instance = new URL(request.url).pathname;
+
         try {
           return await respond(() => run(request, ctx.bs, ctx.tenant), {
             instance,
@@ -255,10 +266,12 @@ export function createEdge<
         }
       },
     );
+
     const routed: EdgeHandler = (request, env, executionContext) =>
       Promise.resolve(
         early?.(request) ?? authorized(request, env, executionContext),
       );
+
     const answer: EdgeHandler = withCorsConfig
       ? toEdge(
           [withCors(withCorsConfig)],
@@ -266,13 +279,13 @@ export function createEdge<
             routed(request, env, executionContext),
         )
       : routed;
-    return async (request, env, executionContext) => {
-      return withFlush(
+
+    return async (request, env, executionContext) =>
+      withFlush(
         server,
         options.waitUntil ?? executionContext?.waitUntil.bind(executionContext),
         () => answer(request, env, executionContext),
       );
-    };
   };
 
   return extendServer<BetterEdge<M, F, E, C, P, PermissionRef<A>>>(server, {
@@ -284,23 +297,28 @@ export function createEdge<
       const base = (routesOptions.basePath ?? "").replace(/\/$/, "");
       const compiled = compileRoutes<M, F, E, C, P>(routes);
       const { allow, aal, scopes, ...middlewareOptions } = routesOptions;
+
       const shared = {
         ...(allow === undefined ? {} : { allow }),
         ...(aal === undefined ? {} : { aal }),
         ...(scopes === undefined ? {} : { scopes }),
       };
+
       const find = (request: Request): RouteMatch<M, F, E, C, P> | Response => {
         const { pathname } = new URL(request.url);
+
         const path =
           base === ""
             ? pathname
             : pathname === base || pathname.startsWith(`${base}/`)
               ? pathname.slice(base.length) || "/"
               : undefined;
+
         const found =
           path === undefined
             ? undefined
             : matchRoute(compiled, request.method, path);
+
         if (found === undefined || found === "none") {
           return problemResponse(
             dbError("not_found", `No route for ${pathname}`),
@@ -309,6 +327,7 @@ export function createEdge<
             },
           );
         }
+
         if (!("route" in found)) {
           return Response.json(
             {
@@ -327,20 +346,31 @@ export function createEdge<
             },
           );
         }
+
         return found;
       };
+
       return serve(
         async (request, ctx, tenant) => {
           const found = find(request);
-          if (found instanceof Response) return found;
+
+          if (found instanceof Response) {
+            return found;
+          }
+
           const { route, params } = found;
+
           const caller = await requireCaller(
             ctx.auth,
             { ...shared, ...route.options },
             tenant,
             options.authorizer,
           );
-          if ("kind" in caller) return err(caller);
+
+          if ("kind" in caller) {
+            return err(caller);
+          }
+
           return route.handler(
             request,
             withExtra(ctx, {
@@ -355,6 +385,7 @@ export function createEdge<
         { ...middlewareOptions, allow: EVERY_CALLER },
         (request) => {
           const found = find(request);
+
           return found instanceof Response ? found : undefined;
         },
       );
@@ -362,19 +393,25 @@ export function createEdge<
 
     resources(map, resourcesOptions = {}) {
       const { basePath, ...middlewareOptions } = resourcesOptions;
+
       const router = resourceRouter(betterSupabase, map, {
         ...(basePath === undefined ? {} : { basePath }),
         ...(options.authorizer === undefined
           ? {}
           : { authorizer: options.authorizer }),
       });
+
       return serve(
         (request, ctx) => {
           // Matched again here: the bridge buffers a request with a body into
           // a new Request, so the early check and the handler see different
           // objects.
           const route = router.match(request);
-          if (route instanceof Response) return route;
+
+          if (route instanceof Response) {
+            return route;
+          }
+
           return route.handler.serve(request, ctx.db, route.segments, {
             instance: route.instance,
             expose,
@@ -383,6 +420,7 @@ export function createEdge<
         middlewareOptions,
         (request) => {
           const route = router.match(request);
+
           return route instanceof Response ? route : undefined;
         },
       );

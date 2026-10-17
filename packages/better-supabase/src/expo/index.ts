@@ -34,6 +34,7 @@ export type { GuardOptions, MiddlewareOptions } from "../server/respond.ts";
 export type ExpoRequest = Request | ImmutableRequest;
 
 export { toExpo } from "../bridges/expo.ts";
+
 export type { ExpoParams, ToExpoOptions } from "../bridges/expo.ts";
 
 export interface ExpoOptions extends ServerOptions {
@@ -68,6 +69,7 @@ export interface ExpoMiddlewareOptions extends MiddlewareOptions {
 /** `path` is `prefix` or a path under it. */
 function under(path: string, prefix: string): boolean {
   const base = prefix.endsWith("/") ? prefix.slice(0, -1) : prefix;
+
   return base === ""
     ? path === "/"
     : path === base || path.startsWith(`${base}/`);
@@ -124,7 +126,10 @@ export interface BetterExpo<
 
 /** `ImmutableRequest` has no body and immutable headers; the resolver only reads URL, method and headers. */
 function toRequest(request: ExpoRequest): Request {
-  if (request instanceof Request) return request;
+  if (request instanceof Request) {
+    return request;
+  }
+
   return new Request(request.url, {
     method: request.method,
     headers: new Headers(request.headers),
@@ -139,17 +144,29 @@ function writeHeaders(
 ): void {
   const cookies = ctx.cookies().map(serializeCookie);
   const others = Object.entries(ctx.resolution.headers);
-  if (cookies.length === 0 && others.length === 0) return;
+
+  if (cookies.length === 0 && others.length === 0) {
+    return;
+  }
+
   setResponseHeaders((headers) => {
     const sent = new Set(headers.getSetCookie());
-    for (const cookie of cookies)
-      if (!sent.has(cookie)) headers.append("set-cookie", cookie);
-    for (const [name, value] of others) headers.set(name, value);
+
+    for (const cookie of cookies) {
+      if (!sent.has(cookie)) {
+        headers.append("set-cookie", cookie);
+      }
+    }
+
+    for (const [name, value] of others) {
+      headers.set(name, value);
+    }
   });
 }
 
 function statusError(error: DbError, expose: boolean): StatusError {
   const problem = toProblem(error, { expose });
+
   return new StatusError(problem.status, {
     error: problem.title,
     ...problem,
@@ -176,15 +193,22 @@ export function createExpo<
     contextOptions: ExpoContextOptions = {},
   ): Promise<ServerContext<M, F, E, C, P>> => {
     const { allow, aal, scopes, refresh = true, ...rest } = contextOptions;
+
     const ctx = await server.context(toRequest(incoming), {
       ...rest,
       refresh,
     });
+
     writeHeaders(ctx);
+
     if (allow !== undefined || aal !== undefined || scopes !== undefined) {
       const denied = guard(ctx.auth, allow, aal, scopes);
-      if (denied) throw statusError(denied, expose);
+
+      if (denied) {
+        throw statusError(denied, expose);
+      }
     }
+
     return ctx;
   };
 
@@ -199,12 +223,16 @@ export function createExpo<
             'better-supabase: bs.loader() needs a request, and static rendering has none. Turn on unstable_useServerRendering on Expo SDK 57, or read public data in a loader built with createStaticLoader from "expo-server".',
           );
         }
+
         const ctx = await request(incoming, loaderOptions);
+
         try {
           return await fn(ctx, params, incoming);
         } catch (cause) {
-          if (cause instanceof DbException)
+          if (cause instanceof DbException) {
             throw statusError(cause.error, expose);
+          }
+
           throw cause;
         }
       };
@@ -215,6 +243,7 @@ export function createExpo<
         [withBetterSupabase(server, { ...handlerOptions, expose })],
         async (incoming, ctx, params) => {
           const instance = new URL(incoming.url).pathname;
+
           try {
             return await respond(() => fn(incoming, ctx.bs, params), {
               instance,
@@ -235,14 +264,19 @@ export function createExpo<
         scopes,
         publicPaths = [],
       } = middlewareOptions;
+
       return async (incoming): Promise<Response | void> => {
         const resolved = toRequest(incoming);
+
         const ctx = await server.context(resolved, {
           refresh: refreshFor(middlewareOptions.refresh, resolved) ?? true,
         });
+
         const url = new URL(incoming.url);
+
         const target =
           redirectTo === undefined ? undefined : new URL(redirectTo, url);
+
         if (
           !target ||
           under(url.pathname, target.pathname) ||
@@ -250,9 +284,12 @@ export function createExpo<
           !guard(ctx.auth, allow, aal, scopes)
         ) {
           writeHeaders(ctx);
+
           return;
         }
+
         target.searchParams.set("next", url.pathname + url.search);
+
         return ctx.apply(
           new Response(null, {
             status: 303,

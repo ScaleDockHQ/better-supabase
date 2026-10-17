@@ -12,8 +12,9 @@ import { satisfies } from "../../../src/cli/peers.ts";
 
 const workspace = await readFile(
   resolve(import.meta.dirname, "../../../../../pnpm-workspace.yaml"),
-  "utf8",
+  "utf-8",
 );
+
 const pins = [
   ...workspace.matchAll(/^\s+"@supabase\/postgrest-typegen": (\S.*)$/gm),
 ].map((match) => match[1]!.replaceAll('"', ""));
@@ -40,8 +41,8 @@ describe("the postgrest-typegen pin", () => {
   it("prints a notice only for another release", () => {
     expect(typegenVersionNotice(TYPEGEN_VERSION)).toBeUndefined();
     expect(typegenVersionNotice(undefined)).toBeUndefined();
-    expect(typegenVersionNotice("0.4.1")).toBe(
-      `Notice: @supabase/postgrest-typegen@0.4.1 is installed; this better-supabase release is tested against ${TYPEGEN_VERSION}. database.types.ts can differ from \`supabase gen types\` output until both use the same release. Pin it: pnpm add -D @supabase/postgrest-typegen@${TYPEGEN_VERSION}`,
+    expect(typegenVersionNotice("0.6.1")).toBe(
+      `Notice: @supabase/postgrest-typegen@0.6.1 is installed; this better-supabase release is tested against ${TYPEGEN_VERSION}. database.types.ts can differ from \`supabase gen types\` output until both use the same release. Pin it: pnpm add -D @supabase/postgrest-typegen@${TYPEGEN_VERSION}`,
     );
   });
 });

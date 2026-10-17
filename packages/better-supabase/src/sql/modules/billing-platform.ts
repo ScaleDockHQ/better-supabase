@@ -21,15 +21,19 @@ export function platformLists(
   const t = ctx.table("customers");
   const c = (logical: string): string => ctx.col("customers", logical);
   const fn = (name: string): string => ctx.fn(name);
+
   const plan = plans
     ? `(select p.${sqlIdent(plans.key)}::text from ${plans.table} p where p.${sqlIdent(plans.price)}::text = r.price limit 1)`
     : "null::text";
+
   const customers = `case when to_regclass('stripe.customers') is null
     then 'left join lateral (select null::jsonb as customer_row) cu on true'
     else 'left join lateral (select to_jsonb(k.*) as customer_row from stripe.customers k where k.id = b.${c("customer").replaceAll("'", "''")}::text) cu on true' end`;
+
   const guard = `if not (${SERVICE_CALLER} or ${viewAll}) then
     ${fail("BILLING_FORBIDDEN", "Not allowed to read every tenant's billing")}
   end if;`;
+
   return `
 drop function if exists ${fn("billing_platform_subscriptions")}();
 create or replace function ${fn("billing_platform_subscriptions")}()

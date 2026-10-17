@@ -29,8 +29,13 @@ async function attempt<T>(
   fail: (error: DbError) => void,
 ): Promise<T | undefined> {
   const result = await write;
-  if (result.ok) return result.data;
+
+  if (result.ok) {
+    return result.data;
+  }
+
   fail(result.error);
+
   return;
 }
 
@@ -74,11 +79,14 @@ export function createAiChatsController(
   options: AiChatsControllerOptions,
 ): AiChatsController {
   const { chats } = options.client;
+
   const query: AiChatQuery = {
     ...options.query,
     organizationId: options.query?.organizationId ?? null,
   };
+
   const prefix = options.topic === undefined ? "ai-chats" : options.topic;
+
   return defineController<AiChatsSnapshot, AiChatsActions>(
     { items: undefined, hasMore: false, status: "closed", error: undefined },
     (state) => {
@@ -90,9 +98,11 @@ export function createAiChatsController(
       // How many pages are shown, so a reload fetches all of them again.
       let pages = 1;
       let next: string | undefined;
+
       const fail = (error: DbError): void => {
         state.set({ error });
       };
+
       const showPage = (
         items: readonly AiChatRecord[],
         cursor: string | undefined,
@@ -100,80 +110,122 @@ export function createAiChatsController(
         next = cursor;
         state.set({ items, hasMore: cursor !== undefined, error: undefined });
       };
+
       const loadWindow = async (): Promise<void> => {
-        if (user === null) return;
+        if (user === null) {
+          return;
+        }
+
         const run = ++ticket;
         const items: AiChatRecord[] = [];
         let page: AiChatPage | undefined;
+
         for (let loaded = 0; loaded < pages; loaded += 1) {
           const result: Result<AiChatPage> = await chats.list(
             page?.next === undefined ? query : { ...query, cursor: page.next },
           );
-          if (run !== ticket) return;
-          if (!result.ok) {
-            fail(result.error);
+
+          if (run !== ticket) {
             return;
           }
+
+          if (!result.ok) {
+            fail(result.error);
+
+            return;
+          }
+
           page = result.data;
           items.push(...page.items);
-          if (page.next === undefined) break;
+
+          if (page.next === undefined) {
+            break;
+          }
         }
+
         showPage(items, page?.next);
       };
+
       const edit = (
         at: number,
         change: (items: readonly AiChatRecord[]) => readonly AiChatRecord[],
       ): void => {
-        if (at !== generation) return;
+        if (at !== generation) {
+          return;
+        }
+
         state.set((current) =>
           current.items === undefined ? {} : { items: change(current.items) },
         );
       };
+
       return {
         actions: {
           refresh: loadWindow,
           loadMore: async () => {
-            if (next === undefined || user === null) return;
+            if (next === undefined || user === null) {
+              return;
+            }
+
             const run = ++ticket;
             pages += 1;
             const result = await chats.list({ ...query, cursor: next });
-            if (run !== ticket) return;
+
+            if (run !== ticket) {
+              return;
+            }
+
             if (!result.ok) {
               pages -= 1;
               fail(result.error);
+
               return;
             }
+
             const page = result.data;
             showPage([...(state.get().items ?? []), ...page.items], page.next);
           },
           create: async (input) => {
             const organizationId = query.organizationId;
-            if (!organizationId) return;
+
+            if (!organizationId) {
+              return;
+            }
+
             const at = generation;
+
             const chat = await attempt(
               chats.create(organizationId, input),
               fail,
             );
-            if (chat && !chat.temporary)
+
+            if (chat && !chat.temporary) {
               edit(at, (items) => [
                 chat,
                 ...items.filter((item) => item.id !== chat.id),
               ]);
+            }
+
             return chat;
           },
           update: async (chatId, patch) => {
             const at = generation;
             const chat = await attempt(chats.update(chatId, patch), fail);
-            if (chat)
+
+            if (chat) {
               edit(at, (items) =>
                 items.map((item) => (item.id === chat.id ? chat : item)),
               );
+            }
+
             return chat;
           },
           remove: async (chatId) => {
             const at = generation;
-            if (await attempt(chats.remove(chatId), fail))
+
+            if (await attempt(chats.remove(chatId), fail)) {
               edit(at, (items) => items.filter((item) => item.id !== chatId));
+            }
           },
         },
         start: () =>
@@ -184,6 +236,7 @@ export function createAiChatsController(
             next = undefined;
             state.set({ items: undefined, hasMore: false, error: undefined });
             void loadWindow();
+
             const leave = prefix
               ? options.ports.topic(aiChatListTopic(userId, prefix), {
                   onMessage: () => void loadWindow(),
@@ -193,6 +246,7 @@ export function createAiChatsController(
                   },
                 }).leave
               : undefined;
+
             return () => {
               user = null;
               generation += 1;
@@ -251,10 +305,12 @@ export function createAiChatTreeController(
   const { messages } = options.client;
   const { chatId } = options;
   const prefix = options.topic === undefined ? "ai-chat" : options.topic;
+
   return defineController<AiChatTreeSnapshot, AiChatTreeActions>(
     { path: undefined, status: "closed", error: undefined },
     (state) => {
       let ticket = 0;
+
       const apply = (result: Result<readonly AiStoredMessage[]>): void => {
         state.set(
           result.ok
@@ -262,50 +318,84 @@ export function createAiChatTreeController(
             : { error: result.error },
         );
       };
+
       const loadPath = async (leafId?: string): Promise<void> => {
-        if (!chatId) return;
+        if (!chatId) {
+          return;
+        }
+
         const run = ++ticket;
+
         const result = await messages.path(
           chatId,
           leafId === undefined ? undefined : { leafId },
         );
-        if (run === ticket) apply(result);
+
+        if (run === ticket) {
+          apply(result);
+        }
       };
+
       const switchBranch = async (messageId: string): Promise<void> => {
-        if (!chatId) return;
+        if (!chatId) {
+          return;
+        }
+
         const run = state.run();
         const result = await messages.switchBranch(chatId, messageId);
-        if (run !== state.run()) return;
-        if (result.ok) await loadPath(result.data);
-        else state.set({ error: result.error });
+
+        if (run !== state.run()) {
+          return;
+        }
+
+        if (result.ok) {
+          await loadPath(result.data);
+        } else {
+          state.set({ error: result.error });
+        }
       };
+
       return {
         actions: {
           refresh: () => loadPath(),
           switchBranch,
           step: async (messageId, offset) => {
-            if (!chatId) return;
-            const run = state.run();
-            const result = await messages.siblings(chatId, messageId);
-            if (run !== state.run()) return;
-            if (!result.ok) {
-              state.set({ error: result.error });
+            if (!chatId) {
               return;
             }
+
+            const run = state.run();
+            const result = await messages.siblings(chatId, messageId);
+
+            if (run !== state.run()) {
+              return;
+            }
+
+            if (!result.ok) {
+              state.set({ error: result.error });
+
+              return;
+            }
+
             const siblings = result.data;
             const index = siblings.findIndex((item) => item.id === messageId);
             const target = siblings[index + offset];
-            if (index >= 0 && target) await switchBranch(target.id);
+
+            if (index !== -1 && target) {
+              await switchBranch(target.id);
+            }
           },
         },
         start: () => {
           void loadPath();
+
           const leave =
             chatId && prefix
               ? options.ports.topic(aiChatTopic(chatId, prefix), {
                   onMessage: (event) => {
-                    if (event === "message.saved" || event === "leaf.changed")
+                    if (event === "message.saved" || event === "leaf.changed") {
                       void loadPath();
+                    }
                   },
                   onRejoin: () => void loadPath(),
                   onStatus: (status) => {
@@ -313,6 +403,7 @@ export function createAiChatTreeController(
                   },
                 }).leave
               : undefined;
+
           return () => {
             ticket += 1;
             leave?.();
@@ -345,23 +436,30 @@ export function createAiModelsController(
   options: AiModelsControllerOptions,
 ): AiModelsController {
   const tenant = options.organizationId ?? null;
+
   return defineController<AiModelsSnapshot, AiModelsActions>(
     { models: undefined, error: undefined },
     (state) => {
       const refresh = async (): Promise<void> => {
         const run = state.run();
         const result = await options.client.models.allowed(tenant);
-        if (run !== state.run()) return;
+
+        if (run !== state.run()) {
+          return;
+        }
+
         state.set(
           result.ok
             ? { models: result.data, error: undefined }
             : { error: result.error },
         );
       };
+
       return {
         actions: { refresh },
         start: () => {
           void refresh();
+
           return;
         },
       };
@@ -397,37 +495,57 @@ export function createAiShareController(
 ): AiShareController {
   const { shares } = options.client;
   const { chatId } = options;
+
   return defineController<AiShareSnapshot, AiShareActions>(
     { shares: undefined, error: undefined },
     (state) => {
       const fail = (error: DbError): void => {
         state.set({ error });
       };
+
       const reload = async (): Promise<void> => {
-        if (!chatId) return;
+        if (!chatId) {
+          return;
+        }
+
         const run = state.run();
         const result = await shares.list(chatId);
-        if (run !== state.run()) return;
+
+        if (run !== state.run()) {
+          return;
+        }
+
         state.set(
           result.ok
             ? { shares: result.data, error: undefined }
             : { error: result.error },
         );
       };
+
       return {
         actions: {
           create: async (leafId) => {
-            if (!chatId) return;
+            if (!chatId) {
+              return;
+            }
+
             const link = await attempt(shares.create(chatId, leafId), fail);
-            if (link) await reload();
+
+            if (link) {
+              await reload();
+            }
+
             return link;
           },
           revoke: async (shareId) => {
-            if (await attempt(shares.revoke(shareId), fail)) await reload();
+            if (await attempt(shares.revoke(shareId), fail)) {
+              await reload();
+            }
           },
         },
         start: () => {
           void reload();
+
           return;
         },
       };

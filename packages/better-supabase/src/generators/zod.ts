@@ -41,34 +41,61 @@ export type ZodFlavor = "classic" | "mini";
 
 function scalar(kind: ScalarKind): string {
   switch (kind.kind) {
-    case "uuid":
+    case "uuid": {
       return "z.guid()";
-    case "string":
+    }
+
+    case "string": {
       return "z.string()";
-    case "integer":
+    }
+
+    case "integer": {
       return "z.int()";
-    case "number":
+    }
+
+    case "number": {
       return "z.number()";
-    case "boolean":
+    }
+
+    case "boolean": {
       return "z.boolean()";
-    case "datetime":
+    }
+
+    case "datetime": {
       return "z.iso.datetime({ offset: true })";
-    case "date":
+    }
+
+    case "date": {
       return "z.iso.date()";
-    case "instant":
+    }
+
+    case "instant": {
       return "z.custom<Temporal.Instant>(isInstant)";
-    case "plainDateTime":
+    }
+
+    case "plainDateTime": {
       return "z.custom<Temporal.PlainDateTime>(isPlainDateTime)";
-    case "bigint":
+    }
+
+    case "bigint": {
       return "z.bigint()";
-    case "json":
+    }
+
+    case "json": {
       return "z.json()";
-    case "enum":
+    }
+
+    case "enum": {
       return `z.enum([${kind.values.map((value) => JSON.stringify(value)).join(", ")}])`;
-    case "unknown":
+    }
+
+    case "unknown": {
       return "z.unknown()";
+    }
+
     default: {
       const exhaustive: never = kind;
+
       return exhaustive;
     }
   }
@@ -88,8 +115,10 @@ function bounds(docs: FieldDocs, flavor: ZodFlavor): string {
       docs.minLength === undefined ? "" : `z.minLength(${docs.minLength})`,
       docs.maxLength === undefined ? "" : `z.maxLength(${docs.maxLength})`,
     ].filter((check) => check !== "");
+
     return checks.length === 0 ? "" : `.check(${checks.join(", ")})`;
   }
+
   return [
     docs.minimum === undefined ? "" : `.min(${docs.minimum})`,
     docs.exclusiveMinimum === undefined ? "" : `.gt(${docs.exclusiveMinimum})`,
@@ -108,8 +137,13 @@ function meta(
   const set = Object.entries(entries).filter(
     ([, value]) => value !== undefined,
   );
-  if (set.length === 0) return "";
+
+  if (set.length === 0) {
+    return "";
+  }
+
   const object = `{ ${set.map(([key, value]) => `${key}: ${JSON.stringify(value)}`).join(", ")} }`;
+
   return flavor === "mini" ? `.check(z.meta(${object}))` : `.meta(${object})`;
 }
 
@@ -122,6 +156,7 @@ function field(
 ): string {
   const mini = flavor === "mini";
   const imported = jsonImports.get(`${table}.${plan.column.db}`);
+
   let expr =
     imported ??
     (plan.customJson
@@ -129,14 +164,24 @@ function field(
       : plan.column.storage === undefined
         ? `${scalar(plan.scalar)}${bounds(docs, flavor)}`
         : `(z.string() as unknown as ${typeName(flavor)}<${rowType(table, plan)}>)`);
-  if (plan.column.array) expr = `z.array(${expr})`;
-  if (plan.nullable) expr = mini ? `z.nullable(${expr})` : `${expr}.nullable()`;
+
+  if (plan.column.array) {
+    expr = `z.array(${expr})`;
+  }
+
+  if (plan.nullable) {
+    expr = mini ? `z.nullable(${expr})` : `${expr}.nullable()`;
+  }
+
   expr += meta(
     { description: docs.description, examples: docs.examples },
     flavor,
   );
-  if (plan.optional)
+
+  if (plan.optional) {
     expr = mini ? `z.exactOptional(${expr})` : `${expr}.exactOptional()`;
+  }
+
   return `  ${propertyKey(plan.name)}: ${expr},`;
 }
 
@@ -150,6 +195,7 @@ function typeName(flavor: ZodFlavor): string {
  */
 export function zod(options: ZodGeneratorOptions = {}): Generator {
   const flavor = options.flavor ?? "classic";
+
   return {
     apiVersion: 1,
     name: "zod",
@@ -157,15 +203,19 @@ export function zod(options: ZodGeneratorOptions = {}): Generator {
       const path = options.output ?? siblingPath(input.config.output, "zod.ts");
       const imports = new Map<string, string[]>();
       const jsonImports = new Map<string, string>();
+
       const tableNames = new Map(
         Object.values(input.meta.tables).map((t) => [t.name, t.key]),
       );
+
       for (const [key, spec] of Object.entries(options.json ?? {})) {
         const [tableName, column] = key.split(".");
         const { from, name } = parseImport(spec);
+
         const specifier = from.startsWith(".")
           ? input.importPath(path, from)
           : from;
+
         imports.set(specifier, [...(imports.get(specifier) ?? []), name]);
         jsonImports.set(
           `${tableNames.get(tableName ?? "") ?? tableName}.${column}`,
@@ -182,6 +232,7 @@ export function zod(options: ZodGeneratorOptions = {}): Generator {
         "",
         `import type { InsertOf, RowOf, UpdateOf } from ${JSON.stringify(input.importPath(path, input.config.output))};`,
       ];
+
       for (const [from, names] of imports) {
         lines.push(
           `import { ${[...new Set(names)].sort().join(", ")} } from ${JSON.stringify(from)};`,
@@ -189,24 +240,29 @@ export function zod(options: ZodGeneratorOptions = {}): Generator {
       }
 
       const validators: string[] = [];
+
       for (const [key, table] of tableEntries(input)) {
         lines.push("");
         const variants = variantsFor(table);
         const docs = tableDocs(input, table);
+
         for (const variant of variants) {
           const name = schemaName(key, variant);
           lines.push(
             `export const ${name}: ${typeName(flavor)}<${variant}Of<'${key}'>> = z.object({`,
           );
+
           for (const plan of fieldsFor(table, variant, input)) {
             lines.push(
               field(key, plan, jsonImports, fieldDocs(docs, plan), flavor),
             );
           }
+
           lines.push(
             `})${docs ? meta({ title: variantTitle(docs, variant), description: docs.description }, flavor) : ""};`,
           );
         }
+
         if (variants.includes("Insert")) {
           validators.push(
             `  ${propertyKey(key)}: { insert: ${schemaName(key, "Insert")}, update: ${schemaName(key, "Update")} },`,
@@ -219,13 +275,19 @@ export function zod(options: ZodGeneratorOptions = {}): Generator {
         "/** Write validators for the validation plugin. */",
         "export const validators: {",
       );
+
       for (const [key, table] of tableEntries(input)) {
-        if (!variantsFor(table).includes("Insert")) continue;
+        if (!variantsFor(table).includes("Insert")) {
+          continue;
+        }
+
         lines.push(
           `  readonly ${propertyKey(key)}: { readonly insert: typeof ${schemaName(key, "Insert")}; readonly update: typeof ${schemaName(key, "Update")} };`,
         );
       }
+
       lines.push("} = {", ...validators, "};", "");
+
       return [{ path, contents: lines.join("\n") }];
     },
   };

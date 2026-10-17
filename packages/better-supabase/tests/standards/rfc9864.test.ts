@@ -22,6 +22,7 @@ describe(`JWS with fully specified algorithms (RFC 9864, ${SPEC_PINS.rfc9864})`,
     const kid = await jwkThumbprint(key.publicKey);
     const jwks = { keys: [{ ...key.publicKey, kid }] };
     const signing = await importSigningKey(key.privateKey);
+
     for (const alg of ["EdDSA", "Ed25519"] as const) {
       const token = await signCompact(
         signing,
@@ -29,6 +30,7 @@ describe(`JWS with fully specified algorithms (RFC 9864, ${SPEC_PINS.rfc9864})`,
         { alg, kid, typ: "JWT" },
         { sub: "u1" },
       );
+
       const verified = await verifyCompact(token, jwks);
       expect(verified.header["alg"]).toBe(alg);
     }

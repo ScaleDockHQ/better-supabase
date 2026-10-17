@@ -4,11 +4,13 @@ import type { Embedder } from "better-supabase/blocks/knowledge";
 const DIMENSIONS = 1536;
 
 function hash(word: string): number {
-  let value = 2166136261;
+  let value = 2_166_136_261;
+
   for (const char of word) {
     value ^= char.codePointAt(0) ?? 0;
-    value = Math.imul(value, 16777619);
+    value = Math.imul(value, 16_777_619);
   }
+
   return (value >>> 0) % DIMENSIONS;
 }
 
@@ -22,11 +24,14 @@ export const demoEmbedder: Embedder = {
     Promise.resolve(
       values.map((value) => {
         const vector = Array.from<number>({ length: DIMENSIONS }).fill(0);
+
         for (const word of value.toLowerCase().match(/\p{L}{3,}/gu) ?? []) {
           const index = hash(word);
           vector[index] = (vector[index] ?? 0) + 1;
         }
+
         const norm = Math.hypot(...vector) || 1;
+
         return vector.map((x) => x / norm);
       }),
     ),

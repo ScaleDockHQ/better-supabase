@@ -29,10 +29,12 @@ describe("config", () => {
     );
     const result = await run(["config", "--json", "--cwd", dir], { env: {} });
     expect(result.code).toBe(0);
+
     const printed = JSON.parse(result.stdout) as {
       file: string;
       config: Record<string, unknown>;
     };
+
     expect(printed.file).toBe("better-supabase.config.mjs");
     expect(printed.config).toMatchObject({
       casing: "camel",
@@ -55,6 +57,7 @@ describe("config", () => {
       { source: { dbUrl: "not a url" }, generators: [] },
       "/project",
     );
+
     expect(printableConfig(config)).toMatchObject({
       source: { dbUrl: "<redacted>" },
     });

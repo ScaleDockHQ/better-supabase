@@ -58,6 +58,7 @@ const productRow: StandardSchemaV1<unknown, ProductRow> = {
     validate: (value) => {
       // SAFETY: dryRun hands each mapped row over as a record of strings.
       const row = value as Partial<ProductRow>;
+
       return row.title && row.sku && row.price && /^\d+$/.test(row.price)
         ? { value: { title: row.title, sku: row.sku, price: row.price } }
         : { issues: [{ message: "title, sku and a price in cents" }] };
@@ -69,11 +70,13 @@ const productRow: StandardSchemaV1<unknown, ProductRow> = {
 function fakePayments(): PaymentProvider {
   const byKey = new Map<string, Payment>();
   let refunds = 0;
+
   return {
     apiVersion: 1,
     name: "fake",
     createPayment(input, options) {
       const key = options?.idempotencyKey ?? "";
+
       const payment: Payment = byKey.get(key) ?? {
         id: `pi_${String(byKey.size + 1)}`,
         provider: "fake",
@@ -85,7 +88,9 @@ function fakePayments(): PaymentProvider {
         clientSecret: "secret",
         metadata: input.metadata ?? {},
       };
+
       byKey.set(key, payment);
+
       return AsyncResult.ok(payment);
     },
     capture: (paymentId) => AsyncResult.ok(byKey.get(paymentId)!),
@@ -119,6 +124,7 @@ describe.skipIf(!live)("commerce recipe", () => {
       const inventory = createInventory({ transport });
       const imports = createImports({ transport });
       const promotions = createPromotions({ transport });
+
       const orders = createOrders({
         transport,
         service,
@@ -128,6 +134,7 @@ describe.skipIf(!live)("commerce recipe", () => {
 
       // The catalog arrives as a CSV; each batch goes through the catalog block.
       const variants = new Map<string, string>();
+
       const products = defineImport<ProductRow>({
         kind: "products",
         columns: productRow,
@@ -137,10 +144,13 @@ describe.skipIf(!live)("commerce recipe", () => {
             const product = await catalog
               .createProduct(tenant, { title: row.title })
               .orThrow();
+
             await catalog.setProductStatus(product.id, "active").orThrow();
+
             const variant = await catalog
               .createVariant(product.id, { sku: row.sku })
               .orThrow();
+
             await catalog
               .setPrice(variant.id, { amount: money(BigInt(row.price), "EUR") })
               .orThrow();
@@ -148,7 +158,9 @@ describe.skipIf(!live)("commerce recipe", () => {
           }
         },
       });
+
       await s.as(owner);
+
       const imported = await runImport(
         products,
         PRODUCTS,
@@ -165,15 +177,18 @@ describe.skipIf(!live)("commerce recipe", () => {
           },
         },
       );
+
       expect(imported).toMatchObject({ status: "completed", imported: 2 });
       const tee = { id: variants.get("TEE")! };
 
       const warehouse = await inventory
         .saveLocation(organizationId, { code: "WH", name: "Warehouse" })
         .orThrow();
+
       await inventory
         .adjustStock(tee.id, warehouse.id, 10, "receipt")
         .orThrow();
+
       const rate = await orders
         .saveShippingRate(organizationId, {
           name: "Standard",
@@ -181,30 +196,36 @@ describe.skipIf(!live)("commerce recipe", () => {
           amount: money(495, "EUR"),
         })
         .orThrow();
+
       const welcome = await promotions
         .savePromotion(organizationId, {
           name: "Welcome",
           discount: { kind: "percentage", percent: "10" },
         })
         .orThrow();
+
       await promotions
         .createCodes(welcome.id, { codes: ["WELCOME10"] })
         .orThrow();
 
       // The shopper left a tee in a cart on another device.
       await s.as(shopper);
+
       const saved = await orders
         .createCart(organizationId, {
           currency: "EUR",
           email: shopper.email,
         })
         .orThrow();
+
       await orders.addToCart(saved.id, tee.id, 1).orThrow();
 
       await s.as(visitor);
+
       const browsing = await orders
         .createCart(organizationId, { currency: "EUR" })
         .orThrow();
+
       await orders.addToCart(browsing.id, tee.id, 2).orThrow();
       await promotions.applyCode(browsing.id, "welcome10").orThrow();
 
@@ -285,15 +306,19 @@ describe.skipIf(!live)("commerce recipe", () => {
             ),
         },
       );
+
       await watchers.send(app.sinks.metrics!);
       await s.as(owner);
       const now = Temporal.Now.instant();
+
       const today = {
         from: now.subtract({ hours: 48 }),
         until: now.add({ hours: 48 }),
       };
+
       const kpi = async (key: (typeof commerceMetrics)[number]["key"]) =>
         (await app.metrics.kpi(key, today, { organizationId }).orThrow()).value;
+
       expect(await kpi("orders")).toBe(1);
       expect(await kpi("revenue")).toBe(Number(order.total.amount));
       expect(await kpi("average_order_value")).toBe(Number(order.total.amount));
@@ -307,14 +332,17 @@ describe.skipIf(!live)("commerce recipe", () => {
       );
       const approvals = createApprovals({ transport });
       await s.as(owner);
+
       const small = await orders
         .refund(order.id, { amount: money(1000, "EUR") })
         .orThrow();
+
       expect(small.status).toBe("succeeded");
       const blocked = await orders.refund(order.id);
       expect(blocked.ok ? undefined : blocked.error.hint).toBe(
         "REFUND_APPROVAL_REQUIRED",
       );
+
       const request = await approvals
         .request({
           organizationId,
@@ -324,6 +352,7 @@ describe.skipIf(!live)("commerce recipe", () => {
           reason: "Damaged in transit",
         })
         .orThrow();
+
       await s.as(finance);
       await approvals.approve(request.id).orThrow();
       await s.as(owner);
@@ -347,18 +376,23 @@ describe.skipIf(!live)("commerce recipe", () => {
       const approvals = createApprovals({ transport });
 
       await s.as(owner);
+
       const small = await promotions.savePromotion(organizationId, {
         name: "Spring",
         discount: { kind: "percentage", percent: "20" },
       });
+
       expect(small.ok).toBe(true);
+
       const refused = await promotions.savePromotion(organizationId, {
         name: "Clearance",
         discount: { kind: "percentage", percent: "50" },
       });
+
       expect(refused.ok ? undefined : refused.error.hint).toBe(
         "PROMOTION_APPROVAL_REQUIRED",
       );
+
       const draft = await promotions
         .savePromotion(organizationId, {
           name: "Clearance",
@@ -366,6 +400,7 @@ describe.skipIf(!live)("commerce recipe", () => {
           active: false,
         })
         .orThrow();
+
       const blocked = await promotions.setPromotionActive(draft.id, true);
       expect(blocked.ok ? undefined : blocked.error.hint).toBe(
         "PROMOTION_APPROVAL_REQUIRED",
@@ -380,6 +415,7 @@ describe.skipIf(!live)("commerce recipe", () => {
           reason: "End of season",
         })
         .orThrow();
+
       await s.as(finance);
       await approvals.approve(request.id).orThrow();
       await s.as(owner);
@@ -397,25 +433,30 @@ describe.skipIf(!live)("commerce recipe", () => {
       await s.organization(stranger);
       const transport = sqlTransport(s.sql);
       const catalog = createCatalog({ transport });
+
       const search = createSearch({
         transport,
         service: sqlTransport(s.serviceSql),
       });
+
       const savedViews = createSavedViews({
         transport,
         lists: { orders: orderList },
       });
 
       await s.as(owner);
+
       const tee = await catalog
         .createProduct(organizationId, {
           title: "Linen tee",
           description: "Washed linen with a relaxed fit",
         })
         .orThrow();
+
       await catalog
         .createProduct(organizationId, { title: "Wool scarf" })
         .orThrow();
+
       // "relaxed" is in the description; "linnen" is a typo of the title.
       for (const q of ["relaxed", "linnen"]) {
         expect(
@@ -424,10 +465,12 @@ describe.skipIf(!live)("commerce recipe", () => {
           ),
         ).toEqual([[tee.id, `/admin/products/${tee.id}`]]);
       }
+
       await s.as(stranger);
       expect(await search.search("linen").orThrow()).toEqual([]);
 
       await s.as(owner);
+
       const invalid = await savedViews.save({
         organizationId,
         list: "orders",
@@ -435,6 +478,7 @@ describe.skipIf(!live)("commerce recipe", () => {
         scope: "tenant",
         state: { query: { sort: "cheapest" } },
       });
+
       expect(invalid.ok ? undefined : invalid.error.kind).toBe("validation");
       await savedViews
         .save({

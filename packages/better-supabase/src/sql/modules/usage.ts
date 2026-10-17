@@ -82,7 +82,10 @@ const NAMES: ModuleNames = {
 };
 
 function build(ctx: ModuleContext, layout: ModuleLayout): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
   const id = ctx.idType;
   const counters = ctx.table("counters");
   const events = ctx.table("events");
@@ -95,30 +98,40 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
   const keepHistory = ctx.flag("history", false);
   const fn = (name: string): string => ctx.fn(name);
   const permissions = moduleOperations("usage");
+
   const canRead = (tenant: string): string =>
     `(${SERVICE_CALLER} or ${ctx.can("tenant", tenant, ctx.permission("read", permissions.read))})`;
+
   const readPolicy = (tenant: string): string =>
     ctx.scope.check(tenant, ctx.permission("read", permissions.read));
+
   const memberIds =
     accessModel(ctx) === "provider"
       ? layout.accessProvider?.functions.memberIds
       : undefined;
+
   const providerScope = layout.accessProvider?.scope ?? "tenant";
+
   const member = (tenant: string): string =>
     memberIds === undefined
       ? `(${SERVICE_CALLER} or coalesce(${ctx.of("tenant").fn("has_organization_role")}(${tenant}), false))`
       : `(${SERVICE_CALLER} or ${tenant}::text in (select t.id::text from ${fillTemplate("authorization.functions.memberIds", memberIds, { scope: providerScope })} as t(id)))`;
+
   const canRecord = (tenant: string): string =>
     `(${SERVICE_CALLER} or ${ctx.can("tenant", tenant, ctx.permission("record", permissions.record))})`;
+
   // used is the quota period's usage, as usage_status reports it; today the UTC day's.
   const outcome = (recorded: "true" | "false"): string =>
     `jsonb_build_object('recorded', ${recorded}, 'used', ${fn("usage_used")}(tenant, meter, coalesce((select q.period from ${fn("usage_quota")}(tenant, meter) q), 'month')), 'today', ${fn("usage_used")}(tenant, meter, 'day'))`;
+
   // Plan quotas apply to tenants with that entitlement key, to tenants on that
   // plan key when entitlements read a plan catalog, or to every tenant with
   // plan '*'.
   const meters = metersOf(ctx);
+
   const table =
     meters !== undefined && isMeterTable(meters) ? meters : undefined;
+
   const catalog =
     table === undefined
       ? `${sqlString(JSON.stringify(meters ?? {}))}::jsonb`
@@ -127,31 +140,39 @@ function build(ctx: ModuleContext, layout: ModuleLayout): string {
         )
           .flatMap((name) => {
             const column = table[name];
+
             return column === undefined
               ? []
               : [`'${name}', m.${sqlIdent(column)}::text`];
           })
           .join(", ")}))), '{}'::jsonb)
     from ${qualifiedTable(table.table)} m${table.active ? ` where m.${sqlIdent(table.active)}` : ""})`;
+
   const meterCheck = meters
     ? `
   if not (${fn("usage_meters")}() ? meter) then
     ${raise("Unknown meter %", "22023", "USAGE_METER_UNKNOWN", "meter")}
   end if;`
     : "";
+
   const billingHook = sqlString(
     `${ctx.hookTarget("usage_billing_period")}(${id})`,
   );
+
   const periodCheck = `${qc("period")} in ('day', 'week', 'month', 'year', 'billing')`;
   const quotaNames = ctx.tableName("quotas");
+
   const periodConstraint = sqlIdent(
     `${quotaNames.name}_${qc("period").replaceAll('"', "")}_check`,
   );
+
   const planKeys =
     typeof layout.entitlements?.source === "object"
       ? ` or q.${qc("plan")} = any (better_supabase.tenant_plans(tenant))`
       : "";
+
   const entitled = ctx.entitlements("tenant");
+
   const planMatches = entitled
     ? `q.${qc("plan")} = '*' or q.${qc("plan")} = any (${entitled})${planKeys}`
     : `q.${qc("plan")} = '*'`;

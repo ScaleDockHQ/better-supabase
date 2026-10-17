@@ -37,9 +37,15 @@ async function serve<T>(
     response: { headers: new Headers() },
     locals: {},
   };
+
   const short = await bs.middleware.onRequest(event);
-  if (short) return { event, short };
+
+  if (short) {
+    return { event, short };
+  }
+
   current = event;
+
   try {
     return { event, out: await fn() };
   } finally {
@@ -53,10 +59,13 @@ describe("createSolidStart", () => {
     const { out } = await serve(await requestAs({ role: "member" }), () =>
       bs.require(),
     );
+
     expect(out?.session).toMatchObject({ user: { id: USER } });
+
     const { out: locals } = await serve(await requestAs(), () =>
       Promise.resolve(bs.locals()),
     );
+
     expect(locals?.bs.auth.kind).toBe("anon");
   });
 
@@ -65,6 +74,7 @@ describe("createSolidStart", () => {
       await requestAs(undefined, { url: "https://app.test/notes" }),
       () => bs.require(),
     );
+
     await expect(anonymous).rejects.toSatisfy(
       (response: Response) =>
         response.status === 303 &&
@@ -82,9 +92,11 @@ describe("createSolidStart", () => {
     const save = bs.action({}, (input) => ok({ input }));
     const form = new FormData();
     form.append("title", "Hello");
+
     const { out } = await serve(await requestAs({ role: "member" }), () =>
       save(form),
     );
+
     expect(out).toEqual({
       ok: true,
       data: { input: { title: "Hello" } },
@@ -103,6 +115,7 @@ describe("createSolidStart", () => {
       locals: {},
       nativeEvent: { context: { cloudflare: { env: {} } } },
     };
+
     expect(await bs.middleware.onRequest(event)).toBeUndefined();
     expect(event.locals).toHaveProperty("db");
   });

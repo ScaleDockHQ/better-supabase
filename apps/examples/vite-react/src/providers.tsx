@@ -6,6 +6,7 @@ import { bs } from "./lib/supabase/client";
 
 export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
+
   return (
     <QueryClientProvider client={queryClient}>
       <BetterSupabaseProvider client={bs} queryClient={queryClient}>

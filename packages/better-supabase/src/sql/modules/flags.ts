@@ -67,19 +67,25 @@ const NAMES: ModuleNames = {
 };
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
   const id = ctx.idType;
   const flags = ctx.table("flags");
   const overrides = ctx.table("overrides");
   const f = (logical: string): string => ctx.col("flags", logical);
   const o = (logical: string): string => ctx.col("overrides", logical);
   const fn = (name: string): string => ctx.fn(name);
+
   const manage = ctx.staff(
     ctx.permission("manage", OPERATIONS["flags.manage"]),
   );
+
   const denied = `if not ${manage} then
     ${fail("FLAGS_FORBIDDEN", "Not allowed to manage feature flags")}
   end if;`;
+
   const flagEvent = (type: string, key: string): string =>
     ctx.record({
       type,
@@ -87,6 +93,7 @@ function build(ctx: ModuleContext): string {
       subject: `'flags/' || ${key}`,
       audit: { category: "configuration", targetType: "flag", recordId: key },
     });
+
   const overrideEvent = ctx.record({
     type: "flag.override_set",
     payload:
@@ -99,6 +106,7 @@ function build(ctx: ModuleContext): string {
       recordId: "set_flag_override.key",
     },
   });
+
   const plans = ctx.entitlements("tenant", "'{}'::text[]");
   const extras = ctx.extraColumns("flags");
 

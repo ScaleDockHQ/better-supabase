@@ -17,6 +17,7 @@ const USAGE = {
 function memoryCache(fail?: "get" | "set") {
   const entries = new Map<string, unknown>();
   const sets: { key: string; options: unknown }[] = [];
+
   const cache: Pick<AiCache, "get" | "set"> = {
     get: (key) =>
       fail === "get"
@@ -38,9 +39,13 @@ function memoryCache(fail?: "get" | "set") {
               : undefined,
           ),
     set: (key, value, options) => {
-      if (fail === "set") return AsyncResult.err(dbError("network", "down"));
+      if (fail === "set") {
+        return AsyncResult.err(dbError("network", "down"));
+      }
+
       entries.set(key, value);
       sets.push({ key, options });
+
       return AsyncResult.ok({
         key,
         organizationId: undefined,
@@ -53,6 +58,7 @@ function memoryCache(fail?: "get" | "set") {
       });
     },
   };
+
   return { cache, entries, sets };
 }
 
@@ -109,10 +115,12 @@ describe("cacheMiddleware", () => {
   it("answers a repeated generation from the cache", async () => {
     const { cache, sets, entries } = memoryCache();
     const inner = generateModel();
+
     const model = wrapLanguageModel({
       model: inner,
       middleware: cacheMiddleware({ cache, ttl: 60, organizationId: "o1" }),
     });
+
     const first = await generateText({ model, prompt: "Hi" });
     const second = await generateText({ model, prompt: "Hi" });
     expect(second.text).toBe(first.text);
@@ -133,10 +141,12 @@ describe("cacheMiddleware", () => {
 
   it("never caches a generation that ended in an error", async () => {
     const { cache, sets } = memoryCache();
+
     const model = wrapLanguageModel({
       model: generateModel("error"),
       middleware: cacheMiddleware({ cache, ttl: 60 }),
     });
+
     await generateText({ model, prompt: "Hi" });
     expect(sets).toEqual([]);
   });
@@ -144,10 +154,12 @@ describe("cacheMiddleware", () => {
   it("replays a cached stream without the raw parts", async () => {
     const { cache, entries } = memoryCache();
     const inner = streamModel();
+
     const model = wrapLanguageModel({
       model: inner,
       middleware: cacheMiddleware({ cache, ttl: 60 }),
     });
+
     const first = await streamText({ model, prompt: "Hi" }).text;
     const replay = streamText({ model, prompt: "Hi" });
     expect(await replay.text).toBe(first);
@@ -158,10 +170,12 @@ describe("cacheMiddleware", () => {
 
   it("does not cache a stream with an error part", async () => {
     const { cache, sets } = memoryCache();
+
     const model = wrapLanguageModel({
       model: streamModel("error"),
       middleware: cacheMiddleware({ cache, ttl: 60 }),
     });
+
     const result = streamText({ model, prompt: "Hi", onError: () => {} });
     await result.consumeStream();
     expect(sets).toEqual([]);
@@ -170,6 +184,7 @@ describe("cacheMiddleware", () => {
   it("skips the cache when `when` says so, and keys by `key`", async () => {
     const { cache, sets } = memoryCache();
     const inner = generateModel();
+
     const model = wrapLanguageModel({
       model: inner,
       middleware: cacheMiddleware({
@@ -179,15 +194,18 @@ describe("cacheMiddleware", () => {
         key: () => "same",
       }),
     });
+
     await generateText({ model, prompt: "A", temperature: 1 });
     expect(sets).toEqual([]);
     await generateText({ model, prompt: "A" });
     await generateText({ model, prompt: "B" });
     expect(inner.doGenerateCalls).toHaveLength(2);
+
     const streaming = wrapLanguageModel({
       model: streamModel(),
       middleware: cacheMiddleware({ cache, ttl: 60, when: () => false }),
     });
+
     expect(await streamText({ model: streaming, prompt: "A" }).text).toBe(
       "Hi there",
     );
@@ -197,6 +215,7 @@ describe("cacheMiddleware", () => {
     for (const fail of ["get", "set"] as const) {
       const errors: DbError[] = [];
       const { cache } = memoryCache(fail);
+
       const model = wrapLanguageModel({
         model: generateModel(),
         middleware: cacheMiddleware({
@@ -205,6 +224,7 @@ describe("cacheMiddleware", () => {
           onError: (error) => errors.push(error),
         }),
       });
+
       expect((await generateText({ model, prompt: "Hi" })).text).toBe("Hello");
       expect(errors.length).toBeGreaterThan(0);
     }
@@ -214,6 +234,7 @@ describe("cacheMiddleware", () => {
     const { cache } = memoryCache();
     const middleware = cacheMiddleware({ cache, ttl: 60 });
     const model = new MockLanguageModelV4();
+
     const doGenerate = vi.fn(async () => ({
       content: [
         {
@@ -230,12 +251,14 @@ describe("cacheMiddleware", () => {
       warnings: [],
       response: { timestamp: new Date("2026-01-01T00:00:00Z") },
     }));
+
     const call = {
       doGenerate,
       doStream: () => Promise.reject(new Error("unused")),
       params: { prompt: [] },
       model,
     };
+
     await middleware.wrapGenerate!(call);
     const cached = await middleware.wrapGenerate!(call);
     expect(doGenerate).toHaveBeenCalledTimes(1);

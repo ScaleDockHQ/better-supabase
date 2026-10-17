@@ -16,6 +16,7 @@ import { stackDbUrl, stackEngine, stackUrl } from "./stack-env.ts";
 
 const url = stackUrl();
 const dbUrl = stackDbUrl();
+
 const publishableKey =
   process.env["SUPABASE_PUBLISHABLE_KEY"] ??
   "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";
@@ -30,6 +31,7 @@ async function reachable(): Promise<boolean> {
       headers: { apikey: publishableKey },
       signal: AbortSignal.timeout(1000),
     });
+
     return response.status < 500;
   } catch {
     return false;
@@ -53,6 +55,7 @@ const title: StandardSchemaV1<unknown, { title: string }> = {
 
 const betterSupabase = defineSupabase(schema);
 const customers = defineTopic("organization:{organizationId}:customers");
+
 const notifications = defineTopic(
   "organization:{organizationId}:notifications:{userId}",
   {
@@ -69,6 +72,7 @@ function waitFor<T>(
     const timer = setTimeout(() => {
       reject(new Error("timed out waiting for a message"));
     }, ms);
+
     register((value) => {
       clearTimeout(timer);
       resolve(value);
@@ -86,6 +90,7 @@ describe.skipIf(!live)("Realtime module", async () => {
           tenant_id: organizationId,
         }),
     });
+
   const acme = clientFor(ACME);
   const other = clientFor(OTHER);
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
@@ -111,11 +116,14 @@ describe.skipIf(!live)("Realtime module", async () => {
 
   it("fills a topic from parent rows and sends a custom event and payload", async () => {
     const client = await pool.connect();
+
     try {
       await client.query("begin");
+
       const tagged = defineTopic(
         "org:{organizationSlug}:customer:{customerId}",
       );
+
       await client.query(
         tagged.triggerSql(betterSupabase, "customerTags", {
           values: {
@@ -142,6 +150,7 @@ describe.skipIf(!live)("Realtime module", async () => {
           },
         }),
       );
+
       const { rows: inserted } = await client.query<{
         customer: string;
         tag: string;
@@ -157,11 +166,13 @@ describe.skipIf(!live)("Realtime module", async () => {
          from c, t`,
         [ACME],
       );
+
       const { customer, tag, slug } = inserted[0]!;
       await client.query(
         "insert into public.customer_tags (customer_id, tag_id, organization_id) values ($1, $2, $3)",
         [customer, tag, ACME],
       );
+
       const { rows } = await client.query<{
         event: string;
         payload: Record<string, unknown>;
@@ -170,6 +181,7 @@ describe.skipIf(!live)("Realtime module", async () => {
         "select event, payload, private from realtime.messages where topic = $1",
         [`org:${slug}:customer:${customer}`],
       );
+
       expect(rows).toEqual([
         {
           event: "tag_added",
@@ -190,6 +202,7 @@ describe.skipIf(!live)("Realtime module", async () => {
 
   it("sends row changes through broadcast_topic() from a topic.trigger()", async () => {
     const client = await pool.connect();
+
     try {
       await client.query("begin");
       const quotes = defineTopic("organization:{organizationId}:quotes");
@@ -198,15 +211,18 @@ describe.skipIf(!live)("Realtime module", async () => {
         quotes.trigger("customers", { event: "customer.changed" }),
       );
       await client.query(byKvk.trigger("customers", { events: ["insert"] }));
+
       const { rows: created } = await client.query<{ id: string }>(
         "insert into public.customers (organization_id, name) values ($1, 'Trigger Co') returning id::text",
         [ACME],
       );
+
       const id = created[0]!.id;
       await client.query(
         "update public.customers set name = 'Trigger BV' where id = $1",
         [id],
       );
+
       const { rows } = await client.query<{
         event: string;
         payload: {
@@ -219,6 +235,7 @@ describe.skipIf(!live)("Realtime module", async () => {
         "select event, payload, private from realtime.messages where topic = $1 order by payload->>'operation'",
         [`organization:${ACME}:quotes`],
       );
+
       expect(
         rows.map((row) => [
           row.event,
@@ -231,20 +248,24 @@ describe.skipIf(!live)("Realtime module", async () => {
         ["customer.changed", "INSERT", "Trigger Co", null, true],
         ["customer.changed", "UPDATE", "Trigger BV", "Trigger Co", true],
       ]);
+
       const { rows: kvk } = await client.query(
         "select 1 from realtime.messages where topic like 'kvk:%'",
       );
+
       expect(kvk).toEqual([]);
       await client.query(
         "insert into public.customers (organization_id, name, kvk) values ($1, 'Kvk Co', $2)",
         [ACME, "012345678"],
       );
+
       const { rows: sent } = await client.query<{
         event: string;
         private: boolean;
       }>("select event, private from realtime.messages where topic = $1", [
         "kvk:012345678",
       ]);
+
       expect(sent).toEqual([{ event: "INSERT", private: false }]);
       await client.query("savepoint bad");
       await expect(
@@ -266,6 +287,7 @@ describe.skipIf(!live)("Realtime module", async () => {
     async () => {
       let retry: ReturnType<typeof setInterval> | undefined;
       let attempt = 0;
+
       const insert = () =>
         betterSupabase
           .connect(acme, { claims: { tenant_id: ACME } })
@@ -275,6 +297,7 @@ describe.skipIf(!live)("Realtime module", async () => {
             kvk: `${kvk}-${String((attempt += 1))}`,
           })
           .orThrow();
+
       const got = waitFor<TopicMessage>((resolve) => {
         const sub = customers.subscribe(
           acme,
@@ -285,6 +308,7 @@ describe.skipIf(!live)("Realtime module", async () => {
             },
           },
         );
+
         // A cold Realtime server acknowledges the join before it relays database
         // broadcasts, and a message sent in that gap is never delivered.
         void sub.ready.then(async () => {
@@ -294,6 +318,7 @@ describe.skipIf(!live)("Realtime module", async () => {
       }, 15_000).finally(() => {
         clearInterval(retry);
       });
+
       const received = await got;
       const change = rowChange(betterSupabase, "customers", received);
       expect(change).toMatchObject({
@@ -321,25 +346,30 @@ describe.skipIf(!live)("Realtime module", async () => {
     "sends validated events over HTTP",
     async () => {
       const values = { organizationId: ACME, userId: USER };
+
       const invalid = await notifications.send(acme, values, "created", {
         nope: true,
       });
+
       expect(invalid.error).toMatchObject({
         kind: "validation",
         issues: [{ path: ["title"] }],
       });
 
       let retry: ReturnType<typeof setInterval> | undefined;
+
       const send = () =>
         notifications
           .send(acme, values, "created", { title: "Hello" })
           .orThrow();
+
       const message = await waitFor<{ title: string }>((resolve) => {
         const sub = notifications.subscribe(acme, values, {
           created: (payload) => {
             resolve(payload);
           },
         });
+
         // Same cold-server gap as the row broadcast above.
         void sub.ready.then(async () => {
           await send();
@@ -348,11 +378,13 @@ describe.skipIf(!live)("Realtime module", async () => {
       }, 15_000).finally(() => {
         clearInterval(retry);
       });
+
       expect(message).toEqual({ title: "Hello" });
 
       const denied = await notifications.send(other, values, "created", {
         title: "Hi",
       });
+
       expect(denied.ok).toBe(false);
     },
     20_000,

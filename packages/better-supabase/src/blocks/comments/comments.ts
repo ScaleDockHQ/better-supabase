@@ -220,6 +220,7 @@ export function mentionsIn(body: string): readonly string[] {
 
 function commentOf(value: unknown): Comment {
   const row = recordOf(value, "comments");
+
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["organization_id"]),
@@ -239,6 +240,7 @@ function commentOf(value: unknown): Comment {
 
 function activityOf(value: unknown): ActivityEntry {
   const row = recordOf(value, "activity_entries");
+
   return {
     id: textOf(row["id"]),
     source: row["source"] === "audit" ? "audit" : "event",
@@ -258,13 +260,16 @@ export function createComments<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: CommentsOptions<S>): Comments<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const fields: BlockFields<F> = blockFields(options.fields, "comment fields");
+
   const mentionsOf = (body: string, rich: unknown): readonly string[] =>
     options.mentionsOf
       ? options.mentionsOf({ body, document: rich })
       : mentionsIn(body);
+
   const client: Comments<F> = {
     create: (comment) =>
       fields.args(comment.fields).andThen((checked) =>
@@ -331,6 +336,7 @@ export function createComments<
         },
         (value) => {
           const found = isRecord(value) ? value : {};
+
           return Object.fromEntries(
             subjectIds.map((id) => [id, Number(found[id] ?? 0)]),
           );
@@ -361,6 +367,7 @@ export function createComments<
         (value) => recordsOf(value, "list_activity").map(activityOf),
       ),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "comments",
     ...(options.logger ? { logger: options.logger } : {}),
@@ -404,8 +411,12 @@ const firstText = (
 ): string | undefined => {
   for (const key of keys) {
     const value = optionalText(data[key]);
-    if (value !== undefined) return value;
+
+    if (value !== undefined) {
+      return value;
+    }
   }
+
   return undefined;
 };
 
@@ -414,8 +425,13 @@ function subjectOf(
   subject: string | undefined,
 ): { type: string; id: string } | undefined {
   const slash = subject?.indexOf("/") ?? -1;
-  if (subject === undefined || slash < 1) return undefined;
+
+  if (subject === undefined || slash < 1) {
+    return undefined;
+  }
+
   const plural = subject.slice(0, slash);
+
   return {
     type: plural.endsWith("s") ? plural.slice(0, -1) : plural,
     id: subject.slice(slash + 1),
@@ -429,16 +445,30 @@ function subjectOf(
  */
 export function activitySink(options: ActivitySinkOptions): EventSink {
   const call = blockCall(options.transport, options.schema);
+
   return {
     async send(events) {
       const entries: Record<string, unknown>[] = [];
+
       for (const event of events) {
         const tenant = optionalText(event["partitionkey"]);
-        if (tenant === undefined) continue;
+
+        if (tenant === undefined) {
+          continue;
+        }
+
         const type = stripTypePrefix(event.type, options.typePrefix);
-        if (options.types && !matches(options.types, type)) continue;
+
+        if (options.types && !matches(options.types, type)) {
+          continue;
+        }
+
         const described = options.describe ? options.describe(event, type) : {};
-        if (described === null) continue;
+
+        if (described === null) {
+          continue;
+        }
+
         const data = isRecord(event.data) ? event.data : {};
         const subject = subjectOf(event.subject);
         entries.push({
@@ -461,6 +491,7 @@ export function activitySink(options: ActivitySinkOptions): EventSink {
           occurred_at: event.time,
         });
       }
+
       if (entries.length > 0) {
         // A sink rejects on failure, so the relay retries the batch.
         await call(
@@ -504,15 +535,22 @@ export function activityListQuery<
   options: { readonly pageSize?: number; readonly maxPageSize?: number } = {},
 ): ListDefinition<M, T, E, ActivitySort, ActivityFacet, false, "cursor"> {
   const meta: TableMeta | undefined = betterSupabase.meta.tables[table];
-  if (!meta) throw new TypeError(`activityListQuery: unknown table "${table}"`);
+
+  if (!meta) {
+    throw new TypeError(`activityListQuery: unknown table "${table}"`);
+  }
+
   const camel = meta.columns["occurredAt"] !== undefined;
+
   const facets: Record<string, string> = Object.fromEntries(
     FACETS.map(([key, snake, camelName]): [ActivityFacet, string] => [
       key,
       camel ? camelName : snake,
     ]).filter(([, column]) => meta.columns[column] !== undefined),
   );
+
   const occurredAt = camel ? "occurredAt" : "occurred_at";
+
   // SAFETY: defineListQuery checks every column against the table's meta
   // and throws for one the table lacks; facets keeps only columns it has.
   // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the column names are known only at runtime (camel or snake casing), so the config can't be typed against M.
@@ -536,5 +574,6 @@ export function activityListQuery<
     false,
     "cursor"
   >;
+
   return defineListQuery(betterSupabase, table, config);
 }

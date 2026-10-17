@@ -17,6 +17,7 @@ export {
   type PrivateDetailsInput,
   type SalaryPeriod,
 } from "./employees.ts";
+
 export {
   extendBlock,
   withBlockHooks,
@@ -24,6 +25,7 @@ export {
   type BlockHooks,
   type BlockTransportMiddleware,
 } from "../../core/block-hooks.ts";
+
 export {
   dbTransport,
   rpcTransport,
@@ -31,6 +33,9 @@ export {
   type BlockTransport,
   type RpcClient,
 } from "../../core/block-transport.ts";
+
 export { employeesBlock } from "./manifest.ts";
+
 export { employeesEvents } from "./events.ts";
+
 export type { EmployeesEvents } from "./events.ts";

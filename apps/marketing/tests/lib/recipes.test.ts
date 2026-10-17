@@ -12,6 +12,7 @@ import {
 } from "../../lib/recipes";
 
 const PAGE = join(import.meta.dirname, "../../app/recipes/[slug]/page.tsx");
+
 const REGISTRY = join(
   import.meta.dirname,
   "../../../../packages/registry/registry.json",
@@ -19,14 +20,17 @@ const REGISTRY = join(
 
 describe("recipes", () => {
   test("every available recipe has a statically generated page", () => {
-    expect(readFileSync(PAGE, "utf8")).toContain(
+    expect(readFileSync(PAGE, "utf-8")).toContain(
       "return recipeStaticParams();",
     );
     expect(recipeStaticParams().map((param) => param.slug)).toEqual(
       availableRecipes.map((recipe) => recipe.slug),
     );
-    for (const recipe of availableRecipes)
+
+    for (const recipe of availableRecipes) {
       expect(getRecipe(recipe.slug)).toBe(recipe);
+    }
+
     expect(availableRecipes.length).toBeGreaterThan(0);
     expect(plannedRecipes.length + availableRecipes.length).toBe(15);
   });
@@ -39,6 +43,7 @@ describe("recipes", () => {
         expect(side.snippet.code).toContain(`${recipe.hook.name}(`);
         expect(side.snippet.code).not.toContain("#region");
       }
+
       expect(recipe.web.snippet.code).not.toContain("react-native");
       expect(recipe.native.snippet.code).toContain('from "react-native"');
     },
@@ -47,18 +52,21 @@ describe("recipes", () => {
   test("every recipe names a catalog block, and its glue is a registry item", () => {
     const items = new Set(
       (
-        JSON.parse(readFileSync(REGISTRY, "utf8")) as {
+        JSON.parse(readFileSync(REGISTRY, "utf-8")) as {
           items: { name: string }[];
         }
       ).items.map((item) => item.name),
     );
+
     for (const recipe of recipes) {
       expect(getBlock(recipe.block)?.name).toBe(recipe.block);
+
       for (const item of [
         ...(recipe.web?.glue ?? []),
         ...(recipe.native?.glue ?? []),
-      ])
+      ]) {
         expect(items).toContain(item);
+      }
     }
   });
 });

@@ -20,15 +20,21 @@ export function NotificationBell({
   const supabase = useSupabase();
   const tenant = tenantOf(auth);
   const userId = auth.user?.id;
+
   const { items, count } = useNotifications({
     topic: userId ? `notifications:${userId}` : null,
     load: async () => {
-      if (!tenant) return [];
+      if (!tenant) {
+        return [];
+      }
+
       const result = await blocks(supabase).notifications.counts({ tenant });
+
       return result.ok ? [result.data] : [];
     },
     count: unreadOf,
   });
+
   return (
     <Pressable
       onPress={onPress}

@@ -14,24 +14,29 @@ export function fakePgPool(
   ended: number;
 } {
   const state = { log: [] as string[], connections: 0, released: 0, ended: 0 };
+
   const pool: PgPool = {
     async connect() {
       state.connections += 1;
+
       const client: PgPoolClient = {
         async query(text, values = []) {
           state.log.push(text);
+
           return { rows: answer(text, values) };
         },
         release() {
           state.released += 1;
         },
       };
+
       return client;
     },
     async end() {
       state.ended += 1;
     },
   };
+
   return {
     pool,
     log: state.log,

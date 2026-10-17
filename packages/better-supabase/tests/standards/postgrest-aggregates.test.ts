@@ -18,14 +18,24 @@ function items(select: string): string[] {
   const out: string[] = [];
   let depth = 0;
   let current = "";
+
   for (const char of select) {
-    if (char === "(") depth += 1;
-    if (char === ")") depth -= 1;
+    if (char === "(") {
+      depth += 1;
+    }
+
+    if (char === ")") {
+      depth -= 1;
+    }
+
     if (char === "," && depth === 0) {
       out.push(current);
       current = "";
-    } else current += char;
+    } else {
+      current += char;
+    }
   }
+
   return [...out, current];
 }
 
@@ -36,6 +46,7 @@ describe(`PostgREST aggregate functions (PostgREST ${SPEC_PINS.postgrestAggregat
     const { client, last } = capturingClient(() => ({
       body: [{ status: "active", _count: 2 }],
     }));
+
     await betterSupabase.connect(client).customers.aggregate({
       groupBy: ["status"],
       _count: true,
@@ -43,7 +54,11 @@ describe(`PostgREST aggregate functions (PostgREST ${SPEC_PINS.postgrestAggregat
       _max: { createdAt: true },
     });
     const select = last().params.get("select")!;
-    for (const item of items(select)) expect(item).toMatch(ITEM);
+
+    for (const item of items(select)) {
+      expect(item).toMatch(ITEM);
+    }
+
     expect(items(select)).toContain("status");
     expect(items(select)).toContain("_count:count()");
     expect(items(select)).toContain("_min_createdAt:created_at.min()");
@@ -61,17 +76,23 @@ describe(`PostgREST aggregate functions (PostgREST ${SPEC_PINS.postgrestAggregat
     const select = last().params.get("select")!;
     const embedded = items(select).filter((item) => item.includes("("));
     expect(embedded.length).toBe(2);
+
     for (const item of embedded) {
       const inner = /\(([^]*)\)$/.exec(item.replace(/^[^(]*\(/, "("))![1]!;
-      for (const part of items(inner)) expect(part).toMatch(ITEM);
+
+      for (const part of items(inner)) {
+        expect(part).toMatch(ITEM);
+      }
     }
   });
 
   it("rejects _sum on a non-numeric column before sending a request", async () => {
     const { client, requests } = capturingClient();
+
     const result = await betterSupabase.connect(client).customers.findMany({
       include: { _sum: { notes: { body: true } } } as never,
     });
+
     expect(result.ok).toBe(false);
     expect(requests).toHaveLength(0);
   });

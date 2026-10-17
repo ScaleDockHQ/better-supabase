@@ -36,6 +36,7 @@ function fake(
   const ops: Operation[] = [];
   const contexts: ExecuteContext[] = [];
   const calls: Fake["calls"] = [];
+
   return {
     name: "fake",
     ops,
@@ -45,6 +46,7 @@ function fake(
     async execute(op, context) {
       ops.push(op);
       contexts.push(context);
+
       return options.answer ? options.answer(op) : ok({ rows: [], count: 0 });
     },
     ...(options.rpc
@@ -55,6 +57,7 @@ function fake(
             context: RpcContext,
           ) => {
             calls.push({ name, args, context });
+
             return options.rpc?.(name, args) ?? ok(null);
           },
         }
@@ -94,6 +97,7 @@ describe("use", () => {
       name: "clash",
       repository: () => ({ findMany: () => 1 }),
     };
+
     const db = betterSupabase.use(plugin).connect(fake());
     expect(() => db.customers).toThrow(
       'better-supabase: plugin "clash" redefines "customers.findMany"',
@@ -106,15 +110,18 @@ describe("connect", () => {
     const now = Temporal.Instant.from("2026-05-01T00:00:00Z");
     const seen: Temporal.Instant[] = [];
     const mapError = () => undefined;
+
     const plugin: AnyPlugin = {
       apiVersion: 1,
       name: "clock",
       mapError,
       transformQuery: (op, args) => {
         seen.push(args.now());
+
         return op;
       },
     };
+
     const executor = fake();
     await defineSupabase(schema, { now: () => now })
       .use(plugin)
@@ -131,14 +138,17 @@ describe("connect", () => {
       vi.useRealTimers();
     });
     const seen: Temporal.Instant[] = [];
+
     const plugin: AnyPlugin = {
       apiVersion: 1,
       name: "clock",
       transformQuery: (op, args) => {
         seen.push(args.now());
+
         return op;
       },
     };
+
     await betterSupabase.use(plugin).connect(fake()).tags.count();
     expect(seen).toEqual([now]);
   });
@@ -155,9 +165,11 @@ describe("connect", () => {
     const db = betterSupabase.connect(
       fake({ answer: () => ok({ rows: [], count: 9 }) }),
     );
+
     const extended = db.tags.extend((base) => ({
       total: () => base.count(),
     }));
+
     expect(await extended.total()).toEqual(ok(9));
     expect(typeof extended.findMany).toBe("function");
   });
@@ -168,10 +180,12 @@ describe("connect", () => {
       name: "plain",
       repository: () => ({ label: () => "tags" }),
     };
+
     const db = betterSupabase
       .use(plugin)
       .mapError(() => new Error("mapped"))
       .connect(fake()) as unknown as { tags: { label: () => string } };
+
     expect(db.tags.label()).toBe("tags");
   });
 });
@@ -190,9 +204,11 @@ describe("$storage", () => {
   it("falls back to the client's storage, read once per connection", () => {
     const storage = storageApi();
     const read = vi.fn(() => storage);
+
     const client = Object.defineProperty({ from: () => ({}) }, "storage", {
       get: read,
     });
+
     const db = betterSupabase.connect(client);
     expect(db.$storage).toBe(storage);
     expect(db.$storage).toBe(storage);
@@ -245,6 +261,7 @@ describe("$run", () => {
         tags: s.tags.count({ where: { organizationId: p.organizationId } }),
       }),
     );
+
     const result = await betterSupabase.connect(fake()).$run(set.specs.tags);
     expect(result.error?.message).toBe(
       "This spec comes from a read set and still holds placeholders; run it with db.$many(readSet, params)",
@@ -260,6 +277,7 @@ describe("$run", () => {
       const executor = fake({
         answer: () => ok({ rows: [{ id: "t1" }], count: null }),
       });
+
       const controller = new AbortController();
       await betterSupabase
         .connect(executor)
@@ -301,29 +319,35 @@ describe("$many", () => {
       answer: (op) =>
         op.table.key === "notes" ? err(timeout) : ok({ rows: [], count: 1 }),
     });
+
     const result = await betterSupabase
       .connect(executor)
       .$many([
         betterSupabase.spec.tags.count(),
         betterSupabase.spec.notes.count(),
       ]);
+
     expect(result.error).toEqual({ ...timeout, table: "notes" });
   });
 
   it("runs a single spec through the connected plugins", async () => {
     const seen: string[] = [];
+
     const plugin: AnyPlugin = {
       apiVersion: 1,
       name: "spy",
       transformQuery: (op) => {
         seen.push(op.table.key);
+
         return op;
       },
     };
+
     const result = await betterSupabase
       .use(plugin)
       .connect(fake())
       .$many([betterSupabase.spec.tags.count()]);
+
     expect(result).toEqual(ok([0]));
     expect(seen).toEqual(["tags"]);
   });
@@ -342,6 +366,7 @@ describe("$many with a read set", () => {
       tag: s.tags.findById(p.organizationId, { select: ["id"] }),
     }),
   );
+
   const params = { organizationId: "o1" };
 
   it("calls the read-set function with the parameters", async () => {
@@ -352,6 +377,7 @@ describe("$many with a read set", () => {
           tag: { rows: [{ id: "t1" }], count: null },
         }),
     });
+
     const controller = new AbortController();
     expect(
       await betterSupabase
@@ -401,6 +427,7 @@ describe("$many with a read set", () => {
     const executor = fake({
       rpc: () => ok({ tags: { rows: null }, tag: { rows: [] } }),
     });
+
     const result = await betterSupabase.connect(executor).$many(set, params);
     expect(result.error).toMatchObject({ kind: "not_found", table: "tags" });
   });
@@ -485,6 +512,7 @@ describe("$search", () => {
       functionSources: true,
       answer: () => ok({ rows: [{ id: "1" }], count: null }),
     });
+
     expect(
       await betterSupabase.connect(executor).$search("notes", {
         vector: "[1,2]",
@@ -511,6 +539,7 @@ describe("$search", () => {
         functionSources: true,
         answer: () => err(dbError("unexpected", "missing", { code })),
       });
+
       expect(
         (await betterSupabase.connect(executor).$search("notes", { vector }))
           .error?.hint,
@@ -525,6 +554,7 @@ describe("$search", () => {
       functionSources: true,
       answer: () => err(timeout),
     });
+
     expect(
       await betterSupabase.connect(executor).$search("notes", { vector }),
     ).toEqual(err({ ...timeout, table: "notes" }));
@@ -565,6 +595,7 @@ describe("$search", () => {
             })
           : ok({ rows: [{ id: "a" }, { id: "b" }, { id: "x" }], count: null }),
     });
+
     const rows = await betterSupabase
       .connect(executor)
       .$search("notes", {
@@ -575,6 +606,7 @@ describe("$search", () => {
         where: { kind: "call" },
       })
       .orThrow();
+
     expect(rows).toEqual([
       { id: "b", $score: 0.9 },
       { id: "a", $score: 0.5 },
@@ -608,10 +640,12 @@ describe("$search", () => {
         .$search("notes", { vector, score: true }),
     ).toEqual(ok([]));
     expect(empty.ops).toHaveLength(1);
+
     const missing = fake({
       functionSources: true,
       answer: () => err(dbError("unexpected", "missing", { code: "PGRST202" })),
     });
+
     expect(
       (
         await betterSupabase
@@ -619,6 +653,7 @@ describe("$search", () => {
           .$search("notes", { vector, score: true })
       ).error?.hint,
     ).toContain("vectorSearch");
+
     const failing = fake({
       functionSources: true,
       answer: (op) =>
@@ -626,6 +661,7 @@ describe("$search", () => {
           ? ok({ rows: [{ id: "a", score: 1 }], count: null })
           : err(timeout),
     });
+
     expect(
       (
         await betterSupabase
@@ -639,13 +675,16 @@ describe("$search", () => {
     const definition = defineSupabase(schema);
     const errors: unknown[] = [];
     definition.on("error", (event) => errors.push(event));
+
     const failing = fake({
       functionSources: true,
       answer: () => err(dbError("unexpected", "boom", { table: "x$scores" })),
     });
+
     const result = await definition
       .connect(failing, {}, { timeout: 1000 })
       .$search("notes", { vector, score: true });
+
     expect(result.error).toMatchObject({ message: "boom", table: "notes" });
     expect(errors).toEqual([{ table: "notes", error: result.error }]);
     expect(failing.contexts[0]?.signal).toBeInstanceOf(AbortSignal);
@@ -653,9 +692,11 @@ describe("$search", () => {
 
   it("rejects an invalid connection timeout before reading scores", async () => {
     const executor = fake({ functionSources: true });
+
     const result = await betterSupabase
       .connect(executor, {}, { timeout: -1 })
       .$search("notes", { vector, score: true });
+
     expect(result.error?.kind).toBe("invalid_request");
     expect(executor.ops).toHaveLength(0);
   });
@@ -666,9 +707,11 @@ describe("$rpc", () => {
     const definition = defineSupabase(schema);
     const errors: unknown[] = [];
     definition.on("error", (event) => errors.push(event));
+
     const result = await definition
       .connect(fake({ rpc: () => err(timeout) }))
       .$rpc("search_notes" as never, {} as never);
+
     expect(result).toEqual(err(timeout));
     expect(errors).toEqual([{ error: timeout }]);
   });
@@ -686,12 +729,14 @@ describe("$rpc", () => {
   it("calls the function with the schema and signal", async () => {
     const executor = fake({ rpc: () => ok(3) });
     const controller = new AbortController();
+
     const result = await betterSupabase
       .connect(executor)
       .$rpc("search_notes" as never, { q: 1 } as never, {
         schema: "api",
         signal: controller.signal,
       });
+
     expect(result).toEqual(ok(3));
     expect(executor.calls).toEqual([
       {
@@ -761,10 +806,12 @@ describe("$rpc result decoding", () => {
 
   it("returns table rows in the configured casing", async () => {
     const executor = fake({ rpc: () => ok([row]) });
+
     const rows = await betterSupabase
       .connect(executor)
       .$rpc("customers_by_status", { p_status: "lead" })
       .orThrow();
+
     expect(rows).toEqual([
       {
         id: "c1",
@@ -779,21 +826,26 @@ describe("$rpc result decoding", () => {
     const executor = fake({
       rpc: () => ok([{ customer_id: "c1", note_count: 2, extra: true }]),
     });
+
     const seen: unknown[] = [];
+
     const returns: StandardSchemaV1<unknown, unknown> = {
       "~standard": {
         version: 1,
         vendor: "test",
         validate: (value) => {
           seen.push(value);
+
           return { value };
         },
       },
     };
+
     const rows = await betterSupabase
       .connect(executor)
       .$rpc("customer_note_counts", {}, { returns })
       .orThrow();
+
     expect(rows).toEqual([{ customerId: "c1", noteCount: 2, extra: true }]);
     expect(seen).toEqual([rows]);
   });
@@ -851,6 +903,7 @@ describe("$rpc result decoding", () => {
         },
       }),
     );
+
     const ok1 = await coded
       .connect(
         fake({
@@ -860,15 +913,18 @@ describe("$rpc result decoding", () => {
       )
       .$rpc("customer_note_counts", {})
       .orThrow();
+
     expect(ok1).toEqual([
       {
         noteCount: 2n,
         lastNoteAt: Temporal.Instant.from("2026-01-01T00:00:00Z"),
       },
     ]);
+
     const bad = await coded
       .connect(fake({ rpc: () => ok([{ last_note_at: "infinity" }]) }))
       .$rpc("customer_note_counts", {});
+
     expect(bad.error?.kind).toBe("invalid_value");
   });
 });

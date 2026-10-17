@@ -73,9 +73,13 @@ function refOf(value: unknown): CredentialRef | null {
 }
 
 function installationOf(value: unknown): ChatInstallation | null {
-  if (!isRecord(value)) return null;
+  if (!isRecord(value)) {
+    return null;
+  }
+
   const metadata = value["metadata"];
   const uninstalled = optionalText(value["uninstalled_at"]);
+
   return {
     id: textOf(value["id"]),
     tenant: optionalText(value["tenant_id"]) ?? null,
@@ -106,8 +110,11 @@ export function createChatInstallations(
     options.schema ?? DEFAULT_BLOCK_SCHEMA,
     options.mappers,
   );
+
   const revoke = async (ref: CredentialRef | null): Promise<void> => {
-    if (ref) await options.credentials.revoke(ref, { subject: APP }).orThrow();
+    if (ref) {
+      await options.credentials.revoke(ref, { subject: APP }).orThrow();
+    }
   };
 
   const list: ChatInstallations["list"] = (filter = {}) =>
@@ -122,17 +129,23 @@ export function createChatInstallations(
         Array.isArray(value)
           ? value.flatMap((row) => {
               const parsed = installationOf(row);
+
               return parsed ? [parsed] : [];
             })
           : [],
     );
+
   const uninstall: ChatInstallations["uninstall"] = (adapter, externalId) =>
     call(
       "chat_uninstall",
       { adapter, external_id: externalId },
       async (value) => {
-        if (!isRecord(value)) return false;
+        if (!isRecord(value)) {
+          return false;
+        }
+
         await revoke(refOf(value["previous_credential_ref"]));
+
         return true;
       },
     );
@@ -151,11 +164,19 @@ export function createChatInstallations(
         },
         async (value) => {
           const row = installationOf(value);
-          if (!row) throw new Error("chat_install returned no row");
+
+          if (!row) {
+            throw new Error("chat_install returned no row");
+          }
+
           const previous = isRecord(value)
             ? refOf(value["previous_credential_ref"])
             : null;
-          if (!sameRef(previous, row.credentialRef)) await revoke(previous);
+
+          if (!sameRef(previous, row.credentialRef)) {
+            await revoke(previous);
+          }
+
           return row;
         },
       ),
@@ -164,9 +185,13 @@ export function createChatInstallations(
       run(async () => {
         const rows = await list({ tenant }).orThrow();
         let count = 0;
-        for (const row of rows)
-          if (await uninstall(row.adapter, row.externalId).orThrow())
+
+        for (const row of rows) {
+          if (await uninstall(row.adapter, row.externalId).orThrow()) {
             count += 1;
+          }
+        }
+
         return count;
       }),
     get: (adapter, externalId) =>

@@ -23,6 +23,7 @@ function fakePage(
 ) {
   let jar: Cookie[] = [];
   let listener: ((response: BudgetResponse) => void) | undefined;
+
   const context = {
     addCookies: (
       cookies: {
@@ -35,31 +36,40 @@ function fakePage(
     ) => {
       for (const cookie of cookies) {
         jar = jar.filter((kept) => kept.name !== cookie.name);
-        if (cookie.expires !== 1)
+
+        if (cookie.expires !== 1) {
           jar.push({
             name: cookie.name,
             value: cookie.value,
             domain: cookie.domain ?? "",
             path: cookie.path ?? "/",
           });
+        }
       }
+
       return Promise.resolve();
     },
     cookies: () => Promise.resolve(jar),
   };
+
   const page: InstantPage = {
     url: () => options.url ?? "https://app.test/",
     context: () => context,
     on: (event: string, fn: (response: BudgetResponse) => void) => {
-      if (event === "response") listener = fn;
+      if (event === "response") {
+        listener = fn;
+      }
     },
     off: (event: string) => {
-      if (event === "response") listener = undefined;
+      if (event === "response") {
+        listener = undefined;
+      }
     },
     reload: () => Promise.resolve(),
     request: {
       get: (url) => {
         const stats = options.renders?.[new URL(url).searchParams.get("id")!];
+
         return Promise.resolve({
           ok: () => stats !== undefined,
           status: () => (stats ? 200 : 404),
@@ -68,7 +78,9 @@ function fakePage(
       },
     },
   };
+
   const locked = (): boolean => jar.some((cookie) => cookie.name === LOCK);
+
   const respond = (id: string, path: string): void =>
     listener?.({
       url: () => `https://app.test${path}`,
@@ -79,6 +91,7 @@ function fakePage(
       }),
       finished: () => Promise.resolve(null),
     });
+
   return { page, locked, respond, domains: () => jar.map((c) => c.domain) };
 }
 
@@ -92,15 +105,18 @@ function locator(
     toString: () => `getByText('${name}')`,
     waitFor: () => {
       seen.push(`${name} visible, locked=${String(locked())}`);
+
       return state.visible
         ? Promise.resolve()
         : Promise.reject(new Error("Timeout 5000ms exceeded."));
     },
     count: () => {
       seen.push(`${name} count, locked=${String(locked())}`);
+
       return Promise.resolve(state.count ?? 0);
     },
   };
+
   return fake;
 }
 
@@ -115,14 +131,17 @@ describe("expectInstant", () => {
   it("checks the locators while the lock holds and releases it", async () => {
     const fake = fakePage();
     const seen: string[] = [];
+
     const renders = await expectInstant(fake.page, {
       during: () => {
         seen.push(`click, locked=${String(fake.locked())}`);
+
         return Promise.resolve();
       },
       visible: [locator("Customers", { visible: true }, seen, fake.locked)],
       absent: [locator("Unread", { count: 0 }, seen, fake.locked)],
     });
+
     expect(renders).toEqual([]);
     expect(seen).toEqual([
       "click, locked=true",
@@ -165,6 +184,7 @@ describe("expectInstant", () => {
       baseURL: "http://127.0.0.1:3100",
       during: () => {
         domains = fake.domains();
+
         return Promise.resolve();
       },
       visible: [],
@@ -174,10 +194,13 @@ describe("expectInstant", () => {
 
   it("checks the database budget of the navigation", async () => {
     const fake = fakePage({ renders: { rsc: stats(9, 3) } });
+
     const navigate = (): Promise<void> => {
       fake.respond("rsc", "/customers?_rsc=1");
+
       return Promise.resolve();
     };
+
     await expect(
       expectInstant(fake.page, { during: navigate, visible: [], maxCalls: 9 }),
     ).resolves.toMatchObject([{ requestId: "rsc", stats: { calls: 9 } }]);
@@ -188,12 +211,15 @@ describe("expectInstant", () => {
 
   it("measures the render that streams in after the lock releases", async () => {
     const fake = fakePage({ renders: { late: stats(9, 3) } });
+
     const navigate = (): Promise<void> => {
       setTimeout(() => {
         fake.respond("late", "/customers?_rsc=1");
       }, 20);
+
       return Promise.resolve();
     };
+
     await expect(
       expectInstant(fake.page, { during: navigate, visible: [], maxCalls: 2 }),
     ).rejects.toThrow(/over the budget of 2 calls/);

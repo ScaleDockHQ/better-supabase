@@ -46,9 +46,11 @@ const VERIFY_MODES: readonly IncomingVerify[] = [
 
 function verifyOf(value: unknown): IncomingVerify {
   const mode = VERIFY_MODES.find((entry) => entry === value);
+
   if (mode === undefined) {
     throw new TypeError(`Unknown verification mode ${String(value)}`);
   }
+
   return mode;
 }
 
@@ -64,14 +66,17 @@ export function createIncomingWebhooks(
   applyTemporal(options);
   const { sql } = options;
   const schema = options.schema ?? DEFAULT_BLOCK_SCHEMA;
+
   if (!IDENT.test(schema)) {
     throw new TypeError(
       `createIncomingWebhooks: "${schema}" is not a schema name`,
     );
   }
+
   const source = options.source ?? "webhook-in";
   const destination = options.destination ?? inboxDestination(sql);
   const fn = (name: string) => `"${schema}"."${name}"`;
+
   const call = blockCall(
     options.transport ?? sqlTransport(sql),
     schema,
@@ -81,9 +86,11 @@ export function createIncomingWebhooks(
   const client: IncomingWebhooks = {
     async receive(request, token) {
       const instance = new URL(request.url).pathname;
+
       if (request.method !== "POST") {
         return methodNotAllowed(["POST"]);
       }
+
       const problem = (error: DbError, endpoint?: string) =>
         (endpoint === undefined
           ? Promise.resolve()
@@ -96,17 +103,21 @@ export function createIncomingWebhooks(
         ).then(() =>
           problemResponse(error, { instance, format: options.problem }),
         );
+
       try {
         const [endpoint] = await sql.queryRaw<EndpointRow>(
           `select * from ${fn("incoming_webhook_by_token")}($1)`,
           [token],
         );
+
         if (!endpoint?.enabled) {
           return await problem(
             dbError("not_found", "No such webhook endpoint"),
           );
         }
+
         const body = await readBodyCapped(request, endpoint.max_body_bytes);
+
         if (body === undefined) {
           return await problem(
             {
@@ -118,6 +129,7 @@ export function createIncomingWebhooks(
             endpoint.id,
           );
         }
+
         if (options.rateLimit) {
           const hit = await hitRateLimit(
             sql,
@@ -128,6 +140,7 @@ export function createIncomingWebhooks(
               ? `${String(options.rateLimit.period)} seconds`
               : options.rateLimit.period,
           );
+
           if (!hit.allowed) {
             return await problem(
               dbError("rate_limited", "Too many deliveries", {
@@ -137,35 +150,47 @@ export function createIncomingWebhooks(
             );
           }
         }
+
         let messageId =
           request.headers.get("webhook-id") ??
           request.headers.get("svix-id") ??
           crypto.randomUUID();
+
         if (endpoint.verify === "standard-webhooks") {
           let verified = await verifyWebhook(
             { headers: request.headers, body },
             endpoint.secret ?? "",
           );
+
           if (!verified.ok && endpoint.previous_secret) {
             const previous = await verifyWebhook(
               { headers: request.headers, body },
               endpoint.previous_secret,
             );
-            if (previous.ok) verified = previous;
+
+            if (previous.ok) {
+              verified = previous;
+            }
           }
-          if (!verified.ok) return await problem(verified.error, endpoint.id);
+
+          if (!verified.ok) {
+            return await problem(verified.error, endpoint.id);
+          }
+
           messageId = verified.data.id;
         } else if (endpoint.verify === "shared-secret") {
           const given =
             request.headers.get(
               endpoint.signature_header ?? "x-webhook-secret",
             ) ?? "";
+
           const matches =
             (endpoint.secret !== null &&
               timingSafeEqual(given, endpoint.secret)) ||
             (endpoint.previous_secret !== null &&
               endpoint.previous_secret !== undefined &&
               timingSafeEqual(given, endpoint.previous_secret));
+
           if (given === "" || !matches) {
             return await problem(
               dbError("unauthorized", "Invalid webhook secret", {
@@ -178,15 +203,21 @@ export function createIncomingWebhooks(
           const given =
             request.headers.get(endpoint.signature_header ?? "x-signature") ??
             "";
+
           const signature = given.replace(/^sha256=/, "");
           let expected = await hmacHex(endpoint.secret ?? "", body);
+
           if (
             !timingSafeEqual(signature, expected) &&
             endpoint.previous_secret
           ) {
             const previous = await hmacHex(endpoint.previous_secret, body);
-            if (timingSafeEqual(signature, previous)) expected = previous;
+
+            if (timingSafeEqual(signature, previous)) {
+              expected = previous;
+            }
           }
+
           if (!timingSafeEqual(signature, expected)) {
             return await problem(
               dbError("unauthorized", "Invalid webhook signature", {
@@ -195,33 +226,44 @@ export function createIncomingWebhooks(
               endpoint.id,
             );
           }
+
           // The signature covers only the body, so an id header could be
           // changed to replay it. The HMAC itself is the id: a replayed
           // body is a duplicate.
           messageId = `hmac:${expected}`;
         }
+
         let payload: unknown = body;
+
         try {
           const parsed: unknown = body === "" ? {} : JSON.parse(body);
           payload = parsed;
         } catch {
           payload = { body };
         }
+
         const secretHeader =
           endpoint.verify === "shared-secret"
             ? (endpoint.signature_header ?? "x-webhook-secret").toLowerCase()
             : undefined;
+
         const kept: [string, string][] = (options.keepHeaders ?? []).flatMap(
           (name): [string, string][] => {
-            if (name.toLowerCase() === secretHeader) return [];
+            if (name.toLowerCase() === secretHeader) {
+              return [];
+            }
+
             const header = request.headers.get(name);
+
             return header === null ? [] : [[name.toLowerCase(), header]];
           },
         );
+
         const headers = Object.fromEntries([
           ...kept,
           [INCOMING_ENDPOINT_HEADER, endpoint.id],
         ]);
+
         const stored = await destination.deliver({
           endpoint: {
             id: endpoint.id,
@@ -240,11 +282,13 @@ export function createIncomingWebhooks(
           payload,
           headers,
         });
+
         const status = stored.duplicate ? 200 : 202;
         await sql.queryRaw(`select ${fn("record_incoming_webhook")}($1, $2)`, [
           endpoint.id,
           status,
         ]);
+
         return Response.json(
           { id: stored.id, duplicate: stored.duplicate },
           { status },
@@ -272,6 +316,7 @@ export function createIncomingWebhooks(
           const created = recordOf(value, "create_incoming_webhook");
           const subjectType = optionalText(created["subjectType"]);
           const subjectId = optionalText(created["subjectId"]);
+
           return {
             id: String(created["id"]),
             tenant: String(created["tenant"]),
@@ -327,6 +372,7 @@ export function createIncomingWebhooks(
         { endpoint: id, rotate_secret: rotateOptions.rotateSecret ?? false },
         (value) => {
           const rotated = recordOf(value, "rotate_incoming_webhook");
+
           return {
             token: String(rotated["token"]),
             secret: optionalText(rotated["secret"]) ?? null,
@@ -346,6 +392,7 @@ export function createIncomingWebhooks(
         (value) => {
           const rotated = recordOf(value, "rotate_incoming_webhook_secret");
           const expires = optionalText(rotated["previousSecretExpiresAt"]);
+
           return {
             secret: String(rotated["secret"]),
             previousSecretExpiresAt:
@@ -365,6 +412,7 @@ export function createIncomingWebhooks(
         },
         (value) => {
           const updated = recordOf(value, "update_incoming_webhook");
+
           return {
             id: String(updated["id"]),
             tenant: String(updated["tenant"]),
@@ -389,6 +437,7 @@ export function createIncomingWebhooks(
         (value) => value === true,
       ),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "incoming-webhooks",
     ...(options.logger ? { logger: options.logger } : {}),

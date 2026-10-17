@@ -43,17 +43,22 @@ export function standardSchema(
     generate(input: GeneratorInput): GeneratedFile[] {
       const path =
         options.output ?? siblingPath(input.config.output, "standard.ts");
+
       const imports = new Map<string, string[]>();
       const jsonImports = new Map<string, string>();
+
       const tableNames = new Map(
         Object.values(input.meta.tables).map((t) => [t.name, t.key]),
       );
+
       for (const [key, spec] of Object.entries(options.json ?? {})) {
         const [tableName, column] = key.split(".");
         const { from, name } = parseImport(spec);
+
         const specifier = from.startsWith(".")
           ? input.importPath(path, from)
           : from;
+
         imports.set(specifier, [...(imports.get(specifier) ?? []), name]);
         jsonImports.set(
           `${tableNames.get(tableName ?? "") ?? tableName}.${column}`,
@@ -67,6 +72,7 @@ export function standardSchema(
         "",
         `import type { InsertOf, RowOf, UpdateOf } from ${JSON.stringify(input.importPath(path, input.config.output))};`,
       ];
+
       for (const [from, names] of imports) {
         lines.push(
           `import { ${[...new Set(names)].sort().join(", ")} } from ${JSON.stringify(from)};`,
@@ -75,34 +81,48 @@ export function standardSchema(
 
       const validators: string[] = [];
       const validatorTypes: string[] = [];
+
       for (const [key, table] of tableEntries(input)) {
         const variants = variantsFor(table);
         const docs = tableDocs(input, table);
+
         for (const variant of variants) {
           lines.push(
             "",
             `export const ${schemaName(key, variant)}: TableSchema<${variant}Of<'${key}'>> = tableSchema({`,
           );
+
           if (docs) {
             lines.push(
               `  title: ${JSON.stringify(variantTitle(docs, variant))},`,
             );
-            if (docs.description !== undefined)
+
+            if (docs.description !== undefined) {
               lines.push(`  description: ${JSON.stringify(docs.description)},`);
+            }
           }
+
           lines.push("  fields: {");
+
           for (const plan of fieldsFor(table, variant, input)) {
             const imported = jsonImports.get(`${key}.${plan.column.db}`);
+
             const entries = Object.entries(
               fieldSpec(plan, fieldDocs(docs, plan)),
             ).map(([name, value]) => `${name}: ${JSON.stringify(value)}`);
-            if (imported) entries.push(`schema: ${imported}`);
+
+            if (imported) {
+              entries.push(`schema: ${imported}`);
+            }
+
             lines.push(
               `    ${propertyKey(plan.name)}: { ${entries.join(", ")} },`,
             );
           }
+
           lines.push("  },", "});");
         }
+
         if (variants.includes("Insert")) {
           const insert = schemaName(key, "Insert");
           const update = schemaName(key, "Update");
@@ -125,6 +145,7 @@ export function standardSchema(
         "};",
         "",
       );
+
       return [{ path, contents: lines.join("\n") }];
     },
   };

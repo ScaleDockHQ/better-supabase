@@ -18,11 +18,13 @@ import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
+
 const env = {
   url: PROJECT_URL,
   publishableKey: "sb_publishable_test",
   jwksUrl: new URL(`${PROJECT_URL}/auth/v1/.well-known/jwks.json`),
 };
+
 const USER = "11111111-1111-4111-8111-111111111111";
 const ENDPOINT = "https://tools.test/mcp";
 const signer = await createTestSigner();
@@ -48,6 +50,7 @@ function protectServer<
     config: object,
     cb: (...params: unknown[]) => unknown,
   ) => unknown;
+
   const registerTool = (
     name: string,
     { permission, ...config }: { permission: string },
@@ -57,14 +60,17 @@ function protectServer<
       const ctx = params.at(-1) as {
         http?: { authInfo?: { scopes: string[] } };
       };
+
       if (!can(permission, ctx.http?.authInfo?.scopes ?? [])) {
         return {
           isError: true,
           content: [{ type: "text", text: `Missing permission ${permission}` }],
         };
       }
+
       return cb(...params);
     });
+
   return Object.assign(server, { registerTool });
 }
 
@@ -78,9 +84,11 @@ const auth = createMcpAuth(betterSupabase, {
 const build = (guarded: boolean) => {
   const handler = createMcpHandler(() => {
     const base = new McpServer({ name: "crm", version: "1.0.0" });
+
     const inner = guarded
       ? protectServer(base, (permission, scopes) => scopes.includes(permission))
       : base;
+
     const server = withBetterSupabaseMcp(inner, auth);
     server.registerTool(
       "whoami",
@@ -114,8 +122,10 @@ const build = (guarded: boolean) => {
         ],
       }),
     );
+
     return base;
   });
+
   return auth.serve(handler);
 };
 
@@ -130,6 +140,7 @@ const connect = async (
       fetch: (url, init) => app(new Request(url, init)),
     }),
   );
+
   return client;
 };
 
@@ -145,6 +156,7 @@ describe("createMcpAuth", () => {
         "https://tools.test/.well-known/oauth-protected-resource/mcp",
       ),
     );
+
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       resource: ENDPOINT,
@@ -163,6 +175,7 @@ describe("createMcpAuth", () => {
         method: "OPTIONS",
       }),
     );
+
     expect(response.status).toBe(204);
   });
 
@@ -178,6 +191,7 @@ describe("createMcpAuth", () => {
           body: "{}",
         }),
       );
+
       expect(response.status).toBe(401);
       expect(response.headers.get("www-authenticate")).toContain(
         'resource_metadata="https://tools.test/.well-known/oauth-protected-resource/mcp"',
@@ -212,10 +226,13 @@ describe("createMcpAuth", () => {
     const ctx = await auth.contextOf({} as never);
     expect(ctx.auth.kind).toBe("anon");
     const token = await signer.sign({ sub: USER });
+
     const fromToken = await auth.contextOf({
       http: { authInfo: { token, clientId: "", scopes: [] } },
     } as never);
+
     expect(fromToken.auth.kind).toBe("user");
+
     const forged = await auth.contextOf({
       http: {
         authInfo: {
@@ -226,6 +243,7 @@ describe("createMcpAuth", () => {
         },
       },
     } as never);
+
     expect(forged.auth.kind).toBe("anon");
   });
 });
@@ -238,6 +256,7 @@ describe("withBetterSupabaseMcp after a protectServer wrapper", () => {
       app,
       await signer.sign({ sub: USER, scope: "crm:read" }),
     );
+
     expect(JSON.parse(text(await client.callTool({ name: "whoami" })))).toEqual(
       { id: USER, hasDb: true, same: true },
     );
@@ -246,10 +265,12 @@ describe("withBetterSupabaseMcp after a protectServer wrapper", () => {
 
   it("refuses the tool before the context is built", async () => {
     const client = await connect(app, await signer.sign({ sub: USER }));
+
     const result = await client.callTool({
       name: "echo",
       arguments: { message: "hi" },
     });
+
     expect(result.isError).toBe(true);
     expect(text(result)).toBe("Missing permission crm:read");
     await client.close();
@@ -263,28 +284,35 @@ describe("createMcpAuth guard options", () => {
       auth: { jwks: signer.jwks as never },
       allow: ["user", "anon"],
     });
+
     let seen: unknown = "unset";
+
     const response = await open.serve({
       fetch: async (_request, options) => {
         seen = options?.authInfo;
+
         return new Response("ok");
       },
     })(new Request(ENDPOINT, { method: "POST" }));
+
     expect(await response.text()).toBe("ok");
     expect(seen).toBeUndefined();
   });
 
   it("hands event sends a tool started to waitUntil", async () => {
     const waited: Promise<unknown>[] = [];
+
     const open = createMcpAuth(betterSupabase, {
       env,
       allow: ["anon"],
       waitUntil: (promise) => waited.push(promise),
     });
+
     const { promise: send, resolve } = Promise.withResolvers<void>();
     await open.serve({
       fetch: async () => {
         betterSupabase.events.track(send);
+
         return new Response("ok");
       },
     })(new Request(ENDPOINT, { method: "POST" }));
@@ -299,12 +327,14 @@ describe("createMcpAuth guard options", () => {
       auth: { jwks: signer.jwks as never },
       requiredScopes: ["crm:write"],
     });
+
     const token = await signer.sign({
       sub: USER,
       scope: "crm:read",
       client_id: "claude",
       act: { sub: "claude", client_id: "claude" },
     });
+
     const info = await auth.verifier.verifyAccessToken(token);
     const ctx = await scoped.contextOf({ http: { authInfo: info } } as never);
     expect(ctx.auth.kind).toBe("anon");
@@ -318,12 +348,14 @@ describe("createMcpAuth guard options", () => {
       auth: { jwks: signer.jwks as never },
       requiredScopes: ["crm:write"],
     });
+
     const token = await signer.sign({
       sub: USER,
       scope: "crm:read",
       client_id: "claude",
       act: { sub: "claude", client_id: "claude" },
     });
+
     const response = await scoped.serve({
       fetch: () => Promise.resolve(new Response("ok")),
     })(
@@ -332,6 +364,7 @@ describe("createMcpAuth guard options", () => {
         headers: { authorization: `Bearer ${token}` },
       }),
     );
+
     expect(response.status).toBe(403);
     expect(response.headers.get("www-authenticate")).toContain(
       "insufficient_scope",
@@ -343,15 +376,18 @@ describe("createMcpAuth guard options", () => {
       env,
       auth: { jwks: signer.jwks as never },
     });
+
     const serve = open.serve({
       fetch: () => Promise.resolve(new Response("ok")),
     });
+
     const preflight = await serve(
       new Request(ENDPOINT, {
         method: "OPTIONS",
         headers: { origin: "https://app.test" },
       }),
     );
+
     expect(preflight.status).toBe(204);
     expect(preflight.headers.get("access-control-allow-headers")).toContain(
       "Authorization",
@@ -368,6 +404,7 @@ describe("createMcpAuth guard options", () => {
       auth: { jwks: signer.jwks as never },
       cors: false,
     }).serve({ fetch: () => Promise.resolve(new Response("ok")) });
+
     const refused = await closed(new Request(ENDPOINT, { method: "OPTIONS" }));
     expect(refused.status).toBe(401);
     expect(refused.headers.get("access-control-allow-origin")).toBeNull();
@@ -381,30 +418,38 @@ describe("createMcpAuth on Supabase Edge Functions", () => {
 
   it("advertises the public function URL and serves the suffix route", async () => {
     vi.stubEnv("SUPABASE_FUNCTION_SLUG", "mcp");
+
     const edge = createMcpAuth(betterSupabase, {
       env: { ...env, url: "http://kong:8000" },
       auth: { jwks: signer.jwks as never },
     });
+
     const serve = edge.serve({
       fetch: () => Promise.resolve(new Response("ok")),
     });
+
     const headers = {
       "x-forwarded-host": "abcdefghijklmnopqrst.supabase.co",
       "x-forwarded-proto": "https",
       "x-forwarded-port": "443",
     };
+
     const PUBLIC = `${PROJECT_URL}/functions/v1/mcp`;
+
     const challenge = await serve(
       new Request("http://localhost:8081/mcp", { method: "POST", headers }),
     );
+
     expect(challenge.headers.get("www-authenticate")).toContain(
       `resource_metadata="${PUBLIC}/oauth-protected-resource"`,
     );
+
     const metadata = await serve(
       new Request("http://localhost:8081/mcp/oauth-protected-resource", {
         headers,
       }),
     );
+
     expect(await metadata.json()).toEqual({
       resource: PUBLIC,
       authorization_servers: [`${PROJECT_URL}/auth/v1`],

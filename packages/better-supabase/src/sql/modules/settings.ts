@@ -103,47 +103,67 @@ function platformKeys(ctx: ModuleContext): {
 } {
   const where = "blocks.settings.options";
   const option = ctx.option("platform") ?? {};
+
   if (!isObject(option)) {
     throw new TypeError(`${where}.platform must be { permission?, read? }`);
   }
+
   const readOf = (value: unknown, at: string): PlatformRead | undefined => {
-    if (value === undefined) return undefined;
+    if (value === undefined) {
+      return undefined;
+    }
+
     if (!isRead(value)) {
       throw new TypeError(`${at}.read must be ${READS.join(", ")}`);
     }
+
     return value;
   };
+
   const permissionOf = (value: unknown, at: string): string | undefined => {
-    if (value === undefined) return undefined;
+    if (value === undefined) {
+      return undefined;
+    }
+
     if (typeof value !== "string" || value.length === 0) {
       throw new TypeError(`${at}.permission must be a permission key`);
     }
+
     return value;
   };
+
   const fallback = {
     permission:
       permissionOf(option["permission"], `${where}.platform`) ??
       ctx.permissionKey("platform", OPERATIONS["settings.platform"]),
     read: readOf(option["read"], `${where}.platform`) ?? "authenticated",
   };
+
   const raw = ctx.option("schemas");
   const schemas = isObject(raw) && "schemas" in raw ? raw["schemas"] : raw;
   const entries = isObject(schemas) ? schemas["platform"] : undefined;
-  if (entries === undefined) return { fallback, keys: [] };
+
+  if (entries === undefined) {
+    return { fallback, keys: [] };
+  }
+
   if (!isObject(entries)) {
     throw new TypeError(
       `${where}.schemas.platform: pass an object of key to schema`,
     );
   }
+
   const keys = Object.entries(entries).map(([key, entry]): PlatformKey => {
     const at = `${where}.schemas.platform.${key}`;
     const config = isObject(entry) ? entry : {};
+
     return {
       key,
       permission: permissionOf(config["permission"], at) ?? fallback.permission,
       read: readOf(config["read"], at) ?? fallback.read,
     };
   });
+
   return { fallback, keys };
 }
 
@@ -170,19 +190,36 @@ const isObject = (value: unknown): value is Readonly<Record<string, unknown>> =>
 function jsonSchemaOf(
   entry: unknown,
 ): Readonly<Record<string, unknown>> | undefined {
-  if (!isObject(entry)) return undefined;
+  if (!isObject(entry)) {
+    return undefined;
+  }
+
   const standard = entry["~standard"];
+
   if (standard === undefined) {
     return "schema" in entry ? jsonSchemaOf(entry["schema"]) : entry;
   }
-  if (!isObject(standard)) return undefined;
+
+  if (!isObject(standard)) {
+    return undefined;
+  }
+
   const jsonSchema = standard["jsonSchema"];
-  if (!isObject(jsonSchema)) return undefined;
+
+  if (!isObject(jsonSchema)) {
+    return undefined;
+  }
+
   const input = jsonSchema["input"];
-  if (typeof input !== "function") return undefined;
+
+  if (typeof input !== "function") {
+    return undefined;
+  }
+
   // SAFETY: Standard JSON Schema defines input as (options) => a JSON Schema object.
   const toJson = input as (options: { readonly target: string }) => unknown;
   const document = toJson({ target: "draft-2020-12" });
+
   return isObject(document) ? document : undefined;
 }
 
@@ -192,31 +229,48 @@ function jsonSchemaOf(
  */
 function settingsChecks(ctx: ModuleContext): readonly JsonSchemaCheck[] {
   const option = ctx.option("schemas");
-  if (option === undefined) return [];
+
+  if (option === undefined) {
+    return [];
+  }
+
   const raw =
     isObject(option) && "schemas" in option ? option["schemas"] : option;
+
   if (!isObject(raw)) {
     throw new TypeError(
       "blocks.settings.options.schemas: pass { user, organization, platform } or a defineSettings() result",
     );
   }
+
   const checks: JsonSchemaCheck[] = [];
+
   for (const [scope, table] of [
     ["user", "user"],
     ["organization", "organization"],
     ["platform", "platform"],
   ] as const) {
     const entries = raw[scope];
-    if (entries === undefined) continue;
+
+    if (entries === undefined) {
+      continue;
+    }
+
     if (!isObject(entries)) {
       throw new TypeError(
         `blocks.settings.options.schemas.${scope}: pass an object of key to schema`,
       );
     }
+
     const target = ctx.tableName(table);
+
     for (const [key, entry] of Object.entries(entries)) {
       const schema = jsonSchemaOf(entry);
-      if (!schema) continue;
+
+      if (!schema) {
+        continue;
+      }
+
       checks.push({
         table: `${target.schema}.${target.name}`,
         column: unquote(ctx.col(table, "value")),
@@ -225,16 +279,21 @@ function settingsChecks(ctx: ModuleContext): readonly JsonSchemaCheck[] {
       });
     }
   }
+
   if (checks.length > 0 && !ctx.installed("jsonb-schemas")) {
     throw new TypeError(
       "blocks.settings.options.schemas: add the jsonb-schemas module, which installs pg_jsonschema for these checks",
     );
   }
+
   return checks;
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
   const id = ctx.idType;
   const u = ctx.table("user");
   const o = ctx.table("organization");
@@ -242,19 +301,24 @@ function build(ctx: ModuleContext): string {
   const oc = (logical: string): string => ctx.col("organization", logical);
   const fn = (name: string): string => ctx.fn(name);
   const permissions = moduleOperations("settings");
+
   const can = (tenant: string, action: "read" | "update"): string =>
     ctx.can("tenant", tenant, ctx.permission(action, permissions[action]));
+
   const member = (tenant: string, action: "read" | "update"): string =>
     ctx.scope.check(tenant, ctx.permission(action, permissions[action]));
+
   const KEY = `check (key ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$')`;
   const p = ctx.table("platform");
   const pc = (logical: string): string => ctx.col("platform", logical);
   const platform = platformKeys(ctx);
+
   const settingEvent = (
     type: string,
     col: (logical: string) => string,
   ): string => {
     const tenant = col === oc ? `v_row.${oc("tenant")}` : undefined;
+
     return ctx.record({
       type,
       payload: `jsonb_build_object(${tenant ? `'organizationId', ${tenant}::text, ` : ""}'key', v_row.${col("key")})`,
@@ -269,6 +333,7 @@ function build(ctx: ModuleContext): string {
       },
     });
   };
+
   const byKey = (
     pick: (entry: PlatformKey) => string,
     fallback: string,
@@ -278,24 +343,29 @@ function build(ctx: ModuleContext): string {
       : `case ${pc("key")} ${platform.keys
           .map((entry) => `when ${sqlString(entry.key)} then ${pick(entry)}`)
           .join(" ")} else ${fallback} end`;
+
   // With schemas.platform, only the keys it lists can be written.
   const listedKeys =
     platform.keys.length === 0
       ? ""
       : `${pc("key")} in (${platform.keys.map((entry) => sqlString(entry.key)).join(", ")}) and `;
+
   const writeCheck = `${listedKeys}coalesce(${ctx.scope.platform(
     byKey(
       (entry) => sqlString(entry.permission),
       sqlString(platform.fallback.permission),
     ),
   )}, false)`;
+
   const authenticatedRead = byKey(
     (entry) => readRule(ctx.scope, entry.read, entry.permission),
     readRule(ctx.scope, platform.fallback.read, platform.fallback.permission),
   );
+
   const publicKeys = platform.keys
     .filter((entry) => entry.read === "public")
     .map((entry) => sqlString(entry.key));
+
   const anonRead =
     platform.fallback.read === "public"
       ? publicKeys.length === platform.keys.length

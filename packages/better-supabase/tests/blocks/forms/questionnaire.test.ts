@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import type { FormDefinition } from "../../../src/blocks/forms/index.ts";
-
 import {
+  type FormDefinition,
   conditionHolds,
   finishQuestionnaire,
   formSchema,
@@ -19,11 +18,13 @@ import {
 import { SIGNUP } from "./fixtures.ts";
 
 const form = { definition: SIGNUP, schema: formSchema(SIGNUP) };
+
 const run = (state: QuestionnaireState, ...actions: QuestionnaireAction[]) =>
   actions.reduce(
     (current, action) => questionnaireReducer(form, current, action),
     state,
   );
+
 const answer = (key: string, value: unknown): QuestionnaireAction => ({
   type: "answer",
   key,
@@ -44,11 +45,13 @@ describe("conditions", () => {
     expect(conditionHolds({ field: "plan", in: ["a"] }, { plan: "team" })).toBe(
       false,
     );
+
     for (const empty of [null, "", []]) {
       expect(conditionHolds({ field: "x", filled: true }, { x: empty })).toBe(
         false,
       );
     }
+
     expect(conditionHolds({ field: "x", filled: true }, { x: false })).toBe(
       true,
     );
@@ -88,6 +91,7 @@ describe("conditions", () => {
         },
       ],
     };
+
     expect(pruneAnswers(definition, { x: false, y: "a", z: "b" })).toEqual({
       x: false,
     });
@@ -160,6 +164,7 @@ describe("questionnaireReducer", () => {
       answer("email", "ada@example.com"),
       { type: "next" },
     );
+
     expect(state.step).toBe("extra");
     state = run(state, answer("plan", "team"), { type: "back" });
     expect(state.step).toBe("team");
@@ -186,6 +191,7 @@ describe("questionnaireReducer", () => {
       answer("name", "Ada"),
       answer("name", undefined),
     );
+
     expect(state.answers).toEqual({});
     expect(
       run(state, { type: "reset", answers: { name: "Bo" } }).answers,
@@ -203,14 +209,17 @@ describe("questionnaireReducer", () => {
       }),
       { type: "next" },
     );
+
     expect(team.step).toBe("team");
     expect(run(team, answer("plan", "free")).step).toBe("contact");
+
     const definition = {
       steps: [
         { key: "a", showIf: { field: "x", filled: true as const }, fields: [] },
         { key: "b", fields: [{ key: "x", label: "X", type: "text" as const }] },
       ],
     };
+
     const own = { definition, schema: formSchema(definition) };
     const state = { step: "a", answers: { x: "1" }, completed: [], issues: [] };
     expect(questionnaireReducer(own, state, answer("x", undefined)).step).toBe(
@@ -241,6 +250,7 @@ describe("questionnaireReducer", () => {
         },
       ],
     };
+
     expect(
       initialQuestionnaire({ definition, schema: formSchema(definition) }).step,
     ).toBe("only");
@@ -260,6 +270,7 @@ describe("questionnaire views", () => {
     const state = run(initialQuestionnaire(form, BASE_ANSWERS), {
       type: "next",
     });
+
     expect(questionnaireSteps(form, state)).toEqual([
       expect.objectContaining({
         key: "contact",

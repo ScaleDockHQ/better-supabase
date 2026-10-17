@@ -1,6 +1,6 @@
 import { createUploadConnector } from "better-supabase/powersync";
 
-import { bs, supabase } from "../supabase/native";
+import { bs, supabase } from "../supabase/client.native";
 
 /**
  * Replays local changes through `bs.db.customers`, so RLS and validation

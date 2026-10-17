@@ -82,8 +82,12 @@ const NAMES: ModuleNames = {
 };
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
   const inline = ctx.text("layout", "normalized") === "inline";
+
   if (
     ctx.text("layout", "normalized") !== "inline" &&
     ctx.text("layout", "normalized") !== "normalized"
@@ -92,16 +96,19 @@ function build(ctx: ModuleContext): string {
       'blocks.custom-fields.options.layout must be "normalized" or "inline"',
     );
   }
+
   const definitions = ctx.table("definitions");
   const ranked = !inline && ctx.has("definitions", "rank");
   const rank = ranked ? ctx.col("definitions", "rank") : "";
   const values = ctx.table("values");
   const manage = ctx.permission("manage", OPERATIONS["custom-fields.manage"]);
   const read = ctx.permission("read", OPERATIONS["custom-fields.read"]);
+
   const sensitive = ctx.permission(
     "sensitive",
     OPERATIONS["custom-fields.sensitive"],
   );
+
   const tables = ctx.manages
     ? `${
         inline
@@ -138,10 +145,12 @@ ${lockTable(values, { read: true })}
 ${inline || !ctx.has("values", "definition") ? "" : `create index if not exists field_values_definition_idx on ${values} (${ctx.col("values", "definition")});`}
 `
     : "";
+
   const visible = inline
     ? "true"
     : `not coalesce(d.${ctx.col("definitions", "sensitive")}, false)
         or ${ctx.scope.can(`v.${ctx.col("values", "tenant")}`, `coalesce(d.${ctx.col("definitions", "permission")}, ${sensitive})`)}`;
+
   return `${schemaPreamble(ctx)}
 -- A sensitive value is returned only when the caller holds the field's
 -- permission, or custom_fields.sensitive.read when the field names none.
@@ -355,8 +364,10 @@ export const CUSTOM_FIELDS: ModuleDefinition = {
         if (!ctx.manages || ctx.text("layout", "normalized") === "inline") {
           return "";
         }
+
         const definitions = ctx.table("definitions");
         const rank = ctx.col("definitions", "rank");
+
         return `alter table ${definitions} add column if not exists ${rank} text collate "C";
 ${rankBackfill({
   table: definitions,

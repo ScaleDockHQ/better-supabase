@@ -25,20 +25,25 @@ export async function addModules(
   if (names.length === 0) {
     return { code: 2, error: `Name at least one module.\n${USAGE}` };
   }
+
   const unknown = names.filter((name) => !(name in SQL_MODULES));
+
   if (unknown.length > 0) {
     return {
       code: 2,
       error: `Unknown module ${unknown.join(", ")}. Available: ${Object.keys(SQL_MODULES).join(", ")}`,
     };
   }
+
   const owner =
     config.authorization && providerOwnsMemberships(config)
       ? providerLabel(config.authorization)
       : undefined;
+
   const hookModules = names.filter((name) =>
     MEMBERSHIP_CLAIM_MODULES.has(name),
   );
+
   if (owner && hookModules.length > 0 && args.force !== true) {
     return {
       code: 1,
@@ -49,6 +54,7 @@ export async function addModules(
       ].join("\n"),
     };
   }
+
   // Render with the modules blocks already lists, so the new ones
   // see them (a foreign key to the organizations table, plan quotas
   // over entitlements), but write only the named ones and what they need.
@@ -56,14 +62,17 @@ export async function addModules(
     ...config.blockNames,
     ...names.filter((name) => !config.blockNames.includes(name)),
   ];
+
   const sqlLayout = await layoutFor(config, args, listed);
   const added = resolveModules(names, sqlLayout).map((module) => module.name);
   const lines = await write(config, args, listed, sqlLayout, deps.now, added);
+
   const pulledIn = resolveModules(names, sqlLayout)
     .map((module) => module.name)
     .filter(
       (name) => MEMBERSHIP_CLAIM_MODULES.has(name) && !names.includes(name),
     );
+
   if (owner && pulledIn.length > 0) {
     lines.push(
       "",
@@ -72,15 +81,21 @@ export async function addModules(
       "Make better_supabase.memberships one of the provider's membership sources if both should agree.",
     );
   }
+
   const untracked = resolveModules(names, sqlLayout)
     .map((module) => module.name)
     .filter((name) => !config.blockNames.includes(name));
+
   if (untracked.length > 0) {
     lines.push("", ...(await listInConfig(args, untracked, deps)));
   }
-  if (args["dry-run"] !== true)
+
+  if (args["dry-run"] !== true) {
     lines.push(...(await unlistedModuleFiles(config, names, sqlLayout)));
+  }
+
   lines.push("", await nextStep(config));
+
   return { code: 0, output: lines.join("\n") };
 }
 
@@ -95,16 +110,20 @@ async function listInConfig(
   deps: SqlDeps,
 ): Promise<string[]> {
   const file = deps.configFile;
+
   if (file === undefined) {
     return [
       "Add them to blocks in better-supabase.config.ts so `sql sync --check` keeps them current:",
       ...untracked.map((name) => `  ${keyText(name)}: {},`),
     ];
   }
-  const source = await readFile(file, "utf8");
+
+  const source = await readFile(file, "utf-8");
+
   const edit = file.endsWith(".json")
     ? addBlocksToJson(source, untracked)
     : addBlocksToConfig(source, untracked);
+
   if (!edit.ok) {
     return [
       `${basename(file)} wasn't changed: ${edit.reason}.`,
@@ -112,11 +131,14 @@ async function listInConfig(
       ...untracked.map((name) => `  ${keyText(name)}: {},`),
     ];
   }
+
   if (args["dry-run"] === true) {
     return [
       `Would add ${untracked.join(", ")} to blocks in ${basename(file)}.`,
     ];
   }
+
   await writeFile(file, edit.text);
+
   return [`Added ${untracked.join(", ")} to blocks in ${basename(file)}.`];
 }

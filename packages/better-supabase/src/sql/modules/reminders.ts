@@ -87,18 +87,24 @@ const NAMES: ModuleNames = {
 const extrasOf = (ctx: ModuleContext) => ctx.extraColumns("reminders");
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
   const extras = extrasOf(ctx);
   const format = ctx.text("ruleFormat", "rrule");
+
   if (format !== "rrule" && format !== "columns") {
     throw new TypeError(
       'blocks.reminders.options.ruleFormat must be "rrule" or "columns"',
     );
   }
+
   const rules = ctx.table("rules");
   const reminders = ctx.table("reminders");
   const deliveries = ctx.table("deliveries");
   const manage = ctx.permission("manage", OPERATIONS["reminders.manage"]);
+
   const ruleColumns =
     format === "columns"
       ? `${ctx.has("rules", "frequency") ? `${ctx.col("rules", "frequency")} text,` : ""}
@@ -110,6 +116,7 @@ function build(ctx: ModuleContext): string {
       : ctx.has("rules", "rrule")
         ? `${ctx.col("rules", "rrule")} text,`
         : "";
+
   const tables = ctx.manages
     ? `create table if not exists ${rules} (
   ${ctx.col("rules", "id")} uuid primary key default gen_random_uuid(),
@@ -142,6 +149,7 @@ create table if not exists ${deliveries} (
 ${lockTable(deliveries, { read: true })}
 `
     : "";
+
   return `${schemaPreamble(ctx)}
 ${tables}
 ${extraFieldsArg(extras).drop(ctx.fn("save_reminder"), `${ctx.idType}, text, text, integer`)}

@@ -13,16 +13,20 @@ export function retention(ctx: ModuleContext): string {
   const id = ctx.idType;
   const hook = ctx.hookTarget("audit_retention");
   const signature = sqlString(`${hook}(${id})`);
+
   const expired = (tenant: string): string =>
     ctx.expired("audit", {
       at: `l.${c("occurredAt")}`,
       tenant,
       fallback: "older_than",
     });
+
   const held = ctx.held("audit", "v_tenant");
+
   const restricted = ctx.flag("restricted", false)
     ? `\n      execute format('delete from ${ctx.table("restricted")} r using %s p where r.${ctx.col("restricted", "entry")} = p.${c("id")}', v_part);`
     : "";
+
   const months = partitionedOn(ctx)
     ? `
   if not for_tenant and to_regprocedure(${signature}) is null then
@@ -37,6 +41,7 @@ export function retention(ctx: ModuleContext): string {
     end loop;
   end if;`
     : "";
+
   return `-- Deletes up to batch entries older than older_than and returns how many.
 -- With an audit_retention(tenant) function, each tenant keeps its own
 -- interval (a plan's days, say); null falls back to the data-lifecycle

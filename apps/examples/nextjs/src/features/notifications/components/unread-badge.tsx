@@ -16,6 +16,7 @@ import { loadNotificationCounts } from "../notifications-actions";
 
 async function loadCounts(): Promise<readonly NotificationCounts[]> {
   const result = await loadNotificationCounts({});
+
   return result.ok ? [result.data] : [];
 }
 
@@ -29,11 +30,13 @@ const unreadOf = (counts: readonly NotificationCounts[]): number =>
 function useUnreadCount() {
   const auth = useAuth();
   const userId = auth.user?.id;
+
   const { items, count, status } = useNotifications({
     topic: userId ? `notifications:${userId}` : null,
     load: loadCounts,
     count: unreadOf,
   });
+
   return { count: items === undefined ? undefined : count, status };
 }
 
@@ -44,6 +47,7 @@ function useUnreadCount() {
 export function UnreadBadge() {
   const t = useExtracted("notifications");
   const { count, status } = useUnreadCount();
+
   return (
     <Link
       href="/notifications"
@@ -72,8 +76,9 @@ export function UnreadBadge() {
 export function UnreadSummary() {
   const t = useExtracted("notifications");
   const { count } = useUnreadCount();
+
   return (
-    <p className="text-muted-foreground text-sm" data-testid="unread-summary">
+    <p className="text-sm text-muted-foreground" data-testid="unread-summary">
       {count === undefined
         ? t("Counting…")
         : t("{count, number} unread", { count })}

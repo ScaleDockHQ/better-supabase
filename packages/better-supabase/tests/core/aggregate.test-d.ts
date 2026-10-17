@@ -26,6 +26,7 @@ describe("aggregate types", () => {
         },
       })
       .orThrow();
+
     expectTypeOf(rows).toEqualTypeOf<
       {
         id: string;
@@ -44,6 +45,7 @@ describe("aggregate types", () => {
         _min: { createdAt: true },
       })
       .orThrow();
+
     expectTypeOf(groups).toEqualTypeOf<
       {
         status: CustomersStatus;
@@ -55,6 +57,7 @@ describe("aggregate types", () => {
     const total = await db.notes
       .aggregate({ _avg: { id: true }, _sum: { id: true } })
       .orThrow();
+
     expectTypeOf(total).toEqualTypeOf<{
       _avg: { id: number | null };
       _sum: { id: number | null };
@@ -74,6 +77,7 @@ describe("aggregate types", () => {
         ],
       })
       .orThrow();
+
     expectTypeOf(groups).toEqualTypeOf<
       { customerId: string; _count: number }[]
     >();
@@ -105,6 +109,7 @@ describe("aggregate types", () => {
       groupBy: ["status"],
       _count: true,
     });
+
     expectTypeOf<InferResult<typeof spec>>().toEqualTypeOf<
       { status: CustomersStatus; _count: number }[]
     >();

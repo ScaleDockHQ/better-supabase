@@ -33,6 +33,7 @@ describe("sla module", () => {
         },
       },
     });
+
     expect(sql).toContain("at time zone 'Europe/Amsterdam'");
     expect(sql).toContain("'08:30'::time");
     expect(sql).toContain("'{1,2,3,4}'::integer[]");
@@ -56,16 +57,19 @@ describe("sla module", () => {
         },
       },
     });
+
     expect(sql).toContain(
       'create trigger bs_sla_ticket after insert or update of "status", "priority" on "public"."tickets"',
     );
     expect(sql).toContain("'{\"waiting\"}'::text[]");
+
     const plain = body("sla", {
       subjects: SUBJECTS,
       modules: {
         sla: { options: { subjects: { ticket: { status: "state" } } } },
       },
     });
+
     expect(plain).toContain('after insert or update of "state" on');
     expect(plain).not.toContain('new."priority"');
   });
@@ -115,6 +119,7 @@ describe("targets module", () => {
   it("computes the metrics of installed blocks only", () => {
     expect(body("targets")).toContain("Built-in metrics: none installed");
     const all = body("targets", {}, ["deals", "work-items", "invoices"]);
+
     for (const metric of [
       "deals.won_amount",
       "deals.won_count",

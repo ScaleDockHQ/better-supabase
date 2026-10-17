@@ -111,6 +111,7 @@ describe.skipIf(!live)("pipelines", () => {
 
   it("runs a deal through its default pipeline", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const owner = await s.user("owner");
       const rep = await s.user("rep");
@@ -121,17 +122,21 @@ describe.skipIf(!live)("pipelines", () => {
       const other = await s.organization(stranger);
 
       await s.asRole(rep);
+
       const [deal] = await s.rows<Deal>(
         `insert into pipe_it.deals (organization_id, name, amount, currency, owner_id)
          values ($1, 'Acme', 120000, 'EUR', $2) returning *`,
         [tenant, rep.id],
       );
+
       expect(deal?.pipeline_id).toBeTruthy();
       expect(deal?.stage_entered_at).toBeInstanceOf(Date);
+
       const stages = await s.rows<{ id: string; key: string; outcome: string }>(
         `select id, key, outcome from better_supabase.pipeline_stages where pipeline_id = $1 order by rank collate "C"`,
         [deal?.pipeline_id],
       );
+
       expect(stages.map((stage) => stage.key)).toEqual([
         "lead",
         "proposal",
@@ -139,6 +144,7 @@ describe.skipIf(!live)("pipelines", () => {
         "lost",
       ]);
       expect(deal?.stage_id).toBe(stages[0]?.id);
+
       const stage = (key: string): string =>
         stages.find((item) => item.key === key)?.id ?? "";
 
@@ -146,6 +152,7 @@ describe.skipIf(!live)("pipelines", () => {
         "update pipe_it.deals set stage_id = $1 where id = $2",
         [stage("proposal"), deal?.id],
       );
+
       const board = await s.value<
         {
           key: string;
@@ -153,6 +160,7 @@ describe.skipIf(!live)("pipelines", () => {
           totals: { currency: string; amount: string; weighted: string }[];
         }[]
       >("better_supabase.pipeline_board('deal', $1)", [deal?.pipeline_id]);
+
       expect(board.find((column) => column.key === "proposal")).toMatchObject({
         count: 1,
         totals: [{ currency: "EUR", amount: "120000", weighted: "60000" }],
@@ -168,6 +176,7 @@ describe.skipIf(!live)("pipelines", () => {
           [deal?.id],
         ),
       ).toBe("won");
+
       const history = await s.rows<{
         stage_name: string;
         exited_at: Date | null;
@@ -176,16 +185,19 @@ describe.skipIf(!live)("pipelines", () => {
          where subject_type = 'deal' and subject_id = $1::text order by entered_at, exited_at nulls last`,
         [deal?.id],
       );
+
       expect(history.map((row) => row.stage_name)).toEqual([
         "Lead",
         "Proposal",
         "Won",
       ]);
       expect(history.filter((row) => row.exited_at === null)).toHaveLength(1);
+
       const stats = await s.value<{ won: number; winRate: number }>(
         "better_supabase.pipeline_stats($1, now() - interval '1 day', now() + interval '1 day')",
         [deal?.pipeline_id],
       );
+
       expect(stats).toMatchObject({ won: 1, winRate: 1 });
 
       const watching = await s.value<number>(
@@ -193,6 +205,7 @@ describe.skipIf(!live)("pipelines", () => {
           where subject_type = 'deal' and subject_id = $1::text and user_id = $2)`,
         [deal?.id, rep.id],
       );
+
       expect(watching).toBe(1);
 
       await s.asRole(stranger);
@@ -214,6 +227,7 @@ describe.skipIf(!live)("pipelines", () => {
 
   it("refuses a stage from another pipeline and guards stage edits", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const owner = await s.user("owner");
       const rep = await s.user("rep");
@@ -222,19 +236,24 @@ describe.skipIf(!live)("pipelines", () => {
       const tenant = await s.organization(owner, { member: rep });
 
       await s.asRole(rep);
+
       const [deal] = await s.rows<Deal>(
         "insert into pipe_it.deals (organization_id, name) values ($1, 'Globex') returning *",
         [tenant],
       );
+
       await s.as(owner);
+
       const second = await s.value<{ id: string }>(
         "better_supabase.save_pipeline($1, null, 'deal', 'renewals', 'Renewals', null, false)",
         [tenant],
       );
+
       const renewalStage = await s.value<{ id: string }>(
         "better_supabase.save_pipeline_stage($1, null, 'due', 'Due', 'open', 30, 14, null, null)",
         [second.id],
       );
+
       expect(
         await s.hint(
           "better_supabase.save_pipeline_stage($1, null, 'odd', 'Odd', 'maybe', null, null, null, null)",
@@ -273,10 +292,12 @@ describe.skipIf(!live)("pipelines", () => {
         second.id,
         JSON.stringify([]),
       ]);
+
       const health = await s.value<{ daysInStage: number; rotting: boolean }[]>(
         "better_supabase.pipeline_health($1)",
         [second.id],
       );
+
       expect(health).toEqual([
         expect.objectContaining({ daysInStage: 0, rotting: false }),
       ]);
@@ -287,20 +308,24 @@ describe.skipIf(!live)("pipelines", () => {
 
   it("moves a deal on the board into a uuid stage through rank", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const owner = await s.user("owner");
       await s.client.query(TABLE);
       await s.install(MODULES, layout);
       const tenant = await s.organization(owner);
       await s.as(owner);
+
       const [deal] = await s.rows<Deal>(
         "insert into pipe_it.deals (organization_id, name) values ($1, 'Initech') returning *",
         [tenant],
       );
+
       const proposal = await s.value<string>(
         "(select id from better_supabase.pipeline_stages where pipeline_id = $1 and key = 'proposal')",
         [deal?.pipeline_id],
       );
+
       await s.value(
         "better_supabase.move('deal', $1::text, null, null, $2::text)",
         [deal?.id, proposal],

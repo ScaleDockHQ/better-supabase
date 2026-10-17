@@ -35,10 +35,12 @@ vi.mock("next/headers.js", () => ({
   headers: () => Promise.resolve(mocks.headers),
   cookies: () => Promise.resolve({ set: mocks.setCookie }),
 }));
+
 vi.mock("next/server.js", async (original) => ({
   ...(await original<Record<string, unknown>>()),
   after: mocks.after,
 }));
+
 vi.mock("next/cache.js", () => ({
   updateTag: mocks.updateTag,
   revalidateTag: mocks.revalidateTag,
@@ -48,11 +50,13 @@ vi.mock("next/cache.js", () => ({
 }));
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
+
 const env = {
   url: PROJECT_URL,
   publishableKey: "sb_publishable_test",
   jwksUrl: new URL(`${PROJECT_URL}/auth/v1/.well-known/jwks.json`),
 };
+
 const NAME = "sb-abcdefghijklmnopqrst-auth-token";
 const USER = "11111111-1111-4111-8111-111111111111";
 
@@ -77,6 +81,7 @@ function page(
 
 function cookieFor(token: string, refresh: string): string {
   const exp = Math.floor(Date.now() / 1000) + 20;
+
   return writeSession([], NAME, {
     access_token: token,
     refresh_token: refresh,
@@ -112,9 +117,11 @@ describe("shouldRefresh", () => {
 describe("shouldCheckSession", () => {
   it("checks document loads and the listed paths", () => {
     expect(shouldCheckSession(page())).toBe(true);
+
     const navigation = page({
       headers: { "sec-fetch-dest": "empty", rsc: "1" },
     });
+
     expect(shouldCheckSession(navigation)).toBe(false);
     expect(shouldCheckSession(navigation, { paths: ["/dashboard"] })).toBe(
       true,
@@ -134,6 +141,7 @@ describe("shouldCheckSession", () => {
 describe("createNext", () => {
   const fresh = vi.fn<typeof fetch>();
   const betterSupabase = defineSupabase(schema);
+
   const bs = createNext(betterSupabase, {
     env,
     auth: { jwks: signer.jwks as never, fetch: fresh },
@@ -149,6 +157,7 @@ describe("createNext", () => {
   it("passes fresh sessions through untouched", async () => {
     const token = await signer.sign({ sub: USER });
     const exp = Math.floor(Date.now() / 1000) + 3600;
+
     const cookie = writeSession([], NAME, {
       access_token: token,
       refresh_token: "r",
@@ -156,6 +165,7 @@ describe("createNext", () => {
     })
       .map((write) => `${write.name}=${encodeURIComponent(write.value)}`)
       .join("; ");
+
     const response = await bs.proxy(page({ cookie }));
     expect(response.headers.getSetCookie()).toEqual([]);
     expect(response.headers.get("x-middleware-next")).toBe("1");
@@ -172,9 +182,11 @@ describe("createNext", () => {
         expires_in: 3600,
       }),
     );
+
     const response = await bs.proxy(
       page({ cookie: cookieFor(stale, "next-1") }),
     );
+
     expect(fresh).toHaveBeenCalledTimes(1);
     expect(response.headers.getSetCookie()[0]).toMatch(
       new RegExp(`^${NAME}=base64-`),
@@ -191,6 +203,7 @@ describe("createNext", () => {
     fresh.mockResolvedValue(
       Response.json({ msg: "Invalid Refresh Token" }, { status: 400 }),
     );
+
     const response = await bs.proxy(
       page({ cookie: cookieFor(stale, "next-dead") }),
       {
@@ -200,6 +213,7 @@ describe("createNext", () => {
             : NextResponse.redirect(new URL("/login", request.url)),
       },
     );
+
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe("https://app.test/login");
     expect(
@@ -213,9 +227,11 @@ describe("createNext", () => {
     const onAuthOutage = vi.fn(() => new Response("down", { status: 503 }));
     fresh.mockResolvedValue(new Response("busy", { status: 503 }));
     const stale = await signer.sign({ sub: USER, expiresIn: 20 });
+
     const kept = await bs.proxy(page({ cookie: cookieFor(stale, "o-1") }), {
       onAuthOutage,
     });
+
     expect(kept.status).toBe(200);
     expect(onAuthOutage).toHaveBeenLastCalledWith(
       expect.objectContaining({ cause: "status", status: 503, kept: true }),
@@ -223,10 +239,12 @@ describe("createNext", () => {
     );
 
     fresh.mockRejectedValue(new TypeError("fetch failed"));
+
     const lost = await bs.proxy(page({ cookie: cookieFor("opaque", "o-2") }), {
       onAuthOutage,
       protect: () => NextResponse.redirect("https://app.test/login"),
     });
+
     expect(lost.status).toBe(503);
     expect(onAuthOutage).toHaveBeenLastCalledWith(
       expect.objectContaining({ cause: "network", kept: false }),
@@ -234,6 +252,7 @@ describe("createNext", () => {
     );
 
     fresh.mockRejectedValue(new TypeError("fetch failed"));
+
     const thrown = await bs.proxy(
       page({ cookie: cookieFor("opaque", "o-3") }),
       {
@@ -242,12 +261,14 @@ describe("createNext", () => {
         },
       },
     );
+
     expect(thrown.status).toBe(200);
   });
 
   describe("ended sessions", () => {
     const session = async () => {
       const token = await signer.sign({ sub: USER });
+
       return {
         token,
         cookie: writeSession([], NAME, {
@@ -259,6 +280,7 @@ describe("createNext", () => {
           .join("; "),
       };
     };
+
     const ended = () =>
       Response.json(
         { code: 403, error_code: "session_not_found" },
@@ -269,10 +291,12 @@ describe("createNext", () => {
       const { token, cookie } = await session();
       fresh.mockResolvedValue(ended());
       const protect = vi.fn(() => undefined);
+
       const response = await bs.proxy(page({ cookie }), {
         protect,
         endedSession: { redirect: "/login" },
       });
+
       expect(response.status).toBe(307);
       expect(response.headers.get("location")).toBe(
         "https://app.test/login?reason=session_ended",
@@ -297,28 +321,35 @@ describe("createNext", () => {
           { code: 403, error_code: "user_banned" },
           { status: 403 },
         );
+
       const { cookie } = await session();
       fresh.mockResolvedValue(banned());
+
       const response = await bs.proxy(page({ cookie }), {
         endedSession: { redirect: "/login" },
       });
+
       expect(response.headers.get("location")).toBe(
         "https://app.test/login?reason=account_banned",
       );
       fresh.mockResolvedValue(banned());
+
       const named = await bs.proxy(page({ cookie }), {
         endedSession: {
           redirect: "/login",
           reasons: { banned: "suspended", ended: "expired" },
         },
       });
+
       expect(named.headers.get("location")).toBe(
         "https://app.test/login?reason=suspended",
       );
       fresh.mockResolvedValue(ended());
+
       const gone = await bs.proxy(page({ cookie }), {
         endedSession: { redirect: "/login", reasons: { banned: "suspended" } },
       });
+
       expect(gone.headers.get("location")).toBe(
         "https://app.test/login?reason=session_ended",
       );
@@ -328,10 +359,12 @@ describe("createNext", () => {
       const { cookie } = await session();
       fresh.mockResolvedValue(ended());
       const protect = vi.fn((_auth: unknown) => undefined);
+
       const response = await bs.proxy(page({ cookie }), {
         protect,
         endedSession: true,
       });
+
       expect(protect).toHaveBeenCalledWith(
         { kind: "anon", reason: "signed_out" },
         expect.anything(),
@@ -345,6 +378,7 @@ describe("createNext", () => {
         }),
         { endedSession: { redirect: "/login" } },
       );
+
       expect(onLogin.headers.get("location")).toBeNull();
       expect(onLogin.headers.getSetCookie().length).toBeGreaterThan(0);
     });
@@ -352,22 +386,28 @@ describe("createNext", () => {
     it("keeps the session when Auth answers or cannot be reached", async () => {
       const { cookie } = await session();
       fresh.mockResolvedValueOnce(Response.json({ id: USER }));
+
       const live = await bs.proxy(page({ cookie }), {
         endedSession: { redirect: "/login" },
       });
+
       expect(live.headers.get("x-middleware-next")).toBe("1");
       expect(live.headers.getSetCookie()).toEqual([]);
 
       fresh.mockRejectedValueOnce(new TypeError("fetch failed"));
+
       const offline = await bs.proxy(page({ cookie }), {
         endedSession: { redirect: "/login" },
       });
+
       expect(offline.headers.get("x-middleware-next")).toBe("1");
 
       fresh.mockResolvedValueOnce(Response.json({}, { status: 500 }));
+
       const failing = await bs.proxy(page({ cookie }), {
         endedSession: { redirect: "/login" },
       });
+
       expect(failing.headers.get("x-middleware-next")).toBe("1");
     });
 
@@ -375,15 +415,19 @@ describe("createNext", () => {
       const { cookie } = await session();
       fresh.mockResolvedValue(ended());
       await bs.proxy(page({ cookie }));
+
       const navigation = page({
         cookie,
         headers: { "sec-fetch-dest": "empty", rsc: "1" },
       });
+
       await bs.proxy(navigation, { endedSession: { redirect: "/login" } });
       expect(fresh).not.toHaveBeenCalled();
+
       const listed = await bs.proxy(navigation, {
         endedSession: { redirect: "/login", paths: ["/dashboard"] },
       });
+
       expect(fresh).toHaveBeenCalledTimes(1);
       expect(listed.status).toBe(307);
     });
@@ -391,6 +435,7 @@ describe("createNext", () => {
 
   describe("proxy composition", () => {
     const stale = () => signer.sign({ sub: USER, expiresIn: 20 });
+
     const renew = async () => {
       fresh.mockResolvedValue(
         Response.json({
@@ -403,17 +448,21 @@ describe("createNext", () => {
 
     it("merges refreshed cookies into a before() rewrite, keeping its request headers", async () => {
       await renew();
+
       const before = vi.fn((request: NextRequest) => {
         const headers = new Headers(request.headers);
         headers.set("x-next-intl-locale", "nl");
+
         return NextResponse.rewrite(new URL("/nl/dashboard", request.url), {
           request: { headers },
         });
       });
+
       const request = page({
         cookie: cookieFor(await stale(), "compose-1"),
         headers: { "accept-language": "nl" },
       });
+
       const response = await bs.proxy(request, { before });
       expect(before).toHaveBeenCalledWith(request);
       expect(response.headers.get("x-middleware-rewrite")).toBe(
@@ -422,9 +471,11 @@ describe("createNext", () => {
       expect(response.headers.getSetCookie()[0]).toMatch(
         new RegExp(`^${NAME}=base64-`),
       );
+
       const listed = response.headers
         .get("x-middleware-override-headers")!
         .split(",");
+
       expect(listed).toEqual(
         expect.arrayContaining([
           "cookie",
@@ -442,6 +493,7 @@ describe("createNext", () => {
 
     it("keeps before() redirects and adds cookies to them", async () => {
       await renew();
+
       const response = await bs.proxy(
         page({ cookie: cookieFor(await stale(), "compose-2") }),
         {
@@ -449,6 +501,7 @@ describe("createNext", () => {
             Response.redirect(new URL("/nl", request.url), 307),
         },
       );
+
       expect(response.status).toBe(307);
       expect(response.headers.get("location")).toBe("https://app.test/nl");
       expect(response.headers.getSetCookie()).toHaveLength(1);
@@ -466,6 +519,7 @@ describe("createNext", () => {
             NextResponse.rewrite(new URL("/nl", request.url)),
         },
       );
+
       expect(fresh).not.toHaveBeenCalled();
       expect(response.headers.getSetCookie()).toEqual([]);
       expect(response.headers.get("x-middleware-rewrite")).toBe(
@@ -475,6 +529,7 @@ describe("createNext", () => {
 
     it("lets after() edit or replace the response and adds Server-Timing", async () => {
       const token = await signer.sign({ sub: USER });
+
       const cookie = writeSession([], NAME, {
         access_token: token,
         refresh_token: "r",
@@ -482,6 +537,7 @@ describe("createNext", () => {
       })
         .map((write) => `${write.name}=${encodeURIComponent(write.value)}`)
         .join("; ");
+
       const edited = await bs.proxy(page({ cookie }), {
         after: (response, auth) => {
           response.headers.set(
@@ -491,14 +547,17 @@ describe("createNext", () => {
         },
         serverTiming: true,
       });
+
       expect(edited.headers.get("x-user")).toBe(USER);
       expect(edited.headers.get("x-middleware-next")).toBe("1");
       expect(edited.headers.get("server-timing")).toMatch(
         /^bs-proxy;dur=\d+\.\d, bs-verify;dur=\d+\.\d$/,
       );
+
       const replaced = await bs.proxy(page(), {
         after: () => new Response("maintenance", { status: 503 }),
       });
+
       expect(replaced.status).toBe(503);
     });
   });
@@ -508,6 +567,7 @@ describe("createNext", () => {
       env: { ...env, secretKey: "sb_secret_test" },
       auth: { jwks: signer.jwks as never, fetch: fresh },
     });
+
     fresh.mockResolvedValue(
       Response.json({
         access_token: await signer.sign({ sub: USER }),
@@ -550,13 +610,26 @@ describe("createNext", () => {
 
   it("guards route handlers and answers with Problem Details", async () => {
     const handler = bs.route<{ id: string }>(async (_request, ctx) => {
-      if (ctx.params.id === "missing")
+      if (ctx.params.id === "missing") {
         throw new DbException(dbError("not_found", "No customer"));
-      if (ctx.params.id === "result")
+      }
+
+      if (ctx.params.id === "result") {
         return { ok: false, data: null, error: dbError("conflict", "Taken") };
-      if (ctx.params.id === "crash") throw new Error("secret detail");
-      if (ctx.params.id === "redirect") redirect("/login");
-      if (ctx.params.id === "gone") notFound();
+      }
+
+      if (ctx.params.id === "crash") {
+        throw new Error("secret detail");
+      }
+
+      if (ctx.params.id === "redirect") {
+        redirect("/login");
+      }
+
+      if (ctx.params.id === "gone") {
+        notFound();
+      }
+
       if (ctx.params.id === "wrapped") {
         try {
           redirect("/login");
@@ -564,11 +637,13 @@ describe("createNext", () => {
           throw new Error("wrapped", { cause });
         }
       }
+
       return {
         id: ctx.params.id,
         user: ctx.auth.kind === "user" ? ctx.auth.user.id : null,
       };
     });
+
     const call = async (id: string, token?: string) =>
       handler(
         new NextRequest(
@@ -619,7 +694,9 @@ describe("createNext", () => {
         ? AsyncResult.err(dbError("not_found", "Gone"))
         : AsyncResult.ok({ id: ctx.params.id }),
     );
+
     const token = await signer.sign({ sub: USER });
+
     const call = (id: string) =>
       handler(
         new NextRequest(`https://app.test/api/customers/${id}`, {
@@ -627,6 +704,7 @@ describe("createNext", () => {
         }),
         { params: Promise.resolve({ id }) },
       );
+
     expect(await (await call("c1")).json()).toEqual({ id: "c1" });
     expect((await call("gone")).status).toBe(404);
   });
@@ -637,6 +715,7 @@ describe("createNext", () => {
       authorization: `Bearer ${await signer.sign({ sub: USER })}`,
     });
     let release: () => void = () => undefined;
+
     const sending = (): void => {
       betterSupabase.events.track(
         new Promise<void>((resolve) => {
@@ -644,10 +723,13 @@ describe("createNext", () => {
         }),
       );
     };
+
     const route = bs.route(() => {
       sending();
+
       return { ok: true };
     });
+
     await route(
       new NextRequest("https://app.test/api/x", { headers: mocks.headers }),
       {
@@ -668,8 +750,10 @@ describe("createNext", () => {
 
     const action = bs.action({}, () => {
       sending();
+
       return "done";
     });
+
     expect(await action(undefined)).toMatchObject({ ok: true });
     expect(mocks.after).toHaveBeenCalledTimes(2);
     release();
@@ -683,6 +767,7 @@ describe("createNext", () => {
   it("hands event sends the proxy started to after()", async () => {
     mocks.after.mockReset();
     let release: () => void = () => undefined;
+
     const protect = vi.fn((): undefined => {
       betterSupabase.events.track(
         new Promise<void>((resolve) => {
@@ -690,6 +775,7 @@ describe("createNext", () => {
         }),
       );
     });
+
     await bs.proxy(page(), { protect });
     expect(protect).toHaveBeenCalledTimes(1);
     expect(mocks.after).toHaveBeenCalledTimes(1);
@@ -708,8 +794,10 @@ describe("createNext", () => {
         }),
       },
       async (input, ctx) => {
-        if (input.name === "boom")
+        if (input.name === "boom") {
           throw new DbException(dbError("conflict", "Taken"));
+        }
+
         return {
           ...input,
           by: ctx.auth.kind === "user" ? ctx.auth.user.id : null,
@@ -754,6 +842,7 @@ describe("createNext", () => {
     const authorize = vi.fn(
       (_session: unknown, input: { name: string }) => input.name !== "nope",
     );
+
     const save = bs.action(
       {
         input: v.object({ name: v.string() }),
@@ -762,9 +851,11 @@ describe("createNext", () => {
       },
       (input, ctx) => {
         const tenant: string = ctx.tenant;
+
         return { name: input.name, tenant, kind: ctx.session.kind };
       },
     );
+
     mocks.headers = new Headers({
       authorization: `Bearer ${await signer.sign({ sub: USER })}`,
     });
@@ -795,18 +886,22 @@ describe("createNext", () => {
       { input: v.object({ org: v.string() }), tenant: (input) => input.org },
       (_input, { tenant }) => tenant,
     );
+
     expect(await scoped({ org: "org-2" })).toMatchObject({ data: "org-2" });
 
     const resolver = vi.fn(() => "org-default");
+
     const withResolver = createNext(betterSupabase, {
       env,
       auth: { jwks: signer.jwks as never },
       tenant: resolver,
     });
+
     const perInput = withResolver.action(
       { input: v.object({ org: v.string() }), tenant: (input) => input.org },
       (_input, { tenant }) => tenant,
     );
+
     expect(await perInput({ org: "org-3" })).toMatchObject({ data: "org-3" });
     expect(resolver).not.toHaveBeenCalled();
   });
@@ -815,9 +910,11 @@ describe("createNext", () => {
     mocks.headers = new Headers({
       authorization: `Bearer ${await signer.sign({ sub: USER, tenant_id: "org-1" })}`,
     });
+
     const handler = vi.fn((_request: NextRequest, ctx: { tenant: string }) => ({
       tenant: ctx.tenant,
     }));
+
     const call = (authorized: boolean) =>
       bs.route(handler, {
         requireTenant: true,
@@ -827,6 +924,7 @@ describe("createNext", () => {
         new NextRequest("https://app.test/api/x", { headers: mocks.headers }),
         { params: Promise.resolve({}) },
       );
+
     const allowed = await call(true);
     expect(await allowed.json()).toEqual({ tenant: "org-1" });
     const refused = await call(false);
@@ -841,13 +939,16 @@ describe("createNext", () => {
       } catch (cause) {
         return (cause as { digest?: string }).digest;
       }
+
       return "resolved";
     };
+
     // Without authInterrupts, unauthorized() and forbidden() fall back to notFound().
     expect(await digest(() => bs.require())).toBe(
       "NEXT_HTTP_ERROR_FALLBACK;404",
     );
     vi.stubEnv("__NEXT_EXPERIMENTAL_AUTH_INTERRUPTS", "true");
+
     try {
       expect(await digest(() => bs.require())).toBe(
         "NEXT_HTTP_ERROR_FALLBACK;401",
@@ -861,6 +962,7 @@ describe("createNext", () => {
     } finally {
       vi.unstubAllEnvs();
     }
+
     const ctx = await bs.require({ requireTenant: true });
     const tenant: string = ctx.tenant;
     expect(tenant).toBe("org-1");
@@ -898,6 +1000,7 @@ describe("createNext", () => {
       email: "ada@example.com",
       user_role: "admin",
     });
+
     mocks.headers = new Headers({ authorization: `Bearer ${token}` });
     const session = await bs.session();
     expect(session).toMatchObject({
@@ -921,6 +1024,7 @@ describe("createNext", () => {
       aal: "aal1",
       amr: [{ method: "password", timestamp: 1 }],
     });
+
     const aal2 = await signer.sign({
       sub: USER,
       aal: "aal2",
@@ -937,6 +1041,7 @@ describe("createNext", () => {
     });
 
     const handler = bs.route(() => ({ ok: true }), { aal: "aal2" });
+
     const call = (token: string) =>
       handler(
         new NextRequest("https://app.test/api/billing", {
@@ -944,6 +1049,7 @@ describe("createNext", () => {
         }),
         { params: Promise.resolve({}) },
       );
+
     const denied = await call(aal1);
     expect(denied.status).toBe(403);
     expect(await denied.json()).toMatchObject({
@@ -967,6 +1073,7 @@ describe("createNext", () => {
     });
 
     const exp = Math.floor(Date.now() / 1000) + 3600;
+
     const cookie = (token: string) =>
       writeSession([], NAME, {
         access_token: token,
@@ -975,20 +1082,25 @@ describe("createNext", () => {
       })
         .map((write) => `${write.name}=${encodeURIComponent(write.value)}`)
         .join("; ");
+
     const protect = requireAal("aal2", {
       redirect: "/mfa",
       match: (path) => path.startsWith("/dashboard"),
     });
+
     const redirected = await bs.proxy(page({ cookie: cookie(aal1) }), {
       protect,
     });
+
     expect(redirected.status).toBe(307);
     expect(redirected.headers.get("location")).toBe(
       "https://app.test/mfa?next=%2Fdashboard",
     );
+
     const passed = await bs.proxy(page({ cookie: cookie(aal2) }), {
       protect,
     });
+
     expect(passed.headers.get("x-middleware-next")).toBe("1");
   });
 
@@ -1000,11 +1112,13 @@ describe("createNext", () => {
     })
       .map((write) => `${write.name}=${encodeURIComponent(write.value)}`)
       .join("; ");
+
     const prefetch = () =>
       page({
         cookie: expired,
         headers: { "next-router-prefetch": "1", rsc: "1" },
       });
+
     const protect = vi.fn((_auth: unknown, request: NextRequest) =>
       NextResponse.redirect(new URL("/login", request.url)),
     );
@@ -1017,10 +1131,12 @@ describe("createNext", () => {
     );
 
     protect.mockClear();
+
     const rendered = await bs.proxy(prefetch(), {
       protect,
       expiredPrefetch: "render",
     });
+
     expect(protect).not.toHaveBeenCalled();
     expect(rendered.headers.get("x-middleware-next")).toBe("1");
     expect(fresh).not.toHaveBeenCalled();
@@ -1029,7 +1145,9 @@ describe("createNext", () => {
       page({ headers: { "next-router-prefetch": "1", rsc: "1" } }),
       { protect, expiredPrefetch: "render" },
     );
+
     expect(signedOut.status).toBe(307);
+
     const api = await bs.proxy(
       new NextRequest("https://app.test/api/x", {
         method: "POST",
@@ -1037,6 +1155,7 @@ describe("createNext", () => {
       }),
       { protect, expiredPrefetch: "render", protectMethods: true },
     );
+
     expect(api.status).toBe(307);
   });
 
@@ -1044,21 +1163,25 @@ describe("createNext", () => {
     const protect = vi.fn((_auth: unknown, request: NextRequest) =>
       NextResponse.redirect(new URL("/login", request.url)),
     );
+
     const action = new NextRequest("https://app.test/customers", {
       method: "POST",
       headers: {
         cookie: cookieFor(await signer.sign({ sub: USER }), "refresh-action"),
       },
     });
+
     const skipped = await bs.proxy(action, { protect });
     expect(protect).not.toHaveBeenCalled();
     expect(skipped.headers.get("x-middleware-next")).toBe("1");
 
     protect.mockClear();
+
     const guarded = await bs.proxy(action, {
       protect,
       protectMethods: true,
     });
+
     expect(protect).toHaveBeenCalled();
     expect(guarded.status).toBe(307);
   });
@@ -1074,6 +1197,7 @@ describe("createNext", () => {
     const rest = vi
       .spyOn(globalThis, "fetch")
       .mockImplementation(() => Promise.resolve(Response.json([])));
+
     try {
       const debugged = createNext(defineSupabase(schema), {
         env,
@@ -1081,6 +1205,7 @@ describe("createNext", () => {
         auth: { jwks: signer.jwks as never, fetch: fresh },
         debug: { enabled: true },
       });
+
       const proxied = await debugged.proxy(page());
       const id = proxied.headers.get("x-bs-request-id")!;
       expect(id).toMatch(/^[0-9a-f-]{36}$/);
@@ -1097,21 +1222,26 @@ describe("createNext", () => {
       const stats = await debugged.debugRoute()(
         new Request(`https://app.test/api/bs-stats?id=${id}`),
       );
+
       expect(stats.headers.get("x-bs-db-calls")).toMatch(/^3;2;/);
       expect(await stats.json()).toMatchObject({
         calls: 3,
         waves: 2,
         tables: ["customers", "notes", "tags"],
       });
+
       const cached = await debugged.debugRoute()(
         new Request("https://app.test/api/bs-stats?id=nope"),
       );
+
       expect(await cached.json()).toMatchObject({ calls: 0, waves: 0 });
 
       const handler = debugged.route(async (_request, routeCtx) => {
         await routeCtx.db.customers.findMany();
+
         return { ok: true };
       });
+
       const routed = await handler(
         new NextRequest("https://app.test/api/x", {
           headers: {
@@ -1120,6 +1250,7 @@ describe("createNext", () => {
         }),
         { params: Promise.resolve({}) },
       );
+
       expect(routed.headers.get("x-bs-db-calls")).toMatch(/^1;1;/);
     } finally {
       rest.mockRestore();
@@ -1129,9 +1260,11 @@ describe("createNext", () => {
   it("collects nothing without debug", async () => {
     const proxied = await bs.proxy(page());
     expect(proxied.headers.get("x-bs-request-id")).toBeNull();
+
     const reply = await bs.debugRoute()(
       new Request("https://app.test/api/bs-stats?id=x"),
     );
+
     expect(reply.status).toBe(404);
   });
 
@@ -1141,6 +1274,7 @@ describe("createNext", () => {
       execute: () =>
         Promise.resolve(ok({ rows: [{ id: "c1", name: "Acme" }], count: 1 })),
     };
+
     mocks.updateTag.mockReset();
     mocks.updateTag.mockImplementation(() => {
       throw new Error("updateTag can only be called from a Server Action");
@@ -1190,10 +1324,12 @@ describe("createNext", () => {
 
   it("invalidates each tag once when createNext runs again for a definition", async () => {
     createNext(betterSupabase, { env, auth: { jwks: signer.jwks as never } });
+
     const executor: Executor = {
       name: "fake",
       execute: () => Promise.resolve(ok({ rows: [{ id: "c1" }], count: 1 })),
     };
+
     await betterSupabase
       .connect(executor)
       .customers.update("c1", { name: "Acme" })
@@ -1210,6 +1346,7 @@ describe("createNext", () => {
       name: "fake",
       execute: () => Promise.resolve(ok({ rows: [{ id: "c1" }], count: 1 })),
     };
+
     await betterSupabase
       .connect(executor, { tenant: "t1" })
       .customers.update("c1", { name: "Acme" })
@@ -1256,10 +1393,12 @@ describe("next.route conformance", () => {
         mocks.after.mockImplementation((task) => {
           waitUntil(Promise.resolve(task()));
         });
+
         const route = createNext(betterSupabase, server).route(
           (_request, ctx) => run(ctx),
           { allow },
         );
+
         return (request) =>
           route(new NextRequest(request), { params: Promise.resolve({}) });
       },
@@ -1270,10 +1409,12 @@ describe("next.route conformance", () => {
 
 describe("next.liveCount", () => {
   const betterSupabase = defineSupabase(schema);
+
   const bs = createNext(betterSupabase, {
     env,
     auth: { jwks: signer.jwks as never },
   });
+
   const spec = betterSupabase.spec.notes.count({
     where: { body: { contains: "x" } },
   });
@@ -1292,6 +1433,7 @@ describe("next.liveCount", () => {
     const seed = await bs.liveCount(spec, {
       $run: () => AsyncResult.err(dbError("forbidden", "no")),
     });
+
     expect(seed.count).toBeNull();
   });
 });
@@ -1301,55 +1443,68 @@ describe("read replicas", () => {
 
   it("keeps the next requests on the primary after a write", async () => {
     const seen: string[] = [];
+
     const fetch = vi
       .spyOn(globalThis, "fetch")
       .mockImplementation((input, init) => {
         seen.push(`${init?.method ?? "GET"} ${new URL(String(input)).host}`);
+
         return Promise.resolve(
           Response.json(init?.method === "POST" ? [{ id: "c1" }] : []),
         );
       });
+
     const token = await signer.sign({ sub: USER });
+
     const bs = createNext(defineSupabase(schema), {
       env: { ...env, readUrl: READ_URL },
       auth: { jwks: signer.jwks as never },
       cacheTags: false,
       replicas: { pinMs: 2000 },
     });
+
     const request = (method: string) =>
       new NextRequest("https://app.test/api/customers", {
         method,
         headers: { authorization: `Bearer ${token}` },
       });
+
     const segment = { params: Promise.resolve({}) };
+
     try {
       const read = bs.route((_request, { db }) =>
         db.customers.findMany({ select: ["id"] }),
       );
+
       const write = bs.route((_request, { db }) =>
         db.customers.create(
           { name: "Acme", organizationId: "o1" },
           { select: ["id"] },
         ),
       );
+
       expect(
         (await read(request("GET"), segment)).headers.get("set-cookie"),
       ).toBeNull();
+
       const cookie = (await write(request("POST"), segment)).headers.get(
         "set-cookie",
       );
+
       expect(cookie).toMatch(
         /^bs-primary-until=\d+; Max-Age=2; Path=\/; HttpOnly; SameSite=Lax$/,
       );
 
       mocks.headers = new Headers({ authorization: `Bearer ${token}` });
       mocks.setCookie.mockReset();
+
       const action = bs.action({}, (_input, { db }) =>
         db.customers.create(
           { name: "Acme", organizationId: "o1" },
           { select: ["id"] },
         ),
       );
+
       expect(await action(undefined)).toMatchObject({ ok: true });
       expect(mocks.setCookie).toHaveBeenCalledWith(
         "bs-primary-until",
@@ -1370,15 +1525,19 @@ describe("read replicas", () => {
     const fetch = vi
       .spyOn(globalThis, "fetch")
       .mockImplementation(() => Promise.resolve(Response.json([{ id: "c1" }])));
+
     const token = await signer.sign({ sub: USER });
     const definition = defineSupabase(schema);
+
     const bs = createNext(definition, {
       env: { ...env, readUrl: READ_URL },
       auth: { jwks: signer.jwks as never },
       cacheTags: false,
       replicas: { pinMs: 2000 },
     });
+
     let release = (): void => undefined;
+
     const writeThenRedirect = async ({
       db,
     }: Awaited<ReturnType<typeof bs.context>>): Promise<never> => {
@@ -1392,6 +1551,7 @@ describe("read replicas", () => {
       );
       redirect("/customers/c1");
     };
+
     try {
       mocks.headers = new Headers({ authorization: `Bearer ${token}` });
       mocks.setCookie.mockReset();

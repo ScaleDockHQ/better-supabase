@@ -16,6 +16,7 @@ describe.skipIf(!live)("workflows module", () => {
 
   it("records runs that their actor and the tenant read, and cancels them", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "outbox", "workflows"]);
       const owner = await s.user("owner");
@@ -24,6 +25,7 @@ describe.skipIf(!live)("workflows module", () => {
       const tenant = await s.organization(owner, { member });
       await s.service();
       const service = createWorkflows({ transport: sqlTransport(s.sql) });
+
       const id = await service.runs
         .record({
           engine: "workflow-sdk",
@@ -35,6 +37,7 @@ describe.skipIf(!live)("workflows module", () => {
           attributes: { plan: "pro" },
         })
         .orThrow();
+
       await service.runs
         .record({
           engine: "workflow-sdk",
@@ -85,10 +88,12 @@ describe.skipIf(!live)("workflows module", () => {
           completedAt: Temporal.Now.instant(),
         })
         .orThrow();
+
       const events = await s.rows<{ type: string; organization_id: string }>(
         "select type, organization_id from better_supabase.outbox_events where type like 'workflow_run.%' and payload ->> 'runId' = $1",
         [id],
       );
+
       expect(events).toEqual([
         { type: "workflow_run.cancelled", organization_id: tenant },
       ]);
@@ -101,6 +106,7 @@ describe.skipIf(!live)("workflows module", () => {
 
   it("fires due schedules once with a stable idempotency key", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "workflows"]);
       const owner = await s.user("owner");
@@ -117,6 +123,7 @@ describe.skipIf(!live)("workflows module", () => {
 
       await s.as(owner);
       const workflows = createWorkflows({ transport: sqlTransport(s.sql) });
+
       const schedule = await workflows.schedules
         .create({
           name: "daily",
@@ -127,6 +134,7 @@ describe.skipIf(!live)("workflows module", () => {
           tenant,
         })
         .orThrow();
+
       expect(() =>
         workflows.schedules.create({
           name: "bad",
@@ -138,10 +146,13 @@ describe.skipIf(!live)("workflows module", () => {
       await s.service();
       const service = createWorkflows({ transport: sqlTransport(s.sql) });
       const starts: WorkflowStartCall[] = [];
+
       const start = async (call: WorkflowStartCall): Promise<string> => {
         starts.push(call);
+
         return `wrun_${String(starts.length)}`;
       };
+
       expect(await service.schedules.tick({ start }).orThrow()).toEqual({
         started: 0,
         failed: [],
@@ -151,10 +162,12 @@ describe.skipIf(!live)("workflows module", () => {
         "update better_supabase.workflow_schedules set next_run_at = now() - interval '1 minute' where id = $1",
         [schedule.id],
       );
+
       const fired = await s.value<string>(
         "(select next_run_at::text from better_supabase.workflow_schedules where id = $1)",
         [schedule.id],
       );
+
       expect(await service.schedules.tick({ start }).orThrow()).toMatchObject({
         started: 1,
       });
@@ -189,6 +202,7 @@ describe.skipIf(!live)("workflows module", () => {
 
   it("counts semaphore holders and admits starts by concurrency, debounce and singleton", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "workflows"]);
       await s.service();
@@ -211,8 +225,10 @@ describe.skipIf(!live)("workflows module", () => {
       ).toBe(true);
 
       const started: string[] = [];
+
       const start = async (call: WorkflowStartCall): Promise<string> => {
         started.push(call.idempotencyKey);
+
         return `wrun_${String(started.length)}`;
       };
 
@@ -221,6 +237,7 @@ describe.skipIf(!live)("workflows module", () => {
           .request({ key: "sync", workflow: "sync", concurrency: 2 })
           .orThrow();
       }
+
       expect(await workflows.admission.tick({ start }).orThrow()).toMatchObject(
         { started: 2 },
       );
@@ -242,6 +259,7 @@ describe.skipIf(!live)("workflows module", () => {
       const first = await workflows.admission
         .request({ key: "one", workflow: "export", singleton: true })
         .orThrow();
+
       expect(first.status).toBe("pending");
       expect(
         await workflows.admission
@@ -255,9 +273,11 @@ describe.skipIf(!live)("workflows module", () => {
       await workflows.admission
         .request({ key: "typing", workflow: "index", debounce: 60 })
         .orThrow();
+
       const statuses = await s.rows<{ status: string }>(
         "select status from better_supabase.workflow_start_requests where key = 'typing' order by created_at, status",
       );
+
       expect(statuses.map((row) => row.status).toSorted()).toEqual([
         "pending",
         "superseded",

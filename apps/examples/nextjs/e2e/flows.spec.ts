@@ -25,18 +25,29 @@ async function latestLink(page: Page, to: string): Promise<string> {
       const search = await page.request.get(
         `${MAILPIT}/search?query=${encodeURIComponent(`to:"${to}"`)}`,
       );
+
       const { messages } = (await search.json()) as {
         messages: { ID: string }[];
       };
+
       const id = messages[0]?.ID;
-      if (!id) return false;
+
+      if (!id) {
+        return false;
+      }
+
       const message = await page.request.get(`${MAILPIT}/message/${id}`);
       body = ((await message.json()) as { Text: string }).Text;
+
       return true;
     })
     .toBe(true);
   const link = /https?:\/\/\S+\/auth\/v1\/verify\S+/.exec(body)?.[0];
-  if (!link) throw new Error(`No verify link in the email to ${to}`);
+
+  if (!link) {
+    throw new Error(`No verify link in the email to ${to}`);
+  }
+
   return link.replaceAll("&amp;", "&");
 }
 
@@ -106,10 +117,12 @@ test("two-factor sign-in asks for the code, and unlocks deleting the account", a
   await page.goto("/en/settings/security");
   await expect(visibleTestId(page, "mfa-status")).toHaveText("Off");
   await page.getByRole("button", { name: "Set up" }).click();
+
   const hint = await visibleText(
     page,
     /^Or enter this key by hand: /,
   ).textContent();
+
   const secret = hint?.replace("Or enter this key by hand: ", "").trim() ?? "";
   expect(secret).toMatch(/^[A-Z2-7]+=*$/);
   const enrolledAt = totpStep();
@@ -238,10 +251,11 @@ test.describe("preferences", () => {
       document.addEventListener(
         "readystatechange",
         () => {
-          if (document.readyState === "interactive")
+          if (document.readyState === "interactive") {
             Object.assign(window, {
               e2eFirstClass: document.documentElement.className,
             });
+          }
         },
         { once: true },
       );

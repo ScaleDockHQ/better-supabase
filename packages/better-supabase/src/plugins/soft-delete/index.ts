@@ -56,6 +56,7 @@ function deletedColumn(table: TableMeta): string | undefined {
 
 function scopeFor(table: TableMeta) {
   const column = deletedColumn(table);
+
   return column ? isNull(column) : undefined;
 }
 
@@ -86,7 +87,11 @@ export function softDelete(): Plugin<"softDelete", SoftDeleteExtension> {
     describe(api): void {
       for (const { table } of api.resources) {
         const flag = table.flags.softDelete;
-        if (!flag) continue;
+
+        if (!flag) {
+          continue;
+        }
+
         api.markReadOnly(
           table.key,
           flag,
@@ -100,22 +105,38 @@ export function softDelete(): Plugin<"softDelete", SoftDeleteExtension> {
       const onlyDeleted = options["onlyDeleted"] === true;
       const scoped = scopeOperation(op, scopeFor, !withDeleted && !onlyDeleted);
       const column = deletedColumn(op.table);
-      if (!onlyDeleted || !column || scoped.kind === "insert") return scoped;
+
+      if (!onlyDeleted || !column || scoped.kind === "insert") {
+        return scoped;
+      }
+
       return { ...scoped, where: and(scoped.where, isNotNull(column)) };
     },
     beforeMutation(op, { table, options, now }): MutationOp {
       const column = deletedColumn(table);
-      if (!column) return op;
+
+      if (!column) {
+        return op;
+      }
+
       guardManaged(op, [column], "softDelete", options);
+
       if (op.kind === "insert") {
         // An upsert that updates a soft-deleted row brings it back.
-        if (insertsOnly(op)) return op;
+        if (insertsOnly(op)) {
+          return op;
+        }
+
         return {
           ...op,
           rows: op.rows.map((row) => withDefault(row, column, null)),
         };
       }
-      if (op.kind !== "delete" || options["hard"] === true) return op;
+
+      if (op.kind !== "delete" || options["hard"] === true) {
+        return op;
+      }
+
       return {
         kind: "update",
         intent: "softDelete",
@@ -131,11 +152,16 @@ export function softDelete(): Plugin<"softDelete", SoftDeleteExtension> {
     },
     repository({ table, base }) {
       const flag = table.flags.softDelete;
-      if (!flag) return;
+
+      if (!flag) {
+        return;
+      }
+
       // SAFETY: every repository has an update method with this signature;
       // plugins receive it untyped.
       // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- plugins receive `base` as an untyped method map.
       const update = base["update"] as unknown as UpdateFn;
+
       return {
         restore: (key: unknown, args?: { readonly signal?: AbortSignal }) =>
           AsyncResult.from(async (): Promise<Result<void>> => {
@@ -149,6 +175,7 @@ export function softDelete(): Plugin<"softDelete", SoftDeleteExtension> {
                 override: true,
               },
             );
+
             return result.ok ? ok(undefined) : result;
           }),
       };

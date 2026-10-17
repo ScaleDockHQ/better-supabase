@@ -12,7 +12,11 @@ export async function validate<S extends StandardSchemaV1>(
   label = "value",
 ): Promise<Result<StandardSchemaV1.InferOutput<S>>> {
   let outcome = schema["~standard"].validate(value);
-  if (outcome instanceof Promise) outcome = await outcome;
+
+  if (outcome instanceof Promise) {
+    outcome = await outcome;
+  }
+
   if (outcome.issues) {
     return err(
       dbError("validation", `Invalid ${label}`, {
@@ -20,6 +24,7 @@ export async function validate<S extends StandardSchemaV1>(
       }),
     );
   }
+
   // SAFETY: a result without issues carries the schema's output type, which the
   // spec types as unknown here.
   return ok(outcome.value as StandardSchemaV1.InferOutput<S>);
@@ -32,9 +37,11 @@ export function toIssues(
   return issues.map((issue) => {
     const path = issue.path?.map((segment) => {
       const key = typeof segment === "object" ? segment.key : segment;
+
       // DbError stays JSON-serializable, and JSON drops symbols.
       return typeof key === "symbol" ? String(key) : key;
     });
+
     return path && path.length > 0
       ? { message: issue.message, path }
       : { message: issue.message };

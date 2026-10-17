@@ -126,8 +126,13 @@ export function withProvider(patch: {
     | undefined;
 }): AuthorizationProvider {
   const provider: Record<string, unknown> = { ...stubProvider, ...patch };
-  for (const [key, value] of Object.entries(patch))
-    if (value === undefined) delete provider[key];
+
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === undefined) {
+      delete provider[key];
+    }
+  }
+
   // SAFETY: every key is stubProvider's or the patch's, and removed keys are optional.
   return provider as unknown as AuthorizationProvider;
 }

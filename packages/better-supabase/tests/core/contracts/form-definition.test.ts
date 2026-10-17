@@ -20,15 +20,17 @@ const requiredWhen = (condition: unknown, key: string) => ({
 describe("fieldSchema", () => {
   it("maps every field type", () => {
     const options = [{ value: "a", label: "A" }];
+
     const schemas = Object.fromEntries(
       FORM_FIELD_TYPES.map((type) => [
         type,
         fieldSchema({ key: "k", label: "K", type, options }),
       ]),
     );
+
     expect(schemas).toEqual({
       text: { type: "string", maxLength: 500, title: "K" },
-      textarea: { type: "string", maxLength: 10000, title: "K" },
+      textarea: { type: "string", maxLength: 10_000, title: "K" },
       email: { type: "string", format: "email", maxLength: 320, title: "K" },
       url: { type: "string", format: "uri", maxLength: 2000, title: "K" },
       number: { type: "number", title: "K" },
@@ -104,6 +106,7 @@ describe("formSchema", () => {
       requiredWhen(conditionSchema({ field: "plan", in: ["team"] }), "seats"),
       requiredWhen(conditionSchema({ field: "plan", in: ["team"] }), "terms"),
     ]);
+
     const both = formSchema({
       steps: [
         { key: "a", fields: [{ key: "x", label: "X", type: "bool" }] },
@@ -122,6 +125,7 @@ describe("formSchema", () => {
         },
       ],
     });
+
     expect(both["allOf"]).toEqual([
       requiredWhen(
         {
@@ -147,6 +151,7 @@ describe("formSchema", () => {
 describe("definition checks", () => {
   it("recognizes the outline of a definition", () => {
     expect(isFormDefinition(SIGNUP)).toBe(true);
+
     for (const bad of [
       null,
       [],
@@ -156,6 +161,7 @@ describe("definition checks", () => {
     ]) {
       expect(isFormDefinition(bad)).toBe(false);
     }
+
     expect(
       isFormDefinition({ steps: [{ key: "a", fields: [{ label: "x" }] }] }),
     ).toBe(false);

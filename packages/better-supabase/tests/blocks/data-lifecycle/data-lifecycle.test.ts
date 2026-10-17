@@ -43,6 +43,7 @@ type Answer = (args: Record<string, unknown>) => unknown;
 
 function fakeTransport(results: Record<string, unknown>) {
   const calls: [string, Record<string, unknown>][] = [];
+
   return {
     calls,
     transport: {
@@ -53,10 +54,12 @@ function fakeTransport(results: Record<string, unknown>) {
       ) {
         calls.push([fn, { ...args }]);
         const result = results[fn];
+
         const value =
           typeof result === "function"
             ? (result as Answer)({ ...args })
             : result;
+
         return value instanceof Error
           ? Promise.reject(value)
           : Promise.resolve(value);
@@ -76,13 +79,22 @@ function fakeStorage(
   > = {},
 ) {
   const calls: unknown[][] = [];
+
   const reply = (method: string, fallback: unknown, ...args: unknown[]) => {
     calls.push([method, ...args]);
     const value = replies[method];
-    if (value instanceof Error) return Promise.reject(value);
-    if (typeof value === "function") return Promise.resolve(value(...args));
+
+    if (value instanceof Error) {
+      return Promise.reject(value);
+    }
+
+    if (typeof value === "function") {
+      return Promise.resolve(value(...args));
+    }
+
     return Promise.resolve(value ?? { data: fallback, error: null });
   };
+
   const storage = {
     from: (bucket: string) => ({
       upload: (path: string, body: Blob) =>
@@ -95,6 +107,7 @@ function fakeStorage(
     }),
     // SAFETY: each reply has the shape the structural type names.
   } as LifecycleStorage;
+
   return { calls, storage };
 }
 
@@ -110,6 +123,7 @@ describe("createDataLifecycle", () => {
         exportRow({ subject: "organization", organization_id: "org-1" }),
       ],
     });
+
     const lifecycle = createDataLifecycle({ transport });
     expect((await lifecycle.requestExport().orThrow()).status).toBe("pending");
     await lifecycle.requestExport({ organizationId: "org-1" }).orThrow();
@@ -128,11 +142,13 @@ describe("createDataLifecycle", () => {
 
   it("signs each file of a ready export", async () => {
     const storage = fakeStorage();
+
     const lifecycle = createDataLifecycle({
       transport: fakeTransport({ get_data_export: exportRow() }).transport,
       storage: storage.storage,
       downloadTtl: 60,
     });
+
     const download = await lifecycle.download("x1").orThrow();
     expect(download.files).toEqual([
       { table: "public.projects", url: "https://s/x1/public.projects.ndjson" },
@@ -150,28 +166,35 @@ describe("createDataLifecycle", () => {
 
   it("refuses missing, unfinished and storage-less downloads", async () => {
     const storage = fakeStorage();
+
     const missing = await createDataLifecycle({
       transport: fakeTransport({ get_data_export: null }).transport,
       storage: storage.storage,
     }).download("x1");
+
     expect(missing.ok ? undefined : missing.error.hint).toBe(
       "DATA_EXPORT_NOT_FOUND",
     );
+
     const running = await createDataLifecycle({
       transport: fakeTransport({
         get_data_export: exportRow({ status: "running" }),
       }).transport,
       storage: storage.storage,
     }).download("x1");
+
     expect(running.ok ? undefined : running.error.hint).toBe(
       "DATA_EXPORT_NOT_READY",
     );
+
     const noStorage = await createDataLifecycle({
       transport: fakeTransport({ get_data_export: exportRow() }).transport,
     }).download("x1");
+
     expect(noStorage.ok ? undefined : noStorage.error.message).toMatch(
       /Pass storage/,
     );
+
     const failing = await createDataLifecycle({
       transport: fakeTransport({ get_data_export: exportRow() }).transport,
       storage: fakeStorage({
@@ -181,13 +204,16 @@ describe("createDataLifecycle", () => {
         },
       }).storage,
     }).download("x1");
+
     expect(failing.ok ? undefined : failing.error.kind).toBe("not_found");
+
     const odd = createDataLifecycle({
       transport: fakeTransport({
         get_data_export: exportRow({ status: "lost" }),
       }).transport,
       storage: storage.storage,
     });
+
     await expect(odd.download("x1").orThrow()).rejects.toThrow(
       /Unknown export status/,
     );
@@ -199,12 +225,15 @@ describe("createDataLifecycle", () => {
       cancel_organization_deletion: null,
       organization_deletion: deletionRow({ cancelled_at: null }),
     });
+
     const lifecycle = createDataLifecycle({ transport });
+
     const deletion = await lifecycle
       .requestOrganizationDeletion("org-1", {
         grace: Temporal.Duration.from({ days: 30 }),
       })
       .orThrow();
+
     expect(deletion.purgeAfter.toString()).toBe("2026-11-05T12:00:00Z");
     await lifecycle.requestOrganizationDeletion("org-1").orThrow();
     expect(await lifecycle.cancelOrganizationDeletion("org-1").orThrow()).toBe(
@@ -232,6 +261,7 @@ describe("createDataExporter", () => {
       "public.projects:(0,2)": [{ rows: [{ id: 3 }], after: null }],
       "public.empty:": [{ rows: [], after: null }],
     };
+
     const { transport, calls } = fakeTransport({
       claim_data_export: claimed,
       data_export_rows: (args: Record<string, unknown>) =>
@@ -241,13 +271,16 @@ describe("createDataExporter", () => {
       complete_data_export: (args: Record<string, unknown>) =>
         exportRow({ files: args["files"] }),
     });
+
     const storage = fakeStorage();
+
     const exporter = createDataExporter({
       transport,
       storage: storage.storage,
       pageSize: 2,
       concurrency: 1,
     });
+
     const done = await exporter.run("x1").orThrow();
     expect(done.files).toEqual([
       "x1/public.projects.ndjson",
@@ -274,10 +307,12 @@ describe("createDataExporter", () => {
 
   it("exports tables in parallel up to concurrency and keeps their order", async () => {
     const tables = Array.from({ length: 9 }, (_, index) => `public.t${index}`);
+
     const run = async (concurrency: number | undefined, failOn?: string) => {
       let active = 0;
       let peak = 0;
       const started: string[] = [];
+
       const { transport, calls } = fakeTransport({
         claim_data_export: {
           ...exportRow({ status: "running", files: [] }),
@@ -292,21 +327,27 @@ describe("createDataExporter", () => {
             setTimeout(resolve, 5);
           });
           active -= 1;
-          if (table === failOn)
+
+          if (table === failOn) {
             throw Object.assign(new Error("boom"), { code: "XX000" });
+          }
+
           return { rows: [{ table }], after: null };
         },
         complete_data_export: (args: Record<string, unknown>) =>
           exportRow({ files: args["files"] }),
         fail_data_export: null,
       });
+
       const result = await createDataExporter({
         transport,
         storage: fakeStorage().storage,
         ...(concurrency === undefined ? {} : { concurrency }),
       }).run("x1");
+
       return { result, peak, started, calls };
     };
+
     const parallel = await run(3);
     expect(parallel.peak).toBe(3);
     expect(parallel.result.ok ? parallel.result.data.files : []).toEqual(
@@ -318,6 +359,7 @@ describe("createDataExporter", () => {
     expect(failing.result.ok).toBe(false);
     expect(failing.started.length).toBeLessThan(tables.length);
     expect(failing.calls.at(-1)![0]).toBe("fail_data_export");
+
     for (const concurrency of [0, 1.5]) {
       expect(() =>
         createDataExporter({
@@ -342,7 +384,9 @@ describe("createDataExporter", () => {
       complete_data_export: (args: Record<string, unknown>) =>
         exportRow({ files: args["files"] }),
     });
+
     const storage = fakeStorage();
+
     const done = await createDataExporter({
       transport,
       storage: storage.storage,
@@ -350,6 +394,7 @@ describe("createDataExporter", () => {
     })
       .run("x1")
       .orThrow();
+
     expect(done.files).toEqual([
       "x1/public.projects.csv",
       "x1/public.empty.csv",
@@ -367,6 +412,7 @@ describe("createDataExporter", () => {
       { data_export_rows: Object.assign(new Error("boom"), { code: "XX000" }) },
       { data_export_rows: { rows: "nope", after: null } },
     ];
+
     for (const failure of failures) {
       const { transport, calls } = fakeTransport({
         claim_data_export: claimed,
@@ -374,10 +420,12 @@ describe("createDataExporter", () => {
         complete_data_export: exportRow(),
         ...failure,
       });
+
       const exporter = createDataExporter({
         transport,
         storage: fakeStorage().storage,
       });
+
       const result = await exporter.run("x1");
       const failed = calls.some(([fn]) => fn === "fail_data_export");
       expect(result.ok ? !failed : failed).toBe(true);
@@ -388,6 +436,7 @@ describe("createDataExporter", () => {
       data_export_rows: { rows: [], after: null },
       fail_data_export: null,
     });
+
     const uploadFails = await createDataExporter({
       transport,
       storage: fakeStorage({
@@ -397,6 +446,7 @@ describe("createDataExporter", () => {
         },
       }).storage,
     }).run("x1");
+
     expect(uploadFails.ok ? undefined : uploadFails.error.kind).toBe(
       "invalid_input",
     );
@@ -404,6 +454,7 @@ describe("createDataExporter", () => {
 
     const controller = new AbortController();
     controller.abort();
+
     const aborted = await createDataExporter({
       transport: fakeTransport({
         claim_data_export: claimed,
@@ -411,6 +462,7 @@ describe("createDataExporter", () => {
       }).transport,
       storage: fakeStorage().storage,
     }).run("x1", controller.signal);
+
     expect(aborted.ok ? undefined : aborted.error).toMatchObject({
       kind: "aborted",
       hint: "DATA_EXPORT_FAILED",
@@ -428,6 +480,7 @@ describe("createDataExporter", () => {
         },
       }).storage,
     }).run("x1");
+
     expect(thrown.ok ? undefined : thrown.error).toMatchObject({
       kind: "raised",
     });
@@ -438,6 +491,7 @@ describe("createDataExporter", () => {
       transport: fakeTransport({ claim_data_export: null }).transport,
       storage: fakeStorage().storage,
     });
+
     const result = await missing.run("x1");
     expect(result.ok ? undefined : result.error.hint).toBe(
       "DATA_EXPORT_NOT_FOUND",
@@ -454,6 +508,7 @@ describe("createDataExporter", () => {
       claim_data_export: { ...claimed, tables: [] },
       complete_data_export: exportRow({ files: [] }),
     });
+
     await createDataExporter({ transport, storage: fakeStorage().storage })
       .sink()
       .send([
@@ -500,6 +555,7 @@ describe("createDataExporter", () => {
       complete_data_export: (args: Record<string, unknown>) =>
         exportRow({ id: args["id"], files: [] }),
     });
+
     await createDataExporter({ transport, storage: fakeStorage().storage })
       .sink()
       .send([
@@ -531,6 +587,7 @@ describe("createDataExporter", () => {
       data_export_rows: new Error("connection reset"),
       fail_data_export: null,
     });
+
     await expect(
       createDataExporter({ transport, storage: fakeStorage().storage })
         .sink()
@@ -565,9 +622,11 @@ describe("createOrganizationPurger", () => {
         id: `f${String(i + 1)}`,
       })),
     };
+
     const storage = fakeStorage({
       list: (path, options) => {
         const { offset } = options as { offset: number };
+
         return {
           data:
             offset === 0
@@ -577,8 +636,10 @@ describe("createOrganizationPurger", () => {
         };
       },
     });
+
     const cancelled: string[] = [];
     const { transport, calls } = fakeTransport({ purge_organization: purged });
+
     const purger = createOrganizationPurger({
       transport,
       storage: storage.storage,
@@ -587,10 +648,12 @@ describe("createOrganizationPurger", () => {
         cancelSubscription: (id) =>
           AsyncResult.from(() => {
             cancelled.push(id);
+
             return Promise.resolve(ok("sub_1"));
           }),
       },
     });
+
     const result = await purger.purge("org-1").orThrow();
     expect(result).toEqual({
       organizationId: "org-1",
@@ -611,14 +674,17 @@ describe("createOrganizationPurger", () => {
 
   it("revokes the organization's credential refs before the purge and reports the rest", async () => {
     const order: string[] = [];
+
     const ref = (tenant?: string) => ({
       provider: "vault",
       name: "openai",
       ...(tenant === undefined ? {} : { tenant }),
     });
+
     const { transport } = fakeTransport({
       organization_credential_refs: () => {
         order.push("refs");
+
         return [
           {
             table: "better_supabase.ai_provider_keys",
@@ -660,10 +726,13 @@ describe("createOrganizationPurger", () => {
       },
       purge_organization: () => {
         order.push("purge");
+
         return purged;
       },
     });
+
     const revoked: unknown[] = [];
+
     const credentials = {
       apiVersion: 1 as const,
       name: "vault",
@@ -680,12 +749,15 @@ describe("createOrganizationPurger", () => {
       ) => {
         order.push("revoke");
         revoked.push([of, options.subject]);
+
         return AsyncResult.ok(true);
       },
     };
+
     const result = await createOrganizationPurger({ transport, credentials })
       .purge("org-1")
       .orThrow();
+
     expect(order).toEqual(["refs", "revoke", "revoke", "purge"]);
     expect(revoked).toEqual([
       [ref("org-1"), { type: "app" }],
@@ -703,6 +775,7 @@ describe("createOrganizationPurger", () => {
     const without = await createOrganizationPurger({ transport })
       .purge("org-1")
       .orThrow();
+
     expect(without.credentials.revoked).toBe(0);
     expect(without.credentials.unrevoked.map((entry) => entry.reason)).toEqual([
       "no_provider",
@@ -713,6 +786,7 @@ describe("createOrganizationPurger", () => {
     ]);
 
     order.length = 0;
+
     const failing = await createOrganizationPurger({
       transport,
       credentials: {
@@ -720,28 +794,33 @@ describe("createOrganizationPurger", () => {
         revoke: () => AsyncResult.err(dbError("network", "Vault down")),
       },
     }).purge("org-1");
+
     expect(failing.ok ? undefined : failing.error.message).toBe("Vault down");
     expect(order).toEqual(["refs"]);
   });
 
   it("checks that the deletion is due before it touches billing", async () => {
     const cancelled: string[] = [];
+
     const { transport, calls } = fakeTransport({
       organization_credential_refs: Object.assign(
         new Error("No due deletion for this organization"),
         { code: "P0002", hint: "ORGANIZATION_DELETION_NOT_DUE" },
       ),
     });
+
     const result = await createOrganizationPurger({
       transport,
       billing: {
         cancelSubscription: (id) =>
           AsyncResult.from(() => {
             cancelled.push(id);
+
             return Promise.resolve(ok("sub_1"));
           }),
       },
     }).purge("org-1");
+
     expect(result.ok).toBe(false);
     expect(cancelled).toEqual([]);
     expect(calls.map(([fn]) => fn)).toEqual(["organization_credential_refs"]);
@@ -749,13 +828,17 @@ describe("createOrganizationPurger", () => {
 
   it("clears path templates and computed prefixes per bucket", async () => {
     const listed: string[] = [];
+
     const storage = fakeStorage({
       list: (path) => {
         listed.push(String(path));
+
         return { data: [{ name: "f", id: "1" }], error: null };
       },
     });
+
     const { transport } = fakeTransport({ purge_organization: purged });
+
     const result = await createOrganizationPurger({
       transport,
       storage: storage.storage,
@@ -769,17 +852,20 @@ describe("createOrganizationPurger", () => {
     })
       .purge("org-1")
       .orThrow();
+
     expect(listed).toEqual([
       "orgs/org-1/files",
       "public/org-1",
       "private/org-1",
     ]);
     expect(result.removed).toEqual({ files: 1, media: 2 });
+
     const unsafe = await createOrganizationPurger({
       transport,
       storage: storage.storage,
       buckets: [{ bucket: "files", path: "shared" }],
     }).purge("org-1");
+
     expect(unsafe).toMatchObject({
       error: { kind: "invalid_request", message: /other tenants/ },
     });
@@ -787,6 +873,7 @@ describe("createOrganizationPurger", () => {
 
   it("removes expired exports' files, then their rows", async () => {
     const storage = fakeStorage();
+
     const { transport, calls } = fakeTransport({
       expired_data_exports: [
         {
@@ -798,10 +885,12 @@ describe("createOrganizationPurger", () => {
       ],
       forget_data_exports: 2,
     });
+
     const purger = createOrganizationPurger({
       transport,
       storage: storage.storage,
     });
+
     expect(await purger.purgeExports({ limit: 5 }).orThrow()).toBe(2);
     expect(storage.calls.filter(([method]) => method === "remove")).toEqual([
       ["remove", ["e1/a.ndjson", "e1/b.ndjson"]],
@@ -810,9 +899,11 @@ describe("createOrganizationPurger", () => {
       ["expired_data_exports", { max_rows: 5 }],
       ["forget_data_exports", { ids: ["e1", "e2"] }],
     ]);
+
     const none = createOrganizationPurger({
       transport: fakeTransport({ expired_data_exports: [] }).transport,
     });
+
     expect(await none.purgeExports().orThrow()).toBe(0);
     const noStorage = createOrganizationPurger({ transport });
     expect(await noStorage.purgeExports()).toMatchObject({
@@ -822,10 +913,12 @@ describe("createOrganizationPurger", () => {
 
   it("anonymizes due rows, and in the job only when asked", async () => {
     const signal = new AbortController().signal;
+
     const { transport, calls } = fakeTransport({
       anonymize_due: { "public.candidates": "3", "public.notes": 0 },
       due_organization_deletions: [],
     });
+
     const purger = createOrganizationPurger({ transport, anonymize: true });
     expect(await purger.anonymizeDue({ limit: 50 }).orThrow()).toEqual({
       "public.candidates": 3,
@@ -837,10 +930,12 @@ describe("createOrganizationPurger", () => {
       ["due_organization_deletions", 2],
       ["anonymize_due", undefined],
     ]);
+
     const quiet = fakeTransport({
       anonymize_due: null,
       due_organization_deletions: [],
     });
+
     const plain = createOrganizationPurger({ transport: quiet.transport });
     await plain.job({}, undefined as never, signal);
     expect(quiet.calls.map(([fn]) => fn)).toEqual([
@@ -851,6 +946,7 @@ describe("createOrganizationPurger", () => {
 
   it("stops at billing, storage and missing storage errors", async () => {
     const { transport, calls } = fakeTransport({ purge_organization: purged });
+
     const billingFails = await createOrganizationPurger({
       transport,
       billing: {
@@ -860,14 +956,18 @@ describe("createOrganizationPurger", () => {
           ),
       },
     }).purge("org-1");
+
     expect(billingFails.ok ? undefined : billingFails.error.message).toBe(
       "Stripe down",
     );
+
     const noStorage = await createOrganizationPurger({
       transport,
       buckets: ["attachments"],
     }).purge("org-1");
+
     expect(noStorage.ok).toBe(false);
+
     const listFails = await createOrganizationPurger({
       transport,
       buckets: ["attachments"],
@@ -875,7 +975,9 @@ describe("createOrganizationPurger", () => {
         list: { data: null, error: { message: "denied", statusCode: "403" } },
       }).storage,
     }).purge("org-1");
+
     expect(listFails.ok ? undefined : listFails.error.kind).toBe("forbidden");
+
     const removeFails = await createOrganizationPurger({
       transport,
       buckets: ["attachments"],
@@ -884,12 +986,14 @@ describe("createOrganizationPurger", () => {
         remove: { data: null, error: { message: "denied", statusCode: "403" } },
       }).storage,
     }).purge("org-1");
+
     expect(removeFails.ok).toBe(false);
     expect(calls.map(([fn]) => fn)).not.toContain("purge_organization");
   });
 
   it("purges what is due and stops at the first error", async () => {
     let purges = 0;
+
     const { transport } = fakeTransport({
       due_organization_deletions: [
         deletionRow(),
@@ -897,11 +1001,13 @@ describe("createOrganizationPurger", () => {
       ],
       purge_organization: (args: Record<string, unknown>) => {
         purges += 1;
+
         return args["tenant"] === "org-2"
           ? Object.assign(new Error("No due deletion"), { code: "P0002" })
           : purged;
       },
     });
+
     const purger = createOrganizationPurger({ transport });
     const result = await purger.purgeDue({ limit: 5 });
     expect(result.ok).toBe(false);
@@ -913,6 +1019,7 @@ describe("createOrganizationPurger", () => {
     const empty = createOrganizationPurger({
       transport: fakeTransport({ due_organization_deletions: [] }).transport,
     });
+
     await empty.job({}, undefined as never, new AbortController().signal);
     expect(await empty.purgeDue().orThrow()).toEqual([]);
   });

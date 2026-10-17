@@ -42,12 +42,15 @@ export function toReactRouter<const Entries extends readonly AnyEntry[], Key>(
   options: ToReactRouterOptions<Key, Contributions<Entries>> = {},
 ): ReactRouterMiddleware<Key, Contributions<Entries>> {
   const run = around(entries);
+
   return (args, next) => {
     const { request, context } = args;
     bufferInPlace(request);
+
     return run(request, options.env?.(args), async (contributions) => {
       // SAFETY: around() hands over exactly the entries' contributions.
       context.set(key, contributions as Contributions<Entries>);
+
       return next();
     });
   };

@@ -52,11 +52,13 @@ const VARIANTS: readonly Variant[] = [
 
 function render(variant: Variant, module: string): string {
   let files;
+
   try {
     files = renderModules(variant.modules(module), variant.layout(module));
   } catch (cause) {
     return `-- ==== ${variant.name}: throws\n-- ${String(cause instanceof Error ? cause.message : cause)}\n`;
   }
+
   return files
     .filter((file) => file.module === module)
     .map(
@@ -71,6 +73,7 @@ describe("SQL module output", () => {
     const out = VARIANTS.filter((variant) => variant.applies(module))
       .map((variant) => render(variant, module))
       .join("\n");
+
     await expect(out).toMatchFileSnapshot(`__golden__/${module}.sql`);
   });
 });

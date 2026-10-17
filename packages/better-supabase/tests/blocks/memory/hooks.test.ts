@@ -6,10 +6,12 @@ import { dbError } from "../../../src/core/errors.ts";
 describe("createMemory hooks", () => {
   it("runs top-level hooks and each group's hooks", async () => {
     const seen: string[] = [];
+
     const memory = createMemory({
       transport: {
         call: (_schema, fn) => {
           seen.push(fn);
+
           return Promise.resolve(fn === "memory_view" ? null : 0);
         },
       },
@@ -26,6 +28,7 @@ describe("createMemory hooks", () => {
         },
       },
     });
+
     const rendered = await memory.render("o1");
     expect(rendered.ok).toBe(false);
     expect(await memory.core.view("o1").orThrow()).toBeUndefined();

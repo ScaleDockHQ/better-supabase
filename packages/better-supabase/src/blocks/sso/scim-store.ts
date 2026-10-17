@@ -112,6 +112,7 @@ function compact(doc: Record<string, unknown>): Doc {
 function userResource(row: Doc): Doc {
   const givenName = optionalText(row["given_name"]);
   const familyName = optionalText(row["family_name"]);
+
   return compact({
     schemas: [SCIM_USER],
     id: textOf(row["id"]),
@@ -171,6 +172,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function stored(type: ScimResourceType, value: unknown): ScimStoredResource {
   const row = recordOf(value, FUNCTIONS[type].table);
+
   return {
     id: textOf(row["id"]),
     resource: FUNCTIONS[type].of(row),
@@ -191,6 +193,7 @@ export function sqlScimStore(
   options: SqlScimStoreOptions = {},
 ): ScimStore {
   const call = blockCall(transport, options.schema);
+
   return {
     apiVersion: 1,
     list: async (type, tenant) =>
@@ -261,6 +264,7 @@ export function sqlScimSyncLog(
   options: SqlScimStoreOptions = {},
 ): ScimSyncLog {
   const call = blockCall(transport, options.schema);
+
   return {
     apiVersion: 1,
     record: async (entry) =>

@@ -79,11 +79,12 @@ export function UserMenuDropdown({
       </AvatarFallback>
     </Avatar>
   );
+
   const identity = (
     <div className="grid flex-1 text-left text-sm leading-tight">
       <span className="truncate font-medium">{name ?? email}</span>
       <span
-        className="text-muted-foreground truncate text-xs"
+        className="truncate text-xs text-muted-foreground"
         data-testid="role"
       >
         {role ? roleLabel(role) : t("No role")}
@@ -111,7 +112,7 @@ export function UserMenuDropdown({
           <DropdownMenuLabel className="flex items-center gap-2 font-normal">
             {avatar}
             <div className="grid flex-1 text-sm leading-tight">
-              <span className="text-foreground truncate font-medium">
+              <span className="truncate font-medium text-foreground">
                 {name ?? email}
               </span>
               <span className="truncate text-xs">{email}</span>
@@ -173,7 +174,10 @@ export function UserMenuDropdown({
               <DropdownMenuRadioGroup
                 value={locale}
                 onValueChange={(value: string) => {
-                  if (!isLocale(value)) return;
+                  if (!isLocale(value)) {
+                    return;
+                  }
+
                   startTransition(() => {
                     router.replace(pathname, { locale: value });
                   });

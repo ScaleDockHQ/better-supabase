@@ -24,6 +24,7 @@ function fakeServer(canWrite = true) {
   let updates: { seq: number; update: Uint8Array }[] = [];
   let next = 1;
   let offline = false;
+
   const stateAfter = (after: number): DocumentState => {
     if (snapshot !== undefined && after < snapshot.seq) {
       return {
@@ -32,12 +33,15 @@ function fakeServer(canWrite = true) {
         updates: updates.filter((item) => item.seq > snapshot!.seq),
       };
     }
+
     return {
       snapshotSeq: snapshot?.seq ?? 0,
       updates: updates.filter((item) => item.seq > after),
     };
   };
+
   const now = temporal().Now.instant();
+
   const documents: Documents = {
     open: (ref) => {
       const opened: OpenedDocument = {
@@ -53,24 +57,29 @@ function fakeServer(canWrite = true) {
         ...stateAfter(0),
         ...(snapshot === undefined ? {} : { snapshot: snapshot.state }),
       };
+
       return AsyncResult.ok(opened);
     },
     push: (_id: string, update: Uint8Array) => {
       push();
+
       if (offline) {
         return AsyncResult.err<number>({
           kind: "network",
           message: "offline",
         } as never);
       }
+
       const seq = next++;
       updates.push({ seq, update });
+
       return AsyncResult.ok(seq);
     },
     pull: (_id, after) => AsyncResult.ok(stateAfter(after)),
     compact: (_id, state, through) => {
       snapshot = { state, seq: through };
       updates = updates.filter((item) => item.seq > through);
+
       return AsyncResult.ok(true);
     },
     saveVersion: () => AsyncResult.ok({ id: "v", number: 1 }),
@@ -78,6 +87,7 @@ function fakeServer(canWrite = true) {
     version: () => AsyncResult.ok(new Uint8Array()),
     toCompact: () => AsyncResult.ok([DOC_ID]),
   };
+
   return {
     documents,
     push,
@@ -99,18 +109,27 @@ function fakeBus() {
     presence: Record<string, Record<string, unknown>[]>;
     report?: (status: string) => void;
   }[] = [];
+
   const client = () => {
     const entry: (typeof channels)[number] = {
       listeners: [],
       syncs: [],
       presence: {},
     };
+
     channels.push(entry);
+
     const channel = {
       topic: "",
       on: (type: string, _filter: unknown, listener: Listener) => {
-        if (type === "broadcast") entry.listeners.push(listener);
-        if (type === "presence") entry.syncs.push(listener as () => void);
+        if (type === "broadcast") {
+          entry.listeners.push(listener);
+        }
+
+        if (type === "presence") {
+          entry.syncs.push(listener as () => void);
+        }
+
         return channel;
       },
       presenceState: () => entry.presence,
@@ -121,25 +140,35 @@ function fakeBus() {
         queueMicrotask(() => {
           callback("SUBSCRIBED");
         });
+
         return channel;
       },
       send: vi.fn(async (message: { event: string; payload: unknown }) => {
         for (const other of channels) {
-          if (other === entry) continue;
-          for (const listener of other.listeners) listener(message);
+          if (other === entry) {
+            continue;
+          }
+
+          for (const listener of other.listeners) {
+            listener(message);
+          }
         }
+
         return "ok";
       }),
     };
+
     const raw = {
       channel: (topic: string) => {
         channel.topic = `realtime:${topic}`;
+
         return channel;
       },
       getChannels: () => [channel],
       removeChannel: async () => "ok",
       realtime: { setAuth: async () => undefined },
     };
+
     // SAFETY: the fake implements the channel calls the provider makes.
     return {
       client: raw as unknown as RealtimeClient,
@@ -147,7 +176,10 @@ function fakeBus() {
       channel,
       sync: (state: Record<string, Record<string, unknown>[]>) => {
         entry.presence = state;
-        for (const listener of entry.syncs) listener();
+
+        for (const listener of entry.syncs) {
+          listener();
+        }
       },
       deliver: (payload: unknown) => {
         for (const listener of entry.listeners) {
@@ -156,6 +188,7 @@ function fakeBus() {
       },
     };
   };
+
   return { client };
 }
 
@@ -171,6 +204,7 @@ describe("createDocumentProvider", () => {
     const bus = fakeBus();
     const a = new Y.Doc();
     const b = new Y.Doc();
+
     const one = createDocumentProvider({
       documents: server.documents,
       client: bus.client().client,
@@ -178,6 +212,7 @@ describe("createDocumentProvider", () => {
       ref,
       yjs: Y,
     });
+
     await one.connect().orThrow();
     a.getText("t").insert(0, "hello");
     await one.flush();
@@ -190,6 +225,7 @@ describe("createDocumentProvider", () => {
       ref,
       yjs: Y,
     });
+
     await two.connect().orThrow();
     expect(b.getText("t").toString()).toBe("hello");
     expect(two.status).toBe("synced");
@@ -209,6 +245,7 @@ describe("createDocumentProvider", () => {
     const doc = new Y.Doc();
     const errors: unknown[] = [];
     const { client, entry } = bus.client();
+
     const provider = createDocumentProvider({
       documents: server.documents,
       client,
@@ -217,6 +254,7 @@ describe("createDocumentProvider", () => {
       yjs: Y,
       onError: (error) => errors.push(error),
     });
+
     await provider.connect().orThrow();
     server.setOffline(true);
     doc.getText("t").insert(0, "a");
@@ -232,7 +270,11 @@ describe("createDocumentProvider", () => {
     });
     const copy = new Y.Doc();
     const state = await server.documents.pull(DOC_ID, 0).orThrow();
-    for (const item of state.updates) Y.applyUpdate(copy, item.update);
+
+    for (const item of state.updates) {
+      Y.applyUpdate(copy, item.update);
+    }
+
     expect(copy.getText("t").toString()).toBe("ab");
     await provider.destroy();
   });
@@ -240,6 +282,7 @@ describe("createDocumentProvider", () => {
   it("does not push for a reader", async () => {
     const server = fakeServer(false);
     const doc = new Y.Doc();
+
     const provider = createDocumentProvider({
       documents: server.documents,
       client: fakeBus().client().client,
@@ -247,6 +290,7 @@ describe("createDocumentProvider", () => {
       ref,
       yjs: Y,
     });
+
     await provider.connect().orThrow();
     doc.getText("t").insert(0, "x");
     await provider.flush();
@@ -256,12 +300,14 @@ describe("createDocumentProvider", () => {
 
   it("loads yjs itself when it is not passed", async () => {
     const server = fakeServer();
+
     const provider = createDocumentProvider({
       documents: server.documents,
       client: fakeBus().client().client,
       doc: new Y.Doc(),
       ref,
     });
+
     await provider.connect().orThrow();
     await provider.destroy();
   });
@@ -270,6 +316,7 @@ describe("createDocumentProvider", () => {
     const server = fakeServer();
     const bus = fakeBus().client();
     const seen: unknown[] = [];
+
     const provider = createDocumentProvider<{ name: string }>({
       documents: server.documents,
       client: bus.client,
@@ -278,6 +325,7 @@ describe("createDocumentProvider", () => {
       yjs: Y,
       onPresence: (members) => seen.push(members),
     });
+
     expect(provider.document).toBeUndefined();
     expect(provider.members()).toEqual([]);
     const early = await provider.track({ name: "Ada" });
@@ -299,6 +347,7 @@ describe("createDocumentProvider", () => {
     const server = fakeServer();
     const bus = fakeBus().client();
     const doc = new Y.Doc();
+
     const provider = createDocumentProvider({
       documents: server.documents,
       client: bus.client,
@@ -306,6 +355,7 @@ describe("createDocumentProvider", () => {
       ref,
       yjs: Y,
     });
+
     await provider.connect().orThrow();
     const other = new Y.Doc();
     other.getText("t").insert(0, "hi");
@@ -331,6 +381,7 @@ describe("createDocumentProvider", () => {
       yjs: Y,
     }).orThrow();
     const doc = new Y.Doc();
+
     const provider = createDocumentProvider({
       documents: server.documents,
       client: fakeBus().client().client,
@@ -338,6 +389,7 @@ describe("createDocumentProvider", () => {
       ref,
       yjs: Y,
     });
+
     await provider.connect().orThrow();
     expect(doc.getText("t").toString()).toBe("saved");
     await provider.destroy();
@@ -347,6 +399,7 @@ describe("createDocumentProvider", () => {
     const server = fakeServer();
     const failure = { kind: "network", message: "down" } as never;
     const statuses: string[] = [];
+
     const closed = createDocumentProvider({
       documents: {
         ...server.documents,
@@ -358,6 +411,7 @@ describe("createDocumentProvider", () => {
       yjs: Y,
       onStatus: (status) => statuses.push(status),
     });
+
     expect((await closed.connect()).ok).toBe(false);
     expect(statuses).toEqual(["connecting", "closed"]);
 
@@ -365,6 +419,7 @@ describe("createDocumentProvider", () => {
     const bus = fakeBus().client();
     bus.channel.send.mockImplementation(async () => "error");
     const doc = new Y.Doc();
+
     const provider = createDocumentProvider({
       documents: {
         ...server.documents,
@@ -376,6 +431,7 @@ describe("createDocumentProvider", () => {
       yjs: Y,
       onError: (error) => errors.push(error),
     });
+
     await provider.connect().orThrow();
     doc.getText("t").insert(0, "a");
     await provider.flush();
@@ -424,6 +480,7 @@ describe("compactDocument", () => {
   it("returns the pull error", async () => {
     const server = fakeServer();
     const failure = { kind: "network", message: "down" } as never;
+
     const result = await compactDocument({
       documents: {
         ...server.documents,
@@ -432,6 +489,7 @@ describe("compactDocument", () => {
       documentId: DOC_ID,
       yjs: Y,
     });
+
     expect(result.ok).toBe(false);
   });
 });

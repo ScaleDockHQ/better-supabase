@@ -7,6 +7,7 @@ export {
   savedViewIssues,
   savedViewStateSchema,
 } from "./saved-views.ts";
+
 export type {
   DefaultViewCandidate,
   DuplicateViewInput,
@@ -25,6 +26,7 @@ export type {
   SaveViewInput,
   SavedViewRef,
 } from "./saved-views.ts";
+
 export {
   displayStateOf,
   queryFromUrlState,
@@ -32,9 +34,11 @@ export {
   sameQuery,
   urlStateFromQuery,
 } from "./query-state.ts";
+
 export type { ListUrlState } from "./query-state.ts";
 
 export { createSavedViewsController, matchSavedViews } from "./client.ts";
+
 export type {
   SavedViewsSyncOptions,
   SavedViewLike,
@@ -44,6 +48,9 @@ export type {
   SavedViewsMatch,
   SavedViewsSnapshot,
 } from "./client.ts";
+
 export { savedViewsBlock } from "./manifest.ts";
+
 export { savedViewsEvents } from "./events.ts";
+
 export type { SavedViewsEvents } from "./events.ts";

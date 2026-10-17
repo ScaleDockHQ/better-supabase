@@ -77,10 +77,12 @@ async function authOf(options: ConnectToolsOptions): Promise<
   | { ok: false; error: DbError }
 > {
   const { server } = options;
+
   switch (server.authType) {
     case "none": {
       return { ok: true, headers: {} };
     }
+
     case "header": {
       if (
         server.credentialRef === undefined ||
@@ -94,21 +96,26 @@ async function authOf(options: ConnectToolsOptions): Promise<
           ),
         };
       }
+
       if (!credentialRefInTenant(server.credentialRef, server.organizationId)) {
         return {
           ok: false,
           error: foreignCredentialRef(server.organizationId),
         };
       }
+
       const token = await options.credentials.getToken(server.credentialRef, {
         subject: { type: "app" },
       });
+
       return token.ok
         ? { ok: true, headers: { ...token.data.headers } }
         : { ok: false, error: token.error };
     }
+
     case "oauth": {
       const grant = server.grant;
+
       if (grant === undefined) {
         return {
           ok: false,
@@ -118,6 +125,7 @@ async function authOf(options: ConnectToolsOptions): Promise<
           ),
         };
       }
+
       if (isOAuthRef(grant.credentialRef)) {
         if (options.vault === undefined) {
           return {
@@ -128,6 +136,7 @@ async function authOf(options: ConnectToolsOptions): Promise<
             ),
           };
         }
+
         return {
           ok: true,
           headers: {},
@@ -139,6 +148,7 @@ async function authOf(options: ConnectToolsOptions): Promise<
           }),
         };
       }
+
       if (options.credentials === undefined) {
         return {
           ok: false,
@@ -148,16 +158,20 @@ async function authOf(options: ConnectToolsOptions): Promise<
           ),
         };
       }
+
       const token = await options.credentials.getToken(grant.credentialRef, {
         subject: { type: "user", id: options.userId },
         scopes: grant.scopes,
       });
+
       return token.ok
         ? { ok: true, headers: { ...token.data.headers } }
         : { ok: false, error: token.error };
     }
+
     default: {
       const unreachable: never = server.authType;
+
       return unreachable;
     }
   }
@@ -168,11 +182,15 @@ async function digestOf(fingerprints: Record<string, string>): Promise<string> {
   const entries = Object.entries(fingerprints).toSorted(([a], [b]) =>
     a < b ? -1 : a > b ? 1 : 0,
   );
+
   return `sha256:${await sha256Hex(JSON.stringify(entries))}`;
 }
 
 function prefixed(tools: ToolSet, prefix: string | undefined): ToolSet {
-  if (prefix === undefined || prefix === "") return tools;
+  if (prefix === undefined || prefix === "") {
+    return tools;
+  }
+
   return Object.fromEntries(
     Object.entries(tools).map(([name, tool]) => [`${prefix}${name}`, tool]),
   );
@@ -188,19 +206,26 @@ export function connectTools(
   options: ConnectToolsOptions,
 ): AsyncResult<ConnectedTools> {
   const { connectors, server } = options;
+
   return AsyncResult.from(async () => {
     if (!server.enabled) {
       return err(
         forbidden(`${server.name} is turned off`, "CONNECTOR_DISABLED"),
       );
     }
+
     const authorization = await authOf(options);
-    if (!authorization.ok) return err(authorization.error);
+
+    if (!authorization.ok) {
+      return err(authorization.error);
+    }
+
     const session = await connectors.sessions.get(server.id, options.chatKey);
     const previous = session.ok ? session.data : undefined;
     const chatKey = options.chatKey ?? "";
     let sessionId = previous?.sessionId;
     let client: MCPClient;
+
     try {
       client = await createMCPClient({
         transport: {
@@ -215,6 +240,7 @@ export function connectTools(
             : { initialSessionId: previous.sessionId }),
           onSessionIdChange: (next) => {
             sessionId = next;
+
             if (next === undefined) {
               void connectors.sessions.forget(server.id, chatKey);
             }
@@ -238,13 +264,16 @@ export function connectTools(
         dbError("network", errorText(cause), { hint: "CONNECTOR_UNREACHABLE" }),
       );
     }
+
     const close = (): Promise<void> => client.close().catch(() => {});
+
     try {
       client.onElicitationRequest(ElicitationRequestSchema, (request) =>
         options.elicit === undefined
           ? { action: "decline" }
           : options.elicit(request),
       );
+
       if (sessionId !== undefined) {
         void connectors.sessions.save(server.id, {
           chatKey,
@@ -252,25 +281,33 @@ export function connectTools(
           initializeResult: { ...client.initializeResult },
         });
       }
+
       const definitions: ListToolsResult = await client.listTools();
+
       const split =
         options.apps === true
           ? splitMCPAppTools(definitions)
           : { modelVisible: definitions, appVisible: { tools: [] } };
+
       const tools = client.toolsFromDefinitions(split.modelVisible);
       const fingerprints = await fingerprintTools(tools);
       const fingerprint = await digestOf(fingerprints);
+
       const status = await connectors.fingerprints.check(
         server.id,
         fingerprint,
         fingerprints,
       );
+
       if (!status.ok) {
         await close();
+
         return status;
       }
+
       if (status.data !== "approved") {
         await close();
+
         return err(
           forbidden(
             `The tools of ${server.name} changed and wait for an admin's approval`,
@@ -278,6 +315,7 @@ export function connectTools(
           ),
         );
       }
+
       return ok({
         tools: prefixed(
           options.schemas === undefined
@@ -297,6 +335,7 @@ export function connectTools(
       });
     } catch (cause) {
       await close();
+
       return err(
         dbError("network", errorText(cause), { hint: "CONNECTOR_UNREACHABLE" }),
       );
@@ -333,9 +372,11 @@ export async function connectAll(
       }),
     })),
   );
+
   const tools: ToolSet = {};
   const skipped: { server: ConnectorServer; error: DbError }[] = [];
   const open: ConnectedTools[] = [];
+
   for (const { server, result } of results) {
     if (result.ok) {
       Object.assign(tools, result.data.tools);
@@ -344,6 +385,7 @@ export async function connectAll(
       skipped.push({ server, error: result.error });
     }
   }
+
   return {
     tools,
     skipped,

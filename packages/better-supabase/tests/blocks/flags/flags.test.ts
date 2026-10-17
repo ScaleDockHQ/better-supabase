@@ -50,6 +50,7 @@ describe("evaluateFlag", () => {
       }),
       { targetingKey: USER },
     );
+
     expect(result).toEqual({
       value: false,
       variant: "off",
@@ -66,6 +67,7 @@ describe("evaluateFlag", () => {
       ],
       rules: [{ variant: "off", tenants: ["org-1"] }],
     });
+
     expect(
       await evaluateFlag(definition, { targetingKey: USER, tenant: "org-1" }),
     ).toEqual({ value: true, variant: "beta", reason: "TARGETING_MATCH" });
@@ -84,6 +86,7 @@ describe("evaluateFlag", () => {
         { variant: "off", users: [USER] },
       ],
     });
+
     expect(
       await evaluateFlag(definition, {
         targetingKey: USER,
@@ -119,6 +122,7 @@ describe("evaluateFlag", () => {
     // new_editor buckets USER at 1154 and org-1 at 697.
     const at = (rolloutPercentage: number) =>
       flag({ rolloutPercentage, rolloutVariant: "on" });
+
     expect(await evaluateFlag(at(11.55), { targetingKey: USER })).toMatchObject(
       {
         variant: "on",
@@ -226,6 +230,7 @@ describe("createFlagsProvider", () => {
         }),
       ],
     });
+
     await provider.initialize();
     expect(provider.metadata.name).toBe("better-supabase");
     expect(
@@ -269,6 +274,7 @@ describe("createFlagsProvider", () => {
 
   it("caches definitions for ttl, reloads after refresh() and after a failure", async () => {
     let clock = 0;
+
     const call = vi
       .fn()
       .mockResolvedValueOnce([
@@ -280,12 +286,14 @@ describe("createFlagsProvider", () => {
       ])
       .mockRejectedValueOnce(new Error("connection reset"))
       .mockResolvedValue([]);
+
     const provider = createFlagsProvider({
       transport: { call },
       schema: "flags",
       ttl: 1000,
       now: () => clock,
     });
+
     expect(
       await provider.resolveBooleanEvaluation("new_editor", false, {}),
     ).toMatchObject({ value: true });
@@ -320,6 +328,7 @@ describe("createFlagsProvider", () => {
         GENERAL: "general",
       },
     });
+
     expect(await provider.resolveStringEvaluation("x", "", {})).toMatchObject({
       errorCode: "not-found",
     });
@@ -329,6 +338,7 @@ describe("createFlagsProvider", () => {
 describe("createFlagClient", () => {
   it("returns evaluation details from a provider or from options", async () => {
     const definitions = [flag({ rules: [{ variant: "on", users: [USER] }] })];
+
     for (const client of [
       createFlagClient({ definitions }),
       createFlagClient(createFlagsProvider({ definitions })),
@@ -422,6 +432,7 @@ describe("flagContext", () => {
         { scope: "org", id: "org-1", roles: ["admin", "billing"] },
       ],
     };
+
     expect(flagContext({ jwtClaims })).toEqual({
       targetingKey: USER,
       tenant: "org-1",

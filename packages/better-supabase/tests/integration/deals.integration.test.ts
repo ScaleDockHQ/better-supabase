@@ -46,6 +46,7 @@ describe.skipIf(!live)("deals", () => {
 
   it("runs a deal from qualified to won with edits, lines and a forecast", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const owner = await s.user("owner");
       const rep = await s.user("rep");
@@ -60,6 +61,7 @@ describe.skipIf(!live)("deals", () => {
       await s.as(rep);
       const acme = await parties.saveCompany(org, { name: "Acme" }).orThrow();
       const ada = await parties.savePerson(org, { name: "Ada" }).orThrow();
+
       const deal = await deals
         .create(
           org,
@@ -75,6 +77,7 @@ describe.skipIf(!live)("deals", () => {
           [{ type: "person", id: ada.id, role: "Champion", primary: true }],
         )
         .orThrow();
+
       expect(deal).toMatchObject({
         identifier: "DEAL-1",
         currency: "EUR",
@@ -106,6 +109,7 @@ describe.skipIf(!live)("deals", () => {
           { dealId: deal.id, field: "openedOn", value: "2020-01-01" },
         ])
         .orThrow();
+
       expect(edits.accepted.map((item) => item.field)).toEqual([
         "stageId",
         "closeOn",
@@ -127,6 +131,7 @@ describe.skipIf(!live)("deals", () => {
           { description: "Onboarding", unitAmount: 250_000n, taxRateBps: 2100 },
         ])
         .orThrow();
+
       expect(totals).toEqual({
         listTotal: 5_050_000n,
         discountTotal: 480_000n,
@@ -176,6 +181,7 @@ describe.skipIf(!live)("deals", () => {
           target: 2_000_000n,
         })
         .orThrow();
+
       expect(forecast).toMatchObject({
         commit: 1_000_000n,
         won: 0n,
@@ -189,10 +195,13 @@ describe.skipIf(!live)("deals", () => {
       const won = await deals.win(deal.id, "Order form signed").orThrow();
       expect(won).toMatchObject({ outcome: "won", note: "Order form signed" });
       expect(won.closedAt).toBeDefined();
+
       const closedEdit = await deals
         .update([{ dealId: deal.id, field: "forecast", value: "omit" }])
         .orThrow();
+
       expect(closedEdit.rejected[0]?.hint).toBe("DEAL_FORECAST_CLOSED");
+
       const wonForecast = await deals
         .forecast(org, {
           since: day("2026-01-01"),
@@ -200,6 +209,7 @@ describe.skipIf(!live)("deals", () => {
           currency: "EUR",
         })
         .orThrow();
+
       expect(wonForecast.won).toBe(1_000_000n);
       const reopened = await deals.reopen(deal.id).orThrow();
       expect(reopened).toMatchObject({
@@ -214,6 +224,7 @@ describe.skipIf(!live)("deals", () => {
         "select type from better_supabase.outbox_events where organization_id = $1 and type like 'deal.%' order by created_at",
         [org],
       );
+
       expect(outcomes.map((row) => row.type)).toEqual(
         expect.arrayContaining([
           "deal.created",
@@ -235,6 +246,7 @@ describe.skipIf(!live)("deals", () => {
 
   it("locks deals, scopes them to their team and moves them on the board", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const owner = await s.user("owner");
       const rep = await s.user("rep");
@@ -245,6 +257,7 @@ describe.skipIf(!live)("deals", () => {
       const deals = createDeals({ transport });
 
       await s.as(rep);
+
       const deal = await deals
         .create(org, {
           name: "Renewal",
@@ -252,6 +265,7 @@ describe.skipIf(!live)("deals", () => {
           currency: "USD",
         })
         .orThrow();
+
       await s.asRole(peer);
       expect(
         await s.rows("select 1 from better_supabase.deals where id = $1", [
@@ -275,12 +289,14 @@ describe.skipIf(!live)("deals", () => {
         [deal.id],
       );
       await s.as(rep);
+
       const locked = await deals
         .update([
           { dealId: deal.id, field: "amount", value: 5n },
           { dealId: deal.id, field: "note", value: "Waiting for PO" },
         ])
         .orThrow();
+
       expect(locked.rejected.map((item) => item.hint)).toEqual(["DEAL_LOCKED"]);
       expect(locked.accepted.map((item) => item.field)).toEqual(["note"]);
       expect(
@@ -295,6 +311,7 @@ describe.skipIf(!live)("deals", () => {
         [deal.id],
       );
       await s.as(rep);
+
       const second = await deals
         .create(org, {
           name: "Upsell",
@@ -302,10 +319,12 @@ describe.skipIf(!live)("deals", () => {
           currency: "USD",
         })
         .orThrow();
+
       const discovery = await s.value<string>(
         "(select id::text from better_supabase.pipeline_stages where pipeline_id = $1 and key = 'discovery')",
         [deal.pipelineId],
       );
+
       await createRank({ transport })
         .move("deal", second.id, { group: discovery })
         .orThrow();

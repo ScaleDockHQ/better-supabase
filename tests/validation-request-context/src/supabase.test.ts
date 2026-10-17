@@ -15,6 +15,7 @@ async function validate(
   value: Record<string, string>,
 ) {
   const result = await schema["~standard"].validate(value);
+
   return result.issues
     ? { issues: result.issues.map((issue) => issue.message) }
     : { value: result.value };
@@ -50,6 +51,7 @@ describe("env", () => {
       SUPABASE_URL: PROJECT_URL,
       SUPABASE_PUBLISHABLE_KEY: "sb_publishable_x",
     };
+
     expect((await validate(supabaseClientEnv, pub)).value).toMatchObject({
       url: PROJECT_URL,
     });
@@ -87,6 +89,7 @@ describe("env", () => {
       SUPABASE_SECRET_KEYS: '{"default":"sb_secret_a","cron":"sb_secret_b"}',
       SUPABASE_ANON_KEY: "eyJ-legacy-and-ignored",
     });
+
     expect(value).toMatchObject({
       publishableKey: "sb_publishable_x",
       secretKeys: { default: "sb_secret_a", cron: "sb_secret_b" },
@@ -104,6 +107,7 @@ describe("appRequestHeaders", () => {
         "x-forwarded-for": "203.0.113.7, 10.0.0.1",
       },
     });
+
     expect(appRequestHeaders(request, "web")).toEqual({
       "x-app-channel": "web",
       "x-request-id": "req-1",
@@ -116,6 +120,7 @@ describe("appRequestHeaders", () => {
       new Request("https://app.test"),
       "mobile",
     );
+
     expect(headers["x-request-id"]).toMatch(/^[0-9a-f-]{36}$/);
     expect(headers).not.toHaveProperty("x-client-ip");
   });
@@ -139,6 +144,7 @@ describe("avatars", () => {
     const rendered = new URL(
       render(`${object}?v=3`, { width: 96, height: 96, resize: "cover" }),
     );
+
     expect(rendered.pathname).toBe(
       `/storage/v1/render/image/public/avatars/${USER}/avatar.webp`,
     );

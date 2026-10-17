@@ -12,12 +12,22 @@ export async function installWorld(pool: Pool): Promise<void> {
   const present = await pool.query<{ ok: boolean }>(
     "select to_regprocedure('better_supabase.dispatch_workflow_deliveries(integer)') is not null as ok",
   );
-  if (present.rows[0]?.ok === true) return;
+
+  if (present.rows[0]?.ok === true) {
+    return;
+  }
+
   const client = await pool.connect();
+
   try {
     await client.query("begin");
-    for (const file of renderModules(["workflow-sdk-world"]))
-      if (file.kind !== "test") await client.query(file.contents);
+
+    for (const file of renderModules(["workflow-sdk-world"])) {
+      if (file.kind !== "test") {
+        await client.query(file.contents);
+      }
+    }
+
     await client.query(FIXTURE_TENANT_SQL);
     await client.query("commit");
   } catch (error) {

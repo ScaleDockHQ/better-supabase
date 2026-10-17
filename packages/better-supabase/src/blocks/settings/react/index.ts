@@ -55,12 +55,14 @@ export function useSettings(
 ): SettingsState<SettingEntries> {
   const { supabase, auth } = useBlockEnv();
   const { scope, organizationId, schema } = options;
+
   return useController(() => {
     const client = createSettings({
       settings,
       transport: rpcTransport(supabase),
       ...(schema === undefined ? {} : { schema }),
     });
+
     return scope === "user"
       ? createSettingsController({
           entries: settings.schemas.user,

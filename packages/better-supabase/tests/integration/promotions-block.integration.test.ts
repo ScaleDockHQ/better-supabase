@@ -29,13 +29,16 @@ describe.skipIf(!live)("promotions block in Postgres", () => {
   /** Runs each call in a savepoint, as `role`, so a raised error doesn't end the test's transaction. */
   const transport = (role: () => Promise<void>): BlockTransport => {
     const inner = sqlTransport(session.sql);
+
     return {
       async call(schema, fn, args) {
         await role();
         await session.client.query("savepoint block_call");
+
         try {
           const value = await inner.call(schema, fn, args);
           await session.client.query("release savepoint block_call");
+
           return value;
         } catch (cause) {
           await session.client.query("rollback to savepoint block_call");
@@ -55,10 +58,12 @@ describe.skipIf(!live)("promotions block in Postgres", () => {
     shopper = await session.user("promotions-block-shopper");
     tenant = await session.organization(owner);
     await session.as(owner);
+
     const product = await call<{ id: string }>(
       "better_supabase.save_product($1, null, 'Tee', null, null, 'physical')",
       [tenant],
     );
+
     await call("better_supabase.set_product_status($1, 'active')", [
       product.id,
     ]);
@@ -83,6 +88,7 @@ describe.skipIf(!live)("promotions block in Postgres", () => {
     const admin = createPromotions({
       transport: transport(() => session.as(owner)),
     });
+
     const { id } = await admin
       .savePromotion(tenant, {
         name: "Ten off",
@@ -93,9 +99,11 @@ describe.skipIf(!live)("promotions block in Postgres", () => {
         usageLimit: 10,
       })
       .orThrow();
+
     const codes = await admin
       .createCodes(id, { count: 2, prefix: "TEN-", usageLimit: 1 })
       .orThrow();
+
     expect(codes).toHaveLength(2);
     expect(
       await admin.createCodes(id, { codes: ["welcome10"] }).orThrow(),
@@ -104,9 +112,11 @@ describe.skipIf(!live)("promotions block in Postgres", () => {
     const asShopper = transport(() => session.as(shopper));
     const orders = createOrders({ transport: asShopper });
     const shop = createPromotions({ transport: asShopper });
+
     const cart = await orders
       .createCart(tenant, { currency: "EUR", email: shopper.email })
       .orThrow();
+
     await orders.setCartLine(cart.id, tee, 2).orThrow();
     expect(await shop.applyCode(cart.id, " welcome10 ").orThrow()).toEqual({
       codeId: expect.any(String),

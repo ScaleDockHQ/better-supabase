@@ -68,6 +68,7 @@ describe("notification delivery tracking", () => {
 
   it("records provider events through a service-only function that suppresses and emits", () => {
     const sql = rendered(["outbox", "notifications"]);
+
     for (const kind of [
       "delivered",
       "opened",
@@ -78,6 +79,7 @@ describe("notification delivery tracking", () => {
     ]) {
       expect(sql).toContain(`emit_event('notification.${kind}'`);
     }
+
     expect(sql).toContain(
       `create or replace function "better_supabase"."record_delivery_event"(provider text, provider_message_id text, kind text, provider_event_id text default null, occurred_at timestamptz default null, detail jsonb default '{}', suppress boolean default null)`,
     );
@@ -148,17 +150,21 @@ describe("notification delivery tracking", () => {
   it("adds the functions to a custom contract only when the table is mapped", () => {
     const contract = (modules: AnyBlocksConfig) =>
       customContracts(["notifications"], { modules })[0]!.functions;
+
     const names = (modules: AnyBlocksConfig) =>
       contract(modules).map((fn) => fn.name);
+
     expect(names({ notifications: { mode: "custom" } })).not.toContain(
       "record_delivery_event",
     );
+
     const mapped = contract({
       notifications: {
         mode: "custom",
         tables: { deliveryEvents: "public.email_events" },
       },
     });
+
     expect(mapped.slice(-2).map((fn) => fn.name)).toEqual([
       "record_delivery_event",
       "list_subject_deliveries",

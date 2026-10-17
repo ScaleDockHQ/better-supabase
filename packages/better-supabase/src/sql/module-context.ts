@@ -28,7 +28,10 @@ export function bindModuleRegistry(registry: ModuleRegistry): void {
 }
 
 function registry(): ModuleRegistry {
-  if (!bound) throw new Error("The SQL module registry is not loaded.");
+  if (!bound) {
+    throw new Error("The SQL module registry is not loaded.");
+  }
+
   return bound;
 }
 
@@ -40,6 +43,7 @@ export function moduleContext(
 ): ModuleContext {
   const modules = withProviderDefaults(layout);
   const readable = new Map<string, ReadonlySet<string>>();
+
   return createModuleContext(
     name,
     (module) => registry().modules[module]?.names,
@@ -53,8 +57,13 @@ export function moduleContext(
       ...providerIdType(layout),
       integrations(module) {
         const definition = registry().modules[module];
-        if (!definition || definition.integrates?.includes("*")) return;
+
+        if (!definition || definition.integrates?.includes("*")) {
+          return;
+        }
+
         let set = readable.get(module);
+
         if (!set) {
           set = new Set([
             ...registry()
@@ -64,6 +73,7 @@ export function moduleContext(
           ]);
           readable.set(module, set);
         }
+
         return set;
       },
     },
@@ -94,8 +104,13 @@ function withProviderSuspension(
   const modules = layout.modules;
   const suspension = layout.accessProvider?.suspension;
   const access = modules?.access;
-  if (!modules || !suspension || access?.model !== "provider") return modules;
+
+  if (!modules || !suspension || access?.model !== "provider") {
+    return modules;
+  }
+
   const configured = access.disabled ?? {};
+
   const disabled: NonNullable<AccessBlockConfig["disabled"]> = {
     ...configured,
     ...(configured.tenant === undefined && suspension.tenant
@@ -105,11 +120,14 @@ function withProviderSuspension(
       ? { user: suspension.user }
       : {}),
   };
+
   if (
     disabled.tenant === configured.tenant &&
     disabled.user === configured.user
-  )
+  ) {
     return modules;
+  }
+
   return { ...modules, access: { ...access, disabled } };
 }
 
@@ -119,18 +137,35 @@ function withProviderRoles(
 ): AnyBlocksConfig | undefined {
   const sources = layout.accessProvider?.roleSources;
   const tenant = modules?.["tenant"];
-  if (!modules || !sources || tenant?.mode !== "adopt") return modules;
-  if (tenant.options?.["roleThrough"] !== undefined) return modules;
+
+  if (!modules || !sources || tenant?.mode !== "adopt") {
+    return modules;
+  }
+
+  if (tenant.options?.["roleThrough"] !== undefined) {
+    return modules;
+  }
+
   const mapped = tenant.tables?.["memberships"];
-  if (typeof mapped !== "string") return modules;
+
+  if (typeof mapped !== "string") {
+    return modules;
+  }
+
   const table = mapped.includes(".")
     ? mapped
     : `${tenant.schema ?? "better_supabase"}.${mapped}`;
+
   const role = tenant.columns?.["memberships"]?.["role"] ?? "role";
+
   const source = sources.find(
     (entry) => entry.table === table && entry.role.column === role,
   );
-  if (!source) return modules;
+
+  if (!source) {
+    return modules;
+  }
+
   return {
     ...modules,
     tenant: {
@@ -146,5 +181,6 @@ export function providerIdType(layout: ModuleLayout): {
 } {
   const idType =
     layout.accessProvider?.idType ?? layout.entitlementsProvider?.idType;
+
   return idType ? { providerIdType: idType } : {};
 }

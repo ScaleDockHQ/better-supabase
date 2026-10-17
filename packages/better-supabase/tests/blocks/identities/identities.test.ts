@@ -18,7 +18,9 @@ function transport(
     async (_schema: string, fn: string, args: Record<string, unknown>) =>
       answer(fn, args),
   );
+
   const value: BlockTransport = { call };
+
   return { call, transport: value };
 }
 
@@ -36,6 +38,7 @@ describe("identityResolver", () => {
         ? { kind: "user", userId: "user-1" }
         : { kind: "contact", contactId: "contact-1" },
     );
+
     const resolve = identityResolver(t);
     expect(await resolve(slack)).toEqual({ kind: "user", userId: "user-1" });
     expect(await resolve({ kind: "email", value: "a@example.test" })).toEqual({
@@ -75,6 +78,7 @@ describe("identityResolver", () => {
       const resolve = identityResolver(transport(() => row).transport, {
         schema: "app_private",
       });
+
       expect(await resolve(slack)).toBeNull();
     }
   });
@@ -85,6 +89,7 @@ describe("identityResolver", () => {
         throw Object.assign(new Error("permission denied"), { code: "42501" });
       }).transport,
     );
+
     await expect(resolve(slack)).rejects.toMatchObject({
       error: { kind: "forbidden" },
     });
@@ -98,6 +103,7 @@ describe("link flow", () => {
         ? { code: "ABC123DEF456", expires_at: AT }
         : { id: "link-1", user_id: "user-1" },
     );
+
     const code = await beginLink(t, "chat", "slack").orThrow();
     expect(code.code).toBe("ABC123DEF456");
     expect(code.expiresAt.toString()).toBe("2026-10-14T07:00:00Z");
@@ -134,6 +140,7 @@ describe("link flow", () => {
       "nope",
       slack,
     );
+
     expect(refused).toMatchObject({
       ok: false,
       error: { hint: "IDENTITY_LINK_INVALID" },
@@ -145,7 +152,7 @@ describe("createIdentities", () => {
   it("lists, unlinks and backfills", async () => {
     const { transport: t } = transport((fn) => {
       switch (fn) {
-        case "my_identities":
+        case "my_identities": {
           return [
             {
               id: "link-1",
@@ -157,14 +164,22 @@ describe("createIdentities", () => {
               created_at: AT,
             },
           ];
-        case "unlink_identity":
+        }
+
+        case "unlink_identity": {
           return true;
-        case "backfill_verified_emails":
+        }
+
+        case "backfill_verified_emails": {
           return "3";
-        default:
+        }
+
+        default: {
           return null;
+        }
       }
     });
+
     const identities = createIdentities({ transport: t });
     expect(await identities.list().orThrow()).toMatchObject([
       {
@@ -185,6 +200,7 @@ describe("createIdentities", () => {
         { id: "x", kind: "fax", value: "1", source: "link", created_at: AT },
       ]).transport,
     });
+
     expect(await identities.list()).toMatchObject({ ok: false });
   });
 });

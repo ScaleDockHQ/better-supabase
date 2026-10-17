@@ -21,7 +21,11 @@ export const loadNotifications = bs.action(
       tenant,
       limit: 20,
     });
-    if (!items.ok) return items;
+
+    if (!items.ok) {
+      return items;
+    }
+
     return ok(
       items.data.map((item): NotificationRow => ({
         id: item.id,
@@ -45,6 +49,7 @@ export const markAllRead = bs.action(
   { requireTenant: true },
   async (_input, { tenant, supabase }) => {
     const updated = await blocks(supabase).notifications.markRead({ tenant });
+
     return updated.ok ? ok(updated.data.count) : updated;
   },
 );

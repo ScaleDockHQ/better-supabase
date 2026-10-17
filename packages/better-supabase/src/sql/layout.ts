@@ -56,8 +56,12 @@ export function moduleLayout(
       ([fn, roles]) => ({ function: fn, roles }),
     ),
     jsonSchemas: Object.entries(config.json).flatMap(([key, entry]) => {
-      if (!entry.schema) return [];
+      if (!entry.schema) {
+        return [];
+      }
+
       const dot = key.lastIndexOf(".");
+
       return [
         {
           table: key.slice(0, dot),

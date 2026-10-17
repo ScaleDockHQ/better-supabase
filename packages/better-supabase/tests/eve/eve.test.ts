@@ -39,11 +39,13 @@ import { createTestSigner } from "../../src/testing/jwt.ts";
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 const USER = "11111111-1111-4111-8111-111111111111";
 const ORG = "22222222-2222-4222-8222-222222222222";
+
 const env = {
   url: PROJECT_URL,
   publishableKey: "sb_publishable_test",
   jwksUrl: new URL(`${PROJECT_URL}/auth/v1/.well-known/jwks.json`),
 };
+
 const signer = await createTestSigner();
 
 const user: EveSessionAuth = {
@@ -78,10 +80,12 @@ describe("supabaseAuth", () => {
         { id: "other", roles: ["owner"] },
       ],
     });
+
     const principal = await supabaseAuth({
       ...options(),
       attributes: (claims) => ({ email: String(claims["email"] ?? "none") }),
     })(bearer(token));
+
     expect(principal).toMatchObject({
       authenticator: "supabase",
       principalType: "user",
@@ -103,10 +107,12 @@ describe("supabaseAuth", () => {
       tenant_id: ORG,
       memberships: { [ORG]: ["viewer"] },
     });
+
     const principal = await supabaseAuth({
       ...options(),
       tenantClaim: "tenant_id",
     })(bearer(token));
+
     expect(principal?.attributes).toMatchObject({
       tenantId: ORG,
       roles: ["viewer"],
@@ -117,9 +123,11 @@ describe("supabaseAuth", () => {
   it("returns null without a session and rejects an invalid token", async () => {
     const auth = supabaseAuth(options());
     expect(await auth(new Request("https://app.test/"))).toBeNull();
+
     const rejected = await auth(bearer("not.a.token")).catch(
       (error: unknown) => error,
     );
+
     expect(rejected).toBeInstanceOf(EveAuthRejection);
     expect((rejected as EveAuthRejection).response.status).toBe(401);
   });
@@ -134,6 +142,7 @@ describe("supabaseAuth", () => {
         held: { [ORG]: ["editor"] },
       },
     } as unknown as Parameters<typeof principalOf>[0];
+
     expect(principalOf(auth)?.attributes["roles"]).toEqual([]);
     expect(
       principalOf(auth, { membershipsClaim: "held" })?.attributes["roles"],
@@ -183,12 +192,15 @@ function provider(
 
 describe("credentialAuth", () => {
   const ref = { provider: "vault", secret: "linear" };
+
   const connected = {
     type: "user",
     id: USER,
     issuer: `${PROJECT_URL}/auth/v1`,
   } satisfies EveConnectionPrincipal;
+
   const app = { type: "app" } satisfies EveConnectionPrincipal;
+
   const request = (principal: EveConnectionPrincipal = app) => ({
     principal,
     connection: { url: "https://mcp.linear.app/mcp" },
@@ -197,12 +209,14 @@ describe("credentialAuth", () => {
   it("uses the app's credential for owner app", async () => {
     const at = Temporal.Instant.from("2026-10-08T12:00:00Z");
     const p = provider({ getToken: vi.fn(() => token("app", at)) });
+
     const auth = credentialAuth({
       provider: p,
       ref,
       owner: "app",
       scopes: ["read"],
     });
+
     expect("startAuthorization" in auth).toBe(false);
     expect(await auth.getToken(request())).toEqual({
       token: "app",
@@ -216,12 +230,14 @@ describe("credentialAuth", () => {
 
   it("uses the user's credential and asks a non-user to authorize", async () => {
     const p = provider();
+
     const auth = credentialAuth({
       provider: p,
       ref,
       owner: "user",
       interactive: false,
     });
+
     expect(auth).toMatchObject({ credentialOwner: "user" });
     expect("principalType" in auth).toBe(false);
     expect(await auth.getToken(request(connected))).toEqual({ token: "t1" });
@@ -241,6 +257,7 @@ describe("credentialAuth", () => {
         owner: "app",
         connection: "linear",
       }).getToken(request());
+
     await expect(failing(dbError("not_found", "none"))).rejects.toBeInstanceOf(
       ConnectionAuthorizationRequiredError,
     );
@@ -261,9 +278,11 @@ describe("credentialAuth", () => {
       reason: "CREDENTIAL_FORBIDDEN",
       retryable: false,
     });
+
     const invalid = await failing(dbError("invalid_input", "bad ref")).catch(
       (error: unknown) => error,
     );
+
     expect(invalid).toBeInstanceOf(ConnectionAuthorizationFailedError);
     expect((invalid as ConnectionAuthorizationFailedError).reason).toBe(
       "invalid_input",
@@ -277,17 +296,21 @@ describe("credentialAuth", () => {
     const start = vi.fn(() =>
       AsyncResult.ok({ url: "https://linear.app/oauth" }),
     );
+
     const complete = vi.fn(() => AsyncResult.ok(undefined));
+
     const p = provider({
       startAuthorization: start,
       completeAuthorization: complete,
     });
+
     const auth = credentialAuth({
       provider: p,
       ref,
       owner: "user",
       scopes: ["read"],
     });
+
     expect(auth).toMatchObject({ principalType: "user" });
     const callbackUrl = "https://app.test/eve/v1/connections/linear/callback";
     expect(
@@ -307,10 +330,12 @@ describe("credentialAuth", () => {
         callback: { params: { code: "c1", state: "s1" }, method: "GET" },
       }),
     ).toEqual({ token: "t1" });
+
     const [, options] = complete.mock.calls[0] as unknown as [
       unknown,
       { callback: URL },
     ];
+
     expect(options.callback.searchParams.get("code")).toBe("c1");
     expect(options.callback.searchParams.get("state")).toBe("s1");
 
@@ -323,6 +348,7 @@ describe("credentialAuth", () => {
       ref,
       owner: "user",
     });
+
     await expect(
       denied.startAuthorization?.({ ...request(connected), callbackUrl }),
     ).rejects.toBeInstanceOf(ConnectionAuthorizationFailedError);
@@ -339,9 +365,11 @@ describe("credentialAuth", () => {
 /** An in-memory `memory.documents` with the SQL module's version rules. */
 function documentStore() {
   const rows = new Map<string, { content: string; version: number }>();
+
   const documents: Memory["documents"] = {
     read: (scope, path) => {
       const row = rows.get(`${scope}|${path}`);
+
       return AsyncResult.ok(
         row
           ? { content: row.content, version: String(row.version) }
@@ -352,33 +380,42 @@ function documentStore() {
       const key = `${scope}|${path}`;
       const row = rows.get(key);
       const current = row ? String(row.version) : null;
-      if (current !== expectedVersion)
+
+      if (current !== expectedVersion) {
         return AsyncResult.err(
           dbError("serialization", "conflict", {
             hint: "MEMORY_DOCUMENT_CONFLICT",
           }),
         );
+      }
+
       const version = (row?.version ?? 0) + 1;
       rows.set(key, { content, version });
+
       return AsyncResult.ok({ content, version: String(version) });
     },
     purge: () => AsyncResult.ok(0),
   };
+
   return { rows, documents };
 }
 
 describe("supabaseDocumentBackend", () => {
   it("reads, writes and turns a stale write into eve's conflict", async () => {
     const { rows, documents } = documentStore();
+
     const backend = supabaseDocumentBackend({
       memory: { documents } as unknown as Memory,
     });
+
     expect(await backend.read({ key: "notes.md" })).toBeNull();
+
     const first = await backend.write({
       key: "notes.md",
       content: "a",
       expectedVersion: null,
     });
+
     expect(first).toEqual({ content: "a", version: "1" });
     expect(rows.has("eve|notes.md")).toBe(true);
     await expect(
@@ -389,9 +426,11 @@ describe("supabaseDocumentBackend", () => {
 
   it("passes the EveDocumentBackend kit", async () => {
     const { documents } = documentStore();
+
     const backend = supabaseDocumentBackend({
       memory: { documents } as unknown as Memory,
     });
+
     const report = await testEveDocumentBackend(backend);
     expect(report.checks.every((check) => check.ok)).toBe(true);
   });
@@ -401,10 +440,12 @@ describe("supabaseDocumentBackend", () => {
       read: () => AsyncResult.err(dbError("network", "down")),
       write: () => AsyncResult.err(dbError("network", "down")),
     };
+
     const backend = supabaseDocumentBackend({
       memory: { documents: failing } as unknown as Memory,
       scope: "app",
     });
+
     await expect(backend.read({ key: "a" })).rejects.toBeInstanceOf(
       DbException,
     );
@@ -418,6 +459,7 @@ function fakeMemory() {
   const { rows, documents } = documentStore();
   const saved: string[] = [];
   const forgotten: string[] = [];
+
   const memory = {
     documents,
     render: vi.fn(() => AsyncResult.ok("# Core\nprefers metric units")),
@@ -427,16 +469,19 @@ function fakeMemory() {
       ),
       save: vi.fn((_org: string, content: string) => {
         saved.push(content);
+
         return AsyncResult.ok({ id: "m2", content });
       }),
       list: vi.fn(() => AsyncResult.ok([{ id: "m1", content: "likes tea" }])),
       forget: vi.fn((id: string) => {
         forgotten.push(id);
+
         return AsyncResult.ok(true);
       }),
     },
     saveExtracted: vi.fn(() => AsyncResult.ok([])),
   };
+
   return { memory, rows, saved, forgotten };
 }
 
@@ -467,15 +512,18 @@ describe("supabaseMemory", () => {
       { documentId: "d2", index: 3, title: null, content: "coffee" },
     ]),
   );
+
   const knowledge = { search: knowledgeSearch } as unknown as Knowledge;
 
   it("recalls core, archival and knowledge once per operation", async () => {
     const { memory } = fakeMemory();
+
     const provider = supabaseMemory({
       memory: memory as unknown as Memory,
       knowledge,
       tools: false,
     });
+
     expect("tools" in provider).toBe(false);
     const first = await provider.recall["turn.started"](memoryCtx(user, "op1"));
     expect(first?.messages.map((message) => message.id)).toEqual([
@@ -485,9 +533,11 @@ describe("supabaseMemory", () => {
       "knowledge:d2:3",
     ]);
     expect(first?.messages[2]?.content).toBe("Handbook\ntea policy");
+
     const replay = await provider.recall["turn.started"](
       memoryCtx(user, "op1"),
     );
+
     expect(replay).toEqual(first);
     expect(memory.render).toHaveBeenCalledTimes(1);
     expect(memory.archival.search).toHaveBeenCalledWith(
@@ -556,10 +606,12 @@ describe("supabaseMemory", () => {
 
   it("skips search for an empty turn", async () => {
     const { memory } = fakeMemory();
+
     const provider = supabaseMemory({
       memory: memory as unknown as Memory,
       knowledge,
     });
+
     const ctx = { ...memoryCtx(user, "op5"), turn: null };
     expect(await provider.recall["turn.started"](ctx)).toEqual({
       messages: [{ id: "core", content: "# Core\nprefers metric units" }],
@@ -570,11 +622,13 @@ describe("supabaseMemory", () => {
   it("captures extracted facts once per operation", async () => {
     const { memory } = fakeMemory();
     const extract = vi.fn(() => Promise.resolve(["drinks tea"]));
+
     const provider = supabaseMemory({
       memory: memory as unknown as Memory,
       extract,
       tools: false,
     });
+
     const capture = provider.capture?.["turn.completed"];
     await capture?.(memoryCtx(user, "op6"));
     await capture?.(memoryCtx(user, "op6"));
@@ -590,17 +644,22 @@ describe("supabaseMemory", () => {
 
   it("builds remember and forget tools scoped to the user", async () => {
     const { memory, saved, forgotten } = fakeMemory();
+
     const defineTool = vi.fn(
       (definition: Record<string, unknown>) => definition,
     );
+
     const provider = supabaseMemory({
       memory: memory as unknown as Memory,
       load: () => Promise.resolve({ defineTool }),
     });
+
     type Tool = { execute(input: Record<string, unknown>): Promise<unknown> };
+
     const tools = (await provider.tools?.(
       memoryCtx(user, "op8"),
     )) as unknown as Record<string, Tool>;
+
     expect(Object.keys(tools)).toEqual(["remember", "forget"]);
     expect(await tools["remember"]?.execute({ fact: "has a cat" })).toEqual({
       id: "m2",
@@ -617,10 +676,12 @@ describe("supabaseMemory", () => {
 
   it("asks for eve when eve/tools is missing", async () => {
     const { memory } = fakeMemory();
+
     const provider = supabaseMemory({
       memory: memory as unknown as Memory,
       load: () => Promise.resolve(undefined),
     });
+
     await expect(provider.tools?.(memoryCtx(user, "op9"))).rejects.toThrow(
       "pnpm add eve",
     );
@@ -637,12 +698,15 @@ describe("supabaseMemory", () => {
 function fakeChats(leaf: string | null = "m0") {
   const leafId = leaf ?? undefined;
   const calls: { fn: string; args: unknown[] }[] = [];
+
   const record =
     <T>(fn: string, value: T) =>
     (...args: unknown[]) => {
       calls.push({ fn, args });
+
       return AsyncResult.ok(value);
     };
+
   const chats = {
     chats: {
       create: record("create", { id: "c" }),
@@ -657,6 +721,7 @@ function fakeChats(leaf: string | null = "m0") {
       release: record("release", true),
     },
   };
+
   return { chats: chats as unknown as AiChat, calls };
 }
 
@@ -815,7 +880,9 @@ describe("routeInbox", () => {
         message: EveChatMessage,
       ) => Promise<void>;
     } = {};
+
     const send = vi.fn(() => Promise.resolve(undefined));
+
     return {
       handlers,
       send,
@@ -845,6 +912,7 @@ describe("routeInbox", () => {
         botMode,
       }),
     );
+
   const inbox = (get: ReturnType<typeof conversation>) =>
     ({ conversations: { get } }) as unknown as Inbox;
 
@@ -903,14 +971,21 @@ describe("eve on the Supabase World", () => {
     const root = dirname(require.resolve("eve/package.json"));
     const chunks = join(root, "dist/src/compiled/_chunks/workflow");
     const versions = new Set<number>();
+
     for (const file of await readdir(chunks)) {
-      if (!file.endsWith(".js")) continue;
-      const source = await readFile(join(chunks, file), "utf8");
+      if (!file.endsWith(".js")) {
+        continue;
+      }
+
+      const source = await readFile(join(chunks, file), "utf-8");
+
       for (const match of source.matchAll(
         /SPEC_VERSION_MAX_SUPPORTED:\(\)=>(\d+)/g,
-      ))
+      )) {
         versions.add(Number(match[1]));
+      }
     }
+
     expect([...versions]).toEqual([Number(SPEC_VERSION_MAX_SUPPORTED)]);
   });
 });

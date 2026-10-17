@@ -9,10 +9,12 @@ describe("shareStructure", () => {
       ok: true,
       data: [{ id: 1, at: Temporal.Instant.from("2026-01-01T00:00:00Z") }],
     };
+
     const next = {
       ok: true,
       data: [{ id: 1, at: Temporal.Instant.from("2026-01-01T00:00:00Z") }],
     };
+
     expect(shareStructure(prev, next)).toBe(prev);
   });
 
@@ -20,11 +22,13 @@ describe("shareStructure", () => {
     const a = { id: "a", name: "A" };
     const b = { id: "b", name: "B" };
     const prev = [a, b];
+
     const next = [
       { id: "b", name: "B" },
       { id: "a", name: "A2" },
       { id: "c", name: "C" },
     ];
+
     const shared = shareStructure(prev, next);
     expect(shared).not.toBe(prev);
     expect(shared[0]).toBe(b);

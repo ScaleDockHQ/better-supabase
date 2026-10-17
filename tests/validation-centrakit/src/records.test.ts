@@ -50,11 +50,14 @@ const EXTRA: Extra = {
 
 async function organization(s: Session): Promise<string> {
   await s.as("service");
+
   const { rows } = await s.client.query<{ id: string }>(
     "insert into centrakit.organizations (name, slug) values ('Acme', $1) returning id",
     [`acme-${crypto.randomUUID().slice(0, 8)}`],
   );
+
   const org = rows[0]!.id;
+
   return org;
 }
 
@@ -68,19 +71,23 @@ describe.skipIf(!live)("CRM and work records on CentraKit", () => {
       async (s) => {
         const org = await organization(s);
         await s.as("service");
+
         const customer = (
           await s.rows<{ id: string }>(
             "insert into centrakit.customers (organization_id, company_name) values ($1, 'Bakery Jansen') returning id::text as id",
             [org],
           )
         )[0]!.id;
+
         const contact = (
           await s.rows<{ id: string }>(
             "insert into centrakit.customer_contacts (organization_id, customer_id, name) values ($1, $2, 'Els') returning id::text as id",
             [org, customer],
           )
         )[0]!.id;
+
         const deals = createDeals({ transport: sqlTransport(s.sql) });
+
         const deal = await deals
           .create(
             org,
@@ -94,16 +101,19 @@ describe.skipIf(!live)("CRM and work records on CentraKit", () => {
             [{ type: "customer_contact", id: contact, primary: true }],
           )
           .orThrow();
+
         expect(deal).toMatchObject({
           identifier: "OPP-1",
           company: { type: "customer", id: customer },
           contacts: [{ type: "customer_contact", id: contact, primary: true }],
         });
+
         const missing = await deals.create(org, {
           name: "Ghost",
           closeOn: Temporal.PlainDate.from("2026-12-31"),
           company: { type: "customer", id: "999999" },
         });
+
         expect(missing.ok ? "ok" : missing.error.hint).toBe(
           "DEAL_COMPANY_FORBIDDEN",
         );
@@ -120,16 +130,20 @@ describe.skipIf(!live)("CRM and work records on CentraKit", () => {
       async (s) => {
         const org = await organization(s);
         await s.as("service");
+
         const customer = (
           await s.rows<{ id: string }>(
             "insert into centrakit.customers (organization_id, company_name) values ($1, 'Garage De Vries') returning id::text as id",
             [org],
           )
         )[0]!.id;
+
         const items = createWorkItems({ transport: sqlTransport(s.sql) });
+
         const task = await items
           .create(org, { title: "Replace boiler" })
           .orThrow();
+
         expect(task.identifier).toBe("TASK-1");
         await s.client.query(
           "update better_supabase.work_items set customer_id = $1 where id = $2",

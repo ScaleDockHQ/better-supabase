@@ -37,6 +37,7 @@ export function DeleteAccountCard() {
   const router = useRouter();
   const changeSession = useSessionChange(sessionChanged, router);
   const [pending, startTransition] = useTransition();
+
   return (
     <Card className="ring-destructive/30">
       <CardHeader>
@@ -69,14 +70,17 @@ export function DeleteAccountCard() {
                 onClick={() => {
                   startTransition(async () => {
                     const result = await deleteMyAccount(undefined);
+
                     if (!result.ok) {
                       toast.error(
                         result.error.kind === "forbidden"
                           ? t("Verify a second factor first, then try again.")
                           : errorMessage(result.error),
                       );
+
                       return;
                     }
+
                     // The user is gone: drop the session without calling Auth.
                     await supabase.auth.signOut({ scope: "local" });
                     await changeSession("/login");

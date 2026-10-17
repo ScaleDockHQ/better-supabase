@@ -21,12 +21,14 @@ interface Counter {
 const counter = (): Counter & { readonly calls: unknown[][] } => {
   const calls: unknown[][] = [];
   let total = 0;
+
   return {
     calls,
     name: "counter",
     add(by, label) {
       calls.push([by, label]);
       total += by;
+
       return AsyncResult.ok({ total });
     },
     read() {
@@ -43,9 +45,11 @@ describe("withBlockHooks", () => {
 
   it("lets before rewrite the arguments", async () => {
     const client = counter();
+
     const hooked = withBlockHooks(client, {
       add: { before: ([by]) => [by * 10, "rewritten"] },
     });
+
     expect(await hooked.add(2)).toMatchObject({
       ok: true,
       data: { total: 20 },
@@ -56,12 +60,14 @@ describe("withBlockHooks", () => {
 
   it("refuses the call when before returns a DbError", async () => {
     const client = counter();
+
     const hooked = withBlockHooks(client, {
       add: {
         before: ([by]) =>
           by > 5 ? dbError("forbidden", "Too many") : undefined,
       },
     });
+
     const result = await hooked.add(6);
     expect(result).toMatchObject({ ok: false, error: { kind: "forbidden" } });
     expect(client.calls).toEqual([]);
@@ -76,13 +82,17 @@ describe("withBlockHooks", () => {
         },
       },
     });
+
     expect(await hooked.add(1)).toMatchObject({ ok: false });
   });
 
   it("gives after a copy it can't change the result through", async () => {
     const after = vi.fn((result: Result<{ tags: string[] }>) => {
-      if (result.ok) result.data.tags.push("mutated");
+      if (result.ok) {
+        result.data.tags.push("mutated");
+      }
     });
+
     const hooked = withBlockHooks(counter(), { read: { after } });
     const result = await hooked.read();
     expect(result).toMatchObject({ ok: true, data: { total: 0, tags: ["a"] } });
@@ -95,6 +105,7 @@ describe("withBlockHooks", () => {
 
   it("logs an after hook that throws and keeps the result", async () => {
     const logger = { ...silentLogger, error: vi.fn() };
+
     const hooked = withBlockHooks(
       counter(),
       {
@@ -106,6 +117,7 @@ describe("withBlockHooks", () => {
       },
       { block: "counter", logger },
     );
+
     expect(await hooked.add(1)).toMatchObject({ ok: true, data: { total: 1 } });
     expect(logger.error).toHaveBeenCalledWith(
       "counter.add after hook threw",
@@ -129,9 +141,11 @@ describe("withBlockHooks", () => {
         return AsyncResult.ok(this.#value);
       }
     }
+
     const hooked = withBlockHooks(new Box(), {
       get: { after: () => undefined },
     });
+
     expect(await hooked.get()).toMatchObject({ ok: true, data: 3 });
   });
 });
@@ -140,10 +154,12 @@ const recording = (
   value: unknown = "done",
 ): BlockTransport & { readonly seen: unknown[][] } => {
   const seen: unknown[][] = [];
+
   return {
     seen,
     call(schema, fn, args) {
       seen.push([schema, fn, args]);
+
       return Promise.resolve(value);
     },
   };
@@ -152,6 +168,7 @@ const recording = (
 describe("extendBlock", () => {
   it("adds methods that compose the base and call SQL", async () => {
     const transport = recording(7);
+
     const extended = extendBlock(
       counter(),
       (base, { call }) => ({
@@ -160,6 +177,7 @@ describe("extendBlock", () => {
       }),
       { transport, schema: "app" },
     );
+
     expect(await extended.addTwice(2)).toMatchObject({
       ok: true,
       data: { total: 4 },
@@ -174,11 +192,13 @@ describe("extendBlock", () => {
       call: () =>
         Promise.reject(Object.assign(new Error("denied"), { code: "42501" })),
     };
+
     const extended = extendBlock(
       counter(),
       (_base, { call }) => ({ go: () => call("go", {}, () => true) }),
       { transport },
     );
+
     expect(await extended.go()).toMatchObject({
       ok: false,
       error: { kind: "forbidden" },
@@ -189,6 +209,7 @@ describe("extendBlock", () => {
     const extended = extendBlock(counter(), (_base, { call }) => ({
       go: () => call("go", {}, () => true),
     }));
+
     expect(await extended.go()).toMatchObject({
       ok: false,
       error: { kind: "unsupported" },
@@ -206,12 +227,14 @@ describe("wrapTransport", () => {
   it("runs middleware outermost first and lets it rewrite the request", async () => {
     const order: string[] = [];
     const transport = recording();
+
     const wrapped = wrapTransport(
       transport,
       defineTransportMiddleware({
         name: "outer",
         call: async (request, next) => {
           order.push("outer");
+
           return next({ ...request, args: { ...request.args, extra: 1 } });
         },
       }),
@@ -219,10 +242,12 @@ describe("wrapTransport", () => {
         name: "inner",
         call: async (request, next) => {
           order.push(`inner ${String(request.args["extra"])}`);
+
           return next(request);
         },
       }),
     );
+
     expect(await wrapped.call("s", "f", { a: 1 })).toBe("done");
     expect(order).toEqual(["outer", "inner 1"]);
     expect(transport.seen).toEqual([["s", "f", { a: 1, extra: 1 }]]);

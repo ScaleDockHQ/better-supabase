@@ -9,15 +9,19 @@ export interface PolicyGrant {
 }
 
 const NAME = String.raw`(?:"(?:[^"]|"")+"|[A-Za-z_][\w$]*)`;
+
 const POLICY = /* @__PURE__ */ new RegExp(
   String.raw`\bcreate\s+policy\s+(${NAME})\s+on\s+(${NAME}(?:\s*\.\s*${NAME})?)((?:(?!\bcreate\s+policy\b)[\s\S])*?)(?:\busing\b|\bwith\s+check\b|;)`,
   "gi",
 );
+
 const DROP_POLICY = /* @__PURE__ */ new RegExp(
   String.raw`\bdrop\s+policy\s+(?:if\s+exists\s+)?(${NAME})\s+on\s+(${NAME}(?:\s*\.\s*${NAME})?)`,
   "gi",
 );
+
 const TABLE_NAME = String.raw`${NAME}(?:\s*\.\s*${NAME})?`;
+
 const DROP_TABLE = /* @__PURE__ */ new RegExp(
   String.raw`\bdrop\s+table\s+(?:if\s+exists\s+)?(${TABLE_NAME}(?:\s*,\s*${TABLE_NAME})*)`,
   "gi",
@@ -30,9 +34,11 @@ function droppedTables(list: string): string[] {
 type Statement = { readonly index: number; readonly apply: () => void };
 
 function inOrder(statements: Statement[][]): void {
-  for (const statement of statements.flat().sort((a, b) => a.index - b.index))
+  for (const statement of statements.flat().sort((a, b) => a.index - b.index)) {
     statement.apply();
+  }
 }
+
 const COMMANDS = ["select", "insert", "update", "delete"] as const;
 
 const unquote = (name: string): string =>
@@ -42,6 +48,7 @@ const unquote = (name: string): string =>
 
 function qualified(target: string): string {
   const parts = (target.match(new RegExp(NAME, "g")) ?? []).map(unquote);
+
   return parts.length === 1 ? `public.${parts[0]!}` : parts.join(".");
 }
 
@@ -73,6 +80,7 @@ export function declaredTables(
   schemas: readonly string[],
 ): string[] {
   const found = new Set<string>();
+
   for (const file of files) {
     const text = withoutComments(file.text);
     inOrder([
@@ -80,18 +88,23 @@ export function declaredTables(
         index: match.index,
         apply: () => {
           const table = qualified(match[1]!);
-          if (schemas.includes(table.slice(0, table.indexOf("."))))
+
+          if (schemas.includes(table.slice(0, table.indexOf(".")))) {
             found.add(table);
+          }
         },
       })),
       [...text.matchAll(DROP_TABLE)].map((match) => ({
         index: match.index,
         apply: () => {
-          for (const table of droppedTables(match[1]!)) found.delete(table);
+          for (const table of droppedTables(match[1]!)) {
+            found.delete(table);
+          }
         },
       })),
     ]);
   }
+
   return [...found];
 }
 
@@ -110,6 +123,7 @@ export function rlsTables(
   schemas: readonly string[],
 ): string[] {
   const found = new Set<string>();
+
   for (const file of files) {
     const text = withoutComments(file.text);
     inOrder([
@@ -117,19 +131,29 @@ export function rlsTables(
         index: match.index,
         apply: () => {
           const table = qualified(match[1]!);
-          if (!schemas.includes(table.slice(0, table.indexOf(".")))) return;
-          if (match[2]!.toLowerCase() === "enable") found.add(table);
-          else found.delete(table);
+
+          if (!schemas.includes(table.slice(0, table.indexOf(".")))) {
+            return;
+          }
+
+          if (match[2]!.toLowerCase() === "enable") {
+            found.add(table);
+          } else {
+            found.delete(table);
+          }
         },
       })),
       [...text.matchAll(DROP_TABLE)].map((match) => ({
         index: match.index,
         apply: () => {
-          for (const table of droppedTables(match[1]!)) found.delete(table);
+          for (const table of droppedTables(match[1]!)) {
+            found.delete(table);
+          }
         },
       })),
     ]);
   }
+
   return [...found];
 }
 
@@ -146,40 +170,67 @@ export function declaredTableColumns(
   schemas: readonly string[],
 ): ReadonlyMap<string, ReadonlySet<string>> {
   const found = new Map<string, Set<string>>();
+
   for (const file of files) {
     const text = withoutComments(file.text);
+
     for (const match of text.matchAll(TABLE)) {
       const table = qualified(match[1]!);
-      if (!schemas.includes(table.slice(0, table.indexOf(".")))) continue;
+
+      if (!schemas.includes(table.slice(0, table.indexOf(".")))) {
+        continue;
+      }
+
       const open = match.index + match[0].length - 1;
       const close = closingParen(text, open);
-      if (close === -1) continue;
+
+      if (close === -1) {
+        continue;
+      }
+
       const columns = found.get(table) ?? new Set<string>();
+
       for (const part of splitTopLevel(text.slice(open + 1, close))) {
         const first = new RegExp(NAME).exec(part)?.[0];
-        if (first === undefined || TABLE_CONSTRAINT.test(part)) continue;
+
+        if (first === undefined || TABLE_CONSTRAINT.test(part)) {
+          continue;
+        }
+
         columns.add(unquote(first));
       }
+
       found.set(table, columns);
     }
   }
+
   return found;
 }
 
 function closingParen(text: string, open: number): number {
   let depth = 0;
   let quote: string | undefined;
+
   for (let i = open; i < text.length; i++) {
     const char = text[i]!;
+
     if (quote) {
-      if (char === quote) quote = undefined;
-    } else if (char === "'" || char === '"') quote = char;
-    else if (char === "(") depth++;
-    else if (char === ")") {
+      if (char === quote) {
+        quote = undefined;
+      }
+    } else if (char === "'" || char === '"') {
+      quote = char;
+    } else if (char === "(") {
+      depth++;
+    } else if (char === ")") {
       depth--;
-      if (depth === 0) return i;
+
+      if (depth === 0) {
+        return i;
+      }
     }
   }
+
   return -1;
 }
 
@@ -188,20 +239,32 @@ function splitTopLevel(text: string): string[] {
   let depth = 0;
   let quote: string | undefined;
   let start = 0;
+
   for (let i = 0; i < text.length; i++) {
     const char = text[i]!;
+
     if (quote) {
-      if (char === quote) quote = undefined;
-    } else if (char === "'" || char === '"') quote = char;
-    else if (char === "(") depth++;
-    else if (char === ")") depth--;
-    else if (char === "," && depth === 0) {
+      if (char === quote) {
+        quote = undefined;
+      }
+    } else if (char === "'" || char === '"') {
+      quote = char;
+    } else if (char === "(") {
+      depth++;
+    } else if (char === ")") {
+      depth--;
+    } else if (char === "," && depth === 0) {
       parts.push(text.slice(start, i).trim());
       start = i + 1;
     }
   }
+
   const last = text.slice(start).trim();
-  if (last !== "") parts.push(last);
+
+  if (last !== "") {
+    parts.push(last);
+  }
+
   return parts;
 }
 
@@ -219,7 +282,9 @@ export function policyGrants(
     string,
     { roles: PolicyGrant["role"][]; privileges: readonly string[] }
   >;
+
   const policies = new Map<string, Named>();
+
   for (const file of files) {
     const text = withoutComments(file.text);
     inOrder([
@@ -227,15 +292,26 @@ export function policyGrants(
         index: match.index,
         apply: () => {
           const table = qualified(match[2]!);
-          if (!schemas.includes(table.slice(0, table.indexOf(".")))) return;
+
+          if (!schemas.includes(table.slice(0, table.indexOf(".")))) {
+            return;
+          }
+
           const clauses = match[3]!;
-          if (/\bas\s+restrictive\b/i.test(clauses)) return;
+
+          if (/\bas\s+restrictive\b/i.test(clauses)) {
+            return;
+          }
+
           const command = /\bfor\s+(all|select|insert|update|delete)\b/i
             .exec(clauses)?.[1]
             ?.toLowerCase();
+
           const privileges =
             command === undefined || command === "all" ? COMMANDS : [command];
+
           const to = /\bto\s+([\s\S]+)$/i.exec(clauses)?.[1];
+
           const roles = (to ?? "public")
             .split(",")
             .map((role) => unquote(role.trim()))
@@ -244,6 +320,7 @@ export function policyGrants(
               (role): role is PolicyGrant["role"] =>
                 role === "anon" || role === "authenticated",
             );
+
           const named: Named = policies.get(table) ?? new Map();
           named.set(unquote(match[1]!), { roles, privileges });
           policies.set(table, named);
@@ -258,29 +335,39 @@ export function policyGrants(
       [...text.matchAll(DROP_TABLE)].map((match) => ({
         index: match.index,
         apply: () => {
-          for (const table of droppedTables(match[1]!)) policies.delete(table);
+          for (const table of droppedTables(match[1]!)) {
+            policies.delete(table);
+          }
         },
       })),
     ]);
   }
+
   const found = new Map<
     string,
     { table: string; role: PolicyGrant["role"]; privileges: Set<string> }
   >();
+
   for (const [table, named] of policies) {
     for (const { roles, privileges } of named.values()) {
       for (const role of roles) {
         const key = `${table}\u0000${role}`;
+
         const entry = found.get(key) ?? {
           table,
           role,
           privileges: new Set<string>(),
         };
-        for (const privilege of privileges) entry.privileges.add(privilege);
+
+        for (const privilege of privileges) {
+          entry.privileges.add(privilege);
+        }
+
         found.set(key, entry);
       }
     }
   }
+
   return [...found.values()]
     .map((entry): PolicyGrant => ({
       table: entry.table,
@@ -310,10 +397,16 @@ export function extensionSchema(
   extension: string,
 ): string | undefined {
   for (const source of sources) {
-    if (MODULE_FILE.test(source.text)) continue;
+    if (MODULE_FILE.test(source.text)) {
+      continue;
+    }
+
     for (const match of withoutComments(source.text).matchAll(EXTENSION)) {
-      if (unquote(match[1]!) === extension) return unquote(match[2]!);
+      if (unquote(match[1]!) === extension) {
+        return unquote(match[2]!);
+      }
     }
   }
+
   return undefined;
 }

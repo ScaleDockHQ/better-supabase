@@ -18,6 +18,7 @@ const team = defineChecklist({
     { id: "billing" },
   ],
 });
+
 const profile = defineChecklist({
   id: "profile",
   scope: "user",
@@ -30,6 +31,7 @@ describe.skipIf(!live)("onboarding", () => {
 
   it("tracks user and organization checklists, by hand and from outbox events", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "outbox", "onboarding"], {
         modules: { onboarding: { options: { checklists: [team, profile] } } },

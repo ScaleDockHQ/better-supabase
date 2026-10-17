@@ -49,6 +49,7 @@ describe.skipIf(!live)("workflow-builder module", () => {
 
   it("saves drafts, publishes validated versions and starts runs of them", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "outbox", "workflow-builder"]);
       const owner = await s.user("owner");
@@ -58,21 +59,26 @@ describe.skipIf(!live)("workflow-builder module", () => {
 
       await s.service();
       const starts: BuilderStartCall[] = [];
+
       const service = createWorkflowBuilder({
         transport: sqlTransport(s.sql),
         steps: STEPS,
         start: async (call) => {
           starts.push(call);
+
           return `wrun_${String(starts.length)}`;
         },
       });
+
       expect(await service.steps.sync().orThrow()).toBe(2);
+
       const permissionsOf = async (): Promise<unknown> =>
         (
           await s.sql.queryRaw<{ p: unknown }>(
             `select better_supabase.workflow_graph_permissions('{"nodes":[{"id":"a","kind":"step","step":"email.send"},{"id":"b","kind":"step","step":"crm.lookup"}]}'::jsonb) as p`,
           )
         )[0]?.p;
+
       expect(await permissionsOf()).toEqual(["workflow.run"]);
       await service.steps
         .sync([STEPS[0]!, { ...STEPS[1]!, operation: "invoices.void" }])
@@ -81,9 +87,11 @@ describe.skipIf(!live)("workflow-builder module", () => {
       await service.steps.sync().orThrow();
 
       await s.asRole(member);
+
       const asMember = createWorkflowBuilder({
         transport: sqlTransport(s.sql),
       });
+
       expect(
         await asMember.definitions
           .save({ tenant, slug: "onboard", name: "Onboard" })
@@ -92,23 +100,29 @@ describe.skipIf(!live)("workflow-builder module", () => {
 
       await s.asRole(owner);
       const compiled: WorkflowGraph[] = [];
+
       const builder = createWorkflowBuilder({
         transport: sqlTransport(s.sql),
         compile: (graph) => {
           compiled.push(graph);
+
           return { engine: "test", nodes: graph.nodes.length };
         },
         start: async (call) => {
           starts.push(call);
+
           return `wrun_${String(starts.length)}`;
         },
       });
+
       expect(
         (await builder.steps.list().orThrow()).map((step) => step.name),
       ).toEqual(["crm.lookup", "email.send"]);
+
       const definition = await builder.definitions
         .save({ tenant, slug: "onboard", name: "Onboard" })
         .orThrow();
+
       expect(definition).toMatchObject({
         tenant,
         slug: "onboard",
@@ -130,6 +144,7 @@ describe.skipIf(!live)("workflow-builder module", () => {
           edges: [{ id: "e", source: "start", target: "x" }],
         })
         .orThrow();
+
       expect(broken).toMatchObject({ version: 1, status: "draft" });
       const refused = await builder.versions.publish(broken.id);
       expect(!refused.ok && refused.error.hint).toBe("WORKFLOW_GRAPH_INVALID");
@@ -171,6 +186,7 @@ describe.skipIf(!live)("workflow-builder module", () => {
           ],
         })
         .orThrow();
+
       expect(next).toMatchObject({ version: 2, status: "draft" });
       expect(await builder.versions.diff(v1.id, next.id).orThrow()).toEqual({
         nodes: { added: ["wait"], removed: [], changed: [] },
@@ -197,6 +213,7 @@ describe.skipIf(!live)("workflow-builder module", () => {
           idempotencyKey: "k1",
         })
         .orThrow();
+
       expect(runId).toBe("wrun_1");
       expect(starts[0]).toMatchObject({
         tenant,
@@ -220,16 +237,20 @@ describe.skipIf(!live)("workflow-builder module", () => {
 
   it("runs webhook and event triggers, and syncs schedule triggers", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "workflow-builder"]);
       const owner = await s.user("owner");
       const tenant = await s.organization(owner, {});
       await s.service();
       const starts: BuilderStartCall[] = [];
+
       const start = async (call: BuilderStartCall): Promise<string> => {
         starts.push(call);
+
         return `wrun_${String(starts.length)}`;
       };
+
       // The block takes the workflows client it syncs schedules with
       // (ADR 0029: no block builds a sibling's client).
       const service = createWorkflowBuilder({
@@ -238,24 +259,30 @@ describe.skipIf(!live)("workflow-builder module", () => {
         start,
         workflows: createWorkflows({ transport: sqlTransport(s.sql) }),
       });
+
       await service.steps.sync().orThrow();
 
       await s.asRole(owner);
+
       const builder = createWorkflowBuilder({
         transport: sqlTransport(s.sql),
         start,
       });
+
       const definition = await builder.definitions
         .save({ tenant, slug: "hooked", name: "Hooked" })
         .orThrow();
+
       const draft = await builder.versions.save(definition.id, GRAPH).orThrow();
       await builder.versions.publish(draft.id).orThrow();
 
       const webhook = await builder.triggers
         .save({ definition: definition.id, kind: "webhook" })
         .orThrow();
+
       const token = await builder.triggers.rotateToken(webhook.id).orThrow();
       expect(token).toMatch(/^wfh_[0-9a-f]{48}$/);
+
       const event = await builder.triggers
         .save({
           definition: definition.id,
@@ -263,6 +290,7 @@ describe.skipIf(!live)("workflow-builder module", () => {
           config: { type: "contact.created" },
         })
         .orThrow();
+
       const schedule = await builder.triggers
         .save({
           definition: definition.id,
@@ -270,14 +298,17 @@ describe.skipIf(!live)("workflow-builder module", () => {
           config: { cron: "@daily", input: { daily: true } },
         })
         .orThrow();
+
       expect(
         (await builder.triggers.list(definition.id).orThrow()).map(
           (t) => t.kind,
         ),
       ).toEqual(["webhook", "event", "schedule"]);
+
       const manual = await builder.triggers
         .save({ definition: definition.id, kind: "manual" })
         .orThrow();
+
       expect(
         await builder.triggers
           .rotateToken(manual.id)
@@ -285,10 +316,13 @@ describe.skipIf(!live)("workflow-builder module", () => {
       ).toBe("WORKFLOW_TRIGGER_KIND");
 
       await s.service();
+
       const missing = await service.triggers.webhook(
         new Request("https://app.test/api/hooks/wfh_nope", { method: "POST" }),
       );
+
       expect(missing.status).toBe(404);
+
       const hooked = await service.triggers.webhook(
         new Request(`https://app.test/api/hooks/${token}`, {
           method: "POST",
@@ -299,6 +333,7 @@ describe.skipIf(!live)("workflow-builder module", () => {
           body: JSON.stringify({ id: 7 }),
         }),
       );
+
       expect(hooked.status).toBe(202);
       expect(await hooked.json()).toEqual({ runId: "wrun_1" });
       expect(starts[0]).toMatchObject({
@@ -306,12 +341,14 @@ describe.skipIf(!live)("workflow-builder module", () => {
         idempotencyKey: `webhook:${webhook.id}:abc`,
         trigger: { id: webhook.id },
       });
+
       const bearer = await service.triggers.webhook(
         new Request("https://app.test/api/hooks", {
           method: "POST",
           headers: { authorization: `Bearer ${token}` },
         }),
       );
+
       expect(bearer.status).toBe(202);
       expect(
         (
@@ -343,6 +380,7 @@ describe.skipIf(!live)("workflow-builder module", () => {
       const synced = await service.triggers
         .syncSchedule(schedule, tenant)
         .orThrow();
+
       expect(synced).toMatchObject({
         name: `builder-trigger:${schedule.id}`,
         workflow: `builder:${definition.id}`,
@@ -382,6 +420,7 @@ describe.skipIf(!live)("workflow-builder module", () => {
 
   it("resolves and revokes credentials through their provider", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "workflow-builder"]);
       const owner = await s.user("owner");
@@ -389,6 +428,7 @@ describe.skipIf(!live)("workflow-builder module", () => {
       const tenant = await s.organization(owner, { member });
       const secrets = new Map<string, string>();
       const revoked: string[] = [];
+
       const provider: CredentialProvider & {
         set(ref: { secret?: unknown }, value: string): AsyncResult<void>;
       } = {
@@ -407,19 +447,23 @@ describe.skipIf(!live)("workflow-builder module", () => {
           }),
         revoke: (ref) => {
           revoked.push(String(ref["secret"]));
+
           return AsyncResult.ok(secrets.delete(String(ref["secret"])));
         },
         set: (ref, value) => {
           secrets.set(String(ref.secret), value);
+
           return AsyncResult.ok(undefined);
         },
       };
 
       await s.asRole(member);
+
       const asMember = createWorkflowBuilder({
         transport: sqlTransport(s.sql),
         credentials: provider,
       });
+
       expect(
         await asMember.credentials
           .create({
@@ -432,10 +476,12 @@ describe.skipIf(!live)("workflow-builder module", () => {
       ).toBe("WORKFLOW_FORBIDDEN");
 
       await s.asRole(owner);
+
       const builder = createWorkflowBuilder({
         transport: sqlTransport(s.sql),
         credentials: provider,
       });
+
       const credential = await builder.credentials
         .create({
           tenant,
@@ -446,6 +492,7 @@ describe.skipIf(!live)("workflow-builder module", () => {
           secret: "s3cret",
         })
         .orThrow();
+
       expect(credential).toMatchObject({
         kind: "crm",
         scopes: ["contacts.read"],
@@ -459,10 +506,12 @@ describe.skipIf(!live)("workflow-builder module", () => {
       ).toBeTruthy();
 
       await s.service();
+
       const service = createWorkflowBuilder({
         transport: sqlTransport(s.sql),
         credentials: provider,
       });
+
       expect(
         await service.credentials.resolve(credential.id).orThrow(),
       ).toMatchObject({
@@ -498,6 +547,7 @@ describe.skipIf(!live)("workflow-builder module", () => {
 
   it("records node runs on the run's topic and fires failed and slow alerts once", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "outbox", "workflow-builder"]);
       const owner = await s.user("owner");
@@ -505,9 +555,11 @@ describe.skipIf(!live)("workflow-builder module", () => {
       const tenant = await s.organization(owner, {});
       await s.asRole(owner);
       const builder = createWorkflowBuilder({ transport: sqlTransport(s.sql) });
+
       const definition = await builder.definitions
         .save({ tenant, slug: "alerted", name: "Alerted" })
         .orThrow();
+
       const failed = await builder.alerts
         .save({
           definition: definition.id,
@@ -515,9 +567,11 @@ describe.skipIf(!live)("workflow-builder module", () => {
           channel: { type: "email", to: "ops@example.test" },
         })
         .orThrow();
+
       const slow = await builder.alerts
         .save({ definition: definition.id, onEvent: "slow", threshold: 60 })
         .orThrow();
+
       expect(slow.threshold).toBe(60);
       expect(
         (await builder.alerts.list(definition.id).orThrow()).map(
@@ -528,6 +582,7 @@ describe.skipIf(!live)("workflow-builder module", () => {
       await s.service();
       const workflows = createWorkflows({ transport: sqlTransport(s.sql) });
       const service = createWorkflowBuilder({ transport: sqlTransport(s.sql) });
+
       const record = (externalId: string, status: "running" | "failed") =>
         workflows.runs
           .record({
@@ -539,6 +594,7 @@ describe.skipIf(!live)("workflow-builder module", () => {
             attributes: { "bs.definition": definition.id, "bs.version": "1" },
           })
           .orThrow();
+
       const runId = await record("wrun_a", "running");
       expect(
         await service.nodeRuns
@@ -590,12 +646,14 @@ describe.skipIf(!live)("workflow-builder module", () => {
       await s.service();
       await record("wrun_a", "failed");
       await record("wrun_a", "failed");
+
       const alerts = await s.rows<{
         type: string;
         payload: { alertId: string; runId: string };
       }>(
         "select type, payload from better_supabase.outbox_events where type = 'workflow_alert.triggered'",
       );
+
       expect(alerts).toEqual([
         {
           type: "workflow_alert.triggered",

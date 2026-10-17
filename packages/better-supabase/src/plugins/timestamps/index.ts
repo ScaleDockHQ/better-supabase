@@ -16,30 +16,40 @@ export function timestamps(): Plugin<"timestamps"> {
     describe(api): void {
       for (const { table } of api.resources) {
         const flags = table.flags.timestamps;
-        if (flags?.createdAt)
+
+        if (flags?.createdAt) {
           api.markReadOnly(
             table.key,
             flags.createdAt,
             "Set by the server when the row is created.",
           );
-        if (flags?.updatedAt)
+        }
+
+        if (flags?.updatedAt) {
           api.markReadOnly(
             table.key,
             flags.updatedAt,
             "Set by the server on every write.",
           );
+        }
       }
     },
     beforeMutation(op, { table, now, options }): MutationOp {
       const flags = table.flags.timestamps;
-      if (!flags) return op;
+
+      if (!flags) {
+        return op;
+      }
+
       const created = dbName(table, flags.createdAt);
       const updated = dbName(table, flags.updatedAt);
       guardManaged(op, [created, updated], "timestamps", options);
       const stamp = now().toString();
+
       switch (op.kind) {
         case "insert": {
           const stampCreated = insertsOnly(op);
+
           return {
             ...op,
             rows: op.rows.map((row) =>
@@ -51,12 +61,18 @@ export function timestamps(): Plugin<"timestamps"> {
             ),
           };
         }
-        case "update":
+
+        case "update": {
           return { ...op, set: withDefault(op.set, updated, stamp) };
-        case "delete":
+        }
+
+        case "delete": {
           return op;
+        }
+
         default: {
           const exhaustive: never = op;
+
           return exhaustive;
         }
       }

@@ -110,17 +110,22 @@ ${lockTable("better_supabase.webhook_inbox")}
 function webhookInboxSql(ctx: ModuleContext): string {
   const managed = ctx.manages;
   const renamed = Object.keys(ctx.config.columns["messages"] ?? {});
+
   if (managed && renamed.length > 0) {
     throw new TypeError(
       `blocks.webhook-inbox.columns.messages: the module owns its table, so ${renamed.join(", ")} can't be renamed; adopt your own table with mode "adopt"`,
     );
   }
+
   const t = managed ? "better_supabase.webhook_inbox" : ctx.table("messages");
+
   // The managed table keeps its bare column names, so its SQL stays as before.
   const c = (logical: MessageColumn): string =>
     managed ? MESSAGE_COLUMNS[logical] : ctx.col("messages", logical);
+
   const has = (logical: MessageColumn): boolean =>
     managed || ctx.has("messages", logical);
+
   const set = (
     pairs: readonly (readonly [MessageColumn, string])[],
     separator = ", ",
@@ -129,29 +134,35 @@ function webhookInboxSql(ctx: ModuleContext): string {
       .filter(([logical]) => has(logical))
       .map(([logical, value]) => `${c(logical)} = ${value}`)
       .join(separator);
+
   const expired = (at: string): string =>
     ctx.expired("webhooks", {
       at,
       tenant: has("tenant") ? `w.${c("tenant")}` : "null",
       fallback: "older_than",
     });
+
   // An adopted tenant column can be uuid or bigint; the functions take text.
   const tenantText = (alias: string) =>
     managed ? `${alias}.${c("tenant")}` : `${alias}.${c("tenant")}::text`;
+
   const tenantIs = (alias: string, value: string) =>
     has("tenant")
       ? `${tenantText(alias)} is not distinct from ${value}`
       : `${value} is null`;
+
   // The extra columns (options.extraColumns): receive_webhook writes them
   // from fields on a new message, the reads return them under fields.
   const extras = ctx.extraColumns("messages", ["fields"]);
   const extra = extraFieldsArg(extras);
+
   // A column the adopted table lacks reads as the managed table's default.
   const missing: Partial<Record<MessageColumn, string>> = {
     headers: "'{}'::jsonb",
     maxAttempts: "8",
     checkpoint: "'{}'::jsonb",
   };
+
   // A message as jsonb, keyed by the managed table's column names.
   const rowOf = (alias: string) =>
     withExtraFields(
@@ -168,8 +179,10 @@ function webhookInboxSql(ctx: ModuleContext): string {
       alias,
       extras,
     );
+
   const maxAttempts = (alias: string) =>
     has("maxAttempts") ? `${alias}${c("maxAttempts")}` : "8";
+
   const inserted = (
     [
       ["source", "source"],
@@ -186,10 +199,13 @@ function webhookInboxSql(ctx: ModuleContext): string {
       ["maxAttempts", "greatest(coalesce(receive_webhook.max_attempts, 8), 1)"],
     ] as const satisfies readonly (readonly [MessageColumn, string])[]
   ).filter(([logical]) => has(logical));
+
   const insert = `insert into ${t} (${inserted.map(([logical]) => c(logical)).join(", ")})
   values (${inserted.map(([, value]) => value).join(", ")})`;
+
   const stored = `${writeExtraColumns(t, extras, "receive_webhook.fields", `x.${c("id")} = inbox_id`)}
   return jsonb_build_object('id', inbox_id, 'duplicate', false);`;
+
   const receive = managed
     ? `  ${insert}
   on conflict on constraint webhook_inbox_source_tenant_message_id_key do nothing
@@ -214,13 +230,17 @@ function webhookInboxSql(ctx: ModuleContext): string {
   end if;
   ${insert}
   returning ${c("id")} into inbox_id;${stored}`;
+
   const leased = `${c("id")} = inbox_id and ${c("lockedBy")} = worker and ${c("status")} = 'processing'`;
   const attemptIs = `${c("attempts")} = attempt`;
+
   const checkpoint = has("checkpoint")
     ? `set ${c("checkpoint")} = ${c("checkpoint")} || coalesce(fields, '{}')`
     : `set ${c("lockedBy")} = ${c("lockedBy")}`;
+
   const tenantFilter = (alias: string, value: string) =>
     has("tenant") ? `${tenantText(alias)} = ${value}` : "false";
+
   // Every function a transport calls returns jsonb, so the earlier ones
   // that returned rows go first; receive_webhook with and without fields.
   const jsonbDrops = `
@@ -228,6 +248,7 @@ drop function if exists better_supabase.receive_webhook(text, text, text, jsonb,
 ${extra.drop("better_supabase.receive_webhook", "text, text, text, jsonb, jsonb, text, integer")}
 drop function if exists better_supabase.claim_webhooks(text, text, integer, interval);
 drop function if exists better_supabase.list_webhooks(text, text, text, integer);`;
+
   return `${SCHEMA}
 ${managed ? `${TABLE}${addExtraColumns(t, extras)}` : `\n-- The webhook inbox over an app's table (adopt mode): ${t}.\n-- The app owns its columns, a unique key per source, tenant and message id,\n-- and its indexes.\n`}
 -- The signatures before messages had a tenant, before a source set its

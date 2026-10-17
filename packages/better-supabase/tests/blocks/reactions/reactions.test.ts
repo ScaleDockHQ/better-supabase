@@ -7,19 +7,25 @@ import {
 
 function transport(results: Record<string, (args: unknown) => unknown>) {
   const calls: [string, unknown][] = [];
+
   return {
     calls,
     call(schema: string, fn: string, args: unknown) {
       expect(schema).toBe("app");
       calls.push([fn, args]);
       const result = results[fn];
-      if (!result) return Promise.reject(new Error(`unexpected ${fn}`));
+
+      if (!result) {
+        return Promise.reject(new Error(`unexpected ${fn}`));
+      }
+
       return Promise.resolve(result(args));
     },
   };
 }
 
 const COUNT = { emoji: "👍", count: 2, reacted: true, actors: ["u1", "bot"] };
+
 const EMOJI = {
   id: "e1",
   shortcode: "ship-it",
@@ -37,6 +43,7 @@ describe("reactions client", () => {
       save_custom_emoji: () => EMOJI,
       delete_custom_emoji: () => true,
     });
+
     const reactions = createReactions({ transport: fake, schema: "app" });
     expect(await reactions.react("o", "comment", "c1", "👍").orThrow()).toEqual(
       [COUNT],

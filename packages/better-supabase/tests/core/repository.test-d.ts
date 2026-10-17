@@ -32,6 +32,7 @@ describe("payload inference", () => {
     const page = await db.customers
       .paginate({ select: ["id"], offset: 40, limit: 20, count: "exact" })
       .orThrow();
+
     expectTypeOf(page.items).toEqualTypeOf<{ id: string }[]>();
     expectTypeOf(page.page.total).toEqualTypeOf<number | null>();
     // @ts-expect-error an offset window takes limit, not size
@@ -42,6 +43,7 @@ describe("payload inference", () => {
     const rows = await db.customers
       .findMany({ select: ["id", "status"] })
       .orThrow();
+
     expectTypeOf(rows).toEqualTypeOf<
       { id: string; status: CustomersStatus }[]
     >();
@@ -61,6 +63,7 @@ describe("payload inference", () => {
     const row = await snakeDb.customers
       .findById("x", { select: ["organization_id"] })
       .orThrow();
+
     expectTypeOf(row).toEqualTypeOf<{ organization_id: string }>();
   });
 
@@ -68,6 +71,7 @@ describe("payload inference", () => {
     const row = await db.customers
       .findOnly({ where: { status: "active" }, select: ["id"] })
       .orThrow();
+
     expectTypeOf(row).toEqualTypeOf<{ id: string } | null>();
     // @ts-expect-error where is required
     void db.customers.findOnly({ select: ["id"] });
@@ -88,6 +92,7 @@ describe("payload inference", () => {
         },
       })
       .orThrow();
+
     expectTypeOf(row).toEqualTypeOf<{
       id: string;
       organization: { slug: string };
@@ -116,12 +121,23 @@ describe("MutableWhere and WhereOf", () => {
   it("builds a filter one key at a time", () => {
     const filter = (status?: CustomersStatus, search?: string) => {
       const where: WhereOf<"customers"> = {};
-      if (status) where.status = { in: [status] };
-      if (search) where.OR = [{ kvk: null }, { name: { ilike: search } }];
-      // @ts-expect-error status only takes its CHECK values
-      if (!status) where.status = "gone";
+
+      if (status) {
+        where.status = { in: [status] };
+      }
+
+      if (search) {
+        where.OR = [{ kvk: null }, { name: { ilike: search } }];
+      }
+
+      if (!status) {
+        // @ts-expect-error status only takes its CHECK values
+        where.status = "gone";
+      }
+
       return db.customers.findMany({ where });
     };
+
     void filter;
   });
 });
@@ -130,6 +146,7 @@ describe("OrderByOf", () => {
   it("types a sort built outside the call", () => {
     const sort = (newest: boolean): OrderByOf<"customers"> =>
       newest ? [{ createdAt: "desc" }, { name: "asc" }] : { name: "asc" };
+
     void db.customers.findMany({ orderBy: sort(true) });
     // @ts-expect-error not a column of customers
     const wrong: OrderByOf<"customers"> = { nope: "asc" };
@@ -165,10 +182,13 @@ describe("required includes", () => {
         },
       })
       .orThrow();
+
     expectTypeOf(rows[0]!.primaryContact).toEqualTypeOf<{ id: string }>();
+
     const optional = await db.customers
       .findMany({ include: { primaryContact: { select: ["id"] } } })
       .orThrow();
+
     expectTypeOf(optional[0]!.primaryContact).toEqualTypeOf<{
       id: string;
     } | null>();
@@ -180,6 +200,7 @@ describe("$rpc results", () => {
     const rows = await db
       .$rpc("customers_by_status", { p_status: "lead" })
       .orThrow();
+
     expectTypeOf(rows[0]!.organizationId).toEqualTypeOf<string>();
     const counts = await db.$rpc("customer_note_counts").orThrow();
     expectTypeOf(counts).toEqualTypeOf<
@@ -189,9 +210,11 @@ describe("$rpc results", () => {
         noteCount: number | null;
       }[]
     >();
+
     const raw = await db
       .$rpc("customer_note_counts", {}, { raw: true })
       .orThrow();
+
     expectTypeOf(raw).toEqualTypeOf<unknown>();
   });
 });
@@ -201,7 +224,9 @@ describe("conditional writes", () => {
     const counted = await db.customers
       .updateMany({ where: { status: "lead" }, data: { status: "active" } })
       .orThrow();
+
     expectTypeOf(counted).toEqualTypeOf<{ count: number }>();
+
     const updated = await db.customers
       .updateMany({
         where: { status: "lead" },
@@ -210,12 +235,15 @@ describe("conditional writes", () => {
         select: ["id", "status"],
       })
       .orThrow();
+
     expectTypeOf(updated).toEqualTypeOf<
       { id: string; status: CustomersStatus }[]
     >();
+
     const deleted = await db.customers
       .deleteMany({ where: { status: "archived" }, returning: true })
       .orThrow();
+
     expectTypeOf(deleted[0]!.organizationId).toEqualTypeOf<string>();
   });
 
@@ -302,6 +330,7 @@ describe("argument checking", () => {
     const row = await db.customers
       .findUnique({ where: { organizationId: "o", kvk: "1" }, select: ["id"] })
       .orThrow();
+
     expectTypeOf(row).toEqualTypeOf<{ id: string } | null>();
     db.customers.findUnique({ where: { id: "c" } });
     // @ts-expect-error a unique key needs all of its columns
@@ -313,20 +342,24 @@ describe("argument checking", () => {
     expectTypeOf<"customers_status_check">().toExtend<CheckConstraint>();
     expectTypeOf<"customers_organization_id_fkey">().toExtend<ForeignKeyConstraint>();
     const error = {} as DbError;
+
     if (
       isConflict<UniqueConstraint>(error, "customers_organization_id_kvk_key")
     ) {
       expectTypeOf(error.constraint).toEqualTypeOf<UniqueConstraint>();
     }
+
     // @ts-expect-error unknown constraint name
     isCheck<CheckConstraint>(error, "nope");
   });
 
   it("types QuerySpec results like the repository", async () => {
     const betterSupabase = defineSupabase(camel);
+
     const spec = betterSupabase.spec.customers.findMany({
       select: ["id", "status"],
     });
+
     expectTypeOf<InferResult<typeof spec>>().toEqualTypeOf<
       { id: string; status: CustomersStatus }[]
     >();
@@ -334,10 +367,12 @@ describe("argument checking", () => {
     expectTypeOf(rows).toEqualTypeOf<
       { id: string; status: CustomersStatus }[]
     >();
+
     const page = betterSupabase.spec.customers.paginate({
       size: 10,
       after: null,
     });
+
     expectTypeOf<InferResult<typeof page>["nextCursor"]>().toEqualTypeOf<
       string | null
     >();
@@ -358,6 +393,7 @@ describe("_count, $table and $withoutPlugins", () => {
         },
       })
       .orThrow();
+
     expectTypeOf(rows[0]!._count).toEqualTypeOf<{
       notes: number;
       locations: number;
@@ -387,10 +423,13 @@ describe("$search", () => {
     const scored = await db
       .$search("notes", { vector: [0.1], select: ["id"], score: true })
       .orThrow();
+
     expectTypeOf(scored[0]!.$score).toEqualTypeOf<number>();
+
     const plain = await db
       .$search("notes", { vector: [0.1], select: ["id"], filter: { a: 1 } })
       .orThrow();
+
     // @ts-expect-error no score without score: true
     void plain[0]!.$score;
   });

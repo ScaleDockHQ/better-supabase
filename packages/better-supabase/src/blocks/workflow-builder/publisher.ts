@@ -73,13 +73,19 @@ export function mayPublishRefusal(
         ),
       );
     }
+
     const permissions = await call(
       "workflow_graph_permissions",
       { graph: version.graph ?? graphOf(undefined) },
       (value) => (Array.isArray(value) ? stringsOf(value) : []),
     );
-    if (!permissions.ok) return permissions;
+
+    if (!permissions.ok) {
+      return permissions;
+    }
+
     const sub = claims["sub"];
+
     const allowed = await settled(() =>
       mayPublish({
         publisher: typeof sub === "string" ? sub : null,
@@ -88,6 +94,7 @@ export function mayPublishRefusal(
         claims,
       }),
     );
+
     return ok(
       allowed === true
         ? undefined
@@ -120,11 +127,13 @@ export function runAsPublisher(
       ),
     );
   }
+
   return serviceCall(
     "workflow_run_principal",
     { version, tenant },
     (value): AutomationRef => {
       const row = recordOf(value, "workflow_run_principal");
+
       return {
         publisher: optionalText(row["publisher"]) ?? null,
         tenant: optionalText(row["tenant"]) ?? null,
@@ -143,9 +152,12 @@ export function runAsPublisher(
           ),
         );
       }
+
       return ok(defaultClaims(automation, automation.publisher));
     }
+
     const claims = await settled(() => runAs(automation));
+
     if (claims === undefined || claims === null || !isRecord(claims)) {
       return err(
         forbidden(
@@ -156,6 +168,7 @@ export function runAsPublisher(
         ),
       );
     }
+
     return ok(claims);
   });
 }

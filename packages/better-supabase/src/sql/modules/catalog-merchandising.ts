@@ -12,16 +12,21 @@ export function priceFunctions(ctx: ModuleContext, names: Names): string {
   const pr = (column: string): string => ctx.col("prices", column);
   const lists = ctx.hasTable("priceLists") && ctx.has("prices", "priceList");
   const compare = ctx.has("prices", "compareAt");
+
   const validity =
     ctx.has("prices", "validFrom") && ctx.has("prices", "validUntil");
+
   const listMatch = (alias: string, value: string): string =>
     lists
       ? `${alias}.${pr("priceList")} is not distinct from ${value}`
       : "true";
+
   const range = (from: string, until: string): string =>
     `tstzrange(coalesce(${from}, '-infinity'::timestamptz), coalesce(${until}, 'infinity'::timestamptz), '[)')`;
+
   const priceLists = lists ? ctx.table("priceLists") : "";
   const pl = (column: string): string => ctx.col("priceLists", column);
+
   const listFunctions = lists
     ? `
 -- Creates a price list (price_list null) or renames one. customer_group
@@ -78,6 +83,7 @@ $$;
 ${userGrant(`${fn("delete_price_list")}(uuid)`)}
 `
     : "";
+
   return `${listFunctions}
 -- Sets a variant's price in a currency, in minor units, for a price list
 -- (null for the base price) and a validity window. The same window is
@@ -247,17 +253,23 @@ grant execute on function ${fn("variant_price")}(uuid, text, uuid, timestamptz) 
 }
 
 export function categoryFunctions(ctx: ModuleContext, names: Names): string {
-  if (!ctx.hasTable("categories")) return "";
+  if (!ctx.hasTable("categories")) {
+    return "";
+  }
+
   const { fn } = names;
   const categories = ctx.table("categories");
   const k = (column: string): string => ctx.col("categories", column);
+
   const links = ctx.hasTable("productCategories")
     ? (() => {
         const productCategories = ctx.table("productCategories");
         const products = ctx.table("products");
         const p = (column: string): string => ctx.col("products", column);
+
         const pc = (column: string): string =>
           ctx.col("productCategories", column);
+
         return `
 -- Replaces the categories a product is filed under.
 create or replace function ${fn("set_product_categories")}(product uuid, categories uuid[])
@@ -293,6 +305,7 @@ ${userGrant(`${fn("set_product_categories")}(uuid, uuid[])`)}
 `;
       })()
     : "";
+
   const cycle = (
     category: string,
     parent: string,
@@ -306,6 +319,7 @@ ${userGrant(`${fn("set_product_categories")}(uuid, uuid[])`)}
   ) then
     ${fail("CATALOG_CATEGORY_CYCLE", "a category can't sit under itself", "22023")}
   end if;`;
+
   return `
 -- Creates a category (category null) or updates one, under parent (null
 -- for the top level). A new category goes after its siblings.
@@ -412,17 +426,23 @@ ${links}`;
 }
 
 export function collectionFunctions(ctx: ModuleContext, names: Names): string {
-  if (!ctx.hasTable("collections")) return "";
+  if (!ctx.hasTable("collections")) {
+    return "";
+  }
+
   const { fn } = names;
   const collections = ctx.table("collections");
   const k = (column: string): string => ctx.col("collections", column);
+
   const members = ctx.hasTable("collectionProducts")
     ? (() => {
         const entries = ctx.table("collectionProducts");
         const products = ctx.table("products");
         const p = (column: string): string => ctx.col("products", column);
+
         const e = (column: string): string =>
           ctx.col("collectionProducts", column);
+
         return `
 -- Adds a product to a manual collection at rank (null to append), or moves
 -- it there. Returns its rank key.
@@ -487,6 +507,7 @@ ${userGrant(`${fn("remove_from_collection")}(uuid, uuid)`)}
 `;
       })()
     : "";
+
   return `
 -- Creates a collection (collection null) or updates one. A manual
 -- collection lists ranked products; a rule collection stores a filter tree
@@ -572,12 +593,16 @@ ${members}`;
 }
 
 export function storefrontFunctions(ctx: ModuleContext, names: Names): string {
-  if (!ctx.hasTable("storefronts")) return "";
+  if (!ctx.hasTable("storefronts")) {
+    return "";
+  }
+
   const { fn } = names;
   const storefronts = ctx.table("storefronts");
   const products = ctx.table("products");
   const s = (column: string): string => ctx.col("storefronts", column);
   const p = (column: string): string => ctx.col("products", column);
+
   return `
 -- Tenants whose storefront is published. The storefront read policies
 -- call it, so it runs as its owner and returns nothing else.

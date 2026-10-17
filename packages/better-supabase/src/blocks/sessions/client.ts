@@ -103,11 +103,17 @@ async function readDetails(
   const result = await authResult(() =>
     oauth.getAuthorizationDetails(authorizationId),
   );
-  if (!result.ok) return result;
+
+  if (!result.ok) {
+    return result;
+  }
+
   const data = result.data;
+
   if (!("authorization_id" in data)) {
     return ok({ redirectUrl: data.redirect_url });
   }
+
   return ok({
     authorizationId: data.authorization_id,
     client: clientInfo(data.client),
@@ -168,6 +174,7 @@ export function createOAuthConsentController(
 ): OAuthConsentController {
   const { oauth, authorizationId } = options;
   const redirect = options.redirect ?? assign;
+
   return defineController<OAuthConsentSnapshot, OAuthConsentActions>(
     {
       request: undefined,
@@ -180,49 +187,69 @@ export function createOAuthConsentController(
         state.set({ request: undefined, redirectUrl: url });
         redirect(url);
       };
+
       const load = async (id: string): Promise<void> => {
         let read = reads.get(id);
+
         if (read === undefined) {
           read = readDetails(oauth, id);
           reads.set(id, read);
         }
+
         const run = state.run();
         const result = await read;
-        if (run !== state.run()) return;
+
+        if (run !== state.run()) {
+          return;
+        }
+
         if (!result.ok) {
           reads.delete(id);
           state.set({ error: result.error });
+
           return;
         }
+
         if ("redirectUrl" in result.data) {
           leave(result.data.redirectUrl);
+
           return;
         }
+
         state.set({ request: result.data, error: undefined });
       };
+
       const decide = async (
         decision: "approve" | "deny",
       ): Promise<Result<string>> => {
         const id = state.get().request?.authorizationId;
+
         if (id === undefined || state.get().deciding !== undefined) {
           return err(
             dbError("invalid_input", "No authorization request to decide"),
           );
         }
+
         state.set({ deciding: decision, error: undefined });
+
         const result = await authResult(() =>
           decision === "approve"
             ? oauth.approveAuthorization(id, { skipBrowserRedirect: true })
             : oauth.denyAuthorization(id, { skipBrowserRedirect: true }),
         );
+
         if (!result.ok) {
           state.set({ deciding: undefined, error: result.error });
+
           return result;
         }
+
         reads.delete(id);
         leave(result.data.redirect_url);
+
         return ok(result.data.redirect_url);
       };
+
       return {
         actions: {
           approve: () => decide("approve"),
@@ -230,7 +257,10 @@ export function createOAuthConsentController(
         },
         start: () =>
           whileSignedIn(options.auth, () => {
-            if (authorizationId !== undefined) void load(authorizationId);
+            if (authorizationId !== undefined) {
+              void load(authorizationId);
+            }
+
             return;
           }),
       };
@@ -278,18 +308,26 @@ export function createOAuthGrantsController(
   options: OAuthGrantsControllerOptions,
 ): OAuthGrantsController {
   const { oauth } = options;
+
   return defineController<OAuthGrantsSnapshot, OAuthGrantsActions>(
     { grants: undefined, revoking: [], error: undefined },
     (state) => {
       let ticket = 0;
+
       const refresh = async (): Promise<void> => {
         const request = ++ticket;
         const result = await authResult(() => oauth.listGrants());
-        if (request !== ticket) return;
-        if (!result.ok) {
-          state.set({ error: result.error });
+
+        if (request !== ticket) {
           return;
         }
+
+        if (!result.ok) {
+          state.set({ error: result.error });
+
+          return;
+        }
+
         state.set({
           grants: result.data
             .map((grant): OAuthGrant => ({
@@ -304,6 +342,7 @@ export function createOAuthGrantsController(
           error: undefined,
         });
       };
+
       return {
         actions: {
           refresh,
@@ -312,21 +351,29 @@ export function createOAuthGrantsController(
               revoking: [...current.revoking, clientId],
               error: undefined,
             }));
+
             const result = await authResult(() =>
               oauth.revokeGrant({ clientId }),
             );
+
             state.set((current) => ({
               revoking: current.revoking.filter((each) => each !== clientId),
               ...(result.ok ? {} : { error: result.error }),
             }));
-            if (!result.ok) return result;
+
+            if (!result.ok) {
+              return result;
+            }
+
             await refresh();
+
             return ok(true);
           },
         },
         start: () =>
           whileSignedIn(options.auth, () => {
             void refresh();
+
             return;
           }),
       };

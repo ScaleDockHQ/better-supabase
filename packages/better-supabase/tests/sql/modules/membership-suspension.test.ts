@@ -11,6 +11,7 @@ const render = (modules: AnyBlocksConfig, names = Object.keys(modules)) => {
     modules,
     accessProvider: moduleProvider,
   });
+
   return (module: string): string =>
     files.find((file) => file.module === module)?.contents ?? "";
 };
@@ -136,6 +137,7 @@ describe("membership suspension", () => {
       },
       audit: {},
     });
+
     const organizations = sql("organizations");
     expect(organizations).toContain("'members.suspend'");
     expect(organizations).toContain(
@@ -154,6 +156,7 @@ describe("membership suspension", () => {
         permissions: { removeMember: "member.remove" },
       },
     });
+
     const organizations = sql("organizations");
     expect(organizations).not.toContain("'members.remove'");
     expect(
@@ -166,12 +169,14 @@ describe("membership suspension", () => {
       ...SUSPENDABLE,
       access: { model: "provider" },
     })("access");
+
     expect(provider).toContain(
       'and not exists (select 1 from "public"."organization_users" sm where sm."organization_id" = tenant and sm."user_id" = member and sm."suspended_at" is not null)',
     );
     expect(provider).toContain(
       'sm."organization_id" = t.id::uuid and sm."user_id" = auth.uid() and sm."suspended_at" is not null',
     );
+
     const custom = render({
       ...SUSPENDABLE,
       access: {
@@ -185,6 +190,7 @@ describe("membership suspension", () => {
         },
       },
     })("access");
+
     expect(custom).toContain(
       'then not exists (select 1 from "public"."organization_users" sm where sm."organization_id" = tenant and sm."user_id" = member and sm."suspended_at" is not null) and coalesce((public.can_user(',
     );

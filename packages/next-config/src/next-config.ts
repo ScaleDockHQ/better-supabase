@@ -7,7 +7,7 @@ type HeaderRules = Awaited<ReturnType<NonNullable<NextConfig["headers"]>>>;
  * Content-Security-Policy: a nonce forces every page to render per request,
  * which defeats Cache Components.
  */
-export const securityHeaders: ReadonlyArray<{ key: string; value: string }> = [
+export const securityHeaders: readonly { key: string; value: string }[] = [
   {
     key: "Content-Security-Policy",
     value: "base-uri 'self'; frame-ancestors 'none'; object-src 'none'",
@@ -37,6 +37,7 @@ export const documentSecurityHeaderRules: HeaderRules = [
  */
 export function createNextConfig(overrides: NextConfig = {}): NextConfig {
   const { experimental, typescript, compiler, headers, ...rest } = overrides;
+
   return {
     reactCompiler: true,
     typedRoutes: true,
@@ -58,9 +59,6 @@ export function createNextConfig(overrides: NextConfig = {}): NextConfig {
       ...compiler,
     },
     experimental: {
-      varyParams: true,
-      optimisticRouting: true,
-      prefetchInlining: true,
       useOffline: true,
       globalNotFound: true,
       requestInsights: true,
@@ -76,6 +74,7 @@ export function createNextConfig(overrides: NextConfig = {}): NextConfig {
     typescript: { ignoreBuildErrors: true, ...typescript },
     async headers() {
       const own = headers === undefined ? [] : await headers();
+
       return [...documentSecurityHeaderRules, ...own];
     },
   };

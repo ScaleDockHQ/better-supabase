@@ -13,24 +13,32 @@ function memoryTransport(): BlockTransport & { readonly calls: string[] } {
   const subscriptions = new Set<string>();
   const locks = new Map<string, { token: string; expiresAt: number }>();
   const cache = new Map<string, { value: unknown; expiresAt: number | null }>();
+
   const lists = new Map<
     string,
     { value: unknown; expiresAt: number | null }[]
   >();
+
   const queues = new Map<string, { entry: unknown; expiresAt: number }[]>();
   const calls: string[] = [];
   const now = (): number => Date.now();
+
   const expiry = (ms: unknown): number | null =>
     typeof ms === "number" && ms > 0 ? now() + ms : null;
+
   const live = (at: number | null): boolean => at === null || at > now();
+
   const key = (args: Args, name = "key"): string =>
     `${String(args["prefix"])}|${String(args[name])}`;
+
   const queue = (args: Args) => {
     const id = key(args, "thread_id");
     const kept = (queues.get(id) ?? []).filter((item) => live(item.expiresAt));
     queues.set(id, kept);
+
     return kept;
   };
+
   const lockJson = (
     thread: string,
     held: { token: string; expiresAt: number },
@@ -43,10 +51,12 @@ function memoryTransport(): BlockTransport & { readonly calls: string[] } {
   const functions: Record<string, (args: Args) => unknown> = {
     chat_state_subscribe: (args) => {
       subscriptions.add(key(args, "thread_id"));
+
       return null;
     },
     chat_state_unsubscribe: (args) => {
       subscriptions.delete(key(args, "thread_id"));
+
       return null;
     },
     chat_state_is_subscribed: (args) =>
@@ -54,30 +64,45 @@ function memoryTransport(): BlockTransport & { readonly calls: string[] } {
     chat_state_acquire_lock: (args) => {
       const id = key(args, "thread_id");
       const held = locks.get(id);
-      if (held && held.expiresAt > now()) return null;
+
+      if (held && held.expiresAt > now()) {
+        return null;
+      }
+
       const next = {
         token: String(args["token"]),
         expiresAt: now() + Number(args["ttl_ms"]),
       };
+
       locks.set(id, next);
+
       return lockJson(String(args["thread_id"]), next);
     },
     chat_state_extend_lock: (args) => {
       const held = locks.get(key(args, "thread_id"));
-      if (!held || held.token !== args["token"] || held.expiresAt <= now())
+
+      if (!held || held.token !== args["token"] || held.expiresAt <= now()) {
         return false;
+      }
+
       held.expiresAt = now() + Number(args["ttl_ms"]);
+
       return true;
     },
     chat_state_release_lock: (args) => {
       const id = key(args, "thread_id");
-      if (locks.get(id)?.token !== args["token"]) return false;
+
+      if (locks.get(id)?.token !== args["token"]) {
+        return false;
+      }
+
       return locks.delete(id);
     },
     chat_state_force_release_lock: (args) =>
       locks.delete(key(args, "thread_id")),
     chat_state_get: (args) => {
       const hit = cache.get(key(args));
+
       return hit && live(hit.expiresAt) ? { value: hit.value } : null;
     },
     chat_state_set: (args) => {
@@ -85,30 +110,41 @@ function memoryTransport(): BlockTransport & { readonly calls: string[] } {
         value: args["value"],
         expiresAt: expiry(args["ttl_ms"]),
       });
+
       return null;
     },
     chat_state_set_if_not_exists: (args) => {
       const hit = cache.get(key(args));
-      if (hit && live(hit.expiresAt)) return false;
+
+      if (hit && live(hit.expiresAt)) {
+        return false;
+      }
+
       cache.set(key(args), {
         value: args["value"],
         expiresAt: expiry(args["ttl_ms"]),
       });
+
       return true;
     },
     chat_state_delete: (args) => {
       cache.delete(key(args));
+
       return null;
     },
     chat_state_append_to_list: (args) => {
       const id = key(args);
+
       const list = [
         ...(lists.get(id) ?? []).filter((item) => live(item.expiresAt)),
         { value: args["value"], expiresAt: expiry(args["ttl_ms"]) },
       ];
+
       const max =
         typeof args["max_length"] === "number" ? args["max_length"] : 0;
+
       lists.set(id, max > 0 ? list.slice(-max) : list);
+
       return null;
     },
     chat_state_get_list: (args) =>
@@ -123,9 +159,11 @@ function memoryTransport(): BlockTransport & { readonly calls: string[] } {
           expiresAt: new Date(String(args["expires_at"])).getTime(),
         },
       ];
+
       const max = typeof args["max_size"] === "number" ? args["max_size"] : 0;
       const trimmed = max > 0 ? kept.slice(-max) : kept;
       queues.set(key(args, "thread_id"), trimmed);
+
       return trimmed.length;
     },
     chat_state_dequeue: (args) => queue(args).shift()?.entry ?? null,
@@ -138,7 +176,11 @@ function memoryTransport(): BlockTransport & { readonly calls: string[] } {
     call: async (_schema, fn, args) => {
       calls.push(fn);
       const run = functions[fn];
-      if (!run) throw new Error(`unexpected ${fn}`);
+
+      if (!run) {
+        throw new Error(`unexpected ${fn}`);
+      }
+
       return structuredClone(run(JSON.parse(JSON.stringify(args)) as Args));
     },
   };
@@ -180,6 +222,7 @@ describe("createSupabaseState", () => {
                 ? null
                 : 1,
     };
+
     const state = createSupabaseState({ transport });
     expect(await state.get("k")).toBe("bare");
     expect(await state.getList("k")).toEqual([]);

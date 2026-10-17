@@ -10,9 +10,11 @@ import { stackDbUrl, stackUrl } from "./stack-env.ts";
 
 const url = stackUrl();
 const dbUrl = stackDbUrl();
+
 const publishableKey =
   process.env["SUPABASE_PUBLISHABLE_KEY"] ??
   "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";
+
 const secretKey =
   process.env["SUPABASE_SECRET_KEY"] ??
   "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -25,6 +27,7 @@ async function reachable(): Promise<boolean> {
       headers: { apikey: publishableKey },
       signal: AbortSignal.timeout(1000),
     });
+
     return response.status < 500;
   } catch {
     return false;
@@ -37,6 +40,7 @@ describe.skipIf(!live)("built-in executors conform", () => {
   const betterSupabase = defineSupabase(schema);
   const postgres = createPostgres({ connectionString: dbUrl, max: 2 });
   afterAll(() => postgres.end());
+
   const create = (name: string) => ({
     organizationId: ACME,
     name: `conformance-${name}-${Date.now()}`,

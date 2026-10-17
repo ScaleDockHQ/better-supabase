@@ -111,25 +111,36 @@ function isStandard(value: unknown): value is StandardLike {
 }
 
 function inputsOf(inputs: JsonSchema | StandardLike): JsonSchema {
-  if (!isStandard(inputs)) return inputs;
+  if (!isStandard(inputs)) {
+    return inputs;
+  }
+
   const converted = convertStandard(inputs, "input");
-  if (!converted)
+
+  if (!converted) {
     throw new TypeError(
       "defineWorkflow: inputs is a Standard Schema without Standard JSON Schema; pass a JSON Schema instead",
     );
+  }
+
   return converted.schema;
 }
 
 function parametersOf(
   parameters: StepBase["parameters"],
 ): ModelStep["parameters"] {
-  if (parameters === undefined) return undefined;
-  if (Array.isArray(parameters))
+  if (parameters === undefined) {
+    return undefined;
+  }
+
+  if (Array.isArray(parameters)) {
     return parameters.map((parameter: StepParameter) =>
       parameter.in === undefined
         ? { name: parameter.name, value: parameter.value }
         : { name: parameter.name, in: parameter.in, value: parameter.value },
     );
+  }
+
   return Object.entries(parameters).map(([name, value]) => ({ name, value }));
 }
 
@@ -142,9 +153,15 @@ function criterionOf(criterion: StepCriterion): CriterionObject {
 function stepOf<Op extends string>(step: WorkflowStep<Op>): ModelStep {
   const parameters = parametersOf(step.parameters);
   let target: Pick<ModelStep, "operationId" | "workflowId" | "channel"> = {};
-  if (step.operationId) target = { operationId: step.operationId };
-  else if (step.workflowId) target = { workflowId: step.workflowId };
-  else if (step.channel) target = { channel: step.channel };
+
+  if (step.operationId) {
+    target = { operationId: step.operationId };
+  } else if (step.workflowId) {
+    target = { workflowId: step.workflowId };
+  } else if (step.channel) {
+    target = { channel: step.channel };
+  }
+
   return {
     id: step.id,
     ...(step.description === undefined

@@ -12,6 +12,7 @@ import type { Functions, Models } from "./generated.ts";
 export type CrmDb = Db<Models, Functions, unknown, SupabaseClient>;
 
 type CustomerWhere = WhereInput<Models, "customers">;
+
 type CustomerStatus = Models["customers"]["Row"]["status"];
 
 /** The filter of the customer list page. */
@@ -65,8 +66,10 @@ function listWhere(
       ? { status: { in: filter.statuses } }
       : { status: { neq: "archived" } },
   ];
-  if (filter.types?.length === 1)
+
+  if (filter.types?.length === 1) {
     where.push({ isBusiness: filter.types[0] === "business" });
+  }
 
   const assigned = filter.assigneeIds?.length
     ? {
@@ -75,16 +78,20 @@ function listWhere(
         },
       }
     : undefined;
+
   if (filter.unassigned) {
     const unassigned = { customerAssigneesByCustomer: { none: {} } };
     where.push(assigned ? { OR: [assigned, unassigned] } : unassigned);
   } else if (assigned) {
     where.push(assigned);
   }
-  if (filter.tagIds?.length)
+
+  if (filter.tagIds?.length) {
     where.push({ customerTags: { some: { tagId: { in: filter.tagIds } } } });
+  }
 
   const term = filter.q?.trim();
+
   if (term) {
     const like = `%${escapeLike(term)}%`;
     where.push({
@@ -108,6 +115,7 @@ function listWhere(
       ],
     });
   }
+
   return { AND: where };
 }
 

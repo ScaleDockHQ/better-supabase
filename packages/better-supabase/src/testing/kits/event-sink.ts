@@ -35,6 +35,7 @@ export function testEventSink(
     },
     { source: "/better-supabase/conformance" },
   );
+
   return conform("EventSink", [
     ["accepts an empty batch", () => sink.send(deepFreeze([]))],
     [
@@ -47,6 +48,7 @@ export function testEventSink(
         const ids = new Set(
           (await options.received!()).map((event) => event.id),
         );
+
         const missing = events.filter((event) => !ids.has(event.id));
         expect(
           missing.length === 0,

@@ -25,8 +25,10 @@ describe.skipIf(!live)("CRM recipe", () => {
         "deal",
         DEAL,
       );
+
       await s.watch(owner, organizationId, "deal", subjectId);
       const watchers = await watching(s);
+
       const { comments, tags, rank } = createBlocks(
         { transport: sqlTransport(s.sql) },
         { comments: commentsBlock, tags: tagsBlock, rank: rankBlock },

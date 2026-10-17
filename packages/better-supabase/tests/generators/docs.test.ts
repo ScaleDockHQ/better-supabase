@@ -116,6 +116,7 @@ describe("generated docs", () => {
       organizationId: "00000000-0000-4000-8000-000000000001",
       name: "",
     };
+
     expect(zodSchemas.customersInsert.safeParse(customer).success).toBe(false);
     expect(v.safeParse(valibotSchemas.customersInsert, customer).success).toBe(
       false,
@@ -138,9 +139,11 @@ describe("generated docs", () => {
       target: "draft-2020-12",
       libraryOptions: { unrepresentable: "any" },
     });
+
     const fromValibot = toJsonSchema(valibotSchemas.customersInsert, {
       errorMode: "ignore",
     });
+
     for (const converted of [fromZod, fromValibot]) {
       expect(converted).toMatchObject({
         title: "Customers insert",

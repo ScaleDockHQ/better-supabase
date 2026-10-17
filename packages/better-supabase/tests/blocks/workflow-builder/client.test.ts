@@ -31,6 +31,7 @@ describe("createWorkflowBuilderController", () => {
   it("loads the definitions and the step library", async () => {
     const list = vi.fn(() => resolved([definition("d1")]));
     const steps = vi.fn(() => resolved([step("http")]));
+
     const { view, unmount } = mount(
       createWorkflowBuilderController({
         client: { definitions: { list }, steps: { list: steps } },
@@ -38,6 +39,7 @@ describe("createWorkflowBuilderController", () => {
         tenant: "org-1",
       }),
     );
+
     await flush();
     expect(list).toHaveBeenCalledWith("org-1");
     expect(view()).toMatchObject({ error: undefined });
@@ -57,6 +59,7 @@ describe("createWorkflowBuilderController", () => {
   it("lists every tenant's definitions and drops stale answers", async () => {
     const answer = held([definition("late")]);
     const list = vi.fn(() => answer.result);
+
     const controller = createWorkflowBuilderController({
       client: {
         definitions: { list },
@@ -64,6 +67,7 @@ describe("createWorkflowBuilderController", () => {
       },
       auth: fakeAuth(),
     });
+
     const mounted = mount(controller);
     await flush();
     expect(list).toHaveBeenCalledWith(undefined);
@@ -79,6 +83,7 @@ describe("createWorkflowCanvasRunController", () => {
     const topic = fakeTopic();
     const get = vi.fn(() => resolved<WorkflowRun | undefined>(run("r1")));
     const nodes = vi.fn(() => resolved([node("a"), node("b")]));
+
     const { view, unmount } = mount(
       createWorkflowCanvasRunController({
         client: { runs: { get }, nodeRuns: { list: nodes } },
@@ -87,6 +92,7 @@ describe("createWorkflowCanvasRunController", () => {
         run: "wrun_1",
       }),
     );
+
     await flush();
     expect(view().run?.id).toBe("r1");
     expect(Object.keys(view().nodes)).toEqual(["a", "b"]);
@@ -106,6 +112,7 @@ describe("createWorkflowCanvasRunController", () => {
 
   it("waits without a run", async () => {
     const get = vi.fn(() => resolved<WorkflowRun | undefined>(undefined));
+
     const mounted = mount(
       createWorkflowCanvasRunController({
         client: { runs: { get }, nodeRuns: { list: () => resolved([]) } },
@@ -114,6 +121,7 @@ describe("createWorkflowCanvasRunController", () => {
         run: null,
       }),
     );
+
     await mounted.view().refresh();
     mounted.unmount();
     expect(get).not.toHaveBeenCalled();

@@ -37,6 +37,7 @@ describe("whatsappDeliveries", () => {
         }),
       ),
     );
+
     expect(parsed).toEqual({
       only: true,
       updates: [
@@ -56,6 +57,7 @@ describe("whatsappDeliveries", () => {
         }),
       ),
     );
+
     expect(parsed?.only).toBe(false);
     expect(whatsappDeliveries(event(whatsapp({ messages: [{}] })))).toEqual({
       updates: [],
@@ -85,6 +87,7 @@ describe("messengerDeliveries", () => {
         ],
       }),
     );
+
     expect(parsed).toEqual({
       only: true,
       updates: [
@@ -101,6 +104,7 @@ describe("messengerDeliveries", () => {
         entry: [{ messaging: [{ message: { text: "hi" } }, { read: {} }] }],
       }),
     );
+
     expect(parsed).toEqual({ updates: [], only: false });
     expect(messengerDeliveries(event({ object: "x" }))).toBeNull();
   });

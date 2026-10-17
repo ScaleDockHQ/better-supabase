@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { connect } from "../db.ts";
 import type { LiveDatabase } from "../doctor/live.ts";
+import type { DoctorContext } from "../doctor/rules.ts";
 import type { CliEnv } from "../env.ts";
 import type { IntrospectionSource } from "../introspect/source.ts";
 
@@ -18,7 +19,6 @@ import {
   managementAdvisors,
   splinterAdvisors,
 } from "../doctor/advisors.ts";
-import { type DoctorContext } from "../doctor/rules.ts";
 import { CACHE_DIR } from "../introspect/cache.ts";
 import { readSupabaseToml } from "../supabase-toml.ts";
 
@@ -54,14 +54,20 @@ export function openLive(
 ): OpenLive {
   const none = { close: () => Promise.resolve() };
   const file = snapshotFile(config, source);
+
   if (file) {
     const skipped = `reading the saved snapshot ${file}; set $DATABASE_URL or $SUPABASE_DB_URL, or pass --db-url-stdin or --project-ref, to check a database.`;
+
     return { ...none, advisors: { skipped }, database: { skipped } };
   }
+
   let opened: Promise<IntrospectionSource> | undefined;
+
   const open = (): Promise<IntrospectionSource> =>
     (opened ??= openSource(config, env, source, pg));
+
   const target = managementTarget(config, env, source);
+
   const database: LiveDatabase = {
     describe: target
       ? `project ${target.projectRef} (Management API)`
@@ -69,17 +75,25 @@ export function openLive(
     session: !target,
     async query<R>(sql: string) {
       const result = await (await open()).queryable.query(sql);
+
       // SAFETY: R is the row type the caller declares for its query.
       return result.rows as R[];
     },
   };
+
   const close = async (): Promise<void> => {
-    if (opened) await (await opened).close();
+    if (opened) {
+      await (await opened).close();
+    }
   };
-  if (target)
+
+  if (target) {
     return { advisors: managementAdvisors(target), database, open, close };
+  }
+
   let splinter: Promise<AdvisorSource> | undefined;
   const cacheDir = resolve(config.root, CACHE_DIR);
+
   const advisors: AdvisorSource = {
     describe: "database (splinter)",
     async lints(category) {
@@ -92,8 +106,10 @@ export function openLive(
           schemas: apiSchemas(toml?.document),
         }),
       );
+
       return (await splinter).lints(category);
     },
   };
+
   return { advisors, database, open, close };
 }

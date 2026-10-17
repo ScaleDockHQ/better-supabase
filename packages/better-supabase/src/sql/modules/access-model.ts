@@ -369,6 +369,7 @@ export type ModuleOperations<M extends OperationModule> = {
 };
 
 const operationsByModule = new Map<string, Record<string, string>>();
+
 for (const [name, key] of Object.entries(OPERATIONS)) {
   const dot = name.indexOf(".");
   const module = name.slice(0, dot);
@@ -600,6 +601,7 @@ const isPlain = (value: unknown): value is Record<string, unknown> =>
 
 const quotedRef = (where: string, table: string, column: string) => {
   const parts = `${table}.${column}`.split(".");
+
   if (
     parts.length !== 3 ||
     parts.some((part) => !/^[A-Za-z_][A-Za-z0-9_$]*$/.test(part))
@@ -608,6 +610,7 @@ const quotedRef = (where: string, table: string, column: string) => {
       `${where}: "${table}" must be "schema.table" and "${column}" a column`,
     );
   }
+
   return {
     table: `${sqlIdent(parts[0]!)}.${sqlIdent(parts[1]!)}`,
     column: sqlIdent(parts[2]!),
@@ -621,9 +624,15 @@ export function providerPlatformRoles(
   if (accessModel(ctx) !== "provider" || !ctx.installed("invitations")) {
     return undefined;
   }
+
   const value = ctx.of("invitations").option("platformRoles");
-  if (value === undefined) return undefined;
+
+  if (value === undefined) {
+    return undefined;
+  }
+
   const where = "blocks.invitations.options.platformRoles";
+
   if (
     !isPlain(value) ||
     typeof value["table"] !== "string" ||
@@ -639,10 +648,12 @@ export function providerPlatformRoles(
       `${where} must be { table: "schema.table", user: "<user column>", role: "<role column>", through?: { table, id, column }, canAssign?: "<SQL template>", canAssignFor?: "<SQL template with {user}>" }`,
     );
   }
+
   const user = quotedRef(where, value["table"], value["user"]);
   const role = quotedRef(where, value["table"], value["role"]);
   const through = value["through"];
   let lookup: ProviderPlatformRoles["through"];
+
   if (through !== undefined) {
     if (
       !isPlain(through) ||
@@ -657,6 +668,7 @@ export function providerPlatformRoles(
         `${where}.through must be { table: "schema.table", id: "<key column>", column: "<role name column>", where?: "<condition on {row}>" }`,
       );
     }
+
     const id = quotedRef(`${where}.through`, through["table"], through["id"]);
     lookup = {
       table: id.table,
@@ -668,6 +680,7 @@ export function providerPlatformRoles(
         : {}),
     };
   }
+
   return {
     table: user.table,
     user: user.column,
@@ -684,7 +697,10 @@ export function providerPlatformRoles(
 
 /** Whether the catalog has platform roles, and so platform invitations. */
 export function hasPlatformRoles(ctx: ModuleContext): boolean {
-  if (providerPlatformRoles(ctx)) return true;
+  if (providerPlatformRoles(ctx)) {
+    return true;
+  }
+
   return (
     accessModel(ctx) === "catalog" &&
     ctx.of("access").hasTable("platformAssignments")
@@ -702,15 +718,21 @@ export function roleScopeIs(
   alias: string,
   scope: "tenant" | "platform",
 ): string | undefined {
-  if (accessModel(ctx) !== "catalog") return undefined;
+  if (accessModel(ctx) !== "catalog") {
+    return undefined;
+  }
+
   const access = ctx.of("access");
+
   if (!access.manages && access.config.columns["roles"]?.["scope"] == null) {
     return undefined;
   }
+
   const value =
     scope === "tenant"
       ? access.text("tenantRoleScope", "tenant")
       : access.text("platformRoleScope", "platform");
+
   return `${alias}.${access.col("roles", "scope")}::text = ${sqlString(value)}`;
 }
 
@@ -735,7 +757,11 @@ export function modulePermissionKey(
   fallback: string,
 ): string {
   const shorthand = MODULE_PERMISSION_SHORTHANDS[ctx.module]?.[action];
-  if (shorthand === undefined) return ctx.permissionKey(action, fallback);
+
+  if (shorthand === undefined) {
+    return ctx.permissionKey(action, fallback);
+  }
+
   const target =
     typeof shorthand === "string"
       ? modulePermissionKey(ctx, shorthand, fallback)
@@ -744,6 +770,7 @@ export function modulePermissionKey(
           shorthand.action,
           fallback,
         );
+
   return ctx.permissionKey(action, target);
 }
 

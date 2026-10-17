@@ -36,6 +36,7 @@ function link(
   const escaped = title.replaceAll(/([[\]])/gu, "\\$1");
   const target = url.replaceAll(/([()])/gu, "\\$1");
   const detail = description?.trim();
+
   return detail === undefined || detail === ""
     ? `[${escaped}](${target})`
     : `[${escaped}](${target}): ${detail}`;
@@ -48,6 +49,7 @@ function formatItem(
 ): string {
   const url =
     item.external === true ? item.url : options.absolute(markdownUrl(item.url));
+
   return `${"  ".repeat(depth)}- ${link(text(item.name), url, options.describe(item))}`;
 }
 
@@ -64,13 +66,17 @@ function formatNodes(
   section: string,
 ): string[] {
   const lines: string[] = [];
+
   for (const node of nodes) {
     switch (node.type) {
-      case "page":
+      case "page": {
         lines.push(formatItem(node, options, depth));
         break;
+      }
+
       case "folder": {
         const name = text(node.name);
+
         // A folder named like its section adds a level that says nothing new.
         if (depth === 0 && name === section) {
           lines.push(
@@ -78,20 +84,25 @@ function formatNodes(
           );
           break;
         }
+
         lines.push(
           `${"  ".repeat(depth)}- ${name}`,
           ...formatNodes(folderChildren(node), options, depth + 1, section),
         );
         break;
       }
-      case "separator":
+
+      case "separator": {
         break;
+      }
+
       default: {
         const exhaustive: never = node;
         throw new Error(`Unknown page tree node ${String(exhaustive)}`);
       }
     }
   }
+
   return lines;
 }
 
@@ -103,6 +114,7 @@ export function formatLLMIndex(tree: Root, options: LLMIndexOptions): string {
   const sections: { title: string; nodes: Node[] }[] = [
     { title: "", nodes: [] },
   ];
+
   for (const node of tree.children) {
     if (node.type === "separator") {
       sections.push({ title: text(node.name), nodes: [] });
@@ -118,21 +130,28 @@ export function formatLLMIndex(tree: Root, options: LLMIndexOptions): string {
     "",
     options.details,
   ];
+
   for (const section of sections) {
     if (section.nodes.length === 0) {
       continue;
     }
+
     out.push("");
+
     if (section.title !== "") {
       out.push(`## ${section.title}`, "");
     }
+
     out.push(...formatNodes(section.nodes, options, 0, section.title));
   }
+
   if (options.optional.length > 0) {
     out.push("", "## Optional", "");
+
     for (const entry of options.optional) {
       out.push(`- ${link(entry.title, entry.url, entry.description)}`);
     }
   }
+
   return `${out.join("\n")}\n`;
 }

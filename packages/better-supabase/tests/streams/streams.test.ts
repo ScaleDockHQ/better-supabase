@@ -15,23 +15,32 @@ import { fakeRedis, fakeStreamsTransport } from "./fakes.ts";
 const fromChunks = (chunks: readonly string[]): ReadableStream<string> =>
   new ReadableStream<string>({
     start(controller) {
-      for (const chunk of chunks) controller.enqueue(chunk);
+      for (const chunk of chunks) {
+        controller.enqueue(chunk);
+      }
+
       controller.close();
     },
   });
 
 async function text(stream: ReadableStream<string>): Promise<string> {
   let out = "";
-  for await (const chunk of stream) out += chunk;
+
+  for await (const chunk of stream) {
+    out += chunk;
+  }
+
   return out;
 }
 
 describe("postgresStreamStore", () => {
   it("passes the conformance kit", async () => {
     const { transport } = fakeStreamsTransport();
+
     const report = await testStreamStore(
       postgresStreamStore({ transport, pollMs: 5 }),
     );
+
     expect(report.checks.every((check) => check.ok)).toBe(true);
   });
 
@@ -61,17 +70,21 @@ describe("postgresStreamStore", () => {
   it("wakes readers on the stream's private topic", async () => {
     const { transport } = fakeStreamsTransport();
     let onWake: (() => void) | undefined;
+
     const channel = {
       on: vi.fn((_type: string, _filter: object, callback: () => void) => {
         onWake = callback;
+
         return channel;
       }),
       subscribe: vi.fn(() => channel),
     };
+
     const realtime = {
       channel: vi.fn(() => channel),
       removeChannel: vi.fn(async () => "ok"),
     };
+
     const store = postgresStreamStore({
       transport,
       // SAFETY: the fake implements the channel calls the store makes.
@@ -81,6 +94,7 @@ describe("postgresStreamStore", () => {
       >,
       pollMs: 60_000,
     });
+
     await store.open("s2").orThrow();
     const reading = text(store.read("s2"));
     await vi.waitFor(() => {
@@ -104,6 +118,7 @@ describe("postgresStreamStore", () => {
         },
       },
     });
+
     await expect(text(store.read("s"))).rejects.toMatchObject({
       kind: "forbidden",
     });
@@ -123,6 +138,7 @@ describe("postgresStreamStore", () => {
 describe("redisStreamStore", () => {
   it("passes the conformance kit with and without a subscriber", async () => {
     const { client, subscriber } = fakeRedis();
+
     for (const store of [
       redisStreamStore({ client, pollMs: 5 }),
       redisStreamStore({ client, subscriber, keyPrefix: "app:s" }),
@@ -160,6 +176,7 @@ describe("redisStreamStore", () => {
   it("connects with redis from a url", async () => {
     const { client, subscriber } = fakeRedis();
     const connected: string[] = [];
+
     const node = (name: string) => ({
       ...client,
       ...subscriber,
@@ -168,16 +185,20 @@ describe("redisStreamStore", () => {
       },
       duplicate: () => node("subscriber"),
     });
+
     const urls: string[] = [];
+
     const store = redisStreamStore(
       { url: "redis://localhost:6379", pollMs: 5 },
       async () => ({
         createClient(options: { url: string }) {
           urls.push(options.url);
+
           return node("client");
         },
       }),
     );
+
     const report = await testStreamStore(store);
     expect(report.checks.every((check) => check.ok)).toBe(true);
     expect(urls).toEqual(["redis://localhost:6379"]);
@@ -187,6 +208,7 @@ describe("redisStreamStore", () => {
       { url: "redis://localhost:6379" },
       async () => undefined,
     );
+
     const result = await missing.open("m");
     expect(result.ok ? undefined : result.error.message).toMatch(
       /pnpm add redis/,
@@ -211,12 +233,14 @@ describe("teeToStore", () => {
   it("passes the stream through and stores every chunk at its index", async () => {
     const { transport } = fakeStreamsTransport();
     const store = postgresStreamStore({ transport, pollMs: 5 });
+
     const { stream, persisted } = teeToStore(
       store,
       "t1",
       fromChunks(["a", "b", "c"]),
       { flushMs: 1, kind: "chat" },
     );
+
     expect(await text(stream)).toBe("abc");
     expect(await persisted.orThrow()).toBe(3);
     expect(await text(store.read("t1", 1))).toBe("bc");
@@ -229,12 +253,14 @@ describe("teeToStore", () => {
     await store.open("t2").orThrow();
     await store.cancel("t2").orThrow();
     const onCancel = vi.fn();
+
     const { stream, persisted } = teeToStore(
       store,
       "t2",
       fromChunks(["xx", "yy", "zz"]),
       { flushBytes: 2, onCancel },
     );
+
     await text(stream);
     expect(await persisted.orThrow()).toBe(3);
     expect(onCancel).toHaveBeenCalledTimes(1);
@@ -243,11 +269,13 @@ describe("teeToStore", () => {
   it("keeps storing after the live client disconnects", async () => {
     const { client } = fakeRedis();
     const store = redisStreamStore({ client });
+
     const { stream, persisted } = teeToStore(
       store,
       "t3",
       fromChunks(["1", "2"]),
     );
+
     await stream.cancel();
     expect(await persisted.orThrow()).toBe(2);
     expect(await text(store.read("t3"))).toBe("12");
@@ -269,6 +297,7 @@ describe("teeToStore", () => {
         controller.error(new Error("model failed"));
       },
     });
+
     const broken = teeToStore(store, "t5", failing);
     await text(broken.stream).catch(() => undefined);
     const outcome = await broken.persisted;
@@ -283,6 +312,7 @@ describe("teeToStore", () => {
         },
       },
     });
+
     const notOpened = teeToStore(refused, "t6", fromChunks(["a"]));
     expect((await notOpened.persisted).ok).toBe(false);
   });

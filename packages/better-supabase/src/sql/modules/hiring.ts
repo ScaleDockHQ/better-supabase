@@ -140,7 +140,10 @@ const NAMES: ModuleNames = {
 };
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
   const keys = moduleOperations("hiring");
   const read = ctx.permission("read", keys.read);
   const write = ctx.permission("write", keys.write);
@@ -156,8 +159,10 @@ function build(ctx: ModuleContext): string {
   const service = "(auth.role() = 'service_role')";
   const pipelines = ctx.of("pipelines");
   const st = (column: string): string => pipelines.col("stages", column);
+
   const payload = (alias: string, extra = ""): string =>
     `jsonb_build_object('organizationId', ${alias}.${a("tenant")}, 'applicationId', ${alias}.${a("id")}, 'subjectType', 'application', 'subjectId', ${alias}.${a("id")}::text, 'jobId', ${alias}.${a("job")}, 'candidateType', ${alias}.${a("candidateType")}, 'candidateId', ${alias}.${a("candidateId")}${extra})`;
+
   const record = (type: string, alias: string, extra = ""): string =>
     ctx.record({
       type,
@@ -166,6 +171,7 @@ function build(ctx: ModuleContext): string {
       tenant: `${alias}.${a("tenant")}::text`,
       audit: false,
     });
+
   const jobRecord = (type: string): string =>
     ctx.record({
       type,
@@ -174,6 +180,7 @@ function build(ctx: ModuleContext): string {
       tenant: `v_job.${j("tenant")}::text`,
       audit: false,
     });
+
   const moveTo = (outcome: string, category: string): string => `
   select x.${st("id")} into v_stage from ${pipelines.table("stages")} x
   where x.${st("pipeline")} = v_row.${a("pipeline")} and x.${st("archivedAt")} is null
@@ -183,8 +190,10 @@ function build(ctx: ModuleContext): string {
     ${fail("HIRING_STAGE_MISSING", "the job's pipeline has no stage for that", "P0002")}
   end if;
   update ${t("applications")} x set ${a("stage")} = v_stage where x.${a("id")} = v_row.${a("id")};`;
+
   const editable = (tenant: string): string =>
     `(${service} or ${ctx.scope.can(tenant, write)})`;
+
   const tables = ctx.manages
     ? `
 create table if not exists ${t("jobs")} (
@@ -272,6 +281,7 @@ create policy interviews_read on ${t("interviews")} for select to authenticated
 using (${ctx.scope.check(v("tenant"), read)} or (select auth.uid()) = any (${v("interviewers")}));
 `
     : "";
+
   return `${schemaPreamble(ctx)}
 -- Hiring: jobs, applications on a pipeline per job, scorecards per stage,
 -- interviews, and a hire event the app turns into an employee.

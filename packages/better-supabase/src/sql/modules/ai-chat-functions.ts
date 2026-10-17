@@ -30,6 +30,7 @@ export const AI_RUN_STATES: string = [
 /** `jsonb_build_object` of a chat row, with stable keys whatever the column names. */
 function chatJson(names: AiChatNames, row: string): string {
   const ch = names.c.chats;
+
   const keys: readonly (readonly [string, string])[] = [
     ["id", ch.id],
     ["organization_id", ch.tenant],
@@ -50,11 +51,13 @@ function chatJson(names: AiChatNames, row: string): string {
     ["created_at", ch.createdAt],
     ["updated_at", ch.updatedAt],
   ];
+
   return `jsonb_build_object(${keys.map(([key, column]) => `'${key}', ${row}.${column}`).join(", ")}${extraFieldsJson(row, names.chatExtras)})`;
 }
 
 function projectJson(names: AiChatNames, row: string): string {
   const p = names.c.projects;
+
   return `jsonb_build_object('id', ${row}.${p.id}, 'organization_id', ${row}.${p.tenant}, 'owner_id', ${row}.${p.owner}, 'name', ${row}.${p.name}, 'instructions', ${row}.${p.instructions}, 'default_model', ${row}.${p.model}, 'pinned', ${row}.${p.pinned}, 'archived_at', ${row}.${p.archivedAt}, 'created_at', ${row}.${p.createdAt}, 'updated_at', ${row}.${p.updatedAt})`;
 }
 
@@ -64,9 +67,12 @@ function chats(ctx: ModuleContext, names: AiChatNames): string {
   const ch = names.c.chats;
   const p = names.c.projects;
   const m = names.c.messages;
+
   const can = (tenant: string, permission: string): string =>
     ctx.scope.can(tenant, permission);
+
   const notFound = raise("No chat %", "P0002", "AI_CHAT_NOT_FOUND", "%CHAT%");
+
   const ownProject = (project: string, owner: string, tenant: string): string =>
     `exists (select 1 from ${t.projects} pr where pr.${p.id} = ${project} and pr.${p.owner} = ${owner} and pr.${p.tenant} = ${tenant})`;
 
@@ -414,6 +420,7 @@ ${aiChatExtras(ctx, names, layout)}`;
 
 function messageJson(names: AiChatNames, row: string, native: string): string {
   const m = names.c.messages;
+
   return `jsonb_build_object('id', ${row}.${m.id}, 'parent_id', ${row}.${m.parent}, 'role', ${row}.${m.role}, 'parts', ${row}.${m.parts}, 'metadata', ${row}.${m.metadata}, 'format', ${row}.${m.format}, 'native', case when ${native} then ${row}.${m.native} end, 'model', ${row}.${m.model}, 'status', ${row}.${m.status}, 'created_at', ${row}.${m.createdAt})`;
 }
 
@@ -426,16 +433,19 @@ function messages(ctx: ModuleContext, names: AiChatNames): string {
   const s = names.c.sources;
   const streams = ctx.of("streams");
   const st = (column: string): string => streams.col("streams", column);
+
   const ownChat = (name: string): string => `
   select * into v_chat from ${t.chats} x where x.${ch.id} = ${name}.chat for update;
   if not found or not (${SERVICE_CALLER} or v_chat.${ch.owner} = (select auth.uid())) then
     ${raise("No chat %", "P0002", "AI_CHAT_NOT_FOUND", `${name}.chat`)}
   end if;`;
+
   const serviceOnly = raise(
     "Only the server saves replies",
     "42501",
     "AI_CHAT_FORBIDDEN",
   );
+
   const completed = ctx.record({
     type: "ai_chat_message.completed",
     payload: `jsonb_build_object('chatId', v_chat.${ch.id}, 'messageId', v_id, 'organizationId', v_chat.${ch.tenant}::text, 'ownerId', v_chat.${ch.owner}, 'model', coalesce(save_ai_assistant_message.model, v_chat.${ch.model}), 'status', v_status)`,

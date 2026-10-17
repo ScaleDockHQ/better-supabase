@@ -15,6 +15,7 @@ import {
 import { metaSchema2020, problems } from "./validator.ts";
 
 const DIALECT = "https://json-schema.org/draft/2020-12/schema";
+
 const shipped = new URL(
   "./",
   import.meta.resolve("better-supabase/schemas/config-v1.json"),
@@ -22,14 +23,17 @@ const shipped = new URL(
 
 async function shippedSchemas(): Promise<Map<string, Record<string, unknown>>> {
   const out = new Map<string, Record<string, unknown>>();
-  for (const file of await readdir(shipped))
+
+  for (const file of await readdir(shipped)) {
     out.set(
       file,
-      JSON.parse(await readFile(new URL(file, shipped), "utf8")) as Record<
+      JSON.parse(await readFile(new URL(file, shipped), "utf-8")) as Record<
         string,
         unknown
       >,
     );
+  }
+
   return out;
 }
 
@@ -37,7 +41,11 @@ async function shippedSchemas(): Promise<Map<string, Record<string, unknown>>> {
 async function shippedValidator() {
   const ajv = new Ajv2020({ strict: true, allErrors: true });
   addFormats(ajv);
-  for (const schema of (await shippedSchemas()).values()) ajv.addSchema(schema);
+
+  for (const schema of (await shippedSchemas()).values()) {
+    ajv.addSchema(schema);
+  }
+
   return ajv;
 }
 
@@ -49,6 +57,7 @@ describe("JSON Schema 2020-12", () => {
 
   it("every shipped schema declares the 2020-12 dialect and is valid against its meta-schema", async () => {
     const meta = metaSchema2020();
+
     for (const [file, schema] of await shippedSchemas()) {
       expect([file, schema["$schema"], problems(meta, schema)]).toEqual([
         file,
@@ -60,8 +69,10 @@ describe("JSON Schema 2020-12", () => {
 
   it("every shipped schema compiles in strict mode (no unknown keywords or formats)", async () => {
     const ajv = await shippedValidator();
-    for (const schema of (await shippedSchemas()).values())
+
+    for (const schema of (await shippedSchemas()).values()) {
       expect(ajv.getSchema(String(schema["$id"]))).toBeTypeOf("function");
+    }
   });
 
   it("the generated table schemas are valid 2020-12 schemas", () => {
@@ -69,18 +80,22 @@ describe("JSON Schema 2020-12", () => {
     const generatedSchema = readJsonFixture("generated-camel.schema.json") as {
       $schema: string;
     };
+
     expect(generatedSchema.$schema).toBe(DIALECT);
     expect(problems(metaSchema2020(), generatedSchema)).toEqual([]);
   });
 
   it("config, snapshot and doctor report documents validate against the schemas they name in `$schema`", async () => {
     const ajv = await shippedValidator();
+
     const check = (document: Record<string, unknown>) => {
       const validate = ajv.getSchema(String(document["$schema"]));
       expect(validate).toBeTypeOf("function");
       validate!(document);
+
       return validate!.errors ?? [];
     };
+
     expect(
       check({
         $schema: CONFIG_SCHEMA_URL,
@@ -107,10 +122,12 @@ describe("JSON Schema 2020-12", () => {
       gitignore: "",
       sources: [],
     };
+
     const findings = await runRules(
       context,
       RULES.filter((rule) => rule.code !== "BS303"),
     );
+
     const report = JSON.parse(
       formatReport(findings, {
         format: "json",
@@ -119,6 +136,7 @@ describe("JSON Schema 2020-12", () => {
         fallbackFile: "package.json",
       }),
     ) as Record<string, unknown>;
+
     expect(check(report)).toEqual([]);
   });
 });

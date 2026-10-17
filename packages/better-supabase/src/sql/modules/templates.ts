@@ -123,7 +123,10 @@ const MAX_BODY_BYTES = 1_048_576;
 const MAX_SETTINGS_BYTES = 65_536;
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
   const id = ctx.idType;
   const fn = (name: string): string => ctx.fn(name);
   const t = ctx.table("templates");
@@ -137,17 +140,21 @@ function build(ctx: ModuleContext): string {
   const manage = ctx.permission("manage", OPERATIONS["templates.manage"]);
   const extras = ctx.extraColumns("templates", RESERVED);
   const extra = extraFieldsArg(extras);
+
   const builder = ctx.installed("workflow-builder")
     ? ctx.of("workflow-builder")
     : undefined;
+
   const schemas = ctx.installed("jsonb-schemas");
 
   // A system template only the service role changes; a tenant's needs
   // templates.manage there.
   const mayManage = (tenant: string): string =>
     `(${SERVICE_CALLER} or (${tenant} is not null and ${ctx.scope.can(tenant, manage)}))`;
+
   const readable = `${ct("tenant")} in (select ${ctx.scope.ids(read)})
     or (${ct("scope")} = 'system' and exists (select ${ctx.scope.ids(read)}))`;
+
   // The template's newest published version.
   const published = (template: string): string =>
     `(select y.${cv("version")} from ${ver} y where y.${cv("template")} = ${template} and y.${cv("publishedAt")} is not null order by y.${cv("version")} desc limit 1)`;
@@ -175,6 +182,7 @@ function build(ctx: ModuleContext): string {
       alias,
       extras,
     );
+
   const versionJson = (alias: string, full: boolean): string =>
     `jsonb_build_object(
     'id', ${alias}.${cv("id")},
@@ -190,6 +198,7 @@ function build(ctx: ModuleContext): string {
         : ""
     }
   )`;
+
   const applicationJson = (alias: string): string => `jsonb_build_object(
     'id', ${alias}.${ca("id")},
     'template', ${alias}.${ca("template")},

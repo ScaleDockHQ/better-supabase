@@ -19,6 +19,7 @@ export interface BlockMigrations {
 export function blockMigrations(name: string): BlockMigrations {
   const attempts = [[name], [name, "organizations"]];
   let failure: unknown;
+
   for (const names of attempts) {
     try {
       return {
@@ -29,5 +30,6 @@ export function blockMigrations(name: string): BlockMigrations {
       failure = error;
     }
   }
+
   throw failure;
 }

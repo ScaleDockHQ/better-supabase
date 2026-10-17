@@ -27,6 +27,7 @@ export async function documentIngestion(
     context,
     `Document ingested: ${summary.words} words, ${summary.sentences} sentences`,
   );
+
   return summary;
 }
 
@@ -52,10 +53,12 @@ export async function expenseApproval(
 ): Promise<ApprovalDecision> {
   "use workflow";
   const { workflowRunId } = getWorkflowMetadata();
+
   const hook = createHook<ApprovalDecision>({
     token: approvalToken(workflowRunId),
     metadata,
   });
+
   const decision = await hook;
   await notifyActor(
     context,
@@ -63,6 +66,7 @@ export async function expenseApproval(
       ? `Expense of ${amount} approved`
       : `Expense of ${amount} rejected`,
   );
+
   return decision;
 }
 

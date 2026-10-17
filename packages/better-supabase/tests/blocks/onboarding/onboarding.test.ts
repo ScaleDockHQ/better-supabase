@@ -46,6 +46,7 @@ describe("defineChecklist", () => {
             ]
           : fn === "complete_onboarding_step",
     );
+
     const transport: BlockTransport = { call };
     const team = defineChecklist({ id: "team", scope: "organization", steps });
     const client = createOnboarding({ transport, schema: "app" });
@@ -80,14 +81,17 @@ describe("defineChecklist", () => {
 
   it("calls user checklists without a tenant and reports done", async () => {
     const call = vi.fn(async () => [{ step: "a" }]);
+
     const profile = defineChecklist({
       id: "profile",
       scope: "user",
       steps: [{ id: "a" }],
     });
+
     const progress = await createOnboarding({ transport: { call } })
       .progress(profile)
       .orThrow();
+
     expect(call).toHaveBeenCalledWith(
       "better_supabase",
       "onboarding_progress",

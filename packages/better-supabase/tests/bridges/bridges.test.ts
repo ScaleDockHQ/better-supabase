@@ -32,6 +32,7 @@ type Bs = Parameters<AdapterRun>[0];
 /** What a route does with the module's `run`: a Result-aware response. */
 async function answer(run: AdapterRun, bs: Bs, request: Request) {
   const instance = new URL(request.url).pathname;
+
   try {
     return await respond(() => run(bs), { instance, expose: false });
   } catch (cause) {
@@ -61,6 +62,7 @@ describe("bridges pass testAdapter", () => {
         const app = new Hono()
           .use(toHono(entriesFor(server, allow, waitUntil)))
           .get("*", (c) => answer(run, c.var.bs, c.req.raw));
+
         return async (request) => app.fetch(request);
       },
     });
@@ -84,6 +86,7 @@ describe("bridges pass testAdapter", () => {
           entriesFor(server, allow, waitUntil),
           (request, ctx) => answer(run, ctx.bs, request),
         );
+
         return (request) => handler(request);
       },
     });
@@ -94,15 +97,18 @@ describe("bridges pass testAdapter", () => {
       betterSupabase,
       serve: (server, run, { allow, waitUntil }) => {
         const orpc = createOrpc(betterSupabase, server);
+
         const procedure = os
           .$context<{ request: Request; bs: Bs }>()
           .handler(({ context }) =>
             orpc.unwrap((async () => run(context.bs))()),
           );
+
         const fetch = toOrpc(
           entriesFor(server, allow, waitUntil),
           new RPCHandler({ procedure }),
         );
+
         return (request) =>
           fetch(
             new Request(new URL("/procedure", request.url), {
@@ -125,6 +131,7 @@ describe("bridges pass testAdapter", () => {
         const middleware = toTanStackStart(
           entriesFor(server, allow, waitUntil),
         );
+
         return async (request) => {
           try {
             const result = await middleware({
@@ -133,10 +140,14 @@ describe("bridges pass testAdapter", () => {
                 response: await answer(run, context.bs, request),
               }),
             });
+
             return result.response;
-          } catch (thrown) {
-            if (thrown instanceof Response) return thrown;
-            throw thrown;
+          } catch (error) {
+            if (error instanceof Response) {
+              return error;
+            }
+
+            throw error;
           }
         };
       },
@@ -148,6 +159,7 @@ describe("bridges pass testAdapter", () => {
       betterSupabase,
       serve: (server, run, { allow, waitUntil }) => {
         const handle = toSvelteKit(entriesFor(server, allow, waitUntil));
+
         return (request) =>
           handle({
             event: { request, locals: {} },
@@ -162,12 +174,15 @@ describe("bridges pass testAdapter", () => {
       betterSupabase,
       serve: (server, run, { allow, waitUntil }) => {
         const key = Symbol("supabase");
+
         const middleware = toReactRouter(
           entriesFor(server, allow, waitUntil),
           key,
         );
+
         return (request) => {
           const store = new Map<symbol, { readonly bs: Bs }>();
+
           return middleware(
             { request, context: { set: (k, v) => store.set(k, v) } },
             () => answer(run, store.get(key)!.bs, request),
@@ -182,11 +197,13 @@ describe("bridges pass testAdapter", () => {
       betterSupabase,
       serve: (server, run, { allow, waitUntil }) => {
         const middleware = toH3(entriesFor(server, allow, waitUntil));
+
         return (request) => {
           const event: Parameters<typeof middleware>[0] = {
             req: request,
             context: {},
           };
+
           return middleware(event, () =>
             answer(run, event.context.bs!, request),
           );
@@ -200,6 +217,7 @@ describe("bridges pass testAdapter", () => {
       betterSupabase,
       serve: (server, run, { allow, waitUntil }) => {
         const bridge = toElysia(entriesFor(server, allow, waitUntil));
+
         return bridge.wrap((request) =>
           answer(run, bridge.context(request).bs, request),
         );
@@ -210,6 +228,7 @@ describe("bridges pass testAdapter", () => {
 
 describe("bridge behavior", () => {
   const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
+
   const env = {
     url: PROJECT_URL,
     publishableKey: "sb_publishable_test",
@@ -218,19 +237,24 @@ describe("bridge behavior", () => {
 
   it("lets an entry and the route both read the body", async () => {
     const reads: string[] = [];
+
     const peek = defineMiddleware({
       key: "peeked",
       run: () => async (request) => {
         reads.push(await request.text());
+
         return { peeked: true };
       },
     });
+
     const app = new Hono()
       .use(toHono([peek()]))
       .post("/", async (c) => c.text(await c.req.text()));
+
     const response = await app.fetch(
       new Request("https://api.test/", { method: "POST", body: "hello" }),
     );
+
     expect(await response.text()).toBe("hello");
     expect(reads).toEqual(["hello"]);
   });
@@ -240,6 +264,7 @@ describe("bridge behavior", () => {
       method: "POST",
       body: JSON.stringify({ a: 1 }),
     });
+
     bufferInPlace(request);
     expect(await request.text()).toBe('{"a":1}');
     expect(await request.json()).toEqual({ a: 1 });
@@ -256,6 +281,7 @@ describe("bridge behavior", () => {
 
   it("toH3 answers a plain handler value as JSON", async () => {
     const signer = await createTestSigner();
+
     const middleware = toH3([
       withBetterSupabase(betterSupabase, {
         env,
@@ -263,6 +289,7 @@ describe("bridge behavior", () => {
         allow: ["anon"],
       }),
     ]);
+
     const event = { req: new Request("https://api.test/"), context: {} };
     const response = await middleware(event, () => ({ ok: true }));
     expect(await response.json()).toEqual({ ok: true });
@@ -271,13 +298,16 @@ describe("bridge behavior", () => {
 
   it("toSvelteKit seeds getEnv from event.platform.env", async () => {
     const seen: (string | undefined)[] = [];
+
     const probe = defineMiddleware({
       key: "probe",
       run: () => async () => {
         seen.push(getEnv("BRIDGE_PROBE"));
+
         return { probe: true };
       },
     });
+
     const handle = toSvelteKit([probe()]);
     const locals: { probe?: boolean } = {};
     await handle({
@@ -295,6 +325,7 @@ describe("bridge behavior", () => {
   it("toH3 keeps the status and headers a handler set on event.res", async () => {
     const middleware = toH3([]);
     const headers = new Headers({ "x-kind": "created" });
+
     const response = await middleware(
       {
         req: new Request("https://api.test/"),
@@ -303,6 +334,7 @@ describe("bridge behavior", () => {
       },
       () => ({ id: 1 }),
     );
+
     expect(response.status).toBe(201);
     expect(response.headers.get("x-kind")).toBe("created");
     expect(await response.json()).toEqual({ id: 1 });
@@ -310,13 +342,16 @@ describe("bridge behavior", () => {
 
   it("seeds getEnv from each bridge's platform env", async () => {
     const seen: (string | undefined)[] = [];
+
     const probe = defineMiddleware({
       key: "probe",
       run: () => async () => {
         seen.push(getEnv("BRIDGE_PROBE"));
+
         return { probe: true };
       },
     });
+
     await toH3([probe()])(
       {
         req: new Request("https://api.test/"),
@@ -361,6 +396,7 @@ describe("bridge behavior", () => {
     let seen: unknown;
     await toEdge([], (_request, _ctx, _execution, hostEnv) => {
       seen = hostEnv;
+
       return new Response(null);
     })(new Request("https://app.test/"), bindings);
     expect(seen).toBe(bindings);
@@ -368,20 +404,25 @@ describe("bridge behavior", () => {
 
   it("toTanStackStart throws a short circuit as a Response", async () => {
     const signer = await createTestSigner();
+
     const middleware = toTanStackStart([
       withBetterSupabase(betterSupabase, {
         env,
         auth: { jwks: signer.jwks as never },
       }),
     ]);
+
     let ran = false;
+
     const thrown = await middleware({
       request: new Request("https://app.test/"),
       next: async () => {
         ran = true;
+
         return {};
       },
     }).catch((error: unknown) => error);
+
     expect(thrown).toBeInstanceOf(Response);
     expect((thrown as Response).status).toBe(401);
     expect(ran).toBe(false);
@@ -389,10 +430,12 @@ describe("bridge behavior", () => {
 
   it("toTanStackStart returns a server function result without a response", async () => {
     const middleware = toTanStackStart([]);
+
     const result = await middleware({
       request: new Request("https://app.test/"),
       next: async () => ({ result: 1 }),
     });
+
     expect(result).toEqual({ result: 1 });
   });
 

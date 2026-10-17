@@ -8,6 +8,7 @@ export {
   type CalendarOptions,
   type SavedCalendarEvent,
 } from "./calendar.ts";
+
 export {
   fromEventCalendarUpdate,
   seriesOf,
@@ -18,6 +19,7 @@ export {
   type EventCalendarResource,
   type OccurrenceMove,
 } from "./event-calendar.ts";
+
 export {
   parseIcs,
   toIcs,
@@ -30,6 +32,7 @@ export {
   type ParsedIcs,
   type ToIcsOptions,
 } from "./ics.ts";
+
 export {
   expandOccurrences,
   splitRule,
@@ -41,12 +44,16 @@ export {
 } from "./occurrences.ts";
 
 export { createCalendarController } from "./client.ts";
+
 export type {
   CalendarActions,
   CalendarController,
   CalendarControllerOptions,
   CalendarSnapshot,
 } from "./client.ts";
+
 export { calendarBlock } from "./manifest.ts";
+
 export { calendarEvents } from "./events.ts";
+
 export type { CalendarEvents } from "./events.ts";

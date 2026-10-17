@@ -16,6 +16,7 @@ describe("recipe module sets", () => {
     const preset = recipe.config.preset ?? "";
     expect(isPresetName(preset)).toBe(true);
     const named = Object.keys(recipe.config.blocks ?? {});
+
     for (const block of isPresetName(preset)
       ? resolvePreset(namedPreset(preset)).blocks
       : []) {

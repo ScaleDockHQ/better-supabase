@@ -17,12 +17,17 @@ const PUBLIC = new Set([
   "/forgot-password",
   "/reset-password",
 ]);
+
 /** Pages a signed-in user skips straight to the dashboard from. */
 const GUEST_ONLY = new Set(["/login", "/signup", "/forgot-password"]);
 
 function splitLocale(pathname: string) {
   const [, locale, ...rest] = pathname.split("/");
-  if (!hasLocale(routing.locales, locale)) return null;
+
+  if (!hasLocale(routing.locales, locale)) {
+    return null;
+  }
+
   return { locale, path: `/${rest.join("/")}`.replace(/\/$/, "") || "/" };
 }
 
@@ -33,24 +38,42 @@ function splitLocale(pathname: string) {
  */
 const protect: NonNullable<ProxyOptions["protect"]> = (auth, request) => {
   // A Server Action posts to the page it runs on; redirecting it drops the action.
-  if (request.method !== "GET" && request.method !== "HEAD") return;
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    return;
+  }
+
   const { pathname, search } = request.nextUrl;
   const route = pathname.startsWith("/api/") ? null : splitLocale(pathname);
-  if (!route) return;
+
+  if (!route) {
+    return;
+  }
+
   const { locale, path } = route;
   const session = toSession(auth);
   const isPublic = PUBLIC.has(path) || path.startsWith("/invite/");
+
   if (session.kind !== "user") {
-    if (isPublic) return;
+    if (isPublic) {
+      return;
+    }
+
     const login = new URL(`/${locale}/login`, request.url);
     login.searchParams.set("next", `${pathname}${search}`);
+
     return NextResponse.redirect(login);
   }
-  if (GUEST_ONLY.has(path))
+
+  if (GUEST_ONLY.has(path)) {
     return NextResponse.redirect(new URL(`/${locale}`, request.url));
+  }
+
   const permission = requiredPermission(path);
-  if (permission && !can(session, permission))
+
+  if (permission && !can(session, permission)) {
     return NextResponse.redirect(new URL(`/${locale}`, request.url));
+  }
+
   return;
 };
 
@@ -64,7 +87,9 @@ export const proxy = (request: NextRequest) =>
     expiredPrefetch: "render",
     after: (response, auth) => {
       // Shared caches must never store a signed-in response.
-      if (auth.kind === "user") response.headers.append("vary", "cookie");
+      if (auth.kind === "user") {
+        response.headers.append("vary", "cookie");
+      }
     },
     serverTiming: process.env.NODE_ENV !== "production",
   });

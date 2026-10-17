@@ -8,6 +8,7 @@ export const loader = bs.loader(
     const query =
       customerList.parse(new URL(request.url).searchParams).value ??
       customerList.defaults;
+
     return customerList.run(db, query, { select: customerColumns }).orThrow();
   },
   { allow: ["user"] },

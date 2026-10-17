@@ -11,10 +11,12 @@ export interface CsvResponseOptions extends CsvOptions {
 function disposition(filename: string): string {
   const safe = filename.replaceAll(/[\r\n]/g, " ");
   const ascii = safe.replaceAll(/[^\u0020-\u007E]|["\\]/g, "_");
+
   const encoded = encodeURIComponent(safe).replaceAll(
     /['()*]/g,
     (char) => `%${char.codePointAt(0)!.toString(16).toUpperCase()}`,
   );
+
   return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`;
 }
 
@@ -28,11 +30,14 @@ export function csvResponse(
   options: CsvResponseOptions,
 ): Response {
   const { filename, headers, status, ...csv } = options;
+
   const response = new Response(toCsv(rows, csv), {
     status: status ?? 200,
     ...(headers ? { headers } : {}),
   });
+
   response.headers.set("content-type", "text/csv; charset=utf-8");
   response.headers.set("content-disposition", disposition(filename));
+
   return response;
 }

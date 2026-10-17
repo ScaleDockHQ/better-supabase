@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { CliEnv } from "../env.ts";
 import type { Snapshot } from "../introspect/types.ts";
+import type { Paint } from "../style.ts";
 
 import {
   type ModuleFile,
@@ -31,7 +32,6 @@ import {
   writeLatestMigration,
   writesMigrations,
 } from "../sql/module-migration.ts";
-import { type Paint } from "../style.ts";
 import { leftoverFiles, manifestPath, writeManifest } from "./manifest.ts";
 import { generationNotices } from "./notices.ts";
 import { render } from "./render.ts";
@@ -56,8 +56,12 @@ export interface GenOptions extends SnapshotSource {
 async function readSetFile(
   config: ResolvedConfig,
 ): Promise<ModuleFile | undefined> {
-  if (config.readSets.length === 0) return undefined;
+  if (config.readSets.length === 0) {
+    return undefined;
+  }
+
   const readSets = await compiledReadSets(config);
+
   return renderModules(
     ["read-sets"],
     moduleLayout(config, config.sql.testsDir, readSets),
@@ -71,10 +75,15 @@ async function readSetFile(
  */
 function rowConditionedBuckets(config: ResolvedConfig): string[] {
   const provider = config.authorization;
-  if (!provider) return [];
+
+  if (!provider) {
+    return [];
+  }
+
   return providerBucketKeys(config).flatMap(({ bucket, keys }) =>
     keys.flatMap((key) => {
       const problem = unsafeKey(provider, key);
+
       return problem
         ? [`  buckets.${bucket}: "${key}" ${problem.reason}. ${problem.fix}`]
         : [];
@@ -87,6 +96,7 @@ export function refuseRowConditionedBuckets(
   config: ResolvedConfig,
 ): CommandResult | undefined {
   const refused = rowConditionedBuckets(config);
+
   return refused.length === 0 || !config.authorization
     ? undefined
     : {
@@ -98,22 +108,31 @@ export function refuseRowConditionedBuckets(
 export async function runGen(options: GenOptions): Promise<CommandResult> {
   const { config } = options;
   const refused = refuseRowConditionedBuckets(config);
-  if (refused) return refused;
+
+  if (refused) {
+    return refused;
+  }
+
   const snapshot =
     options.snapshot ?? (await loadSnapshot(config, options.env, options));
+
   const { files, warnings } = await render(config, snapshot);
   // Under the migrations workflow the read sets go into a migration, which
   // the manifest never lists: a later run must not remove it.
   const migrations = !options.isolated && (await writesMigrations(config));
+
   const pathsOf = (readSets: ModuleFile | undefined): string[] =>
     [...files, ...(readSets && !migrations ? [readSets] : [])].map((file) =>
       manifestPath(config.root, file.path),
     );
+
   const notice = (await generationNotices(snapshot, warnings))
     .map((line) => `\n${line}`)
     .join("");
+
   const readSetsOf = (): Promise<ModuleFile | undefined> =>
     options.isolated ? Promise.resolve(undefined) : readSetFile(config);
+
   const leftoversOf = (generated: readonly string[]): Promise<string[]> =>
     options.isolated
       ? Promise.resolve([])
@@ -125,6 +144,7 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
     const leftovers = await leftoversOf(generated);
     const stale: string[] = [];
     const diffs: string[] = [];
+
     const compare = (
       file: { readonly path: string; readonly contents: string },
       current: string | undefined,
@@ -133,15 +153,22 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
       stale.push(shown);
       diffs.push(fileDiff(shown, current, file.contents, options.paint));
     };
+
     for (const file of files) {
       const path = resolve(config.root, file.path);
+
       const current = existsSync(path)
-        ? await readFile(path, "utf8")
+        ? await readFile(path, "utf-8")
         : undefined;
-      if (!sameText(current, file.contents)) compare(file, current);
+
+      if (!sameText(current, file.contents)) {
+        compare(file, current);
+      }
     }
+
     if (readSets && migrations) {
       const latest = await latestMigration(config, READ_SETS_SUFFIX);
+
       if (!sameModuleMigration(latest?.text, readSets.contents)) {
         compare(
           {
@@ -155,17 +182,22 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
       }
     } else if (readSets) {
       const path = resolve(config.root, readSets.path);
+
       const current = existsSync(path)
-        ? await readFile(path, "utf8")
+        ? await readFile(path, "utf-8")
         : undefined;
-      if (!sameModuleFile(current, readSets.contents))
+
+      if (!sameModuleFile(current, readSets.contents)) {
         compare(readSets, current);
+      }
     }
+
     if (stale.length > 0 || leftovers.length > 0) {
       const lines = [
         ...stale.map((path) => `  ${path}`),
         ...leftovers.map((path) => `  ${path} (no longer generated)`),
       ];
+
       return {
         code: 1,
         output: `${diffs.join("\n\n")}${notice}`,
@@ -173,6 +205,7 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
         data: { upToDate: false, stale, leftovers, warnings },
       };
     }
+
     return {
       code: 0,
       output: `Generated files are up to date (${generated.length}).${notice}`,
@@ -181,13 +214,16 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
   }
 
   const written: string[] = [];
+
   for (const file of files) {
     if (await writeIfChanged(resolve(config.root, file.path), file.contents)) {
       written.push(display(config.root, file.path));
     }
   }
+
   // Read-set modules import the generated module, so they load after it is written.
   const readSets = await readSetsOf();
+
   if (readSets && migrations) {
     const migration = await writeLatestMigration(
       config,
@@ -195,7 +231,10 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
       readSets.contents,
       { now: new Date(), dryRun: false },
     );
-    if (migration.wrote) written.push(migration.path);
+
+    if (migration.wrote) {
+      written.push(migration.path);
+    }
   } else if (
     readSets &&
     (await writeIfChanged(
@@ -205,20 +244,28 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
   ) {
     written.push(display(config.root, readSets.path));
   }
+
   const generated = pathsOf(readSets);
   const removed: string[] = [];
+
   for (const path of await leftoversOf(generated)) {
     await rm(resolve(config.root, path), { force: true });
     removed.push(path);
   }
-  if (!options.isolated) await writeManifest(config.root, generated);
+
+  if (!options.isolated) {
+    await writeManifest(config.root, generated);
+  }
+
   const tables = snapshot.extras.tables.filter((table) =>
     config.schemas.includes(table.schema),
   ).length;
+
   const changes = [
     ...written.map((path) => `  ${path}`),
     ...removed.map((path) => `  ${path} (removed, no longer generated)`),
   ];
+
   return {
     code: 0,
     output: `${

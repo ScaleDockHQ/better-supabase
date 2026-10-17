@@ -233,6 +233,7 @@ const KNOWN = new Set([
 
 function invoiceOf(value: unknown): Invoice {
   const row = recordOf(value, "invoice");
+
   return compact<Invoice>({
     id: textOf(row["id"]),
     organizationId: textOf(row["tenant_id"]),
@@ -292,9 +293,11 @@ export function createInvoices<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: InvoicesOptions<S>): Invoices<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const fields: BlockFields<F> = blockFields(options.fields, "invoice fields");
+
   const invoice = (
     fn: string,
     args: Readonly<Record<string, unknown>>,
@@ -305,9 +308,11 @@ export function createInvoices<
         fields: value,
       })),
     );
+
   const client: Invoices<F> = {
     create: (organizationId, input, lines) => {
       const { fields: extra, ...rest } = input;
+
       return AsyncResult.from(() => fields.write({ ...extra })).andThen(
         (valid) =>
           invoice("create_invoice", {
@@ -356,6 +361,7 @@ export function createInvoices<
         },
         (value) => {
           const row = recordOf(value, "invoice_aging");
+
           return {
             currency: textOf(row["currency"]),
             current: big(row["current"]),
@@ -374,6 +380,7 @@ export function createInvoices<
         deposit_bps: fromQuote.depositBps ?? null,
       }),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "invoices",
     ...(options.logger ? { logger: options.logger } : {}),

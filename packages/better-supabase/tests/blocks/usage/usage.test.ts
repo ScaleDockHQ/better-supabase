@@ -15,12 +15,15 @@ function fakeTransport(
   answer: (fn: string, args: Record<string, unknown>) => unknown,
 ) {
   const calls: [string, string, Record<string, unknown>][] = [];
+
   const transport: BlockTransport = {
     async call(schemaName, fn, args) {
       calls.push([schemaName, fn, { ...args }]);
+
       return answer(fn, { ...args });
     },
   };
+
   return { transport, calls };
 }
 
@@ -31,6 +34,7 @@ describe("batches", () => {
       used: { a: "10.5", b: 2 },
       today: { a: "1.5", b: 2 },
     }));
+
     const usage = createUsage({ transport });
     expect(
       await usage
@@ -64,7 +68,7 @@ describe("batches", () => {
 describe("usage history", () => {
   it("passes who and what used it, and reads the history and breakdown", async () => {
     const { transport, calls } = fakeTransport((fn) => {
-      if (fn === "usage_history")
+      if (fn === "usage_history") {
         return [
           {
             id: "7",
@@ -85,10 +89,15 @@ describe("usage history", () => {
             recorded_at: "2026-01-01T00:00:00Z",
           },
         ];
-      if (fn === "usage_breakdown")
+      }
+
+      if (fn === "usage_breakdown") {
         return [{ actor: "u1", source: null, quantity: "3.5" }];
+      }
+
       return { recorded: true, used: 1 };
     });
+
     const usage = createUsage({ transport });
     await usage
       .record("org", "tokens", {
@@ -107,9 +116,11 @@ describe("usage history", () => {
       metadata: { doc: "d1" },
       actor: "u1",
     });
+
     const [first, second] = await usage
       .history("org", { meter: "tokens", limit: 2, cursor: 9 })
       .orThrow();
+
     expect(calls[1]![2]).toEqual({
       tenant: "org",
       meter: "tokens",
@@ -147,6 +158,7 @@ describe("createUsage", () => {
       used: "40",
       today: "4",
     }));
+
     const usage = createUsage({ transport, schema: "app" });
     expect(await usage.record("org", "api_calls").orThrow()).toEqual({
       recorded: true,
@@ -172,6 +184,7 @@ describe("createUsage", () => {
 
   it("reads the status with and without a quota", async () => {
     let limit: number | null = 10;
+
     const { transport } = fakeTransport(() => ({
       meter: "api_calls",
       used: 4,
@@ -181,6 +194,7 @@ describe("createUsage", () => {
       period: "week",
       resets_at: "2026-10-12T00:00:00+00:00",
     }));
+
     const usage = createUsage({ transport });
     const status = await usage.current("org", "api_calls").orThrow();
     expect(status).toMatchObject({
@@ -221,6 +235,7 @@ describe("createUsage", () => {
         unit: "seats",
       },
     ]);
+
     const overview = await createUsage({ transport }).overview("org").orThrow();
     expect(calls).toEqual([
       ["better_supabase", "usage_overview", { tenant: "org" }],
@@ -254,6 +269,7 @@ describe("createUsage", () => {
             label: "AI tokens",
           },
     );
+
     const usage = createUsage({ transport });
     const status = await usage.current("org", "ai.tokens").orThrow();
     expect(status).toMatchObject({
@@ -276,6 +292,7 @@ describe("createUsage", () => {
       period: "decade",
       resets_at: "2026-11-01T00:00:00Z",
     }));
+
     const status = await createUsage({ transport }).current("o", "m").orThrow();
     expect(status.period).toBe("month");
   });
@@ -290,6 +307,7 @@ describe("createUsage", () => {
           }),
         ),
     };
+
     expect(await createUsage({ transport }).consume("o", "m")).toMatchObject({
       ok: false,
       error: { kind: "quota_exceeded", meter: "m", limit: 1, retryAfter: 5 },
@@ -342,8 +360,9 @@ describe("reportUsageToStripe", () => {
       included,
       window_before: before,
     });
+
     const { transport, calls } = fakeTransport((fn) => {
-      if (fn === "unreported_usage")
+      if (fn === "unreported_usage") {
         return [
           counter("2026-10-01", 60, 0, 0),
           counter("2026-10-02", 70, 0, 60),
@@ -351,20 +370,29 @@ describe("reportUsageToStripe", () => {
           counter("2026-10-04", 5, 0, 0, null),
           { ...counter("2026-10-05", 7, 0, 0, null), unlimited: true },
         ];
-      if (fn === "tenant_stripe_customer") return "cus_1";
+      }
+
+      if (fn === "tenant_stripe_customer") {
+        return "cus_1";
+      }
+
       return true;
     });
+
     const sent: string[] = [];
+
     const stripe = {
       billing: {
         meterEvents: {
           create: async (params: { payload: { value: string } }) => {
             sent.push(params.payload.value);
+
             return {};
           },
         },
       },
     } as unknown as StripeClient;
+
     expect(
       await reportUsageToStripe({ transport, stripe, overage: true }),
     ).toEqual({ reported: 3, skipped: 0 });
@@ -376,12 +404,15 @@ describe("reportUsageToStripe", () => {
 
   function counterStore(counters: readonly Record<string, unknown>[]) {
     const marked = new Set<string>();
+
     const keyOf = (row: Record<string, unknown>) =>
       `${String(row["organization_id"] ?? row["tenant"])}:${String(row["meter"])}:${String(row["day"])}`;
+
     return (fn: string, args: Record<string, unknown>) => {
       if (fn === "unreported_usage") {
         const meters = (args["skip_meters"] ?? []) as string[];
         const tenants = (args["skip_tenants"] ?? []) as string[];
+
         return counters
           .filter(
             (row) =>
@@ -391,7 +422,11 @@ describe("reportUsageToStripe", () => {
           )
           .slice(0, Number(args["max_rows"]));
       }
-      if (fn === "mark_usage_reported") marked.add(keyOf(args));
+
+      if (fn === "mark_usage_reported") {
+        marked.add(keyOf(args));
+      }
+
       return true;
     };
   }
@@ -402,6 +437,7 @@ describe("reportUsageToStripe", () => {
         meterEvents: {
           create: async (params: unknown, options: unknown) => {
             sent.push([params, options]);
+
             return {};
           },
         },
@@ -410,18 +446,24 @@ describe("reportUsageToStripe", () => {
 
   it("sends each delta once per total and marks it reported", async () => {
     const counters = counterStore(rows);
+
     const { transport, calls } = fakeTransport((fn, args) => {
-      if (fn === "tenant_stripe_customer")
+      if (fn === "tenant_stripe_customer") {
         return args["tenant"] === "org-1" ? "cus_1" : null;
+      }
+
       return counters(fn, args);
     });
+
     const sent: unknown[] = [];
+
     const result = await reportUsageToStripe({
       transport,
       stripe: recordingStripe(sent),
       batch: 10,
       eventName: (meter) => (meter === "internal" ? undefined : `bs_${meter}`),
     });
+
     expect(result).toEqual({ reported: 1, skipped: 2 });
     expect(sent).toEqual([
       [
@@ -467,6 +509,7 @@ describe("reportUsageToStripe", () => {
       value: 2,
       reported_value: 0,
     });
+
     const counters = counterStore([
       counter("org-1", "internal", "2026-10-01"),
       counter("org-2", "api_calls", "2026-10-01"),
@@ -475,13 +518,17 @@ describe("reportUsageToStripe", () => {
       counter("org-1", "api_calls", "2026-10-03"),
       counter("org-3", "api_calls", "2026-10-03"),
     ]);
+
     const { transport, calls } = fakeTransport((fn, args) => {
-      if (fn === "tenant_stripe_customer")
+      if (fn === "tenant_stripe_customer") {
         return args["tenant"] === "org-2"
           ? null
           : `cus_${String(args["tenant"])}`;
+      }
+
       return counters(fn, args);
     });
+
     const sent: unknown[] = [];
     expect(
       await reportUsageToStripe({
@@ -510,6 +557,7 @@ describe("purge", () => {
     const { transport, calls } = fakeTransport((fn) =>
       fn === "purge_usage_history" ? 5 : "2",
     );
+
     const usage = createUsage({ transport });
     expect(
       await usage.purgeHistory({ olderThan: "90 days", batch: 10 }).orThrow(),

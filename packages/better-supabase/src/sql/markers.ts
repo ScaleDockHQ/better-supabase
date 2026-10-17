@@ -7,6 +7,7 @@ export function moduleFileVersion(
   contents: string,
 ): { readonly module: string; readonly version: number } | undefined {
   const match = MODULE_MARKER.exec(contents);
+
   return match ? { module: match[1]!, version: Number(match[2]) } : undefined;
 }
 
@@ -22,7 +23,10 @@ export function sameModuleFile(
   current: string | undefined,
   expected: string,
 ): boolean {
-  if (current === undefined) return false;
+  if (current === undefined) {
+    return false;
+  }
+
   const strip = (text: string): string =>
     text
       .replaceAll("\r\n", "\n")
@@ -30,5 +34,6 @@ export function sameModuleFile(
         /^(-- better-supabase module: [^\n(]*?)(?: \([^)]*\))?\n/,
         "$1\n",
       );
+
   return strip(current) === strip(expected);
 }

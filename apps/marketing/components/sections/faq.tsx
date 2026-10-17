@@ -15,7 +15,7 @@ export function FaqSection() {
           <AccordionItem key={item.question} value={item.question}>
             <AccordionTrigger>{item.question}</AccordionTrigger>
             <AccordionContent>
-              <p className="text-muted-foreground leading-6">{item.answer}</p>
+              <p className="leading-6 text-muted-foreground">{item.answer}</p>
             </AccordionContent>
           </AccordionItem>
         ))}

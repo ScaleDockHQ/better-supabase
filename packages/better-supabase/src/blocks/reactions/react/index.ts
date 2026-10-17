@@ -36,6 +36,7 @@ export function useReactions(options: UseReactionsOptions): ReactionsState {
   const { supabase, auth, ports } = useBlockEnv();
   const { organizationId, subjectType, topic, schema } = options;
   const ids = options.subjectIds.join("\n");
+
   const { controller, view } = useController(
     () =>
       createReactionsController({
@@ -52,8 +53,10 @@ export function useReactions(options: UseReactionsOptions): ReactionsState {
       }),
     [supabase, auth, ports, organizationId, subjectType, topic, schema],
   );
+
   useEffect(() => {
     controller.actions.setSubjects(ids === "" ? [] : ids.split("\n"));
   }, [controller, ids]);
+
   return view;
 }

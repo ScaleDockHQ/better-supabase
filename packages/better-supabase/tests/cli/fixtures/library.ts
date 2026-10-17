@@ -10,7 +10,7 @@ export const libraryFixture = (name: string): URL =>
   new URL(`../../fixtures/${name}`, import.meta.url);
 
 export const readJsonFixture = (name: string): unknown =>
-  JSON.parse(readFileSync(libraryFixture(name), "utf8"));
+  JSON.parse(readFileSync(libraryFixture(name), "utf-8"));
 
 // SAFETY: snapshot.json is written by `better-supabase introspect`.
 export const snapshotFixture = readJsonFixture("snapshot.json") as Snapshot;
@@ -21,5 +21,5 @@ export const snapshotFixture = readJsonFixture("snapshot.json") as Snapshot;
  */
 // SAFETY: module-snapshot.json is written by `better-supabase introspect`.
 export const moduleSnapshotFixture = JSON.parse(
-  readFileSync(new URL("module-snapshot.json", import.meta.url), "utf8"),
+  readFileSync(new URL("module-snapshot.json", import.meta.url), "utf-8"),
 ) as Snapshot;

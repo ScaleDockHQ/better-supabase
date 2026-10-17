@@ -28,19 +28,31 @@ const API_SCHEMA = blockConfig.onboarding.api;
 export function OnboardingCard() {
   const t = useExtracted("dashboard");
   const organizationId = tenantOf(useAuth()) ?? null;
+
   const { progress } = useOnboarding(gettingStarted, {
     organizationId,
     schema: API_SCHEMA,
   });
-  if (!organizationId) return null;
-  if (progress === undefined) return <OnboardingCardSkeleton />;
-  if (progress.done) return null;
+
+  if (!organizationId) {
+    return null;
+  }
+
+  if (progress === undefined) {
+    return <OnboardingCardSkeleton />;
+  }
+
+  if (progress.done) {
+    return null;
+  }
+
   const titles = {
     customer: t("Add your first customer"),
     invite: t("Invite a teammate"),
     "api-key": t("Create an API key"),
     plan: t("Review your plan"),
   };
+
   return (
     <Card data-testid="onboarding">
       <CardHeader>
@@ -58,14 +70,14 @@ export function OnboardingCard() {
           {progress.steps.map((step) => (
             <li key={step.id} className="flex items-center gap-3 py-2">
               {step.completed ? (
-                <CheckCircle2Icon className="text-primary size-4" />
+                <CheckCircle2Icon className="size-4 text-primary" />
               ) : (
-                <CircleIcon className="text-muted-foreground size-4" />
+                <CircleIcon className="size-4 text-muted-foreground" />
               )}
               <span
                 className={
                   step.completed
-                    ? "text-muted-foreground flex-1 line-through"
+                    ? "flex-1 text-muted-foreground line-through"
                     : "flex-1"
                 }
               >

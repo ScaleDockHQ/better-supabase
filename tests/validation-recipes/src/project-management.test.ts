@@ -30,7 +30,9 @@ describe.skipIf(!live)("project management recipe", () => {
         "task",
         TASK,
       );
+
       const watchers = await watching(s);
+
       const { comments, stateMachine } = createBlocks(
         { transport: sqlTransport(s.sql) },
         { comments: commentsBlock, stateMachine: stateMachineBlock },
@@ -76,6 +78,7 @@ describe.skipIf(!live)("project management recipe", () => {
         "task",
         TASK,
       );
+
       const { reminders } = createBlocks(
         {
           transport: sqlTransport(s.sql),
@@ -89,10 +92,13 @@ describe.skipIf(!live)("project management recipe", () => {
       );
 
       await s.as(owner);
+
       const reminder = await reminders
         .save(organizationId, "task", subjectId, 60)
         .orThrow();
+
       await s.service();
+
       const delivery = {
         reminderId: reminder.id,
         occurrenceAt: "2026-10-20T09:00:00Z",
@@ -101,6 +107,7 @@ describe.skipIf(!live)("project management recipe", () => {
         subjectType: "task",
         subjectId,
       };
+
       expect(await reminders.deliver(delivery).orThrow()).toBe(true);
       expect(await reminders.deliver(delivery).orThrow()).toBe(false);
 

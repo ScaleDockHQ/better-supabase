@@ -37,6 +37,7 @@ describe.skipIf(!live)("templates module", () => {
 
   it("syncs starters, forks them, applies a fork and starts its workflows on the record", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(MODULES, {});
       const owner = await s.user("owner");
@@ -46,12 +47,14 @@ describe.skipIf(!live)("templates module", () => {
 
       await s.service();
       const service = createTemplates({ transport: sqlTransport(s.sql) });
+
       const starter = {
         key: "launch",
         type: "project",
         name: "Launch",
         body: { tasks: ["Kickoff"] },
       };
+
       expect(await service.sync([starter]).orThrow()).toBe(1);
       expect(await service.sync([starter]).orThrow()).toBe(0);
       await createWorkflowBuilder({
@@ -64,13 +67,16 @@ describe.skipIf(!live)("templates module", () => {
       await s.asRole(owner);
       const created: TemplateApplyCall[] = [];
       const starts: BuilderStartCall[] = [];
+
       const builder = createWorkflowBuilder({
         transport: sqlTransport(s.sql),
         start: async (call) => {
           starts.push(call);
+
           return `wrun_${String(starts.length)}`;
         },
       });
+
       const templates = createTemplates({
         transport: sqlTransport(s.sql),
         workflows: builder,
@@ -78,6 +84,7 @@ describe.skipIf(!live)("templates module", () => {
           project: defineTemplateType({
             apply: (call) => {
               created.push(call);
+
               return {
                 subject: { type: "project", id: `p${String(created.length)}` },
               };
@@ -121,6 +128,7 @@ describe.skipIf(!live)("templates module", () => {
       const draft = await templates.versions
         .save(fork.id, { tasks: ["Kickoff", "Plan"] })
         .orThrow();
+
       expect(draft).toMatchObject({ version: 2, publishedAt: undefined });
       expect(await templates.versions.publish(fork.id).orThrow()).toMatchObject(
         {
@@ -140,6 +148,7 @@ describe.skipIf(!live)("templates module", () => {
           subjectTypes: ["project"],
         })
         .orThrow();
+
       const version = await builder.versions
         .save(definition.id, GRAPH, {
           inputSchema: {
@@ -149,6 +158,7 @@ describe.skipIf(!live)("templates module", () => {
           },
         })
         .orThrow();
+
       expect(version.inputSchema).toMatchObject({ required: ["owner"] });
       await builder.versions.publish(version.id).orThrow();
       expect(
@@ -180,9 +190,11 @@ describe.skipIf(!live)("templates module", () => {
           })
           .then(hint),
       ).toBe("TEMPLATE_FORBIDDEN");
+
       const applied = await templates
         .apply(fork.id, { into: tenant })
         .orThrow();
+
       expect(created[0]?.body).toEqual({ tasks: ["Kickoff", "Plan"] });
       expect(applied.subject).toEqual({ type: "project", id: "p1" });
       expect(applied.runs).toMatchObject([
@@ -226,6 +238,7 @@ describe.skipIf(!live)("templates module", () => {
 
   it("checks workflow inputs against the whole input schema with jsonb-schemas", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install([...MODULES, "jsonb-schemas"], {});
       const owner = await s.user("owner");
@@ -241,12 +254,15 @@ describe.skipIf(!live)("templates module", () => {
       await s.asRole(owner);
       const builder = createWorkflowBuilder({ transport: sqlTransport(s.sql) });
       const templates = createTemplates({ transport: sqlTransport(s.sql) });
+
       const template = await templates
         .save({ organizationId: tenant, type: "project", name: "Launch" })
         .orThrow();
+
       const definition = await builder.definitions
         .save({ tenant, slug: "kickoff", name: "Kickoff" })
         .orThrow();
+
       const version = await builder.versions
         .save(definition.id, GRAPH, {
           inputSchema: {
@@ -256,13 +272,16 @@ describe.skipIf(!live)("templates module", () => {
           },
         })
         .orThrow();
+
       await builder.versions.publish(version.id).orThrow();
+
       const attach = (inputs: Record<string, unknown>) =>
         templates.workflows.attach({
           template: template.id,
           definition: definition.id,
           inputs,
         });
+
       expect(await attach({ owner: 3 }).then(hint)).toBe(
         "TEMPLATE_WORKFLOW_INPUT_INVALID",
       );

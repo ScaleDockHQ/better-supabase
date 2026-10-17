@@ -11,9 +11,10 @@ export const manifestPath = (root: string, path: string): string =>
   relative(root, resolve(root, path)).split(sep).join("/");
 
 async function readManifest(root: string): Promise<readonly string[]> {
-  const parsed: unknown = await readFile(resolve(root, MANIFEST), "utf8")
+  const parsed: unknown = await readFile(resolve(root, MANIFEST), "utf-8")
     .then((text): unknown => JSON.parse(text))
     .catch(() => undefined);
+
   if (
     typeof parsed !== "object" ||
     parsed === null ||
@@ -24,6 +25,7 @@ async function readManifest(root: string): Promise<readonly string[]> {
   ) {
     return [];
   }
+
   return parsed.files.filter(
     (path): path is string => typeof path === "string",
   );
@@ -35,8 +37,10 @@ export async function leftoverFiles(
   generated: readonly string[],
 ): Promise<string[]> {
   const current = new Set(generated);
+
   return (await readManifest(root)).filter((path) => {
     const inside = relative(root, resolve(root, path));
+
     return (
       !current.has(path) &&
       inside !== "" &&

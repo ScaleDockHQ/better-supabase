@@ -36,6 +36,7 @@ describe("readStackStatus", () => {
     const bin = join(root, "fake-supabase");
     await writeFile(bin, `#!/bin/sh\n${script}\n`);
     await chmod(bin, 0o755);
+
     return bin;
   }
 

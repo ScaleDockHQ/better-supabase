@@ -118,7 +118,9 @@ export function extendServer<R extends object>(
       ...Object.getOwnPropertyDescriptors(extra),
     },
   );
+
   shareCore(server, extended);
+
   // SAFETY: the descriptors copy every property of server and extra, getters included.
   return extended as R;
 }
@@ -142,9 +144,12 @@ export function createServer<
     options.credentials === undefined
       ? {}
       : { credentials: credentialProviderOf(options.credentials) };
+
   let loaded: BetterSupabaseEnv | undefined;
+
   const env = (): BetterSupabaseEnv =>
     (loaded ??= options.env ?? loadEnv(RUNTIME_ENV));
+
   const lite = liteBackend(options, env);
 
   if (
@@ -192,6 +197,7 @@ export function createServer<
   ): Db<M, F, E, SupabaseClient> => {
     let supabase: SupabaseClient | undefined;
     const rest = restAt(env().url, auth);
+
     // SAFETY: `$client` is redefined below to return the SupabaseClient.
     const db = betterSupabase.connect(
       rest,
@@ -202,6 +208,7 @@ export function createServer<
           ? { executor: postgrestExecutor(rest, executorOptions) }
           : {},
     ) as Db<M, F, E, SupabaseClient>;
+
     return withLazyClient(db, () => (supabase ??= supabaseFor(auth)));
   };
 
@@ -217,6 +224,7 @@ export function createServer<
         "Direct Postgres access needs createServer(betterSupabase, { postgres: createPostgres() })",
       );
     }
+
     return betterSupabase.connect(
       session
         ? options.postgres.executorFor(claims, session)
@@ -232,11 +240,13 @@ export function createServer<
     auth: AuthState,
   ): string | undefined => {
     const tenant = options.tenant?.(request, auth);
+
     if (tenant !== undefined && typeof tenant !== "string") {
       throw new TypeError(
         "ServerOptions.tenant returned a promise: use context(request), or pass { tenant } to contextFromResolution",
       );
     }
+
     return tenant;
   };
 
@@ -248,12 +258,18 @@ export function createServer<
       "Support sessions need createServer(betterSupabase, { postgres: createPostgres(), support })",
     );
   }
+
   const hooksProblem =
     options.authorization === undefined
       ? undefined
       : hooksApiProblem(options.authorization);
-  if (hooksProblem !== undefined) throw new TypeError(hooksProblem);
+
+  if (hooksProblem !== undefined) {
+    throw new TypeError(hooksProblem);
+  }
+
   const audit = serverAudit(betterSupabase, options.audit);
+
   const support = options.support
     ? options.support.create(
         betterSupabase.events,
@@ -276,16 +292,20 @@ export function createServer<
     ids: RequestIds,
   ): ServerContext<M, F, E, C, P> => {
     const { session, claims } = active;
+
     const record = (key: string): Record<string, unknown> | undefined => {
       const value = claims[key];
+
       return typeof value === "object" &&
         value !== null &&
         !Array.isArray(value)
         ? Object.fromEntries(Object.entries(value))
         : undefined;
     };
+
     const appMetadata = record("app_metadata");
     const userMetadata = record("user_metadata");
+
     const user: UserClaims = {
       id: session.targetUserId,
       role:
@@ -296,6 +316,7 @@ export function createServer<
       ...(appMetadata ? { appMetadata } : {}),
       ...(userMetadata ? { userMetadata } : {}),
     };
+
     const auth: AuthState<C, P> = {
       kind: "user",
       token: "",
@@ -305,32 +326,42 @@ export function createServer<
       source: "support",
       expiresAt: Math.floor(session.expiresAt.epochMilliseconds / 1000),
     };
+
     const scope = tenant ?? session.tenant;
     const base = userContext(user, claims);
+
     const context: RequestContext =
       scope === undefined ? base : { ...base, tenant: scope };
+
     const sessionOptions = sessionWith(ids, scope, session.readOnly);
     const recorder = new StatsRecorder(parent);
     // SAFETY: SqlClaims is the JWT payload; claims holds the target's.
     const sqlClaims = claims as SqlClaims;
+
     const unavailable = (): never => {
       throw new TypeError(
         "ctx.supabase and ctx.db.$client are not available in a support session; ctx.db and ctx.sql run as the target",
       );
     };
+
     let db: Db<M, F, E, SupabaseClient> | undefined;
     let sql: Db<M, F, E, undefined> | undefined;
     let storage: StorageApi | undefined;
+
     const targetStorage = (): StorageApi => {
       const postgres = options.postgres;
+
       if (!postgres) {
         throw new TypeError(
           "Support sessions need createServer(betterSupabase, { postgres: createPostgres(), support })",
         );
       }
+
       let asTarget: SqlClient | undefined;
+
       const target = (): SqlClient =>
         (asTarget ??= postgres.asUser(sqlClaims, sessionOptions));
+
       storage ??= supportStorage({
         admin: { from: (bucket) => serviceClient().storage.from(bucket) },
         sql: {
@@ -346,8 +377,10 @@ export function createServer<
         session,
         readOnly: session.readOnly,
       });
+
       return storage;
     };
+
     return {
       ...credentials,
       ...ids,
@@ -368,6 +401,7 @@ export function createServer<
           "$client",
           { get: unavailable, enumerable: true, configurable: true },
         ) as unknown as Db<M, F, E, SupabaseClient>;
+
         return db;
       },
       get sql() {
@@ -378,6 +412,7 @@ export function createServer<
           sessionOptions,
           targetStorage(),
         );
+
         return sql;
       },
       replica: undefined,
@@ -401,12 +436,15 @@ export function createServer<
   ): ServerContext<M, F, E, C, P> => {
     const scope = tenant ?? auth.organizationId;
     const base = authContext(auth);
+
     const context: RequestContext =
       scope === undefined ? base : { ...base, tenant: scope };
+
     const session = sessionWith(ids, scope);
     const recorder = new StatsRecorder(parent);
     let db: Db<M, F, E, SupabaseClient> | undefined;
     let sql: Db<M, F, E, undefined> | undefined;
+
     return {
       ...credentials,
       ...ids,
@@ -423,10 +461,12 @@ export function createServer<
           "$client",
           { get: apiKeyClient, enumerable: true, configurable: true },
         ) as unknown as Db<M, F, E, SupabaseClient>;
+
         return db;
       },
       get sql() {
         sql ??= sqlFor(auth.claims, context, recorder, session);
+
         return sql;
       },
       replica: undefined,
@@ -446,19 +486,26 @@ export function createServer<
     active?: ActiveSupport,
     ids: RequestIds = {},
   ): ServerContext<M, F, E, C, P> => {
-    if (active)
+    if (active) {
       return supportContextFor(resolution, active, parent, tenant, ids);
+    }
+
     const { auth } = resolution;
-    if (auth.kind === "apiKey")
+
+    if (auth.kind === "apiKey") {
       return apiKeyContextFor(resolution, auth, parent, tenant, ids);
+    }
+
     const context: RequestContext =
       tenant === undefined
         ? authContext(auth)
         : { ...authContext(auth), tenant };
+
     const clientHeaders =
       tenant === undefined
         ? requestHeaders
         : { ...requestHeaders, [TENANT_HEADER]: tenant };
+
     const headers = { ...idPolicy.headers(ids), ...clientHeaders };
     const sharesClient = auth.kind !== "user";
     const session = sessionWith(ids, tenant);
@@ -466,20 +513,29 @@ export function createServer<
     let supabase: SupabaseClient | undefined;
     let db: Db<M, F, E, SupabaseClient> | undefined;
     let sql: Db<M, F, E, undefined> | undefined;
+
     const sqlClaims: SqlClaims | undefined =
       auth.kind === "user"
         ? auth.claims
         : auth.kind === "anon"
           ? { role: "anon" }
           : undefined;
+
     const client = (): SupabaseClient =>
       (supabase ??= supabaseFor(auth, sharesClient ? clientHeaders : headers));
+
     let replica: ReplicaState | undefined;
+
     const replicaUrl = (): string | undefined => {
       const url = readUrl();
-      if (url) replica ??= replicaState(until);
+
+      if (url) {
+        replica ??= replicaState(until);
+      }
+
       return url;
     };
+
     return {
       ...credentials,
       ...ids,
@@ -489,11 +545,16 @@ export function createServer<
         return client();
       },
       get db() {
-        if (db) return db;
+        if (db) {
+          return db;
+        }
+
         const url = replicaUrl();
+
         const rest: PostgrestClientLike =
           (sharesClient ? undefined : supabase) ??
           restAt(env().url, auth, headers);
+
         const connected = betterSupabase.connect(rest, context, {
           stats: recorder,
           ...(auth.kind === "invalid"
@@ -513,17 +574,24 @@ export function createServer<
                 ? { executor: postgrestExecutor(rest, executorOptions) }
                 : {}),
         });
+
         // SAFETY: `$client` is redefined to return the SupabaseClient.
         db = withLazyClient(connected as Db<M, F, E, SupabaseClient>, client);
+
         return db;
       },
       get replica() {
         replicaUrl();
+
         return replica;
       },
       get sql() {
-        if (!options.postgres || !sqlClaims) return;
+        if (!options.postgres || !sqlClaims) {
+          return;
+        }
+
         sql ??= sqlFor(sqlClaims, context, recorder, session);
+
         return sql;
       },
       stats: () => recorder.snapshot(),
@@ -531,6 +599,7 @@ export function createServer<
         withPrimaryPin(resolution.apply(response), replica, pinMs),
       cookies: () => {
         const pin = primaryCookieWrite(replica, pinMs);
+
         return pin ? [...resolution.cookies, pin] : resolution.cookies;
       },
     };
@@ -564,6 +633,7 @@ export function createServer<
   ): Promise<AuthResolution<C, P>> => {
     const claims = options.auth?.claims ?? betterSupabase.claimsSchema;
     const userMetadata = betterSupabase.userMetadataSchema;
+
     const resolved = await resolveAuth(request, {
       logger: betterSupabase.events.logger,
       ...(lite ? lite.auth() : options.auth),
@@ -587,11 +657,13 @@ export function createServer<
         betterSupabase.events.emit("refresh", event);
       },
     });
+
     // The claims schema's output is merged into every verified user's claims,
     // and the userMetadata schema's output is the profile.
     // SAFETY: the resolver ran the claims and userMetadata schemas, so resolved
     // has their output types.
     const resolution = resolved as AuthResolution<C, P>;
+
     if (betterSupabase.events.has("auth")) {
       const { auth } = resolution;
       betterSupabase.events.emit("auth", {
@@ -612,6 +684,7 @@ export function createServer<
           : {}),
       });
     }
+
     return resolution;
   };
 
@@ -620,6 +693,7 @@ export function createServer<
     Request,
     Map<string, Promise<ServerContext<M, F, E, C, P>>>
   >();
+
   const server: BetterServer<M, F, E, C, P> = {
     get env() {
       return env();
@@ -664,30 +738,42 @@ export function createServer<
       ),
     context(request, contextOptions = {}) {
       const { refresh, cookies, ...rest } = contextOptions;
+
       const key =
         Object.keys(rest).length === 0
           ? `${String(refresh ?? false)}:${String(cookies ?? true)}`
           : undefined;
+
       let byOptions = key ? contextMemo.get(request) : undefined;
       const known = key ? byOptions?.get(key) : undefined;
-      if (known) return known;
+
+      if (known) {
+        return known;
+      }
+
       const resolving = (async () => {
         const call: CallState = { options: contextOptions };
         await fold(request, { ...seedContext(), [CALL]: call });
+
         // SAFETY: the fold's terminal stored this call's ServerContext.
         return call.context as ServerContext<M, F, E, C, P>;
       })();
+
       if (key) {
         if (!byOptions) {
           byOptions = new Map();
           contextMemo.set(request, byOptions);
         }
+
         const memo = byOptions;
         memo.set(key, resolving);
         resolving.catch(() => {
-          if (memo.get(key) === resolving) memo.delete(key);
+          if (memo.get(key) === resolving) {
+            memo.delete(key);
+          }
         });
       }
+
       return resolving;
     },
     contextFromResolution: (resolution, request, contextOptions = {}) =>
@@ -699,6 +785,7 @@ export function createServer<
       ),
     admin: (context = {}) => {
       const client = serviceClient();
+
       return betterSupabase.connect(
         client,
         {
@@ -718,6 +805,7 @@ export function createServer<
         ...deleteOptions,
       }).map((deleted) => {
         audit.account("account.deleted", userId, { removed: deleted.removed });
+
         return deleted;
       }),
     endSessions: (userId) =>
@@ -726,6 +814,7 @@ export function createServer<
             audit.account("account.sessions_ended", userId, {
               ended: ended.ended,
             });
+
             return ended;
           })
         : AsyncResult.err(needsPostgres("endSessions")),
@@ -747,6 +836,7 @@ export function createServer<
                   : { duration: suspendOptions.duration }),
               },
             );
+
             return suspended;
           })
         : AsyncResult.err(needsPostgres("suspendAccount")),
@@ -757,6 +847,7 @@ export function createServer<
         sub: userId,
         ...(impersonation ? { act: actClaim(impersonation) } : {}),
       };
+
       return sqlFor(full, {
         actor: {
           id: userId,
@@ -773,11 +864,19 @@ export function createServer<
           context,
           forOptions.ticket ?? options.authorization?.tickets?.subject,
         );
-        if (!subject.ok) return subject;
+
+        if (!subject.ok) {
+          return subject;
+        }
+
         const target = subject.data;
         const { tenant } = target;
         const checked = contextClaims(target);
-        if (!checked.ok) return err(dbError("forbidden", checked.message));
+
+        if (!checked.ok) {
+          return err(dbError("forbidden", checked.message));
+        }
+
         if (!options.postgres) {
           return err(
             dbError(
@@ -786,8 +885,10 @@ export function createServer<
             ),
           );
         }
+
         const userId = checked.claims.sub;
         const extra = (await options.claimsFor?.(userId, target)) ?? {};
+
         const permissions = narrowCap(
           await delegationCap(
             target,
@@ -796,6 +897,7 @@ export function createServer<
           ),
           forOptions.permissions,
         );
+
         const built = contextClaims(target, {
           extra,
           ...(forOptions.reason === undefined
@@ -803,9 +905,14 @@ export function createServer<
             : { reason: forOptions.reason }),
           ...(permissions === undefined ? {} : { permissions }),
         });
-        if (!built.ok) return err(dbError("forbidden", built.message));
+
+        if (!built.ok) {
+          return err(dbError("forbidden", built.message));
+        }
+
         const { claims, impersonator, readOnly } = built;
         const session = sessionWith({}, tenant, readOnly);
+
         return ok(
           sqlFor(
             claims,
@@ -837,7 +944,9 @@ export function createServer<
     context: (resolution, request, contextOptions, tenant) =>
       fromResolution(resolution, request, contextOptions, tenant),
   };
+
   registerCore(server, core);
+
   const fold = pipeline(
     [
       withSession(core),
@@ -847,10 +956,15 @@ export function createServer<
     ] as const,
     (_request, ctx) => {
       const call = callOf(ctx);
-      if (call) call.context = ctx.bs;
+
+      if (call) {
+        call.context = ctx.bs;
+      }
+
       return Promise.resolve(new Response(null, { status: 204 }));
     },
   );
+
   return server;
 }
 
@@ -865,10 +979,18 @@ async function delegationCap(
   userId: string,
   permissions: DelegationPermissions | undefined,
 ): Promise<readonly string[] | undefined> {
-  if (permissions === undefined) return undefined;
+  if (permissions === undefined) {
+    return undefined;
+  }
+
   const delegated = delegatedClaims(context.claims ?? {});
-  if (!delegated.ok || delegated.delegation === undefined) return undefined;
+
+  if (!delegated.ok || delegated.delegation === undefined) {
+    return undefined;
+  }
+
   const { client_id, scope, authorization_details } = delegated.delegation;
+
   try {
     const keys: unknown = await permissions({
       userId,
@@ -879,6 +1001,7 @@ async function delegationCap(
         ? {}
         : { authorizationDetails: authorization_details }),
     });
+
     return Array.isArray(keys) &&
       keys.every((key): key is string => typeof key === "string")
       ? keys
@@ -899,9 +1022,15 @@ async function ticketSubject(
   resolve: TicketSubject | undefined,
 ): Promise<Result<RequestContext>> {
   const ticket = context["ticket"];
-  if (ticket === undefined) return ok(context);
-  if (typeof ticket !== "string" || ticket === "")
+
+  if (ticket === undefined) {
+    return ok(context);
+  }
+
+  if (typeof ticket !== "string" || ticket === "") {
     return err(dbError("forbidden", "forContext got an invalid ticket"));
+  }
+
   if (resolve === undefined) {
     return err(
       dbError(
@@ -910,14 +1039,19 @@ async function ticketSubject(
       ),
     );
   }
+
   let resolved: unknown;
+
   try {
     resolved = await resolve(ticket);
   } catch {
     resolved = null;
   }
-  if (typeof resolved !== "object" || resolved === null)
+
+  if (typeof resolved !== "object" || resolved === null) {
     return err(dbError("forbidden", "The ticket resolver refused the ticket"));
+  }
+
   // SAFETY: TicketSubject returns a RequestContext or null; null and non-objects were refused above.
   return ok(resolved as RequestContext);
 }

@@ -28,6 +28,7 @@ export function TagInput({
   const listId = useId();
   const errorMessage = useErrorMessage();
   const [name, setName] = useState("");
+
   const { tags, available, pending, error, create, remove } = useTagInput({
     organizationId,
     subjectType: "customer",
@@ -35,21 +36,31 @@ export function TagInput({
     kind: "customer",
     schema: blockConfig.tags.api,
   });
+
   const applied = new Set(tags?.map((tag) => tag.id));
   const suggestions = available?.filter((tag) => !applied.has(tag.id)) ?? [];
 
   const submit = async (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!name.trim()) return;
-    if ((await create(name)).ok) setName("");
+
+    if (!name.trim()) {
+      return;
+    }
+
+    if ((await create(name)).ok) {
+      setName("");
+    }
   };
 
-  if (tags === undefined) return <Skeleton className="h-16" />;
+  if (tags === undefined) {
+    return <Skeleton className="h-16" />;
+  }
+
   return (
     <div className="space-y-3">
       <ul className="flex flex-wrap gap-1.5" data-testid="tags">
         {tags.length === 0 ? (
-          <li className="text-muted-foreground text-sm">{t("No tags yet.")}</li>
+          <li className="text-sm text-muted-foreground">{t("No tags yet.")}</li>
         ) : null}
         {tags.map((tag) => (
           <li key={tag.id}>
@@ -95,7 +106,7 @@ export function TagInput({
         </Button>
       </form>
       {error ? (
-        <p className="text-destructive text-sm">{errorMessage(error)}</p>
+        <p className="text-sm text-destructive">{errorMessage(error)}</p>
       ) : null}
     </div>
   );

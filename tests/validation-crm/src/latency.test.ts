@@ -1,7 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from "vitest";
 
-import { type Json } from "./generated.ts";
+import type { Json } from "./generated.ts";
+
 import { appChrome, customerOverview, betterSupabase } from "./latency.ts";
 
 const ORG = "00000000-0000-4000-8000-0000000000aa";
@@ -14,11 +15,14 @@ type Answer = (url: URL) => Json;
 function capture(answer: Answer = () => []) {
   const fetch = vi.fn<typeof globalThis.fetch>((input) => {
     const url = new URL(String(input));
+
     return Promise.resolve(
       Response.json(answer(url), { headers: { "content-range": "0-0/7" } }),
     );
   });
+
   const urls = () => fetch.mock.calls.map(([input]) => new URL(String(input)));
+
   return { fetch, urls };
 }
 
@@ -32,13 +36,18 @@ describe("CRM latency ports", () => {
           ]
         : [],
     );
+
     const db = betterSupabase.connect(
       createClient(PROJECT_URL, "sb_publishable_test", { global: { fetch } }),
     );
+
     const query = customerOverview.parse(
       new URLSearchParams("q=acme&status=active"),
     );
-    if (!query.ok) throw new Error("invalid query");
+
+    if (!query.ok) {
+      throw new Error("invalid query");
+    }
 
     const page = await customerOverview
       .run(db, query.value, {
@@ -71,6 +80,7 @@ describe("CRM latency ports", () => {
           }
         : [],
     );
+
     const db = betterSupabase.connect(
       createClient(PROJECT_URL, "sb_publishable_test", { global: { fetch } }),
     );

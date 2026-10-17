@@ -201,15 +201,18 @@ const STATUSES: readonly AttachmentStatus[] = [
 
 function statusOf(value: unknown): AttachmentStatus {
   const status = STATUSES.find((candidate) => candidate === value);
+
   if (status === undefined) {
     throw new TypeError(`Unknown attachment status ${JSON.stringify(value)}`);
   }
+
   return status;
 }
 
 /** An attachments row, as `get_attachment` and `create_attachment` return it. */
 export function attachmentOf(value: unknown): Attachment {
   const row = recordOf(value, "attachments");
+
   return {
     id: textOf(row["id"]),
     organizationId: optionalText(row["organization_id"]),
@@ -242,10 +245,15 @@ export function stored<T>(
   return AsyncResult.from(async () => {
     try {
       const { data, error } = await reply;
-      if (error) return err(fromStorageError(error, "storage.objects"));
+
+      if (error) {
+        return err(fromStorageError(error, "storage.objects"));
+      }
+
       if (data === null || data === undefined) {
         return err(dbError("network", "Storage returned no data"));
       }
+
       return ok(data);
     } catch (cause) {
       return err(fromStorageError(cause, "storage.objects"));
@@ -263,7 +271,11 @@ async function settle(
   gone: (error: DbError) => boolean,
 ): Promise<void> {
   const result = await scanned;
-  if (result.ok || gone(result.error)) return;
+
+  if (result.ok || gone(result.error)) {
+    return;
+  }
+
   await scanned.orThrow();
 }
 
@@ -299,24 +311,32 @@ export function createAttachments<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: AttachmentsOptions<S>): Attachments<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const fields: BlockFields<F> = blockFields(
     options.fields,
     "attachment fields",
   );
+
   const typed = (value: unknown): AsyncResult<Attachment & F> =>
     AsyncResult.from(() => withFields(fields, value, attachmentOf(value)));
+
   const find = (id: string): AsyncResult<Attachment & F> =>
     call("get_attachment", { id }, (value) => value).andThen((value) =>
       isRecord(value) ? typed(value) : AsyncResult.err(notFound()),
     );
+
   const confirm = (id: string): AsyncResult<Attachment & F> =>
     call("confirm_attachment", { id }, (value) => value).andThen(typed);
+
   const requireScan = options.requireScan ?? true;
   const ttl = options.downloadTtl ?? 300;
+
   const bucket = (attachment: Attachment): AttachmentBucket =>
     options.storage.from(attachment.bucket);
+
   /** Why a file can't be read yet, or `undefined` once it can. */
   const gate = (attachment: Attachment): DbError | undefined => {
     const readable =
@@ -324,6 +344,7 @@ export function createAttachments<
       (!requireScan &&
         attachment.status !== "infected" &&
         attachment.uploadedAt !== undefined);
+
     return readable
       ? undefined
       : dbError(
@@ -334,13 +355,16 @@ export function createAttachments<
           { hint: "ATTACHMENT_NOT_SCANNED" },
         );
   };
+
   const discard = async (
     created: Attachment,
     error: DbError,
   ): Promise<Result<never>> => {
     await call("delete_attachment", { id: created.id }, (value) => value);
+
     return err(error);
   };
+
   const create = (attachment: NewAttachment): AsyncResult<Attachment & F> =>
     AsyncResult.from(() =>
       extraFieldsArg(fields, extraOf(attachment, NEW_ATTACHMENT)),
@@ -362,6 +386,7 @@ export function createAttachments<
         ),
       )
       .andThen(typed);
+
   const upload = (
     attachment: NewAttachment,
   ): AsyncResult<AttachmentUpload<F>> =>
@@ -369,13 +394,18 @@ export function createAttachments<
       const url = await stored(
         bucket(created).createSignedUploadUrl(created.path),
       );
-      if (!url.ok) return discard(created, url.error);
+
+      if (!url.ok) {
+        return discard(created, url.error);
+      }
+
       return ok({
         attachment: created,
         signedUrl: url.data.signedUrl,
         token: url.data.token,
       });
     });
+
   const client: Attachments<F> = {
     upload,
     confirm,
@@ -396,7 +426,11 @@ export function createAttachments<
     download: (id, download = {}) =>
       find(id).andThen((attachment) => {
         const blocked = gate(attachment);
-        if (blocked) return Promise.resolve(err(blocked));
+
+        if (blocked) {
+          return Promise.resolve(err(blocked));
+        }
+
         return stored(
           bucket(attachment).createSignedUrl(
             attachment.path,
@@ -408,6 +442,7 @@ export function createAttachments<
     put: (attachment, file) =>
       create(attachment).andThen(async (created) => {
         const target = bucket(created);
+
         if (!target.upload) {
           return discard(
             created,
@@ -416,19 +451,28 @@ export function createAttachments<
             }),
           );
         }
+
         const sent = await stored(
           target.upload(created.path, file, {
             contentType: created.mimeType,
             upsert: false,
           }),
         );
-        if (!sent.ok) return discard(created, sent.error);
+
+        if (!sent.ok) {
+          return discard(created, sent.error);
+        }
+
         return confirm(created.id);
       }),
     read: (id) =>
       find(id).andThen((attachment) => {
         const blocked = gate(attachment);
-        if (blocked) return Promise.resolve(err(blocked));
+
+        if (blocked) {
+          return Promise.resolve(err(blocked));
+        }
+
         return stored(bucket(attachment).download(attachment.path)).map(
           (file) => ({ attachment, file }),
         );
@@ -442,6 +486,7 @@ export function createAttachments<
           call("delete_attachment", { id }, (value) => value === true),
         ),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "attachments",
     ...(options.logger ? { logger: options.logger } : {}),
@@ -503,6 +548,7 @@ export function createAttachmentScanner(
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema);
   const prefix = `${options.typePrefix ?? "dev.better-supabase"}.`;
+
   const record = (
     id: string,
     status: "clean" | "infected" | "failed",
@@ -517,11 +563,13 @@ export function createAttachmentScanner(
         isRecord(value) ? ok(attachmentOf(value)) : err(notFound()),
       ),
     );
+
   const scan = (id: string, signal?: AbortSignal): AsyncResult<Attachment> =>
     lookup(call, id).andThen((attachment) => {
       if (attachment.status === "clean" || attachment.status === "infected") {
         return Promise.resolve(ok(attachment));
       }
+
       if (attachment.uploadedAt === undefined) {
         return Promise.resolve(
           err(
@@ -531,14 +579,17 @@ export function createAttachmentScanner(
           ),
         );
       }
+
       return stored(
         options.storage.from(attachment.bucket).download(attachment.path),
       ).andThen(async (file) => {
         let verdict: ScanVerdict;
+
         try {
           verdict = await options.scan(file, attachment, signal);
         } catch (cause) {
           const failed = await record(id, "failed", errorText(cause));
+
           return failed.ok
             ? err(
                 dbError("raised", `The scan failed: ${errorText(cause)}`, {
@@ -547,9 +598,11 @@ export function createAttachmentScanner(
               )
             : failed;
         }
+
         return record(id, verdict.status, verdict.detail);
       });
     });
+
   return {
     scan,
     job: async (payload, _job, signal) => {
@@ -561,9 +614,16 @@ export function createAttachmentScanner(
           const type = event.type.startsWith(prefix)
             ? event.type.slice(prefix.length)
             : event.type;
-          if (type !== "attachment.uploaded" || !isRecord(event.data)) continue;
+
+          if (type !== "attachment.uploaded" || !isRecord(event.data)) {
+            continue;
+          }
+
           const id = optionalText(event.data["attachmentId"]);
-          if (id !== undefined) await settle(scan(id), attachmentGone);
+
+          if (id !== undefined) {
+            await settle(scan(id), attachmentGone);
+          }
         }
       },
     }),
@@ -624,6 +684,7 @@ export interface ObjectScanner {
 function scannedOf(value: unknown): ScannedObject {
   const row = recordOf(value, "scanned_objects");
   const status = textOf(row["status"]);
+
   return {
     bucket: textOf(row["bucket"]),
     path: textOf(row["object_path"]),
@@ -649,6 +710,7 @@ export function createObjectScanner(
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema);
   const prefix = `${options.typePrefix ?? "dev.better-supabase"}.`;
+
   const record = (
     bucket: string,
     path: string,
@@ -656,6 +718,7 @@ export function createObjectScanner(
     detail: string | undefined,
   ): AsyncResult<ScannedObject> =>
     call("set_object_scan", { bucket, path, status, detail }, scannedOf);
+
   const scan = (
     bucket: string,
     path: string,
@@ -667,9 +730,11 @@ export function createObjectScanner(
       if (current?.status === "clean" || current?.status === "infected") {
         return Promise.resolve(ok(current));
       }
+
       return stored(options.storage.from(bucket).download(path)).andThen(
         async (file) => {
           let verdict: ScanVerdict;
+
           try {
             verdict = await options.scan(file, { bucket, path }, signal);
           } catch (cause) {
@@ -679,6 +744,7 @@ export function createObjectScanner(
               "failed",
               errorText(cause),
             );
+
             return failed.ok
               ? err(
                   dbError("raised", `The scan failed: ${errorText(cause)}`, {
@@ -687,10 +753,12 @@ export function createObjectScanner(
                 )
               : failed;
           }
+
           return record(bucket, path, verdict.status, verdict.detail);
         },
       );
     });
+
   return {
     scan,
     job: async (payload, _job, signal) => {
@@ -702,11 +770,17 @@ export function createObjectScanner(
           const type = event.type.startsWith(prefix)
             ? event.type.slice(prefix.length)
             : event.type;
-          if (type !== "object.uploaded" || !isRecord(event.data)) continue;
+
+          if (type !== "object.uploaded" || !isRecord(event.data)) {
+            continue;
+          }
+
           const bucket = optionalText(event.data["bucket"]);
           const path = optionalText(event.data["path"]);
-          if (bucket !== undefined && path !== undefined)
+
+          if (bucket !== undefined && path !== undefined) {
             await settle(scan(bucket, path), objectGone);
+          }
         }
       },
     }),

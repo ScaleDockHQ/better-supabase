@@ -13,7 +13,7 @@ SQL `before_*` and `after_*` hooks. The TypeScript clients were closed:
   table, and it returned them as `Record<string, unknown>`. `organizations`
   wrote `options.attributes` but `mine()` dropped them.
 - Block calls run through `BlockTransport` straight to SQL functions, so
-  plugins, `validation()` and `sb.on("mutation")` never see them. The only
+  plugins, `validation()` and `betterSupabase.on("mutation")` never see them. The only
   way to steer a call in code was a callback that one block happened to
   offer (`canInvite`, `shouldDeliver`), and past that the app had to write
   SQL or switch the module to `mode: "custom"`.

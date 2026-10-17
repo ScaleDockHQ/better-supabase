@@ -66,10 +66,12 @@ describe.skipIf(!live)("service principals", () => {
             attributes.app_metadata,
           ],
         );
+
         return { data: { user: { id } }, error: null };
       },
       deleteUser: async (id) => {
         await s.client.query("delete from auth.users where id = $1", [id]);
+
         return { error: null };
       },
     };
@@ -91,23 +93,28 @@ describe.skipIf(!live)("service principals", () => {
     })
       .steps.sync()
       .orThrow();
+
     const principals = createServicePrincipals({
       transport: sqlTransport(s.sql),
       admin: admin(s),
     });
+
     return { owner, admin: admin1, member, tenant, principals };
   }
 
   it("creates principals only as the service, for marked users and assignable roles", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const { admin: admin1, member, tenant, principals } = await setUp(s);
+
       const created = await principals
         .create(tenant, "Automations", "member", {
           default: true,
           createdBy: admin1.id,
         })
         .orThrow();
+
       expect(created).toMatchObject({ role: "member", isDefault: true });
       expect(await principals.defaultFor(tenant).orThrow()).toBe(created.id);
       expect(
@@ -120,9 +127,11 @@ describe.skipIf(!live)("service principals", () => {
       const users = await s.value<number>(
         "(select count(*)::int from auth.users)",
       );
+
       const refused = await principals.create(tenant, "Bot", "admin", {
         createdBy: member.id,
       });
+
       expect(!refused.ok && refused.error.hint).toBe(
         "SERVICE_PRINCIPAL_FORBIDDEN",
       );
@@ -131,6 +140,7 @@ describe.skipIf(!live)("service principals", () => {
       ).toBe(users);
 
       const real = await s.user("real");
+
       const takeover = await sqlTransport(s.sql)
         .call("better_supabase", "register_service_principal", {
           principal: real.id,
@@ -144,20 +154,25 @@ describe.skipIf(!live)("service principals", () => {
           () => undefined,
           (error: unknown) => error,
         );
+
       expect(String(takeover)).toContain("not a service principal");
 
       await s.asRole(admin1);
+
       const listed = await createServicePrincipals({
         transport: sqlTransport(s.sql),
         admin: admin(s),
       })
         .list(tenant)
         .orThrow();
+
       expect(listed.map((row) => row.name)).toEqual(["Automations"]);
+
       const direct = await createServicePrincipals({
         transport: sqlTransport(s.sql),
         admin: admin(s),
       }).setRole(created.id, "admin");
+
       expect(!direct.ok && direct.error.kind).toBe("forbidden");
     } finally {
       await s.close();
@@ -166,15 +181,19 @@ describe.skipIf(!live)("service principals", () => {
 
   it("runs an organization-owned version as the default principal, limited to its role", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const { tenant, principals } = await setUp(s);
       const builder = createWorkflowBuilder({ transport: sqlTransport(s.sql) });
+
       const definition = await builder.definitions
         .save({ tenant, slug: "nightly", name: "Nightly" })
         .orThrow();
+
       const draft = await builder.versions
         .save(definition.id, CRM_GRAPH)
         .orThrow();
+
       await builder.versions.publish(draft.id).orThrow();
 
       const none = await builder.versions.runAs(draft.id);
@@ -185,6 +204,7 @@ describe.skipIf(!live)("service principals", () => {
       const principal = await principals
         .create(tenant, "Automations", "member", { default: true })
         .orThrow();
+
       const limited = await builder.versions.runAs(draft.id);
       expect(!limited.ok && limited.error).toMatchObject({
         kind: "forbidden",

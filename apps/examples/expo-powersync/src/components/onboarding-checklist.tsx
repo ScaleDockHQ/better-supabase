@@ -9,13 +9,24 @@ import { gettingStarted } from "../lib/onboarding";
 /** The organization's getting-started checklist; hidden once every step is done. */
 export function OnboardingChecklist() {
   const organizationId = tenantOf(useAuth()) ?? null;
+
   const { progress } = useOnboarding(gettingStarted, {
     organizationId,
     schema: API_SCHEMA,
   });
-  if (!organizationId) return null;
-  if (progress === undefined) return <ActivityIndicator />;
-  if (progress.done) return null;
+
+  if (!organizationId) {
+    return null;
+  }
+
+  if (progress === undefined) {
+    return <ActivityIndicator />;
+  }
+
+  if (progress.done) {
+    return null;
+  }
+
   return (
     <View style={{ gap: 8, padding: 16, borderWidth: 1, borderRadius: 12 }}>
       <Text style={{ fontSize: 17, fontWeight: "600" }}>Get started</Text>

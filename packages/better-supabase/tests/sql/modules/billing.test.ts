@@ -10,6 +10,7 @@ const billing = (options?: Record<string, unknown>) =>
 describe("billing module", () => {
   it("resolves plan keys through the app's catalog", () => {
     expect(billing()).toContain("select null::text");
+
     const sql = billing({
       plans: {
         table: "app.plans",
@@ -19,6 +20,7 @@ describe("billing module", () => {
         active: "on_sale",
       },
     });
+
     expect(sql).toContain(`from "app"."plans" p`);
     expect(sql).toContain(`p."slug"::text = billing_plan_price.plan`);
     expect(sql).toContain(
@@ -28,9 +30,11 @@ describe("billing module", () => {
     expect(sql).toContain(
       'drop function if exists "better_supabase"."billing_plan_price"(text, text);',
     );
+
     const variants = billing({
       plans: { table: "plans", interval: "every", variant: "pack" },
     });
+
     expect(variants).toContain(
       `and (billing_plan_price.variant is null or p."pack"::text = billing_plan_price.variant)`,
     );
@@ -54,15 +58,19 @@ describe("billing module", () => {
     expect(billing({ tenantKey: "app.accounts.account_id" })).toContain(
       `foreign key ("organization_id") references "app"."accounts" ("account_id") on delete cascade`,
     );
+
     const withOrganizations = renderModules(["organizations", "billing"]).find(
       (file) => file.module === "billing" && file.kind === "schema",
     )!.contents;
+
     expect(withOrganizations).toContain(
       'constraint "billing_customers_tenant_fkey"\n      foreign key ("organization_id") references "better_supabase"."organizations" ("id") on delete cascade',
     );
+
     const off = renderModules(["organizations", "billing"], {
       modules: { billing: { options: { tenantKey: false } } },
     }).find((file) => file.module === "billing" && file.kind === "schema")!;
+
     expect(off.contents).not.toContain("billing_customers_tenant_fkey");
     expect(() => billing({ tenantKey: "accounts" })).toThrow(
       /schema.table.column/,
@@ -123,6 +131,7 @@ describe("billing module", () => {
   it("checks viewAll with the read key unless viewAll is set", () => {
     const sql = (permissions: Record<string, string>) =>
       moduleBody("billing", { modules: { billing: { permissions } } })!;
+
     expect(sql({ read: "billing.view" })).toContain(
       "better_supabase.is_platform('billing.view')",
     );

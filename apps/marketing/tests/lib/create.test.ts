@@ -69,6 +69,7 @@ describe("blockGroups", () => {
     const names = blockGroups(minimal, resolvePreset(minimal)).flatMap(
       (group) => group.rows.map((row) => row.name),
     );
+
     expect(names.toSorted()).toEqual(
       blocks.map((block) => block.name).toSorted(),
     );
@@ -113,11 +114,13 @@ describe("graphLayout", () => {
   test("puts every block right of what it requires", () => {
     const layout = graphLayout(resolvePreset(toggleBlock(minimal, "comments")));
     const x = new Map(layout.nodes.map((node) => [node.name, node.x]));
+
     for (const edge of layout.edges.filter(
       (each) => each.kind === "requires",
     )) {
       expect(x.get(edge.from)).toBeGreaterThan(x.get(edge.to) ?? Infinity);
     }
+
     expect(layout.edges).toContainEqual({
       from: "comments",
       to: "access",

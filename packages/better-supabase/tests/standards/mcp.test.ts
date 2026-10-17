@@ -53,10 +53,12 @@ const mcp = createMcp(betterSupabase, {
 });
 
 const LEGACY = ["2025-11-25", "2025-06-18", "2025-03-26"] as const;
+
 const defs = (version: string) =>
   version === "2025-03-26" || version === "2025-06-18"
     ? "definitions"
     : "$defs";
+
 const def = (version: string, name: string) =>
   validatorFor(`mcp-${version}.json`, `#/${defs(version)}/${name}`);
 
@@ -113,6 +115,7 @@ describe(`MCP ${SPEC_PINS.mcp}`, () => {
     const discover = (await (
       await modern(1, "server/discover")
     ).json()) as Record<string, unknown>;
+
     expect(
       problems(def(SPEC_PINS.mcp, "JSONRPCResultResponse"), discover),
     ).toEqual([]);
@@ -124,6 +127,7 @@ describe(`MCP ${SPEC_PINS.mcp}`, () => {
       string,
       unknown
     >;
+
     expect(
       problems(def(SPEC_PINS.mcp, "ListToolsResult"), list["result"]),
     ).toEqual([]);
@@ -136,6 +140,7 @@ describe(`MCP ${SPEC_PINS.mcp}`, () => {
         { "mcp-name": "echo" },
       )
     ).json()) as Record<string, unknown>;
+
     expect(
       problems(def(SPEC_PINS.mcp, "CallToolResult"), call["result"]),
     ).toEqual([]);
@@ -148,6 +153,7 @@ describe(`MCP ${SPEC_PINS.mcp}`, () => {
       {},
       { "mcp-method": "tools/call" },
     );
+
     expect(
       problems(
         def(SPEC_PINS.mcp, "JSONRPCErrorResponse"),
@@ -171,6 +177,7 @@ describe(`MCP ${SPEC_PINS.mcp}`, () => {
           },
         })
       ).json()) as Record<string, unknown>;
+
       expect(problems(def(version, "JSONRPCResponse"), init)).toEqual([]);
       expect(
         problems(def(version, "InitializeResult"), init["result"]),
@@ -178,9 +185,11 @@ describe(`MCP ${SPEC_PINS.mcp}`, () => {
       expect(init["result"]).toMatchObject({ protocolVersion: version });
 
       const headers = { "mcp-protocol-version": version };
+
       const list = (await (
         await post({ jsonrpc: "2.0", id: 2, method: "tools/list" }, headers)
       ).json()) as Record<string, unknown>;
+
       expect(problems(def(version, "ListToolsResult"), list["result"])).toEqual(
         [],
       );
@@ -196,6 +205,7 @@ describe(`MCP ${SPEC_PINS.mcp}`, () => {
           headers,
         )
       ).json()) as Record<string, unknown>;
+
       expect(problems(def(version, "CallToolResult"), call["result"])).toEqual(
         [],
       );
@@ -207,7 +217,9 @@ describe(`MCP ${SPEC_PINS.mcp}`, () => {
     const list = (await (await modern(5, "tools/list")).json()) as {
       result: { tools: unknown[] };
     };
+
     expect(list.result.tools.length).toBeGreaterThan(1);
+
     for (const tool of list.result.tools) {
       expect(problems(def(SPEC_PINS.mcp, "Tool"), tool)).toEqual([]);
       expect(tool).toMatchObject({ inputSchema: { type: "object" } });
@@ -220,6 +232,7 @@ describe(`MCP ${SPEC_PINS.mcp}`, () => {
         .status,
     ).toBe(202);
     expect((await mcp.fetch(new Request(ENDPOINT))).status).toBe(405);
+
     const broken = await mcp.fetch(
       new Request(ENDPOINT, {
         method: "POST",
@@ -230,10 +243,11 @@ describe(`MCP ${SPEC_PINS.mcp}`, () => {
         body: "{nope",
       }),
     );
+
     expect(broken.status).toBe(400);
     expect(await broken.json()).toMatchObject({
       jsonrpc: "2.0",
-      error: { code: -32700 },
+      error: { code: -32_700 },
     });
   });
 
@@ -248,6 +262,7 @@ describe(`MCP ${SPEC_PINS.mcp}`, () => {
         clientInfo: { name: "t", version: "1" },
       },
     });
+
     expect(response.headers.get("mcp-session-id")).toBeNull();
   });
 });

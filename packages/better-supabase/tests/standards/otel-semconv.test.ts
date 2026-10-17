@@ -26,6 +26,7 @@ function recorder() {
   const spans: Recorded[] = [];
   const histograms: { name: string; unit?: string }[] = [];
   const metrics: Attributes[] = [];
+
   const startActiveSpan = (
     name: string,
     options: SpanOptions,
@@ -36,38 +37,47 @@ function recorder() {
       kind: options.kind,
       attributes: { ...options.attributes },
     };
+
     spans.push(record);
+
     const span = {
-      setAttribute: (key: string, value: never) => (
-        (record.attributes[key] = value),
-        span
-      ),
-      setAttributes: (values: Attributes) => (
-        Object.assign(record.attributes, values),
-        span
-      ),
-      setStatus: (status: { code: SpanStatusCode }) => (
-        (record.status = status),
-        span
-      ),
+      setAttribute: (key: string, value: never) => {
+        record.attributes[key] = value;
+
+        return span;
+      },
+      setAttributes: (values: Attributes) => {
+        Object.assign(record.attributes, values);
+
+        return span;
+      },
+      setStatus: (status: { code: SpanStatusCode }) => {
+        record.status = status;
+
+        return span;
+      },
       recordException: () => undefined,
       isRecording: () => true,
       end: () => undefined,
     };
+
     return fn(span as unknown as Span);
   };
+
   const meter = {
     createHistogram: (name: string, options?: { unit?: string }) => {
       histograms.push({
         name,
         ...(options?.unit ? { unit: options.unit } : {}),
       });
+
       return {
         record: (_value: number, attributes?: Attributes) =>
           metrics.push(attributes ?? {}),
       };
     },
   } as unknown as Meter;
+
   return {
     tracer: { startActiveSpan } as unknown as Tracer,
     meter,
@@ -97,9 +107,11 @@ describe(`OpenTelemetry database semantic conventions ${SPEC_PINS.otelSemconv}`,
   it("a successful operation is a CLIENT span named by db.query.summary with only registered attributes", async () => {
     const { tracer, meter, spans } = recorder();
     const betterSupabase = defineSupabase(schema).use(otel({ tracer, meter }));
+
     const { client } = capturingClient(() => ({
       body: [{ id: "c1" }, { id: "c2" }],
     }));
+
     await betterSupabase
       .connect(client)
       .customers.findMany({ where: { name: "secret" }, select: ["id"] })
@@ -115,10 +127,13 @@ describe(`OpenTelemetry database semantic conventions ${SPEC_PINS.otelSemconv}`,
       "db.query.summary": "SELECT customers",
       "db.response.returned_rows": 2,
     });
+
     for (const key of Object.keys(span!.attributes).filter(
       (name) => !name.startsWith("better_supabase."),
-    ))
+    )) {
       expect(DB_SPAN_ATTRIBUTES).toContain(key);
+    }
+
     expect(span!.status).toBeUndefined();
   });
 
@@ -136,6 +151,7 @@ describe(`OpenTelemetry database semantic conventions ${SPEC_PINS.otelSemconv}`,
   it("a failed operation sets error.type, db.response.status_code and status ERROR", async () => {
     const { tracer, meter, spans, metrics } = recorder();
     const betterSupabase = defineSupabase(schema).use(otel({ tracer, meter }));
+
     const { client } = capturingClient(() => ({
       status: 409,
       body: {
@@ -145,6 +161,7 @@ describe(`OpenTelemetry database semantic conventions ${SPEC_PINS.otelSemconv}`,
         hint: null,
       },
     }));
+
     await betterSupabase
       .connect(client)
       .customers.create({ name: "Acme", organizationId: "o1" });

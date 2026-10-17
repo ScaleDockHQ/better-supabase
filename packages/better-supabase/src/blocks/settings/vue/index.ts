@@ -14,8 +14,11 @@ import {
 import { createSettingsController } from "../client.ts";
 
 export type { BlockOptions } from "../../block-env.ts";
+
 export type { VueController } from "../../vue-controller.ts";
+
 export type { SettingEntries } from "../settings.ts";
+
 export type {
   SettingsActions,
   SettingsControllerOptions,

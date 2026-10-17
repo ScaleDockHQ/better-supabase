@@ -8,13 +8,15 @@ const IMPORT = /^\s*import\s[^"']*["']([^"']+)["']/gmu;
 async function importsOf(domain: string): Promise<Map<string, string[]>> {
   const dir = join(import.meta.dirname, domain);
   const out = new Map<string, string[]>();
+
   for (const file of await readdir(dir)) {
-    const source = await readFile(join(dir, file), "utf8");
+    const source = await readFile(join(dir, file), "utf-8");
     out.set(
       `${domain}/${file}`,
       [...source.matchAll(IMPORT)].map((match) => match[1] ?? ""),
     );
   }
+
   return out;
 }
 

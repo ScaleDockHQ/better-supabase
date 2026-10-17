@@ -14,10 +14,12 @@ describe.skipIf(!live)("credentials module", () => {
 
   it("passes the CredentialProvider kit over Vault", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["credentials"]);
       await s.service();
       const vault = vaultCredentials({ transport: sqlTransport(s.sql) });
+
       const report = await testCredentialProvider(vault, {
         ref: { provider: "vault", secret: `kit-${crypto.randomUUID()}` },
         userRef: {
@@ -42,6 +44,7 @@ describe.skipIf(!live)("credentials module", () => {
         seed: (ref, subject, value) =>
           vault.set(ref, value, { subject }).orThrow(),
       });
+
       expect(report.checks.every((check) => check.ok)).toBe(true);
       expect(
         await s.rows(
@@ -57,6 +60,7 @@ describe.skipIf(!live)("credentials module", () => {
     const s = await BlockSession.open(pool);
     const tenant = crypto.randomUUID();
     const table = `public.bs_secrets_${tenant.slice(0, 8)}`;
+
     try {
       await s.rows(`
         create table ${table} (
@@ -84,22 +88,27 @@ describe.skipIf(!live)("credentials module", () => {
         },
       });
       await s.service();
+
       const vault = vaultCredentials({
         transport: sqlTransport(s.sql),
         cacheMs: 0,
       });
+
       const ref = { provider: "vault", secret: "openai:api-key", tenant };
       const app = { subject: { type: "app" as const } };
+
       const report = await testCredentialProvider(vault, {
         ref,
         userRef: { provider: "vault", secret: "github:token", scope: "user" },
         seed: (seedRef, subject, value) =>
           vault.set(seedRef, value, { subject }).orThrow(),
       });
+
       expect(report.checks.filter((check) => !check.ok)).toEqual([]);
 
       await vault.set(ref, "sk-2").orThrow();
       await vault.set(ref, "sk-3").orThrow();
+
       const rows = await s.rows<{
         provider: string;
         name: string;
@@ -109,13 +118,16 @@ describe.skipIf(!live)("credentials module", () => {
         `select provider, name, organization_id::text as tenant, vault_id is not null as vault
          from ${table} where organization_id is not null`,
       );
+
       expect(rows).toEqual([
         { provider: "openai", name: "api-key", tenant, vault: true },
       ]);
       expect((await vault.getToken(ref, app).orThrow()).token).toBe("sk-3");
+
       const [row] = await s.rows<{ id: string }>(
         `select vault_id::text as id from ${table} where organization_id is not null`,
       );
+
       expect(await vault.revoke(ref, app).orThrow()).toBe(true);
       expect(
         await s.rows(
@@ -131,6 +143,7 @@ describe.skipIf(!live)("credentials module", () => {
   it("reads and writes an adopted secret column", async () => {
     const s = await BlockSession.open(pool);
     const table = `public.bs_plain_${crypto.randomUUID().slice(0, 8)}`;
+
     try {
       await s.rows(
         `create table ${table} (provider text not null, name text not null, secret text not null, unique (provider, name))`,
@@ -181,6 +194,7 @@ describe.skipIf(!live)("credentials module", () => {
 
   it("refuses users and bad names", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["credentials"]);
       const user = await s.user("reader");

@@ -40,6 +40,7 @@ class CollectedRecorder extends StatsRecorder {
 
   override begin(table: string): () => void {
     const end = super.begin(table);
+
     return () => {
       end();
       this.#onIdle();
@@ -62,8 +63,13 @@ export class StatsCollector {
    */
   recorderFor(id: string, options?: CollectorOptions): StatsRecorder {
     const existing = this.#entries.get(id);
-    if (existing) return existing.recorder;
+
+    if (existing) {
+      return existing.recorder;
+    }
+
     this.#prune();
+
     const entry: Entry = {
       created: Date.now(),
       options: options ?? this.#options,
@@ -71,7 +77,9 @@ export class StatsCollector {
         this.#schedule(id);
       }),
     };
+
     this.#entries.set(id, entry);
+
     return entry.recorder;
   }
 
@@ -81,14 +89,29 @@ export class StatsCollector {
 
   #schedule(id: string): void {
     const entry = this.#entries.get(id);
-    if (!entry) return;
+
+    if (!entry) {
+      return;
+    }
+
     const { budget, warn, logger, idleMs } = entry.options;
-    if (!warn || !budget) return;
-    if (entry.timer) clearTimeout(entry.timer);
+
+    if (!warn || !budget) {
+      return;
+    }
+
+    if (entry.timer) {
+      clearTimeout(entry.timer);
+    }
+
     entry.timer = setTimeout(() => {
       entry.timer = undefined;
       const stats = entry.recorder.snapshot();
-      if (!overBudget(stats, budget)) return;
+
+      if (!overBudget(stats, budget)) {
+        return;
+      }
+
       logger.warn(
         `request ${id} made ${stats.calls} database calls in ${stats.waves} waves, over the budget of ${describeBudget(budget)}`,
         { requestId: id, ...stats },
@@ -99,9 +122,16 @@ export class StatsCollector {
   #prune(): void {
     const cutoff = Date.now() - (this.#options.ttlMs ?? 60_000);
     const max = this.#options.maxEntries ?? 500;
+
     for (const [id, entry] of this.#entries) {
-      if (entry.created >= cutoff && this.#entries.size < max) break;
-      if (entry.timer) clearTimeout(entry.timer);
+      if (entry.created >= cutoff && this.#entries.size < max) {
+        break;
+      }
+
+      if (entry.timer) {
+        clearTimeout(entry.timer);
+      }
+
       this.#entries.delete(id);
     }
   }
@@ -124,7 +154,9 @@ export interface CollectorView {
 export function sharedCollector(options: CollectorOptions): CollectorView {
   // SAFETY: SHARED is a module symbol, so nothing else writes to that global slot.
   const scope = globalThis as { [SHARED]?: StatsCollector };
-  const shared = (scope[SHARED] ??= new StatsCollector(options));
+  const shared = scope[SHARED] ?? new StatsCollector(options);
+  scope[SHARED] = shared;
+
   return {
     recorderFor: (id) => shared.recorderFor(id, options),
     get: (id) => shared.get(id),

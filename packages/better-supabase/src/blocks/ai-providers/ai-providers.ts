@@ -48,11 +48,13 @@ const sameRef = (a: CredentialRef, b: CredentialRef): boolean =>
 export function createAiProviders(options: AiProvidersOptions): AiProviders {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const service = blockCall(
     options.service ?? options.transport,
     options.schema,
     options.mappers,
   );
+
   const credentials = options.credentials;
 
   const revoke = (
@@ -68,8 +70,12 @@ export function createAiProviders(options: AiProvidersOptions): AiProviders {
     AsyncResult.from(async () => {
       for (const key of keys) {
         const revoked = await revoke(key.credentialRef, key.organizationId);
-        if (!revoked.ok) return revoked;
+
+        if (!revoked.ok) {
+          return revoked;
+        }
       }
+
       return ok(keys.length);
     });
 
@@ -94,6 +100,7 @@ export function createAiProviders(options: AiProvidersOptions): AiProviders {
         ).andThen((saved) => {
           const stored = keyOf(saved["key"]);
           const replaced = saved["replaced"];
+
           return isRecord(replaced) &&
             !sameRef(refOf(replaced), stored.credentialRef)
             ? revoke(refOf(replaced), stored.organizationId).map(() => stored)
@@ -120,7 +127,10 @@ export function createAiProviders(options: AiProvidersOptions): AiProviders {
           (value) => recordsOf(value, "ai_provider_keys_for").map(keyOf),
         ).andThen((keys) =>
           AsyncResult.from(async () => {
-            if (keys.length === 0) return ok([]);
+            if (keys.length === 0) {
+              return ok([]);
+            }
+
             if (credentials === undefined) {
               return err(
                 dbError(
@@ -130,13 +140,16 @@ export function createAiProviders(options: AiProvidersOptions): AiProviders {
                 ),
               );
             }
+
             const foreign = keys.find(
               (key) =>
                 !credentialRefInTenant(key.credentialRef, organizationId),
             );
+
             if (foreign !== undefined) {
               return err(foreignCredentialRef(organizationId));
             }
+
             const tokens = await Promise.all(
               keys.map((key) =>
                 credentials.getToken(key.credentialRef, {
@@ -147,11 +160,20 @@ export function createAiProviders(options: AiProvidersOptions): AiProviders {
                 }),
               ),
             );
+
             const resolved: ResolvedProviderKey[] = [];
+
             for (const [index, token] of tokens.entries()) {
-              if (!token.ok) return token;
+              if (!token.ok) {
+                return token;
+              }
+
               const key = keys[index];
-              if (key === undefined) continue;
+
+              if (key === undefined) {
+                continue;
+              }
+
               resolved.push({
                 provider: key.provider,
                 name: key.name,
@@ -160,6 +182,7 @@ export function createAiProviders(options: AiProvidersOptions): AiProviders {
                 settings: key.settings,
               });
             }
+
             return ok(resolved);
           }),
         ),
@@ -224,17 +247,35 @@ export function createAiProviders(options: AiProvidersOptions): AiProviders {
         ),
       update: (batchId, patch) => {
         const fields: Record<string, unknown> = {};
-        if (patch.status !== undefined) fields["status"] = patch.status;
-        if (patch.rawStatus !== undefined)
+
+        if (patch.status !== undefined) {
+          fields["status"] = patch.status;
+        }
+
+        if (patch.rawStatus !== undefined) {
           fields["raw_status"] = patch.rawStatus;
-        if (patch.counts !== undefined) fields["counts"] = patch.counts;
-        if (patch.error !== undefined) fields["error"] = patch.error;
-        if (patch.expiresAt !== undefined)
+        }
+
+        if (patch.counts !== undefined) {
+          fields["counts"] = patch.counts;
+        }
+
+        if (patch.error !== undefined) {
+          fields["error"] = patch.error;
+        }
+
+        if (patch.expiresAt !== undefined) {
           fields["expires_at"] = patch.expiresAt.toString();
-        if (patch.resultsSaved !== undefined)
+        }
+
+        if (patch.resultsSaved !== undefined) {
           fields["results_saved"] = patch.resultsSaved;
-        if (patch.nextPollAt !== undefined)
+        }
+
+        if (patch.nextPollAt !== undefined) {
           fields["next_poll_at"] = instantArg(patch.nextPollAt);
+        }
+
         return service("update_ai_batch", { id: batchId, fields }, batchOf);
       },
       saveItems: (batchId, items) =>
@@ -256,6 +297,7 @@ export function createAiProviders(options: AiProvidersOptions): AiProviders {
         ),
     },
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "ai-providers",
     ...(options.logger ? { logger: options.logger } : {}),

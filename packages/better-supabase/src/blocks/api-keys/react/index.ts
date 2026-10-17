@@ -44,6 +44,7 @@ export function useApiKeys(options: UseApiKeysOptions): ApiKeysState {
   const { supabase, auth } = useBlockEnv();
   const latest = useLatest(options);
   const { organizationId, schema, prefix } = options;
+
   return useController(
     () =>
       createApiKeysController({

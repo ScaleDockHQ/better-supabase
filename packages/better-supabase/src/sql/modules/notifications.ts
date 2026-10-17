@@ -242,12 +242,18 @@ function own(n: NotifyNames, table: string, user: string): string {
 }
 
 function tables(ctx: ModuleContext, n: NotifyNames): string {
-  if (!ctx.manages) return "";
+  if (!ctx.manages) {
+    return "";
+  }
+
   const id = ctx.idType;
   const c = n.col;
+
   const opt = (table: string, logical: string, definition: string) =>
     n.has(table, logical) ? [`${c(table, logical)} ${definition}`] : [];
+
   const parts: string[] = [];
+
   const policy = (table: string, name: string, body: string) => `
 drop policy if exists ${sqlIdent(name)} on ${n.table(table)};
 create policy ${sqlIdent(name)} on ${n.table(table)} ${body};`;
@@ -373,7 +379,10 @@ grant all on ${n.table("deliveries")} to service_role;${policy(
   }
 
   for (const table of ["subscriptions", "preferences"] as const) {
-    if (!ctx.hasTable(table)) continue;
+    if (!ctx.hasTable(table)) {
+      continue;
+    }
+
     const columns =
       table === "subscriptions"
         ? [
@@ -394,6 +403,7 @@ grant all on ${n.table("deliveries")} to service_role;${policy(
             `${c(table, "enabled")} boolean not null default true`,
             `${c(table, "createdAt")} timestamptz not null default now()`,
           ];
+
     const unique =
       table === "subscriptions"
         ? [
@@ -408,6 +418,7 @@ grant all on ${n.table("deliveries")} to service_role;${policy(
             c(table, "type"),
             c(table, "channel"),
           ];
+
     const mine = own(n, table, "user");
     parts.push(`
 create table if not exists ${n.table(table)} (
@@ -433,7 +444,9 @@ grant all on ${n.table(table)} to service_role;${policy(
       })`,
     )}`);
   }
+
   parts.push(suppressionsTable(ctx, n), trackingTables(ctx, n));
+
   return parts.join("\n");
 }
 
@@ -443,25 +456,31 @@ function topic(
   n: NotifyNames,
 ): { expression: string; pattern: string } {
   const template = ctx.text("topic", "notifications:{userId}");
+
   if (!TOPIC.test(template) || !template.includes("{userId}")) {
     throw new TypeError(
       `blocks.notifications.options.topic must contain {userId} and only letters, digits, ":", "_", "-", "." and placeholders, not "${template}"`,
     );
   }
+
   if (template.includes("{tenantId}") && !n.has("recipients", "tenant")) {
     throw new TypeError(
       "blocks.notifications.options.topic uses {tenantId}, but the recipients table has no tenant column",
     );
   }
+
   const expression: string[] = [];
   const pattern: string[] = [];
   let last = 0;
+
   for (const match of template.matchAll(PLACEHOLDER)) {
     const literal = template.slice(last, match.index);
+
     if (literal) {
       expression.push(sqlString(literal));
       pattern.push(sqlString(literal.replaceAll(".", "\\.")));
     }
+
     if (match[1] === "userId") {
       expression.push(`new.${n.col("recipients", "user")}::text`);
       pattern.push("(select auth.uid())::text");
@@ -469,13 +488,17 @@ function topic(
       expression.push(`new.${n.col("recipients", "tenant")}::text`);
       pattern.push("'[^:]+'");
     }
+
     last = match.index + match[0].length;
   }
+
   const rest = template.slice(last);
+
   if (rest) {
     expression.push(sqlString(rest));
     pattern.push(sqlString(rest.replaceAll(".", "\\.")));
   }
+
   return {
     expression: expression.join(" || "),
     pattern: `'^' || ${pattern.join(" || ")} || '$'`,
@@ -487,12 +510,16 @@ function realtime(ctx: ModuleContext, n: NotifyNames): string {
   const trigger = ctx.trigger("notification_broadcast");
   const updateTrigger = ctx.trigger("notification_broadcast_update");
   const t = n.table("recipients");
+
   const drop = `drop trigger if exists ${trigger} on ${t};
 drop trigger if exists ${updateTrigger} on ${t};`;
+
   switch (mode) {
-    case "none":
+    case "none": {
       return drop;
-    case "changes":
+    }
+
+    case "changes": {
       return `${drop}
 do $$
 begin
@@ -506,21 +533,29 @@ begin
   end if;
 end;
 $$;`;
+    }
+
     case "broadcast": {
       const { expression, pattern } = topic(ctx, n);
+
       const created = sqlString(
         ctx.text("createdEvent", "notification_created"),
       );
+
       const updated = sqlString(
         ctx.text("updatedEvent", "notification_updated"),
       );
+
       const receive = ctx.trigger("notifications_receive");
+
       const changed = (["readAt", "dismissedAt", "resolvedAt"] as const)
         .filter((logical) => n.has("recipients", logical))
         .map((logical) => n.col("recipients", logical));
+
       const tenant = n.has("recipients", "tenant")
         ? `, 'tenant', new.${n.col("recipients", "tenant")}`
         : "";
+
       return `
 -- Tells the recipient's private topic that a notification arrived or changed.
 -- The payload carries ids only; the client reads the row through RLS.
@@ -557,19 +592,25 @@ begin
 end;
 $$;`;
     }
-    default:
+
+    default: {
       throw new TypeError(
         `blocks.notifications.options.realtime must be "broadcast", "changes" or "none", not "${mode}"`,
       );
+    }
   }
 }
 
 function build(ctx: ModuleContext, layout: ModuleLayout): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
   const n = notifyNames(
     ctx,
     accessModel(ctx) !== "provider" || providerForUser(layout).permitted,
   );
+
   return [
     `${schemaPreamble(ctx)}${tables(ctx, n)}`,
     functions(ctx, n, layout),
@@ -642,6 +683,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
       returns: "integer",
     },
   ];
+
   if (ctx.has("recipients", "resolvedAt")) {
     fns.push({
       name: "resolve_notifications",
@@ -649,6 +691,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
       returns: "jsonb",
     });
   }
+
   if (ctx.hasTable("subscriptions")) {
     fns.push(
       {
@@ -663,6 +706,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
       },
     );
   }
+
   if (ctx.hasTable("preferences")) {
     fns.push(
       {
@@ -677,6 +721,7 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
       },
     );
   }
+
   if (ctx.hasTable("deliveries")) {
     fns.push(
       {
@@ -699,7 +744,9 @@ function contract(ctx: ModuleContext): readonly ModuleContractFunction[] {
       },
     );
   }
+
   fns.push(...suppressionContract(ctx), ...trackingContract(ctx));
+
   return fns;
 }
 

@@ -105,11 +105,13 @@ const ROLES = new Set(["authenticated", "anon"]);
 
 function roleOf(claims: SqlClaims): string {
   const role = claims.role ?? (claims.sub ? "authenticated" : "anon");
+
   if (!ROLES.has(role)) {
     throw new TypeError(
       `Cannot run as role "${role}": only "authenticated" and "anon" are assumed. Use postgres.admin for service work.`,
     );
   }
+
   return role;
 }
 
@@ -118,11 +120,13 @@ function openPool(options: PostgresOptions): PgPool {
     options.connectionString ??
     process.env["SUPABASE_DB_URL"] ??
     process.env["DATABASE_URL"];
+
   if (!connectionString) {
     throw new TypeError(
       "createPostgres needs a connectionString, $SUPABASE_DB_URL or $DATABASE_URL",
     );
   }
+
   return new Pool({
     connectionString,
     max: options.max ?? 10,
@@ -159,6 +163,7 @@ function checkSettings(settings: Readonly<Record<string, string>> = {}): void {
  */
 export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
   const pool = options.pool ?? openPool(options);
+
   const timeouts: PostgresTimeouts =
     typeof options.statementTimeout === "number"
       ? {
@@ -171,6 +176,7 @@ export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
   /** The transaction-local settings a session's transactions start with. */
   function settingsOf(session: Session): [string, string][] {
     const settings: [string, string][] = Object.entries(session.settings ?? {});
+
     const timeout =
       session.statementTimeout ??
       (session.role === "authenticated"
@@ -178,13 +184,18 @@ export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
         : session.role === "anon"
           ? timeouts.anon
           : timeouts.admin);
-    if (timeout !== undefined)
+
+    if (timeout !== undefined) {
       settings.push(["statement_timeout", String(Math.trunc(timeout))]);
-    if (options.idleInTransactionTimeout !== undefined)
+    }
+
+    if (options.idleInTransactionTimeout !== undefined) {
       settings.push([
         "idle_in_transaction_session_timeout",
         String(Math.trunc(options.idleInTransactionTimeout)),
       ]);
+    }
+
     if (session.claims && session.role) {
       settings.push(
         [
@@ -194,6 +205,7 @@ export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
         ["role", session.role],
       );
     }
+
     return settings;
   }
 
@@ -204,7 +216,11 @@ export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
     settings: readonly [string, string][],
   ): Promise<void> {
     await client.query(session.readOnly ? "begin read only" : "begin");
-    if (settings.length === 0) return;
+
+    if (settings.length === 0) {
+      return;
+    }
+
     await client.query(
       `select ${settings.map((_, index) => `set_config($${index * 2 + 1}, $${index * 2 + 2}, true)`).join(", ")}`,
       settings.flat(),
@@ -214,6 +230,7 @@ export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
   /** One statement on a pooled connection in autocommit, for sessions that set nothing. */
   async function single<R>(text: string, params?: unknown[]): Promise<R[]> {
     const client = await pool.connect();
+
     try {
       // SAFETY: each caller passes the row type that its SQL selects.
       return (await client.query(text, params)).rows as R[];
@@ -227,16 +244,20 @@ export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
     fn: (client: SqlClient) => Promise<T>,
   ): Promise<T> {
     const client = await pool.connect();
+
     try {
       await begin(client, session, settingsOf(session));
+
       // SAFETY: each caller passes the row type that its SQL selects.
       const scoped: SqlClient = {
         queryRaw: async <R>(text: string, params?: unknown[]) =>
           (await client.query(text, params)).rows as R[],
         transaction: (inner) => inner(scoped),
       };
+
       const result = await fn(scoped);
       await client.query("commit");
+
       return result;
     } catch (cause) {
       await client.query("rollback").catch(() => undefined);
@@ -248,6 +269,7 @@ export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
 
   const clientFor = (session: Session): SqlClient => {
     const bare = !session.readOnly && settingsOf(session).length === 0;
+
     return {
       queryRaw: <R>(text: string, params?: unknown[]) =>
         bare
@@ -259,6 +281,7 @@ export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
 
   const optionsOf = (sessionOptions: SessionOptions): SessionOptions => {
     checkSettings(sessionOptions.settings);
+
     return {
       ...(sessionOptions.settings ? { settings: sessionOptions.settings } : {}),
       ...(sessionOptions.readOnly ? { readOnly: true } : {}),

@@ -19,11 +19,13 @@ describe("routeRefusal", () => {
 
   it("answers refused callers with Problem Details or a redirect", async () => {
     const anonymous = await authAs();
+
     const problem = await routeRefusal(
       { bs: { auth: anonymous } },
       request,
       {},
     );
+
     expect(problem?.status).toBe(401);
     expect(problem?.headers.get("content-type")).toBe(
       "application/problem+json",
@@ -32,37 +34,46 @@ describe("routeRefusal", () => {
     const redirect = await routeRefusal({ bs: { auth: anonymous } }, request, {
       signIn: "/sign-in",
     });
+
     expect(redirect?.status).toBe(303);
     expect(redirect?.headers.get("location")).toBe(
       "https://app.test/sign-in?next=%2Fadmin",
     );
 
     const member = await authAs({ role: "member" });
+
     const forbidden = await routeRefusal({ bs: { auth: member } }, request, {
       requireTenant: true,
     });
+
     expect(forbidden?.status).toBe(403);
   });
 
   it("checks permission through the guard's authorizer, and refuses without one", async () => {
     const auth = await authAs({ role: "admin" });
+
     const authorizer = staticAuthorizer({
       roles: { authenticated: ["reports:read"] },
     });
+
     expect(
       await routeRefusal({ bs: { auth } }, request, {
         permission: "reports:read",
         authorizer,
       }),
     ).toBeUndefined();
+
     const denied = await routeRefusal({ bs: { auth } }, request, {
       permission: "reports:write",
       authorizer,
     });
+
     expect(denied?.status).toBe(403);
+
     const missing = await routeRefusal({ bs: { auth } }, request, {
       permission: "reports:read",
     });
+
     expect(missing?.status).toBe(403);
   });
 });
@@ -73,6 +84,7 @@ describe("errorResponse", () => {
       new DbException(dbError("not_found", "Gone")),
       request,
     );
+
     expect(mapped?.status).toBe(404);
     expect(await mapped?.json()).toMatchObject({ instance: "/admin" });
     expect(errorResponse(new Error("boom"), request)).toBeUndefined();

@@ -108,17 +108,21 @@ export interface ReadSetOptions<P extends ReadSetParamTypes> {
 const NAME = /^[a-z][a-z0-9_]{0,59}$/;
 const PARAM = /^[a-z_][a-z0-9_]*$/i;
 const TYPE = /^(?:[a-z_][a-z0-9_]*\.)?[a-z_][a-z0-9_]*(?:\[\])?$/;
+
 /** `jsonb_build_object` takes at most 100 arguments. */
 const MAX_ENTRIES = 50;
+
 /**
  * Placeholders are `NUL bs:<name> NUL`: no real parameter value holds a NUL.
  * Auth placeholders start with `@`, which no parameter name can.
  */
 const NUL = "\u0000";
+
 const SENTINEL = /* @__PURE__ */ new RegExp(
   `${NUL}bs:(@?[a-z_][a-z0-9_]*)${NUL}`,
   "gi",
 );
+
 const EXACT = /* @__PURE__ */ new RegExp(
   `^${NUL}bs:(@?[a-z_][a-z0-9_]*)${NUL}$`,
   "i",
@@ -136,7 +140,10 @@ export type Placeholder =
   | { readonly kind: "auth"; readonly name: "uid"; readonly array: boolean };
 
 function tagged(name: string, array: boolean): Placeholder | undefined {
-  if (!name.startsWith("@")) return { kind: "param", name, array };
+  if (!name.startsWith("@")) {
+    return { kind: "param", name, array };
+  }
+
   return name === "@uid" ? { kind: "auth", name: "uid", array } : undefined;
 }
 
@@ -177,34 +184,42 @@ export function defineReadSet<
       `better-supabase: read set name "${name}" must be snake_case and at most 60 characters`,
     );
   }
+
   // SAFETY: params defaults to no parameters, which every P accepts.
   const params = (options.params ?? {}) as P;
   const placeholders: Record<string, unknown> = {};
+
   for (const [key, type] of Object.entries(params)) {
     if (!PARAM.test(key)) {
       throw new TypeError(
         `better-supabase: read set "${name}" has an invalid parameter name "${key}"`,
       );
     }
+
     if (!TYPE.test(type)) {
       throw new TypeError(
         `better-supabase: read set "${name}" parameter "${key}" has an invalid type "${type}"`,
       );
     }
+
     placeholders[key] = type.endsWith("[]") ? [sentinel(key)] : sentinel(key);
   }
+
   // SAFETY: the loop above filled a placeholder for every parameter in P.
   const specs = build(
     betterSupabase.spec,
     placeholders as ReadSetParams<P>,
     AUTH,
   );
+
   const entries = Object.entries(specs);
+
   if (entries.length === 0 || entries.length > MAX_ENTRIES) {
     throw new TypeError(
       `better-supabase: read set "${name}" needs between 1 and ${MAX_ENTRIES} reads`,
     );
   }
+
   for (const [key, spec] of entries) {
     if (!isQuerySpec(spec)) {
       throw new TypeError(
@@ -212,7 +227,9 @@ export function defineReadSet<
       );
     }
   }
+
   warnUnscopedReads(betterSupabase, name, specs);
+
   return {
     kind: "read-set",
     name,
@@ -240,25 +257,38 @@ function warnUnscopedReads(
     (plugin) =>
       plugin.transformQuery !== undefined && plugin.scopes?.length !== 0,
   );
-  if (filtering.length === 0) return;
+
+  if (filtering.length === 0) {
+    return;
+  }
+
   const { meta } = betterSupabase;
+
   const filters = (plugin: AnyPlugin, key: string): boolean => {
     const flags = meta.tables[key]?.flags;
+
     return (
       plugin.scopes === undefined ||
       plugin.scopes.some((flag) => flags?.[flag] !== undefined)
     );
   };
+
   const read = [
     ...new Set(Object.values(specs).flatMap((spec) => specTables(meta, spec))),
   ];
+
   const tables = read.filter((key) =>
     filtering.some((plugin) => filters(plugin, key)),
   );
-  if (tables.length === 0) return;
+
+  if (tables.length === 0) {
+    return;
+  }
+
   const scoping = filtering
     .filter((plugin) => tables.some((key) => filters(plugin, key)))
     .map((plugin) => plugin.name);
+
   betterSupabase.events.logger.warn(
     `read set "${name}" reads ${tables.join(", ")}, which ${scoping.join(", ")} scope at runtime; its generated function only sees those filters when the specs spell them out (or RLS enforces them)`,
     { readSet: name, tables, plugins: scoping },
@@ -279,12 +309,16 @@ export function isReadSet(value: unknown): value is ReadSet {
 export function placeholderOf(value: unknown): Placeholder | undefined {
   if (typeof value === "string") {
     const match = EXACT.exec(value);
+
     return match ? tagged(match[1]!, false) : undefined;
   }
+
   if (Array.isArray(value) && value.length === 1) {
     const inner = placeholderOf(value[0]);
+
     return inner && !inner.array ? { ...inner, array: true } : inner;
   }
+
   return undefined;
 }
 
@@ -294,14 +328,21 @@ export function splitPlaceholders(
 ): readonly ({ readonly text: string } | Placeholder)[] {
   const parts: ({ text: string } | Placeholder)[] = [];
   let last = 0;
+
   for (const match of value.matchAll(SENTINEL)) {
-    if (match.index > last)
+    if (match.index > last) {
       parts.push({ text: value.slice(last, match.index) });
+    }
+
     const placeholder = tagged(match[1]!, false);
     parts.push(placeholder ?? { text: match[0] });
     last = match.index + match[0].length;
   }
-  if (last < value.length) parts.push({ text: value.slice(last) });
+
+  if (last < value.length) {
+    parts.push({ text: value.slice(last) });
+  }
+
   return parts;
 }
 
@@ -311,11 +352,18 @@ export function hasPlaceholder(value: string): boolean {
 
 /** Whether any string inside `value` is (or holds) a placeholder. */
 export function containsPlaceholder(value: unknown): boolean {
-  if (typeof value === "string") return hasPlaceholder(value);
-  if (Array.isArray(value)) return value.some(containsPlaceholder);
+  if (typeof value === "string") {
+    return hasPlaceholder(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.some(containsPlaceholder);
+  }
+
   if (typeof value === "object" && value !== null) {
     return Object.values(value).some(containsPlaceholder);
   }
+
   return false;
 }
 
@@ -330,10 +378,15 @@ function usesAuth(value: unknown): boolean {
       match[1]!.startsWith("@"),
     );
   }
-  if (Array.isArray(value)) return value.some(usesAuth);
+
+  if (Array.isArray(value)) {
+    return value.some(usesAuth);
+  }
+
   if (typeof value === "object" && value !== null) {
     return Object.values(value).some(usesAuth);
   }
+
   return false;
 }
 
@@ -343,8 +396,10 @@ export function checkParams(
   values: Readonly<Record<string, unknown>> | undefined,
 ): string[] {
   const problems: string[] = [];
+
   for (const [key, type] of Object.entries(set.params)) {
     const value = values?.[key];
+
     if (value === undefined || value === null) {
       problems.push(`missing parameter "${key}"`);
     } else if (type.endsWith("[]") !== Array.isArray(value)) {
@@ -353,6 +408,7 @@ export function checkParams(
       );
     }
   }
+
   return problems;
 }
 
@@ -372,37 +428,55 @@ export function bindParams(
 } {
   const sub = context.claims?.["sub"];
   const uid = typeof sub === "string" && sub !== "" ? sub : null;
+
   const valueOf = (placeholder: Placeholder): unknown =>
     placeholder.kind === "auth" ? uid : values?.[placeholder.name];
+
   const bind = (value: unknown): unknown => {
     const placeholder = placeholderOf(value);
+
     if (placeholder) {
       const bound = valueOf(placeholder);
+
       return placeholder.kind === "auth" && placeholder.array ? [bound] : bound;
     }
+
     if (typeof value === "string") {
-      if (!hasPlaceholder(value)) return value;
+      if (!hasPlaceholder(value)) {
+        return value;
+      }
+
       return splitPlaceholders(value)
         .map((part) =>
           "text" in part ? part.text : String(valueOf(part) ?? ""),
         )
         .join("");
     }
-    if (Array.isArray(value)) return value.map(bind);
+
+    if (Array.isArray(value)) {
+      return value.map(bind);
+    }
+
     if (typeof value === "object" && value !== null) {
-      if (Object.getPrototypeOf(value) !== Object.prototype) return value;
+      if (Object.getPrototypeOf(value) !== Object.prototype) {
+        return value;
+      }
+
       return Object.fromEntries(
         Object.entries(value).map(([key, entry]) => [key, bind(entry)]),
       );
     }
+
     return value;
   };
+
   const specs = Object.fromEntries(
     Object.entries(set.specs).map(([key, spec]) => [
       key,
       { ...spec, args: spec.args.map(bind) },
     ]),
   );
+
   const noCaller =
     uid === null && readSetUsesAuth(set)
       ? dbError(
@@ -410,12 +484,14 @@ export function bindParams(
           `db.$many(${set.name}): the read set reads auth.uid, but this connection has no user claims. Connect with the user's verified claims ({ claims: { sub } }), or call it over PostgREST, where the function reads auth.uid().`,
         )
       : undefined;
+
   return { specs, noCaller };
 }
 
 /** App keys of every table the set reads. */
 export function readSetTables(set: ReadSet, meta?: SchemaMeta): string[] {
   const schema = meta ?? set.definition.meta;
+
   return [
     ...new Set(
       Object.values(set.specs).flatMap((spec) => specTables(schema, spec)),

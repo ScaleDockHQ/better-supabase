@@ -24,6 +24,7 @@ export function testIncomingDestination(
   options: TestIncomingDestinationOptions,
 ): Promise<ConformanceReport> {
   const endpoint = crypto.randomUUID();
+
   const delivery = (
     messageId: string,
     endpointId = endpoint,
@@ -35,6 +36,7 @@ export function testIncomingDestination(
     payload: { type: "conformance.test", messageId },
     headers: {},
   });
+
   return conform(`IncomingDestination "${destination.name}"`, [
     hasName(destination),
     [
@@ -62,9 +64,11 @@ export function testIncomingDestination(
       async () => {
         const other = await destination.deliver(delivery("m2"));
         expect(!other.duplicate, "another message id must be new");
+
         const elsewhere = await destination.deliver(
           delivery("m1", crypto.randomUUID()),
         );
+
         expect(
           !elsewhere.duplicate,
           "the same id on another endpoint must be new",

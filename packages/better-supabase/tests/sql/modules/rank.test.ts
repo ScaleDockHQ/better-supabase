@@ -27,6 +27,7 @@ describe("rank module", () => {
         (file) => file.module,
       ),
     );
+
     expect(modules).toContain("subjects");
     expect(modules).toContain("access");
   });
@@ -81,6 +82,7 @@ describe("rank module", () => {
       .filter((file) => file.module === "rank")
       .map((file) => file.contents)
       .join("\n");
+
     expect(sql).toContain("hint = 'RANK_SUBJECT_UNKNOWN'");
     expect(sql).not.toContain("case move.subject_type");
   });

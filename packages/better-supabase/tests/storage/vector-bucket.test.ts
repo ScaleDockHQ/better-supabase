@@ -12,6 +12,7 @@ const missing = {
   statusCode: "404",
   code: "NotFoundException",
 };
+
 const empty = { data: {}, error: null };
 
 const embeddings = defineVectorBucket({
@@ -41,6 +42,7 @@ function vectorsApi() {
     })),
     deleteVectors: vi.fn(async () => empty),
   };
+
   const scope = {
     getIndex: vi.fn(async (_name: string): Promise<unknown> => ({
       data: null,
@@ -49,6 +51,7 @@ function vectorsApi() {
     createIndex: vi.fn(async () => empty),
     index: vi.fn(() => index),
   };
+
   const vectors = {
     getBucket: vi.fn(async (): Promise<unknown> => ({
       data: { vectorBucket: { vectorBucketName: "embeddings" } },
@@ -57,6 +60,7 @@ function vectorsApi() {
     createBucket: vi.fn(async () => empty),
     from: vi.fn(() => scope),
   };
+
   return {
     vectors,
     scope,
@@ -121,6 +125,7 @@ describe("defineVectorBucket", () => {
       message: "no",
       statusCode: "403",
     };
+
     const one = vectorsApi();
     one.vectors.getBucket.mockResolvedValueOnce({
       data: null,
@@ -145,9 +150,11 @@ describe("defineVectorBucket", () => {
 
   it("puts, queries, gets and removes vectors of one index", async () => {
     const { scope, index, client } = vectorsApi();
+
     const docs = embeddings
       .connect(client)
       .index<{ kind: string }>("documents");
+
     expect(docs).toMatchObject({ name: "documents", dimension: 3 });
 
     const records = Array.from({ length: 501 }, (_, i) => ({
@@ -155,6 +162,7 @@ describe("defineVectorBucket", () => {
       vector: [i, 0, 0],
       ...(i === 0 ? { metadata: { kind: "x" } } : {}),
     }));
+
     expect((await docs.put(records)).data).toBe(501);
     expect(index.putVectors).toHaveBeenCalledTimes(2);
     expect(index.putVectors.mock.calls[0]?.[0]).toMatchObject({
@@ -168,6 +176,7 @@ describe("defineVectorBucket", () => {
       topK: 2,
       filter: { kind: "x" },
     });
+
     expect(hits.data).toEqual([
       { key: "a", distance: 0, metadata: { kind: "x" } },
     ]);
@@ -205,6 +214,7 @@ describe("defineVectorBucket", () => {
         setTimeout(resolve, 20 - Number(options.keys[0]!.slice(1)) / 100);
       });
       active--;
+
       return {
         data: { vectors: options.keys.map((key) => ({ key })) },
         error: null,
@@ -242,18 +252,21 @@ describe("defineVectorBucket", () => {
         statusCode: "500",
       },
     };
+
     const { index, client } = vectorsApi();
     index.putVectors.mockResolvedValueOnce(failure as never);
     index.queryVectors.mockResolvedValueOnce(failure as never);
     index.getVectors.mockResolvedValueOnce(failure as never);
     index.deleteVectors.mockResolvedValueOnce(failure as never);
     const docs = embeddings.connect(client).index("documents");
+
     const kinds = [
       (await docs.put([{ key: "a", vector: [1, 0, 0] }])).error?.kind,
       (await docs.query([1, 0, 0])).error?.kind,
       (await docs.get(["a"])).error?.kind,
       (await docs.remove(["a"])).error?.kind,
     ];
+
     expect(kinds).toEqual(["network", "network", "network", "network"]);
   });
 });

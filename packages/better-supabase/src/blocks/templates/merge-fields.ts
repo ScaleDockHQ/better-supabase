@@ -52,6 +52,7 @@ export interface MergeFieldCatalog<K extends string = string> {
 
 const FIELD =
   /\{\{\{\s*([A-Za-z_][\w.-]*)\s*\}\}\}|\{\{\s*([A-Za-z_][\w.-]*)\s*\}\}/g;
+
 const FIELD_NAME = /^[A-Za-z_][\w.-]*$/;
 
 const HTML_ESCAPES: Readonly<Record<string, string>> = {
@@ -68,31 +69,46 @@ function escapeHtml(value: string): string {
 
 function isPlainObject(value: object): boolean {
   const proto: unknown = Object.getPrototypeOf(value);
+
   return proto === null || proto === Object.prototype;
 }
 
 function defaultFormat(value: unknown): string {
   const kind = typeof value;
+
   switch (kind) {
     case "string":
     case "number":
     case "bigint":
-    case "boolean":
+    case "boolean": {
       return String(value);
+    }
+
     case "object": {
-      if (typeof value !== "object" || value === null) return "";
-      if (value instanceof Date) return value.toISOString();
+      if (typeof value !== "object" || value === null) {
+        return "";
+      }
+
+      if (value instanceof Date) {
+        return value.toISOString();
+      }
+
       if (Array.isArray(value)) {
         return value.map((item: unknown) => defaultFormat(item)).join(", ");
       }
+
       return isPlainObject(value) ? JSON.stringify(value) : String(value);
     }
+
     case "undefined":
     case "symbol":
-    case "function":
+    case "function": {
       return "";
+    }
+
     default: {
       const unreachable: never = kind;
+
       return String(unreachable);
     }
   }
@@ -106,21 +122,31 @@ function lookup(
   values: Readonly<Record<string, unknown>>,
   name: string,
 ): unknown {
-  if (Object.hasOwn(values, name)) return values[name];
+  if (Object.hasOwn(values, name)) {
+    return values[name];
+  }
+
   let current: unknown = values;
+
   for (const part of name.split(".")) {
-    if (!isKeyed(current) || !Object.hasOwn(current, part)) return undefined;
+    if (!isKeyed(current) || !Object.hasOwn(current, part)) {
+      return undefined;
+    }
+
     current = current[part];
   }
+
   return current;
 }
 
 /** The merge field names `text` uses, in order of first use. */
 export function mergeFieldsIn(text: string): readonly string[] {
   const names = new Set<string>();
+
   for (const match of text.matchAll(FIELD)) {
     names.add(match[1] ?? match[2] ?? "");
   }
+
   return [...names];
 }
 
@@ -136,15 +162,19 @@ export function renderMergeFields(
 ): string {
   const html = options.escape === "html";
   const format = options.format ?? defaultFormat;
+
   return text.replaceAll(
     FIELD,
     (whole, raw: string | undefined, escaped: string | undefined) => {
       const name = raw ?? escaped ?? "";
       const value = lookup(values, name);
+
       if (value === undefined || value === null) {
         return options.missing === "keep" ? whole : "";
       }
+
       const rendered = format(value, name);
+
       return html && raw === undefined ? escapeHtml(rendered) : rendered;
     },
   );
@@ -162,12 +192,15 @@ export function defineMergeFields<const K extends string>(
   // SAFETY: Object.keys returns the keys of `fields`, which are typed as K.
   const names = Object.keys(fields) as K[];
   const bad = names.find((name) => !FIELD_NAME.test(name));
+
   if (bad !== undefined) {
     throw new TypeError(
       `"${bad}" is not a merge field name: use letters, digits, ".", "-" and "_"`,
     );
   }
+
   const known = new Set<string>(names);
+
   return {
     subjectType,
     fields,
@@ -176,10 +209,15 @@ export function defineMergeFields<const K extends string>(
     render: (text, values, options) => renderMergeFields(text, values, options),
     examples: () => {
       const examples: Record<string, string> = {};
+
       for (const name of names) {
         const example = fields[name].example;
-        if (example !== undefined) examples[name] = example;
+
+        if (example !== undefined) {
+          examples[name] = example;
+        }
       }
+
       return examples;
     },
   };
@@ -213,6 +251,7 @@ export function composeTemplateEmail(
     ...(options.missing === undefined ? {} : { missing: options.missing }),
     ...(options.format === undefined ? {} : { format: options.format }),
   };
+
   return {
     subject: renderMergeFields(body.subject, values, shared),
     ...(body.text === undefined

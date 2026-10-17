@@ -22,6 +22,7 @@ describe("bs.loader", () => {
     const loader = bs.loader(({ db }) =>
       db.customers.findMany({ select: ["id", "name"] }).orThrow(),
     );
+
     expectTypeOf(loader).toExtend<
       LoaderFunction<readonly { id: string; name: string }[]>
     >();
@@ -30,8 +31,10 @@ describe("bs.loader", () => {
   it("composes inside createServerLoader through bs.request", () => {
     const loader = createServerLoader(async (request: ImmutableRequest) => {
       const { db } = await bs.request(request, { allow: ["user"] });
+
       return db.customers.findMany({ select: ["id"] }).orThrow();
     });
+
     expectTypeOf(loader).toExtend<LoaderFunction<readonly { id: string }[]>>();
   });
 });

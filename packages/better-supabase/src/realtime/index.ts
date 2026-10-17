@@ -1,6 +1,9 @@
 export { defineTopic, rowChange } from "./topic.ts";
+
 export { topicPort, watchTopic } from "./watch-topic.ts";
+
 export type { TopicHandle, TopicPort, TopicWatch } from "./watch-topic.ts";
+
 export type {
   EventSchemas,
   PresenceInput,
@@ -29,12 +32,19 @@ export type {
   TriggerOptions,
   TriggerValue,
 } from "./topic.ts";
+
 export type { TemplateParams, TemplateValues } from "../core/template.ts";
+
 export type { AccessPolicySql, AccessTopicPolicy } from "../schema/types.ts";
+
 export type { FanOutResult, TopicFanOutOptions } from "./fan-out.ts";
+
 export { subjectReaders } from "../core/subject-readers.ts";
+
 export type { SubjectReadersOptions } from "../core/subject-readers.ts";
+
 export { liveCount, liveQuery, liveTopic } from "./live.ts";
+
 export type {
   CountRunner,
   LiveCountOptions,

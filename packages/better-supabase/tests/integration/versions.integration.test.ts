@@ -53,6 +53,7 @@ describe.skipIf(!live)("versions", () => {
 
   it("shares one version through a link that anon reads with the token", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.client.query(TABLES);
       await s.install(["organizations", "versions", "share-links"], layout);
@@ -61,11 +62,14 @@ describe.skipIf(!live)("versions", () => {
       const transport = sqlTransport(s.sql);
       const versions = createVersions({ transport });
       const links = createShareLinks({ transport });
+
       const [doc, other] = await s.rows<{ id: string }>(
         `insert into versions_it.docs (organization_id, title) values ($1, 'Quote'), ($1, 'Other') returning id`,
         [tenant],
       );
+
       await s.as(owner);
+
       const sent = await versions
         .snapshot({
           organizationId: tenant,
@@ -74,6 +78,7 @@ describe.skipIf(!live)("versions", () => {
           content: { total: 100 },
         })
         .orThrow();
+
       await versions
         .snapshot({
           organizationId: tenant,
@@ -82,13 +87,17 @@ describe.skipIf(!live)("versions", () => {
           content: { total: 120 },
         })
         .orThrow();
+
       const link = await links
         .create(tenant, "doc", doc!.id, { versionId: sent.id })
         .orThrow();
+
       const plain = await links.create(tenant, "doc", doc!.id).orThrow();
+
       const wrong = await links.create(tenant, "doc", other!.id, {
         versionId: sent.id,
       });
+
       expect(wrong.ok).toBe(false);
 
       await s.asRole("anon");
@@ -114,6 +123,7 @@ describe.skipIf(!live)("versions", () => {
 
   it("snapshots, diffs, restores, freezes and prunes a subject's versions", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.client.query(TABLES);
       await s.install(["organizations", "versions"], layout);
@@ -123,11 +133,14 @@ describe.skipIf(!live)("versions", () => {
       const tenant = await s.organization(owner, { member });
       await s.organization(stranger);
       const versions = createVersions({ transport: sqlTransport(s.sql) });
+
       const docRows = await s.rows<{ id: string }>(
         `insert into versions_it.docs (organization_id, title, body) values ($1, 'Plan', '{"steps": ["a"]}') returning id`,
         [tenant],
       );
+
       const doc = docRows[0]!.id;
+
       const input = {
         organizationId: tenant,
         subjectType: "doc",
@@ -148,9 +161,11 @@ describe.skipIf(!live)("versions", () => {
         [doc],
       );
       await s.as(member);
+
       const second = await versions
         .snapshot({ ...input, label: "Second" })
         .orThrow();
+
       expect(second.number).toBe(2);
       const listed = await versions.list(tenant, "doc", doc).orThrow();
       expect(listed.map((version) => [version.number, version.label])).toEqual([
@@ -196,17 +211,21 @@ describe.skipIf(!live)("versions", () => {
       ).toBe("VERSION_FORBIDDEN");
 
       await s.as(member);
+
       for (const title of ["C", "D", "E"]) {
         await versions.snapshot({ ...input, content: { title } }).orThrow();
       }
+
       const kept = await versions.list(tenant, "doc", doc).orThrow();
       expect(kept.map((version) => version.number)).toEqual([7, 6, 5, 4, 2]);
 
       await s.service();
+
       const noteRows = await s.rows<{ id: string }>(
         `insert into versions_it.notes (organization_id, text) values ($1, 'one') returning id`,
         [tenant],
       );
+
       const note = noteRows[0]!.id;
       await s.client.query(
         "update versions_it.notes set text = 'two' where id = $1",

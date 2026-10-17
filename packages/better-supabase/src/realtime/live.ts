@@ -71,22 +71,33 @@ export function liveTopic(
   user?: string,
 ): string {
   const found = meta.tables[table];
-  if (!found) throw new TypeError(`better-supabase: unknown table "${table}"`);
+
+  if (!found) {
+    throw new TypeError(`better-supabase: unknown table "${table}"`);
+  }
+
   const base = `bs:t:${found.schema}.${found.name}`;
+
   if (meta.realtime?.[table]?.user) {
     if (user === undefined) {
       throw new TypeError(
         `better-supabase: "${table}" broadcasts per user; pass \`user\` to watch it`,
       );
     }
+
     return `${base}:u:${user}`;
   }
-  if (!meta.realtime?.[table]?.tenant) return base;
+
+  if (!meta.realtime?.[table]?.tenant) {
+    return base;
+  }
+
   if (tenant === undefined) {
     throw new TypeError(
       `better-supabase: "${table}" broadcasts per tenant; pass \`tenant\` to watch it`,
     );
   }
+
   return `${base}:${tenant}`;
 }
 
@@ -108,56 +119,88 @@ function join(
   onStatus?: StatusListener,
 ): { ready: Promise<void>; leave: () => Promise<void> } {
   let byTopic = channels.get(client);
+
   if (!byTopic) {
     byTopic = new Map();
     channels.set(client, byTopic);
   }
+
   let shared = byTopic.get(topic);
+
   if (!shared) {
     const channel = client.channel(topic, { config: { private: true } });
     const listeners = new Set<() => void>();
     const statuses = new Set<StatusListener>();
     channel.on("broadcast", { event: "change" }, () => {
-      for (const notify of listeners) notify();
+      for (const notify of listeners) {
+        notify();
+      }
     });
     let joined = false;
+
     const evict = (): void => {
-      if (byTopic.get(topic) !== entry) return;
+      if (byTopic.get(topic) !== entry) {
+        return;
+      }
+
       byTopic.delete(topic);
       void client.removeChannel(channel);
     };
+
     const ready = (async () => {
       await refreshRealtimeAuth(client);
       await new Promise<void>((resolve, reject) => {
         channel.subscribe((status, error) => {
           switch (status) {
-            case REALTIME_SUBSCRIBE_STATES.SUBSCRIBED:
+            case REALTIME_SUBSCRIBE_STATES.SUBSCRIBED: {
               // Broadcasts sent while disconnected are lost: a rejoin counts as a change.
               if (joined) {
-                for (const notify of listeners) notify();
-                for (const notify of statuses) notify("subscribed");
+                for (const notify of listeners) {
+                  notify();
+                }
+
+                for (const notify of statuses) {
+                  notify("subscribed");
+                }
               }
+
               joined = true;
               resolve();
+
               return;
-            case REALTIME_SUBSCRIBE_STATES.CLOSED:
+            }
+
+            case REALTIME_SUBSCRIBE_STATES.CLOSED: {
               resolve();
+
               return;
+            }
+
             case REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR:
             case REALTIME_SUBSCRIBE_STATES.TIMED_OUT: {
               const failure =
                 error ??
                 new Error(`Realtime ${status.toLowerCase()} on ${topic}`);
+
               // Settled already once joined: listeners hear it instead.
-              if (joined)
-                for (const notify of statuses) notify("error", failure);
+              if (joined) {
+                for (const notify of statuses) {
+                  notify("error", failure);
+                }
+              }
+
               reject(failure);
+
               // A joined channel rejoins on its own; one that never joined is
               // dropped so the next join opens a fresh channel. Removing it
               // reports CLOSED, so this runs after the reject.
-              if (!joined) evict();
+              if (!joined) {
+                evict();
+              }
+
               return;
             }
+
             default: {
               const unknown: never = status;
               reject(new Error(`Unknown realtime status ${String(unknown)}`));
@@ -166,29 +209,50 @@ function join(
         });
       });
     })();
+
     ready.catch(() => undefined);
     const entry: SharedChannel = { channel, listeners, statuses, ready };
     shared = entry;
     byTopic.set(topic, entry);
   }
+
   const current = shared;
   current.listeners.add(listener);
-  if (onStatus) current.statuses.add(onStatus);
+
+  if (onStatus) {
+    current.statuses.add(onStatus);
+  }
+
   let left = false;
+
   return {
     ready: current.ready,
     leave: async () => {
-      if (left) return;
+      if (left) {
+        return;
+      }
+
       left = true;
       current.listeners.delete(listener);
-      if (onStatus) current.statuses.delete(onStatus);
-      if (current.listeners.size > 0) return;
+
+      if (onStatus) {
+        current.statuses.delete(onStatus);
+      }
+
+      if (current.listeners.size > 0) {
+        return;
+      }
+
       // A join in the same tick (React StrictMode remounts) keeps the channel:
       // removing it first would hand the new listener a closing channel.
       await new Promise<void>((resolve) => {
         setTimeout(resolve, 0);
       });
-      if (current.listeners.size > 0 || byTopic.get(topic) !== current) return;
+
+      if (current.listeners.size > 0 || byTopic.get(topic) !== current) {
+        return;
+      }
+
       byTopic.delete(topic);
       await client.removeChannel(current.channel);
     },
@@ -216,12 +280,15 @@ export function liveQuery(
   const touched = Array.isArray(spec)
     ? (spec as readonly string[])
     : betterSupabase.tablesOf(spec as QuerySpec);
+
   const tables = touched.filter(
     (table) => betterSupabase.meta.realtime?.[table],
   );
+
   const unwatched = touched.filter(
     (table) => !betterSupabase.meta.realtime?.[table],
   );
+
   const debounceMs = options.debounceMs ?? 100;
   const changed = new Set<string>();
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -229,7 +296,11 @@ export function liveQuery(
 
   const flush = (): void => {
     timer = undefined;
-    if (closed || changed.size === 0) return;
+
+    if (closed || changed.size === 0) {
+      return;
+    }
+
     const batch = [...changed];
     changed.clear();
     options.onChange(batch);
@@ -237,27 +308,46 @@ export function liveQuery(
 
   const onTableChange = (table: string) => () => {
     changed.add(table);
-    if (timer !== undefined) clearTimeout(timer);
+
+    if (timer !== undefined) {
+      clearTimeout(timer);
+    }
+
     timer = setTimeout(flush, debounceMs);
   };
+
   const failed = new Set<string>();
+
   const onChannelStatus =
     (topic: string): StatusListener =>
     (status, error) => {
-      if (closed) return;
-      if (status === "error") failed.add(topic);
-      else failed.delete(topic);
-      if (status === "error") options.onStatus?.("error", error);
-      else if (failed.size === 0) options.onStatus?.("subscribed");
+      if (closed) {
+        return;
+      }
+
+      if (status === "error") {
+        failed.add(topic);
+      } else {
+        failed.delete(topic);
+      }
+
+      if (status === "error") {
+        options.onStatus?.("error", error);
+      } else if (failed.size === 0) {
+        options.onStatus?.("subscribed");
+      }
     };
+
   const topics = tables.map((table) => ({
     table,
     topic: liveTopic(betterSupabase.meta, table, options.tenant, options.user),
   }));
+
   const joinAll = () =>
     topics.map(({ table, topic }) =>
       join(client, topic, onTableChange(table), onChannelStatus(topic)),
     );
+
   let memberships = joinAll();
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
   let delay = 1000;
@@ -265,29 +355,47 @@ export function liveQuery(
   const settle = (attempt: typeof memberships): Promise<void> =>
     Promise.all(attempt.map((member) => member.ready)).then(
       () => {
-        if (!closed && tables.length > 0) options.onStatus?.("subscribed");
+        if (!closed && tables.length > 0) {
+          options.onStatus?.("subscribed");
+        }
       },
       (cause: unknown) => {
         const error = cause instanceof Error ? cause : new Error(String(cause));
+
         if (!closed) {
           options.onStatus?.("error", error);
-          if (options.retry !== false) scheduleRetry(attempt);
+
+          if (options.retry !== false) {
+            scheduleRetry(attempt);
+          }
         }
+
         throw error;
       },
     );
+
   const scheduleRetry = (attempt: typeof memberships): void => {
     retryTimer = setTimeout(() => {
       retryTimer = undefined;
-      if (closed || attempt !== memberships) return;
+
+      if (closed || attempt !== memberships) {
+        return;
+      }
+
       void Promise.all(attempt.map((member) => member.leave()));
       memberships = joinAll();
       options.onStatus?.("joining");
       // Changes made while the channel was down were missed.
       settle(memberships).then(
         () => {
-          if (closed) return;
-          for (const table of tables) changed.add(table);
+          if (closed) {
+            return;
+          }
+
+          for (const table of tables) {
+            changed.add(table);
+          }
+
           flush();
         },
         () => undefined,
@@ -301,10 +409,20 @@ export function liveQuery(
   ready.catch(() => undefined);
 
   const unsubscribe = async (): Promise<void> => {
-    if (closed) return;
+    if (closed) {
+      return;
+    }
+
     closed = true;
-    if (timer !== undefined) clearTimeout(timer);
-    if (retryTimer !== undefined) clearTimeout(retryTimer);
+
+    if (timer !== undefined) {
+      clearTimeout(timer);
+    }
+
+    if (retryTimer !== undefined) {
+      clearTimeout(retryTimer);
+    }
+
     await Promise.all(memberships.map((member) => member.leave()));
     options.onStatus?.("closed");
   };
@@ -358,16 +476,23 @@ export function liveCount(
 ): LiveSubscription {
   let latest = 0;
   let closed = false;
+
   const refetch = (): void => {
     const call = ++latest;
     void Promise.resolve(db.$run(spec)).then((result) => {
-      if (closed || call !== latest) return;
+      if (closed || call !== latest) {
+        return;
+      }
+
       if (result.ok) {
         // SAFETY: the count query spec always resolves to a number.
         options.onCount(result.data as number);
-      } else options.onError?.(result.error);
+      } else {
+        options.onError?.(result.error);
+      }
     });
   };
+
   const live = liveQuery(betterSupabase, client, spec, {
     onChange: refetch,
     ...(options.tenant === undefined ? {} : { tenant: options.tenant }),
@@ -377,20 +502,29 @@ export function liveCount(
       : { debounceMs: options.debounceMs }),
     ...(options.onStatus ? { onStatus: options.onStatus } : {}),
   });
-  if (options.immediate ?? true) refetch();
+
+  if (options.immediate ?? true) {
+    refetch();
+  }
+
   const since = options.since;
+
   if (since !== undefined) {
     live.ready.then(
       () => {
-        if (!closed && Date.now() - since > 1000) refetch();
+        if (!closed && Date.now() - since > 1000) {
+          refetch();
+        }
       },
       () => undefined,
     );
   }
+
   const unsubscribe = async (): Promise<void> => {
     closed = true;
     await live.unsubscribe();
   };
+
   return {
     ...live,
     unsubscribe,

@@ -37,15 +37,21 @@ function meterTableOf(
 ): MeterTable {
   const text = (name: string): string | undefined => {
     const value = option[name];
-    if (value === undefined) return undefined;
+
+    if (value === undefined) {
+      return undefined;
+    }
+
     if (
       typeof value !== "string" ||
       !value.split(".").every((part) => IDENT.test(part))
     ) {
       throw new TypeError(`${where}.${name} must be a lowercase identifier`);
     }
+
     return value;
   };
+
   for (const name of Object.keys(option)) {
     if (
       !["table", "key", "unit", "category", "label", "active"].includes(name)
@@ -55,14 +61,19 @@ function meterTableOf(
       );
     }
   }
+
   const table = text("table")!;
+
   if (table.split(".").length > 2) {
     throw new TypeError(`${where}.table must be "table" or "schema.table"`);
   }
+
   const optional = (name: "unit" | "category" | "label" | "active") => {
     const value = text(name);
+
     return value === undefined ? {} : { [name]: value };
   };
+
   return {
     table,
     key: text("key") ?? "key",
@@ -88,24 +99,34 @@ export function metersOf(
 ): Readonly<Record<string, UsageMeter>> | MeterTable | undefined {
   const where = "blocks.usage.options.meters";
   const option = ctx.option("meters");
-  if (option === undefined) return undefined;
+
+  if (option === undefined) {
+    return undefined;
+  }
+
   if (isObject(option) && typeof option["table"] === "string") {
     return meterTableOf(where, option);
   }
+
   const out: Record<string, UsageMeter> = {};
+
   if (!isObject(option)) {
     throw new TypeError(
       `${where} must be an object of meter to { unit?, category?, label? }`,
     );
   }
+
   for (const [meter, value] of Object.entries(option)) {
     if (!METER_KEY.test(meter)) {
       throw new TypeError(`${where}: "${meter}" is not a meter name`);
     }
+
     if (!isObject(value)) {
       throw new TypeError(`${where}.${meter} must be an object`);
     }
+
     const entry: Record<string, string> = {};
+
     for (const [key, text] of Object.entries(value)) {
       if (
         !["unit", "category", "label"].includes(key) ||
@@ -115,9 +136,12 @@ export function metersOf(
           `${where}.${meter}.${key}: use unit, category and label as strings`,
         );
       }
+
       entry[key] = text;
     }
+
     out[meter] = entry;
   }
+
   return out;
 }

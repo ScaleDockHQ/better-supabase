@@ -16,6 +16,7 @@ class NotFound extends TaggedError("NotFound")<{
   message: string;
   error: DbError;
 }> {}
+
 class DbFailure extends TaggedError("DbFailure")<{
   message: string;
   error: DbError;
@@ -37,6 +38,7 @@ describe("withBetterResult", () => {
         ? { body: [customer] }
         : { status: 201, body: [customer] },
     );
+
     const db = withBetterResult(betterSupabase.connect(client), toResult);
 
     const found = await db.customers.findMany({ select: ["id", "name"] });
@@ -46,6 +48,7 @@ describe("withBetterResult", () => {
       name: "Acme",
       organizationId: "o1",
     });
+
     expect(created.isOk()).toBe(true);
     expect(requests.map((request) => request.method)).toEqual(["GET", "POST"]);
   });
@@ -61,19 +64,23 @@ describe("withBetterResult", () => {
       status: 409,
       body: { code: "23505", message: "duplicate key value" },
     }));
+
     const conflict = await withBetterResult(
       betterSupabase.connect(failing),
       toResult,
     ).customers.create({ name: "Acme", organizationId: "o1" });
+
     expect(conflict.isErr() && conflict.error).toBeInstanceOf(DbFailure);
   });
 
   it("accepts a Result namespace with mapError", async () => {
     const { client } = capturingClient(() => ({ body: [] }));
+
     const db = withBetterResult(betterSupabase.connect(client), {
       Result,
       mapError: (error: DbError) => error.kind,
     });
+
     const missing = await db.customers.findById("c1");
     expect(missing.isErr() && missing.error).toBe("not_found");
   });
@@ -84,6 +91,7 @@ describe("withBetterResult", () => {
         ? { body: [{ id: "o1", name: "Acme" }] }
         : { body: [customer] },
     );
+
     const plain = betterSupabase.connect(client);
     const db = withBetterResult(plain, toResult);
 
@@ -100,12 +108,14 @@ describe("withBetterResult", () => {
       defaultSort: "name",
       pageSize: 10,
     });
+
     const page = await db.$list(list, list.defaults);
     expect(page.isOk() && page.value.items).toEqual([customer]);
 
     const converted = await db.$from(
       AsyncResult.err(dbError("forbidden", "No")),
     );
+
     expect(converted.isErr() && converted.error).toBeInstanceOf(DbFailure);
 
     expect(db.$db).toBe(plain);

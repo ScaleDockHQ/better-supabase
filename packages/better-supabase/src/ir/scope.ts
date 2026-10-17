@@ -21,32 +21,47 @@ export function scopeCondition(
   condition: Condition | undefined,
   scopeFor: ScopeFor,
 ): Condition | undefined {
-  if (!condition) return undefined;
+  if (!condition) {
+    return undefined;
+  }
+
   switch (condition.kind) {
     case "and":
-    case "or":
+    case "or": {
       return {
         kind: condition.kind,
         items: condition.items.map(
           (item) => scopeCondition(item, scopeFor) ?? item,
         ),
       };
-    case "not":
+    }
+
+    case "not": {
       return {
         kind: "not",
         item: scopeCondition(condition.item, scopeFor) ?? condition.item,
       };
-    case "column":
+    }
+
+    case "column": {
       return condition;
+    }
+
     case "relation": {
       const inner = scopeCondition(condition.where, scopeFor);
       const scope = scopeFor(condition.target);
-      if (!scope) return { ...condition, where: inner };
+
+      if (!scope) {
+        return { ...condition, where: inner };
+      }
+
       switch (condition.quantifier) {
         case "some":
-        case "none":
+        case "none": {
           return { ...condition, where: and(inner, scope) };
-        case "every":
+        }
+
+        case "every": {
           return inner
             ? {
                 ...condition,
@@ -54,14 +69,19 @@ export function scopeCondition(
                 where: and(scope, not(inner)),
               }
             : { ...condition, where: undefined };
+        }
+
         default: {
           const exhaustive: never = condition.quantifier;
+
           return exhaustive;
         }
       }
     }
+
     default: {
       const exhaustive: never = condition;
+
       return exhaustive;
     }
   }
@@ -83,7 +103,10 @@ export function scopeSelection(
   selection: Selection,
   scopeFor: ScopeFor,
 ): Selection {
-  if (selection.includes.length === 0) return selection;
+  if (selection.includes.length === 0) {
+    return selection;
+  }
+
   return {
     ...selection,
     includes: selection.includes.map((include) =>
@@ -103,15 +126,18 @@ export function scopeOperation(
   root = true,
 ): Operation {
   const own = root ? scopeFor(op.table) : undefined;
+
   switch (op.kind) {
-    case "select":
+    case "select": {
       return {
         ...op,
         selection: scopeSelection(op.selection, scopeFor),
         where: and(scopeCondition(op.where, scopeFor), own),
       };
+    }
+
     case "update":
-    case "delete":
+    case "delete": {
       return {
         ...op,
         where: and(scopeCondition(op.where, scopeFor), own),
@@ -119,15 +145,20 @@ export function scopeOperation(
           ? scopeSelection(op.returning, scopeFor)
           : undefined,
       };
-    case "insert":
+    }
+
+    case "insert": {
       return {
         ...op,
         returning: op.returning
           ? scopeSelection(op.returning, scopeFor)
           : undefined,
       };
+    }
+
     default: {
       const exhaustive: never = op;
+
       return exhaustive;
     }
   }

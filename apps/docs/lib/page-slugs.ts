@@ -8,9 +8,17 @@ const GROUP = /^\(.+\)$/u;
  */
 export function pageSlug(file: string): string | undefined {
   const path = CONTENT_FILE.exec(file.replaceAll("\\", "/"))?.[1];
-  if (path === undefined) return undefined;
+
+  if (path === undefined) {
+    return undefined;
+  }
+
   const segments = path.split("/").filter((segment) => !GROUP.test(segment));
-  if (segments.at(-1) === "index") segments.pop();
+
+  if (segments.at(-1) === "index") {
+    segments.pop();
+  }
+
   return segments.join("/");
 }
 
@@ -26,7 +34,11 @@ export function assertSameSlugs(
   const pages = new Set(fromSource);
   const missing = [...pages].filter((slug) => !files.has(slug));
   const extra = [...files].filter((slug) => !pages.has(slug));
-  if (missing.length === 0 && extra.length === 0) return;
+
+  if (missing.length === 0 && extra.length === 0) {
+    return;
+  }
+
   throw new Error(
     `lib/page-slugs.json is out of date with the docs source. Missing: ${
       missing.join(", ") || "none"
@@ -36,8 +48,12 @@ export function assertSameSlugs(
 
 /** The page slug a `/docs` URL path asks for, `undefined` outside `/docs`. */
 export function docsPathSlug(pathname: string): string | undefined {
-  if (pathname !== "/docs" && !pathname.startsWith("/docs/")) return undefined;
+  if (pathname !== "/docs" && !pathname.startsWith("/docs/")) {
+    return undefined;
+  }
+
   const slug = pathname.slice("/docs".length).replaceAll(/^\/+|\/+$/gu, "");
+
   try {
     return decodeURIComponent(slug);
   } catch {

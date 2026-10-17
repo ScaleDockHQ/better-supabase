@@ -50,6 +50,7 @@ async function connect(): Promise<Client> {
     }),
   );
   client = connected;
+
   return connected;
 }
 
@@ -78,6 +79,7 @@ describe("docs MCP server", () => {
       "list_pages",
       "search_docs",
     ]);
+
     for (const tool of tools) {
       expect(tool.annotations).toEqual({
         readOnlyHint: true,
@@ -86,6 +88,7 @@ describe("docs MCP server", () => {
         openWorldHint: false,
       });
     }
+
     expect(
       tools.find((tool) => tool.name === "search_docs")?.outputSchema,
     ).toMatchObject({ type: "object" });
@@ -93,10 +96,12 @@ describe("docs MCP server", () => {
 
   it("returns structured search results", async () => {
     const mcp = await connect();
+
     const result = await mcp.callTool({
       name: "search_docs",
       arguments: { query: "cli", limit: 5 },
     });
+
     expect(result.structuredContent).toEqual({
       results: [{ url: "/docs/cli/gen", title: "gen", type: "page" }],
     });
@@ -106,30 +111,36 @@ describe("docs MCP server", () => {
       name: "search_docs",
       arguments: { query: "nothing" },
     });
+
     expect(text(none)).toBe('No pages match "nothing".');
   });
 
   it("rejects invalid arguments", async () => {
     const mcp = await connect();
+
     const result = await mcp.callTool({
       name: "search_docs",
       arguments: { query: "", limit: 100 },
     });
+
     expect(result.isError).toBe(true);
   });
 
   it("reads a page by any form of its url, and reports a missing one", async () => {
     const mcp = await connect();
+
     const page = await mcp.callTool({
       name: "get_page",
       arguments: { url: "https://bettersupabase.com/docs/cli/gen.md#options" },
     });
+
     expect(text(page)).toContain("# gen");
 
     const missing = await mcp.callTool({
       name: "get_page",
       arguments: { url: "cli/nope" },
     });
+
     expect(missing.isError).toBe(true);
     expect(text(missing)).toContain("No page at /docs/cli/nope");
 
@@ -157,6 +168,7 @@ describe("docs MCP server", () => {
         }),
       }),
     );
+
     expect(response.status).toBe(200);
     expect(await response.text()).toContain(DOCS_MCP_NAME);
   });

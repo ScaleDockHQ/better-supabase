@@ -62,6 +62,7 @@ describe("collections module", () => {
 
   it("records its events with outbox installed", () => {
     const sql = sqlOf(["outbox"]);
+
     for (const type of [
       "collection.created",
       "collection.archived",
@@ -79,6 +80,7 @@ describe("collections module", () => {
       .filter((file) => file.module === "collections")
       .map((file) => file.contents)
       .join("");
+
     expect(sql).not.toContain("create_collection");
   });
 

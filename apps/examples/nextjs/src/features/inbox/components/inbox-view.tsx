@@ -44,6 +44,7 @@ export function InboxView({
   const [status, setStatus] = useState<ConversationStatus>("open");
   const [assignee, setAssignee] = useState<AssigneeFilter>("anyone");
   const [selected, setSelected] = useState<string | null>(null);
+
   const assigneeItems = [
     { value: "anyone", label: t("Anyone") },
     { value: "me", label: t("Mine") },
@@ -57,7 +58,10 @@ export function InboxView({
           <Tabs
             value={status}
             onValueChange={(value) => {
-              if (!v.is(ConversationStatus, value)) return;
+              if (!v.is(ConversationStatus, value)) {
+                return;
+              }
+
               setStatus(value);
             }}
           >
@@ -72,7 +76,10 @@ export function InboxView({
             value={assignee}
             items={assigneeItems}
             onValueChange={(value) => {
-              if (!v.is(AssigneeFilter, value)) return;
+              if (!v.is(AssigneeFilter, value)) {
+                return;
+              }
+
               setAssignee(value);
             }}
           >
@@ -137,17 +144,22 @@ function ConversationList({
 }) {
   const t = useExtracted("inbox");
   const format = useFormatter();
+
   const inbox = useInbox({
     organizationId,
     load: async () => unwrap(await loadConversations({ status, assignee })),
   });
+
   const conversations = inbox.items ?? initial;
+
   // Staff reads send no broadcast, so an opened conversation clears its badge here.
   const [openedAt, setOpenedAt] = useState<ReadonlyMap<string, number>>(
     () => new Map(),
   );
+
   const unread = (conversation: ConversationRow): boolean => {
     const opened = openedAt.get(conversation.id);
+
     return (
       conversation.unread &&
       (opened === undefined ||
@@ -155,6 +167,7 @@ function ConversationList({
           Date.parse(conversation.lastMessageAt) > opened))
     );
   };
+
   return conversations.length === 0 ? (
     <Empty className="border">
       <EmptyHeader>
@@ -175,7 +188,7 @@ function ConversationList({
             type="button"
             aria-current={selected === conversation.id ? "true" : undefined}
             className={cn(
-              "hover:bg-muted/50 flex w-full flex-col gap-1 px-4 py-3 text-left text-sm",
+              "flex w-full flex-col gap-1 px-4 py-3 text-left text-sm hover:bg-muted/50",
               selected === conversation.id && "bg-muted",
             )}
             onClick={() => {
@@ -194,7 +207,7 @@ function ConversationList({
             <span className="truncate">
               {conversation.subject ?? t("No subject")}
             </span>
-            <span className="text-muted-foreground flex gap-2 text-xs">
+            <span className="flex gap-2 text-xs text-muted-foreground">
               <span className="flex-1 truncate">{conversation.preview}</span>
               {conversation.lastMessageAt ? (
                 <span className="tabular-nums">

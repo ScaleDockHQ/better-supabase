@@ -14,9 +14,11 @@ import { createSqlite } from "../fixtures/sqlite.ts";
 import { stackUrl } from "./stack-env.ts";
 
 const url = stackUrl();
+
 const publishableKey =
   process.env["SUPABASE_PUBLISHABLE_KEY"] ??
   "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";
+
 const secretKey =
   process.env["SUPABASE_SECRET_KEY"] ??
   "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -27,6 +29,7 @@ async function reachable(): Promise<boolean> {
       headers: { apikey: publishableKey },
       signal: AbortSignal.timeout(1000),
     });
+
     return response.status < 500;
   } catch {
     return false;
@@ -37,11 +40,17 @@ const live = await reachable();
 
 const ORG = crypto.randomUUID();
 const ids = new Map<number, string>();
+
 const id = (n: number): string => {
   const existing = ids.get(n);
-  if (existing) return existing;
+
+  if (existing) {
+    return existing;
+  }
+
   const created = crypto.randomUUID();
   ids.set(n, created);
+
   return created;
 };
 
@@ -61,9 +70,11 @@ const CUSTOMERS = [
 
 describe.skipIf(!live)("SQLite and PostgREST return the same results", () => {
   const betterSupabase = defineSupabase(schema);
+
   const admin = createClient(url, secretKey, {
     auth: { persistSession: false },
   });
+
   const rest = betterSupabase.connect(admin);
   const local = createSqlite(betterSupabase.meta);
   const sqlite = betterSupabase.connect(powersyncExecutor(local.db));
@@ -106,6 +117,7 @@ describe.skipIf(!live)("SQLite and PostgREST return the same results", () => {
         { returning: false },
       )
       .orThrow();
+
     for (const table of [
       "organizations",
       "customers",
@@ -113,11 +125,16 @@ describe.skipIf(!live)("SQLite and PostgREST return the same results", () => {
       "customer_tags",
     ]) {
       const column = table === "organizations" ? "id" : "organization_id";
+
       const { data, error } = await admin
         .from(table)
         .select("*")
         .eq(column, ORG);
-      if (error) throw new Error(error.message);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
       for (const row of data as Record<string, unknown>[]) {
         const columns = Object.keys(row);
         local.sqlite
@@ -139,8 +156,13 @@ describe.skipIf(!live)("SQLite and PostgREST return the same results", () => {
     ) => PromiseLike<Result<T>>,
   ): Promise<T> => {
     const [fromRest, fromSqlite] = await Promise.all([run(rest), run(sqlite)]);
-    if (!fromRest.ok) throw new Error(fromRest.error.message);
+
+    if (!fromRest.ok) {
+      throw new Error(fromRest.error.message);
+    }
+
     expect(fromSqlite).toEqual(fromRest);
+
     return fromRest.data;
   };
 
@@ -149,6 +171,7 @@ describe.skipIf(!live)("SQLite and PostgREST return the same results", () => {
   it("filters text like Postgres", async () => {
     const names = (rows: readonly { name: string }[]) =>
       rows.map((row) => row.name);
+
     const select = ["name"] as const;
     const orderBy = [{ name: "asc" }, { id: "asc" }] as const;
     expect(
@@ -223,6 +246,7 @@ describe.skipIf(!live)("SQLite and PostgREST return the same results", () => {
     const day = Temporal.PlainDate.from(date);
     const start = day.toZonedDateTime({ timeZone }).toInstant();
     const end = day.add({ days: 1 }).toZonedDateTime({ timeZone }).toInstant();
+
     const rows = await both((db) =>
       db.customers.findMany({
         where: {
@@ -233,6 +257,7 @@ describe.skipIf(!live)("SQLite and PostgREST return the same results", () => {
         orderBy: [{ createdAt: "asc" }],
       }),
     );
+
     expect(rows).toHaveLength(expected);
   });
 
@@ -270,6 +295,7 @@ describe.skipIf(!live)("SQLite and PostgREST return the same results", () => {
       facetCounts: true,
       pageSize: 3,
     });
+
     for (const input of [
       {},
       { q: "acme" },

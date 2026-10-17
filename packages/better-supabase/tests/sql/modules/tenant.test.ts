@@ -29,6 +29,7 @@ describe("tenant module sameTenant", () => {
         },
       },
     ]);
+
     expect(sql).toContain(
       "create or replace function better_supabase.same_tenant()",
     );
@@ -52,6 +53,7 @@ describe("tenant module sameTenant", () => {
         columns: { memberships: { tenant: "team_id" } },
       },
     );
+
     expect(sql).toContain(
       `before insert or update of "deal_id", "team_id" on "public"."notes"`,
     );
@@ -75,6 +77,7 @@ describe("tenant module sameTenant", () => {
         match: { customer_id: "customer_id", organization_id: "owner_id" },
       },
     ]);
+
     expect(sql).toContain(
       `create trigger "bs_same_tenant_asset_id" before insert or update of "asset_id", "organization_id", "customer_id", "site_id" on "public"."jobs"
   for each row execute function better_supabase.same_tenant('asset_id', 'organization_id', '"public"."assets"', 'id', 'organization_id', '', 'customer_id', 'customer_id', 'site_id', 'location_id');`,
@@ -106,6 +109,7 @@ describe("tenant module sameTenant", () => {
         through: { task_id: { table: "work.tasks", column: "key" } },
       },
     ]);
+
     expect(sql).toContain(
       `create trigger "bs_same_tenant_asset_id" before insert or update of "asset_id", "organization_id", "quote_id" on "public"."quote_assets"
   for each row execute function better_supabase.same_tenant('asset_id', 'organization_id', '"public"."assets"', 'id', 'organization_id', 'p."customer_id" is not distinct from (select h."customer_id" from "public"."quotes" h where h."id" = ($1)."quote_id")');`,
@@ -205,6 +209,7 @@ describe("tenant module sameTenant", () => {
 describe("tenant role helpers under a provider", () => {
   const fn = (sql: string, name: string): string => {
     const start = sql.indexOf(`function better_supabase.${name}(`);
+
     return sql.slice(start, sql.indexOf("$$;", start));
   };
 
@@ -213,6 +218,7 @@ describe("tenant role helpers under a provider", () => {
       modules: { access: { model: "provider" } },
       accessProvider: moduleProvider,
     })!;
+
     const ids = fn(sql, "member_organization_ids");
     expect(ids).toContain("from authz.member_organization_ids() as p(id)");
     expect(ids).toContain(

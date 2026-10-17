@@ -23,7 +23,9 @@ function transport(
     async (_schema: string, fn: string, args: Record<string, unknown>) =>
       answer(fn, args),
   );
+
   const value: BlockTransport = { call };
+
   return { call, transport: value };
 }
 
@@ -32,28 +34,44 @@ function expoFetch(
   status = 200,
 ) {
   const calls: { path: string; body: unknown; headers: Headers }[] = [];
+
   const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = String(input).split("/").at(-1) ?? "";
     const body: unknown = JSON.parse(String(init?.body));
     calls.push({ path, body, headers: new Headers(init?.headers) });
-    return new Response(JSON.stringify({ data: answer(path, body) }), {
-      status,
-    });
+
+    return Response.json(
+      { data: answer(path, body) },
+      {
+        status,
+      },
+    );
   });
+
   return { calls, fetch };
 }
 
 describe("createPush", () => {
   it("maps calls to the module functions", async () => {
     const { call, transport: t } = transport((fn) => {
-      if (fn === "register_push_device") return "d1";
-      if (fn === "unregister_push_device") return true;
-      if (fn === "prune_push_tokens") return 2;
+      if (fn === "register_push_device") {
+        return "d1";
+      }
+
+      if (fn === "unregister_push_device") {
+        return true;
+      }
+
+      if (fn === "prune_push_tokens") {
+        return 2;
+      }
+
       return [
         { userId: "u1", token: "a", platform: "ios", provider: "expo" },
         { userId: "u1", token: "b", platform: "tv", provider: "expo" },
       ];
     });
+
     const devices = createPush({ transport: t, schema: "app" });
     expect(
       await devices.register({ token: "a", platform: "ios" }).orThrow(),
@@ -99,13 +117,16 @@ describe("push fields", () => {
             },
           ],
     );
+
     const devices = createPush({ transport: t, fields: schema });
+
     const bad = await devices.register({
       token: "a",
       platform: "ios",
       // @ts-expect-error not one of the channels
       fields: { channel: "nightly" },
     });
+
     expect(bad).toMatchObject({ ok: false, error: { kind: "validation" } });
     expect(call).not.toHaveBeenCalled();
     await devices
@@ -131,6 +152,7 @@ describe("push fields", () => {
         fields: { channel: 3 },
       },
     ]);
+
     const devices = createPush({ transport: t, fields: schema });
     expect(await devices.tokensFor(["u1"])).toMatchObject({
       ok: false,
@@ -142,12 +164,14 @@ describe("push fields", () => {
 describe("registerDevice", () => {
   const devices = (): PushDevices & { register: ReturnType<typeof vi.fn> } => {
     const register = vi.fn(() => ({ orThrow: async () => "d1" }));
+
     // SAFETY: the tests call register only.
     return { register } as never;
   };
 
   it("asks for permission, then registers the Expo token", async () => {
     const d = devices();
+
     const notifications = {
       getPermissionsAsync: vi.fn(async () => ({ status: "undetermined" })),
       requestPermissionsAsync: vi.fn(async () => ({ status: "granted" })),
@@ -155,6 +179,7 @@ describe("registerDevice", () => {
         data: "ExponentPushToken[x]",
       })),
     };
+
     expect(
       await registerDevice({
         notifications,
@@ -179,11 +204,13 @@ describe("registerDevice", () => {
 
   it("resolves null when denied, without asking when request is false, or off a phone", async () => {
     const d = devices();
+
     const notifications = {
       getPermissionsAsync: vi.fn(async () => ({ status: "denied" })),
       requestPermissionsAsync: vi.fn(async () => ({ status: "denied" })),
       getExpoPushTokenAsync: vi.fn(async () => ({ data: "t" })),
     };
+
     expect(
       await registerDevice({
         notifications,
@@ -222,6 +249,7 @@ describe("registerDevice", () => {
       devices: devices(),
       platform: "ios",
     });
+
     expect(result.ok ? undefined : result.error.message).toBe("no projectId");
   });
 });
@@ -229,20 +257,26 @@ describe("registerDevice", () => {
 describe("unregisterOnSignOut", () => {
   it("unregisters the token before signing out", async () => {
     const order: string[] = [];
+
     const unregister = vi.fn(() => {
       order.push("unregister");
+
       return Promise.resolve(ok(true));
     });
+
     // SAFETY: the test calls unregister only.
     const devices = { unregister } as never as PushDevices;
+
     const signOut = unregisterOnSignOut({
       signOut: async () => {
         order.push("signOut");
+
         return { error: null };
       },
       devices,
       token: () => "t1",
     });
+
     expect(await signOut()).toEqual({ error: null });
     expect(order).toEqual(["unregister", "signOut"]);
     await unregisterOnSignOut({
@@ -257,15 +291,19 @@ describe("unregisterOnSignOut", () => {
 describe("expoPush", () => {
   it("sends in chunks of 100 and prunes unregistered tokens from tickets", async () => {
     const pruned: string[][] = [];
+
     const devices = createPush({
       transport: transport((fn, args) => {
         if (fn === "prune_push_tokens") {
           pruned.push([...(args["tokens"] as string[])]);
+
           return 1;
         }
+
         return null;
       }).transport,
     });
+
     const { calls, fetch } = expoFetch((_path, body) =>
       (body as { to: string }[]).map((message) =>
         message.to === "gone"
@@ -277,6 +315,7 @@ describe("expoPush", () => {
           : { status: "ok", id: `r-${message.to}` },
       ),
     );
+
     const push = expoPush({ accessToken: "secret", devices, fetch });
     const tokens = [...Array.from({ length: 100 }, (_, i) => `t${i}`), "gone"];
     const tickets = await push.send(tokens, { title: "Hi" });
@@ -300,6 +339,7 @@ describe("expoPush", () => {
     const prune = vi.fn(() => ({ orThrow: async () => 1 }));
     // SAFETY: the sender calls prune only.
     const devices = { prune } as never as PushDevices;
+
     const { calls, fetch } = expoFetch(() => ({
       r1: { status: "ok" },
       r2: { status: "error", details: { error: "DeviceNotRegistered" } },
@@ -309,6 +349,7 @@ describe("expoPush", () => {
         details: { error: "MessageTooBig" },
       },
     }));
+
     const result = await expoPush({ devices, fetch }).checkReceipts([
       { token: "a", id: "r1" },
       { token: "b", id: "r2" },
@@ -316,6 +357,7 @@ describe("expoPush", () => {
       { token: "d", id: "r4" },
       { token: "e", error: "InvalidCredentials" },
     ]);
+
     expect(calls[0]).toMatchObject({
       path: "getReceipts",
       body: { ids: ["r1", "r2", "r3", "r4"] },
@@ -378,7 +420,9 @@ describe("expoPushChannel", () => {
     const send = vi.fn(async (tokens: readonly string[]) =>
       tokens.map((token) => ({ token, id: `r-${token}` })),
     );
+
     const onTickets = vi.fn();
+
     const channel = expoPushChannel({
       devices: devicesWith([
         { token: "a", provider: "expo" },
@@ -387,6 +431,7 @@ describe("expoPushChannel", () => {
       push: { send, checkReceipts: vi.fn() },
       onTickets,
     });
+
     expect(channel).toMatchObject({ apiVersion: 1, name: "push" });
     expect(await channel.send(message)).toEqual({
       provider: "expo",
@@ -415,6 +460,7 @@ describe("expoPushChannel", () => {
       ),
       checkReceipts: vi.fn(),
     };
+
     expect(
       await expoPushChannel({ devices: devicesWith([]), push }).send(message),
     ).toEqual({ status: "skipped", provider: "expo" });

@@ -4,11 +4,13 @@ import { createStateMachine } from "../../../src/blocks/state-machine/index.ts";
 
 function recording(results: Record<string, unknown>) {
   const calls: { fn: string; args: Record<string, unknown> }[] = [];
+
   return {
     calls,
     transport: {
       call(_schema: string, fn: string, args: Record<string, unknown>) {
         calls.push({ fn, args });
+
         return Promise.resolve(results[fn]);
       },
     },
@@ -22,6 +24,7 @@ describe("state machine block", () => {
       resume_lifecycle: false,
       set_lifecycle_flag: true,
     });
+
     const machine = createStateMachine<"quote">({ transport });
     const until = Temporal.Instant.from("2026-11-01T00:00:00Z");
     expect(
@@ -88,9 +91,11 @@ describe("state machine block", () => {
         pauseReason: "waiting",
       },
     });
+
     const state = await createStateMachine({ transport })
       .state("quote", "q1")
       .orThrow();
+
     expect(state).toMatchObject({
       status: "sent",
       order: ["draft", "sent", "accepted"],
@@ -122,9 +127,11 @@ describe("state machine block", () => {
         paused: false,
       },
     });
+
     const state = await createStateMachine({ transport })
       .state("quote", "q1")
       .orThrow();
+
     expect(state.step).toBeUndefined();
     expect(state.progress).toBeUndefined();
     expect(state.version).toBeUndefined();
@@ -144,13 +151,16 @@ describe("state machine block", () => {
         },
       ],
     });
+
     const machine = createStateMachine({ transport });
+
     const history = await machine
       .history("quote", "q1", {
         cursor: Temporal.Instant.from("2026-10-03T00:00:00Z"),
         limit: 10,
       })
       .orThrow();
+
     expect(history).toHaveLength(1);
     expect(history[0]).toMatchObject({
       id: "h2",
@@ -189,9 +199,11 @@ describe("state machine block", () => {
         },
       ],
     });
+
     const stages = await createStateMachine({ transport })
       .stages("quote", "q1")
       .orThrow();
+
     expect(stages.map((stage) => stage.label)).toEqual(["draft", "sent"]);
     expect(stages[1]?.clearedAt).toBeUndefined();
     expect(stages[0]?.display).toBe(1);

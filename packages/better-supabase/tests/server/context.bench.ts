@@ -12,19 +12,23 @@ import { schema } from "../fixtures/generated-camel.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 const RUNS = 2000;
+
 /**
  * A verified token must cost at most this share of a first verification;
  * past it, the per-process memo has stopped working.
  */
 const MAX_WARM_SHARE = 0.5;
+
 /** A repeat call on the same request must cost at most this share of a verified one. */
 const MAX_REPEAT_SHARE = 0.25;
 
 const signer = await createTestSigner();
+
 const token = await signer.sign({
   sub: "11111111-1111-4111-8111-111111111111",
   org_id: "00000000-0000-4000-8000-000000000001",
 });
+
 const server = createServer(
   defineSupabase(schema).use(tenant({ claim: "org_id" })),
   {
@@ -36,38 +40,57 @@ const server = createServer(
     auth: { jwks: signer.jwks as never },
   },
 );
+
 const anonymous = (): Request => new Request("https://app.test/");
+
 const bearer = (): Request =>
   new Request("https://app.test/", {
     headers: { authorization: `Bearer ${token}` },
   });
 
 async function measure(work: () => Promise<unknown>): Promise<number> {
-  for (let warm = 0; warm < 200; warm++) await work();
+  for (let warm = 0; warm < 200; warm++) {
+    await work();
+  }
+
   const started = performance.now();
-  for (let run = 0; run < RUNS; run++) await work();
+
+  for (let run = 0; run < RUNS; run++) {
+    await work();
+  }
+
   return ((performance.now() - started) / RUNS) * 1000;
 }
 
 const anon = await measure(async () => {
   const ctx = await server.context(anonymous());
+
   return ctx.db;
 });
+
 const cold = await measure(async () => {
   clearVerifiedTokens();
   const ctx = await server.context(bearer());
+
   return ctx.db;
 });
+
 const warm = await measure(async () => {
   const ctx = await server.context(bearer());
+
   return ctx.db;
 });
+
 const same = bearer();
+
 await server.context(same);
+
 const repeat = await measure(async () => {
   const ctx = await server.context(same);
+
   return ctx.db;
 });
+
 console.table({
   anonymous: { "µs per context": anon.toFixed(1) },
   "bearer, first verification": { "µs per context": cold.toFixed(1) },
@@ -81,6 +104,7 @@ if (warm > cold * MAX_WARM_SHARE) {
   );
   process.exitCode = 1;
 }
+
 if (repeat > warm * MAX_REPEAT_SHARE) {
   console.error(
     `a repeat context() on one request costs ${repeat.toFixed(1)}µs, over ${String(MAX_REPEAT_SHARE * 100)}% of a new one (${warm.toFixed(1)}µs).`,

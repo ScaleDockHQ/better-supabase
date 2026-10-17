@@ -51,37 +51,49 @@ export function scopeProblems(provider: {
 }): string[] {
   const problems: string[] = [];
   const byName = new Map(provider.scopes.map((scope) => [scope.name, scope]));
+
   for (const scope of provider.scopes) {
     if (scope.idType !== undefined && !SCOPE_ID_TYPES.includes(scope.idType)) {
       problems.push(
         `scope "${scope.name}" has idType "${scope.idType}"; use ${SCOPE_ID_TYPES.join(", ")}`,
       );
     }
+
     if (scope.parent !== undefined && !byName.has(scope.parent)) {
       problems.push(
         `scope "${scope.name}" has parent "${scope.parent}", which is not a scope`,
       );
     }
   }
+
   const cyclic = new Set<string>();
+
   for (const scope of provider.scopes) {
     const seen = new Set<string>();
     let current: string | undefined = scope.name;
+
     while (current !== undefined && !seen.has(current)) {
       seen.add(current);
       current = byName.get(current)?.parent;
     }
+
     if (current !== undefined && !cyclic.has(current)) {
-      for (const name of seen) cyclic.add(name);
+      for (const name of seen) {
+        cyclic.add(name);
+      }
+
       problems.push(`scope "${current}" is its own ancestor (a parent cycle)`);
     }
   }
+
   const tenant = byName.get(provider.tenantScope);
+
   if (tenant === undefined) {
     problems.push(`tenantScope "${provider.tenantScope}" is not a scope`);
   } else if (tenant.idType === undefined) {
     problems.push(`tenant scope "${tenant.name}" has no idType`);
   }
+
   return problems;
 }
 
@@ -119,15 +131,25 @@ export function templateProblems(template: string): string[] {
   const code = template
     .replaceAll(/'(?:[^']|'')*'/g, "''")
     .replaceAll(/\{(\w+)\}/g, "$1");
+
   const problems: string[] = [];
+
   for (const token of ["$$", ";", "--"]) {
-    if (code.includes(token)) problems.push(`contains "${token}"`);
+    if (code.includes(token)) {
+      problems.push(`contains "${token}"`);
+    }
   }
+
   for (const match of code.matchAll(/(?<![\w$.":])"?([a-z_][\w$]*)"?\s*\(/gi)) {
     const name = match[1]!;
-    if (CALL_KEYWORDS.has(name.toLowerCase())) continue;
+
+    if (CALL_KEYWORDS.has(name.toLowerCase())) {
+      continue;
+    }
+
     problems.push(`calls ${name}() without a schema`);
   }
+
   return problems;
 }
 
@@ -147,6 +169,7 @@ export function fillTemplate(
 ): string {
   return template.replaceAll(/\{(\w+)\}/g, (match, name: string) => {
     const value = values[name];
+
     if (value === undefined) {
       throw new TypeError(
         `${where}: ${match} is not available here. Use ${Object.keys(values)
@@ -154,6 +177,7 @@ export function fillTemplate(
           .join(", ")}`,
       );
     }
+
     return value;
   });
 }
@@ -162,6 +186,7 @@ export function fillTemplate(
 export function templateFunctions(template: string, scope?: string): string[] {
   const filled =
     scope === undefined ? template : template.replaceAll("{scope}", scope);
+
   return [
     ...new Set(
       [
@@ -191,12 +216,16 @@ export function resolveProviderSql<T extends AccessTarget>(
   target: T,
   functions: AuthorizationFunctions | undefined,
 ): T {
-  if (target.sql !== "provider") return target;
+  if (target.sql !== "provider") {
+    return target;
+  }
+
   if (functions === undefined) {
     throw new TypeError(
       `${where}: sql "provider" needs \`authorization\` in better-supabase.config.ts`,
     );
   }
+
   return {
     ...target,
     sql: { idsWith: functions.idsWith, isPlatform: functions.isPlatform },
@@ -215,32 +244,48 @@ export function accessCheck(
   key: string,
   id: string | undefined,
 ): string {
-  if (key === "") throw new TypeError(`${where}: a permission key is empty`);
+  if (key === "") {
+    throw new TypeError(`${where}: a permission key is empty`);
+  }
+
   const scope = target.scope ?? "tenant";
   const permission = sqlString(key);
+
   if (target.sql === "provider") {
     throw new TypeError(
       `${where}: sql "provider" needs the config's authorization provider; write the policy with \`better-supabase gen\` or pass its templates`,
     );
   }
+
   if (!target.sql) {
-    if (scope === "platform")
+    if (scope === "platform") {
       return `(select better_supabase.is_platform(${permission}))`;
+    }
+
     if (scope !== "tenant") {
       throw new TypeError(
         `${where}: scope "${scope}" needs sql templates; without them use "tenant" or "platform"`,
       );
     }
-    if (id === undefined)
+
+    if (id === undefined) {
       throw new TypeError(`${where}: scope "tenant" needs a segment`);
+    }
+
     return `${id} in (select t::text from better_supabase.tenant_ids_with(${permission}) t)`;
   }
+
   if (scope === "platform") {
     return `(select ${fillTemplate(`${where} sql.isPlatform`, target.sql.isPlatform, { permission })})`;
   }
-  if (!isScopeName(scope))
+
+  if (!isScopeName(scope)) {
     throw new TypeError(`${where}: invalid scope "${scope}"`);
-  if (id === undefined)
+  }
+
+  if (id === undefined) {
     throw new TypeError(`${where}: scope "${scope}" needs a segment`);
+  }
+
   return `${id} in (select t.id::text from ${fillTemplate(`${where} sql.idsWith`, target.sql.idsWith, { permission, scope })} as t(id))`;
 }

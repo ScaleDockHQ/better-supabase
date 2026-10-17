@@ -36,11 +36,13 @@ function transport(results: Readonly<Record<string, unknown>> = {}): {
   readonly calls: Call[];
 } {
   const calls: Call[] = [];
+
   return {
     calls,
     transport: {
       call: (_schema, fn, args) => {
         calls.push({ fn, args });
+
         return Promise.resolve(results[fn] ?? null);
       },
     },
@@ -68,21 +70,26 @@ describe("block fields", () => {
         fields: { priority: "high", points: "3" },
       },
     });
+
     const tags = createTags({ transport: fake.transport, fields: Fields });
+
     const tag = await tags
       .create("o", "label", "Urgent", undefined, undefined, {
         priority: "high",
         points: 3,
       })
       .orThrow();
+
     expect(tag.fields).toEqual({ priority: "high", points: 3 });
     expect(fake.calls[0]?.args["fields"]).toEqual({
       priority: "high",
       points: 3,
     });
+
     const refused = await tags.update("t1", null, {
       priority: "urgent" as "low",
     });
+
     expect(refused).toMatchObject({
       ok: false,
       error: { kind: "validation" },
@@ -92,9 +99,11 @@ describe("block fields", () => {
 
   it("leaves fields out of the call when there are none", async () => {
     const fake = transport({ update_team: { id: "t1", slug: "ops" } });
+
     const team = await createTeams({ transport: fake.transport })
       .update("t1", "Ops")
       .orThrow();
+
     expect(team).toEqual({ id: "t1", name: "Ops", slug: "ops", fields: {} });
     expect(fake.calls[0]?.args["fields"]).toBeUndefined();
   });
@@ -127,6 +136,7 @@ describe("block fields", () => {
         },
       ],
     });
+
     const teams = createTeams({ transport: fake.transport, fields: Fields });
     expect(await teams.list("o")).toMatchObject({
       ok: false,
@@ -168,6 +178,7 @@ describe("block fields", () => {
         priority_label: "x",
       },
     });
+
     const policy = await createSla({
       transport: fake.transport,
       fields: Fields,
@@ -178,6 +189,7 @@ describe("block fields", () => {
         fields: { priority: "high", points: 1 },
       })
       .orThrow();
+
     expect(policy.fields.priority).toBe("high");
     expect(fake.calls[0]?.args["attrs"]).toMatchObject({
       fields: { priority: "high", points: 1 },
@@ -188,9 +200,11 @@ describe("block fields", () => {
     expect(fake.calls[1]?.args["attrs"]).toMatchObject({
       fields: { budget: 3 },
     });
+
     const item = await createWorkItems({ transport: fake.transport })
       .create("o", { title: "A", fields: { priority_label: "x" } })
       .orThrow();
+
     expect(item.fields).toEqual({ priority_label: "x" });
     expect(fake.calls[2]?.args["attrs"]).toMatchObject({
       title: "A",
@@ -200,10 +214,12 @@ describe("block fields", () => {
 
   it("validates a work item change to an extra column before the batch", async () => {
     const fake = transport();
+
     const items = createWorkItems({
       transport: fake.transport,
       fields: v.object({ size: v.picklist(["s", "m", "l"]) }),
     });
+
     expect(
       await items.update([
         { workItemId: "w1", field: "title", value: "B" },
@@ -224,6 +240,7 @@ describe("block fields", () => {
       updatedAt: at,
       fields: { priority: "low", points: 1 },
     };
+
     const fake = transport({
       create_share_link: {
         id: "l1",
@@ -266,18 +283,23 @@ describe("block fields", () => {
         fields: { priority: "low", points: 1 },
       },
     });
+
     const value = { priority: "low", points: 1 } as const;
+
     const link = await createShareLinks({
       transport: fake.transport,
       fields: Fields,
     })
       .create("o", "deal", "d1", { fields: value })
       .orThrow();
+
     expect(link.fields).toEqual(value);
+
     const time = createTimeTracking({
       transport: fake.transport,
       fields: Fields,
     });
+
     await time.start("o", { fields: value }).orThrow();
     await time.update("e1", { note: "n", fields: value }).orThrow();
     await createVersions({ transport: fake.transport, fields: Fields })
@@ -291,6 +313,7 @@ describe("block fields", () => {
     await createWaitlist({ transport: fake.transport, fields: Fields })
       .join("a@b.c", { fields: value })
       .orThrow();
+
     const request = await createSignatures({
       transport: fake.transport,
       fields: Fields,
@@ -303,21 +326,27 @@ describe("block fields", () => {
         fields: { priority: "high", points: 2 },
       })
       .orThrow();
+
     expect(request.fields.points).toBe(2);
+
     const definition = await createWorkflowBuilder({
       transport: fake.transport,
       fields: Fields,
     })
       .definitions.save({ slug: "s", name: "S", fields: value })
       .orThrow();
+
     expect(definition.fields).toEqual(value);
+
     const template = await createTemplates({
       transport: fake.transport,
       fields: Fields,
     })
       .save({ organizationId: "o", type: "invoice", name: "T", fields: value })
       .orThrow();
+
     expect(template.fields).toEqual(value);
+
     const sent = Object.fromEntries(
       fake.calls.map((call) => [
         call.fn,
@@ -325,6 +354,7 @@ describe("block fields", () => {
           (call.args["patch"] as { fields?: unknown } | undefined)?.fields,
       ]),
     );
+
     for (const fn of [
       "create_share_link",
       "start_timer",
@@ -357,7 +387,9 @@ describe("block fields", () => {
       extend_webhook: 300,
       complete_webhook: true,
     });
+
     let claimed = 0;
+
     const inbox = createWebhookInbox({
       transport: {
         call: (schema, fn, args) =>
@@ -368,6 +400,7 @@ describe("block fields", () => {
       source: "crm",
       fields: Fields,
     });
+
     await inbox
       .store({ id: "m1", payload: {}, fields: { priority: "high", points: 4 } })
       .orThrow();
@@ -389,6 +422,7 @@ describe("block hooks", () => {
   it("refuses a call before it reaches the database", async () => {
     const fake = transport();
     const refusal = dbError("forbidden", "Not today");
+
     const clients = [
       createTags({
         transport: fake.transport,
@@ -444,9 +478,11 @@ describe("block hooks", () => {
         hooks: { list: { before: () => refusal } },
       }).list({ tenant: "o" }),
     ];
+
     for (const result of await Promise.all(clients)) {
       expect(result).toMatchObject({ ok: false, error: { kind: "forbidden" } });
     }
+
     expect(fake.calls).toEqual([]);
   });
 });

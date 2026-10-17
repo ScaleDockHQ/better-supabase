@@ -8,9 +8,11 @@ export function timingSafeEqual(a: string, b: string): boolean {
   const left = encoder.encode(a);
   const right = encoder.encode(b);
   let diff = left.length ^ right.length;
+
   for (let index = 0; index < Math.max(left.length, right.length); index++) {
     diff |= (left[index] ?? 0) ^ (right[index] ?? 0);
   }
+
   return diff === 0;
 }
 
@@ -30,6 +32,7 @@ export async function hmacHex(
     false,
     ["sign"],
   );
+
   return toHex(
     new Uint8Array(
       await crypto.subtle.sign("HMAC", key, encoder.encode(message)),

@@ -20,20 +20,28 @@ type Part = UIMessage["parts"][number];
 
 /** One line for a tool call, such as "Searched the docs for verify token". */
 function toolStep(part: Part): string | undefined {
-  if (!isToolUIPart(part)) return undefined;
+  if (!isToolUIPart(part)) {
+    return undefined;
+  }
+
   const done = part.state === "output-available";
   const failed = part.state === "output-error";
   const name = getToolName(part);
+
   if (name === "search_docs") {
     const input = v.safeParse(SearchInput, part.input);
     const query = input.success ? ` for "${input.output.query}"` : "";
+
     return `${done || failed ? "Searched" : "Searching"} the docs${query}`;
   }
+
   if (name === "read_page") {
     const input = v.safeParse(PageInput, part.input);
     const url = input.success ? ` ${input.output.url}` : "";
+
     return `${done || failed ? "Read" : "Reading"}${url}`;
   }
+
   return undefined;
 }
 
@@ -41,31 +49,43 @@ function MessageParts({ parts }: { parts: readonly Part[] }) {
   const nodes = [];
   let text = "";
   let after = "start";
+
   const flush = () => {
-    if (text !== "") nodes.push(<span key={`text-${after}`}>{text}</span>);
+    if (text !== "") {
+      nodes.push(<span key={`text-${after}`}>{text}</span>);
+    }
+
     text = "";
   };
+
   for (const part of parts) {
     if (part.type === "text") {
       text += part.text;
       continue;
     }
-    if (!isToolUIPart(part)) continue;
+
+    if (!isToolUIPart(part)) {
+      continue;
+    }
+
     flush();
     after = part.toolCallId;
     const step = toolStep(part);
+
     if (step !== undefined) {
       nodes.push(
         <span
           key={after}
-          className="text-fd-muted-foreground my-1 block text-xs"
+          className="my-1 block text-xs text-fd-muted-foreground"
         >
           {step}
         </span>,
       );
     }
   }
+
   flush();
+
   return nodes;
 }
 
@@ -78,9 +98,11 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const text = input.trim();
+
     if (text === "" || busy) {
       return;
     }
+
     void sendMessage({ text });
     setInput("");
   }
@@ -88,7 +110,7 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
   return (
     <section
       aria-label="Ask AI"
-      className="bg-fd-background fixed right-4 bottom-4 z-50 flex max-h-[70vh] w-[min(28rem,calc(100vw-2rem))] flex-col rounded-xl border shadow-xl"
+      className="fixed right-4 bottom-4 z-50 flex max-h-[70vh] w-[min(28rem,calc(100vw-2rem))] flex-col rounded-xl border bg-fd-background shadow-xl"
     >
       <header className="flex items-center justify-between border-b px-4 py-2">
         <h2 className="text-sm font-medium">Ask AI about the docs</h2>
@@ -96,7 +118,7 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
           type="button"
           aria-label="Close Ask AI"
           onClick={onClose}
-          className="hover:bg-fd-accent rounded p-1"
+          className="rounded p-1 hover:bg-fd-accent"
         >
           <X className="size-4" aria-hidden />
         </button>
@@ -107,7 +129,7 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
             key={message.id}
             className={
               message.role === "user"
-                ? "bg-fd-accent ml-8 rounded-lg px-3 py-2"
+                ? "ml-8 rounded-lg bg-fd-accent px-3 py-2"
                 : "whitespace-pre-wrap"
             }
           >
@@ -133,12 +155,12 @@ export default function ChatPanel({ onClose }: { onClose: () => void }) {
         <button
           type="submit"
           disabled={busy}
-          className="bg-fd-primary text-fd-primary-foreground rounded-md px-3 py-1.5 text-sm disabled:opacity-50"
+          className="rounded-md bg-fd-primary px-3 py-1.5 text-sm text-fd-primary-foreground disabled:opacity-50"
         >
           Ask
         </button>
       </form>
-      <p className="text-fd-muted-foreground px-4 pb-3 text-xs">
+      <p className="px-4 pb-3 text-xs text-fd-muted-foreground">
         Answers come from these docs and can be wrong.
       </p>
     </section>

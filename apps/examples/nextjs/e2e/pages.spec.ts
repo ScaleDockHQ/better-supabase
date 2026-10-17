@@ -108,12 +108,15 @@ for (const name of Object.keys(users) as UserName[]) {
         await expect(visibleTestId(page, "organization-name")).toHaveText(
           users[name].organization,
         );
+
         for (const route of routes) {
           const link = sidebarLink(page, route.label[locale]);
+
           if (!route.visibleTo.includes(name)) {
             await expect(link).toHaveCount(0);
             continue;
           }
+
           await expectInstant(page, {
             during: clickSidebar(
               page,
@@ -126,15 +129,16 @@ for (const name of Object.keys(users) as UserName[]) {
         }
       });
 
-      if (name === "member")
+      if (name === "member") {
         test("a page behind a permission redirects to the dashboard", async ({
           page,
         }) => {
           await page.goto(`/${locale}/settings/audit`);
           await expect(page).toHaveURL((url) => url.pathname === `/${locale}`);
         });
+      }
 
-      if (name === "globex")
+      if (name === "globex") {
         test("a page behind a flag that is off is a 404", async ({ page }) => {
           await page.goto(`/${locale}/beta`);
           await expect(
@@ -143,6 +147,7 @@ for (const name of Object.keys(users) as UserName[]) {
             ),
           ).toBeVisible();
         });
+      }
     });
   }
 }

@@ -61,6 +61,7 @@ function keyEvent(
   row: string,
 ): string {
   const k = (logical: string): string => `${row}.${ctx.col("keys", logical)}`;
+
   return ctx.record({
     type,
     payload: `jsonb_build_object('ownerType', ${k("ownerType")}, 'ownerId', ${k("ownerId")}, 'kid', ${k("kid")}${
@@ -76,11 +77,15 @@ function keyEvent(
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
   const t = ctx.table("keys");
   const c = (logical: string): string => ctx.col("keys", logical);
   const fn = (name: string): string => ctx.fn(name);
   const grace = ctx.text("jwksGrace", "5 minutes");
+
   const published = (alias: string): string =>
     `(${alias}.${c("state")} = 'active' or ${alias}.${c("publishUntil")} + coalesce(grace, ${sqlString(grace)}::interval) > now())`;
 

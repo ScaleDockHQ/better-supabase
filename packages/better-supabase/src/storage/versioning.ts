@@ -61,28 +61,39 @@ export function lifecyclePayload(
   lifecycle: BucketLifecycle,
 ): LifecyclePayload {
   const rules = lifecycle.rules;
-  if (rules.length === 0 || rules.length > 1000)
+
+  if (rules.length === 0 || rules.length > 1000) {
     throw new TypeError(
       `defineBucket("${id}"): lifecycle needs 1 to 1000 rules`,
     );
+  }
+
   const ids = rules.flatMap((rule) => (rule.id === undefined ? [] : [rule.id]));
-  if (new Set(ids).size !== ids.length)
+
+  if (new Set(ids).size !== ids.length) {
     throw new TypeError(`defineBucket("${id}"): lifecycle rule ids repeat`);
+  }
+
   return {
     rules: rules.map((rule) => {
       const { noncurrentDays, newerNoncurrentVersions } =
         rule.noncurrentVersionExpiration;
-      if (!wholeIn(noncurrentDays, 1, MAX_DAYS))
+
+      if (!wholeIn(noncurrentDays, 1, MAX_DAYS)) {
         throw new TypeError(
           `defineBucket("${id}"): noncurrentDays must be a whole number of days, at least 1`,
         );
+      }
+
       if (
         newerNoncurrentVersions !== undefined &&
         !wholeIn(newerNoncurrentVersions, 1, 100)
-      )
+      ) {
         throw new TypeError(
           `defineBucket("${id}"): newerNoncurrentVersions must be 1 to 100`,
         );
+      }
+
       return {
         ...(rule.id === undefined ? {} : { id: rule.id }),
         status: rule.status ?? "Enabled",
@@ -99,7 +110,10 @@ export function lifecyclePayload(
 }
 
 function ruleKey(rule: unknown): string {
-  if (typeof rule !== "object" || rule === null) return JSON.stringify(rule);
+  if (typeof rule !== "object" || rule === null) {
+    return JSON.stringify(rule);
+  }
+
   // SAFETY: rule is an object; every field read below is checked or stringified.
   const entry = rule as {
     status?: unknown;
@@ -108,7 +122,9 @@ function ruleKey(rule: unknown): string {
       newerNoncurrentVersions?: unknown;
     };
   };
+
   const expiration = entry.noncurrentVersionExpiration ?? {};
+
   return JSON.stringify([
     entry.status ?? "Enabled",
     expiration.noncurrentDays,
@@ -131,8 +147,10 @@ export function sameLifecycle(
     Array.isArray(actual.rules)
       ? actual.rules
       : [];
+
   const want = (expected?.rules ?? []).map(ruleKey).sort();
   const have = stored.map(ruleKey).sort();
+
   return want.length === have.length && want.every((key, i) => key === have[i]);
 }
 
@@ -153,10 +171,14 @@ interface ListedVersion {
 }
 
 export function toVersion(item: ListedVersion): ObjectVersion | undefined {
-  if (!item.version) return undefined;
+  if (!item.version) {
+    return undefined;
+  }
+
   const metadata = item.metadata ?? {};
   const size = metadata["size"];
   const type = metadata["mimetype"];
+
   return {
     versionId: item.version,
     current: !item.archived_at,

@@ -300,6 +300,7 @@ function optionalNumber(value: unknown): number | undefined {
 function templateOf(row: Record<string, unknown>): Template {
   const forkedFromVersion = optionalNumber(row["forkedFromVersion"]);
   const upstreamVersion = optionalNumber(row["upstreamVersion"]);
+
   return {
     id: textOf(row["id"]),
     organizationId: optionalText(row["tenant"]),
@@ -377,6 +378,7 @@ interface ApplyTarget {
 
 function targetOf(value: unknown): ApplyTarget {
   const row = recordOf(value, "template_apply_target");
+
   return {
     template: templateOf(recordOf(row["template"], "template_apply_target")),
     version: versionOf(recordOf(row["version"], "template_apply_target")),
@@ -406,10 +408,12 @@ export function createTemplates<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: TemplatesOptions<S>): Templates<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const fields: BlockFields<F> = blockFields(options.fields, "template fields");
   const types: Readonly<Record<string, TemplateType>> = options.types ?? {};
+
   const typeOf = (name: string): TemplateType | undefined =>
     Object.hasOwn(types, name) ? types[name] : undefined;
 
@@ -438,6 +442,7 @@ export function createTemplates<
     into: string,
   ): Promise<TemplateRunStart[]> => {
     const runs: TemplateRunStart[] = [];
+
     for (const workflow of target.workflows) {
       const started = await options.workflows!.run({
         definition: workflow.definition,
@@ -446,12 +451,14 @@ export function createTemplates<
         tenant: into,
         idempotencyKey: `template-application:${application.id}:${workflow.definition}`,
       });
+
       runs.push(
         started.ok
           ? { definition: workflow.definition, runId: started.data }
           : { definition: workflow.definition, error: started.error },
       );
     }
+
     return runs;
   };
 
@@ -459,18 +466,28 @@ export function createTemplates<
     save: (input) =>
       AsyncResult.from(async () => {
         const extra = await fields.args(input.fields);
-        if (!extra.ok) return extra;
+
+        if (!extra.ok) {
+          return extra;
+        }
+
         const type = typeOf(input.type);
         let settings: unknown = input.settings;
+
         if (settings !== undefined) {
           const parsed = await checked(
             type?.settings,
             settings,
             "template settings",
           );
-          if (!parsed.ok) return parsed;
+
+          if (!parsed.ok) {
+            return parsed;
+          }
+
           settings = parsed.data;
         }
+
         return call(
           "save_template",
           {
@@ -511,20 +528,30 @@ export function createTemplates<
     sync: (starters) =>
       AsyncResult.from(async () => {
         const rows: Record<string, unknown>[] = [];
+
         for (const starter of starters) {
           const type = typeOf(starter.type);
+
           const settings = await checked(
             type?.settings,
             starter.settings ?? {},
             `settings of starter "${starter.key}"`,
           );
-          if (!settings.ok) return settings;
+
+          if (!settings.ok) {
+            return settings;
+          }
+
           const body = await checked(
             type?.body,
             starter.body,
             `body of starter "${starter.key}"`,
           );
-          if (!body.ok) return body;
+
+          if (!body.ok) {
+            return body;
+          }
+
           rows.push({
             key: starter.key,
             type: starter.type,
@@ -536,6 +563,7 @@ export function createTemplates<
             body: body.data,
           });
         }
+
         return call("sync_templates", { starters: rows }, Number);
       }),
     versions: {
@@ -544,18 +572,31 @@ export function createTemplates<
           const hasBodySchemas = Object.values(types).some(
             (type) => type.body !== undefined,
           );
-          if (!hasBodySchemas) return saveVersion(template, body);
+
+          if (!hasBodySchemas) {
+            return saveVersion(template, body);
+          }
+
           const found = await get(template);
-          if (!found.ok) return found;
+
+          if (!found.ok) {
+            return found;
+          }
+
           if (found.data === undefined) {
             return err(dbError("not_found", "No such template"));
           }
+
           const parsed = await checked(
             typeOf(found.data.type)?.body,
             body,
             "template body",
           );
-          if (!parsed.ok) return parsed;
+
+          if (!parsed.ok) {
+            return parsed;
+          }
+
           return saveVersion(template, parsed.data);
         }),
       publish: (template) =>
@@ -597,6 +638,7 @@ export function createTemplates<
         targetOf,
       ).andThen(async (target) => {
         const type = typeOf(target.template.type);
+
         if (type?.apply === undefined) {
           return err(
             dbError(
@@ -605,6 +647,7 @@ export function createTemplates<
             ),
           );
         }
+
         if (target.workflows.length > 0 && options.workflows === undefined) {
           return err(
             dbError(
@@ -613,19 +656,29 @@ export function createTemplates<
             ),
           );
         }
+
         const settings = await checked(
           type.settings,
           target.template.settings,
           "template settings",
         );
-        if (!settings.ok) return settings;
+
+        if (!settings.ok) {
+          return settings;
+        }
+
         const body = await checked(
           type.body,
           target.version.body,
           "template body",
         );
-        if (!body.ok) return body;
+
+        if (!body.ok) {
+          return body;
+        }
+
         let applied: TemplateApplied;
+
         try {
           applied = await type.apply({
             template: target.template,
@@ -641,7 +694,9 @@ export function createTemplates<
         } catch (cause) {
           return err(asDbError(cause));
         }
+
         const { subject } = applied;
+
         const recorded = await call(
           "record_template_application",
           {
@@ -654,13 +709,18 @@ export function createTemplates<
           (value) =>
             applicationOf(recordOf(value, "record_template_application")),
         );
-        if (!recorded.ok) return recorded;
+
+        if (!recorded.ok) {
+          return recorded;
+        }
+
         const runs = await startRuns(
           target,
           recorded.data,
           subject,
           applyOptions.into,
         );
+
         return ok({ application: recorded.data, subject, runs });
       }),
     applications: {
@@ -678,6 +738,7 @@ export function createTemplates<
         ),
     },
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "templates",
     ...(options.logger ? { logger: options.logger } : {}),

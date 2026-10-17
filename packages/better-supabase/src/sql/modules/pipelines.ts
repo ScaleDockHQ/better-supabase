@@ -149,13 +149,18 @@ const NAMES: ModuleNames = {
 };
 
 function tables(ctx: ModuleContext, names: Names): string {
-  if (!ctx.manages) return "";
+  if (!ctx.manages) {
+    return "";
+  }
+
   const { t, c } = names;
+
   const read = (
     table: string,
   ): string => `drop policy if exists ${ctx.tableName(table).name}_read on ${t(table)};
 create policy ${ctx.tableName(table).name}_read on ${t(table)} for select to authenticated
 using (${ctx.scope.check(c(table, "tenant"), names.read)});`;
+
   const transitions = ctx.hasTable("transitions")
     ? `
 create table if not exists ${t("transitions")} (
@@ -171,8 +176,10 @@ ${lockTable(t("transitions"), { read: true })}
 ${read("transitions")}
 `
     : "";
+
   const h = (column: string): string => c("history", column);
   const canSubject = ctx.of("subjects").fn("can_subject");
+
   return `
 create table if not exists ${t("pipelines")} (
   ${c("pipelines", "id")} uuid primary key default gen_random_uuid(),
@@ -252,8 +259,12 @@ const extrasOf = (ctx: ModuleContext) =>
   ctx.extraColumns("pipelines", ["stages", "fields"]);
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
   const keys = moduleOperations("pipelines");
+
   const names: Names = {
     fn: (name) => ctx.fn(name),
     extras: extrasOf(ctx),
@@ -262,7 +273,9 @@ function build(ctx: ModuleContext): string {
     t: (table) => ctx.table(table),
     c: (table, column) => ctx.col(table, column),
   };
+
   const bindings = pipelineBindings(ctx);
+
   return `${schemaPreamble(ctx)}
 -- Pipelines (ADR 0028): tenant-editable stages per subject type, each with
 -- a category that maps to a fixed outcome, a stage history and board totals.

@@ -47,7 +47,9 @@ function setup(answers: Record<string, unknown>) {
     async (_schema: string, fn: string, _args?: Record<string, unknown>) =>
       answers[fn],
   );
+
   const credentials = provider();
+
   return {
     call,
     credentials,
@@ -63,6 +65,7 @@ describe("createChatInstallations", () => {
     const { installations, credentials, call } = setup({
       chat_install: row(ref("new"), { previous_credential_ref: ref("old") }),
     });
+
     const installed = await installations
       .install({
         adapter: "slack",
@@ -71,6 +74,7 @@ describe("createChatInstallations", () => {
         credentialRef: ref("new"),
       })
       .orThrow();
+
     expect(installed).toMatchObject({
       tenant: "org",
       credentialRef: ref("new"),
@@ -91,6 +95,7 @@ describe("createChatInstallations", () => {
     const { installations, credentials } = setup({
       chat_install: row(ref("same"), { previous_credential_ref: ref("same") }),
     });
+
     await installations
       .install({ adapter: "slack", externalId: "T1" })
       .orThrow();
@@ -99,10 +104,12 @@ describe("createChatInstallations", () => {
 
   it("fails when the install returns nothing", async () => {
     const { installations } = setup({ chat_install: null });
+
     const result = await installations.install({
       adapter: "slack",
       externalId: "T1",
     });
+
     expect(result.ok).toBe(false);
   });
 
@@ -110,6 +117,7 @@ describe("createChatInstallations", () => {
     const { installations, credentials } = setup({
       chat_uninstall: { previous_credential_ref: ref("old") },
     });
+
     expect(await installations.uninstall("slack", "T1").orThrow()).toBe(true);
     expect(credentials.revoke).toHaveBeenCalledTimes(1);
     const none = setup({ chat_uninstall: null });
@@ -127,6 +135,7 @@ describe("createChatInstallations", () => {
       ],
       chat_uninstall: { previous_credential_ref: null },
     });
+
     expect(await installations.uninstallTenant("org").orThrow()).toBe(2);
     expect(credentials.revoke).not.toHaveBeenCalled();
   });
@@ -139,6 +148,7 @@ describe("createChatInstallations", () => {
       ),
       list_chat_installations: "not a list",
     });
+
     const found = await installations.get("slack", "T1").orThrow();
     expect(found).toMatchObject({
       tenant: null,

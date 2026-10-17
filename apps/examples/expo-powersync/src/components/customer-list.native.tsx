@@ -15,16 +15,19 @@ import { UnreadBadge } from "./unread-badge";
 export function CustomerList() {
   const search = useDebouncedSearch();
   const [page, setPage] = useState(1);
+
   const query =
     search.term === undefined
       ? { ...customerList.defaults, page }
       : { ...customerList.defaults, q: search.term, page };
+
   const list = useWatch({
     db: powersync,
     query: () => customerList.run(local, query, { select: customerColumns }),
     tables: customerTables,
     deps: [search.term, page],
   });
+
   const conflicts = useConflicts(connector);
 
   const onSearch = (value: string) => {

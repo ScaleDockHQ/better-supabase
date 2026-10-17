@@ -58,16 +58,19 @@ describe.skipIf(!live)("blocks without organizations", () => {
       const modules = await s.rows<{ name: string }>(
         "select name from better_supabase.modules where name in ('tags', 'comments', 'notifications') order by name",
       );
+
       expect(modules.map((row) => row.name)).toEqual([
         "comments",
         "notifications",
         "tags",
       ]);
+
       const nullable = await s.rows<{ table_name: string }>(
         `select table_name from information_schema.columns
          where table_schema = 'scope_it' and column_name in ('tenant_id', 'organization_id')
            and is_nullable = 'YES' order by table_name`,
       );
+
       expect(nullable.map((row) => row.table_name)).toEqual(
         expect.arrayContaining(["activity_entries", "comments", "tags"]),
       );
@@ -78,6 +81,7 @@ describe.skipIf(!live)("blocks without organizations", () => {
         transport: sqlTransport(s.sql),
         schema: "scope_it",
       });
+
       await s.as(ann);
       const urgent = await tags.create(ann.id, "label", "Urgent").orThrow();
       // Ann can't put a tag in Bob's set: the scope id is always the caller.
@@ -117,7 +121,9 @@ describe.skipIf(!live)("blocks without organizations", () => {
         transport: sqlTransport(s.sql),
         schema: "scope_it",
       });
+
       await s.asRole(ann);
+
       const comment = await comments
         .create({
           organizationId: ann.id,
@@ -126,6 +132,7 @@ describe.skipIf(!live)("blocks without organizations", () => {
           body: "first",
         })
         .orThrow();
+
       expect(comment.organizationId).toBe(ann.id);
       const thread = await comments.list(ann.id, "note", "n1").orThrow();
       expect(thread.map((each) => each.body)).toEqual(["first"]);
@@ -142,6 +149,7 @@ describe.skipIf(!live)("blocks without organizations", () => {
 
     it("sends notifications without a tenant", async () => {
       await s.service();
+
       const id = await s.value<string | null>("scope_it.notify($1)", [
         {
           type: "note.shared",
@@ -149,11 +157,14 @@ describe.skipIf(!live)("blocks without organizations", () => {
           recipients: [bob.id],
         },
       ]);
+
       expect(id).toMatch(/^[0-9a-f-]{36}$/);
       await s.as(bob);
+
       const list = await s.value<{ type: string; tenant?: unknown }[]>(
         "scope_it.list_notifications()",
       );
+
       expect(list.map((item) => item.type)).toEqual(["note.shared"]);
       await s.as(ann);
       expect(await s.value("scope_it.list_notifications()")).toEqual([]);
@@ -167,10 +178,12 @@ describe.skipIf(!live)("blocks without organizations", () => {
 
     it("gives every signed-in user one set of tags and comments", async () => {
       await s.as(ann);
+
       const tag = await s.value<{ id: string }>(
         "scope_it.create_tag($1, 'label', 'Shared', null, null)",
         [ann.id],
       );
+
       // The scope id is always null, so Bob's tag of the same name collides.
       await s.as(bob);
       expect(
@@ -190,9 +203,11 @@ describe.skipIf(!live)("blocks without organizations", () => {
       await s.asRole(ann);
       await s.value("scope_it.create_comment(null, 'note', 'n1', 'hello')");
       await s.asRole(bob);
+
       const thread = await s.value<{ body: string; tenant_id: null }[]>(
         "scope_it.list_comments(null, 'note', 'n1')",
       );
+
       expect(thread.map((comment) => comment.body)).toEqual(["hello"]);
       await s.asRole("anon");
       expect(await s.hint("select 1 from scope_it.comments")).toMatch(
@@ -236,10 +251,13 @@ describe.skipIf(!live)("a workspace-named app", () => {
     const tables = await s.rows<{ table_name: string }>(
       "select table_name from information_schema.tables where table_schema = 'ws_it' and table_name like '%workspace%' order by 1",
     );
+
     expect(tables.map((row) => row.table_name)).toEqual(["workspaces"]);
+
     const columns = await s.rows<{ table_name: string }>(
       "select table_name from information_schema.columns where table_schema = 'ws_it' and column_name = 'workspace_id' order by 1",
     );
+
     expect(columns.map((row) => row.table_name)).toContain("memberships");
     expect(
       await s.rows(
@@ -260,18 +278,22 @@ describe.skipIf(!live)("a workspace-named app", () => {
 
   it("runs the organizations client through blockNames", async () => {
     const owner = await s.user("owner");
+
     const transport = wrapTransport(
       sqlTransport(s.sql),
       blockNames({ tenant: "workspace" }),
     );
+
     const workspaces = createOrganizations({ transport, schema: "ws_it" });
     await s.as(owner);
+
     const { id } = await workspaces
       .create({
         name: "Acme",
         slug: `acme-${owner.id.slice(0, 8)}`,
       })
       .orThrow();
+
     expect(
       await s.value<string>(
         "(select role from ws_it.memberships where workspace_id = $1 and user_id = $2)",

@@ -32,12 +32,17 @@ import { statusVariant, workflowName } from "../workflow-labels";
 export function WorkflowRuns({ tenant }: { tenant: string | null }) {
   const t = useExtracted("workflows");
   const format = useFormatter();
+
   const { runs, status } = useWorkflowRuns({
     tenant,
     schema: "api",
     limit: 50,
   });
-  if (runs === undefined) return <WorkflowRunsSkeleton />;
+
+  if (runs === undefined) {
+    return <WorkflowRunsSkeleton />;
+  }
+
   if (runs.length === 0) {
     return (
       <Empty className="border">
@@ -53,6 +58,7 @@ export function WorkflowRuns({ tenant }: { tenant: string | null }) {
       </Empty>
     );
   }
+
   return (
     <div
       className="rounded-xl border"
@@ -78,7 +84,7 @@ export function WorkflowRuns({ tenant }: { tenant: string | null }) {
               <TableCell>
                 <Badge variant={statusVariant(run.status)}>{run.status}</Badge>
               </TableCell>
-              <TableCell className="text-muted-foreground text-right text-xs tabular-nums">
+              <TableCell className="text-right text-xs text-muted-foreground tabular-nums">
                 {format.dateTime(new Date(run.createdAt.epochMilliseconds), {
                   dateStyle: "medium",
                   timeStyle: "short",

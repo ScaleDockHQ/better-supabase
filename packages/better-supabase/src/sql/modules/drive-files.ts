@@ -49,10 +49,12 @@ export function driveFilesSql(kit: DriveKit): string {
     touch,
     siblings,
   } = kit;
+
   const purgeObjects =
     A === undefined
       ? "'[]'::jsonb"
       : `(select coalesce(jsonb_agg(jsonb_build_object('bucket', pa.${a("bucket")}, 'path', pa.${a("path")})), '[]'::jsonb) from ${A} pa where pa.${a("subjectType")} = ${typeLit} and pa.${a("subjectId")} = old.${n("id")}::text and pa.${a("uploadedAt")} is not null)`;
+
   const purgeCleanup = [
     A === undefined
       ? ""
@@ -120,10 +122,10 @@ declare
 begin
   ${READ_ONLY_GUARD}
   select * into v_node from ${T} x where x.${n("id")} = drive_upload_revision.node${live("x")};
-  if not found or not (${SERVICE_CALLER} or ${canRead("v_node." + n("id"))}) then
+  if not found or not (${SERVICE_CALLER} or ${canRead(`v_node.${n("id")}`)}) then
     ${notFound}
   end if;
-  if not (${SERVICE_CALLER} or ${canWrite("v_node." + n("id"))}) then
+  if not (${SERVICE_CALLER} or ${canWrite(`v_node.${n("id")}`)}) then
     ${forbidden("change this file")}
   end if;
   if v_node.${n("kind")} <> 'file' then
@@ -148,10 +150,10 @@ declare
   v_file ${A}%rowtype;
 begin
   select * into v_node from ${T} x where x.${n("id")} = drive_commit.node${live("x")} for update;
-  if not found or not (${SERVICE_CALLER} or ${canRead("v_node." + n("id"))}) then
+  if not found or not (${SERVICE_CALLER} or ${canRead(`v_node.${n("id")}`)}) then
     ${notFound}
   end if;
-  if not (${SERVICE_CALLER} or ${canWrite("v_node." + n("id"))}) then
+  if not (${SERVICE_CALLER} or ${canWrite(`v_node.${n("id")}`)}) then
     ${forbidden("change this file")}
   end if;
   if not exists (
@@ -292,7 +294,7 @@ declare
   v_node ${T}%rowtype;
 begin
   select * into v_node from ${T} x where x.${n("id")} = drive_revisions.node${live("x")};
-  if not found or not (${SERVICE_CALLER} or ${canRead("v_node." + n("id"))}) then
+  if not found or not (${SERVICE_CALLER} or ${canRead(`v_node.${n("id")}`)}) then
     ${notFound}
   end if;
   return (
@@ -324,10 +326,10 @@ declare
   v_file ${A}%rowtype;
 begin
   select * into v_node from ${T} x where x.${n("id")} = drive_restore_revision.node${live("x")} for update;
-  if not found or not (${SERVICE_CALLER} or ${canRead("v_node." + n("id"))}) then
+  if not found or not (${SERVICE_CALLER} or ${canRead(`v_node.${n("id")}`)}) then
     ${notFound}
   end if;
-  if not (${SERVICE_CALLER} or ${canWrite("v_node." + n("id"))}) then
+  if not (${SERVICE_CALLER} or ${canWrite(`v_node.${n("id")}`)}) then
     ${forbidden("change this file")}
   end if;
   select r.${v("content")} into v_content from ${versions.table("versions")} r
@@ -371,10 +373,10 @@ declare
   v_id uuid;
 begin
   select * into v_node from ${T} x where x.${n("id")} = drive_trash.node${live("x")};
-  if not found or not (${SERVICE_CALLER} or ${canRead("v_node." + n("id"))}) then
+  if not found or not (${SERVICE_CALLER} or ${canRead(`v_node.${n("id")}`)}) then
     ${notFound}
   end if;
-  if not (${SERVICE_CALLER} or ${canWrite("v_node." + n("id"))}) then
+  if not (${SERVICE_CALLER} or ${canWrite(`v_node.${n("id")}`)}) then
     ${forbidden("move this item to the bin")}
   end if;
   for v_child in
@@ -414,10 +416,10 @@ begin
     ${notFound}
   end if;
   select * into v_node from ${T} x where x.${n("id")} = v_root.${ti("subjectId")}::uuid;
-  if not found or not (${SERVICE_CALLER} or ${canRead("v_node." + n("id"))}) then
+  if not found or not (${SERVICE_CALLER} or ${canRead(`v_node.${n("id")}`)}) then
     ${notFound}
   end if;
-  if not (${SERVICE_CALLER} or ${canWrite("v_node." + n("id"))}) then
+  if not (${SERVICE_CALLER} or ${canWrite(`v_node.${n("id")}`)}) then
     ${forbidden("restore this item")}
   end if;
   if v_node.${n("parent")} is not null and exists (
@@ -530,7 +532,7 @@ declare
   v_node ${T}%rowtype;
 begin
   select * into v_node from ${T} x where x.${n("id")} = drive_open.node${live("x")};
-  if not found or auth.uid() is null or not ${canRead("v_node." + n("id"))} then
+  if not found or auth.uid() is null or not ${canRead(`v_node.${n("id")}`)} then
     ${notFound}
   end if;
   insert into ${state.table("state")} (${st("subjectType")}, ${st("subjectId")}, ${st("user")}, ${st("lastOpenedAt")})
@@ -626,6 +628,7 @@ alter table ${T} drop constraint if exists bs_drive_nodes_attachment;
 alter table ${T} add constraint bs_drive_nodes_attachment foreign key (${n("attachment")}) references ${A} (${a("id")}) on delete set null;
 `
       : "";
+
   const fileNodeJson =
     A === undefined
       ? ""
@@ -641,6 +644,7 @@ as $$
 $$;
 revoke execute on function ${fn("drive_node_json")}(${T}) from public, anon, authenticated;
 `;
+
   const late = `${schemaPreamble(own)}
 ${attachmentKey}${fileNodeJson}
 -- Before a node is deleted for good, its stored objects go into
@@ -680,5 +684,6 @@ create trigger ${ctx.trigger("drive_node_purged")}
   after delete on ${T}
   for each row execute function ${fn("drive_node_purged")}();
 ${fileFunctions}${revisionFunctions}${binFunctions}${stateFunctions}${linkFunction}`;
+
   return late;
 }

@@ -25,7 +25,9 @@ describe("forms fields", () => {
       list_forms: () => [FORM],
       get_form: () => ({ ...FORM, version: null }),
     });
+
     const forms = createForms({ transport: t, fields: Fields });
+
     const created = await forms
       .create({
         organizationId: "o",
@@ -34,6 +36,7 @@ describe("forms fields", () => {
         fields: { category: "hr" },
       })
       .orThrow();
+
     expect(created.fields.category).toBe("hr");
     await forms.update("f1", { fields: { category: "sales" } }).orThrow();
     expect((await forms.get("f1").orThrow()).fields.category).toBe("hr");
@@ -66,12 +69,14 @@ describe("forms fields", () => {
 
   it("refuses a bad field before the call", async () => {
     const t = fieldsTransport({ create_form: () => FORM });
+
     const created = await createForms({ transport: t, fields: Fields }).create({
       organizationId: "o",
       key: "signup",
       title: "Sign up",
       fields: { category: "legal" as never },
     });
+
     expect(created.ok ? undefined : created.error.kind).toBe("validation");
     expect(t.calls).toEqual([]);
   });

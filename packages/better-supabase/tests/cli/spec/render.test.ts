@@ -57,6 +57,7 @@ describe("renderTarget", () => {
         actions: [{ target: "$.info", update: { summary: "CRM" } }],
       }),
     );
+
     const rendered = await renderTarget(
       target(["title.yaml", "summary.json"]),
       {
@@ -66,6 +67,7 @@ describe("renderTarget", () => {
         validate: false,
       },
     );
+
     expect(JSON.parse(rendered.text)).toMatchObject({
       info: { title: "Renamed", summary: "CRM" },
     });
@@ -74,12 +76,14 @@ describe("renderTarget", () => {
   it("reports overlay files that are not overlays", async () => {
     await writeFile(join(root, "broken.json"), "{");
     await writeFile(join(root, "other.json"), "{}");
+
     const rendered = await renderTarget(target(["broken.json", "other.json"]), {
       root,
       entry,
       cache: false,
       validate: false,
     });
+
     expect(rendered.diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
       "overlay-invalid",
       "overlay-invalid",
@@ -90,18 +94,22 @@ describe("renderTarget", () => {
     const context = { root, entry, cache: true, validate: false };
     expect((await renderTarget(target(), context)).cached).toBe(false);
     expect((await renderTarget(target(), context)).cached).toBe(true);
+
     const validated = await renderTarget(target(), {
       ...context,
       validate: true,
     });
+
     expect(validated.cached).toBe(false);
     expect(
       (await renderTarget(target(), { ...context, validate: true })).cached,
     ).toBe(true);
+
     const keyed = await renderTarget(target(), {
       ...context,
       entry: { ...entry, cacheKey: "v2" },
     });
+
     expect(keyed.cached).toBe(false);
   });
 });
@@ -126,6 +134,7 @@ describe("built-in formats", () => {
       formatRegistry(),
       {},
     );
+
     const rendered = await Promise.all(
       targets.map((each) =>
         renderTarget(each, {
@@ -136,6 +145,7 @@ describe("built-in formats", () => {
         }),
       ),
     );
+
     expect(rendered.map((each) => [each.pin, each.diagnostics])).toEqual([
       ["3.0.0", []],
       ["3.1.0", []],

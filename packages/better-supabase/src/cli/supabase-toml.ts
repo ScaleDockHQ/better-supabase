@@ -40,10 +40,18 @@ export function findUp(
   found: (dir: string) => boolean,
 ): string | undefined {
   let dir = start;
+
   for (;;) {
-    if (found(dir)) return dir;
+    if (found(dir)) {
+      return dir;
+    }
+
     const parent = dirname(dir);
-    if (parent === dir || existsSync(join(dir, ".git"))) return undefined;
+
+    if (parent === dir || existsSync(join(dir, ".git"))) {
+      return undefined;
+    }
+
     dir = parent;
   }
 }
@@ -59,10 +67,18 @@ export function findSupabaseRoot(start: string): string | undefined {
 /** The repository root for `start`: the directory with `.git`, else the Supabase project root, else `start`. */
 export function findRepoRoot(start: string): string {
   let dir = start;
+
   for (;;) {
-    if (existsSync(join(dir, ".git"))) return dir;
+    if (existsSync(join(dir, ".git"))) {
+      return dir;
+    }
+
     const parent = dirname(dir);
-    if (parent === dir) return findSupabaseRoot(start) ?? start;
+
+    if (parent === dir) {
+      return findSupabaseRoot(start) ?? start;
+    }
+
     dir = parent;
   }
 }
@@ -70,6 +86,7 @@ export function findRepoRoot(start: string): string {
 /** The `supabase` directory relative to `root`: the one `findSupabaseRoot` finds, or `supabase`. */
 export function supabaseDir(root: string): string {
   const found = findSupabaseRoot(root);
+
   return found === undefined
     ? "supabase"
     : relativePath(root, join(found, "supabase"));
@@ -94,6 +111,7 @@ interface SupabaseConfigIo {
  */
 async function loadSupabaseConfig(): Promise<SupabaseConfigIo | undefined> {
   const specifier = "@supabase/config/io";
+
   try {
     // SAFETY: @supabase/config/io exports this interface; the catch falls back
     // when it is missing.
@@ -104,20 +122,32 @@ async function loadSupabaseConfig(): Promise<SupabaseConfigIo | undefined> {
 }
 
 function toTomlValue(value: unknown): TomlValue {
-  if (Array.isArray(value)) return value.map(toTomlValue);
-  if (value instanceof Date) return value.toISOString();
-  if (typeof value === "bigint") return Number(value);
+  if (Array.isArray(value)) {
+    return value.map(toTomlValue);
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  if (typeof value === "bigint") {
+    return Number(value);
+  }
+
   if (typeof value === "object" && value !== null) {
     return Object.fromEntries(
       Object.entries(value).map(([key, item]) => [key, toTomlValue(item)]),
     );
   }
+
   if (
     typeof value === "string" ||
     typeof value === "number" ||
     typeof value === "boolean"
-  )
+  ) {
     return value;
+  }
+
   return String(value);
 }
 
@@ -152,17 +182,27 @@ export async function readSupabaseToml(
   root: string,
 ): Promise<SupabaseToml | undefined> {
   const found = findSupabaseRoot(root);
-  if (found === undefined) return undefined;
+
+  if (found === undefined) {
+    return undefined;
+  }
+
   const absolute = join(found, CONFIG_TOML);
-  const text = await readFile(absolute, "utf8");
+  const text = await readFile(absolute, "utf-8");
   const key = `${root}\0${absolute}`;
   const cached = parsed.get(key);
-  if (cached?.text === text) return cached.toml;
+
+  if (cached?.text === text) {
+    return cached.toml;
+  }
+
   const toml = parseSupabaseToml(found, text, {
     path: relativePath(root, absolute),
     dir: relativePath(root, join(found, "supabase")),
   });
+
   parsed.set(key, { text, toml });
+
   return toml;
 }
 
@@ -172,12 +212,14 @@ async function parseSupabaseToml(
   location: { readonly path: string; readonly dir: string },
 ): Promise<SupabaseToml> {
   const io = text.includes("env(") ? await loadSupabaseConfig() : undefined;
+
   if (io) {
     try {
       const loaded = await io.loadCliConfig(found, {
         tomlOnly: true,
         search: false,
       });
+
       if (loaded?.document) {
         // SAFETY: @supabase/config parses config.toml into plain TOML values.
         return {
@@ -191,6 +233,7 @@ async function parseSupabaseToml(
       // An invalid file for @supabase/config's schema still has readable keys.
     }
   }
+
   return {
     ...location,
     text,
@@ -205,11 +248,16 @@ export function tomlGet(
   path: readonly string[],
 ): TomlValue | undefined {
   let value: TomlValue | undefined = document;
+
   for (const key of path) {
-    if (typeof value !== "object" || Array.isArray(value)) return undefined;
+    if (typeof value !== "object" || Array.isArray(value)) {
+      return undefined;
+    }
+
     // SAFETY: the check above narrows value to a TOML table.
     value = (value as TomlTable)[key];
   }
+
   return value;
 }
 
@@ -218,13 +266,19 @@ export function tomlNumber(
   path: readonly string[],
 ): number | undefined {
   const value = tomlGet(document, path);
-  if (typeof value === "number") return value;
+
+  if (typeof value === "number") {
+    return value;
+  }
+
   if (
     typeof value === "string" &&
     value.trim() !== "" &&
     Number.isFinite(Number(value))
-  )
+  ) {
     return Number(value);
+  }
+
   return undefined;
 }
 
@@ -241,21 +295,33 @@ function parsePgFunctionUri(
   uri: string,
 ): { readonly schema: string; readonly name: string } | undefined {
   const match = /^pg-functions:\/\/[^/]+\/([^/]+)\/([^/?#]+)$/.exec(uri.trim());
+
   return match ? { schema: match[1]!, name: match[2]! } : undefined;
 }
 
 /** The enabled Auth hooks with a `pg-functions://` URI, by hook name. */
 export function pgFunctionHooks(document: TomlTable): PgFunctionHook[] {
   const hooks = tomlGet(document, ["auth", "hook"]);
-  if (typeof hooks !== "object" || Array.isArray(hooks)) return [];
+
+  if (typeof hooks !== "object" || Array.isArray(hooks)) {
+    return [];
+  }
+
   // SAFETY: the check above narrows hooks to a TOML table.
   return Object.entries(hooks as TomlTable).flatMap(([hook, table]) => {
-    if (typeof table !== "object" || Array.isArray(table)) return [];
+    if (typeof table !== "object" || Array.isArray(table)) {
+      return [];
+    }
+
     // SAFETY: the check above narrows table to a TOML table.
     const { enabled, uri } = table as TomlTable;
-    if ((enabled !== true && enabled !== "true") || typeof uri !== "string")
+
+    if ((enabled !== true && enabled !== "true") || typeof uri !== "string") {
       return [];
+    }
+
     const target = parsePgFunctionUri(uri);
+
     return target ? [{ hook, uri, ...target }] : [];
   });
 }
@@ -271,16 +337,28 @@ export interface HttpHook {
 /** The enabled Auth hooks with an `http://` or `https://` URI, by hook name. */
 export function httpHooks(document: TomlTable): HttpHook[] {
   const hooks = tomlGet(document, ["auth", "hook"]);
-  if (typeof hooks !== "object" || Array.isArray(hooks)) return [];
+
+  if (typeof hooks !== "object" || Array.isArray(hooks)) {
+    return [];
+  }
+
   // SAFETY: the check above narrows hooks to a TOML table.
   return Object.entries(hooks as TomlTable).flatMap(([hook, table]) => {
-    if (typeof table !== "object" || Array.isArray(table)) return [];
+    if (typeof table !== "object" || Array.isArray(table)) {
+      return [];
+    }
+
     // SAFETY: the check above narrows table to a TOML table.
     const { enabled, uri, secrets } = table as TomlTable;
-    if ((enabled !== true && enabled !== "true") || typeof uri !== "string")
+
+    if ((enabled !== true && enabled !== "true") || typeof uri !== "string") {
       return [];
-    if (!/^https?:\/\//i.test(uri.trim()) || !URL.canParse(uri.trim()))
+    }
+
+    if (!/^https?:\/\//i.test(uri.trim()) || !URL.canParse(uri.trim())) {
       return [];
+    }
+
     return [
       {
         hook,
@@ -304,12 +382,16 @@ export function diffEngine(toml?: SupabaseToml): DiffEngine {
     "pgdelta",
     "enabled",
   ]);
+
   return enabled === true || enabled === "true" ? "pg-delta" : "migra";
 }
 
 /** Whether `dir` (or a folder below it) holds a `.sql` file. */
 function hasSqlFiles(dir: string): boolean {
-  if (!existsSync(dir)) return false;
+  if (!existsSync(dir)) {
+    return false;
+  }
+
   try {
     return readdirSync(dir, { recursive: true }).some((name) =>
       String(name).endsWith(".sql"),
@@ -331,13 +413,22 @@ export function detectWorkflow(
   toml?: SupabaseToml,
   schemaFiles?: boolean,
 ): Exclude<SqlWorkflow, "migrations"> {
-  if (diffEngine(toml) === "pg-delta" || toml === undefined) return "pg-delta";
+  if (diffEngine(toml) === "pg-delta" || toml === undefined) {
+    return "pg-delta";
+  }
+
   if (
     tomlGet(toml.document, ["experimental", "pgdelta", "enabled"]) !== undefined
-  )
+  ) {
     return "migra";
+  }
+
   const paths = tomlGet(toml.document, ["db", "migrations", "schema_paths"]);
-  if (Array.isArray(paths) && paths.length > 0) return "migra";
+
+  if (Array.isArray(paths) && paths.length > 0) {
+    return "migra";
+  }
+
   return (schemaFiles ?? hasSqlFiles(join(root, toml.dir, "schemas")))
     ? "migra"
     : "pg-delta";
@@ -364,18 +455,25 @@ export const PGDELTA_TABLE = "[experimental.pgdelta]\nenabled = true\n";
  */
 export function migrationCommand(workflow: SqlWorkflow, name?: string): string {
   switch (workflow) {
-    case "pg-delta":
+    case "pg-delta": {
       return name === undefined
         ? "supabase db schema declarative sync"
         : `supabase db schema declarative sync -f ${name}`;
-    case "migra":
+    }
+
+    case "migra": {
       return name === undefined
         ? "supabase db diff"
         : `supabase db diff -f ${name}`;
-    case "migrations":
+    }
+
+    case "migrations": {
       return "supabase migration up";
+    }
+
     default: {
       const unreachable: never = workflow;
+
       return unreachable;
     }
   }
@@ -398,8 +496,10 @@ function pgDeltaSchemasDir(toml?: SupabaseToml): string {
     "pgdelta",
     "declarative_schema_path",
   ]);
+
   const schemas =
     typeof dir === "string" && dir.trim() !== "" ? dir : "schemas";
+
   return posix.join(
     toml?.dir ?? "supabase",
     schemas.replace(/^\.\//, "").replace(/\/$/, ""),
@@ -422,8 +522,13 @@ export function declarativeSchemasDir(
 
 async function expand(cwd: string, pattern: string): Promise<string[]> {
   const matched: string[] = [];
-  for await (const path of glob(pattern.replace(/^\.\//, ""), { cwd }))
-    if (path.endsWith(".sql")) matched.push(path.replaceAll("\\", "/"));
+
+  for await (const path of glob(pattern.replace(/^\.\//, ""), { cwd })) {
+    if (path.endsWith(".sql")) {
+      matched.push(path.replaceAll("\\", "/"));
+    }
+  }
+
   return matched.sort();
 }
 
@@ -442,36 +547,52 @@ export async function schemaPaths(
   toml?: SupabaseToml,
   workflow: SqlWorkflow = detectWorkflow(root, toml),
 ): Promise<SchemaPaths> {
-  if (workflow === "migrations")
+  if (workflow === "migrations") {
     return { files: [], unlisted: [], configured: false };
+  }
+
   if (workflow === "pg-delta") {
     const dir = pgDeltaSchemasDir(toml);
+
     const files = existsSync(join(root, dir))
       ? await expand(root, `${dir}/**/*.sql`)
       : [];
+
     return { files, unlisted: [], configured: false };
   }
+
   const dir = toml?.dir ?? "supabase";
   const supabase = join(root, dir);
+
   const all = existsSync(join(supabase, "schemas"))
     ? (await expand(supabase, "schemas/**/*.sql")).map((path) =>
         posix.join(dir, path),
       )
     : [];
+
   const entries = tomlGet(toml?.document ?? {}, [
     "db",
     "migrations",
     "schema_paths",
   ]);
+
   const patterns = Array.isArray(entries)
     ? entries.filter((entry): entry is string => typeof entry === "string")
     : [];
-  if (patterns.length === 0)
+
+  if (patterns.length === 0) {
     return { files: all, unlisted: [], configured: false };
+  }
+
   const listed = new Set<string>();
-  for (const pattern of patterns)
-    for (const path of await expand(supabase, pattern))
+
+  for (const pattern of patterns) {
+    for (const path of await expand(supabase, pattern)) {
       listed.add(posix.join(dir, path));
+    }
+  }
+
   const unlisted = all.filter((path) => !listed.has(path));
+
   return { files: [...listed, ...unlisted], unlisted, configured: true };
 }

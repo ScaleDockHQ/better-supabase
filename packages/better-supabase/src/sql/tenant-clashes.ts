@@ -23,13 +23,18 @@ export function tenantNameClashes(
   modules: Readonly<Record<string, SqlModule>>,
 ): readonly string[] {
   const names = tenantNames(tenant);
-  if (!names.renamed) return [];
+
+  if (!names.renamed) {
+    return [];
+  }
+
   const renamed = new Set(
     Object.values(modules)
       .flatMap(defaultNames)
       .filter(isDefault)
       .map((name) => names.rename(name)),
   );
+
   return [
     ...new Set(
       defaultNames(module).filter(

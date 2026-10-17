@@ -92,6 +92,7 @@ function boostExpression(
       `${where} must be one SQL expression over the row t, such as ${example}`,
     );
   }
+
   return boost;
 }
 
@@ -106,10 +107,12 @@ function vectorRanking(
   const key = `t.${sqlIdent(entry.key ?? "id")}`;
   const column = `t.${sqlIdent(entry.column)}`;
   const operator = `operator(${vector}.${DISTANCE_OPERATORS[entry.distance]})`;
+
   const prefilter = (entry.prefilter ?? [])
     .map((name) => {
       const quoted = sqlIdent(name);
       const values = `case jsonb_typeof(filter -> ${sqlString(name)}) when 'array' then filter -> ${sqlString(name)} else jsonb_build_array(filter -> ${sqlString(name)}) end`;
+
       // jsonb_populate_record casts each value to the column's type, so the
       // comparison is a typed = any (array) that an index on the column serves.
       return `
@@ -119,36 +122,46 @@ function vectorRanking(
       )) or (t.${quoted} is null and ${values} @> '[null]'::jsonb))`;
     })
     .join("");
+
   const predicate =
     advanced && entry.predicate !== undefined
       ? `\n      and (${boostExpression(`${where}.predicate`, entry.predicate, '"t.expires_at > now()"')})`
       : "";
+
   const order =
     advanced && entry.order !== undefined
       ? boostExpression(`${where}.order`, entry.order, '"t.created_at desc"')
       : undefined;
+
   const widened =
     advanced &&
     (entry.hybrid !== undefined ||
       entry.boost !== undefined ||
       entry.predicate !== undefined);
+
   const candidates = widened
     ? "least(greatest(k, 1) * 4, 1000)"
     : "least(greatest(k, 1), 1000)";
+
   const hybrid = entry.hybrid;
   let text = "";
   let fused = `select v.id, ${SIMILARITY[entry.distance]} as score from vector_ranked v`;
+
   if (advanced && hybrid) {
     const config = hybrid.config ?? "simple";
+
     if (!REGCONFIG.test(config)) {
       throw new TypeError(
         `${where}.hybrid.config must be a text search configuration name, such as "english"`,
       );
     }
+
     const rrf = hybrid.k ?? 60;
+
     if (!Number.isInteger(rrf) || rrf < 1) {
       throw new TypeError(`${where}.hybrid.k must be a positive integer`);
     }
+
     const tsv = `t.${sqlIdent(hybrid.tsvector)}`;
     text = `,
   text_hits as materialized (
@@ -165,25 +178,31 @@ function vectorRanking(
       coalesce(1.0 / (${String(rrf)} + v.rank), 0) + coalesce(1.0 / (${String(rrf)} + x.rank), 0) as score
     from vector_ranked v full join text_ranked x on x.id = v.id`;
   }
+
   const boost =
     advanced && entry.boost !== undefined
       ? boostExpression(`${where}.boost`, entry.boost)
       : undefined;
+
   const boostMode = entry.boostMode ?? "multiply";
   const modes: readonly string[] = ["multiply", "add"];
+
   if (!modes.includes(boostMode)) {
     throw new TypeError(`${where}.boostMode must be "multiply" or "add"`);
   }
+
   const score = boost
     ? boostMode === "add"
       ? `(f.score + coalesce((${boost})::double precision, 0))::double precision`
       : `(f.score * coalesce((${boost})::double precision, 1))::double precision`
     : "f.score::double precision";
+
   const scored =
     boost || order
       ? `select f.id, ${score} as score, row_number() over (order by ${score} desc${order ? `, ${order}` : ""}) as ord
   from fused f join ${target} t on ${key} = f.id`
       : `select f.id, ${score} as score, row_number() over (order by ${score} desc) as ord from fused f`;
+
   return `with vector_hits as materialized (
     select ${key} as id, ${column} ${operator} query as distance
     from ${target} t
@@ -215,7 +234,10 @@ function vectorSearchFunctions(
   tables: readonly VectorSearchTable[],
   vector: string,
 ): string {
-  if (tables.length === 0) return "";
+  if (tables.length === 0) {
+    return "";
+  }
+
   const functions = tables.map((entry) => {
     const [schema, table] = splitTable(entry.table);
     const target = `${sqlIdent(schema)}.${sqlIdent(table)}`;
@@ -224,18 +246,22 @@ function vectorSearchFunctions(
     const column = `t.${sqlIdent(entry.column)}`;
     const operator = DISTANCE_OPERATORS[entry.distance];
     const type = entry.type ?? "vector";
+
     const advanced =
       entry.hybrid !== undefined ||
       entry.boost !== undefined ||
       entry.predicate !== undefined ||
       entry.order !== undefined ||
       (entry.prefilter?.length ?? 0) > 0;
+
     const params = advanced
       ? `query ${vector}.${type}, k integer default 10, filter jsonb default '{}', text_query text default null`
       : `query ${vector}.${type}, k integer default 10`;
+
     const types = advanced
       ? `${vector}.${type}, integer, jsonb, text`
       : `${vector}.${type}, integer`;
+
     const options = [
       entry.distance,
       type === "halfvec" ? "halfvec" : "",
@@ -248,6 +274,7 @@ function vectorSearchFunctions(
     ]
       .filter(Boolean)
       .join(", ");
+
     const main = advanced
       ? `create or replace function ${fn}(${params})
 returns setof ${target}
@@ -278,9 +305,11 @@ ${ITERATIVE_SCAN}
   limit least(greatest(k, 1), 1000);
 ${RESTORE_SCAN}
 $$;`;
+
     const other = advanced
       ? `${vector}.${type}, integer`
       : `${vector}.${type}, integer, jsonb, text`;
+
     return `-- ${entry.table}.${entry.column} (${options})
 drop function if exists ${fn}(${other});
 drop function if exists ${scores}(${other});
@@ -324,5 +353,6 @@ begin
 end;
 $$;`;
   });
+
   return `\n-- config.vectorSearch\n${functions.join("\n\n")}\n`;
 }

@@ -18,14 +18,19 @@ const { blocks, blockNames } = resolveConfig(config, process.cwd());
 export const dbUrl: string | undefined = process.env["SUPABASE_DB_URL"];
 
 export async function reachable(): Promise<boolean> {
-  if (dbUrl === undefined) return false;
+  if (dbUrl === undefined) {
+    return false;
+  }
+
   const pool = new Pool({
     connectionString: dbUrl,
     max: 1,
     connectionTimeoutMillis: 1000,
   });
+
   try {
     await pool.query("select 1");
+
     return true;
   } catch {
     return false;
@@ -40,7 +45,9 @@ export const USERS = {
   member: crypto.randomUUID(),
   support: crypto.randomUUID(),
 } as const;
+
 export type Who = keyof typeof USERS;
+
 export const email = (who: Who): string =>
   `${who}-${USERS[who]}@centrakit.test`;
 
@@ -78,6 +85,7 @@ const RECORD_PERMISSIONS = [
   "work_items.write",
   "people.read",
 ];
+
 const RECORD_MANAGE = [
   "pipelines.manage",
   "deals.manage",
@@ -137,6 +145,7 @@ export class Session {
       who === "service"
         ? { role: "service_role" }
         : { sub: USERS[who], role: "authenticated", email: email(who) };
+
     await this.client.query(
       "select set_config('request.jwt.claims', $1, true)",
       [JSON.stringify(claims)],
@@ -148,6 +157,7 @@ export class Session {
       `select ${sql} as value`,
       [...params],
     );
+
     return rows[0]!.value;
   }
 
@@ -161,26 +171,36 @@ export class Session {
   /** The hint of the error `sql` raises, rolled back to a savepoint. */
   async hint(sql: string, params: readonly unknown[] = []): Promise<string> {
     await this.client.query("savepoint attempt");
+
     try {
       await this.client.query(`select ${sql}`, [...params]);
     } catch (error) {
       await this.client.query("rollback to savepoint attempt");
-      if (!(error instanceof DatabaseError)) throw error;
+
+      if (!(error instanceof DatabaseError)) {
+        throw error;
+      }
+
       return error.hint ?? error.message;
     }
+
     await this.client.query("release savepoint attempt");
+
     return "no error";
   }
 
   /** `SqlClient` for the block transports; each call runs in a savepoint. */
   get sql(): SqlClient {
     const client = this.client;
+
     return {
       async queryRaw<T>(text: string, params: readonly unknown[] = []) {
         await client.query("savepoint call");
+
         try {
           const { rows } = await client.query(text, [...params]);
           await client.query("release savepoint call");
+
           // SAFETY: callers name the row shape of the query they send.
           return rows as T[];
         } catch (error) {
@@ -207,6 +227,7 @@ export async function withCentraKit(
 ): Promise<void> {
   const client = await pool.connect();
   const session = new Session(client);
+
   try {
     await client.query("begin");
     // validation-recipes installs blocks on the same database; concurrent installs deadlock.
@@ -217,6 +238,7 @@ export async function withCentraKit(
     // lock. Taking it before inserting users makes a concurrent sign-in wait
     // for this transaction instead of deadlocking with it.
     await client.query("lock table auth.users in access exclusive mode");
+
     for (const who of ["owner", "admin", "member", "support"] as const) {
       await client.query(
         `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at, raw_user_meta_data)
@@ -224,10 +246,11 @@ export async function withCentraKit(
         [USERS[who], email(who), { first_name: who, last_name: "Tester" }],
       );
     }
+
     await client.query(
       await readFile(
         new URL("../supabase/schema.sql", import.meta.url),
-        "utf8",
+        "utf-8",
       ),
     );
     await client.query(SEED[0]!);
@@ -248,18 +271,22 @@ export async function withCentraKit(
       [USERS.support, ROLES.systemSupport],
     );
     const modules = { ...blocks, ...extra?.config };
+
     const layout = extra?.subjects
       ? { modules, subjects: extra.subjects }
       : { modules };
+
     for (const file of renderModules(
       [...blockNames, ...(extra?.modules ?? [])],
       layout,
-    ))
+    )) {
       await client.query(file.contents);
+    }
+
     await client.query(
       await readFile(
         new URL("../supabase/policies.sql", import.meta.url),
-        "utf8",
+        "utf-8",
       ),
     );
     await body(session);

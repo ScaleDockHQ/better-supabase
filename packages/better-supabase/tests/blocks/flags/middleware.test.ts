@@ -17,6 +17,7 @@ import { schema } from "../../fixtures/generated-camel.ts";
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 const USER = "11111111-1111-4111-8111-111111111111";
 const signer = await createTestSigner();
+
 const server = createServer(defineSupabase(schema), {
   env: {
     url: PROJECT_URL,
@@ -68,14 +69,17 @@ describe("withOpenFeature after withBetterSupabase", () => {
       tenant_id: "org-1",
       memberships: { "org-1": "admin" },
     });
+
     expect(await (await fetch(request(admin))).json()).toEqual({
       new_editor: true,
     });
+
     const member = await signer.sign({
       sub: USER,
       tenant_id: "org-1",
       memberships: { "org-1": "member" },
     });
+
     expect(await (await fetch(request(member))).json()).toEqual({
       new_editor: false,
     });

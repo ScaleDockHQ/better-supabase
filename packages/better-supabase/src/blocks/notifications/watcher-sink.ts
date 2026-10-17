@@ -49,11 +49,17 @@ export interface WatcherSinkOptions<K extends NotificationTypes> {
 
 function subjectData(event: CloudEvent): WatchedEventData | undefined {
   const data = isRecord(event.data) ? event.data : undefined;
-  if (data === undefined) return undefined;
+
+  if (data === undefined) {
+    return undefined;
+  }
+
   const subjectType = optionalText(data["subjectType"]);
   const subjectId = optionalText(data["subjectId"]);
+
   const organizationId =
     optionalText(data["organizationId"]) ?? optionalText(event["partitionkey"]);
+
   if (
     subjectType === undefined ||
     subjectId === undefined ||
@@ -61,6 +67,7 @@ function subjectData(event: CloudEvent): WatchedEventData | undefined {
   ) {
     return undefined;
   }
+
   return { ...data, organizationId, subjectType, subjectId };
 }
 
@@ -82,14 +89,25 @@ export function watcherSink<K extends NotificationTypes>(
       : { typePrefix: options.typePrefix }),
     map(event) {
       const entry = options.types[event.type];
-      if (entry === undefined) return null;
+
+      if (entry === undefined) {
+        return null;
+      }
+
       const data = subjectData(event);
-      if (data === undefined) return null;
+
+      if (data === undefined) {
+        return null;
+      }
+
       const rule: WatcherRule<K> =
         typeof entry === "string" ? { type: entry } : entry;
+
       const actorId =
         optionalText(data["actorId"]) ?? optionalText(data["authorId"]);
+
       const summary = rule.summary?.(data);
+
       return {
         type: rule.type,
         tenant: data.organizationId,
@@ -128,6 +146,7 @@ export function watcherHandler<K extends NotificationTypes>(
   options: WatcherSinkOptions<K>,
 ): (events: readonly WatchedOutboxEvent[]) => Promise<void> {
   const sink = watcherSink(notifications, options);
+
   return async (events) => {
     await sink.send(events.map(rowEvent));
   };
@@ -138,6 +157,7 @@ function rowEvent(row: WatchedOutboxEvent): CloudEvent {
     row.actorId !== null && isRecord(row.payload) && !("actorId" in row.payload)
       ? { ...row.payload, actorId: row.actorId }
       : row.payload;
+
   return {
     specversion: "1.0",
     id: row.id,

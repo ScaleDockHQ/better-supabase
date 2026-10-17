@@ -44,6 +44,7 @@ describe("query option types", () => {
     const { data } = useInfiniteQuery(
       q.customers.infinite({ select: ["id"], size: 20 }),
     );
+
     expectTypeOf(data).toEqualTypeOf<
       InfiniteData<CursorPage<{ id: string }>> | undefined
     >();
@@ -62,9 +63,11 @@ describe("query option types", () => {
 
   it("accepts skipToken and keeps the payload type", () => {
     const id: string | undefined = undefined as string | undefined;
+
     const { data } = useQuery(
       q.customers.findById(id ?? skipToken, { select: ["id"] }),
     );
+
     expectTypeOf(data).toEqualTypeOf<{ id: string } | undefined>();
   });
 
@@ -72,12 +75,15 @@ describe("query option types", () => {
     const { data } = useInfiniteQuery(
       q.customers.infinitePages({ select: ["id"], size: 20 }),
     );
+
     expectTypeOf(data).toEqualTypeOf<
       InfiniteData<OffsetPage<{ id: string }>> | undefined
     >();
+
     const fromSpec = useQuery(
       q.$spec(betterSupabase.spec.customers.findFirst({ select: ["status"] })),
     );
+
     expectTypeOf(fromSpec.data).toEqualTypeOf<
       { status: CustomersStatus } | null | undefined
     >();

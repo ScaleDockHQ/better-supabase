@@ -25,6 +25,7 @@ const types = { "comment.posted": anything, "reminder.due": anything };
 
 function recording() {
   const sent: Record<string, unknown>[] = [];
+
   const transport: BlockTransport = {
     async call(_schema, fn, args) {
       if (
@@ -33,9 +34,11 @@ function recording() {
       ) {
         sent.push({ ...(args["notification"] as Record<string, unknown>) });
       }
+
       return { id: "n1", recipients: [] };
     },
   };
+
   return { notifications: createNotifications({ transport, types }), sent };
 }
 
@@ -55,9 +58,11 @@ const event = (
 describe("watcherSink", () => {
   it("notifies a subject's watchers without the actor, keyed by the event", async () => {
     const { notifications, sent } = recording();
+
     const sink = watcherSink(notifications, {
       types: { "comment.created": "comment.posted" },
     });
+
     await sink.send([
       event("comment.created", {
         commentId: "c1",
@@ -83,12 +88,14 @@ describe("watcherSink", () => {
 
   it("skips unmapped events and events without a subject or tenant", async () => {
     const { notifications, sent } = recording();
+
     const sink = watcherSink(notifications, {
       types: {
         "comment.created": "comment.posted",
         "tag.created": "comment.posted",
       },
     });
+
     await sink.send([
       event("status.changed", {
         organizationId: "org_1",
@@ -104,6 +111,7 @@ describe("watcherSink", () => {
 
   it("takes the tenant from partitionkey and applies a rule", async () => {
     const { notifications, sent } = recording();
+
     const sink = watcherSink(notifications, {
       types: {
         "reminder.sent": {
@@ -117,6 +125,7 @@ describe("watcherSink", () => {
         },
       },
     });
+
     await sink.send([
       event(
         "reminder.sent",
@@ -157,12 +166,14 @@ describe("watcherHandler", () => {
 
   it("leaves out the actor the outbox row names, for any subject event", async () => {
     const { notifications, sent } = recording();
+
     const handle = watcherHandler(notifications, {
       types: {
         "subject.tagged": "comment.posted",
         "status.changed": "comment.posted",
       },
     });
+
     await handle([
       row(
         "subject.tagged",

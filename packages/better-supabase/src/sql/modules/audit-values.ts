@@ -32,34 +32,47 @@ function valueMaps(
   const where = "blocks.audit.options.values";
   const configured = ctx.option("values");
   const maps = new Map<AuditValueColumn, Map<string, string>>();
-  if (configured === undefined) return maps;
+
+  if (configured === undefined) {
+    return maps;
+  }
+
   if (typeof configured !== "object" || configured === null) {
     throw new TypeError(`${where} must be an object`);
   }
+
   for (const [column, value] of Object.entries(configured)) {
     const entries: unknown = value;
+
     if (!isAuditValueColumn(column)) {
       throw new TypeError(
         `${where}: unknown column "${column}". Columns: ${COLUMNS.join(", ")}`,
       );
     }
+
     if (typeof entries !== "object" || entries === null) {
       throw new TypeError(`${where}.${column} must map values to values`);
     }
+
     const map = new Map<string, string>();
+
     for (const [from, to] of Object.entries(entries)) {
       if (typeof to !== "string" || to === "") {
         throw new TypeError(`${where}.${column}.${from} must be a string`);
       }
+
       if ([...map.values()].includes(to)) {
         throw new TypeError(
           `${where}.${column}: two values map to "${to}", so reads can't tell them apart`,
         );
       }
+
       map.set(from, to);
     }
+
     maps.set(column, map);
   }
+
   return maps;
 }
 
@@ -70,10 +83,15 @@ export function auditWrite(
   expression: string,
 ): string {
   const map = valueMaps(ctx).get(column);
-  if (!map || map.size === 0) return expression;
+
+  if (!map || map.size === 0) {
+    return expression;
+  }
+
   const cases = [...map]
     .map(([from, to]) => `when ${sqlString(from)} then ${sqlString(to)}`)
     .join(" ");
+
   return `case (${expression}) ${cases} else (${expression}) end`;
 }
 
@@ -84,10 +102,15 @@ export function auditRead(
   expression: string,
 ): string {
   const map = valueMaps(ctx).get(column);
-  if (!map || map.size === 0) return expression;
+
+  if (!map || map.size === 0) {
+    return expression;
+  }
+
   const cases = [...map]
     .map(([from, to]) => `when ${sqlString(to)} then ${sqlString(from)}`)
     .join(" ");
+
   return `case ${expression} ${cases} else ${expression} end`;
 }
 
@@ -98,16 +121,27 @@ export function auditRead(
  */
 export function tenantLabel(ctx: ModuleContext, tenant: string): string {
   const configured = ctx.option("tenantLabel");
+
   if (configured !== undefined) {
     if (typeof configured !== "string") {
       throw new TypeError("blocks.audit.options.tenantLabel must be a string");
     }
+
     const ref = columnRef("blocks.audit.options.tenantLabel", configured);
     const key = sqlIdent(ctx.text("tenantLabelKey", "id"));
+
     return `(select o.${ref.column}::text from ${ref.table} o where o.${key} = ${tenant})`;
   }
-  if (!ctx.installed("organizations")) return "null";
+
+  if (!ctx.installed("organizations")) {
+    return "null";
+  }
+
   const organizations = ctx.of("organizations");
-  if (!organizations.has("organizations", "name")) return "null";
+
+  if (!organizations.has("organizations", "name")) {
+    return "null";
+  }
+
   return `(select o.${organizations.col("organizations", "name")}::text from ${organizations.table("organizations")} o where o.${organizations.col("organizations", "id")} = ${tenant})`;
 }

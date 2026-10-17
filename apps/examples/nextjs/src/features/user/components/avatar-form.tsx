@@ -32,12 +32,15 @@ export function AvatarForm({
   const t = useExtracted("user");
   const fieldId = useId();
   const errorMessage = useErrorMessage();
+
   const form = useActionForm(uploadAvatar, {
     onSuccess: () => {
       toast.success(t("Avatar updated"));
     },
   });
+
   const error = form.error === undefined ? null : errorMessage(form.error);
+
   return (
     <form {...form.formProps} className="flex items-start gap-4">
       <Avatar className="size-16" data-testid="profile-avatar">

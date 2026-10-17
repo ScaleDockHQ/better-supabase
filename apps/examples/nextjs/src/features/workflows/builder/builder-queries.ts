@@ -56,10 +56,15 @@ export async function getDefinitions(): Promise<readonly DefinitionRow[]> {
   "use cache: private";
   const { session, supabase } = await bs.cached();
   const tenant = tenantOf(session);
-  if (!tenant) return [];
+
+  if (!tenant) {
+    return [];
+  }
+
   const definitions = await builderFor(supabase)
     .definitions.list(tenant)
     .orThrow();
+
   return definitions.map((definition) => ({
     id: definition.id,
     name: definition.name,
@@ -77,26 +82,38 @@ export async function getBuilderDetail(
   "use cache: private";
   const { session, supabase } = await bs.cached();
   const tenant = tenantOf(session);
-  if (!tenant) return null;
+
+  if (!tenant) {
+    return null;
+  }
+
   const builder = builderFor(supabase);
   const definition = await builder.definitions.get(id).orThrow();
-  if (definition?.tenant !== tenant) return null;
+
+  if (definition?.tenant !== tenant) {
+    return null;
+  }
+
   const [versions, steps, triggers, credentials] = await Promise.all([
     builder.versions.list(id).orThrow(),
     builder.steps.list().orThrow(),
     builder.triggers.list(id).orThrow(),
     builder.credentials.list(tenant).orThrow(),
   ]);
+
   const draftId = versions.find((version) => version.status === "draft")?.id;
+
   const publishedId = versions.find(
     (version) => version.status === "published",
   )?.id;
+
   const [draft, published] = await Promise.all([
     draftId === undefined ? undefined : builder.versions.get(draftId).orThrow(),
     publishedId === undefined
       ? undefined
       : builder.versions.get(publishedId).orThrow(),
   ]);
+
   return {
     tenant,
     definition: {

@@ -15,7 +15,10 @@ import { bs } from "@/lib/supabase/server";
  * member who created it. The sample steps check no permission keys.
  */
 async function runAs(call: WorkflowStartCall): Promise<WorkflowRunAs | null> {
-  if (call.tenant === undefined) return null;
+  if (call.tenant === undefined) {
+    return null;
+  }
+
   const owner = await bs
     .admin()
     .memberships.findFirst({
@@ -23,6 +26,7 @@ async function runAs(call: WorkflowStartCall): Promise<WorkflowRunAs | null> {
       where: { organizationId: call.tenant, role: "owner" },
     })
     .orThrow();
+
   return owner === null ? null : { publisher: owner.userId, permissions: [] };
 }
 
@@ -33,10 +37,13 @@ async function runAs(call: WorkflowStartCall): Promise<WorkflowRunAs | null> {
  */
 export async function GET(request: Request): Promise<Response> {
   const secret = process.env["CRON_SECRET"];
+
   if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
     return new Response(null, { status: 401 });
   }
+
   const builder = serviceBuilder().triggers;
+
   const scheduled = builder.starter(
     workflowStarter(scheduledWorkflows, {
       runAs,
@@ -44,15 +51,19 @@ export async function GET(request: Request): Promise<Response> {
         const rest: readonly unknown[] = Array.isArray(call.input)
           ? call.input
           : [];
+
         return [context, ...rest];
       },
     }),
   );
+
   const admitted = builder.starter(workflowStarter(scheduledWorkflows));
   const workflows = blocks(bs.admin().$client).workflows;
+
   const [schedules, admission] = await Promise.all([
     workflows.schedules.tick({ start: scheduled }).orThrow(),
     workflows.admission.tick({ start: admitted }).orThrow(),
   ]);
+
   return Response.json({ schedules, admission });
 }

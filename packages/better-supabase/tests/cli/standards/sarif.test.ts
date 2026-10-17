@@ -30,9 +30,11 @@ async function report(): Promise<Sarif> {
   const snapshot = structuredClone(fixture) as unknown as {
     generator: { tables: { schema: string; rls_enabled: boolean }[] };
   };
+
   snapshot.generator.tables.find(
     (table) => table.schema === "public",
   )!.rls_enabled = false;
+
   const findings = await runRules(
     {
       config: resolveConfig({}, "/project"),
@@ -50,7 +52,9 @@ async function report(): Promise<Sarif> {
     },
     RULES.filter((rule) => rule.code !== "BS303"),
   );
+
   expect(findings.length).toBeGreaterThan(2);
+
   return JSON.parse(
     formatReport(findings, {
       format: "sarif",
@@ -80,6 +84,7 @@ describe("SARIF 2.1.0", () => {
     expect(run!.tool.driver.version).toBe("1.2.3");
     const ids = run!.tool.driver.rules.map((rule) => rule.id);
     expect(ids).toEqual(RULES.map((rule) => rule.code));
+
     for (const result of run!.results) {
       expect(ids).toContain(result.ruleId);
       expect(ids[result.ruleIndex ?? ids.indexOf(result.ruleId)]).toBe(
@@ -90,9 +95,10 @@ describe("SARIF 2.1.0", () => {
   });
 
   it("every result has a physical location (GitHub code scanning needs one)", async () => {
-    for (const result of (await report()).runs[0]!.results)
+    for (const result of (await report()).runs[0]!.results) {
       expect(
         result.locations?.[0]?.physicalLocation.artifactLocation.uri,
       ).toMatch(/\S/);
+    }
   });
 });

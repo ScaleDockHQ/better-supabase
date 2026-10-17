@@ -6,6 +6,7 @@ import { createAnalytics } from "../../../src/workflow-sdk/world/analytics.ts";
 
 function fakePool(rows: Record<string, unknown>[] = []) {
   const query = vi.fn(async (_text: string, _params: unknown[]) => ({ rows }));
+
   // SAFETY: analytics only calls query on its pool.
   return { pool: { query } as unknown as Pool, query };
 }
@@ -20,7 +21,9 @@ describe("createAnalytics", () => {
       { runId: "b", errorCode: null },
       { runId: "c", errorCode: null },
     ]);
+
     const analytics = createAnalytics(pool);
+
     const page = await analytics.runs.list({
       workflowName: "w",
       status: "running",
@@ -29,6 +32,7 @@ describe("createAnalytics", () => {
       endTime: "2026-01-02T00:00:00Z",
       pagination: { limit: 2, cursor: "4", sortOrder: "asc" },
     });
+
     expect(page).toEqual({
       data: [{ runId: "a" }, { runId: "b" }],
       hasMore: true,
@@ -62,9 +66,11 @@ describe("createAnalytics", () => {
     await expect(
       analytics.runs.list({ startTime: "2026-01-01T00:00:00Z" }),
     ).rejects.toThrow("startTime and endTime go together");
+
     const attributes = Object.fromEntries(
       Array.from({ length: 9 }, (_, index) => [`k${String(index)}`, "v"]),
     );
+
     await expect(analytics.runs.list({ attributes })).rejects.toThrow(
       "at most 8 attributes",
     );

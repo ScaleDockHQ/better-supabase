@@ -30,16 +30,20 @@ export function invoiceFunctions(ctx: ModuleContext, n: InvoiceNames): string {
   const i = (column: string): string => c("invoices", column);
   const l = (column: string): string => c("lines", column);
   const p = (column: string): string => c("payments", column);
+
   const can = (alias: string, permission: string): string =>
     `(${n.service} or ${ctx.scope.can(`${alias}.${i("tenant")}`, permission)})`;
+
   const balance = (alias: string): string =>
     `(${alias}.${i("total")} - ${alias}.${i("creditedTotal")} - ${alias}.${i("paidTotal")})`;
+
   const row = (alias: string): string =>
     `to_jsonb(${alias}) || jsonb_build_object(
       'balance', ${balance(alias)}::text,
       'overdue', ${alias}.${i("status")} in ('issued', 'partially_paid') and ${alias}.${i("dueOn")} < current_date,
       'lines', coalesce((select jsonb_agg(jsonb_build_object('description', il.${l("description")}, 'quantity', il.${l("quantity")}, 'unitAmount', il.${l("unitAmount")}::text, 'discountBps', il.${l("discountBps")}, 'taxRateBps', il.${l("taxRateBps")}, 'taxCode', il.${l("taxCode")}) order by il.${l("position")}) from ${t("lines")} il where il.${l("parent")} = ${alias}.${i("id")}), '[]'::jsonb),
       'payments', coalesce((select jsonb_agg(jsonb_build_object('id', ip.${p("id")}, 'amount', ip.${p("amount")}::text, 'paidAt', ip.${p("paidAt")}, 'method', ip.${p("method")}, 'reference', ip.${p("reference")}) order by ip.${p("paidAt")}) from ${t("payments")} ip where ip.${p("invoice")} = ${alias}.${i("id")}), '[]'::jsonb))`;
+
   const record = (
     type: string,
     alias: string,
@@ -61,6 +65,7 @@ export function invoiceFunctions(ctx: ModuleContext, n: InvoiceNames): string {
           }
         : false,
     });
+
   const checkParty = (
     kind: "COMPANY" | "CONTACT",
     type: string,
@@ -70,6 +75,7 @@ export function invoiceFunctions(ctx: ModuleContext, n: InvoiceNames): string {
   if ${id} is not null and not ${subjectInTenant(ctx, type, id, tenant)} then
     ${fail(`INVOICE_${kind}_FORBIDDEN`, `the ${kind.toLowerCase()} is unknown or not readable in this organization`, "42501")}
   end if;`;
+
   const settle = (alias: string): string => `
   update ${t("invoices")} x set
     ${i("paidTotal")} = coalesce((select sum(y.${p("amount")}) from ${t("payments")} y where y.${p("invoice")} = x.${i("id")}), 0),
@@ -84,13 +90,16 @@ export function invoiceFunctions(ctx: ModuleContext, n: InvoiceNames): string {
     ${i("paidAt")} = case when ${balance("x")} <= 0 then coalesce(x.${i("paidAt")}, now()) end
   where x.${i("id")} = ${alias}.${i("id")} and x.${i("status")} in ('issued', 'partially_paid', 'paid')
   returning * into ${alias};`;
+
   const quotes = ctx.installed("quotes") ? ctx.of("quotes") : undefined;
+
   const fromQuote =
     quotes === undefined
       ? ""
       : (() => {
           const q = (column: string): string => quotes.col("quotes", column);
           const ql = (column: string): string => quotes.col("lines", column);
+
           return `
 -- An invoice from an accepted quote. With deposit_bps (2000 for 20%) it is
 -- a deposit invoice for that share of the quote; without, the full invoice,
@@ -152,8 +161,10 @@ $$;
 ${userGrant(`${fn("invoice_from_quote")}(uuid, integer)`)}
 `;
         })();
+
   const kindTable = (kind: string): string =>
     `(select * from ${t("invoices")} k where k.${i("kind")} = ${kind})`;
+
   return `
 -- Creates a draft invoice. attrs: title (required), currency, company and
 -- contact ({ type, id }), termsDays, note, origin ({ type, id }) and the
@@ -236,7 +247,7 @@ begin
   if not exists (select 1 from ${t("lines")} x where x.${l("parent")} = v_row.${i("id")}) then
     ${fail("INVOICE_EMPTY", "an invoice needs a line before it is issued", "23514")}
   end if;
-  ${ctx.hook("before_invoice_issue", [["uuid", "v_row." + i("id")]])}
+  ${ctx.hook("before_invoice_issue", [["uuid", `v_row.${i("id")}`]])}
   if v_row.${i("kind")} = 'credit_note' then
     select * into v_original from ${t("invoices")} x where x.${i("id")} = v_row.${i("original")} for update;
     if v_row.${i("total")} > ${balance("v_original")} then
@@ -262,7 +273,7 @@ begin
       ${record("invoice.paid", "v_original", `, 'total', v_original.${i("total")}::text`)}
     end if;
   end if;
-  ${ctx.hook("after_invoice_issue", [["uuid", "v_row." + i("id")]])}
+  ${ctx.hook("after_invoice_issue", [["uuid", `v_row.${i("id")}`]])}
   return ${row("v_row")};
 end;
 $$;
@@ -293,7 +304,7 @@ begin
     ${fail("INVOICE_PAYMENT_INVALID", "a payment has an amount", "22023")}
   end if;
   ${ctx.hook("before_invoice_payment", [
-    ["uuid", "v_row." + i("id")],
+    ["uuid", `v_row.${i("id")}`],
     ["bigint", "record_invoice_payment.amount"],
   ])}
   v_was := v_row.${i("status")};
@@ -310,7 +321,7 @@ begin
     ${record("invoice.paid", "v_row", `, 'total', v_row.${i("total")}::text`)}
   end if;
   ${ctx.hook("after_invoice_payment", [
-    ["uuid", "v_row." + i("id")],
+    ["uuid", `v_row.${i("id")}`],
     ["uuid", "v_payment"],
   ])}
   return ${row("v_row")};

@@ -57,11 +57,18 @@ export interface TestUser<M extends AnyModels, F extends AnyFunctions, E> {
 }
 
 function env(...names: readonly string[]): string | undefined {
-  if (typeof process === "undefined") return undefined;
+  if (typeof process === "undefined") {
+    return undefined;
+  }
+
   for (const name of names) {
     const value = process.env[name];
-    if (value) return value;
+
+    if (value) {
+      return value;
+    }
   }
+
   return undefined;
 }
 
@@ -78,22 +85,28 @@ async function signFor(
   claims: TestJwtClaims,
 ): Promise<string> {
   const alg = stack.alg ?? "ES256";
+
   switch (alg) {
-    case "ES256":
+    case "ES256": {
       return signTestJwtWithKey(
         stack.signingKey ?? (await localSigningKey(stack.signingKeysPath)),
         claims,
       );
+    }
+
     case "HS256": {
       if (!LOCAL_HOSTS.has(new URL(url).hostname)) {
         throw new TypeError(
           `asUser signs HS256 tokens only for a local stack, not ${url}. Use the ES256 key from \`better-supabase keys\`.`,
         );
       }
+
       const secret =
         stack.jwtSecret ?? env("SUPABASE_JWT_SECRET") ?? LOCAL_JWT_SECRET;
+
       return signTestJwt(secret, claims);
     }
+
     default: {
       const unknown: never = alg;
       throw new TypeError(`asUser: unknown alg "${String(unknown)}"`);
@@ -119,16 +132,20 @@ export async function asUser<M extends AnyModels, D, F extends AnyFunctions, E>(
 ): Promise<TestUser<M, F, E>> {
   const url =
     stack.url ?? env(...ENV_VARIABLES.url) ?? "http://127.0.0.1:54321";
+
   const publishableKey =
     stack.publishableKey ??
     env(...ENV_VARIABLES.publishableKey, "SUPABASE_ANON_KEY");
+
   if (!publishableKey) {
     throw new TypeError(
       "asUser needs publishableKey or $SUPABASE_PUBLISHABLE_KEY. Run `better-supabase env` to write it to .env.local.",
     );
   }
+
   const token = await signFor(stack, url, claims);
   const full: TestJwtClaims = { role: "authenticated", ...claims };
+
   const context: RequestContext = {
     actor: {
       id: claims.sub,
@@ -138,10 +155,12 @@ export async function asUser<M extends AnyModels, D, F extends AnyFunctions, E>(
     },
     claims: full,
   };
+
   const supabase = createClient(url, publishableKey, {
     accessToken: () => Promise.resolve(token),
     ...(stack.fetch ? { global: { fetch: stack.fetch } } : {}),
   });
+
   return {
     token,
     claims: full,

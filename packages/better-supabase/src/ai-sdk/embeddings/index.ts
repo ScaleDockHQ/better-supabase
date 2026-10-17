@@ -2,6 +2,7 @@ export type {
   Embedder,
   KnowledgeHit,
 } from "../../blocks/knowledge/knowledge.ts";
+
 export {
   embedWith,
   type EmbedWithOptions,

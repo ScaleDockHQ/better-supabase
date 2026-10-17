@@ -33,12 +33,15 @@ describe("timestamps", () => {
       status: 201,
       body: [{ id: "c" }],
     }));
+
     const db = betterSupabase.connect(client);
+
     const refused = await db.customers.create({
       organizationId: ORG,
       name: "A",
       createdAt: "2020-01-01T00:00:00Z",
     });
+
     expect(refused.error).toMatchObject({
       kind: "invalid_request",
       message: expect.stringContaining("override: true"),
@@ -66,6 +69,7 @@ describe("timestamps", () => {
       status: 201,
       body: [{ id: "c" }],
     }));
+
     await betterSupabase
       .connect(client)
       .customers.upsert(
@@ -120,6 +124,7 @@ describe("softDelete", () => {
       status: 204,
       headers: { "content-range": "*/1" },
     }));
+
     const result = await betterSupabase.connect(client).customers.delete("c");
     expect(result.ok).toBe(true);
     expect(last().method).toBe("PATCH");
@@ -130,6 +135,7 @@ describe("softDelete", () => {
 
   it("keeps RETURNING for deleteMany with returning: true", async () => {
     const { client, last } = capturingClient(() => ({ body: [{ id: "c" }] }));
+
     const rows = await betterSupabase
       .connect(client)
       .customers.deleteMany({
@@ -138,6 +144,7 @@ describe("softDelete", () => {
         select: ["id"],
       })
       .orThrow();
+
     expect(rows).toEqual([{ id: "c" }]);
     expect(last().method).toBe("PATCH");
     expect(query(last())).toEqual([
@@ -152,6 +159,7 @@ describe("softDelete", () => {
       status: 204,
       headers: { "content-range": "*/1" },
     }));
+
     const db = betterSupabase.connect(client);
     await db.customers.delete("c", { hard: true });
     await db.customers.restore("c");
@@ -170,6 +178,7 @@ describe("softDelete", () => {
       status: 201,
       body: [{ id: "c" }],
     }));
+
     const db = betterSupabase.connect(client);
     await db.customers.upsert(
       { organizationId: ORG, name: "A", kvk: "1" },
@@ -199,6 +208,7 @@ describe("softDelete", () => {
       status: 204,
       headers: { "content-range": "*/1" },
     }));
+
     await betterSupabase.connect(client).tags.delete("t");
     expect(last().method).toBe("DELETE");
   });
@@ -236,11 +246,13 @@ describe("tenant", () => {
 
   it("never reads the tenant from user_metadata", async () => {
     const { client, requests } = capturingClient();
+
     const result = await betterSupabase
       .connect(client, {
         claims: { sub: ORG, user_metadata: { tenant_id: ORG } },
       })
       .customers.findMany();
+
     expect(result.error?.kind).toBe("forbidden");
     expect(requests).toHaveLength(0);
   });
@@ -250,6 +262,7 @@ describe("tenant", () => {
       status: 201,
       body: [{ id: "t" }],
     }));
+
     const db = betterSupabase.connect(client, { tenant: ORG });
     await db.tags.create({ name: "vip" } as never, { select: ["id"] });
     expect(last().body).toEqual({ name: "vip", organization_id: ORG });
@@ -263,13 +276,17 @@ describe("tenant", () => {
       status: 201,
       body: [{ id: "c" }],
     }));
+
     const db = betterSupabase.connect(client, { tenant: ORG });
+
     const crossing = await db.customers.upsert(
       { id: "c", name: "A" } as never,
       { onConflict: ["id"] },
     );
+
     expect(crossing.error?.kind).toBe("forbidden");
     expect(requests).toHaveLength(0);
+
     const ignoring = await db.customers.upsert(
       { id: "c", name: "A" } as never,
       {
@@ -278,21 +295,26 @@ describe("tenant", () => {
         select: ["id"],
       },
     );
+
     expect(ignoring.ok).toBe(true);
+
     const scoped = await db.customers.upsert({ name: "A", kvk: "1" } as never, {
       onConflict: "customers_organization_id_kvk_key",
       select: ["id"],
     });
+
     expect(scoped.ok).toBe(true);
     expect(requests).toHaveLength(2);
   });
 
   it("fails closed when an include reaches a tenant table", async () => {
     const { client, requests } = capturingClient();
+
     const result = await betterSupabase.connect(client).organizations.findMany({
       select: ["id"],
       include: { customers: { select: ["id"] } },
     } as never);
+
     expect(result.error?.kind).toBe("forbidden");
     expect(requests).toHaveLength(0);
   });
@@ -302,16 +324,21 @@ describe("tenant", () => {
       status: 201,
       body: [{ id: "t" }],
     }));
+
     const db = betterSupabase.connect(client, { tenant: "42" });
+
     const same = await db.tags.create({
       organizationId: 42,
       name: "x",
     } as never);
+
     expect(same.ok).toBe(true);
+
     const other = await db.tags.create({
       organizationId: 7,
       name: "x",
     } as never);
+
     expect(other.error?.kind).toBe("forbidden");
     expect(requests).toHaveLength(1);
   });
@@ -329,9 +356,11 @@ describe("tenant", () => {
       status: 201,
       body: [{ id: "c" }],
     }));
+
     const db = betterSupabase
       .connect(client, allTenantsContext({}))
       .$with({ actor: { id: USER, kind: "service" } });
+
     await db.customers.findMany({ select: ["id"] });
     expect(query(last())).toEqual(["select=id", "order=id.asc"]);
     await db.customers.create(
@@ -339,9 +368,11 @@ describe("tenant", () => {
       { select: ["id"] },
     );
     expect(requests.at(-1)?.body).toEqual({ organization_id: ORG, name: "A" });
+
     const spoofed = await betterSupabase
       .connect(client, JSON.parse('{"allTenants":true}'))
       .customers.findMany({ select: ["id"] });
+
     expect(spoofed.error).toMatchObject({ kind: "forbidden" });
   });
 });
@@ -349,13 +380,16 @@ describe("tenant", () => {
 describe("actor", () => {
   it("stamps createdBy and updatedBy from the context actor", async () => {
     const betterSupabase = base.use(actor());
+
     const { client, requests } = capturingClient(() => ({
       status: 201,
       body: [{ id: "c" }],
     }));
+
     const db = betterSupabase.connect(client, {
       actor: { id: USER, kind: "user" },
     });
+
     await db.customers.create(
       { organizationId: ORG, name: "A" },
       { select: ["id"] },
@@ -372,6 +406,7 @@ describe("actor", () => {
 
   it("stamps impersonatedBy from the impersonator, and leaves it alone otherwise", async () => {
     const customers = schema.meta.tables["customers"]!;
+
     const impersonation = defineSupabase(
       defineSchema<Models, Database, Functions>({
         ...schema.meta,
@@ -400,14 +435,18 @@ describe("actor", () => {
       }),
       { now: () => NOW },
     ).use(actor());
+
     const { client, requests } = capturingClient(() => ({
       status: 201,
       body: [{ id: "c" }],
     }));
+
     const ADMIN = "00000000-0000-4000-8000-0000000000ad";
+
     const impersonated = impersonation.connect(client, {
       actor: { id: USER, kind: "user", impersonator: ADMIN },
     });
+
     await impersonated.customers.create(
       { organizationId: ORG, name: "A" },
       { select: ["id"] },
@@ -424,28 +463,35 @@ describe("actor", () => {
       name: "B",
       updated_by: USER,
     });
+
     const forged = await impersonated.customers.update(
       "c",
       // @ts-expect-error -- the fixture models have no impersonatedBy column
       { impersonatedBy: USER },
     );
+
     expect(forged.error?.message).toContain("actor()");
   });
 
   it("refuses caller-supplied actor and soft-delete columns without override", async () => {
     const betterSupabase = base.use(actor()).use(softDelete());
+
     const { client, requests } = capturingClient(() => ({
       status: 204,
       headers: { "content-range": "*/1" },
     }));
+
     const db = betterSupabase.connect(client, {
       actor: { id: USER, kind: "user" },
     });
+
     const forged = await db.customers.update("c", { updatedBy: "someone" });
     expect(forged.error?.message).toContain("actor()");
+
     const archived = await db.customers.update("c", {
       archivedAt: NOW.toString(),
     });
+
     expect(archived.error?.message).toContain("softDelete()");
     expect(requests).toHaveLength(0);
     expect((await db.customers.restore("c")).ok).toBe(true);
@@ -454,10 +500,12 @@ describe("actor", () => {
 
   it("records who soft-deleted a row", async () => {
     const betterSupabase = base.use(actor()).use(softDelete());
+
     const { client, last } = capturingClient(() => ({
       status: 204,
       headers: { "content-range": "*/1" },
     }));
+
     await betterSupabase
       .connect(client, { actor: { id: USER, kind: "user" } })
       .customers.delete("c");
@@ -476,10 +524,12 @@ describe("validation", () => {
   it("rejects invalid writes before sending them", async () => {
     const { client, requests } = capturingClient();
     const db = betterSupabase.connect(client, { tenant: ORG });
+
     const result = await db.customers.create({
       name: "A",
       status: "deleted",
     } as never);
+
     expect(result.error).toMatchObject({ kind: "validation", status: 422 });
     expect(
       result.error?.kind === "validation" && result.error.issues[0]?.path,
@@ -489,6 +539,7 @@ describe("validation", () => {
 
   it("validates codec columns as app values and sends them as text", async () => {
     const customers = schema.meta.tables["customers"]!;
+
     const withCodec = {
       ...schema,
       meta: {
@@ -508,7 +559,9 @@ describe("validation", () => {
         },
       },
     };
+
     const seen: unknown[] = [];
+
     const insert: StandardSchemaV1 = {
       "~standard": {
         version: 1,
@@ -516,16 +569,19 @@ describe("validation", () => {
         validate: (value) => {
           const row = value as Record<string, unknown>;
           seen.push(row["createdAt"]);
+
           return row["createdAt"] instanceof Temporal.Instant
             ? { value: row }
             : { issues: [{ message: "not an instant", path: ["createdAt"] }] };
         },
       },
     };
+
     const { client, last } = capturingClient(() => ({
       status: 201,
       body: [{ id: "c" }],
     }));
+
     const result = await defineSupabase(withCodec as typeof schema)
       .use(validation({ schemas: { customers: { insert } } }))
       .connect(client)
@@ -533,6 +589,7 @@ describe("validation", () => {
         { organizationId: ORG, name: "A", createdAt: NOW } as never,
         { select: ["id"] },
       );
+
     expect(result.error).toBeNull();
     expect(seen[0]).toBeInstanceOf(Temporal.Instant);
     expect(last().body).toMatchObject({ created_at: NOW.toString() });
@@ -545,19 +602,23 @@ describe("validation", () => {
         vendor: "test",
         validate: (value) => {
           const { name } = value as { name: string };
+
           return { value: { name: name.trim() } };
         },
       },
     };
+
     const { client, last } = capturingClient(() => ({
       status: 201,
       body: [],
     }));
+
     const result = await base
       .use(validation({ schemas: { customers: { insert: strip } } }))
       .use(tenant())
       .connect(client, { tenant: ORG })
       .customers.create({ name: " A " } as never, { returning: false });
+
     expect(result.error).toBeNull();
     expect(last().body).toEqual({ name: "A", organization_id: ORG });
   });
@@ -567,15 +628,18 @@ describe("validation", () => {
       status: 201,
       body: [],
     }));
+
     const db = betterSupabase.connect(client, { tenant: ORG });
     expect(
       (await db.customers.create({ name: "A" } as never, { returning: false }))
         .ok,
     ).toBe(true);
+
     const bulk = await db.tags.createMany([
       { name: "a" },
       { name: "b", color: "pink" },
     ] as never);
+
     expect(
       bulk.error?.kind === "validation" && bulk.error.issues[0]?.path,
     ).toEqual([1, "color"]);

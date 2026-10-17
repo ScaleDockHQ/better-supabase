@@ -33,11 +33,16 @@ async function serve(
       } catch (error) {
         thrown = error;
       }
+
       return new Response(null);
     },
   });
-  // oxlint-disable-next-line typescript/only-throw-error -- rethrows the thrown Response the adapter answers with.
-  if (thrown !== undefined) throw thrown;
+
+  if (thrown !== undefined) {
+    // oxlint-disable-next-line typescript/only-throw-error -- rethrows the thrown Response the adapter answers with.
+    throw thrown;
+  }
+
   return out;
 }
 
@@ -46,6 +51,7 @@ describe("createTanStackStart", () => {
     const caller = await serve(await requestAs({ role: "member" }), (context) =>
       bs.require(context),
     );
+
     expect(caller).toMatchObject({ session: { user: { id: USER } } });
   });
 
@@ -53,14 +59,17 @@ describe("createTanStackStart", () => {
     const refused = await serve(await requestAs(), (context) =>
       bs.require(context),
     ).catch((error: unknown) => error);
+
     expect((refused as Response).status).toBe(401);
   });
 
   it("runs server function handlers into ActionResults", async () => {
     const handler = bs.action({ requireTenant: true }, () => ok(1));
+
     const result = await serve(await requestAs({ role: "member" }), (context) =>
       handler({ data: {}, context }),
     );
+
     expect(result).toMatchObject({ ok: false, error: { code: "NO_TENANT" } });
   });
 

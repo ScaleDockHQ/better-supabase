@@ -13,6 +13,7 @@ describe("job envelope", () => {
   it("keeps a delegated client's scope, details and act chain", () => {
     const act = { sub: "agent-1", act: { sub: "client-1" } };
     const details = [{ type: "posts", actions: ["read"] }];
+
     const stored = withContext(
       { id: 1 },
       {
@@ -27,6 +28,7 @@ describe("job envelope", () => {
         },
       },
     );
+
     expect(stored).toEqual({
       $bs: 1,
       context: {
@@ -62,6 +64,7 @@ describe("job envelope", () => {
       actor,
       claims: { client_id: "mcp", scope: ["posts:read"] },
     });
+
     expect(unwrap(stored).context).toEqual({
       actor,
       claims: { client_id: "mcp", scope: "posts:read" },
@@ -75,19 +78,23 @@ describe("job envelope", () => {
       session_id: "s-1",
       read_only: true,
     };
+
     const stored = withContext(null, {
       actor: { ...actor, impersonator: "admin-1" },
       claims: { act: support },
     });
+
     expect(stored).toMatchObject({ context: { act: support } });
     expect(unwrap(stored).context).toEqual({
       actor: { ...actor, impersonator: "admin-1" },
       claims: { act: support },
     });
+
     const impersonated = withContext(null, {
       actor,
       claims: { act: { kind: "impersonation", sub: "admin-1", reason: "r" } },
     });
+
     expect(unwrap(impersonated).context.claims).toEqual({
       act: { kind: "impersonation", sub: "admin-1", reason: "r" },
     });
@@ -110,16 +117,19 @@ describe("job envelope", () => {
       actor,
       claims: { bs_permission_cap: ["posts.write"] },
     });
+
     expect(stored).toMatchObject({
       context: { bs_permission_cap: ["posts.write"] },
     });
     expect(unwrap(JSON.parse(JSON.stringify(stored))).context.claims).toEqual({
       bs_permission_cap: ["posts.write"],
     });
+
     const wrapped = wrapPayload(null, {
       actor,
       claims: { bs_permission_cap: [1] },
     });
+
     expect(wrapped.ok).toBe(false);
     expect(wrapped.error).toMatchObject({ kind: "forbidden" });
   });
@@ -130,6 +140,7 @@ describe("job envelope", () => {
       context: { actor, act: { kind: "root", sub: "a" }, client_id: 3 },
       payload: null,
     });
+
     expect(context.claims).toEqual({
       act: { kind: "root", sub: "a" },
       client_id: 3,
@@ -158,11 +169,13 @@ describe("job envelope", () => {
     expect(
       wrapPayload("p", { actor, ticket: "old" }, { ticket: "new" }),
     ).toMatchObject({ data: { context: { ticket: "new" } } });
+
     for (const ticket of ["", 5]) {
       expect(wrapPayload("p", { actor, ticket }).error).toMatchObject({
         kind: "validation",
       });
     }
+
     expect(unwrap({ $bs: 1, context: { ticket: 9 }, payload: 1 })).toEqual({
       payload: 1,
       context: { ticket: 9 },

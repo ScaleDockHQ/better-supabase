@@ -27,20 +27,25 @@ const key = (id: string, day: number): ApiKey => ({
 
 function setup(organizationId: string | null = "org-1") {
   const auth = fakeAuth();
+
   const list = vi.fn((_organizationId?: string) =>
     resolved<readonly ApiKey[]>([key("k1", 1), key("k2", 2)]),
   );
+
   const create = vi.fn((input: CreateApiKeyInput) =>
     resolved({ key: key(input.name, 3), token: "bs_secret" }),
   );
+
   const revoke = vi.fn((_id: string) => resolved(true));
   const onChanged = vi.fn();
+
   const controller = createApiKeysController({
     client: { list, create, revoke },
     auth,
     organizationId,
     onChanged,
   });
+
   return { list, create, revoke, onChanged, controller };
 }
 

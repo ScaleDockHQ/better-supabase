@@ -61,19 +61,25 @@ export function InviteMemberDialog({
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Role>("member");
+
   const roles = assignableRoles(myRole).map((each) => ({
     value: each,
     label: roleLabel(each),
   }));
+
   // The server renders the pending list; `invitationSent` renders it again.
   const { invite, inviting, sent, error, clear } = useInvitations({
     organizationId,
     schema: blockConfig.organizations.api,
     onChanged: async ({ kind }) => {
-      if (kind === "invited") await invitationSent({});
+      if (kind === "invited") {
+        await invitationSent({});
+      }
     },
   });
+
   const link = sent ? inviteLink(sent.token) : null;
+
   const message =
     error === undefined
       ? null
@@ -92,7 +98,10 @@ export function InviteMemberDialog({
       onOpenChange={(next) => {
         setOpen(next);
         setEmail("");
-        if (!next) clear();
+
+        if (!next) {
+          clear();
+        }
       }}
     >
       <DialogTrigger render={<Button size="sm" />}>
@@ -168,7 +177,9 @@ export function InviteMemberDialog({
                   value={role}
                   items={roles}
                   onValueChange={(value) => {
-                    if (v.is(Role, value)) setRole(value);
+                    if (v.is(Role, value)) {
+                      setRole(value);
+                    }
                   }}
                 >
                   <SelectTrigger id={`${fieldId}-invite-role`} className="w-40">

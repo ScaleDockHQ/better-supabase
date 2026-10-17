@@ -19,18 +19,28 @@ export function tenantOf<C, P>(
   claim?: string,
 ): string | undefined {
   const claims = claimsOf(session);
-  if (claims === undefined) return undefined;
+
+  if (claims === undefined) {
+    return undefined;
+  }
+
   for (const path of tenantClaimPaths(claim)) {
     const value = claimAt(claims, path);
-    if (value !== undefined) return value;
+
+    if (value !== undefined) {
+      return value;
+    }
   }
+
   return undefined;
 }
 
 function claimsOf<C, P>(
   session: AuthSession<C, P> | AuthSnapshot,
 ): Readonly<Record<string, unknown>> | undefined {
-  if ("kind" in session)
+  if ("kind" in session) {
     return session.kind === "user" ? session.claims : undefined;
+  }
+
   return session.status === "signed-in" ? session.claims : undefined;
 }

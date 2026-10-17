@@ -15,12 +15,17 @@ export function subjectWritable(
 ): string {
   const whens = subjects.flatMap(([type]) => {
     const key = ctx.subjects[type]?.permissions?.["write"];
+
     return key === undefined
       ? []
       : [
           `    when ${sqlString(type)} then ${ctx.can("tenant", args.tenant, sqlString(key))}`,
         ];
   });
-  if (whens.length === 0) return "true";
+
+  if (whens.length === 0) {
+    return "true";
+  }
+
   return `case ${args.type}\n${whens.join("\n")}\n    else true\n  end`;
 }

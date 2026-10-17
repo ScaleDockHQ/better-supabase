@@ -9,6 +9,9 @@ import { env } from "@/env";
 
 import "./global.css";
 
+// Every page renders at build time; a request-time read fails the build.
+export const ensureStatic = "navigation";
+
 export const metadata: Metadata = {
   metadataBase: new URL(env.NEXT_PUBLIC_SITE_URL),
   title: {

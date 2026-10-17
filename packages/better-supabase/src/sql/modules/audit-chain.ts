@@ -45,18 +45,22 @@ const fail = (hint: string, message: string, errcode = "42501"): string =>
 export function chainSql(ctx: ModuleContext): string {
   const log = ctx.table("log");
   const trigger = ctx.trigger("audit_chain");
+
   if (!chainOn(ctx)) {
     return ctx.manages ? `drop trigger if exists ${trigger} on ${log};` : "";
   }
+
   const id = ctx.idType;
   const c = (logical: string) => ctx.col("log", logical);
   const t = c("tenant");
+
   const latest = (tenant: string, where = "") => `(
       select l.chain_seq, l.row_hash, l.${c("id")} as entry_id from ${log} l
       where ${tenant === "null" ? `l.${t} is null` : `l.${t} = ${tenant}`} and l.chain_seq is not null${where}
       order by l.chain_seq desc
       limit 1
     )`;
+
   return `-- The hash chain: each entry hashes its row with the previous entry's hash
 -- of the same tenant, so editing or removing an entry breaks every later
 -- link. Purged entries leave the next one's prev_hash as the anchor.

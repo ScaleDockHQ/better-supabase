@@ -26,22 +26,27 @@ export function cronRoute(
   handle: (request: Request, instance: string) => Promise<Response>,
 ): (request: Request) => Promise<Response> {
   const { name, secret } = guard;
+
   if (!secret) {
     throw new TypeError(
       `${name}Route needs a secret, such as process.env.CRON_SECRET`,
     );
   }
+
   return async (request) => {
     const instance = new URL(request.url).pathname;
+
     if (request.method !== "GET" && request.method !== "POST") {
       return methodNotAllowed(["GET", "POST"]);
     }
+
     if (!verifySharedSecret(request, secret)) {
       return problemResponse(
         dbError("unauthorized", `The ${name} route needs its bearer secret`),
         { instance, format: guard.problem },
       );
     }
+
     return handle(request, instance);
   };
 }

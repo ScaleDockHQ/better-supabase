@@ -12,6 +12,7 @@ export {
   type Person,
   type PersonInput,
 } from "./parties.ts";
+
 export {
   extendBlock,
   withBlockHooks,
@@ -19,6 +20,7 @@ export {
   type BlockHooks,
   type BlockTransportMiddleware,
 } from "../../core/block-hooks.ts";
+
 export {
   dbTransport,
   rpcTransport,
@@ -26,6 +28,9 @@ export {
   type BlockTransport,
   type RpcClient,
 } from "../../core/block-transport.ts";
+
 export { partiesBlock } from "./manifest.ts";
+
 export { partiesEvents } from "./events.ts";
+
 export type { PartiesEvents } from "./events.ts";

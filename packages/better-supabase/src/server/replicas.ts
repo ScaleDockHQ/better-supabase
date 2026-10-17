@@ -25,6 +25,7 @@ export function replicaState(
 ): ReplicaState {
   let wrote = false;
   const inherited = pinnedUntil > now;
+
   return {
     get pinned() {
       return wrote || inherited;
@@ -42,11 +43,16 @@ export function replicaState(
 export function pinnedUntil(
   cookies: string | null | readonly { name: string; value: string }[],
 ): number {
-  if (!cookies) return 0;
+  if (!cookies) {
+    return 0;
+  }
+
   const records =
     typeof cookies === "string" ? parseCookieHeader(cookies) : cookies;
+
   const value = records.find((cookie) => cookie.name === PRIMARY_COOKIE)?.value;
   const until = Number(value);
+
   return value !== undefined && Number.isFinite(until) ? until : 0;
 }
 
@@ -71,7 +77,10 @@ export function primaryCookieWrite(
   pinMs: number,
   now: number = Date.now(),
 ): CookieWrite | undefined {
-  if (!replica?.wrote) return undefined;
+  if (!replica?.wrote) {
+    return undefined;
+  }
+
   return {
     name: PRIMARY_COOKIE,
     value: String(now + pinMs),
@@ -98,14 +107,20 @@ export function withPrimaryPin(
   replica: ReplicaState | undefined,
   pinMs: number,
 ): Response {
-  if (!replica?.wrote) return response;
+  if (!replica?.wrote) {
+    return response;
+  }
+
   const cookie = primaryCookie(pinMs);
+
   try {
     response.headers.append("set-cookie", cookie);
+
     return response;
   } catch {
     const copy = new Response(response.body, response);
     copy.headers.append("set-cookie", cookie);
+
     return copy;
   }
 }
@@ -121,25 +136,38 @@ export function routedExecutor(
 ): Executor {
   const batch = primary.batch?.bind(primary);
   const replicaBatch = replica.batch?.bind(replica);
+
   return {
     name: primary.name,
     ...(primary.functionSources && replica.functionSources
       ? { functionSources: true }
       : {}),
     async execute(op, context) {
-      if (op.kind === "select" && !state.pinned)
+      if (op.kind === "select" && !state.pinned) {
         return replica.execute(op, context);
+      }
+
       const result = await primary.execute(op, context);
-      if (op.kind !== "select" && result.ok) state.pin();
+
+      if (op.kind !== "select" && result.ok) {
+        state.pin();
+      }
+
       return result;
     },
     ...(primary.rpc
       ? {
           async rpc(name, args, context) {
-            if (context.get && !state.pinned && replica.rpc)
+            if (context.get && !state.pinned && replica.rpc) {
               return replica.rpc(name, args, context);
+            }
+
             const result = await primary.rpc!(name, args, context);
-            if (!context.get && result.ok) state.pin();
+
+            if (!context.get && result.ok) {
+              state.pin();
+            }
+
             return result;
           },
         }

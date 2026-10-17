@@ -12,13 +12,13 @@ export function GetStarted() {
         {getStartedSteps.map((step, index) => (
           <li
             key={step.title}
-            className="border-border bg-card flex flex-col gap-2 rounded-xl border p-5"
+            className="flex flex-col gap-2 rounded-xl border border-border bg-card p-5"
           >
-            <span className="text-brand font-mono text-xs">
+            <span className="font-mono text-xs text-brand">
               {String(index + 1).padStart(2, "0")}
             </span>
             <span className="text-sm font-semibold">{step.title}</span>
-            <span className="text-muted-foreground text-sm leading-6">
+            <span className="text-sm leading-6 text-muted-foreground">
               {step.body}
             </span>
           </li>

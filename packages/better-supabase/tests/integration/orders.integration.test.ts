@@ -41,7 +41,11 @@ interface Order {
 
 const line = (order: Order, sku: string): Order["lines"][number] => {
   const found = order.lines.find((entry) => entry.sku === sku);
-  if (found === undefined) throw new Error(`no ${sku} line`);
+
+  if (found === undefined) {
+    throw new Error(`no ${sku} line`);
+  }
+
   return found;
 };
 
@@ -73,17 +77,21 @@ describe.skipIf(!live)("orders module in Postgres", () => {
       "better_supabase.save_product($1, null, $2, null, null, 'physical')",
       [tenant, sku],
     );
+
     await call("better_supabase.set_product_status($1, 'active')", [
       product.id,
     ]);
+
     const saved = await call<{ id: string }>(
       "better_supabase.save_variant($1, null, $2, '{}'::uuid[], null, null, 500, true, $3)",
       [product.id, sku, backorder],
     );
+
     await call(
       "better_supabase.set_price($1, 'EUR', $2, null, null, null, null)",
       [saved.id, amount],
     );
+
     return saved.id;
   };
 
@@ -109,20 +117,25 @@ describe.skipIf(!live)("orders module in Postgres", () => {
     lines: readonly (readonly [string, number])[],
   ): Promise<string> => {
     await session.as(user);
+
     const created = await call<{ id: string }>(
       "better_supabase.create_cart($1, 'EUR', null, $2)",
       [tenant, user.email],
     );
+
     await session.client.query(
       "delete from better_supabase.cart_lines where cart_id = $1",
       [created.id],
     );
-    for (const [id, quantity] of lines)
+
+    for (const [id, quantity] of lines) {
       await call("better_supabase.add_to_cart($1, $2, $3)", [
         created.id,
         id,
         quantity,
       ]);
+    }
+
     await call("better_supabase.set_cart_details($1, null, $2, $2)", [
       created.id,
       JSON.stringify(ADDRESS),
@@ -131,20 +144,25 @@ describe.skipIf(!live)("orders module in Postgres", () => {
       created.id,
       flat,
     ]);
+
     return created.id;
   };
 
   /** Prices the cart, quotes 21% tax on every line, and places it. */
   const place = async (cartId: string): Promise<Order> => {
     await session.service();
+
     const totals = await call<Totals>("better_supabase.price_cart($1)", [
       cartId,
     ]);
+
     const lines = totals.lines.map((line) => ({
       lineId: line.id,
       tax: String((BigInt(line.total) * 21n) / 100n),
     }));
+
     const totalTax = lines.reduce((sum, line) => sum + BigInt(line.tax), 0n);
+
     return call<Order>("better_supabase.place_order($1, $2, $3, null)", [
       cartId,
       JSON.stringify({
@@ -247,6 +265,7 @@ describe.skipIf(!live)("orders module in Postgres", () => {
       [tee, 2],
       [mug, 1],
     ]);
+
     const totals = await call<Totals>("better_supabase.price_cart($1)", [id]);
     expect(totals).toMatchObject({
       subtotal: "5000",
@@ -262,10 +281,12 @@ describe.skipIf(!live)("orders module in Postgres", () => {
     expect(
       (await call<Totals>("better_supabase.price_cart($1)", [id])).lines,
     ).toHaveLength(1);
+
     const options = await call<{ id: string }[]>(
       "better_supabase.shipping_options($1)",
       [id],
     );
+
     expect(options.map((option) => option.id)).toEqual([flat]);
   });
 
@@ -292,6 +313,7 @@ describe.skipIf(!live)("orders module in Postgres", () => {
       [tee, 2],
       [preorder, 1],
     ]);
+
     await session.service();
     const totals = await call<Totals>("better_supabase.price_cart($1)", [id]);
     expect(
@@ -347,6 +369,7 @@ describe.skipIf(!live)("orders module in Postgres", () => {
 
   it("marks an order paid once, with an invoice number and stock taken", async () => {
     const order = await place(await cart(shopper, [[tee, 1]]));
+
     const onHand = async (): Promise<number> =>
       (
         await session.rows<{ on_hand: number }>(
@@ -354,6 +377,7 @@ describe.skipIf(!live)("orders module in Postgres", () => {
           [tee, warehouse],
         )
       )[0]!.on_hand;
+
     const before = await onHand();
     const paid = await pay(order);
     expect(paid).toMatchObject({
@@ -430,6 +454,7 @@ describe.skipIf(!live)("orders module in Postgres", () => {
         [mug, 1],
       ]),
     );
+
     await pay(order);
     await session.as(member);
     expect(
@@ -441,20 +466,24 @@ describe.skipIf(!live)("orders module in Postgres", () => {
     await session.as(owner);
     const teeLine = line(order, "TEE");
     const mugLine = line(order, "MUG");
+
     const first = await call<{ id: string }>(
       "better_supabase.create_fulfillment($1, $2, null, null, null, null)",
       [order.id, JSON.stringify([{ lineId: teeLine.id, quantity: 2 }])],
     );
+
     expect(
       await session.hint(
         "better_supabase.create_fulfillment($1, $2, null, null, null, null)",
         [order.id, JSON.stringify([{ lineId: teeLine.id, quantity: 1 }])],
       ),
     ).toBe("ORDERS_FULFILLMENT_INVALID");
+
     const second = await call<{ id: string }>(
       "better_supabase.create_fulfillment($1, null, null, 'PostNL', null, null)",
       [order.id],
     );
+
     expect(
       await call(
         "better_supabase.ship_fulfillment($1, 'DHL', '3S123', 'https://track.example/3S123')",
@@ -488,14 +517,18 @@ describe.skipIf(!live)("orders module in Postgres", () => {
         JSON.stringify([{ lineId: mugLine.id, quantity: 2 }]),
       ]),
     ).toBe("ORDERS_RETURN_INVALID");
+
     const requested = await call<{ id: string; quantity: number }>(
       "better_supabase.request_return($1, $2, 'too small')",
       [order.id, JSON.stringify([{ lineId: teeLine.id, quantity: 1 }])],
     );
+
     expect(requested.quantity).toBe(1);
+
     const viewed = await call<Order>("better_supabase.get_order($1)", [
       order.id,
     ]);
+
     expect(viewed.lines).toHaveLength(2);
     await session.as(owner);
     const before = await available(tee);
@@ -514,6 +547,7 @@ describe.skipIf(!live)("orders module in Postgres", () => {
       order.id,
       requested.id,
     ]);
+
     expect(partial).toMatchObject({
       amount: "2000",
       paymentReference: `pay_${order.id}`,
@@ -538,10 +572,12 @@ describe.skipIf(!live)("orders module in Postgres", () => {
       partial.id,
     ]);
     await session.as(owner);
+
     const rest = await call<{ id: string; amount: string }>(
       "better_supabase.create_refund($1, null, null, null)",
       [order.id],
     );
+
     expect(BigInt(rest.amount)).toBe(BigInt(order.total) - 2000n);
     await session.service();
     expect(

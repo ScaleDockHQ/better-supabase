@@ -42,30 +42,46 @@ export function watchTopic(
   let joined = false;
   let left = false;
   let joinedTopic: ReturnType<typeof joinTopic>;
+
   try {
     joinedTopic = joinTopic(supabase, topic, true, false, false, {
       onStatus: (status) => {
-        if (left) return;
+        if (left) {
+          return;
+        }
+
         if (status === "subscribed") {
           // Broadcasts sent while disconnected are lost: reload on rejoin.
-          if (joined) watch.onRejoin();
+          if (joined) {
+            watch.onRejoin();
+          }
+
           joined = true;
         }
+
         watch.onStatus(status);
       },
       receive: (message) => {
-        if (!left) watch.onMessage(message.event, message.payload);
+        if (!left) {
+          watch.onMessage(message.event, message.payload);
+        }
       },
     });
   } catch {
     // The topic is already joined with other `self` or `presence` settings.
     watch.onStatus("error");
+
     return CLOSED;
   }
+
   const { shared, leave } = joinedTopic;
+
   return {
     leave: () => {
-      if (left) return;
+      if (left) {
+        return;
+      }
+
       left = true;
       watch.onStatus("closed");
       // A StrictMode remount joins again in the same commit: leaving a
@@ -74,7 +90,10 @@ export function watchTopic(
       queueMicrotask(() => void leave());
     },
     send: (event, payload) => {
-      if (left) return;
+      if (left) {
+        return;
+      }
+
       void shared.channel.send({ type: "broadcast", event, payload });
     },
   };

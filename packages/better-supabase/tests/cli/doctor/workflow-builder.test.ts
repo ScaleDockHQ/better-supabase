@@ -6,6 +6,7 @@ import { RULE_CODES } from "../../../src/cli/doctor/rules.ts";
 import { WORKFLOW_BUILDER_RULES } from "../../../src/cli/doctor/workflow-builder.ts";
 
 const [rule] = WORKFLOW_BUILDER_RULES;
+
 const check = (sources: { path: string; text: string }[]) =>
   rule!.check({ sources } as unknown as DoctorContext);
 
@@ -32,6 +33,7 @@ describe("BS333", () => {
         text: "export const step = (call: GraphStepCall) => bs.admin ( );\n",
       },
     ]);
+
     expect(findings).toEqual([
       expect.objectContaining({
         target: "src/workflows/steps.ts:admin",

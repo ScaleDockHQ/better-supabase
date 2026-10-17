@@ -19,12 +19,14 @@ const base = {
   session_id: "b7a8f9c0-1111-4222-8333-944455556666",
   is_anonymous: false,
 };
+
 const oauthClient = {
   ...base,
   client_id: "5f0e4d3c-2b1a-4098-8776-655443322110",
   scope: "openid email posts:read",
   user_role: "member",
 };
+
 const actChain = {
   ...base,
   scope: "posts:read",
@@ -116,6 +118,7 @@ describe("actorOf and delegationOf", () => {
         act: { kind: "support", sub: "admin-1", session_id: "s1" },
       }),
     );
+
     expect(support).toMatchObject({ actor: { kind: "support" } });
     expect(support).not.toHaveProperty("delegation");
   });
@@ -150,6 +153,7 @@ describe("session.actor and session.delegation", () => {
   it("resolves a malformed chain to invalid, never to the user", async () => {
     const signer = await createTestSigner();
     const token = await signer.sign({ sub: base.sub, act: { sub: 7 } });
+
     const { auth } = await resolveAuth(
       new Request("https://app.test", {
         headers: { authorization: `Bearer ${token}` },
@@ -165,6 +169,7 @@ describe("session.actor and session.delegation", () => {
         jwks: signer.jwks as never,
       },
     );
+
     expect(auth).toMatchObject({
       kind: "invalid",
       reason: "actor",
@@ -207,6 +212,7 @@ describe("agent actors", () => {
       agent: "agent-1",
       tools: ["lookup"],
     });
+
     expect(claims.act).toEqual({
       kind: "agent",
       sub: "agent-1",

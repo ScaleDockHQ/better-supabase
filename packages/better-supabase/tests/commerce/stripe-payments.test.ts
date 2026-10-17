@@ -43,31 +43,48 @@ function fakeStripe() {
   const keys = new Map<string, unknown>();
   const calls: { method: string; params: unknown }[] = [];
   let next = 0;
+
   const view = (intent: Intent): StripePaymentIntent => ({
     ...intent,
     latest_charge: { amount_refunded: intent.refunded },
   });
+
   const find = (id: string): Intent => {
     const intent = intents.get(id);
-    if (!intent) throw missing(id);
+
+    if (!intent) {
+      throw missing(id);
+    }
+
     return intent;
   };
+
   const once = <T>(
     options: { readonly idempotencyKey?: string } | undefined,
     work: () => T,
   ): T => {
     const key = options?.idempotencyKey;
-    if (key !== undefined && keys.has(key)) return keys.get(key) as T;
+
+    if (key !== undefined && keys.has(key)) {
+      return keys.get(key) as T;
+    }
+
     const result = work();
-    if (key !== undefined) keys.set(key, result);
+
+    if (key !== undefined) {
+      keys.set(key, result);
+    }
+
     return result;
   };
+
   const client: StripePaymentsClient = {
     paymentIntents: {
       create: async (params, options) =>
         once(options, () => {
           calls.push({ method: "create", params });
           const id = `pi_${++next}`;
+
           const intent: Intent = {
             id,
             status: "requires_payment_method",
@@ -79,7 +96,9 @@ function fakeStripe() {
             capture_method: String(params["capture_method"]),
             refunded: 0,
           };
+
           intents.set(id, intent);
+
           return view(intent);
         }),
       retrieve: async (id) => view(find(id)),
@@ -87,17 +106,22 @@ function fakeStripe() {
         once(options, () => {
           calls.push({ method: "capture", params });
           const intent = find(id);
-          if (intent.status !== "requires_capture")
+
+          if (intent.status !== "requires_capture") {
             throw invalid("This PaymentIntent could not be captured");
+          }
+
           intent.status = "succeeded";
           intent.amount_received = Number(
             params["amount_to_capture"] ?? intent.amount,
           );
+
           return view(intent);
         }),
       cancel: async (id) => {
         const intent = find(id);
         intent.status = "canceled";
+
         return view(intent);
       },
     },
@@ -108,9 +132,13 @@ function fakeStripe() {
           const intent = find(String(params["payment_intent"]));
           const left = (intent.amount_received ?? 0) - intent.refunded;
           const amount = Number(params["amount"] ?? left);
-          if (amount > left)
+
+          if (amount > left) {
             throw invalid("Refund amount is greater than unrefunded amount");
+          }
+
           intent.refunded += amount;
+
           const refund: StripeRefund = {
             id: `re_${++next}`,
             amount,
@@ -118,18 +146,23 @@ function fakeStripe() {
             status: "succeeded",
             payment_intent: intent.id,
           };
+
           return refund;
         }),
     },
   };
+
   const authorize = (payment: Payment): void => {
     const intent = find(payment.id);
-    if (intent.capture_method === "manual") intent.status = "requires_capture";
-    else {
+
+    if (intent.capture_method === "manual") {
+      intent.status = "requires_capture";
+    } else {
       intent.status = "succeeded";
       intent.amount_received = intent.amount;
     }
   };
+
   return { client, intents, calls, authorize };
 }
 
@@ -148,21 +181,25 @@ const delivery = async (body: string, secret = SECRET) => ({
 
 const setup = () => {
   const fake = fakeStripe();
+
   const provider = stripePayments({
     stripe: fake.client,
     webhookSecret: SECRET,
   });
+
   return { ...fake, provider };
 };
 
 describe("stripePayments", () => {
   it("passes the PaymentProvider conformance kit", async () => {
     const { provider, authorize, intents } = setup();
+
     const report = await testPaymentProvider(provider, {
       authorize,
       webhook: async (payment) => {
         const intent = intents.get(payment.id);
         const body = event("payment_intent.succeeded", { ...intent });
+
         return {
           valid: await delivery(body),
           tampered: {
@@ -172,6 +209,7 @@ describe("stripePayments", () => {
         };
       },
     });
+
     expect(report.subject).toBe('PaymentProvider "stripe"');
     expect(report.checks.length).toBe(10);
   });
@@ -186,6 +224,7 @@ describe("stripePayments", () => {
 
   it("creates a PaymentIntent with the reference, capture method and Stripe units", async () => {
     const { provider, calls } = setup();
+
     const payment = await provider
       .createPayment(
         {
@@ -199,6 +238,7 @@ describe("stripePayments", () => {
         { idempotencyKey: "k1" },
       )
       .orThrow();
+
     expect(calls[0]?.params).toEqual({
       automatic_payment_methods: { enabled: true },
       amount: 100_000,
@@ -221,15 +261,18 @@ describe("stripePayments", () => {
 
   it("passes extra PaymentIntent parameters instead of the default", async () => {
     const fake = fakeStripe();
+
     const provider = stripePayments({
       stripe: fake.client,
       webhookSecret: SECRET,
       name: "stripe-eu",
       paymentIntent: { payment_method_types: ["ideal"] },
     });
+
     const payment = await provider
       .createPayment({ amount: money(500n, "EUR"), reference: "r" })
       .orThrow();
+
     expect(payment.provider).toBe("stripe-eu");
     expect(fake.calls[0]?.params).toMatchObject({
       payment_method_types: ["ideal"],
@@ -242,20 +285,25 @@ describe("stripePayments", () => {
 
   it("refuses an amount Stripe can't charge exactly", async () => {
     const { provider } = setup();
+
     const kwd = await provider.createPayment({
       amount: money(1005n, "KWD"),
       reference: "r",
     });
+
     expect(kwd.ok ? undefined : kwd.error.hint).toBe("STRIPE_AMOUNT_PRECISION");
+
     const mga = await provider.createPayment({
       amount: money(150n, "MGA"),
       reference: "r",
     });
+
     expect(mga.ok ? undefined : mga.error.hint).toBe("STRIPE_AMOUNT_PRECISION");
   });
 
   it("captures part of a payment and refuses another currency", async () => {
     const { provider, authorize } = setup();
+
     const payment = await provider
       .createPayment({
         amount: money(1000n, "EUR"),
@@ -263,26 +311,35 @@ describe("stripePayments", () => {
         capture: "manual",
       })
       .orThrow();
+
     authorize(payment);
+
     const other = await provider.capture(payment.id, {
       amount: money(500n, "USD"),
     });
+
     expect(other.ok ? undefined : other.error.hint).toBe(
       "PAYMENT_CURRENCY_MISMATCH",
     );
+
     const zero = await provider.capture(payment.id, {
       amount: money(0n, "EUR"),
     });
+
     expect(zero.ok ? undefined : zero.error.hint).toBe(
       "PAYMENT_AMOUNT_INVALID",
     );
+
     const captured = await provider
       .capture(payment.id, { amount: money(600n, "EUR") })
       .orThrow();
+
     expect(captured.captured).toEqual(money(600n, "EUR"));
+
     const refund = await provider
       .refund(payment.id, { reason: "damaged" })
       .orThrow();
+
     expect(refund.amount).toEqual(money(600n, "EUR"));
     const read = await provider.get?.(payment.id).orThrow();
     expect(read?.refunded).toEqual(money(600n, "EUR"));
@@ -290,11 +347,14 @@ describe("stripePayments", () => {
 
   it("reports a redirect and maps every PaymentIntent status", async () => {
     const { provider, intents } = setup();
+
     const payment = await provider
       .createPayment({ amount: money(100n, "EUR"), reference: "r" })
       .orThrow();
+
     const intent = intents.get(payment.id)!;
     intent.next_action = { redirect_to_url: { url: "https://bank.test/pay" } };
+
     const statuses: Record<string, string> = {
       requires_confirmation: "requires_action",
       requires_action: "requires_action",
@@ -304,6 +364,7 @@ describe("stripePayments", () => {
       canceled: "canceled",
       something_new: "failed",
     };
+
     for (const [stripe, ours] of Object.entries(statuses)) {
       intent.status = stripe;
       const read = await provider.get?.(payment.id).orThrow();
@@ -315,14 +376,17 @@ describe("stripePayments", () => {
   it("loads the client lazily from a factory", async () => {
     const fake = fakeStripe();
     let made = 0;
+
     const provider = stripePayments({
       stripe: () => {
         made += 1;
+
         return fake.client;
       },
       webhookSecret: [SECRET],
       tolerance: 60,
     });
+
     expect(made).toBe(0);
     await provider.createPayment({ amount: money(1n, "EUR"), reference: "r" });
     expect(made).toBe(1);
@@ -347,9 +411,11 @@ describe("stripePayments webhooks", () => {
 
   it("maps PaymentIntent events with the reference and amount", async () => {
     const { provider } = setup();
+
     const events = await provider
       .parseWebhook(await delivery(event("payment_intent.succeeded", intent)))
       .orThrow();
+
     expect(events).toEqual([
       expect.objectContaining({
         type: "payment.succeeded",
@@ -359,6 +425,7 @@ describe("stripePayments webhooks", () => {
       }),
     ]);
     expect(events[0]?.occurredAt.epochMilliseconds).toBe(1_790_000_000_000);
+
     for (const [stripe, ours] of [
       ["payment_intent.amount_capturable_updated", "payment.authorized"],
       ["payment_intent.payment_failed", "payment.failed"],
@@ -379,6 +446,7 @@ describe("stripePayments webhooks", () => {
       currency: "eur",
       payment_intent: "pi_1",
     };
+
     expect(
       stripePaymentEvents(
         JSON.parse(event("refund.updated", { ...refund, status: "succeeded" })),
@@ -421,9 +489,11 @@ describe("stripePayments webhooks", () => {
 
   it("refuses a delivery signed with another secret", async () => {
     const { provider } = setup();
+
     const result = await provider.parseWebhook(
       await delivery(event("payment_intent.succeeded", intent), "whsec_other"),
     );
+
     expect(result.ok ? undefined : result.error.kind).toBe("unauthorized");
   });
 });
@@ -470,14 +540,17 @@ describe("Stripe errors", () => {
         code: "card_declined",
       });
     };
+
     const provider = stripePayments({
       stripe: fake.client,
       webhookSecret: SECRET,
     });
+
     const result = await provider.createPayment({
       amount: money(100n, "EUR"),
       reference: "r",
     });
+
     expect(result.ok ? undefined : result.error).toMatchObject({
       kind: "raised",
       hint: "PAYMENT_DECLINED",
@@ -528,6 +601,7 @@ describe("StripePaymentsClient", () => {
 describe("testPaymentProvider", () => {
   it("fails a provider that loses the reference", async () => {
     const { provider } = setup();
+
     const lossy: PaymentProvider = {
       ...provider,
       createPayment: (input, options) =>
@@ -535,6 +609,7 @@ describe("testPaymentProvider", () => {
           .createPayment(input, options)
           .map((payment) => ({ ...payment, reference: "" })),
     };
+
     await expect(testPaymentProvider(lossy)).rejects.toThrow(ConformanceError);
   });
 });

@@ -24,6 +24,7 @@ export function guard(
       event.req,
       options,
     );
+
     return refused ?? next();
   };
 }

@@ -27,11 +27,13 @@ describe("next.session", () => {
 
   it("narrows to claims only for users and never exposes the token", () => {
     const session = {} as AuthSession;
+
     if (session.kind === "user") {
       expectTypeOf(session.claims).toEqualTypeOf<JWTClaims>();
       expectTypeOf(session.user).toEqualTypeOf<UserClaims>();
       expectTypeOf(session).not.toHaveProperty("token");
     }
+
     expectTypeOf<AuthSession["kind"]>().toEqualTypeOf<
       "user" | "service" | "apiKey" | "anon" | "invalid"
     >();
@@ -43,6 +45,7 @@ const Claims = v.object({
   app_metadata: v.object({ plan: v.picklist(["free", "pro"]) }),
   memberships: v.array(v.object({ scope: v.string(), id: v.string() })),
 });
+
 type Claims = v.InferOutput<typeof Claims>;
 
 describe("betterSupabase.claims(schema)", () => {
@@ -51,6 +54,7 @@ describe("betterSupabase.claims(schema)", () => {
   it("types the claims of every session and auth state", async () => {
     const typed = createNext(betterSupabase);
     const session = await typed.session();
+
     if (session.kind === "user") {
       expectTypeOf(session.claims.tenant_id).toEqualTypeOf<string>();
       expectTypeOf(session.claims.app_metadata.plan).toEqualTypeOf<
@@ -58,9 +62,11 @@ describe("betterSupabase.claims(schema)", () => {
       >();
       expectTypeOf(session.claims.sub).toEqualTypeOf<string>();
     }
+
     const ctx = await createServer(betterSupabase).context(
       new Request("http://x/"),
     );
+
     expectTypeOf(ctx.auth).toEqualTypeOf<AuthState<Claims>>();
     expectTypeOf(ctx.auth).toExtend<AuthState>();
   });
@@ -71,11 +77,13 @@ describe("betterSupabase.claims(schema)", () => {
 
   it("distinguishes token, claims and actor failures", () => {
     const session = {} as AuthSession<Claims>;
+
     if (session.kind === "invalid") {
       expectTypeOf(session.reason).toEqualTypeOf<
         "token" | "claims" | "actor"
       >();
     }
+
     if (session.kind === "user") {
       expectTypeOf(session.actor?.kind).toEqualTypeOf<
         "oauth-client" | "support" | "impersonation" | "agent" | undefined
@@ -105,6 +113,7 @@ describe("betterSupabase.claims(schema)", () => {
 });
 
 const Profile = v.object({ display_name: v.string() });
+
 type Profile = v.InferOutput<typeof Profile>;
 
 describe("betterSupabase.userMetadata(schema)", () => {
@@ -115,13 +124,16 @@ describe("betterSupabase.userMetadata(schema)", () => {
 
   it("types the profile next to the claims, possibly undefined", async () => {
     const session = await createNext(betterSupabase).session();
+
     if (session.kind === "user") {
       expectTypeOf(session.profile).toEqualTypeOf<Profile | undefined>();
       expectTypeOf(session.claims.tenant_id).toEqualTypeOf<string>();
     }
+
     const ctx = await createServer(betterSupabase).context(
       new Request("http://x/"),
     );
+
     expectTypeOf(ctx.auth).toEqualTypeOf<AuthState<Claims, Profile>>();
   });
 
@@ -130,6 +142,7 @@ describe("betterSupabase.userMetadata(schema)", () => {
       .userMetadata(Profile)
       .use(tenant())
       .claims(Claims);
+
     expectTypeOf(createNext(later).session()).resolves.toEqualTypeOf<
       AuthSession<Claims, Profile>
     >();
@@ -145,6 +158,7 @@ describe("betterSupabase.userMetadata(schema)", () => {
 
   it("leaves the profile unknown without a schema", async () => {
     const session = await bs.session();
+
     if (session.kind === "user") {
       expectTypeOf(session.profile).toEqualTypeOf<unknown>();
     }
@@ -154,9 +168,13 @@ describe("betterSupabase.userMetadata(schema)", () => {
 describe("next.action", () => {
   it("keeps the data type when one path returns err()", () => {
     const action = bs.action({}, async () => {
-      if (Math.random() > 0.5) return err(dbError("forbidden", "no"));
+      if (Math.random() > 0.5) {
+        return err(dbError("forbidden", "no"));
+      }
+
       return ok({ token: "t" });
     });
+
     expectTypeOf(action).returns.resolves.toEqualTypeOf<
       ActionResult<{ token: string }>
     >();
@@ -167,6 +185,7 @@ describe("next.action", () => {
       {},
       () => new AsyncResult(Promise.resolve(ok(1))),
     );
+
     expectTypeOf(fromResult).returns.resolves.toEqualTypeOf<
       ActionResult<number>
     >();
@@ -190,6 +209,7 @@ describe("authorize and requireTenant", () => {
         authorize: (session, input) => {
           expectTypeOf(session).toEqualTypeOf<AuthSession>();
           expectTypeOf(input).toEqualTypeOf<{ id: string }>();
+
           return true;
         },
       },
@@ -219,6 +239,7 @@ describe("ActionInputOf", () => {
       { input: v.object({ id: v.string() }) },
       () => "saved" as const,
     );
+
     expectTypeOf<ActionInputOf<Parameters<typeof save>[0]>>().toEqualTypeOf<{
       id: string;
     }>();

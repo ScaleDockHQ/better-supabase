@@ -72,11 +72,13 @@ function chatOf(
   adapters: Record<string, ReturnType<typeof createMockAdapter>> = {},
 ) {
   const state = createMockState();
+
   const chat: ChatLike = {
     webhooks,
     getAdapter: (name) => adapters[name],
     getState: () => state,
   };
+
   return { chat, state };
 }
 
@@ -85,12 +87,15 @@ describe("channelAdapter", () => {
     const getToken = vi.fn(() =>
       AsyncResult.ok({ token: "xoxb", headers: {} }),
     );
+
     const credentials = { ...provider(), getToken };
+
     const built = await channelAdapter({
       credentials,
       ref,
       create: (token) => ({ token: token.token }),
     });
+
     expect(built).toEqual({ token: "xoxb" });
     expect(getToken).toHaveBeenCalledWith(ref, {
       subject: { type: "app" },
@@ -105,6 +110,7 @@ describe("webhook", () => {
   it("stores the event without credentials headers and acks", async () => {
     const { transport, call } = stored();
     const after = vi.fn();
+
     const handle = webhook({
       inbox: createInbox({ transport }),
       adapter: "slack",
@@ -114,9 +120,11 @@ describe("webhook", () => {
         (JSON.parse(body) as { event_id?: string }).event_id,
       after,
     });
+
     const response = await handle(
       post('{"event_id":"Ev1"}', { "x-slack-signature": "v0=1" }),
     );
+
     expect(response.status).toBe(200);
     expect(after).toHaveBeenCalledWith({ id: "e1", duplicate: false });
     const args = call.mock.calls[0]?.[2];
@@ -135,18 +143,22 @@ describe("webhook", () => {
   it("passes challenges through", async () => {
     const { transport, call } = stored();
     const passthroughHandler = vi.fn(async () => new Response("challenge"));
+
     const handle = webhook({
       inbox: createInbox({ transport }),
       adapter: "slack",
       passthroughHandler,
     });
+
     expect(
       await (await handle(post('{"type":"url_verification"}'))).text(),
     ).toBe("challenge");
+
     const bare = webhook({
       inbox: createInbox({ transport }),
       adapter: "whatsapp",
     });
+
     expect((await bare(new Request("https://app.test/hooks"))).status).toBe(
       404,
     );
@@ -156,8 +168,10 @@ describe("webhook", () => {
   it("verifies before storing", async () => {
     const { transport, call } = stored();
     const inbox = createInbox({ transport });
+
     const status = async (options: Parameters<typeof webhook>[0]) =>
       (await webhook(options)(post("{}"))).status;
+
     expect(await status({ inbox, adapter: "slack", ref })).toBe(500);
     expect(
       await status({ inbox, adapter: "slack", ref, credentials: provider() }),
@@ -197,10 +211,12 @@ describe("webhook", () => {
 
   it("answers 503 when the store fails", async () => {
     const { transport } = fakeTransport({});
+
     const handle = webhook({
       inbox: createInbox({ transport }),
       adapter: "slack",
     });
+
     expect((await handle(post("{}"))).status).toBe(503);
   });
 });
@@ -226,12 +242,15 @@ describe("inboundHandler", () => {
         duplicate: false,
       },
     });
+
     const { chat, state } = chatOf(webhooks);
     const inbox = createInbox({ transport });
+
     const statuses = () =>
       call.mock.calls
         .filter(([, fn]) => fn === "set_inbound_event_status")
         .map(([, , args]) => args["status"]);
+
     return {
       chat,
       state,
@@ -244,6 +263,7 @@ describe("inboundHandler", () => {
   it("applies delivery-only events without replaying them", async () => {
     const slack = vi.fn();
     const { handler, call, statuses } = setup({ whatsapp: slack });
+
     const stored = {
       id: "e1",
       adapter: "twilio",
@@ -255,12 +275,15 @@ describe("inboundHandler", () => {
       attempts: 0,
       receivedAt: Temporal.Instant.from(AT),
     };
+
     await handler.process(stored);
     expect(slack).not.toHaveBeenCalled();
     expect(statuses()).toEqual(["processing", "processed"]);
+
     const update = call.mock.calls.find(
       ([, fn]) => fn === "set_delivery_status",
     )?.[2];
+
     expect(update).toMatchObject({
       channel: "sms",
       external_id: "SM1",
@@ -270,6 +293,7 @@ describe("inboundHandler", () => {
 
   it("replays other events into Chat SDK and waits for its tasks", async () => {
     let finished = false;
+
     const slack = vi.fn(
       async (
         request: Request,
@@ -284,17 +308,21 @@ describe("inboundHandler", () => {
             finished = true;
           }),
         );
+
         return new Response("ok");
       },
     );
+
     const { handler, statuses } = setup({ slack }, [
       event("slack", '{"a":1}'),
       event("teams"),
       event("broken"),
     ]);
+
     const failing = setup({
       broken: async () => new Response("no", { status: 500 }),
     });
+
     const result = await handler.drain({ maxAttempts: 3 });
     expect(finished).toBe(true);
     expect(result).toEqual({ processed: 3, failed: 0 });
@@ -327,12 +355,14 @@ describe("inboundHandler", () => {
       { slack: async () => new Response("no", { status: 502 }) },
       [event("slack")],
     );
+
     expect(await handler.drain()).toEqual({ processed: 0, failed: 1 });
   });
 
   it("mirrors contact messages and skips bots and echoes", async () => {
     const { handler, call, state } = setup({});
     const thread = { id: "slack:C1:1.2", adapter: { name: "slack" } };
+
     const message = createTestMessage("1.3", "hi", {
       author: {
         userId: "U1",
@@ -352,12 +382,15 @@ describe("inboundHandler", () => {
         { type: "file" },
       ],
     });
+
     expect(await handler.mirror(thread, message)).toMatchObject({
       created: true,
     });
+
     const recorded = call.mock.calls.find(
       ([, fn]) => fn === "record_inbound",
     )?.[2];
+
     expect(recorded?.["input"]).toMatchObject({
       inbox_id: "i1",
       thread_id: "slack:C1:1.2",
@@ -373,6 +406,7 @@ describe("inboundHandler", () => {
         isMe: false,
       },
     });
+
     expect(await handler.mirror(thread, bot)).toBeNull();
     await state.set("better-supabase:inbox:echo:slack:1.5", true);
     expect(
@@ -397,17 +431,21 @@ describe("inboundHandler", () => {
         duplicate: false,
       },
     });
+
     const { chat } = chatOf();
+
     const copyFile = vi
       .fn()
       .mockResolvedValueOnce({ path: "org/a.png" })
       .mockResolvedValueOnce(null);
+
     const handler = inboundHandler({
       chat,
       inbox: createInbox({ transport }),
       inboxes: { slack: "i1" },
       copyFile,
     });
+
     await handler.mirror(
       { id: "t", adapter: { name: "slack" } },
       createTestMessage("1", "hi", {
@@ -446,22 +484,28 @@ describe("deliver", () => {
         "conversation" in overrides ? overrides.conversation : conversationRow,
       record_delivery: null,
     });
+
     const postMessage = vi.fn(async (threadId: string) => ({
       id: "wamid.out",
       threadId,
       raw: {},
     }));
+
     const whatsapp = createMockAdapter("whatsapp", { postMessage });
+
     const twilio = createMockAdapter("twilio", {
       postMessage: vi.fn(async () => {
         throw new Error("rate limited");
       }),
     });
+
     const { chat, state } = chatOf({}, { whatsapp, twilio });
+
     const deliveries = () =>
       call.mock.calls
         .filter(([, fn]) => fn === "record_delivery")
         .map(([, , args]) => args);
+
     return {
       chat,
       state,
@@ -473,10 +517,12 @@ describe("deliver", () => {
 
   it("posts the reply, records it and remembers the echo", async () => {
     const { chat, inbox, state, postMessage, deliveries } = setup();
+
     const raw = await deliver({ chat, inbox })({
       message_id: "m1",
       conversation_id: "c1",
     });
+
     expect(raw?.id).toBe("wamid.out");
     expect(postMessage).toHaveBeenCalledWith("whatsapp:+3100:+3199", "hi");
     expect(
@@ -491,6 +537,7 @@ describe("deliver", () => {
     const { chat, inbox, postMessage } = setup({
       message: { ...messageRow, format: "markdown", body: "**x**" },
     });
+
     const template = vi.fn(() => ({ raw: "template" }));
     await deliver({ chat, inbox, template })({
       message_id: "m1",
@@ -499,9 +546,11 @@ describe("deliver", () => {
     expect(postMessage).toHaveBeenCalledWith("whatsapp:+3100:+3199", {
       raw: "template",
     });
+
     const markdown = setup({
       message: { ...messageRow, format: "markdown", body: "**x**" },
     });
+
     await deliver({
       chat: markdown.chat,
       inbox: markdown.inbox,
@@ -522,6 +571,7 @@ describe("deliver", () => {
         inbox: { id: "i1", name: "SMS", channel: "sms" },
       },
     });
+
     await expect(
       deliver({ chat, inbox })({ message_id: "m1", conversation_id: "c1" }),
     ).rejects.toThrow("rate limited");
@@ -551,6 +601,7 @@ describe("deliver", () => {
     const { chat, inbox } = setup({
       conversation: { ...conversationRow, inbox: null },
     });
+
     await expect(
       deliver({ chat, inbox })({ message_id: "m1", conversation_id: "c1" }),
     ).rejects.toThrow(/no adapter/);
@@ -573,6 +624,7 @@ describe("whatsappWindowOpen", () => {
     createInbox({
       transport: fakeTransport({ list_messages: rows }).transport,
     });
+
   const at = Temporal.Instant.from(AT);
 
   it("is open within 24 hours of the contact's last message", async () => {
@@ -585,6 +637,7 @@ describe("whatsappWindowOpen", () => {
         created_at: "2026-01-02T00:00:00Z",
       },
     ];
+
     expect(
       await whatsappWindowOpen(inboxWith(rows), "c1", at.add({ hours: 23 })),
     ).toBe(true);
@@ -608,12 +661,15 @@ describe("maintain", () => {
       wake_snoozed_conversations: 2,
       purge_inbound_events: 5,
     });
+
     const inbox = createInbox({ transport });
+
     const handler = {
       process: vi.fn(),
       mirror: vi.fn(),
       drain: vi.fn(async () => ({ processed: 1, failed: 0 })),
     };
+
     const state = { purge: vi.fn(async () => 7) };
     expect(
       await maintain({ inbox, handler, state, keepEvents: "1 day" }),

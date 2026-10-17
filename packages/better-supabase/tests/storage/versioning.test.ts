@@ -45,9 +45,11 @@ function fileApi(overrides: Record<string, unknown> = {}) {
     getPublicUrl: vi.fn(() => ({ data: { publicUrl: "https://public" } })),
     ...overrides,
   };
+
   const client = {
     storage: { from: () => api },
   } as unknown as StorageClient;
+
   return { api, client };
 }
 
@@ -96,6 +98,7 @@ describe("lifecycle", () => {
         ...(newer === undefined ? {} : { newerNoncurrentVersions: newer }),
       },
     });
+
     expect(() => lifecyclePayload("b", { rules: [rule(0)] })).toThrow(
       "noncurrentDays must be a whole number of days",
     );
@@ -134,6 +137,7 @@ describe("lifecycle", () => {
     const expected = lifecyclePayload("b", {
       rules: [{ noncurrentVersionExpiration: { noncurrentDays: 30 } }],
     });
+
     expect(
       sameLifecycle(expected, {
         rules: [
@@ -240,6 +244,7 @@ describe("versioned objects", () => {
           error: null,
         }),
     });
+
     const db = documents.connect(client);
     const versions = await db.versions({ organizationId: "o1", file: "a.pdf" });
     expect(versions.data).toEqual([
@@ -285,6 +290,7 @@ describe("versioned objects", () => {
         error: { name: "StorageApiError", message: "nope", statusCode: "403" },
       })),
     });
+
     const db = documents.connect(client);
     expect((await db.versions("o1/a.pdf")).error?.kind).toBe("forbidden");
     expect((await db.versions("not/a/match/x" as "o1/a.pdf")).error?.kind).toBe(
@@ -358,6 +364,7 @@ describe("versioned objects", () => {
       { transformations: true },
       { signal },
     );
+
     const failing = fileApi({
       purgeCache: vi.fn(async () => ({
         data: null,
@@ -371,6 +378,7 @@ describe("versioned objects", () => {
         },
       })),
     });
+
     expect(
       (await documents.connect(failing.client).purgeCache("o1/a.pdf")).error
         ?.kind,

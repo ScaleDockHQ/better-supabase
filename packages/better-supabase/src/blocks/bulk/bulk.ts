@@ -171,6 +171,7 @@ const statusOf = (value: unknown): BulkStatus =>
 function rowResultOf(value: unknown): BulkRowResult {
   const row = recordOf(value, "bulk row");
   const error = row["error"];
+
   return {
     id: textOf(row["id"]),
     ok: row["ok"] === true,
@@ -187,6 +188,7 @@ function rowResultOf(value: unknown): BulkRowResult {
 function resultOf(value: unknown): BulkResult {
   const row = recordOf(value, "bulk result");
   const results = row["results"];
+
   return {
     total: count(row["total"]),
     succeeded: count(row["succeeded"]),
@@ -197,6 +199,7 @@ function resultOf(value: unknown): BulkResult {
 
 function progressOf(value: unknown): BulkProgress {
   const row = recordOf(value, "bulk progress");
+
   return {
     id: textOf(row["id"]),
     status: statusOf(row["status"]),
@@ -210,6 +213,7 @@ function progressOf(value: unknown): BulkProgress {
 
 function startedOf(value: unknown): BulkStarted {
   const row = recordOf(value, "bulk run");
+
   return {
     id: textOf(row["id"]),
     total: count(row["total"]),
@@ -218,7 +222,10 @@ function startedOf(value: unknown): BulkStarted {
 }
 
 function runOf(value: unknown): BulkRun | null {
-  if (!isRecord(value)) return null;
+  if (!isRecord(value)) {
+    return null;
+  }
+
   return {
     ...resultOf(value),
     id: textOf(value["id"]),
@@ -239,6 +246,7 @@ async function rowsOf(rows: BulkRows): Promise<readonly string[]> {
 export function createBulk(options: BulkOptions): Bulk {
   const call = blockCall(options.transport, options.schema, options.mappers);
   const limit = options.limit ?? 500;
+
   const args = (
     input: BulkInput,
     ids: readonly string[],
@@ -249,20 +257,28 @@ export function createBulk(options: BulkOptions): Bulk {
     action: input.action,
     args: input.args ?? {},
   });
+
   const runIds = (input: BulkInput, ids: readonly string[], atomic: boolean) =>
     call("bulk_apply", { ...args(input, ids), atomic }, resultOf);
+
   const startIds = (input: BulkInput, ids: readonly string[]) =>
     call("start_bulk", args(input, ids), startedOf);
+
   const step = (id: string, size?: number) =>
     call("bulk_step", { run_id: id, size: size ?? null }, progressOf);
+
   const drain = (id: string, drainOptions: BulkDrainOptions = {}) =>
     AsyncResult.from(async () => {
       for (;;) {
         drainOptions.signal?.throwIfAborted();
         const result = await step(id, drainOptions.size);
-        if (!result.ok || result.data.done) return result;
+
+        if (!result.ok || result.data.done) {
+          return result;
+        }
       }
     });
+
   const client: Bulk = {
     run: (input) =>
       AsyncResult.from(async () =>
@@ -273,13 +289,17 @@ export function createBulk(options: BulkOptions): Bulk {
     apply: (input) =>
       AsyncResult.from(async (): Promise<Result<BulkOutcome>> => {
         const ids = await rowsOf(input.rows);
+
         if (ids.length <= limit) {
           const result = await runIds(input, ids, false);
+
           return result.ok
             ? ok({ mode: "now" as const, ...result.data })
             : result;
         }
+
         const started = await startIds(input, ids);
+
         return started.ok
           ? ok({ mode: "background" as const, ...started.data })
           : started;
@@ -291,12 +311,15 @@ export function createBulk(options: BulkOptions): Bulk {
       (handlerOptions = {}) =>
       async (payload, _job, signal) => {
         const run = isRecord(payload) ? payload["run"] : undefined;
+
         if (typeof run !== "string") {
           throw new TypeError("a bulk job needs { run: <id> }");
         }
+
         await drain(run, { ...handlerOptions, signal }).orThrow();
       },
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "bulk",
     ...(options.logger ? { logger: options.logger } : {}),

@@ -35,6 +35,7 @@ export async function assistantTurn(
   input: DurableTurnInput,
 ): Promise<DurableTurnResult> {
   "use workflow";
+
   return turn(input, (args) =>
     new WorkflowAgent({
       model: args.model,
@@ -52,6 +53,7 @@ export async function researchTurn(
   input: DurableTurnInput,
 ): Promise<DurableTurnResult> {
   "use workflow";
+
   return turn(input, (args) => researchAgent(input, args).stream(args));
 }
 
@@ -80,6 +82,7 @@ function researchAgent(input: DurableTurnInput, args: DurableAgentArgs) {
             status: "done",
             detail: { questions },
           });
+
           return { saved: questions.length };
         },
       }),
@@ -98,6 +101,7 @@ function researchAgent(input: DurableTurnInput, args: DurableAgentArgs) {
             status: "done",
             detail: { answer: answer.slice(0, 500) },
           });
+
           return answer;
         },
       }),
@@ -118,6 +122,7 @@ function researchAgent(input: DurableTurnInput, args: DurableAgentArgs) {
             status: "done",
             detail: { title },
           });
+
           return { sent: true };
         },
       }),

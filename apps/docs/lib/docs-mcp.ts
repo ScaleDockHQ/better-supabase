@@ -98,10 +98,12 @@ export function createDocsMcpServer(docs: DocsMcpSource): McpServer {
     },
     async ({ query, limit }) => {
       const results = await docs.search(query, limit ?? DEFAULT_SEARCH_LIMIT);
+
       const summary =
         results.length === 0
           ? `No pages match "${query}".`
           : results.map((hit) => `${hit.title} (${hit.url})`).join("\n");
+
       return {
         content: [{ type: "text", text: summary }],
         structuredContent: { results: [...results] },
@@ -131,6 +133,7 @@ export function createDocsMcpServer(docs: DocsMcpSource): McpServer {
     async ({ url }) => {
       const target = docsUrl(url);
       const markdown = await docs.page(target);
+
       return markdown === undefined
         ? {
             content: [

@@ -1,17 +1,14 @@
 "use client";
 
-import type {
-  ConversationActions,
-  ConversationSnapshot,
-  InboxListActions,
-  InboxListSnapshot,
-  InboxWidgetActions,
-  InboxWidgetSnapshot,
-} from "../client.ts";
-
 import { useController, useLatest } from "../../react-controller.ts";
 import { useBlockEnv } from "../../react-env.ts";
 import {
+  type ConversationActions,
+  type ConversationSnapshot,
+  type InboxListActions,
+  type InboxListSnapshot,
+  type InboxWidgetActions,
+  type InboxWidgetSnapshot,
   createConversationController,
   createInboxController,
   createInboxWidgetController,
@@ -41,6 +38,7 @@ export function useInbox<T>(options: UseInboxOptions<T>): InboxListState<T> {
   const { auth, ports } = useBlockEnv();
   const latest = useLatest(options);
   const { organizationId, topic } = options;
+
   return useController(
     () =>
       createInboxController<T>({
@@ -80,6 +78,7 @@ export function useConversation<T>(
   const { auth, ports } = useBlockEnv();
   const latest = useLatest(options);
   const { conversationId, topic, typingMs } = options;
+
   return useController(
     () =>
       createConversationController<T>({
@@ -126,6 +125,7 @@ export function useInboxWidget<T>(
   const { auth, ports } = useBlockEnv();
   const latest = useLatest(options);
   const { storageKey, topic } = options;
+
   return useController(
     () =>
       createInboxWidgetController<T>({

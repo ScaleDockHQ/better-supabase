@@ -42,7 +42,9 @@ export interface SignaturesOptions<
 }
 
 export type SignatureMethod = "drawn" | "typed" | "click";
+
 export type SignatureOrder = "parallel" | "sequential";
+
 export type SignatureRequestStatus =
   | "pending"
   | "completed"
@@ -168,6 +170,7 @@ const STATUSES: readonly SignatureRequestStatus[] = [
   "declined",
   "cancelled",
 ];
+
 const ORDERS: readonly SignatureOrder[] = ["parallel", "sequential"];
 const METHODS: readonly SignatureMethod[] = ["drawn", "typed", "click"];
 
@@ -186,6 +189,7 @@ const textsOf = (value: unknown): readonly string[] =>
 
 function requestOf(value: unknown, fn: string): SignatureRequest {
   const row = recordOf(value, fn);
+
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["organizationId"]),
@@ -207,6 +211,7 @@ function requestOf(value: unknown, fn: string): SignatureRequest {
 
 function signatureOf(value: unknown, fn: string): Signature {
   const row = recordOf(value, fn);
+
   return {
     id: textOf(row["id"]),
     requestId: textOf(row["requestId"]),
@@ -223,6 +228,7 @@ function signatureOf(value: unknown, fn: string): Signature {
 
 function verificationOf(value: unknown, fn: string): SignatureVerification {
   const row = recordOf(value, fn);
+
   return {
     valid: row["valid"] === true,
     contentMatches: row["contentMatches"] === true,
@@ -241,12 +247,15 @@ export function createSignatures<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: SignaturesOptions<S>): Signatures<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const fields: BlockFields<F> = blockFields(
     options.fields,
     "signature request fields",
   );
+
   const client: Signatures<F> = {
     request: (input) =>
       fields.args(input.fields).andThen((checked) =>
@@ -298,6 +307,7 @@ export function createSignatures<
     get: (requestId) =>
       call("get_signature_request", { request_id: requestId }, (value) => {
         const row = recordOf(value, "get_signature_request");
+
         return {
           ...requestOf(row, "get_signature_request"),
           signatures: recordsOf(row["signatures"], "get_signature_request").map(
@@ -327,6 +337,7 @@ export function createSignatures<
           ),
       ).andThen(fields.rows),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "signatures",
     ...(options.logger ? { logger: options.logger } : {}),

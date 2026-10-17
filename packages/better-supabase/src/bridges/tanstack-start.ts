@@ -70,6 +70,7 @@ export function tanStackStartServer<Context>(
   }: TanStackStartServerArgs<Context, Result>): Promise<Result> => {
     bufferInPlace(request);
     const downstream: { result?: Result } = {};
+
     const response = await run(
       request,
       env?.(request),
@@ -77,16 +78,24 @@ export function tanStackStartServer<Context>(
         const result = await next({
           context: toContext(contributions, request),
         });
+
         downstream.result = result;
+
         return responseOf(result) ?? new Response(null, { status: 204 });
       },
     );
+
     const { result } = downstream;
+
     if (result === undefined) {
       // oxlint-disable-next-line typescript/only-throw-error -- TanStack Start sends a thrown Response as the answer, which is how middleware short-circuits.
       throw response;
     }
-    if (responseOf(result) === undefined) return result;
+
+    if (responseOf(result) === undefined) {
+      return result;
+    }
+
     return { ...result, response };
   };
 }

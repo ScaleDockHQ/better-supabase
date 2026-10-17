@@ -15,6 +15,7 @@ describe("db.$search", () => {
     const { client, last } = capturingClient(() => ({
       body: [{ id: "n1", customerId: "c1" }],
     }));
+
     const rows = await betterSupabase
       .connect(client)
       .$search("notes", {
@@ -24,6 +25,7 @@ describe("db.$search", () => {
         where: { customerId: "c1" },
       })
       .orThrow();
+
     expect(rows).toEqual([{ id: "n1", customerId: "c1" }]);
     const request = last();
     expect(request.method).toBe("POST");
@@ -36,6 +38,7 @@ describe("db.$search", () => {
 
   it("reads from the function in SQL", () => {
     const table = schema.meta.tables["notes"]!;
+
     const plan = compileSql({
       kind: "select",
       table,
@@ -53,6 +56,7 @@ describe("db.$search", () => {
         args: { query: "[1,0]", k: 2 },
       },
     });
+
     expect(plan.rows?.text).toContain(
       'from "public"."search_notes"("query" => $1, "k" => $2) as t0',
     );
@@ -71,6 +75,7 @@ describe("db.$search", () => {
       name: "custom",
       execute: () => Promise.resolve(ok({ rows: [], count: null })),
     });
+
     const unsupported = await plain.$search("notes", { vector: [1] });
     expect(unsupported.error).toMatchObject({
       kind: "invalid_request",

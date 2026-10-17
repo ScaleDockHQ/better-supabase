@@ -15,6 +15,7 @@ describe("workflow-sdk-world module", () => {
     const names = renderModules(["workflow-sdk-world"], {}).map(
       (file) => file.module,
     );
+
     expect(names.indexOf("jobs")).toBeLessThan(
       names.indexOf("workflow-sdk-world"),
     );
@@ -25,9 +26,11 @@ describe("workflow-sdk-world module", () => {
 
   it("keeps a run's tenant only when its actor may run workflows there", () => {
     const sql = schemaOf({});
+
     const check = sql.indexOf(
       "not coalesce(better_supabase.can_user(v_actor, 'tenant', v_tenant, 'workflow.run'), false)",
     );
+
     expect(check).toBeGreaterThan(-1);
     expect(sql.indexOf("v_tenant := null;", check)).toBeGreaterThan(check);
     expect(check).toBeLessThan(sql.indexOf('"record_workflow_run"('));

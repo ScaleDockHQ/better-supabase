@@ -60,6 +60,7 @@ describe("subjects module", () => {
     })
       .map((file) => file.contents)
       .join("\n");
+
     expect(sql).toContain(
       `where s."id"::text = subject_title.subject_id and s."trashed_at" is null);`,
     );
@@ -105,6 +106,7 @@ describe("subjectsOption with the registry", () => {
     const sql = sqlOf(["attachments"], {
       modules: { attachments: { options: { subjects: ["note"] } } },
     });
+
     expect(sql).toContain(`"public"."notes"`);
     expect(sql).not.toContain(`"public"."tasks"`);
   });
@@ -117,6 +119,7 @@ describe("subjectsOption with the registry", () => {
         },
       },
     });
+
     expect(sql).toContain(`'tasks.tag'`);
     expect(sql).toContain(`(tag.subject_id)::bigint`);
   });

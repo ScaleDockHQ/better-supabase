@@ -43,9 +43,13 @@ const NAMES: ModuleNames = {
 };
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
   const runs = ctx.table("runs");
   const manage = ctx.permission("manage", OPERATIONS["imports.manage"]);
+
   const tables = ctx.manages
     ? `create table if not exists ${runs} (
   ${ctx.col("runs", "id")} uuid primary key default gen_random_uuid(),
@@ -61,6 +65,7 @@ function build(ctx: ModuleContext): string {
 ${lockTable(runs, { read: true })}
 `
     : "";
+
   return `${schemaPreamble(ctx)}
 ${tables}
 create or replace function ${ctx.fn("start_import")}(tenant ${ctx.idType}, kind text, mapping jsonb)

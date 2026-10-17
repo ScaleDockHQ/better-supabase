@@ -37,6 +37,7 @@ describe("standardWebhooks", () => {
       timestamp: temporal().Now.instant(),
       secrets: [SECRET, OLD],
     });
+
     expect(headers["webhook-id"]).toBe("msg_1");
     expect(headers["webhook-signature"]?.split(" ")).toHaveLength(2);
     expect(await verify({ headers, body }, SECRET)).toBe(true);
@@ -57,6 +58,7 @@ describe("standardWebhooks", () => {
       timestamp: temporal().Now.instant(),
       secrets: [SECRET],
     });
+
     expect(Object.keys(headers).toSorted()).toEqual([
       "svix-id",
       "svix-signature",
@@ -90,15 +92,18 @@ describe("hmacSigner", () => {
       signatureHeader: "x-centrakit-signature",
       timestampHeader: "x-centrakit-timestamp",
     });
+
     const headers = await signer.sign({
       id: "d1",
       body,
       timestamp,
       secrets: [SECRET],
     });
+
     const expected = createHmac("sha256", SECRET)
       .update(`${seconds}.${body}`)
       .digest("hex");
+
     expect(headers).toEqual({
       "x-centrakit-signature": `v1=${expected}`,
       "x-centrakit-timestamp": seconds,
@@ -115,15 +120,19 @@ describe("hmacSigner", () => {
       prefix: "",
       separator: " ",
     });
+
     expect(signer.name).toBe("acme");
+
     const headers = await signer.sign({
       id: "d1",
       body,
       timestamp,
       secrets: [SECRET, OLD],
     });
+
     const mac = (secret: string) =>
       createHmac("sha256", secret).update(`d1:${body}`).digest("base64");
+
     expect(headers).toEqual({
       "x-sig": `${mac(SECRET)} ${mac(OLD)}`,
       "x-id": "d1",
@@ -134,6 +143,7 @@ describe("hmacSigner", () => {
     const report = await testWebhookSigner(
       hmacSigner({ signatureHeader: "x-sig" }),
     );
+
     expect(report.checks.every((check) => check.ok)).toBe(true);
   });
 });
@@ -160,6 +170,7 @@ describe("standardWebhooksAsymmetric", () => {
   const ed25519 = async () => {
     const key = await generateSigningKey("Ed25519");
     const signing = await importSigningKey(key.privateKey);
+
     return {
       publicKey: webhookPublicKey(key.publicKey),
       signer: {
@@ -174,12 +185,14 @@ describe("standardWebhooksAsymmetric", () => {
 
   it("signs v1a with Ed25519 so receivers verify with the whpk_ key", async () => {
     const { publicKey, signer } = await ed25519();
+
     const headers = await standardWebhooksAsymmetric({ signer }).sign({
       id: "msg_1",
       body,
       timestamp: temporal().Now.instant(),
       secrets: [],
     });
+
     expect(publicKey).toMatch(/^whpk_[A-Za-z0-9+/]+=*$/);
     expect(headers["webhook-signature"]).toMatch(/^v1a,/);
     expect(await verify({ headers, body }, publicKey)).toBe(true);
@@ -193,6 +206,7 @@ describe("standardWebhooksAsymmetric", () => {
 
   it("adds v1 signatures while receivers move from secrets to the key", async () => {
     const { publicKey, signer } = await ed25519();
+
     const headers = await standardWebhooksAsymmetric({
       signer,
       hmac: true,
@@ -202,6 +216,7 @@ describe("standardWebhooksAsymmetric", () => {
       timestamp: temporal().Now.instant(),
       secrets: [SECRET],
     });
+
     expect(headers["webhook-signature"]?.split(" ")).toHaveLength(2);
     expect(await verify({ headers, body }, SECRET)).toBe(true);
     expect(await verify({ headers, body }, publicKey)).toBe(true);
@@ -212,6 +227,7 @@ describe("standardWebhooksAsymmetric", () => {
       sign: () =>
         Promise.resolve(ok({ alg: "ES256", signature: new Uint8Array(64) })),
     };
+
     await expect(
       standardWebhooksAsymmetric({ signer }).sign({
         id: "msg_3",

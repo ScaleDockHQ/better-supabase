@@ -15,12 +15,15 @@ function capture() {
       Response.json([], { headers: { "content-range": "0-0/7" } }),
     ),
   );
+
   vi.stubGlobal("fetch", fetch);
+
   return () => fetch.mock.calls.map(([input]) => new URL(String(input)));
 }
 
 async function setup() {
   const signer = await createTestSigner();
+
   const options = {
     env: {
       url: PROJECT_URL,
@@ -29,10 +32,12 @@ async function setup() {
     },
     auth: { jwks: signer.jwks as never },
   };
+
   const request = async (claims: Parameters<typeof signer.sign>[0]) =>
     new Request("https://portal.test/", {
       headers: { authorization: `Bearer ${await signer.sign(claims)}` },
     });
+
   return { options, request };
 }
 
@@ -45,10 +50,15 @@ describe("contact-scoped and staff reads", () => {
     const urls = capture();
     const { options, request } = await setup();
     const server = createServer(portal, options);
+
     const ctx = await server.context(
       await request({ sub: USER, customer_id: "42" }),
     );
-    if (ctx.auth.kind !== "user") throw new Error("expected a user");
+
+    if (ctx.auth.kind !== "user") {
+      throw new Error("expected a user");
+    }
+
     expect(ctx.auth.claims.customer_id).toBe("42");
 
     const [quotes, invoices] = await Promise.all([
@@ -67,6 +77,7 @@ describe("contact-scoped and staff reads", () => {
     const stats = ctx.db.$stats();
     expect(stats.calls).toBeLessThanOrEqual(2);
     expect(stats.waves).toBe(1);
+
     for (const url of urls()) {
       expect(url.searchParams.get("customer_id")).toBe("eq.42");
       expect(url.searchParams.has("organization_id")).toBe(false);
@@ -80,10 +91,14 @@ describe("contact-scoped and staff reads", () => {
     const urls = capture();
     const { options, request } = await setup();
     const server = createServer(staff, options);
+
     const ctx = await server.context(
       await request({ sub: USER, organization_id: ORG }),
     );
-    if (ctx.auth.kind !== "user") throw new Error("expected a user");
+
+    if (ctx.auth.kind !== "user") {
+      throw new Error("expected a user");
+    }
 
     const [quotes, invoices] = await Promise.all([
       ctx.db.quotes
@@ -110,6 +125,7 @@ describe("contact-scoped and staff reads", () => {
       "/rest/v1/quotes",
       "/rest/v1/invoices",
     ]);
+
     for (const url of urls()) {
       expect(url.searchParams.get("organization_id")).toBe(`eq.${ORG}`);
       expect(url.searchParams.has("customer_id")).toBe(false);
@@ -118,6 +134,7 @@ describe("contact-scoped and staff reads", () => {
     const contactToken = await server.context(
       await request({ sub: USER, customer_id: "42" }),
     );
+
     expect(contactToken.auth).toMatchObject({
       kind: "invalid",
       reason: "claims",

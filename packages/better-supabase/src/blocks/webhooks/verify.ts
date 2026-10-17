@@ -30,6 +30,7 @@ export {
   verifySharedSecret,
   verifyWebhook,
 } from "../../core/signatures.ts";
+
 export type {
   VerifiedWebhook,
   VerifyOptions,
@@ -49,6 +50,7 @@ export async function signStripeWebhook(
   timestamp: Temporal.Instant = nowInstant(),
 ): Promise<string> {
   const seconds = String(Math.floor(timestamp.epochMilliseconds / 1000));
+
   return `t=${seconds},v1=${await stripeSignature(secret, `${seconds}.${body}`)}`;
 }
 
@@ -63,57 +65,83 @@ export async function verifyStripeWebhook<T = unknown>(
   options: VerifyOptions = {},
 ): Promise<Result<VerifiedWebhook<T>>> {
   const value = header(input.headers, "stripe-signature");
-  if (!value)
+
+  if (!value) {
     return err(
       unauthorized(
         "WEBHOOK_MISSING_HEADERS",
         "Missing Stripe-Signature header",
       ),
     );
+  }
+
   const parts = value.split(",").map((part) => {
     const index = part.indexOf("=");
+
     return [part.slice(0, index).trim(), part.slice(index + 1).trim()] as const;
   });
+
   const timestamp = parts.find(([name]) => name === "t")?.[1] ?? "";
   const offered = parts.filter(([name]) => name === "v1").map(([, sig]) => sig);
-  if (!/^\d+$/.test(timestamp))
+
+  if (!/^\d+$/.test(timestamp)) {
     return err(
       unauthorized("WEBHOOK_INVALID_TIMESTAMP", "Invalid webhook timestamp"),
     );
+  }
+
   const namespace = optionalTemporal();
-  if (namespace === undefined) return err(temporalMissing());
+
+  if (namespace === undefined) {
+    return err(temporalMissing());
+  }
+
   const seconds = Number(timestamp);
+
   const now =
     (options.now?.() ?? namespace.Now.instant()).epochMilliseconds / 1000;
-  if (Math.abs(now - seconds) > (options.tolerance ?? 300))
+
+  if (Math.abs(now - seconds) > (options.tolerance ?? 300)) {
     return err(
       unauthorized(
         "WEBHOOK_TIMESTAMP_OUT_OF_RANGE",
         "Webhook timestamp is outside the tolerance",
       ),
     );
+  }
+
   const body = input instanceof Request ? await input.text() : input.body;
   let valid = false;
+
   for (const secret of typeof secrets === "string" ? [secrets] : secrets) {
     const expected = await stripeSignature(secret, `${timestamp}.${body}`);
+
     for (const candidate of offered) {
-      if (timingSafeEqual(candidate, expected)) valid = true;
+      if (timingSafeEqual(candidate, expected)) {
+        valid = true;
+      }
     }
   }
-  if (!valid)
+
+  if (!valid) {
     return err(
       unauthorized("WEBHOOK_INVALID_SIGNATURE", "Invalid webhook signature"),
     );
+  }
+
   let payload: unknown;
+
   try {
     payload = JSON.parse(body);
   } catch {
     return err(dbError("invalid_request", "Webhook body is not JSON"));
   }
+
   const id =
     typeof payload === "object" && payload !== null && "id" in payload
       ? String(payload.id)
       : "";
+
   const replay = await replayed(
     options,
     id,
@@ -121,7 +149,11 @@ export async function verifyStripeWebhook<T = unknown>(
       (seconds + (options.tolerance ?? 300)) * 1000,
     ),
   );
-  if (replay) return err(replay);
+
+  if (replay) {
+    return err(replay);
+  }
+
   // SAFETY: the caller names the event type T; the signature proves the
   // sender, not the shape.
   return ok({
@@ -149,6 +181,7 @@ export function stripeInboxVerify(
       secrets,
       options,
     );
+
     return verified.ok
       ? ok({ id: verified.data.id, payload: verified.data.payload })
       : verified;
@@ -268,17 +301,22 @@ export function authHook<K extends AuthHookKind>(
       secret,
       options,
     );
-    if (!verified.ok)
+
+    if (!verified.ok) {
       return Response.json(
         hookError(verified.error.status, verified.error.message),
         { status: verified.error.status },
       );
+    }
+
     try {
       const answer = await handler(verified.data.payload, verified.data);
       const status = "error" in answer ? answer.error.http_code : 200;
+
       return Response.json(answer, { status });
     } catch (cause) {
       console.error("better-supabase: auth hook failed", cause);
+
       return Response.json(hookError(500, "Hook failed"), { status: 500 });
     }
   };
@@ -305,10 +343,14 @@ export interface DatabaseChange<R> {
 export function isDatabaseWebhook(
   value: unknown,
 ): value is DatabaseWebhookPayload {
-  if (typeof value !== "object" || value === null) return false;
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
   // SAFETY: the check above narrows value to a non-null object, and each field
   // is checked below.
   const payload = value as Record<string, unknown>;
+
   return (
     (payload["type"] === "INSERT" ||
       payload["type"] === "UPDATE" ||
@@ -334,13 +376,16 @@ export function databaseChange<
   payload: unknown,
 ): DatabaseChange<Row<M, T>> | null {
   const meta: TableMeta | undefined = betterSupabase.meta.tables[table];
+
   if (
     !meta ||
     !isDatabaseWebhook(payload) ||
     payload.table !== meta.name ||
     payload.schema !== meta.schema
-  )
+  ) {
     return null;
+  }
+
   return {
     type: payload.type,
     table,

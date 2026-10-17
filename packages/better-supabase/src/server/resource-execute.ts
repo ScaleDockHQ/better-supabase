@@ -18,8 +18,12 @@ export async function settled(value: unknown): Promise<Result<unknown>> {
 }
 
 function failure(cause: unknown, message: string): Result<never> {
-  if (isDbError(cause)) return err(cause);
+  if (isDbError(cause)) {
+    return err(cause);
+  }
+
   const error = toDbError(cause);
+
   return err(
     error.kind === "unexpected" ? dbError("unexpected", message) : error,
   );
@@ -32,11 +36,13 @@ export async function runHook(
 ): Promise<Result<unknown>> {
   try {
     const value: unknown = await call();
+
     if (!isResult(value)) {
       return err(
         dbError("unexpected", `The ${name} hook must return a Result`),
       );
     }
+
     return value.ok
       ? ok(value.data)
       : failure(value.error, `The ${name} hook failed`);
@@ -52,7 +58,11 @@ export async function runHandler(
 ): Promise<Result<unknown>> {
   try {
     const value: unknown = await call();
-    if (!isResult(value)) return ok(value);
+
+    if (!isResult(value)) {
+      return ok(value);
+    }
+
     return value.ok
       ? ok(value.data)
       : failure(value.error, `The ${name} action failed`);

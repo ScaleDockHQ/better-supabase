@@ -15,11 +15,13 @@ import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
+
 const env = {
   url: PROJECT_URL,
   publishableKey: "sb_publishable_test",
   jwksUrl: new URL(`${PROJECT_URL}/auth/v1/.well-known/jwks.json`),
 };
+
 const USER = "11111111-1111-4111-8111-111111111111";
 const signer = await createTestSigner();
 
@@ -43,6 +45,7 @@ const contract = {
 };
 
 type Customer = { id: string; name: string };
+
 const failed = (
   kind: "not_found" | "forbidden",
   message: string,
@@ -53,9 +56,11 @@ describe("a contract-first router under Hono", () => {
     env,
     auth: { jwks: signer.jwks as never },
   });
+
   const os = implement(contract)
     .$context<OrpcRequestContext>()
     .use(bs.middleware());
+
   const router = os.router({
     me: os.me.handler(({ context }) => ({
       id: context.auth.kind === "user" ? context.auth.user.id : null,
@@ -73,9 +78,11 @@ describe("a contract-first router under Hono", () => {
       ),
     },
   });
+
   const handle = bs.fetchHandler(new OpenAPIHandler(router), {
     prefix: "/api",
   });
+
   const app = new Hono().all("/api/*", (c) => handle(c.req.raw));
 
   const call = async (path: string, init: RequestInit = {}, token?: string) =>
@@ -113,11 +120,13 @@ describe("a contract-first router under Hono", () => {
       code: "NOT_FOUND",
       data: { kind: "not_found", detail: "No such customer" },
     });
+
     const denied = await call(
       "/api/customers/c1",
       { method: "PATCH", body: JSON.stringify({ name: "B" }) },
       token,
     );
+
     expect(denied.status).toBe(403);
     expect(await denied.json()).toMatchObject({
       code: "FORBIDDEN",
@@ -139,6 +148,7 @@ describe("a permission on one contract procedure", () => {
         .output(v.object({ deleted: v.boolean() })),
     },
   };
+
   const bs = createOrpc(defineSupabase(schema), {
     env,
     auth: { jwks: signer.jwks as never },
@@ -146,9 +156,11 @@ describe("a permission on one contract procedure", () => {
       roles: { authenticated: ["customers.read"] },
     }),
   });
+
   const os = implement(guarded)
     .$context<OrpcRequestContext>()
     .use(bs.middleware());
+
   const router = os.router({
     customers: {
       get: os.customers.get
@@ -162,6 +174,7 @@ describe("a permission on one contract procedure", () => {
         .handler(() => ({ deleted: true })),
     },
   });
+
   const handle = bs.fetchHandler(new OpenAPIHandler(router), {
     prefix: "/api",
   });

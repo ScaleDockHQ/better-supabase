@@ -30,6 +30,7 @@ const row = {
 
 function fakeTransport(results: Record<string, unknown>) {
   const calls: [string, string, Record<string, unknown>][] = [];
+
   return {
     calls,
     transport: {
@@ -40,6 +41,7 @@ function fakeTransport(results: Record<string, unknown>) {
       ) {
         calls.push([schema, fn, { ...args }]);
         const result = results[fn];
+
         return result instanceof Error
           ? Promise.reject(result)
           : Promise.resolve(result);
@@ -61,10 +63,12 @@ describe("mentionsIn", () => {
 describe("createComments", () => {
   it("creates with the mentions from the body unless given", async () => {
     const fake = fakeTransport({ create_comment: row });
+
     const comments = createComments({
       transport: fake.transport,
       schema: "app",
     });
+
     const comment = await comments
       .create({
         organizationId: "org-1",
@@ -73,6 +77,7 @@ describe("createComments", () => {
         body: `Hello @[Bob](${BOB})`,
       })
       .orThrow();
+
     expect(comment).toMatchObject({
       id: "c1",
       authorId: ADA,
@@ -122,9 +127,11 @@ describe("createComments", () => {
   it("edits, or returns not_found for a comment the caller can't edit", async () => {
     const edited = { ...row, edited_at: "2026-10-06T12:05:00Z" };
     const ok = fakeTransport({ edit_comment: edited });
+
     const comment = await createComments({ transport: ok.transport })
       .edit("c1", { body: "Changed" })
       .orThrow();
+
     expect(comment.editedAt?.toString()).toBe("2026-10-06T12:05:00Z");
     expect(ok.calls[0]).toEqual([
       "better_supabase",
@@ -187,10 +194,12 @@ describe("createComments", () => {
         },
       ],
     });
+
     const comments = createComments({
       transport: fake.transport,
       mentionsOf: ({ document }) => (document ? [ADA] : []),
     });
+
     const created = await comments
       .create({
         organizationId: "org-1",
@@ -200,6 +209,7 @@ describe("createComments", () => {
         document: { type: "doc" },
       })
       .orThrow();
+
     expect(created.document).toEqual({ type: "doc" });
     expect(fake.calls[0]![2]).toMatchObject({
       mentions: [ADA],
@@ -226,6 +236,7 @@ describe("createComments", () => {
       to_type: "invoice",
       to_id: "i1",
     });
+
     const history = await comments
       .history(
         "org-1",
@@ -236,6 +247,7 @@ describe("createComments", () => {
         },
       )
       .orThrow();
+
     expect(history[0]).toMatchObject({
       source: "event",
       type: "quote.sent",
@@ -265,14 +277,17 @@ describe("createComments", () => {
         { ...row, id: "c2", body: null, deleted_at: "2026-10-06T13:00:00Z" },
       ],
     });
+
     const comments = createComments({ transport: fake.transport });
     expect(await comments.remove("c1").orThrow()).toBe(true);
+
     const thread = await comments
       .list("org-1", "project", "p1", {
         cursor: Temporal.Instant.from("2026-10-06T00:00:00Z"),
         limit: 20,
       })
       .orThrow();
+
     expect(thread.map((comment) => [comment.id, comment.body])).toEqual([
       ["c1", "Hello"],
       ["c2", ""],
@@ -297,6 +312,7 @@ describe("createComments", () => {
       list_comments: [],
       comment_counts: { p1: 3, p9: "2" },
     });
+
     const comments = createComments({ transport: fake.transport });
     await comments.list("org-1", "project", "p1", { offset: 40, limit: 20 });
     expect(fake.calls[0]![2]).toMatchObject({ skip: 40, max_rows: 20 });
@@ -320,6 +336,7 @@ describe("createComments", () => {
         code: "42501",
       }),
     });
+
     expect(
       await createComments({ transport: fake.transport }).remove("c1"),
     ).toMatchObject({ ok: false, error: { kind: "forbidden" } });
@@ -401,6 +418,7 @@ describe("activitySink", () => {
 
   it("filters by type and lets describe() summarize or skip", async () => {
     const fake = fakeTransport({ record_activity: 1 });
+
     const sink = activitySink({
       transport: fake.transport,
       schema: "app",
@@ -417,6 +435,7 @@ describe("activitySink", () => {
               data: { x: 1 },
             },
     });
+
     await sink.send([
       event({ type: "com.acme.comment.created" }),
       event({ id: "evt-2", type: "com.acme.comment.deleted" }),
@@ -457,9 +476,11 @@ describe("activityListQuery", () => {
     nullable,
     hasDefault: false,
   });
+
   const table = (casing: "camel" | "snake") => {
     const name = (snake: string, camel: string) =>
       casing === "camel" ? camel : snake;
+
     return defineSupabase(
       defineSchema<AnyModels>({
         version: 1,
@@ -501,6 +522,7 @@ describe("activityListQuery", () => {
         pageSize: 25,
         maxPageSize: 50,
       });
+
       expect(list.facets.map((facet) => facet.key)).toEqual([
         "type",
         "actor",
@@ -514,6 +536,7 @@ describe("activityListQuery", () => {
         size: 25,
       });
     }
+
     expect(() => activityListQuery(table("camel"), "missing")).toThrow(
       /unknown table "missing"/,
     );

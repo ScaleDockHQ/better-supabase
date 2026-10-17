@@ -17,6 +17,7 @@ export const instant = true;
 
 export default function CustomersPage() {
   const t = useExtracted("customers");
+
   return (
     <>
       <PageHeader

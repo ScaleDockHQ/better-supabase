@@ -45,6 +45,7 @@ export function defineRepository<
       `better-supabase: defineRepository: unknown table "${table}"`,
     );
   }
+
   return definePlugin<
     `repository:${Table}`,
     TableRepositoryExtension<Table, Methods>

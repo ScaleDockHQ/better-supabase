@@ -15,12 +15,14 @@ import { schema } from "../fixtures/generated-camel.ts";
 
 const server = createServer(defineSupabase(schema));
 const entry = withBetterSupabase(server);
+
 type Keys = Contributions<readonly [typeof entry]>;
 
 describe("bridges", () => {
   it("types c.var on a chained Hono app", () => {
     new Hono().use(toHono([entry])).get("/", (c) => {
       expectTypeOf(c.var.db).toEqualTypeOf<Keys["db"]>();
+
       return c.text("ok");
     });
   });
@@ -28,6 +30,7 @@ describe("bridges", () => {
   it("types the edge handler's ctx", () => {
     toEdge([entry], (_request, ctx) => {
       expectTypeOf(ctx.bs).toEqualTypeOf<Keys["bs"]>();
+
       return new Response(null);
     });
   });

@@ -30,25 +30,32 @@ function fakeVault(): {
 } {
   const secrets = new Map<string, string>();
   const calls: string[] = [];
+
   const key = (args: Readonly<Record<string, unknown>>): string =>
     `bs:cred:${String(args["provider"])}:${String(args["name"])}`;
+
   return {
     secrets,
     calls,
     transport: {
       async call(_schema, fn, args) {
         calls.push(fn);
+
         switch (fn) {
           case "credential_get": {
             return secrets.get(key(args)) ?? null;
           }
+
           case "credential_set": {
             secrets.set(key(args), String(args["secret"]));
+
             return crypto.randomUUID();
           }
+
           case "credential_delete": {
             return secrets.delete(key(args));
           }
+
           default: {
             throw new Error(`unexpected ${fn}`);
           }
@@ -65,6 +72,7 @@ describe("vaultCredentials", () => {
   it("passes the CredentialProvider kit", async () => {
     const { transport } = fakeVault();
     const vault = vaultCredentials({ transport });
+
     const report = await testCredentialProvider(vault, {
       ref: tokenRef,
       userRef: { provider: "vault", secret: "github", scope: "user" },
@@ -85,6 +93,7 @@ describe("vaultCredentials", () => {
       seed: (ref, subject, value) =>
         vault.set(ref, value, { subject }).orThrow(),
     });
+
     expect(report.checks.every((check) => check.ok)).toBe(true);
     expect(report.checks).toHaveLength(10);
   });
@@ -101,6 +110,7 @@ describe("vaultCredentials", () => {
     expect(
       (await provider.getToken(ref, { subject: APP }).orThrow()).token,
     ).toBe("tenant-token");
+
     for (const bad of [
       { provider: "vault", secret: "x", tenant: "org/../other" },
       { provider: "vault", secret: "other/x", tenant: "org-1" },
@@ -135,12 +145,14 @@ describe("vaultCredentials", () => {
   it("builds the header from the ref", async () => {
     const { transport } = fakeVault();
     const vault = vaultCredentials({ transport });
+
     const ref = {
       provider: "vault",
       secret: "openai",
       header: "X-Api-Key",
       scheme: null,
     };
+
     await vault.set(ref, "sk-1").orThrow();
     const token = await vault.getToken(ref, { subject: APP }).orThrow();
     expect(token.headers).toEqual({ "x-api-key": "sk-1" });
@@ -161,10 +173,12 @@ describe("vaultCredentials", () => {
     );
 
     const uncached = fakeVault();
+
     const live = vaultCredentials({
       transport: uncached.transport,
       cacheMs: 0,
     });
+
     uncached.secrets.set("bs:cred:vault:slack", "a");
     await live.getToken(tokenRef, { subject: APP }).orThrow();
     uncached.secrets.set("bs:cred:vault:slack", "b");
@@ -174,6 +188,7 @@ describe("vaultCredentials", () => {
 
   it("refuses malformed refs", async () => {
     const vault = vaultCredentials({ transport: fakeVault().transport });
+
     for (const ref of [
       { provider: "vault" },
       { provider: "vault", secret: "x", scope: "team" },
@@ -187,6 +202,7 @@ describe("vaultCredentials", () => {
         "CREDENTIAL_REF_INVALID",
       );
     }
+
     expect(vault.capabilities({ provider: "other" })).toEqual({
       userSubjects: false,
       authorization: false,
@@ -195,10 +211,12 @@ describe("vaultCredentials", () => {
     });
     const set = await vault.set({ provider: "other" }, "x");
     expect(set.ok).toBe(false);
+
     const revoked = await vault.revoke(
       { provider: "vault", secret: "x", scope: "user" },
       { subject: APP },
     );
+
     expect(revoked.ok ? undefined : revoked.error.hint).toBe(
       "CREDENTIAL_SUBJECT_REQUIRED",
     );
@@ -210,6 +228,7 @@ describe("vaultCredentials", () => {
     secrets.set("bs:cred:vault:gh", "s3cret");
     secrets.set("bs:cred:vault:db", "shared");
     const body = '{"action":"opened"}';
+
     const key = await crypto.subtle.importKey(
       "raw",
       new TextEncoder().encode("s3cret"),
@@ -217,25 +236,31 @@ describe("vaultCredentials", () => {
       false,
       ["sign"],
     );
+
     const hex = Array.from(
       new Uint8Array(
         await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(body)),
       ),
       (byte) => byte.toString(16).padStart(2, "0"),
     ).join("");
+
     const gh = { provider: "vault", secret: "gh", inbound: "hmac-sha256" };
+
     const signed = new Request("https://app.test", {
       method: "POST",
       headers: { "x-hub-signature-256": `sha256=${hex}` },
       body,
     });
+
     expect(await vault.verifyInbound(signed, gh).orThrow()).toBe(true);
     expect(await signed.text()).toBe(body);
+
     const wrong = new Request("https://app.test", {
       method: "POST",
       headers: { "x-hub-signature-256": "sha256=00" },
       body,
     });
+
     expect(await vault.verifyInbound(wrong, gh).orThrow()).toBe(false);
 
     const db = {
@@ -244,11 +269,13 @@ describe("vaultCredentials", () => {
       inbound: "shared-secret",
       signatureHeader: "x-webhook-secret",
     };
+
     const shared = new Request("https://app.test", {
       method: "POST",
       headers: { "x-webhook-secret": "shared" },
       body,
     });
+
     expect(await vault.verifyInbound(shared, db).orThrow()).toBe(true);
     expect(vault.capabilities(db).inbound).toBe(true);
 
@@ -261,18 +288,22 @@ describe("vaultCredentials", () => {
   it("accepts a signed Standard Webhooks body that is not JSON", async () => {
     const { transport } = fakeVault();
     const vault = vaultCredentials({ transport });
+
     const ref = {
       provider: "vault",
       secret: "sw",
       inbound: "standard-webhooks",
     };
+
     const secret = `whsec_${btoa("0123456789abcdef")}`;
     await vault.set(ref, secret).orThrow();
+
     const request = new Request("https://app.test", {
       method: "POST",
       headers: await signWebhook(secret, { id: "msg_2", body: "plain" }),
       body: "plain",
     });
+
     expect(await vault.verifyInbound(request, ref).orThrow()).toBe(true);
   });
 });
@@ -308,6 +339,7 @@ describe("subjectFor", () => {
     expect(
       subjectFor({ auth: { kind: "service", keyName: "secret" } }),
     ).toEqual({ type: "app" });
+
     const apiKey = {
       kind: "apiKey",
       keyId: "k",
@@ -315,6 +347,7 @@ describe("subjectFor", () => {
       scopes: [],
       claims: user.claims,
     } as const;
+
     expect(subjectFor({ auth: { ...apiKey, userId: "u2" } })).toEqual({
       type: "user",
       id: "u2",
@@ -356,6 +389,7 @@ describe("credentialRouter", () => {
   it("passes the CredentialProvider kit over vault", async () => {
     const { transport } = fakeVault();
     const vault = vaultCredentials({ transport });
+
     const report = await testCredentialProvider(
       credentialRouter([vault, oauthOnly]),
       {
@@ -364,6 +398,7 @@ describe("credentialRouter", () => {
           vault.set(ref, value, { subject }).orThrow(),
       },
     );
+
     expect(report.checks.every((check) => check.ok)).toBe(true);
   });
 
@@ -373,12 +408,14 @@ describe("credentialRouter", () => {
     const ref = { provider: "oauth" };
     expect((await router.getToken(ref, { subject: APP })).ok).toBe(true);
     expect(router.capabilities({ provider: "nope" }).revoke).toBe(false);
+
     const refusals = await Promise.all([
       router.set?.(ref, "x"),
       router.startAuthorization?.(ref, { subject: APP, redirectUri: "x" }),
       router.completeAuthorization?.(ref, { subject: APP, callback: "x" }),
       router.verifyInbound?.(new Request("https://app.test"), ref),
     ]);
+
     expect(refusals.map((result) => !result?.ok && result?.error.kind)).toEqual(
       ["unsupported", "unsupported", "unsupported", "unsupported"],
     );
@@ -415,6 +452,7 @@ describe("revokeIfConfigured", () => {
       }).orThrow(),
     ).toBe(true);
     expect(secrets.size).toBe(0);
+
     const cannot: CredentialProvider = {
       ...vault,
       capabilities: () => ({
@@ -424,6 +462,7 @@ describe("revokeIfConfigured", () => {
         inbound: false,
       }),
     };
+
     expect(
       await revokeIfConfigured(cannot, tokenRef, { subject: APP }).orThrow(),
     ).toBe(false);

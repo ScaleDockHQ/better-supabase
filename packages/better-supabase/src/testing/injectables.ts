@@ -31,6 +31,7 @@ const hasApiVersion = (subject: { readonly apiVersion?: unknown }): Check => [
 const rejects = async (run: () => Promise<unknown>): Promise<boolean> => {
   try {
     await run();
+
     return false;
   } catch {
     return true;
@@ -52,6 +53,7 @@ export function testEmbedder(
   options: TestEmbedderOptions = {},
 ): Promise<ConformanceReport> {
   const values = options.values ?? ["The first text.", "A second text."];
+
   return conform(`Embedder "${embedder.model}"`, [
     hasApiVersion(embedder),
     [
@@ -109,6 +111,7 @@ export function testAiTaskRunner(
   options: TestAiTaskRunnerOptions,
 ): Promise<ConformanceReport> {
   const { task, run } = options;
+
   return conform("AiTaskRunner", [
     hasApiVersion(runner),
     [
@@ -119,6 +122,7 @@ export function testAiTaskRunner(
           run,
           new AbortController().signal,
         );
+
         expect(
           result === undefined ||
             (typeof result === "object" &&
@@ -157,13 +161,18 @@ export function testGraphCompiler(
   options: TestGraphCompilerOptions,
 ): Promise<ConformanceReport> {
   const { graph } = options;
+
   return conform("GraphCompiler", [
     hasApiVersion(compile),
     [
       "returns a JSON value",
       async () => {
         const compiled: unknown = await compile(graph);
-        if (compiled === undefined) return;
+
+        if (compiled === undefined) {
+          return;
+        }
+
         const json = JSON.stringify(compiled);
         expect(
           same(JSON.parse(json), compiled),
@@ -198,6 +207,7 @@ export function testBuilderStarter(
   options: TestBuilderStarterOptions,
 ): Promise<ConformanceReport> {
   const { call } = options;
+
   return conform("BuilderStarter", [
     hasApiVersion(start),
     [
@@ -230,6 +240,7 @@ export function testEveDocumentBackend(
   options: TestEveDocumentBackendOptions = {},
 ): Promise<ConformanceReport> {
   const key = options.key ?? `conformance/${crypto.randomUUID()}`;
+
   return conform("EveDocumentBackend", [
     hasApiVersion(backend),
     [
@@ -239,21 +250,25 @@ export function testEveDocumentBackend(
           (await backend.read({ key })) === null,
           "a missing document must read as null",
         );
+
         const created = await backend.write({
           key,
           content: "one",
           expectedVersion: null,
         });
+
         const read = await backend.read({ key });
         expect(
           read?.content === "one" && read.version === created.version,
           "read must return the written content and version",
         );
+
         const updated = await backend.write({
           key,
           content: "two",
           expectedVersion: created.version,
         });
+
         expect(
           updated.version !== created.version,
           "a write must change the version",

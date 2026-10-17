@@ -377,7 +377,7 @@ describe("readExtras", () => {
       {
         id: "avatars",
         public: true,
-        fileSizeLimit: 1048576,
+        fileSizeLimit: 1_048_576,
         allowedMimeTypes: ["image/png"],
       },
       {
@@ -431,6 +431,7 @@ describe("readExtras", () => {
 
   it("reads Auth hook functions with their ACLs, by target", async () => {
     const db = catalog();
+
     const extras = await readExtras(
       db.pg,
       ["public"],
@@ -439,6 +440,7 @@ describe("readExtras", () => {
         { hook: "send_email", schema: "public", name: "missing" },
       ],
     );
+
     expect(
       db.texts().find((text) => text.includes("as public_execute")),
     ).toContain("array['rbac.hook', 'public.missing']::text[]");

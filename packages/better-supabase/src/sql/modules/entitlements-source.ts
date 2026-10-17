@@ -1,7 +1,9 @@
 import type { EntitlementPlansSource } from "../../config/index.ts";
 import type { ModuleContext } from "../context.ts";
-import type { ModuleLayout } from "../module-types.ts";
-import type { ModuleEntitlementsProvider } from "../module-types.ts";
+import type {
+  ModuleLayout,
+  ModuleEntitlementsProvider,
+} from "../module-types.ts";
 import type { FeatureClaimOption } from "./entitlements-checks.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -36,14 +38,20 @@ function providerEntitlementMembers(
           ? ""
           : undefined
         : `\n    and m.${sqlIdent(source.scope.column)}::text = ${sqlString(provider.scope)}`;
-    if (scoped === undefined) return [];
+
+    if (scoped === undefined) {
+      return [];
+    }
+
     const [schema, table] = splitTable(source.table);
+
     return [
       `  select distinct m.${sqlIdent(source.userColumn)}::uuid
   from ${sqlIdent(schema)}.${sqlIdent(table)} m
   where m.${sqlIdent(source.idColumn)}::text in (select t::text from better_supabase.stripe_customer_tenants(customer) t)${scoped}`,
     ];
   });
+
   return sources.length > 0
     ? sources.join("\n  union\n")
     : "  select null::uuid where false";
@@ -62,6 +70,7 @@ export function customerSource(
   readonly deferred: boolean;
 } {
   const configured = layout.entitlements;
+
   if (configured?.table !== undefined && configured.column !== undefined) {
     return {
       table: configured.table,
@@ -70,9 +79,11 @@ export function customerSource(
       deferred: false,
     };
   }
+
   if (ctx.installed("billing") && ctx.of("billing").manages) {
     const billing = ctx.of("billing");
     const customers = billing.tableName("customers");
+
     return {
       table: `${customers.schema}.${customers.name}`,
       column: billing.colName("customers", "customer"),
@@ -80,9 +91,11 @@ export function customerSource(
       deferred: true,
     };
   }
+
   if (ctx.installed("organizations") && ctx.of("organizations").manages) {
     const organizations = ctx.of("organizations");
     const table = organizations.tableName("organizations");
+
     return {
       table: `${table.schema}.${table.name}`,
       column: ORGANIZATION_CUSTOMER_COLUMN,
@@ -90,6 +103,7 @@ export function customerSource(
       deferred: true,
     };
   }
+
   throw new TypeError(
     "The entitlements module needs entitlements.customer: the table.column with each tenant's Stripe customer id. With the managed billing or organizations module it defaults to that module's customer column.",
   );
@@ -108,8 +122,10 @@ export function entitlementsSource(
   const key = `t.${sqlIdent(source.key)}`;
   const column = `t.${sqlIdent(source.column)}`;
   const id = provider?.idType ?? m.idType;
+
   const definer =
     "language sql\nstable\nsecurity definer\nset search_path = ''";
+
   // plpgsql checks the body when it runs, which the organizations default
   // needs: that module's file adds the column and is applied after this one.
   // language sql checks the body now, so a missing configured column fails
@@ -151,6 +167,7 @@ ${definer}
 as $$
   select ${key} from ${target} t where ${column} = customer
 $$;`;
+
   return `
 -- config.entitlements: ${source.table}.${source.column}
 ${lookups}

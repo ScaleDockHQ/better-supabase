@@ -7,6 +7,9 @@ export {
   type ExpoSqliteDatabaseLike,
   type ExpoSqliteOptions,
 } from "./executor.ts";
+
 export { checkSqlite } from "../powersync/compiler.ts";
+
 export { sqliteTables, watch } from "../powersync/watch.ts";
+
 export type { WatchOptions } from "../powersync/watch.ts";

@@ -68,27 +68,36 @@ export function toWeeklyGrid<E extends WeeklyGridEntry>(
   options: WeeklyGridOptions<E>,
 ): WeeklyGrid {
   const monday = options.week.subtract({ days: options.week.dayOfWeek - 1 });
+
   const dates = Array.from({ length: 7 }, (_, day) =>
     monday.add({ days: day }),
   );
+
   const starts = [...dates, monday.add({ days: 7 })].map((date) =>
     date.toZonedDateTime(options.timeZone).toInstant(),
   );
+
   let now = options.now;
   const keyOf = options.rowKey ?? defaultKey;
   const rows = new Map<string, MutableRow>();
   const totals = Array.from({ length: 7 }, () => 0);
   let billable = 0;
+
   for (const entry of entries) {
     const end = entry.endedAt ?? (now ??= nowInstant());
     const key = keyOf(entry);
     let row = rows.get(key);
     let counted = false;
+
     for (let day = 0; day < 7; day += 1) {
       const from = maxInstant(entry.startedAt, starts[day]!);
       const to = minInstant(end, starts[day + 1]!);
       const seconds = Math.max(0, Math.round(from.until(to).total("seconds")));
-      if (seconds === 0) continue;
+
+      if (seconds === 0) {
+        continue;
+      }
+
       row ??= {
         id: key,
         entry,
@@ -98,11 +107,19 @@ export function toWeeklyGrid<E extends WeeklyGridEntry>(
       rows.set(key, row);
       row.days[day]! += seconds;
       totals[day]! += seconds;
-      if (entry.billable) billable += seconds;
-      if (!counted) row.entryIds.push(entry.id);
+
+      if (entry.billable) {
+        billable += seconds;
+      }
+
+      if (!counted) {
+        row.entryIds.push(entry.id);
+      }
+
       counted = true;
     }
   }
+
   return {
     days: dates.map((date, day) => ({
       id: date.toString(),

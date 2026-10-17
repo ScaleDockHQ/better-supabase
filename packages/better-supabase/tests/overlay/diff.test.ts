@@ -15,6 +15,7 @@ import {
 } from "../../src/overlay/index.ts";
 
 let jsonpath: JsonPathEngine;
+
 beforeAll(async () => {
   jsonpath = await loadJsonPath();
 });
@@ -83,9 +84,11 @@ describe("overlayFromDiff", () => {
   it.each(versions)("round-trips base into enriched (%s)", (version) => {
     const overlay = overlayFromDiff(base, enriched, { version });
     expect(overlay.overlay).toBe(version);
+
     const { document, diagnostics } = applyOverlay(base, overlay, {
       jsonpath,
     });
+
     expect(diagnostics).toEqual([]);
     expect(document).toEqual(enriched);
   });
@@ -125,6 +128,7 @@ describe("overlayFromDiff", () => {
         extends: "o.json",
       },
     );
+
     expectTypeOf(overlay).toEqualTypeOf<Overlay10>();
     expect(overlay).toEqual({
       overlay: "1.0.0",
@@ -150,15 +154,18 @@ describe("overlayFromDiff", () => {
       { "it's": { "a\\b\n\t\u0001": 1, $ref: 1 }, list: [{ k: 1 }] },
       { "it's": { "a\\b\n\t\u0001": 2, $ref: 1 }, list: [{ k: 2 }] },
     );
+
     expect(overlay.actions.map((a) => a.target)).toEqual([
       "$['it\\'s']['a\\\\b\\n\\t\\u0001']",
       "$.list[0].k",
     ]);
+
     const { document } = applyOverlay(
       { "it's": { "a\\b\n\t\u0001": 1, $ref: 1 }, list: [{ k: 1 }] },
       overlay,
       { jsonpath },
     );
+
     expect(document).toEqual({
       "it's": { "a\\b\n\t\u0001": 2, $ref: 1 },
       list: [{ k: 2 }],

@@ -5,6 +5,7 @@ import { persistQueryCache } from "../../../src/client/native/persist.ts";
 function fakeAsyncStorage() {
   const map = new Map<string, string>();
   const writes: string[] = [];
+
   return {
     map,
     writes,
@@ -13,10 +14,12 @@ function fakeAsyncStorage() {
       setItem: (key: string, value: string) => {
         writes.push(value);
         map.set(key, value);
+
         return Promise.resolve();
       },
       removeItem: (key: string) => {
         map.delete(key);
+
         return Promise.resolve();
       },
     },
@@ -31,9 +34,11 @@ describe("persistQueryCache", () => {
   it("throttles writes to the latest cache and restores it", async () => {
     vi.useFakeTimers();
     const fake = fakeAsyncStorage();
+
     const persister = persistQueryCache<{ n: number }>(fake.storage, {
       throttleMs: 100,
     });
+
     await persister.persistClient({ n: 1 });
     await persister.persistClient({ n: 2 });
     expect(fake.writes).toEqual([]);

@@ -35,9 +35,11 @@ for (const locale of ["en", "nl"] as const) {
 
       test("a customer page serves its static shell", async ({ page }) => {
         await page.goto(`/${locale}/customers`);
+
         const href = await page
           .getByRole("link", { name: "Road Runner Inc" })
           .getAttribute("href");
+
         await instant(
           page,
           async () => {
@@ -62,7 +64,7 @@ for (const locale of ["en", "nl"] as const) {
         "/forgot-password",
         { en: "Reset your password", nl: "Wachtwoord opnieuw instellen" },
       ],
-    ] as const)
+    ] as const) {
       test(`${path} is fully static`, async ({ page }) => {
         await instant(
           page,
@@ -75,5 +77,6 @@ for (const locale of ["en", "nl"] as const) {
           { baseURL },
         );
       });
+    }
   });
 }

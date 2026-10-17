@@ -99,6 +99,7 @@ describe("notification suppressions", () => {
         tables: { suppressions: "public.email_suppressions" },
       },
     });
+
     expect(sql).not.toContain("create table if not exists");
     expect(sql).toContain(`left join "public"."email_suppressions" s on`);
     expect(sql).toContain("suppress_notification_address");
@@ -109,6 +110,7 @@ describe("notification suppressions", () => {
       customContracts(["notifications"], { modules })[0]!.functions.map(
         (fn) => fn.name,
       );
+
     expect(names({ notifications: { mode: "custom" } })).not.toContain(
       "suppress_notification_address",
     );

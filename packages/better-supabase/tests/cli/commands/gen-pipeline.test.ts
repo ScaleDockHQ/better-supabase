@@ -98,6 +98,7 @@ describe("gen tasks", () => {
         outputs: [{ format: "openapi", overlays: ["overlay.yaml"] }],
       },
     });
+
     expect(
       stepInputs(config, ["types", "sql", "spec", "seed", "scaffold", "env"]),
     ).toEqual([
@@ -167,17 +168,19 @@ describe("gen sql and env steps", () => {
       `#!/bin/sh\necho '${JSON.stringify({ API_URL: "http://127.0.0.1:54321", PUBLISHABLE_KEY: "sb_publishable_test" })}'\n`,
     );
     await chmod(bin, 0o755);
+
     const results = await runSteps(["sql", "env"], {
       config: resolved({ env: { output: ".env.test", prefix: "VITE_" } }),
       env: { SUPABASE_BIN: bin },
       check: false,
       paint: plain,
     });
+
     expect(results.map(({ task, result }) => [task, result.code])).toEqual([
       ["sql", 0],
       ["env", 0],
     ]);
-    expect(await readFile(join(root, ".env.test"), "utf8")).toContain(
+    expect(await readFile(join(root, ".env.test"), "utf-8")).toContain(
       "VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_test",
     );
   });
@@ -191,6 +194,7 @@ describe("gen spec step", () => {
       check: false,
       paint: plain,
     });
+
     expect(step?.task).toBe("spec");
     expect(step?.result.code).not.toBe(0);
   });

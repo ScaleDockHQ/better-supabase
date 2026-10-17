@@ -18,9 +18,11 @@ const folder = new URL("schemas/", import.meta.url);
 
 /** The RFC text without page breaks: running headers, footers and form feeds. */
 async function rfc(number: 7643 | 7644): Promise<string[]> {
-  const text = await readFile(new URL(`rfc${number}.txt`, folder), "utf8");
+  const text = await readFile(new URL(`rfc${number}.txt`, folder), "utf-8");
+
   const title =
     number === 7643 ? "SCIM Core Schema" : "SCIM Protocol Specification";
+
   return text
     .replaceAll("\f", "")
     .split("\n")
@@ -56,13 +58,16 @@ async function section(heading: string): Promise<RfcSchema[]> {
   const start = lines.findIndex((line) => line.startsWith(heading));
   const open = lines.findIndex((line, index) => index > start && line === "[");
   const close = lines.findIndex((line, index) => index > open && line === "]");
+
   return JSON.parse(lines.slice(open, close + 1).join(" ")) as RfcSchema[];
 }
 
 const resources = await section("8.7.1.  Resource Schema Representation");
+
 const providers = await section(
   "8.7.2.  Service Provider Schema Representation",
 );
+
 const schemaOf = (list: readonly RfcSchema[], id: string): RfcSchema =>
   list.find((schema) => schema.id === id)!;
 
@@ -72,15 +77,19 @@ function compare(
   where: string,
 ): string[] {
   const problems: string[] = [];
+
   for (const attribute of ours) {
     const path = `${where}.${attribute.name}`;
+
     const rfcAttribute = theirs.find(
       (candidate) => candidate.name === attribute.name,
     );
+
     if (!rfcAttribute) {
       problems.push(`${path} is not in RFC 7643`);
       continue;
     }
+
     for (const key of [
       "type",
       "multiValued",
@@ -99,9 +108,11 @@ function compare(
         );
       }
     }
+
     if (rfcAttribute.required && !attribute.required) {
       problems.push(`${path} is required in RFC 7643`);
     }
+
     for (const value of attribute.canonicalValues ?? []) {
       if (!rfcAttribute.canonicalValues?.includes(value)) {
         problems.push(
@@ -109,6 +120,7 @@ function compare(
         );
       }
     }
+
     if (attribute.subAttributes) {
       problems.push(
         ...compare(
@@ -119,6 +131,7 @@ function compare(
       );
     }
   }
+
   return problems;
 }
 
@@ -129,17 +142,24 @@ function missing(
   where: string,
 ): string[] {
   const problems: string[] = [];
+
   for (const attribute of attributes) {
     const value = doc[attribute.name];
+
     if (value === undefined) {
-      if (attribute.required) problems.push(`${where}.${attribute.name}`);
+      if (attribute.required) {
+        problems.push(`${where}.${attribute.name}`);
+      }
+
       continue;
     }
+
     if (attribute.type === "complex" && attribute.subAttributes) {
       // RFC 7643 §8.7.2 marks schemaExtensions single-valued; §6 makes it a list.
       const items = Array.isArray(value)
         ? (value as Record<string, unknown>[])
         : [value as Record<string, unknown>];
+
       for (const item of items) {
         problems.push(
           ...missing(
@@ -150,13 +170,16 @@ function missing(
         );
       }
     }
+
     if (attribute.type === "boolean" && typeof value !== "boolean") {
       problems.push(`${where}.${attribute.name} is not a boolean`);
     }
+
     if (attribute.type === "integer" && !Number.isInteger(value)) {
       problems.push(`${where}.${attribute.name} is not an integer`);
     }
   }
+
   return problems;
 }
 
@@ -186,10 +209,12 @@ describe("SCIM 2.0 (RFC 7643, RFC 7644)", () => {
 
   it("serves discovery documents with every attribute RFC 7643 §8.7.2 requires", () => {
     const base = "https://app.test/scim/v2";
+
     const config = schemaOf(
       providers,
       "urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig",
     );
+
     expect(
       missing(
         serviceProviderConfig(base, { maxResults: 100 }),
@@ -197,17 +222,21 @@ describe("SCIM 2.0 (RFC 7643, RFC 7644)", () => {
         "ServiceProviderConfig",
       ),
     ).toEqual([]);
+
     const resourceType = schemaOf(
       providers,
       "urn:ietf:params:scim:schemas:core:2.0:ResourceType",
     );
+
     for (const doc of resourceTypes(base)) {
       expect(missing(doc, resourceType.attributes, "ResourceType")).toEqual([]);
     }
+
     const schema = schemaOf(
       providers,
       "urn:ietf:params:scim:schemas:core:2.0:Schema",
     );
+
     for (const doc of schemas(base)) {
       expect(missing(doc, schema.attributes, String(doc["id"]))).toEqual([]);
     }
@@ -215,13 +244,16 @@ describe("SCIM 2.0 (RFC 7643, RFC 7644)", () => {
 
   it("parses every example filter of RFC 7644 §3.4.2.2", async () => {
     const lines = await rfc(7644);
+
     const start = lines.findIndex((line) =>
       line.includes("The following are examples of valid filters."),
     );
+
     const end = lines.findIndex(
       (line, index) =>
         index > start && line.includes("Figure 2: Example Filters"),
     );
+
     const filters = lines
       .slice(start + 1, end)
       .join("\n")
@@ -229,7 +261,9 @@ describe("SCIM 2.0 (RFC 7643, RFC 7644)", () => {
       .map((block) => block.replaceAll(/\s+/g, " ").trim())
       .filter((block) => block.startsWith("filter="))
       .map((block) => block.slice("filter=".length).trim());
+
     expect(filters).toHaveLength(17);
+
     for (const filter of filters) {
       expect(() => parseScimFilter(filter)).not.toThrow();
     }
@@ -256,10 +290,13 @@ describe("SCIM 2.0 (RFC 7643, RFC 7644)", () => {
           ),
       },
     });
+
     const headers = { authorization: "Bearer t" };
+
     const list = await handler(
       new Request("https://app.test/Users", { headers }),
     );
+
     expect(list.headers.get("content-type")).toBe("application/scim+json");
     expect(await list.json()).toEqual({
       schemas: ["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
@@ -268,12 +305,14 @@ describe("SCIM 2.0 (RFC 7643, RFC 7644)", () => {
       itemsPerPage: 0,
       Resources: [],
     });
+
     const error = await handler(
       new Request(
         `https://app.test/Users?filter=${encodeURIComponent("userName zz 1")}`,
         { headers },
       ),
     );
+
     expect(error.status).toBe(400);
     const body = (await error.json()) as Record<string, unknown>;
     expect(body).toMatchObject({

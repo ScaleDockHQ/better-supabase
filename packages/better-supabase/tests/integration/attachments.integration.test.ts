@@ -16,7 +16,7 @@ const live = await reachable();
 const BUCKET = "bs-it-attachments";
 
 /** Signs nothing: the test stores objects through SQL as the caller. */
-const storage = (files: Map<string, Blob> = new Map()): AttachmentStorage => ({
+const storage = (files = new Map<string, Blob>()): AttachmentStorage => ({
   from: () => ({
     createSignedUploadUrl: (path) =>
       Promise.resolve({
@@ -40,6 +40,7 @@ describe.skipIf(!live)("attachments", () => {
 
   it("accepts only expected uploads, hides unscanned files and records scans", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "outbox", "attachments"], {
         modules: {
@@ -56,11 +57,13 @@ describe.skipIf(!live)("attachments", () => {
       const reader = await s.user("reader");
       const viewer = await s.user("viewer");
       const outsider = await s.user("outsider");
+
       const organization = await s.organization(owner, {
         member,
         member2: reader,
         viewer,
       });
+
       expect(
         await s.value<boolean>(
           "exists (select 1 from storage.buckets where id = $1 and not public)",
@@ -74,15 +77,18 @@ describe.skipIf(!live)("attachments", () => {
       });
 
       await s.asRole(viewer);
+
       const denied = await attachments.upload({
         organizationId: organization,
         name: "plan.pdf",
         mimeType: "application/pdf",
         size: 10,
       });
+
       expect(denied.ok).toBe(false);
 
       await s.asRole(member);
+
       const upload = await attachments
         .upload({
           organizationId: organization,
@@ -93,6 +99,7 @@ describe.skipIf(!live)("attachments", () => {
           subjectId: "p-1",
         })
         .orThrow();
+
       const { attachment } = upload;
       expect(attachment).toMatchObject({
         organizationId: organization,
@@ -121,6 +128,7 @@ describe.skipIf(!live)("attachments", () => {
            values ($1, $2, auth.uid()::text, '{"size": 2048, "mimetype": "application/pdf"}')`,
           [BUCKET, name],
         );
+
       expect(
         await store(`${organization}/attachments/${crypto.randomUUID()}`),
       ).not.toBe("no error");
@@ -136,10 +144,12 @@ describe.skipIf(!live)("attachments", () => {
         (await attachments.confirm(attachment.id).orThrow()).uploadedAt,
       ).toEqual(confirmed.uploadedAt);
       await s.service();
+
       const events = await s.rows<{ type: string }>(
         "select type from better_supabase.outbox_events where organization_id = $1 order by position",
         [organization],
       );
+
       expect(events.map((event) => event.type)).toContain(
         "attachment.uploaded",
       );
@@ -149,6 +159,7 @@ describe.skipIf(!live)("attachments", () => {
           "(select count(*)::int from storage.objects where bucket_id = $1)",
           [BUCKET],
         );
+
       expect(await visible()).toBe(1);
       await s.asRole(owner);
       expect(await visible()).toBe(1);
@@ -158,6 +169,7 @@ describe.skipIf(!live)("attachments", () => {
       expect(notScanned.ok ? undefined : notScanned.error.hint).toBe(
         "ATTACHMENT_NOT_SCANNED",
       );
+
       for (const stranger of [viewer, outsider]) {
         await s.asRole(stranger);
         expect(await visible()).toBe(0);
@@ -173,6 +185,7 @@ describe.skipIf(!live)("attachments", () => {
       ).toMatch(/permission denied/);
 
       await s.service();
+
       const scanner = createAttachmentScanner({
         transport: sqlTransport(s.sql),
         storage: storage(),
@@ -181,6 +194,7 @@ describe.skipIf(!live)("attachments", () => {
           detail: "eicar",
         }),
       });
+
       const scanned = await scanner.scan(attachment.id).orThrow();
       expect(scanned).toMatchObject({ status: "clean", scanDetail: "eicar" });
       expect(scanned.scannedAt).toBeDefined();
@@ -214,6 +228,7 @@ describe.skipIf(!live)("attachments", () => {
 
   it("records failed and infected scans, and serves files at once without requireScan", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "attachments"], {
         modules: {
@@ -223,6 +238,7 @@ describe.skipIf(!live)("attachments", () => {
       const owner = await s.user("owner");
       const member = await s.user("member");
       const organization = await s.organization(owner, { member });
+
       const attachments = createAttachments({
         transport: sqlTransport(s.sql),
         storage: storage(),
@@ -230,6 +246,7 @@ describe.skipIf(!live)("attachments", () => {
       });
 
       await s.asRole(member);
+
       const { attachment } = await attachments
         .upload({
           organizationId: organization,
@@ -239,6 +256,7 @@ describe.skipIf(!live)("attachments", () => {
           metadata: { source: "camera", pages: 2 },
         })
         .orThrow();
+
       expect(attachment.metadata).toEqual({ source: "camera", pages: 2 });
       await s.rows(
         "insert into storage.objects (bucket_id, name, owner_id, metadata) values ($1, $2, auth.uid()::text, '{}')",
@@ -261,17 +279,21 @@ describe.skipIf(!live)("attachments", () => {
           })
           .orThrow()
       ).attachment;
+
       await s.service();
+
       const forced = await s.value<{ status: string }>(
         "better_supabase.set_attachment_status($1, 'infected')",
         [second.id],
       );
+
       expect(forced.status).toBe("pending");
 
       await s.rows(
         "update better_supabase.attachments set uploaded_at = now(), status = 'pending' where id = $1",
         [second.id],
       );
+
       const failing = createAttachmentScanner({
         transport: sqlTransport(s.sql),
         storage: storage(),
@@ -279,6 +301,7 @@ describe.skipIf(!live)("attachments", () => {
           throw new Error("scanner offline");
         },
       });
+
       const failed = await failing.scan(second.id);
       expect(failed.ok ? undefined : failed.error.hint).toBe(
         "ATTACHMENT_SCAN_FAILED",
@@ -302,6 +325,7 @@ describe.skipIf(!live)("attachments", () => {
         storage: storage(),
         scan: () => ({ status: "infected", detail: "Eicar-Signature" }),
       });
+
       await infected.sink().send([
         {
           specversion: "1.0",
@@ -336,6 +360,7 @@ describe.skipIf(!live)("attachments", () => {
 
   it("refuses attachment objects of subjects the caller cannot see", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.rows(
         `create table public.bs_test_cases (
@@ -363,16 +388,20 @@ describe.skipIf(!live)("attachments", () => {
       const member = await s.user("member");
       const stranger = await s.user("stranger");
       const organization = await s.organization(owner, { member });
+
       const [entry] = await s.rows<{ id: string }>(
         "insert into public.bs_test_cases (organization_id) values ($1) returning id",
         [organization],
       );
+
       const attachments = createAttachments({
         transport: sqlTransport(s.sql),
         storage: storage(),
         requireScan: false,
       });
+
       await s.asRole(member);
+
       const { attachment } = await attachments
         .upload({
           organizationId: organization,
@@ -383,16 +412,19 @@ describe.skipIf(!live)("attachments", () => {
           subjectId: entry!.id,
         })
         .orThrow();
+
       await s.rows(
         "insert into storage.objects (bucket_id, name, owner_id, metadata) values ($1, $2, auth.uid()::text, '{}')",
         [BUCKET, attachment.path],
       );
       await attachments.confirm(attachment.id).orThrow();
+
       const objects = async () =>
         s.value<number>(
           "(select count(*)::int from storage.objects where bucket_id = $1 and name = $2)",
           [BUCKET, attachment.path],
         );
+
       await s.asRole(owner);
       expect(await objects()).toBe(1);
       await s.asRole(stranger);
@@ -413,6 +445,7 @@ describe.skipIf(!live)("attachments", () => {
 
   it("keeps files of a subject without a tenant, decided by its own policies", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.rows(
         `create table public.bs_test_notes (
@@ -437,16 +470,20 @@ describe.skipIf(!live)("attachments", () => {
       });
       const ada = await s.user("ada");
       const bob = await s.user("bob");
+
       const [note] = await s.rows<{ id: string }>(
         "insert into public.bs_test_notes (user_id) values ($1) returning id",
         [ada.id],
       );
+
       const attachments = createAttachments({
         transport: sqlTransport(s.sql),
         storage: storage(),
         requireScan: false,
       });
+
       await s.asRole(ada);
+
       const { attachment } = await attachments
         .upload({
           organizationId: null,
@@ -457,6 +494,7 @@ describe.skipIf(!live)("attachments", () => {
           subjectId: note!.id,
         })
         .orThrow();
+
       expect(attachment.organizationId).toBeUndefined();
       expect(attachment.path).toBe(`-/attachments/${attachment.id}`);
       await s.rows(
@@ -504,6 +542,7 @@ describe.skipIf(!live)("attachments", () => {
     const s = await BlockSession.open(pool);
     const DOCS = "bs-it-docs";
     const DRIVE = "bs-it-drive";
+
     try {
       await s.rows(
         `create table public.bs_test_tickets (
@@ -540,15 +579,19 @@ describe.skipIf(!live)("attachments", () => {
       const owner = await s.user("owner");
       const member = await s.user("member");
       const organization = await s.organization(owner, { member });
+
       const [open, hidden] = await s.rows<{ id: string }>(
         "insert into public.bs_test_tickets (organization_id, private) values ($1, false), ($1, true) returning id",
         [organization],
       );
+
       const attachments = createAttachments({
         transport: sqlTransport(s.sql),
         storage: storage(),
       });
+
       await s.asRole(member);
+
       const upload = await attachments
         .upload({
           organizationId: organization,
@@ -559,10 +602,12 @@ describe.skipIf(!live)("attachments", () => {
           subjectId: open!.id,
         })
         .orThrow();
+
       expect(upload.attachment).toMatchObject({
         bucket: DOCS,
         path: `${organization}/ticket/${open!.id}/${upload.attachment.id}`,
       });
+
       const refused = async (input: {
         subjectType: string;
         subjectId: string;
@@ -576,6 +621,7 @@ describe.skipIf(!live)("attachments", () => {
             ...input,
           })
         ).ok;
+
       expect(
         await refused({
           subjectType: "ticket",
@@ -625,9 +671,11 @@ describe.skipIf(!live)("attachments", () => {
           [DRIVE],
         ),
       ).toBe("pending");
+
       const events = await s.rows<{ type: string }>(
         "select type from better_supabase.outbox_events where type like '%object.uploaded' and payload ->> 'path' = 'a/report.pdf'",
       );
+
       expect(events).toHaveLength(1);
       expect(
         await s.value<boolean>(
@@ -636,14 +684,17 @@ describe.skipIf(!live)("attachments", () => {
         ),
       ).toBe(false);
       const scanned: string[] = [];
+
       const scanner = createObjectScanner({
         transport: sqlTransport(s.sql),
         storage: storage(),
         scan: (_file, object) => {
           scanned.push(object.path);
+
           return { status: "clean" };
         },
       });
+
       expect(await scanner.scan(DRIVE, "a/report.pdf").orThrow()).toMatchObject(
         {
           status: "clean",

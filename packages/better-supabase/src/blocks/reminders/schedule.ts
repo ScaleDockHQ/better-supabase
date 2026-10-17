@@ -44,6 +44,7 @@ export function planReminderDeliveries(
 ): readonly PlannedDelivery[] {
   const time = temporal();
   const planned: PlannedDelivery[] = [];
+
   for (const item of items) {
     const occurrences = expandRule({
       dtstart: item.dtstart,
@@ -51,10 +52,18 @@ export function planReminderDeliveries(
       ...(item.columns === undefined ? {} : { columns: item.columns }),
       limit: 366,
     });
+
     for (const occurrence of occurrences) {
       const runAt = occurrence.subtract({ minutes: item.offsetMinutes });
-      if (time.ZonedDateTime.compare(runAt, window.from) < 0) continue;
-      if (time.ZonedDateTime.compare(runAt, window.until) > 0) continue;
+
+      if (time.ZonedDateTime.compare(runAt, window.from) < 0) {
+        continue;
+      }
+
+      if (time.ZonedDateTime.compare(runAt, window.until) > 0) {
+        continue;
+      }
+
       const occurrenceAt = occurrence.toInstant().toString();
       planned.push({
         reminderId: item.id,
@@ -64,6 +73,7 @@ export function planReminderDeliveries(
       });
     }
   }
+
   return planned;
 }
 

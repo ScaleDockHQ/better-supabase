@@ -19,9 +19,12 @@ function isDescriptor(value: unknown): value is FunctionDescriptor {
 }
 
 function descriptorOf(fn: unknown): FunctionDescriptor | undefined {
-  if (typeof fn !== "function" || !(FUNCTION_DESCRIPTOR in fn))
+  if (typeof fn !== "function" || !(FUNCTION_DESCRIPTOR in fn)) {
     return undefined;
+  }
+
   const descriptor: unknown = fn[FUNCTION_DESCRIPTOR];
+
   return isDescriptor(descriptor) ? descriptor : undefined;
 }
 
@@ -40,12 +43,15 @@ export function functionRoute(
   options: FunctionRouteOptions = {},
 ): RouteSpec {
   const descriptor = descriptorOf(fn);
+
   if (!descriptor) {
     throw new TypeError(
       `better-supabase/spec: functionRoute("${name}") needs a handler from defineFunction`,
     );
   }
+
   const summary = options.summary ?? descriptor.summary;
+
   return {
     method: options.method ?? "post",
     path: `/functions/v1/${name}`,

@@ -35,6 +35,7 @@ describe("knowledge module", () => {
         options: { type: "halfvec", dimensions: 3072, textSearch: "english" },
       },
     });
+
     expect(sql).toContain('"embedding" extensions.halfvec(3072)');
     expect(sql).toContain("extensions.halfvec_cosine_ops");
     expect(sql).toContain("to_tsvector('english'::regconfig");
@@ -43,6 +44,7 @@ describe("knowledge module", () => {
   it("rejects a bad type, dimension count, config or queue", () => {
     const options = (value: Record<string, unknown>) => () =>
       moduleBody("knowledge", { modules: { knowledge: { options: value } } });
+
     expect(options({ type: "sparsevec" })).toThrow(/type/);
     expect(options({ dimensions: 3072 })).toThrow(/dimensions/);
     expect(options({ dimensions: 0 })).toThrow(/dimensions/);
@@ -55,9 +57,11 @@ describe("knowledge module", () => {
 
   it("fuses vector and text ranks in an invoker search", () => {
     const sql = body();
+
     const search = sql.slice(
       sql.indexOf('function "better_supabase"."knowledge_search"'),
     );
+
     expect(search).toContain("security invoker");
     expect(search).toContain("1.0 / (60 + ");
     expect(search).toContain("'relaxed_order'");
@@ -75,10 +79,12 @@ describe("knowledge module", () => {
     expect(withJobs).toContain(
       `"better_supabase"."enqueue_job"(queue => 'knowledge_embed'`,
     );
+
     const renamed = rendered(["jobs"], {
       jobs: {},
       knowledge: { options: { embedQueue: "embed" } },
     });
+
     expect(renamed).toContain(
       `"better_supabase"."enqueue_job"(queue => 'embed'`,
     );
@@ -87,16 +93,19 @@ describe("knowledge module", () => {
   it("links documents to files and chats only when those are installed", () => {
     expect(body()).not.toContain('"better_supabase"."ai_files"');
     expect(body()).not.toContain("ai_chat_can_read");
+
     const both = rendered(["ai-chat", "ai-files"], {
       "ai-chat": {},
       "ai-files": {},
     });
+
     expect(both).toContain('references "better_supabase"."ai_files"');
     expect(both).toContain('"better_supabase"."ai_chat_can_read"(');
   });
 
   it("keeps service functions to the service role", () => {
     const sql = body();
+
     for (const name of [
       "pending_knowledge_chunks",
       "set_knowledge_embeddings",

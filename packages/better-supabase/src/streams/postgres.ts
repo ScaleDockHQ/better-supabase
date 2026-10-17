@@ -37,7 +37,10 @@ export interface PostgresStreamStoreOptions {
 }
 
 function statusOf(value: unknown): StreamStatus | undefined {
-  if (!isRecord(value)) return undefined;
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
   return {
     next: Number(value["next"] ?? 0),
     closed: value["closed"] === true,
@@ -54,6 +57,7 @@ export function postgresStreamStore(
     options.schema ?? DEFAULT_BLOCK_SCHEMA,
     options.mappers,
   );
+
   const wake = (options.wake ?? "realtime") === "realtime";
   const topic = options.topic ?? "stream";
   const realtime = wake ? options.realtime : undefined;
@@ -67,6 +71,7 @@ export function postgresStreamStore(
             .channel(`${topic}:${id}`, { config: { private: true } })
             .on("broadcast", { event: "*" }, onWake)
             .subscribe();
+
           return () => {
             void realtime.removeChannel(channel);
           };
@@ -98,6 +103,7 @@ export function postgresStreamStore(
         { stream_id: id, from_idx: fromIdx, chunks: [...chunks] },
         (value) => {
           const row = recordOf(value, "stream_append");
+
           return {
             next: Number(row["next"]),
             cancelled: row["cancelled"] === true,
@@ -116,6 +122,7 @@ export function postgresStreamStore(
             { stream_id: id, from_idx: from, max: batch },
             (value): StreamPage => {
               const row = recordOf(value, "stream_read");
+
               return {
                 chunks: stringsOf(row["chunks"]),
                 next: Number(row["next"]),

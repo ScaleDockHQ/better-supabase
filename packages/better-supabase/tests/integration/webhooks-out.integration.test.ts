@@ -25,8 +25,10 @@ async function reachable(): Promise<boolean> {
     max: 1,
     connectionTimeoutMillis: 1000,
   });
+
   try {
     await pool.query("select 1");
+
     return true;
   } catch {
     return false;
@@ -41,6 +43,7 @@ const USERS = {
   owner: crypto.randomUUID(),
   member: crypto.randomUUID(),
 } as const;
+
 type Who = keyof typeof USERS;
 
 const LAYOUT: ModuleLayout = {
@@ -59,6 +62,7 @@ class Session {
       who === "service"
         ? { role: "service_role" }
         : { sub: USERS[who], role: "authenticated" };
+
     await this.client.query(
       "select set_config('request.jwt.claims', $1, true)",
       [JSON.stringify(claims)],
@@ -70,23 +74,29 @@ class Session {
       `select ${sql} as value`,
       params,
     );
+
     return rows[0]!.value;
   }
 
   async hint(sql: string, params: unknown[] = []): Promise<string> {
     await this.client.query("savepoint attempt");
+
     try {
       await this.client.query(sql, params);
     } catch (error) {
       await this.client.query("rollback to savepoint attempt");
+
       const failure = error as {
         code?: string;
         hint?: string;
         message: string;
       };
+
       return failure.hint ?? failure.code ?? failure.message;
     }
+
     await this.client.query("release savepoint attempt");
+
     return "no error";
   }
 }
@@ -94,15 +104,18 @@ class Session {
 /** Answers each URL with the statuses queued for it, then 200. */
 function fakeHttp(script: Record<string, number[]>) {
   const sent: WebhookRequest[] = [];
+
   const http: WebhookTransport = {
     apiVersion: 1,
     name: "fake",
     async send(request) {
       sent.push(request);
       const status = script[request.url]?.shift() ?? 200;
+
       return { status, body: `status ${String(status)}` };
     },
   };
+
   return { http, sent };
 }
 
@@ -113,15 +126,19 @@ describe.skipIf(!live)("webhooks-out", () => {
   it("fans out, signs, retries, dead-letters, disables and redelivers", async () => {
     const client = await pool.connect();
     const s = new Session(client);
+
     const sql: SqlClient = {
       async queryRaw<T>(text: string, params: unknown[] = []) {
         const { rows } = await client.query(text, params);
+
         // SAFETY: the test reads only the `value` column sqlTransport selects.
         return rows as T[];
       },
     };
+
     try {
       await client.query("begin");
+
       for (const who of Object.keys(USERS) as Who[]) {
         await client.query(
           `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
@@ -129,46 +146,59 @@ describe.skipIf(!live)("webhooks-out", () => {
           [USERS[who], `${who}-${USERS[who]}@example.test`],
         );
       }
+
       for (const file of renderModules(
         ["organizations", "outbox", "webhooks-out"],
         LAYOUT,
-      ))
+      )) {
         await client.query(file.contents);
+      }
 
       await s.as("owner");
+
       const organization = await s.value<string>(
         "better_supabase.create_organization($1)",
         [{ name: "Acme", slug: `acme-wh-${USERS.owner.slice(0, 8)}` }],
       );
+
       await client.query(
         "insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, 'member')",
         [organization, USERS.member],
       );
+
       const endpoint = async (url: string, types: string[]) => {
         const { rows } = await client.query<{ id: string }>(
           `insert into better_supabase.webhook_endpoints (organization_id, name, url, event_types)
            values ($1, 'Hook', $2, $3) returning id`,
           [organization, url, types],
         );
+
         return rows[0]!.id;
       };
+
       const billing = await endpoint("https://billing.example.com/hook", [
         "invoice.*",
       ]);
+
       const all = await endpoint("https://all.example.com/hook", ["*"]);
+
       const organizations = await endpoint(
         "https://organizations.example.com/hook",
         ["organization.created"],
       );
+
       const billingSecret = await s.value<string>(
         "better_supabase.rotate_webhook_secret($1)",
         [billing],
       );
+
       expect(billingSecret).toMatch(/^whsec_/);
-      for (const id of [all, organizations])
+
+      for (const id of [all, organizations]) {
         await client.query("select better_supabase.rotate_webhook_secret($1)", [
           id,
         ]);
+      }
 
       // A member can neither see nor manage endpoints.
       await client.query("set local role authenticated");
@@ -196,10 +226,12 @@ describe.skipIf(!live)("webhooks-out", () => {
 
       // Rotating keeps the old secret signing during the overlap.
       await s.as("service");
+
       const rotated = await s.value<string>(
         "better_supabase.rotate_webhook_secret($1, '1 hour')",
         [billing],
       );
+
       expect(
         await s.value<string[]>("better_supabase.webhook_secrets($1)", [
           billing,
@@ -212,6 +244,7 @@ describe.skipIf(!live)("webhooks-out", () => {
       await client.query("select better_supabase.rotate_webhook_secret($1)", [
         doomed,
       ]);
+
       const vaultIds = async () =>
         (
           await client.query<{ n: number }>(
@@ -220,6 +253,7 @@ describe.skipIf(!live)("webhooks-out", () => {
             [doomed],
           )
         ).rows[0]!.n;
+
       expect(await vaultIds()).toBe(1);
       await client.query(
         "delete from better_supabase.webhook_endpoints where id = $1",
@@ -231,6 +265,7 @@ describe.skipIf(!live)("webhooks-out", () => {
         "https://billing.example.com/hook": [500],
         "https://all.example.com/hook": [400, 400],
       });
+
       const webhooks = createWebhooks({ transport: sqlTransport(sql), http });
 
       expect(
@@ -262,6 +297,7 @@ describe.skipIf(!live)("webhooks-out", () => {
           })
           .orThrow(),
       ).toBe(0);
+
       const direct = await webhooks
         .dispatch({
           endpointId: organizations,
@@ -271,6 +307,7 @@ describe.skipIf(!live)("webhooks-out", () => {
           eventId: "evt-2",
         })
         .orThrow();
+
       expect(
         await webhooks
           .dispatch({
@@ -289,23 +326,28 @@ describe.skipIf(!live)("webhooks-out", () => {
         canceled: 0,
         disabled: 0,
       });
+
       const billingRequest = sent.find((request) =>
         request.url.includes("billing"),
       )!;
+
       const verified = await verifyWebhook(
         { headers: billingRequest.headers, body: billingRequest.body },
         billingSecret,
       );
+
       expect(verified.ok && verified.data.payload).toMatchObject({
         type: "invoice.paid",
         data: { id: 7 },
       });
+
       const log = await s.value<
         { status: string; attempt: number; response_status: number }[]
       >(
         `(select jsonb_agg(jsonb_build_object('status', status, 'attempt', attempt, 'response_status', response_status) order by response_status)
           from better_supabase.webhook_deliveries)`,
       );
+
       expect(log).toEqual([
         { status: "succeeded", attempt: 1, response_status: 200 },
         { status: "dead", attempt: 1, response_status: 400 },
@@ -316,6 +358,7 @@ describe.skipIf(!live)("webhooks-out", () => {
       const done = await s.value<string>(
         "(select id from better_supabase.webhook_deliveries where status = 'succeeded')",
       );
+
       expect(
         await s.value(
           'better_supabase.complete_webhook_delivery($1, \'{"status": "retrying", "attempt": 1}\')',
@@ -385,6 +428,7 @@ describe.skipIf(!live)("webhooks-out", () => {
       const dead = await s.value<string>(
         "(select id from better_supabase.webhook_deliveries where status = 'dead' limit 1)",
       );
+
       await s.as("owner");
       expect(
         await s.value("better_supabase.redeliver_webhook($1)", [dead]),
@@ -423,12 +467,15 @@ describe.skipIf(!live)("webhooks-out", () => {
         s.value<number>(
           `(select count(*)::int from better_supabase.webhook_deliveries where ${where})`,
         );
+
       await client.query(
         "update better_supabase.webhook_deliveries set created_at = now() - interval '40 days'",
       );
+
       const open = await count(
         "status not in ('succeeded', 'canceled', 'dead')",
       );
+
       const deadLetters = await count("status = 'dead'");
       expect(deadLetters).toBeGreaterThan(0);
       expect(
@@ -457,13 +504,16 @@ describe.skipIf(!live)("webhooks-out", () => {
   it("claims an endpoint's format and credential_ref and sends through its encoder", async () => {
     const client = await pool.connect();
     const s = new Session(client);
+
     const sql: SqlClient = {
       async queryRaw<T>(text: string, params: unknown[] = []) {
         const { rows } = await client.query(text, params);
+
         // SAFETY: the test reads only the `value` column sqlTransport selects.
         return rows as T[];
       },
     };
+
     try {
       await client.query("begin");
       await client.query(
@@ -471,16 +521,21 @@ describe.skipIf(!live)("webhooks-out", () => {
          values ($1, $2, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now())`,
         [USERS.owner, `hec-${USERS.owner}@example.test`],
       );
+
       for (const file of renderModules(
         ["organizations", "outbox", "webhooks-out"],
         LAYOUT,
-      ))
+      )) {
         await client.query(file.contents);
+      }
+
       await s.as("owner");
+
       const organization = await s.value<string>(
         "better_supabase.create_organization($1)",
         [{ name: "Acme", slug: `acme-hec-${USERS.owner.slice(0, 8)}` }],
       );
+
       const ref = { provider: "vault", secret: "hec", tenant: organization };
       expect(
         await s.hint(
@@ -489,12 +544,14 @@ describe.skipIf(!live)("webhooks-out", () => {
           [organization],
         ),
       ).toBe("23514");
+
       const { rows } = await client.query<{ id: string }>(
         `insert into better_supabase.webhook_endpoints (organization_id, name, url, event_types, format, credential_ref)
          values ($1, 'Splunk', 'https://splunk.example.com/services/collector/event', '{*}', 'splunk-hec', $2)
          returning id`,
         [organization, ref],
       );
+
       await s.as("service");
       await client.query(
         "select better_supabase.dispatch_webhook($1, 'invoice.paid', '{\"id\":7}')",
@@ -503,6 +560,7 @@ describe.skipIf(!live)("webhooks-out", () => {
 
       const sent: WebhookRequest[] = [];
       const seen: unknown[] = [];
+
       const webhooks = createWebhooks({
         transport: sqlTransport(sql),
         http: {
@@ -510,6 +568,7 @@ describe.skipIf(!live)("webhooks-out", () => {
           name: "fake",
           async send(request) {
             sent.push(request);
+
             return { status: 200, body: '{"text":"Success","code":0}' };
           },
         },
@@ -518,6 +577,7 @@ describe.skipIf(!live)("webhooks-out", () => {
           name: "vault",
           getToken(got) {
             seen.push(got);
+
             return AsyncResult.ok({ token: "hec-token", headers: {} });
           },
           capabilities: () => ({
@@ -529,6 +589,7 @@ describe.skipIf(!live)("webhooks-out", () => {
           revoke: () => AsyncResult.ok(false),
         },
       });
+
       expect(await webhooks.deliver()).toMatchObject({ succeeded: 1 });
       expect(seen).toEqual([ref]);
       expect(sent[0]!.headers["authorization"]).toBe("Splunk hec-token");

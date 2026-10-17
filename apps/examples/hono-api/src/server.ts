@@ -39,6 +39,7 @@ const app = bs
         orderBy: { createdAt: "desc" },
       })
       .orThrow();
+
     return c.json({ items: notes });
   })
   .post("/api/customers/:id/archive", admins, async (c) => {
@@ -49,6 +50,7 @@ const app = bs
         { select: ["id", "status"] },
       )
       .orThrow();
+
     return c.json(customer);
   });
 

@@ -33,7 +33,7 @@ export function BlocksBrowser({ blocks, categories }: BlocksBrowserProps) {
           </label>
           <SearchIcon
             aria-hidden="true"
-            className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2"
+            className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
           />
           <Input
             id={searchId}
@@ -59,7 +59,7 @@ export function BlocksBrowser({ blocks, categories }: BlocksBrowserProps) {
           </TabsList>
         </Tabs>
       </div>
-      <p className="text-muted-foreground text-sm" aria-live="polite">
+      <p className="text-sm text-muted-foreground" aria-live="polite">
         {visible.length === 1 ? "1 block" : `${String(visible.length)} blocks`}
       </p>
       <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -67,15 +67,15 @@ export function BlocksBrowser({ blocks, categories }: BlocksBrowserProps) {
           <li key={block.name}>
             <SiteLink
               href={`/blocks/${block.name}`}
-              className="border-border bg-card hover:bg-muted/50 focus-visible:ring-ring/50 flex h-full flex-col gap-3 rounded-xl border p-5 transition-colors outline-none focus-visible:ring-3"
+              className="flex h-full flex-col gap-3 rounded-xl border border-border bg-card p-5 transition-colors outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               <span className="flex flex-col gap-1">
                 <span className="text-sm font-semibold">{block.title}</span>
-                <span className="text-muted-foreground font-mono text-xs">
+                <span className="font-mono text-xs text-muted-foreground">
                   {block.name}
                 </span>
               </span>
-              <span className="text-muted-foreground line-clamp-3 text-sm leading-6">
+              <span className="line-clamp-3 text-sm leading-6 text-muted-foreground">
                 {block.description}
               </span>
               <span className="mt-auto flex flex-wrap gap-1.5">
@@ -94,7 +94,7 @@ export function BlocksBrowser({ blocks, categories }: BlocksBrowserProps) {
         ))}
       </ul>
       {visible.length === 0 ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-muted-foreground">
           No block matches. Clear the search or pick another category.
         </p>
       ) : null}

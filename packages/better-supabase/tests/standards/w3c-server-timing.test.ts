@@ -12,6 +12,7 @@ vi.mock("next/headers.js", () => ({
   headers: () => Promise.resolve(new Headers()),
   cookies: () => Promise.resolve({ set: () => undefined }),
 }));
+
 vi.mock("next/cache.js", () => ({
   updateTag: () => undefined,
   revalidateTag: () => undefined,
@@ -30,6 +31,7 @@ function metrics(header: string): Map<string, number> {
     header.split(", ").map((entry) => {
       const [name, ...params] = entry.split(";");
       const dur = params.find((param) => param.startsWith("dur="));
+
       return [name!, Number(dur?.slice(4))];
     }),
   );
@@ -37,6 +39,7 @@ function metrics(header: string): Map<string, number> {
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 const signer = await createTestSigner();
+
 const bs = createNext(defineSupabase(schema), {
   env: {
     url: PROJECT_URL,
@@ -45,6 +48,7 @@ const bs = createNext(defineSupabase(schema), {
   },
   auth: { jwks: signer.jwks as never },
 });
+
 const page = () =>
   new NextRequest("https://app.test/dashboard", {
     headers: { "sec-fetch-dest": "document" },
@@ -63,7 +67,11 @@ describe(`W3C Server Timing (${SPEC_PINS.serverTiming})`, () => {
     expect(header).toMatch(HEADER);
     const values = metrics(header);
     expect([...values.keys()]).toEqual(["bs-proxy", "bs-verify"]);
-    for (const dur of values.values()) expect(dur).toBeGreaterThanOrEqual(0);
+
+    for (const dur of values.values()) {
+      expect(dur).toBeGreaterThanOrEqual(0);
+    }
+
     expect(values.get("bs-proxy")!).toBeGreaterThanOrEqual(
       values.get("bs-verify")!,
     );
@@ -76,6 +84,7 @@ describe(`W3C Server Timing (${SPEC_PINS.serverTiming})`, () => {
         res.headers.set("server-timing", 'app;dur=3;desc="render"');
       },
     });
+
     const header = response.headers.get("server-timing")!;
     expect(header).toMatch(HEADER);
     expect([...metrics(header).keys()]).toEqual([

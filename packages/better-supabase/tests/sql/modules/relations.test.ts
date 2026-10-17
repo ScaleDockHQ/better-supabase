@@ -49,6 +49,7 @@ describe("relations module", () => {
         kinds: { reports_to: { cardinality: "one", acyclic: true } },
       }),
     );
+
     expect(sql).toContain(
       `('reports_to', 'reports_to', false, true, true, false, 'reports_to')`,
     );
@@ -90,6 +91,7 @@ describe("relations module", () => {
         },
       }),
     );
+
     expect(sql).toContain(
       `when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (link.target_id)::uuid`,
     );

@@ -55,19 +55,26 @@ function idOf(value: unknown, path: string): string {
       `${path}: use lowercase letters, digits, "_", "." or "-", starting with a letter`,
     );
   }
+
   return value;
 }
 
 function eventsOf(value: unknown, path: string): readonly string[] {
-  if (value === undefined) return [];
+  if (value === undefined) {
+    return [];
+  }
+
   if (!Array.isArray(value)) {
     throw new TypeError(`${path}: pass an array of outbox event types`);
   }
+
   const list: readonly unknown[] = value;
+
   return list.map((event, index) => {
     if (typeof event !== "string" || !EVENT.test(event)) {
       throw new TypeError(`${path}[${index}]: not an event type`);
     }
+
     return event;
   });
 }
@@ -75,41 +82,64 @@ function eventsOf(value: unknown, path: string): readonly string[] {
 /** The steps of every `defineChecklist()` result in `options.checklists`. */
 function checklistSteps(ctx: ModuleContext): readonly StepOption[] {
   const option = ctx.option("checklists");
-  if (option === undefined) return [];
+
+  if (option === undefined) {
+    return [];
+  }
+
   if (!Array.isArray(option) && !isObject(option)) {
     throw new TypeError(`${where}: pass an array of defineChecklist() results`);
   }
+
   const list: readonly unknown[] = Array.isArray(option)
     ? option
     : Object.values(option);
+
   const steps: StepOption[] = [];
   const seen = new Set<string>();
+
   for (const [index, entry] of list.entries()) {
     const path = `${where}[${index}]`;
-    if (!isObject(entry)) throw new TypeError(`${path}: not a checklist`);
+
+    if (!isObject(entry)) {
+      throw new TypeError(`${path}: not a checklist`);
+    }
+
     const checklist = idOf(entry["id"], `${path}.id`);
+
     if (seen.has(checklist)) {
       throw new TypeError(`${path}.id: "${checklist}" is listed twice`);
     }
+
     seen.add(checklist);
     const scope = entry["scope"];
+
     if (scope !== "user" && scope !== "organization") {
       throw new TypeError(`${path}.scope: use "user" or "organization"`);
     }
+
     const raw = entry["steps"];
-    if (!Array.isArray(raw))
+
+    if (!Array.isArray(raw)) {
       throw new TypeError(`${path}.steps: pass an array`);
+    }
+
     const entries: readonly unknown[] = raw;
     const ids = new Set<string>();
+
     for (const [n, item] of entries.entries()) {
-      if (!isObject(item))
+      if (!isObject(item)) {
         throw new TypeError(`${path}.steps[${n}]: not a step`);
+      }
+
       const step = idOf(item["id"], `${path}.steps[${n}].id`);
+
       if (ids.has(step)) {
         throw new TypeError(
           `${path}.steps[${n}].id: "${step}" is listed twice`,
         );
       }
+
       ids.add(step);
       steps.push({
         checklist,
@@ -119,25 +149,34 @@ function checklistSteps(ctx: ModuleContext): readonly StepOption[] {
       });
     }
   }
+
   return steps;
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
   const id = ctx.idType;
   const p = ctx.table("progress");
   const c = (logical: string): string => ctx.col("progress", logical);
   const fn = (name: string): string => ctx.fn(name);
   const permissions = moduleOperations("onboarding");
+
   const can = (tenant: string, action: "read" | "complete"): string =>
     `(${SERVICE_CALLER} or ${ctx.can("tenant", tenant, ctx.permission(action, permissions[action]))})`;
+
   const steps = checklistSteps(ctx);
+
   const stepRows =
     steps.length === 0
       ? "select null::text as checklist, null::text as step, null::text as scope where false"
       : `values ${steps.map((s) => `(${sqlString(s.checklist)}, ${sqlString(s.step)}, ${sqlString(s.scope)})`).join(", ")}`;
+
   const lookup = (checklist: string, step: string): string =>
     `(select s.scope from (${stepRows}) as s(checklist, step, scope) where s.checklist = ${checklist} and (${step} is null or s.step = ${step}) limit 1)`;
+
   const scopeCheck = (fnName: string): string => `
   v_scope := ${lookup(`${fnName}.checklist`, `${fnName}.step`)};
   if v_scope is null then
@@ -152,6 +191,7 @@ function build(ctx: ModuleContext): string {
   elsif auth.uid() is null then
     ${fail("ONBOARDING_FORBIDDEN", "Sign in first")}
   end if;`;
+
   const subject = (fnName: string): string =>
     `x.${c("checklist")} = ${fnName}.checklist
       and (case when v_scope = 'organization' then x.${c("tenant")} = ${fnName}.tenant else x.${c("user")} = auth.uid() end)`;
@@ -291,28 +331,38 @@ ${eventSteps(ctx, steps)}`;
  */
 function eventSteps(ctx: ModuleContext, steps: readonly StepOption[]): string {
   const rows = steps.flatMap((s) => s.events.map((event) => ({ ...s, event })));
-  if (rows.length === 0) return "";
+
+  if (rows.length === 0) {
+    return "";
+  }
+
   if (!ctx.installed("outbox")) {
     throw new TypeError(`${where}: steps with events need the outbox module`);
   }
+
   const outbox = ctx.of("outbox");
   const events = outbox.table("events");
+
   const actor = outbox.has("events", "actor")
     ? `new.${outbox.col("events", "actor")}`
     : "null::uuid";
+
   const tenant = outbox.has("events", "tenant")
     ? `new.${outbox.col("events", "tenant")}`
     : `null::${ctx.idType}`;
+
   const p = ctx.table("progress");
   const c = (logical: string): string => ctx.col("progress", logical);
   const trigger = ctx.trigger("onboarding_events");
   const types = [...new Set(rows.map((r) => r.event))];
+
   const values = rows
     .map(
       (r) =>
         `(${sqlString(r.checklist)}, ${sqlString(r.step)}, ${sqlString(r.scope)}, ${sqlString(r.event)})`,
     )
     .join(", ");
+
   return `
 create or replace function ${ctx.fn("onboarding_from_event")}()
 returns trigger

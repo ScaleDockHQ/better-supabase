@@ -82,6 +82,7 @@ describe("notifications module", () => {
         options: { realtime: "none" },
       },
     });
+
     expect(sql).not.toContain("notification_deliveries");
     expect(sql).not.toContain("notification_subscriptions");
     expect(sql).not.toContain('"idempotency_key"');
@@ -105,9 +106,11 @@ describe("notifications module", () => {
     expect(plain).not.toContain("member_can");
     expect(plain).not.toContain("emit_event");
     const files = renderModules(["access", "outbox", "notifications"]);
+
     const sql = files.find((file) =>
       file.path.includes("notifications"),
     )!.contents;
+
     expect(sql).toContain("member_can");
     expect(sql).toMatch(
       /create policy [\s\S]*better_supabase\.tenant_ids_with\('notifications\.read'\)/,
@@ -128,11 +131,13 @@ describe("notifications module", () => {
     expect(sql).toContain(
       'drop function if exists "better_supabase"."complete_notification_delivery"(uuid, text, text, text, text);',
     );
+
     const plain = body({
       notifications: {
         columns: { deliveries: { nextAttemptAt: null, attempts: null } },
       },
     });
+
     expect(plain).not.toContain("next_attempt_at");
     expect(plain).not.toContain("v_status := 'failed'");
   });
@@ -203,6 +208,7 @@ describe("notifications module", () => {
       "claim_notification_deliveries",
       "complete_notification_delivery",
     ]);
+
     const [minimal] = customContracts(["notifications"], {
       modules: {
         notifications: {
@@ -212,6 +218,7 @@ describe("notifications module", () => {
         },
       },
     });
+
     expect(minimal!.functions).toHaveLength(11);
   });
 
@@ -232,6 +239,7 @@ describe("notifications module", () => {
     expect(sql).toContain(
       `select ("better_supabase"."send_notification"(notification) ->> 'id')::uuid`,
     );
+
     for (const fn of [
       "mark_notifications_read",
       "mark_notifications_unread",
@@ -247,6 +255,7 @@ describe("notifications module", () => {
         `drop function if exists "better_supabase"."${fn}"(`,
       );
     }
+
     expect(sql).toContain(`filter (where rc."user_id" = auth.uid()), '[]')`);
     expect(sql).toContain(`rc."event_id" into v_changed;`);
   });
@@ -285,6 +294,7 @@ describe("notifications module", () => {
       `'actionable_subjects', count(distinct case when ev."subject_type" is not null and ev."subject_id" is not null then jsonb_build_array(ev."organization_id", ev."subject_type", ev."subject_id")::text else rc."id"::text end)`,
     );
     expect(sql).toContain(`set "read_at" = null`);
+
     for (const fn of [
       /mark_notifications_unread"?\(uuid\[\], uuid\) from public, anon;/,
       /list_notification_subscriptions"?\(uuid, text, text\) from public, anon;/,
@@ -292,6 +302,7 @@ describe("notifications module", () => {
     ]) {
       expect(sql).toMatch(fn);
     }
+
     const bare = body({
       notifications: {
         tables: { subscriptions: null, preferences: null },
@@ -301,6 +312,7 @@ describe("notifications module", () => {
         },
       },
     });
+
     expect(bare).not.toContain("list_notification_subscriptions");
     expect(bare).not.toContain("list_notification_preferences");
     expect(bare).toContain("(list_notifications.subject_types is null)");
@@ -319,12 +331,15 @@ describe("notifications module", () => {
         modules,
         accessProvider: callerOnlyProvider,
       }).find((file) => file.path.includes("notifications"))!.contents;
+
     expect(notify({})).toContain("better_supabase.member_can(x, v_tenant,");
+
     const callerOnly = notify({
       access: {
         model: "provider",
       },
     });
+
     expect(callerOnly).not.toContain("better_supabase.member_can(x,");
     expect(callerOnly).toContain(
       "better_supabase.member_can(auth.uid(), v_tenant,",
@@ -341,6 +356,7 @@ describe("notification actors", () => {
       renderModules(names).find(
         (entry) => entry.module === "notifications" && entry.kind === "schema",
       )!.contents;
+
     const sql = file(["notifications", "profiles"]);
     expect(sql).toContain(
       'create or replace function "better_supabase"."notification_actors"(ids uuid[])',
@@ -377,6 +393,7 @@ describe("notification actors", () => {
       .filter((file) => file.module === "notifications")
       .map((file) => file.contents)
       .join("\n");
+
     expect(body({})).not.toContain("member_can(v_user");
     expect(sql).toContain(
       'set_notification_subscription"(subject_type text, subject_id text, level text, tenant uuid default null, member uuid default null, if_absent boolean default false)',

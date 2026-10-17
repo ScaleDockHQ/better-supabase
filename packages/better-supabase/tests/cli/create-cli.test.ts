@@ -31,6 +31,7 @@ describe("createCli", () => {
     const commands = new Map<string, CliEntry>([
       ["ping", { load: () => Promise.resolve(ping), command: ping }],
     ]);
+
     const cli = createCli({ commands });
     expect(cli.commandNames()).toEqual(["ping"]);
     expect((await cli.run(["ping", "--cwd", dir])).stdout).toBe(

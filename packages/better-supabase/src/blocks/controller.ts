@@ -48,44 +48,67 @@ export function defineController<S extends object, A>(
   let stop: (() => void) | undefined;
   let disposed = false;
   const listeners = new Set<() => void>();
+
   const state: ControllerState<S> = {
     get: () => snapshot,
     set: (patch) => {
       const changes = typeof patch === "function" ? patch(snapshot) : patch;
       const current = new Map<string, unknown>(Object.entries(snapshot));
+
       const changed = Object.entries(changes).some(
         ([key, value]) => !Object.is(current.get(key), value),
       );
-      if (!changed) return;
+
+      if (!changed) {
+        return;
+      }
+
       snapshot = { ...snapshot, ...changes };
-      for (const listener of [...listeners]) listener();
+
+      for (const listener of [...listeners]) {
+        listener();
+      }
     },
     run: () => run,
   };
+
   const parts = build(state);
+
   const halt = (): void => {
     run += 1;
     const cleanup = stop;
     stop = undefined;
     cleanup?.();
   };
+
   return {
     subscribe: (listener) => {
-      if (disposed) return () => undefined;
+      if (disposed) {
+        return () => undefined;
+      }
+
       listeners.add(listener);
+
       if (listeners.size === 1) {
         run += 1;
         stop = parts.start?.();
       }
+
       return () => {
-        if (!listeners.delete(listener) || listeners.size > 0) return;
+        if (!listeners.delete(listener) || listeners.size > 0) {
+          return;
+        }
+
         halt();
       };
     },
     getSnapshot: () => snapshot,
     actions: parts.actions,
     dispose: () => {
-      if (disposed) return;
+      if (disposed) {
+        return;
+      }
+
       disposed = true;
       listeners.clear();
       halt();
@@ -104,17 +127,27 @@ export function whileSignedIn(
 ): () => void {
   let user: string | null = null;
   let cleanup: (() => void) | undefined;
+
   const sync = (): void => {
     const snapshot = auth.current();
     const next = snapshot.status === "signed-in" ? snapshot.user.id : null;
-    if (next === user) return;
+
+    if (next === user) {
+      return;
+    }
+
     cleanup?.();
     cleanup = undefined;
     user = next;
-    if (next !== null) cleanup = effect(next);
+
+    if (next !== null) {
+      cleanup = effect(next);
+    }
   };
+
   const unsubscribe = auth.subscribe(sync);
   sync();
+
   return () => {
     unsubscribe();
     cleanup?.();

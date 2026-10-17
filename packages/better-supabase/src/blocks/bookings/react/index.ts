@@ -49,6 +49,7 @@ export function useAvailableSlots(
 ): AvailableSlotsState {
   const { supabase } = useBlockEnv();
   const { schema, serviceId, tz, resourceId, token, range } = options;
+
   const client = useMemo(
     () =>
       createBookings({
@@ -57,6 +58,7 @@ export function useAvailableSlots(
       }),
     [supabase, schema],
   );
+
   const { controller, view } = useController(
     () =>
       createAvailableSlotsController({
@@ -69,6 +71,7 @@ export function useAvailableSlots(
       }),
     [client, serviceId, tz, resourceId, token],
   );
+
   const from = range.start.getTime();
   const until = range.end.getTime();
   useEffect(() => {
@@ -77,5 +80,6 @@ export function useAvailableSlots(
       end: new Date(until),
     });
   }, [controller, from, until]);
+
   return useMemo(() => ({ ...view, client }), [view, client]);
 }

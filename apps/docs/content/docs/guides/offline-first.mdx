@@ -24,7 +24,7 @@ table's repository and authenticates sync with the Supabase session:
 
 ```ts title="src/lib/powersync/connector.ts"
 import { createUploadConnector } from "better-supabase/powersync";
-import { bs, supabase } from "../supabase/native";
+import { bs, supabase } from "../supabase/client.native";
 
 export const connector = createUploadConnector({
   endpoint: process.env.EXPO_PUBLIC_POWERSYNC_URL,

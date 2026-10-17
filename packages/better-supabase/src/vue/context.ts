@@ -22,11 +22,13 @@ export const CLIENT: InjectionKey<Context> = Symbol("better-supabase");
 /** What `app.use(betterSupabase(bs))` provides. */
 export function useContext(): Context {
   const context = inject(CLIENT, null);
+
   if (!context) {
     throw new Error(
       "better-supabase: install the plugin with app.use(betterSupabase(bs))",
     );
   }
+
   return context;
 }
 
@@ -35,6 +37,9 @@ export function useContext(): Context {
  * scope), and never during server rendering.
  */
 export function onClient(start: () => void): void {
-  if (getCurrentInstance()) onMounted(start);
-  else start();
+  if (getCurrentInstance()) {
+    onMounted(start);
+  } else {
+    start();
+  }
 }

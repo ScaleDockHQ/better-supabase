@@ -28,7 +28,9 @@ export function appRequestHeaders(
     "x-app-channel": channel,
     "x-request-id": request.headers.get("x-request-id") ?? crypto.randomUUID(),
   };
+
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+
   return ip ? { ...headers, "x-client-ip": ip } : headers;
 }
 
@@ -41,7 +43,9 @@ export function createAppServer(env: BetterSupabaseEnv, channel: Channel) {
 }
 
 export type AppServer = ReturnType<typeof createAppServer>;
+
 export type AppContext = ServerContext<Models, Functions, unknown>;
+
 type AppHandler = Parameters<AppServer["handler"]>[0];
 
 /** Signed-in users only; refreshes an expiring cookie session and sends the new cookies. */

@@ -58,31 +58,37 @@ function tenantScope(
   const entry = provider.scopes.find((candidate) => candidate.name === scope);
   const label = providerLabel(provider);
   const problems = scopeProblems(provider);
+
   if (problems.length > 0) {
     return {
       kind: "invalid",
       problem: `The scopes of ${label} are inconsistent: ${problems.join("; ")}.`,
     };
   }
+
   if (!entry) {
     return {
       kind: "invalid",
       problem: `authorization.tenantScope is "${scope}", but ${label} has the scopes ${provider.scopes.map((candidate) => candidate.name).join(", ") || "none"}.`,
     };
   }
+
   if (entry.idType === undefined) {
     return {
       kind: "invalid",
       problem: `${label} gives scope "${scope}" no idType, so ${subject} can't tell its id type.`,
     };
   }
+
   const idType = moduleIdType(entry.idType);
+
   if (idType === undefined) {
     return {
       kind: "invalid",
       problem: `${label} gives scope "${scope}" the type ${entry.idType}, but ${subject} renders only ${MODULE_ID_TYPES.join(", ").replace(/, (?=[^,]*$)/, " or ")} ids.`,
     };
   }
+
   return { kind: "ok", scope, idType };
 }
 
@@ -103,8 +109,12 @@ const scopeMemberships = (
 export function entitlementsMode(
   config: Pick<ResolvedConfig, "entitlements" | "authorization">,
 ): EntitlementsMode {
-  if (config.entitlements.memberships === "tenant") return { kind: "tenant" };
+  if (config.entitlements.memberships === "tenant") {
+    return { kind: "tenant" };
+  }
+
   const provider = config.authorization;
+
   if (!provider) {
     return {
       kind: "invalid",
@@ -112,15 +122,22 @@ export function entitlementsMode(
         'entitlements.memberships is "provider", but the config has no authorization. Set authorization, or set entitlements.memberships to "tenant".',
     };
   }
+
   const chosen = tenantScope(provider, "the entitlements module");
-  if (chosen.kind === "invalid") return chosen;
+
+  if (chosen.kind === "invalid") {
+    return chosen;
+  }
+
   const { memberIds, memberIdsFor } = provider.functions;
+
   if (memberIds === undefined || memberIdsFor === undefined) {
     return {
       kind: "invalid",
       problem: `${providerLabel(provider)} has no authorization.functions.${memberIds === undefined ? "memberIds" : "memberIdsFor"}, which the entitlements module calls. Use a provider that sets both, or set entitlements.memberships to "tenant" to keep the tenant module's memberships.`,
     };
   }
+
   return {
     kind: "provider",
     provider: {
@@ -143,8 +160,13 @@ export function accessProviderMode(
   config: Pick<ResolvedConfig, "authorization" | "blocks">,
 ): AccessProviderMode {
   const access = config.blocks.access;
-  if (access?.model !== "provider") return { kind: "off" };
+
+  if (access?.model !== "provider") {
+    return { kind: "off" };
+  }
+
   const provider = config.authorization;
+
   if (!provider) {
     return {
       kind: "invalid",
@@ -152,17 +174,25 @@ export function accessProviderMode(
         'blocks.access.model is "provider", but the config has no authorization. Set authorization, or choose another blocks.access.model.',
     };
   }
+
   const chosen = tenantScope(provider, "the provider access model");
-  if (chosen.kind === "invalid") return chosen;
+
+  if (chosen.kind === "invalid") {
+    return chosen;
+  }
+
   const idType =
     access.idType === undefined ? undefined : moduleIdType(access.idType);
+
   if (idType !== undefined && idType !== chosen.idType) {
     return {
       kind: "invalid",
       problem: `blocks.access.idType is "${access.idType}", but ${providerLabel(provider)} gives scope "${chosen.scope}" the type ${chosen.idType}. Set blocks.access.idType to "${chosen.idType}", or remove it.`,
     };
   }
+
   const { user, tenant } = provider.suspension ?? {};
+
   return {
     kind: "provider",
     access: {
@@ -204,17 +234,28 @@ export function keyStatus(
   provider: AuthorizationProvider,
   key: string,
 ): KeyStatus {
-  if (!provider.permissions) return "unknown";
+  if (!provider.permissions) {
+    return "unknown";
+  }
+
   const entry = provider.permissions.find(
     (permission) => permission.key === key,
   );
-  if (!entry) return "missing";
-  if (entry.sqlComplete === undefined) return "unknown";
+
+  if (!entry) {
+    return "missing";
+  }
+
+  if (entry.sqlComplete === undefined) {
+    return "unknown";
+  }
+
   return entry.sqlComplete ? "complete" : "incomplete";
 }
 
 const INCOMPLETE_FIX =
   "Use the provider's own policies for it, or a permission its SQL functions answer for completely.";
+
 const UNKNOWN_FIX =
   "Have the provider set sqlComplete on every entry of authorization.permissions.";
 
@@ -234,16 +275,21 @@ export function unsafeKey(
     }
   | undefined {
   const status = keyStatus(provider, key);
+
   switch (status) {
-    case "complete":
+    case "complete": {
       return undefined;
-    case "incomplete":
+    }
+
+    case "incomplete": {
       return {
         status,
         reason: `has conditions ${providerLabel(provider)}'s SQL functions don't check (sqlComplete: false)`,
         fix: INCOMPLETE_FIX,
       };
-    case "unknown":
+    }
+
+    case "unknown": {
       return {
         status,
         reason: provider.permissions
@@ -251,14 +297,19 @@ export function unsafeKey(
           : "can't be checked: authorization.permissions is not set, so whether the SQL functions answer for it completely is unknown",
         fix: UNKNOWN_FIX,
       };
-    case "missing":
+    }
+
+    case "missing": {
       return {
         status,
         reason: "is not in authorization.permissions",
         fix: UNKNOWN_FIX,
       };
+    }
+
     default: {
       const unreachable: never = status;
+
       return unreachable;
     }
   }
@@ -280,7 +331,10 @@ export function moduleKeyProblems(
   provider: AuthorizationProvider,
   keys: readonly ModulePermissionKey[],
 ): ModuleKeyProblem[] {
-  if (keys.length === 0) return [];
+  if (keys.length === 0) {
+    return [];
+  }
+
   if (!provider.permissions) {
     return [
       {
@@ -289,18 +343,26 @@ export function moduleKeyProblems(
       },
     ];
   }
+
   return keys.flatMap((entry): ModuleKeyProblem[] => {
     const problem = unsafeKey(provider, entry.key);
-    if (!problem) return [];
+
+    if (!problem) {
+      return [];
+    }
+
     const fn =
       entry.scope === "platform"
         ? "authorization.functions.isPlatform"
         : "authorization.functions.idsWith";
+
     const setting = `blocks.${entry.module}.permissions.${entry.action}`;
+
     const fix =
       problem.status === "incomplete"
         ? `The provider's SQL functions check role and scope, not the key's other conditions, so the module would grant it everywhere in the scope. Set ${setting} to a permission marked sqlComplete: true.`
         : `${problem.fix} If the provider doesn't define it, set ${setting} to a key it lists.`;
+
     return [
       {
         target: setting,
@@ -327,6 +389,7 @@ const requirementsOf = (
 ): ProviderRequirement[] =>
   templates.flatMap(([template, role]) => {
     const sql = functions[template];
+
     return sql === undefined
       ? []
       : templateFunctions(sql, scope).map((fn) => ({

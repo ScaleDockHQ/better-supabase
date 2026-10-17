@@ -7,6 +7,7 @@ import { vercelConnectCredentials } from "../../src/vercel-connect/index.ts";
 function named(name: string): Error {
   const error = new Error(name);
   error.name = name;
+
   return error;
 }
 
@@ -15,12 +16,17 @@ function fakeConnect(fail?: Error): {
   calls: unknown[][];
 } {
   const calls: unknown[][] = [];
+
   return {
     calls,
     module: {
       async getTokenResponse(...args) {
         calls.push(["get", ...args]);
-        if (fail) throw fail;
+
+        if (fail) {
+          throw fail;
+        }
+
         return { token: "gho_1", expiresAt: 1_700_000_000_000 };
       },
       async revokeToken(...args) {
@@ -28,6 +34,7 @@ function fakeConnect(fail?: Error): {
       },
       async startAuthorization(...args) {
         calls.push(["start", ...args]);
+
         return { url: "https://vercel.com/connect/authorize?x" };
       },
     },
@@ -40,15 +47,18 @@ const ref = {
   installationId: "inst_1",
   scopes: ["repo"],
 };
+
 const user = { type: "user", id: "u1" } as const;
 
 describe("vercelConnectCredentials", () => {
   it("gets, authorizes and revokes through @vercel/connect", async () => {
     const { module, calls } = fakeConnect();
+
     const provider = vercelConnectCredentials({
       vercelToken: "vt",
       load: async () => module,
     });
+
     expect(provider.apiVersion).toBe(1);
     const token = await provider.getToken(ref, { subject: user }).orThrow();
     expect(token.token).toBe("gho_1");
@@ -65,6 +75,7 @@ describe("vercelConnectCredentials", () => {
       subject: user,
       redirectUri: "https://app.test/callback",
     }).orThrow();
+
     expect(started.url).toContain("vercel.com");
     expect(calls[1]?.[3]).toEqual({
       vercelToken: "vt",
@@ -101,10 +112,12 @@ describe("vercelConnectCredentials", () => {
 
   it("refuses other refs and explains a missing install", async () => {
     const provider = vercelConnectCredentials({ load: async () => undefined });
+
     const other = await provider.getToken(
       { provider: "vault", secret: "x" },
       { subject: user },
     );
+
     expect(other.ok ? undefined : other.error.hint).toBe(
       "CREDENTIAL_REF_INVALID",
     );
@@ -118,13 +131,16 @@ describe("vercelConnectCredentials", () => {
     const load = vi.fn(async () => undefined);
     const provider = vercelConnectCredentials({ load });
     const tenantRef = { ...ref, tenant: "acme" };
+
     for (const result of [
       await provider.getToken(tenantRef, { subject: { type: "app" } }),
       await provider.revoke(tenantRef, { subject: { type: "app" } }),
-    ])
+    ]) {
       expect(result.ok ? undefined : result.error.hint).toBe(
         "CREDENTIAL_REF_FOREIGN",
       );
+    }
+
     expect(load).not.toHaveBeenCalled();
     const forUser = await provider.getToken(tenantRef, { subject: user });
     expect(forUser.ok ? undefined : forUser.error.message).toMatch(

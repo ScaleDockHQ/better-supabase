@@ -47,7 +47,7 @@ async function recordApprovals(
   chats: AiChat,
   input: DurableApprovalsInput,
 ): Promise<void> {
-  for (const request of input.requests)
+  for (const request of input.requests) {
     await chats.approvals
       .request(input.chatId, {
         approvalId: request.approvalId,
@@ -61,6 +61,7 @@ async function recordApprovals(
           : { signature: request.signature }),
       })
       .orThrow();
+  }
 }
 
 async function decisionsOf(
@@ -70,6 +71,7 @@ async function decisionsOf(
   const rows = await chats.approvals
     .list(input.chatId, input.approvalIds)
     .orThrow();
+
   return rows.flatMap((row) =>
     row.decision === "pending"
       ? []
@@ -96,15 +98,17 @@ async function release(
     )
     .orThrow();
   const { usage } = input;
+
   if (
     usage?.costMicroUsd === undefined &&
     usage?.generationId !== undefined &&
     options.enqueueCostBackfill
-  )
+  ) {
     await options.enqueueCostBackfill({
       generationId: usage.generationId,
       organizationId: input.organizationId,
     });
+  }
 }
 
 /** A durable turn's database steps on a chat block's service transport. */
@@ -132,5 +136,6 @@ export function runDurableStep<K extends DurableStepName>(
   options: DurableStepOptions = {},
 ): Promise<DurableStepOutput<K>> {
   const calls: DurableStepCalls = durableSteps(chats, options);
+
   return calls[name](input);
 }

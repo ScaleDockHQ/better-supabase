@@ -16,14 +16,19 @@ export function isFinished(status: WorkflowRunStatus): boolean {
   switch (status) {
     case "completed":
     case "failed":
-    case "cancelled":
+    case "cancelled": {
       return true;
+    }
+
     case "queued":
     case "running":
-    case "waiting":
+    case "waiting": {
       return false;
+    }
+
     default: {
       const unknown: never = status;
+
       return unknown;
     }
   }
@@ -33,18 +38,27 @@ export function statusVariant(
   status: WorkflowRunStatus,
 ): "default" | "secondary" | "destructive" | "outline" {
   switch (status) {
-    case "completed":
+    case "completed": {
       return "default";
-    case "failed":
+    }
+
+    case "failed": {
       return "destructive";
-    case "cancelled":
+    }
+
+    case "cancelled": {
       return "outline";
+    }
+
     case "queued":
     case "running":
-    case "waiting":
+    case "waiting": {
       return "secondary";
+    }
+
     default: {
       const unknown: never = status;
+
       return unknown;
     }
   }

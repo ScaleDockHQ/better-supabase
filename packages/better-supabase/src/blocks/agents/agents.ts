@@ -167,6 +167,7 @@ const VISIBILITIES: ReadonlySet<string> = new Set([
 
 const visibilityOf = (value: unknown): AgentVisibility => {
   const text = textOf(value);
+
   // SAFETY: VISIBILITIES holds exactly the AgentVisibility members.
   return VISIBILITIES.has(text) ? (text as AgentVisibility) : "private";
 };
@@ -175,17 +176,24 @@ const instant = (value: unknown): Temporal.Instant =>
   value instanceof Date ? toInstant(value) : toInstant(textOf(value));
 
 function scopesOf(value: unknown): readonly AgentKnowledgeScope[] {
-  if (!Array.isArray(value)) return [];
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
   return value.filter(isRecord).map((item) => {
     const id = optionalText(item["id"]);
     // SAFETY: the table only stores scopes the knowledge block wrote.
     const scope = textOf(item["scope"]) as KnowledgeScope;
+
     return id === undefined ? { scope } : { scope, id };
   });
 }
 
 function skillsOf(value: unknown): readonly AgentSkill[] {
-  if (!Array.isArray(value)) return [];
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
   return value.filter(isRecord).map((item) => ({
     id: textOf(item["id"]),
     provider: textOf(item["provider"]),
@@ -197,6 +205,7 @@ function agentOf(value: unknown): Agent {
   const row = recordOf(value, "agents");
   const ratingCount = Number(row["rating_count"] ?? 0);
   const rating = row["my_rating"];
+
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["organization_id"]),
@@ -244,21 +253,43 @@ const AGENT_FIELDS: ReadonlySet<string> = new Set([
 
 function fieldsArg(fields: AgentFields): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  if (fields.slug !== undefined) out["slug"] = fields.slug;
-  if (fields.name !== undefined) out["name"] = fields.name;
-  if (fields.description !== undefined) out["description"] = fields.description;
+
+  if (fields.slug !== undefined) {
+    out["slug"] = fields.slug;
+  }
+
+  if (fields.name !== undefined) {
+    out["name"] = fields.name;
+  }
+
+  if (fields.description !== undefined) {
+    out["description"] = fields.description;
+  }
+
   if (fields.instructions !== undefined) {
     out["instructions"] = fields.instructions;
   }
-  if (fields.model !== undefined) out["model"] = fields.model;
-  if (fields.tools !== undefined) out["tools"] = fields.tools;
+
+  if (fields.model !== undefined) {
+    out["model"] = fields.model;
+  }
+
+  if (fields.tools !== undefined) {
+    out["tools"] = fields.tools;
+  }
+
   if (fields.connectorIds !== undefined) {
     out["connector_ids"] = fields.connectorIds;
   }
+
   if (fields.knowledgeScopes !== undefined) {
     out["knowledge_scope"] = fields.knowledgeScopes;
   }
-  if (fields.starters !== undefined) out["starters"] = fields.starters;
+
+  if (fields.starters !== undefined) {
+    out["starters"] = fields.starters;
+  }
+
   return out;
 }
 
@@ -267,17 +298,22 @@ export function createAgents<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: AgentsOptions<S>): Agents<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const fields: BlockFields<F> = blockFields(options.fields, "agent fields");
+
   const typed = (value: unknown): AsyncResult<Agent & F> =>
     AsyncResult.from(() => withFields(fields, value, agentOf(value)));
+
   const one = (
     fn: string,
     args: Readonly<Record<string, unknown>>,
   ): AsyncResult<Agent & F> => call(fn, args, (value) => value).andThen(typed);
+
   const found = (value: unknown): AsyncResult<Agent & F> =>
     isRecord(value) ? typed(value) : AsyncResult.err(notFound());
+
   const save = (
     organizationId: string,
     agentId: string | undefined,
@@ -337,6 +373,7 @@ export function createAgents<
     remove: (agentId) =>
       call("delete_agent", { id: agentId }, (value) => value === true),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "agents",
     ...(options.logger ? { logger: options.logger } : {}),

@@ -102,6 +102,7 @@ const ID_TYPE = /^[a-z][a-z0-9_ ]{0,62}$/;
 
 /** The setting `pause_lifecycle`, `resume_lifecycle` and `set_lifecycle_flag` pass to the trigger. */
 const OP_SETTING = "better_supabase.lifecycle_op";
+
 /** Set by the trigger when a lifecycle call changed the row. */
 const CHANGED_SETTING = "better_supabase.lifecycle_changed";
 
@@ -142,12 +143,17 @@ interface Machine {
 
 function machines(ctx: ModuleContext): readonly Machine[] {
   const raw = ctx.option("machines");
-  if (raw === undefined) return [];
+
+  if (raw === undefined) {
+    return [];
+  }
+
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     throw new TypeError(
       "blocks.state-machine.options.machines must be an object",
     );
   }
+
   return Object.entries(raw).map(([name, entry]) =>
     machine(name, entry, ctx.subjects),
   );
@@ -160,12 +166,17 @@ function registered(
   where: string,
 ): Record<string, unknown> {
   const entry = Object.hasOwn(registry, name) ? registry[name] : undefined;
-  if (entry === undefined) return {};
+
+  if (entry === undefined) {
+    return {};
+  }
+
   if (entry.tenant === false) {
     throw new TypeError(
       `${where}: config.subjects.${name} has no tenant column, which a machine needs`,
     );
   }
+
   return {
     table: entry.table,
     ...(entry.id !== undefined && { id: entry.id }),
@@ -180,29 +191,43 @@ function machine(
   registry: SubjectsConfig,
 ): Machine {
   const where = `blocks.state-machine.options.machines.${name}`;
-  if (!NAME.test(name)) throw new TypeError(`${where} has an invalid name`);
+
+  if (!NAME.test(name)) {
+    throw new TypeError(`${where} has an invalid name`);
+  }
+
   if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
     throw new TypeError(`${where} must be an object`);
   }
+
   const own: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(entry)) own[key] = value;
+
+  for (const [key, value] of Object.entries(entry)) {
+    own[key] = value;
+  }
+
   const record =
     own["table"] === undefined
       ? { ...registered(name, registry, where), ...own }
       : own;
+
   const table = record["table"];
   const column = record["column"];
   const initial = record["initial"];
   const transitions = record["transitions"];
+
   if (typeof table !== "string" || typeof column !== "string") {
     throw new TypeError(`${where} needs table and column`);
   }
+
   if (!NAME.test(column)) {
     throw new TypeError(`${where}.column must be a column name`);
   }
+
   if (typeof initial !== "string") {
     throw new TypeError(`${where}.initial must be a status`);
   }
+
   if (
     typeof transitions !== "object" ||
     transitions === null ||
@@ -212,11 +237,14 @@ function machine(
       `${where}.transitions must be an object of status to statuses`,
     );
   }
+
   const edges = edgesOf(transitions, `${where}.transitions`);
+
   const gated = edgesOf(
     record["requiresApproval"] ?? {},
     `${where}.requiresApproval`,
   );
+
   for (const [from, to] of Object.entries(gated)) {
     for (const status of to) {
       if (!edges[from]?.includes(status)) {
@@ -226,18 +254,24 @@ function machine(
       }
     }
   }
+
   const idType = record["idType"];
+
   if (
     idType !== undefined &&
     (typeof idType !== "string" || !ID_TYPE.test(idType))
   ) {
     throw new TypeError(`${where}.idType must be a type name such as uuid`);
   }
+
   const lifecycle = record["lifecycle"] ?? false;
+
   if (typeof lifecycle !== "boolean") {
     throw new TypeError(`${where}.lifecycle must be true or false`);
   }
+
   const version = record["version"] ?? 1;
+
   if (
     typeof version !== "number" ||
     !Number.isInteger(version) ||
@@ -245,22 +279,29 @@ function machine(
   ) {
     throw new TypeError(`${where}.version must be a positive integer`);
   }
+
   const flags = namesOf(record["flags"], `${where}.flags`);
+
   if (!lifecycle && (record["version"] !== undefined || flags.length > 0)) {
     throw new TypeError(`${where}: version and flags need lifecycle: true`);
   }
+
   const statuses = new Set([
     initial,
     ...Object.keys(edges),
     ...Object.values(edges).flat(),
   ]);
+
   const order = statusList(record["order"], `${where}.order`);
+
   for (const status of order) {
     if (!statuses.has(status)) {
       throw new TypeError(`${where}.order: ${status} is not a status`);
     }
   }
+
   const history = historyOf(record["history"], where);
+
   return {
     name,
     table,
@@ -288,19 +329,26 @@ function edgesOf(
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new TypeError(`${where} must be an object of status to statuses`);
   }
+
   const edges: Record<string, readonly string[]> = {};
+
   for (const [from, to] of Object.entries(value)) {
     if (!Array.isArray(to) || to.some((item) => typeof item !== "string")) {
       throw new TypeError(`${where}.${from} must be a list of statuses`);
     }
+
     edges[from] = to;
   }
+
   return edges;
 }
 
 /** A list of distinct strings, or an empty list when unset. */
 function statusList(value: unknown, where: string): readonly string[] {
-  if (value === undefined) return [];
+  if (value === undefined) {
+    return [];
+  }
+
   if (
     !Array.isArray(value) ||
     value.some((item) => typeof item !== "string") ||
@@ -308,11 +356,13 @@ function statusList(value: unknown, where: string): readonly string[] {
   ) {
     throw new TypeError(`${where} must be a list of distinct statuses`);
   }
+
   return value.map(String);
 }
 
 function namesOf(value: unknown, where: string): readonly string[] {
   const list = statusList(value, where);
+
   for (const item of list) {
     if (!NAME.test(item)) {
       throw new TypeError(
@@ -320,6 +370,7 @@ function namesOf(value: unknown, where: string): readonly string[] {
       );
     }
   }
+
   return list;
 }
 
@@ -327,24 +378,40 @@ function historyOf(
   value: unknown,
   where: string,
 ): Machine["history"] | undefined {
-  if (value === undefined) return undefined;
+  if (value === undefined) {
+    return undefined;
+  }
+
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new TypeError(`${where}.history must be an object`);
   }
+
   const record: Record<string, unknown> = {};
-  for (const [key, item] of Object.entries(value)) record[key] = item;
+
+  for (const [key, item] of Object.entries(value)) {
+    record[key] = item;
+  }
+
   const text = (key: string, fallback: string): string => {
     const item = record[key];
-    if (item === undefined) return fallback;
+
+    if (item === undefined) {
+      return fallback;
+    }
+
     if (typeof item !== "string" || !NAME.test(item)) {
       throw new TypeError(`${where}.history.${key} must be a column name`);
     }
+
     return item;
   };
+
   const table = record["table"];
+
   if (typeof table !== "string") {
     throw new TypeError(`${where}.history.table is required`);
   }
+
   return {
     table,
     id: text("id", "id"),
@@ -361,6 +428,7 @@ function historyOf(
 /** `<alias>.<id> = <value>`, on the id column's own type when the machine names it. */
 function idMatches(item: Machine, alias: string, value: string): string {
   const column = `${alias}.${sqlIdent(item.idColumn)}`;
+
   return item.idType === undefined
     ? `${column}::text = ${value}`
     : `${column} = (${value})::${item.idType}`;
@@ -374,7 +442,10 @@ function stageWrite(
   item: Machine,
   kind: "open" | "advance",
 ): string {
-  if (!item.stages || !ctx.hasTable("stages")) return "";
+  if (!item.stages || !ctx.hasTable("stages")) {
+    return "";
+  }
+
   const stages = ctx.table("stages");
   const tenant = ctx.col("stages", "tenant");
   const subjectType = ctx.col("stages", "subjectType");
@@ -383,6 +454,7 @@ function stageWrite(
   const display = ctx.col("stages", "display");
   const id = sqlIdent(item.idColumn);
   const newTenant = `new.${sqlIdent(item.tenantColumn)}`;
+
   const clear =
     kind === "advance"
       ? `update ${stages} set ${cleared} = now()
@@ -391,6 +463,7 @@ function stageWrite(
     and ${subjectId} = new.${id}::text
     and ${cleared} is null;`
       : "";
+
   return `${clear}
   insert into ${stages} (${tenant}, ${subjectType}, ${subjectId}, ${ctx.col("stages", "label")}, ${display})
   values (${newTenant}, ${sqlString(item.name)}, new.${id}::text, new.${sqlIdent(item.column)},
@@ -402,19 +475,27 @@ function approvalGate(ctx: ModuleContext, item: Machine): string {
   const gated = Object.entries(item.requiresApproval).filter(
     ([, to]) => to.length > 0,
   );
-  if (gated.length === 0) return "";
+
+  if (gated.length === 0) {
+    return "";
+  }
+
   const where = `blocks.state-machine.options.machines.${item.name}.requiresApproval`;
+
   if (!ctx.installed("approvals")) {
     throw new TypeError(`${where} needs the approvals module`);
   }
+
   const approvals = ctx.of("approvals");
   const a = (column: string): string => approvals.col("requests", column);
+
   const arms = gated
     .map(
       ([from, to]) =>
         `when ${sqlString(from)} then new.${sqlIdent(item.column)} = any (${textArray(to)})`,
     )
     .join(" ");
+
   return `
   -- The approvals module sets better_supabase.approval to the request it
   -- just approved before it makes the transition.
@@ -458,13 +539,17 @@ function lifecycleRecord(
  * the change in a transaction setting the trigger reads here.
  */
 function lifecycleOps(ctx: ModuleContext, item: Machine): string {
-  if (!item.lifecycle) return "";
+  if (!item.lifecycle) {
+    return "";
+  }
+
   const life = ctx.table("lifecycles");
   const l = (column: string): string => ctx.col("lifecycles", column);
   const key = `${l("subjectType")} = ${sqlString(item.name)} and ${l("subjectId")} = new.${sqlIdent(item.idColumn)}::text`;
   const insertColumns = `${l("tenant")}, ${l("subjectType")}, ${l("subjectId")}, ${l("version")}`;
   const insertValues = `new.${sqlIdent(item.tenantColumn)}, ${sqlString(item.name)}, new.${sqlIdent(item.idColumn)}::text, ${String(item.version)}`;
   const changed = `perform set_config('${CHANGED_SETTING}', '1', true);`;
+
   return `
     v_op := nullif(current_setting('${OP_SETTING}', true), '')::jsonb;
     if v_op is not null and v_op ->> 'machine' = ${sqlString(item.name)} and v_op ->> 'id' = new.${sqlIdent(item.idColumn)}::text then
@@ -516,10 +601,14 @@ function lifecycleOps(ctx: ModuleContext, item: Machine): string {
 
 /** The trigger check that refuses a transition while the record is paused. */
 function pauseGate(ctx: ModuleContext, item: Machine): string {
-  if (!item.lifecycle) return "";
+  if (!item.lifecycle) {
+    return "";
+  }
+
   const life = ctx.table("lifecycles");
   const l = (column: string): string => ctx.col("lifecycles", column);
   const key = `${l("subjectType")} = ${sqlString(item.name)} and ${l("subjectId")} = new.${sqlIdent(item.idColumn)}::text`;
+
   return `
   select ${l("pausedUntil")}, ${l("pausedAt")} is not null into v_until, v_paused from ${life} where ${key};
   if coalesce(v_paused, false) then
@@ -533,8 +622,12 @@ function pauseGate(ctx: ModuleContext, item: Machine): string {
 }
 
 function lifecycleInsert(ctx: ModuleContext, item: Machine): string {
-  if (!item.lifecycle) return "";
+  if (!item.lifecycle) {
+    return "";
+  }
+
   const l = (column: string): string => ctx.col("lifecycles", column);
+
   return `insert into ${ctx.table("lifecycles")} (${l("tenant")}, ${l("subjectType")}, ${l("subjectId")}, ${l("version")})
     values (new.${sqlIdent(item.tenantColumn)}, ${sqlString(item.name)}, new.${sqlIdent(item.idColumn)}::text, ${String(item.version)})
     on conflict (${l("subjectType")}, ${l("subjectId")}) do nothing;`;
@@ -542,21 +635,25 @@ function lifecycleInsert(ctx: ModuleContext, item: Machine): string {
 
 function trigger(ctx: ModuleContext, item: Machine): string {
   const history = ctx.table("history");
+
   const allowed = Object.entries(item.transitions)
     .map(
       ([from, to]) =>
         `when ${sqlString(from)} then new.${sqlIdent(item.column)} = any (${textArray(to)})`,
     )
     .join(" ");
+
   const target = quotedTable(item.table);
   const tenant = `new.${sqlIdent(item.tenantColumn)}::text`;
   const subjectId = `new.${sqlIdent(item.idColumn)}::text`;
   const hist = item.history;
+
   const write = hist
     ? `insert into ${quotedTable(hist.table)} (${sqlIdent(hist.subject)}, ${sqlIdent(hist.tenant)}, ${sqlIdent(hist.from)}, ${sqlIdent(hist.to)}, ${sqlIdent(hist.actor)}, ${sqlIdent(hist.reason)})
         values (new.${sqlIdent(item.idColumn)}, new.${sqlIdent(item.tenantColumn)}, old.${sqlIdent(item.column)}, new.${sqlIdent(item.column)}, auth.uid(), nullif(current_setting('better_supabase.transition_reason', true), ''));`
     : `insert into ${history} (${ctx.col("history", "tenant")}, ${ctx.col("history", "subjectType")}, ${ctx.col("history", "subjectId")}, ${ctx.col("history", "fromStatus")}, ${ctx.col("history", "toStatus")}, ${ctx.col("history", "actor")}, ${ctx.col("history", "reason")})
         values (new.${sqlIdent(item.tenantColumn)}, ${sqlString(item.name)}, new.${sqlIdent(item.idColumn)}::text, old.${sqlIdent(item.column)}, new.${sqlIdent(item.column)}, auth.uid(), nullif(current_setting('better_supabase.transition_reason', true), ''));`;
+
   const declare = item.lifecycle
     ? `declare
   v_op jsonb;
@@ -566,6 +663,7 @@ function trigger(ctx: ModuleContext, item: Machine): string {
   v_paused boolean;
 `
     : "";
+
   return `
 create or replace function better_supabase.bs_transition_${item.name}()
 returns trigger
@@ -612,7 +710,11 @@ function byMachine(
   branch: (item: Machine) => string,
 ): string {
   const unknown = fail("STATE_MACHINE_UNKNOWN", "unknown subject", "22023");
-  if (list.length === 0) return unknown;
+
+  if (list.length === 0) {
+    return unknown;
+  }
+
   return `case ${subjectType}
 ${list.map((item) => `    when ${sqlString(item.name)} then\n${branch(item)}`).join("\n")}
     else
@@ -644,15 +746,20 @@ function readPolicy(
 ${list.map((item) => `      when ${sqlString(item.name)} then exists (select 1 from ${quotedTable(item.table)} s where ${idMatches(item, "s", `${table}.${subjectId}`)})`).join("\n")}
       else false
     end`;
+
   return `drop policy if exists ${name} on ${table};
 create policy ${name} on ${table} for select to authenticated
   using (${visible});`;
 }
 
 function tables(ctx: ModuleContext, list: readonly Machine[]): string {
-  if (!ctx.manages) return "";
+  if (!ctx.manages) {
+    return "";
+  }
+
   const history = ctx.table("history");
   const h = (column: string): string => ctx.col("history", column);
+
   const stages = ctx.hasTable("stages")
     ? `create table if not exists ${ctx.table("stages")} (
   ${ctx.col("stages", "id")} uuid primary key default gen_random_uuid(),
@@ -670,7 +777,9 @@ ${lockTable(ctx.table("stages"), { read: true })}
 ${readPolicy(ctx.table("stages"), "status_stages_read", ctx.col("stages", "subjectType"), ctx.col("stages", "subjectId"), list)}
 `
     : "";
+
   const l = (column: string): string => ctx.col("lifecycles", column);
+
   const lifecycles = ctx.hasTable("lifecycles")
     ? `create table if not exists ${ctx.table("lifecycles")} (
   ${l("id")} uuid primary key default gen_random_uuid(),
@@ -692,6 +801,7 @@ ${lockTable(ctx.table("lifecycles"), { read: true })}
 ${readPolicy(ctx.table("lifecycles"), "subject_lifecycles_read", l("subjectType"), l("subjectId"), list)}
 `
     : "";
+
   return `create table if not exists ${history} (
   ${h("id")} uuid primary key default gen_random_uuid(),
   ${h("tenant")} ${ctx.idType} not null,
@@ -724,6 +834,7 @@ function lifecycleCall(
     "the machine has no lifecycle; set lifecycle: true",
     "22023",
   );
+
   return `declare
   v_found boolean;
   v_changed boolean;
@@ -752,26 +863,32 @@ function readers(ctx: ModuleContext, list: readonly Machine[]): string {
     `      if not exists (select 1 from ${quotedTable(item.table)} s where ${idMatches(item, "s", `${fn}.subject_id`)}) then
         ${NOT_FOUND}
       end if;`;
+
   const state = (item: Machine): string => {
     const steps = item.order.length;
     const order = steps === 0 ? "null::text[]" : textArray(item.order);
+
     const progress =
       steps === 0
         ? "null"
         : `case when v_step is null then null when ${String(steps)} = 1 then 1 else round((v_step - 1)::numeric / ${String(steps - 1)}, 4) end`;
+
     const l = (column: string): string =>
       `v_life.${ctx.col("lifecycles", column)}`;
+
     const life = item.lifecycle
       ? `      select * into v_life from ${ctx.table("lifecycles")} x
       where x.${ctx.col("lifecycles", "subjectType")} = ${sqlString(item.name)} and x.${ctx.col("lifecycles", "subjectId")} = status_state.subject_id;
       v_paused := ${l("pausedAt")} is not null and (${l("pausedUntil")} is null or ${l("pausedUntil")} > now());`
       : "";
+
     const lifeJson = item.lifecycle
       ? `'version', ${l("version")}, 'flags', to_jsonb(coalesce(${l("flags")}, '{}')),
         'paused', v_paused, 'pausedAt', case when v_paused then ${l("pausedAt")} end,
         'pausedUntil', case when v_paused then ${l("pausedUntil")} end,
         'pauseReason', case when v_paused then ${l("pauseReason")} end`
       : `'version', null, 'flags', '[]'::jsonb, 'paused', false, 'pausedAt', null, 'pausedUntil', null, 'pauseReason', null`;
+
     return `      select s.${sqlIdent(item.column)}::text, s.${sqlIdent(item.tenantColumn)}::text into v_status, v_tenant
       from ${quotedTable(item.table)} s where ${idMatches(item, "s", "status_state.subject_id")};
       if not found then
@@ -784,9 +901,12 @@ ${life}
         'status', v_status, 'order', to_jsonb(${order}), 'step', v_step, 'steps', ${steps === 0 ? "null" : String(steps)}, 'progress', ${progress},
         ${lifeJson});`;
   };
+
   const limit = pageSize("list_status_history.max_rows", 50, 500);
+
   const history = (item: Machine): string => {
     const hist = item.history;
+
     const rows = hist
       ? `select h.${sqlIdent(hist.id)}::text as id, h.${sqlIdent(hist.from)}::text as from_status, h.${sqlIdent(hist.to)}::text as to_status,
           h.${sqlIdent(hist.actor)}::text as actor, h.${sqlIdent(hist.reason)}::text as reason, h.${sqlIdent(hist.createdAt)} as created_at
@@ -803,6 +923,7 @@ ${life}
           and (list_status_history.before is null or h.${ctx.col("history", "createdAt")} < list_status_history.before)
         order by h.${ctx.col("history", "createdAt")} desc, h.${ctx.col("history", "id")} desc
         limit ${limit}`;
+
     return `${visible(item, "list_status_history")}
       return coalesce((
         select jsonb_agg(jsonb_build_object('id', r.id, 'from', r.from_status, 'to', r.to_status,
@@ -810,7 +931,9 @@ ${life}
         from (${rows}) r
       ), '[]'::jsonb);`;
   };
+
   const st = (column: string): string => ctx.col("stages", column);
+
   const stages = (item: Machine): string =>
     item.stages
       ? `${visible(item, "list_status_stages")}
@@ -822,9 +945,11 @@ ${life}
       ), '[]'::jsonb);`
       : `${visible(item, "list_status_stages")}
       return '[]'::jsonb;`;
+
   const lifeVar = list.some((item) => item.lifecycle)
     ? `\n  v_life ${ctx.table("lifecycles")}%rowtype;`
     : "";
+
   return `
 -- The record's status, progress through options.machines.<name>.order and,
 -- with lifecycle: true, its flags, pause and pinned version. It runs as the
@@ -879,20 +1004,26 @@ ${userGrant(`${ctx.fn("list_status_stages")}(text, text)`)}
 }
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
   const list = machines(ctx);
+
   for (const item of list) {
     if (item.stages && !ctx.hasTable("stages")) {
       throw new TypeError(
         `blocks.state-machine.options.machines.${item.name}.stages needs the stages table`,
       );
     }
+
     if (item.lifecycle && !ctx.hasTable("lifecycles")) {
       throw new TypeError(
         `blocks.state-machine.options.machines.${item.name}.lifecycle needs the lifecycles table`,
       );
     }
   }
+
   const transition = byMachine(
     list,
     "transition.subject_type",
@@ -900,6 +1031,7 @@ function build(ctx: ModuleContext): string {
       `      update ${quotedTable(item.table)} s set ${sqlIdent(item.column)} = transition.to_status
       where ${idMatches(item, "s", "transition.subject_id")};`,
   );
+
   return `${schemaPreamble(ctx)}
 ${tables(ctx, list)}
 ${list.map((item) => trigger(ctx, item)).join("\n")}

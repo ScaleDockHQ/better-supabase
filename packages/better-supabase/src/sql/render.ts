@@ -1,17 +1,16 @@
 import type { BlockMode } from "../config/blocks.ts";
-import type { ModuleFile, ModuleLayout } from "./module-types.ts";
-import type { SqlModule } from "./module-types.ts";
+import type {
+  ModuleContext,
+  ModuleContractFunction,
+  ModuleIdType,
+} from "./context.ts";
+import type { ModuleFile, ModuleLayout, SqlModule } from "./module-types.ts";
 
 import { CONFIG_DEFAULTS } from "../config/defaults.ts";
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { sqlString } from "../core/template.ts";
 import { applyActorWriteGuards } from "./actor-guard.ts";
 import { apiWrappers } from "./api-schema.ts";
-import {
-  type ModuleContext,
-  type ModuleContractFunction,
-  type ModuleIdType,
-} from "./context.ts";
 import { eventTriggersOf } from "./event-triggers.ts";
 import { moduleExtensions } from "./introspect.ts";
 import { moduleContext } from "./module-context.ts";
@@ -29,12 +28,14 @@ import { deprecationWrappers } from "./upgrade.ts";
  */
 function renameQualifiers(sql: string, ctx: ModuleContext): string {
   let out = sql;
+
   for (const [from, to] of ctx.functionRenames()) {
     out = out.replaceAll(
       new RegExp(`(?<![\\w."$])${from}\\.(?=[a-z_])`, "g"),
       `${to}.`,
     );
   }
+
   return out;
 }
 
@@ -43,8 +44,10 @@ function moduleSql(
   ctx: ModuleContext,
   layout: ModuleLayout,
 ) {
-  if (module.build)
+  if (module.build) {
     return applyActorWriteGuards(module.build(ctx, layout), layout);
+  }
+
   if (
     module.render &&
     (layout.claims ||
@@ -52,11 +55,13 @@ function moduleSql(
       layout.entitlementsProvider ||
       layout.tenantColumn ||
       (layout.entitlements?.source ?? "stripe-sync") !== "stripe-sync")
-  )
+  ) {
     return applyActorWriteGuards(
       module.render(layout.claims ?? DEFAULT_CLAIMS, layout),
       layout,
     );
+  }
+
   return applyActorWriteGuards(module.sql, layout);
 }
 
@@ -68,11 +73,13 @@ export function moduleBody(
   checkModules(layout.modules);
   const modules = resolveModules([name], layout);
   const module = modules.find((entry) => entry.name === name)!;
+
   const ctx = moduleContext(
     name,
     layout,
     modules.map((entry) => entry.name),
   );
+
   return ctx.mode === "custom"
     ? undefined
     : renameQualifiers(moduleSql(module, ctx, layout), ctx);
@@ -116,24 +123,33 @@ export function renderModules(
   const modules = resolveModules(names, layout);
   checkTenantName(modules, layout);
   const installed = modules.map((module) => module.name);
+
   return modules.flatMap((module): ModuleFile[] => {
     const ctx = moduleContext(module.name, layout, installed);
-    if (ctx.mode === "custom") return [];
+
+    if (ctx.mode === "custom") {
+      return [];
+    }
+
     const title = `-- better-supabase module: ${module.name}${layout.version ? ` (${layout.version})` : ""}`;
+
     const managed = [
       "-- Managed by `better-supabase sql add`; re-running it overwrites this file.",
       "-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.",
     ];
+
     const header = [
       title,
       `-- @bs-module ${module.name}@${String(moduleVersion(module))} ${ctx.mode}`,
       `-- ${module.description}`,
       ...managed,
     ].join("\n");
+
     const extra = renameQualifiers(module.extras?.(ctx, layout) ?? "", ctx);
     const wrappers = deprecationWrappers(module, ctx);
     const body = renameQualifiers(moduleSql(module, ctx, layout).trim(), ctx);
     module.contract?.(ctx);
+
     const api = ctx.config.api
       ? apiWrappers(
           body,
@@ -143,8 +159,10 @@ export function renderModules(
           module.internal,
         )
       : "";
+
     if (module.target === "test") {
       checkFunctionRenames(ctx);
+
       return [
         {
           module: module.name,
@@ -154,6 +172,7 @@ export function renderModules(
         },
       ];
     }
+
     const data = [
       moduleExtensions(body),
       eventTriggersOf(body)
@@ -164,6 +183,7 @@ export function renderModules(
     ]
       .filter((part) => part !== "")
       .join("\n\n");
+
     const dataHeader = [
       title,
       `-- @bs-module-data ${module.name}`,
@@ -171,18 +191,23 @@ export function renderModules(
       "-- after the schema migration to put them in a migration.",
       ...managed,
     ].join("\n");
+
     const testsDir = (layout.testsDir ?? CONFIG_DEFAULTS.sql.testsDir).replace(
       /\/$/,
       "",
     );
+
     const slug = module.name.replaceAll("-", "_");
+
     const testHeader = [
       title,
       `-- @bs-module-test ${module.name}`,
       ...managed,
     ].join("\n");
+
     const tests = module.tests?.(ctx, layout) ?? [];
     checkFunctionRenames(ctx);
+
     return [
       {
         module: module.name,
@@ -212,10 +237,18 @@ function checkTenantName(
   layout: ModuleLayout,
 ): void {
   const tenant = layout.naming?.tenant;
-  if (tenant === undefined) return;
+
+  if (tenant === undefined) {
+    return;
+  }
+
   for (const module of modules) {
     const clashes = tenantNameClashes(module, tenant, SQL_MODULES);
-    if (clashes.length === 0) continue;
+
+    if (clashes.length === 0) {
+      continue;
+    }
+
     throw new TypeError(
       `sql.naming.tenant: "${tenant}" renames the tenant tables and columns to names the ${module.name} module already uses (${clashes.join(", ")}). Choose another name.`,
     );
@@ -225,7 +258,11 @@ function checkTenantName(
 /** Throws on a `blocks.<name>.functions` key the module writes no function for. */
 function checkFunctionRenames(ctx: ModuleContext): void {
   const unknown = ctx.unusedFunctions();
-  if (unknown.length === 0) return;
+
+  if (unknown.length === 0) {
+    return;
+  }
+
   throw new TypeError(
     `blocks.${ctx.module}.functions: the ${ctx.module} module writes no function ${unknown.map((name) => `"${name}"`).join(", ")}`,
   );
@@ -242,10 +279,18 @@ export function moduleTopics(
 ): ModuleTopic[] {
   const modules = resolveModules(names, layout);
   const installed = modules.map((module) => module.name);
+
   return modules.flatMap((module) => {
-    if (module.topics === undefined) return [];
+    if (module.topics === undefined) {
+      return [];
+    }
+
     const ctx = moduleContext(module.name, layout, installed);
-    if (ctx.mode === "custom") return [];
+
+    if (ctx.mode === "custom") {
+      return [];
+    }
+
     return module.topics(ctx).map((topic) => ({ module: module.name, topic }));
   });
 }
@@ -262,9 +307,14 @@ export function customContracts(
 }[] {
   const modules = resolveModules(names, layout);
   const installed = modules.map((module) => module.name);
+
   return modules.flatMap((module) => {
     const ctx = moduleContext(module.name, layout, installed);
-    if (ctx.mode !== "custom" || !module.contract) return [];
+
+    if (ctx.mode !== "custom" || !module.contract) {
+      return [];
+    }
+
     return [
       {
         module: module.name,

@@ -38,6 +38,7 @@ const layout: ModuleLayout = {
 
 const task = (n: number): string =>
   `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+
 const ids = (...numbers: number[]): string =>
   `array[${numbers.map((n) => `'${task(n)}'`).join(", ")}]::text[]`;
 
@@ -124,21 +125,25 @@ from generate_series(1, 9) n;`);
 
   it("reports a result per row and keeps the rows that worked", async () => {
     await db.as(member);
+
     const result = await db.value<Applied>(
       apply("tasks.archive", ids(1, 2, 3), `{"label": "done"}`),
     );
+
     expect(result).toMatchObject({ total: 3, succeeded: 2, failed: 1 });
     expect(result.results.map((row) => [row.ok, row.error?.code])).toEqual([
       [true, undefined],
       [true, undefined],
       [false, "TASK_LOCKED"],
     ]);
+
     const rows = await db.rows<{
       label: string | null;
       archived_by: string | null;
     }>(
       `select label, archived_by from bulk_it.tasks where id in ('${task(1)}', '${task(3)}') order by id`,
     );
+
     expect(rows).toEqual([
       { label: "done", archived_by: member.id },
       { label: null, archived_by: null },
@@ -159,6 +164,7 @@ from generate_series(1, 9) n;`);
 
   it("runs a block's action through its own checks", async () => {
     await db.as(owner);
+
     const result = await db.value<Applied>(
       apply(
         "relations.link",
@@ -166,11 +172,14 @@ from generate_series(1, 9) n;`);
         `{"kind": "parent", "targetType": "task", "targetId": "${task(9)}"}`,
       ),
     );
+
     expect(result.succeeded).toBe(2);
     expect(result.results[2]?.error?.code).toBe("RELATION_SELF");
+
     const children = await db.value<unknown[]>(
       `bulk_it.descendants('${org}', 'parent', 'task', '${task(9)}')`,
     );
+
     expect(children).toHaveLength(2);
   });
 
@@ -183,14 +192,17 @@ from generate_series(1, 9) n;`);
       await db.value<boolean>(`bulk_it.is_trashed('task', '${task(7)}')`),
     ).toBe(true);
     await db.service();
+
     const items = await db.rows<{ id: string }>(
       `select id from bulk_it.trash_items where subject_id = '${task(7)}'`,
     );
+
     await db.value(`bulk_it.restore_trash('${items[0]?.id ?? ""}')`);
   });
 
   it("runs a background run in steps as the user who started it", async () => {
     await db.as(member);
+
     const started = await db.value<{
       id: string;
       total: number;
@@ -198,6 +210,7 @@ from generate_series(1, 9) n;`);
     }>(
       `bulk_it.start_bulk('${org}', 'task', ${ids(5, 6, 3, 7, 8)}, 'tasks.archive', '{"label": "later"}'::jsonb)`,
     );
+
     expect(started).toMatchObject({ total: 5, topic: `bulk:${started.id}` });
     await db.asRole(member);
     expect(await db.hint(`bulk_it.bulk_step('${started.id}', 2)`)).not.toBe(
@@ -205,9 +218,11 @@ from generate_series(1, 9) n;`);
     );
 
     await db.service();
+
     const first = await db.value<{ done: boolean; position: number }>(
       `bulk_it.bulk_step('${started.id}', 2)`,
     );
+
     expect(first).toMatchObject({ done: false, position: 2 });
     expect(await db.value<string>("current_user::text")).toBe("postgres");
 
@@ -224,10 +239,13 @@ from generate_series(1, 9) n;`);
     const archivedBy = await db.rows<{ archived_by: string }>(
       `select distinct archived_by from bulk_it.tasks where label = 'later'`,
     );
+
     expect(archivedBy).toEqual([{ archived_by: member.id }]);
+
     const events = await db.rows<{ payload: Record<string, unknown> }>(
       `select payload from better_supabase.outbox_events where type = 'bulk_run.completed' and organization_id = '${org}'`,
     );
+
     expect(events.map((event) => event.payload)).toEqual([
       expect.objectContaining({ kind: "tasks.archive", count: 5, failed: 1 }),
     ]);

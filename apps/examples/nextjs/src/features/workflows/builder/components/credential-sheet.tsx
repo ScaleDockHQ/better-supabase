@@ -32,16 +32,20 @@ export function CredentialSheet({
   const t = useExtracted("workflows");
   const id = useId();
   const errorMessage = useErrorMessage();
+
   const onError = (error: Parameters<typeof errorMessage>[0]) => {
     toast.error(errorMessage(error));
   };
+
   const create = useAction(createCredential, {
     onError,
     onSuccess: () => {
       toast.success(t("Credential saved"));
     },
   });
+
   const revoke = useAction(revokeCredential, { onError });
+
   return (
     <Sheet>
       <SheetTrigger render={<Button variant="outline" size="sm" />}>

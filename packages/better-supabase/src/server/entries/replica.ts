@@ -34,9 +34,10 @@ export function withReplica<
     run: () =>
       // The seam needs no await: it only edits the response on the way out.
       // oxlint-disable-next-line typescript/require-await -- an async generator is the response-seam shape `defineMiddleware` takes.
-      async function* (_request, ctx) {
+      async function* run(_request, ctx) {
         const { replica } = ctx.bs;
         const response = yield { replica };
+
         return withPrimaryPin(response, ctx.bs.replica, core.pinMs);
       },
   })();

@@ -24,6 +24,7 @@ export interface UndoStack extends UndoSnapshot, UndoActions {}
 export function useUndoStack(options: UseUndoStackOptions): UndoStack {
   const latest = useLatest(options);
   const { limit } = options;
+
   return useController(
     () =>
       createUndoController({

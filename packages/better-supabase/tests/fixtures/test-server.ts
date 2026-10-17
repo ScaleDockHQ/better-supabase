@@ -15,14 +15,18 @@ import {
 
 const PROJECT_URL: string = "https://abcdefghijklmnopqrst.supabase.co";
 export const USER: string = "11111111-1111-4111-8111-111111111111";
+
 export const env: { url: string; publishableKey: string; jwksUrl: URL } = {
   url: PROJECT_URL,
   publishableKey: "sb_publishable_test",
   jwksUrl: new URL(`${PROJECT_URL}/auth/v1/.well-known/jwks.json`),
 };
+
 export const signer: TestSigner = await createTestSigner();
+
 export const betterSupabase: BetterSupabase<Models, Database, Functions> =
   defineSupabase(schema);
+
 export const server: BetterServer<Models, Functions, unknown> = createServer(
   betterSupabase,
   {
@@ -38,12 +42,14 @@ export async function requestAs(
   init: RequestInit & { readonly url?: string } = {},
 ): Promise<Request> {
   const headers = new Headers(init.headers);
+
   if (appMetadata) {
     headers.set(
       "authorization",
       `Bearer ${await signer.sign({ sub: USER, app_metadata: appMetadata })}`,
     );
   }
+
   return new Request(init.url ?? "https://app.test/page", { ...init, headers });
 }
 

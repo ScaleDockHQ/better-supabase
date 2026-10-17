@@ -30,11 +30,13 @@ const tasks = defineListQuery(defineSupabase(schema), "customers", {
 
 function transport(results: Record<string, unknown>) {
   const calls: { fn: string; args: Record<string, unknown> }[] = [];
+
   return {
     calls,
     call(schema: string, fn: string, args: Record<string, unknown>) {
       expect(schema).toBe("app");
       calls.push({ fn, args });
+
       return Promise.resolve(results[fn]);
     },
   };
@@ -48,11 +50,13 @@ describe("saved views client", () => {
 
   it("saves a checked state without the page", async () => {
     const fake = transport({ save_view: { id: "v1", rank: "V" } });
+
     const views = createSavedViews({
       transport: fake,
       schema: "app",
       lists: { tasks },
     });
+
     const saved = await views
       .save({
         organizationId: "org",
@@ -64,6 +68,7 @@ describe("saved views client", () => {
         },
       })
       .orThrow();
+
     expect(saved).toEqual({ id: "v1", rank: "V", fields: {} });
     expect(fake.calls[0]).toEqual({
       fn: "save_view",
@@ -85,17 +90,20 @@ describe("saved views client", () => {
 
   it("refuses a query the list rejects, without a call", async () => {
     const fake = transport({});
+
     const views = createSavedViews({
       transport: fake,
       schema: "app",
       lists: { tasks },
     });
+
     const result = await views.save({
       organizationId: "org",
       list: "tasks",
       name: "Bad",
       state: { query: { sort: "nope" } },
     });
+
     expect(result.ok).toBe(false);
     expect(result.ok ? undefined : result.error.kind).toBe("validation");
     expect(fake.calls).toEqual([]);
@@ -121,6 +129,7 @@ describe("saved views client", () => {
       set_default_view: true,
       delete_view: true,
     });
+
     const views = createSavedViews({ transport: fake, schema: "app" });
     const [view] = await views.list("org", "tasks").orThrow();
     expect(view).toMatchObject({
@@ -155,6 +164,7 @@ describe("saved views client", () => {
         },
       ],
     });
+
     const views = createSavedViews({ transport: fake, schema: "app" });
     const [view] = await views.list("org", "tasks").orThrow();
     expect(view?.preference).toEqual({
@@ -173,6 +183,7 @@ describe("saved views client", () => {
         pinned: false,
       },
     });
+
     const views = createSavedViews({ transport: fake, schema: "app" });
     expect(
       await views.setPreference("v1", { isDefault: true }).orThrow(),
@@ -235,6 +246,7 @@ describe("saved view state", () => {
     const schema = savedViewStateSchema(tasks) as {
       properties: { query: unknown };
     };
+
     expect(schema.properties.query).toBe(tasks.jsonSchema);
     expect(
       (savedViewStateSchema() as { properties: { query: unknown } }).properties
@@ -248,6 +260,7 @@ describe("saved view state", () => {
       { id: "m", scope: "team", isDefault: true },
       { id: "u", scope: "user", isDefault: true },
     ] as const;
+
     expect(defaultView(views)?.id).toBe("u");
     expect(defaultView(views.slice(0, 2))?.id).toBe("m");
     expect(
@@ -267,6 +280,7 @@ describe("saved view state", () => {
         preference: { isDefault: true },
       },
     ] as const;
+
     expect(defaultView(views)?.id).toBe("t");
     expect(
       defaultView([

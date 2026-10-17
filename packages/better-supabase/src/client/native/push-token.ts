@@ -23,12 +23,19 @@ export function expoPushToken(
     provider: "expo",
     token: async ({ request = true } = {}) => {
       let { status } = await notifications.getPermissionsAsync();
-      if (status !== "granted" && request)
+
+      if (status !== "granted" && request) {
         ({ status } = await notifications.requestPermissionsAsync());
-      if (status !== "granted") return null;
+      }
+
+      if (status !== "granted") {
+        return null;
+      }
+
       const { data } = await notifications.getExpoPushTokenAsync(
         options.projectId === undefined ? {} : { projectId: options.projectId },
       );
+
       return data;
     },
   };

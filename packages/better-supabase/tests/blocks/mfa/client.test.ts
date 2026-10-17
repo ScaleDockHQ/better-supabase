@@ -15,9 +15,11 @@ const reply = <T>(data: T) => Promise.resolve({ data, error: null });
 
 function fakeMfa(verified = false) {
   let level: "aal1" | "aal2" = "aal1";
+
   const factors: RawMfaFactor[] = verified
     ? [{ id: "f0", factor_type: "totp", status: "verified" }]
     : [];
+
   const api = {
     listFactors: vi.fn(() => reply({ all: [...factors] })),
     getAuthenticatorAssuranceLevel: vi.fn(() =>
@@ -35,6 +37,7 @@ function fakeMfa(verified = false) {
         status: "unverified",
         ...(params.friendlyName ? { friendly_name: params.friendlyName } : {}),
       });
+
       return reply({
         id: "f1",
         totp: { qr_code: "data:qr", secret: "S3CRET", uri: "otpauth://x" },
@@ -51,10 +54,15 @@ function fakeMfa(verified = false) {
           },
         });
       }
+
       const factor = factors.find((each) => each.id === params.factorId);
-      if (factor)
+
+      if (factor) {
         factors[factors.indexOf(factor)] = { ...factor, status: "verified" };
+      }
+
       level = "aal2";
+
       return reply({});
     }),
     unenroll: vi.fn((params: { factorId: string }) => {
@@ -62,18 +70,22 @@ function fakeMfa(verified = false) {
         factors.findIndex((each) => each.id === params.factorId),
         1,
       );
+
       return reply({ id: params.factorId });
     }),
   } satisfies MfaApi;
+
   return api;
 }
 
 describe("createMfaController", () => {
   it("enrols a TOTP factor, verifies it and reads aal2", async () => {
     const mfa = fakeMfa();
+
     const { view, unmount } = mount(
       createMfaController({ mfa, auth: fakeAuth(), issuer: "Acme" }),
     );
+
     await flush();
     expect(view().factors).toEqual([]);
     expect(view().level).toBe("aal1");
@@ -108,9 +120,11 @@ describe("createMfaController", () => {
 
   it("cancels an unconfirmed enrolment and unenrols factors", async () => {
     const mfa = fakeMfa(true);
+
     const { view, unmount } = mount(
       createMfaController({ mfa, auth: fakeAuth() }),
     );
+
     await flush();
     await view().enroll();
     await view().cancel();
@@ -126,6 +140,7 @@ describe("createMfaController", () => {
     const { view, unmount } = mount(
       createMfaController({ mfa: fakeMfa(), auth: fakeAuth() }),
     );
+
     const result = await view().verify("123456");
     expect(!result.ok && result.error.kind).toBe("invalid_input");
     unmount();
@@ -135,9 +150,11 @@ describe("createMfaController", () => {
 describe("createStepUpController", () => {
   it("challenges the first verified factor and is satisfied at aal2", async () => {
     const mfa = fakeMfa(true);
+
     const { view, unmount } = mount(
       createStepUpController({ mfa, auth: fakeAuth() }),
     );
+
     await flush();
     expect(view().factors?.map((each) => each.id)).toEqual(["f0"]);
     expect(view().satisfied).toBe(false);
@@ -156,6 +173,7 @@ describe("createStepUpController", () => {
     const { view, unmount } = mount(
       createStepUpController({ mfa: fakeMfa(), auth: fakeAuth() }),
     );
+
     await flush();
     const result = await view().verify("123456");
     expect(result.ok).toBe(false);
@@ -182,9 +200,11 @@ describe("MFA read failures", () => {
     mfa.listFactors.mockImplementationOnce(
       () => Promise.resolve({ data: null, error: failing }) as never,
     );
+
     const { view, unmount } = mount(
       createMfaController({ mfa, auth: fakeAuth() }),
     );
+
     await flush();
     expect(view().error).toMatchObject({ message: "Auth is down" });
     view().dismiss();
@@ -199,9 +219,11 @@ describe("MFA read failures", () => {
     mfa.getAuthenticatorAssuranceLevel.mockImplementationOnce(
       () => Promise.resolve({ data: null, error: failing }) as never,
     );
+
     const { view, unmount } = mount(
       createMfaController({ mfa, auth: fakeAuth() }),
     );
+
     await flush();
     expect(view().error).toMatchObject({ message: "Auth is down" });
     unmount();
@@ -212,9 +234,11 @@ describe("MFA read failures", () => {
     mfa.listFactors.mockImplementationOnce(
       () => Promise.resolve({ data: null, error: failing }) as never,
     );
+
     const { view, unmount } = mount(
       createStepUpController({ mfa, auth: fakeAuth() }),
     );
+
     await flush();
     expect(view().error).toMatchObject({ message: "Auth is down" });
     view().dismiss();

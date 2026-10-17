@@ -11,11 +11,13 @@ const body = (modules: AnyBlocksConfig = {}) =>
 describe("ai-providers module", () => {
   it("owns keys, batches and batch items, and leaves sandboxes to ai-chat", () => {
     const sql = body();
+
     for (const table of ["ai_provider_keys", "ai_batches", "ai_batch_items"]) {
       expect(sql).toContain(
         `create table if not exists "better_supabase"."${table}" (`,
       );
     }
+
     expect(sql).not.toContain("ai_sandboxes");
   });
 
@@ -27,6 +29,7 @@ describe("ai-providers module", () => {
 
   it("keeps resolving and polling to the service role", () => {
     const sql = body();
+
     for (const name of [
       "ai_provider_keys_for",
       "delete_ai_provider_keys",
@@ -61,10 +64,12 @@ describe("ai-providers module", () => {
     expect(alone!.steps[0]!.sql).toContain(
       "ai_sandboxes moved to the ai-chat module",
     );
+
     const withChat = upgradePlan([
       { module: "ai-chat", version: 2 },
       { module: "ai-providers", version: 1 },
     ]).find((plan) => plan.module === "ai-providers");
+
     expect(withChat!.steps[0]!.sql).toBe("");
   });
 });

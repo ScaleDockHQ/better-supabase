@@ -70,9 +70,10 @@ backlogs too large to clear in the upgrade.
   and lists both sitemaps.
 - OG images are at `/docs/og/...` instead of `/og/docs/...`, and Ask AI is at
   `/docs/api/chat`. Vercel Services sends only `/docs/*` to the docs app.
-- Ask AI searches the docs before it calls the model and passes the four best
-  pages as context, instead of giving the model a search tool. One request
-  then makes one model call.
+- Ask AI gives the model the docs MCP server's read-only tools
+  (`search_docs` and `read_page`) and also lists the six pages whose titles
+  best match the question in the system prompt, so the first step can read a
+  page instead of searching. A request stops after five steps.
 - The docs MCP server at `/mcp` registers its own tools on
   `@modelcontextprotocol/server` instead of the `fumadocs-core/mcp` helpers.
   Those helpers register tools without `annotations` or an `outputSchema`, so
@@ -103,6 +104,13 @@ backlogs too large to clear in the upgrade.
 - `pnpm test:integration` runs in CI only (the `stack` job in `ci.yml`
   and `database.yml`), not in `pnpm verify`. It needs a running Supabase
   stack, which a pre-push hook cannot assume.
+- CI starts Supabase in the foreground, not as a background step. The
+  stack loads `supabase/signing_keys.json` at start, so the library build
+  and `better-supabase keys` run first, and the start itself takes about
+  15 seconds.
+- `pnpm verify` runs `typecheck:perf` in a second `turbo run` after the
+  other tasks, and CI gives it a runner of its own. It is a timing
+  benchmark, so it fails when other tasks share the CPU.
 
 ### Workflow
 
@@ -134,6 +142,28 @@ backlogs too large to clear in the upgrade.
   Lite's mailer. It ends when `@supabase/lite` moves to `nodemailer` 10.0.6
   or later.
 
+- Lefthook's pre-commit runs `turbo run lint lint:root --affected` next to
+  `ultracite fix`, not only the fix. Type-aware lint findings then show up
+  at commit time instead of on push.
+- `audit:high` runs in `pnpm verify` and in the static job of
+  `verify.yml`, next to format and boundaries, not in a separate security
+  workflow. `doctor` runs three times: as a Turbo task in `pnpm verify`,
+  as SARIF uploaded to code scanning in `verify.yml`, and with `--strict`
+  against the migrated database in `database.yml`.
+
+### Library
+
+- In a writable support session, `supportStorage` checks each write by
+  running the row change on `storage.objects` as the target inside a
+  savepoint it rolls back (`src/server/support-storage.ts`), instead of
+  reimplementing Storage's policy checks. A delete needs
+  `storage.allow_delete_query`, which the rehearsal sets in the same
+  transaction, so no row outlives it.
+- The library does not set supabase-js `tracePropagation`. `tracedFetch`
+  from `better-supabase/otel` injects the trace headers into every
+  PostgREST, Auth and Storage request of the clients the app passes it to,
+  on any runtime. It ends if `tracePropagation` covers all three services.
+
 ### Agent files
 
 - The `AGENTS.md` and `CLAUDE.md` files that `next dev` writes in the
@@ -144,25 +174,26 @@ backlogs too large to clear in the upgrade.
 ### Lint backlogs
 
 These rules are off with a comment that gives the reason and the count. Each
-is cleared in its own commit series, then turned on.
+is cleared in its own commit series, then turned on. The counts were measured
+in October 2026 across every workspace, by removing the `off` line so the
+preset's own options apply. "Library" is `packages/better-supabase/src`
+outside `cli`.
 
-| Rule                                           | Findings when measured |
-| ---------------------------------------------- | ---------------------- |
-| `typescript/strict-boolean-expressions`        | 426                    |
-| `typescript/no-non-null-assertion`             | 335 (222 in tests)     |
-| `typescript/prefer-readonly-parameter-types`   | 1,764                  |
-| `eslint/require-unicode-regexp`                | 455                    |
-| `eslint/max-lines-per-function`                | 392                    |
-| `typescript/promise-function-async`            | 312                    |
-| `unicorn/no-array-callback-reference`          | 40                     |
-| `import/max-dependencies`                      | 34                     |
-| `anti-slop/no-runtime-typeof`                  | 229 library, 51 CLI    |
-| `anti-slop/no-unsafe-dictionary-type`          | 213 library, 36 CLI    |
-| `anti-slop/no-unknown-parameters`              | 208 library, 30 CLI    |
-| `anti-slop/no-unknown-returns`                 | 59 library, 10 CLI     |
-| `anti-slop/no-known-value-widening`            | 49 library, 17 CLI     |
-| `anti-slop/no-object-parameters`               | 29 library             |
-| `anti-slop/no-conditional-empty-object-spread` | 127 library, 72 CLI    |
+| Rule                                           | Findings when measured       |
+| ---------------------------------------------- | ---------------------------- |
+| `typescript/strict-boolean-expressions`        | 1,231 (724 library, 195 CLI) |
+| `typescript/no-non-null-assertion`             | 2,103 (1,754 in tests)       |
+| `typescript/prefer-readonly-parameter-types`   | 10,176 (3,636 in tests)      |
+| `eslint/require-unicode-regexp`                | 2,241 (1,453 in tests)       |
+| `typescript/promise-function-async`            | 1,836 (1,120 in tests)       |
+| `unicorn/no-array-callback-reference`          | 336                          |
+| `anti-slop/no-runtime-typeof`                  | 1,059 library, 93 CLI        |
+| `anti-slop/no-unsafe-dictionary-type`          | 872 library, 36 CLI          |
+| `anti-slop/no-unknown-parameters`              | 841 library, 30 CLI          |
+| `anti-slop/no-unknown-returns`                 | 255 library, 22 CLI          |
+| `anti-slop/no-known-value-widening`            | 410 library, 37 CLI          |
+| `anti-slop/no-object-parameters`               | 70 library, 2 CLI            |
+| `anti-slop/no-conditional-empty-object-spread` | 1,427 library, 143 CLI       |
 
 The anti-slop rules are errors everywhere else. The library and the CLI
 decode PostgREST, Auth, webhook, catalog and `config.toml` payloads without a
@@ -177,30 +208,33 @@ rejections that tests assert on.
 These rules stay off by design, each with its reason in the root
 `oxlint.config.ts`:
 
-| Rule                                  | Findings     | Reason                                               |
-| ------------------------------------- | ------------ | ---------------------------------------------------- |
-| `typescript/consistent-return`        | 20           | `noImplicitReturns` covers it                        |
-| `eslint/no-useless-return`            | 8            | TS7030 needs the final `return;`                     |
-| `unicorn/prefer-regexp-test`          | 3            | not type-aware; custom matchers have a `match`       |
-| `eslint/require-await`                | 121          | duplicates the type-aware `typescript/require-await` |
-| `eslint/no-negated-condition`         | not measured | duplicates `unicorn/no-negated-condition`            |
-| `typescript/ban-types`                | 10           | `string & {}` and the `{}` generic defaults          |
-| `eslint/no-redeclare`                 | 6            | a Valibot schema and its type share a name           |
-| `eslint/max-classes-per-file`         | 4            | an error class next to its subclass                  |
-| `typescript/no-unsafe-type-assertion` | 402          | each assertion carries a `SAFETY:` comment instead   |
-| `typescript/no-base-to-string`        | 27           | `String(unknown)` for SQL literals and error text    |
+| Rule                                  | Findings | Reason                                               |
+| ------------------------------------- | -------- | ---------------------------------------------------- |
+| `typescript/consistent-return`        | 81       | `noImplicitReturns` covers it                        |
+| `eslint/no-useless-return`            | 41       | TS7030 needs the final `return;`                     |
+| `unicorn/prefer-regexp-test`          | 3        | not type-aware; custom matchers have a `match`       |
+| `eslint/require-await`                | 851      | duplicates the type-aware `typescript/require-await` |
+| `typescript/ban-types`                | 27       | `string & {}` and the `{}` generic defaults          |
+| `eslint/no-redeclare`                 | 15       | a Valibot schema and its type share a name           |
+| `eslint/max-classes-per-file`         | 12       | an error class next to its subclass                  |
+| `typescript/no-unsafe-type-assertion` | 1,671    | each assertion carries a `SAFETY:` comment instead   |
+| `typescript/no-base-to-string`        | 119      | `String(unknown)` for SQL literals and error text    |
 
-The test-files override also turns off `vitest/no-conditional-in-test` (206),
-`typescript/require-await` (89), `typescript/strict-void-return` (77),
-`eslint/max-lines` and the promise-rejection rules (10), because fakes,
-table-driven cases and rejection tests need them.
+`unicorn/catch-error-name` is on, but it ignores `cause`: a handler that also
+builds or returns an `error` of its own (`{ error: toDbError(cause) }`) names
+the caught value `cause`.
+
+The test-files override also turns off `vitest/no-conditional-in-test`
+(1,495), `typescript/require-await` (712), `typescript/strict-void-return`
+(233), `eslint/max-lines` (242) and the promise-rejection rules (27), because
+fakes, table-driven cases and rejection tests need them.
 
 `anti-slop/require-safety-comment-for-type-assertion` had 470 findings (282
 outside tests). Those were annotated and the rule is an error everywhere
 except the test-files override, where fakes are handed to typed APIs on purpose.
 
 The test-files override turns off the `typescript/no-unsafe-*` rules, because Vitest's
-asymmetric matchers and `Response.json()` are typed `any` (60 findings).
+asymmetric matchers and `Response.json()` are typed `any` (371 findings).
 The docs table wrapper disables `jsx-a11y/no-noninteractive-tabindex` on one
 line: axe requires a scrolling region to take keyboard focus
 (`scrollable-region-focusable`), which that rule forbids.
@@ -211,24 +245,26 @@ The root `oxlint.config.ts` extends Ultracite 8.0.1 (`core`, `vitest`,
 `anti-slop`, `react`, `next`, `shadcn`) and keeps every house rule above.
 On adoption, 125 of its rules fired 97,274 times on existing code. Each one
 is off in the root config, in a group with the reason and the count, so
-enforcement on new code is what it was before the migration. The largest:
+enforcement on new code is what it was before the migration.
+
+The October 2026 pass turned on `anti-slop/require-readable-spacing`,
+`eslint/curly`, `unicorn/switch-case-braces` and `unicorn/catch-error-name`.
+Their autofix commits are listed in `.git-blame-ignore-revs`. The largest
+that remain:
 
 | Rule                                     | Findings when measured |
 | ---------------------------------------- | ---------------------- |
-| `anti-slop/require-readable-spacing`     | 36,556                 |
-| `eslint/sort-keys`                       | 21,748                 |
-| `eslint/curly`                           | 6,255                  |
-| `vitest/prefer-strict-equal`             | 5,619                  |
-| `eslint/func-style`                      | 5,465                  |
-| `vitest/prefer-expect-resolves`          | 4,118                  |
-| `vitest/max-expects`                     | 3,996                  |
-| `typescript/method-signature-style`      | 1,896                  |
-| `import/consistent-type-specifier-style` | 1,826                  |
-| `unicorn/no-await-expression-member`     | 1,472                  |
+| `eslint/sort-keys`                       | 22,476                 |
+| `vitest/prefer-strict-equal`             | 5,723                  |
+| `eslint/func-style`                      | 5,625                  |
+| `vitest/prefer-expect-resolves`          | 4,241                  |
+| `vitest/max-expects`                     | 4,068                  |
+| `typescript/method-signature-style`      | 1,971                  |
+| `import/consistent-type-specifier-style` | 1,834                  |
+| `unicorn/no-await-expression-member`     | 1,504                  |
 
-`require-readable-spacing` is a whitespace autofix that touches most files, so
-it lands in its own commit. The style rules (`sort-keys`, `curly`,
-`func-style` and the rest of that group) want a different form than the repo
+The style rules (`sort-keys`, `func-style` and the rest of that group) want
+a different form than the repo
 writes, and their fixes are not all safe (`func-style` changes hoisting), so
 each is a decision before it is a codemod. The review group and the
 react-doctor hints need reading per site. A group's backlog ends when its

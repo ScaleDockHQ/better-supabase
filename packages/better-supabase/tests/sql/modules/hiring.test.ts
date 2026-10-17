@@ -18,10 +18,12 @@ describe("hiring module", () => {
     expect(modules.indexOf("hiring")).toBeLessThan(
       modules.indexOf("pipelines"),
     );
+
     const pipelines = files
       .filter((file) => file.module === "pipelines")
       .map((file) => file.contents)
       .join("\n");
+
     expect(pipelines).toContain(
       'create trigger bs_pipeline_application before insert or update of "stage_id", "pipeline_id", "owner_user_id" on "better_supabase"."applications"',
     );

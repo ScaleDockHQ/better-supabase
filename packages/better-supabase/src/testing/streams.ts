@@ -17,15 +17,21 @@ async function collect(
   const chunks: string[] = [];
   const reader = stream.getReader();
   let timer: ReturnType<typeof setTimeout> | undefined;
+
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
       reject(new Error(`read did not end within ${String(timeoutMs)} ms`));
     }, timeoutMs);
   });
+
   try {
     for (;;) {
       const { done, value } = await Promise.race([reader.read(), timeout]);
-      if (done) return chunks;
+
+      if (done) {
+        return chunks;
+      }
+
       chunks.push(value);
     }
   } finally {
@@ -49,6 +55,7 @@ export function testStreamStore(
 ): Promise<ConformanceReport> {
   const fresh = options.id ?? (() => `conformance-${crypto.randomUUID()}`);
   const timeoutMs = options.timeoutMs ?? 5000;
+
   return conform(`StreamStore "${store.name}"`, [
     [
       "has apiVersion 1 and a name",

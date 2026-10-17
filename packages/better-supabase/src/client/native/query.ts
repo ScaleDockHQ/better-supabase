@@ -57,13 +57,16 @@ export function syncQueryWithApp(options: SyncQueryWithAppOptions): () => void {
   const { focusManager, onlineManager, appState, netInfo, supabase } = options;
   focusManager.setEventListener((setFocused) => {
     setFocused(appState.currentState === "active");
+
     const subscription = appState.addEventListener("change", (state) => {
       setFocused(state === "active");
     });
+
     return () => {
       subscription.remove();
     };
   });
+
   if (onlineManager && netInfo) {
     onlineManager.setEventListener((setOnline) =>
       netInfo.addEventListener((state) => {
@@ -73,12 +76,18 @@ export function syncQueryWithApp(options: SyncQueryWithAppOptions): () => void {
       }),
     );
   }
+
   const stopRefresh = supabase
     ? autoRefreshOnForeground(supabase, appState)
     : undefined;
+
   return () => {
     focusManager.setEventListener(NOOP);
-    if (onlineManager && netInfo) onlineManager.setEventListener(NOOP);
+
+    if (onlineManager && netInfo) {
+      onlineManager.setEventListener(NOOP);
+    }
+
     stopRefresh?.();
   };
 }

@@ -305,10 +305,17 @@ function compact<T extends object>(value: Loose<T>): T {
 }
 
 const num = (value: unknown): number | undefined => {
-  if (typeof value === "number") return value;
-  if (typeof value === "string" && value !== "") return Number(value);
+  if (typeof value === "number") {
+    return value;
+  }
+
+  if (typeof value === "string" && value !== "") {
+    return Number(value);
+  }
+
   return undefined;
 };
+
 const date = (value: unknown): Temporal.PlainDate | undefined =>
   typeof value === "string"
     ? temporal().PlainDate.from(value.slice(0, 10))
@@ -317,6 +324,7 @@ const date = (value: unknown): Temporal.PlainDate | undefined =>
 function itemOf(value: unknown): WorkItem {
   const row = recordOf(value, "work item");
   const reason = optionalText(row["close_reason"]);
+
   return compact<WorkItem>({
     id: textOf(row["id"]),
     organizationId: textOf(row["tenant_id"]),
@@ -363,6 +371,7 @@ function itemOf(value: unknown): WorkItem {
 
 function nodeOf(value: unknown): WorkItemNode {
   const row = recordOf(value, "work item node");
+
   return compact<WorkItemNode>({
     id: textOf(row["id"]),
     parentId: optionalText(row["parentId"]),
@@ -380,6 +389,7 @@ function nodeOf(value: unknown): WorkItemNode {
 
 function projectOf(value: unknown): Project {
   const row = recordOf(value, "project");
+
   return compact<Project>({
     id: textOf(row["id"]),
     key: textOf(row["key"]),
@@ -398,6 +408,7 @@ function projectOf(value: unknown): Project {
 
 function iterationOf(value: unknown): Iteration {
   const row = recordOf(value, "iteration");
+
   return compact<Iteration>({
     id: textOf(row["id"]),
     teamId: optionalText(row["team_id"]),
@@ -415,6 +426,7 @@ function valueArg(value: unknown): unknown {
   ) {
     return value.toString();
   }
+
   return value;
 }
 
@@ -432,15 +444,19 @@ export function createWorkItems<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: WorkItemsOptions<S>): WorkItems<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const fields: BlockFields<F> = blockFields(
     options.fields,
     "work item fields",
   );
+
   const client: WorkItems<F> = {
     create: (organizationId, input, assigneeIds) => {
       const { fields: extra, ...attrs } = input;
+
       return fields.args(extra).andThen((checked) =>
         call(
           "create_work_item",
@@ -459,10 +475,17 @@ export function createWorkItems<
     update: (changes) =>
       AsyncResult.from(async () => {
         for (const change of changes) {
-          if (BUILT_IN.has(change.field)) continue;
+          if (BUILT_IN.has(change.field)) {
+            continue;
+          }
+
           const valid = await fields.write({ [change.field]: change.value });
-          if (!valid.ok) return valid;
+
+          if (!valid.ok) {
+            return valid;
+          }
         }
+
         return ok(changes);
       }).andThen((checked) =>
         call(
@@ -476,6 +499,7 @@ export function createWorkItems<
           },
           (value) => {
             const row = recordOf(value, "update_work_items");
+
             return {
               accepted: recordsOf(row["accepted"], "accepted").map((item) => ({
                 workItemId: textOf(item["workItemId"]),
@@ -517,11 +541,12 @@ export function createWorkItems<
       ),
     list: (organizationId, list = {}) => {
       const { search, after, limit, ...filter } = list;
+
       return call(
         "list_work_items",
         {
           tenant: organizationId,
-          filter: filter,
+          filter,
           search: search ?? null,
           after: after ?? null,
           page_size: limit ?? null,
@@ -531,6 +556,7 @@ export function createWorkItems<
     },
     saveProject: (organizationId, project) => {
       const { id, ...attrs } = project;
+
       return call(
         "save_project",
         { tenant: organizationId, project: id ?? null, attrs: args(attrs) },
@@ -539,6 +565,7 @@ export function createWorkItems<
     },
     saveIteration: (organizationId, iteration) => {
       const { id, ...attrs } = iteration;
+
       return call(
         "save_iteration",
         { tenant: organizationId, iteration: id ?? null, attrs: args(attrs) },
@@ -546,6 +573,7 @@ export function createWorkItems<
       );
     },
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "work-items",
     ...(options.logger ? { logger: options.logger } : {}),

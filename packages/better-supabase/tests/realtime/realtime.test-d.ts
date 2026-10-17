@@ -12,6 +12,7 @@ import { defineBucket } from "../../src/storage/index.ts";
 import { buckets, topics } from "../fixtures/generated-camel.ts";
 
 declare const client: RealtimeClient;
+
 declare const title: StandardSchemaV1<
   { title: string },
   { title: string; at: Date }
@@ -22,6 +23,7 @@ describe("topic types", () => {
     const notifications = defineTopic(topics.notifications, {
       events: { created: title },
     });
+
     expectTypeOf(notifications.params).toEqualTypeOf<
       readonly ("organizationId" | "userId")[]
     >();
@@ -72,6 +74,7 @@ describe("topic types", () => {
 
   it("types presence state from its schema", () => {
     const room = defineTopic("room:{roomId}", { presence: title });
+
     const subscription = room.subscribe(
       client,
       { roomId: "r" },
@@ -83,6 +86,7 @@ describe("topic types", () => {
           >(),
       },
     );
+
     void subscription.track({ title: "x" });
     // @ts-expect-error wrong state
     void subscription.track({ name: "x" });
@@ -100,6 +104,7 @@ describe("topic types", () => {
       // @ts-expect-error no presence on this topic
       { onPresence: () => undefined },
     );
+
     // @ts-expect-error no presence on this topic
     void plain.track({});
     useBroadcast(room, { roomId: "r" });

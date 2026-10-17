@@ -84,6 +84,7 @@ export interface WorkflowGraph {
 }
 
 const DURATION = /^(\d+)(ms|s|m|h|d)$/;
+
 const UNIT_MS: ReadonlyMap<string, number> = new Map([
   ["ms", 1],
   ["s", 1000],
@@ -97,11 +98,20 @@ export function durationMs(value: unknown): number | undefined {
   if (typeof value === "number") {
     return Number.isFinite(value) && value > 0 ? Math.round(value) : undefined;
   }
-  if (typeof value !== "string") return undefined;
+
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
   const match = DURATION.exec(value.trim());
-  if (match === null) return undefined;
+
+  if (match === null) {
+    return undefined;
+  }
+
   const factor = UNIT_MS.get(match[2] ?? "");
   const ms = Number(match[1]) * (factor ?? 0);
+
   return ms > 0 ? ms : undefined;
 }
 
@@ -112,11 +122,22 @@ export function conditionOf(
   node: WorkflowGraphNode,
 ): WorkflowCondition | undefined {
   const config = node.config;
-  if (config === undefined) return undefined;
+
+  if (config === undefined) {
+    return undefined;
+  }
+
   const path = config["path"];
   const op = OPERATORS.find((known) => known === config["op"]);
-  if (typeof path !== "string" || op === undefined) return undefined;
-  if (!CONDITION_PATH.test(path)) return undefined;
+
+  if (typeof path !== "string" || op === undefined) {
+    return undefined;
+  }
+
+  if (!CONDITION_PATH.test(path)) {
+    return undefined;
+  }
+
   return { path, op, value: config["value"] };
 }
 
@@ -131,17 +152,24 @@ export interface GraphScope {
 /** Reads `path` (`input...`, `results...` or `subject...`) from the run's data. */
 export function readPath(scope: GraphScope, path: string): unknown {
   const [root, ...rest] = path.split(".");
+
   let value: unknown =
     root === "input"
       ? scope.input
       : root === "subject"
         ? scope.subject
         : scope.results;
+
   for (const key of rest) {
-    if (Array.isArray(value)) value = value[Number(key)];
-    else if (isGraphRecord(value)) value = value[key];
-    else return undefined;
+    if (Array.isArray(value)) {
+      value = value[Number(key)];
+    } else if (isGraphRecord(value)) {
+      value = value[key];
+    } else {
+      return undefined;
+    }
   }
+
   return value;
 }
 
@@ -152,19 +180,24 @@ export function evaluateCondition(
 ): boolean {
   const actual = readPath(scope, condition.path);
   const expected = condition.value;
+
   switch (condition.op) {
     case "equals": {
       return JSON.stringify(actual) === JSON.stringify(expected);
     }
+
     case "notEquals": {
       return JSON.stringify(actual) !== JSON.stringify(expected);
     }
+
     case "exists": {
       return actual !== undefined && actual !== null;
     }
+
     case "truthy": {
       return Boolean(actual);
     }
+
     case "greaterThan": {
       return (
         typeof actual === "number" &&
@@ -172,6 +205,7 @@ export function evaluateCondition(
         actual > expected
       );
     }
+
     case "lessThan": {
       return (
         typeof actual === "number" &&
@@ -179,15 +213,18 @@ export function evaluateCondition(
         actual < expected
       );
     }
+
     case "contains": {
       if (typeof actual === "string") {
         return typeof expected === "string" && actual.includes(expected);
       }
+
       return (
         Array.isArray(actual) &&
         actual.some((item) => JSON.stringify(item) === JSON.stringify(expected))
       );
     }
+
     default: {
       const unknown: never = condition.op;
       throw new TypeError(
@@ -211,38 +248,61 @@ export function topologicalOrder(
 ): readonly WorkflowGraphNode[] | undefined {
   const indegree = new Map(graph.nodes.map((node) => [node.id, 0]));
   const targets = new Map<string, string[]>();
+
   for (const edge of graph.edges) {
-    if (!indegree.has(edge.source) || !indegree.has(edge.target)) continue;
+    if (!indegree.has(edge.source) || !indegree.has(edge.target)) {
+      continue;
+    }
+
     indegree.set(edge.target, (indegree.get(edge.target) ?? 0) + 1);
     targets.set(edge.source, [
       ...(targets.get(edge.source) ?? []),
       edge.target,
     ]);
   }
+
   const byId = new Map(graph.nodes.map((node) => [node.id, node]));
   const order: WorkflowGraphNode[] = [];
   const ready = graph.nodes.filter((node) => indegree.get(node.id) === 0);
+
   while (ready.length > 0) {
     const node = ready.shift();
-    if (node === undefined) break;
+
+    if (node === undefined) {
+      break;
+    }
+
     order.push(node);
+
     for (const target of targets.get(node.id) ?? []) {
       const left = (indegree.get(target) ?? 0) - 1;
       indegree.set(target, left);
       const next = byId.get(target);
-      if (left === 0 && next !== undefined) ready.push(next);
+
+      if (left === 0 && next !== undefined) {
+        ready.push(next);
+      }
     }
   }
+
   return order.length === graph.nodes.length ? order : undefined;
 }
 
 /** `value` as a node, or `undefined` when its id or kind is missing. */
 export function nodeOf(value: unknown): WorkflowGraphNode | undefined {
-  if (!isGraphRecord(value)) return undefined;
+  if (!isGraphRecord(value)) {
+    return undefined;
+  }
+
   const id = value["id"];
   const kind = WORKFLOW_NODE_KINDS.find((known) => known === value["kind"]);
-  if (typeof id !== "string" || kind === undefined) return undefined;
+
+  if (typeof id !== "string" || kind === undefined) {
+    return undefined;
+  }
+
   const { label, step, config, position } = value;
+
   return {
     id,
     kind,
@@ -259,11 +319,16 @@ export function nodeOf(value: unknown): WorkflowGraphNode | undefined {
 
 /** `value` as an edge, or `undefined` when its ends are missing. */
 export function edgeOf(value: unknown): WorkflowGraphEdge | undefined {
-  if (!isGraphRecord(value)) return undefined;
+  if (!isGraphRecord(value)) {
+    return undefined;
+  }
+
   const { id, source, target, branch } = value;
+
   if (typeof source !== "string" || typeof target !== "string") {
     return undefined;
   }
+
   return {
     id: typeof id === "string" ? id : `${source}->${target}`,
     source,
@@ -296,30 +361,41 @@ export function validateGraph(
   ) {
     return ["A graph has a nodes array and an edges array"];
   }
+
   const errors: string[] = [];
   const library = steps === undefined ? undefined : new Set(steps);
   const nodes = new Map<string, WorkflowGraphNode>();
   let triggers = 0;
+
   for (const value of graph["nodes"]) {
     const id: unknown = isGraphRecord(value) ? value["id"] : undefined;
+
     if (!isGraphRecord(value) || typeof id !== "string" || !NODE_ID.test(id)) {
       errors.push(
         "Every node has an id of 1 to 100 letters, digits, underscores or hyphens",
       );
       continue;
     }
-    if (nodes.has(id)) errors.push(`Node ${id} appears twice`);
+
+    if (nodes.has(id)) {
+      errors.push(`Node ${id} appears twice`);
+    }
+
     const node = nodeOf(value);
+
     if (node === undefined) {
       errors.push(`Node ${id} has an unknown kind`);
       continue;
     }
+
     nodes.set(id, node);
+
     switch (node.kind) {
       case "trigger": {
         triggers += 1;
         break;
       }
+
       case "step": {
         if (typeof node.step !== "string" || node.step.length === 0) {
           errors.push(`Node ${id} names no step`);
@@ -328,37 +404,50 @@ export function validateGraph(
             `Node ${id} uses step ${node.step}, which is not in the step library`,
           );
         }
+
         break;
       }
+
       case "sleep": {
         if (durationMs(node.config?.["duration"]) === undefined) {
           errors.push(`Node ${id} has no valid duration`);
         }
+
         break;
       }
+
       case "approval": {
         break;
       }
+
       case "condition": {
         if (conditionOf(node) === undefined) {
           errors.push(`Node ${id} has no valid condition`);
         }
+
         break;
       }
+
       default: {
         const unknown: never = node.kind;
         errors.push(`Node ${id} has an unknown kind ${String(unknown)}`);
       }
     }
   }
-  if (triggers === 0) errors.push("A graph has at least one trigger node");
+
+  if (triggers === 0) {
+    errors.push("A graph has at least one trigger node");
+  }
+
   const edgeIds = new Set<string>();
   const edges: WorkflowGraphEdge[] = [];
+
   for (const value of graph["edges"]) {
     const id =
       isGraphRecord(value) && typeof value["id"] === "string"
         ? value["id"]
         : "?";
+
     if (
       !isGraphRecord(value) ||
       typeof value["source"] !== "string" ||
@@ -369,11 +458,16 @@ export function validateGraph(
       errors.push(`Edge ${id} joins a node that does not exist`);
       continue;
     }
-    if (edgeIds.has(id)) errors.push(`Edge ${id} appears twice`);
+
+    if (edgeIds.has(id)) {
+      errors.push(`Edge ${id} appears twice`);
+    }
+
     edgeIds.add(id);
     const source = nodes.get(value["source"]);
     const target = nodes.get(value["target"]);
     const branch = value["branch"];
+
     if (branch !== undefined) {
       if (branch !== "true" && branch !== "false") {
         errors.push(`Edge ${id} has a branch other than "true" or "false"`);
@@ -381,21 +475,25 @@ export function validateGraph(
         errors.push(`Edge ${id} branches from a ${source.kind} node`);
       }
     }
+
     if (target?.kind === "trigger") {
       errors.push(`Edge ${id} leads into the trigger node`);
     }
+
     edges.push({
       id,
       source: value["source"],
       target: value["target"],
     });
   }
+
   if (
     errors.length === 0 &&
     topologicalOrder({ nodes: [...nodes.values()], edges }) === undefined
   ) {
     errors.push("The graph has a cycle");
   }
+
   return errors;
 }
 
@@ -427,6 +525,7 @@ export function diffGraphs(
   const now = new Map(after.nodes.map((node) => [node.id, node]));
   const oldEdges = new Set(before.edges.map(edgeKey));
   const newEdges = new Set(after.edges.map(edgeKey));
+
   return {
     nodes: {
       added: [...now.keys()].filter((id) => !old.has(id)),
@@ -434,6 +533,7 @@ export function diffGraphs(
       changed: [...now.values()]
         .filter((node) => {
           const previous = old.get(node.id);
+
           return (
             previous !== undefined &&
             nodeContent(previous) !== nodeContent(node)
@@ -450,9 +550,13 @@ export function diffGraphs(
 
 /** `value` as a graph, or an empty one when it isn't shaped like one. */
 export function graphOf(value: unknown): WorkflowGraph {
-  if (!isGraphRecord(value)) return { nodes: [], edges: [] };
+  if (!isGraphRecord(value)) {
+    return { nodes: [], edges: [] };
+  }
+
   const nodes = Array.isArray(value["nodes"]) ? value["nodes"] : [];
   const edges = Array.isArray(value["edges"]) ? value["edges"] : [];
+
   return {
     nodes: nodes.flatMap((node) => nodeOf(node) ?? []),
     edges: edges.flatMap((edge) => edgeOf(edge) ?? []),

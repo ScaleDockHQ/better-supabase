@@ -20,6 +20,7 @@ async function exec(
       nodeOptions: { cwd, stdio: ["ignore", "pipe", "pipe"] },
       throwOnError: false,
     });
+
     return {
       code: result.exitCode ?? 1,
       stdout: result.stdout,
@@ -41,6 +42,10 @@ export async function supabaseCli(
   env: CliEnv,
 ): Promise<ExecResult> {
   const result = await exec(env.SUPABASE_BIN ?? "supabase", args, cwd);
-  if (result.code !== 127) return result;
+
+  if (result.code !== 127) {
+    return result;
+  }
+
   return exec("npx", ["--yes", "supabase", ...args], cwd);
 }

@@ -42,6 +42,7 @@ interface ClaimsLimits {
 function claimsLimits(context: DoctorContext): ClaimsLimits {
   const configured = context.config.doctor.claimsLimit;
   const budget = providerHook(context)?.budget;
+
   return budget
     ? {
         token: HOOK_CLAIMS_LIMIT,
@@ -68,6 +69,7 @@ const splitName = (
   qualified: string,
 ): { readonly schema: string; readonly name: string } => {
   const dot = qualified.indexOf(".");
+
   return { schema: qualified.slice(0, dot), name: qualified.slice(dot + 1) };
 };
 
@@ -104,8 +106,13 @@ function markerFileFor(
   fn: Pick<ExtrasHookFunction, "schema" | "name">,
 ): TextFile | undefined {
   const marker = providerHook(context)?.markers?.hook;
-  if (marker === undefined) return undefined;
+
+  if (marker === undefined) {
+    return undefined;
+  }
+
   const creates = createsFunction(fn);
+
   return (context.sqlFiles ?? []).find(
     (file) => file.text.includes(marker) && creates.test(file.text),
   );
@@ -117,8 +124,15 @@ function isProviderHook(
   fn: Pick<ExtrasHookFunction, "schema" | "name">,
 ): boolean {
   const hook = providerHook(context);
-  if (!hook) return false;
-  if (hook.function === `${fn.schema}.${fn.name}`) return true;
+
+  if (!hook) {
+    return false;
+  }
+
+  if (hook.function === `${fn.schema}.${fn.name}`) {
+    return true;
+  }
+
   return markerFileFor(context, fn) !== undefined;
 }
 
@@ -128,6 +142,7 @@ function wrapsProviderHook(
   source: string,
 ): boolean {
   const { schema, name } = splitName(hook.function);
+
   return new RegExp(`${quotedName(schema, name)}\\s*\\(`, "i").test(source);
 }
 
@@ -135,6 +150,7 @@ function wrapsProviderHook(
 function writtenClaims(source: string, claims: readonly string[]): string[] {
   return claims.filter((claim) => {
     const name = escapeRegExp(claim);
+
     return (
       new RegExp(
         `jsonb_set\\s*\\([^;]*?'\\{\\s*(?:claims\\s*,\\s*)?${name}\\s*\\}'`,
@@ -157,8 +173,12 @@ export interface ConfiguredHook {
 
 /** Hooks enabled in `config.toml`, matched with their introspected functions. */
 export function configuredHooks(context: DoctorContext): ConfiguredHook[] {
-  if (!context.configToml) return [];
+  if (!context.configToml) {
+    return [];
+  }
+
   const introspected = context.snapshot.extras.hooks ?? [];
+
   return pgFunctionHooks(context.configToml.document).map((config) => ({
     config,
     extras: introspected.find(
@@ -174,11 +194,15 @@ function hookLocation(
   context: DoctorContext,
   hook: string,
 ): Location | undefined {
-  if (!context.configToml) return undefined;
+  if (!context.configToml) {
+    return undefined;
+  }
+
   const line = lineOf(
     context.configToml.text,
     new RegExp(`^\\s*\\[auth\\.hook\\.${hook}\\]`),
   );
+
   return line ? { file: context.configToml.path, line } : undefined;
 }
 
@@ -192,17 +216,21 @@ function grantProblems(fn: ExtrasHookFunction): {
 } {
   const problems: string[] = [];
   const fix: string[] = [];
+
   if (!fn.schemaUsage.includes("supabase_auth_admin")) {
     problems.push(`supabase_auth_admin has no usage on schema ${fn.schema}`);
     fix.push(`grant usage on schema ${fn.schema} to supabase_auth_admin;`);
   }
+
   if (!fn.execute.includes("supabase_auth_admin")) {
     problems.push("supabase_auth_admin may not execute it");
     fix.push(
       `grant execute on function ${signatureOf(fn)} to supabase_auth_admin;`,
     );
   }
+
   const exposedTo = API_ROLES.filter((role) => fn.execute.includes(role));
+
   if (exposedTo.length > 0 || fn.publicExecute) {
     const roles = [...exposedTo, ...(fn.publicExecute ? ["public"] : [])];
     problems.push(
@@ -212,6 +240,7 @@ function grantProblems(fn: ExtrasHookFunction): {
       `revoke execute on function ${signatureOf(fn)} from authenticated, anon, public;`,
     );
   }
+
   return { problems, fix };
 }
 
@@ -254,8 +283,10 @@ function grantsSourceFor(
     `grant\\s+execute\\s+on\\s+function\\s+${quotedName(fn.schema, fn.name)}\\s*\\([^)]*\\)\\s*to\\s+[^;]*\\bsupabase_auth_admin\\b`,
     "i",
   );
+
   const creates = createsFunction(fn);
   const marker = providerHook(context)?.markers?.grants;
+
   return (context.sqlFiles ?? []).find(
     (file) =>
       grants.test(file.text) &&
@@ -272,13 +303,19 @@ function grantsSourceFor(
 /** Configured hook functions whose grants are wrong (BS404, `doctor --fix-grants`). */
 export function hookGrantProblems(context: DoctorContext): HookGrantProblem[] {
   const workflow = workflowOf(context);
+
   return configuredHooks(context).flatMap(({ config, extras }) =>
     (extras?.functions ?? []).flatMap((fn): HookGrantProblem[] => {
       const { problems, fix } = grantProblems(fn);
-      if (problems.length === 0) return [];
+
+      if (problems.length === 0) {
+        return [];
+      }
+
       const file = grantsSourceFor(context, fn, workflow);
       const provider = context.config.authorization;
       const command = provider?.tokenHook?.grantsCommand;
+
       return [
         {
           hook: config.hook,
@@ -302,18 +339,25 @@ export function hookGrantProblems(context: DoctorContext): HookGrantProblem[] {
 /** The sentence that tells the reader how to apply `fix`. */
 function grantFixText(fix: HookGrantFix, workflow: SqlWorkflow): string {
   switch (fix.kind) {
-    case "sql":
+    case "sql": {
       return `${grantFixPlace(workflow)} (\`doctor --fix-grants\` prints every block):\n${fix.sql.join("\n")}`;
-    case "provider":
+    }
+
+    case "provider": {
       return fix.command
         ? `It is the hook of ${fix.name}, so let the provider write the grants: \`${fix.command}\`.`
         : `It is the hook of ${fix.name}, so let the provider write the grants.`;
-    case "migration":
+    }
+
+    case "migration": {
       return workflow === "pg-delta"
         ? `${fix.file} grants it, so the database is behind: run \`supabase db schema declarative sync\`, then apply the migrations (\`supabase migration up\`).`
         : `${fix.file} grants it, so the database is behind the migrations: apply them (\`supabase migration up\`).`;
+    }
+
     default: {
       const unreachable: never = fix;
+
       return unreachable;
     }
   }
@@ -322,14 +366,21 @@ function grantFixText(fix: HookGrantFix, workflow: SqlWorkflow): string {
 /** Where the grants go under `workflow`. */
 function grantFixPlace(workflow: SqlWorkflow): string {
   switch (workflow) {
-    case "pg-delta":
+    case "pg-delta": {
       return "Add to the schema file that defines the function, then run `supabase db schema declarative sync`";
-    case "migra":
+    }
+
+    case "migra": {
       return "Append to the migration `supabase db diff` wrote";
-    case "migrations":
+    }
+
+    case "migrations": {
       return "Add to a new migration (`supabase migration new auth_hook_grants`), then apply it (`supabase migration up`)";
+    }
+
     default: {
       const unreachable: never = workflow;
+
       return unreachable;
     }
   }
@@ -340,27 +391,35 @@ export function hookGrantBlock(
   problems: readonly HookGrantProblem[],
   workflow: SqlWorkflow = "pg-delta",
 ): string {
-  if (problems.length === 0)
+  if (problems.length === 0) {
     return "-- Every configured Auth hook function has its grants.";
+  }
+
   const lines = [
     "-- Auth hook grants (better-supabase doctor --fix-grants).",
     workflow === "migra"
       ? "-- `supabase db diff` does not carry function grants; append this to its migration."
       : `-- ${grantFixPlace(workflow)}.`,
   ];
+
   for (const { fn, hook, fix } of problems) {
     const name = `${signatureOf(fn)} ([auth.hook.${hook}])`;
+
     switch (fix.kind) {
-      case "sql":
+      case "sql": {
         lines.push("", `-- ${name}`, ...fix.sql);
         break;
-      case "provider":
+      }
+
+      case "provider": {
         lines.push(
           "",
           `-- ${name} is the hook of ${fix.name}${fix.command ? `: ${fix.command}` : ""}`,
         );
         break;
-      case "migration":
+      }
+
+      case "migration": {
         lines.push(
           "",
           workflow === "pg-delta"
@@ -368,17 +427,22 @@ export function hookGrantBlock(
             : `-- ${name}: ${fix.file} grants it; run \`supabase migration up\`.`,
         );
         break;
+      }
+
       default: {
         const unreachable: never = fix;
+
         return unreachable;
       }
     }
   }
+
   return lines.join("\n");
 }
 
 const emptySearchPath = (fn: ExtrasHookFunction): boolean => {
   const value = fn.settings["search_path"];
+
   return value === "" || value === '""' || value === "''";
 };
 
@@ -404,8 +468,10 @@ async function withHookEvent<T>(
   run: () => Promise<T>,
 ): Promise<T | undefined> {
   await db.query("begin");
+
   try {
     await db.query(`set local statement_timeout = '10s'`);
+
     const [user] = await db.query<{ event: string | null }>(
       `select set_config('better_supabase.hook_event', jsonb_build_object(
         'user_id', u.id,
@@ -427,13 +493,21 @@ async function withHookEvent<T>(
       )::text, true) as event
       from auth.users u where u.id = ${literal(userId)}::uuid`,
     );
-    if (!user?.event) return undefined;
+
+    if (!user?.event) {
+      return undefined;
+    }
+
     // Supabase's `postgres` may not become supabase_auth_admin; BS404 checks its grants.
     const [role] = await db.query<{ member: boolean }>(
       `select case when exists(select 1 from pg_roles where rolname = 'supabase_auth_admin')
         then pg_has_role('supabase_auth_admin', 'member') else false end as member`,
     );
-    if (role?.member) await db.query("set local role supabase_auth_admin");
+
+    if (role?.member) {
+      await db.query("set local role supabase_auth_admin");
+    }
+
     return await run();
   } finally {
     await db.query("rollback");
@@ -458,8 +532,10 @@ export async function hookClaims(
     const [row] = await db.query<{ claims: unknown }>(
       `select ${hookCall(fn)} as claims`,
     );
+
     const claims: unknown =
       typeof row?.claims === "string" ? JSON.parse(row.claims) : row?.claims;
+
     return isRecord(claims) ? claims : {};
   });
 }
@@ -479,9 +555,11 @@ async function hookClaimsSize(
           )
           .join(" + ")
       : "0";
+
   const truncatedSql = budget?.truncatedClaim
     ? `c ->> ${literal(budget.truncatedClaim)} = 'true'`
     : "false";
+
   return withHookEvent(db, userId, async () => {
     const [row] = await db.query<{
       bytes: number | string | null;
@@ -495,6 +573,7 @@ async function hookClaimsSize(
         ${truncatedSql} as truncated
       from (select ${hookCall(fn)} as c) h`,
     );
+
     return {
       bytes: Number(row?.bytes ?? 0),
       memberships: Number(row?.memberships ?? 0),
@@ -516,10 +595,15 @@ function secretsFromEnv(text: string, hook: string): boolean {
   const start = text.search(
     new RegExp(`^\\s*\\[auth\\.hook\\.${hook}\\]`, "m"),
   );
-  if (start < 0) return false;
+
+  if (start < 0) {
+    return false;
+  }
+
   const rest = text.slice(start).split("\n").slice(1);
   const end = rest.findIndex((line) => /^\s*\[/.test(line));
-  const section = (end < 0 ? rest : rest.slice(0, end)).join("\n");
+  const section = (end === -1 ? rest : rest.slice(0, end)).join("\n");
+
   return /^\s*secrets\s*=\s*["']env\(/m.test(section);
 }
 
@@ -529,8 +613,13 @@ function secretsFromEnv(text: string, hook: string): boolean {
  */
 function secretProblem(secret: string): string | undefined {
   const match = /^v1,whsec_([A-Za-z0-9+/]+={0,2})$/.exec(secret.trim());
-  if (!match) return "is not in the `v1,whsec_<base64>` format";
+
+  if (!match) {
+    return "is not in the `v1,whsec_<base64>` format";
+  }
+
   const bytes = atob(match[1]!).length;
+
   return bytes < 24 || bytes > 64
     ? `decodes to ${bytes} bytes; Standard Webhooks secrets are 24 to 64`
     : undefined;
@@ -546,8 +635,12 @@ export const HOOK_RULES: readonly Rule[] = [
     check: (context) => [
       ...configuredHooks(context).flatMap(
         ({ config, extras }): FindingInput[] => {
-          if (!extras || extras.functions.length > 0) return [];
+          if (!extras || extras.functions.length > 0) {
+            return [];
+          }
+
           const location = hookLocation(context, config.hook);
+
           return [
             {
               message: `[auth.hook.${config.hook}] calls ${config.schema}.${config.name}, which does not exist. Sign-ins fail until it does.`,
@@ -574,23 +667,31 @@ export const HOOK_RULES: readonly Rule[] = [
     async check(context) {
       const findings: FindingInput[] = [];
       const limits = claimsLimits(context);
+
       for (const { config, extras } of configuredHooks(context)) {
-        if (config.hook !== "custom_access_token" || !extras) continue;
+        if (config.hook !== "custom_access_token" || !extras) {
+          continue;
+        }
+
         for (const fn of extras.functions) {
           const object = {
             kind: "function" as const,
             schema: fn.schema,
             name: fn.name,
           };
+
           const problems: string[] = [];
+
           if (fn.volatility !== "stable") {
             problems.push(`it is ${fn.volatility}; declare it \`stable\``);
           }
+
           if (!emptySearchPath(fn)) {
             problems.push(
               "it has no `set search_path = ''`; add it and qualify every table",
             );
           }
+
           if (problems.length > 0) {
             findings.push({
               message: `${signatureOf(fn)}: ${problems.join("; ")}.`,
@@ -598,8 +699,13 @@ export const HOOK_RULES: readonly Rule[] = [
               object,
             });
           }
-          if (!context.hookUser) continue;
+
+          if (!context.hookUser) {
+            continue;
+          }
+
           const db = context.database;
+
           if (!db || "skipped" in db || !db.session) {
             findings.push({
               severity: "info",
@@ -608,6 +714,7 @@ export const HOOK_RULES: readonly Rule[] = [
             });
             continue;
           }
+
           try {
             const size = await hookClaimsSize(
               db,
@@ -615,6 +722,7 @@ export const HOOK_RULES: readonly Rule[] = [
               context.hookUser,
               limits.budget,
             );
+
             if (size === undefined) {
               findings.push({
                 severity: "info",
@@ -623,6 +731,7 @@ export const HOOK_RULES: readonly Rule[] = [
               });
               continue;
             }
+
             if (
               limits.budget !== undefined &&
               size.budget > limits.budget.bytes
@@ -633,6 +742,7 @@ export const HOOK_RULES: readonly Rule[] = [
                 object,
               });
             }
+
             if (size.bytes > limits.token) {
               findings.push({
                 message: `${signatureOf(fn)} returns ${size.bytes} bytes of claims for ${context.hookUser} (limit ${limits.token}, memberships ${size.memberships}). Every request carries them twice (cookie and header); keep ids and roles in the token and look up the rest.`,
@@ -640,6 +750,7 @@ export const HOOK_RULES: readonly Rule[] = [
                 object,
               });
             }
+
             if (size.truncated) {
               findings.push({
                 severity: "info",
@@ -657,6 +768,7 @@ export const HOOK_RULES: readonly Rule[] = [
           }
         }
       }
+
       return findings;
     },
   },
@@ -669,37 +781,60 @@ export const HOOK_RULES: readonly Rule[] = [
     check: (context) => {
       const provider = context.config.authorization;
       const hook = provider?.tokenHook;
-      if (!provider || !hook) return [];
+
+      if (!provider || !hook) {
+        return [];
+      }
+
       const label = providerLabel(provider);
+
       const registered = new Map(
         (hook.registeredClaims ?? []).map((claim) => [
           claim.name,
           claim.function,
         ]),
       );
+
       const owned = ownedClaims(hook);
       const findings: FindingInput[] = [];
+
       for (const { config, extras } of configuredHooks(context)) {
-        if (config.hook !== "custom_access_token" || !extras) continue;
+        if (config.hook !== "custom_access_token" || !extras) {
+          continue;
+        }
+
         for (const fn of extras.functions) {
-          if (fn.source === undefined || isProviderHook(context, fn)) continue;
+          if (fn.source === undefined || isProviderHook(context, fn)) {
+            continue;
+          }
+
           const module =
             owned.includes("memberships") && MODULE_MEMBERSHIPS.test(fn.source);
+
           const wrapper = wrapsProviderHook(hook, fn.source);
+
           const written = writtenClaims(fn.source, [
             ...owned,
             ...(wrapper ? registered.keys() : []),
           ]);
-          if (!module && written.length === 0) continue;
+
+          if (!module && written.length === 0) {
+            continue;
+          }
+
           const location = hookLocation(context, config.hook);
+
           const what = [
             ...(module ? ["calls better_supabase.membership_claims"] : []),
             ...(written.length > 0 ? [`writes ${written.join(", ")}`] : []),
           ].join(" and ");
+
           const extra = written.filter((claim) => registered.has(claim));
+
           const sources = extra
             .map((claim) => `${claim} from ${registered.get(claim)!}`)
             .join(", ");
+
           findings.push({
             message: `${signatureOf(fn)} ${what}, but the hook of ${label} (${hook.function}) owns those claims${extra.length > 0 ? ` (it already writes ${sources})` : ""}. Keep one source: use the provider's hook and remove these writes from yours.`,
             target: signatureOf(fn),
@@ -708,6 +843,7 @@ export const HOOK_RULES: readonly Rule[] = [
           });
         }
       }
+
       return findings;
     },
   },
@@ -719,11 +855,16 @@ export const HOOK_RULES: readonly Rule[] = [
       "Auth calls an `http://` or `https://` hook with a request signed by the Standard Webhooks secret in `secrets` (`v1,whsec_<base64>`, several joined with `|`). Doctor can't read the endpoint's code, so it reports each HTTP hook and checks what it can: the secret's format, that it comes from `env()` rather than the committed file, and that a non-local endpoint uses https. Verify the request in the endpoint with `authHook` from `better-supabase/blocks/webhooks`.",
     check: (context) => {
       const toml = context.configToml;
-      if (!toml) return [];
+
+      if (!toml) {
+        return [];
+      }
+
       return httpHooks(toml.document).flatMap(({ hook, uri, secrets }) => {
         const location = hookLocation(context, hook);
         const at = location ? { location } : {};
         const target = `[auth.hook.${hook}]`;
+
         const findings: FindingInput[] = [
           {
             severity: "info",
@@ -732,6 +873,7 @@ export const HOOK_RULES: readonly Rule[] = [
             ...at,
           },
         ];
+
         if (uri.protocol === "http:" && !LOCAL_HOSTS.has(uri.hostname)) {
           findings.push({
             message: `${target} sends claims and its signature to ${uri.host} over plain http. Use https.`,
@@ -739,7 +881,9 @@ export const HOOK_RULES: readonly Rule[] = [
             ...at,
           });
         }
+
         const fromEnv = secretsFromEnv(toml.text, hook);
+
         if (secrets === undefined || secrets.trim() === "") {
           findings.push({
             severity: "error",
@@ -747,8 +891,10 @@ export const HOOK_RULES: readonly Rule[] = [
             target,
             ...at,
           });
+
           return findings;
         }
+
         if (!fromEnv) {
           findings.push({
             message: `${target} has its secret written in ${toml.path}, which is committed. Move it to an env file and read it with \`secrets = "env(AUTH_HOOK_SECRET)"\`.`,
@@ -756,11 +902,17 @@ export const HOOK_RULES: readonly Rule[] = [
             ...at,
           });
         }
-        if (fromEnv && secrets.trim().startsWith("env(")) return findings;
+
+        if (fromEnv && secrets.trim().startsWith("env(")) {
+          return findings;
+        }
+
         const problems = secrets.split("|").flatMap((secret, index) => {
           const problem = secretProblem(secret);
+
           return problem ? [`secret ${index + 1} ${problem}`] : [];
         });
+
         if (problems.length > 0) {
           findings.push({
             severity: "error",
@@ -769,6 +921,7 @@ export const HOOK_RULES: readonly Rule[] = [
             ...at,
           });
         }
+
         return findings;
       });
     },

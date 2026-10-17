@@ -191,6 +191,7 @@ function supportRequestFromRow(
   namespace?: typeof Temporal,
 ): SupportRequest {
   const Instant = (namespace ?? temporal()).Instant;
+
   return {
     id: row.id,
     adminId: row.admin_id,
@@ -233,6 +234,7 @@ export function supportSessionFromRow(
 ): SupportSession {
   const Instant = (namespace ?? temporal()).Instant;
   const instant = (value: string) => Instant.from(value);
+
   return {
     id: row.id,
     adminId: row.admin_id,
@@ -270,8 +272,10 @@ export function sqlSupportStore(
 ): SupportSessionStore {
   const fn = (name: string) =>
     `${sqlIdent(options.schema ?? "better_supabase")}.${sqlIdent(name)}`;
+
   const as = (claims: SupportCallerClaims | undefined): SqlClient =>
     claims ? postgres.asUser(claims) : postgres.admin;
+
   const one = async (
     client: SqlClient,
     text: string,
@@ -281,8 +285,10 @@ export function sqlSupportStore(
       text,
       params,
     );
+
     return row?.session ?? null;
   };
+
   return {
     apiVersion: 1,
     name: "sql",
@@ -300,7 +306,11 @@ export function sqlSupportStore(
           input.adminId,
         ],
       );
-      if (!row) throw new Error("start_support_session returned no session");
+
+      if (!row) {
+        throw new Error("start_support_session returned no session");
+      }
+
       return supportSessionFromRow(row, options.temporal);
     },
     async get(sessionId, adminId, claims) {
@@ -309,6 +319,7 @@ export function sqlSupportStore(
         `select ${fn("active_support_session")}($1, $2) as session`,
         [sessionId, adminId],
       );
+
       return row ? supportSessionFromRow(row, options.temporal) : undefined;
     },
     async end(sessionId, endedBy, claims) {
@@ -316,6 +327,7 @@ export function sqlSupportStore(
         `select ${fn("end_support_session")}($1, $2) as ended`,
         [sessionId, endedBy],
       );
+
       return row?.ended === true;
     },
     async list(filter = {}, claims) {
@@ -328,6 +340,7 @@ export function sqlSupportStore(
           filter.limit ?? 50,
         ],
       );
+
       return rows.map((row) =>
         supportSessionFromRow(row.session, options.temporal),
       );
@@ -336,6 +349,7 @@ export function sqlSupportStore(
       const rows = await postgres.admin.queryRaw<{ session: SupportRow }>(
         `select session from ${fn("expire_support_sessions")}() as session`,
       );
+
       return rows.map((row) =>
         supportSessionFromRow(row.session, options.temporal),
       );
@@ -348,10 +362,12 @@ export function sqlSupportStore(
       const [row] = await postgres.admin.queryRaw<{
         claims: Record<string, unknown>;
       }>(`select ${fn("support_target_claims")}($1) as claims`, [targetUserId]);
+
       return row?.claims ?? {};
     },
     async request(input) {
       const approved = input.approvedBy !== undefined;
+
       const row = await oneRequest(
         approved ? postgres.admin : postgres.asUser(input.adminClaims),
         `select ${fn("request_support_session")}($1, $2, $3, $4, $5, $6, $7) as request`,
@@ -365,7 +381,11 @@ export function sqlSupportStore(
           input.approvedBy ?? null,
         ],
       );
-      if (!row) throw new Error("request_support_session returned no request");
+
+      if (!row) {
+        throw new Error("request_support_session returned no request");
+      }
+
       return supportRequestFromRow(row, options.temporal);
     },
     async getRequest(requestId) {
@@ -374,6 +394,7 @@ export function sqlSupportStore(
         `select ${fn("support_request")}($1) as request`,
         [requestId],
       );
+
       return row ? supportRequestFromRow(row, options.temporal) : undefined;
     },
     async approve(requestId, approver) {
@@ -382,7 +403,11 @@ export function sqlSupportStore(
         `select ${fn("approve_support_request")}($1, $2) as request`,
         [requestId, approver.id],
       );
-      if (!row) throw new Error("approve_support_request returned no request");
+
+      if (!row) {
+        throw new Error("approve_support_request returned no request");
+      }
+
       return supportRequestFromRow(row, options.temporal);
     },
     async approvedRequest(query) {
@@ -396,6 +421,7 @@ export function sqlSupportStore(
           query.adminId,
         ],
       );
+
       return row ? supportRequestFromRow(row, options.temporal) : undefined;
     },
   };
@@ -410,6 +436,7 @@ async function oneRequest(
     text,
     params,
   );
+
   return row?.request ?? null;
 }
 
@@ -427,6 +454,7 @@ export function supportClaims(
   target: Readonly<Record<string, unknown>>,
 ): Record<string, unknown> {
   const role = target["role"];
+
   return {
     ...target,
     sub: session.targetUserId,

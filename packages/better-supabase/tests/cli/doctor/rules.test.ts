@@ -26,8 +26,7 @@ import {
   type BetterSupabaseConfig,
   resolveConfig,
 } from "../../../src/config/index.ts";
-import { renderModules } from "../../../src/sql/index.ts";
-import { moduleLayout } from "../../../src/sql/index.ts";
+import { renderModules, moduleLayout } from "../../../src/sql/index.ts";
 import { stubProvider } from "../../fixtures/authorization-provider.ts";
 import { snapshotFixture as fixture } from "../fixtures/library.ts";
 
@@ -40,6 +39,7 @@ function snapshot(
 ): Snapshot {
   const copy = structuredClone(toCatalog(base)) as Mutable<Catalog>;
   change(copy.tables as Mutable<CatalogTable>[], copy);
+
   return fromCatalog(copy);
 }
 
@@ -120,6 +120,7 @@ describe("advisor findings (BS100, BS200)", () => {
         ]),
       }),
     );
+
     expect(findings).toEqual([
       expect.objectContaining({
         severity: "warning",
@@ -143,6 +144,7 @@ describe("advisor findings (BS100, BS200)", () => {
       describe: "splinter",
       lints: () => Promise.reject("offline"),
     };
+
     expect(
       await run("BS200", context(base, { advisors: failing })),
     ).toMatchObject([
@@ -160,6 +162,7 @@ describe("advisor findings (BS100, BS200)", () => {
         categories: ["PERFORMANCE"],
         metadata,
       });
+
     const findings = await runRules(
       context(base, {
         advisors: advisors([
@@ -170,6 +173,7 @@ describe("advisor findings (BS100, BS200)", () => {
       }),
       RULES.filter((rule) => ["BS200", "BS207"].includes(rule.code)),
     );
+
     expect(findings.map((finding) => finding.code)).toEqual([
       "BS200",
       "BS200",
@@ -192,6 +196,7 @@ describe("BS103", () => {
         },
       ];
     });
+
     expect(await run("BS103", context(snap))).toMatchObject([
       {
         message:
@@ -242,6 +247,7 @@ describe("BS107 without the tenant plugin", () => {
         policy("organizations_read", "select", "is_member(id)"),
       ];
     });
+
     const findings = await run("BS107", context(snap));
     expect(findings.map((finding) => finding.target)).toEqual([
       "public.notes",
@@ -253,6 +259,7 @@ describe("BS107 without the tenant plugin", () => {
       "BS107",
       context(snap, {}, { tables: { tags: { exclude: true } } }),
     );
+
     expect(excluded.map((finding) => finding.target)).toEqual(["public.notes"]);
   });
 
@@ -270,6 +277,7 @@ describe("BS107 without the tenant plugin", () => {
         },
       ];
     });
+
     expect(await run("BS107", context(snap))).toEqual([]);
   });
 });
@@ -289,6 +297,7 @@ describe("BS204, BS210, BS301", () => {
         },
       },
     });
+
     const sources = [{ path: "a.ts", text: "db.x.aggregate({})" }];
     expect(await run("BS210", context(withSetting("on"), { sources }))).toEqual(
       [],
@@ -316,6 +325,7 @@ describe("BS204, BS210, BS301", () => {
         },
       ];
     });
+
     expect(
       await run(
         "BS301",
@@ -354,9 +364,11 @@ describe("BS302 bucket drift in config.toml", () => {
         config,
       ),
     );
+
     const inToml = findings.filter(
       (finding) => finding.target === "[storage.buckets.docs]",
     );
+
     expect(
       inToml.map((finding) => [finding.message, finding.location?.line]),
     ).toEqual([
@@ -380,6 +392,7 @@ describe("BS302 bucket drift in config.toml", () => {
         config,
       ),
     );
+
     expect(
       findings.every((finding) => finding.target === "storage.buckets.docs"),
     ).toBe(true);
@@ -398,9 +411,11 @@ describe("BS302 bucket drift in config.toml", () => {
         config,
       ),
     );
+
     const inToml = findings.filter(
       (finding) => finding.target === "[storage.buckets.docs]",
     );
+
     expect(inToml).toEqual([
       expect.objectContaining({
         message: "supabase/config.toml [storage.buckets.docs]: public is true",
@@ -421,6 +436,7 @@ describe("BS302 bucket drift in config.toml", () => {
         },
       },
     };
+
     const withBucket = (extra: Record<string, unknown>) =>
       snapshot((_tables, catalog) => {
         catalog.buckets = [
@@ -433,10 +449,12 @@ describe("BS302 bucket drift in config.toml", () => {
           },
         ];
       });
+
     const messages = async (extra: Record<string, unknown>) =>
       (await run("BS302", context(withBucket(extra), {}, versioned))).map(
         (finding) => finding.message,
       );
+
     expect(await messages({})).toEqual([]);
     expect(
       await messages({
@@ -516,10 +534,12 @@ describe("generated and module files (BS303, BS304)", () => {
     const config: BetterSupabaseConfig = {
       blocks: { "api-keys": { options: { scopes: "catalog" } } },
     };
+
     const missing = await run(
       "BS304",
       rooted({ ...config, authorization: stubProvider }),
     );
+
     expect(missing.map((finding) => finding.target)).toContain(
       "supabase/schemas/900_better_supabase_28_api_keys.sql",
     );
@@ -531,35 +551,43 @@ describe("generated and module files (BS303, BS304)", () => {
       "supabase/schemas/010_notes.sql",
       "create table public.notes (id int);\ncreate table public.jobs (id int);\nalter table public.jobs enable row level security;\ncreate policy notes_read on public.notes for select to authenticated using (true);\n",
     );
+
     const config: BetterSupabaseConfig = {
       blocks: {
         grants: { options: { fromPolicies: true } },
         sessions: { options: { policies: true } },
       },
     };
+
     const ctx = rooted(config);
     const missing = await run("BS304", ctx);
     expect(missing.length).toBeGreaterThanOrEqual(2);
+
     const synced = await runSql(
       ctx.config,
       parseCommandArgs(sqlCommand, ["sync"]),
     );
+
     expect(synced.code).toBe(0);
     expect(await run("BS304", ctx)).toEqual([]);
+
     const grants = await readFile(
       join(root, "supabase/schemas/900_better_supabase_13_grants.sql"),
-      "utf8",
+      "utf-8",
     );
+
     expect(grants).toContain('"public"."jobs"');
   });
 
   it("checks the SQL modules in blocks", async () => {
     expect(await run("BS304", rooted())).toEqual([]);
     const ctx = rooted({ blocks: ["updated-at", "audit"] });
+
     const files = renderModules(
       ctx.config.blockNames,
       moduleLayout(ctx.config),
     );
+
     const missing = await run("BS304", ctx);
     expect(missing.map((finding) => finding.target)).toEqual(
       files.map((file) => file.path),
@@ -568,11 +596,14 @@ describe("generated and module files (BS303, BS304)", () => {
     expect(missing[0]!.message).toContain(
       "then `supabase db schema declarative sync`.",
     );
+
     const migra = await run("BS304", {
       ...ctx,
       configToml: toml("[experimental.pgdelta]\nenabled = false\n"),
     });
+
     expect(migra[0]!.message).toContain("then `supabase db diff`.");
+
     const migrations = await run("BS304", {
       ...ctx,
       config: {
@@ -580,6 +611,7 @@ describe("generated and module files (BS303, BS304)", () => {
         sql: { ...ctx.config.sql, workflow: "migrations" },
       },
     });
+
     expect(migrations[0]!.message).toContain("then `supabase migration up`.");
 
     const data = files.find((file) => file.kind === "data")!;
@@ -590,7 +622,11 @@ describe("generated and module files (BS303, BS304)", () => {
     const audit = files.find(
       (file) => file.module === "audit" && file.kind === "schema",
     );
-    for (const file of files) await write(file.path, file.contents);
+
+    for (const file of files) {
+      await write(file.path, file.contents);
+    }
+
     await write(
       audit!.path,
       audit!.contents.replace("create schema", "-- changed\ncreate schema"),
@@ -609,6 +645,7 @@ describe("generated and module files (BS303, BS304)", () => {
       sql: { workflow: "migrations" },
       blocks: ["tenant", "mfa"],
     });
+
     const missing = await run("BS304", ctx);
     expect(missing.map((finding) => finding.message)).toEqual(
       ["updated-at", "tenant", "mfa"].map(
@@ -617,8 +654,10 @@ describe("generated and module files (BS303, BS304)", () => {
       ),
     );
     const files = renderModules(["tenant", "mfa"], moduleLayout(ctx.config));
+
     const name =
       "supabase/migrations/20200101000000_better_supabase_modules.sql";
+
     await write(
       name,
       files
@@ -658,10 +697,15 @@ describe("generated and module files (BS303, BS304)", () => {
   it("reports a module behind its version in BS311, not BS304", async () => {
     const ctx = rooted({ blocks: ["tenant"] });
     const files = renderModules(["tenant"], moduleLayout(ctx.config));
-    for (const module of files) await write(module.path, module.contents);
+
+    for (const module of files) {
+      await write(module.path, module.contents);
+    }
+
     const file = files.find(
       (module) => module.module === "tenant" && module.kind === "schema",
     );
+
     await write(file!.path, file!.contents.replace(/^-- @bs-module .*\n/m, ""));
     expect(await run("BS304", ctx)).toEqual([]);
     expect(await run("BS311", ctx)).toEqual([
@@ -679,6 +723,7 @@ describe("generated and module files (BS303, BS304)", () => {
 
   it("reads modules on a live database in BS311", async () => {
     const ctx = rooted({ blocks: ["tenant", "mfa"] });
+
     const live = (rows: Record<string, unknown>[] | Error) => ({
       ...ctx,
       database: {
@@ -690,6 +735,7 @@ describe("generated and module files (BS303, BS304)", () => {
             : Promise.resolve(rows as R[]),
       },
     });
+
     expect(
       await run(
         "BS311",
@@ -743,6 +789,7 @@ describe("module upgrades (BS309, BS310)", () => {
         },
       ];
     });
+
     const findings = await run(
       "BS309",
       context(
@@ -770,6 +817,7 @@ describe("module upgrades (BS309, BS310)", () => {
         { blocks: ["tenant"] },
       ),
     );
+
     expect(
       findings.map((finding) => [finding.target, finding.location]),
     ).toEqual([
@@ -805,6 +853,7 @@ describe("module upgrades (BS309, BS310)", () => {
         },
       ];
     });
+
     const sqlFiles = [
       {
         path: "supabase/schemas/100_notes.sql",
@@ -815,10 +864,12 @@ describe("module upgrades (BS309, BS310)", () => {
         text: "select org_id from public.notes;",
       },
     ];
+
     const findings = await run(
       "BS309",
       context(snap, { sqlFiles }, { blocks: ["tenant"] }),
     );
+
     expect(
       findings.map((finding) => [finding.target, finding.location]),
     ).toEqual([
@@ -850,6 +901,7 @@ describe("module upgrades (BS309, BS310)", () => {
       level: "row" as const,
       function: fn,
     });
+
     const snap = snapshot((tables) => {
       table(tables, "notes").triggers = [
         trigger("bs_updated_at", "better_supabase.set_updated_at"),
@@ -859,6 +911,7 @@ describe("module upgrades (BS309, BS310)", () => {
       ];
       table(tables, "tags").triggers = [trigger("touch", "public.touch_row")];
     });
+
     const findings = await run("BS310", context(snap));
     expect(findings).toEqual([
       expect.objectContaining({
@@ -885,6 +938,7 @@ describe("exposed module schemas (BS312)", () => {
         },
       ),
     );
+
     expect(findings.map((finding) => finding.target)).toEqual([
       "better_supabase",
       "crm",
@@ -965,8 +1019,10 @@ describe("rate limits wired to PostgREST (BS313)", () => {
     for (const row of [
       { hook: "better_supabase.check_request", calls: false },
       { hook: "public.pre_request", calls: true },
-    ])
+    ]) {
       expect(await run("BS313", live(["rate-limit"], [row]))).toEqual([]);
+    }
+
     expect(
       await run("BS313", live(["tenant"], [{ hook: null, calls: false }])),
     ).toEqual([]);
@@ -986,6 +1042,7 @@ describe("rate limits without the pre-request hook (BS313)", () => {
       session: true,
       query: <R>() => Promise.resolve([{ hook: null, calls: false }] as R[]),
     };
+
     const modules = (preRequest: boolean) =>
       context(
         base,
@@ -994,6 +1051,7 @@ describe("rate limits without the pre-request hook (BS313)", () => {
           blocks: { "rate-limit": { options: { preRequest } } },
         },
       );
+
     expect(await run("BS313", modules(false))).toEqual([]);
     expect(await run("BS313", modules(true))).toHaveLength(1);
   });
@@ -1054,6 +1112,7 @@ describe("adopted tables without a mapped column (BS330)", () => {
       },
     },
   };
+
   const live = (rows: Record<string, unknown>[] | Error) => ({
     describe: "test",
     session: true,
@@ -1062,6 +1121,7 @@ describe("adopted tables without a mapped column (BS330)", () => {
         ? Promise.reject(rows)
         : Promise.resolve(rows as R[]),
   });
+
   const columns = (...names: string[]) =>
     names.map((column) => ({
       schema: "public",
@@ -1078,6 +1138,7 @@ describe("adopted tables without a mapped column (BS330)", () => {
         credentials,
       ),
     );
+
     expect(findings.map((finding) => finding.target)).toEqual([
       "public.integration_secrets.key",
       "public.integration_secrets.updated_at",
@@ -1153,6 +1214,7 @@ describe("subject registry (BS331, BS332)", () => {
         },
       ),
     );
+
     expect(findings.map((finding) => finding.target)).toEqual([
       "public.notes.headline",
       "public.notes.slug",
@@ -1186,9 +1248,11 @@ describe("subject registry (BS331, BS332)", () => {
   it("warns about a subject table without RLS", async () => {
     const config = { subjects: { note: { table: "notes" } } };
     expect(await run("BS332", context(base, {}, config))).toEqual([]);
+
     const open = snapshot((tables) => {
       table(tables, "notes").rls = false;
     });
+
     expect(await run("BS332", context(open, {}, config))).toEqual([
       expect.objectContaining({
         severity: "warning",
@@ -1205,8 +1269,12 @@ describe("unpartitioned audit log (BS335)", () => {
         (entry) =>
           entry.schema === "better_supabase" && entry.name === "audit_events",
       );
-      if (log) log.primaryKey = primaryKey;
+
+      if (log) {
+        log.primaryKey = primaryKey;
+      }
     });
+
   const partitioned = {
     blocks: { audit: { options: { partitioned: true } } },
   };
@@ -1232,12 +1300,14 @@ describe("unpartitioned audit log (BS335)", () => {
     expect(
       await run("BS335", context(withLog(["id"]), {}, { blocks: ["audit"] })),
     ).toEqual([]);
+
     const missing = snapshot((tables) => {
       tables.splice(
         tables.findIndex((entry) => entry.name === "audit_events"),
         1,
       );
     });
+
     expect(await run("BS335", context(missing, {}, partitioned))).toEqual([]);
     expect(await run("BS335", context(withLog(["id"])))).toEqual([]);
   });
@@ -1245,6 +1315,7 @@ describe("unpartitioned audit log (BS335)", () => {
 
 describe("module event triggers (BS323)", () => {
   const modules = { blocks: ["audit", "ensure-rls", "tenant"] };
+
   const live = (rows: Record<string, unknown>[] | Error) => ({
     describe: "test",
     session: true,
@@ -1259,6 +1330,7 @@ describe("module event triggers (BS323)", () => {
       "BS323",
       context(base, { database: live([{ name: "bs_ensure_rls" }]) }, modules),
     );
+
     expect(findings).toEqual([
       expect.objectContaining({
         severity: "warning",
@@ -1297,6 +1369,7 @@ describe("module event triggers (BS323)", () => {
       path: `supabase/migrations/${name}`,
       text,
     });
+
     const findings = await run(
       "BS323",
       context(
@@ -1316,6 +1389,7 @@ describe("module event triggers (BS323)", () => {
         modules,
       ),
     );
+
     expect(findings.map((finding) => finding.target)).toEqual([
       "bs_audit_forget_dropped",
     ]);
@@ -1360,6 +1434,7 @@ describe("migration-only module options (BS314)", () => {
         },
       ),
     );
+
     expect(findings).toEqual([
       expect.objectContaining({
         severity: "warning",
@@ -1401,6 +1476,7 @@ describe("legacy migra engine (BS316)", () => {
       "BS316",
       context(base, { configToml: toml("[db]\n"), sqlFiles: [schema] }),
     );
+
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({
       severity: "warning",
@@ -1424,6 +1500,7 @@ describe("legacy migra engine (BS316)", () => {
     expect(unset!.message).toContain(
       'To stay on migra, set `sql.workflow: "migra"` in better-supabase.config.ts.',
     );
+
     for (const workflow of ["migra", "migrations"] as const) {
       expect(
         await run("BS316", context(base, legacy, { sql: { workflow } })),
@@ -1482,10 +1559,12 @@ describe("tables without an audit trigger (BS315)", () => {
         },
       ];
     });
+
     const findings = await run(
       "BS315",
       context(audited, {}, { blocks: ["audit"] }),
     );
+
     expect(findings.map((finding) => finding.target)).toEqual(
       publicTables.filter(
         (name) => name !== "public.customers" && name !== "public.notes",
@@ -1561,6 +1640,7 @@ end $$;`),
         ],
       }),
     );
+
     expect(
       findings.map((finding) => [finding.location?.line, finding.message]),
     ).toEqual([
@@ -1656,10 +1736,12 @@ describe("tables without the session policy (BS320)", () => {
         },
       ];
     });
+
     const findings = await run(
       "BS320",
       context(covered, {}, { blocks: ["sessions"] }),
     );
+
     expect(findings.map((finding) => finding.target)).toEqual(
       rlsTables.filter((name) => name !== "public.customers"),
     );
@@ -1703,6 +1785,7 @@ describe("realtime and auth.users (BS305, BS306, BS406)", () => {
       table(tables, "tags").primaryKey = [];
       table(tables, "notes").replicaIdentity = "FULL";
     });
+
     expect(
       await run(
         "BS305",
@@ -1724,6 +1807,7 @@ describe("realtime and auth.users (BS305, BS306, BS406)", () => {
       catalog.realtime = ["public.tags"];
       table(tables, "tags").replicaIdentity = "NOTHING";
     });
+
     expect((await run("BS306", context(snap)))[0]!.message).toBe(
       "public.tags is published to Realtime with replica identity nothing. Add a primary key or run `alter table public.tags replica identity full`.",
     );
@@ -1748,6 +1832,7 @@ describe("realtime and auth.users (BS305, BS306, BS406)", () => {
       ];
       tables.push(sessions);
     });
+
     expect(await run("BS406", context(snap))).toEqual([]);
   });
 });
@@ -1757,6 +1842,7 @@ describe("config.toml auth settings (BS401, BS402, BS403)", () => {
     for (const code of ["BS401", "BS402", "BS403"]) {
       expect(await run(code, context())).toEqual([]);
     }
+
     expect(
       await run(
         "BS401",
@@ -1779,6 +1865,7 @@ describe("config.toml auth settings (BS401, BS402, BS403)", () => {
       }),
       RULES.filter((rule) => rule.code === "BS403"),
     );
+
     expect(findings).toHaveLength(1);
     expect(findings[0]).not.toHaveProperty("location");
     expect(
@@ -1803,10 +1890,12 @@ describe("env files (BS501, BS502)", () => {
       },
       { path: "apps/web/.env", text: "SUPABASE_SECRET_KEY=sb_secret_x\n" },
     ];
+
     const findings = await runRules(
       context(base, { envFiles, gitignore: "/apps/web/.env\n" }),
       RULES.filter((rule) => ["BS501", "BS502"].includes(rule.code)),
     );
+
     expect(findings.map((finding) => [finding.code, finding.target])).toEqual([
       ["BS501", ".env.local:VITE_SERVICE_ROLE_KEY"],
       ["BS502", ".env.local"],
@@ -1830,6 +1919,7 @@ describe("peer versions (BS601)", () => {
       { name: "hono", range: ">=4 <5", installed: undefined },
       { name: "eve", range: ">=0.71 <1", installed: "canary" },
     ];
+
     const findings = await run("BS601", context(base, { peers }));
     expect(findings).toEqual([
       expect.objectContaining({
@@ -1845,14 +1935,17 @@ describe("peer versions (BS601)", () => {
 
 describe("Supabase Lite gaps (BS328, BS329)", () => {
   const lite = (driver: string) => toml(`[db]\ndriver = "${driver}"\n`);
+
   const rpc = {
     path: "src/actions.ts",
     text: 'import { bs } from "./bs";\n\nawait bs.$rpc("note_count");',
   };
+
   const realtime = {
     path: "src/live.ts",
     text: 'const channel = supabase.channel("notes");',
   };
+
   const invoke = {
     path: "src/send.ts",
     text: 'await supabase.functions.invoke("send");',
@@ -1871,6 +1964,7 @@ describe("Supabase Lite gaps (BS328, BS329)", () => {
         location: { file: "src/actions.ts", line: 3 },
       },
     ]);
+
     for (const configToml of [lite("pglite"), toml("[db]\nport = 1\n")]) {
       expect(
         await run("BS328", context(base, { configToml, sources: [rpc] })),
@@ -1886,6 +1980,7 @@ describe("Supabase Lite gaps (BS328, BS329)", () => {
         sources: [realtime, invoke, rpc],
       }),
     );
+
     expect(findings.map((finding) => finding.target)).toEqual([
       "src/live.ts:Realtime",
       "src/send.ts:Edge Functions",
@@ -1907,10 +2002,12 @@ describe("session cookie encoding (BS412)", () => {
     path: "src/lib/client.ts",
     text: `import { createClient } from "better-supabase/client";\nexport const bs = createClient(betterSupabase, {\n  env,${encode ? `\n  cookies: { encode: "${encode}" },` : ""}\n});`,
   });
+
   const server = (encode?: string) => ({
     path: "src/lib/server.ts",
     text: `import { createServer } from "better-supabase/server";\nexport const server = createServer(betterSupabase, { env${encode ? `, encode: '${encode}'` : ""} });`,
   });
+
   const shared = {
     path: "src/lib/both.ts",
     text: `import "better-supabase/client";\nimport { createServerClient } from "@supabase/ssr";\ncreateServerClient(url, key, { cookies: { encode: "tokens-only" } });`,
@@ -1933,6 +2030,7 @@ describe("session cookie encoding (BS412)", () => {
       "BS412",
       context(base, { sources: [browser("tokens-only"), server()] }),
     );
+
     expect(browserOnly).toMatchObject([
       {
         code: "BS412",
@@ -1958,6 +2056,7 @@ describe("session cookie encoding (BS412)", () => {
         ],
       }),
     );
+
     expect(serverOnly.map((finding) => finding.target)).toEqual([
       "src/lib/server.ts:encode",
     ]);
@@ -1969,6 +2068,7 @@ describe("session cookie encoding (BS412)", () => {
 
 describe("pg-delta schema files (BS317, BS318, BS321)", () => {
   const pgdelta = toml("[experimental.pgdelta]\nenabled = true\n");
+
   const file = (text: string, path = "supabase/schemas/090_grants.sql") => ({
     path,
     text,
@@ -1986,10 +2086,12 @@ describe("pg-delta schema files (BS317, BS318, BS321)", () => {
         "grant all on all tables in schema public to service_role;",
       ].join("\n"),
     );
+
     const findings = await run(
       "BS317",
       context(base, { configToml: pgdelta, sqlFiles: [grants] }),
     );
+
     expect(findings.map((finding) => finding.location?.line)).toEqual([3, 5]);
     expect(findings[0]).toMatchObject({
       severity: "warning",
@@ -2038,10 +2140,12 @@ describe("pg-delta schema files (BS317, BS318, BS321)", () => {
       ].join("\n"),
       "supabase/schemas/030_triggers.sql",
     );
+
     const findings = await run(
       "BS318",
       context(base, { configToml: pgdelta, sqlFiles: [loop] }),
     );
+
     expect(findings.map((finding) => finding.location?.line)).toEqual([2, 11]);
     expect(findings[0]!.message).toContain("reads information_schema.tables");
     expect(findings[0]!.message).toContain("better_supabase.audit");
@@ -2058,14 +2162,17 @@ describe("pg-delta schema files (BS317, BS318, BS321)", () => {
       "-- @bs-module jobs@4 managed\ncreate extension if not exists pgmq;\ncreate extension if not exists vector with schema extensions;",
       "supabase/schemas/900_better_supabase_07_jobs.sql",
     );
+
     const own = file(
       '-- create extension pg_cron;\nCREATE EXTENSION "pg_cron" WITH SCHEMA pg_catalog;\ncreate extension pgmq;',
       "supabase/schemas/010_extensions.sql",
     );
+
     const migration = file(
       'create extension if not exists "vector" with schema "extensions";',
       "supabase/migrations/20260101000000_init.sql",
     );
+
     const findings = await run(
       "BS321",
       context(base, {
@@ -2073,6 +2180,7 @@ describe("pg-delta schema files (BS317, BS318, BS321)", () => {
         sqlFiles: [jobs, own, migration],
       }),
     );
+
     expect(
       findings.map((finding) => [finding.target, finding.location?.line]),
     ).toEqual([
@@ -2083,10 +2191,12 @@ describe("pg-delta schema files (BS317, BS318, BS321)", () => {
     expect(findings[1]!.message).toContain(
       "create extension if not exists pg_cron;",
     );
+
     const data = file(
       '-- @bs-module-data jobs\ncreate extension if not exists "pgmq";\ncreate extension if not exists pg_cron;',
       "supabase/migrations/20260101000001_better_supabase_module_data.sql",
     );
+
     expect(
       await run(
         "BS321",

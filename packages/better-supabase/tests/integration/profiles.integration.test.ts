@@ -16,8 +16,10 @@ async function reachable(): Promise<boolean> {
     max: 1,
     connectionTimeoutMillis: 1000,
   });
+
   try {
     await pool.query("select 1");
+
     return true;
   } catch {
     return false;
@@ -33,7 +35,9 @@ const USERS = {
   bob: crypto.randomUUID(),
   eve: crypto.randomUUID(),
 } as const;
+
 type Who = keyof typeof USERS;
+
 const SCHEMA = `bs_profiles_${USERS.ada.slice(0, 8)}`;
 const PROFILES = `${SCHEMA}.profiles`;
 
@@ -45,6 +49,7 @@ async function as<T = Record<string, unknown>>(
   params: unknown[] = [],
 ): Promise<{ rows: T[]; error?: { code?: string; hint?: string } }> {
   await client.query("savepoint attempt");
+
   try {
     await client.query(
       "select set_config('request.jwt.claims', $1, true), set_config('role', 'authenticated', true)",
@@ -53,10 +58,12 @@ async function as<T = Record<string, unknown>>(
     const { rows } = await client.query(sql, params);
     await client.query("reset role");
     await client.query("release savepoint attempt");
+
     // SAFETY: the caller names the row shape of its own query.
     return { rows: rows as T[] };
   } catch (error) {
     await client.query("rollback to savepoint attempt");
+
     return { rows: [], error: error as { code?: string; hint?: string } };
   }
 }
@@ -67,8 +74,10 @@ describe.skipIf(!live)("profiles", () => {
 
   it("creates, mirrors and guards profiles", async () => {
     const client = await pool.connect();
+
     try {
       await client.query("begin");
+
       const layout = {
         modules: {
           tenant: { schema: SCHEMA },
@@ -80,11 +89,13 @@ describe.skipIf(!live)("profiles", () => {
           },
         },
       };
+
       for (const file of renderModules(
         ["tenant", "access", "profiles"],
         layout,
-      ))
+      )) {
         await client.query(file.contents);
+      }
 
       const meta = {
         ada: {
@@ -96,6 +107,7 @@ describe.skipIf(!live)("profiles", () => {
         bob: { full_name: "Bob", user_name: "Ada" },
         eve: { given_name: "Eve", family_name: "Online" },
       };
+
       for (const who of Object.keys(USERS) as Who[]) {
         await client.query(
           `insert into auth.users (id, email, aud, role, instance_id, raw_user_meta_data)
@@ -103,6 +115,7 @@ describe.skipIf(!live)("profiles", () => {
           [USERS[who], `${who}-${USERS[who]}@example.test`, meta[who]],
         );
       }
+
       const profile = async (who: Who) =>
         (
           await client.query(`select * from ${PROFILES} where id = $1`, [
@@ -136,29 +149,36 @@ describe.skipIf(!live)("profiles", () => {
         `update ${PROFILES} set full_name = 'Ada L' where id = $1 returning full_name`,
         [USERS.ada],
       );
+
       expect(renamed.rows).toEqual([{ full_name: "Ada L" }]);
+
       const avatar = await as(
         client,
         "ada",
         `update ${PROFILES} set avatar_path = $2 where id = $1 returning avatar_path`,
         [USERS.ada, `${USERS.ada}/avatar.webp`],
       );
+
       expect(avatar.rows).toEqual([
         { avatar_path: `${USERS.ada}/avatar.webp` },
       ]);
+
       const email = await as(
         client,
         "ada",
         `update ${PROFILES} set email = 'x@y.z' where id = $1`,
         [USERS.ada],
       );
+
       expect(email.error?.code).toBe("42501");
+
       const other = await as(
         client,
         "ada",
         `update ${PROFILES} set full_name = 'Mallory' where id = $1 returning id`,
         [USERS.bob],
       );
+
       expect(other.rows).toEqual([]);
 
       const visible = async (who: Who) =>
@@ -169,6 +189,7 @@ describe.skipIf(!live)("profiles", () => {
             `select id from ${PROFILES} order by id`,
           )
         ).rows.map((row) => row.id);
+
       expect(await visible("ada")).toEqual([USERS.ada]);
       const organization = crypto.randomUUID();
       await client.query(
@@ -177,28 +198,35 @@ describe.skipIf(!live)("profiles", () => {
       );
       expect(await visible("ada")).toEqual([USERS.ada, USERS.bob].toSorted());
       expect(await visible("eve")).toEqual([USERS.eve]);
+
       const peerEmail = await as(
         client,
         "ada",
         `select email from ${PROFILES} where id = $1`,
         [USERS.bob],
       );
+
       expect(peerEmail.error?.code).toBe("42501");
+
       const own = await as<{ email: string }>(
         client,
         "ada",
         `select ${SCHEMA}.my_profile() ->> 'email' as email`,
       );
+
       expect(own.rows).toEqual([{ email: "ada@new.test" }]);
 
       const removed = await client.query(
         `delete from ${PROFILES} where id = $1 returning id`,
         [USERS.eve],
       );
+
       expect(removed.rowCount).toBe(1);
+
       const backfilled = await client.query(
         `select ${SCHEMA}.backfill_profiles() as n`,
       );
+
       expect(backfilled.rows[0].n).toBeGreaterThanOrEqual(1);
       expect(await profile("eve")).toBeDefined();
 
@@ -210,6 +238,7 @@ describe.skipIf(!live)("profiles", () => {
           `update ${PROFILES} set username = $2 where id = $1`,
           [USERS.ada, name],
         );
+
         expect(bad.error?.code).toBe("23514");
       }
 
@@ -236,10 +265,12 @@ describe.skipIf(!live)("profiles", () => {
           `broken-${broken}@example.test`,
         ],
       );
+
       const usernames = await client.query(
         `select id, username from ${PROFILES} where id = any($1)`,
         [[admin, broken]],
       );
+
       expect(usernames.rows).toEqual([
         { id: admin, username: expect.stringMatching(/^admin\d+$/) },
       ]);
@@ -252,8 +283,10 @@ describe.skipIf(!live)("profiles", () => {
   it("joins names into usernames and lets platform staff read every profile", async () => {
     const client = await pool.connect();
     const schema = `${SCHEMA}_platform`;
+
     try {
       await client.query("begin");
+
       const layout = {
         modules: {
           tenant: { schema },
@@ -271,13 +304,17 @@ describe.skipIf(!live)("profiles", () => {
           },
         },
       };
-      for (const file of renderModules(["profiles"], layout))
+
+      for (const file of renderModules(["profiles"], layout)) {
         await client.query(file.contents);
+      }
+
       const meta = {
         ada: { first_name: "Ada", last_name: "Lovelace", user_name: "al" },
         bob: { first_name: "Bob", user_name: "bobby" },
         eve: {},
       };
+
       for (const who of Object.keys(USERS) as Who[]) {
         await client.query(
           `insert into auth.users (id, email, aud, role, instance_id, raw_user_meta_data)
@@ -285,14 +322,17 @@ describe.skipIf(!live)("profiles", () => {
           [USERS[who], `${who}-${USERS[who]}@example.test`, meta[who]],
         );
       }
+
       const usernames = await client.query<{ username: string }>(
         `select username from ${schema}.profiles where id = any ($1) order by username`,
         [[USERS.ada, USERS.bob]],
       );
+
       expect(usernames.rows.map((row) => row.username)).toEqual([
         "ada_lovelace",
         "bobby",
       ]);
+
       const visible = async (claims: object) => {
         await client.query("savepoint read");
         await client.query(
@@ -305,13 +345,17 @@ describe.skipIf(!live)("profiles", () => {
             }),
           ],
         );
+
         const { rows } = await client.query<{ n: number }>(
           `select count(*)::int as n from ${schema}.profiles where id = any ($1)`,
           [Object.values(USERS)],
         );
+
         await client.query("rollback to savepoint read");
+
         return rows[0]!.n;
       };
+
       expect(await visible({})).toBe(1);
       expect(
         await visible({ platform_permissions: ["platform.user.read"] }),
@@ -325,8 +369,10 @@ describe.skipIf(!live)("profiles", () => {
   it("builds usernames from profile columns and keeps their separator", async () => {
     const client = await pool.connect();
     const schema = `${SCHEMA}_columns`;
+
     try {
       await client.query("begin");
+
       const layout = {
         modules: {
           profiles: {
@@ -340,9 +386,13 @@ describe.skipIf(!live)("profiles", () => {
           },
         },
       };
-      for (const file of renderModules(["profiles"], layout))
+
+      for (const file of renderModules(["profiles"], layout)) {
         await client.query(file.contents);
+      }
+
       const users = [crypto.randomUUID(), crypto.randomUUID()];
+
       for (const [index, id] of users.entries()) {
         await client.query(
           `insert into auth.users (id, email, aud, role, instance_id, raw_user_meta_data)
@@ -354,10 +404,12 @@ describe.skipIf(!live)("profiles", () => {
           ],
         );
       }
+
       const { rows } = await client.query<{ username: string }>(
         `select username from ${schema}.profiles where id = any ($1) order by username`,
         [users],
       );
+
       expect(rows.map((row) => row.username)).toEqual([
         "grace.hopper",
         "grace.hopper1",
@@ -370,13 +422,17 @@ describe.skipIf(!live)("profiles", () => {
 
   it("lets organization logos follow the access contract", async () => {
     const client = await pool.connect();
+
     try {
       await client.query("begin");
+
       for (const file of renderModules(
         ["organizations", "tenant", "access"],
         {},
-      ))
+      )) {
         await client.query(file.contents);
+      }
+
       for (const who of ["ada", "bob"] as const) {
         await client.query(
           `insert into auth.users (id, email, aud, role, instance_id)
@@ -384,6 +440,7 @@ describe.skipIf(!live)("profiles", () => {
           [USERS[who], `${who}-${USERS[who]}@example.test`],
         );
       }
+
       const organization = crypto.randomUUID();
       await client.query(
         "insert into better_supabase.organizations (id, name, slug) values ($1::uuid, 'Test', 'test-' || left($1::text, 8)) on conflict do nothing",
@@ -393,12 +450,15 @@ describe.skipIf(!live)("profiles", () => {
         "insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, 'owner'), ($1, $3, 'member')",
         [organization, USERS.ada, USERS.bob],
       );
+
       const logos = organizationLogoBucket({
         id: `logos-${organization.slice(0, 8)}`,
       });
+
       const avatars = avatarBucket({
         id: `avatars-${organization.slice(0, 8)}`,
       });
+
       await client.query(logos.sql());
       await client.query(avatars.sql());
 
@@ -409,15 +469,19 @@ describe.skipIf(!live)("profiles", () => {
           "insert into storage.objects (bucket_id, name, owner_id) values ($1, $2, $3) returning name",
           [bucket, name, USERS[who]],
         );
+
       const logo = logos.path({
         organizationId: organization,
         version: "v1",
         ext: "png",
       }).data!;
+
       expect((await upload("ada", logos.id, logo)).rows).toHaveLength(1);
       expect((await upload("bob", logos.id, logo)).error?.code).toBe("42501");
+
       const avatar = (who: Who) =>
         avatars.path({ userId: USERS[who], version: "v1", ext: "png" }).data!;
+
       expect(
         (await upload("bob", avatars.id, avatar("bob"))).rows,
       ).toHaveLength(1);

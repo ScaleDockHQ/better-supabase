@@ -75,6 +75,7 @@ describe("buildJsonSchema", () => {
       "https://acme.test/schema.json",
       "draft-07",
     );
+
     expect(doc["$schema"]).toBe("http://json-schema.org/draft-07/schema#");
     expect(doc["$id"]).toBe("https://acme.test/schema.json");
     expect(doc).not.toHaveProperty("$defs");
@@ -107,6 +108,7 @@ describe("jsonSchema()", () => {
       ...input,
       config: { ...input.config, output: "src/generated.ts" },
     } as never);
+
     expect(file!.path).toBe("src/generated.schema.json");
     expect(JSON.parse(file!.contents)).toMatchObject({
       $schema: "http://json-schema.org/draft-07/schema#",

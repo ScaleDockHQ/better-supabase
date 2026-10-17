@@ -19,6 +19,7 @@ class NotFound extends TaggedError("NotFound")<{
   message: string;
   error: DbError;
 }> {}
+
 class DbFailure extends TaggedError("DbFailure")<{
   message: string;
   error: DbError;
@@ -26,6 +27,7 @@ class DbFailure extends TaggedError("DbFailure")<{
 
 const betterSupabase = defineSupabase(schema);
 const plain = betterSupabase.connect(capturingClient().client);
+
 const db = withBetterResult(
   plain,
   defineBetterResultErrors(ResultApi, { not_found: NotFound }, DbFailure),
@@ -38,6 +40,7 @@ describe("withBetterResult types", () => {
       | keyof BetterResultRepository<Models, "customers", unknown, never>
       | "extend"
     >;
+
     expectTypeOf<Mirrored>().toEqualTypeOf<never>();
   });
 
@@ -59,10 +62,12 @@ describe("withBetterResult types", () => {
     expectTypeOf(db.$rpc("my_organizations")).toExtend<
       Promise<Result<readonly unknown[], NotFound | DbFailure>>
     >();
+
     const list = defineListQuery(betterSupabase, "customers", {
       sorts: { name: { name: "asc" } },
       defaultSort: "name",
     });
+
     expectTypeOf(db.$list(list, list.defaults, { select: ["id"] })).toExtend<
       Promise<Result<{ items: { id: string }[] }, NotFound | DbFailure>>
     >();
@@ -77,6 +82,7 @@ describe("withBetterResult types", () => {
       Result: ResultApi,
       mapError: (error: DbError) => error.kind,
     });
+
     expectTypeOf(keyed.customers.count()).toEqualTypeOf<
       Promise<Result<number, DbError["kind"]>>
     >();

@@ -13,6 +13,7 @@ import { markAllRead, notifyMe } from "../notifications-actions";
 export function NotificationActions() {
   const t = useExtracted("notifications");
   const errorMessage = useErrorMessage();
+
   const notify = useAction(notifyMe, {
     onSuccess: () => {
       toast.success(t("Notification sent"));
@@ -21,6 +22,7 @@ export function NotificationActions() {
       toast.error(errorMessage(error));
     },
   });
+
   const readAll = useAction(markAllRead, {
     onSuccess: () => {
       toast.success(t("All caught up"));
@@ -29,6 +31,7 @@ export function NotificationActions() {
       toast.error(errorMessage(error));
     },
   });
+
   return (
     <>
       <Button

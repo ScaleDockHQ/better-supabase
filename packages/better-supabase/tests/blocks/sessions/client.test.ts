@@ -20,6 +20,7 @@ function fakeOAuth(details: "consent" | "approved" = "consent") {
       granted_at: "2026-10-02T00:00:00Z",
     },
   ];
+
   return {
     getAuthorizationDetails: vi.fn((id: string) =>
       details === "approved"
@@ -47,6 +48,7 @@ function fakeOAuth(details: "consent" | "approved" = "consent") {
         grants.findIndex((each) => each.client.id === options.clientId),
         1,
       );
+
       return reply({});
     }),
   } satisfies OAuthApi;
@@ -56,6 +58,7 @@ describe("createOAuthConsentController", () => {
   it("reads the request and approves through the redirect_url Auth returns", async () => {
     const oauth = fakeOAuth();
     const redirect = vi.fn();
+
     const { view, unmount } = mount(
       createOAuthConsentController({
         oauth,
@@ -64,6 +67,7 @@ describe("createOAuthConsentController", () => {
         redirect,
       }),
     );
+
     await flush();
     expect(view().request).toMatchObject({
       authorizationId: "a1",
@@ -95,6 +99,7 @@ describe("createOAuthConsentController", () => {
         redirect: vi.fn(),
       }),
     );
+
     await flush();
     const denied = await view().deny();
     expect(denied.ok).toBe(false);
@@ -107,12 +112,14 @@ describe("createOAuthConsentController", () => {
   it("redirects at once for an approved client and shares the read per id", async () => {
     const oauth = fakeOAuth("approved");
     const redirect = vi.fn();
+
     const options = {
       oauth,
       auth: fakeAuth(),
       authorizationId: "a3",
       redirect,
     };
+
     const first = mount(createOAuthConsentController(options));
     const second = mount(createOAuthConsentController(options));
     await flush();
@@ -127,9 +134,11 @@ describe("createOAuthConsentController", () => {
 describe("createOAuthGrantsController", () => {
   it("lists grants newest first and revokes one", async () => {
     const oauth = fakeOAuth();
+
     const { view, unmount } = mount(
       createOAuthGrantsController({ oauth, auth: fakeAuth() }),
     );
+
     await flush();
     expect(view().grants?.map((each) => each.client.id)).toEqual(["c2", "c1"]);
     expect(view().grants?.[0]?.grantedAt.toString()).toBe(
@@ -151,6 +160,7 @@ describe("OAuth read failures", () => {
     oauth.getAuthorizationDetails.mockImplementationOnce(
       () => Promise.resolve({ data: null, error: failing }) as never,
     );
+
     const { view, unmount } = mount(
       createOAuthConsentController({
         oauth,
@@ -159,6 +169,7 @@ describe("OAuth read failures", () => {
         redirect: vi.fn(),
       }),
     );
+
     await flush();
     expect(view().error).toMatchObject({ message: "Auth is down" });
     expect(await view().approve()).toMatchObject({
@@ -179,6 +190,7 @@ describe("OAuth read failures", () => {
         scope: "openid",
       }),
     );
+
     const { view, unmount } = mount(
       createOAuthConsentController({
         oauth,
@@ -187,6 +199,7 @@ describe("OAuth read failures", () => {
         redirect: vi.fn(),
       }),
     );
+
     await flush();
     expect(view().request?.redirectHost).toBe("not a url");
     unmount();
@@ -197,9 +210,11 @@ describe("OAuth read failures", () => {
     oauth.listGrants.mockImplementationOnce(
       () => Promise.resolve({ data: null, error: failing }) as never,
     );
+
     const { view, unmount } = mount(
       createOAuthGrantsController({ oauth, auth: fakeAuth() }),
     );
+
     await flush();
     expect(view().error).toMatchObject({ message: "Auth is down" });
     oauth.revokeGrant.mockImplementationOnce(

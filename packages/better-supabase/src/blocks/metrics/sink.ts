@@ -26,7 +26,10 @@ export interface MetricsSinkOptions {
 type Window = { since: Temporal.Instant; until: Temporal.Instant };
 
 function widen(window: Window | undefined, at: Temporal.Instant): Window {
-  if (window === undefined) return { since: at, until: at };
+  if (window === undefined) {
+    return { since: at, until: at };
+  }
+
   return {
     since: temporal().Instant.compare(window.since, at) < 0 ? window.since : at,
     until: temporal().Instant.compare(window.until, at) > 0 ? window.until : at,
@@ -38,8 +41,10 @@ function timesOf(
   options: MetricsSinkOptions,
 ): readonly Temporal.Instant[] {
   const time = options.time?.(event) ?? event.time;
+
   const times =
     time === undefined ? [] : typeof time === "string" ? [time] : time;
+
   return times.length === 0
     ? [nowInstant()]
     : times.map((value) => temporal().Instant.from(value));
@@ -61,20 +66,28 @@ export function metricsSink(
   return {
     async send(events) {
       const windows = new Map<string, Map<string, Window>>();
+
       for (const event of events) {
         const entry =
           options.on[stripTypePrefix(event.type, options.typePrefix)];
-        if (entry === undefined) continue;
+
+        if (entry === undefined) {
+          continue;
+        }
+
         const times = timesOf(event, options);
+
         for (const metric of typeof entry === "string" ? [entry] : entry) {
           const days = windows.get(metric) ?? new Map<string, Window>();
           windows.set(metric, days);
+
           for (const at of times) {
             const day = at.toString().slice(0, 10);
             days.set(day, widen(days.get(day), at));
           }
         }
       }
+
       for (const [metric, days] of windows) {
         for (const window of days.values()) {
           await metrics

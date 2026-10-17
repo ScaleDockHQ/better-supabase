@@ -3,8 +3,7 @@ import type { Mock } from "vitest";
 import { QueryClient } from "@tanstack/query-core";
 import { vi } from "vitest";
 
-import type { ClientLike } from "../../src/bindings/client.ts";
-import type { PresenceTopic } from "../../src/bindings/client.ts";
+import type { ClientLike, PresenceTopic } from "../../src/bindings/client.ts";
 import type { AuthSnapshot } from "../../src/client/index.ts";
 import type {
   PresenceMember,
@@ -24,16 +23,19 @@ import { schema } from "./generated-camel.ts";
 
 export const USER = "00000000-0000-4000-8000-0000000000aa";
 export const OTHER = "00000000-0000-4000-8000-0000000000bb";
+
 export const LOADING: AuthSnapshot = {
   status: "loading",
   user: null,
   claims: null,
 };
+
 export const SIGNED_OUT: AuthSnapshot = {
   status: "signed-out",
   user: null,
   claims: null,
 };
+
 export const signedIn = (
   id: string,
   claims: Record<string, unknown> = {},
@@ -47,15 +49,18 @@ const meta: SchemaMeta = {
   ...schema.meta,
   realtime: { customers: { tenant: "organizationId" }, notes: {} },
 };
+
 const betterSupabase: ReturnType<typeof defineSupabase> = defineSupabase(
   defineSchema(meta),
 );
+
 export const typed: BetterSupabase<
   ModelsOf<typeof schema>,
   DatabaseOf<typeof schema>
 > = defineSupabase(schema);
 
 type Listener = (message: { event: string; payload: unknown }) => void;
+
 type AuthListener = (event: string, session: unknown) => void;
 
 export interface FakeRealtime {
@@ -77,33 +82,40 @@ export interface FakeRealtime {
 export function fakeRealtime(): FakeRealtime {
   const channels = new Map<string, { broadcast: Set<Listener> }>();
   const authListeners = new Set<AuthListener>();
+
   const client = {
     channel: vi.fn((topic: string, _options?: unknown) => {
       const entry = { broadcast: new Set<Listener>() };
       channels.set(topic, entry);
+
       const channel = {
         topic,
         on: (_type: string, _filter: unknown, listener: Listener) => {
           entry.broadcast.add(listener);
+
           return channel;
         },
         subscribe: (callback: (status: string) => void) => {
           queueMicrotask(() => {
             callback("SUBSCRIBED");
           });
+
           return channel;
         },
       };
+
       return channel;
     }),
     removeChannel: vi.fn(async (channel: { topic: string }) => {
       channels.delete(channel.topic);
+
       return "ok" as const;
     }),
     realtime: { setAuth: vi.fn(async () => undefined) },
     auth: {
       onAuthStateChange: vi.fn((listener: AuthListener) => {
         authListeners.add(listener);
+
         return {
           data: {
             subscription: {
@@ -114,13 +126,19 @@ export function fakeRealtime(): FakeRealtime {
       }),
     },
   };
+
   const emit = (topic: string, event: string, payload: unknown = {}): void => {
-    for (const listener of channels.get(topic)?.broadcast ?? [])
+    for (const listener of channels.get(topic)?.broadcast ?? []) {
       listener({ event, payload });
+    }
   };
+
   const emitAuth = (session: unknown): void => {
-    for (const listener of [...authListeners]) listener("SIGNED_IN", session);
+    for (const listener of [...authListeners]) {
+      listener("SIGNED_IN", session);
+    }
   };
+
   return { client, channels, emit, emitAuth, authListeners };
 }
 
@@ -137,6 +155,7 @@ export function fakeBrowser(
   let snapshot = initial;
   const listeners = new Set<() => void>();
   const realtime = fakeRealtime();
+
   const browser = {
     betterSupabase,
     supabase: realtime.client,
@@ -144,16 +163,22 @@ export function fakeBrowser(
       current: () => snapshot,
       subscribe: (listener: () => void) => {
         listeners.add(listener);
+
         return () => void listeners.delete(listener);
       },
     },
     db: run ?? { name: "db" },
     queries: { name: "queries" },
   } as unknown as ClientLike;
+
   const setAuth = (next: AuthSnapshot): void => {
     snapshot = next;
-    for (const listener of [...listeners]) listener();
+
+    for (const listener of [...listeners]) {
+      listener();
+    }
   };
+
   return { browser, setAuth, listeners, ...realtime };
 }
 
@@ -172,9 +197,14 @@ export function cachedClient(...keys: (readonly unknown[])[]): {
   readonly invalidated: (key: readonly unknown[]) => boolean;
 } {
   const queryClient = new QueryClient();
-  for (const key of keys) queryClient.setQueryData(key, 1);
+
+  for (const key of keys) {
+    queryClient.setQueryData(key, 1);
+  }
+
   const invalidated = (key: readonly unknown[]): boolean =>
     queryClient.getQueryState(key)?.isInvalidated ?? false;
+
   return { queryClient, invalidated };
 }
 
@@ -199,6 +229,7 @@ export function fakePresenceTopic(): {
   readonly joins: FakeJoin[];
 } {
   const joins: FakeJoin[] = [];
+
   const topic: PresenceTopic<
     "room:{roomId}",
     { name: string },
@@ -215,17 +246,21 @@ export function fakePresenceTopic(): {
         untracked: 0,
         left: false,
       };
+
       joins.push(join);
       options.onStatus?.("subscribed");
+
       return {
         topic: "x",
         ready: Promise.resolve(),
         track: (state: unknown) => {
           join.tracked.push(state);
+
           return AsyncResult.from(async () => ok(undefined));
         },
         untrack: () => {
           join.untracked += 1;
+
           return AsyncResult.from(async () => err(dbError("network", "down")));
         },
         members: () => [],
@@ -235,5 +270,6 @@ export function fakePresenceTopic(): {
       } as never;
     },
   };
+
   return { topic, joins };
 }

@@ -25,15 +25,24 @@ export function keptPlugins(
   plugins: readonly AnyPlugin[],
   keep: readonly string[],
 ): readonly AnyPlugin[] {
-  if (keep.length === 0) return NO_PLUGINS;
+  if (keep.length === 0) {
+    return NO_PLUGINS;
+  }
+
   let byKeep = keptLists.get(plugins);
+
   if (!byKeep) {
     byKeep = new Map();
     keptLists.set(plugins, byKeep);
   }
+
   const key = keep.join("\u0000");
   const cached = byKeep.get(key);
-  if (cached) return cached;
+
+  if (cached) {
+    return cached;
+  }
+
   for (const name of keep) {
     if (!plugins.some((plugin) => plugin.name === name)) {
       throw new TypeError(
@@ -41,7 +50,9 @@ export function keptPlugins(
       );
     }
   }
+
   const kept = plugins.filter((plugin) => keep.includes(plugin.name));
   byKeep.set(key, kept);
+
   return kept;
 }

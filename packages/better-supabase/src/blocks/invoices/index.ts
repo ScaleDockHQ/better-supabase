@@ -12,6 +12,7 @@ export {
   type RecordRef,
   type Totals,
 } from "./invoices.ts";
+
 export {
   extendBlock,
   withBlockHooks,
@@ -19,6 +20,7 @@ export {
   type BlockHooks,
   type BlockTransportMiddleware,
 } from "../../core/block-hooks.ts";
+
 export {
   dbTransport,
   rpcTransport,
@@ -26,6 +28,9 @@ export {
   type BlockTransport,
   type RpcClient,
 } from "../../core/block-transport.ts";
+
 export { invoicesBlock } from "./manifest.ts";
+
 export { invoicesEvents } from "./events.ts";
+
 export type { InvoicesEvents } from "./events.ts";

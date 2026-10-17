@@ -22,6 +22,7 @@ import { loadNotifications } from "../notifications-actions";
 
 async function loadRows(): Promise<readonly NotificationRow[]> {
   const result = await loadNotifications({});
+
   return result.ok ? result.data : [];
 }
 
@@ -34,11 +35,16 @@ export function NotificationList() {
   const format = useFormatter();
   const auth = useAuth();
   const userId = auth.user?.id;
+
   const { items } = useNotifications({
     topic: userId ? `notifications:${userId}` : null,
     load: loadRows,
   });
-  if (items === undefined) return <NotificationListSkeleton />;
+
+  if (items === undefined) {
+    return <NotificationListSkeleton />;
+  }
+
   if (items.length === 0) {
     return (
       <Empty className="border">
@@ -54,6 +60,7 @@ export function NotificationList() {
       </Empty>
     );
   }
+
   return (
     <ul className="divide-y rounded-xl border">
       {items.map((notification) => (
@@ -63,7 +70,7 @@ export function NotificationList() {
         >
           <span className="flex-1">{notification.title}</span>
           {notification.readAt ? null : <Badge>{t("New")}</Badge>}
-          <span className="text-muted-foreground text-xs tabular-nums">
+          <span className="text-xs text-muted-foreground tabular-nums">
             {format.dateTime(new Date(notification.createdAt), {
               dateStyle: "medium",
               timeStyle: "short",

@@ -12,6 +12,7 @@ import { markPlanReviewed } from "../billing-actions";
 export function MarkPlanReviewedButton() {
   const t = useExtracted("billing");
   const errorMessage = useErrorMessage();
+
   const review = useAction(markPlanReviewed, {
     onSuccess: () => {
       toast.success(t("Onboarding step done"));
@@ -20,6 +21,7 @@ export function MarkPlanReviewedButton() {
       toast.error(errorMessage(error));
     },
   });
+
   return (
     <Button
       variant="outline"

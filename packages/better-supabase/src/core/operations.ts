@@ -25,8 +25,12 @@ export function operationPermission(
 ): string | undefined {
   if (operations !== undefined && Object.hasOwn(operations, name)) {
     const permission = operations[name]?.permission;
-    if (typeof permission === "string" && permission !== "") return permission;
+
+    if (typeof permission === "string" && permission !== "") {
+      return permission;
+    }
   }
+
   return fallback;
 }
 
@@ -35,6 +39,9 @@ export function operationMeta(
   operations: OperationTable | undefined,
   name: string,
 ): AuthorizationOperation["meta"] {
-  if (operations === undefined || !Object.hasOwn(operations, name)) return;
+  if (operations === undefined || !Object.hasOwn(operations, name)) {
+    return;
+  }
+
   return operations[name]?.meta;
 }

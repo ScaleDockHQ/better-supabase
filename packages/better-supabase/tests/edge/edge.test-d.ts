@@ -8,6 +8,7 @@ import { createEdge } from "../../src/edge/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const Claims = v.object({ tenant_id: v.string(), user_role: v.string() });
+
 type Claims = v.InferOutput<typeof Claims>;
 
 describe("betterSupabase.claims(schema) in Edge", () => {
@@ -15,9 +16,11 @@ describe("betterSupabase.claims(schema) in Edge", () => {
     const bs = createEdge(defineSupabase(schema).claims(Claims));
     bs.handler((_request, ctx) => {
       expectTypeOf(ctx.auth).toEqualTypeOf<AuthState<Claims>>();
+
       if (ctx.auth.kind === "user") {
         expectTypeOf(ctx.auth.claims.tenant_id).toEqualTypeOf<string>();
       }
+
       return null;
     });
   });
@@ -26,6 +29,7 @@ describe("betterSupabase.claims(schema) in Edge", () => {
     const bs = createEdge(defineSupabase(schema));
     bs.handler((_request, ctx) => {
       expectTypeOf(ctx.auth).toEqualTypeOf<AuthState>();
+
       return null;
     });
   });
@@ -40,17 +44,20 @@ describe("bs.routes params", () => {
           readonly org: string;
           readonly id: string;
         }>();
+
         return null;
       },
       "/files/*": {
         requireTenant: true,
         handler: (_request, { params }) => {
           expectTypeOf(params).toEqualTypeOf<{ readonly "*": string }>();
+
           return null;
         },
       },
       "GET /me": (_request, { params }) => {
         expectTypeOf(params).toEqualTypeOf<Readonly<Record<never, string>>>();
+
         return null;
       },
     });

@@ -26,6 +26,7 @@ const entry = (id: string): AuditRecord => ({
 
 function setup(organizationId: string | null = "org-1") {
   const auth = fakeAuth();
+
   const list = vi.fn((options?: AuditListOptions) =>
     resolved<AuditPage>(
       options?.cursor
@@ -39,6 +40,7 @@ function setup(organizationId: string | null = "org-1") {
           },
     ),
   );
+
   const controller = createAuditLogController({
     client: { list },
     auth,
@@ -46,6 +48,7 @@ function setup(organizationId: string | null = "org-1") {
     filters: { eventType: "invitation.created" },
     limit: 2,
   });
+
   return { auth, list, controller };
 }
 
@@ -75,11 +78,13 @@ describe("createAuditLogController", () => {
     const { list, controller } = setup();
     const { view, unmount } = mount(controller);
     await flush();
+
     const filtering = view().setFilters({
       actorId: OTHER,
       eventType: "",
       search: "  ada ",
     });
+
     expect(view().entries).toBeUndefined();
     expect(view().loading).toBe(true);
     await filtering;

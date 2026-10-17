@@ -16,14 +16,16 @@ export function stackStatus(): Readonly<Record<string, string>> {
       ["exec", "supabase", "status", "--env", "--output-format", "json"],
       {
         cwd: fileURLToPath(new URL("../../../..", import.meta.url)),
-        encoding: "utf8",
+        encoding: "utf-8",
         stdio: ["ignore", "pipe", "ignore"],
       },
     );
+
     const status = v.parse(
       Status,
       JSON.parse(stdout.slice(stdout.indexOf("{"))),
     );
+
     return Object.fromEntries(
       Object.entries(status).flatMap(([key, value]) =>
         v.is(v.string(), value) ? [[key, value]] : [],

@@ -47,12 +47,15 @@ function run(
   options: unknown[] = [],
 ): Reported[] {
   const reported: Reported[] = [];
+
   const context: RuleContext = {
     options,
     report: ({ messageId, data }) =>
       reported.push(data ? { messageId, data } : { messageId }),
   };
+
   plugin.rules[rule].create(context).CallExpression(node);
+
   return reported;
 }
 
@@ -110,10 +113,12 @@ describe("better-supabase/lint", () => {
         call("updateMany", object({ where: object({}), data: object({}) })),
       ),
     ).toEqual([{ messageId: "missing", data: { method: "updateMany" } }]);
+
     const bounded = call(
       "updateMany",
       object({ where: object({}), maxAffected: literal(5000) }),
     );
+
     expect(run("require-max-affected", bounded)).toEqual([
       { messageId: "tooLarge", data: { value: "5000", max: "1000" } },
     ]);
@@ -148,6 +153,7 @@ describe("better-supabase/lint", () => {
         },
         arguments: args,
       }) as CallExpression;
+
     const tables = largeTables({
       extras: {
         tables: [
@@ -156,6 +162,7 @@ describe("better-supabase/lint", () => {
         ],
       },
     });
+
     expect(tables).toEqual(["public.order_items"]);
 
     expect(run("unbounded-read", on("orderItems"), [{ tables }])).toEqual([
@@ -179,6 +186,7 @@ describe("better-supabase/lint", () => {
   it("ships a flat recommended config that registers itself", () => {
     expect(defaultPlugin).toBe(plugin);
     expect(plugin.configs.recommended.plugins["better-supabase"]).toBe(plugin);
+
     for (const id of Object.keys(plugin.configs.recommended.rules)) {
       expect(plugin.rules).toHaveProperty(id.replace("better-supabase/", ""));
     }

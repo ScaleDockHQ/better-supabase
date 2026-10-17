@@ -70,13 +70,18 @@ function stripActionParameters(
   report: (pointer: string) => void,
   pointer: string,
 ): Json[] | undefined {
-  if (!actions) return undefined;
+  if (!actions) {
+    return undefined;
+  }
+
   return actions.map((action, index) => {
     const copy: Json = structuredClone({ ...action });
+
     if (version === "1.0" && "parameters" in copy) {
       delete copy["parameters"];
       report(`${pointer}/${String(index)}/parameters`);
     }
+
     return copy;
   });
 }
@@ -98,22 +103,27 @@ function lowerStep(
   state: Lowering,
 ): ArazzoStep | undefined {
   const { ctx, version } = state;
+
   const operation =
     step.operationId === undefined
       ? undefined
       : state.operations.get(step.operationId);
+
   let target: Pick<
     ArazzoStep,
     "operationId" | "workflowId" | "channelPath" | "action" | "correlationId"
   > = {};
+
   if (step.operationId !== undefined) {
-    if (!operation)
+    if (!operation) {
       ctx.report({
         code: "arazzo-operation-unknown",
         severity: "error",
         message: `Step "${step.id}" calls operation "${step.operationId}", which the API does not have`,
         pointer: `${pointer}/operationId`,
       });
+    }
+
     target = {
       operationId: state.qualify
         ? `$sourceDescriptions.${state.apiName}.${step.operationId}`
@@ -129,15 +139,19 @@ function lowerStep(
         message: `Step "${step.id}" uses an AsyncAPI channel, which needs Arazzo 1.1; the step is left out`,
         pointer,
       });
+
       return undefined;
     }
-    if (!state.channels.has(step.channel.id))
+
+    if (!state.channels.has(step.channel.id)) {
       ctx.report({
         code: "arazzo-channel-unknown",
         severity: "error",
         message: `Step "${step.id}" uses channel "${step.channel.id}", which the API does not have`,
         pointer: `${pointer}/channelPath`,
       });
+    }
+
     target = {
       channelPath: `{$sourceDescriptions.${state.eventsName}.url}#/channels/${safeKey(step.channel.id)}`,
       action: step.channel.action,
@@ -153,13 +167,16 @@ function lowerStep(
       operation?.parameters.find(
         (candidate) => candidate.name === parameter.name,
       )?.in;
-    if (location === undefined && step.operationId !== undefined)
+
+    if (location === undefined && step.operationId !== undefined) {
       ctx.report({
         code: "arazzo-parameter-in-missing",
         severity: "error",
         message: `Parameter "${parameter.name}" of step "${step.id}" has no "in", and operation "${step.operationId}" has no parameter by that name`,
         pointer: `${pointer}/parameters/${String(index)}`,
       });
+    }
+
     return omitUndefined({
       name: parameter.name,
       in: location,
@@ -170,12 +187,15 @@ function lowerStep(
   const contentType = operation?.requestBody
     ? Object.keys(operation.requestBody.content)[0]
     : undefined;
+
   const success = operation ? firstSuccess(operation) : undefined;
+
   const successCriteria =
     step.successCriteria?.map((criterion) => ({ ...criterion })) ??
     (success === undefined
       ? undefined
       : [{ condition: `$statusCode == ${success}` }]);
+
   const reportParameters = (where: string) => {
     ctx.report({
       code: "arazzo-action-parameters-unsupported",
@@ -184,12 +204,14 @@ function lowerStep(
       pointer: where,
     });
   };
+
   const onSuccess = stripActionParameters(
     step.onSuccess,
     version,
     reportParameters,
     `${pointer}/onSuccess`,
   );
+
   const onFailure = stripActionParameters(
     step.onFailure,
     version,
@@ -225,14 +247,17 @@ function lowerWorkflow(
   state: Lowering,
 ): ArazzoWorkflow {
   const pointer = `/workflows/${String(index)}`;
+
   const steps = workflow.steps.flatMap((step, stepIndex) => {
     const lowered = lowerStep(
       step,
       `${pointer}/steps/${String(stepIndex)}`,
       state,
     );
+
     return lowered ? [lowered] : [];
   });
+
   return {
     workflowId: workflow.id,
     ...(workflow.summary === undefined ? {} : { summary: workflow.summary }),
@@ -253,27 +278,35 @@ function lowerArazzo(
 ): AnyArazzoDocument {
   const apiName = options.openapi?.name ?? "api";
   const eventsName = options.asyncapi?.name ?? "events";
+
   const usesChannels =
     version === "1.1" &&
     model.workflows.some((workflow) =>
       workflow.steps.some((step) => step.channel !== undefined),
     );
+
   const usesOperations = model.workflows.some((workflow) =>
     workflow.steps.some((step) => step.operationId !== undefined),
   );
+
   const sources: ArazzoSourceDescription[] = [];
-  if (usesOperations || !usesChannels)
+
+  if (usesOperations || !usesChannels) {
     sources.push({
       name: apiName,
       url: options.openapi?.url ?? model.self ?? OPENAPI_FILE_NAME,
       type: "openapi",
     });
-  if (usesChannels)
+  }
+
+  if (usesChannels) {
     sources.push({
       name: eventsName,
       url: options.asyncapi?.url ?? ASYNCAPI_FILE_NAME,
       type: "asyncapi",
     });
+  }
+
   const state: Lowering = {
     model,
     version,
@@ -286,7 +319,8 @@ function lowerArazzo(
     eventsName,
     qualify: sources.length > 1,
   };
-  if (model.workflows.length === 0)
+
+  if (model.workflows.length === 0) {
     ctx.report({
       code: "arazzo-workflows-empty",
       severity: "error",
@@ -294,7 +328,10 @@ function lowerArazzo(
         "The API has no workflows; an Arazzo document needs at least one (pass workflows, or a built-in such as paginationWorkflows())",
       pointer: "/workflows",
     });
+  }
+
   const { info } = model;
+
   return {
     arazzo: ARAZZO_FIELD[version],
     info: {
@@ -313,16 +350,25 @@ function lowerArazzo(
 }
 
 function strings(value: unknown, out: string[]): void {
-  if (typeof value === "string") out.push(value);
-  else if (Array.isArray(value))
+  if (typeof value === "string") {
+    out.push(value);
+  } else if (Array.isArray(value)) {
     // SAFETY: Array.isArray narrows to any[]; each item is read as unknown.
-    for (const item of value as readonly unknown[]) strings(item, out);
-  else if (isPlainObject(value))
-    for (const item of Object.values(value)) strings(item, out);
+    for (const item of value as readonly unknown[]) {
+      strings(item, out);
+    }
+  } else if (isPlainObject(value)) {
+    for (const item of Object.values(value)) {
+      strings(item, out);
+    }
+  }
 }
 
 function inputNames(inputs: Json | undefined): Set<string> | undefined {
-  if (!inputs || !isPlainObject(inputs["properties"])) return undefined;
+  if (!inputs || !isPlainObject(inputs["properties"])) {
+    return undefined;
+  }
+
   return new Set(Object.keys(inputs["properties"]));
 }
 
@@ -337,17 +383,21 @@ function lintWorkflow(
   const stepIndex = new Map<string, number>();
   const outputsOf = new Map<string, ReadonlySet<string>>();
   workflow.steps.forEach((step, position) => {
-    if (stepIndex.has(step.stepId))
+    if (stepIndex.has(step.stepId)) {
       diagnostics.push({
         code: "arazzo-step-id-duplicate",
         severity: "error",
         message: `Workflow "${workflow.workflowId}" has two steps "${step.stepId}"`,
         pointer: `${pointer}/steps/${String(position)}`,
       });
-    else stepIndex.set(step.stepId, position);
+    } else {
+      stepIndex.set(step.stepId, position);
+    }
+
     outputsOf.set(step.stepId, new Set(Object.keys(step.outputs ?? {})));
   });
   const inputs = inputNames(workflow.inputs);
+
   const checkExpressions = (
     value: unknown,
     where: string,
@@ -355,72 +405,91 @@ function lintWorkflow(
   ) => {
     const texts: string[] = [];
     strings(value, texts);
+
     for (const text of texts) {
       for (const [, stepId = "", output = ""] of text.matchAll(STEP_OUTPUT)) {
         const target = stepIndex.get(stepId);
-        if (target === undefined || !outputsOf.get(stepId)?.has(output))
+
+        if (target === undefined || !outputsOf.get(stepId)?.has(output)) {
           diagnostics.push({
             code: "arazzo-step-output-unknown",
             severity: "error",
             message: `"$steps.${stepId}.outputs.${output}" names an output no step "${stepId}" declares`,
             pointer: where,
           });
-        else if (position !== undefined && target >= position)
+        } else if (position !== undefined && target >= position) {
           diagnostics.push({
             code: "arazzo-step-output-order",
             severity: "error",
             message: `"$steps.${stepId}.outputs.${output}" is read before step "${stepId}" runs`,
             pointer: where,
           });
+        }
       }
-      if (inputs)
-        for (const [, name = ""] of text.matchAll(INPUT))
-          if (!inputs.has(name))
+
+      if (inputs) {
+        for (const [, name = ""] of text.matchAll(INPUT)) {
+          if (!inputs.has(name)) {
             diagnostics.push({
               code: "arazzo-input-undeclared",
               severity: "warning",
               message: `"$inputs.${name}" is not a property of workflow "${workflow.workflowId}" inputs`,
               pointer: where,
             });
-      for (const [, name = ""] of text.matchAll(SOURCE))
-        if (!sourceNames.has(name))
+          }
+        }
+      }
+
+      for (const [, name = ""] of text.matchAll(SOURCE)) {
+        if (!sourceNames.has(name)) {
           diagnostics.push({
             code: "arazzo-source-unknown",
             severity: "error",
             message: `"$sourceDescriptions.${name}" is not a listed source description`,
             pointer: where,
           });
+        }
+      }
     }
   };
+
   workflow.steps.forEach((step, position) => {
     const where = `${pointer}/steps/${String(position)}`;
-    if (!ID.test(step.stepId))
+
+    if (!ID.test(step.stepId)) {
       diagnostics.push({
         code: "arazzo-id-invalid",
         severity: "error",
         message: `Step id "${step.stepId}" has characters Arazzo ids do not allow`,
         pointer: where,
       });
+    }
+
     const targets = [
       step.operationId,
       step.operationPath,
       step.channelPath,
       step.workflowId,
     ].filter((target) => target !== undefined);
-    if (targets.length !== 1)
+
+    if (targets.length !== 1) {
       diagnostics.push({
         code: "arazzo-step-target",
         severity: "error",
         message: `Step "${step.stepId}" needs exactly one of operationId, operationPath, channelPath or workflowId`,
         pointer: where,
       });
-    if (step.workflowId !== undefined && !workflowIds.has(step.workflowId))
+    }
+
+    if (step.workflowId !== undefined && !workflowIds.has(step.workflowId)) {
       diagnostics.push({
         code: "arazzo-workflow-unknown",
         severity: "error",
         message: `Step "${step.stepId}" calls workflow "${step.workflowId}", which the document does not have`,
         pointer: `${where}/workflowId`,
       });
+    }
+
     checkExpressions(
       [
         step.operationId,
@@ -433,25 +502,31 @@ function lintWorkflow(
       position,
     );
     checkExpressions([step.outputs, step.onSuccess, step.onFailure], where);
+
     for (const action of [
       ...(step.onSuccess ?? []),
       ...(step.onFailure ?? []),
     ]) {
-      if (action["type"] !== "goto" && action["type"] !== "retry") continue;
+      if (action["type"] !== "goto" && action["type"] !== "retry") {
+        continue;
+      }
+
       const stepId = action["stepId"];
       const workflowId = action["workflowId"];
+
       if (
         (typeof stepId === "string" && !stepIndex.has(stepId)) ||
         (typeof workflowId === "string" &&
           !workflowIds.has(workflowId) &&
           !workflowId.startsWith("$sourceDescriptions."))
-      )
+      ) {
         diagnostics.push({
           code: "arazzo-goto-unknown",
           severity: "error",
           message: `Action "${String(action["name"])}" of step "${step.stepId}" goes to a step or workflow that does not exist`,
           pointer: where,
         });
+      }
     }
   });
   checkExpressions(workflow.outputs, `${pointer}/outputs`);
@@ -461,28 +536,35 @@ function lintArazzo(document: AnyArazzoDocument): SpecDiagnostic[] {
   const diagnostics: SpecDiagnostic[] = [];
   const workflowIds = new Set<string>();
   document.workflows.forEach((workflow, index) => {
-    if (!ID.test(workflow.workflowId))
+    if (!ID.test(workflow.workflowId)) {
       diagnostics.push({
         code: "arazzo-id-invalid",
         severity: "error",
         message: `Workflow id "${workflow.workflowId}" has characters Arazzo ids do not allow`,
         pointer: `/workflows/${String(index)}`,
       });
-    if (workflowIds.has(workflow.workflowId))
+    }
+
+    if (workflowIds.has(workflow.workflowId)) {
       diagnostics.push({
         code: "arazzo-workflow-id-duplicate",
         severity: "error",
         message: `Two workflows have the id "${workflow.workflowId}"`,
         pointer: `/workflows/${String(index)}`,
       });
+    }
+
     workflowIds.add(workflow.workflowId);
   });
+
   const sourceNames = new Set(
     document.sourceDescriptions.map((source) => source.name),
   );
+
   document.workflows.forEach((workflow, index) => {
     lintWorkflow(workflow, index, workflowIds, sourceNames, diagnostics);
   });
+
   return diagnostics;
 }
 

@@ -14,6 +14,7 @@ describe.skipIf(!live)(
     it("lets system support view as a user and audits it in audit_logs", async () => {
       await withCentraKit(pool, async (s) => {
         await s.as("owner");
+
         const organization = await s.value<string>(
           "better_supabase.create_organization($1)",
           [{ name: "Acme", slug: `acme-${USERS.owner.slice(0, 8)}` }],
@@ -27,6 +28,7 @@ describe.skipIf(!live)(
         ).toBe("SUPPORT_FORBIDDEN");
 
         await s.as("support");
+
         const session = await s.value<{
           target_user_id: string;
           read_only: boolean;
@@ -34,6 +36,7 @@ describe.skipIf(!live)(
           "better_supabase.start_support_session($1, 'Ticket 42', tenant => $2)",
           [USERS.owner, organization],
         );
+
         expect(session).toMatchObject({
           target_user_id: USERS.owner,
           read_only: true,
@@ -61,12 +64,14 @@ describe.skipIf(!live)(
     it("records semantic events once, with restricted details apart, readable per organization", async () => {
       await withCentraKit(pool, async (s) => {
         await s.as("owner");
+
         const organization = await s.value<string>(
           "better_supabase.create_organization($1)",
           [{ name: "Acme", slug: `acme-${USERS.owner.slice(0, 8)}` }],
         );
 
         await s.as("service");
+
         const record = () =>
           s.value<string>(
             `better_supabase.audit_event('invoice.sent', 'billing', target_type => 'invoice', record_id => 'inv-1',
@@ -74,6 +79,7 @@ describe.skipIf(!live)(
              restricted => '{"ip": "203.0.113.7"}', actor_id => $2)`,
             [organization, USERS.owner],
           );
+
         const first = await record();
         expect(await record()).toBe(first);
         expect(
@@ -93,10 +99,12 @@ describe.skipIf(!live)(
         ]);
 
         await s.client.query("set local role authenticated");
+
         const visible = () =>
           s.value<number>(
             "(select count(*)::int from centrakit.audit_logs where event_type = 'invoice.sent')",
           );
+
         await s.as("owner");
         expect(await visible()).toBe(1);
         await s.as("member");

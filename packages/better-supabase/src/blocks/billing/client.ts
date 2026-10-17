@@ -87,47 +87,71 @@ export function createPlanPickerController<
     (state) => {
       let ticket = 0;
       let seeded = options.initial !== undefined;
+
       const refresh = async (): Promise<void> => {
         const request = ++ticket;
+
         try {
           const catalog = await options.load();
-          if (request === ticket)
+
+          if (request === ticket) {
             state.set({
               plans: catalog.plans,
               current: catalog.current,
               error: undefined,
             });
+          }
         } catch (cause) {
-          if (request === ticket) state.set({ error: toDbError(cause) });
+          if (request === ticket) {
+            state.set({ error: toDbError(cause) });
+          }
         }
       };
+
       return {
         actions: {
           refresh,
           choose: async (plan) => {
-            if (plan === state.get().current) return ok({ url: undefined });
+            if (plan === state.get().current) {
+              return ok({ url: undefined });
+            }
+
             state.set({ pending: plan, error: undefined });
             let started: Result<CheckoutStarted>;
+
             try {
               started = await options.checkout(plan);
-              if (started.ok && started.data.url !== undefined)
+
+              if (started.ok && started.data.url !== undefined) {
                 await options.open(started.data.url);
+              }
             } catch (cause) {
               started = err(toDbError(cause));
             }
+
             if (!started.ok) {
               state.set({ pending: undefined, error: started.error });
+
               return started;
             }
+
             state.set({ pending: undefined });
-            if (started.data.url === undefined) await refresh();
+
+            if (started.data.url === undefined) {
+              await refresh();
+            }
+
             return started;
           },
         },
         start: () =>
           whileSignedIn(options.auth, () => {
-            if (seeded) seeded = false;
-            else void refresh();
+            if (seeded) {
+              seeded = false;
+            } else {
+              void refresh();
+            }
+
             return;
           }),
       };

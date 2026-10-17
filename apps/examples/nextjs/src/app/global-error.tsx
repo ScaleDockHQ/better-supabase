@@ -15,20 +15,20 @@ export default function GlobalError({
 }) {
   return (
     <html lang="en">
-      <body className="bg-background text-foreground flex min-h-svh items-center justify-center p-6 font-sans antialiased">
+      <body className="flex min-h-svh items-center justify-center bg-background p-6 font-sans text-foreground antialiased">
         <main
           role="alert"
           className="flex max-w-sm flex-col items-center gap-3 text-center"
         >
           <h1 className="text-lg font-medium">Something went wrong</h1>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-sm text-muted-foreground">
             Try again in a moment.
             {error.digest === undefined ? null : ` Reference: ${error.digest}`}
           </p>
           <button
             type="button"
             onClick={retry}
-            className="bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm font-medium"
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
           >
             Try again
           </button>

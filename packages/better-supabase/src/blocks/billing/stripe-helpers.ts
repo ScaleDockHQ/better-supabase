@@ -12,7 +12,10 @@ export const SEAT_EVENT: RegExp =
 export function subscriptionItemOf(
   value: unknown,
 ): SubscriptionItem | undefined {
-  if (!isRecord(value)) return undefined;
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
   return {
     subscriptionId: textOf(value["subscription"]),
     itemId: textOf(value["item"]),
@@ -28,10 +31,12 @@ export function syncedTaxId(
 ): StripeTaxId {
   const verification = row["verification"];
   const raw = row["created"];
+
   const created =
     typeof raw === "number" || (typeof raw === "string" && /^\d+$/.test(raw))
       ? Number(raw)
       : Number.NaN;
+
   return {
     id: textOf(row["id"]),
     type: textOf(row["type"]),
@@ -45,7 +50,10 @@ export function syncedTaxId(
 }
 
 export const customerIdOf = (value: unknown): string | undefined => {
-  if (typeof value === "string") return value;
+  if (typeof value === "string") {
+    return value;
+  }
+
   return isRecord(value) ? optionalText(value["id"]) : undefined;
 };
 
@@ -53,6 +61,7 @@ export const metadataTenant = (
   object: Readonly<Record<string, unknown>>,
 ): string | undefined => {
   const metadata = object["metadata"];
+
   return isRecord(metadata)
     ? optionalText(metadata[ORGANIZATION_KEY])
     : undefined;
@@ -73,11 +82,13 @@ function deepMerge(
   extra: Readonly<Record<string, unknown>>,
 ): Record<string, unknown> {
   const merged: Record<string, unknown> = { ...base };
+
   for (const [key, value] of Object.entries(extra)) {
     const current = merged[key];
     merged[key] =
       isRecord(current) && isRecord(value) ? deepMerge(current, value) : value;
   }
+
   return merged;
 }
 
@@ -95,6 +106,7 @@ export function checkoutParams(
 ): Record<string, unknown> {
   const merged = extra === undefined ? { ...base } : deepMerge(base, extra);
   const tenant = { metadata: { [ORGANIZATION_KEY]: organizationId } };
+
   return deepMerge(merged, {
     customer: customerId,
     client_reference_id: organizationId,

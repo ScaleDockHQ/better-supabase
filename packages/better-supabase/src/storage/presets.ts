@@ -79,10 +79,12 @@ export function organizationLogoBucket<
   const Id extends string = "organization-logos",
 >(options: OrganizationLogoBucketOptions<P, Id> = {}): Bucket<P, Id> {
   const permission = options.permission ?? "organization.update";
+
   const tenant =
     options.tenant === false
       ? undefined
       : (options.tenant ?? { param: "organizationId" });
+
   return defineBucket<P, Id>({
     // SAFETY: without options.id, Id is its default.
     id: options.id ?? ("organization-logos" as Id),

@@ -12,9 +12,18 @@ import {
 import { API_SCHEMA } from "../lib/blocks";
 
 function heading(key: string): string {
-  if (key === "favorites") return "Favorites";
-  if (key === "recents") return "Recent";
-  if (key === "customer") return "Customers";
+  if (key === "favorites") {
+    return "Favorites";
+  }
+
+  if (key === "recents") {
+    return "Recent";
+  }
+
+  if (key === "customer") {
+    return "Customers";
+  }
+
   return key;
 }
 
@@ -22,6 +31,7 @@ function heading(key: string): string {
 export function CommandSearch() {
   // Native has no Cmd+K, so the button opens it.
   const search = useCommandSearch({ schema: API_SCHEMA, shortcut: false });
+
   return (
     <>
       <Pressable

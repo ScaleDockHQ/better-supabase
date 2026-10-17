@@ -17,7 +17,11 @@ type CookieSide = "browser" | "server";
 function cookieSide(file: TextFile): CookieSide | undefined {
   const browser = BROWSER_SIDE.test(file.text);
   const server = SERVER_SIDE.test(file.text);
-  if (browser === server) return undefined;
+
+  if (browser === server) {
+    return undefined;
+  }
+
   return browser ? "browser" : "server";
 }
 
@@ -28,21 +32,37 @@ function cookieSide(file: TextFile): CookieSide | undefined {
 function encodingDrift(context: DoctorContext): FindingInput[] {
   const sides = context.sources.flatMap((file) => {
     const side = cookieSide(file);
+
     return side
       ? [{ file, side, tokensOnly: TOKENS_ONLY.test(file.text) }]
       : [];
   });
+
   const tokensOnly = sides.filter((entry) => entry.tokensOnly);
-  if (tokensOnly.length === 0) return [];
+
+  if (tokensOnly.length === 0) {
+    return [];
+  }
+
   const findings: FindingInput[] = [];
+
   for (const side of ["browser", "server"] as const) {
     const set = tokensOnly.find((entry) => entry.side === side);
-    if (!set) continue;
+
+    if (!set) {
+      continue;
+    }
+
     const other = side === "browser" ? "server" : "browser";
+
     const unset = sides.filter(
       (entry) => entry.side === other && !entry.tokensOnly,
     );
-    if (unset.length === 0) continue;
+
+    if (unset.length === 0) {
+      continue;
+    }
+
     const line = lineOf(set.file.text, TOKENS_ONLY) ?? 1;
     findings.push({
       message: `${set.file.path} writes the session cookie with \`encode: 'tokens-only'\`, but the ${other} side (${unset.map((entry) => entry.file.path).join(", ")}) uses the default \`user-and-tokens\`. Set the same \`encode\` on both sides.`,
@@ -50,6 +70,7 @@ function encodingDrift(context: DoctorContext): FindingInput[] {
       location: { file: set.file.path, line },
     });
   }
+
   return findings;
 }
 

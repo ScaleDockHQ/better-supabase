@@ -22,7 +22,11 @@ export async function BetaContent() {
     getEnabledFlags(),
     getExtracted("beta"),
   ]);
-  if (!flags.includes("beta-page")) notFound();
+
+  if (!flags.includes("beta-page")) {
+    notFound();
+  }
+
   return (
     <Card data-testid="beta">
       <CardHeader>
@@ -36,7 +40,7 @@ export async function BetaContent() {
           )}
         </CardDescription>
       </CardHeader>
-      <CardContent className="text-muted-foreground text-sm">
+      <CardContent className="text-sm text-muted-foreground">
         {t(
           "Turn it off with better_supabase.set_flag_override, and this page and its menu entry disappear on the next session refresh.",
         )}

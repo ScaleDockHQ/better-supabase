@@ -87,6 +87,7 @@ describe("saved-views module", () => {
         "saved-views": { mode: "adopt", tables: { preferences: null } },
       },
     });
+
     expect(sql).not.toContain("saved_view_preferences");
     expect(sql).not.toContain("set_view_preference");
     expect(sql).toContain("duplicate_view");

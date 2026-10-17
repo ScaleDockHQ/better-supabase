@@ -36,6 +36,7 @@ describe("fixedRates", () => {
     const report = await testTaxProvider(provider, {
       address: { country: "NL" },
     });
+
     expect(report.checks.every((check) => check.ok)).toBe(true);
     await testTaxProvider(provider, {
       address: { country: "US" },
@@ -81,6 +82,7 @@ describe("fixedRates", () => {
         }),
       )
       .orThrow();
+
     expect(quote.lines[0]?.tax).toEqual(money(725n, "USD"));
     expect(quote.lines[0]?.jurisdiction).toBe("US-CA");
   });
@@ -90,9 +92,11 @@ describe("fixedRates", () => {
       rates: { NL: { standard: "0.21", reduced: "0.09" } },
       shippingCategory: "reduced",
     });
+
     const quote = await shipped
       .quote(cart({ shipping: { amount: eur(1000n), inclusive: true } }))
       .orThrow();
+
     expect(quote.lines.at(-1)).toMatchObject({
       lineId: SHIPPING_LINE,
       taxable: eur(917n),
@@ -106,13 +110,17 @@ describe("fixedRates", () => {
     expect(abroad.ok ? undefined : abroad.error.hint).toBe(
       "TAX_REGION_UNKNOWN",
     );
+
     const state = await provider.quote(
       cart({ address: { country: "DE", state: "BY" } }),
     );
+
     expect(state.ok ? undefined : state.error.message).toContain("DE-BY");
+
     const category = await provider.quote(
       cart({ lines: [{ id: "a", amount: eur(1n), taxCategory: "luxury" }] }),
     );
+
     expect(category.ok ? undefined : category.error).toMatchObject({
       kind: "not_found",
       hint: "TAX_RATE_UNKNOWN",
@@ -127,12 +135,15 @@ describe("fixedRates", () => {
     const negative = await provider.quote(
       cart({ lines: [{ id: "a", amount: eur(-1n) }] }),
     );
+
     expect(negative.ok ? undefined : negative.error.hint).toBe(
       "TAX_AMOUNT_INVALID",
     );
+
     const mixed = await provider.quote(
       cart({ shipping: { amount: money(1n, "USD") } }),
     );
+
     expect(mixed.ok ? undefined : mixed.error.hint).toBe(
       "TAX_CURRENCY_MISMATCH",
     );
@@ -151,12 +162,15 @@ describe("fixedRates", () => {
 
   it("names reversals after the sale and the refund", async () => {
     const quote = await provider.quote(cart()).orThrow();
+
     const sale = await provider
       .commit({ quote, reference: "order-1" })
       .orThrow();
+
     const reversal = await provider
       .reverse({ transaction: sale, reference: "refund-1" })
       .orThrow();
+
     expect(reversal.id).toBe(`${quote.id}:refund-1`);
     expect(reversal.totalTax).toEqual(eur(-285n));
   });
@@ -185,12 +199,15 @@ describe("reversalOf", () => {
       reference: "r",
       lines: [{ lineId: "a", amount: money(1n, "USD"), tax: eur(0n) }],
     });
+
     expect(usd.ok).toBe(false);
+
     const negative = reversalOf({
       transaction: sale,
       reference: "r",
       lines: [{ lineId: "a", amount: eur(-1n), tax: eur(0n) }],
     });
+
     expect(negative.ok ? undefined : negative.error.hint).toBe(
       "TAX_REVERSAL_TOO_LARGE",
     );
@@ -216,6 +233,7 @@ describe("testTaxProvider", () => {
           lines: quote.lines.slice(1),
         })),
     };
+
     await expect(
       testTaxProvider(lossy, { address: { country: "NL" } }),
     ).rejects.toThrow(ConformanceError);

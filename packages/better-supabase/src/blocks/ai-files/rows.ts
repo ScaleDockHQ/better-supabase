@@ -19,11 +19,13 @@ import {
 } from "../shared.ts";
 
 const FILE_STATUSES: readonly AiFileStatus[] = ["pending", "ready", "failed"];
+
 const FILE_SOURCES: readonly AiFileSource[] = [
   "upload",
   "generated",
   "provider",
 ];
+
 const DOCUMENT_KINDS: readonly AiDocumentKind[] = [
   "text",
   "code",
@@ -36,6 +38,7 @@ const instant = (value: unknown): Temporal.Instant =>
 
 export function fileOf(value: unknown): AiFile {
   const row = recordOf(value, "ai_files");
+
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["organization_id"]),
@@ -58,6 +61,7 @@ export function fileOf(value: unknown): AiFile {
 
 export function providerFileOf(value: unknown): AiProviderFile {
   const row = recordOf(value, "ai_provider_files");
+
   return {
     fileId: textOf(row["file_id"]),
     provider: textOf(row["provider"]),
@@ -68,6 +72,7 @@ export function providerFileOf(value: unknown): AiProviderFile {
 
 export function documentOf(value: unknown): AiDocument {
   const row = recordOf(value, "ai_documents");
+
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["organization_id"]),
@@ -83,6 +88,7 @@ export function documentOf(value: unknown): AiDocument {
 
 export function versionOf(value: unknown): AiDocumentVersion {
   const row = recordOf(value, "ai_document_versions");
+
   return {
     documentId: textOf(row["document_id"]),
     version: Number(row["version"]),
@@ -97,6 +103,7 @@ export function versionOf(value: unknown): AiDocumentVersion {
 export function suggestionOf(value: unknown): AiSuggestion {
   const row = recordOf(value, "ai_suggestions");
   const accepted = row["accepted"];
+
   return {
     id: textOf(row["id"]),
     documentId: textOf(row["document_id"]),

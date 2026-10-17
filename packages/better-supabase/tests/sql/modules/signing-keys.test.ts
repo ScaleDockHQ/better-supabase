@@ -10,6 +10,7 @@ const body = (modules: AnyBlocksConfig = {}) =>
 describe("signing-keys module", () => {
   it("keeps every function for the service role", () => {
     const sql = body();
+
     for (const signature of [
       '"add_signing_key"(text, text, text, text, jsonb, text)',
       '"signing_key"(text, text)',
@@ -26,6 +27,7 @@ describe("signing-keys module", () => {
         `grant execute on function "better_supabase".${signature} to service_role;`,
       );
     }
+
     expect(sql.match(/hint = 'SIGNING_KEYS_FORBIDDEN'/g)).toHaveLength(7);
   });
 
@@ -45,6 +47,7 @@ describe("signing-keys module", () => {
     const sql = body({
       "signing-keys": { options: { jwksGrace: "1 hour'; drop table x; --" } },
     });
+
     expect(sql).toContain(
       "coalesce(grace, '1 hour''; drop table x; --'::interval)",
     );

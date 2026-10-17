@@ -6,6 +6,8 @@ const config: NextConfig = {
   // `next build` needs the TypeScript 6 compiler API; the Turbo `typecheck`
   // task runs TypeScript 7 instead.
   typescript: { ignoreBuildErrors: true },
+  // `pnpm dev:portless` serves the example at https://eve.localhost.
+  allowedDevOrigins: ["127.0.0.1", "*.localhost"],
 };
 
 // Starts the agent in agent/ with `next dev` and mounts its routes at

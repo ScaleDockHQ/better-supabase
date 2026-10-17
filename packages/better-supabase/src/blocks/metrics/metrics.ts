@@ -164,6 +164,7 @@ const numberOrNull = (value: unknown): number | null =>
 
 function pointOf(row: Record<string, unknown>): MetricPoint {
   const groups = row["groups"];
+
   return {
     bucket: requiredInstant(row["bucket"], "bucket"),
     value: numberOrNull(row["value"]),
@@ -183,6 +184,7 @@ function pointOf(row: Record<string, unknown>): MetricPoint {
 
 function infoOf(row: Record<string, unknown>): MetricInfo {
   const measure = textOf(row["measure"]);
+
   return {
     key: textOf(row["key"]),
     label: optionalText(row["label"]) ?? null,
@@ -208,8 +210,12 @@ export function compareValues(
   value: number | null,
   previous: number | null,
 ): Pick<Kpi, "change" | "trend"> {
-  if (value === null || previous === null) return { change: null };
+  if (value === null || previous === null) {
+    return { change: null };
+  }
+
   const trend = value > previous ? "up" : value < previous ? "down" : "flat";
+
   return {
     change: previous === 0 ? null : (value - previous) / Math.abs(previous),
     trend,
@@ -220,10 +226,12 @@ function requestOf(value: unknown): MetricsRollupRequest {
   if (value !== undefined && value !== null && !isRecord(value)) {
     throw new TypeError(`${METRICS_ROLLUP_QUEUE} needs an object payload`);
   }
+
   const payload = value ?? {};
   const metric = optionalText(payload["metric"]);
   const since = optionalText(payload["since"]);
   const until = optionalText(payload["until"]);
+
   return {
     ...(metric === undefined ? {} : { metric }),
     ...(since === undefined ? {} : { since: temporal().Instant.from(since) }),
@@ -239,11 +247,13 @@ export function createMetrics<
   const M extends readonly MetricDefinition[] = readonly MetricDefinition[],
 >(options: MetricsOptions<M>): Metrics<M> {
   const call = blockCall(options.transport, options.schema, options.mappers);
+
   const service = blockCall(
     options.service ?? options.transport,
     options.schema,
     options.mappers,
   );
+
   const readSeries = (
     metric: string,
     range: MetricRange,
@@ -263,6 +273,7 @@ export function createMetrics<
       },
       (value) => recordsOf(value, "metric_series").map(pointOf),
     );
+
   const readValue = (
     metric: string,
     range: MetricRange,
@@ -279,12 +290,14 @@ export function createMetrics<
       },
       (value) => {
         const row = recordOf(value, "metric_value");
+
         return {
           value: numberOrNull(row["value"]),
           count: Number(row["count"] ?? 0),
         };
       },
     );
+
   const rollup: Metrics<M>["rollup"] = (request = {}) =>
     service(
       "metrics_rollup",
@@ -295,9 +308,11 @@ export function createMetrics<
       },
       Number,
     );
+
   const client: Metrics<M> = {
     series(metric, range, read) {
       const grain = read.grain ?? "day";
+
       return readSeries(metric, range, read, grain).andThen((points) =>
         read.compare === "previous"
           ? readSeries(metric, previousRange(range), read, grain).map(
@@ -327,6 +342,7 @@ export function createMetrics<
       await rollup(requestOf(payload)).orThrow();
     },
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "metrics",
     ...(options.logger ? { logger: options.logger } : {}),

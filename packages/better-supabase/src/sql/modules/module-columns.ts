@@ -21,8 +21,10 @@ export function rowJson<T extends Readonly<Record<string, string>>>(
   row: string,
 ): string {
   const quoted: Readonly<Record<string, string>> = columns;
+
   const pairs = Object.entries(spec).map(
     ([key, name]) => `'${name}', ${row}.${quoted[key]!}`,
   );
+
   return `jsonb_build_object(${pairs.join(", ")})`;
 }

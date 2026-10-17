@@ -21,6 +21,7 @@ describe("tenantOf", () => {
       user: { id: "u1" },
       claims: { org: "org-2", ...claims },
     } as unknown as AuthSnapshot;
+
     expect(tenantOf(signedIn)).toBe("org-1");
     expect(tenantOf(signedIn, "org")).toBe("org-2");
     expect(

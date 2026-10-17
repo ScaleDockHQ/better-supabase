@@ -43,6 +43,7 @@ export function useTagInput(options: UseTagInputOptions): TagInputState {
   const { supabase, auth } = useBlockEnv();
   const latest = useLatest(options);
   const { organizationId, subjectType, subjectId, kind, schema } = options;
+
   return useController(
     () =>
       createTagInputController({

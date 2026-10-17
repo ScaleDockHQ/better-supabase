@@ -4,6 +4,7 @@ export {
   type DataExporterOptions,
   type DataExportJob,
 } from "./exporter.ts";
+
 export {
   createDataLifecycle,
   type DataExport,
@@ -16,6 +17,7 @@ export {
   type OrganizationDeletion,
   type StorageEntry,
 } from "./data-lifecycle.ts";
+
 export {
   createOrganizationPurger,
   type OrganizationPurge,
@@ -24,6 +26,7 @@ export {
   type PurgeBucket,
   type UnrevokedCredential,
 } from "./purger.ts";
+
 export {
   createRetention,
   type LegalHold,
@@ -33,13 +36,19 @@ export {
   type RetentionPolicy,
   type RetentionScope,
 } from "./retention.ts";
+
 export type { LifecycleTable } from "../../sql/modules/data-lifecycle-entries.ts";
+
 export {
   dbTransport,
   rpcTransport,
   sqlTransport,
 } from "../../core/block-transport.ts";
+
 export type { BlockTransport } from "../../core/block-transport.ts";
+
 export { dataLifecycleBlock } from "./manifest.ts";
+
 export { dataLifecycleEvents } from "./events.ts";
+
 export type { DataLifecycleEvents } from "./events.ts";

@@ -1,7 +1,11 @@
 export { refreshSession } from "./refresh.ts";
+
 export type { RefreshOptions, RefreshOutcome } from "./refresh.ts";
+
 export { authContext } from "./context.ts";
+
 export { clientIp, resolveAuth } from "./resolve.ts";
+
 export type {
   AuthResolution,
   AuthResolver,
@@ -10,32 +14,47 @@ export type {
   ResolveAuthOptions,
   ResolvedState,
 } from "./resolve.ts";
+
 export { tenantOf, toSession } from "./view.ts";
+
 export type { AuthSession } from "./view.ts";
+
 export { aalOf, amrOf, checkAal } from "./mfa.ts";
+
 export type { Aal, AmrEntry } from "./mfa.ts";
+
 export { checkSession } from "./revocation.ts";
+
 export { clearSessionCookies, sessionStatus } from "./ended.ts";
+
 export type {
   ClearSessionCookiesOptions,
   SessionStatus,
   SessionStatusOptions,
 } from "./ended.ts";
+
 export type { SessionLookup } from "./revocation.ts";
+
 export { impersonatorOf } from "./impersonation.ts";
+
 export type { ImpersonationOptions, Impersonator } from "./impersonation.ts";
+
 export { agentClaims } from "./actor.ts";
+
 export type {
   ActClaim,
   AgentActOptions,
   SessionActor,
   SessionDelegation,
 } from "./actor.ts";
+
 export {
   type EntitlementClaimOptions,
   hasEntitlement,
 } from "./entitlements.ts";
+
 export type { EntitlementKey, MembershipClaim } from "./entitlements.ts";
+
 export {
   applyCookieWrites,
   AUTH_CACHE_HEADERS,
@@ -49,6 +68,7 @@ export {
   sessionEncoding,
   writeSession,
 } from "./session.ts";
+
 export type {
   CookieOptions,
   CookieRecord,

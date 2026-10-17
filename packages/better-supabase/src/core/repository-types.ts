@@ -39,6 +39,7 @@ export type FindExt<E, M extends AnyModels, T extends keyof M> = ApplyExtension<
   T,
   "findArgs"
 >;
+
 export type DeleteExt<
   E,
   M extends AnyModels,

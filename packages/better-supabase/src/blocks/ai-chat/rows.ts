@@ -41,6 +41,7 @@ const optionalNumber = (value: unknown): number | undefined =>
 
 export function chatOf(value: unknown): AiChatRecord {
   const row = recordOf(value, "ai_chat");
+
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["organization_id"]),
@@ -69,6 +70,7 @@ export function chatOf(value: unknown): AiChatRecord {
 
 export function projectOf(value: unknown): AiProject {
   const row = recordOf(value, "ai_project");
+
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["organization_id"]),
@@ -100,9 +102,11 @@ export const ROLES: readonly AiMessageRole[] = [
 export function storedOf(value: unknown): AiStoredMessage {
   const row = recordOf(value, "ai_message_path");
   const metadata = row["metadata"];
+
   const parts: readonly AiMessagePart[] = Array.isArray(row["parts"])
     ? row["parts"].filter(isPart)
     : [];
+
   return {
     id: textOf(row["id"]),
     role: oneOf(row["role"], ROLES, "user"),
@@ -123,6 +127,7 @@ export function storedOf(value: unknown): AiStoredMessage {
 
 export function savedOf(value: unknown): AiSaveResult {
   const row = recordOf(value, "ai_message");
+
   return {
     messageId: textOf(row["message_id"]),
     parentId: optionalText(row["parent_id"]),
@@ -133,6 +138,7 @@ export function savedOf(value: unknown): AiSaveResult {
 /** Reads an approval row from the module's JSON. */
 export function approvalOf(value: unknown): AiToolApproval {
   const row = recordOf(value, "ai_tool_approval");
+
   return {
     approvalId: textOf(row["approval_id"]),
     chatId: textOf(row["chat_id"]),
@@ -163,6 +169,7 @@ export function policyOf(value: unknown): AiToolPolicy | undefined {
 export function inputOf(value: unknown): AiPendingInput {
   const row = recordOf(value, "ai_pending_input");
   const answer = row["answer"];
+
   return {
     id: textOf(row["id"]),
     chatId: textOf(row["chat_id"]),
@@ -179,6 +186,7 @@ export function inputOf(value: unknown): AiPendingInput {
 export function feedbackOf(value: unknown): AiFeedback {
   const row = recordOf(value, "rate_ai_message");
   const rating = row["rating"];
+
   return {
     chatId: textOf(row["chat_id"]),
     messageId: textOf(row["message_id"]),
@@ -190,6 +198,7 @@ export function feedbackOf(value: unknown): AiFeedback {
 
 export function shareOf(value: unknown): AiChatShare {
   const row = recordOf(value, "list_ai_chat_shares");
+
   return {
     id: textOf(row["id"]),
     leafId: textOf(row["leaf_id"]),
@@ -202,6 +211,7 @@ export function shareOf(value: unknown): AiChatShare {
 export function sharedOf(value: unknown): SharedAiChat {
   const row = recordOf(value, "get_shared_ai_chat");
   const chat = record(row["chat"]);
+
   return {
     chat: {
       id: textOf(chat["id"]),
@@ -216,6 +226,7 @@ export function sharedOf(value: unknown): SharedAiChat {
 
 export function modelOf(value: unknown): AiModel {
   const row = recordOf(value, "allowed_ai_models");
+
   return {
     id: textOf(row["model_id"]),
     provider: textOf(row["provider"]),
@@ -230,6 +241,7 @@ export function modelOf(value: unknown): AiModel {
 
 export function moderationOf(value: unknown): AiModerationEvent {
   const row = recordOf(value, "ai_moderation_event");
+
   return {
     id: textOf(row["id"]),
     organizationId: textOf(row["organization_id"]),
@@ -247,40 +259,99 @@ export function moderationOf(value: unknown): AiModerationEvent {
 /** The fields `create_ai_chat` reads, from the ones the input names. */
 export function chatFields(input: AiChatInput): Record<string, unknown> {
   const fields: Record<string, unknown> = {};
-  if (input.id !== undefined) fields["id"] = input.id;
-  if (input.title !== undefined) fields["title"] = input.title;
-  if (input.model !== undefined) fields["model"] = input.model;
-  if (input.projectId !== undefined) fields["project_id"] = input.projectId;
-  if (input.agentId !== undefined) fields["agent_id"] = input.agentId;
-  if (input.visibility !== undefined) fields["visibility"] = input.visibility;
-  if (input.pinned !== undefined) fields["pinned"] = input.pinned;
-  if (input.temporary !== undefined) fields["is_temporary"] = input.temporary;
-  if (input.ownerId !== undefined) fields["owner_id"] = input.ownerId;
+
+  if (input.id !== undefined) {
+    fields["id"] = input.id;
+  }
+
+  if (input.title !== undefined) {
+    fields["title"] = input.title;
+  }
+
+  if (input.model !== undefined) {
+    fields["model"] = input.model;
+  }
+
+  if (input.projectId !== undefined) {
+    fields["project_id"] = input.projectId;
+  }
+
+  if (input.agentId !== undefined) {
+    fields["agent_id"] = input.agentId;
+  }
+
+  if (input.visibility !== undefined) {
+    fields["visibility"] = input.visibility;
+  }
+
+  if (input.pinned !== undefined) {
+    fields["pinned"] = input.pinned;
+  }
+
+  if (input.temporary !== undefined) {
+    fields["is_temporary"] = input.temporary;
+  }
+
+  if (input.ownerId !== undefined) {
+    fields["owner_id"] = input.ownerId;
+  }
+
   return fields;
 }
 
 export function patchFields(patch: AiChatPatch): Record<string, unknown> {
   const fields: Record<string, unknown> = {};
-  if (patch.title !== undefined) fields["title"] = patch.title;
-  if (patch.model !== undefined) fields["model"] = patch.model;
-  if (patch.projectId !== undefined) fields["project_id"] = patch.projectId;
-  if (patch.visibility !== undefined) fields["visibility"] = patch.visibility;
-  if (patch.pinned !== undefined) fields["pinned"] = patch.pinned;
-  if (patch.archived !== undefined) fields["archived"] = patch.archived;
+
+  if (patch.title !== undefined) {
+    fields["title"] = patch.title;
+  }
+
+  if (patch.model !== undefined) {
+    fields["model"] = patch.model;
+  }
+
+  if (patch.projectId !== undefined) {
+    fields["project_id"] = patch.projectId;
+  }
+
+  if (patch.visibility !== undefined) {
+    fields["visibility"] = patch.visibility;
+  }
+
+  if (patch.pinned !== undefined) {
+    fields["pinned"] = patch.pinned;
+  }
+
+  if (patch.archived !== undefined) {
+    fields["archived"] = patch.archived;
+  }
+
   return fields;
 }
 
 export function projectFields(input: AiProjectInput): Record<string, unknown> {
   const fields: Record<string, unknown> = {};
-  if (input.name !== undefined) fields["name"] = input.name;
+
+  if (input.name !== undefined) {
+    fields["name"] = input.name;
+  }
+
   if (input.instructions !== undefined) {
     fields["instructions"] = input.instructions;
   }
+
   if (input.defaultModel !== undefined) {
     fields["default_model"] = input.defaultModel;
   }
-  if (input.pinned !== undefined) fields["pinned"] = input.pinned;
-  if (input.archived !== undefined) fields["archived"] = input.archived;
+
+  if (input.pinned !== undefined) {
+    fields["pinned"] = input.pinned;
+  }
+
+  if (input.archived !== undefined) {
+    fields["archived"] = input.archived;
+  }
+
   return fields;
 }
 

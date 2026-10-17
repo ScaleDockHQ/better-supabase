@@ -1,2 +1,14 @@
 # style: switch oxfmt to double quotes and reformat
 ffc4067b45b268200de9dd73f516eefce91cb895
+
+# style(lint): enable the autofixable backlog rules
+f1f9ae118c78b3e4483fce67907cd6f382243e5f
+
+# style(lint): enforce curly
+103e387d4203b67b01f26e9582022428db3432f0
+
+# style(lint): enforce switch-case-braces
+b4279c83e9a320e8654118afe910bc744b7f1e95
+
+# style(lint): enforce require-readable-spacing
+e17ac822c5cb730788e6fe7f970915bd76a86018

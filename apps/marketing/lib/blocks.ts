@@ -77,16 +77,22 @@ export function configSnippet(
   installed: readonly string[],
 ): string {
   const dependencies = installed.filter((name) => name !== block.name);
+
   const lines = [
     `import { defineConfig } from "better-supabase/config";`,
     "",
     "export default defineConfig({",
     "  blocks: {",
   ];
+
   if (dependencies.length > 0) {
     lines.push(`    // Required by ${block.name}; sql add installs them too.`);
-    for (const name of dependencies) lines.push(`    ${configKey(name)}: {},`);
+
+    for (const name of dependencies) {
+      lines.push(`    ${configKey(name)}: {},`);
+    }
   }
+
   const modes = block.modes.map((mode) => `"${mode}"`).join(", ");
   lines.push(
     `    // Modes: ${modes}. The default is "managed".`,
@@ -94,5 +100,6 @@ export function configSnippet(
     "  },",
     "});",
   );
+
   return lines.join("\n");
 }

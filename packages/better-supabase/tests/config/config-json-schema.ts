@@ -23,25 +23,35 @@ function isJson(value: unknown): value is Json {
 
 /** `config-v1.json` with `blocks` and the `$defs/blocks` entries rendered. */
 export async function renderConfigSchema(): Promise<string> {
-  const schema: unknown = JSON.parse(await readFile(CONFIG_SCHEMA, "utf8"));
-  if (!isJson(schema)) throw new TypeError("config-v1.json is not an object");
+  const schema: unknown = JSON.parse(await readFile(CONFIG_SCHEMA, "utf-8"));
+
+  if (!isJson(schema)) {
+    throw new TypeError("config-v1.json is not an object");
+  }
+
   const { properties, $defs } = schema;
+
   if (!isJson(properties) || !isJson($defs)) {
     throw new TypeError("config-v1.json has no properties or $defs");
   }
+
   const { blocks } = properties;
   const { moduleConfig, accessBlock } = $defs;
+
   if (!isJson(blocks) || !isJson(moduleConfig) || !isJson(accessBlock)) {
     throw new TypeError("config-v1.json has no blocks or module $defs");
   }
+
   const modules = Object.keys(BLOCK_OPTION_SCHEMAS).sort((a, b) =>
     a.localeCompare(b),
   );
+
   const perModule = Object.fromEntries(
     modules.map((module) => {
       const options = Object.entries(BLOCK_OPTION_SCHEMAS).find(
         ([name]) => name === module,
       )?.[1];
+
       return [
         module,
         {
@@ -57,6 +67,7 @@ export async function renderConfigSchema(): Promise<string> {
       ];
     }),
   );
+
   const rendered = {
     ...schema,
     properties: {
@@ -80,5 +91,6 @@ export async function renderConfigSchema(): Promise<string> {
     },
     $defs: { ...$defs, blocks: perModule },
   };
+
   return `${JSON.stringify(rendered, null, 2)}\n`;
 }

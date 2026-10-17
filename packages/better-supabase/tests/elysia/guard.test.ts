@@ -9,15 +9,22 @@ describe("elysia guard and problemOnError", () => {
   const bridge = toElysia([
     withBetterSupabase(server, { allow: ["user", "anon"] }),
   ]);
+
   const admin = guard(bridge, { allow: ["user"], signIn: "/sign-in" });
   const onError = problemOnError();
+
   const fetch = bridge.wrap(async (request) => {
     try {
       const refused = await admin({ request });
-      if (refused) return refused;
+
+      if (refused) {
+        return refused;
+      }
+
       if (request.url.endsWith("/thrown")) {
         throw new DbException(dbError("not_found", "Gone"));
       }
+
       return new Response("secret");
     } catch (error) {
       return onError({ error, request }) ?? new Response(null, { status: 500 });
@@ -31,6 +38,7 @@ describe("elysia guard and problemOnError", () => {
     const refused = await fetch(
       await requestAs(undefined, { url: "https://app.test/admin" }),
     );
+
     expect(refused.status).toBe(303);
     expect(refused.headers.get("location")).toContain("/sign-in?next=%2Fadmin");
   });
@@ -39,6 +47,7 @@ describe("elysia guard and problemOnError", () => {
     const thrown = await fetch(
       await requestAs({ role: "admin" }, { url: "https://app.test/thrown" }),
     );
+
     expect(thrown.status).toBe(404);
     expect(thrown.headers.get("content-type")).toBe("application/problem+json");
     expect(

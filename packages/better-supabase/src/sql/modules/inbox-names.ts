@@ -339,10 +339,13 @@ export function inboxSql(
   operations?: OperationTable,
 ): InboxSql {
   const permissions = moduleOperations("inbox");
+
   const key = (action: Action): string =>
     ctx.permission(action, permissions[action]);
+
   const commandKey = (name: InboxCommand, action: Action): string => {
     const fallback = ctx.permissionKey(action, permissions[action]);
+
     return sqlString(
       operationPermission(
         operations,
@@ -351,33 +354,43 @@ export function inboxSql(
       ) ?? fallback,
     );
   };
+
   const topic = ctx.text("topic", "inbox");
+
   if (!NAME.test(topic)) {
     throw new TypeError(
       "blocks.inbox.options.topic must be a lowercase name of at most 31 characters",
     );
   }
+
   const bucket = ctx.text("bucket", "inbox-files");
+
   if (!/^[a-z0-9][a-z0-9_-]{0,62}$/.test(bucket)) {
     throw new TypeError(
       "blocks.inbox.options.bucket must be a lowercase bucket id",
     );
   }
+
   const maxBody = ctx.number("maxBodyLength", 20_000);
+
   if (!Number.isInteger(maxBody) || maxBody < 1) {
     throw new TypeError(
       "blocks.inbox.options.maxBodyLength must be a whole number above zero",
     );
   }
+
   const queue = (name: string, fallback: string): string => {
     const value = ctx.text(name, fallback);
+
     if (!QUEUE.test(value)) {
       throw new TypeError(
         `blocks.inbox.options.${name} must be a lowercase queue name`,
       );
     }
+
     return value;
   };
+
   return {
     ctx,
     id: ctx.idType,

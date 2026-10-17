@@ -31,6 +31,7 @@ describe.skipIf(!live)("access requests", () => {
 
   it("grants a requested role on approval and puts it back when it ends", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const owner = await s.user("owner");
       const requester = await s.user("requester");
@@ -38,13 +39,16 @@ describe.skipIf(!live)("access requests", () => {
       await s.install(MODULES, {
         modules: { "access-requests": { options: { maxDuration: "P7D" } } },
       });
+
       const tenant = await s.organization(owner, {
         member: requester,
         viewer,
       });
+
       const transport = sqlTransport(s.sql);
       const access = createAccessRequests({ transport });
       const approvals = createApprovals({ transport });
+
       const roleOf = (user: string) =>
         s.value<string>(
           "(select role from better_supabase.memberships where organization_id = $1 and user_id = $2)",
@@ -71,9 +75,11 @@ describe.skipIf(!live)("access requests", () => {
           })
           .then(hint),
       ).toBe("ACCESS_DURATION_INVALID");
+
       const request = await access
         .request({ organizationId: tenant, role: "admin", reason: "month end" })
         .orThrow();
+
       expect(request).toMatchObject({ status: "pending", role: "admin" });
       expect(request.duration?.toString()).toBe("P7D");
       expect(
@@ -154,6 +160,7 @@ describe.skipIf(!live)("access requests", () => {
 
   it("lets outsiders ask to join and follows a rejection", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const owner = await s.user("owner");
       const outsider = await s.user("outsider");
@@ -167,10 +174,13 @@ describe.skipIf(!live)("access requests", () => {
       const approvals = createApprovals({ transport });
 
       await s.asRole(outsider);
+
       const join = await access
         .request({ organizationId: tenant, role: "member" })
         .orThrow();
+
       await s.asRole(other);
+
       const rejected = await access
         .request({ organizationId: tenant, role: "viewer" })
         .orThrow();
@@ -204,6 +214,7 @@ describe.skipIf(!live)("access requests", () => {
 
   it("stores, validates and returns extra columns", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const owner = await s.user("owner");
       const requester = await s.user("requester");
@@ -215,6 +226,7 @@ describe.skipIf(!live)("access requests", () => {
         },
       });
       const tenant = await s.organization(owner, { member: requester });
+
       const access = createAccessRequests({
         transport: sqlTransport(s.sql),
         fields: v.object({
@@ -229,9 +241,11 @@ describe.skipIf(!live)("access requests", () => {
           .request({ organizationId: tenant, role: "admin", priority: 0 })
           .then((result) => (result.ok ? "ok" : result.error.kind)),
       ).toBe("validation");
+
       const request = await access
         .request({ organizationId: tenant, role: "admin", ticket: "OPS-1" })
         .orThrow();
+
       expect(request).toMatchObject({
         role: "admin",
         ticket: "OPS-1",

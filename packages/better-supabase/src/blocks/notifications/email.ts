@@ -50,11 +50,13 @@ export interface EmailChannelOptions {
 
 function defaultCompose(message: NotificationMessage): ComposedEmail {
   const text = message.text;
+
   if (text === undefined) {
     throw new TypeError(
       "The email channel needs createNotifications({ render }) or a compose option",
     );
   }
+
   return { subject: text.title, text: text.body ?? text.title };
 }
 
@@ -69,12 +71,15 @@ export function emailChannel(
   const { transport } = options;
   const version: unknown = transport.apiVersion;
   const channel: unknown = transport.channel;
+
   if (version !== 1 || channel !== "email") {
     throw new TypeError(
       `emailChannel needs an email DeliveryTransport with apiVersion 1, got channel "${String(channel)}"`,
     );
   }
+
   const compose = options.compose ?? defaultCompose;
+
   return {
     apiVersion: 1,
     name: "email",
@@ -82,13 +87,17 @@ export function emailChannel(
       if (message.email === null || message.email === "") {
         return { status: "skipped", provider: transport.provider };
       }
+
       const mail = await compose(message);
       const category = mail.category ?? "notification";
+
       const unsubscribe =
         category === "notification"
           ? await options.unsubscribe?.(message)
           : undefined;
+
       const replyTo = mail.replyTo ?? options.replyTo;
+
       const receipt = await transport.send(
         {
           from: options.from,
@@ -102,6 +111,7 @@ export function emailChannel(
         },
         { idempotencyKey: message.deliveryId },
       );
+
       return {
         provider: transport.provider,
         ...(receipt?.providerMessageId === undefined

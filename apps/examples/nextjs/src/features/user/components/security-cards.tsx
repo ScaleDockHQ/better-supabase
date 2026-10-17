@@ -10,6 +10,7 @@ export async function SecurityCards() {
     getTotpFactorId(),
     getOAuthGrants(),
   ]);
+
   return (
     <>
       <TwoFactorCard initial={factor} />

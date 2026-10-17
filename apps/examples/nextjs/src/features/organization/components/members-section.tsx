@@ -23,13 +23,19 @@ export async function MembersSection() {
   const session = await getSession();
   const organizationId = tenantOf(session);
   const role = roleOf(session);
-  if (!organizationId || !role || session.kind !== "user") return null;
+
+  if (!organizationId || !role || session.kind !== "user") {
+    return null;
+  }
+
   const canInvite = can(session, "members.invite");
+
   const [members, invitations, t] = await Promise.all([
     getMembers(organizationId),
     canInvite ? getInvitations(organizationId) : Promise.resolve([]),
     getExtracted("organization"),
   ]);
+
   return (
     <>
       <Card>

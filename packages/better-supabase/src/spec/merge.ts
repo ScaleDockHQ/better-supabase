@@ -21,13 +21,17 @@ export function mergeJson<T>(
       onConflict &&
       base !== undefined &&
       JSON.stringify(base) !== JSON.stringify(patch)
-    )
+    ) {
       onConflict(pointer);
+    }
+
     // SAFETY: a patch replaces the value at this position; callers merge
     // fragments of the same document shape.
     return patch as T;
   }
+
   const out: Record<string, unknown> = { ...base };
+
   for (const [key, value] of Object.entries(patch)) {
     out[key] = Object.hasOwn(base, key)
       ? mergeJson(
@@ -38,6 +42,7 @@ export function mergeJson<T>(
         )
       : value;
   }
+
   // SAFETY: the result has every key of the base, merged with the patch.
   return out as T;
 }

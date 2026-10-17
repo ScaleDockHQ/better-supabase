@@ -6,12 +6,17 @@ function transport(
   results: Record<string, (args: Record<string, unknown>) => unknown>,
 ) {
   const calls: [string, Record<string, unknown>][] = [];
+
   return {
     calls,
     call(_schema: string, fn: string, args: Record<string, unknown>) {
       calls.push([fn, args]);
       const result = results[fn];
-      if (!result) return Promise.reject(new Error(`unexpected ${fn}`));
+
+      if (!result) {
+        return Promise.reject(new Error(`unexpected ${fn}`));
+      }
+
       return Promise.resolve(result(args));
     },
   };
@@ -32,6 +37,7 @@ const ROW = {
 describe("targets block", () => {
   it("saves goals as text and dates as ISO", async () => {
     const t = transport({ save_target: () => ROW });
+
     const target = await createTargets({ transport: t })
       .save("o", {
         name: "Quota",
@@ -41,6 +47,7 @@ describe("targets block", () => {
         periodStart: Temporal.PlainDate.from("2026-10-01"),
       })
       .orThrow();
+
     expect(t.calls[0]?.[1]).toEqual({
       tenant: "o",
       target: null,
@@ -66,13 +73,16 @@ describe("targets block", () => {
       target_progress: () => [{ ...ROW, progress: "600", attainment: 0.6 }],
       save_target: () => ROW,
     });
+
     const targets = createTargets({ transport: t });
+
     const [row] = await targets
       .progress("o", {
         on: Temporal.PlainDate.from("2026-11-01"),
         ownerId: "u1",
       })
       .orThrow();
+
     expect(row).toMatchObject({ progress: 600n, attainment: 0.6 });
     expect(t.calls[0]?.[1]).toEqual({
       tenant: "o",

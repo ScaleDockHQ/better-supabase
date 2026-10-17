@@ -35,15 +35,19 @@ export function ConversationPanel({
   const format = useFormatter();
   const errorMessage = useErrorMessage();
   const userId = useAuth().user?.id ?? null;
+
   const thread = useConversation({
     conversationId,
     load: async () => [unwrap(await loadThread({ conversationId }))],
   });
+
   const loaded = thread.items?.[0];
   const conversation = loaded?.conversation ?? null;
+
   const onError = (error: Parameters<typeof errorMessage>[0]) => {
     toast.error(errorMessage(error));
   };
+
   const assignAction = useAction(assign, { onError });
   const mode = useAction(takeOver, { onError });
   const status = useAction(setStatus, { onError });
@@ -57,21 +61,26 @@ export function ConversationPanel({
       </div>
     );
   }
+
   if (conversation === null) {
     return (
-      <p className="text-muted-foreground rounded-xl border p-4 text-sm">
+      <p className="rounded-xl border p-4 text-sm text-muted-foreground">
         {t("This conversation is gone.")}
       </p>
     );
   }
+
   const resolved = conversation.status === "resolved";
   const mine = userId !== null && conversation.assigneeId === userId;
+
   const contactReadAt =
     conversation.contactReadAt === null
       ? null
       : Date.parse(conversation.contactReadAt);
+
   const seen = (message: MessageRow): boolean =>
     contactReadAt !== null && Date.parse(message.createdAt) <= contactReadAt;
+
   const busy = assignAction.pending || mode.pending || status.pending;
 
   return (
@@ -84,7 +93,7 @@ export function ConversationPanel({
           <h2 className="truncate font-medium">
             {conversation.subject ?? t("No subject")}
           </h2>
-          <p className="text-muted-foreground truncate text-xs">
+          <p className="truncate text-xs text-muted-foreground">
             {conversation.contactName || t("Visitor")}
             {conversation.inboxName ? ` · ${conversation.inboxName}` : ""}
           </p>
@@ -136,6 +145,7 @@ export function ConversationPanel({
       <ol className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
         {loaded.messages.map((message) => {
           const outbound = message.authorType !== "contact";
+
           return (
             <li
               key={message.id}
@@ -148,7 +158,7 @@ export function ConversationPanel({
                 className={cn(
                   "max-w-4/5 rounded-lg px-3 py-2 text-sm whitespace-pre-wrap",
                   message.kind === "note"
-                    ? "border-chart-4/60 bg-chart-4/10 border border-dashed"
+                    ? "border border-dashed border-chart-4/60 bg-chart-4/10"
                     : outbound
                       ? "bg-primary text-primary-foreground"
                       : "bg-muted",
@@ -162,7 +172,7 @@ export function ConversationPanel({
                   message.body
                 )}
               </div>
-              <span className="text-muted-foreground flex items-center gap-1 text-xs">
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
                 {message.kind === "note" ? `${t("Note")} · ` : ""}
                 {format.dateTime(new Date(message.createdAt), {
                   timeStyle: "short",
@@ -179,7 +189,7 @@ export function ConversationPanel({
         })}
       </ol>
       {thread.typing.length > 0 ? (
-        <output className="text-muted-foreground block px-4 pb-2 text-xs">
+        <output className="block px-4 pb-2 text-xs text-muted-foreground">
           {t("Someone is typing…")}
         </output>
       ) : null}

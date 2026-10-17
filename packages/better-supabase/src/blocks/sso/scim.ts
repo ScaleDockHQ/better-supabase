@@ -65,6 +65,7 @@ export type ScimHandlerOptions = ScimHandlerBaseOptions &
   );
 
 type Kind = ScimResourceType;
+
 type Doc = Record<string, unknown>;
 
 const MEDIA_TYPE = "application/scim+json";
@@ -94,7 +95,7 @@ function json(
   body: unknown,
   headers: Readonly<Record<string, string>> = {},
 ): Response {
-  return new Response(JSON.stringify(body), {
+  return Response.json(body, {
     status,
     headers: { "content-type": MEDIA_TYPE, ...headers },
   });
@@ -117,9 +118,11 @@ function fromDbError(error: DbError): ScimError {
   if (error.hint === "SCIM_NOT_FOUND" || error.kind === "not_found") {
     return new ScimError(404, error.message);
   }
+
   if (error.hint === "SCIM_PRECONDITION" || error.kind === "stale") {
     return new ScimError(412, "The resource changed; read it again");
   }
+
   if (error.kind === "conflict") {
     return new ScimError(
       409,
@@ -127,6 +130,7 @@ function fromDbError(error: DbError): ScimError {
       "uniqueness",
     );
   }
+
   if (
     error.hint === "SCIM_INVALID" ||
     error.kind === "invalid_input" ||
@@ -136,6 +140,7 @@ function fromDbError(error: DbError): ScimError {
   ) {
     return new ScimError(400, error.message, "invalidValue");
   }
+
   return new ScimError(500, "The service provider failed");
 }
 
@@ -144,11 +149,17 @@ const etag = (version: unknown): string => `W/"${String(version)}"`;
 /** The version an `If-Match` header requires; `undefined` for none or `*`. */
 function ifMatch(request: Request): number | undefined {
   const header = request.headers.get("if-match")?.trim();
-  if (!header || header === "*") return undefined;
+
+  if (!header || header === "*") {
+    return undefined;
+  }
+
   const version = /^(?:W\/)?"(\d+)"$/.exec(header)?.[1];
+
   if (version === undefined) {
     throw new ScimError(412, "If-Match names no current version");
   }
+
   return Number(version);
 }
 
@@ -171,6 +182,7 @@ const refs = (value: unknown, base: string, endpoint: string): unknown =>
 function present(kind: Kind, stored: ScimStoredResource, base: string): Doc {
   const { resource } = stored;
   const endpoint = KINDS[kind].endpoint;
+
   return {
     ...resource,
     id: stored.id,
@@ -199,19 +211,31 @@ function present(kind: Kind, stored: ScimStoredResource, base: string): Doc {
 
 function stringField(doc: Doc, key: string): string | undefined {
   const value = doc[key];
-  if (value === undefined || value === null) return undefined;
+
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
   if (typeof value !== "string") {
     throw new ScimError(400, `${key} is a string`, "invalidValue");
   }
+
   return value;
 }
 
 function booleanField(value: unknown): boolean {
-  if (value === undefined || value === null) return true;
-  if (typeof value === "boolean") return value;
+  if (value === undefined || value === null) {
+    return true;
+  }
+
+  if (typeof value === "boolean") {
+    return value;
+  }
+
   if (typeof value === "string" && /^(true|false)$/i.test(value)) {
     return value.toLowerCase() === "true";
   }
+
   throw new ScimError(400, "active is a boolean", "invalidValue");
 }
 
@@ -223,23 +247,29 @@ function canonical(doc: Doc, kind: Kind): Doc {
     "id",
     "meta",
   ];
+
   const out: Doc = {};
+
   for (const [key, value] of Object.entries(doc)) {
     const name = names.find((n) => n.toLowerCase() === key.toLowerCase());
     out[name ?? key] = value;
   }
+
   return out;
 }
 
 function userData(input: Doc): Doc {
   const doc = canonical(input, "User");
   const userName = stringField(doc, "userName");
+
   if (userName === undefined || userName.trim() === "") {
     throw new ScimError(400, "userName is required", "invalidValue");
   }
+
   const name = isRecord(doc["name"]) ? doc["name"] : {};
   const raw: unknown = doc["emails"] ?? [];
   const emails = Array.isArray(raw) ? raw.filter(isRecord) : [];
+
   if (
     !Array.isArray(raw) ||
     emails.length !== raw.length ||
@@ -247,6 +277,7 @@ function userData(input: Doc): Doc {
   ) {
     throw new ScimError(400, "emails are objects with a value", "invalidValue");
   }
+
   return {
     userName,
     externalId: stringField(doc, "externalId") ?? null,
@@ -268,11 +299,14 @@ function userData(input: Doc): Doc {
 function groupData(input: Doc): Doc {
   const doc = canonical(input, "Group");
   const displayName = stringField(doc, "displayName");
+
   if (displayName === undefined || displayName.trim() === "") {
     throw new ScimError(400, "displayName is required", "invalidValue");
   }
+
   const raw: unknown = doc["members"] ?? [];
   const members = Array.isArray(raw) ? raw.filter(isRecord) : [];
+
   if (
     !Array.isArray(raw) ||
     members.length !== raw.length ||
@@ -284,6 +318,7 @@ function groupData(input: Doc): Doc {
       "invalidValue",
     );
   }
+
   return {
     displayName,
     externalId: stringField(doc, "externalId") ?? null,
@@ -298,26 +333,33 @@ function project(
   excluded: readonly string[] | undefined,
 ): Doc {
   const always = new Set(["id", "schemas"]);
+
   const top = (path: string): string => {
     const local = path.slice(path.lastIndexOf(":") + 1);
+
     return (local.split(".")[0] ?? local).toLowerCase();
   };
+
   if (attributes && attributes.length > 0) {
     const wanted = new Set(attributes.map(top));
+
     return Object.fromEntries(
       Object.entries(doc).filter(
         ([key]) => always.has(key) || wanted.has(key.toLowerCase()),
       ),
     );
   }
+
   if (excluded && excluded.length > 0) {
     const dropped = new Set(excluded.map(top));
+
     return Object.fromEntries(
       Object.entries(doc).filter(
         ([key]) => always.has(key) || !dropped.has(key.toLowerCase()),
       ),
     );
   }
+
   return doc;
 }
 
@@ -339,6 +381,7 @@ interface Query {
 
 function integer(value: unknown): number | undefined {
   const number = typeof value === "string" ? Number(value) : value;
+
   return typeof number === "number" && Number.isInteger(number)
     ? number
     : undefined;
@@ -361,7 +404,9 @@ function queryOf(
       "invalidSyntax",
     );
   }
+
   let filter: ScimFilter | undefined;
+
   if (typeof source.filter === "string" && source.filter.trim() !== "") {
     try {
       filter = parseFilter(source.filter);
@@ -373,6 +418,7 @@ function queryOf(
       );
     }
   }
+
   return {
     filter,
     startIndex: Math.max(1, integer(source.startIndex) ?? 1),
@@ -387,9 +433,11 @@ function queryOf(
 
 async function readBody(request: Request): Promise<unknown> {
   const text = await request.text();
+
   if (text.length > MAX_BODY) {
     throw new ScimError(413, "The request body is too large");
   }
+
   try {
     return JSON.parse(text);
   } catch {
@@ -401,7 +449,9 @@ function resourceBody(body: unknown, urn: string): Doc {
   if (!isRecord(body)) {
     throw new ScimError(400, "The body is a JSON object", "invalidSyntax");
   }
+
   const declared = Array.isArray(body["schemas"]) ? body["schemas"] : [];
+
   if (
     !declared.some(
       (schema) => String(schema).toLowerCase() === urn.toLowerCase(),
@@ -409,6 +459,7 @@ function resourceBody(body: unknown, urn: string): Doc {
   ) {
     throw new ScimError(400, `schemas must include ${urn}`, "invalidSyntax");
   }
+
   return body;
 }
 
@@ -427,15 +478,19 @@ export function scimHandler(
   options: ScimHandlerOptions,
 ): (request: Request) => Promise<Response> {
   applyTemporal(options);
+
   const store =
     options.store ??
     sqlScimStore(options.transport, { schema: options.schema });
+
   const requestIdOf =
     options.requestId ??
     ((request: Request) => request.headers.get("x-request-id") ?? undefined);
+
   const basePath = (options.basePath ?? "").replace(/\/+$/, "");
   const scope = options.scope ?? "scim";
   const maxResults = options.maxResults ?? 100;
+
   const discovery = {
     maxResults,
     ...(options.documentationUri === undefined
@@ -447,45 +502,67 @@ export function scimHandler(
     reply: Promise<{ ok: true; data: T } | { ok: false; error: DbError }>,
   ): Promise<T> => {
     const result = await reply;
-    if (!result.ok) throw fromDbError(result.error);
+
+    if (!result.ok) {
+      throw fromDbError(result.error);
+    }
+
     return result.data;
   };
 
   const authenticate = async (request: Request): Promise<string> => {
     const challenge = { "www-authenticate": 'Bearer realm="SCIM"' };
+
     const token = request.headers
       .get("authorization")
       ?.match(/^Bearer\s+(.+)$/i)?.[1]
       ?.trim();
-    if (!token)
+
+    if (!token) {
       throw new ScimError(401, "Send a bearer token", undefined, challenge);
+    }
+
     const checked = await options.keys.verify(token);
-    if (!checked.ok) throw new ScimError(500, "Could not check the token");
+
+    if (!checked.ok) {
+      throw new ScimError(500, "Could not check the token");
+    }
+
     const check = checked.data;
+
     switch (check.status) {
-      case "invalid":
+      case "invalid": {
         throw new ScimError(
           401,
           "The token is not valid",
           undefined,
           challenge,
         );
-      case "rate_limited":
+      }
+
+      case "rate_limited": {
         throw new ScimError(429, "Too many requests", undefined, {
           "retry-after": String(check.retryAfter),
         });
+      }
+
       case "ok": {
         const { key } = check;
+
         if (key.organizationId === undefined) {
           throw new ScimError(403, "SCIM needs an organization API key");
         }
+
         if (!key.scopes.includes(scope) && !key.scopes.includes("*")) {
           throw new ScimError(403, `The key lacks the ${scope} scope`);
         }
+
         return key.organizationId;
       }
+
       default: {
         const exhaustive: never = check;
+
         return exhaustive;
       }
     }
@@ -499,6 +576,7 @@ export function scimHandler(
   ): Response | undefined => {
     const [head, ...rest] = segments;
     const ids = rest.join("/");
+
     const listed = (items: readonly Doc[]): Response =>
       json(200, {
         schemas: [SCIM_LIST],
@@ -507,11 +585,17 @@ export function scimHandler(
         itemsPerPage: items.length,
         Resources: items,
       });
+
     const one = (items: readonly Doc[]): Response => {
       const found = items.find((item) => item["id"] === ids);
-      if (!found) throw new ScimError(404, `No ${head} ${ids}`);
+
+      if (!found) {
+        throw new ScimError(404, `No ${head} ${ids}`);
+      }
+
       return json(200, found);
     };
+
     if (
       head !== "ServiceProviderConfig" &&
       head !== "ResourceTypes" &&
@@ -519,17 +603,22 @@ export function scimHandler(
     ) {
       return undefined;
     }
+
     if (request.method !== "GET") {
       throw new ScimError(405, `${head} is read-only`);
     }
+
     if (url.searchParams.has("filter")) {
       throw new ScimError(403, "Discovery endpoints do not filter");
     }
+
     if (head === "ServiceProviderConfig") {
       return json(200, serviceProviderConfig(base, discovery));
     }
+
     const items =
       head === "ResourceTypes" ? resourceTypes(base) : schemas(base);
+
     return ids === "" ? listed(items) : one(items);
   };
 
@@ -539,7 +628,11 @@ export function scimHandler(
     id: string,
   ): Promise<ScimStoredResource> => {
     const found = await unwrap(store.get(kind, tenant, id));
-    if (found === undefined) throw new ScimError(404, `No ${kind} ${id}`);
+
+    if (found === undefined) {
+      throw new ScimError(404, `No ${kind} ${id}`);
+    }
+
     return found;
   };
 
@@ -556,26 +649,33 @@ export function scimHandler(
         count: query.count,
       }),
     );
+
     let all = listed.resources.map((stored) => present(kind, stored, base));
     let total = listed.totalResults;
+
     if (total === undefined) {
       if (query.filter) {
         const filter = query.filter;
+
         try {
           all = all.filter((doc) => matches(doc, filter));
         } catch (cause) {
           if (cause instanceof ScimFilterError) {
             throw new ScimError(400, cause.message, "invalidFilter");
           }
+
           throw cause;
         }
       }
+
       total = all.length;
       all = all.slice(query.startIndex - 1, query.startIndex - 1 + query.count);
     }
+
     const page = all.map((doc) =>
       project(doc, query.attributes, query.excluded),
     );
+
     return json(200, {
       schemas: [SCIM_LIST],
       totalResults: total,
@@ -594,6 +694,7 @@ export function scimHandler(
     base: string,
   ): Promise<Doc> => {
     const { meta: _meta, ...resource } = doc;
+
     const saved = await unwrap(
       store.save(kind, tenant, {
         id,
@@ -602,6 +703,7 @@ export function scimHandler(
         version,
       }),
     );
+
     return present(kind, saved, base);
   };
 
@@ -612,6 +714,7 @@ export function scimHandler(
     extra: Readonly<Record<string, string>> = {},
   ): Response => {
     const metaOf = isRecord(doc["meta"]) ? doc["meta"] : {};
+
     return json(
       status,
       project(
@@ -633,10 +736,15 @@ export function scimHandler(
   ): Promise<Response> => {
     const spec = KINDS[kind];
     const method = request.method;
+
     if (id === undefined || id === ".search") {
       if (id === ".search") {
-        if (method !== "POST") throw new ScimError(405, "Use POST for .search");
+        if (method !== "POST") {
+          throw new ScimError(405, "Use POST for .search");
+        }
+
         const body = await readBody(request);
+
         if (
           !isRecord(body) ||
           !Array.isArray(body["schemas"]) ||
@@ -648,8 +756,10 @@ export function scimHandler(
             "invalidSyntax",
           );
         }
+
         const strings = (value: unknown): readonly string[] | undefined =>
           Array.isArray(value) ? value.map(String) : undefined;
+
         return search(
           kind,
           tenant,
@@ -666,6 +776,7 @@ export function scimHandler(
           ),
         );
       }
+
       if (method === "GET") {
         return search(
           kind,
@@ -683,8 +794,10 @@ export function scimHandler(
           ),
         );
       }
+
       if (method === "POST") {
         const doc = resourceBody(await readBody(request), spec.urn);
+
         const created = await save(
           kind,
           tenant,
@@ -693,17 +806,22 @@ export function scimHandler(
           undefined,
           base,
         );
+
         const location = String(
           isRecord(created["meta"]) ? created["meta"]["location"] : "",
         );
+
         return respond(201, created, url, { location });
       }
+
       throw new ScimError(405, `${method} is not allowed on /${spec.endpoint}`);
     }
+
     const stored = await fetchOne(kind, tenant, id);
     const current = present(kind, stored, base);
     const currentVersion = stored.version;
     const required = ifMatch(request);
+
     if (
       method !== "GET" &&
       required !== undefined &&
@@ -711,28 +829,35 @@ export function scimHandler(
     ) {
       throw new ScimError(412, "The resource changed; read it again");
     }
+
     switch (method) {
       case "GET": {
         const unchanged = request.headers.get("if-none-match")?.trim();
+
         if (unchanged !== undefined && unchanged === etag(currentVersion)) {
           return new Response(null, {
             status: 304,
             headers: { etag: unchanged },
           });
         }
+
         return respond(200, current, url);
       }
+
       case "PUT": {
         const doc = resourceBody(await readBody(request), spec.urn);
+
         return respond(
           200,
           await save(kind, tenant, id, doc, currentVersion, base),
           url,
         );
       }
+
       case "PATCH": {
         const body = await readBody(request);
         let patched: Doc;
+
         try {
           patched = applyPatch(
             current,
@@ -745,21 +870,30 @@ export function scimHandler(
           if (cause instanceof ScimPatchError) {
             throw new ScimError(400, cause.message, cause.scimType);
           }
+
           throw cause;
         }
+
         return respond(
           200,
           await save(kind, tenant, id, patched, currentVersion, base),
           url,
         );
       }
+
       case "DELETE": {
         const removed = await unwrap(store.delete(kind, tenant, id));
-        if (!removed) throw new ScimError(404, `No ${kind} ${id}`);
+
+        if (!removed) {
+          throw new ScimError(404, `No ${kind} ${id}`);
+        }
+
         return new Response(null, { status: 204 });
       }
-      default:
+
+      default: {
         throw new ScimError(405, `${method} is not allowed`);
+      }
     }
   };
 
@@ -767,11 +901,26 @@ export function scimHandler(
     method: string,
     id: string | undefined,
   ): ScimSyncOperation | undefined => {
-    if (id === undefined) return method === "POST" ? "create" : undefined;
-    if (id === ".search") return undefined;
-    if (method === "PUT") return "replace";
-    if (method === "PATCH") return "patch";
-    if (method === "DELETE") return "delete";
+    if (id === undefined) {
+      return method === "POST" ? "create" : undefined;
+    }
+
+    if (id === ".search") {
+      return undefined;
+    }
+
+    if (method === "PUT") {
+      return "replace";
+    }
+
+    if (method === "PATCH") {
+      return "patch";
+    }
+
+    if (method === "DELETE") {
+      return "delete";
+    }
+
     return undefined;
   };
 
@@ -786,9 +935,11 @@ export function scimHandler(
   ): Promise<Response> => {
     const log = options.log;
     const operation = operationOf(request.method, id);
+
     if (log === undefined || operation === undefined) {
       return resource(request, url, base, kind, id, tenant);
     }
+
     const note = async (
       status: number,
       resourceId: string | undefined,
@@ -808,16 +959,19 @@ export function scimHandler(
         // A log failure never changes the answer.
       }
     };
+
     try {
       const response = await resource(request, url, base, kind, id, tenant);
       const created = response.headers.get("location")?.split("/").pop();
       await note(response.status, id ?? created, undefined);
+
       return response;
     } catch (cause) {
       const error =
         cause instanceof ScimError
           ? cause
           : new ScimError(500, "The service provider failed");
+
       await note(error.status, id, error.message);
       throw error;
     }
@@ -826,35 +980,54 @@ export function scimHandler(
   return async (request) => {
     try {
       const url = new URL(request.url);
+
       if (!url.pathname.startsWith(basePath)) {
         throw new ScimError(404, "Not a SCIM endpoint");
       }
+
       const base = `${url.origin}${basePath}`;
+
       const segments = url.pathname
         .slice(basePath.length)
         .split("/")
         .filter(Boolean)
         .map(decodeURIComponent);
+
       const [head, id, ...rest] = segments;
       const discovered = discover(request, url, base, segments);
-      if (discovered) return discovered;
+
+      if (discovered) {
+        return discovered;
+      }
+
       const tenant = await authenticate(request);
+
       if (head === "Me") {
         throw new ScimError(501, "/Me is not supported");
       }
+
       if (head === "Bulk") {
         throw new ScimError(501, "Bulk operations are not supported");
       }
-      if (rest.length > 0) throw new ScimError(404, "Not a SCIM endpoint");
+
+      if (rest.length > 0) {
+        throw new ScimError(404, "Not a SCIM endpoint");
+      }
+
       if (head === "Users") {
         return await logged(request, url, base, "User", id, tenant);
       }
+
       if (head === "Groups") {
         return await logged(request, url, base, "Group", id, tenant);
       }
+
       throw new ScimError(404, "Not a SCIM endpoint");
     } catch (cause) {
-      if (cause instanceof ScimError) return errorResponse(cause);
+      if (cause instanceof ScimError) {
+        return errorResponse(cause);
+      }
+
       return errorResponse(new ScimError(500, "The service provider failed"));
     }
   };

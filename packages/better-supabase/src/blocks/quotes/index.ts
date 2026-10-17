@@ -12,6 +12,7 @@ export {
   type RecordRef,
   type Totals,
 } from "./quotes.ts";
+
 export {
   extendBlock,
   withBlockHooks,
@@ -19,6 +20,7 @@ export {
   type BlockHooks,
   type BlockTransportMiddleware,
 } from "../../core/block-hooks.ts";
+
 export {
   dbTransport,
   rpcTransport,
@@ -26,6 +28,9 @@ export {
   type BlockTransport,
   type RpcClient,
 } from "../../core/block-transport.ts";
+
 export { quotesBlock } from "./manifest.ts";
+
 export { quotesEvents } from "./events.ts";
+
 export type { QuotesEvents } from "./events.ts";

@@ -52,10 +52,12 @@ describe("engagements module, layouts", () => {
         .map((file) => file.contents)
         .join(""),
     ).not.toContain("log_engagement");
+
     const sql = renderModules(["engagements"], {})
       .filter((file) => file.module === "engagements")
       .map((file) => file.contents)
       .join("\n");
+
     expect(sql).toContain("if not false then");
   });
 });

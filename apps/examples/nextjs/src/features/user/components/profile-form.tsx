@@ -28,13 +28,16 @@ export function ProfileForm({
   const t = useExtracted("user");
   const fieldId = useId();
   const errorMessage = useErrorMessage();
+
   const form = useActionForm(updateProfile, {
     resetOnSuccess: false,
     onSuccess: () => {
       toast.success(t("Profile saved"));
     },
   });
+
   const error = form.error === undefined ? null : errorMessage(form.error);
+
   return (
     <form {...form.formProps} className="space-y-6">
       <FieldGroup>

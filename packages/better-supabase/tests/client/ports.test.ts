@@ -20,9 +20,11 @@ function fakeStorage(answer: { data?: { path: string }; error?: unknown }) {
     data: answer.data ?? null,
     error: answer.error ?? null,
   }));
+
   const from = vi.fn(() => ({ upload }));
   // SAFETY: storageUpload calls only `storage.from(bucket).upload`.
   const supabase = { storage: { from } } as never;
+
   return { supabase, from, upload };
 }
 
@@ -42,11 +44,14 @@ describe("storageUpload", () => {
     const { supabase, from, upload } = fakeStorage({
       data: { path: "u1/a.png" },
     });
+
     const bytes = new ArrayBuffer(3);
+
     const result = await storageUpload(supabase)(
       file(async () => bytes, "image/png"),
       { bucket: "avatars", path: "u1/a.png", upsert: true },
     );
+
     expect(result).toMatchObject({ ok: true, data: { path: "u1/a.png" } });
     expect(from).toHaveBeenCalledWith("avatars");
     expect(upload).toHaveBeenCalledWith("u1/a.png", bytes, {
@@ -62,10 +67,12 @@ describe("storageUpload", () => {
         statusCode: "403",
       },
     });
+
     const refused = await storageUpload(denied.supabase)(
       file(async () => new Blob(["x"])),
       { bucket: "avatars", path: "a" },
     );
+
     expect(refused.ok).toBe(false);
     expect(denied.upload).toHaveBeenCalledWith("a", expect.any(Blob), {});
 
@@ -73,6 +80,7 @@ describe("storageUpload", () => {
       file(() => Promise.reject(new Error("gone"))),
       { bucket: "avatars", path: "a" },
     );
+
     expect(unread).toMatchObject({ ok: false, error: { message: "gone" } });
   });
 });

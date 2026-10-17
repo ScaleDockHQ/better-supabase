@@ -25,7 +25,9 @@ function snapshot(change: (tables: CatalogTable[]) => void): Snapshot {
   const copy = structuredClone(toCatalog(base)) as {
     -readonly [K in keyof Catalog]: Catalog[K];
   };
+
   change(copy.tables as CatalogTable[]);
+
   return fromCatalog(copy);
 }
 
@@ -90,25 +92,31 @@ describe("tables without a policy that are still granted (BS115)", () => {
       ...context(granted),
       config: resolveConfig(config, "/project"),
     });
+
     for (const config of [
       { expose: { tags: ["select" as const] } },
       { tables: { tags: { exclude: true } } },
       { tables: { tags: { serviceRole: true } } },
-    ])
+    ]) {
       expect(await run(withConfig(config), "BS115")).toEqual([]);
+    }
+
     const covered = snapshot((tables) => {
       table(tables, "tags").policies = [policy({ name: "tags_read" })];
       table(tables, "tags").grants = [
         { role: "authenticated", privileges: ["SELECT"] },
       ];
     });
+
     expect(await run(context(covered), "BS115")).toEqual([]);
+
     const ungranted = snapshot((tables) => {
       table(tables, "tags").policies = [];
       table(tables, "tags").grants = [
         { role: "service_role", privileges: ["SELECT"] },
       ];
     });
+
     expect(await run(context(ungranted), "BS115")).toEqual([]);
   });
 
@@ -117,6 +125,7 @@ describe("tables without a policy that are still granted (BS115)", () => {
       table(tables, "tags").policies = [];
       table(tables, "tags").grants = [];
     });
+
     const config = (fromPolicies: boolean) => ({
       ...context(bare),
       config: resolveConfig(
@@ -126,21 +135,26 @@ describe("tables without a policy that are still granted (BS115)", () => {
         "/project",
       ),
     });
+
     const targets = async (fromPolicies: boolean) =>
       (await run(config(fromPolicies), "BS106")).map(
         (finding) => finding.target,
       );
+
     expect(await targets(false)).toContain("public.tags:authenticated");
     expect(await targets(true)).not.toContain("public.tags:authenticated");
+
     const open = snapshot((tables) => {
       table(tables, "tags").policies = [];
       table(tables, "tags").grants = [];
       table(tables, "tags").rls = false;
     });
+
     const rlsOff = {
       ...context(open),
       config: config(true).config,
     };
+
     expect(
       (await run(rlsOff, "BS106")).map((finding) => finding.target),
     ).toContain("public.tags:authenticated");
@@ -159,8 +173,9 @@ describe("policy security rules", () => {
       "BS115",
       "BS116",
       "BS215",
-    ])
+    ]) {
       expect(await run(context(base), code)).toEqual([]);
+    }
   });
 
   it("flags auth.role() in policies and functions (BS109)", async () => {
@@ -169,6 +184,7 @@ describe("policy security rules", () => {
         policy({ using: "(auth.role() = 'authenticated'::text)" }),
       ];
     });
+
     snap.generator.functions.push({
       ...snap.generator.functions[0]!,
       schema: "public",
@@ -189,18 +205,21 @@ describe("policy security rules", () => {
         policy({ command: "update", check: "true" }),
       ];
     });
+
     expect(await run(context(blind), "BS110")).toMatchObject([
       {
         severity: "warning",
         message: expect.stringContaining("no select policy does"),
       },
     ]);
+
     const unchecked = snapshot((tables) => {
       table(tables, "notes").policies = [
         policy({ name: "notes_read" }),
         policy({ command: "update" }),
       ];
     });
+
     expect(await run(context(unchecked), "BS110")).toMatchObject([
       { severity: "info", message: expect.stringContaining("with check") },
     ]);
@@ -213,6 +232,7 @@ describe("policy security rules", () => {
         { role: "anon", privileges: ["SELECT"] },
       ];
     });
+
     expect(await run(context(snap), "BS111")).toMatchObject([
       {
         severity: "info",
@@ -241,6 +261,7 @@ describe("policy security rules", () => {
       settings: { search_path: '""' },
       execute: ["anon", "authenticated"],
     };
+
     const withFunction = (body: string, fn = definer): Snapshot => ({
       ...base,
       generator: {
@@ -257,8 +278,10 @@ describe("policy security rules", () => {
       },
       extras: { ...base.extras, functions: [fn] },
     });
+
     const open =
       "delete from public.notes where organization_id = organization";
+
     expect(await run(context(withFunction(open)), "BS112")).toMatchObject([
       {
         target: "public.wipe",
@@ -284,6 +307,7 @@ describe("policy security rules", () => {
       settings: { search_path: '""' },
       execute: ["anon", "authenticated"],
     };
+
     const withFunctions = (
       functions: ExtrasFunction[],
       config: Parameters<typeof resolveConfig>[0] = {},
@@ -292,6 +316,7 @@ describe("policy security rules", () => {
       ...context({ ...snap, extras: { ...snap.extras, functions } }),
       config: resolveConfig(config, "/project"),
     });
+
     expect(await run(withFunctions([definer]), "BS116")).toMatchObject([
       {
         severity: "warning",
@@ -318,11 +343,13 @@ describe("policy security rules", () => {
         "BS116",
       ),
     ).toEqual([]);
+
     const called = snapshot((tables) => {
       table(tables, "notes").policies = [
         policy({ using: "public.wipe(id)", functions: ["public.wipe"] }),
       ];
     });
+
     expect(await run(withFunctions([definer], {}, called), "BS116")).toEqual(
       [],
     );
@@ -332,8 +359,10 @@ describe("policy security rules", () => {
     const file = (text: string) => ({
       sqlFiles: [{ path: "supabase/schemas/storage.sql", text }],
     });
+
     const insert =
       "create policy logos_insert on storage.objects for insert to authenticated with check (bucket_id = 'logos');";
+
     expect(await run(context(base, file(insert)), "BS113")).toMatchObject([
       { message: expect.stringContaining("no select or update policy") },
     ]);
@@ -350,12 +379,14 @@ describe("policy security rules", () => {
         }),
       ];
     });
+
     const sqlFiles = [
       {
         path: "supabase/schemas/private.sql",
         text: "create function private.is_admin() returns boolean language sql as $$ select (auth.jwt() -> 'user_metadata' ->> 'admin')::boolean $$;",
       },
     ];
+
     expect(await run(context(snap, { sqlFiles }), "BS114")).toMatchObject([
       { severity: "error", target: "private.is_admin" },
     ]);
@@ -370,6 +401,7 @@ describe("policy security rules", () => {
         }),
       ];
     });
+
     expect(await run(context(bare), "BS215")).toMatchObject([
       {
         message: expect.stringContaining(
@@ -377,6 +409,7 @@ describe("policy security rules", () => {
         ),
       },
     ]);
+
     const wrapped = snapshot((tables) => {
       table(tables, "notes").policies = [
         policy({
@@ -386,6 +419,7 @@ describe("policy security rules", () => {
         }),
       ];
     });
+
     expect(await run(context(wrapped), "BS215")).toEqual([]);
   });
 });

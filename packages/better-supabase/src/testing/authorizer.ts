@@ -67,6 +67,7 @@ export function testAuthorizer<Ref>(
   options: TestAuthorizerOptions<Ref>,
 ): Promise<ConformanceReport> {
   const { subject, context } = requestOf(undefined);
+
   const requestFor = (
     action: Ref,
     id: string,
@@ -81,9 +82,11 @@ export function testAuthorizer<Ref>(
     },
     context,
   });
+
   const requests = options.permissions.flatMap((permission) =>
     ["a", "b", "c"].map((id) => requestFor(permission, id)),
   );
+
   return conform(`Authorizer "${authorizer.name}"`, [
     hasName(authorizer),
     [
@@ -135,11 +138,13 @@ export function testAuthorizer<Ref>(
       "keeps the request order in evaluations",
       async () => {
         const evaluations = authorizer.evaluations!.bind(authorizer);
+
         const single = await Promise.all(
           requests.map((request) =>
             Promise.resolve(authorizer.evaluate(request)),
           ),
         );
+
         const batch = await evaluations(frozenCopy(requests));
         expect(
           batch.length === requests.length,
@@ -167,13 +172,16 @@ export function testAuthorizer<Ref>(
       async () => {
         for (const permission of options.permissions) {
           const plain = await authorizer.evaluate(requestFor(permission, "a"));
+
           const forgedResource = await authorizer.evaluate(
             requestFor(permission, "a", FORGED),
           );
+
           const forgedContext = await authorizer.evaluate({
             ...requestFor(permission, "a"),
             context: { ...context, ...FORGED },
           });
+
           for (const forged of [forgedResource, forgedContext]) {
             expect(
               forged.outcome !== "granted" || plain.outcome === "granted",
@@ -192,6 +200,7 @@ export function testAuthorizer<Ref>(
           resource: { type: "conformance" },
           context: options.granted?.context,
         });
+
         expect(!checked.ok, "an unknown permission was granted");
       },
     ],
@@ -204,6 +213,7 @@ export function testAuthorizer<Ref>(
           resource: { type: "conformance" },
           context: options.granted!.context,
         });
+
         expect(
           checked.ok,
           checked.ok
@@ -235,26 +245,33 @@ export interface StaticAuthorizerOptions<Ref extends string> {
 export function staticAuthorizer<Ref extends string>(
   options: StaticAuthorizerOptions<Ref>,
 ): Authorizer<Ref> {
-  const approvals = new Set<string>(options.approvals ?? []);
+  const approvals = new Set<string>(options.approvals);
+
   const evaluate = (
     request: AuthorizationRequest<Ref>,
   ): AuthorizationOutcome => {
     const { subject, action } = request;
-    if (approvals.has(action))
+
+    if (approvals.has(action)) {
       return {
         outcome: "approval-required",
         approval: { id: `approval:${action}` },
       };
+    }
+
     const role = subject.properties?.["role"];
+
     const granted = [
       ...(options.roles?.[typeof role === "string" ? role : subject.type] ??
         []),
       ...(options.grants?.[subject.id] ?? []),
     ];
+
     return granted.includes(action)
       ? { outcome: "granted" }
       : { outcome: "denied", reason: `Permission ${action} is required` };
   };
+
   return defineAuthorizer<Ref>({
     name: "static",
     key: (ref) => ref,

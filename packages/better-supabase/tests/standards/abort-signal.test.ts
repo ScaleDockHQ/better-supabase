@@ -15,14 +15,19 @@ const betterSupabase = defineSupabase(schema);
 /** A fetch that never answers until its signal aborts, as a slow network would. */
 function hangingClient() {
   const seen: (AbortSignal | undefined)[] = [];
+
   const fetch = (
     _input: RequestInfo | URL,
     init?: RequestInit,
   ): Promise<Response> => {
     const signal = init?.signal ?? undefined;
     seen.push(signal);
+
     return new Promise((_resolve, reject) => {
-      if (signal?.aborted) reject(signal.reason);
+      if (signal?.aborted) {
+        reject(signal.reason);
+      }
+
       signal?.addEventListener(
         "abort",
         () => {
@@ -34,10 +39,12 @@ function hangingClient() {
       );
     });
   };
+
   const client = createClient("http://localhost:54321", "sb_publishable_test", {
     global: { fetch },
     auth: { persistSession: false, autoRefreshToken: false },
   });
+
   return { client, seen };
 }
 
@@ -46,9 +53,11 @@ describe("AbortSignal", () => {
     const { client, requests } = capturingClient();
     const controller = new AbortController();
     controller.abort();
+
     const result = await betterSupabase
       .connect(client)
       .customers.findMany({ signal: controller.signal });
+
     expect(result.ok).toBe(false);
     expect(!result.ok && result.error.kind).toBe("aborted");
     expect(requests).toHaveLength(0);
@@ -57,9 +66,11 @@ describe("AbortSignal", () => {
   it("passes the signal to fetch and returns aborted when it fires mid-request", async () => {
     const { client, seen } = hangingClient();
     const controller = new AbortController();
+
     const pending = betterSupabase
       .connect(client)
       .customers.findMany({ signal: controller.signal });
+
     await new Promise((resolve) => {
       setTimeout(resolve, 0);
     });
@@ -71,28 +82,34 @@ describe("AbortSignal", () => {
 
   it("AbortSignal.timeout() works the same way", async () => {
     const { client } = hangingClient();
+
     const result = await betterSupabase
       .connect(client)
       .customers.findMany({ signal: AbortSignal.timeout(5) });
+
     expect(!result.ok && result.error.kind).toBe("aborted");
   });
 
   it("an aborted signal on rpc sends no request", async () => {
     const { client, requests } = capturingClient();
+
     const result = await betterSupabase
       .connect(client)
       .$rpc("customer_stats" as never, {} as never, {
         signal: AbortSignal.abort(),
       });
+
     expect(!result.ok && result.error.kind).toBe("aborted");
     expect(requests).toHaveLength(0);
   });
 
   it("the Postgres executor checks the signal before it queries", async () => {
     const fake = fakeSql([]);
+
     const result = await betterSupabase
       .connect(postgresExecutor(fake.sql))
       .customers.findMany({ signal: AbortSignal.abort() });
+
     expect(!result.ok && result.error.kind).toBe("aborted");
     expect(fake.calls).toHaveLength(0);
   });

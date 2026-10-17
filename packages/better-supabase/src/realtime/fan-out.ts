@@ -65,6 +65,7 @@ export function fanOutTopic<S extends Subscriber>(
       options.policy ??
       fallback ??
       options.server?.authorization?.delivery?.subscribers;
+
     if (
       policy === undefined &&
       options.server?.authorization !== undefined &&
@@ -78,11 +79,13 @@ export function fanOutTopic<S extends Subscriber>(
         ),
       );
     }
+
     const checked = await allowedSubscribers(
       policy,
       options.source,
       options.subscribers,
     );
+
     if (!checked.ok) {
       return err(
         dbError(
@@ -92,14 +95,21 @@ export function fanOutTopic<S extends Subscriber>(
         ),
       );
     }
+
     const allowed = new Set(checked.allowed);
     const sent: S[] = [];
     const failed: { subscriber: S; error: DbError }[] = [];
+
     for (const subscriber of checked.allowed) {
       const result = await send(subscriber);
-      if (result.ok) sent.push(subscriber);
-      else failed.push({ subscriber, error: result.error });
+
+      if (result.ok) {
+        sent.push(subscriber);
+      } else {
+        failed.push({ subscriber, error: result.error });
+      }
     }
+
     return ok({
       sent,
       skipped: options.subscribers.filter(

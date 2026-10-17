@@ -6,6 +6,7 @@ import { DocumentTable } from "./document-table";
 /** Render inside `<Suspense>`. */
 export async function DocumentList() {
   const documents = await getDocuments();
+
   return <DocumentTable documents={documents} />;
 }
 

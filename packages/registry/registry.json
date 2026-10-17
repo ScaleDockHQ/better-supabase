@@ -280,7 +280,7 @@
       "envVars": {
         "EXPO_PUBLIC_EAS_PROJECT_ID": ""
       },
-      "docs": "Needs the push block (`npx better-supabase sql add push`) and the `src/lib/supabase/native.ts` that `npx better-supabase init` writes for Expo. Push tokens need the EAS project id outside Expo Go. See https://bettersupabase.com/docs/blocks/push.",
+      "docs": "Needs the push block (`npx better-supabase sql add push`) and the `src/lib/supabase/client.native.ts` that `npx better-supabase init` writes for Expo. Push tokens need the EAS project id outside Expo Go. See https://bettersupabase.com/docs/blocks/push.",
       "categories": ["hook", "native"],
       "meta": {
         "block": "push",

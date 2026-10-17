@@ -131,6 +131,7 @@ function versionOf(value: unknown, fn: string): Version {
   const label = optionalText(row["label"]);
   const storagePath = optionalText(row["storagePath"]);
   const createdBy = optionalText(row["createdBy"]);
+
   return {
     id: textOf(row["id"]),
     number: Number(row["number"]),
@@ -153,6 +154,7 @@ const jsonOf = (value: unknown): JsonValue => (value ?? null) as JsonValue;
 
 function snapshotOf(value: unknown, fn: string): SnapshotResult {
   const row = recordOf(value, fn);
+
   return {
     id: textOf(row["id"]),
     number: Number(row["number"]),
@@ -166,13 +168,16 @@ export function createVersions<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: VersionsOptions<S>): Versions<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const fields: BlockFields<F> = blockFields(options.fields, "version fields");
+
   const get = (id: string): AsyncResult<Version<F>> =>
     call("get_version", { version_id: id }, (value) =>
       versionOf(value, "get_version"),
     ).andThen(fields.row);
+
   const client: Versions<F> = {
     getShared: (token) =>
       call("get_shared_version", { token }, (value) =>
@@ -215,6 +220,7 @@ export function createVersions<
     restore: (id) =>
       call("restore_version", { version_id: id }, (value) => {
         const row = recordOf(value, "restore_version");
+
         return {
           ...snapshotOf(row, "restore_version"),
           restoredFrom: Number(row["restoredFrom"]),
@@ -236,6 +242,7 @@ export function createVersions<
         ),
       ),
   };
+
   return withBlockHooks(client, options.hooks, {
     block: "versions",
     ...(options.logger ? { logger: options.logger } : {}),

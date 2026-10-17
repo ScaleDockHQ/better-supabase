@@ -2,13 +2,13 @@ import type { GenTask } from "../../config/index.ts";
 import type { AnyCommand, CliContext } from "../command.ts";
 import type { IntrospectionSource } from "../introspect/source.ts";
 import type { Snapshot } from "../introspect/types.ts";
+import type { CommandResult } from "../io.ts";
 
 import { defineCliCommand, list } from "../command.ts";
 import { errorText, failedResult } from "../errors.ts";
 import { runMetadataGen, EMITS } from "../gen/metadata.ts";
 import { type GenOptions, runGen } from "../gen/run.ts";
 import { catalogFingerprint } from "../introspect/fingerprint.ts";
-import { type CommandResult } from "../io.ts";
 import { GEN_TASKS } from "../names.ts";
 import { withSpinner } from "../prompts.ts";
 import { painter, plain } from "../style.ts";
@@ -83,8 +83,11 @@ async function poll(
   const fingerprint = db
     ? await catalogFingerprint(db.queryable).catch(() => undefined)
     : undefined;
-  if (fingerprint !== undefined && fingerprint === last)
+
+  if (fingerprint !== undefined && fingerprint === last) {
     return { marker: last };
+  }
+
   const snapshot = await loadSnapshot(
     options.config,
     options.env,
@@ -92,7 +95,9 @@ async function poll(
     undefined,
     db ? () => Promise.resolve(db) : undefined,
   );
+
   const marker = fingerprint ?? JSON.stringify(snapshot);
+
   return marker === last ? { marker } : { marker, snapshot };
 }
 
@@ -112,6 +117,7 @@ async function runTasks(
         },
       ]
     : [];
+
   return combineResults(
     await runSteps(
       tasks,
@@ -150,16 +156,22 @@ async function watch(
   let stamp = await modifiedTime(configFile);
   let db: IntrospectionSource | undefined;
   const aborted = (): boolean => signal?.aborted ?? false;
+
   const report = (message: string): void => {
-    if (fresh(message)) io.stderr(`${message}\n`);
+    if (fresh(message)) {
+      io.stderr(`${message}\n`);
+    }
   };
+
   const closeDb = async (): Promise<void> => {
     await db?.close().catch(() => undefined);
     db = undefined;
   };
+
   try {
     while (!aborted()) {
       const changed = await modifiedTime(configFile);
+
       if (reloadConfig && changed !== stamp) {
         try {
           options = { ...options, config: await reloadConfig() };
@@ -173,9 +185,11 @@ async function watch(
           continue;
         }
       }
+
       const tasks = selectTasks(options.config, requested);
       const current = await stampFiles(stepInputs(options.config, tasks));
       let polled: { marker: string; snapshot?: Snapshot } | undefined;
+
       if (tasks.includes("types")) {
         try {
           db ??=
@@ -190,11 +204,13 @@ async function watch(
           continue;
         }
       }
+
       const run: readonly GenTask[] | undefined = polled?.snapshot
         ? tasks
         : current === inputs
           ? undefined
           : tasks.filter((task) => task !== "types");
+
       const result =
         run && run.length > 0
           ? await runTasks(run, {
@@ -202,19 +218,28 @@ async function watch(
               ...(polled?.snapshot ? { snapshot: polled.snapshot } : {}),
             })
           : undefined;
+
       if (result && result.code !== 0) {
         report(result.error ?? `gen exited with code ${result.code}`);
       } else {
-        if (result?.output) io.stdout(`${result.output}\n`);
-        if (polled) last = polled.marker;
+        if (result?.output) {
+          io.stdout(`${result.output}\n`);
+        }
+
+        if (polled) {
+          last = polled.marker;
+        }
+
         inputs = current;
         fresh("");
       }
+
       await sleep(interval, signal);
     }
   } finally {
     await closeDb();
   }
+
   return { code: 0 };
 }
 
@@ -234,12 +259,14 @@ export const genCommand: AnyCommand = defineCliCommand({
         ...(args["db-url-stdin"] === true ? ["--db-url-stdin"] : []),
         ...(args["project-ref"] === undefined ? [] : ["--project-ref"]),
       ];
+
       if (conflicting.length > 0) {
         return {
           code: 2,
           error: `--metadata reads the schema from the document, so it can't be combined with ${conflicting.join(", ")}`,
         };
       }
+
       return runMetadataGen({
         config: context.config,
         env: context.env,
@@ -253,17 +280,27 @@ export const genCommand: AnyCommand = defineCliCommand({
         ...(args.out === undefined ? {} : { out: args.out }),
       });
     }
+
     if (args.emit !== undefined || args.out !== undefined) {
       return {
         code: 2,
         error: `${args.emit === undefined ? "--out" : "--emit"} only applies with --metadata`,
       };
     }
+
     const requested =
       args.tasks === undefined ? undefined : parseTasks(list(args.tasks));
-    if (typeof requested === "string") return { code: 2, error: requested };
+
+    if (typeof requested === "string") {
+      return { code: 2, error: requested };
+    }
+
     const tasks = selectTasks(context.config, requested);
-    if (tasks.length === 0) return { code: 2, error: "--tasks names no task." };
+
+    if (tasks.length === 0) {
+      return { code: 2, error: "--tasks names no task." };
+    }
+
     const options: GenOptions = {
       config: context.config,
       env: context.env,
@@ -273,11 +310,16 @@ export const genCommand: AnyCommand = defineCliCommand({
       ...(context.signal ? { signal: context.signal } : {}),
       cache: true,
     };
+
     const interval = parseInterval(
       args.interval,
       context.config.gen.watchInterval,
     );
-    if (typeof interval === "string") return { code: 2, error: interval };
+
+    if (typeof interval === "string") {
+      return { code: 2, error: interval };
+    }
+
     return args.watch === true
       ? watch(options, requested, interval, context)
       : withSpinner(context.io.prompts, "Generating from the schema", () =>

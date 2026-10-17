@@ -16,6 +16,7 @@ export function InviteDialog() {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<(typeof ROLES)[number]>("member");
+
   const { invitations, invite, inviting, sent, error, clear } = useInvitations({
     organizationId: tenantOf(useAuth()),
     schema: API_SCHEMA,

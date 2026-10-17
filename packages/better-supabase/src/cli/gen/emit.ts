@@ -30,8 +30,12 @@ function insertEntries(
   name: "app" | "db",
 ): string[] {
   return columns.map((column) => {
-    if (!column.insertable) return `${prop(column[name])}?: never;`;
+    if (!column.insertable) {
+      return `${prop(column[name])}?: never;`;
+    }
+
     const optional = column.optional ? "?" : "";
+
     return `${prop(column[name])}${optional}: ${nullable(column.tsType, column.nullable)};`;
   });
 }
@@ -41,7 +45,10 @@ function updateEntries(
   name: "app" | "db",
 ): string[] {
   return columns.map((column) => {
-    if (!column.updatable) return `${prop(column[name])}?: never;`;
+    if (!column.updatable) {
+      return `${prop(column[name])}?: never;`;
+    }
+
     return `${prop(column[name])}?: ${nullable(column.tsType, column.nullable)};`;
   });
 }
@@ -67,13 +74,19 @@ function enrichedDatabase(model: Model): string[] {
               column.storage !== undefined,
           )
           .map((column) => `${prop(column.db)}: ${column.tsType};`);
+
         return overrides.length > 0
           ? block(prop(table.snapshot.name), overrides)
           : [];
       });
+
     return tables.length > 0 ? block(prop(schema), tables) : [];
   });
-  if (schemas.length === 0) return ["export type Database = SupabaseDatabase;"];
+
+  if (schemas.length === 0) {
+    return ["export type Database = SupabaseDatabase;"];
+  }
+
   return [
     "export type Database = EnrichDatabase<",
     "  SupabaseDatabase,",
@@ -90,21 +103,38 @@ function modelsType(model: Model): string[] {
       (relation) =>
         `${prop(relation.name)}: { table: ${q(relation.meta.table)}; kind: ${q(relation.meta.kind)}; nullable: ${String(relation.meta.nullable)} };`,
     );
+
     const pk = table.meta.primaryKey;
+
     const uniques = Object.entries(table.meta.uniqueKeys).map(
       ([name, columns]) =>
         `${prop(name)}: readonly [${columns.map(q).join(", ")}];`,
     );
+
     const flags: string[] = [];
     const tableFlags = table.meta.flags;
-    if (tableFlags.softDelete)
+
+    if (tableFlags.softDelete) {
       flags.push(`softDelete: ${q(tableFlags.softDelete)};`);
-    if (tableFlags.timestamps) flags.push("timestamps: true;");
-    if (tableFlags.tenant) flags.push(`tenant: ${q(tableFlags.tenant)};`);
-    if (tableFlags.actor) flags.push("actor: true;");
+    }
+
+    if (tableFlags.timestamps) {
+      flags.push("timestamps: true;");
+    }
+
+    if (tableFlags.tenant) {
+      flags.push(`tenant: ${q(tableFlags.tenant)};`);
+    }
+
+    if (tableFlags.actor) {
+      flags.push("actor: true;");
+    }
+
     const none = "Record<never, never>";
+
     const union = (names: readonly string[]): string =>
       names.length === 0 ? "never" : names.map(q).join(" | ");
+
     return block(prop(table.key), [
       ...block("Row", rowEntries(table.columns, "app"), none),
       ...(table.snapshot.insertable
@@ -121,20 +151,26 @@ function modelsType(model: Model): string[] {
       ...block("Flags", flags, none),
     ]);
   });
+
   return ["export type Models = {", ...indent(entries, 1), "};"];
 }
 
 function functionsType(model: Model): string[] {
-  if (model.functions.length === 0)
+  if (model.functions.length === 0) {
     return ["export type Functions = Record<never, never>;"];
+  }
+
   const entries = [...functionGroups(model.functions)].flatMap(
     ([key, group]) => {
       const [first] = group;
-      if (group.length === 1 && first)
+
+      if (group.length === 1 && first) {
         return block(prop(key), [
           ...block("Args", argEntries(first), "Record<never, never>"),
           `Returns: ${first.returns};`,
         ]);
+      }
+
       // An overload without arguments rejects every key, so it never
       // matches a call that names one.
       return [
@@ -145,7 +181,9 @@ function functionsType(model: Model): string[] {
               ...block("Args", argEntries(fn), "Record<PropertyKey, never>"),
               `Returns: ${fn.returns};`,
             ];
+
             const end = index === group.length - 1 ? "};" : "}";
+
             return ["| {", ...indent(lines, 1), end];
           }),
           1,
@@ -153,6 +191,7 @@ function functionsType(model: Model): string[] {
       ];
     },
   );
+
   return ["export type Functions = {", ...indent(entries, 1), "};"];
 }
 
@@ -172,6 +211,7 @@ export interface EmitOptions {
 /** The metadata module next to `generated.ts`: `generated.meta.js` and its `.d.ts`. */
 export function metaPaths(output: string): { js: string; dts: string } {
   const base = output.replace(/\.[cm]?[jt]sx?$/, "");
+
   return { js: `${base}.meta.js`, dts: `${base}.meta.d.ts` };
 }
 
@@ -182,16 +222,21 @@ export function metaPaths(output: string): { js: string; dts: string } {
 function compactJson(meta: Readonly<Record<string, unknown>>): string {
   const entries = Object.entries(meta).map(([key, value]) => {
     const name = JSON.stringify(key);
-    if (typeof value !== "object" || value === null || Array.isArray(value))
+
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
       return `  ${name}: ${JSON.stringify(value)}`;
+    }
+
     const inner = Object.entries(value).map(
       ([entry, item]) =>
         `    ${JSON.stringify(entry)}: ${JSON.stringify(item)}`,
     );
+
     return inner.length === 0
       ? `  ${name}: {}`
       : `  ${name}: {\n${inner.join(",\n")}\n  }`;
   });
+
   return `{\n${entries.join(",\n")}\n}`;
 }
 
@@ -207,6 +252,7 @@ export function emitMeta(
   } = {},
 ): { js: string; dts: string } {
   const runtime = options.runtimeImport ?? "better-supabase";
+
   return {
     js: [
       GENERATED_HEADER,
@@ -269,6 +315,7 @@ const RESERVED_EXPORTS = [
 /** Renders the generated module. */
 export function emitModule(model: Model, options: EmitOptions): string {
   const runtime = options.runtimeImport ?? "better-supabase";
+
   const lines: string[] = [
     GENERATED_HEADER,
     "/* oxlint-disable */",
@@ -280,16 +327,19 @@ export function emitModule(model: Model, options: EmitOptions): string {
   const storagePaths = model.tables.some((table) =>
     table.columns.some((column) => column.storage !== undefined),
   );
+
   lines.push(
     `import type { EnrichDatabase, MutableWhere, OrderByArg, OrderByInput${storagePaths ? ", StoragePath" : ""} } from ${q(runtime)};`,
     `import type { Database as SupabaseDatabase } from ${q(options.databaseTypesImport ?? "./database.types.ts")};`,
   );
   const byFile = new Map<string, string[]>();
+
   for (const entry of model.jsonImports) {
     const list = byFile.get(entry.from) ?? [];
     list.push(entry.name);
     byFile.set(entry.from, list);
   }
+
   for (const [from, names] of [...byFile.entries()].sort(([a], [b]) =>
     byCodePoint(a, b),
   )) {
@@ -297,6 +347,7 @@ export function emitModule(model: Model, options: EmitOptions): string {
       `import type { ${names.sort().join(", ")} } from ${q(options.importPathFor(from))};`,
     );
   }
+
   lines.push(
     options.inlineMeta
       ? `\nconst meta: SchemaMeta = ${compactJson({ ...model.meta })};`
@@ -313,16 +364,21 @@ export function emitModule(model: Model, options: EmitOptions): string {
       (name) => [name, "the generated module"],
     ),
   );
+
   const claim = (name: string, source: string): string => {
     const other = exported.get(name);
+
     if (other !== undefined) {
       throw new TypeError(
         `${source} and ${other} both export "${name}" from the generated module. Rename one of them in the database.`,
       );
     }
+
     exported.set(name, source);
+
     return name;
   };
+
   for (const entry of model.enums) {
     const source = `enum ${entry.schema}.${entry.name}`;
     lines.push(
@@ -330,18 +386,22 @@ export function emitModule(model: Model, options: EmitOptions): string {
       `export type ${claim(entry.typeName, source)} = (typeof ${entry.constant})[number];`,
     );
   }
+
   for (const table of model.tables) {
     for (const column of table.columns) {
       if (column.values && !column.snapshot.isEnum) {
         const source = `the CHECK on ${table.snapshot.schema}.${table.snapshot.name}.${column.db}`;
+
         const constant = identifier(
           `${table.key}${pascal(column.app)}Values`.replace(/^[A-Z]/, (c) =>
             c.toLowerCase(),
           ),
         );
+
         const typeName = identifier(
           `${pascal(table.key)}${pascal(column.app)}`,
         );
+
         lines.push(
           `export const ${claim(constant, source)} = [${column.values.map(q).join(", ")}] as const;`,
           `export type ${claim(typeName, source)} = (typeof ${constant})[number];`,
@@ -349,7 +409,10 @@ export function emitModule(model: Model, options: EmitOptions): string {
       }
     }
   }
-  if (model.enums.length > 0) lines.push("");
+
+  if (model.enums.length > 0) {
+    lines.push("");
+  }
 
   lines.push(
     ...modelsType(model),
@@ -372,6 +435,7 @@ export function emitModule(model: Model, options: EmitOptions): string {
     "export type OrderTermOf<T extends TableName> = OrderByInput<Models, T>;",
     "",
   );
+
   if (model.meta.buckets) {
     lines.push(
       "/** Bucket configs for `defineBucket` from `better-supabase/storage`. */",
@@ -379,6 +443,7 @@ export function emitModule(model: Model, options: EmitOptions): string {
       "",
     );
   }
+
   if (model.meta.topics) {
     lines.push(
       "/** Topic templates for `defineTopic` from `better-supabase/realtime`. */",
@@ -386,7 +451,9 @@ export function emitModule(model: Model, options: EmitOptions): string {
       "",
     );
   }
+
   const subjects = Object.keys(model.config.subjects);
+
   if (subjects.length > 0) {
     lines.push(
       "/** The app's subject types, from `config.subjects`. */",
@@ -404,5 +471,6 @@ export function emitModule(model: Model, options: EmitOptions): string {
       "",
     );
   }
+
   return lines.join("\n");
 }

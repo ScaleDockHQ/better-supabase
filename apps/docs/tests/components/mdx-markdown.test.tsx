@@ -19,6 +19,7 @@ describe("Markdown forms of MDX components", () => {
     const out = await renderToMarkdown(
       <Callout title="Client bundles">{"First line.\n\nSecond line."}</Callout>,
     );
+
     expect(out).toBe(
       "> **Client bundles**\n>\n> First line.\n>\n> Second line.",
     );
@@ -37,6 +38,7 @@ describe("Markdown forms of MDX components", () => {
         <Step>No heading.</Step>
       </Steps>,
     );
+
     expect(out).toBe(
       [
         "### 1. Install [#install]",
@@ -63,6 +65,7 @@ describe("Markdown forms of MDX components", () => {
         </Card>
       </Cards>,
     );
+
     expect(out).toBe(
       "- [Quickstart](/docs/getting-started)\n- [Filtering](/docs/repository/filtering): Every operator.",
     );
@@ -75,6 +78,7 @@ describe("Markdown forms of MDX components", () => {
         <Tab value="pnpm">pnpm add</Tab>
       </Tabs>,
     );
+
     expect(out).toBe("**npm**\n\nnpm i\n\n**pnpm**\n\npnpm add");
   });
 
@@ -99,16 +103,14 @@ describe("Markdown forms of MDX components", () => {
         }}
       />,
     );
+
     expect(out).toBe(
       [
         "| Name | Type | Default | Description |",
         "| --- | --- | --- | --- |",
         "| `url` | `string` |  | The API URL. |",
-        String.raw`| ~~` +
-          "`mode?`" +
-          String.raw`~~ | ` +
-          "`'a' \\| 'b'`" +
-          " | `'a'` |  |",
+        `${String.raw`| ~~`}\`mode?\`${String.raw`~~ | `}\`'a' \\| 'b'\`` +
+          ` | \`'a'\` |  |`,
       ].join("\n"),
     );
   });
@@ -116,10 +118,15 @@ describe("Markdown forms of MDX components", () => {
   it("keeps components without a Markdown form as JSX", async () => {
     expect(Object.keys(markdownComponents)).not.toContain("Accordion");
     const Accordion = jsxComponents({})["Accordion"];
-    if (Accordion === undefined) throw new Error("expected a stub");
+
+    if (Accordion === undefined) {
+      throw new Error("expected a stub");
+    }
+
     const out = await renderToMarkdown(
       <Accordion title="More">Body</Accordion>,
     );
+
     expect(out).toBe('<Accordion title="More">\nBody\n</Accordion>');
   });
 

@@ -17,6 +17,7 @@ import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 const live = await reachable();
 
 const parties = partiesSubjects();
+
 const layout: ModuleLayout = {
   subjects: {
     ...parties,
@@ -30,6 +31,7 @@ const layout: ModuleLayout = {
     },
   },
 };
+
 const MODULES = [
   "organizations",
   "outbox",
@@ -63,6 +65,7 @@ describe.skipIf(!live)("collections", () => {
 
   it("stars records, ranks them and hides what the caller can't read", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const owner = await s.user("owner");
       const rep = await s.user("rep");
@@ -77,16 +80,21 @@ describe.skipIf(!live)("collections", () => {
 
       await s.as(rep);
       const acme = await companies.saveCompany(org, { name: "Acme" }).orThrow();
+
       const globex = await companies
         .saveCompany(org, { name: "Globex" })
         .orThrow();
+
       const first = await collections
         .star(org, { type: "company", id: acme.id })
         .orThrow();
+
       expect(first.rank).toBe("V");
+
       const second = await collections
         .star(org, { type: "company", id: globex.id })
         .orThrow();
+
       expect(
         (
           await collections
@@ -94,9 +102,11 @@ describe.skipIf(!live)("collections", () => {
             .orThrow()
         ).rank,
       ).toBe("V");
+
       const moved = await collections
         .reorderStar({ type: "company", id: globex.id }, { next: first.rank })
         .orThrow();
+
       expect(moved < first.rank).toBe(true);
       const stars = await collections.starred(org).orThrow();
       expect(stars.map((star) => star.title)).toEqual(["Globex", "Acme"]);
@@ -146,6 +156,7 @@ describe.skipIf(!live)("collections", () => {
 
   it("keeps lists per user, team and organization and pages their entries", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const owner = await s.user("owner");
       const rep = await s.user("rep");
@@ -158,10 +169,12 @@ describe.skipIf(!live)("collections", () => {
       const collections = createCollections({ transport });
 
       await s.as(owner);
+
       const team = await s.value<string>(
         "(better_supabase.create_team($1, 'Sales', null) ->> 'id')",
         [org],
       );
+
       for (const member of [owner, rep]) {
         await s.client.query("select better_supabase.add_team_member($1, $2)", [
           team,
@@ -171,12 +184,15 @@ describe.skipIf(!live)("collections", () => {
 
       await s.as(rep);
       const ids: string[] = [];
+
       for (const name of ["Acme", "Globex", "Initech"]) {
         ids.push((await companies.saveCompany(org, { name }).orThrow()).id);
       }
+
       const mine = await collections
         .create(org, { name: "My accounts", subjectType: "company" })
         .orThrow();
+
       expect(mine.scope).toBe("user");
       expect(mine.ownerId).toBe(rep.id);
       expect(
@@ -200,24 +216,29 @@ describe.skipIf(!live)("collections", () => {
       const added = await collections
         .add(mine.id, [ids[2]!, ids[0]!, ids[2]!])
         .orThrow();
+
       expect(added.added).toEqual([ids[2], ids[0]]);
       expect(
         (await collections.add(mine.id, [ids[0]!, ids[1]!]).orThrow()).added,
       ).toEqual([ids[1]]);
+
       const firstPage = await collections
         .entries(mine.id, { limit: 2 })
         .orThrow();
+
       expect(firstPage.items.map((entry) => entry.title)).toEqual([
         "Initech",
         "Acme",
       ]);
       expect(firstPage.items[0]?.addedBy).toBe(rep.id);
+
       const rest = await collections
         .entries(mine.id, {
           limit: 2,
           ...(firstPage.next && { cursor: firstPage.next }),
         })
         .orThrow();
+
       expect(rest.items.map((entry) => entry.title)).toEqual(["Globex"]);
       expect(rest.next).toBeUndefined();
       await collections
@@ -254,6 +275,7 @@ describe.skipIf(!live)("collections", () => {
       );
 
       await s.as(owner);
+
       const shared = await collections
         .create(org, {
           name: "Key accounts",
@@ -262,6 +284,7 @@ describe.skipIf(!live)("collections", () => {
           teamId: team,
         })
         .orThrow();
+
       const everyone = await collections
         .create(org, {
           name: "Watchlist",
@@ -269,6 +292,7 @@ describe.skipIf(!live)("collections", () => {
           scope: "tenant",
         })
         .orThrow();
+
       await s.as(rep);
       await collections.add(shared.id, [ids[0]!]).orThrow();
       expect(
@@ -289,9 +313,11 @@ describe.skipIf(!live)("collections", () => {
       ).toBe(1);
 
       await s.as(rep);
+
       const renamed = await collections
         .rename(mine.id, { name: "Top accounts", description: "Q4" })
         .orThrow();
+
       expect(renamed.description).toBe("Q4");
       expect(
         (await collections.rename(mine.id, { description: null }).orThrow())
@@ -304,9 +330,11 @@ describe.skipIf(!live)("collections", () => {
       expect(
         (await collections.list(org).orThrow()).map((list) => list.name),
       ).not.toContain("Top accounts");
+
       const archived = await collections
         .list(org, { includeArchived: true, subjectType: "company" })
         .orThrow();
+
       expect(archived.find((list) => list.id === mine.id)?.archived).toBe(true);
       await collections.archive(mine.id, false).orThrow();
 
@@ -314,6 +342,7 @@ describe.skipIf(!live)("collections", () => {
         "select type from better_supabase.outbox_events where payload ->> 'collectionId' = $1 order by type",
         [mine.id],
       );
+
       expect(events.map((event) => event.type)).toEqual([
         "collection.archived",
         "collection.created",
@@ -328,6 +357,7 @@ describe.skipIf(!live)("collections", () => {
 
   it("hides entries whose record the caller can't read and cascades deletes", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const owner = await s.user("owner");
       const rep = await s.user("rep");
@@ -340,15 +370,19 @@ describe.skipIf(!live)("collections", () => {
       const bulk = createBulk({ transport });
 
       await s.service();
+
       const [own, secret] = await s.rows<{ id: string }>(
         `insert into public.collection_test_memos (organization_id, author, title)
          values ($1, $2, 'Rep notes'), ($1, $3, 'Owner notes') returning id`,
         [org, rep.id, owner.id],
       );
+
       await s.as(owner);
+
       const list = await collections
         .create(org, { name: "Memos", subjectType: "memo", scope: "tenant" })
         .orThrow();
+
       await collections.add(list.id, [own!.id, secret!.id]).orThrow();
 
       await s.asRole(rep);
@@ -370,6 +404,7 @@ describe.skipIf(!live)("collections", () => {
           state: { collectionId: list.id },
         })
         .orThrow();
+
       expect(view.id).toBeTypeOf("string");
       expect(
         hint(
@@ -383,9 +418,11 @@ describe.skipIf(!live)("collections", () => {
       ).toBe("SAVED_VIEW_COLLECTION_NOT_FOUND");
 
       await s.as(owner);
+
       const picks = await collections
         .create(org, { name: "Picks", subjectType: "memo" })
         .orThrow();
+
       const run = await bulk
         .run({
           organizationId: org,
@@ -395,6 +432,7 @@ describe.skipIf(!live)("collections", () => {
           args: { collectionId: picks.id },
         })
         .orThrow();
+
       expect(run.failed).toBe(1);
       expect(await collections.subjectIds(picks.id).orThrow()).toEqual([
         secret!.id,

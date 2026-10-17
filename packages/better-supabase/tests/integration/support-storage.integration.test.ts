@@ -11,9 +11,11 @@ import { stackDbUrl, stackUrl } from "./stack-env.ts";
 
 const url = stackUrl();
 const dbUrl = stackDbUrl();
+
 const publishableKey =
   process.env["SUPABASE_PUBLISHABLE_KEY"] ??
   "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";
+
 const secretKey =
   process.env["SUPABASE_SECRET_KEY"] ??
   "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -28,6 +30,7 @@ async function reachable(): Promise<boolean> {
     const response = await fetch(`${url}/storage/v1/status`, {
       signal: AbortSignal.timeout(1000),
     });
+
     return response.ok;
   } catch {
     return false;
@@ -49,17 +52,22 @@ describe.skipIf(!live)("support storage against the local stack", () => {
   const supabase = createClient(url, publishableKey, {
     accessToken: () => signLocalJwt(claims),
   });
+
   const service = createClient(url, secretKey, {
     auth: { persistSession: false },
   });
+
   const postgres = createPostgres({ connectionString: dbUrl, max: 2 });
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
+
   const storage = supportStorage({
     admin: service.storage,
     sql: postgres.asUser(claims, { readOnly: true }),
   });
+
   const asUser = supabase.storage.from(files.id);
   const asTarget = storage.from(files.id);
+
   const own = [
     "a.txt",
     "B.txt",
@@ -68,14 +76,19 @@ describe.skipIf(!live)("support storage against the local stack", () => {
     "nested/deeper/d.txt",
     "z.txt",
   ].map((name) => `${ACME}/${RUN}/${name}`);
+
   const hidden = `${OTHER}/${RUN}/secret.txt`;
 
   beforeAll(async () => {
     await pool.query(files.sql());
     const admin = service.storage.from(files.id);
+
     for (const path of [...own, hidden]) {
       const { error } = await admin.upload(path, text(path), { upsert: true });
-      if (error) throw error;
+
+      if (error) {
+        throw error;
+      }
     }
   });
   afterAll(async () => {
@@ -119,6 +132,7 @@ describe.skipIf(!live)("support storage against the local stack", () => {
       },
     ]) {
       let cursor: string | undefined;
+
       do {
         const page = { ...options, ...(cursor ? { cursor } : {}) };
         const expected = await asUser.listV2(page);
@@ -192,11 +206,14 @@ describe.skipIf(!live)("support storage writes against the local stack", () => {
   const supabase = createClient(url, publishableKey, {
     accessToken: () => signLocalJwt(claims),
   });
+
   const service = createClient(url, secretKey, {
     auth: { persistSession: false },
   });
+
   const postgres = createPostgres({ connectionString: dbUrl, max: 2 });
   const pool = new Pool({ connectionString: dbUrl, max: 1 });
+
   const writer = supportStorage({
     admin: service.storage,
     sql: postgres.asUser(claims),
@@ -204,6 +221,7 @@ describe.skipIf(!live)("support storage writes against the local stack", () => {
     session: SESSION,
     readOnly: false,
   });
+
   const asTarget = writer.from(files.id);
   const own = (name: string) => `${ACME}/${RUN}/w/${name}`;
   const hidden = `${OTHER}/${RUN}/w/secret.txt`;
@@ -232,10 +250,14 @@ create policy bs_it_insert_only_insert on storage.objects for insert to authenti
 drop policy if exists bs_it_insert_only_select on storage.objects;
 create policy bs_it_insert_only_select on storage.objects for select to authenticated
   using (bucket_id = '${INSERT_ONLY}' and owner_id = (select auth.uid())::text);`);
+
     const { error } = await service.storage
       .from(files.id)
       .upload(hidden, text(hidden), { upsert: true });
-    if (error) throw error;
+
+    if (error) {
+      throw error;
+    }
   });
   afterAll(async () => {
     for (const bucket of [files.id, plain.id, INSERT_ONLY]) {
@@ -243,18 +265,23 @@ create policy bs_it_insert_only_select on storage.objects for select to authenti
         "select name from storage.objects where bucket_id = $1 and name like $2",
         [bucket, `%/${RUN}/w/%`],
       );
-      if (rows.length > 0)
+
+      if (rows.length > 0) {
         await service.storage.from(bucket).remove(rows.map((r) => r.name));
+      }
     }
+
     await postgres.end();
     await pool.end();
   });
 
   it("uploads as the target and records the owner and the session", async () => {
     const path = own("new.txt");
+
     const reply = await asTarget.upload(path, text("new"), {
       metadata: { note: "from support" },
     });
+
     expect(reply.error).toBeNull();
     expect(await row(files.id, path)).toEqual({
       owner_id: USER,
@@ -281,13 +308,17 @@ create policy bs_it_insert_only_select on storage.objects for select to authenti
     const path = own("once.txt");
     expect((await bucket.upload(path, text("first"))).error).toBeNull();
     expect(await row(INSERT_ONLY, path)).toMatchObject({ owner_id: USER });
+
     const overwrite = await bucket.upload(path, text("second"), {
       upsert: true,
     });
+
     expect(fromStorageError(overwrite.error).kind).toBe("forbidden");
+
     const direct = await supabase.storage
       .from(INSERT_ONLY)
       .upload(path, text("second"), { upsert: true });
+
     expect(fromStorageError(direct.error).kind).toBe("forbidden");
     expect(
       fromStorageError((await bucket.update(path, text("x"))).error).kind,
@@ -301,10 +332,15 @@ create policy bs_it_insert_only_select on storage.objects for select to authenti
 
   it("overwrites an object it may update and keeps it the target's", async () => {
     const path = own("upsert.txt");
+
     const { error } = await service.storage
       .from(files.id)
       .upload(path, text("old"));
-    if (error) throw error;
+
+    if (error) {
+      throw error;
+    }
+
     expect(await row(files.id, path)).toMatchObject({ owner_id: null });
     expect((await asTarget.update(path, text("new"))).error).toBeNull();
     expect(await row(files.id, path)).toMatchObject({
@@ -349,10 +385,15 @@ create policy bs_it_insert_only_select on storage.objects for select to authenti
 
     const unowned = own("unowned.txt");
     const claimed = own("claimed.txt");
+
     const { error } = await service.storage
       .from(files.id)
       .upload(unowned, text("service"));
-    if (error) throw error;
+
+    if (error) {
+      throw error;
+    }
+
     expect(await row(files.id, unowned)).toMatchObject({ owner_id: null });
     expect((await asTarget.move(unowned, claimed)).error).toBeNull();
     expect(await row(files.id, claimed)).toMatchObject({
@@ -363,11 +404,13 @@ create policy bs_it_insert_only_select on storage.objects for select to authenti
 
   it("surfaces the bucket's allowed MIME types", async () => {
     const path = own("image.png");
+
     const reply = await writer
       .from(plain.id)
       .upload(path, new Blob(["png"], { type: "image/png" }), {
         contentType: "image/png",
       });
+
     expect(reply.error).not.toBeNull();
     expect(fromStorageError(reply.error).kind).toBe("invalid_input");
     expect(await row(plain.id, path)).toBeUndefined();
@@ -380,12 +423,14 @@ create policy bs_it_insert_only_select on storage.objects for select to authenti
       code: "SUPPORT_STORAGE_WRITES",
       message: "Signed uploads are not available in a support session",
     });
+
     const readOnly = supportStorage({
       admin: service.storage,
       sql: postgres.asUser(claims, { readOnly: true }),
       adminSql: postgres.admin,
       session: SESSION,
     }).from(files.id);
+
     expect(
       (await readOnly.upload(own("ro.txt"), text("x"))).error,
     ).toMatchObject({ code: "SUPPORT_READ_ONLY" });
@@ -395,10 +440,12 @@ create policy bs_it_insert_only_select on storage.objects for select to authenti
   it("puts an attachment through the block", async () => {
     const path = own("attachment.txt");
     const called: string[] = [];
+
     const attachments = createAttachments({
       transport: {
         call: (_schema, fn) => {
           called.push(fn);
+
           return Promise.resolve({
             id: "a1",
             organization_id: ACME,
@@ -414,6 +461,7 @@ create policy bs_it_insert_only_select on storage.objects for select to authenti
       },
       storage: writer,
     });
+
     const put = await attachments.put(
       {
         organizationId: ACME,
@@ -423,6 +471,7 @@ create policy bs_it_insert_only_select on storage.objects for select to authenti
       },
       text("hi"),
     );
+
     expect(put.error).toBeNull();
     expect(called).toEqual(["create_attachment", "confirm_attachment"]);
     expect(await row(files.id, path)).toMatchObject({ owner_id: USER });

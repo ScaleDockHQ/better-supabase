@@ -34,14 +34,22 @@ export interface ModuleFileState {
 export async function moduleFiles(
   context: DoctorContext,
 ): Promise<ModuleFileState[]> {
-  if (context.config.blockNames.length === 0) return [];
+  if (context.config.blockNames.length === 0) {
+    return [];
+  }
+
   // BS411 reports a provider access model the provider can't back; the module
   // can't render without it, so there is nothing to compare.
   const access = accessModule(context);
-  if (access.kind === "invalid") return [];
+
+  if (access.kind === "invalid") {
+    return [];
+  }
+
   const readSets = context.readSets;
   const skipped = readSets !== undefined && "skipped" in readSets;
   let rendered: ModuleFile[];
+
   try {
     rendered = renderModules(
       context.config.blockNames,
@@ -59,19 +67,27 @@ export async function moduleFiles(
     // a catalog) has no files to compare; `sql sync` reports why.
     return [];
   }
+
   const files = rendered.filter(
     (file) => !(skipped && file.module === "read-sets"),
   );
+
   if (workflowOf(context) === "migrations") {
     const latest = await latestMigration(context.config, MODULES_SUFFIX);
     const versions = migrationModules(latest?.text ?? "");
+
     const path =
       latest?.path ??
       `${migrationsDir(context.config)}/<stamp>${MODULES_SUFFIX}`;
+
     return Promise.all(
       files.map(async (file): Promise<ModuleFileState> => {
-        if (file.kind === "test") return fileState(context, file);
+        if (file.kind === "test") {
+          return fileState(context, file);
+        }
+
         const installed = versions.get(file.module);
+
         return {
           file,
           path,
@@ -90,6 +106,7 @@ export async function moduleFiles(
       }),
     );
   }
+
   return Promise.all(files.map((file) => fileState(context, file)));
 }
 
@@ -99,12 +116,14 @@ async function fileState(
 ): Promise<ModuleFileState> {
   const current = await readFile(
     resolve(context.config.root, file.path),
-    "utf8",
+    "utf-8",
   ).catch(() => undefined);
+
   const installed =
     current === undefined
       ? undefined
       : (moduleFileVersion(current)?.version ?? 1);
+
   return {
     file,
     path: file.path,

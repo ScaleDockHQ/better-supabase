@@ -32,11 +32,13 @@ describe("list types", () => {
       sorts: { name: { name: "asc" } },
       defaultSort: "name",
     });
+
     const list = defineListQuery(betterSupabase, "customers", {
       filters: { name: { type: "text" } },
       sorts: { name: { name: "asc" } },
       defaultSort: "name",
     });
+
     expectTypeOf(list.parse(undefined).value!.filter).toEqualTypeOf<
       FilterQuery | undefined
     >();
@@ -50,11 +52,14 @@ describe("list types", () => {
       sorts: { name: { name: "asc" }, newest: { createdAt: "desc" } },
       defaultSort: "newest",
     });
+
     const query = list.parse(undefined).value!;
     expectTypeOf(query).toEqualTypeOf<ListQuery<"name" | "newest", "status">>();
+
     const page = await list
       .run(db, query, { select: ["id", "name"] })
       .orThrow();
+
     expectTypeOf(page).toEqualTypeOf<
       OffsetPage<{ id: string; name: string }>
     >();
@@ -66,10 +71,13 @@ describe("list types", () => {
       defaultSort: "name",
       pagination: "cursor",
     });
+
     expectTypeOf(list.pagination).toEqualTypeOf<"cursor">();
+
     const page = await list
       .run(db, list.defaults, { select: ["id"] })
       .orThrow();
+
     expectTypeOf(page).toEqualTypeOf<CursorPage<{ id: string }>>();
     expectTypeOf(list.args(list.defaults).after).toEqualTypeOf<string | null>();
   });
@@ -82,9 +90,11 @@ describe("list types", () => {
       facetCounts: true,
       count: "planned",
     });
+
     const page = await list
       .run(db, list.defaults, { include: { notes: true }, count: "exact" })
       .orThrow();
+
     expectTypeOf(page.facetCounts).toEqualTypeOf<{
       readonly status: Readonly<Record<string, number>>;
     }>();

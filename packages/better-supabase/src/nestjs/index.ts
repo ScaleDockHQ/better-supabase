@@ -63,9 +63,11 @@ function isServerResponse(value: object): value is ServerResponse {
 
 function responseOf(host: ExecutionContextLike): ServerResponse {
   const raw = rawOf(host.switchToHttp().getResponse());
+
   if (!isServerResponse(raw)) {
     throw new TypeError("better-supabase: not an HTTP response");
   }
+
   return raw;
 }
 
@@ -87,13 +89,18 @@ async function continueWith(
   next: (error?: unknown) => void,
 ): Promise<void> {
   let proceed: boolean;
+
   try {
     proceed = await step;
   } catch (error) {
     next(error);
+
     return;
   }
-  if (proceed) next();
+
+  if (proceed) {
+    next();
+  }
 }
 
 /**
@@ -114,6 +121,7 @@ export function toNestMiddleware<const Entries extends readonly AnyEntry[]>(
   options: ToNodeOptions = {},
 ): NestMiddleware {
   const run = beforeRoute(entries);
+
   const handle = async (
     req: IncomingMessage,
     res: ServerResponse,
@@ -122,14 +130,19 @@ export function toNestMiddleware<const Entries extends readonly AnyEntry[]>(
       toWebRequest(req, { ...options, body: false }),
       options.env?.(req),
     );
+
     if (!outcome.reached) {
       await sendWebResponse(res, outcome.response);
+
       return false;
     }
+
     applyWebHeaders(res, outcome.headers);
     contexts.set(req, outcome.contributions);
+
     return true;
   };
+
   return (req, res, next) => {
     void continueWith(handle(req, res), next);
   };
@@ -163,8 +176,12 @@ let nest: NestCommon | undefined;
  * required synchronously because decorators run while the class is defined.
  */
 function nestCommon(): NestCommon {
-  if (nest) return nest;
+  if (nest) {
+    return nest;
+  }
+
   let loaded: unknown;
+
   try {
     loaded = createRequire(import.meta.url)(NEST_COMMON);
   } catch (cause) {
@@ -173,12 +190,15 @@ function nestCommon(): NestCommon {
       { cause },
     );
   }
+
   if (!isNestCommon(loaded)) {
     throw new Error(
       "better-supabase/nestjs: @nestjs/common has no createParamDecorator",
     );
   }
+
   nest = loaded;
+
   return nest;
 }
 
@@ -196,13 +216,16 @@ let ctxDecorator: ((data?: unknown) => ParameterDecorator) | undefined;
 export function Ctx(key?: string): ParameterDecorator {
   ctxDecorator ??= nestCommon().createParamDecorator((data, context) => {
     const contributions = contextOf(context.switchToHttp().getRequest());
+
     if (contributions === undefined) {
       throw new Error(
         "better-supabase: no request context; apply toNestMiddleware(...) for this route",
       );
     }
+
     return typeof data === "string" ? contributions[data] : contributions;
   });
+
   return ctxDecorator(key);
 }
 
@@ -219,20 +242,29 @@ export function guard(options: RouteGuardOptions = {}): CanActivateLike {
     canActivate: async (context) => {
       const req = requestOf(context);
       const contributions = contexts.get(req);
+
       if (contributions === undefined) {
         throw new Error(
           "better-supabase: no request context; apply toNestMiddleware(...) before the guard",
         );
       }
+
       const refused = await routeRefusal(
         guardedLocals(contributions),
         toWebRequest(req, { body: false }),
         options,
       );
-      if (!refused) return true;
+
+      if (!refused) {
+        return true;
+      }
+
       const location = refused.headers.get("location");
-      if (location !== null)
+
+      if (location !== null) {
         responseOf(context).setHeader("location", location);
+      }
+
       const body: unknown = refused.body ? await refused.json() : {};
       const { HttpException } = nestCommon();
       throw new HttpException(
@@ -255,10 +287,15 @@ export function problemFilter(
     catch(exception, host) {
       const req = requestOf(host);
       const res = responseOf(host);
+
       const response =
         errorResponse(exception, toWebRequest(req, { body: false }), options) ??
         nestErrorResponse(exception);
-      if (res.headersSent) return;
+
+      if (res.headersSent) {
+        return;
+      }
+
       void sendWebResponse(res, response);
     },
   };
@@ -285,11 +322,13 @@ function nestErrorResponse(exception: unknown): Response {
   if (isHttpException(exception)) {
     const status: unknown = exception.getStatus();
     const body: unknown = exception.getResponse();
+
     return Response.json(
       typeof body === "string" ? { statusCode: status, message: body } : body,
       { status: typeof status === "number" ? status : 500 },
     );
   }
+
   return Response.json(
     { statusCode: 500, message: "Internal server error" },
     { status: 500 },

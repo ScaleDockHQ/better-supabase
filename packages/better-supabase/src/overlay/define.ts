@@ -84,51 +84,71 @@ export function defineOverlay<const I extends OverlayInput>(
 ): DefinedOverlay<I>;
 export function defineOverlay(input: OverlayInput): Overlay {
   const { overlay: declared, ...rest } = input;
-  if (input.actions.length === 0)
+
+  if (input.actions.length === 0) {
     throw new TypeError("defineOverlay: an overlay needs at least one action");
+  }
+
   const references = input.actions.filter(isReference);
+
   const uses12 =
     input.components !== undefined ||
     input.$self !== undefined ||
     references.length > 0;
+
   const version = declared ?? (uses12 ? "1.2.0" : "1.1.0");
-  if (version !== "1.2.0" && uses12)
+
+  if (version !== "1.2.0" && uses12) {
     throw new TypeError(
       `defineOverlay: reusable actions, components and $self need overlay 1.2.0, not ${version}`,
     );
+  }
+
   if (
     version === "1.0.0" &&
     input.actions.some(
       (action) => !isReference(action) && action.copy !== undefined,
     )
-  )
+  ) {
     throw new TypeError("defineOverlay: copy needs overlay 1.1.0 or later");
+  }
+
   for (const field of ["extends", "$self"] as const) {
-    if (input[field]?.includes("#"))
+    if (input[field]?.includes("#")) {
       throw new TypeError(
         `defineOverlay: ${field} must not contain a fragment`,
       );
+    }
   }
+
   const reusables = input.components?.actions ?? {};
+
   for (const reference of references) {
     const name = decodePointerToken(
       reference.$ref.slice("#/components/actions/".length),
     );
-    if (!Object.hasOwn(reusables, name))
+
+    if (!Object.hasOwn(reusables, name)) {
       throw new TypeError(
         `defineOverlay: ${reference.$ref} does not exist in components.actions`,
       );
+    }
   }
+
   switch (version) {
-    case "1.2.0":
+    case "1.2.0": {
       return { overlay: version, ...rest };
+    }
+
     case "1.1.0":
-    case "1.0.0":
+    case "1.0.0": {
       return {
         overlay: version,
         ...rest,
         actions: input.actions.filter(isPlain),
       };
+    }
+
     default: {
       const unknown: never = version;
       throw new TypeError(
@@ -151,17 +171,26 @@ export function expandReusableActions(overlay: Overlay): {
   const reporter: Reporter = { prefix: "", diagnostics: [] };
   const actions: OverlayAction[] = [];
   const entries: readonly unknown[] = overlay.actions;
+
   for (const [index, entry] of entries.entries()) {
-    if (!isObject(entry)) continue;
+    if (!isObject(entry)) {
+      continue;
+    }
+
     const action =
       "$ref" in entry
         ? resolveReference(overlay, entry, `/actions/${index}`, reporter)
         : entry;
-    if (action && isAction(action)) actions.push(action);
+
+    if (action && isAction(action)) {
+      actions.push(action);
+    }
   }
+
   const extensions = Object.fromEntries(
     Object.entries(overlay).filter(([key]) => key.startsWith("x-")),
   );
+
   return {
     overlay: {
       overlay: "1.1.0",

@@ -1,9 +1,8 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
-
-import {
-  type RealtimeChannel,
-  type RealtimePresenceState,
-  type SupabaseClient,
+import type {
+  RealtimeChannel,
+  RealtimePresenceState,
+  SupabaseClient,
 } from "@supabase/supabase-js";
 
 import type { AuthorizationFunctions } from "../config/authorization.ts";
@@ -131,6 +130,7 @@ export interface TopicMessage {
 type Output<S> = S extends StandardSchemaV1
   ? StandardSchemaV1.InferOutput<S>
   : unknown;
+
 type Input<S> = S extends StandardSchemaV1
   ? StandardSchemaV1.InferInput<S>
   : unknown;
@@ -153,6 +153,7 @@ export type TopicHandlers<E extends EventSchemas> = [keyof E] extends [never]
 export type TopicEvent<E extends EventSchemas> = [keyof E] extends [never]
   ? string
   : keyof E & string;
+
 export type TopicPayload<E extends EventSchemas, K extends string> = [
   keyof E,
 ] extends [never]
@@ -210,9 +211,11 @@ export interface PresenceSubscription<I, O> extends Subscription {
 }
 
 type PresenceState = Readonly<Record<string, unknown>>;
+
 export type PresenceInput<R> = R extends StandardSchemaV1
   ? StandardSchemaV1.InferInput<R>
   : PresenceState;
+
 export type PresenceOutput<R> = R extends StandardSchemaV1
   ? StandardSchemaV1.InferOutput<R>
   : PresenceState;
@@ -394,8 +397,12 @@ async function validate(
   | { ok: true; value: unknown }
   | { ok: false; issues: readonly ValidationIssue[] }
 > {
-  if (!schema) return { ok: true, value };
+  if (!schema) {
+    return { ok: true, value };
+  }
+
   const result = await schema["~standard"].validate(value);
+
   if (result.issues) {
     return {
       ok: false,
@@ -411,14 +418,23 @@ async function validate(
       })),
     };
   }
+
   return { ok: true, value: result.value };
 }
 
 function sendError(status: number, message: string): DbError {
-  if (status === 401) return dbError("unauthorized", message);
-  if (status === 403) return dbError("forbidden", message);
-  if (status === 429 || status >= 500 || status === 0)
+  if (status === 401) {
+    return dbError("unauthorized", message);
+  }
+
+  if (status === 403) {
+    return dbError("forbidden", message);
+  }
+
+  if (status === 429 || status >= 500 || status === 0) {
     return dbError("network", message, status ? { status } : {});
+  }
+
   return dbError("invalid_request", message, { status });
 }
 
@@ -443,37 +459,50 @@ export function defineTopic<
   const name = slug(options.name ?? literal) || "topic";
   const isPrivate = options.private ?? true;
   const schemas: EventSchemas = options.events ?? {};
+
   const hasPresence =
     options.presence !== undefined && options.presence !== false;
+
   const presenceSchema =
     typeof options.presence === "object" ? options.presence : undefined;
 
   const segment = (param: string, kind: string): number => {
     const index = parsed.segmentOf(param);
+
     if (index === undefined) {
       throw new TypeError(
         `defineTopic: the ${kind} check needs {${param}} as a whole segment in "${template}"`,
       );
     }
+
     return index;
   };
+
   const checks: string[] = [];
   const access = options.access;
+
   const tenantParam =
     options.tenant === false
       ? undefined
       : (options.tenant?.param ?? "organizationId");
+
   const accessChecksFor = (
     functions?: AuthorizationFunctions,
   ): { receive: string; send: string } | undefined => {
-    if (!access) return undefined;
+    if (!access) {
+      return undefined;
+    }
+
     const where = `defineTopic(${template})`;
     const target = resolveProviderSql(where, access, functions);
+
     const id =
       access.scope === "platform"
         ? undefined
         : `split_part((select realtime.topic()), ':', ${String(access.segment ?? segment(tenantParam ?? "organizationId", "access"))})`;
+
     const receive = accessCheck(where, target, access.receive, id);
+
     return {
       receive,
       send:
@@ -482,22 +511,28 @@ export function defineTopic<
           : accessCheck(where, target, access.send, id),
     };
   };
+
   const fixedChecks =
     access?.sql === "provider" ? undefined : accessChecksFor();
+
   if (
     !access &&
     tenantParam &&
     (options.tenant || parsed.params.includes(tenantParam))
   ) {
     const tenant = options.tenant === false ? {} : (options.tenant ?? {});
+
     const expression =
       tenant.sql ?? claimSql(tenant.claim ?? tenantClaimPaths());
+
     checks.push(
       `split_part((select realtime.topic()), ':', ${String(segment(tenantParam, "tenant"))}) = (${expression})`,
     );
   }
+
   const ownerParam =
     options.owner === false ? undefined : (options.owner?.param ?? "userId");
+
   if (ownerParam && (options.owner || parsed.params.includes(ownerParam))) {
     checks.push(
       `split_part((select realtime.topic()), ':', ${String(segment(ownerParam, "owner"))}) = (select auth.uid())::text`,
@@ -508,17 +543,26 @@ export function defineTopic<
     typeof options.permission === "string"
       ? { key: options.permission }
       : options.permission;
+
   const permissionTarget = (() => {
-    if (permission === undefined) return;
+    if (permission === undefined) {
+      return;
+    }
+
     const key = permission.key;
-    if (key === "")
+
+    if (key === "") {
       throw new TypeError(`defineTopic(${template}): the permission is empty`);
+    }
+
     const param = permission.param ?? parsed.params.at(-1);
+
     if (param === undefined) {
       throw new TypeError(
         `defineTopic(${template}): permission "${key}" needs a placeholder for the instance id`,
       );
     }
+
     return {
       key,
       idSegment: segment(param, "permission"),
@@ -545,9 +589,11 @@ export function defineTopic<
         access?.sql === "provider"
           ? accessChecksFor(sqlOptions?.functions)
           : fixedChecks;
+
       const extensions = hasPresence
         ? "('broadcast', 'presence')"
         : "('broadcast')";
+
       const permissionCheck =
         permissionTarget === undefined
           ? undefined
@@ -556,6 +602,7 @@ export function defineTopic<
               ...permissionTarget,
               permitted: sqlOptions?.functions?.permitted,
             });
+
       const condition = (extra: string | undefined) =>
         [
           `(select realtime.topic()) ~ ${sqlString(parsed.sqlPattern)}`,
@@ -564,17 +611,22 @@ export function defineTopic<
           ...(extra === undefined ? [] : [extra]),
           ...(permissionCheck === undefined ? [] : [permissionCheck]),
         ].join("\n    and ");
+
       const lines = [`-- better-supabase: topic ${template}`];
+
       const policies: [string, string, "using" | "with check", string][] = [
         ["receive", "select", "using", condition(accessChecks?.receive)],
       ];
-      if (options.send || hasPresence || access?.send !== undefined)
+
+      if (options.send || hasPresence || access?.send !== undefined) {
         policies.push([
           "send",
           "insert",
           "with check",
           condition(accessChecks?.send),
         ]);
+      }
+
       for (const [suffix, command, clause, check] of policies) {
         const policy = sqlIdent(`bs_topic_${name}_${suffix}`);
         lines.push(
@@ -582,42 +634,61 @@ export function defineTopic<
           `create policy ${policy} on realtime.messages for ${command} to authenticated\n  ${clause} (\n    ${check}\n  );`,
         );
       }
+
       return `${lines.join("\n")}\n`;
     },
     triggerSql(betterSupabase, table, trigger) {
       const meta: TableMeta | undefined = betterSupabase.meta.tables[table];
-      if (!meta) throw new TypeError(`defineTopic: unknown table "${table}"`);
+
+      if (!meta) {
+        throw new TypeError(`defineTopic: unknown table "${table}"`);
+      }
+
       // SAFETY: trigger values name table columns or lookups by topic
       // parameter, and templates hold strings.
       const values = trigger.values as Readonly<
         Record<string, AnyTriggerValue | undefined>
       >;
+
       const tables = betterSupabase.meta.tables;
+
       const parts = template
         .split(/(\{[^}]+\})/)
         .filter(Boolean)
         .map((part) => {
           const param = /^\{(.+)\}$/.exec(part)?.[1];
-          if (param === undefined) return sqlString(part);
+
+          if (param === undefined) {
+            return sqlString(part);
+          }
+
           const value = values[param];
-          if (value === undefined)
+
+          if (value === undefined) {
             throw new TypeError(
               `defineTopic: no column for {${param}} on "${table}"`,
             );
+          }
+
           return `${triggerValueSql(tables, meta, value, `{${param}}`)}::text`;
         });
+
       const schema = trigger.functionSchema ?? "better_supabase";
       const fn = `${sqlIdent(schema)}.${sqlIdent(`bs_broadcast_${name}_${slug(meta.name)}`)}`;
       const triggerName = sqlIdent(`bs_broadcast_${name}`);
       const target = `${sqlIdent(meta.schema)}.${sqlIdent(meta.name)}`;
+
       const events = (trigger.events ?? ["insert", "update", "delete"]).join(
         " or ",
       );
+
       const event = eventSql(trigger.event);
+
       // SAFETY: payload values are columns, lookups or `{ sql }`.
       const payload = trigger.payload as
         | Readonly<Record<string, AnyTriggerValue | { readonly sql: string }>>
         | undefined;
+
       const send = payload
         ? [
             "  perform realtime.send(",
@@ -639,6 +710,7 @@ export function defineTopic<
             `    topic, ${event}, tg_op, tg_table_name, tg_table_schema, new, old`,
             "  );",
           ];
+
       return [
         `-- better-supabase: broadcast ${meta.name} changes to ${template}`,
         `create schema if not exists ${sqlIdent(schema)};`,
@@ -676,10 +748,12 @@ export function defineTopic<
             table.slice(table.indexOf(".") + 1),
           ]
         : ["public", table];
+
       // SAFETY: `values` is keyed by the template's parameters.
       const columns = (trigger.values ?? {}) as Readonly<
         Record<string, string | undefined>
       >;
+
       for (const key of Object.keys(columns)) {
         if (!parsed.params.includes(key)) {
           throw new TypeError(
@@ -687,28 +761,35 @@ export function defineTopic<
           );
         }
       }
+
       const sqlTemplate = template.replaceAll(
         /\{([^}]+)\}/g,
         (_, param: string) => {
           const column = columns[param] ?? snakeCase(param);
+
           if (/[{}]/.test(column)) {
             throw new TypeError(
               `defineTopic(${template}).trigger: the column for {${param}} can't contain braces`,
             );
           }
+
           return `{${column}}`;
         },
       );
+
       const events = (trigger.events ?? ["insert", "update", "delete"]).join(
         " or ",
       );
+
       const triggerName = sqlIdent(`bs_broadcast_${name}`);
       const target = `${sqlIdent(schema)}.${sqlIdent(relation)}`;
+
       const args = [
         sqlString(sqlTemplate),
         sqlString(trigger.event ?? ""),
         ...(isPrivate ? [] : [sqlString("false")]),
       ].join(", ");
+
       return [
         `-- better-supabase: broadcast ${schema}.${relation} changes to ${template}`,
         `drop trigger if exists ${triggerName} on ${target};`,
@@ -719,6 +800,7 @@ export function defineTopic<
     },
     subscribe(client, values, handlers, given) {
       const topic = topicOf(values);
+
       // SAFETY: handlers maps event names to callbacks; the per-event payload
       // types stop at this boundary.
       const table = handlers as Readonly<
@@ -727,14 +809,18 @@ export function defineTopic<
           ((payload: unknown, message: TopicMessage) => void) | undefined
         >
       >;
+
       // SAFETY: `onPresence` is only typed in on presence topics, and the
       // member states it receives passed the presence schema.
       const subscribeOptions = (given ?? {}) as SubscribeOptions &
         PresenceOptions<unknown>;
+
       let members: readonly PresenceMember<unknown>[] = [];
       let syncs = 0;
+
       const sync = async (state: RealtimePresenceState): Promise<void> => {
         const run = ++syncs;
+
         const checked = await Promise.all(
           Object.entries(state).flatMap(([key, metas]) =>
             metas.map(async ({ presence_ref: _ref, ...meta }) => ({
@@ -744,9 +830,14 @@ export function defineTopic<
             })),
           ),
         );
+
         // A later sync finished validating first.
-        if (run !== syncs) return;
+        if (run !== syncs) {
+          return;
+        }
+
         const valid: PresenceMember<unknown>[] = [];
+
         for (const each of checked) {
           if (each.checked.ok) {
             valid.push({ key: each.key, state: each.checked.value });
@@ -757,23 +848,33 @@ export function defineTopic<
             );
           }
         }
+
         members = valid;
         subscribeOptions.onPresence?.(valid);
       };
+
       const subscriber: Subscriber = {
         onStatus: subscribeOptions.onStatus,
         receive: (message) => {
           const handler = table[message.event] ?? table["*"];
-          if (!handler) return;
+
+          if (!handler) {
+            return;
+          }
+
           void validate(schemas[message.event], message.payload).then(
             (checked) => {
-              if (checked.ok) handler(checked.value, message);
-              else subscribeOptions.onInvalid?.(message, checked.issues);
+              if (checked.ok) {
+                handler(checked.value, message);
+              } else {
+                subscribeOptions.onInvalid?.(message, checked.issues);
+              }
             },
           );
         },
         ...(hasPresence ? { sync: (state) => void sync(state) } : {}),
       };
+
       const { shared, leave } = joinTopic(
         client,
         topic,
@@ -782,24 +883,32 @@ export function defineTopic<
         hasPresence,
         subscriber,
       );
+
       let closed = false;
+
       const unsubscribe = async () => {
-        if (closed) return;
+        if (closed) {
+          return;
+        }
+
         closed = true;
         await leave();
       };
+
       const presenceCall = (
         action: "track" | "untrack",
         run: () => Promise<string>,
       ): AsyncResult<void> =>
         AsyncResult.from(async () => {
-          if (closed)
+          if (closed) {
             return err(
               dbError(
                 "invalid_request",
                 `Presence ${action} after unsubscribe on ${topic}`,
               ),
             );
+          }
+
           try {
             await shared.ready;
           } catch (cause) {
@@ -814,13 +923,16 @@ export function defineTopic<
               ),
             );
           }
+
           const answer = await run();
+
           return answer === "ok"
             ? ok(undefined)
             : err(
                 dbError("network", `Presence ${action} ${answer} on ${topic}`),
               );
         });
+
       const subscription: Subscription = {
         topic,
         channel: shared.channel,
@@ -829,13 +941,15 @@ export function defineTopic<
         [Symbol.dispose]: () => void unsubscribe(),
         [Symbol.asyncDispose]: unsubscribe,
       };
+
       const result = hasPresence
         ? {
             ...subscription,
             track: (state: unknown) =>
               AsyncResult.from(async () => {
                 const checked = await validate(presenceSchema, state);
-                if (!checked.ok)
+
+                if (!checked.ok) {
                   return err(
                     dbError(
                       "validation",
@@ -845,8 +959,11 @@ export function defineTopic<
                       },
                     ),
                   );
+                }
+
                 return presenceCall("track", async () => {
                   shared.tracker = subscriber;
+
                   return shared.channel.track(
                     // SAFETY: a presence schema's output is the tracked object.
                     checked.value as Record<string, unknown>,
@@ -855,12 +972,16 @@ export function defineTopic<
               }),
             untrack: () =>
               presenceCall("untrack", async () => {
-                if (shared.tracker === subscriber) shared.tracker = undefined;
+                if (shared.tracker === subscriber) {
+                  shared.tracker = undefined;
+                }
+
                 return shared.channel.untrack();
               }),
             members: () => members,
           }
         : subscription;
+
       // SAFETY: the presence methods are added exactly when R allows presence.
       return result as TopicSubscription<R>;
     },
@@ -868,28 +989,39 @@ export function defineTopic<
       return AsyncResult.from(async () => {
         const topic = topicOf(values);
         const checked = await validate(schemas[event], payload);
-        if (!checked.ok)
+
+        if (!checked.ok) {
           return err(
             dbError("validation", `Invalid payload for ${event}`, {
               issues: checked.issues,
             }),
           );
+        }
+
         // client.channel() returns the open channel for a subscribed topic;
         // removing that one would end the caller's subscription.
         const open = client
           .getChannels()
           .some((existing) => existing.topic === `realtime:${topic}`);
-        if (isPrivate && !open) await refreshRealtimeAuth(client);
+
+        if (isPrivate && !open) {
+          await refreshRealtimeAuth(client);
+        }
+
         const channel = client.channel(topic, {
           config: { private: isPrivate },
         });
+
         try {
           const response = await channel.httpSend(event, checked.value);
+
           return response.success
             ? ok(undefined)
             : err(sendError(response.status, response.error));
         } finally {
-          if (!open) await client.removeChannel(channel);
+          if (!open) {
+            await client.removeChannel(channel);
+          }
         }
       });
     },
@@ -904,6 +1036,7 @@ export function defineTopic<
       );
     },
   };
+
   return api;
 }
 
@@ -923,6 +1056,7 @@ export function rowChange<
   message: TopicMessage,
 ): RowChange<Row<M, T>> | null {
   const meta: TableMeta | undefined = betterSupabase.meta.tables[table];
+
   // SAFETY: the broadcast trigger sends this payload shape, and every field is checked below.
   const payload = message.payload as {
     table?: string;
@@ -931,20 +1065,26 @@ export function rowChange<
     record?: Record<string, unknown> | null;
     old_record?: Record<string, unknown> | null;
   } | null;
+
   if (
     !meta ||
     !payload ||
     payload.table !== meta.name ||
     (payload.schema && payload.schema !== meta.schema)
-  )
+  ) {
     return null;
+  }
+
   const operation = payload.operation ?? message.event;
+
   if (
     operation !== "INSERT" &&
     operation !== "UPDATE" &&
     operation !== "DELETE"
-  )
+  ) {
     return null;
+  }
+
   return {
     operation,
     table,

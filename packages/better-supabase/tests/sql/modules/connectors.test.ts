@@ -10,6 +10,7 @@ const body = (modules: AnyBlocksConfig = {}) =>
 describe("connectors module", () => {
   it("owns servers, grants, sessions and fingerprints", () => {
     const sql = body();
+
     for (const table of [
       "connector_servers",
       "connector_grants",
@@ -45,6 +46,7 @@ describe("connectors module", () => {
 
   it("keeps grant writes and renewals to the service role", () => {
     const sql = body();
+
     for (const name of [
       "record_connector_grant",
       "expiring_connector_grants",

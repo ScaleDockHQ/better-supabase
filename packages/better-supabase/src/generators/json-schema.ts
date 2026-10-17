@@ -41,8 +41,12 @@ function withDeprecated(
   deprecated: boolean,
   columns: readonly string[],
 ): JsonSchema {
-  if (!deprecated && columns.length === 0) return schema;
+  if (!deprecated && columns.length === 0) {
+    return schema;
+  }
+
   const properties = schema["properties"];
+
   return {
     ...schema,
     ...(deprecated ? { deprecated: true } : {}),
@@ -74,17 +78,21 @@ export function buildJsonSchema(
   target: JsonSchemaTarget = "draft-2020-12",
 ): JsonSchema {
   const defs: Record<string, JsonSchema> = {};
+
   for (const [key, table] of tableEntries(input)) {
     const docs = tableDocs(input, table);
     const description = docs ? docs.description : table.description;
+
     for (const variant of variantsFor(table)) {
       const plans = fieldsFor(table, variant, input);
+
       const schema = tableJsonSchema({
         ...(docs ? { title: variantTitle(docs, variant) } : {}),
         ...(description === undefined ? {} : { description }),
         fields: Object.fromEntries(
           plans.map((plan) => {
             const spec = fieldSpec(plan, fieldDocs(docs, plan));
+
             return [
               plan.name,
               docs || plan.column.description === undefined
@@ -94,6 +102,7 @@ export function buildJsonSchema(
           }),
         ),
       });
+
       defs[`${key}${variant}`] = withDeprecated(
         schema,
         table.deprecated === true,
@@ -101,14 +110,17 @@ export function buildJsonSchema(
       );
     }
   }
+
   switch (target) {
-    case "draft-2020-12":
+    case "draft-2020-12": {
       return {
         $schema: "https://json-schema.org/draft/2020-12/schema",
         ...(id ? { $id: id } : {}),
         $defs: defs,
       };
-    case "draft-07":
+    }
+
+    case "draft-07": {
       return forTarget(
         {
           ...(id ? { $id: id } : {}),
@@ -118,7 +130,9 @@ export function buildJsonSchema(
         },
         "draft-07",
       );
-    case "openapi-3.0":
+    }
+
+    case "openapi-3.0": {
       return {
         ...(id ? { $id: id } : {}),
         definitions: Object.fromEntries(
@@ -128,8 +142,11 @@ export function buildJsonSchema(
           ]),
         ),
       };
+    }
+
     default: {
       const exhaustive: never = target;
+
       return exhaustive;
     }
   }
@@ -145,6 +162,7 @@ export function jsonSchema(
     generate(input: GeneratorInput): GeneratedFile[] {
       const path =
         options.output ?? siblingPath(input.config.output, "schema.json");
+
       return [
         {
           path,

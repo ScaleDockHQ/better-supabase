@@ -59,12 +59,17 @@ export const createDefinition = bs.action(
   },
   async ({ name }, { tenant, supabase }) => {
     const builder = builderFor(supabase);
+
     const saved = await builder.definitions.save({
       tenant,
       slug: slugOf(name),
       name,
     });
-    if (!saved.ok) return saved;
+
+    if (!saved.ok) {
+      return saved;
+    }
+
     const draft = await builder.versions.save(saved.data.id, {
       nodes: [
         {
@@ -76,8 +81,13 @@ export const createDefinition = bs.action(
       ],
       edges: [],
     });
-    if (!draft.ok) return draft;
+
+    if (!draft.ok) {
+      return draft;
+    }
+
     refresh();
+
     return ok(saved.data.id);
   },
 );
@@ -90,7 +100,11 @@ export const saveDraft = bs.action(
   },
   async ({ definition, graph }, { supabase }) => {
     const saved = await builderFor(supabase).versions.save(definition, graph);
-    if (!saved.ok) return saved;
+
+    if (!saved.ok) {
+      return saved;
+    }
+
     return ok(saved.data.id);
   },
 );
@@ -105,10 +119,19 @@ export const publishGraph = bs.action(
   async ({ definition, graph }, { supabase }) => {
     const builder = builderFor(supabase);
     const draft = await builder.versions.save(definition, graph);
-    if (!draft.ok) return draft;
+
+    if (!draft.ok) {
+      return draft;
+    }
+
     const published = await builder.versions.publish(draft.data.id);
-    if (!published.ok) return published;
+
+    if (!published.ok) {
+      return published;
+    }
+
     refresh();
+
     return ok(published.data.version);
   },
 );
@@ -126,6 +149,7 @@ export const runDefinition = bs.action(
     if (auth.kind !== "user") {
       return err(dbError("unauthorized", "Sign in to run a workflow"));
     }
+
     return builderFor(supabase).run({
       definition,
       input: { text: text ?? "" },
@@ -149,19 +173,30 @@ export const saveTrigger = bs.action(
   },
   async ({ definition, kind, cron, event }, { tenant, supabase }) => {
     const builder = builderFor(supabase);
+
     const config =
       kind === "schedule"
         ? { cron: cron ?? "0 9 * * *" }
         : kind === "event"
           ? { type: event ?? "" }
           : {};
+
     const saved = await builder.triggers.save({ definition, kind, config });
-    if (!saved.ok) return saved;
+
+    if (!saved.ok) {
+      return saved;
+    }
+
     if (kind === "schedule") {
       const synced = await builder.triggers.syncSchedule(saved.data, tenant);
-      if (!synced.ok) return synced;
+
+      if (!synced.ok) {
+        return synced;
+      }
     }
+
     refresh();
+
     return ok(saved.data.id);
   },
 );
@@ -174,8 +209,13 @@ export const removeTrigger = bs.action(
   },
   async ({ id }, { supabase }) => {
     const removed = await builderFor(supabase).triggers.remove(id);
-    if (!removed.ok) return removed;
+
+    if (!removed.ok) {
+      return removed;
+    }
+
     refresh();
+
     return ok(removed.data);
   },
 );
@@ -211,8 +251,13 @@ export const createCredential = bs.action(
       },
       secret,
     });
-    if (!created.ok) return created;
+
+    if (!created.ok) {
+      return created;
+    }
+
     refresh();
+
     return ok(created.data.id);
   },
 );
@@ -225,8 +270,13 @@ export const revokeCredential = bs.action(
   },
   async ({ id }, { supabase }) => {
     const revoked = await builderFor(supabase).credentials.revoke(id);
-    if (!revoked.ok) return revoked;
+
+    if (!revoked.ok) {
+      return revoked;
+    }
+
     refresh();
+
     return ok(revoked.data);
   },
 );
@@ -246,13 +296,21 @@ export const decideNode = bs.action(
     if (auth.kind !== "user") {
       return err(dbError("unauthorized", "Sign in to decide"));
     }
+
     const found = await blocks(supabase).workflows.runs.get(run);
-    if (!found.ok) return found;
+
+    if (!found.ok) {
+      return found;
+    }
+
     const key = found.data?.attributes["bs.key"];
+
     if (found.data?.tenant !== tenant || !v.is(v.string(), key)) {
       return err(dbError("not_found", "No such run"));
     }
+
     await resumeHook(approvalToken(key, node), { approved, by: auth.user.id });
+
     return ok(true);
   },
 );

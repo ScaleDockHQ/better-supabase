@@ -29,6 +29,7 @@ const meta = {
     tags: {},
   },
 };
+
 const betterSupabase = defineSupabase(defineSchema(meta));
 
 const info = { title: "CRM events", version: "1.0.0" };
@@ -38,6 +39,7 @@ const supportStarted = standard({
   type: "object",
   properties: { sessionId: { type: "string" } },
 }) as unknown as BlockEventSchema<SupportEventData>;
+
 const realtimeUrl = "https://crm.supabase.co/realtime/v1/websocket";
 
 const api = defineApi(betterSupabase, {
@@ -154,11 +156,13 @@ describe("asyncapiFormat", () => {
               : undefined,
           doc,
         );
+
       expect({ ref, resolves: target !== undefined }).toEqual({
         ref,
         resolves: true,
       });
     }
+
     expect(rendered.diagnostics.filter((d) => d.severity === "error")).toEqual(
       [],
     );
@@ -187,10 +191,12 @@ describe("asyncapiFormat", () => {
     expect(schemes["supabaseApiKey"]).toMatchObject({ type: "httpApiKey" });
     expect(schemes["supabaseOAuth"]).toMatchObject({ type: "oauth2" });
     const flows = (schemes["supabaseOAuth"]?.["flows"] ?? {}) as Json;
+
     for (const flow of Object.values(flows)) {
       expect(flow).toHaveProperty("availableScopes");
       expect(flow).not.toHaveProperty("scopes");
     }
+
     expect(schemes).not.toHaveProperty("profile");
     expect(codes(rendered.diagnostics)).toContain(
       "asyncapi-security-unsupported",
@@ -380,6 +386,7 @@ describe("asyncapiFormat: findings", () => {
         cloudEvents: { source: "/crm", rows: ["missing"] },
       },
     }).render(asyncapiFormat);
+
     expect(codes(diagnostics)).toEqual(
       expect.arrayContaining([
         "asyncapi-realtime-url-invalid",
@@ -395,6 +402,7 @@ describe("asyncapiFormat: findings", () => {
         cloudEvents: { source: "/crm", rows: true, typePrefix: "com.crm" },
       },
     });
+
     const doc = asyncapiFormat.lower(model, "3.0", { report: () => {} });
     expect(doc.servers?.["realtime"]).toMatchObject({ protocol: "ws" });
     expect(Object.keys(doc.channels)).toEqual([
@@ -412,6 +420,7 @@ describe("asyncapiFormat: findings", () => {
     const { model } = base({
       events: { tables: false, cloudEvents: { source: "/crm" } },
     });
+
     expect(model.channels).toEqual([]);
     expect(model.messageTraits).toBeUndefined();
   });
@@ -448,10 +457,13 @@ describe("asyncapiFormat: findings", () => {
         },
       ],
     });
+
     const found: SpecDiagnostic[] = [];
+
     const doc = asyncapiFormat.lower(model, "3.0", {
       report: (diagnostic) => found.push(diagnostic),
     });
+
     expect(codes(found)).toEqual(
       expect.arrayContaining([
         "asyncapi-key-invalid",
@@ -471,6 +483,7 @@ describe("asyncapiFormat: findings", () => {
 
   it("reports combined security requirements", () => {
     const { model } = base();
+
     const combined: ApiModel = {
       ...model,
       realtimeUrl,
@@ -479,10 +492,13 @@ describe("asyncapiFormat: findings", () => {
         { id: "c", address: "c", protocol: "ws", messages: [], operations: [] },
       ],
     };
+
     const found: SpecDiagnostic[] = [];
+
     const doc = asyncapiFormat.lower(combined, "3.0", {
       report: (diagnostic) => found.push(diagnostic),
     });
+
     expect(codes(found)).toContain("asyncapi-security-combined");
     expect(doc.servers?.["realtime"]?.["security"]).toEqual([
       { $ref: "#/components/securitySchemes/supabaseJwt" },
@@ -508,6 +524,7 @@ describe("asyncapiFormat: findings", () => {
         },
       },
     });
+
     const doc = asyncapiFormat.lower(model, "3.1", { report: () => {} });
     expect(doc.components.securitySchemes?.["oidc"]).toEqual({
       type: "openIdConnect",
@@ -522,6 +539,7 @@ describe("asyncapiFormat: findings", () => {
 describe("asyncapiFormat: lint", () => {
   const lint = (doc: AnyAsyncApiDocument) =>
     asyncapiFormat.lint?.(doc, "3.0") ?? [];
+
   const doc = api.render(asyncapiFormat).document;
 
   it("finds broken references, parameters, channels and messages", () => {
@@ -555,15 +573,19 @@ describe("asyncapiFormat: lint", () => {
 describe("BlockEventSchemas", () => {
   it("checks schemas against a block's event map", () => {
     const wrong = {} as BlockEventSchema<{ readonly adminId: number }>;
+
     const schemas: BlockEventSchemas<SupportSessionsEvents> = {
       // @ts-expect-error: adminId is a string in SupportEventData
       "support.started": wrong,
     };
+
     expect(schemas).toBeDefined();
+
     const unknown: BlockEventSchemas<SupportSessionsEvents> = {
       // @ts-expect-error: not a support event
       "nope.event": true,
     };
+
     expect(unknown).toBeDefined();
   });
 });
@@ -571,12 +593,14 @@ describe("BlockEventSchemas", () => {
 describe("createAsyncApi", () => {
   it("returns the document and passes findings to onDiagnostic", () => {
     const heard: string[] = [];
+
     const doc = createAsyncApi(betterSupabase, {
       info,
       realtimeUrl,
       events: { tables: ["customers"] },
       onDiagnostic: (diagnostic) => heard.push(diagnostic.code),
     });
+
     expect(doc.asyncapi).toBe(SPEC_PINS.asyncapi30);
     expect(Object.keys(doc.channels)).toEqual(["tableCustomers"]);
     expect(Array.isArray(heard)).toBe(true);
@@ -590,10 +614,12 @@ describe("createAsyncApi", () => {
       events: {},
       transform: ({ version, document }) => {
         expect(version).toBe("3.1");
+
         return { ...document, info: { ...document.info, title: "Changed" } };
       },
       overlays: [],
     });
+
     expect(doc.asyncapi).toBe(SPEC_PINS.asyncapi31);
     expect(doc.info.title).toBe("Changed");
   });

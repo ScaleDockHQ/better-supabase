@@ -45,19 +45,27 @@ export async function supabaseMcp(
 ): Promise<SupabaseMcp> {
   const readOnly = options.readOnly ?? true;
   const url = new URL(options.url ?? SUPABASE_MCP_URL);
+
   if (options.projectRef !== undefined) {
     url.searchParams.set("project_ref", options.projectRef);
   }
-  if (readOnly) url.searchParams.set("read_only", "true");
+
+  if (readOnly) {
+    url.searchParams.set("read_only", "true");
+  }
+
   if (options.features !== undefined) {
     url.searchParams.set("features", options.features.join(","));
   }
+
   const module = await load();
+
   // SAFETY: createToolSchemas returns Zod input and output schemas by tool name, the shape McpToolSchemas describes.
   const schemas = module.createToolSchemas({
     ...(options.features === undefined ? {} : { features: options.features }),
     projectScoped: options.projectRef !== undefined,
     readOnly,
   }) as McpToolSchemas;
+
   return { url: url.href, schemas };
 }

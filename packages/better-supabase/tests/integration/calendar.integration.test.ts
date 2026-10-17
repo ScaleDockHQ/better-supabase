@@ -72,6 +72,7 @@ describe.skipIf(!live)("calendar block in Postgres", () => {
 
   it("saves a series as a member and expands it across DST", async () => {
     await session.as(member);
+
     const saved = await calendar
       .save(calendarId, {
         title: "Stand-up",
@@ -81,6 +82,7 @@ describe.skipIf(!live)("calendar block in Postgres", () => {
         rrule: "FREQ=WEEKLY;BYDAY=MO;COUNT=6",
       })
       .orThrow();
+
     seriesId = saved.id;
     expect(saved).toMatchObject({ uid: saved.id, created: true });
     const found = await calendar.occurrences([calendarId], range).orThrow();
@@ -96,25 +98,31 @@ describe.skipIf(!live)("calendar block in Postgres", () => {
 
   it("refuses a viewer and an invalid event", async () => {
     await session.as(viewer);
+
     const refused = await calendar.save(calendarId, {
       title: "x",
       startsAt: at("2026-03-01T08:00:00Z"),
       endsAt: at("2026-03-01T09:00:00Z"),
     });
+
     expect(refused.ok ? undefined : refused.error.hint).toBe(
       "CALENDAR_FORBIDDEN",
     );
     await session.as(member);
+
     const backwards = await calendar.save(calendarId, {
       title: "x",
       startsAt: at("2026-03-01T09:00:00Z"),
       endsAt: at("2026-03-01T08:00:00Z"),
     });
+
     expect(backwards.ok).toBe(false);
+
     const status = await calendar.save(calendarId, {
       id: seriesId,
       status: "done" as "confirmed",
     });
+
     expect(status.ok ? undefined : status.error.hint).toBe(
       "CALENDAR_EVENT_INVALID",
     );
@@ -123,6 +131,7 @@ describe.skipIf(!live)("calendar block in Postgres", () => {
   it("overrides, cancels and splits occurrences", async () => {
     await session.as(member);
     let found = await calendar.occurrences([calendarId], range).orThrow();
+
     const override = await calendar
       .editOccurrence(found[1]!, {
         title: "Stand-up (late)",
@@ -130,6 +139,7 @@ describe.skipIf(!live)("calendar block in Postgres", () => {
         endsAt: at("2026-03-30T09:15:00Z"),
       })
       .orThrow();
+
     expect(override.uid).toBe(seriesId);
     expect(await calendar.cancelOccurrence(found[2]!).orThrow()).toBe(true);
     found = await calendar.occurrences([calendarId], range).orThrow();
@@ -142,9 +152,11 @@ describe.skipIf(!live)("calendar block in Postgres", () => {
       ["Stand-up", "2026-04-20T07:00:00Z"],
       ["Stand-up", "2026-04-27T07:00:00Z"],
     ]);
+
     const split = await calendar
       .editFollowing(found[3]!, { title: "Planning" })
       .orThrow();
+
     found = await calendar.occurrences([calendarId], range).orThrow();
     expect(
       found.map((item) => [item.event.title, item.start.toString()]),
@@ -155,10 +167,12 @@ describe.skipIf(!live)("calendar block in Postgres", () => {
       ["Planning", "2026-04-20T07:00:00Z"],
       ["Planning", "2026-04-27T07:00:00Z"],
     ]);
+
     const rows = await session.rows<{ rrule: string; uid: string }>(
       "select rrule, uid from calendar_it.calendar_events where id = any($1) order by starts_at",
       [[seriesId, split.id]],
     );
+
     expect(rows).toEqual([
       { rrule: "FREQ=WEEKLY;BYDAY=MO;UNTIL=20260420T065959Z", uid: seriesId },
       {
@@ -173,6 +187,7 @@ describe.skipIf(!live)("calendar block in Postgres", () => {
       "select rrule from better_supabase.recurrence_rules where subject_type = 'calendar_event' and subject_id = $1",
       [seriesId],
     );
+
     expect(rules).toEqual([
       { rrule: "FREQ=WEEKLY;BYDAY=MO;UNTIL=20260420T065959Z" },
     ]);
@@ -180,18 +195,23 @@ describe.skipIf(!live)("calendar block in Postgres", () => {
 
   it("hides events from other tenants through the policies", async () => {
     await session.asRole(outsider);
+
     try {
       expect(await calendar.events([calendarId], range).orThrow()).toEqual([]);
     } finally {
       await session.as(owner);
     }
+
     await session.asRole(viewer);
+
     try {
       expect(await calendar.events([calendarId], range).orThrow()).toEqual([]);
     } finally {
       await session.as(owner);
     }
+
     await session.asRole(member);
+
     try {
       expect(
         (await calendar.events([calendarId], range).orThrow()).length,
@@ -227,6 +247,7 @@ describe.skipIf(!live)("calendar block in Postgres", () => {
 
   it("imports an iCalendar file idempotently by UID", async () => {
     await session.as(member);
+
     const ics = [
       "BEGIN:VCALENDAR",
       "BEGIN:VEVENT",
@@ -250,6 +271,7 @@ describe.skipIf(!live)("calendar block in Postgres", () => {
       "END:VEVENT",
       "END:VCALENDAR",
     ].join("\r\n");
+
     expect(await calendar.importIcs(calendarId, ics).orThrow()).toEqual({
       created: 2,
       updated: 0,
@@ -263,6 +285,7 @@ describe.skipIf(!live)("calendar block in Postgres", () => {
         )
         .orThrow(),
     ).toEqual({ created: 0, updated: 2, skipped: 1 });
+
     const reviews = (
       await calendar
         .occurrences([calendarId], {
@@ -271,6 +294,7 @@ describe.skipIf(!live)("calendar block in Postgres", () => {
         })
         .orThrow()
     ).filter((item) => item.event.uid === "review@example.test");
+
     expect(
       reviews.map((item) => [item.event.title, item.start.toString()]),
     ).toEqual([
@@ -282,16 +306,20 @@ describe.skipIf(!live)("calendar block in Postgres", () => {
 
   it("serves an iCal feed to a share link and refuses others", async () => {
     await session.as(owner);
+
     const link = await session.value<{ token: string; id: string }>(
       "better_supabase.create_share_link($1, 'calendar', $2, 'view')",
       [org, calendarId],
     );
+
     const other = await session.organization(outsider);
     await session.as(outsider);
+
     const foreign = await session.value<{ token: string }>(
       "better_supabase.create_share_link($1, 'calendar', $2, 'view')",
       [other, calendarId],
     );
+
     await session.as("anon");
     const feed = await calendar.feed(link.token).orThrow();
     expect(feed).toContain("X-WR-CALNAME:Team\r\n");

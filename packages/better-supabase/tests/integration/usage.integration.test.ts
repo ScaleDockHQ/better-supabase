@@ -18,6 +18,7 @@ describe.skipIf(!live)("usage", () => {
 
   it("meters idempotently, enforces quotas and reports to Stripe", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "usage"]);
       await s.clear(["better_supabase.usage_counters"]);
@@ -142,22 +143,26 @@ describe.skipIf(!live)("usage", () => {
 
       await s.service();
       const sent: unknown[] = [];
+
       const stripe = {
         billing: {
           meterEvents: {
             create: async (params: unknown, options: unknown) => {
               sent.push({ params, options });
+
               return {};
             },
           },
         },
       } as unknown as StripeClient;
+
       const report = () =>
         reportUsageToStripe({
           transport: sqlTransport(s.sql),
           stripe,
           customer: async (id) => (id === organization ? "cus_1" : undefined),
         });
+
       expect(await report()).toEqual({ reported: 2, skipped: 0 });
       expect(sent).toMatchObject([
         {
@@ -176,6 +181,7 @@ describe.skipIf(!live)("usage", () => {
 
   it("keeps a tenant's usage and quota from members without usage.read and from outsiders", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "usage"]);
       const owner = await s.user("owner");
@@ -189,6 +195,7 @@ describe.skipIf(!live)("usage", () => {
          values ('*', 'projects', 5, 'month')`,
       );
       await usage.record(organization, "projects", { quantity: 3 }).orThrow();
+
       const fits = (quantity: number) =>
         s.value<boolean>(
           `better_supabase.within_quota('${organization}', 'projects', ${quantity})`,
@@ -201,6 +208,7 @@ describe.skipIf(!live)("usage", () => {
       await s.asRole(member);
       expect(await fits(2)).toBe(true);
       expect(await fits(3)).toBe(false);
+
       for (const result of [
         await usage.current(organization, "projects"),
         await usage.overview(organization),
@@ -222,6 +230,7 @@ describe.skipIf(!live)("usage", () => {
 
   it("reports past counters it can't send without waiting for them", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "usage"]);
       await s.clear(["better_supabase.usage_counters"]);
@@ -237,16 +246,19 @@ describe.skipIf(!live)("usage", () => {
         [billed, unbilled],
       );
       const sent: unknown[] = [];
+
       const stripe = {
         billing: {
           meterEvents: {
             create: async (params: unknown) => {
               sent.push(params);
+
               return {};
             },
           },
         },
       } as unknown as StripeClient;
+
       const report = () =>
         reportUsageToStripe({
           transport: sqlTransport(s.sql),
@@ -255,6 +267,7 @@ describe.skipIf(!live)("usage", () => {
           eventName: (meter) => (meter === "internal" ? undefined : meter),
           customer: async (id) => (id === billed ? "cus_1" : undefined),
         });
+
       expect(await report()).toEqual({ reported: 1, skipped: 2 });
       expect(sent).toMatchObject([
         { event_name: "api_calls", payload: { value: "2" } },
@@ -277,6 +290,7 @@ describe.skipIf(!live)("usage", () => {
 
   it("keeps who and what used a meter with options.history", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "usage"], {
         modules: { usage: { options: { history: true } } },
@@ -334,6 +348,7 @@ describe.skipIf(!live)("usage", () => {
 
   it("records several meters at once, all or none", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "usage"]);
       const owner = await s.user("owner");
@@ -345,10 +360,12 @@ describe.skipIf(!live)("usage", () => {
          values ('*', 'output_tokens', 10, 'month')`,
       );
       await s.asRole(owner);
+
       const entries = [
         { meter: "input_tokens", quantity: 40 },
         { meter: "output_tokens", quantity: 6 },
       ];
+
       expect(
         await usage
           .consumeMany(organization, entries, { idempotencyKey: "call-1" })
@@ -394,6 +411,7 @@ describe.skipIf(!live)("usage", () => {
 
   it("reads the meter catalog from the app's table", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.rows(
         `create table public.bs_test_meters (
@@ -446,6 +464,7 @@ describe.skipIf(!live)("usage", () => {
 
   it("counts fractional quantities against fractional quotas", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "usage"]);
       const owner = await s.user("owner");
@@ -480,14 +499,17 @@ describe.skipIf(!live)("usage", () => {
          on conflict do nothing`,
         [organization],
       );
+
       const rows = await s.value<Record<string, unknown>[]>(
         "better_supabase.unreported_usage(1000)",
       );
+
       const today = rows.filter(
         (row) =>
           row["organization_id"] === organization &&
           row["meter"] === "gb_hours",
       );
+
       expect(today.at(-1)).toMatchObject({ included: 2.5, value: 2.45 });
       const earlier = new Date().getUTCDate() === 1 ? 0 : 0.5;
       expect(today.at(-1)!["window_before"]).toBe(earlier);
@@ -498,6 +520,7 @@ describe.skipIf(!live)("usage", () => {
 
   it("counts a day of the previous billing period within that period's window", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.rows(
         `create or replace function public.usage_billing_period(tenant uuid)
@@ -524,9 +547,11 @@ describe.skipIf(!live)("usage", () => {
                 ($1, 'seats.hours', (now() at time zone 'utc')::date - 1, 50)`,
         [organization],
       );
+
       const rows = await s.value<Record<string, unknown>[]>(
         "better_supabase.unreported_usage(1000)",
       );
+
       const before = Object.fromEntries(
         rows
           .filter(
@@ -536,6 +561,7 @@ describe.skipIf(!live)("usage", () => {
           )
           .map((row) => [Number(row["value"]), Number(row["window_before"])]),
       );
+
       expect(before).toEqual({
         // The previous period started a month before the current one.
         400: 700,
@@ -553,6 +579,7 @@ describe.skipIf(!live)("usage", () => {
 
   it("resets billing quotas with the app's period and refuses meters outside the catalog", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.rows(
         `create or replace function public.usage_billing_period(tenant uuid)
@@ -604,14 +631,18 @@ describe.skipIf(!live)("usage", () => {
         category: "ai",
         label: "AI tokens",
       });
+
       const days =
         (status.resetsAt.epochMilliseconds - Date.now()) / 86_400_000;
+
       expect(days).toBeGreaterThan(3.9);
       expect(days).toBeLessThan(4.1);
       expect(status.startsAt).toBeDefined();
+
       const over = await usage.consume(organization, "ai.tokens", {
         quantity: 500,
       });
+
       expect(over.ok ? undefined : over.error).toMatchObject({
         kind: "quota_exceeded",
       });

@@ -49,7 +49,11 @@ export const createClackPrompter = (output: NodeJS.WriteStream): Prompter => ({
       options: options(choices),
       initialValue: initial,
     });
-    if (isCancel(answer)) return;
+
+    if (isCancel(answer)) {
+      return;
+    }
+
     return choices.find((choice) => choice.value === answer)?.value;
   },
   multiselect: async (message, choices, initial) => {
@@ -59,18 +63,24 @@ export const createClackPrompter = (output: NodeJS.WriteStream): Prompter => ({
       initialValues: [...initial],
       required: false,
     });
-    if (isCancel(answer)) return;
+
+    if (isCancel(answer)) {
+      return;
+    }
+
     return choices
       .filter((choice) => answer.includes(choice.value))
       .map((choice) => choice.value);
   },
   confirm: async (message) => {
     const answer = await confirm({ message, initialValue: false });
+
     return isCancel(answer) ? undefined : answer;
   },
   spinner: (message) => {
     const spin = spinner({ output });
     spin.start(message);
+
     return () => {
       spin.clear();
     };
@@ -84,6 +94,7 @@ export async function withSpinner<T>(
   task: () => Promise<T>,
 ): Promise<T> {
   const stop = prompts?.spinner(message);
+
   try {
     return await task();
   } finally {

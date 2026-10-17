@@ -45,20 +45,28 @@ export function ApiKeyTable({
   const t = useExtracted("apiKeys");
   const errorMessage = useErrorMessage();
   const format = useFormatter();
+
   const { keys, created, creating, revoking, error, create, revoke, dismiss } =
     useApiKeys({
       organizationId,
       schema: blockConfig["api-keys"].api,
       onChanged: async ({ kind }) => {
-        if (kind === "created") await apiKeyCreated({});
+        if (kind === "created") {
+          await apiKeyCreated({});
+        }
       },
     });
 
   const revokeKey = async (id: string) => {
     const result = await revoke(id);
-    if (result.ok) toast.success(t("Key revoked"));
-    else toast.error(errorMessage(result.error));
+
+    if (result.ok) {
+      toast.success(t("Key revoked"));
+    } else {
+      toast.error(errorMessage(result.error));
+    }
   };
+
   const date = (value: Temporal.Instant | undefined) =>
     value
       ? format.dateTime(new Date(value.epochMilliseconds), {
@@ -77,6 +85,7 @@ export function ApiKeyTable({
       onClose={dismiss}
     />
   );
+
   if (keys === undefined) {
     return (
       <div className="grid gap-4">
@@ -85,6 +94,7 @@ export function ApiKeyTable({
       </div>
     );
   }
+
   return (
     <div className="grid gap-4">
       <div className="flex justify-end">{dialog}</div>
@@ -131,10 +141,10 @@ export function ApiKeyTable({
                 <TableCell className="font-mono text-xs">
                   {key.prefix}_{key.publicId}…
                 </TableCell>
-                <TableCell className="text-muted-foreground hidden md:table-cell">
+                <TableCell className="hidden text-muted-foreground md:table-cell">
                   {date(key.createdAt)}
                 </TableCell>
-                <TableCell className="text-muted-foreground hidden md:table-cell">
+                <TableCell className="hidden text-muted-foreground md:table-cell">
                   {date(key.lastUsedAt)}
                 </TableCell>
                 <TableCell className="text-right">

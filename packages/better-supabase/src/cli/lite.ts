@@ -36,6 +36,7 @@ export function isSqliteLiteDriver(driver: LiteDriver): boolean {
 export async function loadCliLite(): Promise<CliLite | undefined> {
   const root = "@supabase/lite";
   const pglite = "@supabase/lite/pglite";
+
   try {
     // SAFETY: @supabase/lite 0.11 exports `App` and `createPgliteConnection`
     // with these shapes; the catch covers a missing install.
@@ -46,6 +47,7 @@ export async function loadCliLite(): Promise<CliLite | undefined> {
       { readonly App: CliLite["App"] },
       { createPgliteConnection(): Promise<CliLiteConnection> },
     ];
+
     return { App, createPgliteConnection: () => pg.createPgliteConnection() };
   } catch {
     return undefined;

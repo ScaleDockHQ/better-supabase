@@ -4,6 +4,8 @@ import { basename, join, relative, resolve, sep } from "node:path";
 import type { Generator, ResolvedConfig } from "../../config/index.ts";
 import type { CliEnv } from "../env.ts";
 import type { Snapshot } from "../introspect/types.ts";
+import type { CliIo, CommandResult } from "../io.ts";
+import type { Paint } from "../style.ts";
 
 import {
   jsonSchema,
@@ -17,8 +19,6 @@ import {
   MetadataRejectedError,
   parseMetadataDocument,
 } from "../introspect/typegen.ts";
-import { type CliIo, type CommandResult } from "../io.ts";
-import { type Paint } from "../style.ts";
 import { metaPaths } from "./emit.ts";
 import { generationNotices, UNFORMATTED } from "./notices.ts";
 import { type Rendered, render } from "./render.ts";
@@ -47,18 +47,29 @@ function emitGenerator(
   const configured = config.generators.find(
     (generator) => generator.name === emit,
   );
+
   switch (emit) {
     case "schema":
-    case "types":
+    case "types": {
       return undefined;
-    case "zod":
+    }
+
+    case "zod": {
       return configured ?? zod();
-    case "valibot":
+    }
+
+    case "valibot": {
       return configured ?? valibot();
-    case "json-schema":
+    }
+
+    case "json-schema": {
       return configured ?? jsonSchema();
-    case "standard-schema":
+    }
+
+    case "standard-schema": {
       return configured ?? standardSchema();
+    }
+
     default: {
       const unhandled: never = emit;
       throw new Error(`unknown --emit ${String(unhandled)}`);
@@ -76,32 +87,39 @@ async function renderEmit(
   emit: Emit,
 ): Promise<Rendered & { readonly contents: string }> {
   const generator = emitGenerator(config, emit);
+
   const { files, warnings } = await render(
     { ...config, generators: generator ? [generator] : [] },
     snapshot,
     { inlineMeta: emit === "schema" },
   );
+
   const path =
     emit === "schema"
       ? config.output
       : emit === "types"
         ? config.databaseTypesOutput
         : undefined;
+
   const own = new Set([
     config.databaseTypesOutput,
     config.output,
     ...Object.values(metaPaths(config.output)),
   ]);
+
   const picked =
     path === undefined
       ? files.filter((file) => !own.has(file.path))
       : files.filter((file) => file.path === path);
+
   const [file] = picked;
+
   if (!file || picked.length > 1) {
     throw new Error(
       `--emit ${emit} expects one file, and the generator wrote ${picked.length}. Pass --out <dir> to write them all.`,
     );
   }
+
   return { files: picked, warnings, contents: file.contents };
 }
 
@@ -116,15 +134,21 @@ export async function readMetadataSnapshot(
   io: CliIo,
 ): Promise<Snapshot> {
   let text: string;
+
   try {
-    if (source !== "-") text = await readFile(resolve(cwd, source), "utf8");
-    else if (io.stdin) text = await io.stdin();
-    else throw new Error("there is no stdin to read");
+    if (source !== "-") {
+      text = await readFile(resolve(cwd, source), "utf-8");
+    } else if (io.stdin) {
+      text = await io.stdin();
+    } else {
+      throw new Error("there is no stdin to read");
+    }
   } catch (cause) {
     throw new MetadataRejectedError(
       `Could not read ${source === "-" ? "stdin" : source}: ${errorText(cause)}`,
     );
   }
+
   return fromMetadata(await parseMetadataDocument(text));
 }
 
@@ -155,12 +179,14 @@ export async function runMetadataGen(
 ): Promise<CommandResult> {
   const { config, io } = options;
   const emit = options.emit ?? "schema";
+
   if (!isEmit(emit)) {
     return {
       code: 2,
       error: `--emit must be one of ${EMITS.join(", ")}, got "${emit}"`,
     };
   }
+
   if (options.out !== undefined && options.emit !== undefined) {
     return {
       code: 2,
@@ -168,9 +194,11 @@ export async function runMetadataGen(
         "--emit picks the one file gen prints; --out writes them all. Pass one of them.",
     };
   }
+
   if (options.out === undefined && options.check) {
     return { code: 2, error: "--check with --metadata needs --out <dir>" };
   }
+
   if (options.out === undefined && options.json) {
     return {
       code: 2,
@@ -178,20 +206,25 @@ export async function runMetadataGen(
         "--metadata prints the generated code on stdout, so --json has nothing to print. Pass --out <dir> for the JSON summary.",
     };
   }
+
   let snapshot: Snapshot;
+
   try {
     snapshot = await readMetadataSnapshot(options.metadata, options.cwd, io);
   } catch (cause) {
     if (cause instanceof MetadataRejectedError) {
       return { code: METADATA_REJECTED, error: cause.message };
     }
+
     throw cause;
   }
 
   if (options.out !== undefined) {
     const dir = relative(config.root, resolve(options.cwd, options.out));
+
     const into = (path: string): string =>
       join(dir, basename(path)).split(sep).join("/");
+
     return runGen({
       config: {
         ...config,
@@ -207,12 +240,21 @@ export async function runMetadataGen(
   }
 
   const refused = refuseRowConditionedBuckets(config);
-  if (refused) return refused;
+
+  if (refused) {
+    return refused;
+  }
+
   const { contents, warnings } = await renderEmit(config, snapshot, emit);
   io.stdout(contents);
   const notices = await generationNotices(snapshot, warnings);
+
   const shown =
     emit === "types" ? notices : notices.filter((line) => line !== UNFORMATTED);
-  for (const line of shown) io.stderr(`${line}\n`);
+
+  for (const line of shown) {
+    io.stderr(`${line}\n`);
+  }
+
   return { code: 0 };
 }

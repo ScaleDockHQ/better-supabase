@@ -49,8 +49,12 @@ function serialize(value: unknown): Buffer {
 }
 
 function isStoredMessage(value: unknown): value is StoredMessage {
-  if (typeof value !== "object" || value === null) return false;
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
   const record: Record<string, unknown> = { ...value };
+
   return (
     typeof record["queueName"] === "string" &&
     typeof record["messageId"] === "string" &&
@@ -102,6 +106,7 @@ export function createSupabaseWorld(
   const pollInterval = Math.max(10, options.pollInterval ?? 250);
   const lease = Math.max(5, options.lease ?? 60);
   const deliveryTimeout = Math.max(lease, options.deliveryTimeout ?? 300);
+
   const pool =
     options.pool ??
     new Pool({
@@ -111,6 +116,7 @@ export function createSupabaseWorld(
         env("SUPABASE_DB_URL") ??
         env("DATABASE_URL"),
     });
+
   const base = createPostgresWorld({
     pool,
     ...(options.namespace === undefined
@@ -124,18 +130,23 @@ export function createSupabaseWorld(
       "select decrypted_secret as secret from vault.decrypted_secrets where name = $1",
       [name],
     );
+
     return result.rows[0]?.secret ?? undefined;
   };
+
   const deliverySecret = memoized(
     async () =>
       options.deliverySecret ?? vault(WORKFLOW_VAULT_SECRETS.deliverySecret),
   );
+
   const masterKey = memoized(async () => {
     const text =
       options.encryptionKey ??
       (await vault(WORKFLOW_VAULT_SECRETS.encryptionKey));
+
     return text === undefined ? undefined : parseMasterKey(text);
   });
+
   const allowUnsigned = unsignedAllowed();
 
   const call = async <T>(
@@ -143,10 +154,12 @@ export function createSupabaseWorld(
     args: readonly unknown[],
   ): Promise<T[]> => {
     const list = args.map((_, index) => `$${String(index + 1)}`).join(", ");
+
     const result = await pool.query(
       `select * from ${schema}.${sqlIdent(fn)}(${list})`,
       [...args],
     );
+
     // SAFETY: each caller names the row shape its function returns.
     return result.rows as T[];
   };
@@ -187,6 +200,7 @@ export function createSupabaseWorld(
     );
     // The runtime never calls start(), so the process that queues also polls.
     startPolling();
+
     return { messageId };
   };
 
@@ -209,6 +223,7 @@ export function createSupabaseWorld(
 
   const complete = (id: string, attempts: number): Promise<unknown> =>
     call("complete_job", [queueName, id, attempts]);
+
   const fail = (
     id: string,
     attempts: number,
@@ -222,6 +237,7 @@ export function createSupabaseWorld(
       error.slice(0, 2000),
       backoffSeconds(attempt),
     ]);
+
   const heartbeat = (id: string, attempts: number): (() => void) => {
     const timer = setInterval(
       () => {
@@ -231,6 +247,7 @@ export function createSupabaseWorld(
       },
       Math.max(1000, (lease * 1000) / 2),
     );
+
     return () => {
       clearInterval(timer);
     };
@@ -251,25 +268,34 @@ export function createSupabaseWorld(
         `Flow route answered ${String(status)}: ${text}`,
         attempt,
       );
+
       return;
     }
+
     let timeoutSeconds: number | undefined;
+
     try {
       const parsed: unknown = JSON.parse(text);
+
       if (
         typeof parsed === "object" &&
         parsed !== null &&
         "timeoutSeconds" in parsed
       ) {
         const value = Number(parsed.timeoutSeconds);
-        if (Number.isFinite(value) && value >= 0) timeoutSeconds = value;
+
+        if (Number.isFinite(value) && value >= 0) {
+          timeoutSeconds = value;
+        }
       }
     } catch {
       timeoutSeconds = undefined;
     }
+
     if (timeoutSeconds !== undefined) {
       await store({ ...message, attempt: attempt + 1 }, timeoutSeconds);
     }
+
     await complete(job.id, job.attempts);
   };
 
@@ -284,6 +310,7 @@ export function createSupabaseWorld(
     headers.set("x-vqs-message-attempt", String(attempt));
     headers.delete(JOB_HEADER);
     headers.delete(SIGNATURE_HEADER);
+
     return headers;
   };
 
@@ -291,15 +318,19 @@ export function createSupabaseWorld(
 
   const deliver = async (job: ClaimedJob): Promise<void> => {
     const payload = job.message.payload;
+
     if (!isStoredMessage(payload)) {
       await fail(job.id, job.attempts, "Not a workflow message", 99);
+
       return;
     }
+
     const attempt = payload.attempt + job.attempts - 1;
     const body = Buffer.from(payload.body, "base64");
     const headers = deliveryHeaders(payload, attempt);
     const beat = heartbeat(job.id, job.attempts);
     const controller = new AbortController();
+
     const timer = setTimeout(() => {
       controller.abort(
         new Error(
@@ -307,25 +338,31 @@ export function createSupabaseWorld(
         ),
       );
     }, deliveryTimeout * 1000);
+
     const stop = (): void => {
       clearTimeout(timer);
       beat();
     };
+
     controller.signal.addEventListener("abort", stop, { once: true });
+
     try {
       const secret = await deliverySecret();
+
       if (secret !== undefined) {
         headers.set(
           SIGNATURE_HEADER,
-          await signDelivery(secret, "", body.toString("utf8")),
+          await signDelivery(secret, "", body.toString("utf-8")),
         );
       }
+
       const response = await fetch(flowUrl(), {
         method: "POST",
         headers,
         body,
         signal: controller.signal,
       });
+
       const text = await response.text();
       stop();
       await settle(job, payload, attempt, response.status, text);
@@ -355,6 +392,7 @@ export function createSupabaseWorld(
   const deliverOnce = async (): Promise<number> => {
     const jobs = await claim(concurrency);
     await Promise.all(jobs.map((job) => deliver(job)));
+
     return jobs.length;
   };
 
@@ -365,6 +403,7 @@ export function createSupabaseWorld(
         inflight.delete(task);
         wake?.();
       });
+
     inflight.add(task);
   };
 
@@ -372,11 +411,13 @@ export function createSupabaseWorld(
   const idle = (): Promise<void> =>
     new Promise<void>((resolve) => {
       const timer = setTimeout(done, pollInterval);
+
       function done(): void {
         clearTimeout(timer);
         wake = undefined;
         resolve();
       }
+
       wake = done;
     });
 
@@ -384,6 +425,7 @@ export function createSupabaseWorld(
     try {
       const jobs = await claim(room);
       jobs.forEach(track);
+
       return jobs.length;
     } catch {
       return 0;
@@ -396,12 +438,18 @@ export function createSupabaseWorld(
     while (isRunning()) {
       const room = concurrency - inflight.size;
       const claimed = room > 0 ? await claimInto(room) : 0;
-      if (claimed === 0 || room <= claimed) await idle();
+
+      if (claimed === 0 || room <= claimed) {
+        await idle();
+      }
     }
   };
 
   function startPolling(): void {
-    if (delivery !== "poll" || running || closed) return;
+    if (delivery !== "poll" || running || closed) {
+      return;
+    }
+
     running = true;
     loop = poll();
   }
@@ -411,9 +459,11 @@ export function createSupabaseWorld(
     handler: Parameters<World["createQueueHandler"]>[1],
   ): ((req: Request) => Promise<Response>) => {
     const inner = base.createQueueHandler(prefix, handler);
+
     return async (req) => {
       const job = req.headers.get(JOB_HEADER);
       let secret: string | undefined;
+
       try {
         secret = await deliverySecret();
       } catch {
@@ -422,15 +472,21 @@ export function createSupabaseWorld(
           "The workflow delivery secret could not be read from Vault",
         );
       }
+
       if (job === null) {
         if (secret === undefined && delivery === "poll") {
-          if (allowUnsigned) return inner(req);
+          if (allowUnsigned) {
+            return inner(req);
+          }
+
           return deliveryProblem(
             "unauthorized",
             "Unsigned workflow delivery: set WORKFLOW_DELIVERY_SECRET or the Vault secret workflow_delivery_secret",
           );
         }
+
         const text = await req.text();
+
         if (
           secret === undefined ||
           !(await verifyDelivery(
@@ -442,6 +498,7 @@ export function createSupabaseWorld(
         ) {
           return deliveryProblem("unauthorized", "Unsigned workflow delivery");
         }
+
         return inner(
           new Request(req.url, {
             method: "POST",
@@ -450,7 +507,9 @@ export function createSupabaseWorld(
           }),
         );
       }
+
       const text = await req.text();
+
       if (
         secret === undefined ||
         !(await verifyDelivery(
@@ -465,14 +524,17 @@ export function createSupabaseWorld(
           "Bad workflow delivery signature",
         );
       }
+
       const [jobQueue, id, readCount] = job.split(":");
       const attempts = Number(readCount);
       let payload: unknown;
+
       try {
         payload = JSON.parse(text);
       } catch {
         payload = undefined;
       }
+
       if (
         jobQueue !== queueName ||
         id === undefined ||
@@ -485,9 +547,11 @@ export function createSupabaseWorld(
           "Malformed workflow delivery",
         );
       }
+
       const claimed = { id, attempts };
       const attempt = payload.attempt + attempts - 1;
       const stop = heartbeat(id, attempts);
+
       try {
         const response = await inner(
           new Request(req.url, {
@@ -496,8 +560,10 @@ export function createSupabaseWorld(
             body: Buffer.from(payload.body, "base64"),
           }),
         );
+
         const answer = await response.text();
         await settle(claimed, payload, attempt, response.status, answer);
+
         return new Response(answer, {
           status: response.status,
           headers: response.headers,
@@ -520,7 +586,11 @@ export function createSupabaseWorld(
     run: string | { readonly runId: string },
   ): Promise<Uint8Array | undefined> {
     const master = await masterKey();
-    if (master === undefined) return undefined;
+
+    if (master === undefined) {
+      return undefined;
+    }
+
     return deriveRunKey(master, typeof run === "string" ? run : run.runId);
   }
 
@@ -548,7 +618,10 @@ export function createSupabaseWorld(
       await loop;
       await Promise.all(inflight);
       await base.close?.();
-      if (options.pool === undefined) await pool.end();
+
+      if (options.pool === undefined) {
+        await pool.end();
+      }
     },
   };
 }

@@ -14,17 +14,16 @@ import type {
 import type { SubjectsConfig } from "../config/types/subjects.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
 import type { AuditedTable } from "./audit-registrations.ts";
+import type {
+  ModuleContext,
+  ModuleContractFunction,
+  ModuleIdType,
+  ModuleNames,
+} from "./context.ts";
 import type { EntitlementsSource } from "./modules/entitlements-source.ts";
 import type { FunctionGrant, TableGrant } from "./modules/grants.ts";
 import type { VectorSearchTable } from "./modules/vector-search.ts";
-
-import {
-  type ModuleContext,
-  type ModuleContractFunction,
-  type ModuleIdType,
-  type ModuleNames,
-} from "./context.ts";
-import { type JsonSchemaCheck } from "./shared.ts";
+import type { JsonSchemaCheck } from "./shared.ts";
 
 /** The step from one module version to the next, for `sql upgrade`. */
 export interface ModuleUpgrade {

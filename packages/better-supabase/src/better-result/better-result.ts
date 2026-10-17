@@ -318,6 +318,7 @@ function converterOf(toResult: BetterResultConverter): Convert {
   if (typeof toResult === "function") {
     return (result) => toResult(result);
   }
+
   return (result) => toBetterResult(result, toResult.Result, toResult.mapError);
 }
 
@@ -333,28 +334,40 @@ interface DbLike {
 function view(db: DbLike, convert: Convert): object {
   const wrap = (value: unknown): unknown =>
     value instanceof AsyncResult ? convert(value) : value;
+
   const call = (target: object, method: unknown, name: string): Callable => {
     if (typeof method !== "function") {
       throw new TypeError(`better-supabase: ${name} is not a function`);
     }
+
     return (...args) => wrap(method.apply(target, args));
   };
+
   const repositories = new WeakMap<object, object>();
+
   const repository = (target: unknown, name: string): object => {
     if (typeof target !== "object" || target === null) {
       throw new TypeError(`better-supabase: unknown table ${name}`);
     }
+
     const cached = repositories.get(target);
-    if (cached) return cached;
+
+    if (cached) {
+      return cached;
+    }
+
     const wrapped = Object.fromEntries(
       Object.entries(target).map(([key, value]) => [
         key,
         typeof value === "function" ? call(target, value, key) : value,
       ]),
     );
+
     repositories.set(target, wrapped);
+
     return wrapped;
   };
+
   const result: Record<string, unknown> = {
     $db: db,
     $from: convert,
@@ -365,14 +378,22 @@ function view(db: DbLike, convert: Convert): object {
       extra?: unknown,
     ): unknown => wrap(list.run(db, query, extra)),
   };
-  for (const key of HELPERS) result[key] = call(db, db[key], `db.${key}`);
+
+  for (const key of HELPERS) {
+    result[key] = call(db, db[key], `db.${key}`);
+  }
+
   for (const key in db) {
-    if (key.startsWith("$")) continue;
+    if (key.startsWith("$")) {
+      continue;
+    }
+
     Object.defineProperty(result, key, {
       enumerable: true,
       get: () => repository(db.$table(key), key),
     });
   }
+
   return result;
 }
 
@@ -404,6 +425,7 @@ export function withBetterResult<
 ): BetterResultDb<M, F, E, C, ConvertedError<X>> {
   // SAFETY: a Db has $table for every table key plus the $rpc, $run, $many and $search helpers.
   const source = db as DbLike;
+
   // SAFETY: view() wraps every repository method and helper the type lists, converting each AsyncResult with toResult.
   return view(source, converterOf(toResult)) as BetterResultDb<
     M,

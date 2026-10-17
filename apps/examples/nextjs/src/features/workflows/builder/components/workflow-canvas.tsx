@@ -65,33 +65,42 @@ export function WorkflowCanvas({ detail }: { detail: BuilderDetail }) {
   const format = useFormatter();
   const errorMessage = useErrorMessage();
   const [initial] = useState(() => toFlow(detail.graph));
+
   const [nodes, setNodes, onNodesChange] = useNodesState<GraphFlowNode>(
     initial.nodes,
   );
+
   const [edges, setEdges, onEdgesChange] = useEdgesState(initial.edges);
   const [selected, setSelected] = useState<string | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
   const [input, setInput] = useState("");
+
   const { runs } = useWorkflowRuns({
     tenant: detail.tenant,
     schema: "api",
     limit: 50,
   });
+
   const overlay = useWorkflowCanvasRun(runId, { schema: "api" });
+
   const definitionRuns = (runs ?? []).filter(
     (run) => run.attributes["bs.definition"] === detail.definition.id,
   );
+
   const graph = fromFlow(nodes, edges);
   const draft = { nodes: [...graph.nodes], edges: [...graph.edges] };
+
   const onError = (error: Parameters<typeof errorMessage>[0]) => {
     toast.error(errorMessage(error));
   };
+
   const save = useAction(saveDraft, {
     onError,
     onSuccess: () => {
       toast.success(t("Draft saved"));
     },
   });
+
   const publish = useAction(publishGraph, {
     onError,
     onSuccess: (version) => {
@@ -100,22 +109,26 @@ export function WorkflowCanvas({ detail }: { detail: BuilderDetail }) {
       );
     },
   });
+
   const run = useAction(runDefinition, {
     onError,
     onSuccess: (id) => {
       setRunId(id);
     },
   });
+
   const decide = useAction(decideNode, { onError });
 
   const addNode = (kind: WorkflowNodeKind, step?: string, title?: string) => {
     const id = `${step ?? kind}-${shortId()}`.replaceAll(".", "-");
     const lowest = Math.max(0, ...nodes.map((node) => node.position.y));
+
     const data: GraphNodeData = {
       kind,
       label: title ?? kind,
       config: kind === "sleep" ? { duration: "1m" } : {},
     };
+
     setNodes((current) => [
       ...current,
       {
@@ -127,6 +140,7 @@ export function WorkflowCanvas({ detail }: { detail: BuilderDetail }) {
     ]);
     setSelected(id);
   };
+
   const onConnect = (connection: Connection) => {
     setEdges((current) =>
       addEdge(
@@ -141,6 +155,7 @@ export function WorkflowCanvas({ detail }: { detail: BuilderDetail }) {
       ),
     );
   };
+
   const updateNode = (id: string, data: Partial<GraphNodeData>) => {
     setNodes((current) =>
       current.map((node) =>
@@ -148,6 +163,7 @@ export function WorkflowCanvas({ detail }: { detail: BuilderDetail }) {
       ),
     );
   };
+
   const removeNode = (id: string) => {
     setNodes((current) => current.filter((node) => node.id !== id));
     setEdges((current) =>
@@ -161,10 +177,12 @@ export function WorkflowCanvas({ detail }: { detail: BuilderDetail }) {
       ? nodes
       : nodes.map((node) => {
           const status = overlay.nodes[node.id]?.status;
+
           return status === undefined
             ? node
             : { ...node, data: { ...node.data, status } };
         });
+
   const selectedNode = nodes.find((node) => node.id === selected);
   const runOpen = overlay.run !== undefined && !isFinished(overlay.run.status);
   const definition = detail.definition.id;
@@ -247,7 +265,7 @@ export function WorkflowCanvas({ detail }: { detail: BuilderDetail }) {
       </div>
       <div className="flex gap-3">
         <nav
-          className="bg-card w-48 shrink-0 space-y-1 rounded-lg border p-2"
+          className="w-48 shrink-0 space-y-1 rounded-lg border bg-card p-2"
           aria-label={t("Palette")}
         >
           {detail.steps.map((step) => (
@@ -287,7 +305,7 @@ export function WorkflowCanvas({ detail }: { detail: BuilderDetail }) {
           ))}
         </nav>
         <div
-          className="bg-muted/30 h-150 min-w-0 flex-1 rounded-lg border"
+          className="h-150 min-w-0 flex-1 rounded-lg border bg-muted/30"
           data-testid="workflow-canvas"
         >
           <ReactFlow
@@ -323,7 +341,10 @@ export function WorkflowCanvas({ detail }: { detail: BuilderDetail }) {
               removeNode(selectedNode.id);
             }}
             onDecide={(approved) => {
-              if (runId === null) return;
+              if (runId === null) {
+                return;
+              }
+
               void decide.run({ run: runId, node: selectedNode.id, approved });
             }}
           />

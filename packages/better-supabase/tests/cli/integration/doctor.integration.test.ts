@@ -28,6 +28,7 @@ async function open(): Promise<IntrospectionSource | undefined> {
   try {
     const source = await pgSource(dbUrl);
     await source.queryable.query("select 1");
+
     return source;
   } catch {
     return undefined;
@@ -39,6 +40,7 @@ const source = await open();
 describe.skipIf(!source)("doctor against the local stack", () => {
   const db = source!;
   let snapshot: Snapshot;
+
   const database: LiveDatabase = {
     describe: "local stack",
     session: true,
@@ -46,6 +48,7 @@ describe.skipIf(!source)("doctor against the local stack", () => {
       return (await db.queryable.query(sql)).rows as R[];
     },
   };
+
   const context = (extra: Partial<DoctorContext> = {}): DoctorContext => ({
     config: resolveConfig({ schemas: [SCHEMA] }, "/project"),
     snapshot,
@@ -56,6 +59,7 @@ describe.skipIf(!source)("doctor against the local stack", () => {
     database,
     ...extra,
   });
+
   const only = (...codes: string[]) =>
     RULES.filter((rule) => codes.includes(rule.code));
 
@@ -119,6 +123,7 @@ describe.skipIf(!source)("doctor against the local stack", () => {
     const table = snapshot.extras.tables.find(
       (entry) => entry.name === "projects",
     )!;
+
     expect(
       table.policies.map((policy) => [policy.name, policy.functions]),
     ).toEqual([
@@ -140,8 +145,8 @@ describe.skipIf(!source)("doctor against the local stack", () => {
   it("flags the per-row helper and the overlapping policies", async () => {
     const findings = await runRules(context(), only("BS205", "BS207"));
     expect(findings).toMatchObject([
-      // Postgres never inlines a security definer function.
       {
+        // Postgres never inlines a security definer function.
         code: "BS205",
         message: expect.stringContaining(
           `${SCHEMA}.is_admin(org_id), a security definer function`,
@@ -164,6 +169,7 @@ describe.skipIf(!source)("doctor against the local stack", () => {
     const members = snapshot.extras.tables.find(
       (entry) => entry.name === "members",
     )!;
+
     expect(members.columnGrants).toEqual([
       { column: "note", role: "authenticated", privileges: ["UPDATE"] },
       { column: "role", role: "authenticated", privileges: ["UPDATE"] },
@@ -194,6 +200,7 @@ describe.skipIf(!source)("doctor against the local stack", () => {
         },
         "/project",
       );
+
     const targets = async (serviceRole: readonly string[]) =>
       (
         await runRules(context({ config: config(serviceRole) }), only("BS106"))
@@ -211,8 +218,10 @@ describe.skipIf(!source)("doctor against the local stack", () => {
       context({ stats: true }),
       only("BS208", "BS209"),
     );
-    for (const finding of findings)
+
+    for (const finding of findings) {
       expect(finding.message).not.toMatch(/^Could not read/);
+    }
   });
 
   it("plans a table under RLS as the given claims and rolls back", async () => {
@@ -225,6 +234,7 @@ describe.skipIf(!source)("doctor against the local stack", () => {
       }),
       only("BS212"),
     );
+
     expect(finding).toMatchObject({
       code: "BS212",
       target: `${SCHEMA}.projects:explain`,
@@ -234,12 +244,14 @@ describe.skipIf(!source)("doctor against the local stack", () => {
         ),
       ),
     });
+
     // The role and claims were local to the rolled-back transaction.
     const [who] = (
       await db.queryable.query(
         `select current_user as role, current_setting('request.jwt.claims', true) as claims`,
       )
     ).rows as { role: string; claims: string | null }[];
+
     expect(who).toEqual({
       role: "postgres",
       claims: expect.toBeOneOf(["", null]),
@@ -255,6 +267,7 @@ describe.skipIf(!hookSource)(
     const db = hookSource!;
     const HOOKS = `bs_doctor_hooks_${Date.now()}`;
     const USER = crypto.randomUUID();
+
     const database: LiveDatabase = {
       describe: "local stack",
       session: true,
@@ -262,11 +275,13 @@ describe.skipIf(!hookSource)(
         return (await db.queryable.query(sql)).rows as R[];
       },
     };
+
     const toml = (fn: string) => {
       const text = `[auth.hook.custom_access_token]
 enabled = true
 uri = "pg-functions://postgres/${HOOKS}/${fn}"
 `;
+
       return {
         path: "supabase/config.toml",
         dir: "supabase",
@@ -275,6 +290,7 @@ uri = "pg-functions://postgres/${HOOKS}/${fn}"
         parser: "smol-toml" as const,
       };
     };
+
     const run = async (
       fn: string,
       codes: string[],
@@ -284,6 +300,7 @@ uri = "pg-functions://postgres/${HOOKS}/${fn}"
       const snapshot = await introspect(db.queryable, ["public"], {
         hooks: [{ hook: "custom_access_token", schema: HOOKS, name: fn }],
       });
+
       return runRules(
         {
           config: resolveConfig(
@@ -356,6 +373,7 @@ uri = "pg-functions://postgres/${HOOKS}/${fn}"
       const snapshot = await introspect(db.queryable, ["public"], {
         hooks: [{ hook: "custom_access_token", schema: HOOKS, name: "good" }],
       });
+
       expect(snapshot.extras.hooks).toEqual([
         {
           hook: "custom_access_token",
@@ -400,8 +418,10 @@ uri = "pg-functions://postgres/${HOOKS}/${fn}"
           message: expect.stringMatching(/returns \d{4} bytes of claims/),
         },
       ]);
+
       const [who] = (await db.queryable.query("select current_user as role"))
         .rows as { role: string }[];
+
       expect(who?.role).toBe("postgres");
     });
 
@@ -412,6 +432,7 @@ uri = "pg-functions://postgres/${HOOKS}/${fn}"
           budget: { claims: ["memberships", "attrs"], bytes: 1024 },
         },
       });
+
       expect(await run("provider_fits", ["BS405"], USER, provider)).toEqual([]);
       const findings = await run("provider_over", ["BS405"], USER, provider);
       expect(findings).toMatchObject([

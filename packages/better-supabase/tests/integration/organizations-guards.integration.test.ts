@@ -19,6 +19,7 @@ async function teamSchema(s: BlockSession): Promise<string> {
       primary key (organization_id, user_id)
     );
   `);
+
   return schema;
 }
 
@@ -46,6 +47,7 @@ describe.skipIf(!live)("organizations member guards", () => {
 
   it("checks the own-role rule and can_assign in update_member_role under an external guard", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const schema = await teamSchema(s);
       // An external guard, like an authorization system's assignment trigger,
@@ -70,14 +72,17 @@ describe.skipIf(!live)("organizations member guards", () => {
       const admin = await s.user("admin");
       const member = await s.user("member");
       await s.as(owner);
+
       const organization = await s.value<string>(
         `${schema}.create_organization($1)`,
         [{ name: "Guarded", slug: `guarded-${owner.id.slice(0, 8)}` }],
       );
+
       await s.client.query(
         `insert into ${schema}.team_members (organization_id, user_id, role) values ($1, $2, 'admin'), ($1, $3, 'member')`,
         [organization, admin.id, member.id],
       );
+
       const role = (user: { id: string }) =>
         s.value<string>(
           `(select role from ${schema}.team_members where organization_id = $1 and user_id = $2)`,
@@ -129,6 +134,7 @@ describe.skipIf(!live)("organizations member guards", () => {
 
   it("checks client writes only, so the app's own security definer functions write memberships", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations"]);
       const owner = await s.user("owner");
@@ -150,6 +156,7 @@ describe.skipIf(!live)("organizations member guards", () => {
         create policy bs_test_update on better_supabase.memberships for update to authenticated
           using (true) with check (true);
       `);
+
       const role = (user: { id: string }) =>
         s.value<string>(
           "(select role from better_supabase.memberships where organization_id = $1 and user_id = $2)",
@@ -161,11 +168,13 @@ describe.skipIf(!live)("organizations member guards", () => {
         organization,
         newcomer.id,
       ]);
+
       const update = (user: { id: string }, value: string) =>
         s.hint(
           "update better_supabase.memberships set role = $3 where organization_id = $1 and user_id = $2",
           [organization, user.id, value],
         );
+
       expect(await update(owner, "member")).toBe("ORGANIZATION_ROLE_CEILING");
       expect(await update(admin, "viewer")).toBe("ORGANIZATION_SELF_ROLE");
       expect(await update(member, "viewer")).toBe("no error");
@@ -180,6 +189,7 @@ describe.skipIf(!live)("organizations member guards", () => {
 
   it("transfers ownership in one statement and refuses a disabled new owner", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const schema = await teamSchema(s);
       // A transfer-only guard: a statement may not change how many
@@ -217,10 +227,12 @@ describe.skipIf(!live)("organizations member guards", () => {
         [owner.id, admin.id, disabled.id],
       );
       await s.as(owner);
+
       const organization = await s.value<string>(
         `${schema}.create_organization($1)`,
         [{ name: "Transfer", slug: `transfer-${owner.id.slice(0, 8)}` }],
       );
+
       await s.client.query(
         `insert into ${schema}.team_members (organization_id, user_id, role) values ($1, $2, 'admin'), ($1, $3, 'member')`,
         [organization, admin.id, disabled.id],
@@ -254,6 +266,7 @@ describe.skipIf(!live)("organizations member guards", () => {
 
   it("deletes through data-lifecycle, or not at all, with deleteMode", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "data-lifecycle"], {
         modules: { organizations: { options: { deleteMode: "lifecycle" } } },
@@ -295,6 +308,7 @@ describe.skipIf(!live)("organizations member guards", () => {
 
   it("records the deletion in an adopted audit log with its own categories", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const log = `public.bs_activity_${crypto.randomUUID().slice(0, 8)}`;
       await s.client.query(`
@@ -306,6 +320,7 @@ describe.skipIf(!live)("organizations member guards", () => {
           record_id text, actor_id uuid, metadata jsonb,
           category text not null check (category in ('tenancy', 'admin', 'data', 'system'))
         );`);
+
       const audit = (options: Record<string, unknown>) => ({
         mode: "adopt" as const,
         tables: { log },
@@ -326,7 +341,9 @@ describe.skipIf(!live)("organizations member guards", () => {
         },
         options,
       });
+
       const owner = await s.user("owner");
+
       const categories = async (
         modules: NonNullable<ModuleLayout["modules"]>,
       ) => {
@@ -338,11 +355,13 @@ describe.skipIf(!live)("organizations member guards", () => {
         ]);
         await s.service();
         await s.client.query("set constraints all immediate");
+
         return s.value<string>(
           `(select category from ${log} where organization_id = $1 and event_type = 'organization.deleted')`,
           [organization],
         );
       };
+
       expect(
         await categories({
           audit: audit({
@@ -365,6 +384,7 @@ describe.skipIf(!live)("organizations member guards", () => {
 
   it("lets platform staff change roles and remove members with platform keys, under can_assign", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       const schema = await teamSchema(s);
       const owner = await s.user("owner");
@@ -379,6 +399,7 @@ describe.skipIf(!live)("organizations member guards", () => {
           language sql stable as $$
             select auth.uid() = '${staff.id}' and permission in ('platform.members.update_role', 'platform.members.remove') $$;
       `);
+
       const layout = (permissions: Record<string, string>): ModuleLayout => ({
         accessProvider: {
           name: "test",
@@ -399,12 +420,15 @@ describe.skipIf(!live)("organizations member guards", () => {
           organizations: { schema, permissions },
         },
       });
+
       await s.install(["organizations"], layout({}));
       await s.as(owner);
+
       const organization = await s.value<string>(
         `${schema}.create_organization($1)`,
         [{ name: "Staffed", slug: `staffed-${owner.id.slice(0, 8)}` }],
       );
+
       await s.client.query(
         `insert into ${schema}.team_members values ($1, $2, 'member')`,
         [organization, member.id],

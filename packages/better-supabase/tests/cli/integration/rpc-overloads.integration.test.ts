@@ -24,6 +24,7 @@ async function open(): Promise<IntrospectionSource | undefined> {
   try {
     const source = await pgSource(dbUrl);
     await source.queryable.query("select 1");
+
     return source;
   } catch {
     return undefined;
@@ -59,6 +60,7 @@ describe.skipIf(!source)("$rpc on an overloaded function", () => {
 
   it("generates every overload and calls the one the argument names pick", async () => {
     const snapshot = await introspect(db.queryable, [SCHEMA]);
+
     const model = buildModel(
       snapshot,
       resolveConfig(
@@ -66,6 +68,7 @@ describe.skipIf(!source)("$rpc on an overloaded function", () => {
         libraryFixture("").pathname,
       ),
     );
+
     expect(
       model.meta.functions["area"]?.overloads?.map((overload) =>
         overload.args.map((arg) => arg.name),
@@ -78,8 +81,10 @@ describe.skipIf(!source)("$rpc on an overloaded function", () => {
     const sb = defineSupabase(defineSchema(model.meta)).connect(
       postgresExecutor(postgres.admin),
     );
+
     const call = (args: Record<string, unknown>) =>
       sb.$rpc("area", args, { schema: SCHEMA }).orThrow();
+
     expect(await call({})).toBe("none");
     expect(await call({ side: 3 })).toBe(9);
     expect(await call({ box: { w: 2, h: 5 } })).toBe(10);

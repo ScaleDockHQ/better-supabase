@@ -16,36 +16,44 @@ import {
 function queue(crud: CrudEntryLike[]) {
   const complete = vi.fn(async () => undefined);
   const limits: (number | undefined)[] = [];
+
   const db: CrudQueueLike = {
     getCrudBatch: async (limit) => {
       limits.push(limit);
+
       return crud.length === 0 ? null : { crud, complete };
     },
   };
+
   return { db, complete, limits };
 }
 
 function repository(failWith?: DbErrorKind) {
   const calls: unknown[] = [];
+
   const reply = () =>
     new AsyncResult(
       Promise.resolve(
         failWith ? err(dbError(failWith, failWith)) : ok({ id: "x" }),
       ),
     );
+
   return {
     calls,
     repo: {
       upsert: (row: { id: string; name?: string }) => {
         calls.push(["upsert", row]);
+
         return reply();
       },
       update: (id: string, patch: { name?: string }) => {
         calls.push(["update", id, patch]);
+
         return reply();
       },
       delete: (id: string) => {
         calls.push(["delete", id]);
+
         return reply();
       },
     },
@@ -87,32 +95,38 @@ describe("createUploadConnector", () => {
       supabase: session("jwt", 1_800_000_000),
       tables: {},
     });
+
     expect(await connector.fetchCredentials()).toEqual({
       endpoint: "https://ps.example",
       token: "jwt",
       expiresAt: new Date(1_800_000_000_000),
     });
+
     const signedOut = createUploadConnector({
       endpoint: "https://ps.example",
       supabase: session(null),
       tables: {},
     });
+
     expect(await signedOut.fetchCredentials()).toBeNull();
   });
 
   it("replays a batch through the repositories and completes it", async () => {
     const { repo, calls } = repository();
+
     const { db, complete, limits } = queue([
       put("1", { name: "A" }),
       { op: "PATCH", table: "customers", id: "1", opData: { name: "B" } },
       { op: "DELETE", table: "customers", id: "1" },
     ]);
+
     const connector = createUploadConnector({
       endpoint: "e",
       supabase: session("jwt"),
       tables: { customers: repo },
       batchSize: 10,
     });
+
     await connector.uploadData(db);
     expect(limits).toEqual([10]);
     expect(calls).toEqual([
@@ -127,11 +141,13 @@ describe("createUploadConnector", () => {
   it("keeps the batch queued on a transient error", async () => {
     const { repo } = repository("network");
     const { db, complete } = queue([put("1")]);
+
     const connector = createUploadConnector({
       endpoint: "e",
       supabase: session("jwt"),
       tables: { customers: repo },
     });
+
     await expect(connector.uploadData(db)).rejects.toThrow("network");
     expect(complete).not.toHaveBeenCalled();
   });
@@ -139,17 +155,21 @@ describe("createUploadConnector", () => {
   it("stops without retrying when the session is gone", async () => {
     const { repo } = repository("unauthorized");
     const { db, complete } = queue([put("1")]);
+
     const alive = createUploadConnector({
       endpoint: "e",
       supabase: session("jwt"),
       tables: { customers: repo },
     });
+
     await expect(alive.uploadData(db)).rejects.toThrow("unauthorized");
+
     const dead = createUploadConnector({
       endpoint: "e",
       supabase: session(null),
       tables: { customers: repo },
     });
+
     await dead.uploadData(db);
     expect(complete).not.toHaveBeenCalled();
   });
@@ -159,11 +179,13 @@ describe("createUploadConnector", () => {
     const onDiscard = vi.fn();
     const conflicting = repository("conflict");
     const refused = repository("check");
+
     const { db, complete } = queue([
       put("1"),
       { op: "PUT", table: "notes", id: "2" },
       { op: "MERGE", table: "notes", id: "3" },
     ]);
+
     const connector = createUploadConnector({
       endpoint: "e",
       supabase: session("jwt"),
@@ -171,6 +193,7 @@ describe("createUploadConnector", () => {
       onConflict,
       onDiscard,
     });
+
     const listener = vi.fn();
     const unsubscribe = connector.rejected.subscribe(listener);
     await connector.uploadData(db);
@@ -199,23 +222,27 @@ describe("createUploadConnector", () => {
 
   it("fails loudly for a table without a route, and takes custom routes and classify", async () => {
     const { db, complete } = queue([put("1")]);
+
     const connector = createUploadConnector({
       endpoint: "e",
       supabase: session("jwt"),
       tables: {},
     });
+
     await expect(connector.uploadData(db)).rejects.toThrow(
       /no upload route .*customers/,
     );
     expect(complete).not.toHaveBeenCalled();
 
     const route = vi.fn(async () => err(dbError("conflict", "newer row")));
+
     const custom = createUploadConnector({
       endpoint: "e",
       supabase: session("jwt"),
       tables: { customers: route },
       classify: (error) => (error.kind === "conflict" ? "discard" : undefined),
     });
+
     await custom.uploadData(db);
     expect(route).toHaveBeenCalledWith(put("1"));
     expect(custom.rejected.current()[0]?.outcome).toBe("discard");

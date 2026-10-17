@@ -22,6 +22,7 @@ describe("reminder deliveries", () => {
       ],
       { from: start.subtract({ minutes: 15 }), until: start.add({ days: 2 }) },
     );
+
     expect(planned.map((item) => item.occurrenceAt)).toEqual([
       "1997-09-02T09:00:00Z",
       "1997-09-03T09:00:00Z",

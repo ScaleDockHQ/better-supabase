@@ -59,6 +59,7 @@ describe("catalog module", () => {
       },
       ["catalog", "state-machine"],
     );
+
     expect(sql).not.toContain("CATALOG_TRANSITION_INVALID");
     expect(sql).toContain("A state-machine machine owns the transitions");
   });
@@ -66,9 +67,11 @@ describe("catalog module", () => {
   it("adds anon storefront policies only when the storefront is public", () => {
     expect(sqlOf()).not.toContain("to anon, authenticated\nusing");
     expect(sqlOf()).toContain("drop policy if exists products_storefront");
+
     const open = sqlOf({
       modules: { catalog: { options: { storefront: "public" } } },
     });
+
     expect(open).toContain(
       `create policy products_storefront on "better_supabase"."products" for select to anon, authenticated`,
     );
@@ -116,6 +119,7 @@ describe("catalog module", () => {
         },
       },
     });
+
     expect(sql).toContain(`update "public"."products" x`);
     expect(sql).not.toContain('create table if not exists "');
     expect(sql).not.toContain("save_product_option");

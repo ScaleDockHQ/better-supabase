@@ -138,14 +138,20 @@ function rejectedStore(): RejectedStore & {
 } {
   let changes: readonly RejectedChange[] = [];
   const listeners = new Set<() => void>();
+
   const set = (next: readonly RejectedChange[]) => {
     changes = next;
-    for (const listener of [...listeners]) listener();
+
+    for (const listener of [...listeners]) {
+      listener();
+    }
   };
+
   return {
     current: () => changes,
     subscribe: (listener) => {
       listeners.add(listener);
+
       return () => {
         listeners.delete(listener);
       };
@@ -163,20 +169,30 @@ function replay(
   route: UploadRoute,
   entry: CrudEntryLike,
 ): PromiseLike<Result<unknown>> {
-  if (typeof route === "function") return route(entry);
+  if (typeof route === "function") {
+    return route(entry);
+  }
+
   const data = entry.opData ?? {};
+
   switch (entry.op) {
-    case "PUT":
+    case "PUT": {
       // SAFETY: PowerSync recorded these columns from a write to the local
       // table, whose columns mirror the repository's table.
       return route.upsert({ ...data, id: entry.id } as never);
-    case "PATCH":
+    }
+
+    case "PATCH": {
       // SAFETY: as above; the id is the row's text primary key.
       return route.update(entry.id as never, data as never);
-    case "DELETE":
+    }
+
+    case "DELETE": {
       // SAFETY: as above.
       return route.delete(entry.id as never);
-    default:
+    }
+
+    default: {
       return Promise.resolve(
         err(
           dbError(
@@ -185,6 +201,7 @@ function replay(
           ),
         ),
       );
+    }
   }
 }
 
@@ -211,16 +228,23 @@ export function createUploadConnector(
 ): UploadConnector {
   const rejected = rejectedStore();
   const batchSize = options.batchSize ?? 100;
+
   const signedIn = async (): Promise<boolean> => {
     const { data } = await options.supabase.auth.getSession();
+
     return data.session !== null;
   };
+
   return {
     rejected,
     async fetchCredentials() {
       const { data } = await options.supabase.auth.getSession();
       const session = data.session;
-      if (!session) return null;
+
+      if (!session) {
+        return null;
+      }
+
       return {
         endpoint: options.endpoint,
         token: session.access_token,
@@ -231,36 +255,55 @@ export function createUploadConnector(
     },
     async uploadData(database) {
       const batch = await database.getCrudBatch(batchSize);
-      if (!batch) return;
+
+      if (!batch) {
+        return;
+      }
+
       for (const entry of batch.crud) {
         const route = options.tables[entry.table];
+
         if (!route) {
           throw new Error(
             `better-supabase: no upload route for PowerSync table "${entry.table}"; add it to createUploadConnector({ tables })`,
           );
         }
+
         const result = await replay(route, entry);
-        if (result.ok) continue;
+
+        if (result.ok) {
+          continue;
+        }
+
         const { error } = result;
+
         const outcome =
           options.classify?.(error, entry) ?? uploadOutcome(error.kind);
+
         switch (outcome) {
-          case "retry":
-            if (error.kind === "unauthorized" && !(await signedIn())) return;
+          case "retry": {
+            if (error.kind === "unauthorized" && !(await signedIn())) {
+              return;
+            }
+
             // PowerSync keeps the batch queued and calls uploadData again.
             throw new Error(error.message);
+          }
+
           case "conflict": {
             const change: RejectedChange = { entry, error, outcome };
             rejected.add(change);
             options.onConflict?.(change);
             break;
           }
+
           case "discard": {
             const change: RejectedChange = { entry, error, outcome };
             rejected.add(change);
             options.onDiscard?.(change);
             break;
           }
+
           default: {
             const unhandled: never = outcome;
             throw new TypeError(
@@ -269,6 +312,7 @@ export function createUploadConnector(
           }
         }
       }
+
       await batch.complete();
     },
   };

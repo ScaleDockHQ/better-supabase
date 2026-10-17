@@ -28,9 +28,13 @@ export interface SearchSinkOptions {
 function subjectOf(
   event: CloudEvent,
 ): { readonly type: string; readonly id: string } | undefined {
-  if (!isRecord(event.data)) return undefined;
+  if (!isRecord(event.data)) {
+    return undefined;
+  }
+
   const type = optionalText(event.data["subjectType"]);
   const id = optionalText(event.data["subjectId"]);
+
   return type === undefined || id === undefined ? undefined : { type, id };
 }
 
@@ -45,17 +49,27 @@ export function searchSink(
   options: SearchSinkOptions = {},
 ): EventSink {
   const actions = options.on ?? SEARCH_SINK_DEFAULTS;
+
   return {
     async send(events) {
       for (const event of events) {
         const action = actions[stripTypePrefix(event.type, options.typePrefix)];
-        if (action === undefined) continue;
+
+        if (action === undefined) {
+          continue;
+        }
+
         const subject = subjectOf(event);
-        if (subject === undefined) continue;
+
+        if (subject === undefined) {
+          continue;
+        }
+
         const result =
           action === "remove"
             ? await search.remove(subject.type, subject.id)
             : await search.refresh(subject.type, subject.id);
+
         if (!result.ok && result.error.hint !== "SEARCH_SUBJECT_UNKNOWN") {
           throw new Error(
             `searchSink: ${action} ${subject.type}/${subject.id} failed: ${result.error.message}`,

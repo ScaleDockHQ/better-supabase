@@ -15,6 +15,7 @@ import { stackDbUrl, stackUrl } from "./stack-env.ts";
 
 const url = stackUrl();
 const dbUrl = stackDbUrl();
+
 const publishableKey =
   process.env["SUPABASE_PUBLISHABLE_KEY"] ??
   "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";
@@ -29,6 +30,7 @@ async function reachable(): Promise<boolean> {
       headers: { apikey: publishableKey },
       signal: AbortSignal.timeout(1000),
     });
+
     return response.status < 500;
   } catch {
     return false;
@@ -43,16 +45,19 @@ describe.skipIf(!live)("Postgres executor", async () => {
 
   const claims = { sub: USER, role: "authenticated", tenant_id: ACME };
   const betterSupabase = defineSupabase(schema).use(softDelete()).use(tenant());
+
   const rest = betterSupabase.connect(
     createClient(url, publishableKey, {
       accessToken: () => signLocalJwt(claims),
     }),
     { claims },
   );
+
   const sql = betterSupabase.connect(
     postgresExecutor(postgres.asUser(claims)),
     { claims },
   );
+
   const customerList = defineListQuery(betterSupabase, "customers", {
     count: "exact",
     search: ["name", "kvk"],
@@ -356,8 +361,10 @@ describe.skipIf(!live)("Postgres executor", async () => {
       const groups = await db.customers
         .aggregate({ groupBy: ["status"], _count: true })
         .orThrow();
+
       const total = groups.reduce((sum, group) => sum + group._count, 0);
       expect(total).toBe(await db.customers.count().orThrow());
+
       const sorted = await db.customers
         .aggregate({
           groupBy: ["status"],
@@ -365,8 +372,10 @@ describe.skipIf(!live)("Postgres executor", async () => {
           orderBy: [{ _count: "desc" }, { status: "asc" }],
         })
         .orThrow();
+
       const counts = sorted.map((group) => group._count);
       expect(counts).toEqual(counts.toSorted((a, b) => b - a));
+
       const [roadRunner] = await db.customers
         .findMany({
           select: ["id"],
@@ -374,6 +383,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
           include: { _count: { notes: true }, _max: { notes: { id: true } } },
         })
         .orThrow();
+
       expect(roadRunner?._count.notes).toBeGreaterThan(0);
       expect(roadRunner?._max.notes.id).toEqual(expect.any(Number));
     }
@@ -385,6 +395,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
       _max: { id: true },
       orderBy: [{ _max: { id: "desc" } }],
     } as const;
+
     const groups = await sql.notes.aggregate(args).orThrow();
     const maxima = groups.map((group) => group._max.id ?? 0);
     expect(maxima).toEqual(maxima.toSorted((a, b) => b - a));
@@ -401,10 +412,12 @@ describe.skipIf(!live)("Postgres executor", async () => {
             orderBy: [{ primaryContactId: direction }, { id: direction }],
           })
           .orThrow();
+
         // Anvil Supplies has no primary contact; Road Runner has one.
         expect(expected).toHaveLength(2);
         const walked: unknown[] = [];
         let after: string | null = null;
+
         do {
           const page: { items: { id: string }[]; nextCursor: string | null } =
             await db.customers
@@ -415,9 +428,11 @@ describe.skipIf(!live)("Postgres executor", async () => {
                 after,
               })
               .orThrow();
+
           walked.push(...page.items);
           after = page.nextCursor;
         } while (after !== null);
+
         expect(walked).toEqual(expected);
       }
     }
@@ -442,6 +457,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
         tenant: "00000000-0000-4000-8000-000000000002",
       },
     );
+
     const rows = await other.customers.findMany({ select: ["name"] }).orThrow();
     expect(rows).toEqual([{ name: "Initech" }]);
   });
@@ -452,12 +468,14 @@ describe.skipIf(!live)("Postgres executor", async () => {
         select: ["id", "organizationId", "status"],
       })
       .orThrow();
+
     expect(created).toMatchObject({ organizationId: ACME, status: "lead" });
 
     const duplicate = await sql.customers.create({
       name: "Dup",
       kvk: "sql-1",
     } as never);
+
     expect(duplicate.error).toMatchObject({
       kind: "conflict",
       constraint: "customers_organization_id_kvk_key",
@@ -469,6 +487,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
         data: { status: "active" },
       })
       .orThrow();
+
     expect(updated).toEqual({ count: 1 });
 
     const upserted = await sql.customers
@@ -477,6 +496,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
         select: ["id", "name", "status"],
       })
       .orThrow();
+
     expect(upserted).toEqual({
       id: created.id,
       name: "SQL Co 2",
@@ -495,6 +515,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
       name: `bulk-${index}`,
       color: "blue",
     }));
+
     await expect(
       postgres.transaction(
         async (tx) => {
@@ -513,6 +534,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
     const duplicate = await sql.tags.createMany([...rows, rows[0]!] as never, {
       returning: false,
     });
+
     expect(duplicate.error?.kind).toBe("conflict");
     expect(await sql.tags.exists({ where: { name: "bulk-0" } }).orThrow()).toBe(
       false,
@@ -530,7 +552,9 @@ describe.skipIf(!live)("Postgres executor", async () => {
       (db: typeof rest | typeof sql) =>
         db.$rpc("customer_note_counts", { p_customer_ids: ["nope"] }),
     ];
+
     const results = [];
+
     for (const call of calls) {
       const [overRest, overSql] = await Promise.all([call(rest), call(sql)]);
       expect(overSql.ok).toBe(overRest.ok);
@@ -538,6 +562,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
       expect(overSql.error?.kind).toBe(overRest.error?.kind);
       results.push(overSql);
     }
+
     expect(results.map((result) => result.ok)).toEqual([
       true,
       true,
@@ -561,10 +586,13 @@ describe.skipIf(!live)("Postgres executor", async () => {
       create function public.${probe}_raise() returns integer language plpgsql as $$ begin raise exception 'Nope' using hint = 'PROBE'; end; $$;
       grant execute on function public.${probe}_scalar(integer), public.${probe}_set(integer), public.${probe}_void(text), public.${probe}_raise() to authenticated;
     `);
+
     try {
       const executor = postgresExecutor(postgres.asUser(claims));
+
       const call = (name: string, args: Record<string, unknown> = {}) =>
         executor.rpc!(name, args, { schema: "public", errorMappers: [] });
+
       expect(await call(`${probe}_scalar`, { n: 21 })).toMatchObject({
         ok: true,
         data: 42,
@@ -621,6 +649,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
       hasDefault: false,
       ...flags,
     });
+
     const table: TableMeta = {
       key: "jsonWrites",
       name: "json_writes",
@@ -638,6 +667,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
       relations: {},
       flags: {},
     };
+
     const returning = {
       columns: ["id", "doc", "raw", "tags", "docs"].map((name) => ({
         alias: name,
@@ -645,7 +675,9 @@ describe.skipIf(!live)("Postgres executor", async () => {
       })),
       includes: [],
     };
+
     const parts = [{ type: "text", text: "hi" }];
+
     const values: [unknown, unknown][] = [
       [["a", 1], parts],
       [parts, [parts]],
@@ -653,16 +685,23 @@ describe.skipIf(!live)("Postgres executor", async () => {
       ["hi", "there"],
       [null, null],
     ];
+
     const written = await postgres.transaction(async (tx) => {
       await tx.queryRaw(
         "create temp table json_writes (id int primary key, doc jsonb, raw json, tags text[], docs jsonb[]) on commit drop",
       );
       const executor = postgresExecutor(tx);
+
       const run = async (op: Operation) => {
         const result = await executor.execute(op, { errorMappers: [] });
-        if (!result.ok) throw new Error(result.error.message);
+
+        if (!result.ok) {
+          throw new Error(result.error.message);
+        }
+
         return result.data.rows;
       };
+
       const inserted = await run({
         kind: "insert",
         table,
@@ -677,6 +716,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
         onConflict: undefined,
         defaultToNull: false,
       });
+
       const updated = await run({
         kind: "update",
         table,
@@ -684,6 +724,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
         where: { kind: "column", column: "id", op: "eq", value: 0 },
         returning,
       });
+
       const upserted = await run({
         kind: "insert",
         table,
@@ -692,6 +733,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
         onConflict: { columns: ["id"], action: "update" },
         defaultToNull: false,
       });
+
       const matched = await run({
         kind: "select",
         table,
@@ -704,6 +746,7 @@ describe.skipIf(!live)("Postgres executor", async () => {
         head: false,
         single: undefined,
       });
+
       return { inserted, updated, upserted, matched };
     });
 

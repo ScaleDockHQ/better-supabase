@@ -20,10 +20,13 @@ const SINGLE = new Set([
   "then",
   "else",
 ]);
+
 /** Keywords whose value is a list of subschemas. */
 const LISTS = new Set(["allOf", "anyOf", "oneOf"]);
+
 /** Keywords whose value maps names to subschemas. */
 const MAPS = new Set(["properties", "patternProperties", "definitions"]);
+
 /** 2020-12 keywords draft-07 has no equivalent for; draft-07 would ignore them. */
 const DROPPED = new Set([
   "$dynamicAnchor",
@@ -36,7 +39,10 @@ function mapValues(
   value: unknown,
   convert: (schema: JsonSchema) => JsonSchema,
 ): unknown {
-  if (!isObject(value)) return value;
+  if (!isObject(value)) {
+    return value;
+  }
+
   return Object.fromEntries(
     Object.entries(value).map(([key, child]) => [
       key,
@@ -55,9 +61,16 @@ function mapValues(
 export function toDraft07(schema: Readonly<JsonSchema>): JsonSchema {
   const out: JsonSchema = {};
   const dependencies: JsonSchema = {};
+
   for (const [key, value] of Object.entries(schema)) {
-    if (DROPPED.has(key)) continue;
-    if (key === "$schema") continue;
+    if (DROPPED.has(key)) {
+      continue;
+    }
+
+    if (key === "$schema") {
+      continue;
+    }
+
     if (key === "$defs") {
       out["definitions"] = mapValues(value, toDraft07);
     } else if (key === "$ref" || key === "$dynamicRef") {
@@ -71,8 +84,12 @@ export function toDraft07(schema: Readonly<JsonSchema>): JsonSchema {
       );
     } else if (key === "items") {
       const converted = isObject(value) ? toDraft07(value) : value;
-      if (schema["prefixItems"] === undefined) out["items"] = converted;
-      else out["additionalItems"] = converted;
+
+      if (schema["prefixItems"] === undefined) {
+        out["items"] = converted;
+      } else {
+        out["additionalItems"] = converted;
+      }
     } else if (key === "dependentRequired" || key === "dependentSchemas") {
       Object.assign(dependencies, mapValues(value, toDraft07));
     } else if (SINGLE.has(key) && isObject(value)) {
@@ -85,11 +102,13 @@ export function toDraft07(schema: Readonly<JsonSchema>): JsonSchema {
       out[key] = value;
     }
   }
+
   if (Object.keys(dependencies).length > 0) {
     out["dependencies"] = {
       ...(isObject(out["dependencies"]) ? out["dependencies"] : {}),
       ...dependencies,
     };
   }
+
   return out;
 }

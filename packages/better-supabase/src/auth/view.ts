@@ -102,12 +102,15 @@ export function toSession<C, P>(auth: AuthState<C, P>): AuthSession<C, P> {
       const impersonator = impersonatorOf(auth.claims);
       const outcome = actorOf(auth.claims);
       const actor = outcome.ok ? outcome.actor : undefined;
+
       const client =
         actor?.kind === "oauth-client" ||
         (actor?.kind === "agent" && delegationOf(auth.claims) !== undefined)
           ? actor
           : undefined;
+
       const scopes = client ? delegationOf(auth.claims)?.scopes : undefined;
+
       const delegation: SessionDelegation | undefined =
         client && (scopes || client.chain)
           ? {
@@ -115,6 +118,7 @@ export function toSession<C, P>(auth: AuthState<C, P>): AuthSession<C, P> {
               ...(client.chain ? { chain: client.chain } : {}),
             }
           : undefined;
+
       return {
         kind: "user",
         user: auth.user,
@@ -129,9 +133,12 @@ export function toSession<C, P>(auth: AuthState<C, P>): AuthSession<C, P> {
         ...(delegation ? { delegation } : {}),
       };
     }
-    case "service":
+
+    case "service": {
       return { kind: "service", keyName: auth.keyName };
-    case "apiKey":
+    }
+
+    case "apiKey": {
       return {
         kind: "apiKey",
         keyId: auth.keyId,
@@ -144,12 +151,19 @@ export function toSession<C, P>(auth: AuthState<C, P>): AuthSession<C, P> {
           : {}),
         ...(auth.createdBy ? { createdBy: auth.createdBy } : {}),
       };
-    case "anon":
+    }
+
+    case "anon": {
       return { kind: "anon", reason: auth.reason };
-    case "invalid":
+    }
+
+    case "invalid": {
       return { kind: "invalid", reason: auth.reason, error: auth.error };
+    }
+
     default: {
       const unhandled: never = auth;
+
       return unhandled;
     }
   }

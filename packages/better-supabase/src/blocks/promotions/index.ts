@@ -13,6 +13,7 @@ export {
   type SavedPromotion,
   type PromotionsOptions,
 } from "./promotions.ts";
+
 export {
   extendBlock,
   withBlockHooks,
@@ -20,6 +21,7 @@ export {
   type BlockHooks,
   type BlockTransportMiddleware,
 } from "../../core/block-hooks.ts";
+
 export {
   dbTransport,
   rpcTransport,
@@ -27,6 +29,9 @@ export {
   type BlockTransport,
   type RpcClient,
 } from "../../core/block-transport.ts";
+
 export { promotionsBlock } from "./manifest.ts";
+
 export { promotionsEvents } from "./events.ts";
+
 export type { PromotionsEvents } from "./events.ts";

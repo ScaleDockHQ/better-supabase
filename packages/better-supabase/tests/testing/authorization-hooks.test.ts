@@ -34,7 +34,9 @@ async function failures(hooks: AuthorizationHooks): Promise<string[]> {
     () => undefined,
     (cause: unknown) => cause,
   );
+
   expect(error).toBeInstanceOf(ConformanceError);
+
   return (error as ConformanceError).report.checks
     .filter((check) => !check.ok)
     .map((check) => check.name);
@@ -54,6 +56,7 @@ describe("testAuthorizationHooks", () => {
       apiVersion: 1,
       name: "bare",
     });
+
     expect(report.checks.map((check) => check.name)).toEqual([
       "targets API v1 and has a name",
     ]);
@@ -84,6 +87,7 @@ describe("testAuthorizationHooks", () => {
       },
       delegation: { permissions: () => ["*"] },
     };
+
     expect(await failures(leaky)).toEqual([
       "subscribers returns a subset",
       "an unlinked identity is null",

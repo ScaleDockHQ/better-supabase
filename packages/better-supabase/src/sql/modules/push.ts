@@ -59,13 +59,18 @@ const PLATFORMS = ["ios", "android", "web"];
 const PROVIDERS = ["expo", "fcm", "apns", "webpush"];
 
 function build(ctx: ModuleContext): string {
-  if (ctx.mode === "custom") return "";
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
   const d = ctx.table("devices");
   const c = (logical: string): string => ctx.col("devices", logical);
   const fn = (name: string): string => ctx.fn(name);
   const extras = extrasOf(ctx);
+
   const list = (values: readonly string[]): string =>
     values.map((value) => `'${value}'`).join(", ");
+
   const registered = ctx.record({
     type: "push.device_registered",
     payload: `jsonb_build_object('deviceId', v_id::text, 'userId', v_user::text, 'platform', register_push_device.platform, 'provider', register_push_device.provider)`,
@@ -76,6 +81,7 @@ function build(ctx: ModuleContext): string {
       recordId: "v_id::text",
     },
   });
+
   const unregistered = ctx.record({
     type: "push.device_unregistered",
     payload: `jsonb_build_object('deviceId', v_id::text, 'userId', v_user::text)`,
@@ -86,6 +92,7 @@ function build(ctx: ModuleContext): string {
       recordId: "v_id::text",
     },
   });
+
   const serviceOnly = (name: string): string => `
   if not (${SERVICE_CALLER}) then
     ${fail("PUSH_FORBIDDEN", "only the service role reads push tokens")}

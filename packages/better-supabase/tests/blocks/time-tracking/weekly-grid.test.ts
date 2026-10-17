@@ -27,6 +27,7 @@ describe("toWeeklyGrid", () => {
       subjectId: "apollo",
       billable: true,
     };
+
     const grid = toWeeklyGrid(
       [
         entry("a", "2026-10-06T09:00:00Z", "2026-10-06T11:00:00Z", apollo),
@@ -36,6 +37,7 @@ describe("toWeeklyGrid", () => {
       ],
       { week: Temporal.PlainDate.from("2026-10-08"), timeZone: "UTC" },
     );
+
     expect(grid.days.map((day) => day.id)).toEqual([
       "2026-10-05",
       "2026-10-06",
@@ -77,6 +79,7 @@ describe("toWeeklyGrid", () => {
       now: at("2026-10-05T23:00:00Z"),
       rowKey: () => "all",
     });
+
     expect(grid.days[0]?.date.toString()).toBe("2026-10-05");
     expect(grid.rows[0]?.id).toBe("all");
     expect(grid.rows[0]?.days).toEqual([0, 1800, 0, 0, 0, 0, 0]);
@@ -85,10 +88,12 @@ describe("toWeeklyGrid", () => {
   it("uses the current time for a running entry by default", () => {
     const start = Temporal.Now.instant().subtract({ minutes: 1 });
     const today = Temporal.Now.plainDateISO("UTC");
+
     const grid = toWeeklyGrid(
       [{ id: "r", startedAt: start, billable: false }],
       { week: today, timeZone: "UTC" },
     );
+
     expect(grid.seconds).toBeGreaterThan(0);
   });
 });

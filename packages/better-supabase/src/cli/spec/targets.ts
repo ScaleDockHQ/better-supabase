@@ -40,6 +40,7 @@ function defaultOutput(
   serialization: SpecSerialization,
 ): string {
   const name = format.fileName(version);
+
   return serialization === "yaml" ? name.replace(/\.json$/i, ".yaml") : name;
 }
 
@@ -53,27 +54,37 @@ function resolveOne(
   filter: TargetFilter,
 ): SpecTarget {
   const format = registry.get(output.format);
-  if (!format)
+
+  if (!format) {
     throw new TargetError(
       "format-unknown",
       `Unknown document format "${output.format}". Known formats: ${[...registry.keys()].join(", ")}.`,
     );
+  }
+
   const fallback: unknown = format.defaultVersion;
+
   const version =
     filter.version ??
     output.version ??
     (typeof fallback === "string" ? fallback : "");
-  if (!hasVersion(format, version))
+
+  if (!hasVersion(format, version)) {
     throw new TargetError(
       "version-unknown",
       `${format.id} has no version "${version}". Versions: ${Object.keys(format.versions).join(", ")}.`,
     );
+  }
+
   const path = filter.out ?? output.output;
+
   const serialization: SpecSerialization =
     filter.yaml === true
       ? "yaml"
       : (output.serialize ?? (path ? serializationOf(path) : "json"));
+
   const ui = filter.ui ?? output.ui;
+
   return {
     format,
     version,
@@ -98,22 +109,30 @@ export function resolveTargets(
   let selected = filter.format
     ? outputs.filter((output) => output.format === filter.format)
     : [...outputs];
-  if (filter.format && selected.length === 0)
+
+  if (filter.format && selected.length === 0) {
     selected = [{ format: filter.format }];
+  }
+
   if (filter.version) {
     const atVersion = selected.filter(
       (output) =>
         (output.version ?? registry.get(output.format)?.defaultVersion) ===
         filter.version,
     );
-    if (atVersion.length > 0) selected = atVersion;
-    else {
+
+    if (atVersion.length > 0) {
+      selected = atVersion;
+    } else {
       const formats = [...new Set(selected.map((output) => output.format))];
-      if (formats.length !== 1)
+
+      if (formats.length !== 1) {
         throw new TargetError(
           "usage",
           "Name a format with --spec-version when more than one format is configured.",
         );
+      }
+
       const id = formats[0] ?? "";
       const format = registry.get(id);
       // A version nobody configured gets its own file, so it never
@@ -132,22 +151,30 @@ export function resolveTargets(
       ];
     }
   }
-  if (filter.out && selected.length !== 1)
+
+  if (filter.out && selected.length !== 1) {
     throw new TargetError(
       "usage",
       `--out needs exactly one output, and ${selected.length} match. Name a format or a version.`,
     );
+  }
+
   const targets = selected.map((output) =>
     resolveOne(output, registry, filter),
   );
+
   const seen = new Set<string>();
+
   for (const target of targets) {
-    if (seen.has(target.output))
+    if (seen.has(target.output)) {
       throw new TargetError(
         "usage",
         `Two outputs write ${target.output}. Give each one an \`output\` in specs.outputs.`,
       );
+    }
+
     seen.add(target.output);
   }
+
   return targets;
 }

@@ -1,8 +1,14 @@
-import type { AnyBlocksConfig } from "../config/blocks.ts";
-import type { ModuleLayout } from "./module-types.ts";
-import type { ModuleDefinition, SqlModule } from "./module-types.ts";
+import type {
+  ModuleDefinition,
+  ModuleLayout,
+  SqlModule,
+} from "./module-types.ts";
 
-import { BLOCK_SCOPES, type BlockScope } from "../config/blocks.ts";
+import {
+  type AnyBlocksConfig,
+  BLOCK_SCOPES,
+  type BlockScope,
+} from "../config/blocks.ts";
 import { applyActorWriteGuards } from "./actor-guard.ts";
 import { migrationOptionUses } from "./migration-options.ts";
 import { bindModuleRegistry, moduleContext } from "./module-context.ts";
@@ -114,6 +120,7 @@ import { WORKFLOWS } from "./modules/workflows.ts";
 
 function built(definition: ModuleDefinition): SqlModule {
   let cached: string | undefined;
+
   return {
     ...definition,
     get sql() {
@@ -132,7 +139,10 @@ const TENANT_PROVIDERS: ReadonlySet<string> = new Set(["tenant", "access"]);
 
 /** The scope `name` runs in for `layout`: its own, then `sql.scope`, then `tenant`. */
 export function blockScope(name: string, layout: ModuleLayout): BlockScope {
-  if (TENANT_PROVIDERS.has(name)) return "tenant";
+  if (TENANT_PROVIDERS.has(name)) {
+    return "tenant";
+  }
+
   return layout.modules?.[name]?.scope ?? layout.scope ?? "tenant";
 }
 
@@ -145,6 +155,7 @@ const requiresOf = (
     (layout.entitlementsProvider && module.providerRequires
       ? module.providerRequires
       : module.requires);
+
   return blockScope(module.name, layout) === "tenant"
     ? requires
     : requires.filter((name) => !TENANT_PROVIDERS.has(name));
@@ -159,11 +170,19 @@ function scopeProblem(
   module: SqlModule,
   layout: ModuleLayout,
 ): string | undefined {
-  if (TENANT_PROVIDERS.has(module.name)) return undefined;
+  if (TENANT_PROVIDERS.has(module.name)) {
+    return undefined;
+  }
+
   const scope = blockScope(module.name, layout);
   const scopes = module.scopes ?? BLOCK_SCOPES;
-  if (scopes.includes(scope)) return undefined;
+
+  if (scopes.includes(scope)) {
+    return undefined;
+  }
+
   const own = layout.modules?.[module.name]?.scope !== undefined;
+
   return `blocks.${module.name}: the ${module.name} module runs in ${scopes.join(" or ")} scope, not ${scope}${own ? "" : " (from sql.scope)"}. ${scopes.includes("tenant") ? `Set blocks.${module.name}.scope to "tenant" or remove the block.` : "Remove the block."}`;
 }
 
@@ -297,25 +316,39 @@ export function resolveModules(
   layout: ModuleLayout = {},
 ): SqlModule[] {
   const ordered: SqlModule[] = [];
+
   const visit = (name: string, from?: string): void => {
     const module = SQL_MODULES[name];
+
     if (!module) {
       throw new TypeError(
         `Unknown SQL module "${name}"${from ? ` (required by ${from})` : ""}. Available: ${Object.keys(SQL_MODULES).join(", ")}`,
       );
     }
-    if (ordered.includes(module)) return;
+
+    if (ordered.includes(module)) {
+      return;
+    }
+
     const problem = scopeProblem(module, layout);
+
     if (problem) {
       throw new TypeError(
         from ? `${problem} It is required by ${from}.` : problem,
       );
     }
-    for (const dependency of requiresOf(module, layout))
+
+    for (const dependency of requiresOf(module, layout)) {
       visit(dependency, name);
+    }
+
     ordered.push(module);
   };
-  for (const name of names) visit(name);
+
+  for (const name of names) {
+    visit(name);
+  }
+
   return ordered.sort((a, b) => renderPosition(a) - renderPosition(b));
 }
 
@@ -326,11 +359,13 @@ export function checkModules(
 ): void {
   for (const [name, entry] of Object.entries(config)) {
     const module = registry[name];
+
     if (!module) {
       throw new TypeError(
         `blocks.${name}: there is no SQL module "${name}". Modules: ${Object.keys(registry).join(", ")}`,
       );
     }
+
     // The jobs module writes everything into better_supabase, so a schema
     // would only point the modules that call it at functions that don't exist.
     if (
@@ -342,14 +377,17 @@ export function checkModules(
         "blocks.jobs.schema: the jobs module always installs in better_supabase. Remove schema.",
       );
     }
+
     const mode = entry?.mode ?? "managed";
     const modes = module.modes ?? ["managed"];
+
     if (!modes.includes(mode)) {
       throw new TypeError(
         `blocks.${name}.mode: the ${name} module supports ${modes.join(", ")}, not ${mode}`,
       );
     }
   }
+
   for (const use of migrationOptionUses(config)) {
     if (!use.adopted) {
       throw new TypeError(

@@ -28,15 +28,18 @@ async function verified(
   name: string,
 ) {
   await s.as(owner);
+
   const row = await s.value<{ id: string }>(
     "better_supabase.add_organization_domain($1, $2)",
     [tenant, name],
   );
+
   await s.service();
   await s.value("better_supabase.verify_organization_domain($1, $2)", [
     row.id,
     owner.id,
   ]);
+
   return row.id;
 }
 
@@ -46,6 +49,7 @@ describe.skipIf(!live)("sso", () => {
 
   it("claims and verifies domains for one organization", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "outbox", "sso"]);
       const name = domain();
@@ -54,6 +58,7 @@ describe.skipIf(!live)("sso", () => {
       const tenant = await s.organization(owner, { member });
 
       await s.as(owner);
+
       const added = await s.value<{
         id: string;
         record: { name: string; value: string };
@@ -62,6 +67,7 @@ describe.skipIf(!live)("sso", () => {
         tenant,
         ` ${name.toUpperCase()}. `,
       ]);
+
       expect(added.record.name).toBe(`_better-supabase.${name}`);
       expect(added.record.value).toMatch(
         /^better-supabase-domain-verification=[0-9a-f]{32}$/,
@@ -100,16 +106,20 @@ describe.skipIf(!live)("sso", () => {
         ]),
       ).toBe("SSO_DOMAIN_NOT_FOUND");
       const resolved: string[] = [];
+
       const admin = createSsoAdmin({
         transport: sqlTransport(s.sql),
         resolver: (record) => {
           resolved.push(record);
+
           return Promise.resolve([added.record.value]);
         },
       });
+
       const done = await admin
         .verifyDomain(added.id, { actorId: owner.id })
         .orThrow();
+
       expect(done.verifiedAt).toBeDefined();
       expect(resolved).toEqual([`_better-supabase.${name}`]);
       expect(
@@ -125,10 +135,12 @@ describe.skipIf(!live)("sso", () => {
       const rival = await s.user("rival");
       const other = await s.organization(rival);
       await s.as(rival);
+
       const claim = await s.value<{ id: string }>(
         "better_supabase.add_organization_domain($1, $2)",
         [other, name],
       );
+
       await s.service();
       expect(
         await s.hint("better_supabase.verify_organization_domain($1)", [
@@ -153,6 +165,7 @@ describe.skipIf(!live)("sso", () => {
 
   it("auto-joins confirmed users and enforces SAML in the access token hook", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "outbox", "sso"]);
       const name = domain();
@@ -188,6 +201,7 @@ describe.skipIf(!live)("sso", () => {
           "better_supabase.sso_access_token_check($1)",
           [{ user_id: user, claims: { sub: user }, ...extra }],
         );
+
       expect(
         await check(joined.id, { authentication_method: "password" }),
       ).toEqual({
@@ -214,6 +228,7 @@ describe.skipIf(!live)("sso", () => {
         "select type from better_supabase.outbox_events where organization_id = $1 and type = 'organization.member_added'",
         [tenant],
       );
+
       expect(events).toHaveLength(2);
     } finally {
       await s.close();
@@ -222,6 +237,7 @@ describe.skipIf(!live)("sso", () => {
 
   it("records SAML providers only for verified domains", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "sso"]);
       const name = domain();
@@ -267,6 +283,7 @@ describe.skipIf(!live)("sso", () => {
       ]);
 
       await s.service();
+
       const admin = createSsoAdmin({
         transport: sqlTransport(s.sql),
         auth: {
@@ -275,9 +292,11 @@ describe.skipIf(!live)("sso", () => {
           fetch: () => Promise.resolve(new Response(null, { status: 404 })),
         },
       });
+
       const removed = await admin
         .removeSamlProvider(provider, { actorId: owner.id })
         .orThrow();
+
       expect(removed?.domains).toEqual([name]);
       expect(
         await s.value("better_supabase.sso_provider($1)", [provider]),
@@ -289,6 +308,7 @@ describe.skipIf(!live)("sso", () => {
 
   it("provisions memberships through SCIM and keeps them to the organization", async () => {
     const s = await BlockSession.open(pool);
+
     try {
       await s.install(["organizations", "outbox", "sso"]);
       const name = domain();
@@ -298,6 +318,7 @@ describe.skipIf(!live)("sso", () => {
       const outsider = await s.user("outsider");
 
       await s.service();
+
       const handler = scimHandler({
         transport: sqlTransport(s.sql),
         keys: {
@@ -319,6 +340,7 @@ describe.skipIf(!live)("sso", () => {
         },
         basePath: "/scim/v2",
       });
+
       const send = async (method: string, path: string, body?: unknown) => {
         const response = await handler(
           new Request(`https://app.test/scim/v2${path}`, {
@@ -330,12 +352,15 @@ describe.skipIf(!live)("sso", () => {
             ...(body === undefined ? {} : { body: JSON.stringify(body) }),
           }),
         );
+
         const text = await response.text();
+
         return {
           status: response.status,
           body: (text ? JSON.parse(text) : {}) as Record<string, unknown>,
         };
       };
+
       const USER = "urn:ietf:params:scim:schemas:core:2.0:User";
       const PATCH = "urn:ietf:params:scim:api:messages:2.0:PatchOp";
 
@@ -344,6 +369,7 @@ describe.skipIf(!live)("sso", () => {
         userName: `ada@${name}`,
         emails: [{ value: `Ada@${name}`, primary: true }],
       });
+
       expect(waiting.status).toBe(201);
       const adaId = crypto.randomUUID();
       await s.rows(
@@ -357,6 +383,7 @@ describe.skipIf(!live)("sso", () => {
         userName: outsider.email,
         emails: [{ value: outsider.email }],
       });
+
       expect(foreign.status).toBe(201);
       expect(await roleOf(s, tenant, outsider.id)).toBeNull();
 
@@ -374,6 +401,7 @@ describe.skipIf(!live)("sso", () => {
         displayName: "Admin",
         members: [{ value: waiting.body["id"] }],
       });
+
       expect(group.status).toBe(201);
       expect(await roleOf(s, tenant, adaId)).toBe("admin");
       const user = await send("GET", `/Users/${String(waiting.body["id"])}`);
@@ -400,6 +428,7 @@ describe.skipIf(!live)("sso", () => {
           Operations: [{ op: "replace", path: "active", value: false }],
         },
       );
+
       expect(deactivated.body["active"]).toBe(false);
       expect(await roleOf(s, tenant, adaId)).toBeNull();
       await send("PATCH", `/Users/${String(waiting.body["id"])}`, {
@@ -413,6 +442,7 @@ describe.skipIf(!live)("sso", () => {
         userName: owner.email,
         active: false,
       });
+
       expect(ownerScim.status).toBe(201);
       expect(await roleOf(s, tenant, owner.id)).toBe("owner");
 

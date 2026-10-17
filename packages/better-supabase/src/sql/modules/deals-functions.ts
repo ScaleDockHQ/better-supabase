@@ -41,8 +41,10 @@ interface Field {
 function fields(d: (column: string) => string): readonly Field[] {
   const text = (column: string) => (v: string) =>
     `${d(column)} = nullif(trim(${v} #>> '{}'), '')`;
+
   const cast = (column: string, type: string) => (v: string) =>
     `${d(column)} = (${v} #>> '{}')::${type}`;
+
   return [
     { field: "name", set: (v) => `${d("name")} = trim(${v} #>> '{}')` },
     { field: "motion", set: text("motion") },
@@ -89,16 +91,19 @@ export function dealFunctions(ctx: ModuleContext, n: DealNames): string {
   const pipelines = ctx.of("pipelines");
   const stages = pipelines.table("stages");
   const s = (column: string): string => pipelines.col("stages", column);
+
   const editable = (alias: string): string =>
     `(${n.service} or (${ctx.scope.can(`${alias}.${d("tenant")}`, n.write)} and (${
       n.readAll ? "true" : "false"
     } or ${alias}.${d("owner")} = auth.uid()
       or ${ctx.scope.can(`${alias}.${d("tenant")}`, n.manage)}
       or exists (select 1 from ${t("members")} mm where mm.${m("deal")} = ${alias}.${d("id")} and mm.${m("user")} = auth.uid()))))`;
+
   const row = (alias: string): string =>
     `to_jsonb(${alias}) || jsonb_build_object(
       'contacts', coalesce((select jsonb_agg(jsonb_build_object('type', ck.${k("contactType")}, 'id', ck.${k("contactId")}, 'role', ck.${k("role")}, 'primary', ck.${k("isPrimary")}) order by ck.${k("isPrimary")} desc, ck.${k("contactId")}) from ${t("contacts")} ck where ck.${k("deal")} = ${alias}.${d("id")}), '[]'::jsonb),
       'members', coalesce((select jsonb_agg(jsonb_build_object('userId', cm.${m("user")}, 'role', cm.${m("role")}) order by cm.${m("user")}) from ${t("members")} cm where cm.${m("deal")} = ${alias}.${d("id")}), '[]'::jsonb))`;
+
   const payload = (
     id: string,
     tenant: string,
@@ -106,6 +111,7 @@ export function dealFunctions(ctx: ModuleContext, n: DealNames): string {
     extra = "",
   ): string =>
     `jsonb_build_object('organizationId', ${tenant}, 'dealId', ${id}, 'subjectType', 'deal', 'subjectId', ${id}::text, 'name', ${name}${extra})`;
+
   const recordDeal = (
     type: string,
     id: string,
@@ -120,10 +126,12 @@ export function dealFunctions(ctx: ModuleContext, n: DealNames): string {
       tenant: `${tenant}::text`,
       audit: false,
     });
+
   const checkCompany = (type: string, id: string, tenant: string): string => `
   if ${id} is not null and not ${subjectInTenant(ctx, type, id, tenant)} then
     ${fail("DEAL_COMPANY_FORBIDDEN", "the company is unknown or not readable in this organization", "42501")}
   end if;`;
+
   const checkValues = (alias: string): string => `
   if ${alias}.${d("motion")} is not null and not (${alias}.${d("motion")} = any (${n.motions})) then
     ${fail("DEAL_MOTION_INVALID", "unknown motion", "22023")}
@@ -131,6 +139,7 @@ export function dealFunctions(ctx: ModuleContext, n: DealNames): string {
   if ${alias}.${d("priority")} is not null and not (${alias}.${d("priority")} = any (${n.priorities})) then
     ${fail("DEAL_PRIORITY_INVALID", "unknown priority", "22023")}
   end if;`;
+
   const writes = [
     ...fields(d).map(
       (field) => `      when ${sqlString(field.field)} then
@@ -141,31 +150,39 @@ export function dealFunctions(ctx: ModuleContext, n: DealNames): string {
         update ${t("deals")} x set ${extra.ident} = (jsonb_populate_record(null::${t("deals")}, jsonb_build_object(${sqlString(extra.name)}, v_change -> 'value'))).${extra.ident} where x.${d("id")} = v_deal returning * into v_row;`,
     ),
   ].join("\n");
+
   const watchMember = watchSql(ctx, {
     tenant: "v_tenant",
     user: "v_user",
     subjectType: "'deal'",
     subjectId: "v_deal::text",
   });
+
   const next = ctx.installed("engagements")
     ? ctx.of("engagements").fn("next_engagement")
     : undefined;
+
   const nextJoin =
     next === undefined
       ? ""
       : `\n  left join lateral (select ${next}('deal', x.${d("id")}::text) as e) ne on true`;
+
   const noNextStep =
     next === undefined
       ? `x.${d("nextAt")} is null`
       : `x.${d("nextAt")} is null and ne.e is null`;
+
   const overdue =
     next === undefined
       ? `x.${d("nextAt")} < now()`
       : `(x.${d("nextAt")} < now() or coalesce((ne.e ->> 'overdue')::boolean, false))`;
+
   const sum = (filter: string): string =>
     `coalesce(sum(x.${d("amount")}) filter (where ${filter}), 0)::text`;
+
   const inWindow = `x.${d("closeOn")} >= deal_forecast.since and x.${d("closeOn")} <= deal_forecast.until`;
   const open = `x.${d("outcome")} = 'open' and x.${d("forecast")} is distinct from 'omit'`;
+
   const forecastSums = `
       'won', ${sum(`x.${d("outcome")} = 'won' and x.${d("closedAt")}::date >= deal_forecast.since and x.${d("closedAt")}::date <= deal_forecast.until`)},
       'commit', ${sum(`${open} and ${inWindow} and x.${d("forecast")} = 'commit'`)},
@@ -174,6 +191,7 @@ export function dealFunctions(ctx: ModuleContext, n: DealNames): string {
       'notCalled', ${sum(`${open} and ${inWindow} and x.${d("forecast")} is null`)},
       'omit', ${sum(`x.${d("outcome")} = 'open' and ${inWindow} and x.${d("forecast")} = 'omit'`)},
       'later', ${sum(`${open} and x.${d("closeOn")} > deal_forecast.until`)}`;
+
   return `
 -- Creates a deal. attrs: name, closeOn (required), amount (minor units),
 -- currency, company { type, id }, ownerId, motion, priority, product, seats,
