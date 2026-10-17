@@ -11,6 +11,7 @@ import type { ModuleDefinition, ModuleLayout } from "../module-types.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   addExtraColumns,
+  ownRowPolicies,
   schemaPreamble,
   updatedAt,
   revokeTable,
@@ -434,15 +435,18 @@ create index if not exists notification_subscriptions_subject_idx on ${n.table(t
 alter table ${n.table(table)} enable row level security;
 ${revokeTable(n.table(table))}
 grant select, insert, update, delete on ${n.table(table)} to authenticated;
-grant all on ${n.table(table)} to service_role;${policy(
-      table,
-      `bs_notification_${table}_own`,
-      `for all to authenticated using (${mine}) with check (${mine}${
-        n.has(table, "tenant") && ctx.installed("access")
-          ? ` and (${c(table, "tenant")} is null or ${ctx.scope.check(c(table, "tenant"), n.readPermission)})`
-          : ""
-      })`,
-    )}`);
+grant all on ${n.table(table)} to service_role;
+${ownRowPolicies({
+  table: n.table(table),
+  legacy: `bs_notification_${table}_own`,
+  name: (command) => `bs_notification_${table}_own_${command}`,
+  using: mine,
+  check: `${mine}${
+    n.has(table, "tenant") && ctx.installed("access")
+      ? ` and (${c(table, "tenant")} is null or ${ctx.scope.check(c(table, "tenant"), n.readPermission)})`
+      : ""
+  }`,
+})}`);
   }
 
   parts.push(suppressionsTable(ctx, n), trackingTables(ctx, n));

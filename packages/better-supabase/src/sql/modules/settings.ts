@@ -13,6 +13,7 @@ import {
   recordTrigger,
   type JsonSchemaCheck,
   jsonSchemaChecks,
+  ownRowPolicies,
   schemaPreamble,
   revokeTable,
 } from "../shared.ts";
@@ -394,10 +395,13 @@ alter table ${u} enable row level security;
 ${revokeTable(u)}
 grant select, insert, update, delete on ${u} to authenticated;
 grant all on ${u} to service_role;
-drop policy if exists "user_settings_own" on ${u};
-create policy "user_settings_own" on ${u} for all to authenticated
-  using (${uc("user")} = (select auth.uid()))
-  with check (${uc("user")} = (select auth.uid()));
+${ownRowPolicies({
+  table: u,
+  legacy: "user_settings_own",
+  name: (command) => `user_settings_own_${command}`,
+  using: `${uc("user")} = (select auth.uid())`,
+  check: `${uc("user")} = (select auth.uid())`,
+})}
 
 create table if not exists ${o} (
   ${oc("tenant")} ${id} not null,
