@@ -152,7 +152,7 @@ describe("createSafeFetch", () => {
       resolve: () => Promise.reject(lookup),
     });
     const error = await safe("https://example.com/").catch(
-      (thrown: unknown) => thrown,
+      (cause: unknown) => cause,
     );
     expect(error).toBeInstanceOf(UrlCheckError);
     expect(error).not.toBeInstanceOf(UnsafeUrlError);

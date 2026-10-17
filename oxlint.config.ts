@@ -328,6 +328,9 @@ const config: OxlintConfig = defineConfig({
     // 4 findings when measured: an error class and its subclass, or a test
     // file's fixture classes, belong together.
     "eslint/max-classes-per-file": "off",
+    // `cause` names a caught value when the handler also builds or returns
+    // an `error` of its own, as in `{ error: toDbError(cause) }`.
+    "unicorn/catch-error-name": ["error", { ignore: ["^cause$"] }],
 
     // Ultracite rules that fire on code written before it was adopted. Each
     // is its own follow-up change; backlog in docs/decisions/0002.
@@ -344,7 +347,7 @@ const config: OxlintConfig = defineConfig({
     // method-signature-style 1,896, consistent-type-specifier-style 1,826,
     // no-await-expression-member 1,472,
     // prefer-named-capture-group 488, no-use-before-define 476,
-    // prefer-destructuring 436, catch-error-name 249,
+    // prefer-destructuring 436,
     // consistent-type-definitions 202, no-nested-ternary 200, no-plusplus 123,
     // import-style 120, no-bitwise 54, no-array-for-each 28, no-eq-null 7.
     // no-array-reduce (8) flags folds that compose middleware or chain
@@ -364,7 +367,6 @@ const config: OxlintConfig = defineConfig({
     "eslint/prefer-named-capture-group": "off",
     "eslint/no-use-before-define": "off",
     "eslint/prefer-destructuring": "off",
-    "unicorn/catch-error-name": "off",
     "typescript/consistent-type-definitions": "off",
     "eslint/no-nested-ternary": "off",
     "eslint/no-plusplus": "off",
