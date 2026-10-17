@@ -136,8 +136,8 @@ export const react: OxlintConfig = defineConfig({
     // Components are function declarations, and the react-doctor findings are
     // perf hints on code outside render paths; each needs reading. Backlog in
     // docs/decisions/0002.
-    // Findings when measured: function-component-definition 295,
-    // js-combine-iterations 150, js-set-map-lookups 96, async-await-in-loop 75,
+    // Findings when measured: function-component-definition 296,
+    // js-combine-iterations 151, js-set-map-lookups 98, async-await-in-loop 75,
     // no-barrel-import 36, no-json-parse-stringify-clone 22,
     // server-sequential-independent-await 5, jsx-handler-names 4, js-index-maps
     // 4, no-react-children 3, hook-use-state 3,
@@ -241,48 +241,58 @@ const config: OxlintConfig = defineConfig({
     "typescript/require-await": "error",
     "typescript/return-await": ["error", "in-try-catch"],
 
-    // 335 findings when measured (222 in tests). Each needs a guard or a
+    // 2,103 findings when measured (1,754 in tests). Each needs a guard or a
     // narrower type; tracked as backlog in docs/decisions/0002.
     "typescript/no-non-null-assertion": "off",
-    // 426 findings when measured, 316 of them `if (text)` checks where the
+    // 1,231 findings when measured, most of them `if (text)` checks where the
     // empty string is meant to be falsy. Rewriting them changes behavior one
     // by one; tracked as backlog in docs/decisions/0002.
     "typescript/strict-boolean-expressions": "off",
-    // 312 findings when measured. Misuse (an unknown table, a role other
+    // 1,836 findings when measured (1,120 in tests). Misuse (an unknown table, a role other
     // than authenticated or anon) throws synchronously before any I/O, and
     // tests assert that; `async` turns those throws into rejections.
     "typescript/promise-function-async": "off",
-    // Shadowing a name in a nested scope is how the query builders read.
+    // Shadowing a name in a nested scope is how the query builders read;
+    // 123 findings when measured.
     "eslint/no-shadow": "off",
-    // `toSorted` and `toReversed` copies are not needed on local arrays.
+    // `toSorted` and `toReversed` copies are not needed on local arrays;
+    // 108 and 9 findings when measured.
     "unicorn/no-array-sort": "off",
     "unicorn/no-array-reverse": "off",
-    // Migrations, pages and retries run in order on purpose.
+    // Migrations, pages and retries run in order on purpose; 663 findings
+    // when measured.
     "eslint/no-await-in-loop": "off",
-    // Closures next to their single caller read better than hoisted helpers.
+    // Closures next to their single caller read better than hoisted helpers;
+    // 596 findings when measured.
     "unicorn/consistent-function-scoping": "off",
-    // Row and option objects are small; spreading them is not a hot path.
+    // Row and option objects are small; spreading them is not a hot path
+    // (103 and 2 findings when measured).
     "oxc/no-map-spread": "off",
     "oxc/no-accumulating-spread": "off",
-    // 402 findings when measured: generic trees, decoded JSON and the
+    // 1,671 findings when measured: generic trees, decoded JSON and the
     // isolatedDeclarations boundary need assertions. AGENTS.md asks for a
     // `SAFETY:` comment on each new one instead.
     "typescript/no-unsafe-type-assertion": "off",
     // `query<R>(): Promise<{ rows: R[] }>` style return-only generics are
-    // the caller-supplied row type, not an unused parameter.
+    // the caller-supplied row type, not an unused parameter; 28 findings
+    // when measured.
     "typescript/no-unnecessary-type-parameters": "off",
-    // 27 findings when measured, all `String(unknown)` for SQL literals,
+    // 119 findings when measured, all `String(unknown)` for SQL literals,
     // headers, form values and error text, where that is the intent.
     "typescript/no-base-to-string": "off",
     // `Record<never, never>` is the deliberate "no extra fields" marker in
-    // the DbError detail map and in conditional types.
+    // the DbError detail map and in conditional types; 232 findings when
+    // measured.
     "typescript/no-generated-empty-object-type": "off",
-    // Fire-and-forget `.then()` side effects in realtime subscriptions.
+    // Fire-and-forget `.then()` side effects in realtime subscriptions
+    // (33 and 9 findings when measured).
     "promise/always-return": "off",
     "promise/no-promise-in-callback": "off",
-    // Realtime and storage wrap `on*` handler properties of the SDK objects.
+    // Realtime and storage wrap `on*` handler properties of the SDK objects;
+    // 4 findings when measured.
     "unicorn/prefer-add-event-listener": "off",
-    // Spreading an iterable into a fresh array is how readonly inputs copy.
+    // Spreading an iterable into a fresh array is how readonly inputs copy;
+    // 12 findings when measured.
     "unicorn/no-useless-spread": "off",
     // An explicit `undefined` argument or arrow body is how a call fills a
     // required `T | undefined` parameter or an `() => undefined` contract.
@@ -292,10 +302,10 @@ const config: OxlintConfig = defineConfig({
     ],
     // noImplicitReturns checks this with types, and the rule rejects the
     // bare `return;` that no-useless-undefined writes for `T | undefined`;
-    // 20 findings when measured.
+    // 81 findings when measured.
     "typescript/consistent-return": "off",
     // noImplicitReturns needs the final `return;` of a `T | undefined`
-    // function (TS7030); 8 findings when measured, all that case.
+    // function (TS7030); 41 findings when measured, all that case.
     "eslint/no-useless-return": "off",
     // Not type-aware: it flags every `.match()` call, and 2 of the 3
     // findings when measured were custom path matchers.
@@ -305,27 +315,27 @@ const config: OxlintConfig = defineConfig({
       "error",
       { max: 1000, skipBlankLines: true, skipComments: true },
     ],
-    // 1,764 findings when measured. Deep readonly on every parameter
+    // 10,176 findings when measured. Deep readonly on every parameter
     // fights the SDK types the library wraps; `readonly` arrays and
     // `Readonly<T>` are used where a function promises not to mutate.
     "typescript/prefer-readonly-parameter-types": "off",
-    // 455 findings when measured. The `u` flag changes escape rules and
+    // 2,241 findings when measured. The `u` flag changes escape rules and
     // case folding per pattern, so each needs review; backlog in
     // docs/decisions/0002.
     "eslint/require-unicode-regexp": "off",
-    // Duplicates typescript/require-await, which is type-aware (121 findings
+    // Duplicates typescript/require-await, which is type-aware (851 findings
     // when measured, the same sites).
     "eslint/require-await": "off",
-    // 40 findings when measured, all `.map(parseRow)` style calls on typed
+    // 336 findings when measured, all `.map(parseRow)` style calls on typed
     // single-argument callbacks; the type-aware rules catch arity drift.
     "unicorn/no-array-callback-reference": "off",
-    // 10 findings when measured, all deliberate: `string & {}` keeps literal
+    // 27 findings when measured, all deliberate: `string & {}` keeps literal
     // autocomplete, and `{}` is the empty default of generic arguments.
     "typescript/ban-types": "off",
-    // 6 findings when measured, all a Valibot schema and its inferred type
+    // 15 findings when measured, all a Valibot schema and its inferred type
     // sharing one name, which TypeScript resolves by declaration space.
     "eslint/no-redeclare": "off",
-    // 4 findings when measured: an error class and its subclass, or a test
+    // 12 findings when measured: an error class and its subclass, or a test
     // file's fixture classes, belong together.
     "eslint/max-classes-per-file": "off",
     // `cause` names a caught value when the handler also builds or returns
@@ -338,18 +348,15 @@ const config: OxlintConfig = defineConfig({
     // These prefer a different form than the one the repo writes (function
     // declarations, keys in reading order, interfaces); adopting one is a
     // repo-wide codemod.
-    // Findings when measured: sort-keys 21,748, func-style 5,465,
-    // method-signature-style 1,896, consistent-type-specifier-style 1,826,
-    // no-await-expression-member 1,472,
-    // prefer-named-capture-group 488, no-use-before-define 476,
-    // prefer-destructuring 436,
-    // consistent-type-definitions 202, no-nested-ternary 200, no-plusplus 123,
-    // import-style 120, no-bitwise 54, no-array-for-each 28, no-eq-null 7.
+    // Findings when measured: sort-keys 22,476, func-style 5,625,
+    // method-signature-style 1,971, consistent-type-specifier-style 1,834,
+    // no-await-expression-member 1,504, prefer-named-capture-group 520,
+    // no-use-before-define 486, prefer-destructuring 452,
+    // no-nested-ternary 210, consistent-type-definitions 207, no-plusplus
+    // 127, import-style 126, no-bitwise 54, no-array-for-each 30, no-eq-null 7.
     // no-array-reduce (8) flags folds that compose middleware or chain
     // results, which read clearer as a fold than as a loop.
     // prefer-ternary (4) flags branches that each await a call with effects.
-    // no-duplicate-imports (35) also flags the `import type` line the repo
-    // keeps apart from the value import; import/no-duplicates covers the rest.
     // prefer-export-from (27) has no autofix, and Next.js route exports such
     // as `export const size = ogSize` must stay declarations.
     // no-inferrable-types (25) flags exported template constants, which
@@ -367,7 +374,6 @@ const config: OxlintConfig = defineConfig({
     "eslint/no-plusplus": "off",
     "unicorn/import-style": "off",
     "eslint/no-bitwise": "off",
-    "eslint/no-duplicate-imports": "off",
     "unicorn/no-array-for-each": "off",
     "unicorn/prefer-export-from": "off",
     "typescript/no-inferrable-types": "off",
@@ -379,11 +385,11 @@ const config: OxlintConfig = defineConfig({
     // constructors around callback APIs, bitwise hashing, empty fakes), others
     // are worth fixing.
     // Findings when measured: prefer-await-to-then 140, avoid-new 114,
-    // complexity 110, no-void 98, no-array-filter-map 71, no-module-mocking 59,
-    // prefer-await-to-callbacks 50, callback-return 44, prefer-structured-clone
-    // 22, no-invalid-void-type 21, param-names 18, no-dynamic-delete 17,
-    // class-methods-use-this 17, no-empty-object-type 16,
-    // custom-error-definition 16, no-empty-function 15,
+    // complexity 112, no-void 100, no-array-filter-map 77, no-module-mocking
+    // 59, prefer-await-to-callbacks 50, callback-return 45,
+    // prefer-structured-clone 22, no-invalid-void-type 21, param-names 18,
+    // no-dynamic-delete 17, class-methods-use-this 17, no-empty-object-type
+    // 16, custom-error-definition 16, no-empty-function 14,
     // no-unreadable-array-destructuring 14.
     // These stay off because every finding is deliberate: throw-new-error (7)
     // flags `extends TaggedError("X")` class factories, default-param-last
@@ -421,37 +427,42 @@ const config: OxlintConfig = defineConfig({
       rules: {
         "vitest/no-focused-tests": "error",
         "vitest/no-disabled-tests": "error",
-        // Tests await in `expect(...).rejects` and fire promises on purpose.
+        // Tests await in `expect(...).rejects` and fire promises on purpose
+        // (14 and 2 findings when measured).
         "typescript/no-floating-promises": "off",
         "typescript/no-misused-promises": "off",
-        // Plain `vi.fn()` spies stand in for callbacks of any shape.
+        // Plain `vi.fn()` spies stand in for callbacks of any shape; 753
+        // findings when measured.
         "vitest/require-mock-type-parameters": "off",
-        // Table-driven cases branch on the case inside one `it`; 206
+        // Table-driven cases branch on the case inside one `it`; 1,495
         // no-conditional-in-test findings when measured.
         "vitest/no-conditional-tests": "off",
         "vitest/no-conditional-in-test": "off",
-        // Suites are one file per module (AGENTS.md); 4 exceed 1,000 lines.
+        // Suites are one file per module (AGENTS.md); 242 exceed 1,000 lines.
         "eslint/max-lines": "off",
-        // Fakes implement async SDK methods without awaiting; 89
+        // Fakes implement async SDK methods without awaiting; 712
         // require-await findings when measured.
         "typescript/require-await": "off",
         // Tests reject and throw non-Error values to cover how the code
-        // under test handles them; 10 findings when measured.
+        // under test handles them; 27 findings when measured.
         "eslint/prefer-promise-reject-errors": "off",
         "typescript/prefer-promise-reject-errors": "off",
         "eslint/no-throw-literal": "off",
         // Spies and `vi.fn()` callbacks return values the caller ignores;
-        // 77 strict-void-return findings when measured.
+        // 233 strict-void-return findings when measured.
         "typescript/strict-void-return": "off",
-        // Type tests assert with `expectTypeOf`, which the rule cannot see.
+        // Type tests assert with `expectTypeOf`, which the rule cannot see;
+        // 67 findings when measured.
         "vitest/expect-expect": "off",
-        // Tests hand fake clients and spans to typed APIs on purpose.
+        // Tests hand fake clients and spans to typed APIs on purpose (213 and
+        // 1,258 findings when measured).
         "anti-slop/no-chained-type-assertions": "off",
         "anti-slop/require-safety-comment-for-type-assertion": "off",
-        // Fixtures read the local stack's env with defaults.
+        // Fixtures read the local stack's env with defaults; 47 findings when
+        // measured.
         "node/no-process-env": "off",
         // Vitest asymmetric matchers (`expect.any`, `expect.stringContaining`)
-        // and `Response.json()` are typed `any`; 60 findings when measured.
+        // and `Response.json()` are typed `any`; 371 findings when measured.
         "typescript/no-unsafe-assignment": "off",
         "typescript/no-unsafe-member-access": "off",
         "typescript/no-unsafe-argument": "off",
@@ -461,14 +472,14 @@ const config: OxlintConfig = defineConfig({
         // Ultracite's matcher and layout preferences differ from how the suites
         // assert (`toEqual`, `.rejects`, several expects per case); each is a
         // codemod across the tests. Backlog in docs/decisions/0002.
-        // Findings when measured: prefer-strict-equal 5,619,
-        // prefer-expect-resolves 4,118, max-expects 3,996, prefer-to-be-truthy
-        // 925, prefer-describe-function-title 752, prefer-to-be-falsy 708,
-        // prefer-called-once 153, padding-around-after-all-blocks 119,
+        // Findings when measured: prefer-strict-equal 5,723,
+        // prefer-expect-resolves 4,241, max-expects 4,068, prefer-to-be-truthy
+        // 946, prefer-describe-function-title 766, prefer-to-be-falsy 734,
+        // prefer-called-once 155, padding-around-after-all-blocks 122,
         // require-top-level-describe 71, prefer-import-in-mock 56,
         // consistent-test-it 25, prefer-to-be 25, prefer-called-with 24,
-        // prefer-to-have-length 23, prefer-expect-type-of 20,
-        // prefer-mock-return-shorthand 12, padding-around-test-blocks 11,
+        // prefer-to-have-length 23, prefer-expect-type-of 21,
+        // prefer-mock-return-shorthand 19, padding-around-test-blocks 11,
         // consistent-test-filename 7, prefer-importing-vitest-globals 7,
         // prefer-mock-promise-shorthand 5, prefer-hooks-in-order 4, prefer-each
         // 3, prefer-comparison-matcher 2, prefer-to-contain 2.
