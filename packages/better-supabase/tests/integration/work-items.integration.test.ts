@@ -27,9 +27,16 @@ const MODULES = [
   "work-items",
 ];
 
+// The shared stack's work_items table references `work_projects` (the Next.js
+// example renames it), and `create table if not exists` keeps that table.
 const layout = (maxAssignees = 0): ModuleLayout => ({
   subjects: { ...workItemsSubjects() },
-  modules: { "work-items": { options: { maxAssignees } } },
+  modules: {
+    "work-items": {
+      tables: { projects: "work_projects" },
+      options: { maxAssignees },
+    },
+  },
 });
 
 const hint = (result: Result<unknown>): string =>

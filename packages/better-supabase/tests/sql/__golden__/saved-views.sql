@@ -58,9 +58,9 @@ create table if not exists "better_supabase"."saved_views" (
   check ("scope" <> 'user' or "owner_id" is not null),
   check ("scope" <> 'team' or "team_id" is not null)
 );
-create index if not exists saved_views_list_idx on "better_supabase"."saved_views" ("tenant_id", "list");
-create index if not exists saved_views_owner_idx on "better_supabase"."saved_views" ("owner_id") where "owner_id" is not null;
-create unique index if not exists saved_views_default_idx on "better_supabase"."saved_views" ("tenant_id", "list", "scope", (coalesce(case "scope" when 'user' then "owner_id"::text when 'team' then "team_id" end, ''))) where "is_default";
+create index if not exists "saved_views_list_idx" on "better_supabase"."saved_views" ("tenant_id", "list");
+create index if not exists "saved_views_owner_idx" on "better_supabase"."saved_views" ("owner_id") where "owner_id" is not null;
+create unique index if not exists "saved_views_default_idx" on "better_supabase"."saved_views" ("tenant_id", "list", "scope", (coalesce(case "scope" when 'user' then "owner_id"::text when 'team' then "team_id" end, ''))) where "is_default";
 alter table "better_supabase"."saved_views" enable row level security;
 revoke all on "better_supabase"."saved_views" from anon, authenticated;
 grant select on "better_supabase"."saved_views" to authenticated;
@@ -84,7 +84,7 @@ create table if not exists "better_supabase"."saved_view_preferences" (
   "updated_at" timestamptz not null default now(),
   primary key ("view_id", "user_id")
 );
-create index if not exists saved_view_preferences_user_idx on "better_supabase"."saved_view_preferences" ("user_id", "tenant_id");
+create index if not exists "saved_view_preferences_user_idx" on "better_supabase"."saved_view_preferences" ("user_id", "tenant_id");
 alter table "better_supabase"."saved_view_preferences" enable row level security;
 revoke all on "better_supabase"."saved_view_preferences" from anon, authenticated;
 grant select on "better_supabase"."saved_view_preferences" to authenticated;
@@ -101,6 +101,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_id uuid := save_view.view_id;
   v_row "better_supabase"."saved_views";
@@ -488,9 +489,9 @@ create table if not exists "better_supabase"."saved_views" (
   check ("scope" <> 'user' or "owner_id" is not null),
   check ("scope" <> 'team' or "team_id" is not null)
 );
-create index if not exists saved_views_list_idx on "better_supabase"."saved_views" ("tenant_id", "list");
-create index if not exists saved_views_owner_idx on "better_supabase"."saved_views" ("owner_id") where "owner_id" is not null;
-create unique index if not exists saved_views_default_idx on "better_supabase"."saved_views" ("tenant_id", "list", "scope", (coalesce(case "scope" when 'user' then "owner_id"::text when 'team' then "team_id" end, ''))) where "is_default";
+create index if not exists "saved_views_list_idx" on "better_supabase"."saved_views" ("tenant_id", "list");
+create index if not exists "saved_views_owner_idx" on "better_supabase"."saved_views" ("owner_id") where "owner_id" is not null;
+create unique index if not exists "saved_views_default_idx" on "better_supabase"."saved_views" ("tenant_id", "list", "scope", (coalesce(case "scope" when 'user' then "owner_id"::text when 'team' then "team_id" end, ''))) where "is_default";
 alter table "better_supabase"."saved_views" enable row level security;
 revoke all on "better_supabase"."saved_views" from anon, authenticated;
 grant select on "better_supabase"."saved_views" to authenticated;
@@ -514,7 +515,7 @@ create table if not exists "better_supabase"."saved_view_preferences" (
   "updated_at" timestamptz not null default now(),
   primary key ("view_id", "user_id")
 );
-create index if not exists saved_view_preferences_user_idx on "better_supabase"."saved_view_preferences" ("user_id", "tenant_id");
+create index if not exists "saved_view_preferences_user_idx" on "better_supabase"."saved_view_preferences" ("user_id", "tenant_id");
 alter table "better_supabase"."saved_view_preferences" enable row level security;
 revoke all on "better_supabase"."saved_view_preferences" from anon, authenticated;
 grant select on "better_supabase"."saved_view_preferences" to authenticated;
@@ -531,6 +532,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_id uuid := save_view.view_id;
   v_row "better_supabase"."saved_views";
@@ -931,9 +933,9 @@ create table if not exists "app_private"."saved_views" (
   check ("scope" <> 'user' or "owner_id" is not null),
   check ("scope" <> 'team' or "team_id" is not null)
 );
-create index if not exists saved_views_list_idx on "app_private"."saved_views" ("tenant_id", "list");
-create index if not exists saved_views_owner_idx on "app_private"."saved_views" ("owner_id") where "owner_id" is not null;
-create unique index if not exists saved_views_default_idx on "app_private"."saved_views" ("tenant_id", "list", "scope", (coalesce(case "scope" when 'user' then "owner_id"::text when 'team' then "team_id" end, ''))) where "is_default";
+create index if not exists "saved_views_list_idx" on "app_private"."saved_views" ("tenant_id", "list");
+create index if not exists "saved_views_owner_idx" on "app_private"."saved_views" ("owner_id") where "owner_id" is not null;
+create unique index if not exists "saved_views_default_idx" on "app_private"."saved_views" ("tenant_id", "list", "scope", (coalesce(case "scope" when 'user' then "owner_id"::text when 'team' then "team_id" end, ''))) where "is_default";
 alter table "app_private"."saved_views" enable row level security;
 revoke all on "app_private"."saved_views" from anon, authenticated;
 grant select on "app_private"."saved_views" to authenticated;
@@ -957,7 +959,7 @@ create table if not exists "app_private"."saved_view_preferences" (
   "updated_at" timestamptz not null default now(),
   primary key ("view_id", "user_id")
 );
-create index if not exists saved_view_preferences_user_idx on "app_private"."saved_view_preferences" ("user_id", "tenant_id");
+create index if not exists "saved_view_preferences_user_idx" on "app_private"."saved_view_preferences" ("user_id", "tenant_id");
 alter table "app_private"."saved_view_preferences" enable row level security;
 revoke all on "app_private"."saved_view_preferences" from anon, authenticated;
 grant select on "app_private"."saved_view_preferences" to authenticated;
@@ -974,6 +976,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_id uuid := save_view.view_id;
   v_row "app_private"."saved_views";
@@ -1361,9 +1364,9 @@ create table if not exists "better_supabase"."saved_views" (
   check ("scope" <> 'user' or "owner_id" is not null),
   check ("scope" <> 'team' or "team_id" is not null)
 );
-create index if not exists saved_views_list_idx on "better_supabase"."saved_views" ("tenant_id", "list");
-create index if not exists saved_views_owner_idx on "better_supabase"."saved_views" ("owner_id") where "owner_id" is not null;
-create unique index if not exists saved_views_default_idx on "better_supabase"."saved_views" ("tenant_id", "list", "scope", (coalesce(case "scope" when 'user' then "owner_id"::text when 'team' then "team_id" end, ''))) where "is_default";
+create index if not exists "saved_views_list_idx" on "better_supabase"."saved_views" ("tenant_id", "list");
+create index if not exists "saved_views_owner_idx" on "better_supabase"."saved_views" ("owner_id") where "owner_id" is not null;
+create unique index if not exists "saved_views_default_idx" on "better_supabase"."saved_views" ("tenant_id", "list", "scope", (coalesce(case "scope" when 'user' then "owner_id"::text when 'team' then "team_id" end, ''))) where "is_default";
 alter table "better_supabase"."saved_views" enable row level security;
 revoke all on "better_supabase"."saved_views" from anon, authenticated;
 grant select on "better_supabase"."saved_views" to authenticated;
@@ -1387,7 +1390,7 @@ create table if not exists "better_supabase"."saved_view_preferences" (
   "updated_at" timestamptz not null default now(),
   primary key ("view_id", "user_id")
 );
-create index if not exists saved_view_preferences_user_idx on "better_supabase"."saved_view_preferences" ("user_id", "tenant_id");
+create index if not exists "saved_view_preferences_user_idx" on "better_supabase"."saved_view_preferences" ("user_id", "tenant_id");
 alter table "better_supabase"."saved_view_preferences" enable row level security;
 revoke all on "better_supabase"."saved_view_preferences" from anon, authenticated;
 grant select on "better_supabase"."saved_view_preferences" to authenticated;
@@ -1404,6 +1407,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_id uuid := save_view.view_id;
   v_row "better_supabase"."saved_views";
@@ -1882,6 +1886,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_id uuid := save_view.view_id;
   v_row "better_supabase"."saved_views";
