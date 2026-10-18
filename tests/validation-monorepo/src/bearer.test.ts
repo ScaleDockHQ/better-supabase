@@ -65,7 +65,7 @@ describe("bearer callers through the runtime", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       actor: { id: client, kind: "oauth-client" },
-      delegation: { scopes: ["openid", "addresses:read"] },
+      delegation: { scopes: ["addresses:read"] },
       rows: [],
     });
   });

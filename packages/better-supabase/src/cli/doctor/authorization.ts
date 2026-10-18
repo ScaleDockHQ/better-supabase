@@ -10,7 +10,6 @@ import {
   resolveModules,
   SQL_MODULES,
 } from "../../sql/index.ts";
-import { SUPPORT_SESSION_APPROVAL } from "../../sql/modules/approver.ts";
 import {
   accessProviderMode,
   type AccessProviderMode,
@@ -75,6 +74,8 @@ function missingTemplates(
 }
 
 /** Tables whose generated policies call the provider's functions by role and scope only. */
+const SUPPORT_SESSION_APPROVAL = "support-session";
+
 const POLICY_TABLES = new Set(["storage.objects", "realtime.messages"]);
 
 const POLICY =
