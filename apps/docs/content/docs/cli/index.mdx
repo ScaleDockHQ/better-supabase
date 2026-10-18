@@ -105,7 +105,10 @@ are [citty](https://github.com/unjs/citty) definitions: `args` declares the
 options, and `run` gets the parsed arguments and the context (`cwd`,
 `config`, `io`, `env`, `json`, `signal`). Throw a `CliError` to report a
 coded error, and return `data` to give `--json` a document. Options listed in `lists` may repeat or
-take commas, and `list()` splits them.
+take commas, and `list()` splits them. Set `runsWithInvalidConfig: true` on a
+command that repairs the config: when the config file fails to load, it runs
+with the default config rooted at that file's directory instead of reporting
+`config_invalid`.
 
 ```ts title="scripts/cli.ts"
 import {

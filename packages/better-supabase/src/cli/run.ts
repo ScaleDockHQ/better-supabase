@@ -19,6 +19,7 @@ import {
   GLOBAL_ARGS,
   joinRepeated,
   listArgs,
+  runsWithInvalidConfig,
 } from "./command.ts";
 import { CliError, type CliErrorCode, toCliError } from "./errors.ts";
 import { type Command, legacyCommand } from "./legacy.ts";
@@ -286,7 +287,7 @@ export function createCli(init: CreateCliOptions): Cli {
       // Config loading (c12) and env validation (valibot) stay out of `--version` and `--help`.
       const [
         loaded,
-        { discoverConfig, loadConfig },
+        { defaultConfig, discoverConfig, loadConfig },
         { configEnvironment, parseEnv },
       ] = await Promise.all([
         load(),
@@ -309,7 +310,17 @@ export function createCli(init: CreateCliOptions): Cli {
               });
         });
 
-      const config = await reloadConfig();
+      const config = await reloadConfig().catch((cause: unknown) => {
+        if (
+          runsWithInvalidConfig(command) &&
+          toCliError(cause).code === "config_invalid"
+        ) {
+          return defaultConfig(cwd, globals.config, environment);
+        }
+
+        throw cause;
+      });
+
       const configFile = discoverConfig(cwd, globals.config);
 
       const interactive =
