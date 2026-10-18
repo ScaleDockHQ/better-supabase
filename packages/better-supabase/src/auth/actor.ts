@@ -1,3 +1,4 @@
+import { type DbError, dbError } from "../core/errors.ts";
 import { isRecord } from "../core/guards.ts";
 
 /** One level of an RFC 8693 `act` chain: who acts, and who acted before it. */
@@ -253,18 +254,51 @@ export function agentClaims<C extends Readonly<Record<string, unknown>>>(
   return { ...claims, act };
 }
 
-/** The OAuth `scope` claim (a space-separated string or a list); `undefined` when empty. */
+/** The 401 for a session whose `act` claim `actorOf` refuses (`ACTOR_INVALID`). */
+export function invalidActorError(): DbError {
+  return dbError(
+    "unauthorized",
+    "The token's act claim is not a valid chain of actors: every level needs a sub, and kind must be support, impersonation, agent or absent",
+    { code: "ACTOR_INVALID" },
+  );
+}
+
+/**
+ * OpenID Connect scopes that ask for identity claims or a refresh token.
+ * They grant no permission, so `delegationOf` leaves them out.
+ */
+export const IDENTITY_SCOPES: ReadonlySet<string> = new Set([
+  "openid",
+  "email",
+  "profile",
+  "phone",
+  "address",
+  "offline_access",
+]);
+
+/**
+ * The OAuth `scope` claim (a space-separated string or a list), without
+ * `IDENTITY_SCOPES`. `undefined` when the token names no scope. A token
+ * that names only identity scopes gets `{ scopes: [] }`, so an actor
+ * limited to its delegation stays limited.
+ */
 export function delegationOf(
   claims: Readonly<Record<string, unknown>>,
 ): SessionDelegation | undefined {
   const scope = claims["scope"];
 
-  const scopes =
+  const named =
     typeof scope === "string"
       ? scope.split(/\s+/u).filter(Boolean)
       : Array.isArray(scope)
-        ? scope.filter((item): item is string => typeof item === "string")
+        ? scope.filter(
+            (item): item is string => typeof item === "string" && item !== "",
+          )
         : [];
 
-  return scopes.length > 0 ? { scopes } : undefined;
+  if (named.length === 0) {
+    return undefined;
+  }
+
+  return { scopes: named.filter((item) => !IDENTITY_SCOPES.has(item)) };
 }
