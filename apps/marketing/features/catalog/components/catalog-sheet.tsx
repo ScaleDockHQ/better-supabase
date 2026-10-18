@@ -14,8 +14,18 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 
-/** The catalog sidebar on small screens. A tap on any link closes it. */
-export function CatalogSheet({ children }: { children: ReactNode }) {
+import { SidebarScroll } from "./sidebar-scroll";
+
+/** A section's sidebar on small screens. A tap on any link closes it. */
+export function CatalogSheet({
+  label,
+  title,
+  children,
+}: {
+  label: string;
+  title: string;
+  children: ReactNode;
+}) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -24,24 +34,24 @@ export function CatalogSheet({ children }: { children: ReactNode }) {
         render={
           <Button variant="outline" size="sm">
             <PanelLeftIcon aria-hidden="true" />
-            Browse the catalog
+            {label}
           </Button>
         }
       />
       <SheetContent side="left">
         <SheetHeader>
-          <SheetTitle>Catalog</SheetTitle>
+          <SheetTitle>{title}</SheetTitle>
         </SheetHeader>
         {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- delegated from the links inside, which handle keys themselves */}
         <div
-          className="min-h-0 flex-1 overflow-y-auto px-4 pb-6"
+          className="min-h-0 flex-1"
           onClick={(event) => {
             if (event.target instanceof Element && event.target.closest("a")) {
               setOpen(false);
             }
           }}
         >
-          {children}
+          <SidebarScroll className="px-4 pb-6">{children}</SidebarScroll>
         </div>
       </SheetContent>
     </Sheet>
