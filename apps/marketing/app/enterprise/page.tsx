@@ -55,7 +55,7 @@ export default function EnterprisePage() {
         <FeatureGrid items={pillars} columns={3} />
       </Section>
       <Section eyebrow="Work with us" title="How we can help">
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           {engagements.map((item) => (
             <div
               key={item.title}
@@ -69,7 +69,7 @@ export default function EnterprisePage() {
           ))}
         </div>
       </Section>
-      <section className="mx-auto w-full max-w-6xl px-6 pb-20 md:px-8">
+      <section className="mx-auto w-full max-w-7xl px-6 pb-20 md:px-8">
         <div className="flex flex-col items-center gap-4 rounded-2xl border border-border bg-card px-6 py-12 text-center">
           <h2 className="text-2xl font-semibold tracking-tight">
             Talk to the maintainers

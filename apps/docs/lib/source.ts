@@ -114,6 +114,18 @@ export async function getLLMIndex(): Promise<string> {
         description: "every page in one Markdown file",
       },
       {
+        title: "Blocks catalog",
+        url: siteUrl("/blocks.md"),
+        description:
+          "every SQL block by category, each linked to its own Markdown page",
+      },
+      {
+        title: "Recipes",
+        url: siteUrl("/recipes.md"),
+        description:
+          "UI for the blocks from shadcn components and the React hooks, for Next.js and Expo",
+      },
+      {
         title: "Docs MCP server",
         url: siteUrl("/mcp"),
         description:

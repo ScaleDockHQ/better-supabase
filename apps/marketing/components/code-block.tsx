@@ -5,14 +5,20 @@ import type { Snippet } from "@/lib/snippets";
 
 import { cn } from "@/lib/utils";
 
-/** Shiki reads the clock while highlighting, so the result is cached per snippet. */
+/**
+ * Shiki reads the clock while highlighting, so the result is cached per
+ * snippet. The high-contrast themes keep comments above 4.5:1 on the card.
+ */
 async function highlight(code: string, lang: string): Promise<string> {
   "use cache";
   cacheLife("max");
 
   return codeToHtml(code, {
     lang,
-    themes: { light: "github-light", dark: "github-dark" },
+    themes: {
+      light: "github-light-high-contrast",
+      dark: "github-dark-high-contrast",
+    },
     defaultColor: "light",
   });
 }

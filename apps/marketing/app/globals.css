@@ -10,6 +10,11 @@
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
   --text-code: 0.8125rem;
+  /* Only for the aria-hidden mini UI in features/blocks/components/block-preview.tsx. */
+  --text-2xs: 0.625rem;
+  --text-2xs--line-height: 1rem;
+  --text-3xs: 0.5625rem;
+  --text-4xs: 0.5rem;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-accent: var(--sidebar-accent);
@@ -157,7 +162,17 @@
   background-color: transparent !important;
 }
 
+/* The surface behind block previews; `before:opacity-*` sets its strength. */
+@utility bg-dots {
+  background-image: radial-gradient(var(--foreground) 1px, transparent 1px);
+  background-size: 14px 14px;
+}
+
 @layer base {
+  html {
+    scroll-padding-top: 5rem;
+  }
+
   * {
     @apply border-border outline-ring/50;
   }

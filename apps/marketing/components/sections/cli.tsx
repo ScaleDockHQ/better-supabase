@@ -17,7 +17,7 @@ export function CliSection() {
       title="Codegen and diagnostics in one command line"
       description="One binary for the whole loop: set up a project, generate types from your local stack, and catch security and performance problems before they ship."
     >
-      <div className="grid items-start gap-8 lg:grid-cols-2">
+      <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-2">
         <CodeBlock snippet={cliSnippet} />
         <div className="flex flex-col gap-4">
           <ul className="flex flex-col gap-3">

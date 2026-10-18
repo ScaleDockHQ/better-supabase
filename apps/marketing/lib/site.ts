@@ -35,6 +35,8 @@ export const footerColumns: readonly {
     links: [
       { href: "/docs/getting-started", label: "Quickstart" },
       { href: "/blocks", label: "Blocks" },
+      { href: "/recipes", label: "Recipes" },
+      { href: "/create", label: "Create" },
       { href: "/docs/repository", label: "Repository" },
       { href: "/docs/auth", label: "Auth" },
       { href: "/docs/cli", label: "CLI" },

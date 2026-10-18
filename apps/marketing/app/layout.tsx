@@ -29,6 +29,7 @@ export const metadata: Metadata = {
     siteName: site.name,
     type: "website",
   },
+  twitter: { card: "summary_large_image" },
 };
 
 export default function Layout({ children }: { children: ReactNode }) {
@@ -44,8 +45,20 @@ export default function Layout({ children }: { children: ReactNode }) {
     >
       <body className="flex min-h-svh flex-col">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <a
+            href="#main"
+            className="sr-only z-50 rounded-md bg-background px-3 py-2 text-sm font-medium ring-2 ring-ring focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
+          >
+            Skip to content
+          </a>
           <Navbar />
-          <main className="flex flex-1 flex-col">{children}</main>
+          <main
+            id="main"
+            tabIndex={-1}
+            className="flex flex-1 flex-col outline-none"
+          >
+            {children}
+          </main>
           <SiteFooter />
         </ThemeProvider>
         <Analytics />

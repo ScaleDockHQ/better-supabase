@@ -14,6 +14,7 @@ catalog:
   "@ai-sdk/react": 4.0.146
   "@ai-sdk/workflow": 2.0.74
   "@arethetypeswrong/cli": 0.18.5
+  "@axe-core/playwright": 4.14.0
   "@base-ui/react": 1.9.0
   "@changesets/assemble-release-plan": 7.0.0
   "@changesets/changelog-github": 1.0.1

@@ -10,8 +10,10 @@ import {
 import { createRelativeLink } from "fumadocs-ui/mdx";
 import { notFound } from "next/navigation";
 
+import { JsonLd } from "@/components/json-ld";
 import { getMDXComponents } from "@/components/mdx";
 import { gitConfig } from "@/lib/shared";
+import { siteUrl } from "@/lib/site-url";
 import { getPagePublicMarkdownUrl, source } from "@/lib/source";
 
 /** One docs page: the MDX body, the copy and view actions, and the last edit date. */
@@ -29,6 +31,23 @@ export async function DocsArticle({
   const MDX = page.data.body;
   const markdownUrl = getPagePublicMarkdownUrl(page);
   const { lastModified } = page.data;
+
+  const article = {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    headline: page.data.title,
+    description: page.data.description,
+    url: siteUrl(page.url),
+    dateModified:
+      lastModified === undefined
+        ? undefined
+        : new Date(lastModified).toISOString(),
+    isPartOf: {
+      "@type": "WebSite",
+      name: "better-supabase",
+      url: siteUrl("/"),
+    },
+  };
 
   return (
     <DocsPage toc={page.data.toc} full={page.data.full}>
@@ -53,6 +72,7 @@ export async function DocsArticle({
       {lastModified === undefined ? null : (
         <PageLastUpdate date={new Date(lastModified)} />
       )}
+      <JsonLd data={article} />
     </DocsPage>
   );
 }

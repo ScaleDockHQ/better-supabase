@@ -13,7 +13,10 @@ import {
   getBlock,
 } from "../../lib/blocks";
 
-const PAGE = join(import.meta.dirname, "../../app/blocks/[name]/page.tsx");
+const PAGE = join(
+  import.meta.dirname,
+  "../../app/(catalog)/blocks/[name]/page.tsx",
+);
 
 describe("blocks catalog", () => {
   test("every catalog block has a statically generated page", () => {

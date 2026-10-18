@@ -61,11 +61,11 @@ export function getRecipe(slug: string): AvailableRecipe | undefined {
   return availableRecipes.find((recipe) => recipe.slug === slug);
 }
 
-export function recipePath(slug: string): string {
+export function recipePath(slug: string): `/recipes/${string}` {
   return `/recipes/${slug}`;
 }
 
-/** The `generateStaticParams` of `app/recipes/[slug]`: one page per available recipe. */
+/** The `generateStaticParams` of `app/(catalog)/recipes/[slug]`: one page per available recipe. */
 export function recipeStaticParams(): { slug: string }[] {
   return availableRecipes.map((recipe) => ({ slug: recipe.slug }));
 }

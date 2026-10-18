@@ -1,12 +1,17 @@
+import { CatalogShowcase } from "@/components/sections/catalog-showcase";
 import { CliSection } from "@/components/sections/cli";
 import { Closer } from "@/components/sections/closer";
 import { FaqSection } from "@/components/sections/faq";
 import { FeatureGrid } from "@/components/sections/feature-grid";
 import { GetStarted } from "@/components/sections/get-started";
 import { HomeHero } from "@/components/sections/home-hero";
+import { RecipesStrip } from "@/components/sections/recipes-strip";
 import { RuntimesBand } from "@/components/sections/runtimes-band";
 import { Section } from "@/components/sections/section";
-import { features, frameworks } from "@/lib/home";
+import { JsonLd } from "@/components/site/json-ld";
+import { faq, features, frameworks } from "@/lib/home";
+import { site } from "@/lib/site";
+import { faqPage, homeGraph } from "@/lib/structured-data";
 
 export default function HomePage() {
   return (
@@ -20,6 +25,8 @@ export default function HomePage() {
       >
         <FeatureGrid items={features} />
       </Section>
+      <CatalogShowcase />
+      <RecipesStrip />
       <Section
         id="frameworks"
         eyebrow="Frameworks"
@@ -33,6 +40,17 @@ export default function HomePage() {
       <GetStarted />
       <FaqSection />
       <Closer />
+      <JsonLd
+        data={homeGraph({
+          name: site.name,
+          url: site.url,
+          description: site.tagline,
+          github: site.github,
+          npm: site.npm,
+          company: site.company,
+        })}
+      />
+      <JsonLd data={faqPage(faq)} />
     </>
   );
 }
