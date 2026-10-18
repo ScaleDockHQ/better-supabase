@@ -159,6 +159,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0040: `appTables` renders the app's own tables; a Create design rides on the URL as `&design=`.
 - 0041: Create deploys a preset through a Supabase OAuth app; tokens live in a sealed cookie.
 - 0042: app table columns take a format, options and bounds; tables take composite keys and an id type.
+- 0043: an app table becomes a subject through `appTables.<name>.subject`.
 
 ## Pre-release pins
 
