@@ -119,6 +119,30 @@ export function useTypeLabel(): (type: string) => string {
         return t("JSON");
       }
 
+      case "email": {
+        return t("Email");
+      }
+
+      case "url": {
+        return t("Link");
+      }
+
+      case "multi_option": {
+        return t("Options");
+      }
+
+      case "user": {
+        return t("Person");
+      }
+
+      case "rating": {
+        return t("Rating");
+      }
+
+      case "currency": {
+        return t("Amount");
+      }
+
       default: {
         const unknown: never = known;
 

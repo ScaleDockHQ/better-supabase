@@ -1,3 +1,7 @@
+import {
+  CUSTOM_FIELD_TYPES,
+  type CustomFieldType,
+} from "better-supabase/blocks/custom-fields";
 import * as v from "valibot";
 
 /** The records the editor defines fields for, by subject type. */
@@ -8,16 +12,9 @@ export type FieldEntity = (typeof FIELD_ENTITIES)[number];
 export const FieldEntitySchema = v.picklist(FIELD_ENTITIES);
 
 /** The value types the custom-fields module accepts. */
-export const FIELD_TYPES = [
-  "text",
-  "number",
-  "date",
-  "bool",
-  "option",
-  "json",
-] as const;
+export const FIELD_TYPES = CUSTOM_FIELD_TYPES;
 
-export type FieldType = (typeof FIELD_TYPES)[number];
+export type FieldType = CustomFieldType;
 
 export const FieldTypeSchema = v.picklist(FIELD_TYPES);
 
