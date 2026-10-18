@@ -47,11 +47,16 @@ export type {
   ResponseDbStats,
 } from "./budget.ts";
 
-export { supabaseClaimFixtures } from "./claims-fixtures.ts";
+export {
+  supabaseClaimFixtures,
+  supabaseInvalidClaimFixtures,
+} from "./claims-fixtures.ts";
 
 export type {
   SupabaseClaimFixture,
   SupabaseClaimFixtureName,
+  SupabaseInvalidClaimFixture,
+  SupabaseInvalidClaimFixtureName,
 } from "./claims-fixtures.ts";
 
 export { defineSeed, isSeed } from "./seed.ts";
