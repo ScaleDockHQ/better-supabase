@@ -7,6 +7,7 @@ import {
   PRESET_FIELDS,
   PRESET_FRAMEWORKS,
   type PresetName,
+  PRESETS,
   type ResolvedPreset,
   withPresetField,
 } from "better-supabase/preset";
@@ -16,6 +17,7 @@ import { useId } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/reui/alert";
 import { Badge } from "@/components/reui/badge";
 import { BrandLogo } from "@/components/site/brand-icons";
+import { CopyButton } from "@/components/site/copy-button";
 import {
   Accordion,
   AccordionContent,
@@ -42,6 +44,7 @@ import {
   AUTH_CHOICES,
   type AuthChoice,
   CONVENTION_KEYS,
+  CUSTOM_PRESET,
   CONVENTION_VALUES,
   FIELD_LABELS,
   fieldLabel,
@@ -160,21 +163,6 @@ function FrameworkLabel({ framework }: { framework: string }): ReactNode {
   );
 }
 
-function Section({
-  title,
-  children,
-}: {
-  title: string;
-  children: ReactNode;
-}): ReactElement {
-  return (
-    <fieldset className="flex flex-col gap-3">
-      <legend className="pb-2 text-sm font-medium">{title}</legend>
-      {children}
-    </fieldset>
-  );
-}
-
 function StackSection({
   preset,
   resolved,
@@ -197,7 +185,7 @@ function StackSection({
   const current = platformUnavailable(preset.framework, preset.platforms);
 
   return (
-    <Section title="Stack">
+    <div className="flex flex-col gap-3">
       <Field id={`${ids}-framework`} label={FIELD_LABELS.framework}>
         <Select
           value={preset.framework}
@@ -286,7 +274,7 @@ function StackSection({
           </AlertDescription>
         </Alert>
       ) : null}
-    </Section>
+    </div>
   );
 }
 
@@ -300,8 +288,8 @@ function AuthSection({
   const ids = useId();
 
   return (
-    <div className="flex flex-col gap-3">
-      <p id={`${ids}-auth`} className="text-sm font-medium">
+    <div className="flex flex-col">
+      <p id={`${ids}-auth`} className="sr-only">
         {FIELD_LABELS.access}
       </p>
       <RadioGroup
@@ -430,10 +418,48 @@ function IntegrationRows({
   );
 }
 
+function GroupTrigger({
+  title,
+  summary,
+}: {
+  title: string;
+  summary: ReactNode;
+}): ReactElement {
+  return (
+    <AccordionTrigger>
+      <span className="flex min-w-0 flex-1 items-baseline justify-between gap-2 pr-2">
+        {title}
+        <span className="truncate text-xs font-normal text-muted-foreground tabular-nums">
+          {summary}
+        </span>
+      </span>
+    </AccordionTrigger>
+  );
+}
+
+function stackSummary(preset: Preset): string {
+  const framework =
+    Object.entries(FRAMEWORKS).find(([name]) => name === preset.framework)?.[1]
+      .label ?? preset.framework;
+
+  return `${framework}, ${PLATFORM_LABELS[preset.platforms].toLowerCase()}`;
+}
+
+function integrationCount(preset: Preset): number {
+  const on = new Set<string>(preset.integrations);
+
+  for (const name of impliedIntegrations(preset.framework).keys()) {
+    on.add(name);
+  }
+
+  return on.size;
+}
+
 /**
  * Every option `/create` has, top to bottom like the shadcn customizer: the
- * preset, the stack, auth and permissions, then conventions, integrations
- * and blocks as collapsible sections, with the code and actions pinned below.
+ * preset, the stack, auth and permissions, conventions, integrations and
+ * blocks as collapsible sections whose triggers show the current value, with
+ * the code and actions pinned below. Only the preset starts open.
  */
 export function OptionsPanel({
   preset,
@@ -448,6 +474,7 @@ export function OptionsPanel({
   onNamedPreset,
   onToggleBlock,
   onPackage,
+  aiPrompt,
   onShuffle,
   onGetCode,
 }: {
@@ -463,12 +490,18 @@ export function OptionsPanel({
   onNamedPreset: (name: PresetName) => void;
   onToggleBlock: (name: string) => void;
   onPackage: (pkg: PackageOption) => void;
+  /** The AI instructions for the current choices, copied from the footer. */
+  aiPrompt: string;
   onShuffle: () => void;
   onGetCode: () => void;
 }): ReactElement {
   const ids = useId();
 
   const dirInvalid = pkg.on && packageDir(pkg.dir) === undefined;
+
+  const stackConflicts = resolved.conflicts.filter(
+    (conflict) => conflict.field !== undefined,
+  ).length;
 
   return (
     <form
@@ -479,20 +512,54 @@ export function OptionsPanel({
       }}
     >
       <ScrollArea className="sidebar-scroll min-h-0 flex-1">
-        <div className="flex flex-col gap-6 p-4">
-          <PresetPicker selected={named} onSelect={onNamedPreset} />
-
-          <StackSection
-            preset={preset}
-            resolved={resolved}
-            onPreset={onPreset}
-          />
-
-          <AuthSection choice={authChoice} onChoice={onAuthChoice} />
-
-          <Accordion multiple defaultValue={["blocks"]}>
+        <div className="flex flex-col p-4">
+          <Accordion multiple defaultValue={["preset"]}>
+            <AccordionItem value="preset">
+              <GroupTrigger
+                title="Preset"
+                summary={
+                  named === undefined
+                    ? CUSTOM_PRESET.label
+                    : PRESETS[named].title
+                }
+              />
+              <AccordionContent>
+                <PresetPicker selected={named} onSelect={onNamedPreset} />
+              </AccordionContent>
+            </AccordionItem>
+            <AccordionItem value="stack">
+              <GroupTrigger
+                title="Stack"
+                summary={
+                  stackConflicts > 0 ? (
+                    <Badge variant="warning-light">Conflict</Badge>
+                  ) : (
+                    stackSummary(preset)
+                  )
+                }
+              />
+              <AccordionContent>
+                <StackSection
+                  preset={preset}
+                  resolved={resolved}
+                  onPreset={onPreset}
+                />
+              </AccordionContent>
+            </AccordionItem>
+            <AccordionItem value="auth">
+              <GroupTrigger
+                title={FIELD_LABELS.access}
+                summary={AUTH_CHOICE_INFO[authChoice].label}
+              />
+              <AccordionContent>
+                <AuthSection choice={authChoice} onChoice={onAuthChoice} />
+              </AccordionContent>
+            </AccordionItem>
             <AccordionItem value="conventions">
-              <AccordionTrigger>Conventions</AccordionTrigger>
+              <GroupTrigger
+                title="Conventions"
+                summary={`${preset.casing}, ${preset.idType}`}
+              />
               <AccordionContent className="flex flex-col gap-3">
                 {CONVENTION_KEYS.map((key) => {
                   const options: Readonly<Record<string, OptionInfo>> =
@@ -583,20 +650,19 @@ export function OptionsPanel({
               </AccordionContent>
             </AccordionItem>
             <AccordionItem value="integrations">
-              <AccordionTrigger>Integrations</AccordionTrigger>
+              <GroupTrigger
+                title="Integrations"
+                summary={`${integrationCount(preset)} on`}
+              />
               <AccordionContent>
                 <IntegrationRows preset={preset} onPreset={onPreset} />
               </AccordionContent>
             </AccordionItem>
             <AccordionItem value="blocks">
-              <AccordionTrigger>
-                <span className="flex flex-1 items-baseline justify-between gap-2 pr-2">
-                  Blocks
-                  <span className="text-xs font-normal text-muted-foreground tabular-nums">
-                    {resolved.blocks.length} installed
-                  </span>
-                </span>
-              </AccordionTrigger>
+              <GroupTrigger
+                title="Blocks"
+                summary={`${resolved.blocks.length} installed`}
+              />
               <AccordionContent>
                 <BlockPicker groups={groups} onToggle={onToggleBlock} />
               </AccordionContent>
@@ -614,6 +680,14 @@ export function OptionsPanel({
             <ShuffleIcon aria-hidden="true" />
             Shuffle
           </Button>
+          <CopyButton
+            text={aiPrompt}
+            label="Copy AI instructions"
+            variant="outline"
+            size="sm"
+          >
+            AI
+          </CopyButton>
           <Button
             type="button"
             size="sm"

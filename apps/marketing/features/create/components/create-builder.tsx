@@ -37,6 +37,8 @@ import {
   initialAuthz,
   withAuthChoice,
 } from "@/lib/create-options";
+import { presetPrompt } from "@/lib/create-prompt";
+import { site } from "@/lib/site";
 
 import { GetCodeDialog } from "./get-code-dialog";
 import { OptionsPanel, type PackageOption } from "./options-panel";
@@ -85,6 +87,19 @@ export function CreateBuilder(): ReactElement {
   const pkg = pkgOption.on ? packageDir(pkgOption.dir) : undefined;
   const authz = preset.access === "provider" ? authzOption : undefined;
 
+  const aiPrompt = useMemo(
+    () =>
+      presetPrompt({
+        resolved,
+        ui: false,
+        manager: "pnpm",
+        pkg,
+        authz,
+        siteUrl: site.url,
+      }),
+    [resolved, pkg, authz],
+  );
+
   useEffect(() => {
     const href = createHref(preset, pkg, authz);
 
@@ -119,6 +134,7 @@ export function CreateBuilder(): ReactElement {
         setPreset((current) => toggleBlock(current, name));
       }}
       onPackage={setPkgOption}
+      aiPrompt={aiPrompt}
       onShuffle={() => {
         const next = shuffledPreset(named);
         setPreset((current) => applyNamedPreset(current, next));

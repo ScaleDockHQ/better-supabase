@@ -48,6 +48,11 @@ describe("the /create URL", () => {
     expect(initialPreset(code)).toEqual(minimal);
   });
 
+  test("opens on SaaS, so the preset select shows it instead of Custom", () => {
+    expect(DEFAULT_PRESET).toBe("saas");
+    expect(matchingPreset(initialPreset(null))).toBe("saas");
+  });
+
   test("keeps the selection as a code that decodes to it", () => {
     const preset = toggleBlock(minimal, "comments");
     const code = createHref(preset).replace("/create?preset=", "");

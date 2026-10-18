@@ -7,14 +7,7 @@ import { Suspense, useState } from "react";
 
 import type { RecipePlatform } from "@/lib/recipe-platform";
 
-import {
-  Frame,
-  FrameDescription,
-  FrameHeader,
-  FramePanel,
-  FrameTitle,
-} from "@/components/reui/frame";
-import { CopyButton } from "@/components/site/copy-button";
+import { PromptFrame } from "@/components/site/prompt-frame";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { parsePlatform } from "@/lib/recipe-platform";
 
@@ -32,41 +25,6 @@ interface RecipePlatformsProps {
   readonly steps: Readonly<Partial<Record<RecipePlatform, ReactNode>>>;
   /** Shown between the prompt and the steps, for both platforms. */
   readonly children?: ReactNode;
-}
-
-function PromptFrame({
-  prompt,
-  platform,
-}: {
-  prompt: string;
-  platform: RecipePlatform;
-}) {
-  return (
-    <Frame data-testid="recipe-prompt">
-      <FrameHeader className="flex-row items-start justify-between gap-2">
-        <div className="flex min-w-0 flex-col gap-1">
-          <FrameTitle>Build it with AI</FrameTitle>
-          <FrameDescription>
-            Paste this into your coding agent. It builds the{" "}
-            {LABELS[platform].toLowerCase()} version.
-          </FrameDescription>
-        </div>
-        <CopyButton text={prompt} label="Copy the prompt" />
-      </FrameHeader>
-      <FramePanel className="p-0">
-        <section
-          aria-label="Prompt"
-          // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrolling region needs keyboard focus (axe scrollable-region-focusable)
-          tabIndex={0}
-          className="max-h-60 overflow-auto outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          <pre className="p-4 font-mono text-code leading-6 whitespace-pre-wrap">
-            <code data-testid="recipe-prompt-text">{prompt}</code>
-          </pre>
-        </section>
-      </FramePanel>
-    </Frame>
-  );
 }
 
 function PlatformView({
@@ -99,7 +57,13 @@ function PlatformView({
           ))}
         </TabsList>
       ) : null}
-      <PromptFrame prompt={prompts[platform] ?? ""} platform={platform} />
+      <PromptFrame
+        title="Build it with AI"
+        description={`Paste this into your coding agent. It builds the ${LABELS[platform].toLowerCase()} version.`}
+        prompt={prompts[platform] ?? ""}
+        copyLabel="Copy the prompt"
+        testId="recipe-prompt"
+      />
       {children}
       {platforms.map((value) => (
         <TabsContent key={value} value={value}>

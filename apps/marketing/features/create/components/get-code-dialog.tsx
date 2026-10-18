@@ -10,9 +10,10 @@ import {
   type ResolvedPreset,
 } from "better-supabase/preset";
 import { DownloadIcon } from "lucide-react";
-import { useId, useState } from "react";
+import { useId, useMemo, useState } from "react";
 
 import { CopyButton } from "@/components/site/copy-button";
+import { PromptFrame } from "@/components/site/prompt-frame";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,6 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
@@ -39,11 +41,120 @@ import {
   permDockInstall,
   withPermDock,
 } from "@/lib/create-options";
+import { type PromptDesign, presetPrompt } from "@/lib/create-prompt";
+import { site } from "@/lib/site";
 
 import { MigrationsPanel } from "./migrations-panel";
 import { PresetGraph } from "./preset-graph";
 
 const WIRING_FILE = "lib/blocks.ts";
+
+const NO_DESIGN: PromptDesign = {};
+
+/** The `/create/prompt.md` URL for the same choices, so an agent can fetch it. */
+function promptUrl({
+  code,
+  ui,
+  pkg,
+  authz,
+  manager,
+}: {
+  code: string;
+  ui: boolean;
+  pkg: string | undefined;
+  authz: AuthzLibrary | undefined;
+  manager: PackageManager;
+}): string {
+  const params = new URLSearchParams({ preset: code });
+
+  if (ui) {
+    params.set("ui", "1");
+  }
+
+  if (pkg !== undefined) {
+    params.set("package", pkg);
+  }
+
+  if (authz !== undefined) {
+    params.set("authz", authz);
+  }
+
+  if (manager !== "pnpm") {
+    params.set("manager", manager);
+  }
+
+  return `${site.url}/create/prompt.md?${params.toString()}`;
+}
+
+function AiInstructions({
+  code,
+  resolved,
+  design,
+  designCode,
+  pkg,
+  authz,
+  manager,
+}: {
+  code: string;
+  resolved: ResolvedPreset;
+  design: PromptDesign;
+  designCode: string;
+  pkg: string | undefined;
+  authz: AuthzLibrary | undefined;
+  manager: PackageManager;
+}): ReactElement {
+  const ids = useId();
+  const [ui, setUi] = useState(false);
+
+  const prompt = useMemo(
+    () =>
+      presetPrompt({
+        resolved,
+        design,
+        ui,
+        manager,
+        pkg,
+        authz,
+        siteUrl: site.url,
+      }),
+    [resolved, design, ui, manager, pkg, authz],
+  );
+
+  const url = promptUrl({ code, ui, pkg, authz, manager });
+
+  return (
+    <PromptFrame
+      title="AI instructions"
+      description={
+        designCode === "" ? (
+          <>
+            Paste this into your coding agent, or have it fetch{" "}
+            <a
+              href={url}
+              className="break-all text-foreground underline underline-offset-4 transition-colors hover:text-primary"
+            >
+              the Markdown
+            </a>
+            .
+          </>
+        ) : (
+          "Paste this into your coding agent."
+        )
+      }
+      prompt={prompt}
+      copyLabel="Copy AI instructions"
+      testId="create-prompt"
+    >
+      <label
+        htmlFor={`${ids}-ui`}
+        className="flex cursor-pointer items-center gap-2 text-sm"
+      >
+        <Switch id={`${ids}-ui`} checked={ui} onCheckedChange={setUi} />
+        Include UI
+      </label>
+    </PromptFrame>
+  );
+}
 
 function CommandRow({
   label,
@@ -111,7 +222,10 @@ function isPackageManager(value: unknown): value is PackageManager {
 
 /**
  * The commands for a new or an existing project in the package manager the
- * person picks, then the files those commands write.
+ * person picks, then the files those commands write and the AI instructions.
+ * `design` holds the app tables and extra columns from the canvas, and
+ * `designCode` its URL code; the Markdown link shows only without one,
+ * because `/create/prompt.md` reads the preset alone.
  */
 export function GetCodeDialog({
   open,
@@ -120,6 +234,8 @@ export function GetCodeDialog({
   resolved,
   pkg,
   authz,
+  design = NO_DESIGN,
+  designCode = "",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -127,6 +243,8 @@ export function GetCodeDialog({
   resolved: ResolvedPreset;
   pkg: string | undefined;
   authz: AuthzLibrary | undefined;
+  design?: PromptDesign;
+  designCode?: string;
 }): ReactElement {
   const ids = useId();
   const [manager, setManager] = useState<PackageManager>("pnpm");
@@ -152,7 +270,7 @@ export function GetCodeDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-3xl">
+      <DialogContent className="max-h-[calc(100svh-2rem)] grid-cols-[minmax(0,1fr)] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>Get the code</DialogTitle>
           <DialogDescription>
@@ -165,7 +283,10 @@ export function GetCodeDialog({
         <div className="flex min-w-0 flex-col gap-3">
           <Tabs defaultValue="new" className="gap-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <TabsList aria-label="Project">
+              <TabsList
+                aria-label="Project"
+                className="flex-wrap justify-start group-data-horizontal/tabs:h-auto"
+              >
                 <TabsTrigger value="new">New project</TabsTrigger>
                 <TabsTrigger value="existing">Existing project</TabsTrigger>
               </TabsList>
@@ -261,6 +382,9 @@ export function GetCodeDialog({
               <TabsTrigger value="graph" className="flex-none">
                 Graph
               </TabsTrigger>
+              <TabsTrigger value="ai" className="flex-none">
+                AI instructions
+              </TabsTrigger>
             </TabsList>
             <Button
               type="button"
@@ -291,6 +415,17 @@ export function GetCodeDialog({
           </TabsContent>
           <TabsContent value="graph">
             <PresetGraph resolved={resolved} />
+          </TabsContent>
+          <TabsContent value="ai" className="min-w-0">
+            <AiInstructions
+              code={code}
+              resolved={resolved}
+              design={design}
+              designCode={designCode}
+              pkg={pkg}
+              authz={authz}
+              manager={manager}
+            />
           </TabsContent>
         </Tabs>
       </DialogContent>

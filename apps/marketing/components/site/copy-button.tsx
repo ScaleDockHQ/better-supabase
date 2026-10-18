@@ -1,21 +1,31 @@
 "use client";
 
-import type { ReactElement } from "react";
+import type { ComponentProps, ReactElement, ReactNode } from "react";
 
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 
-/** An icon button that copies `text` and announces "Copied" to screen readers. */
+/**
+ * A button that copies `text` and announces "Copied" to screen readers: an
+ * icon by default, or an icon and `children` as visible text, which `label`
+ * must contain so the accessible name includes it.
+ */
 export function CopyButton({
   text,
   label,
   className,
+  variant = "ghost",
+  size = "icon-sm",
+  children,
 }: {
   text: string;
   label: string;
   className?: string;
+  variant?: ComponentProps<typeof Button>["variant"];
+  size?: ComponentProps<typeof Button>["size"];
+  children?: ReactNode;
 }): ReactElement {
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -30,8 +40,9 @@ export function CopyButton({
   return (
     <>
       <Button
-        variant="ghost"
-        size="icon-sm"
+        type="button"
+        variant={variant}
+        size={size}
         aria-label={label}
         className={className}
         onClick={() => {
@@ -49,6 +60,7 @@ export function CopyButton({
         ) : (
           <CopyIcon aria-hidden="true" />
         )}
+        {children}
       </Button>
       <span aria-live="polite" className="sr-only">
         {copied ? "Copied" : ""}

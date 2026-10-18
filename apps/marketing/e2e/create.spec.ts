@@ -14,6 +14,7 @@ function options(page: Page) {
   return page.getByLabel("Options", { exact: true });
 }
 
+/** A collapsible in the options panel: a section like Stack, or a block category. */
 function category(page: Page, name: string) {
   return options(page).getByRole("button", {
     name: new RegExp(`^${name}`, "u"),
@@ -29,11 +30,87 @@ async function openCode(page: Page) {
   return page.getByRole("dialog", { name: "Get the code" });
 }
 
+const SECTIONS = [
+  "Stack",
+  "Auth and permissions",
+  "Conventions",
+  "Integrations",
+  "Blocks",
+] as const;
+
+test("the page opens on SaaS with only the preset section open", async ({
+  page,
+}) => {
+  await page.goto("/create");
+
+  await expect(
+    options(page).getByRole("combobox", { name: "Preset" }),
+  ).toContainText("SaaS");
+  await expect(category(page, "Preset")).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
+  await expect(category(page, "Preset")).toContainText("SaaS");
+  await expect(category(page, "Stack")).toContainText("Next.js, web");
+  await expect(category(page, "Blocks")).toContainText(/\d+ installed/u);
+  await expect(
+    options(page).getByRole("button", { name: "Copy AI instructions" }),
+  ).toBeVisible();
+
+  for (const name of SECTIONS) {
+    const trigger = category(page, name);
+    await expect(trigger).toHaveAttribute("aria-expanded", "false");
+    await trigger.click();
+    await expect(trigger).toHaveAttribute("aria-expanded", "true");
+    await trigger.click();
+    await expect(trigger).toHaveAttribute("aria-expanded", "false");
+  }
+
+  await category(page, "Preset").click();
+  await expect(category(page, "Preset")).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
+});
+
+test("the AI instructions add the UI when Include UI is on", async ({
+  page,
+}) => {
+  await page.goto("/create?preset=saas");
+  const dialog = await openCode(page);
+  await dialog.getByRole("tab", { name: "AI instructions" }).click();
+
+  const prompt = dialog.getByTestId("create-prompt-text");
+  await expect(prompt).toContainText("# Install better-supabase");
+  await expect(prompt).not.toContainText("/recipes/");
+
+  await dialog.getByRole("switch", { name: "Include UI" }).click();
+  await expect(prompt).toContainText("## UI");
+  await expect(prompt).toContainText(/\/recipes\/[a-z-]+\.md/u);
+});
+
+test("/create/prompt.md returns the AI instructions as Markdown", async ({
+  request,
+}) => {
+  const response = await request.get("/create/prompt.md?preset=saas&ui=1");
+  expect(response.status()).toBe(200);
+  expect(response.headers()["content-type"]).toBe(
+    "text/markdown; charset=utf-8",
+  );
+  const text = await response.text();
+  expect(text).toMatch(/^# Install better-supabase: \d+ blocks on Next\.js/u);
+  expect(text).toMatch(/\/recipes\/[a-z-]+\.md/u);
+
+  const bad = await request.get("/create/prompt.md?manager=deno");
+  expect(bad.status()).toBe(400);
+});
+
 test("ticking comments switches on tenant and access, and the URL keeps the selection", async ({
   page,
 }) => {
   await page.goto("/create?preset=minimal");
 
+  await category(page, "Blocks").click();
   await expect(block(page, "comments")).not.toBeChecked();
   await expect(block(page, "tenant")).not.toBeChecked();
 
@@ -79,6 +156,7 @@ test("ticking comments switches on tenant and access, and the URL keeps the sele
 
   // The code alone restores the same selection.
   await page.goto(`/create?preset=${code}`);
+  await category(page, "Blocks").click();
   await expect(block(page, "comments")).toBeChecked();
   await expect(block(page, "access")).toBeDisabled();
 });
@@ -119,6 +197,7 @@ test("the monorepo option keeps the package in the URL and the commands", async 
 
 test("a framework turns off the platforms it can't build", async ({ page }) => {
   await page.goto("/create?preset=saas");
+  await category(page, "Stack").click();
 
   const platforms = options(page).getByRole("group", { name: "Platforms" });
   await expect(
@@ -168,6 +247,8 @@ test("the preset select applies a preset and shows Custom after a change", async
   await preset.click();
   await page.getByRole("option", { name: /^CRM/u }).click();
   await expect(preset).toContainText("CRM");
+  await expect(category(page, "Preset")).toContainText("CRM");
+  await category(page, "Blocks").click();
   await expect(block(page, "pipelines")).toBeChecked();
 
   await category(page, "Scheduling").click();
@@ -179,10 +260,14 @@ test("PermDock is an optional auth choice kept in the URL", async ({
   page,
 }) => {
   await page.goto("/create?preset=saas");
+  await category(page, "Auth and permissions").click();
 
   await options(page)
     .getByRole("radio", { name: /^PermDock/u })
     .click();
+  await expect(category(page, "Auth and permissions")).toContainText(
+    "PermDock",
+  );
   await expect(page).toHaveURL(/&authz=permdock$/u);
   await expect(page.getByText(/^\d+ tables, \d+ relations$/u)).toBeVisible();
   await expect(page.getByText("Placeholder access functions")).toBeVisible();
@@ -199,6 +284,7 @@ test("PermDock is an optional auth choice kept in the URL", async ({
   ).toBeVisible();
 
   await page.reload();
+  await category(page, "Auth and permissions").click();
   await expect(
     options(page).getByRole("radio", { name: /^PermDock/u }),
   ).toBeChecked();
@@ -221,6 +307,7 @@ test("the diagram lists the tables and asks for a block when there are none", as
   ).toBeAttached();
 
   await page.goto("/create?preset=minimal");
+  await category(page, "Blocks").click();
   await block(page, "profiles").uncheck();
 
   await expect(page.getByText("Pick a block")).toBeVisible();
