@@ -101,8 +101,18 @@ export interface ApiKeys<F extends object = Record<never, never>> {
     id: string,
     options?: { readonly grace?: Temporal.Duration },
   ): AsyncResult<CreatedApiKey<F>>;
-  /** Checks a presented token and counts the request. Needs a service transport. */
+  /**
+   * Checks a presented token and counts the request. Needs a service
+   * transport. A token that doesn't parse, such as `<prefix>_bad`, is
+   * `invalid`.
+   */
   verify(token: string): AsyncResult<ApiKeyCheck<F>>;
+  /**
+   * Whether a token claims to be one of these keys: it starts with the
+   * prefix and `_`, well formed or not. Use it to send a Bearer token to
+   * `verify` instead of JWT verification.
+   */
+  isApiKey(token: string): boolean;
 }
 
 export interface ApiKeysOptions<
@@ -462,6 +472,7 @@ export function createApiKeys<
           return key.ok ? ok({ status: "ok", key: key.data }) : key;
         });
       }),
+    isApiKey: (token) => token.trim().startsWith(`${prefix}_`),
   };
 
   return withBlockHooks(client, options.hooks, {
@@ -532,8 +543,13 @@ export interface ApiKeyClaimsOptions<F extends object = Record<never, never>> {
 export interface ApiKeyResolverOptions<
   F extends object = Record<never, never>,
 > extends ApiKeyClaimsOptions<F> {
-  /** `createApiKeys` over a service transport. */
-  readonly keys: Pick<ApiKeys<F>, "verify">;
+  /**
+   * `createApiKeys` over a service transport. With `isApiKey`, a Bearer
+   * token with the key prefix is checked as a key even when it is
+   * malformed, so it gets `INVALID_API_KEY`.
+   */
+  readonly keys: Pick<ApiKeys<F>, "verify"> &
+    Partial<Pick<ApiKeys<F>, "isApiKey">>;
   /** The header that carries the key besides `Authorization: Bearer`. Defaults to `x-api-key`. */
   readonly header?: string;
 }
@@ -615,7 +631,11 @@ export function apiKeyClaims<F extends object = Record<never, never>>(
   return claims as JWTClaims;
 }
 
-function presented(request: Request, header: string): string | undefined {
+function presented(
+  request: Request,
+  header: string,
+  keys: Partial<Pick<ApiKeys, "isApiKey">>,
+): string | undefined {
   const direct = request.headers.get(header)?.trim();
 
   if (direct) {
@@ -625,13 +645,15 @@ function presented(request: Request, header: string): string | undefined {
   const authorization = request.headers.get("authorization");
   const bearer = authorization?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
 
-  return bearer && parseApiKey(bearer) ? bearer : undefined;
+  return bearer && (parseApiKey(bearer) || keys.isApiKey?.(bearer) === true)
+    ? bearer
+    : undefined;
 }
 
 /**
- * Resolves `x-api-key` (or a Bearer token shaped like a key) to an `apiKey`
- * auth state. Requests without one fall through to the JWT and cookie
- * resolution. Pass it to `createServer({ auth: { resolvers: [...] } })`.
+ * Resolves `x-api-key` (or a Bearer token shaped like a key, or one with the
+ * key prefix) to an `apiKey` auth state. Requests without one fall through
+ * to the JWT and cookie resolution. Pass it to `createServer({ auth: { resolvers: [...] } })`.
  */
 export function apiKeyResolver<F extends object = Record<never, never>>(
   options: ApiKeyResolverOptions<F>,
@@ -641,7 +663,7 @@ export function apiKeyResolver<F extends object = Record<never, never>>(
   return {
     name: "api-keys",
     async resolve(request): Promise<ResolvedState | undefined> {
-      const token = presented(request, header);
+      const token = presented(request, header, options.keys);
 
       if (token === undefined) {
         return undefined;

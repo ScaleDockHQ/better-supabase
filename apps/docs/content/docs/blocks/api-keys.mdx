@@ -185,9 +185,12 @@ export function ApiKeys(props: { organizationId: string }) {
 ## Accepting keys
 
 `apiKeyResolver` reads the `x-api-key` header, or a Bearer token shaped like
-a key, and turns it into an `apiKey` caller. Requests without a key fall
-through to the usual JWT and cookie resolution. Verification runs as the
-service role, so give the resolver a service transport:
+a key, and turns it into an `apiKey` caller. A Bearer token that starts with
+the key prefix and `_` counts as a key even when the rest is malformed, so
+`bs_bad_key` answers `INVALID_API_KEY` like a revoked or unknown key instead
+of failing JWT verification. Requests without a key fall through to the
+usual JWT and cookie resolution. Verification runs as the service role, so
+give the resolver a service transport:
 
 ```ts title="src/server.ts"
 import { createPostgres } from "better-supabase/postgres";
@@ -244,6 +247,23 @@ server), with these claims and the key's tenant as `better_supabase.tenant`:
 `ctx.supabase` and `ctx.db.$client` throw for an API key caller.
 `authMode` (for `withSupabase` entries) is `user` for a personal key and
 `secret` for a tenant key.
+
+When your own code routes a Bearer token to either API key or JWT
+verification, ask `keys.isApiKey(token)` instead of matching the prefix by
+hand. It answers `true` for any token with the configured prefix and `_`,
+well formed or not, and `keys.verify` answers `invalid` for one that doesn't
+parse:
+
+```ts
+const token = authorization.replace(/^Bearer\s+/i, "");
+
+if (keys.isApiKey(token)) {
+  const checked = await keys.verify(token).orThrow();
+  // checked.status is "ok", "invalid" or "rate_limited"
+} else {
+  // verify the JWT
+}
+```
 
 ### On the `@supabase/server` pipeline
 
