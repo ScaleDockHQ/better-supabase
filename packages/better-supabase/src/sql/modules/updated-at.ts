@@ -4,7 +4,7 @@ import { EQUIVALENT_TRIGGERS, SCHEMA } from "../shared.ts";
 
 export const UPDATED_AT: ModuleDefinition = {
   name: "updated-at",
-  title: "updated_at triggers",
+  title: "Update timestamps",
   description: "Keeps an updated_at column current on every update.",
   requires: [],
   target: "schema",
