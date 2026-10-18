@@ -18,7 +18,7 @@ import {
   TerminalIcon,
   TriangleAlertIcon,
 } from "lucide-react";
-import { useId } from "react";
+import { useId, useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/reui/alert";
 import { Badge } from "@/components/reui/badge";
@@ -68,7 +68,9 @@ import {
 import { cn } from "@/lib/utils";
 
 import { BlockPicker } from "./block-picker";
+import { useCanvasBridge } from "./canvas-bridge";
 import { PresetPicker } from "./preset-picker";
+import { PrimitivePicker } from "./primitive-picker";
 
 /** The monorepo option: `dir` is the text in the field, valid or not. */
 export interface PackageOption {
@@ -477,8 +479,9 @@ function integrationCount(preset: Preset): number {
 /**
  * Every option `/create` has, top to bottom like the shadcn customizer: the
  * preset, the stack, auth and permissions, conventions, integrations and
- * blocks as collapsible sections whose triggers show the current value, with
- * the code and actions pinned below. Only the preset starts open.
+ * primitives and blocks as collapsible sections whose triggers show the
+ * current value, with the code and actions pinned below. Only the preset
+ * starts open; the blocks open when the canvas asks to show one.
  */
 export function OptionsPanel({
   preset,
@@ -515,6 +518,17 @@ export function OptionsPanel({
   onGetCode: () => void;
 }): ReactElement {
   const ids = useId();
+  const { state: bridge } = useCanvasBridge();
+  const [sections, setSections] = useState<readonly string[]>(["preset"]);
+  const [revealed, setRevealed] = useState(bridge.reveal);
+
+  if (bridge.reveal !== revealed) {
+    setRevealed(bridge.reveal);
+
+    if (bridge.reveal !== null && !sections.includes("blocks")) {
+      setSections([...sections, "blocks"]);
+    }
+  }
 
   const dirInvalid = pkg.on && packageDir(pkg.dir) === undefined;
 
@@ -532,7 +546,13 @@ export function OptionsPanel({
     >
       <ScrollArea className="sidebar-scroll min-h-0 flex-1">
         <div className="flex flex-col p-2">
-          <Accordion multiple defaultValue={["preset"]}>
+          <Accordion
+            multiple
+            value={[...sections]}
+            onValueChange={(value) => {
+              setSections(value.map(String));
+            }}
+          >
             <AccordionItem value="preset">
               <GroupTrigger
                 title="Preset"
@@ -677,6 +697,12 @@ export function OptionsPanel({
               />
               <AccordionContent className={GROUP_CONTENT}>
                 <IntegrationRows preset={preset} onPreset={onPreset} />
+              </AccordionContent>
+            </AccordionItem>
+            <AccordionItem value="primitives">
+              <GroupTrigger title="Primitives" summary="Table, lookup" />
+              <AccordionContent className={GROUP_CONTENT}>
+                <PrimitivePicker />
               </AccordionContent>
             </AccordionItem>
             <AccordionItem value="blocks">

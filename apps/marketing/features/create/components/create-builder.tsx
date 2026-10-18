@@ -11,7 +11,7 @@ import {
 } from "better-supabase/preset";
 import { SlidersHorizontalIcon, TerminalIcon } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -46,6 +46,7 @@ import { presetPrompt } from "@/lib/create-prompt";
 import { EMPTY_DESIGN } from "@/lib/design";
 import { site } from "@/lib/site";
 
+import { CanvasBridgeProvider, useCanvasBridgeState } from "./canvas-bridge";
 import { DesignProvider, useDesignState } from "./design-provider";
 import { GetCodeDialog } from "./get-code-dialog";
 import { OptionsPanel, type PackageOption } from "./options-panel";
@@ -110,6 +111,15 @@ export function CreateBuilder(): ReactElement {
 
   const [codeOpen, setCodeOpen] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
+
+  const bridge = useCanvasBridgeState(
+    useCallback(() => {
+      // The rail shows from `lg` up; below that the options are a sheet.
+      if (!window.matchMedia("(min-width: 64rem)").matches) {
+        setOptionsOpen(true);
+      }
+    }, []),
+  );
 
   const resolved = useMemo(() => resolvePreset(preset), [preset]);
 
@@ -280,81 +290,85 @@ export function CreateBuilder(): ReactElement {
 
   return (
     <DesignProvider value={designValue}>
-      <div className="flex w-full flex-1">
-        <aside
-          aria-label="Options"
-          className="sticky top-14 hidden h-[calc(100svh-3.5rem)] w-80 shrink-0 flex-col border-r border-border lg:flex"
-        >
-          {panel}
-        </aside>
-
-        <Sheet open={optionsOpen} onOpenChange={setOptionsOpen}>
-          <SheetContent
-            side="left"
-            className="gap-0 p-0 data-[side=left]:w-full data-[side=left]:sm:max-w-80"
+      <CanvasBridgeProvider value={bridge}>
+        <div className="flex w-full flex-1">
+          <aside
+            aria-label="Options"
+            className="sticky top-14 hidden h-[calc(100svh-3.5rem)] w-80 shrink-0 flex-col border-r border-border lg:flex"
           >
-            <SheetHeader className="border-b border-border">
-              <SheetTitle>Customize</SheetTitle>
-              <SheetDescription>
-                The preset, the stack and the blocks.
-              </SheetDescription>
-            </SheetHeader>
-            {optionsOpen ? panel : null}
-          </SheetContent>
-        </Sheet>
+            {panel}
+          </aside>
 
-        <section
-          aria-label="Schema"
-          className="flex min-h-[calc(100svh-3.5rem)] min-w-0 flex-1 flex-col"
-        >
-          <div className="flex items-center gap-2 border-b border-border px-4 py-2 lg:hidden">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setOptionsOpen(true);
+          <Sheet open={optionsOpen} onOpenChange={setOptionsOpen}>
+            <SheetContent
+              side="left"
+              className="gap-0 p-0 data-[side=left]:w-full data-[side=left]:sm:max-w-80"
+            >
+              <SheetHeader className="border-b border-border">
+                <SheetTitle>Customize</SheetTitle>
+                <SheetDescription>
+                  The preset, the stack and the blocks.
+                </SheetDescription>
+              </SheetHeader>
+              {optionsOpen ? panel : null}
+            </SheetContent>
+          </Sheet>
+
+          <section
+            aria-label="Schema"
+            className="flex min-h-[calc(100svh-3.5rem)] min-w-0 flex-1 flex-col"
+          >
+            <div className="flex items-center gap-2 border-b border-border px-4 py-2 lg:hidden">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setOptionsOpen(true);
+                }}
+              >
+                <SlidersHorizontalIcon aria-hidden="true" />
+                Customize
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                className="ml-auto"
+                onClick={openCode}
+              >
+                <TerminalIcon aria-hidden="true" />
+                Get code
+              </Button>
+            </div>
+            <SchemaDiagram
+              code={code}
+              designCode={designCode}
+              resolved={resolved}
+              pkg={pkg}
+              onStart={() => {
+                setPreset((current) =>
+                  applyNamedPreset(current, DEFAULT_PRESET),
+                );
               }}
-            >
-              <SlidersHorizontalIcon aria-hidden="true" />
-              Customize
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              className="ml-auto"
-              onClick={openCode}
-            >
-              <TerminalIcon aria-hidden="true" />
-              Get code
-            </Button>
-          </div>
-          <SchemaDiagram
+              onRemoveBlock={(name) => {
+                setPreset((current) => toggleBlock(current, name));
+              }}
+            />
+          </section>
+
+          <GetCodeDialog
+            open={codeOpen}
+            onOpenChange={setCodeOpen}
             code={code}
-            designCode={designCode}
             resolved={resolved}
             pkg={pkg}
-            onStart={() => {
-              setPreset((current) => applyNamedPreset(current, DEFAULT_PRESET));
-            }}
-            onRemoveBlock={(name) => {
-              setPreset((current) => toggleBlock(current, name));
-            }}
+            authz={authz}
+            design={design}
+            designCode={designCode}
           />
-        </section>
-
-        <GetCodeDialog
-          open={codeOpen}
-          onOpenChange={setCodeOpen}
-          code={code}
-          resolved={resolved}
-          pkg={pkg}
-          authz={authz}
-          design={design}
-          designCode={designCode}
-        />
-        <Toaster />
-      </div>
+          <Toaster />
+        </div>
+      </CanvasBridgeProvider>
     </DesignProvider>
   );
 }

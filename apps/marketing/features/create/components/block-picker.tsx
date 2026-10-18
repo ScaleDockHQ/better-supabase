@@ -1,7 +1,7 @@
 import type { ReactElement } from "react";
 
 import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
-import { useId } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import {
   Collapsible,
@@ -14,6 +14,8 @@ import { CategoryIcon } from "@/features/blocks/components/category-icon";
 import { BLOCK_DRAG_TYPE, type BlockGroup, rowNote } from "@/lib/create";
 import { cn } from "@/lib/utils";
 
+import { useCanvasBridge } from "./canvas-bridge";
+
 function CategorySection({
   group,
   onToggle,
@@ -22,13 +24,49 @@ function CategorySection({
   onToggle: (name: string) => void;
 }): ReactElement {
   const ids = useId();
+  const { state: bridge, actions: bridgeActions } = useCanvasBridge();
+  const fieldset = useRef<HTMLFieldSetElement>(null);
 
   const on = group.rows.filter(
     (row) => row.state.kind === "selected" || row.state.kind === "required",
   ).length;
 
+  const shown = group.rows.find((row) => row.name === bridge.reveal?.name);
+  const [open, setOpen] = useState(on > 0 || shown !== undefined);
+  const [revealed, setRevealed] = useState<typeof bridge.reveal>(null);
+
+  if (shown !== undefined && bridge.reveal !== revealed) {
+    setRevealed(bridge.reveal);
+    setOpen(true);
+  }
+
+  useEffect(() => {
+    if (revealed === null) {
+      return;
+    }
+
+    // Waits a frame for the section and the panel to open.
+    const frame = requestAnimationFrame(() => {
+      const row = fieldset.current?.querySelector<HTMLInputElement>(
+        `input[value="${revealed.name}"]`,
+      );
+
+      row?.scrollIntoView({ block: "center" });
+      row?.focus({ preventScroll: true });
+      bridgeActions.revealed();
+    });
+
+    return () => {
+      cancelAnimationFrame(frame);
+    };
+  }, [bridgeActions, revealed]);
+
   return (
-    <Collapsible defaultOpen={on > 0} className="flex flex-col gap-1">
+    <Collapsible
+      open={open}
+      onOpenChange={setOpen}
+      className="flex flex-col gap-1"
+    >
       <div className={cn("rounded-md", categoryStyle(group.category).tint)}>
         <CollapsibleTrigger className="group/category flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs font-medium text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
           <CategoryIcon category={group.category} size="sm" />
@@ -52,7 +90,10 @@ function CategorySection({
         </CollapsibleTrigger>
       </div>
       <CollapsibleContent keepMounted>
-        <fieldset className="ml-4.5 flex flex-col gap-0.5 border-l border-border pl-2">
+        <fieldset
+          ref={fieldset}
+          className="ml-4.5 flex flex-col gap-0.5 border-l border-border pl-2"
+        >
           <legend className="sr-only">{group.category}</legend>
           {group.rows.map((row) => {
             const note = rowNote(row.state);
