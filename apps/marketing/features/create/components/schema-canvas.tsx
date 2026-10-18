@@ -48,6 +48,7 @@ import {
   isAppTable,
   isEmptyDesign,
   moveTables,
+  referenceFrom,
   tidy,
 } from "@/lib/design";
 import { addPrimitive, type PrimitiveKind } from "@/lib/primitives";
@@ -70,6 +71,7 @@ import {
   layoutFor,
   neighboursOf,
   nodeUnder,
+  pointerOf,
   toggled,
 } from "./canvas-support";
 import {
@@ -79,6 +81,7 @@ import {
   isKeyboardOwned,
   ZoomControls,
 } from "./canvas-toolbar";
+import { type ConnectDrop, ConnectDropMenu } from "./connect-drop-menu";
 import { useDesign } from "./design-provider";
 import {
   MARKER_MANY,
@@ -172,6 +175,7 @@ function CanvasInner({
   );
 
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [drop, setDrop] = useState<ConnectDrop | null>(null);
 
   const categoryOf = useCallback(
     (table: SchemaTable): string =>
@@ -520,7 +524,7 @@ function CanvasInner({
 
   /** Adds a primitive at `point`, or in the middle of the view, and opens it. */
   const addAppTable = useCallback(
-    (kind: PrimitiveKind = "table", point?: Point) => {
+    (kind: PrimitiveKind = "table", point?: Point, references?: string) => {
       const box = container.current?.getBoundingClientRect();
 
       const center =
@@ -541,12 +545,26 @@ function CanvasInner({
         Math.round(at.y),
       ]);
 
+      const linked =
+        references === undefined
+          ? undefined
+          : referenceFrom(added.design, data, preset, added.name, references);
+
       expect(at, APP_MODULE);
-      actions.apply(added.design);
+      actions.apply(linked?.ok === true ? linked.design : added.design);
       open(appTableId(added.name), "overview");
-      undoToast(`Added ${added.name}.`);
+
+      if (linked?.ok === false) {
+        toast.error(linked.error);
+      }
+
+      undoToast(
+        linked?.ok === true
+          ? `Added ${added.name} with ${linked.column}.`
+          : `Added ${added.name}.`,
+      );
     },
-    [actions, design, expect, flow, open, taken, undoToast],
+    [actions, data, design, expect, flow, open, preset, taken, undoToast],
   );
 
   const { actions: bridge } = useCanvasBridge();
@@ -671,6 +689,13 @@ function CanvasInner({
     (event: MouseEvent | TouchEvent, connection: FinalConnectionState) => {
       const from = connection.fromNode?.id;
       const to = connection.toNode?.id ?? nodeUnder(event);
+      const pointer = pointerOf(event);
+
+      if (from !== undefined && to === undefined && pointer !== undefined) {
+        setDrop({ from, fromName: byId.get(from)?.name ?? from, ...pointer });
+
+        return;
+      }
 
       if (from === undefined || to === undefined || to.startsWith("group:")) {
         return;
@@ -1015,6 +1040,17 @@ function CanvasInner({
               }
             />
           </ReactFlow>
+          <ConnectDropMenu
+            drop={drop}
+            onClose={() => {
+              setDrop(null);
+            }}
+            onPick={(kind, picked) => {
+              setDrop(null);
+              const at = flow.screenToFlowPosition(picked);
+              addAppTable(kind, { x: at.x, y: at.y - 24 }, picked.from);
+            }}
+          />
         </div>
       </CanvasMenu>
       <TableInspector

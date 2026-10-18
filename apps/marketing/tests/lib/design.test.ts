@@ -15,6 +15,7 @@ import {
   identifierError,
   isEmptyDesign,
   moveTables,
+  referenceFrom,
   renameColumn,
   renameTable,
   setColumn,
@@ -215,6 +216,31 @@ describe("connect", () => {
         target: data.tenantTable ?? "",
       }),
     ).toMatchObject({ ok: false, error: expect.stringMatching(/already/u) });
+  });
+
+  describe("referenceFrom", () => {
+    test("adds the key to a table the schema doesn't have yet", () => {
+      const target = appTableId("projects");
+      const merged = withDesign(data, projects, preset);
+      const added = addTable(projects, "tasks", {});
+
+      const result = referenceFrom(added, merged, preset, "tasks", target);
+
+      if (!result.ok) {
+        throw new Error(result.error);
+      }
+
+      expect(result.column).toBe("project_id");
+      expect(
+        result.design.appTables?.["tasks"]?.columns?.["project_id"]?.references,
+      ).toMatchObject({ table: "projects", onDelete: "cascade" });
+    });
+
+    test("refuses a table that isn't in the design", () => {
+      const result = referenceFrom(projects, data, preset, "tasks", "x.y");
+
+      expect(result.ok).toBe(false);
+    });
   });
 });
 
