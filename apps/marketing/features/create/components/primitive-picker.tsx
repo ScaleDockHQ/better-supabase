@@ -2,7 +2,7 @@
 
 import type { ReactElement } from "react";
 
-import { ListIcon, TableIcon } from "lucide-react";
+import { ListIcon, ListTreeIcon, TableIcon } from "lucide-react";
 
 import {
   PRIMITIVE_DRAG_TYPE,
@@ -16,6 +16,7 @@ import { useCanvasBridge } from "./canvas-bridge";
 export const PRIMITIVE_ICONS = {
   table: TableIcon,
   lookup: ListIcon,
+  tree: ListTreeIcon,
 } satisfies Readonly<Record<PrimitiveKind, typeof TableIcon>>;
 
 /**

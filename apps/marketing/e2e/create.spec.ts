@@ -597,6 +597,42 @@ async function paneAbove(page: Page, id: string) {
   return point ?? { x: 0, y: 0 };
 }
 
+test("many-to-many adds a junction table and a tree references itself", async ({
+  page,
+}) => {
+  await page.goto("/create?preset=saas");
+  await expect(page.locator(".react-flow__node-table").first()).toBeVisible();
+
+  await page
+    .getByRole("toolbar", { name: "Schema tools" })
+    .getByRole("button", { name: "Add table" })
+    .click();
+  await page.keyboard.press("Escape");
+
+  const items = page.locator('.react-flow__node[data-id="public.items"]');
+  await items.click({ position: { x: 120, y: 18 }, button: "right" });
+  await page.getByRole("menuitem", { name: "Add many-to-many with…" }).click();
+  await page
+    .getByRole("menuitem", { name: "invitations", exact: true })
+    .click();
+  await expect(page.getByText("Added items_invitations.")).toBeVisible();
+
+  const junction = page.locator(
+    '.react-flow__node[data-id="public.items_invitations"]',
+  );
+
+  await expect(junction).toContainText("item_id");
+  await expect(junction).toContainText("invitation_id");
+
+  const point = await paneAbove(page, "better_supabase.organizations");
+  await page.mouse.click(point.x, point.y, { button: "right" });
+  await page.getByRole("menuitem", { name: "Add tree here" }).click();
+  await page.keyboard.press("Escape");
+  await expect(
+    page.locator('.react-flow__node[data-id="public.categories"]'),
+  ).toContainText("parent_id");
+});
+
 test("Add table here on the canvas menu adds a table that covers no other", async ({
   page,
 }) => {

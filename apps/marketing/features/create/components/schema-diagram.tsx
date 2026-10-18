@@ -98,6 +98,7 @@ const schemaResponse = v.union([
               table: v.string(),
               columns: v.array(v.string()),
             }),
+            onDelete: v.string(),
           }),
         ),
         tenantColumn: v.nullable(v.string()),
