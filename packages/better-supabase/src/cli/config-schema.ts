@@ -622,7 +622,55 @@ const ConfigSchema = v.strictObject({
 } satisfies { [K in keyof Required<BetterSupabaseConfig>]: v.GenericSchema });
 
 /** Each issue as `path: message`, the path in config keys. */
+const hasSqlModules = (value: unknown): boolean =>
+  typeof value === "object" &&
+  value !== null &&
+  "sql" in value &&
+  typeof value.sql === "object" &&
+  value.sql !== null &&
+  "modules" in value.sql;
+
+/**
+ * `sql.modules` in the config or one of its environment blocks. The key
+ * moved to `blocks` in 0.9, and the codemod moves it.
+ */
+function sqlModulesIssues(value: unknown): string[] {
+  if (typeof value !== "object" || value === null) {
+    return [];
+  }
+
+  const blocks: [string, unknown][] = [["", value]];
+  const entries: [string, unknown][] = Object.entries(value);
+
+  for (const [key, block] of entries) {
+    if (key === "$env" && typeof block === "object" && block !== null) {
+      const named: [string, unknown][] = Object.entries(block);
+      blocks.push(
+        ...named.map(([name, env]): [string, unknown] => [
+          `$env.${name}.`,
+          env,
+        ]),
+      );
+    } else if (key.startsWith("$")) {
+      blocks.push([`${key}.`, block]);
+    }
+  }
+
+  return blocks
+    .filter(([, block]) => hasSqlModules(block))
+    .map(
+      ([prefix]) =>
+        `${prefix}sql.modules: moved to the top-level \`blocks\` key in 0.9; run \`better-supabase codemod 0.9\``,
+    );
+}
+
 export function configIssues(value: unknown): string[] {
+  const moved = sqlModulesIssues(value);
+
+  if (moved.length > 0) {
+    return moved;
+  }
+
   if (typeof value === "object" && value !== null && "authorization" in value) {
     const provider = value.authorization;
 

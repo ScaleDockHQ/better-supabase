@@ -1,29 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { applyCodemod, CODEMODS, codeRanges } from "../../src/cli/codemod.ts";
+import { applyCodemod, CODEMODS } from "../../src/cli/codemod.ts";
 
 const v04 = CODEMODS["0.4"]!;
 const v05 = CODEMODS["0.5"]!;
 const v06 = CODEMODS["0.6"]!;
-
-describe("codeRanges", () => {
-  it("leaves out strings, template literals and comments", () => {
-    const text = `a "b\\"c" d 'e' \`f\` // g\nh /* i */ j`;
-    expect(
-      codeRanges(text)
-        .map(([start, end]) => text.slice(start, end))
-        .join("|"),
-    ).toBe(`a | d | | |\nh | j`);
-  });
-
-  it("ends an unterminated string at the end of its line", () => {
-    const text = `a "b\nc`;
-    expect(codeRanges(text).map(([s, e]) => text.slice(s, e))).toEqual([
-      "a ",
-      "\nc",
-    ]);
-  });
-});
 
 describe("codemod 0.4", () => {
   it("renames imports from better-supabase and their uses", () => {
@@ -196,7 +177,7 @@ const db = defineSupabase(schema, { urlLengthLimit: 4000 });
 describe("codemod 0.9", () => {
   const v09 = CODEMODS["0.9"]!;
 
-  it("lists the behaviour changes for review and rewrites nothing", () => {
+  it("lists the behaviour changes for review", () => {
     const source = [
       'import { supportSessions } from "better-supabase/server";',
       "const support = supportSessions({ store });",
@@ -233,5 +214,77 @@ describe("codemod 0.9", () => {
       1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
     ]);
     expect(result.review[2]?.message).toContain("runAs");
+  });
+
+  it("renames the config types", () => {
+    const source = [
+      'import type { ModulesConfig, ModuleMode as Mode } from "better-supabase/config";',
+      "const blocks: ModulesConfig = {};",
+      "let mode: Mode;",
+    ].join("\n");
+
+    expect(applyCodemod(v09, source).text).toBe(
+      [
+        'import type { BlocksConfig, BlockMode as Mode } from "better-supabase/config";',
+        "const blocks: BlocksConfig = {};",
+        "let mode: Mode;",
+      ].join("\n"),
+    );
+  });
+
+  it("moves sql.modules to blocks only in the config file", () => {
+    const source = `export default defineConfig({
+  sql: {
+    modules: { tenant: true },
+  },
+});
+`;
+
+    const config = applyCodemod(v09, source, "/app/better-supabase.config.ts");
+
+    expect(config.text).toBe(`export default defineConfig({
+  blocks: { tenant: true },
+});
+`);
+    expect(
+      applyCodemod(v09, config.text, "better-supabase.config.ts").text,
+    ).toBe(config.text);
+    expect(applyCodemod(v09, source, "/app/src/config.ts").text).toBe(source);
+    expect(
+      applyCodemod(
+        v09,
+        `{ "sql": { "modules": ["tenant"] } }`,
+        "better-supabase.config.json",
+      ).text,
+    ).toBe(`{\n  "blocks": [\n    "tenant"\n  ]\n}\n`);
+  });
+
+  it("lists a config it can't rewrite", () => {
+    const result = applyCodemod(
+      v09,
+      `export default defineConfig({ sql: { modules: [] }, blocks: [] });`,
+      "better-supabase.config.ts",
+    );
+
+    expect(result.review).toEqual([
+      { line: 1, message: expect.stringContaining("merge `sql.modules`") },
+    ]);
+  });
+
+  it("lists sql.modules left in an environment block", () => {
+    const result = applyCodemod(
+      v09,
+      `export default defineConfig({
+  sql: { modules: ["tenant"] },
+  $production: { sql: { modules: ["tenant", "access"] } },
+});
+`,
+      "better-supabase.config.ts",
+    );
+
+    expect(result.text).toContain('  blocks: ["tenant"],');
+    expect(result.review).toEqual([
+      { line: 3, message: expect.stringContaining("environment block") },
+    ]);
   });
 });

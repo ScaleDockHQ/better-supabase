@@ -89,7 +89,7 @@ OPTIONS
 `;
 
 exports[`help > documents codemod 1`] = `
-"Rewrites imports and calls for renamed better-supabase APIs (better-supabase codemod v<version>)
+"Rewrites imports, calls and config keys for renamed better-supabase APIs (better-supabase codemod v<version>)
 
 USAGE better-supabase codemod [OPTIONS] [NAME]
 
@@ -452,7 +452,7 @@ COMMANDS
       doctor    Checks RLS, indexes, drift, auth config and env files; exits 1 on errors, or on warnings with --strict        
          sql    Lists, adds, syncs, upgrades and prints SQL modules                                                           
       config    Prints the resolved config: the file it came from, the active environment and every option with its default   
-     codemod    Rewrites imports and calls for renamed better-supabase APIs                                                   
+     codemod    Rewrites imports, calls and config keys for renamed better-supabase APIs                                      
 
 Use better-supabase <command> --help for more information about a command."
 `;
