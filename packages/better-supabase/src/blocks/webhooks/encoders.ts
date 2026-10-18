@@ -70,6 +70,31 @@ export function cloudEvents(): WebhookEncoder {
   };
 }
 
+/**
+ * The 0.8 body, `{ type, timestamp, data }`, with `data` from `transform`;
+ * a batch is a JSON array of them. Signed with Standard Webhooks like
+ * `cloudevents`.
+ */
+export function standardEnvelope(): WebhookEncoder {
+  return {
+    apiVersion: 1,
+    name: "standard",
+    signed: true,
+    encode(events, target) {
+      const envelopes = events.map((event) => ({
+        type: event.type,
+        timestamp: event.time,
+        data: event.data,
+      }));
+
+      return {
+        body: JSON.stringify(target.batch ? envelopes : envelopes[0]),
+        headers: { "content-type": "application/json" },
+      };
+    },
+  };
+}
+
 type AnyValue =
   | Record<string, never>
   | { readonly stringValue: string }
@@ -363,22 +388,27 @@ export function securityEvents(): WebhookEncoder {
   };
 }
 
-const FORMAT = /^[a-z][a-z0-9-]{0,39}$/;
+/** An endpoint `format`: what the `format` column's check allows. */
+export const WEBHOOK_FORMAT: RegExp = /^[a-z][a-z0-9-]{0,39}$/;
 
 /** The built-in encoders by format, with `encoders` replacing any by name. */
 export function encoderRegistry(
   encoders: readonly WebhookEncoder[] = [],
 ): ReadonlyMap<string, WebhookEncoder> {
   const registry = new Map<string, WebhookEncoder>(
-    [cloudEvents(), otlpLogs(), splunkHec(), securityEvents()].map(
-      (encoder) => [encoder.name, encoder],
-    ),
+    [
+      cloudEvents(),
+      standardEnvelope(),
+      otlpLogs(),
+      splunkHec(),
+      securityEvents(),
+    ].map((encoder) => [encoder.name, encoder]),
   );
 
   for (const encoder of encoders) {
-    if (!FORMAT.test(encoder.name)) {
+    if (!WEBHOOK_FORMAT.test(encoder.name)) {
       throw new TypeError(
-        `createWebhooks: encoder name "${encoder.name}" must match ${String(FORMAT)}`,
+        `createWebhooks: encoder name "${encoder.name}" must match ${String(WEBHOOK_FORMAT)}`,
       );
     }
 

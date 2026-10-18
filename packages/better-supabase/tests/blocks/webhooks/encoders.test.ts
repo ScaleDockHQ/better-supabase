@@ -8,6 +8,7 @@ import {
   otlpLogs,
   securityEvents,
   splunkHec,
+  standardEnvelope,
   type WebhookEncoder,
   type WebhookResponse,
 } from "../../../src/blocks/webhooks/index.ts";
@@ -52,6 +53,34 @@ describe("cloudEvents", () => {
       "application/cloudevents-batch+json",
     );
     expect(JSON.parse(many.body)).toHaveLength(2);
+  });
+});
+
+describe("standardEnvelope", () => {
+  it("writes the 0.8 body, or an array of them for a batch endpoint", async () => {
+    const encoder = standardEnvelope();
+    expect(encoder.signed).toBe(true);
+    const one = await encoder.encode([event()], target);
+    expect(one.headers["content-type"]).toBe("application/json");
+    expect(JSON.parse(one.body)).toEqual({
+      type: "invoice.paid",
+      timestamp: "2026-10-03T10:00:00Z",
+      data: { id: 7, total: 12.5, paid: true, lines: ["a"], note: null },
+    });
+
+    const many = await encoder.encode(
+      [event(), event({ id: "del-2", data: { id: 8 } })],
+      { ...target, batch: true },
+    );
+
+    expect(JSON.parse(many.body)).toEqual([
+      expect.objectContaining({ type: "invoice.paid" }),
+      {
+        type: "invoice.paid",
+        timestamp: "2026-10-03T10:00:00Z",
+        data: { id: 8 },
+      },
+    ]);
   });
 });
 
@@ -309,6 +338,7 @@ describe("encoderRegistry", () => {
     const registry = encoderRegistry([custom]);
     expect([...registry.keys()]).toEqual([
       "cloudevents",
+      "standard",
       "otlp-logs",
       "splunk-hec",
       "set",

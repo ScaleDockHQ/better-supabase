@@ -2384,6 +2384,7 @@
       "splunkHec",
       "sqlSecretStore",
       "sqlTransport",
+      "standardEnvelope",
       "standardWebhooks",
       "standardWebhooksAsymmetric",
       "stripeInboxVerify",

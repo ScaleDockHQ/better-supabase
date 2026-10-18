@@ -86,14 +86,26 @@ the endpoint's secrets while receivers move over.
 
 An endpoint's `format` picks the encoder that writes its requests, so the
 same events can go to a log pipeline or a SIEM as well as to webhook
-receivers. `cloudevents` is the default. Three more are built in:
+receivers. `cloudevents` is the default for new endpoints; set
+`blocks.webhooks-out.options.defaultFormat` to change the column default and
+the format of a row that has none. Four more are built in:
 
 | `format`      | Writes                                                                         | Point the URL at            |
 | ------------- | ------------------------------------------------------------------------------ | --------------------------- |
 | `cloudevents` | CloudEvents over HTTP, one event or a batch, signed per Standard Webhooks      | The receiver                |
+| `standard`    | The 0.8 body, `{ type, timestamp, data }` or an array of them, signed the same | A receiver written for 0.8  |
 | `otlp-logs`   | OTLP/HTTP logs in JSON, a log record per event with the CloudEvents attributes | A collector's `/v1/logs`    |
 | `splunk-hec`  | Splunk HTTP Event Collector events, the CloudEvent as `event`                  | `/services/collector/event` |
 | `set`         | A Security Event Token pushed per RFC 8935, from `data.set`                    | A Shared Signals receiver   |
+
+Endpoints are rows, so an app picks a format per endpoint by writing the
+column, for example while receivers move from the 0.8 body to CloudEvents:
+
+```sql
+update better_supabase.webhook_endpoints set format = 'cloudevents' where id = $1;
+```
+
+Both `cloudevents` and `standard` put `transform`'s return value in `data`.
 
 The [shared-signals](/docs/blocks/shared-signals) block creates the `set`
 endpoints; the SET carries its own signature, and a 400 with `invalid_key`

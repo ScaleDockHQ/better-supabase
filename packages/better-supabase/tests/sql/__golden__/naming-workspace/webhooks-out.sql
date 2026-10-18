@@ -64,6 +64,7 @@ alter table "better_supabase"."webhook_endpoints" add column if not exists "batc
 alter table "better_supabase"."webhook_endpoints" add column if not exists "signing" text not null default 'v1' check ("signing" in ('v1', 'v1a'));
 alter table "better_supabase"."webhook_endpoints" add column if not exists "format" text not null default 'cloudevents' check ("format" ~ '^[a-z][a-z0-9-]{0,39}$');
 alter table "better_supabase"."webhook_endpoints" add column if not exists "credential_ref" jsonb check ("credential_ref" is null or (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider'));
+alter table "better_supabase"."webhook_endpoints" alter column "format" set default 'cloudevents';
 create index if not exists webhook_endpoints_types_idx on "better_supabase"."webhook_endpoints" using gin ("event_types");
 create index if not exists webhook_endpoints_tenant_idx on "better_supabase"."webhook_endpoints" ("workspace_id");
 create index if not exists webhook_endpoints_created_by_idx on "better_supabase"."webhook_endpoints" ("created_by");

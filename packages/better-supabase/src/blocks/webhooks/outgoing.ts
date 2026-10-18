@@ -40,7 +40,7 @@ import {
   errorText,
   isRecord,
 } from "../shared.ts";
-import { encoderRegistry } from "./encoders.ts";
+import { encoderRegistry, WEBHOOK_FORMAT } from "./encoders.ts";
 import {
   WebhookPolicyError,
   fetchTransport,
@@ -62,7 +62,10 @@ const credentialRefOf = (value: unknown): CredentialRef | null =>
     ? { ...value, provider: value["provider"] }
     : null;
 
-function toDelivery(row: Record<string, unknown>): WebhookDelivery {
+function toDelivery(
+  row: Record<string, unknown>,
+  defaultFormat: string,
+): WebhookDelivery {
   return {
     id: String(row["id"]),
     endpointId: String(row["endpoint_id"]),
@@ -79,7 +82,7 @@ function toDelivery(row: Record<string, unknown>): WebhookDelivery {
     permissions: textsOf(row["permissions"]),
     batch: row["batch"] === true,
     signing: row["signing"] === "v1a" ? "v1a" : "v1",
-    format: typeof row["format"] === "string" ? row["format"] : "cloudevents",
+    format: typeof row["format"] === "string" ? row["format"] : defaultFormat,
     credentialRef: credentialRefOf(row["credential_ref"]),
     createdAt:
       typeof row["created_at"] === "string"
@@ -183,6 +186,14 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
   const store = options.secrets ?? sqlSecretStore(transport, { schema });
   const signer = options.signer ?? standardWebhooks();
   const encoders = encoderRegistry(options.encoders);
+  const defaultFormat = options.defaultFormat ?? "cloudevents";
+
+  if (!WEBHOOK_FORMAT.test(defaultFormat)) {
+    throw new TypeError(
+      `createWebhooks: defaultFormat "${defaultFormat}" must match ${String(WEBHOOK_FORMAT)}`,
+    );
+  }
+
   const maxAttempts = options.retry?.maxAttempts ?? 8;
   const backoff = options.retry?.backoff ?? defaultBackoff;
   const retryable = options.retry?.retryable ?? defaultRetryable;
@@ -674,7 +685,7 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
 
       const deliveries = (Array.isArray(claimed) ? claimed : [])
         .filter(isRecord)
-        .map(toDelivery);
+        .map((row) => toDelivery(row, defaultFormat));
 
       const size = deliveries.length;
       const refused = await screen(deliveries);

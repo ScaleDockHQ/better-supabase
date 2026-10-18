@@ -4458,6 +4458,10 @@
                 "type": "boolean",
                 "default": false
               },
+              "defaultFormat": {
+                "type": "string",
+                "default": "cloudevents"
+              },
               "disableAfter": {
                 "type": "string",
                 "default": "5 days"

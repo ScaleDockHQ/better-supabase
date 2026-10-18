@@ -204,6 +204,18 @@ and `id` from the CloudEvent. `publish_webhook_event` takes `subject` and
 `read_permission`, and delivers only to endpoints whose owner may read the
 event. See [Outgoing webhooks](/docs/blocks/webhooks-out).
 
+`sql upgrade` keeps endpoints created before 0.9 on the 0.8 body: they get
+`format = 'standard'`, and new endpoints get `cloudevents`
+(`blocks.webhooks-out.options.defaultFormat`). Move each endpoint to
+`cloudevents` once its receiver reads CloudEvents:
+
+```sql
+update better_supabase.webhook_endpoints set format = 'cloudevents' where id = $1;
+```
+
+An adopted endpoints table keeps its own column. When it doesn't map
+`format`, or a row holds `null`, deliveries use `defaultFormat`.
+
 Generic problems use `type: "about:blank"` and the HTTP status phrase as
 `title`:
 

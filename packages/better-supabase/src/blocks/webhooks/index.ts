@@ -86,6 +86,7 @@ export {
   otlpLogs,
   securityEvents,
   splunkHec,
+  standardEnvelope,
 } from "./encoders.ts";
 
 export type {

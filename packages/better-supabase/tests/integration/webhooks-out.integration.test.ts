@@ -15,6 +15,7 @@ import {
 } from "../../src/blocks/webhooks/index.ts";
 import { AsyncResult } from "../../src/core/result.ts";
 import { renderModules } from "../../src/sql/render.ts";
+import { upgradePlan } from "../../src/sql/upgrade.ts";
 import { stackDbUrl } from "./stack-env.ts";
 
 const dbUrl = stackDbUrl();
@@ -597,6 +598,76 @@ describe.skipIf(!live)("webhooks-out", () => {
         sourcetype: "_json",
         event: { type: "invoice.paid", data: { id: 7 } },
       });
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
+  it("keeps a 0.8 endpoint on the standard format after the upgrade", async () => {
+    const client = await pool.connect();
+    const s = new Session(client);
+
+    const install = async () => {
+      for (const file of renderModules(
+        ["organizations", "outbox", "webhooks-out"],
+        LAYOUT,
+      )) {
+        await client.query(file.contents);
+      }
+    };
+
+    try {
+      await client.query("begin");
+      await client.query(
+        `insert into auth.users (id, email, aud, role, instance_id, email_confirmed_at)
+         values ($1, $2, 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000', now())`,
+        [USERS.owner, `upgrade-${USERS.owner}@example.test`],
+      );
+      await install();
+      await s.as("owner");
+
+      const organization = await s.value<string>(
+        "better_supabase.create_organization($1)",
+        [{ name: "Acme", slug: `acme-up-${USERS.owner.slice(0, 8)}` }],
+      );
+
+      await s.as("service");
+      await client.query(
+        "alter table better_supabase.webhook_endpoints drop column format",
+      );
+      await client.query(
+        `insert into better_supabase.webhook_endpoints (organization_id, name, url, event_types)
+         values ($1, 'Old', 'https://old.example.com', '{*}')`,
+        [organization],
+      );
+
+      const [plan] = upgradePlan(
+        [{ module: "webhooks-out", version: 2 }],
+        LAYOUT,
+      );
+
+      for (const step of plan!.steps) {
+        await client.query(step.sql);
+      }
+
+      await install();
+      await client.query(
+        `insert into better_supabase.webhook_endpoints (organization_id, name, url, event_types)
+         values ($1, 'New', 'https://new.example.com', '{*}')`,
+        [organization],
+      );
+
+      const { rows } = await client.query<{ name: string; format: string }>(
+        `select name, format from better_supabase.webhook_endpoints
+         where organization_id = $1 order by name`,
+        [organization],
+      );
+
+      expect(rows).toEqual([
+        { name: "New", format: "cloudevents" },
+        { name: "Old", format: "standard" },
+      ]);
     } finally {
       await client.query("rollback");
       client.release();

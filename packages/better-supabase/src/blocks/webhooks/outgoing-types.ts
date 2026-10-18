@@ -102,10 +102,17 @@ export interface WebhooksOptions extends BlockTemporalOptions {
   readonly secrets?: WebhookSecretStore;
   /**
    * Encoders for endpoint `format`s beyond, or replacing, the built-in
-   * `cloudevents`, `otlp-logs` and `splunk-hec`. A delivery to a format
-   * without an encoder is dead-lettered.
+   * `cloudevents`, `standard`, `otlp-logs`, `splunk-hec` and `set`. A
+   * delivery to a format without an encoder is dead-lettered.
    */
   readonly encoders?: readonly WebhookEncoder[];
+  /**
+   * The format of an endpoint whose row has none, such as an adopted table
+   * that doesn't map `format` or holds `null`.
+   * `blocks.webhooks-out.options.defaultFormat`, which `defineBlocks` passes,
+   * and the column default. Defaults to `cloudevents`.
+   */
+  readonly defaultFormat?: string;
   /**
    * Resolves an endpoint's `credential_ref` to the token that
    * authenticates its requests. Without it, such deliveries are

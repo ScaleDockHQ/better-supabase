@@ -7,6 +7,7 @@ import {
   moduleBody,
   renderModules,
 } from "../../../src/sql/render.ts";
+import { upgradePlan } from "../../../src/sql/upgrade.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
 const body = (modules: AnyBlocksConfig = {}) =>
@@ -252,6 +253,60 @@ describe("webhooks-out module", () => {
       expect(sql).not.toContain('"permissions"');
       expect(sql).not.toContain("add column if not exists");
       expect(sql).not.toContain("'subject', c.");
+    });
+  });
+
+  describe("format", () => {
+    const upgrade = (modules: AnyBlocksConfig = {}) =>
+      upgradePlan([{ module: "webhooks-out", version: 2 }], { modules })[0]!
+        .steps.map((step) => step.sql)
+        .join("\n");
+
+    it("defaults new endpoints to defaultFormat and keeps old ones on standard", () => {
+      expect(body()).toContain(
+        `"format" text not null default 'cloudevents' check ("format" ~ '^[a-z][a-z0-9-]{0,39}$')`,
+      );
+      expect(body()).toContain(
+        `alter table "better_supabase"."webhook_endpoints" alter column "format" set default 'cloudevents';`,
+      );
+
+      const standard = body({
+        "webhooks-out": { options: { defaultFormat: "standard" } },
+      });
+
+      expect(standard).toContain(
+        `alter column "format" set default 'standard';`,
+      );
+
+      expect(upgrade()).toContain(
+        `alter table "better_supabase"."webhook_endpoints" add column if not exists "format" text not null default 'standard'`,
+      );
+    });
+
+    it("sets the default on a mapped adopted column only, and refuses a bad format", () => {
+      expect(body(CENTRAKIT)).not.toContain("set default");
+      expect(upgrade(CENTRAKIT)).not.toContain("format");
+
+      const mapped = body({
+        "webhooks-out": {
+          ...CENTRAKIT["webhooks-out"],
+          columns: {
+            ...CENTRAKIT["webhooks-out"]!.columns,
+            endpoints: {
+              ...CENTRAKIT["webhooks-out"]!.columns!["endpoints"],
+              format: "body_format",
+            },
+          },
+        },
+      });
+
+      expect(mapped).toContain(
+        `alter table "public"."webhook_endpoints" alter column "body_format" set default 'cloudevents';`,
+      );
+
+      expect(() =>
+        body({ "webhooks-out": { options: { defaultFormat: "x'; drop" } } }),
+      ).toThrow(/defaultFormat "x'; drop" must match/);
     });
   });
 });

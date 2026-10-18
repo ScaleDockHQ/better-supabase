@@ -228,7 +228,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
       {
         pattern: /\bcreateWebhooks\s*\(/,
         message:
-          "Outgoing webhooks send CloudEvents 1.0 (`application/cloudevents+json`) instead of `{ type, timestamp, data }`; a `transform` now returns only the event's `data`, and receivers read `data` from the CloudEvent",
+          "Outgoing webhooks send CloudEvents 1.0 (`application/cloudevents+json`) instead of `{ type, timestamp, data }`; a `transform` now returns only the event's `data`, and receivers read `data` from the CloudEvent. `sql upgrade` keeps existing endpoints on `format = 'standard'` (the 0.8 body) until you set each one to `cloudevents`",
       },
       {
         pattern: /\bgatewayOptions\s*\(/,
