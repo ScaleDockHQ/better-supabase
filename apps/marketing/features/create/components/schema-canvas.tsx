@@ -173,7 +173,8 @@ function CanvasInner({
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   const categoryOf = useCallback(
-    (table: SchemaTable): string => categories[table.module] ?? "Platform",
+    (table: SchemaTable): string =>
+      categories[table.module] ?? "Database primitives",
     [categories],
   );
 
@@ -280,7 +281,9 @@ function CanvasInner({
 
     const groupNodes = layout.groups.flatMap((group): GroupNode[] => {
       const first = byId.get(group.members[0] ?? "");
-      const category = first === undefined ? "Platform" : categoryOf(first);
+
+      const category =
+        first === undefined ? "Database primitives" : categoryOf(first);
 
       const base = {
         id: group.id,
