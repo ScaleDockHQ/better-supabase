@@ -1,3 +1,4 @@
+// #region recipe:profile-form
 "use client";
 
 import { useActionForm } from "better-supabase/react";
@@ -76,3 +77,4 @@ export function ProfileForm({
     </form>
   );
 }
+// #endregion recipe:profile-form

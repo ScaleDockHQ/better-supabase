@@ -13,7 +13,9 @@ export async function SecurityCards() {
 
   return (
     <>
-      <TwoFactorCard initial={factor} />
+      <div data-recipe="mfa-setup">
+        <TwoFactorCard initial={factor} />
+      </div>
       <ConnectedAgentsCard initial={grants} />
     </>
   );

@@ -1,3 +1,4 @@
+// #region recipe:announcement-banner
 "use client";
 
 import { useAnnouncements } from "better-supabase/blocks/announcements/react";
@@ -60,3 +61,4 @@ export function AnnouncementBanner({
     </Alert>
   );
 }
+// #endregion recipe:announcement-banner

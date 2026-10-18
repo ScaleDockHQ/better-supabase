@@ -1,3 +1,4 @@
+// #region recipe:chat-with-history
 "use client";
 
 import type { UIMessage } from "ai";
@@ -125,3 +126,4 @@ export function AssistantChat({
     </div>
   );
 }
+// #endregion recipe:chat-with-history

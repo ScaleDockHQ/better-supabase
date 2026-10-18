@@ -85,6 +85,19 @@ const SHOTS: readonly Shot[] = [
     region: (page) => page.getByRole("dialog"),
   },
   { slug: "api-keys-table", path: "/en/settings/api-keys" },
+  {
+    slug: "announcement-banner",
+    path: "/en",
+    region: (page) => page.getByTestId("announcement"),
+  },
+  { slug: "profile-form", path: "/en/settings/profile" },
+  { slug: "mfa-setup", path: "/en/settings/security" },
+  { slug: "workspace-url-field", path: "/en/settings/organization" },
+  { slug: "inbox-threads", path: "/en/inbox" },
+  { slug: "chat-with-history", path: "/en/assistant" },
+  { slug: "agent-run-trace", path: "/en/assistant/activity" },
+  { slug: "knowledge-upload", path: "/en/knowledge" },
+  { slug: "workflow-runs", path: "/en/workflows" },
 ];
 
 test.describe("recipe screenshots", () => {

@@ -20,9 +20,11 @@ export default function AgentActivityPage() {
           "Runs from ai_runs with their steps, and the tool calls waiting for your approval.",
         )}
       />
-      <Suspense fallback={<AgentActivitySkeleton />}>
-        <AgentActivity />
-      </Suspense>
+      <div data-recipe="agent-run-trace">
+        <Suspense fallback={<AgentActivitySkeleton />}>
+          <AgentActivity />
+        </Suspense>
+      </div>
     </>
   );
 }

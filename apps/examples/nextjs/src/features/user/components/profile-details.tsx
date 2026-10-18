@@ -35,7 +35,7 @@ export async function ProfileDetails() {
 
   return (
     <>
-      <Card>
+      <Card data-recipe="profile-form">
         <CardHeader>
           <CardTitle>{t("Profile")}</CardTitle>
           <CardDescription>{t("How your teammates see you.")}</CardDescription>

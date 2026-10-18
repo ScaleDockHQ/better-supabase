@@ -1,3 +1,4 @@
+// #region recipe:inbox-threads
 "use client";
 
 import { useInbox } from "better-supabase/blocks/inbox/react";
@@ -224,3 +225,4 @@ function ConversationList({
     </ul>
   );
 }
+// #endregion recipe:inbox-threads

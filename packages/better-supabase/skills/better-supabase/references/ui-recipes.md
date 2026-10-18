@@ -3564,3 +3564,1830 @@ export function TagInput({ customerId }: { readonly customerId: string }) {
   );
 }
 ```
+
+## Announcement banner
+
+The newest live announcement for the user and organization, with a dismiss button. It calls `useAnnouncements` from `better-supabase/blocks/announcements/react`; the [announcements block](https://bettersupabase.com/blocks/announcements) must be installed (`npx better-supabase sql add announcements`). Page: https://bettersupabase.com/recipes/announcement-banner.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add alert button
+```
+
+```tsx title="apps/examples/nextjs/src/features/announcements/components/announcement-banner.tsx"
+"use client";
+
+import { useAnnouncements } from "better-supabase/blocks/announcements/react";
+import { MegaphoneIcon, XIcon } from "lucide-react";
+import { useExtracted } from "next-intl";
+
+import {
+  Alert,
+  AlertAction,
+  AlertDescription,
+  AlertTitle,
+} from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+
+/**
+ * The newest live announcement for this user and organization. Loads in
+ * the browser and reloads on the module's broadcast, so it adds nothing to
+ * the server render.
+ */
+export function AnnouncementBanner({
+  organizationId,
+}: {
+  organizationId: string | null;
+}) {
+  const t = useExtracted("announcements");
+
+  const { items, dismiss } = useAnnouncements({
+    organizationId,
+    schema: "api",
+  });
+
+  const announcement = items?.[0];
+
+  if (!announcement) {
+    return null;
+  }
+
+  return (
+    <Alert
+      variant={announcement.severity === "critical" ? "destructive" : "default"}
+      data-testid="announcement"
+    >
+      <MegaphoneIcon />
+      <AlertTitle>{announcement.title}</AlertTitle>
+      {announcement.body ? (
+        <AlertDescription>{announcement.body}</AlertDescription>
+      ) : null}
+      {announcement.dismissible ? (
+        <AlertAction>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t("Dismiss")}
+            onClick={() => void dismiss(announcement.id)}
+          >
+            <XIcon />
+          </Button>
+        </AlertAction>
+      ) : null}
+    </Alert>
+  );
+}
+```
+
+## Profile form
+
+A form that updates the caller's display name through a server action and shows field errors. It loads its data on the server through the block's client; the [profiles block](https://bettersupabase.com/blocks/profiles) must be installed (`npx better-supabase sql add profiles`). Page: https://bettersupabase.com/recipes/profile-form.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add button field input
+```
+
+```tsx title="apps/examples/nextjs/src/features/user/components/profile-form.tsx"
+"use client";
+
+import { useActionForm } from "better-supabase/react";
+import { useExtracted } from "next-intl";
+import { useId } from "react";
+import { toast } from "sonner";
+
+import { Button } from "@/components/ui/button";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { useErrorMessage } from "@/lib/use-error-message";
+
+import { updateProfile } from "../user-actions";
+
+export function ProfileForm({
+  fullName,
+  email,
+}: {
+  fullName: string | null;
+  email: string | null;
+}) {
+  const t = useExtracted("user");
+  const fieldId = useId();
+  const errorMessage = useErrorMessage();
+
+  const form = useActionForm(updateProfile, {
+    resetOnSuccess: false,
+    onSuccess: () => {
+      toast.success(t("Profile saved"));
+    },
+  });
+
+  const error = form.error === undefined ? null : errorMessage(form.error);
+
+  return (
+    <form {...form.formProps} className="space-y-6">
+      <FieldGroup>
+        <Field data-invalid={error ? true : undefined}>
+          <FieldLabel htmlFor={`${fieldId}-profile-name`}>
+            {t("Full name")}
+          </FieldLabel>
+          <Input
+            id={`${fieldId}-profile-name`}
+            name="fullName"
+            defaultValue={fullName ?? ""}
+            autoComplete="name"
+            required
+            maxLength={120}
+          />
+          {error ? <FieldError>{error}</FieldError> : null}
+        </Field>
+        <Field>
+          <FieldLabel htmlFor={`${fieldId}-profile-email`}>
+            {t("Email")}
+          </FieldLabel>
+          <Input
+            id={`${fieldId}-profile-email`}
+            value={email ?? ""}
+            disabled
+            readOnly
+          />
+          <FieldDescription>
+            {t("Your sign-in address. It comes from Supabase Auth.")}
+          </FieldDescription>
+        </Field>
+      </FieldGroup>
+      <Button type="submit" disabled={form.pending}>
+        {t("Save")}
+      </Button>
+    </form>
+  );
+}
+```
+
+## Two-factor setup
+
+A card that enrolls an authenticator app with a QR code, verifies the first code and removes the factor. It loads its data on the server through the block's client; the [mfa block](https://bettersupabase.com/blocks/mfa) must be installed (`npx better-supabase sql add mfa`). Page: https://bettersupabase.com/recipes/mfa-setup.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add badge button card field input-otp
+```
+
+```tsx title="apps/examples/nextjs/src/features/user/components/two-factor-card.tsx"
+"use client";
+
+import { useSessionChange } from "better-supabase/next/client";
+import { ShieldCheckIcon } from "lucide-react";
+import { useExtracted } from "next-intl";
+import Image from "next/image";
+import { useId, useState, useTransition } from "react";
+import { toast } from "sonner";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+} from "@/components/ui/field";
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+} from "@/components/ui/input-otp";
+import { useSupabase } from "@/lib/hooks";
+
+import type { AuthRead } from "../security-queries";
+
+import { sessionChanged } from "../user-actions";
+
+interface Enrollment {
+  readonly factorId: string;
+  readonly qrCode: string;
+  readonly secret: string;
+}
+
+/**
+ * TOTP through Supabase Auth MFA. The server reads the verified factor
+ * (`getTotpFactorId`), so it is in the prefetched page; enrolling and
+ * verifying run in the browser. A verified factor raises the session to
+ * `aal2`, which `deleteMyAccount` and `DELETE /api/customers/:id` require.
+ */
+export function TwoFactorCard({
+  initial,
+}: {
+  readonly initial: AuthRead<string | null>;
+}) {
+  const t = useExtracted("security");
+  const fieldId = useId();
+  const supabase = useSupabase();
+  const changeSession = useSessionChange(sessionChanged);
+
+  const refreshAndChange = useSessionChange(sessionChanged, undefined, {
+    refreshToken: supabase,
+  });
+
+  const [factorId, setFactorId] = useState(initial.ok ? initial.value : null);
+  const readError = initial.ok ? null : initial.error;
+  const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
+  const [code, setCode] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  const enroll = () => {
+    startTransition(async () => {
+      setError(null);
+
+      const { data, error: enrollError } = await supabase.auth.mfa.enroll({
+        factorType: "totp",
+        friendlyName: `Acme Cloud ${new Date().toISOString().slice(0, 10)}`,
+      });
+
+      if (enrollError) {
+        setError(enrollError.message);
+
+        return;
+      }
+
+      setEnrollment({
+        factorId: data.id,
+        qrCode: data.totp.qr_code,
+        secret: data.totp.secret,
+      });
+    });
+  };
+
+  const verify = () => {
+    if (!enrollment) {
+      return;
+    }
+
+    startTransition(async () => {
+      const { error: verifyError } = await supabase.auth.mfa.challengeAndVerify(
+        {
+          factorId: enrollment.factorId,
+          code,
+        },
+      );
+
+      if (verifyError) {
+        setError(t("That code didn't work. Try the next one."));
+
+        return;
+      }
+
+      await changeSession();
+      setFactorId(enrollment.factorId);
+      setEnrollment(null);
+      setCode("");
+      toast.success(t("Two-factor authentication is on"));
+    });
+  };
+
+  const remove = () => {
+    if (!factorId) {
+      return;
+    }
+
+    startTransition(async () => {
+      const { error: removeError } = await supabase.auth.mfa.unenroll({
+        factorId,
+      });
+
+      if (removeError) {
+        toast.error(removeError.message);
+
+        return;
+      }
+
+      await refreshAndChange();
+      setFactorId(null);
+      toast.success(t("Two-factor authentication is off"));
+    });
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t("Two-factor authentication")}</CardTitle>
+        <CardDescription>
+          {t(
+            "An authenticator app code at sign-in. Needed to delete your account.",
+          )}
+        </CardDescription>
+        <CardAction>
+          {readError ? null : factorId ? (
+            <Badge data-testid="mfa-status">
+              <ShieldCheckIcon />
+              {t("On")}
+            </Badge>
+          ) : (
+            <Badge variant="secondary" data-testid="mfa-status">
+              {t("Off")}
+            </Badge>
+          )}
+        </CardAction>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {readError ? (
+          <p className="text-sm text-destructive">{readError}</p>
+        ) : enrollment ? (
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
+            {/* An SVG data URL from Supabase Auth: nothing to optimize. */}
+            <Image
+              src={enrollment.qrCode}
+              width={160}
+              height={160}
+              unoptimized
+              alt={t("QR code for your authenticator app")}
+              className="rounded-lg bg-white p-2"
+            />
+            <div className="space-y-4">
+              <Field data-invalid={error ? true : undefined}>
+                <FieldLabel htmlFor={`${fieldId}-totp-code`}>
+                  {t("Code from the app")}
+                </FieldLabel>
+                <InputOTP
+                  id={`${fieldId}-totp-code`}
+                  maxLength={6}
+                  value={code}
+                  onChange={setCode}
+                >
+                  <InputOTPGroup>
+                    {Array.from({ length: 6 }, (_, index) => (
+                      <InputOTPSlot key={index} index={index} />
+                    ))}
+                  </InputOTPGroup>
+                </InputOTP>
+                <FieldDescription>
+                  {t("Or enter this key by hand: {secret}", {
+                    secret: enrollment.secret,
+                  })}
+                </FieldDescription>
+                {error ? <FieldError>{error}</FieldError> : null}
+              </Field>
+              <div className="flex gap-2">
+                <Button
+                  onClick={verify}
+                  disabled={pending || code.length !== 6}
+                >
+                  {t("Verify")}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setEnrollment(null);
+                  }}
+                >
+                  {t("Cancel")}
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : factorId ? (
+          <Button variant="outline" onClick={remove} disabled={pending}>
+            {t("Turn off")}
+          </Button>
+        ) : (
+          <>
+            <Button onClick={enroll} disabled={pending}>
+              {t("Set up")}
+            </Button>
+            {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+```
+
+## Inbox with threads
+
+A shared inbox of conversations with status tabs, an assignee filter and the open thread beside the list. It calls `useInbox` from `better-supabase/blocks/inbox/react`; the [inbox block](https://bettersupabase.com/blocks/inbox) must be installed (`npx better-supabase sql add inbox`). Page: https://bettersupabase.com/recipes/inbox-threads.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add badge empty select tabs
+```
+
+```tsx title="apps/examples/nextjs/src/features/inbox/components/inbox-view.tsx"
+"use client";
+
+import { useInbox } from "better-supabase/blocks/inbox/react";
+import { InboxIcon } from "lucide-react";
+import { useExtracted, useFormatter } from "next-intl";
+import { useState } from "react";
+import * as v from "valibot";
+
+import { Badge } from "@/components/ui/badge";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
+
+import { loadConversations } from "../inbox-actions";
+import { unwrap } from "../inbox-load";
+import {
+  AssigneeFilter,
+  type ConversationRow,
+  ConversationStatus,
+} from "../inbox-types";
+import { ConversationPanel } from "./conversation-panel";
+
+export function InboxView({
+  organizationId,
+  initial,
+}: {
+  organizationId: string;
+  initial: readonly ConversationRow[];
+}) {
+  const t = useExtracted("inbox");
+  const [status, setStatus] = useState<ConversationStatus>("open");
+  const [assignee, setAssignee] = useState<AssigneeFilter>("anyone");
+  const [selected, setSelected] = useState<string | null>(null);
+
+  const assigneeItems = [
+    { value: "anyone", label: t("Anyone") },
+    { value: "me", label: t("Mine") },
+    { value: "unassigned", label: t("Unassigned") },
+  ] satisfies readonly { value: AssigneeFilter; label: string }[];
+
+  return (
+    <div className="grid min-h-128 gap-4 lg:grid-cols-3">
+      <section aria-label={t("Conversations")} className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Tabs
+            value={status}
+            onValueChange={(value) => {
+              if (!v.is(ConversationStatus, value)) {
+                return;
+              }
+
+              setStatus(value);
+            }}
+          >
+            <TabsList>
+              <TabsTrigger value="open">{t("Open")}</TabsTrigger>
+              <TabsTrigger value="pending">{t("Pending")}</TabsTrigger>
+              <TabsTrigger value="resolved">{t("Resolved")}</TabsTrigger>
+              <TabsTrigger value="all">{t("All")}</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <Select
+            value={assignee}
+            items={assigneeItems}
+            onValueChange={(value) => {
+              if (!v.is(AssigneeFilter, value)) {
+                return;
+              }
+
+              setAssignee(value);
+            }}
+          >
+            <SelectTrigger
+              size="sm"
+              className="w-32"
+              aria-label={t("Assignee")}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {assigneeItems.map((item) => (
+                <SelectItem key={item.value} value={item.value}>
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <ConversationList
+          key={`${status}:${assignee}`}
+          organizationId={organizationId}
+          status={status}
+          assignee={assignee}
+          initial={status === "open" && assignee === "anyone" ? initial : []}
+          selected={selected}
+          onSelect={setSelected}
+        />
+      </section>
+      {selected === null ? (
+        <Empty className="border lg:col-span-2">
+          <EmptyHeader>
+            <EmptyTitle>{t("Pick a conversation")}</EmptyTitle>
+            <EmptyDescription>
+              {t("Its messages, notes and actions show here.")}
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      ) : (
+        <div className="lg:col-span-2">
+          <ConversationPanel key={selected} conversationId={selected} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ConversationList({
+  organizationId,
+  status,
+  assignee,
+  initial,
+  selected,
+  onSelect,
+}: {
+  organizationId: string;
+  status: ConversationStatus;
+  assignee: AssigneeFilter;
+  initial: readonly ConversationRow[];
+  selected: string | null;
+  onSelect: (id: string) => void;
+}) {
+  const t = useExtracted("inbox");
+  const format = useFormatter();
+
+  const inbox = useInbox({
+    organizationId,
+    load: async () => unwrap(await loadConversations({ status, assignee })),
+  });
+
+  const conversations = inbox.items ?? initial;
+
+  // Staff reads send no broadcast, so an opened conversation clears its badge here.
+  const [openedAt, setOpenedAt] = useState<ReadonlyMap<string, number>>(
+    () => new Map(),
+  );
+
+  const unread = (conversation: ConversationRow): boolean => {
+    const opened = openedAt.get(conversation.id);
+
+    return (
+      conversation.unread &&
+      (opened === undefined ||
+        (conversation.lastMessageAt !== null &&
+          Date.parse(conversation.lastMessageAt) > opened))
+    );
+  };
+
+  return conversations.length === 0 ? (
+    <Empty className="border">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <InboxIcon />
+        </EmptyMedia>
+        <EmptyTitle>{t("No conversations")}</EmptyTitle>
+        <EmptyDescription>
+          {t("Open Help in the header to start one as a customer.")}
+        </EmptyDescription>
+      </EmptyHeader>
+    </Empty>
+  ) : (
+    <ul className="divide-y rounded-xl border">
+      {conversations.map((conversation) => (
+        <li key={conversation.id}>
+          <button
+            type="button"
+            aria-current={selected === conversation.id ? "true" : undefined}
+            className={cn(
+              "flex w-full flex-col gap-1 px-4 py-3 text-left text-sm hover:bg-muted/50",
+              selected === conversation.id && "bg-muted",
+            )}
+            onClick={() => {
+              setOpenedAt((current) =>
+                new Map(current).set(conversation.id, Date.now()),
+              );
+              onSelect(conversation.id);
+            }}
+          >
+            <span className="flex items-center gap-2">
+              <span className="flex-1 truncate font-medium">
+                {conversation.contactName || t("Visitor")}
+              </span>
+              {unread(conversation) ? <Badge>{t("New")}</Badge> : null}
+            </span>
+            <span className="truncate">
+              {conversation.subject ?? t("No subject")}
+            </span>
+            <span className="flex gap-2 text-xs text-muted-foreground">
+              <span className="flex-1 truncate">{conversation.preview}</span>
+              {conversation.lastMessageAt ? (
+                <span className="tabular-nums">
+                  {format.dateTime(new Date(conversation.lastMessageAt), {
+                    dateStyle: "short",
+                    timeStyle: "short",
+                  })}
+                </span>
+              ) : null}
+            </span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+## Workspace URL field
+
+An organization form with a name and a URL slug, where reserved and taken slugs come back as field errors. It loads its data on the server through the block's client; the [organizations](https://bettersupabase.com/blocks/organizations), [reserved-slugs](https://bettersupabase.com/blocks/reserved-slugs) blocks must be installed (`npx better-supabase sql add organizations reserved-slugs`). Page: https://bettersupabase.com/recipes/workspace-url-field.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add button field input
+```
+
+```tsx title="apps/examples/nextjs/src/features/organization/components/organization-form.tsx"
+"use client";
+
+import { useActionForm } from "better-supabase/react";
+import { useExtracted } from "next-intl";
+import { useId } from "react";
+import { toast } from "sonner";
+
+import { Button } from "@/components/ui/button";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { useErrorMessage } from "@/lib/use-error-message";
+
+import { updateOrganization } from "../organization-actions";
+
+export function OrganizationForm({
+  name,
+  slug,
+  canEdit,
+}: {
+  name: string;
+  slug: string;
+  canEdit: boolean;
+}) {
+  const t = useExtracted("organization");
+  const fieldId = useId();
+  const errorMessage = useErrorMessage();
+
+  const form = useActionForm(updateOrganization, {
+    resetOnSuccess: false,
+    onSuccess: () => {
+      toast.success(t("Organization saved"));
+    },
+  });
+
+  const error =
+    form.error === undefined
+      ? null
+      : form.error.kind === "conflict"
+        ? t("That URL is taken. Pick another one.")
+        : errorMessage(form.error);
+
+  return (
+    <form {...form.formProps} className="space-y-6">
+      <fieldset disabled={!canEdit}>
+        <FieldGroup>
+          <Field>
+            <FieldLabel htmlFor={`${fieldId}-organization-name`}>
+              {t("Name")}
+            </FieldLabel>
+            <Input
+              id={`${fieldId}-organization-name`}
+              name="name"
+              defaultValue={name}
+              required
+              minLength={2}
+              maxLength={80}
+            />
+          </Field>
+          <Field data-invalid={error ? true : undefined}>
+            <FieldLabel htmlFor={`${fieldId}-organization-slug`}>
+              {t("URL")}
+            </FieldLabel>
+            <Input
+              id={`${fieldId}-organization-slug`}
+              name="slug"
+              defaultValue={slug}
+              required
+              pattern="[a-z0-9][a-z0-9\-]*[a-z0-9]"
+              maxLength={48}
+              aria-invalid={error ? true : undefined}
+            />
+            <FieldDescription>
+              {t("Lowercase letters, numbers and dashes.")}
+            </FieldDescription>
+            {error ? <FieldError>{error}</FieldError> : null}
+          </Field>
+        </FieldGroup>
+      </fieldset>
+      {canEdit ? (
+        <Button type="submit" disabled={form.pending}>
+          {t("Save")}
+        </Button>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          {t("Only owners and admins can change the organization.")}
+        </p>
+      )}
+    </form>
+  );
+}
+```
+
+## Chat with history
+
+An AI chat that stores every message, resumes a stored conversation and streams the reply. It calls `useAssistant` from `better-supabase/ai-sdk/react`; the [ai-chat block](https://bettersupabase.com/blocks/ai-chat) must be installed (`npx better-supabase sql add ai-chat`). Page: https://bettersupabase.com/recipes/chat-with-history.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add button textarea
+```
+
+```tsx title="apps/examples/nextjs/src/features/assistant/components/assistant-chat.tsx"
+"use client";
+
+import type { UIMessage } from "ai";
+
+import { useAssistant } from "better-supabase/ai-sdk/react";
+import { useDurableAssistant } from "better-supabase/ai-sdk/workflow/react";
+import { useExtracted } from "next-intl";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+
+import { Button } from "@/components/ui/button";
+
+import { ChatView } from "./chat-view";
+
+export type ChatMode = "standard" | "durable" | "research";
+
+interface PanelProps {
+  readonly id: string;
+  readonly messages: UIMessage[];
+  readonly streaming: boolean;
+}
+
+/** The answer streams from the request; a reload picks it up from the stream store. */
+function StandardPanel({ id, messages }: PanelProps) {
+  const router = useRouter();
+
+  const chat = useAssistant({
+    id,
+    messages,
+    onFinish: () => {
+      router.refresh();
+    },
+  });
+
+  return <ChatView id={id} chat={chat} />;
+}
+
+/** The answer runs as a workflow: it survives a closed tab and waits for approvals. */
+function DurablePanel({
+  id,
+  messages,
+  streaming,
+  agent,
+}: PanelProps & { readonly agent: "assistant" | "research" }) {
+  const router = useRouter();
+
+  const chat = useDurableAssistant({
+    id,
+    api: "/api/chat/durable",
+    body: { agent },
+    messages,
+    resume: streaming,
+    onFinish: () => {
+      router.refresh();
+    },
+  });
+
+  return <ChatView id={id} chat={chat} />;
+}
+
+/**
+ * One chat. Standard answers stream from the request; Durable and Research
+ * answers run as workflows, which need the AI Gateway key.
+ */
+export function AssistantChat({
+  id,
+  messages,
+  streaming = false,
+  initialMode = "standard",
+  durableAvailable,
+}: {
+  id: string;
+  messages: UIMessage[];
+  streaming?: boolean;
+  initialMode?: ChatMode;
+  durableAvailable: boolean;
+}) {
+  const t = useExtracted("assistant");
+
+  const [mode, setMode] = useState<ChatMode>(
+    durableAvailable ? initialMode : "standard",
+  );
+
+  const modes: readonly { mode: ChatMode; label: string }[] = [
+    { mode: "standard", label: t("Standard") },
+    { mode: "durable", label: t("Durable") },
+    { mode: "research", label: t("Research") },
+  ];
+
+  const panel = { id, messages, streaming };
+
+  return (
+    <div className="flex flex-col gap-3">
+      <fieldset className="flex flex-wrap items-center gap-2">
+        <legend className="sr-only">{t("Answer mode")}</legend>
+        {modes.map((entry) => (
+          <Button
+            key={entry.mode}
+            size="sm"
+            variant={mode === entry.mode ? "default" : "outline"}
+            aria-pressed={mode === entry.mode}
+            disabled={entry.mode !== "standard" && !durableAvailable}
+            onClick={() => {
+              setMode(entry.mode);
+            }}
+          >
+            {entry.label}
+          </Button>
+        ))}
+        {durableAvailable ? null : (
+          <p className="text-xs text-muted-foreground">
+            {t("Durable answers need AI_GATEWAY_API_KEY.")}
+          </p>
+        )}
+      </fieldset>
+      {mode === "standard" ? (
+        <StandardPanel key="standard" {...panel} />
+      ) : (
+        <DurablePanel
+          key={mode}
+          {...panel}
+          agent={mode === "research" ? "research" : "assistant"}
+        />
+      )}
+    </div>
+  );
+}
+```
+
+## Knowledge base upload
+
+A form that adds a document to the knowledge base, which chunks and embeds it for search. It loads its data on the server through the block's client; the [knowledge block](https://bettersupabase.com/blocks/knowledge) must be installed (`npx better-supabase sql add knowledge`). Page: https://bettersupabase.com/recipes/knowledge-upload.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add button field input textarea
+```
+
+```tsx title="apps/examples/nextjs/src/features/knowledge/components/add-document-form.tsx"
+"use client";
+
+import { useActionForm } from "better-supabase/react";
+import { useExtracted } from "next-intl";
+import { useId } from "react";
+
+import { Button } from "@/components/ui/button";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { useErrorMessage } from "@/lib/use-error-message";
+
+import { addDocument } from "../knowledge-actions";
+
+export function AddDocumentForm() {
+  const t = useExtracted("knowledge");
+  const fieldId = useId();
+  const errorMessage = useErrorMessage();
+  const form = useActionForm(addDocument);
+  const error = form.error === undefined ? null : errorMessage(form.error);
+
+  return (
+    <form {...form.formProps} className="space-y-3">
+      <Field>
+        <FieldLabel htmlFor={`${fieldId}-title`}>{t("Title")}</FieldLabel>
+        <Input id={`${fieldId}-title`} name="title" required maxLength={200} />
+      </Field>
+      <Field data-invalid={error ? true : undefined}>
+        <FieldLabel htmlFor={`${fieldId}-text`}>{t("Text")}</FieldLabel>
+        <Textarea
+          id={`${fieldId}-text`}
+          name="text"
+          placeholder={t("Paste a policy, a guide or meeting notes")}
+          required
+          maxLength={100_000}
+          rows={6}
+        />
+        {error ? <FieldError>{error}</FieldError> : null}
+      </Field>
+      <Button type="submit" size="sm" disabled={form.pending}>
+        {t("Add document")}
+      </Button>
+    </form>
+  );
+}
+```
+
+## Agent activity
+
+The agent runs for the organization with their steps and the approvals that wait for a person. It loads its data on the server through the block's client; the [agents block](https://bettersupabase.com/blocks/agents) must be installed (`npx better-supabase sql add agents`). Page: https://bettersupabase.com/recipes/agent-run-trace.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add badge empty skeleton
+```
+
+```tsx title="apps/examples/nextjs/src/features/assistant/components/agent-activity.tsx"
+import { ActivityIcon, InboxIcon } from "lucide-react";
+import { getExtracted, getFormatter } from "next-intl/server";
+
+import { Badge } from "@/components/ui/badge";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Link } from "@/i18n/navigation";
+
+import { getActivity } from "../assistant-queries";
+import { ApprovalButtons } from "./approval-buttons";
+
+/** Render inside `<Suspense>`: the approval inbox, then the latest runs with their steps. */
+export async function AgentActivity() {
+  const [{ runs, approvals }, t, format] = await Promise.all([
+    getActivity(),
+    getExtracted("assistant"),
+    getFormatter(),
+  ]);
+
+  const when = (iso: string) =>
+    format.dateTime(new Date(iso), { dateStyle: "medium", timeStyle: "short" });
+
+  return (
+    <div className="flex flex-col gap-6">
+      <section className="flex flex-col gap-3" aria-labelledby="approvals">
+        <h2 id="approvals" className="text-sm font-medium">
+          {t("Waiting for approval")}
+        </h2>
+        {approvals.length === 0 ? (
+          <Empty className="border">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <InboxIcon />
+              </EmptyMedia>
+              <EmptyTitle>{t("Nothing to approve")}</EmptyTitle>
+              <EmptyDescription>
+                {t("Tool calls that need your approval show up here.")}
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        ) : (
+          <ul className="divide-y rounded-xl border">
+            {approvals.map((approval) => (
+              <li
+                key={approval.approvalId}
+                className="flex flex-col gap-2 px-4 py-3 text-sm"
+              >
+                <p className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium">{approval.tool}</span>
+                  <Link
+                    href={`/assistant/${approval.chatId}`}
+                    className="text-muted-foreground underline"
+                  >
+                    {approval.chatTitle === ""
+                      ? t("Untitled chat")
+                      : approval.chatTitle}
+                  </Link>
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    {when(approval.createdAt)}
+                  </span>
+                </p>
+                <pre className="overflow-x-auto rounded-md bg-muted p-2 text-xs whitespace-pre-wrap">
+                  {approval.input}
+                </pre>
+                <ApprovalButtons
+                  chatId={approval.chatId}
+                  approvalId={approval.approvalId}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+      <section className="flex flex-col gap-3" aria-labelledby="runs">
+        <h2 id="runs" className="text-sm font-medium">
+          {t("Latest runs")}
+        </h2>
+        {runs.length === 0 ? (
+          <Empty className="border">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <ActivityIcon />
+              </EmptyMedia>
+              <EmptyTitle>{t("No runs yet")}</EmptyTitle>
+              <EmptyDescription>
+                {t("Every answer the assistant writes is a run.")}
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        ) : (
+          <ul className="divide-y rounded-xl border">
+            {runs.map((run) => (
+              <li
+                key={run.id}
+                className="flex flex-col gap-2 px-4 py-3 text-sm"
+              >
+                <p className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline">{run.status}</Badge>
+                  <Badge variant="secondary">
+                    {run.engine === "workflow" ? t("Durable") : t("Standard")}
+                  </Badge>
+                  <Link
+                    href={`/assistant/${run.chatId}`}
+                    className="flex-1 truncate underline"
+                  >
+                    {run.model ?? t("Default model")}
+                  </Link>
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    {when(run.startedAt)}
+                  </span>
+                </p>
+                {run.steps.length > 0 ? (
+                  <ol className="flex flex-col gap-1 ps-4 text-xs text-muted-foreground">
+                    {run.steps.map((step) => (
+                      <li key={step.key} className="flex gap-2">
+                        <span className="w-14 shrink-0">{step.status}</span>
+                        <span className="truncate">{step.label}</span>
+                      </li>
+                    ))}
+                  </ol>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
+  );
+}
+
+export function AgentActivitySkeleton() {
+  return <Skeleton className="h-96 w-full rounded-xl" />;
+}
+```
+
+## Workflow canvas
+
+A node editor for a workflow definition that saves drafts, publishes versions and runs the workflow. It calls `useWorkflowCanvasRun` from `better-supabase/blocks/workflow-builder/react`; the [workflow-builder](https://bettersupabase.com/blocks/workflow-builder), [workflows](https://bettersupabase.com/blocks/workflows) blocks must be installed (`npx better-supabase sql add workflow-builder workflows`). Page: https://bettersupabase.com/recipes/workflow-canvas.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add badge button input select
+```
+
+```tsx title="apps/examples/nextjs/src/features/workflows/builder/components/workflow-canvas.tsx"
+"use client";
+
+import type { WorkflowNodeKind } from "better-supabase/blocks/workflow-builder";
+
+import {
+  addEdge,
+  Background,
+  type Connection,
+  Controls,
+  ReactFlow,
+  useEdgesState,
+  useNodesState,
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+import { useWorkflowCanvasRun } from "better-supabase/blocks/workflow-builder/react";
+import { useWorkflowRuns } from "better-supabase/blocks/workflows/react";
+import { useAction } from "better-supabase/react";
+import { PlayIcon, PlusIcon, SaveIcon } from "lucide-react";
+import { useExtracted, useFormatter } from "next-intl";
+import { useState } from "react";
+import { toast } from "sonner";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useErrorMessage } from "@/lib/use-error-message";
+
+import type { BuilderDetail } from "../builder-queries";
+
+import { isFinished, statusVariant } from "../../workflow-labels";
+import {
+  decideNode,
+  publishGraph,
+  runDefinition,
+  saveDraft,
+} from "../builder-actions";
+import { CredentialSheet } from "./credential-sheet";
+import {
+  fromFlow,
+  type GraphFlowNode,
+  type GraphNodeData,
+  nodeTypes,
+  toFlow,
+} from "./graph-node";
+import { NodePanel } from "./node-panel";
+import { PublishDialog } from "./publish-dialog";
+import { TriggerSheet } from "./trigger-sheet";
+
+const shortId = () => crypto.randomUUID().slice(0, 8);
+
+/**
+ * The canvas: a palette from the step library, the graph on React Flow, an
+ * inspector for the selected node, and the status of a run's nodes on top,
+ * live over `workflow-run:<id>`.
+ */
+export function WorkflowCanvas({ detail }: { detail: BuilderDetail }) {
+  const t = useExtracted("workflows");
+  const format = useFormatter();
+  const errorMessage = useErrorMessage();
+  const [initial] = useState(() => toFlow(detail.graph));
+
+  const [nodes, setNodes, onNodesChange] = useNodesState<GraphFlowNode>(
+    initial.nodes,
+  );
+
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initial.edges);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [runId, setRunId] = useState<string | null>(null);
+  const [input, setInput] = useState("");
+
+  const { runs } = useWorkflowRuns({
+    tenant: detail.tenant,
+    schema: "api",
+    limit: 50,
+  });
+
+  const overlay = useWorkflowCanvasRun(runId, { schema: "api" });
+
+  const definitionRuns = (runs ?? []).filter(
+    (run) => run.attributes["bs.definition"] === detail.definition.id,
+  );
+
+  const graph = fromFlow(nodes, edges);
+  const draft = { nodes: [...graph.nodes], edges: [...graph.edges] };
+
+  const onError = (error: Parameters<typeof errorMessage>[0]) => {
+    toast.error(errorMessage(error));
+  };
+
+  const save = useAction(saveDraft, {
+    onError,
+    onSuccess: () => {
+      toast.success(t("Draft saved"));
+    },
+  });
+
+  const publish = useAction(publishGraph, {
+    onError,
+    onSuccess: (version) => {
+      toast.success(
+        t("Version {version} published", { version: String(version) }),
+      );
+    },
+  });
+
+  const run = useAction(runDefinition, {
+    onError,
+    onSuccess: (id) => {
+      setRunId(id);
+    },
+  });
+
+  const decide = useAction(decideNode, { onError });
+
+  const addNode = (kind: WorkflowNodeKind, step?: string, title?: string) => {
+    const id = `${step ?? kind}-${shortId()}`.replaceAll(".", "-");
+    const lowest = Math.max(0, ...nodes.map((node) => node.position.y));
+
+    const data: GraphNodeData = {
+      kind,
+      label: title ?? kind,
+      config: kind === "sleep" ? { duration: "1m" } : {},
+    };
+
+    setNodes((current) => [
+      ...current,
+      {
+        id,
+        type: "graph",
+        position: { x: 0, y: lowest + 120 },
+        data: step === undefined ? data : { ...data, step },
+      },
+    ]);
+    setSelected(id);
+  };
+
+  const onConnect = (connection: Connection) => {
+    setEdges((current) =>
+      addEdge(
+        connection.sourceHandle
+          ? {
+              ...connection,
+              id: `e-${shortId()}`,
+              label: connection.sourceHandle,
+            }
+          : { ...connection, id: `e-${shortId()}` },
+        current,
+      ),
+    );
+  };
+
+  const updateNode = (id: string, data: Partial<GraphNodeData>) => {
+    setNodes((current) =>
+      current.map((node) =>
+        node.id === id ? { ...node, data: { ...node.data, ...data } } : node,
+      ),
+    );
+  };
+
+  const removeNode = (id: string) => {
+    setNodes((current) => current.filter((node) => node.id !== id));
+    setEdges((current) =>
+      current.filter((edge) => edge.source !== id && edge.target !== id),
+    );
+    setSelected(null);
+  };
+
+  const shown =
+    runId === null
+      ? nodes
+      : nodes.map((node) => {
+          const status = overlay.nodes[node.id]?.status;
+
+          return status === undefined
+            ? node
+            : { ...node, data: { ...node.data, status } };
+        });
+
+  const selectedNode = nodes.find((node) => node.id === selected);
+  const runOpen = overlay.run !== undefined && !isFinished(overlay.run.status);
+  const definition = detail.definition.id;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={save.pending}
+          onClick={() => {
+            void save.run({ definition, graph: draft });
+          }}
+        >
+          <SaveIcon />
+          {t("Save draft")}
+        </Button>
+        <PublishDialog
+          published={detail.published}
+          graph={graph}
+          pending={publish.pending}
+          onPublish={() => {
+            void publish.run({ definition, graph: draft });
+          }}
+        />
+        <TriggerSheet definition={definition} triggers={detail.triggers} />
+        <CredentialSheet credentials={detail.credentials} />
+        <span className="grow" />
+        <Input
+          value={input}
+          onChange={(event) => {
+            setInput(event.target.value);
+          }}
+          placeholder={t("Input text")}
+          aria-label={t("Input text")}
+          className="w-56"
+        />
+        <Button
+          size="sm"
+          disabled={run.pending || detail.published === null}
+          onClick={() => {
+            void run.run({ definition, text: input });
+          }}
+        >
+          <PlayIcon />
+          {t("Run")}
+        </Button>
+        <Select
+          value={runId}
+          onValueChange={(value) => {
+            setRunId(value);
+          }}
+          items={definitionRuns.map((item) => ({
+            value: item.externalId,
+            label: format.dateTime(new Date(item.createdAt.epochMilliseconds), {
+              timeStyle: "medium",
+            }),
+          }))}
+        >
+          <SelectTrigger className="w-44" aria-label={t("Show a run")}>
+            <SelectValue placeholder={t("Show a run")} />
+          </SelectTrigger>
+          <SelectContent>
+            {definitionRuns.map((item) => (
+              <SelectItem key={item.id} value={item.externalId}>
+                {format.dateTime(new Date(item.createdAt.epochMilliseconds), {
+                  timeStyle: "medium",
+                })}{" "}
+                · {item.status}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {overlay.run ? (
+          <Badge variant={statusVariant(overlay.run.status)}>
+            {overlay.run.status}
+          </Badge>
+        ) : null}
+      </div>
+      <div className="flex gap-3">
+        <nav
+          className="w-48 shrink-0 space-y-1 rounded-lg border bg-card p-2"
+          aria-label={t("Palette")}
+        >
+          {detail.steps.map((step) => (
+            <Button
+              key={step.name}
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start"
+              title={step.description}
+              onClick={() => {
+                addNode("step", step.name, step.title);
+              }}
+            >
+              <PlusIcon />
+              <span className="truncate">{step.title}</span>
+            </Button>
+          ))}
+          {(
+            [
+              ["sleep", t("Wait")],
+              ["approval", t("Approval")],
+              ["condition", t("Condition")],
+            ] as const
+          ).map(([kind, label]) => (
+            <Button
+              key={kind}
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start"
+              onClick={() => {
+                addNode(kind, undefined, label);
+              }}
+            >
+              <PlusIcon />
+              {label}
+            </Button>
+          ))}
+        </nav>
+        <div
+          className="h-150 min-w-0 flex-1 rounded-lg border bg-muted/30"
+          data-testid="workflow-canvas"
+        >
+          <ReactFlow
+            nodes={shown}
+            edges={edges}
+            nodeTypes={nodeTypes}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onNodeClick={(_, node) => {
+              setSelected(node.id);
+            }}
+            onPaneClick={() => {
+              setSelected(null);
+            }}
+            fitView
+          >
+            <Background />
+            <Controls />
+          </ReactFlow>
+        </div>
+        {selectedNode ? (
+          <NodePanel
+            key={selectedNode.id}
+            node={selectedNode}
+            steps={detail.steps}
+            credentials={detail.credentials}
+            canDecide={runOpen}
+            onChange={(data) => {
+              updateNode(selectedNode.id, data);
+            }}
+            onRemove={() => {
+              removeNode(selectedNode.id);
+            }}
+            onDecide={(approved) => {
+              if (runId === null) {
+                return;
+              }
+
+              void decide.run({ run: runId, node: selectedNode.id, approved });
+            }}
+          />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+```
+
+## Workflow runs
+
+The latest workflow runs with their status, which update while a run is in progress. It calls `useWorkflowRuns` from `better-supabase/blocks/workflows/react`; the [workflows block](https://bettersupabase.com/blocks/workflows) must be installed (`npx better-supabase sql add workflows`). Page: https://bettersupabase.com/recipes/workflow-runs.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add badge empty skeleton table
+```
+
+```tsx title="apps/examples/nextjs/src/features/workflows/components/workflow-runs.tsx"
+"use client";
+
+import { useWorkflowRuns } from "better-supabase/blocks/workflows/react";
+import { WorkflowIcon } from "lucide-react";
+import { useExtracted, useFormatter } from "next-intl";
+
+import { Badge } from "@/components/ui/badge";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Link } from "@/i18n/navigation";
+
+import { statusVariant, workflowName } from "../workflow-labels";
+
+/**
+ * The organization's runs from the workflows block, loaded again when a
+ * run changes status (`workflow-runs:<tenant>`).
+ */
+export function WorkflowRuns({ tenant }: { tenant: string | null }) {
+  const t = useExtracted("workflows");
+  const format = useFormatter();
+
+  const { runs, status } = useWorkflowRuns({
+    tenant,
+    schema: "api",
+    limit: 50,
+  });
+
+  if (runs === undefined) {
+    return <WorkflowRunsSkeleton />;
+  }
+
+  if (runs.length === 0) {
+    return (
+      <Empty className="border">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <WorkflowIcon />
+          </EmptyMedia>
+          <EmptyTitle>{t("No runs yet")}</EmptyTitle>
+          <EmptyDescription>
+            {t("Start a sample workflow to see its run here.")}
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    );
+  }
+
+  return (
+    <div
+      className="rounded-xl border"
+      data-testid="workflow-runs"
+      data-status={status}
+    >
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>{t("Workflow")}</TableHead>
+            <TableHead>{t("Status")}</TableHead>
+            <TableHead className="text-right">{t("Started")}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {runs.map((run) => (
+            <TableRow key={run.id}>
+              <TableCell>
+                <Link href={`/workflows/${run.id}`} className="font-medium">
+                  {workflowName(run.definition)}
+                </Link>
+              </TableCell>
+              <TableCell>
+                <Badge variant={statusVariant(run.status)}>{run.status}</Badge>
+              </TableCell>
+              <TableCell className="text-right text-xs text-muted-foreground tabular-nums">
+                {format.dateTime(new Date(run.createdAt.epochMilliseconds), {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                })}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+export function WorkflowRunsSkeleton() {
+  return (
+    <div className="space-y-2" aria-busy="true">
+      {Array.from({ length: 4 }, (_, index) => (
+        <Skeleton key={index} className="h-11 w-full" />
+      ))}
+    </div>
+  );
+}
+```
+
+## Connector credentials
+
+A sheet that stores a connector credential encrypted and revokes it, without reading the secret back. It loads its data on the server through the block's client; the [connectors](https://bettersupabase.com/blocks/connectors), [credentials](https://bettersupabase.com/blocks/credentials) blocks must be installed (`npx better-supabase sql add connectors credentials`). Page: https://bettersupabase.com/recipes/connector-setup.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add button field input sheet
+```
+
+```tsx title="apps/examples/nextjs/src/features/workflows/builder/components/credential-sheet.tsx"
+"use client";
+
+import { useAction } from "better-supabase/react";
+import { KeySquareIcon, Trash2Icon } from "lucide-react";
+import { useExtracted } from "next-intl";
+import { useId } from "react";
+import { toast } from "sonner";
+
+import { Button } from "@/components/ui/button";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { useErrorMessage } from "@/lib/use-error-message";
+
+import type { CredentialRow } from "../builder-queries";
+
+import { createCredential, revokeCredential } from "../builder-actions";
+
+/** The organization's Slack credentials: the token goes to Vault, the row keeps a reference. */
+export function CredentialSheet({
+  credentials,
+}: {
+  credentials: readonly CredentialRow[];
+}) {
+  const t = useExtracted("workflows");
+  const id = useId();
+  const errorMessage = useErrorMessage();
+
+  const onError = (error: Parameters<typeof errorMessage>[0]) => {
+    toast.error(errorMessage(error));
+  };
+
+  const create = useAction(createCredential, {
+    onError,
+    onSuccess: () => {
+      toast.success(t("Credential saved"));
+    },
+  });
+
+  const revoke = useAction(revokeCredential, { onError });
+
+  return (
+    <Sheet>
+      <SheetTrigger render={<Button variant="outline" size="sm" />}>
+        <KeySquareIcon />
+        {t("Credentials")}
+      </SheetTrigger>
+      <SheetContent className="gap-6 p-6">
+        <SheetHeader className="p-0">
+          <SheetTitle>{t("Credentials")}</SheetTitle>
+          <SheetDescription>
+            {t(
+              "Slack bot tokens for the Post to Slack step. The token is stored in Vault and never shown again.",
+            )}
+          </SheetDescription>
+        </SheetHeader>
+        <ul className="space-y-2">
+          {credentials.map((credential) => (
+            <li
+              key={credential.id}
+              className="flex items-center justify-between gap-2 text-sm"
+            >
+              <span className="truncate">{credential.name}</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label={t("Revoke")}
+                disabled={revoke.pending}
+                onClick={() => {
+                  void revoke.run({ id: credential.id });
+                }}
+              >
+                <Trash2Icon />
+              </Button>
+            </li>
+          ))}
+        </ul>
+        <form
+          className="space-y-3"
+          action={(form) => {
+            void create.run({
+              name: String(form.get("name") ?? ""),
+              secret: String(form.get("secret") ?? ""),
+            });
+          }}
+        >
+          <Field>
+            <FieldLabel htmlFor={`${id}-name`}>{t("Name")}</FieldLabel>
+            <Input id={`${id}-name`} name="name" required maxLength={100} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor={`${id}-secret`}>{t("Bot token")}</FieldLabel>
+            <Input
+              id={`${id}-secret`}
+              name="secret"
+              type="password"
+              required
+              autoComplete="off"
+              placeholder="xoxb-…"
+            />
+          </Field>
+          <Button type="submit" disabled={create.pending}>
+            {t("Add credential")}
+          </Button>
+        </form>
+      </SheetContent>
+    </Sheet>
+  );
+}
+```
+
+## Support session banner
+
+A banner that tells the user a support agent is viewing the app as them, rendered on the server. It loads its data on the server through the block's client; the [support-sessions block](https://bettersupabase.com/blocks/support-sessions) must be installed (`npx better-supabase sql add support-sessions`). Page: https://bettersupabase.com/recipes/support-session-banner.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add alert
+```
+
+```tsx title="apps/examples/nextjs/src/features/user/components/impersonation-banner.tsx"
+import { LifeBuoyIcon } from "lucide-react";
+import { getExtracted } from "next-intl/server";
+
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+
+import { getSession } from "../user-queries";
+
+/**
+ * Shown during a support session (`bs.startSupport`): staff see the app as
+ * the user, and the audit log records who acted. Render inside `<Suspense>`.
+ */
+export async function ImpersonationBanner() {
+  const [session, t] = await Promise.all([getSession(), getExtracted("user")]);
+
+  if (session.kind !== "user" || !session.impersonator) {
+    return null;
+  }
+
+  const { id, reason } = session.impersonator;
+
+  return (
+    <Alert variant="destructive" data-testid="impersonation">
+      <LifeBuoyIcon />
+      <AlertTitle>{t("Support session")}</AlertTitle>
+      <AlertDescription>
+        {reason
+          ? t("Signed in by support ({id}): {reason}", { id, reason })
+          : t("Signed in by support ({id}).", { id })}
+      </AlertDescription>
+    </Alert>
+  );
+}
+```
+
+## Planned
+
+These have no example code yet. Build them from the block's TypeScript client in a server action or loader, or from its hook where it has one.
+
+| Recipe                   | Blocks                                | Waits for                                                                                              |
+| ------------------------ | ------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Sessions list            | `sessions`                            | the sessions block in the example app's database, and a page that uses it                              |
+| SSO connection settings  | `sso`                                 | the sso block in the example app's database, and a page that uses it                                   |
+| Access requests inbox    | `access-requests`                     | the access-requests block in the example app's database, and a page that uses it                       |
+| Grants editor            | `grants`                              | the grants block in the example app's database, and a page that uses it                                |
+| Reactions bar            | `reactions`                           | the reactions block in the example app's database, and a page that uses it                             |
+| Share link dialog        | `share-links`                         | the share-links block in the example app's database, and a page that uses it                           |
+| Attachments uploader     | `attachments`                         | the attachments block in the example app's database, and a page that uses it                           |
+| Waitlist signup          | `waitlist`                            | the waitlist block in the example app's database, and a page that uses it                              |
+| Contact detail           | `parties`                             | the parties block in the example app's database, and a page that uses it                               |
+| Deal board               | `deals`, `pipelines`                  | the deals and pipelines blocks in the example app's database, and a page that uses them                |
+| Activity timeline        | `engagements`                         | the engagements block in the example app's database, and a page that uses it                           |
+| Quote builder            | `quotes`                              | the quotes block in the example app's database, and a page that uses it                                |
+| Targets progress         | `targets`                             | the targets block in the example app's database, and a page that uses it                               |
+| Work item board          | `work-items`, `state-machine`, `rank` | the work-items, state-machine and rank blocks in the example app's database, and a page that uses them |
+| Work item grid           | `work-items`, `saved-views`           | the work-items and saved-views blocks in the example app's database, and a page that uses them         |
+| Approvals queue          | `approvals`                           | the approvals block in the example app's database, and a page that uses it                             |
+| SLA badges               | `sla`                                 | the sla block in the example app's database, and a page that uses it                                   |
+| Custom fields editor     | `custom-fields`                       | the custom-fields block in the example app's database, and a page that uses it                         |
+| Bulk action bar          | `bulk`                                | the bulk block in the example app's database, and a page that uses it                                  |
+| Undo toast               | `trash`                               | the trash block in the example app's database, and a page that uses it                                 |
+| Related items panel      | `relations`                           | the relations block in the example app's database, and a page that uses it                             |
+| Employee directory       | `employees`                           | the employees block in the example app's database, and a page that uses it                             |
+| Hiring board             | `hiring`                              | the hiring block in the example app's database, and a page that uses it                                |
+| Timesheet                | `time-tracking`                       | the time-tracking block in the example app's database, and a page that uses it                         |
+| Invoices table           | `invoices`                            | the invoices block in the example app's database, and a page that uses it                              |
+| Product catalog grid     | `catalog`                             | the catalog block in the example app's database, and a page that uses it                               |
+| Inventory table          | `inventory`                           | the inventory block in the example app's database, and a page that uses it                             |
+| Order detail             | `orders`                              | the orders block in the example app's database, and a page that uses it                                |
+| Promotion code field     | `promotions`                          | the promotions block in the example app's database, and a page that uses it                            |
+| Calendar view            | `calendar`                            | the calendar block in the example app's database, and a page that uses it                              |
+| Booking page             | `bookings`                            | the bookings block in the example app's database, and a page that uses it                              |
+| Availability editor      | `bookings`                            | the bookings block in the example app's database, and a page that uses it                              |
+| Reminders list           | `reminders`                           | the reminders block in the example app's database, and a page that uses it                             |
+| Drive explorer           | `drive`, `drive-files`                | the drive and drive-files blocks in the example app's database, and a page that uses them              |
+| Version history          | `versions`                            | the versions block in the example app's database, and a page that uses it                              |
+| Trash bin                | `trash`                               | the trash block in the example app's database, and a page that uses it                                 |
+| Form builder             | `forms`                               | the forms block in the example app's database, and a page that uses it                                 |
+| CSV import wizard        | `imports`                             | the imports block in the example app's database, and a page that uses it                               |
+| Templates gallery        | `templates`                           | the templates block in the example app's database, and a page that uses it                             |
+| Document editor          | `documents`                           | the documents block in the example app's database, and a page that uses it                             |
+| Webhook endpoints        | `webhooks-out`                        | the webhooks-out block in the example app's database, and a page that uses it                          |
+| Service principals table | `service-principals`                  | the service-principals block in the example app's database, and a page that uses it                    |
+| Signing keys rotation    | `signing-keys`                        | the signing-keys block in the example app's database, and a page that uses it                          |
+| Data export and delete   | `data-lifecycle`                      | the data-lifecycle block in the example app's database, and a page that uses it                        |

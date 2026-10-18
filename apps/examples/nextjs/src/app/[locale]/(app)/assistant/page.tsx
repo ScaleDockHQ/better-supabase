@@ -22,9 +22,11 @@ export default function AssistantPage() {
           "Chats on the ai-chat block. A reload resumes an answer that is still streaming.",
         )}
       />
-      <Suspense fallback={<StoredChatSkeleton />}>
-        <NewChat />
-      </Suspense>
+      <div data-recipe="chat-with-history">
+        <Suspense fallback={<StoredChatSkeleton />}>
+          <NewChat />
+        </Suspense>
+      </div>
       <Suspense fallback={<ChatListSkeleton />}>
         <ChatList />
       </Suspense>

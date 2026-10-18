@@ -20,9 +20,11 @@ export default function InboxPage() {
           "Customer conversations from the Help widget and chat channels, kept live over Realtime.",
         )}
       />
-      <Suspense fallback={<InboxListSkeleton />}>
-        <InboxList />
-      </Suspense>
+      <div data-recipe="inbox-threads">
+        <Suspense fallback={<InboxListSkeleton />}>
+          <InboxList />
+        </Suspense>
+      </div>
     </>
   );
 }
