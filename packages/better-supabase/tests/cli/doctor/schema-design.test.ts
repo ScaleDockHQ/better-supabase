@@ -348,6 +348,70 @@ describe("schema design rules", () => {
     ).toEqual([]);
   });
 
+  it("reports app table columns that drifted from appTables (BS228)", async () => {
+    const snap = snapshot((tables) => {
+      const notes = table(tables, "notes");
+      notes.columns = [
+        ...notes.columns,
+        column({ name: "meta" }),
+        column({
+          name: "rating",
+          udt: "int4",
+          format: "int4",
+          nullable: false,
+        }),
+      ];
+    });
+
+    const withTables = (
+      columns: Record<
+        string,
+        { type: "jsonb" | "text" | "integer"; nullable?: boolean }
+      >,
+    ): DoctorContext =>
+      context(snap, {
+        config: resolveConfig(
+          { plugins: { tenant: true }, appTables: { notes: { columns } } },
+          "/project",
+        ),
+      });
+
+    expect(
+      await run(
+        withTables({
+          meta: { type: "jsonb" },
+          rating: { type: "integer", nullable: false },
+          later: { type: "text" },
+        }),
+        "BS228",
+      ),
+    ).toEqual([]);
+
+    expect(
+      await run(
+        withTables({
+          meta: { type: "text", nullable: false },
+          rating: { type: "integer" },
+        }),
+        "BS228",
+      ),
+    ).toMatchObject([
+      {
+        severity: "warning",
+        target: "public.notes.meta",
+        message: expect.stringContaining(
+          "is jsonb in the database and text in appTables, and is nullable in the database and required in appTables",
+        ),
+      },
+      {
+        target: "public.notes.rating",
+        message: expect.stringContaining(
+          "is not null in the database and nullable in appTables",
+        ),
+      },
+    ]);
+  });
+
   it("reports offset pagination and exact counts (BS227)", async () => {
     const sources = [
       {
