@@ -20,4 +20,5 @@ export const catalogBlock: BlockOf<
   events: catalogEvents,
   create: createCatalog,
   category: "commerce",
+  recipes: ["product-catalog-grid"],
 });

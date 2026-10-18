@@ -20,6 +20,7 @@ export const jobsBlock: BlockOf<"jobs", typeof createJobs> = defineBlock({
   },
   create: createJobs,
   category: "automation",
+  recipes: ["job-runs-table"],
 });
 
 /** The `idempotency` block's manifest (ADR 0029). */

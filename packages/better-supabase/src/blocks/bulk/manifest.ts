@@ -17,4 +17,5 @@ export const bulkBlock: BlockOf<"bulk", typeof createBulk, BulkEvents> =
     events: bulkEvents,
     create: createBulk,
     category: "work",
+    recipes: ["bulk-action-bar"],
   });

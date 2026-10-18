@@ -14,4 +14,5 @@ export const targetsBlock: BlockOf<"targets", typeof createTargets> =
     },
     create: createTargets,
     category: "crm",
+    recipes: ["targets-progress"],
   });

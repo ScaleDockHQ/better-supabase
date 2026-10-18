@@ -18,4 +18,5 @@ export const promotionsBlock: BlockOf<
   events: promotionsEvents,
   create: createPromotions,
   category: "commerce",
+  recipes: ["promotion-code-field"],
 });

@@ -20,4 +20,5 @@ export const inventoryBlock: BlockOf<
   events: inventoryEvents,
   create: createInventory,
   category: "commerce",
+  recipes: ["inventory-table"],
 });

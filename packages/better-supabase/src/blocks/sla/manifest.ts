@@ -17,4 +17,5 @@ export const slaBlock: BlockOf<"sla", typeof createSla, SlaEvents> =
     events: slaEvents,
     create: createSla,
     category: "work",
+    recipes: ["sla-badges"],
   });

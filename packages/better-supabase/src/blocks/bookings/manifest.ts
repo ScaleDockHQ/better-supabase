@@ -21,4 +21,5 @@ export const bookingsBlock: BlockOf<
   create: createBookings,
   client: "bookings",
   category: "scheduling",
+  recipes: ["booking-page", "availability-editor"],
 });

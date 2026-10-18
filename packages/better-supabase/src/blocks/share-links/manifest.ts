@@ -20,4 +20,5 @@ export const shareLinksBlock: BlockOf<
   events: shareLinksEvents,
   create: createShareLinks,
   category: "collaboration",
+  recipes: ["share-link-dialog"],
 });

@@ -20,4 +20,5 @@ export const templatesBlock: BlockOf<
   events: templatesEvents,
   create: createTemplates,
   category: "content",
+  recipes: ["templates-gallery"],
 });

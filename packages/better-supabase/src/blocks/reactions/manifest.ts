@@ -21,4 +21,5 @@ export const reactionsBlock: BlockOf<
   create: createReactions,
   client: "reactions",
   category: "collaboration",
+  recipes: ["reactions-bar"],
 });

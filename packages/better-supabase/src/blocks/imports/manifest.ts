@@ -16,4 +16,5 @@ export const importsBlock: BlockOf<
   events: importsEvents,
   create: createImports,
   category: "content",
+  recipes: ["csv-import-wizard"],
 });

@@ -17,4 +17,5 @@ export const trashBlock: BlockOf<"trash", typeof createTrash, TrashEvents> =
     events: trashEvents,
     create: createTrash,
     category: "content",
+    recipes: ["undo-toast", "trash-bin"],
   });

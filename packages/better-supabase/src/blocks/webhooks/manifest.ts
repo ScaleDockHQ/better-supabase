@@ -21,6 +21,7 @@ export const webhooksBlock: BlockOf<
   events: webhooksEvents,
   create: createWebhooks,
   category: "developer",
+  recipes: ["webhook-endpoints"],
 });
 
 /** The `incoming-webhooks` block's manifest (ADR 0029). */

@@ -20,4 +20,5 @@ export const relationsBlock: BlockOf<
   events: relationsEvents,
   create: createRelations,
   category: "work",
+  recipes: ["related-items-panel"],
 });

@@ -17,4 +17,5 @@ export const ssoBlock: BlockOf<"sso", typeof createSso, SsoEvents> =
     events: ssoEvents,
     create: createSso,
     category: "identity",
+    recipes: ["sso-settings"],
   });

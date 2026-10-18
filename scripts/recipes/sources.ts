@@ -3,37 +3,8 @@
  * is available; the planned ones in `planned.ts` name what they wait for.
  */
 import { PLANNED } from "./planned.ts";
-
-export const WEB_APP = "apps/examples/nextjs";
-export const NATIVE_APP = "apps/examples/expo-powersync";
-
-export interface Side {
-  /** The example file, relative to the repo root. */
-  readonly file: string;
-  /** Web: shadcn components (`npx shadcn add ...`). Native: React Native primitives. */
-  readonly components: readonly string[];
-  /** `@better-supabase/<item>` registry items the snippet imports. */
-  readonly glue: readonly string[];
-}
-
-/** A piece of UI inside a page, or a whole page. */
-export type RecipeKind = "component" | "screen";
-
-export interface RecipeSource {
-  readonly slug: string;
-  readonly title: string;
-  /** The SQL modules the recipe uses. The first one sets its category. */
-  readonly blocks: readonly [string, ...string[]];
-  readonly kind: RecipeKind;
-  readonly description: string;
-  /** The hook the code calls, and the entry it comes from. Server-rendered recipes have none. */
-  readonly hook?: { readonly name: string; readonly entry: string };
-  /** A recipe is available once its web side exists; native is optional. */
-  readonly web?: Side;
-  readonly native?: Side;
-  /** For a planned recipe: what has to ship first. */
-  readonly missing?: string;
-}
+import { SAAS_RECIPES } from "./saas.ts";
+import { NATIVE_APP, type RecipeSource, WEB_APP } from "./types.ts";
 
 export const RECIPES: readonly RecipeSource[] = [
   {
@@ -668,5 +639,6 @@ export const RECIPES: readonly RecipeSource[] = [
       glue: [],
     },
   },
+  ...SAAS_RECIPES,
   ...PLANNED,
 ];

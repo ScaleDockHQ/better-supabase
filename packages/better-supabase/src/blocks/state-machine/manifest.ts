@@ -20,4 +20,5 @@ export const stateMachineBlock: BlockOf<
   events: stateMachineEvents,
   create: createStateMachine,
   category: "work",
+  recipes: ["work-item-board"],
 });

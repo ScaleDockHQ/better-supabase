@@ -20,4 +20,5 @@ export const employeesBlock: BlockOf<
   events: employeesEvents,
   create: createEmployees,
   category: "people",
+  recipes: ["employee-directory"],
 });

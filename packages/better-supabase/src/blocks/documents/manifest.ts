@@ -20,4 +20,5 @@ export const documentsBlock: BlockOf<
   events: documentsEvents,
   create: createDocuments,
   category: "content",
+  recipes: ["document-editor"],
 });

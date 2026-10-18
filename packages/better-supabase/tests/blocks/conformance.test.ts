@@ -16,11 +16,8 @@ import { SQL_MODULES } from "../../src/sql/registry.ts";
 const BLOCKS_DIR = join(import.meta.dirname, "../../src/blocks");
 const SRC_DIR = join(import.meta.dirname, "../../src");
 
-/** The available recipes; the planned ones live in `planned.ts`. */
-const RECIPES = join(
-  import.meta.dirname,
-  "../../../../scripts/recipes/sources.ts",
-);
+/** The recipe lists, available and planned. */
+const RECIPES_DIR = join(import.meta.dirname, "../../../../scripts/recipes");
 
 /** Blocks whose creator is not `create<Name>(options)`. */
 const CREATOR_NAME: readonly string[] = [];
@@ -264,7 +261,10 @@ describe("block manifests", () => {
   });
 
   it("lists the recipes that name the block", () => {
-    const source = readFileSync(RECIPES, "utf-8");
+    const source = readdirSync(RECIPES_DIR)
+      .filter((file) => file.endsWith(".ts"))
+      .map((file) => readFileSync(join(RECIPES_DIR, file), "utf-8"))
+      .join("\n");
 
     const named = [
       ...source.matchAll(

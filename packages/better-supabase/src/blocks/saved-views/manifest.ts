@@ -19,4 +19,5 @@ export const savedViewsBlock: BlockOf<
   create: createSavedViews,
   client: "saved-views",
   category: "work",
+  recipes: ["work-item-grid"],
 });

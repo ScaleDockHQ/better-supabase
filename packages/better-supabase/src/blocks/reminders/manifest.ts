@@ -22,4 +22,5 @@ export const remindersBlock: BlockOf<
   consumes: { notifier: "optional" },
   create: createReminders,
   category: "scheduling",
+  recipes: ["reminders-list"],
 });
