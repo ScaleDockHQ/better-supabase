@@ -226,7 +226,8 @@ begin
 end;
 $$;
 create or replace function ${ctx.fn("share_ai_chat")}(chat uuid, leaf text default null)
-returns jsonb language plpgsql security definer set search_path = '' as $$
+returns jsonb
+language plpgsql security definer set search_path = '' as $$
 declare
   v_tenant ${ctx.idType};
   v_owner uuid;
@@ -248,17 +249,20 @@ end;
 $$;
 ${userGrant(`${ctx.fn("share_ai_chat")}(uuid, text)`)}
 create or replace function ${ctx.fn("revoke_ai_chat_share")}(id uuid)
-returns boolean language plpgsql security definer set search_path = '' as $$
+returns boolean
+language plpgsql security definer set search_path = '' as $$
 begin
   return ${ctx.fn("revoke_share_link")}(revoke_ai_chat_share.id);
 end;
 $$;
 create or replace function ${ctx.fn("list_ai_chat_shares")}(chat uuid)
-returns jsonb language sql stable security definer set search_path = '' as $$
+returns jsonb
+language sql stable security definer set search_path = '' as $$
   select ${ctx.fn("list_share_links")}('ai-chat', list_ai_chat_shares.chat::text)
 $$;
 create or replace function ${ctx.fn("get_shared_ai_chat")}(token text)
-returns jsonb language plpgsql stable security definer set search_path = '' as $$
+returns jsonb
+language plpgsql stable security definer set search_path = '' as $$
 declare
   v_subject text;
   v_leaf text;
