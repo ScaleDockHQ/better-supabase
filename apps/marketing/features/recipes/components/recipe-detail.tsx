@@ -99,7 +99,7 @@ function PlatformSteps({
             <h3 className="text-sm font-semibold">{SNIPPET_LABEL[platform]}</h3>
             <SiteLink
               href={`${site.github}/${sourcePath(side.snippet.file)}`}
-              className="text-xs text-muted-foreground underline transition-colors hover:text-foreground"
+              className="inline-flex min-h-6 items-center text-xs text-muted-foreground underline transition-colors hover:text-foreground"
             >
               View in the example
             </SiteLink>

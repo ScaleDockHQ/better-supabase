@@ -24,7 +24,7 @@ export function Breadcrumbs({ items }: { items: readonly Crumb[] }) {
                   <>
                     <SiteLink
                       href={item.href}
-                      className="transition-colors hover:text-foreground"
+                      className="inline-flex min-h-6 items-center transition-colors hover:text-foreground"
                     >
                       {item.name}
                     </SiteLink>

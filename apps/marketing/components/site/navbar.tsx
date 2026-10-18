@@ -4,6 +4,7 @@ import { siGithub } from "simple-icons";
 import { BrandLogo } from "@/components/site/brand-icons";
 import { LinkButton } from "@/components/site/link-button";
 import { LogoMark } from "@/components/site/logo";
+import { MobileNav } from "@/components/site/mobile-nav";
 import { NavLink } from "@/components/site/nav-link";
 import { navLinks, site } from "@/lib/site";
 
@@ -14,7 +15,7 @@ export function Navbar() {
         <div className="flex items-center gap-6">
           <Link
             href="/"
-            className="flex items-center gap-2 text-sm font-semibold"
+            className="flex h-10 items-center gap-2 text-sm font-semibold"
           >
             <LogoMark />
             {site.name}
@@ -32,17 +33,20 @@ export function Navbar() {
           </nav>
         </div>
         <div className="flex items-center gap-1">
-          <LinkButton
-            variant="ghost"
-            size="icon"
-            href={site.github}
-            aria-label="GitHub repository"
-          >
-            <BrandLogo mark={siGithub} className="size-4" />
-          </LinkButton>
+          <div className="hidden sm:flex">
+            <LinkButton
+              variant="ghost"
+              size="icon"
+              href={site.github}
+              aria-label="GitHub repository"
+            >
+              <BrandLogo mark={siGithub} className="size-4" />
+            </LinkButton>
+          </div>
           <LinkButton size="sm" href={site.getStarted}>
             Get started
           </LinkButton>
+          <MobileNav />
         </div>
       </div>
     </header>
