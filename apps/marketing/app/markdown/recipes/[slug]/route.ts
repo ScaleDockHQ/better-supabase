@@ -9,7 +9,7 @@ export function generateStaticParams(): { slug: string }[] {
 /** `/recipes/<slug>.md`, rewritten here by `proxy.ts`. */
 export async function GET(
   _request: Request,
-  { params }: RouteContext<"/markdown/recipes/[slug]">,
+  { params }: { params: Promise<{ slug: string }> },
 ): Promise<Response> {
   const { slug } = await params;
   const recipe = getRecipe(slug);

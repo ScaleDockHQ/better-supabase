@@ -11,7 +11,7 @@ export function generateStaticParams(): { name: string }[] {
 /** `/blocks/<name>.md`, rewritten here by `proxy.ts`. */
 export async function GET(
   _request: Request,
-  { params }: RouteContext<"/markdown/blocks/[name]">,
+  { params }: { params: Promise<{ name: string }> },
 ): Promise<Response> {
   const { name } = await params;
   const block = getBlock(name);
