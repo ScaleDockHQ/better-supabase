@@ -712,6 +712,54 @@ test.describe("on a phone", () => {
   });
 });
 
+interface AxeFinding {
+  readonly id: string;
+  readonly targets: readonly string[];
+}
+
+for (const colorScheme of ["light", "dark"] as const) {
+  test(`an app table's inspector has no WCAG 2.2 AA violations in the ${colorScheme} theme`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme });
+    await page.goto("/create?preset=saas");
+    await expect(page.locator(".react-flow__node-table").first()).toBeVisible();
+
+    await page
+      .getByRole("toolbar", { name: "Schema tools" })
+      .getByRole("button", { name: "Add table" })
+      .click();
+    const inspector = page.getByRole("dialog", { name: "items" });
+    await inspector.getByRole("tab", { name: "Overview" }).click();
+    const remove = inspector.getByRole("button", { name: "Delete table" });
+    await expect(remove).toBeVisible();
+
+    const audit = async (): Promise<readonly AxeFinding[]> => {
+      const { violations } = await new AxeBuilder({ page })
+        .include('[role="dialog"]')
+        .withTags(WCAG)
+        .analyze();
+
+      return violations.map((violation) => ({
+        id: violation.id,
+        targets: violation.nodes.map((node) => node.target.join(" ")),
+      }));
+    };
+
+    expect(await audit()).toEqual([]);
+
+    // The hover tint is darker, so the button's contrast is checked there too,
+    // once its color transition has finished.
+    await remove.hover();
+    await remove.evaluate(async (element) => {
+      await Promise.all(
+        element.getAnimations().map(async (animation) => animation.finished),
+      );
+    });
+    expect(await audit()).toEqual([]);
+  });
+}
+
 test("the code dialog has no WCAG 2.2 AA violations", async ({ page }) => {
   await page.goto("/create?preset=saas");
   await openCode(page);
