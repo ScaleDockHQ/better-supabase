@@ -672,11 +672,27 @@ function CanvasInner({
       const from = connection.fromNode?.id;
       const to = connection.toNode?.id ?? nodeUnder(event);
 
-      if (from !== undefined && to !== undefined && !to.startsWith("group:")) {
+      if (from === undefined || to === undefined || to.startsWith("group:")) {
+        return;
+      }
+
+      const source = byId.get(from);
+      const target = byId.get(to);
+
+      // A block table can't hold the key, so a drag from it onto one of
+      // your tables puts the key on yours.
+      if (
+        source !== undefined &&
+        target !== undefined &&
+        !isAppTable(source) &&
+        isAppTable(target)
+      ) {
+        addConnection(to, from);
+      } else {
         addConnection(from, to);
       }
     },
-    [addConnection],
+    [addConnection, byId],
   );
 
   const blockDrop = useBlockDrop({
