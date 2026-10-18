@@ -157,6 +157,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0038: outbox, usage history, webhook deliveries and notification delivery events partition by month on opt-in.
 - 0039: the Create page names PermDock as one optional auth choice.
 - 0040: `appTables` renders the app's own tables; a Create design rides on the URL as `&design=`.
+- 0041: Create deploys a preset through a Supabase OAuth app; tokens live in a sealed cookie.
 
 ## Pre-release pins
 

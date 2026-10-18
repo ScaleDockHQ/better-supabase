@@ -46,3 +46,4 @@ add one, and link it from the code or config it explains.
 | [0038](0038-monthly-partitions-for-event-tables.md)   | Partition the outbox, usage history, webhook deliveries and notification delivery events by month on opt-in        |
 | [0039](0039-name-permdock-on-create.md)               | The Create page names PermDock as one optional auth choice                                                         |
 | [0040](0040-app-tables.md)                            | `appTables` renders the app's own tables with scope, RLS and pgTAP; a Create design rides on the URL as `&design=` |
+| [0041](0041-create-deploys-through-supabase-oauth.md) | Create deploys a preset to the visitor's own project through a Supabase OAuth app; tokens live in a sealed cookie  |
