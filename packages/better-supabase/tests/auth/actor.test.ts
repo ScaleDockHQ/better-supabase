@@ -51,9 +51,7 @@ describe("actorOf and delegationOf", () => {
       ok: true,
       actor: { id: oauthClient.client_id, kind: "oauth-client" },
     });
-    expect(delegationOf(oauthClient)).toEqual({
-      scopes: ["openid", "email", "posts:read"],
-    });
+    expect(delegationOf(oauthClient)).toEqual({ scopes: ["posts:read"] });
   });
 
   it("takes the outermost sub of an act chain as the current actor", () => {
@@ -131,13 +129,53 @@ describe("actorOf and delegationOf", () => {
     expect(delegationOf({ scope: "  " })).toBeUndefined();
     expect(actorOf(base)).toEqual({ ok: true });
   });
+
+  it("leaves out identity scopes but keeps the delegation", () => {
+    expect(
+      delegationOf({ scope: "openid profile phone address offline_access" }),
+    ).toEqual({ scopes: [] });
+    expect(delegationOf({ scope: ["email", "posts:write"] })).toEqual({
+      scopes: ["posts:write"],
+    });
+  });
+
+  it("keeps an agent on an identity-only token limited to its scopes", () => {
+    const session = toSession(
+      user({
+        ...base,
+        scope: "openid email",
+        act: { kind: "agent", sub: "agent-7" },
+      }),
+    );
+
+    expect(session).toMatchObject({
+      actor: { kind: "agent" },
+      delegation: { scopes: [] },
+    });
+  });
+
+  it("makes toSession refuse a malformed chain on a hand-built state", () => {
+    for (const act of [
+      { kind: "agent", sub: "a", session_id: "s1" },
+      { kind: "agent", sub: "a", tools: [""] },
+      { kind: "agent", sub: "a", tools: "search" },
+      { kind: "agent", sub: "a", read_only: "true" },
+      { sub: "a", session_id: "s1" },
+    ]) {
+      expect(toSession(user({ ...base, act }))).toMatchObject({
+        kind: "invalid",
+        reason: "actor",
+        error: { code: "ACTOR_INVALID" },
+      });
+    }
+  });
 });
 
 describe("session.actor and session.delegation", () => {
   it("follow the claim fixtures", () => {
     expect(toSession(user(oauthClient))).toMatchObject({
       actor: { id: oauthClient.client_id, kind: "oauth-client" },
-      delegation: { scopes: ["openid", "email", "posts:read"] },
+      delegation: { scopes: ["posts:read"] },
     });
     expect(toSession(user(actChain))).toMatchObject({
       actor: { id: "agent-runner", kind: "oauth-client" },

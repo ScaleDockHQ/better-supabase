@@ -39,10 +39,16 @@ export { impersonatorOf } from "./impersonation.ts";
 
 export type { ImpersonationOptions, Impersonator } from "./impersonation.ts";
 
-export { agentClaims } from "./actor.ts";
+export {
+  actorOf,
+  agentClaims,
+  delegationOf,
+  IDENTITY_SCOPES,
+} from "./actor.ts";
 
 export type {
   ActClaim,
+  ActorOutcome,
   AgentActOptions,
   SessionActor,
   SessionDelegation,

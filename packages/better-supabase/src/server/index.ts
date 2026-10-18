@@ -169,6 +169,7 @@ export type { ServerCore } from "./entries/core.ts";
 
 export {
   aalOf,
+  actorOf,
   agentClaims,
   amrOf,
   AUTH_CACHE_HEADERS,
@@ -177,6 +178,8 @@ export {
   checkSession,
   clearSessionCookies,
   clientIp,
+  delegationOf,
+  IDENTITY_SCOPES,
   impersonatorOf,
   readSession,
   refreshSession,
@@ -190,6 +193,7 @@ export {
 export type {
   Aal,
   ActClaim,
+  ActorOutcome,
   AgentActOptions,
   AmrEntry,
   AuthResolution,

@@ -1,16 +1,18 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   applyEnvironment,
+  databaseUrl,
   discoverConfig,
   loadConfig,
 } from "../../src/cli/config.ts";
 import { configEnvironment } from "../../src/cli/env.ts";
 import { run } from "../../src/cli/run.ts";
 import { findRepoRoot } from "../../src/cli/supabase-toml.ts";
+import { resolveConfig } from "../../src/config/resolve.ts";
 
 describe("config discovery", () => {
   let repo: string;
@@ -195,5 +197,78 @@ describe("config environments", () => {
       /^# better-supabase\.config\.json \(environment: ci\)/,
     );
     expect(result.stdout).toContain('"format": "sarif"');
+  });
+});
+
+describe("databaseUrl", () => {
+  let root = "";
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "better-supabase-db-url-"));
+    await mkdir(join(root, "supabase"));
+  });
+
+  afterEach(() => rm(root, { recursive: true, force: true }));
+
+  const stackUrl = "postgresql://postgres:postgres@127.0.0.1:61234/postgres";
+
+  /** A `supabase` binary whose status reports `stackUrl`. */
+  async function fakeSupabase(): Promise<string> {
+    const bin = join(root, "fake-supabase");
+    await writeFile(bin, `#!/bin/sh\necho '{"DB_URL":"${stackUrl}"}'\n`);
+    await chmod(bin, 0o755);
+
+    return bin;
+  }
+
+  const toml = (contents: string) =>
+    writeFile(join(root, "supabase/config.toml"), contents);
+
+  it("prefers stdin, then the config, then $DATABASE_URL, then $SUPABASE_DB_URL", async () => {
+    const bin = await fakeSupabase();
+    await toml('project_id = "app"\n');
+
+    const config = resolveConfig({}, root);
+
+    const withUrl = resolveConfig(
+      { source: { dbUrl: "postgres://config" } },
+      root,
+    );
+
+    const env = {
+      SUPABASE_BIN: bin,
+      DATABASE_URL: "postgres://database-url",
+      SUPABASE_DB_URL: "postgres://supabase-db-url",
+    };
+
+    expect(await databaseUrl(withUrl, env, "postgres://stdin")).toBe(
+      "postgres://stdin",
+    );
+    expect(await databaseUrl(withUrl, env)).toBe("postgres://config");
+    expect(await databaseUrl(config, env)).toBe("postgres://database-url");
+    expect(
+      await databaseUrl(config, {
+        SUPABASE_BIN: bin,
+        SUPABASE_DB_URL: "postgres://supabase-db-url",
+      }),
+    ).toBe("postgres://supabase-db-url");
+  });
+
+  it("reads supabase status when config.toml sets no db port", async () => {
+    const bin = await fakeSupabase();
+    await toml('project_id = "app"\n[experimental]\nstack = true\n');
+
+    expect(
+      await databaseUrl(resolveConfig({}, root), { SUPABASE_BIN: bin }),
+    ).toBe(stackUrl);
+  });
+
+  it("uses the [db] port from config.toml before the stack", async () => {
+    const bin = await fakeSupabase();
+    await toml('project_id = "app"\n[db]\nport = 55432\n');
+
+    expect(
+      await databaseUrl(resolveConfig({}, root), { SUPABASE_BIN: bin }),
+    ).toBe("postgresql://postgres:postgres@127.0.0.1:55432/postgres");
   });
 });

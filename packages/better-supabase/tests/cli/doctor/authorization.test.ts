@@ -855,3 +855,143 @@ describe("BS415", () => {
     expect(await findings("BS415", {})).toEqual([]);
   });
 });
+
+describe("BS413", () => {
+  it("warns when support sessions run under a provider without actorMayWrite", async () => {
+    const config = {
+      authorization: stubProvider,
+      blocks: {
+        access: { model: "provider" as const },
+        "support-sessions": {},
+      },
+    };
+
+    expect(await findings("BS413", config)).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        target: "authorization.functions.actorMayWrite",
+      }),
+    ]);
+    expect(
+      await findings("BS413", {
+        authorization: {
+          ...stubProvider,
+          functions: {
+            ...stubProvider.functions,
+            actorMayWrite: "authz.actor_may_write()",
+          },
+        },
+        blocks: config.blocks,
+      }),
+    ).toEqual([]);
+    expect(
+      await findings("BS413", {
+        authorization: stubProvider,
+        blocks: { access: { model: "provider" } },
+      }),
+    ).toEqual([]);
+  });
+});
+
+describe("BS416", () => {
+  const aiOnly: AuthorizationProvider = {
+    ...stubProvider,
+    functions: {
+      ...stubProvider.functions,
+      isApprover:
+        "({kind} = 'ai-tool' and authz.is_platform('ai.approve') and {requester} <> auth.uid())",
+    },
+  };
+
+  const blocks = {
+    access: { model: "provider" as const },
+    "support-sessions": {},
+  };
+
+  it("warns when isApprover never handles support-session", async () => {
+    expect(await findings("BS416", { authorization: aiOnly, blocks })).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        target: "authorization.functions.isApprover",
+      }),
+    ]);
+  });
+
+  it("passes when the template or a function it calls names support-session", async () => {
+    const inline: AuthorizationProvider = {
+      ...stubProvider,
+      functions: {
+        ...stubProvider.functions,
+        isApprover:
+          "(case {kind} when 'support-session' then authz.is_platform('support.approve') else false end)",
+      },
+    };
+
+    expect(await findings("BS416", { authorization: inline, blocks })).toEqual(
+      [],
+    );
+
+    const delegated: AuthorizationProvider = {
+      ...stubProvider,
+      functions: {
+        ...stubProvider.functions,
+        isApprover: "authz.is_approver({kind}, {subject}, {tenant})",
+      },
+    };
+
+    const snapshot: Snapshot = {
+      ...base,
+      generator: {
+        ...base.generator,
+        functions: [
+          ...base.generator.functions,
+          {
+            ...base.generator.functions[0]!,
+            schema: "authz",
+            name: "is_approver",
+            definition:
+              "select case kind when 'support-session' then true else false end",
+          },
+        ],
+      },
+    };
+
+    expect(
+      await findings(
+        "BS416",
+        { authorization: delegated, blocks },
+        { snapshot },
+      ),
+    ).toEqual([]);
+    expect(
+      await findings("BS416", { authorization: delegated, blocks }),
+    ).toHaveLength(1);
+  });
+
+  it("stays quiet without support sessions, isApprover, the provider model or approvals", async () => {
+    expect(
+      await findings("BS416", {
+        authorization: aiOnly,
+        blocks: { access: { model: "provider" } },
+      }),
+    ).toEqual([]);
+    expect(
+      await findings("BS416", { authorization: stubProvider, blocks }),
+    ).toEqual([]);
+    expect(
+      await findings("BS416", {
+        authorization: aiOnly,
+        blocks: { access: { model: "roles" }, "support-sessions": {} },
+      }),
+    ).toEqual([]);
+    expect(
+      await findings("BS416", {
+        authorization: aiOnly,
+        blocks: {
+          access: { model: "provider" },
+          "support-sessions": { options: { approval: "none" } },
+        },
+      }),
+    ).toEqual([]);
+  });
+});

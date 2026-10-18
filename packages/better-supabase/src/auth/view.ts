@@ -6,6 +6,7 @@ import type { AuthState, InvalidReason } from "./resolve.ts";
 import {
   actorOf,
   delegationOf,
+  invalidActorError,
   type SessionActor,
   type SessionDelegation,
 } from "./actor.ts";
@@ -63,8 +64,10 @@ export type AuthSession<C = unknown, P = unknown> =
        */
       readonly actor?: SessionActor;
       /**
-       * The scopes the user granted an `oauth-client` actor, plus its `act`
-       * chain. Never set for a support or impersonated session.
+       * The scopes the user granted an `oauth-client` actor (or an `agent`
+       * on a token with a `scope`), without the OpenID identity scopes in
+       * `IDENTITY_SCOPES`, plus its `act` chain. Never set for a support or
+       * impersonated session.
        */
       readonly delegation?: SessionDelegation;
     }
@@ -99,9 +102,16 @@ export function isAnonymousUser(claims: Readonly<object>): boolean {
 export function toSession<C, P>(auth: AuthState<C, P>): AuthSession<C, P> {
   switch (auth.kind) {
     case "user": {
-      const impersonator = impersonatorOf(auth.claims);
       const outcome = actorOf(auth.claims);
-      const actor = outcome.ok ? outcome.actor : undefined;
+
+      // The resolver already refuses these; a hand-built AuthState must not
+      // pass as the user alone either.
+      if (!outcome.ok) {
+        return { kind: "invalid", reason: "actor", error: invalidActorError() };
+      }
+
+      const impersonator = impersonatorOf(auth.claims);
+      const actor = outcome.actor;
 
       const client =
         actor?.kind === "oauth-client" ||

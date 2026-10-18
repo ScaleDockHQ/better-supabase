@@ -77,9 +77,14 @@ const alice = await asUser(betterSupabase, {
 
 `supabaseClaimFixtures` holds access-token claims where someone acts for the
 user, with the `actor`, `impersonator` and `delegation` each one reads as:
-`supportSession`, `supportSessionReadOnly`, `impersonation`, `oauthClient`
-and `agentChain`. They follow the claim contract every hook writes, so a test can sign
-one and check a guard or a support banner:
+`supportSession`, `supportSessionReadOnly`, `impersonation`, `oauthClient`,
+`agentChain`, `agentRun` and `agentRunReadOnly`. `supabaseInvalidClaimFixtures`
+holds the claims better-supabase refuses (the 0.5.0 support token and
+malformed `act` levels), each expecting an invalid session with code
+`ACTOR_INVALID`. They follow the claim contract every hook writes, so a test
+can sign one and check a guard or a support banner. A library that reads the
+same claims can call `actorOf` and `delegationOf` from `better-supabase/server`
+on each fixture for a parity test:
 
 ```ts
 import {

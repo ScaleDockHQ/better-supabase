@@ -15,7 +15,7 @@ import type { BetterSupabaseEnv } from "../env/index.ts";
 import { decodeJwtPayload } from "../core/base64.ts";
 import { type DbError, dbError } from "../core/errors.ts";
 import { consoleLogger } from "../core/logger.ts";
-import { actorOf } from "./actor.ts";
+import { actorOf, invalidActorError } from "./actor.ts";
 import { sessionStatus } from "./ended.ts";
 import { clearHs256Keys, isSharedSecretToken, verifyHs256 } from "./hs256.ts";
 import { refreshSession } from "./refresh.ts";
@@ -493,15 +493,7 @@ async function checkClaims(
   }
 
   if (!actorOf(state.claims).ok) {
-    return {
-      kind: "invalid",
-      reason: "actor",
-      error: dbError(
-        "unauthorized",
-        "The token's act claim is not a chain of actors with a sub, or has a kind other than support or impersonation",
-        { code: "ACTOR_INVALID" },
-      ),
-    };
+    return { kind: "invalid", reason: "actor", error: invalidActorError() };
   }
 
   if (!options.claims) {

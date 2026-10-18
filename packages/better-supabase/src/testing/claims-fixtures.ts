@@ -25,7 +25,8 @@ export type SupabaseClaimFixtureName =
   | "impersonation"
   | "oauthClient"
   | "agentChain"
-  | "agentRun";
+  | "agentRun"
+  | "agentRunReadOnly";
 
 const base = {
   sub: "6f1c2c1e-5d0a-4d9e-9a51-6b1f0e7c2a10",
@@ -49,12 +50,22 @@ const agentAct = {
   act: chain,
 } as const;
 
+const agentActReadOnly = {
+  kind: "agent",
+  sub: "agent-7",
+  tools: ["search_knowledge"],
+  read_only: true,
+  act: chain,
+} as const;
+
 /**
  * `supportSession` and `supportSessionReadOnly` are what `supportClaims`
  * mints (`act.kind: "support"`), `impersonation` what `actingAs` mints
  * (`act.kind: "impersonation"`), `oauthClient` a Supabase OAuth server
- * token, `agentChain` an RFC 8693 chain without `kind`, and `agentRun` what
- * `agentClaims` mints over that chain (`act.kind: "agent"`).
+ * token (its identity scopes `openid` and `email` are left out of the
+ * delegation), `agentChain` an RFC 8693 chain without `kind`, and
+ * `agentRun` and `agentRunReadOnly` what `agentClaims` mints over that
+ * chain (`act.kind: "agent"`, with `readOnly: true` for the second).
  */
 export const supabaseClaimFixtures: Readonly<
   Record<SupabaseClaimFixtureName, SupabaseClaimFixture>
@@ -133,7 +144,7 @@ export const supabaseClaimFixtures: Readonly<
     },
     expect: {
       actor: { kind: "oauth-client", id: client },
-      delegation: { scopes: ["openid", "email", "posts:read"] },
+      delegation: { scopes: ["posts:read"] },
     },
   },
   agentChain: {
@@ -155,5 +166,120 @@ export const supabaseClaimFixtures: Readonly<
       },
       delegation: { scopes: ["posts:read"], chain: agentAct },
     },
+  },
+  agentRunReadOnly: {
+    claims: { ...base, scope: "posts:read", act: agentActReadOnly },
+    expect: {
+      actor: {
+        kind: "agent",
+        id: "agent-7",
+        tools: ["search_knowledge"],
+        readOnly: true,
+        chain: agentActReadOnly,
+      },
+      delegation: { scopes: ["posts:read"], chain: agentActReadOnly },
+    },
+  },
+};
+
+/**
+ * Claims whose `act` chain better-supabase refuses, so the session must
+ * not pass as the user alone. `resolveAuth` and `toSession` both answer
+ * with this verdict.
+ */
+export interface SupabaseInvalidClaimFixture {
+  /** Without `iat` and `exp`, so a test signer sets them. */
+  readonly claims: { readonly sub: string; readonly [claim: string]: unknown };
+  readonly expect: {
+    readonly kind: "invalid";
+    readonly reason: "actor";
+    readonly code: "ACTOR_INVALID";
+  };
+}
+
+export type SupabaseInvalidClaimFixtureName =
+  | "legacySupportSession"
+  | "supportReadOnlyNotBoolean"
+  | "agentWithSessionId"
+  | "agentEmptyToolName"
+  | "agentToolsNotArray"
+  | "agentReadOnlyNotBoolean"
+  | "unknownKind"
+  | "levelWithoutSub";
+
+const refused = {
+  kind: "invalid",
+  reason: "actor",
+  code: "ACTOR_INVALID",
+} as const;
+
+/**
+ * `legacySupportSession` is a 0.5.0 support token: `session_id` without
+ * `kind`. better-supabase refuses it instead of reading it as a support
+ * session; mint a new one with `supportClaims`. The others are malformed
+ * levels: a support or agent `read_only` that is not a boolean, an agent
+ * with a `session_id`, an empty tool name or `tools` that is not a list, a
+ * `kind` better-supabase does not know, and a nested level without `sub`.
+ */
+export const supabaseInvalidClaimFixtures: Readonly<
+  Record<SupabaseInvalidClaimFixtureName, SupabaseInvalidClaimFixture>
+> = {
+  legacySupportSession: {
+    claims: {
+      ...base,
+      act: { sub: admin, session_id: supportSessionId, reason: "ticket 42" },
+    },
+    expect: refused,
+  },
+  supportReadOnlyNotBoolean: {
+    claims: {
+      ...base,
+      act: {
+        kind: "support",
+        sub: admin,
+        session_id: supportSessionId,
+        read_only: "false",
+      },
+    },
+    expect: refused,
+  },
+  agentWithSessionId: {
+    claims: {
+      ...base,
+      act: { kind: "agent", sub: "agent-7", session_id: supportSessionId },
+    },
+    expect: refused,
+  },
+  agentEmptyToolName: {
+    claims: {
+      ...base,
+      act: { kind: "agent", sub: "agent-7", tools: ["search_knowledge", ""] },
+    },
+    expect: refused,
+  },
+  agentToolsNotArray: {
+    claims: {
+      ...base,
+      act: { kind: "agent", sub: "agent-7", tools: "search_knowledge" },
+    },
+    expect: refused,
+  },
+  agentReadOnlyNotBoolean: {
+    claims: {
+      ...base,
+      act: { kind: "agent", sub: "agent-7", read_only: "true" },
+    },
+    expect: refused,
+  },
+  unknownKind: {
+    claims: { ...base, act: { kind: "delegate", sub: "agent-7" } },
+    expect: refused,
+  },
+  levelWithoutSub: {
+    claims: {
+      ...base,
+      act: { kind: "agent", sub: "agent-7", act: { client_id: client } },
+    },
+    expect: refused,
   },
 };
