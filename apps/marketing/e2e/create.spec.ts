@@ -633,6 +633,42 @@ test("many-to-many adds a junction table and a tree references itself", async ({
   ).toContainText("parent_id");
 });
 
+test("record features make a table a subject and show on its node", async ({
+  page,
+}) => {
+  await page.goto("/create?preset=saas");
+  await expect(page.locator(".react-flow__node-table").first()).toBeVisible();
+
+  await page
+    .getByRole("toolbar", { name: "Schema tools" })
+    .getByRole("button", { name: "Add table" })
+    .click();
+
+  const inspector = page.getByRole("dialog");
+
+  await inspector.getByRole("tab", { name: "Features" }).click();
+  await inspector.getByRole("switch", { name: "Comments" }).click();
+  await inspector.getByRole("switch", { name: "Manual order" }).click();
+
+  await expect(
+    inspector.getByRole("switch", {
+      name: "Rows are records other blocks can reach",
+    }),
+  ).toBeChecked();
+  await expect(
+    inspector.getByRole("textbox", { name: "Subject type" }),
+  ).toHaveValue("item");
+  await page.keyboard.press("Escape");
+
+  const items = page.locator('.react-flow__node[data-id="public.items"]');
+
+  await expect(
+    items.getByRole("list", { name: "items features" }),
+  ).toContainText("Comments");
+  await expect(items).toContainText("Manual order");
+  await expect(items).toContainText("rank");
+});
+
 test("Add table here on the canvas menu adds a table that covers no other", async ({
   page,
 }) => {

@@ -28,6 +28,8 @@ export interface DesignContextValue {
     readonly commitDrag: () => void;
     /** Changes the design inside the last step, such as placing a dropped block. */
     readonly place: (design: Design) => void;
+    /** A design change and a block list as one step. */
+    readonly step: (design: Design, blocks: Preset["blocks"]) => void;
     /** A changed block list is one step; other preset fields change in place. */
     readonly setPreset: (update: (current: Preset) => Preset) => void;
     readonly undo: () => void;
@@ -63,6 +65,9 @@ export function useDesignState(
       },
       place: (next) => {
         dispatch({ type: "place", design: next });
+      },
+      step: (next, blocks) => {
+        dispatch({ type: "step", design: next, blocks });
       },
       setPreset: (update) => {
         dispatch({ type: "preset", update });
